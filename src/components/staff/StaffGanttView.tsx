@@ -955,161 +955,212 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
   const ganttStaff = sortedStaff.filter((s) => !plannedOnly.includes(s));
 
   return (
-    <div className="space-y-3">
-      {/* Sticky top summary bar */}
-      <div className="sticky top-0 z-30 -mx-1 rounded-xl border bg-card/95 px-4 py-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80">
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Date picker */}
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-lg"
-              onClick={() => onDateChange(subDays(selectedDate, 1))}
-              aria-label="Föregående dag"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 gap-1.5 rounded-lg font-medium capitalize">
-                  <CalendarDays className="h-3.5 w-3.5 text-primary" />
-                  <span>{dateLabel}</span>
-                  <span className="text-xs font-normal text-muted-foreground">· {subLabel}</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={(d) => {
-                    if (d) {
-                      onDateChange(d);
-                      setCalendarOpen(false);
-                    }
-                  }}
-                  locale={sv}
-                  initialFocus
-                  className="pointer-events-auto"
-                />
-                <div className="flex justify-center border-t p-2">
-                  <Button variant="ghost" size="sm" className="rounded-lg text-xs" onClick={() => { onDateChange(new Date()); setCalendarOpen(false); }}>
-                    Idag
+    <div className="flex h-full flex-col">
+      {/* Premium top header */}
+      <div className="shrink-0 border-b border-border/60 bg-card px-5 pt-5 pb-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          {/* Title + datepicker */}
+          <div className="flex flex-col gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Tidrapporter</h1>
+            <div className="inline-flex items-center gap-1 rounded-xl border border-border/70 bg-background px-1.5 py-1 shadow-sm">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-lg"
+                onClick={() => onDateChange(subDays(selectedDate, 1))}
+                aria-label="Föregående dag"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 gap-2 rounded-lg px-3 font-medium capitalize">
+                    <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">{dateLabel}</span>
+                    <span className="text-xs font-normal text-muted-foreground">· {subLabel}</span>
                   </Button>
-                </div>
-              </PopoverContent>
-            </Popover>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-lg"
-              onClick={() => onDateChange(addDays(selectedDate, 1))}
-              aria-label="Nästa dag"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={(d) => {
+                      if (d) {
+                        onDateChange(d);
+                        setCalendarOpen(false);
+                      }
+                    }}
+                    locale={sv}
+                    initialFocus
+                    className="pointer-events-auto"
+                  />
+                  <div className="flex justify-center border-t p-2">
+                    <Button variant="ghost" size="sm" className="rounded-lg text-xs" onClick={() => { onDateChange(new Date()); setCalendarOpen(false); }}>
+                      Idag
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-lg"
+                onClick={() => onDateChange(addDays(selectedDate, 1))}
+                aria-label="Nästa dag"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
-          <div className="hidden h-6 w-px bg-border md:block" />
-
-          {/* KPI chips */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-            <KPI icon={<Briefcase className="h-3.5 w-3.5 text-primary" />} label="Arbete" value={fmtMin(totals.work)} />
-            <KPI icon={<Activity className="h-3.5 w-3.5 text-blue-500" />} label="Resa" value={fmtMin(totals.travel)} />
-            <KPI label="Pågår" value={String(totals.workdayActive)} accent={totals.workdayActive > 0 ? 'emerald' : undefined} />
-            <KPI label="Planerade utan rapport" value={String(totals.plannedNoReport)} accent={totals.plannedNoReport > 0 ? 'amber' : undefined} />
-            {totals.stale > 0 && (
-              <span className="inline-flex items-center gap-1 font-medium text-destructive">
-                <WifiOff className="h-3 w-3" />
-                {totals.stale} tappad signal
-              </span>
-            )}
+          {/* Summary cards */}
+          <div className="flex flex-wrap items-stretch gap-2.5">
+            <SummaryCard
+              icon={<Briefcase className="h-4 w-4" />}
+              iconClass="bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300"
+              value={fmtMin(totals.work)}
+              label="Arbete"
+            />
+            <SummaryCard
+              icon={<Plane className="h-4 w-4" />}
+              iconClass="bg-sky-50 text-sky-600 dark:bg-sky-500/15 dark:text-sky-300"
+              value={fmtMin(totals.travel)}
+              label="Resa"
+            />
+            <SummaryCard
+              icon={<Activity className="h-4 w-4" />}
+              iconClass="bg-violet-50 text-violet-600 dark:bg-violet-500/15 dark:text-violet-300"
+              value={String(totals.workdayActive)}
+              label="Pågår"
+              accent={totals.workdayActive > 0 ? 'emerald' : undefined}
+            />
+            <SummaryCard
+              icon={<CalendarDays className="h-4 w-4" />}
+              iconClass="bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300"
+              value={String(totals.plannedNoReport)}
+              label="Planerade utan rapport"
+              accent={totals.plannedNoReport > 0 ? 'amber' : undefined}
+            />
           </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          {/* Right tools */}
+          <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Sök personal..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-8 w-44 rounded-lg pl-8 text-xs"
+                className="h-9 w-52 rounded-xl border-border/70 bg-background pl-9 text-sm shadow-sm"
               />
             </div>
-            <select
-              value={sortKey}
-              onChange={(e) => setSortKey(e.target.value as SortKey)}
-              className="h-8 rounded-lg border bg-background px-2 text-xs"
-              title="Sortering"
-            >
-              <option value="smart">Smart sortering</option>
-              <option value="name">Namn</option>
-              <option value="start">Starttid</option>
-              <option value="most_work">Mest arbetstid</option>
-              <option value="most_review">Mest osäker tid</option>
-            </select>
+            <div className="relative">
+              <SlidersHorizontal className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <select
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value as SortKey)}
+                className="h-9 appearance-none rounded-xl border border-border/70 bg-background pl-9 pr-8 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                title="Sortering"
+              >
+                <option value="smart">Smart sortering</option>
+                <option value="name">Namn</option>
+                <option value="start">Starttid</option>
+                <option value="most_work">Mest arbetstid</option>
+                <option value="most_review">Mest osäker tid</option>
+              </select>
+              <ChevronRight className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-90 text-muted-foreground" />
+            </div>
             <Button
               size="sm"
               variant="outline"
-              className="h-8 rounded-lg text-xs"
+              className="h-9 rounded-xl border-border/70 bg-background px-3 text-sm shadow-sm"
               onClick={() => setCompactRange((v) => !v)}
               title="Växla tidsintervall"
             >
+              <CalendarDays className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
               {compactRange ? `Auto ${String(startHour).padStart(2,'0')}–${String(endHour).padStart(2,'0')}` : '00–24'}
             </Button>
           </div>
         </div>
 
         {/* Filter chips */}
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          {([
-            { k: 'all', label: 'Alla' },
-            { k: 'live', label: 'Pågående' },
-            { k: 'review', label: 'Behöver granskas' },
-            { k: 'planned_only', label: 'Planerade utan rapport' },
-            { k: 'lager', label: 'Bara lager' },
-            { k: 'project', label: 'Bara projekt' },
-            { k: 'transport', label: 'Bara transport' },
-          ] as { k: FilterKey; label: string }[]).map((f) => (
-            <button
-              key={f.k}
-              type="button"
-              onClick={() => setFilterKey(f.k)}
-              className={cn(
-                'rounded-full border px-2.5 py-0.5 text-[11px] transition-colors',
-                filterKey === f.k
-                  ? 'border-primary/30 bg-primary/10 text-primary'
-                  : 'border-border bg-background text-muted-foreground hover:bg-muted',
-              )}
-            >
-              {f.label}
-            </button>
-          ))}
-          {engineMode === 'actual_model_fallback' && (
-            <span className="ml-2 inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
-              <AlertTriangle className="h-3 w-3" /> fallback motor
-            </span>
-          )}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {([
+              { k: 'all', label: 'Alla' },
+              { k: 'live', label: 'Pågående' },
+              { k: 'review', label: 'Behöver granskas' },
+              { k: 'planned_only', label: 'Planerade utan rapport' },
+              { k: 'lager', label: 'Bara lager' },
+              { k: 'project', label: 'Bara projekt' },
+              { k: 'transport', label: 'Bara transport' },
+            ] as { k: FilterKey; label: string }[]).map((f) => (
+              <button
+                key={f.k}
+                type="button"
+                onClick={() => setFilterKey(f.k)}
+                className={cn(
+                  'inline-flex h-8 items-center rounded-full border px-3.5 text-[12.5px] font-medium transition-colors',
+                  filterKey === f.k
+                    ? 'border-primary/40 bg-primary/10 text-primary shadow-sm'
+                    : 'border-border/70 bg-background text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                )}
+              >
+                {f.label}
+              </button>
+            ))}
+            {engineMode === 'actual_model_fallback' && (
+              <span className="ml-1 inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-[11px] text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                <AlertTriangle className="h-3 w-3" /> fallback motor
+              </span>
+            )}
+            {totals.stale > 0 && (
+              <span className="ml-1 inline-flex items-center gap-1 rounded-full border border-destructive/30 bg-destructive/5 px-2.5 py-0.5 text-[11px] font-medium text-destructive">
+                <WifiOff className="h-3 w-3" />
+                {totals.stale} tappad signal
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+            title="Anpassa vy"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            Anpassa vy
+          </button>
         </div>
       </div>
 
-      {/* Planned but no report — compact group */}
+      {/* Scrollable body */}
+      <div className="flex-1 min-h-0 overflow-auto bg-card">
+        <div className="space-y-4 p-5">
+      {/* Planned but no report — premium summary panel */}
       {plannedOnly.length > 0 && (
-        <div className="rounded-xl border bg-muted/20 px-3 py-2">
-          <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            Planerade – har inte rapporterat tid ({plannedOnly.length})
+        <div className="rounded-xl border border-border/60 bg-muted/30 px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-[13px] font-semibold text-foreground">
+              Planerade – har inte rapporterat tid <span className="text-muted-foreground font-normal">({plannedOnly.length})</span>
+            </div>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border/70 bg-background px-2.5 py-1 text-[11.5px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60"
+            >
+              <Users className="h-3.5 w-3.5" />
+              Visa alla ({plannedOnly.length})
+            </button>
           </div>
-          <ul className="grid gap-x-3 gap-y-0.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <ul className="mt-3 grid gap-x-6 gap-y-1.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {plannedOnly.map((staff) => (
               <li key={staff.id}>
                 <button
                   type="button"
                   onClick={() => setOpenStaffId(staff.id)}
-                  className="flex w-full items-center justify-between rounded-md px-1.5 py-1 text-left text-xs hover:bg-accent/60"
+                  className="flex w-full items-baseline justify-between gap-3 rounded-md px-1.5 py-1 text-left text-[13px] hover:bg-accent/40"
                   title={staff.plannedLabels.join(' · ')}
                 >
-                  <span className="truncate font-medium">{staff.name}</span>
-                  <span className="ml-2 truncate text-[10px] text-muted-foreground">
+                  <span className="truncate font-medium text-foreground">{staff.name}</span>
+                  <span className="ml-2 truncate text-[11px] font-medium text-primary/80">
                     {staff.plannedLabels[0] ?? 'Planerad'}
                   </span>
                 </button>
@@ -1120,7 +1171,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
       )}
 
       {/* Calendar main surface — modern timeline 2030 */}
-      <div className="overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-b from-card to-muted/10 shadow-[0_2px_24px_-8px_hsl(var(--foreground)/0.08)]">
+      <div className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-[0_1px_3px_hsl(var(--foreground)/0.04)]">
         {isLoading ? (
           <div className="space-y-2 p-4">
             {Array.from({ length: 8 }).map((_, i) => (
