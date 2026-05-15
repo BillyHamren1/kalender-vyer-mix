@@ -640,10 +640,18 @@ export function buildLocationTruthFromDayEvidence(
           if (!businessWarnings.includes('planned_target_does_not_match_physical_location')) {
             businessWarnings.push('planned_target_does_not_match_physical_location');
           }
+          // Lager 2.11E — om den planerade targeten faktiskt SAKNAR egen geo
+          // (typiskt assigned LP utan koordinater) ska vi även markera det.
+          const plannedMissingGeo = match.rejectedCandidates.some(
+            (r) => r.assignmentSupports && r.rejectReason === 'large_project_missing_geo',
+          );
+          if (plannedMissingGeo && !businessWarnings.includes('planned_target_missing_geo')) {
+            businessWarnings.push('planned_target_missing_geo');
+          }
         }
       } else if (match.matchedTarget.type === 'needs_location_review') {
-        // Lager 2.10 — mjukare hantering. needs_location_review ska bara
-        // användas om fysisk plats faktiskt är okänd eller om det finns
+        // Lager 2.10/2.11E — mjukare hantering. needs_location_review ska
+        // bara användas om fysisk plats faktiskt är okänd eller om det finns
         // verklig konflikt. Om klustret är stabilt har vi en känd fysisk
         // plats även om LP saknar egen geo → known_address + needs_review.
         if (cluster.isStable) {
@@ -652,6 +660,7 @@ export function buildLocationTruthFromDayEvidence(
           businessWarnings.push('large_project_missing_geo');
           businessWarnings.push('business_target_missing_geo');
           businessWarnings.push('planning_target_missing_geo');
+          businessWarnings.push('assigned_large_project_missing_geo');
           physDiag.clustersWithKnownAddressNoTargetCount++;
           if (phys.centroidOnly) physDiag.centroidOnlyAddressCount++;
         } else {
