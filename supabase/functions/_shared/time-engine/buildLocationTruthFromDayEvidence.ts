@@ -29,6 +29,11 @@
  */
 
 import type { DayEvidence } from './buildDayEvidence.ts';
+import {
+  buildStableLocationClusters,
+  type StableClusterDiagnostics,
+  type StableLocationCluster,
+} from './buildStableLocationClusters.ts';
 
 // ── Output shape ──────────────────────────────────────────────────────────
 
@@ -107,11 +112,18 @@ export interface LocationTruthDiagnostics {
   warnings: string[];
   /** Anledningar till att lagret inte kunde bygga segments (om någon). */
   skippedReason: 'no_pings' | 'no_evidence' | 'not_implemented_yet' | null;
+  /** Lager 2.2: stabila platskluster (diagnostics-only än så länge). */
+  stableClusterDiagnostics: StableClusterDiagnostics | null;
 }
 
 export interface LocationTruthResult {
   segments: LocationTruthSegment[];
   diagnostics: LocationTruthDiagnostics;
+  /**
+   * Lager 2.2: rå klusterlista exponeras för debug/Lager 2.3-konsumtion.
+   * Skrivs INTE till någon downstream-tabell ännu.
+   */
+  stableClusters: StableLocationCluster[];
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -156,6 +168,20 @@ export function buildLocationTruthFromDayEvidence(
   let hasUsableEvidence = false;
 
   const logicPings = dayEvidence.internal?.locationLogicPings ?? [];
+
+  // Lager 2.2: bygg stabila platskluster (diagnostics-only).
+  let stableClusters: StableLocationCluster[] = [];
+  let stableClusterDiagnostics: StableClusterDiagnostics | null = null;
+  try {
+    const result = buildStableLocationClusters(logicPings);
+    stableClusters = result.clusters;
+    stableClusterDiagnostics = result.diagnostics;
+  } catch (err) {
+    warnings.push(
+      `location_truth_stable_clusters_failed:${(err as Error).message}`,
+    );
+  }
+
   if (!Array.isArray(logicPings) || logicPings.length === 0) {
     skippedReason = 'no_pings';
     warnings.push('location_truth_no_location_logic_pings');
@@ -167,7 +193,8 @@ export function buildLocationTruthFromDayEvidence(
     warnings.push('location_truth_no_target_geometry_to_match');
   } else {
     hasUsableEvidence = true;
-    // v1: builder är scaffold — vi bygger inte segments här.
+    // v2.2: vi har kluster men ännu inga segments. Lager 2.3 kommer matcha
+    // klustren mot knownTargets/privateZones.
     skippedReason = 'not_implemented_yet';
     warnings.push('location_truth_builder_scaffold_no_segments_emitted');
   }
@@ -181,7 +208,8 @@ export function buildLocationTruthFromDayEvidence(
     counts,
     warnings,
     skippedReason,
+    stableClusterDiagnostics,
   };
 
-  return { segments: [], diagnostics };
+  return { segments: [], diagnostics, stableClusters };
 }
