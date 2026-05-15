@@ -63,7 +63,6 @@ export function resolvePhysicalLocationForCluster(
   if (
     matchedId &&
     matchedKnownType &&
-    match.matchedTarget.type !== 'unresolved_location' &&
     match.matchedTarget.type !== 'needs_location_review' &&
     match.matchedTarget.type !== 'unknown_area'
   ) {
