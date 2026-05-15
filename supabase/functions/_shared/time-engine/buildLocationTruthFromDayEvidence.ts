@@ -206,6 +206,8 @@ export interface LocationTruthDiagnostics {
   targetMatchDiagnostics: TargetMatchDiagnostics | null;
   /** Lager 2.3b — diagnostics för fysisk-plats vs business-context-uppdelning. */
   physicalLocationDiagnostics: PhysicalLocationDiagnostics | null;
+  /** Lager 2.3c — supplier-match diagnostics. */
+  supplierMatchDiagnostics: SupplierMatchDiagnostics | null;
 }
 
 export interface LocationTruthResult {
