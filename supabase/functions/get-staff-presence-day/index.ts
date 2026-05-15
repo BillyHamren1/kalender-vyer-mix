@@ -1387,9 +1387,25 @@ Deno.serve(async (req) => {
     displayTimelineBlocksV2,
     displayTimelineDayActionsV2,
     displayTimelineDiagnosticsV2,
-    // Lager 3.7 — AI Workday Reviewer (read-only, no-op default).
+  // Lager 3.7 — AI Workday Reviewer (read-only, no-op default).
     aiWorkdayReviewSummary,
     aiWorkdayReviewProposals,
+    // Lager 5.5 — submission-status för dagen (read-only spegel).
+    staffDaySubmissionV2: await (async () => {
+      try {
+        const { data } = await admin
+          .from('staff_day_submissions')
+          .select('id, status, comment, submitted_at, reviewed_at, review_comment, user_edits_json, ai_validation_json')
+          .eq('organization_id', orgId)
+          .eq('staff_id', staffId)
+          .eq('date', date)
+          .maybeSingle();
+        return data ?? null;
+      } catch (e) {
+        console.warn('[presence-day] submission read failed', e);
+        return null;
+      }
+    })(),
 
     targets: resolvedTargetsAll.map((r: any) => ({
       id: r.id,
