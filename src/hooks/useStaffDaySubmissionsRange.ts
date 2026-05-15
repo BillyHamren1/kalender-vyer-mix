@@ -43,7 +43,7 @@ export function useStaffDaySubmissionsRange(
         console.warn('[useStaffDaySubmissionsRange] read failed, returning empty:', error.message);
         return [];
       }
-      return (data ?? []) as StaffDaySubmissionRow[];
+      return ((data ?? []) as unknown) as StaffDaySubmissionRow[];
     },
   });
 }
