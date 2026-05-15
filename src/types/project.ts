@@ -95,6 +95,7 @@ export interface ProjectFile {
 export interface ProjectWithBooking extends Project {
   booking?: {
     id: string;
+    large_project_id?: string | null;
     client: string;
     eventdate: string | null;
     rigdaydate: string | null;
