@@ -329,10 +329,52 @@ function toMs(iso: string | null | undefined): number | null {
   return Number.isFinite(t) ? t : null;
 }
 
+// Lager 3.4 — kontext för movement-fördelning.
+export type MovementSide =
+  | 'work_project'
+  | 'work_large_project'
+  | 'work_booking'
+  | 'work_warehouse'
+  | 'work_supplier'
+  | 'home_or_private'
+  | 'unknown';
+
+export interface MovementContext {
+  fromSide: MovementSide;
+  toSide: MovementSide;
+  distanceMeters: number | null;
+  /** True om detta är dagens första movement från hem → jobb. */
+  isFirstWorkboundCommuteOfDay: boolean;
+  /** True om detta är dagens sista movement från jobb → hem. */
+  isLastHomeboundCommuteOfDay: boolean;
+}
+
+function isWorkSide(s: MovementSide): boolean {
+  return s === 'work_project' || s === 'work_large_project' ||
+    s === 'work_booking' || s === 'work_warehouse' || s === 'work_supplier';
+}
+
+function classifyMovementSide(target: LocationTruthMatchedTargetLike | null): MovementSide {
+  if (!target || !target.targetType) return 'unknown';
+  switch (target.targetType) {
+    case 'project': return 'work_project';
+    case 'large_project': return 'work_large_project';
+    case 'booking': return 'work_booking';
+    case 'warehouse':
+    case 'organization_location': return 'work_warehouse';
+    case 'supplier': return 'work_supplier';
+    case 'private_zone': return 'home_or_private';
+    default: return 'unknown';
+  }
+}
+
+type LocationTruthMatchedTargetLike = { targetType?: LocationTruthTargetType };
+
 /** Beslutar allocationType utifrån LocationTruth-segmentet. */
 function deriveAllocation(
   seg: LocationTruthSegment,
   hasOverlapWithAssignment: boolean,
+  movementCtx?: MovementContext | null,
 ): {
   type: WorkdayAllocationType;
   warnings: WorkdayAllocationWarning[];
@@ -342,13 +384,52 @@ function deriveAllocation(
   const matched = seg.businessContext?.matchedTarget ?? seg.matchedTarget;
   const status = seg.businessContext?.status ?? null;
 
-  // Movement → work_travel om någon ände är arbetsplats inom workday.
+  // ── Lager 3.4 — movement med arbetskontext ─────────────────────────
   if (seg.finalType === 'movement') {
-    return {
-      type: 'work_travel',
-      warnings: ['movement_classified_as_work_travel'],
-      confidence: seg.confidence,
-    };
+    const ctx = movementCtx ?? null;
+    const dist = ctx?.distanceMeters ?? null;
+    const longTravel = dist !== null && dist > 150_000;
+
+    // Saknar tydlig fram/till-anchor → behöver review.
+    if (!ctx || ctx.fromSide === 'unknown' || ctx.toSide === 'unknown') {
+      const w: WorkdayAllocationWarning[] = ['movement_missing_anchor'];
+      if (longTravel) w.push('long_travel_over_150km');
+      return {
+        type: 'needs_work_allocation_review',
+        warnings: w,
+        confidence: 'low',
+      };
+    }
+
+    // Hem ↔ arbetsplats → commute.
+    if (ctx.fromSide === 'home_or_private' && isWorkSide(ctx.toSide)) {
+      const w: WorkdayAllocationWarning[] = [
+        'movement_classified_as_commute',
+        'normally_not_paid_commute',
+      ];
+      if (longTravel) w.push('long_travel_over_150km');
+      return { type: 'commute_travel', warnings: w, confidence: seg.confidence };
+    }
+    if (isWorkSide(ctx.fromSide) && ctx.toSide === 'home_or_private') {
+      const w: WorkdayAllocationWarning[] = [
+        'movement_classified_as_commute',
+        'normally_not_paid_homebound',
+      ];
+      if (longTravel) w.push('long_travel_over_150km');
+      return { type: 'commute_travel', warnings: w, confidence: seg.confidence };
+    }
+
+    // Arbete ↔ arbete → work_travel.
+    if (isWorkSide(ctx.fromSide) && isWorkSide(ctx.toSide)) {
+      const w: WorkdayAllocationWarning[] = ['movement_classified_as_work_travel'];
+      if (longTravel) w.push('long_travel_over_150km');
+      return { type: 'work_travel', warnings: w, confidence: seg.confidence };
+    }
+
+    // Hem ↔ hem eller andra konstellationer → review.
+    const w: WorkdayAllocationWarning[] = ['movement_missing_anchor'];
+    if (longTravel) w.push('long_travel_over_150km');
+    return { type: 'needs_work_allocation_review', warnings: w, confidence: 'low' };
   }
 
   if (seg.finalType === 'private_residence') {
