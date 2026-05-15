@@ -101,13 +101,20 @@ export function detectGpsOutliers(
   }
 
   // ── Steg 2: gruppera kontigua far-pings till "far-kluster" ──────────────
+  // Viktigt: vi får INTE expandera klustret bara för att två efterföljande
+  // pings råkar ligga långt från varandra. Klustret växer bara om nästa
+  // ping ligger nära klustrets startposition (samma far-område).
   const farClusters: FarCluster[] = [];
   let i = 0;
   while (i < pings.length) {
     if (!isFar[i]) { i++; continue; }
     const start = i;
     let end = i;
-    while (end + 1 < pings.length && isFar[end + 1]) end++;
+    while (
+      end + 1 < pings.length &&
+      isFar[end + 1] &&
+      distanceMeters(pings[start].lat, pings[start].lng, pings[end + 1].lat, pings[end + 1].lng) <= STABLE_NEIGHBOR_MAX_M
+    ) end++;
     const durationS = timeS(pings[start].ts, pings[end].ts);
     farClusters.push({ startIdx: start, endIdx: end, durationS });
     i = end + 1;
