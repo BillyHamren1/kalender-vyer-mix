@@ -4,6 +4,7 @@ import type { CalendarEvent, Resource } from './ResourceData';
 import CustomEvent from './CustomEvent';
 import { DRAG_DATA_TYPE, type DraggedEventData } from '@/hooks/useEventDragDrop';
 import type { OverlapInfo } from './timeGridLayout';
+import { useEventNavigation } from '@/hooks/useEventNavigation';
 
 export const EventWrapper: React.FC<{
   event: CalendarEvent;
@@ -16,6 +17,7 @@ export const EventWrapper: React.FC<{
   setEvents?: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
 }> = React.memo(({ event, position, overlapLayout, teamColumnWidth, onEventClick, onEventResize, readOnly, setEvents }) => {
   const navigate = useNavigate();
+  const { handleProjectEventClick } = useEventNavigation();
   const handleDragStart = useCallback((e: React.DragEvent) => {
     if (readOnly) {
       e.preventDefault();
@@ -59,9 +61,15 @@ export const EventWrapper: React.FC<{
       return;
     }
     if (event.bookingId) {
-      navigate(`/booking/${event.bookingId}`);
+      // Always resolve to project view (medium or large), never the booking detail page.
+      handleProjectEventClick({
+        event: {
+          start: event.start,
+          extendedProps: { bookingId: event.bookingId, largeProjectId },
+        },
+      });
     }
-  }, [event, navigate]);
+  }, [event, navigate, handleProjectEventClick]);
 
   return (
     <div
