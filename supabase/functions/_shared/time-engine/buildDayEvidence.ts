@@ -47,6 +47,47 @@ import {
   type KnownTargetsDiagnostics,
 } from './buildKnownTargetsEvidence.ts';
 
+// ── Pure helpers (Lager 1.7) ──────────────────────────────────────────────
+
+/** Returnerar lokal timme [0..23] för iso-ts i given tz. */
+function localHour(iso: string, tz: string): number {
+  try {
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, hour: '2-digit', hour12: false,
+    });
+    const h = parseInt(fmt.format(new Date(iso)), 10);
+    return Number.isFinite(h) ? h % 24 : 0;
+  } catch {
+    return new Date(iso).getUTCHours();
+  }
+}
+
+/** True om iso-ts ligger i nattfönstret 21:00–06:00 lokal tid. */
+function isInNightWindow(iso: string, tz: string): boolean {
+  const h = localHour(iso, tz);
+  return h >= 21 || h < 6;
+}
+
+/** Coarse coverage ratio: andel hela minuter i [start..end] med någon ping. */
+function computeCoverageRatio(
+  pings: { ts: string }[],
+  startUtc: string,
+  endUtc: string,
+): number {
+  const startMs = Date.parse(startUtc);
+  const endMs = Date.parse(endUtc);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return 0;
+  const totalMinutes = Math.max(1, Math.round((endMs - startMs) / 60000));
+  if (pings.length === 0) return 0;
+  const covered = new Set<number>();
+  for (const p of pings) {
+    const t = Date.parse(p.ts);
+    if (!Number.isFinite(t) || t < startMs || t > endMs) continue;
+    covered.add(Math.floor((t - startMs) / 60000));
+  }
+  return +(covered.size / totalMinutes).toFixed(4);
+}
+
 // ── Inputs ─────────────────────────────────────────────────────────────────
 
 export interface BuildDayEvidenceInput {
@@ -65,18 +106,72 @@ export interface BuildDayEvidenceInput {
 
 // ── Sub-evidence shapes ────────────────────────────────────────────────────
 
+export interface GpsPingsSummary {
+  count: number;
+  firstAt: string | null;
+  lastAt: string | null;
+  qualityCounts: {
+    excellent: number;
+    good: number;
+    usable: number;
+    weak: number;
+    veryWeak: number;
+    outlierCandidate: number;
+    unknown: number;
+  };
+  retainedLowAccuracyCount: number;
+  ignoredForLocationLogicCount: number;
+  hardRejectedCount: number;
+}
+
+export interface LocationLogicPingsSummary {
+  count: number;
+  firstAt: string | null;
+  lastAt: string | null;
+  medianGapSeconds: number | null;
+  maxGapMinutes: number | null;
+}
+
 export interface DayGpsEvidence {
+  // ── Backwards-compat ───────────────────────────────────────────────────
+  /** @deprecated Behåll: alias för fetchedPingCount. */
   pingCount: number;
   firstPingAt: string | null;
   lastPingAt: string | null;
-  /** Coarse coverage 0..1 of the day window where pings exist. */
-  coverageRatio: number;
-  /** Gaps > 15 min between consecutive pings (count only — no segments). */
-  longGapCount: number;
-  /** Median accuracy in meters when reported (null if unknown). */
+
+  // ── Lager 1.7: explicita räkningar ────────────────────────────────────
+  rawPingCount: number;
+  fetchedPingCount: number;
+  normalizedPingCount: number;
+  /** Pings som faktiskt får användas i platslogik (ej hard reject, ej outlier-ignored). */
+  locationLogicPingCount: number;
+  hardRejectedPingCount: number;
+  ignoredOutlierPingCount: number;
+
+  /** Första/sista normaliserad ping (alla normaliserade, inkl. outliers). */
+  firstRecordedAt: string | null;
+  lastRecordedAt: string | null;
+  /** Första/sista ping i location-logic-setet. */
+  firstLocationLogicPingAt: string | null;
+  lastLocationLogicPingAt: string | null;
+
   medianAccuracyMeters: number | null;
-  /** True if night window 00:00–05:00 has any pings. */
+  p90AccuracyMeters: number | null;
+
+  /** Beräknat på locationLogicPings, inte raw. Gap > 15 min. */
+  longGapCount: number;
+  /** Största gap mellan två på varandra följande locationLogicPings i minuter. */
+  maxGapMinutes: number | null;
+
+  /** True om locationLogicPings finns mellan 21:00–06:00 lokal tid. */
   hasNightActivity: boolean;
+
+  /** Andel av dagfönstrets minuter som har minst en locationLogicPing. */
+  coverageRatio: number;
+
+  // ── Lager 1.7: summaries ──────────────────────────────────────────────
+  normalizedPingsSummary: GpsPingsSummary;
+  locationLogicPingsSummary: LocationLogicPingsSummary;
 }
 
 export interface DayAssignmentEvidence {
@@ -160,6 +255,22 @@ export interface DayEvidenceDiagnostics {
     privateZones: number;
     largeProjects: number;
   };
+  /** Lager 1.7 — konsoliderad GPS-snapshot för Lager 2 + log scanning. */
+  gps: {
+    rawPingCount: number;
+    fetchedPingCount: number;
+    normalizedPingCount: number;
+    locationLogicPingCount: number;
+    hardRejectedPingCount: number;
+    ignoredOutlierPingCount: number;
+    retainedLowAccuracyCount: number;
+    medianAccuracyMeters: number | null;
+    p90AccuracyMeters: number | null;
+    longGapCount: number;
+    maxGapMinutes: number | null;
+    coverageRatio: number;
+    hasNightActivity: boolean;
+  } | null;
   /** Diagnostics from the canonical paginated GPS reader (Lager 1.2). */
   gpsFetchDiagnostics: FetchAllStaffLocationPingsDiagnostics | null;
   /** Quality breakdown from GPS normalisation (Lager 1.3). */
@@ -184,6 +295,19 @@ export interface DayEvidence {
   largeProjects: DayLargeProjectEvidence;
   dataQuality: DayEvidenceDataQuality;
   diagnostics: DayEvidenceDiagnostics;
+  /**
+   * Lager 1.7 — internt evidence-set för Lager 2-konsumtion.
+   * Få aldrig serialiseras 1:1 utåt om mängden blir stor; expose via summary.
+   * normalizedPings = alla normaliserade pings (inkl. outlier-ignored).
+   * locationLogicPings = pings där hardRejected=false och ignoredForLocationLogic=false.
+   */
+  internal: {
+    normalizedPings: NormalizedGpsPing[];
+    locationLogicPings: NormalizedGpsPing[];
+    hardRejectedPings: HardRejectedGpsPing[];
+    dayWindowStartUtc: string;
+    dayWindowEndUtc: string;
+  };
 }
 
 // ── Safe defaults ──────────────────────────────────────────────────────────
@@ -192,10 +316,41 @@ const emptyGps = (): DayGpsEvidence => ({
   pingCount: 0,
   firstPingAt: null,
   lastPingAt: null,
-  coverageRatio: 0,
-  longGapCount: 0,
+  rawPingCount: 0,
+  fetchedPingCount: 0,
+  normalizedPingCount: 0,
+  locationLogicPingCount: 0,
+  hardRejectedPingCount: 0,
+  ignoredOutlierPingCount: 0,
+  firstRecordedAt: null,
+  lastRecordedAt: null,
+  firstLocationLogicPingAt: null,
+  lastLocationLogicPingAt: null,
   medianAccuracyMeters: null,
+  p90AccuracyMeters: null,
+  longGapCount: 0,
+  maxGapMinutes: null,
   hasNightActivity: false,
+  coverageRatio: 0,
+  normalizedPingsSummary: {
+    count: 0,
+    firstAt: null,
+    lastAt: null,
+    qualityCounts: {
+      excellent: 0, good: 0, usable: 0, weak: 0, veryWeak: 0,
+      outlierCandidate: 0, unknown: 0,
+    },
+    retainedLowAccuracyCount: 0,
+    ignoredForLocationLogicCount: 0,
+    hardRejectedCount: 0,
+  },
+  locationLogicPingsSummary: {
+    count: 0,
+    firstAt: null,
+    lastAt: null,
+    medianGapSeconds: null,
+    maxGapMinutes: null,
+  },
 });
 
 const emptyAssignments = (): DayAssignmentEvidence => ({
@@ -296,13 +451,24 @@ export async function buildDayEvidence(
       gpsOutlierDiagnostics: null,
       assignmentEvidenceDiagnostics: null,
       knownTargetsDiagnostics: null,
+      gps: null,
+    },
+    internal: {
+      normalizedPings: [],
+      locationLogicPings: [],
+      hardRejectedPings: [],
+      dayWindowStartUtc: input.dayStartUtc ?? `${input.date}T00:00:00.000Z`,
+      dayWindowEndUtc: input.dayEndUtc ?? `${input.date}T23:59:59.999Z`,
     },
   };
 
   // ── Lager 1.2: GPS via canonical paginated reader ────────────────────────
   const dayStartUtc = input.dayStartUtc ?? `${input.date}T00:00:00.000Z`;
   const dayEndUtc = input.dayEndUtc ?? `${input.date}T23:59:59.999Z`;
+  evidence.internal.dayWindowStartUtc = dayStartUtc;
+  evidence.internal.dayWindowEndUtc = dayEndUtc;
   let rawPingRows: any[] = [];
+  let fetchedPingCount = 0;
   try {
     const fetchResult = await fetchAllStaffLocationPings({
       supabaseAdmin: input.supabaseAdmin,
@@ -314,11 +480,16 @@ export async function buildDayEvidence(
     });
     evidence.diagnostics.gpsFetchDiagnostics = fetchResult.diagnostics;
     rawPingRows = fetchResult.rows ?? [];
-    evidence.gps.pingCount = fetchResult.diagnostics.totalFetched;
+    fetchedPingCount = fetchResult.diagnostics.totalFetched;
+    evidence.gps.pingCount = fetchedPingCount;
+    evidence.gps.fetchedPingCount = fetchedPingCount;
+    evidence.gps.rawPingCount = fetchedPingCount;
     evidence.gps.firstPingAt = fetchResult.diagnostics.firstRecordedAt;
     evidence.gps.lastPingAt = fetchResult.diagnostics.lastRecordedAt;
-    evidence.dataQuality.gpsAvailable = fetchResult.diagnostics.totalFetched > 0;
-    evidence.diagnostics.counts.pings = fetchResult.diagnostics.totalFetched;
+    evidence.gps.firstRecordedAt = fetchResult.diagnostics.firstRecordedAt;
+    evidence.gps.lastRecordedAt = fetchResult.diagnostics.lastRecordedAt;
+    evidence.dataQuality.gpsAvailable = fetchedPingCount > 0;
+    evidence.diagnostics.counts.pings = fetchedPingCount;
     if (fetchResult.diagnostics.errorMessage) {
       evidence.diagnostics.errors.gps = fetchResult.diagnostics.errorMessage;
       warnings.push(`gps_fetch_error: ${fetchResult.diagnostics.errorMessage}`);
@@ -332,40 +503,38 @@ export async function buildDayEvidence(
     warnings.push(`gps_fetch_exception: ${msg}`);
   }
 
-  // ── Lager 1.3: GPS-normalisering (read-only, ej downstream-konsumerad) ──
-  // Endast tekniskt ogiltiga pings hard-rejectas. Låg accuracy behålls med
-  // confidenceWeight så Lager 2 kan välja viktning. buildGpsDayTimeline rörs
-  // INTE i denna prompt.
+  // ── Lager 1.3 + 1.4 + 1.7: normalisering, outlier-detektering, sammanställning
+  // Endast tekniskt ogiltiga pings hard-rejectas. Outliers markeras
+  // ignoredForLocationLogic men finns kvar i raw evidence + diagnostics.
+  // buildGpsDayTimeline / buildLocationTruthTimeline rörs INTE.
+  let normalizedPings: NormalizedGpsPing[] = [];
+  let locationLogicPings: NormalizedGpsPing[] = [];
+  let hardRejectedPings: HardRejectedGpsPing[] = [];
+  let normDiagnostics: GpsNormalizationDiagnostics | null = null;
+  let outlierIgnoredCount = 0;
   try {
     const norm = normalizeGpsEvidence(rawPingRows);
+    normDiagnostics = norm.diagnostics;
     evidence.diagnostics.gpsNormalizationDiagnostics = norm.diagnostics;
+    normalizedPings = norm.normalizedPings;
+    hardRejectedPings = norm.hardRejectedPings;
     if (norm.diagnostics.retainedLowAccuracyCount > 0) {
-      warnings.push(
-        `gps_low_accuracy_retained:${norm.diagnostics.retainedLowAccuracyCount}`,
-      );
+      warnings.push(`gps_low_accuracy_retained:${norm.diagnostics.retainedLowAccuracyCount}`);
     }
     if (norm.diagnostics.hardRejectedPingCount > 0) {
-      warnings.push(
-        `gps_hard_rejected:${norm.diagnostics.hardRejectedPingCount}`,
-      );
+      warnings.push(`gps_hard_rejected:${norm.diagnostics.hardRejectedPingCount}`);
     }
 
-    // ── Lager 1.4: Outlier-detektering (read-only) ───────────────────────
-    // Markerar ignoredForLocationLogic på enstaka spikar. Skapar varken
-    // transport, okänd plats eller granska. Raw evidence röra ej; vi
-    // ignorerar bara för location logic. buildGpsDayTimeline rörs INTE.
     try {
-      const outlier = detectGpsOutliers(norm.normalizedPings);
+      const outlier = detectGpsOutliers(normalizedPings);
       evidence.diagnostics.gpsOutlierDiagnostics = outlier.diagnostics;
+      normalizedPings = outlier.pings; // mutated in place w/ ignoredForLocationLogic flips
+      outlierIgnoredCount = outlier.diagnostics.outlierIgnoredCount;
       if (outlier.diagnostics.outlierIgnoredCount > 0) {
-        warnings.push(
-          `gps_outliers_ignored_for_location:${outlier.diagnostics.outlierIgnoredCount}`,
-        );
+        warnings.push(`gps_outliers_ignored_for_location:${outlier.diagnostics.outlierIgnoredCount}`);
       }
       if (outlier.diagnostics.retainedFarClusterCount > 0) {
-        warnings.push(
-          `gps_far_clusters_retained:${outlier.diagnostics.retainedFarClusterCount}`,
-        );
+        warnings.push(`gps_far_clusters_retained:${outlier.diagnostics.retainedFarClusterCount}`);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -375,6 +544,108 @@ export async function buildDayEvidence(
     const msg = err instanceof Error ? err.message : String(err);
     warnings.push(`gps_normalize_exception: ${msg}`);
   }
+
+  // ── Bygg locationLogicPings + summaries (Lager 1.7) ─────────────────────
+  locationLogicPings = normalizedPings.filter(
+    (p) => !p.hardRejected && !p.ignoredForLocationLogic,
+  );
+
+  evidence.gps.normalizedPingCount = normalizedPings.length;
+  evidence.gps.locationLogicPingCount = locationLogicPings.length;
+  evidence.gps.hardRejectedPingCount = hardRejectedPings.length;
+  evidence.gps.ignoredOutlierPingCount = outlierIgnoredCount;
+  evidence.gps.medianAccuracyMeters = normDiagnostics?.medianAccuracyMeters ?? null;
+  evidence.gps.p90AccuracyMeters = normDiagnostics?.p90AccuracyMeters ?? null;
+
+  // Gap analysis (PÅ locationLogicPings, ej raw).
+  const sortedLogic = [...locationLogicPings].sort(
+    (a, b) => Date.parse(a.ts) - Date.parse(b.ts),
+  );
+  let longGapCount = 0;
+  let maxGapMs = 0;
+  const gapsMs: number[] = [];
+  for (let i = 1; i < sortedLogic.length; i++) {
+    const gap = Date.parse(sortedLogic[i].ts) - Date.parse(sortedLogic[i - 1].ts);
+    if (gap > 0) gapsMs.push(gap);
+    if (gap > 15 * 60 * 1000) longGapCount++;
+    if (gap > maxGapMs) maxGapMs = gap;
+  }
+  evidence.gps.longGapCount = longGapCount;
+  evidence.gps.maxGapMinutes = sortedLogic.length >= 2 ? +(maxGapMs / 60000).toFixed(2) : null;
+  evidence.gps.firstLocationLogicPingAt = sortedLogic[0]?.ts ?? null;
+  evidence.gps.lastLocationLogicPingAt = sortedLogic[sortedLogic.length - 1]?.ts ?? null;
+
+  // hasNightActivity: någon locationLogicPing 21:00–06:00 lokal tid.
+  evidence.gps.hasNightActivity = sortedLogic.some((p) =>
+    isInNightWindow(p.ts, timezone),
+  );
+
+  // coverageRatio: andel minuter i dagfönstret med någon locationLogicPing.
+  evidence.gps.coverageRatio = computeCoverageRatio(
+    sortedLogic,
+    dayStartUtc,
+    dayEndUtc,
+  );
+
+  // Summaries
+  evidence.gps.normalizedPingsSummary = {
+    count: normalizedPings.length,
+    firstAt: normalizedPings.length > 0 ? normalizedPings[0].ts : null,
+    lastAt: normalizedPings.length > 0 ? normalizedPings[normalizedPings.length - 1].ts : null,
+    qualityCounts: {
+      excellent: normDiagnostics?.excellentCount ?? 0,
+      good: normDiagnostics?.goodCount ?? 0,
+      usable: normDiagnostics?.usableCount ?? 0,
+      weak: normDiagnostics?.weakCount ?? 0,
+      veryWeak: normDiagnostics?.veryWeakCount ?? 0,
+      outlierCandidate: normDiagnostics?.outlierCandidateCount ?? 0,
+      unknown: 0,
+    },
+    retainedLowAccuracyCount: normDiagnostics?.retainedLowAccuracyCount ?? 0,
+    ignoredForLocationLogicCount: outlierIgnoredCount,
+    hardRejectedCount: hardRejectedPings.length,
+  };
+
+  let medianGapSeconds: number | null = null;
+  if (gapsMs.length > 0) {
+    const sortedGaps = [...gapsMs].sort((a, b) => a - b);
+    const mid = Math.floor(sortedGaps.length / 2);
+    medianGapSeconds = +(
+      (sortedGaps.length % 2 === 0
+        ? (sortedGaps[mid - 1] + sortedGaps[mid]) / 2
+        : sortedGaps[mid]) / 1000
+    ).toFixed(1);
+  }
+
+  evidence.gps.locationLogicPingsSummary = {
+    count: sortedLogic.length,
+    firstAt: evidence.gps.firstLocationLogicPingAt,
+    lastAt: evidence.gps.lastLocationLogicPingAt,
+    medianGapSeconds,
+    maxGapMinutes: evidence.gps.maxGapMinutes,
+  };
+
+  // Internt evidence-set (för Lager 2). Får INTE serialiseras blint utåt.
+  evidence.internal.normalizedPings = normalizedPings;
+  evidence.internal.locationLogicPings = locationLogicPings;
+  evidence.internal.hardRejectedPings = hardRejectedPings;
+
+  // Konsoliderad gps-snapshot i diagnostics.gps.
+  evidence.diagnostics.gps = {
+    rawPingCount: fetchedPingCount,
+    fetchedPingCount,
+    normalizedPingCount: normalizedPings.length,
+    locationLogicPingCount: locationLogicPings.length,
+    hardRejectedPingCount: hardRejectedPings.length,
+    ignoredOutlierPingCount: outlierIgnoredCount,
+    retainedLowAccuracyCount: normDiagnostics?.retainedLowAccuracyCount ?? 0,
+    medianAccuracyMeters: normDiagnostics?.medianAccuracyMeters ?? null,
+    p90AccuracyMeters: normDiagnostics?.p90AccuracyMeters ?? null,
+    longGapCount,
+    maxGapMinutes: evidence.gps.maxGapMinutes,
+    coverageRatio: evidence.gps.coverageRatio,
+    hasNightActivity: evidence.gps.hasNightActivity,
+  };
 
   // ── Lager 1.5: Assignment Evidence (PLANNING IS CONTEXT, NOT PROOF) ─────
   // Samlar booking_staff_assignments, staff_assignments + calendar_events och
