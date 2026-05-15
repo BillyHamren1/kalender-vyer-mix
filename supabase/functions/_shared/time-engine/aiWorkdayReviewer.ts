@@ -184,7 +184,7 @@ export function shouldTriggerAiReview(
   if (
     seg.targetType === 'large_project' &&
     !seg.outsideWorkday &&
-    (!seg.address || seg.businessContextStatus === 'large_project_missing_geo')
+    (!seg.address || (seg.businessContextStatus as string) === 'large_project_missing_geo')
   ) {
     triggers.push('large_project_missing_geo');
   }
