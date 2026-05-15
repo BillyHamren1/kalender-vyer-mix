@@ -36,6 +36,7 @@ import {
   resolveBookingPhaseFromTitle,
   type SessionPhaseKind,
 } from '@/lib/staff/ganttPhaseColor';
+import { mergeContiguousBlocks, type MergeBlockInput, type MergeableKind } from '@/lib/staff/ganttBlockMerge';
 import type { ReviewWorkInput, ReviewTravelInput } from '@/lib/staff/timeReportReviewEntry';
 import type {
   DaySegment,
