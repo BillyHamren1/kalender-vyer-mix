@@ -97,11 +97,18 @@ export interface DayAssignmentEvidence {
 }
 
 export interface DayKnownTargetsEvidence {
-  /** organization_locations + project + booking targets resolved for the day. */
+  /** organization_locations + project + booking + large_project + private targets resolved for the day. */
   totalCount: number;
   withCoordinatesCount: number;
   /** Targets explicitly invalid (missing_coordinates, test_data, cancelled…). */
   invalidCount: number;
+  /**
+   * Detaljerad lista (Lager 1.6). KNOWN TARGETS ÄR INTE BEVIS PÅ NÄRVARO.
+   * Får INTE användas som location truth eller display-block.
+   */
+  items: KnownTargetEvidenceItem[];
+  /** Strukturerade data quality-problem (Lager 1.6). */
+  dataQuality: KnownTargetsDataQuality;
 }
 
 export interface DayPrivateResidenceEvidence {
