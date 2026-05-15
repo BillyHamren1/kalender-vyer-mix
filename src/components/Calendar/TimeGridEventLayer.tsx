@@ -61,9 +61,15 @@ export const EventWrapper: React.FC<{
       return;
     }
     if (event.bookingId) {
-      navigate(`/booking/${event.bookingId}`);
+      // Always resolve to project view (medium or large), never the booking detail page.
+      handleProjectEventClick({
+        event: {
+          start: event.start,
+          extendedProps: { bookingId: event.bookingId, largeProjectId },
+        },
+      });
     }
-  }, [event, navigate]);
+  }, [event, navigate, handleProjectEventClick]);
 
   return (
     <div
