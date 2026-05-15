@@ -757,15 +757,17 @@ export function buildLocationTruthFromDayEvidence(
     knownSiteSegmentCount: 0,
     movementSegmentCount: 0,
     privateResidenceSegmentCount: 0,
-    unknownAreaSegmentCount: 0,
+    knownAddressSegmentCount: 0,
+    unresolvedLocationSegmentCount: 0,
     reviewSegmentCount: 0,
     bridgedGapMinutesTotal: 0,
     ignoredOutlierPingCount: stableClusterDiagnostics?.ignoredOutlierPingCount ?? 0,
     finalSegmentsByType: {
       known_site: 0,
+      known_address: 0,
       movement: 0,
       private_residence: 0,
-      unknown_area: 0,
+      unresolved_location: 0,
       needs_location_review: 0,
     },
     examples: [],
@@ -781,14 +783,17 @@ export function buildLocationTruthFromDayEvidence(
       case 'known_site':
         finalSummary.knownSiteSegmentCount++;
         break;
+      case 'known_address':
+        finalSummary.knownAddressSegmentCount++;
+        break;
       case 'movement':
         finalSummary.movementSegmentCount++;
         break;
       case 'private_residence':
         finalSummary.privateResidenceSegmentCount++;
         break;
-      case 'unknown_area':
-        finalSummary.unknownAreaSegmentCount++;
+      case 'unresolved_location':
+        finalSummary.unresolvedLocationSegmentCount++;
         break;
       case 'needs_location_review':
         finalSummary.reviewSegmentCount++;
