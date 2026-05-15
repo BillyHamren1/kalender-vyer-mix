@@ -1270,6 +1270,8 @@ Deno.serve(async (req) => {
     targetMatchSummary,
     unknownLocationDiagnostics,
     dayEvidenceDiagnostics,
+    locationTruthDiagnostics,
+    locationTruthSegments,
 
     targets: resolvedTargetsAll.map((r: any) => ({
       id: r.id,
