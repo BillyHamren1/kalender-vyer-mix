@@ -162,16 +162,21 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
   const addDayForPhase = (kind: DayKind) => {
     setDays(prev => {
       const inPhase = prev.filter(d => d.kind === kind).sort((a, z) => a.date.localeCompare(z.date));
-      const lastDate = inPhase.length > 0 ? inPhase[inPhase.length - 1].date : (ctx?.bookings?.[0]?.[kind === 'rig' ? 'rigdaydate' : kind === 'event' ? 'eventdate' : 'rigdowndate'] ?? todayIso());
+      const booking = ctx?.bookings?.[0];
+      const lastDate = inPhase.length > 0
+        ? inPhase[inPhase.length - 1].date
+        : (booking?.[kind === 'rig' ? 'rigdaydate' : kind === 'event' ? 'eventdate' : 'rigdowndate'] ?? todayIso());
       const newDate = inPhase.length > 0 ? nextDayIso(lastDate) : lastDate;
       const team = useSameTeamForAll ? masterTeam : 'team-1';
-      const next: PlanningDay = {
-        date: newDate,
-        kind,
-        startTime: DEFAULTS[kind].start,
-        endTime: DEFAULTS[kind].end,
-        teamId: team,
-      };
+      // Första dagen i fasen ärver bokningens tid; ytterligare dagar kopierar
+      // den senast inmatade dagen (mer rimligt än att hoppa till hårda defaults).
+      const startTime = inPhase.length > 0
+        ? inPhase[inPhase.length - 1].startTime
+        : pickBookingTime(booking, kind, 'start');
+      const endTime = inPhase.length > 0
+        ? inPhase[inPhase.length - 1].endTime
+        : pickBookingTime(booking, kind, 'end');
+      const next: PlanningDay = { date: newDate, kind, startTime, endTime, teamId: team };
       return [...prev, next];
     });
   };
