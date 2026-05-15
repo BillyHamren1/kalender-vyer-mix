@@ -256,22 +256,21 @@ Deno.serve(async (req) => {
     return bad(404, 'no bookings found for project', { project_id: effective.project_id });
   }
 
-  if (parsed.data.dry_run) {
-    // Bygg preview: nuvarande lokal-värden + tilltänkta lokal-värden + extern-payload per bokning.
+  if (effective.dry_run) {
     const { data: rows } = await supabase
       .from('bookings')
       .select('id, booking_number, title, rigdaydate, eventdate, rigdowndate')
       .in('id', bookingIds)
-      .eq('organization_id', parsed.data.organization_id);
+      .eq('organization_id', effective.organization_id);
     const localUpdates: Record<string, string | null> = {};
     for (const phase of ['rig', 'event', 'rigDown'] as Phase[]) {
-      const arr = parsed.data.dates[phase];
+      const arr = effective.dates[phase];
       if (arr === undefined) continue;
       localUpdates[PHASE_TO_LOCAL_COL[phase]] = arr.length > 0 ? arr[0] : null;
     }
     const externalFields: ExternalWriteFields = {};
     for (const phase of ['rig', 'event', 'rigDown'] as Phase[]) {
-      const arr = parsed.data.dates[phase];
+      const arr = effective.dates[phase];
       if (arr === undefined) continue;
       externalFields[PHASE_TO_EXTERNAL_FIELD[phase]] = arr;
     }
@@ -284,19 +283,19 @@ Deno.serve(async (req) => {
       would_push_external: externalFields,
     }));
     return new Response(
-      JSON.stringify({ ok: true, dry_run: true, project_id: parsed.data.project_id, bookings_resolved: bookingIds.length, preview }),
+      JSON.stringify({ ok: true, dry_run: true, project_id: effective.project_id, bookings_resolved: bookingIds.length, preview }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }
 
   const results: PerBookingResult[] = [];
   for (const bid of bookingIds) {
-    results.push(await processBooking(supabase, bid, parsed.data.organization_id, parsed.data.dates));
+    results.push(await processBooking(supabase, bid, effective.organization_id, effective.dates));
   }
 
   const allOk = results.every((r) => r.local_updated && r.external_pushed && r.calendar_rebuilt);
   return new Response(
-    JSON.stringify({ ok: allOk, project_id: parsed.data.project_id, results }),
+    JSON.stringify({ ok: allOk, project_id: effective.project_id, results }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
   );
 });
