@@ -491,7 +491,24 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
           {/* Datum & tid */}
           <div className="space-y-3">
             <h3 className="text-sm font-semibold">Datum & tid</h3>
-            <p className="text-xs text-muted-foreground">Lämna tomt om to:n ska placeras senare via "Att planera".</p>
+            <p className="text-xs text-muted-foreground">
+              {planningMode
+                ? 'Datum, tid och team krävs för att placera i kalendern.'
+                : 'Lämna tomt om to:n ska placeras senare via "Att planera".'}
+            </p>
+            {planningMode && (
+              <div>
+                <Label>Team</Label>
+                <Select value={resourceId} onValueChange={setResourceId}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 10 }, (_, i) => `team-${i + 1}`).map((id, i) => (
+                      <SelectItem key={id} value={id}>{`Team ${i + 1}`}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <Label>Datum</Label>
@@ -516,7 +533,9 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Avbryt</Button>
             <Button type="submit" disabled={create.isPending} className="bg-orange-500 hover:bg-orange-600 text-white">
-              {create.isPending ? (isEdit ? 'Sparar…' : 'Skapar…') : (isEdit ? 'Spara ändringar' : 'Skapa to do')}
+              {create.isPending
+                ? (planningMode ? 'Placerar…' : (isEdit ? 'Sparar…' : 'Skapar…'))
+                : (planningMode ? 'Placera i kalendern' : (isEdit ? 'Spara ändringar' : 'Skapa to do'))}
             </Button>
           </DialogFooter>
         </form>
