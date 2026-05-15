@@ -72,7 +72,7 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
 
   // Reset on open
   useEffect(() => {
-    if (open) {
+    if (open && !todoId) {
       setShowNewType(false);
       setNewTypeLabel('');
       setAssignedLeader('');
