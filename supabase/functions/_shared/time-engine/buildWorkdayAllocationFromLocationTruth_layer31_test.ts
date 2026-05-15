@@ -230,7 +230,9 @@ Deno.test('Lager 3.1: gap i workday räknas i uncoveredWorkdayMinutes', () => {
   });
   // workday 240 min, segment täcker 60 min → 180 min uncovered
   assertEquals(r.diagnostics.uncoveredWorkdayMinutes, 180);
-  assert(r.diagnostics.warnings.includes('gap_in_workday'));
+  // Lager 3.10C: gap_in_workday-warning ersatt av mjukare
+  // workday_time_without_location_truth_segment när proposals skapas.
+  assert(r.diagnostics.warnings.includes('workday_time_without_location_truth_segment'));
 });
 
 Deno.test('Lager 3.1: planning_geo_mismatch → warning bibehålls', () => {
