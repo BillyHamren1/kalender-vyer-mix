@@ -206,8 +206,24 @@ export function detectTrueMovement(
 
   for (let i = 0; i < sorted.length - 1; i++) {
     const A = sorted[i];
-    const B = sorted[i + 1];
-    if (!STABLE_TYPES.has(A.type) || !STABLE_TYPES.has(B.type)) continue;
+    if (!STABLE_TYPES.has(A.type)) continue;
+
+    // Hitta nästa stabila segment — hoppa över unresolved_location-segment
+    // (sparsamma route-pings som råkat klustras men inte är arbetsplats).
+    let nextIdx = -1;
+    for (let k = i + 1; k < sorted.length; k++) {
+      const cand = sorted[k];
+      if (cand.type === 'movement') continue;
+      if (cand.type === 'unresolved_location') continue;
+      if (STABLE_TYPES.has(cand.type)) {
+        nextIdx = k;
+        break;
+      }
+      // Övriga typer (needs_location_review etc.) bryter sökningen.
+      break;
+    }
+    if (nextIdx === -1) continue;
+    const B = sorted[nextIdx];
 
     // Samma target — bridge bör redan ha hanterat detta. Skydd: inget movement.
     if (sameTargetIdentity(A, B)) {
