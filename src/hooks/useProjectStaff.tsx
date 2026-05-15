@@ -12,8 +12,13 @@ import {
 } from '@/services/projectStaffService';
 import { ProjectLaborCost, ProjectStaffSummary } from '@/types/projectStaff';
 
-export const useProjectStaff = (projectId: string | undefined, bookingId: string | null | undefined) => {
+export const useProjectStaff = (
+  projectId: string | undefined,
+  target: { bookingId?: string | null; largeProjectId?: string | null },
+) => {
   const queryClient = useQueryClient();
+  const bookingId = target.bookingId ?? null;
+  const largeProjectId = target.largeProjectId ?? null;
 
   // Fetch planned staff
   const { data: plannedStaff = [], isLoading: isLoadingStaff } = useQuery({
@@ -24,9 +29,9 @@ export const useProjectStaff = (projectId: string | undefined, bookingId: string
 
   // Fetch time reports
   const { data: timeReports = [], isLoading: isLoadingTimeReports } = useQuery({
-    queryKey: ['project-time-reports', bookingId],
-    queryFn: () => fetchTimeReports(bookingId!),
-    enabled: !!bookingId
+    queryKey: ['project-time-reports', bookingId, largeProjectId],
+    queryFn: () => fetchTimeReports({ booking_id: bookingId, large_project_id: largeProjectId }),
+    enabled: !!bookingId || !!largeProjectId
   });
 
   // Fetch labor costs
@@ -84,7 +89,7 @@ export const useProjectStaff = (projectId: string | undefined, bookingId: string
   const addTimeReportMutation = useMutation({
     mutationFn: createTimeReport,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['project-time-reports', bookingId] });
+      queryClient.invalidateQueries({ queryKey: ['project-time-reports', bookingId, largeProjectId] });
       toast.success('Tidrapport registrerad');
     },
     onError: () => {
@@ -95,7 +100,7 @@ export const useProjectStaff = (projectId: string | undefined, bookingId: string
   const deleteTimeReportMutation = useMutation({
     mutationFn: deleteTimeReport,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['project-time-reports', bookingId] });
+      queryClient.invalidateQueries({ queryKey: ['project-time-reports', bookingId, largeProjectId] });
       toast.success('Tidrapport borttagen');
     },
     onError: () => {

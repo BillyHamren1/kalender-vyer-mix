@@ -10,10 +10,14 @@ import { PlannedStaffMember } from '@/types/projectStaff';
 interface AddTimeReportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  bookingId: string;
+  target: {
+    booking_id?: string;
+    large_project_id?: string;
+  };
   plannedStaff: PlannedStaffMember[];
   onSubmit: (report: {
-    booking_id: string;
+    booking_id?: string;
+    large_project_id?: string;
     staff_id: string;
     report_date: string;
     start_time: string | null;
@@ -27,7 +31,7 @@ interface AddTimeReportDialogProps {
 export const AddTimeReportDialog = ({
   open,
   onOpenChange,
-  bookingId,
+  target,
   plannedStaff,
   onSubmit
 }: AddTimeReportDialogProps) => {
@@ -45,7 +49,8 @@ export const AddTimeReportDialog = ({
     if (!staffId || !reportDate || !hoursWorked) return;
 
     onSubmit({
-      booking_id: bookingId,
+      booking_id: target.booking_id,
+      large_project_id: target.large_project_id,
       staff_id: staffId,
       report_date: reportDate,
       start_time: startTime || null,

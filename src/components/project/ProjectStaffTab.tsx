@@ -12,20 +12,21 @@ import { ProjectAutoTimeSection } from './ProjectAutoTimeSection';
 interface ProjectStaffTabProps {
   projectId: string;
   bookingId: string | null;
+  largeProjectId?: string | null;
   isInternal?: boolean;
   locationId?: string | null;
 }
 
-export const ProjectStaffTab = ({ projectId, bookingId, isInternal, locationId }: ProjectStaffTabProps) => {
+export const ProjectStaffTab = ({ projectId, bookingId, largeProjectId, isInternal, locationId }: ProjectStaffTabProps) => {
   // For internal projects, show location time instead
   if (isInternal && locationId) {
     return <LocationTimeSection locationId={locationId} />;
   }
 
-  return <ProjectStaffTabInner projectId={projectId} bookingId={bookingId} />;
+  return <ProjectStaffTabInner projectId={projectId} bookingId={bookingId} largeProjectId={largeProjectId} />;
 };
 
-const ProjectStaffTabInner = ({ projectId, bookingId }: { projectId: string; bookingId: string | null }) => {
+const ProjectStaffTabInner = ({ projectId, bookingId, largeProjectId }: { projectId: string; bookingId: string | null; largeProjectId?: string | null }) => {
   const [showLaborCostDialog, setShowLaborCostDialog] = useState(false);
   const [showTimeReportDialog, setShowTimeReportDialog] = useState(false);
 
@@ -39,15 +40,25 @@ const ProjectStaffTabInner = ({ projectId, bookingId }: { projectId: string; boo
     removeLaborCost,
     addTimeReport,
     removeTimeReport
-  } = useProjectStaff(projectId, bookingId);
+  } = useProjectStaff(projectId, { bookingId, largeProjectId });
+
+  const projectTarget = largeProjectId
+    ? { kind: 'large_project' as const, largeProjectId }
+    : bookingId
+      ? { kind: 'booking' as const, bookingId }
+      : null;
 
   return (
     <div className="space-y-6">
       <PlannedStaffSection staff={plannedStaff} isLoading={isLoading} />
 
-      {bookingId && (
+      {projectTarget && (
         <ProjectAutoTimeSection
-          target={{ kind: 'booking', bookingId }}
+          target={
+            largeProjectId
+              ? { kind: 'large_project', largeProjectId }
+              : { kind: 'booking', bookingId: bookingId! }
+          }
           plannedStaff={plannedStaff}
         />
       )}
@@ -77,11 +88,15 @@ const ProjectStaffTabInner = ({ projectId, bookingId }: { projectId: string; boo
         onSubmit={addLaborCost}
       />
 
-      {bookingId && (
+      {projectTarget && (
         <AddTimeReportDialog
           open={showTimeReportDialog}
           onOpenChange={setShowTimeReportDialog}
-          bookingId={bookingId}
+          target={
+            largeProjectId
+              ? { large_project_id: largeProjectId }
+              : { booking_id: bookingId ?? undefined }
+          }
           plannedStaff={plannedStaff}
           onSubmit={addTimeReport}
         />
