@@ -124,7 +124,16 @@ export type WorkdayAllocationProposalType =
   | 'allocation_candidate'
   | 'suggest_workday_end'
   | 'consider_workday_end_from_private'
-  | 'gap_in_workday';
+  | 'gap_in_workday'
+  // ── Lager 3.10B — supplier→projektkandidat ──────────────────────────────
+  | 'link_supplier_to_project_candidate';
+
+/** Lager 3.10B — explicit reason-vokab för link_supplier_to_project_candidate. */
+export type SupplierLinkProposalReason =
+  | 'supplier_visit_linked_to_project_candidate'
+  | 'supplier_between_warehouse_and_project'
+  | 'supplier_between_project_and_project'
+  | 'supplier_near_overlapping_assignment';
 
 export interface WorkdayAllocationDiagnostics {
   staffId: string | null;
@@ -202,6 +211,17 @@ export interface WorkdayAllocationProposal {
   suggestedEndAt?: string;
   confidence: WorkdayAllocationConfidence;
   reason: string;
+  // ── Lager 3.10B — supplier-link metadata (endast för
+  //    proposalType='link_supplier_to_project_candidate') ──────────────────
+  /** Alla LocationTruth-segment-id:n som proposalen härleds från. */
+  sourceSegmentIds?: string[];
+  supplierTargetId?: string | null;
+  supplierLabel?: string | null;
+  candidateTargetType?: LocationTruthTargetType | null;
+  candidateTargetId?: string | null;
+  candidateLabel?: string | null;
+  /** True = föreslås, men kräver mänsklig godkänning innan något skrivs. */
+  requiresHumanApproval?: boolean;
 }
 
 export interface WorkdayAllocationResult {
@@ -918,8 +938,18 @@ export function buildWorkdayAllocationFromLocationTruth(
       sup.linkedProjectCandidate = candidate;
       if (sup.confidence === 'low') sup.confidence = 'medium';
       diag.supplierVisitsLinkedToProjectCandidate += 1;
+      // Lager 3.10B — explicit reason-mapping från candidate.source.
+      const linkReason: SupplierLinkProposalReason =
+        candidate.source === 'overlapping_assignment'
+          ? 'supplier_near_overlapping_assignment'
+          : candidate.source === 'pattern_warehouse_supplier_project'
+            ? 'supplier_between_warehouse_and_project'
+            : candidate.source === 'pattern_project_supplier_project'
+              ? 'supplier_between_project_and_project'
+              : 'supplier_visit_linked_to_project_candidate';
       proposals.push({
         segmentId: sup.sourceLocationTruthSegmentIds[0] ?? sup.id,
+        proposalType: 'link_supplier_to_project_candidate',
         proposedAllocationType: 'supplier_visit',
         targetType: candidate.targetType,
         targetId: candidate.targetId,
@@ -927,7 +957,19 @@ export function buildWorkdayAllocationFromLocationTruth(
         startAt: sup.startAt,
         endAt: sup.endAt,
         confidence: candidate.confidence,
-        reason: `supplier_visit_linked_to_project_candidate:${candidate.source}`,
+        reason: linkReason,
+        sourceSegmentIds:
+          sup.sourceLocationTruthSegmentIds.length > 0
+            ? [...sup.sourceLocationTruthSegmentIds]
+            : [sup.id],
+        supplierTargetId: sup.targetId,
+        supplierLabel: sup.label,
+        candidateTargetType: candidate.targetType,
+        candidateTargetId: candidate.targetId,
+        candidateLabel: candidate.label,
+        // Read-only Lager 3 — alla supplier-länkar måste granskas av människa
+        // innan de skrivs till time_reports / display_blocks.
+        requiresHumanApproval: true,
       });
     } else {
       sup.linkedProjectCandidate = null;
