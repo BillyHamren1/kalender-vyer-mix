@@ -431,8 +431,11 @@ export function buildLocationTruthFromDayEvidence(
         // match.matchedTarget.type === 'unknown_area' — ingen EventFlow-target.
         // Avgör nu fysisk-plats-styrkan: stabilt kluster ⇒ known_address,
         // svagt kluster ⇒ unresolved_location.
-        const clusterStrongEnough =
-          cluster.isStable && cluster.confidence !== 'low' && cluster.pingCount >= 3;
+        // Lager 2.3b: stabilt kluster (≥minStablePings + sammanhängande område)
+        // räcker för known_address även om GPS-confidence är låg — vi sänker
+        // bara segmentets confidence i så fall. unresolved_location reserveras
+        // för icke-stabila/för-få-pings-fall (cluster.isStable=false).
+        const clusterStrongEnough = cluster.isStable;
         if (clusterStrongEnough) {
           segmentType = 'known_address';
           businessStatus = match.planningIgnoredBecauseGeoDisagreed
