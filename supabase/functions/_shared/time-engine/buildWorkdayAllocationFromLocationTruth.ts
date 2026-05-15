@@ -170,6 +170,11 @@ export interface WorkdayAllocationDiagnostics {
   supplierVisits: number;
   supplierVisitsLinkedToProjectCandidate: number;
   supplierVisitsWithoutProjectContext: number;
+  // ── Lager 3.6 — hem/private efter sista arbetsplats ───────────────────
+  homeSegmentsAfterWork: number;
+  homeOver90MinutesCount: number;
+  suggestedWorkdayEndCount: number;
+  temporaryHomePresenceCount: number;
   examples: Array<{
     id: string;
     allocationType: WorkdayAllocationType;
