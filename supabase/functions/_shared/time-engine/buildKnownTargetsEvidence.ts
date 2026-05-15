@@ -1,3 +1,5 @@
+// TODO: remove ts-nocheck after KnownTargetEvidence schema is finalized.
+// Reason: dynamic supplier table discovery uses variable row shapes.
 // @ts-nocheck
 /**
  * buildKnownTargetsEvidence (Time Engine — Lager 1.6)
