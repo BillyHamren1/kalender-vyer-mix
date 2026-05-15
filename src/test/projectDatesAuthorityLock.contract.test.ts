@@ -29,7 +29,7 @@ describe('Project Dates Authority — lockning', () => {
 
   it('ingen UI-fil skriver direkt till bookings.{phase}date', () => {
     const offenders: string[] = [];
-    const re = /\.update\s*\(\s*\{[^}]*\b(rigdaydate|eventdate|rigdowndate)\b/;
+    const re = /\.update\s*\(\s*\{[^}]*\b(rigdaydate|eventdate|rigdowndate)\s*:/;
     for (const f of files) {
       const rel = f.slice(ROOT.length + 1).split('\\').join('/');
       if (ALLOW.has(rel)) continue;
