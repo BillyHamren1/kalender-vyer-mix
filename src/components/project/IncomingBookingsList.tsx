@@ -1,14 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Inbox, Calendar, MapPin, FolderKanban, Briefcase, Building2, ChevronRight, XCircle, Trash2, Undo2 } from 'lucide-react';
+import { Inbox, Calendar, MapPin, ChevronRight, XCircle, Trash2, Undo2, CalendarPlus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { createJobFromBooking } from '@/services/jobService';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { BookingPlacementDialog } from './BookingPlacementDialog';
 
 interface IncomingBooking {
   id: string;
@@ -26,11 +26,12 @@ interface IncomingBookingsListProps {
 }
 
 export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
-  onCreateProject,
-  onCreateLargeProject
+  // onCreateProject / onCreateLargeProject behålls i interfacet för bakåtkompat
+  // men används inte längre — Placera-knappen öppnar BookingPlacementDialog direkt.
 }) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [placementBookingId, setPlacementBookingId] = useState<string | null>(null);
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ['bookings-without-project'],
     queryFn: async () => {
@@ -226,28 +227,16 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                     </Button>
                   </>
                 ) : (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onCreateProject(booking.id)}
-                      className="h-7 px-2 text-xs gap-1 hover:bg-primary/10 hover:text-primary"
-                      title="Medelstort projekt"
-                    >
-                      <FolderKanban className="w-3.5 h-3.5" />
-                      <span>Medel</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onCreateLargeProject?.(booking.id)}
-                      className="h-7 px-2 text-xs gap-1 hover:bg-primary/10 hover:text-primary"
-                      title="Stort projekt"
-                    >
-                      <Building2 className="w-3.5 h-3.5" />
-                      <span>Stort</span>
-                    </Button>
-                  </>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => setPlacementBookingId(booking.id)}
+                    className="h-7 px-3 text-xs gap-1"
+                    title="Placera bokningen i kalendern"
+                  >
+                    <CalendarPlus className="w-3.5 h-3.5" />
+                    <span>Placera</span>
+                  </Button>
                 )}
                 <ChevronRight className="h-4 w-4 text-muted-foreground/20 ml-1" />
               </div>
@@ -255,6 +244,12 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
           );
         })}
       </div>
+
+      <BookingPlacementDialog
+        open={!!placementBookingId}
+        onOpenChange={(o) => { if (!o) setPlacementBookingId(null); }}
+        bookingId={placementBookingId}
+      />
     </div>
   );
 };
