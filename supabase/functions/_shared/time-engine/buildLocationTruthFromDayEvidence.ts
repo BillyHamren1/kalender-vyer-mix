@@ -354,9 +354,12 @@ const STRONG_REVIEW_WARNINGS = new Set([
 function mapToFinalType(
   seg: LocationTruthSegment,
 ): FinalLocationTruthSegmentType {
+  const hasStrongReview = (seg.warnings ?? []).some((w) =>
+    STRONG_REVIEW_WARNINGS.has(w),
+  );
   switch (seg.type) {
     case 'known_target':
-      return 'known_site';
+      return hasStrongReview ? 'needs_location_review' : 'known_site';
     case 'private_residence':
       return 'private_residence';
     case 'movement':
@@ -364,15 +367,14 @@ function mapToFinalType(
     case 'needs_location_review':
       return 'needs_location_review';
     case 'known_address':
-    case 'unresolved_location': {
-      const hasStrongReview = (seg.warnings ?? []).some((w) =>
-        STRONG_REVIEW_WARNINGS.has(w),
-      );
-      if (hasStrongReview) return 'needs_location_review';
-      return 'unknown_area';
-    }
+      // Fysisk plats är känd (stabil centroid/adress). Saknad
+      // booking/projekt/lager = unresolved_business_context, inte okänd plats.
+      return hasStrongReview ? 'needs_location_review' : 'known_address';
+    case 'unresolved_location':
+      // Fysisk plats kan inte avgöras (för få/spridda pings).
+      return hasStrongReview ? 'needs_location_review' : 'unresolved_location';
     default:
-      return 'unknown_area';
+      return 'unresolved_location';
   }
 }
 
