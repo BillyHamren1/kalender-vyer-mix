@@ -21,6 +21,11 @@
  * its output as work-block input until later phases wire it in explicitly.
  */
 
+import {
+  fetchAllStaffLocationPings,
+  type FetchAllStaffLocationPingsDiagnostics,
+} from '../timeEngine/fetchAllStaffLocationPings.ts';
+
 // ── Inputs ─────────────────────────────────────────────────────────────────
 
 export interface BuildDayEvidenceInput {
