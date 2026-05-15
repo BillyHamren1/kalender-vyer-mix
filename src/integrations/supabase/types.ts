@@ -5795,10 +5795,12 @@ export type Database = {
       }
       staff_day_submissions: {
         Row: {
+          ai_validation_json: Json | null
           break_minutes: number
           comment: string | null
           created_at: string
           date: string
+          display_timeline_snapshot_json: Json | null
           engine_version: string | null
           id: string
           organization_id: string
@@ -5812,12 +5814,15 @@ export type Database = {
           status: string
           submitted_at: string
           updated_at: string
+          user_edits_json: Json | null
         }
         Insert: {
+          ai_validation_json?: Json | null
           break_minutes?: number
           comment?: string | null
           created_at?: string
           date: string
+          display_timeline_snapshot_json?: Json | null
           engine_version?: string | null
           id?: string
           organization_id: string
@@ -5831,12 +5836,15 @@ export type Database = {
           status?: string
           submitted_at?: string
           updated_at?: string
+          user_edits_json?: Json | null
         }
         Update: {
+          ai_validation_json?: Json | null
           break_minutes?: number
           comment?: string | null
           created_at?: string
           date?: string
+          display_timeline_snapshot_json?: Json | null
           engine_version?: string | null
           id?: string
           organization_id?: string
@@ -5850,6 +5858,7 @@ export type Database = {
           status?: string
           submitted_at?: string
           updated_at?: string
+          user_edits_json?: Json | null
         }
         Relationships: []
       }
