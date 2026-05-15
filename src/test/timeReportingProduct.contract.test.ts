@@ -206,6 +206,43 @@ describe('Time reporting product (end-to-end contract)', () => {
       expect(res.id).toBe('tr-admin-1');
     });
 
+    it('projectStaffService.createTimeReport skickar large_project_id utan booking_id för storprojekt', async () => {
+      mockFetch.mockResolvedValueOnce(
+        ok({
+          success: true,
+          time_report: {
+            id: 'tr-admin-lp-1',
+            staff_id: 'staff-x',
+            report_date: '2026-04-18',
+            start_time: '08:00',
+            end_time: '16:00',
+            hours_worked: 8,
+            overtime_hours: 0,
+            description: 'Storprojekt',
+            approved: false,
+          },
+        }),
+      );
+      mockFetch.mockResolvedValue(ok([{ name: 'Anna Andersson' }]));
+
+      const svc = await import('../services/projectStaffService');
+      await svc.createTimeReport({
+        large_project_id: 'lp-99',
+        staff_id: 'staff-x',
+        report_date: '2026-04-18',
+        start_time: '08:00',
+        end_time: '16:00',
+        hours_worked: 8,
+        overtime_hours: 0,
+        description: 'Storprojekt',
+      });
+
+      const firstBody = bodyAt(mockFetch, 0);
+      expect(firstBody.action).toBe('admin_create_time_report');
+      expect(firstBody.data.large_project_id).toBe('lp-99');
+      expect(firstBody.data.booking_id).toBeUndefined();
+    });
+
     it('vägrar admin-create när start_time eller end_time saknas (samma valideringsregel som mobilen)', async () => {
       const svc = await import('../services/projectStaffService');
       await expect(
