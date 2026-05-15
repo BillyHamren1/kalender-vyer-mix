@@ -119,6 +119,15 @@ export interface WorkdayAllocationDiagnostics {
   segmentsInsideEnvelope: number;
   /** Alias för segmentsOutsideWorkday. */
   segmentsOutsideEnvelope: number;
+  // ── Lager 3.3 — fördelningsräknare ─────────────────────────────────────
+  projectWorkCount: number;
+  largeProjectWorkCount: number;
+  bookingWorkCount: number;
+  warehouseWorkCount: number;
+  supplierVisitCount: number;
+  unlinkedWorkAddressCount: number;
+  unassignedButPresentCount: number;
+  planningMismatchCount: number;
   examples: Array<{
     id: string;
     allocationType: WorkdayAllocationType;
