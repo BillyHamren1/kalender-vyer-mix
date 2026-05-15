@@ -181,6 +181,7 @@ function mergeTwo(
   b: LocationTruthSegment,
   gapMin: number,
   warningTag: 'silent' | 'signal_gap_bridged' | 'long_signal_gap',
+  via: 'target_id' | 'private_residence' | 'known_address_proximity' | 'physical_proximity' | null = 'target_id',
 ): LocationTruthSegment {
   const newWarnings = [...a.warnings];
   for (const w of b.warnings) if (!newWarnings.includes(w)) newWarnings.push(w);
@@ -201,6 +202,11 @@ function mergeTwo(
     ...(b.diagnostics.sourcePingIds ?? []),
   ];
 
+  const gapPolicy =
+    via === 'physical_proximity' || via === 'known_address_proximity'
+      ? 'bridged_same_physical_location_after_gap'
+      : 'bridged_same_target_after_gap';
+
   const merged: LocationTruthSegment = {
     ...a,
     endAt: b.endAt,
@@ -215,7 +221,9 @@ function mergeTwo(
       sourcePingIds,
       bridgedSignalGapMinutes: bridgedTotal,
       // @ts-ignore — utökar metadata
-      gapPolicy: 'bridged_same_target_after_gap',
+      gapPolicy,
+      // @ts-ignore — utökar metadata
+      bridgeVia: via,
       // @ts-ignore — utökar metadata
       noEvidenceOfDeparture: true,
     },
