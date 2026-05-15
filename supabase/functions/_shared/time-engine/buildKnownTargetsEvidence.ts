@@ -154,6 +154,12 @@ export interface KnownTargetsDiagnostics {
   suppliersMissingRadiusCount: number;
   /** Lager 2.10 — vilken tabell som faktiskt användes för suppliers. */
   supplierTableUsed: string | null;
+  /** Lager 2.11A — alla testade kandidat-tabeller (i ordning). */
+  supplierTablesTried: string[];
+  /** Lager 2.11A — kandidat-tabeller som faktiskt fanns (kunde queryas utan fel). */
+  supplierTablesFound: string[];
+  /** Lager 2.11A — totalt antal rader hämtade från använd supplier-tabell. */
+  supplierRowsFetchedTotal: number;
   /** Lager 2.10 — sant om ingen supplier-tabell hittades. */
   supplierTableNotFoundWarning: boolean;
   /** Lager 2.10 — antal suppliers där default-radius applicerades (coords men ingen radius). */
