@@ -42,11 +42,9 @@ export const EventWrapper: React.FC<{
   const hasOverlap = !!(overlapLayout && overlapLayout.totalColumns > 1);
   const overlapColumn = overlapLayout?.column ?? 0;
   const overlapCount = overlapLayout?.totalColumns ?? 1;
-  const overlapWidthPercent = hasOverlap ? 60 : 100;
-  const maxLeftPercent = hasOverlap ? 40 : 0;
-  const leftPercent = hasOverlap && overlapCount > 1
-    ? (overlapColumn / (overlapCount - 1)) * maxLeftPercent
-    : 0;
+  // Sida-vid-sida i lika breda lanes (kolumnen är redan breddad i TimeGrid).
+  const overlapWidthPercent = hasOverlap ? 100 / overlapCount : 100;
+  const leftPercent = hasOverlap ? (overlapColumn * 100) / overlapCount : 0;
   const horizontalInset = 4;
   const baseZ = hasOverlap ? 25 + overlapColumn : 25;
   const isLocked = event.extendedProps?.timeLocked === true;
@@ -75,7 +73,7 @@ export const EventWrapper: React.FC<{
         position: 'absolute',
         top: `${position.top}px`,
         height: `${position.height}px`,
-        left: `${horizontalInset + (leftPercent / 100) * Math.max(teamColumnWidth - horizontalInset * 2, 0)}px`,
+        left: `calc(${horizontalInset}px + ${leftPercent}%)`,
         width: `calc(${overlapWidthPercent}% - ${horizontalInset * 2}px)`,
         zIndex: baseZ,
         pointerEvents: 'auto',

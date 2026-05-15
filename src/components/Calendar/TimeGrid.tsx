@@ -83,9 +83,24 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   };
   // Bredda team-kolumnen när det finns fler än 5 tilldelade personer.
   const WIDE_TEAM_COLUMN_WIDTH = Math.round(TEAM_COLUMN_WIDTH * 1.25); // ~två kompakta namn bredvid varandra
-  const teamColumnWidths = resources.map((r) =>
-    getAssignedStaffForTeamSafe(r.id).length > 5 ? WIDE_TEAM_COLUMN_WIDTH : TEAM_COLUMN_WIDTH
+  // Beräkna max-överlapp per resurs så vi kan bredda kolumnen även när två
+  // event ligger samtidigt (samma princip som vid flera personer i teamet).
+  const overlapMaps = resources.map((r) =>
+    computeOverlapLayout(getEventsForDayAndResource(day, r.id), getEventPosition),
   );
+  const maxOverlapPerResource = overlapMaps.map((map) => {
+    let m = 1;
+    for (const info of map.values()) if (info.totalColumns > m) m = info.totalColumns;
+    return m;
+  });
+  const teamColumnWidths = resources.map((r, i) => {
+    const staffCount = getAssignedStaffForTeamSafe(r.id).length;
+    const staffWidth = staffCount > 5 ? WIDE_TEAM_COLUMN_WIDTH : TEAM_COLUMN_WIDTH;
+    // Vid överlapp: ge varje "lane" full kolumnbredd (cap vid 4 lanes för att inte sprängas).
+    const overlapLanes = Math.min(maxOverlapPerResource[i] ?? 1, 4);
+    const overlapWidth = overlapLanes * TEAM_COLUMN_WIDTH;
+    return Math.max(staffWidth, overlapWidth);
+  });
   const totalTeamColumnsWidth = teamColumnWidths.reduce((sum, w) => sum + w, 0);
 
   const handleBookingEventClick = (event: CalendarEvent) => {
@@ -297,7 +312,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   </div>
 
                   {(() => {
-                    const overlapMap = computeOverlapLayout(resourceEvents, getEventPosition);
+                    const overlapMap = overlapMaps[index];
                     return resourceEvents.map((event) => {
                       const position = getEventPosition(event);
                       const readOnly = isEventReadOnly ? isEventReadOnly(event) : false;
@@ -307,7 +322,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                           event={event}
                           position={position}
                           overlapLayout={overlapMap.get(event.id)}
-                          teamColumnWidth={TEAM_COLUMN_WIDTH}
+                          teamColumnWidth={colWidth}
                           onEventClick={handleBookingEventClick}
                           onEventResize={onEventResize}
                           readOnly={readOnly}
