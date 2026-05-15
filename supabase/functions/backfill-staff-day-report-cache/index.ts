@@ -510,6 +510,43 @@ async function processOne(
     out.companionRoute = (presence as any).companionRouteDiagnostics ?? null;
     out.ok = true;
 
+    // ── Lager 2.7 — Location Truth V2 (read-only diagnostics) ──────────
+    // Kör buildDayEvidence + buildLocationTruthFromDayEvidence parallellt
+    // med befintlig pipeline. Påverkar INTE blocks/display/report_candidate.
+    let locationTruthV2: any = null;
+    if (ENABLE_LOCATION_TRUTH_V2_DIAGNOSTICS) {
+      try {
+        const dayEvidence = await buildDayEvidence({
+          supabaseAdmin: admin,
+          organizationId: orgId,
+          staffId,
+          date,
+          dayStartUtc: dayStart,
+          dayEndUtc: dayEnd,
+        });
+        try {
+          const lt = buildLocationTruthFromDayEvidence(dayEvidence);
+          locationTruthV2 = {
+            available: true,
+            segmentCount: lt.segments?.length ?? 0,
+            segments: lt.segments,
+            diagnostics: lt.diagnostics,
+            error: null,
+          };
+        } catch (e: any) {
+          locationTruthV2 = {
+            available: false,
+            error: `location_truth_failed:${e?.message ?? String(e)}`,
+          };
+        }
+      } catch (e: any) {
+        locationTruthV2 = {
+          available: false,
+          error: `day_evidence_failed:${e?.message ?? String(e)}`,
+        };
+      }
+    }
+
     if (!dryRun) {
       const summary = {
         pingCount: pings.length,
