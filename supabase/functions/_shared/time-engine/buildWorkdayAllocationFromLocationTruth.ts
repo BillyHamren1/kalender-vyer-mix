@@ -124,9 +124,12 @@ export type WorkdayAllocationProposalType =
   | 'allocation_candidate'
   | 'suggest_workday_end'
   | 'consider_workday_end_from_private'
-  | 'gap_in_workday'
+  // ── Lager 3.10C — gap som signalfrånvaro, inte review per default ──────
+  | 'uncovered_workday_time'
   // ── Lager 3.10B — supplier→projektkandidat ──────────────────────────────
   | 'link_supplier_to_project_candidate';
+
+export type WorkdayAllocationProposalSeverity = 'low' | 'medium' | 'high';
 
 /** Lager 3.10B — explicit reason-vokab för link_supplier_to_project_candidate. */
 export type SupplierLinkProposalReason =
