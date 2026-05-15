@@ -75,19 +75,8 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
     queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
   };
 
-  const createJobMutation = useMutation({
-    mutationFn: createJobFromBooking,
-    onSuccess: (job) => {
-      invalidateAll();
-      queryClient.invalidateQueries({ queryKey: ['jobs'] });
-      toast.success('Projekt litet skapat');
-      navigate(`/jobs/${job.id}`);
-    },
-    onError: (error) => {
-      toast.error('Kunde inte skapa litet projekt');
-      console.error('Error creating small project:', error);
-    }
-  });
+  // (createJobMutation borttagen — Placera-flödet skapar projekt via BookingPlacementDialog)
+
 
   const deleteMutation = useMutation({
     mutationFn: async (bookingId: string) => {
