@@ -24,6 +24,11 @@ interface CreateTodoWizardProps {
   preselectedBookingId?: string | null;
   /** When provided, dialog acts as edit form instead of create. */
   todoId?: string | null;
+  /**
+   * Planning mode — visar Team-väljare + placerar to:n i personalkalendern
+   * när man sparar. Kräver todoId. Titel: "Planera to do".
+   */
+  planningMode?: boolean;
 }
 
 interface BookingOption {
