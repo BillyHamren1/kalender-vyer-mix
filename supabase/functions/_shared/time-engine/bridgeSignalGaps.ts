@@ -294,12 +294,12 @@ export function bridgeSignalGaps(
       const candidate = sorted[j];
 
       // Möjlig outlier emellan: kort segment av annan/svag typ.
-      const outlierIdentity =
+      const outlierIdentity: { same: boolean; via: 'target_id' | 'private_residence' | 'known_address_proximity' | 'physical_proximity' | null } =
         durationMinutes(candidate) <= OUTLIER_MAX_MIN &&
         !KNOWN_TYPES.includes(candidate.type) &&
         j + 1 < sorted.length
           ? sameTargetIdentity(current, sorted[j + 1])
-          : { same: false, via: null as const };
+          : { same: false, via: null };
       const isOutlier = outlierIdentity.same;
 
       if (isOutlier) {
