@@ -1277,7 +1277,12 @@ Deno.serve(async (req) => {
     targetMatchSummary,
     unknownLocationDiagnostics,
     dayEvidenceDiagnostics,
+    // Lager 2.10 — DayEvidence-baserad LocationTruth V2 (read-only).
+    locationTruthV2Diagnostics: locationTruthDiagnostics,
+    locationTruthV2Segments: locationTruthSegments,
+    /** @deprecated Använd locationTruthV2Diagnostics. Tas bort när konsumenter bytt. */
     locationTruthDiagnostics,
+    /** @deprecated Använd locationTruthV2Segments. Tas bort när konsumenter bytt. */
     locationTruthSegments,
 
     targets: resolvedTargetsAll.map((r: any) => ({
