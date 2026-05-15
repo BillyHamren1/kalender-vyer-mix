@@ -661,7 +661,11 @@ export function buildWorkdayAllocationFromLocationTruth(
       diag.segmentsOutsideWorkday += 1;
       diag.segmentsOutsideEnvelope += 1;
       // Vi tar fortfarande med segmentet i debug-output men markerar det.
-      const allocOutside = deriveAllocation(seg, !!seg.evidence.assignmentSupportsTarget);
+      const allocOutside = deriveAllocation(
+        seg,
+        !!seg.evidence.assignmentSupportsTarget,
+        seg.finalType === 'movement' ? movementCtxById.get(seg.id) ?? null : null,
+      );
       const item: WorkdayAllocationSegment = {
         id: `wda_${seg.id}`,
         startAt: seg.startAt,
