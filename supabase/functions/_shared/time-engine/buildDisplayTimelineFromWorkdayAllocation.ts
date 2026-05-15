@@ -516,6 +516,9 @@ export function buildDisplayTimelineFromWorkdayAllocation(
 
   // Slå ihop kontigta likartade segment.
   const groups: WorkdayAllocationSegment[][] = [];
+  const examples: DisplayTimelineConsolidationExample[] = [];
+  let absorbedGapCount = 0;
+  const absorbedGapMinutesByGroupIdx = new Map<number, number>();
   for (const seg of sorted) {
     const last = groups[groups.length - 1];
     if (last) {
@@ -523,21 +526,179 @@ export function buildDisplayTimelineFromWorkdayAllocation(
       const gap = toMs(seg.startAt) - toMs(prev.endAt);
       if (canMerge(prev, seg, gap)) {
         last.push(seg);
+        if (gap > MERGE_GAP_SOFT_MS) {
+          absorbedGapCount += 1;
+          const idx = groups.length - 1;
+          absorbedGapMinutesByGroupIdx.set(
+            idx,
+            (absorbedGapMinutesByGroupIdx.get(idx) ?? 0) + Math.round(gap / 60_000),
+          );
+          if (examples.length < 6) {
+            examples.push({
+              kind: 'absorbed_small_gap',
+              startAt: prev.endAt,
+              endAt: seg.startAt,
+              note: `Gap ${Math.round(gap / 60_000)} min absorberat (samma ${seg.allocationType})`,
+            });
+          }
+        } else if (examples.length < 6) {
+          examples.push({
+            kind: 'merged_same_target',
+            startAt: prev.startAt,
+            endAt: seg.endAt,
+            note: `Slog ihop ${seg.allocationType} (${seg.label ?? 'utan label'})`,
+          });
+        }
         continue;
       }
     }
     groups.push([seg]);
   }
 
-  const blocks: DisplayTimelineBlock[] = groups.map((g, i) =>
-    buildBlockFromSegments(g, i, proposalsBySegmentId),
-  );
+  let blocks: DisplayTimelineBlock[] = groups.map((g, i) => {
+    const block = buildBlockFromSegments(g, i, proposalsBySegmentId);
+    const absorbedMin = absorbedGapMinutesByGroupIdx.get(i) ?? 0;
+    if (absorbedMin > 0) block.metadata.absorbedGapMinutes = absorbedMin;
+    return block;
+  });
 
-  // Lägg till uncovered_workday_time-proposals som break_or_gap-block.
+  // ── Lager 4.2 — vik in korta supplier/travel som metadata på närliggande projekt ──
+  const PROJECT_LIKE: ReadonlySet<DisplayTimelineBlockType> = new Set([
+    'project', 'large_project', 'booking', 'warehouse',
+  ]);
+  const SHORT_SUPPLIER_MAX_MIN = 15;
+  const SHORT_TRAVEL_MAX_MIN = 10;
+
+  function targetKey(b: DisplayTimelineBlock): string {
+    return `${b.targetType ?? ''}::${b.targetId ?? ''}`;
+  }
+
+  function tryFold(idx: number): boolean {
+    const cur = blocks[idx];
+    if (!cur) return false;
+    const prev = blocks[idx - 1];
+    const next = blocks[idx + 1];
+    const sameNeighborProject =
+      prev && next &&
+      PROJECT_LIKE.has(prev.displayType) &&
+      PROJECT_LIKE.has(next.displayType) &&
+      targetKey(prev) === targetKey(next);
+
+    // Supplier kort + linkedProjectCandidate matchar grannprojekt → vik in.
+    if (cur.displayType === 'supplier' && cur.durationMinutes <= SHORT_SUPPLIER_MAX_MIN) {
+      const candidates = (wda?.segments ?? [])
+        .filter((s) => cur.sourceAllocationSegmentIds.includes(s.id))
+        .map((s) => s.linkedProjectCandidate)
+        .filter((c): c is NonNullable<typeof c> => !!c);
+      const candidate = candidates[0];
+      let host: DisplayTimelineBlock | null = null;
+      if (sameNeighborProject) host = prev;
+      if (!host && candidate && prev && PROJECT_LIKE.has(prev.displayType) &&
+          prev.targetType === candidate.targetType && prev.targetId === candidate.targetId) host = prev;
+      if (!host && candidate && next && PROJECT_LIKE.has(next.displayType) &&
+          next.targetType === candidate.targetType && next.targetId === candidate.targetId) host = next;
+      if (host) {
+        host.metadata.absorbedSupplierVisits.push({
+          startAt: cur.startAt, endAt: cur.endAt, label: cur.label, address: cur.address,
+        });
+        host.endAt = host.endAt > cur.endAt ? host.endAt : cur.endAt;
+        host.startAt = host.startAt < cur.startAt ? host.startAt : cur.startAt;
+        host.durationMinutes = durationMinutes(host.startAt, host.endAt);
+        if (examples.length < 6) {
+          examples.push({
+            kind: 'absorbed_supplier_into_project',
+            startAt: cur.startAt, endAt: cur.endAt,
+            note: `Kort leverantörsbesök vikt in i ${host.title}`,
+          });
+        }
+        return true;
+      }
+    }
+
+    // Mycket kort travel/commute mellan två block med samma projekt → vik in i föregående.
+    if ((cur.displayType === 'travel' || cur.displayType === 'commute') &&
+        cur.durationMinutes <= SHORT_TRAVEL_MAX_MIN && sameNeighborProject) {
+      prev!.metadata.absorbedTravelSegments.push({
+        startAt: cur.startAt, endAt: cur.endAt, durationMinutes: cur.durationMinutes,
+      });
+      prev!.endAt = cur.endAt;
+      prev!.durationMinutes = durationMinutes(prev!.startAt, prev!.endAt);
+      if (examples.length < 6) {
+        examples.push({
+          kind: 'absorbed_travel_into_project',
+          startAt: cur.startAt, endAt: cur.endAt,
+          note: `Kort förflyttning (${cur.durationMinutes} min) vikt in i ${prev!.title}`,
+        });
+      }
+      return true;
+    }
+    return false;
+  }
+
+  // Iterera bakifrån så index inte krockar vid splice.
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    if (tryFold(i)) blocks.splice(i, 1);
+  }
+
+  // ── Lager 4.2 — Lägg till uncovered_workday_time som mjuka block ──
+  const SHORT_GAP_HIDE_MAX_MIN = 10;
   const gapProposals = proposals.filter((p) => p.proposalType === 'uncovered_workday_time');
   let gapIdx = 0;
+  let hiddenShortGapCount = 0;
   for (const gp of gapProposals) {
-    blocks.push(buildGapBlock(gp.startAt, gp.endAt, gapIdx++, gp));
+    const gMin = durationMinutes(gp.startAt, gp.endAt);
+    if (gMin <= SHORT_GAP_HIDE_MAX_MIN) {
+      hiddenShortGapCount += 1;
+      if (examples.length < 6) {
+        examples.push({
+          kind: 'hidden_short_uncovered_gap',
+          startAt: gp.startAt, endAt: gp.endAt,
+          note: `Kort uncovered ${gMin} min — döljs från huvudvyn`,
+        });
+      }
+      continue;
+    }
+    const block = buildGapBlock(gp.startAt, gp.endAt, gapIdx++, gp);
+    // Lager 4.2 — milda långa gaps; behåll review-action.
+    if (gMin <= 30) block.severity = 'info';
+    blocks.push(block);
+  }
+
+  // ── Lager 4.2 — Trailing private/home: kollapsa efter sista arbets-block ──
+  const lastWorkIdx = (() => {
+    for (let i = blocks.length - 1; i >= 0; i--) {
+      const t = blocks[i].displayType;
+      if (t !== 'private' && t !== 'break_or_gap') return i;
+    }
+    return -1;
+  })();
+  if (lastWorkIdx >= 0) {
+    const trailingPrivates = blocks.slice(lastWorkIdx + 1).filter((b) => b.displayType === 'private');
+    if (trailingPrivates.length > 0) {
+      const first = trailingPrivates[0];
+      const total = trailingPrivates.reduce((s, b) => s + b.durationMinutes, 0);
+      first.title = 'Hemma';
+      first.endAt = trailingPrivates[trailingPrivates.length - 1].endAt;
+      first.durationMinutes = total;
+      first.severity = 'info';
+      if (!first.actions.find((a) => a.type === 'open_correction_dialog')) {
+        first.actions.push({
+          type: 'open_correction_dialog',
+          label: 'Arbetsdagen kan avslutas här',
+        });
+      }
+      // Ta bort de andra trailing-privates.
+      const removeIds = new Set(trailingPrivates.slice(1).map((b) => b.id));
+      const before = blocks.length;
+      blocks = blocks.filter((b) => !removeIds.has(b.id));
+      if (before !== blocks.length && examples.length < 6) {
+        examples.push({
+          kind: 'collapsed_trailing_private',
+          startAt: first.startAt, endAt: first.endAt,
+          note: `Slog ihop ${trailingPrivates.length} privata block till "Hemma"`,
+        });
+      }
+    }
   }
 
   // Slutsortera kronologiskt.
@@ -553,6 +714,7 @@ export function buildDisplayTimelineFromWorkdayAllocation(
   let totalMin = 0;
   let reviewCount = 0;
   let mergedCollapsed = 0;
+  let hiddenTechnicalWarningCount = hiddenShortGapCount;
   for (const b of blocks) {
     blocksByDisplayType[b.displayType] = (blocksByDisplayType[b.displayType] ?? 0) + 1;
     blocksBySeverity[b.severity] += 1;
@@ -560,6 +722,11 @@ export function buildDisplayTimelineFromWorkdayAllocation(
     if (b.severity === 'needs_user_review') reviewCount += 1;
     if (b.metadata.mergedCount > 1) {
       mergedCollapsed += b.metadata.mergedCount - 1;
+    }
+    // Lager 4.2 — räkna raw warnings som filtrerades bort.
+    const visibleSet = new Set(b.warnings as string[]);
+    for (const raw of b.metadata.rawAllocationWarnings) {
+      if (!visibleSet.has(raw as string)) hiddenTechnicalWarningCount += 1;
     }
   }
 
@@ -570,13 +737,18 @@ export function buildDisplayTimelineFromWorkdayAllocation(
     buildDurationMs: Date.now() - startedAt,
     inputAllocationSegmentCount: allocSegments.length,
     inputProposalCount: proposals.length,
+    outputDisplayBlockCount: blocks.length,
     outputBlockCount: blocks.length,
+    mergedSegmentCount: mergedCollapsed,
     mergedSegmentsCollapsed: mergedCollapsed,
+    absorbedGapCount,
+    hiddenTechnicalWarningCount,
     blocksByDisplayType,
     blocksBySeverity,
     totalDisplayMinutes: totalMin,
     reviewBlockCount: reviewCount,
     warnings: [],
+    examples,
   };
 
   if (!wda) {
