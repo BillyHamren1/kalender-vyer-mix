@@ -89,7 +89,12 @@ export type WorkdayAllocationWarning =
   | 'warehouse_presence_no_assignment'
   | 'needs_review_business_context'
   | 'gap_in_workday'
-  | 'allocation_low_confidence';
+  | 'allocation_low_confidence'
+  // ── Lager 3.4 — movement-warnings ─────────────────────────────────────
+  | 'normally_not_paid_commute'
+  | 'normally_not_paid_homebound'
+  | 'long_travel_over_150km'
+  | 'movement_missing_anchor';
 
 export interface WorkdayAllocationDiagnostics {
   staffId: string | null;
@@ -128,6 +133,11 @@ export interface WorkdayAllocationDiagnostics {
   unlinkedWorkAddressCount: number;
   unassignedButPresentCount: number;
   planningMismatchCount: number;
+  // ── Lager 3.4 — movement-räknare ───────────────────────────────────────
+  workTravelCount: number;
+  commuteTravelCount: number;
+  longTravelOver150kmCount: number;
+  movementReviewCount: number;
   examples: Array<{
     id: string;
     allocationType: WorkdayAllocationType;
@@ -304,6 +314,8 @@ const WARNING_TYPES: WorkdayAllocationWarning[] = [
   'no_project_link', 'planning_geo_mismatch',
   'supplier_visit_no_assignment', 'warehouse_presence_no_assignment',
   'needs_review_business_context', 'gap_in_workday', 'allocation_low_confidence',
+  'normally_not_paid_commute', 'normally_not_paid_homebound',
+  'long_travel_over_150km', 'movement_missing_anchor',
 ];
 
 const emptyAllocCounts = (): Record<WorkdayAllocationType, number> =>
@@ -317,10 +329,52 @@ function toMs(iso: string | null | undefined): number | null {
   return Number.isFinite(t) ? t : null;
 }
 
+// Lager 3.4 — kontext för movement-fördelning.
+export type MovementSide =
+  | 'work_project'
+  | 'work_large_project'
+  | 'work_booking'
+  | 'work_warehouse'
+  | 'work_supplier'
+  | 'home_or_private'
+  | 'unknown';
+
+export interface MovementContext {
+  fromSide: MovementSide;
+  toSide: MovementSide;
+  distanceMeters: number | null;
+  /** True om detta är dagens första movement från hem → jobb. */
+  isFirstWorkboundCommuteOfDay: boolean;
+  /** True om detta är dagens sista movement från jobb → hem. */
+  isLastHomeboundCommuteOfDay: boolean;
+}
+
+function isWorkSide(s: MovementSide): boolean {
+  return s === 'work_project' || s === 'work_large_project' ||
+    s === 'work_booking' || s === 'work_warehouse' || s === 'work_supplier';
+}
+
+function classifyMovementSide(target: LocationTruthMatchedTargetLike | null): MovementSide {
+  if (!target || !target.targetType) return 'unknown';
+  switch (target.targetType) {
+    case 'project': return 'work_project';
+    case 'large_project': return 'work_large_project';
+    case 'booking': return 'work_booking';
+    case 'warehouse':
+    case 'organization_location': return 'work_warehouse';
+    case 'supplier': return 'work_supplier';
+    case 'private_zone': return 'home_or_private';
+    default: return 'unknown';
+  }
+}
+
+type LocationTruthMatchedTargetLike = { targetType?: LocationTruthTargetType };
+
 /** Beslutar allocationType utifrån LocationTruth-segmentet. */
 function deriveAllocation(
   seg: LocationTruthSegment,
   hasOverlapWithAssignment: boolean,
+  movementCtx?: MovementContext | null,
 ): {
   type: WorkdayAllocationType;
   warnings: WorkdayAllocationWarning[];
@@ -330,13 +384,52 @@ function deriveAllocation(
   const matched = seg.businessContext?.matchedTarget ?? seg.matchedTarget;
   const status = seg.businessContext?.status ?? null;
 
-  // Movement → work_travel om någon ände är arbetsplats inom workday.
+  // ── Lager 3.4 — movement med arbetskontext ─────────────────────────
   if (seg.finalType === 'movement') {
-    return {
-      type: 'work_travel',
-      warnings: ['movement_classified_as_work_travel'],
-      confidence: seg.confidence,
-    };
+    const ctx = movementCtx ?? null;
+    const dist = ctx?.distanceMeters ?? null;
+    const longTravel = dist !== null && dist > 150_000;
+
+    // Saknar tydlig fram/till-anchor → behöver review.
+    if (!ctx || ctx.fromSide === 'unknown' || ctx.toSide === 'unknown') {
+      const w: WorkdayAllocationWarning[] = ['movement_missing_anchor'];
+      if (longTravel) w.push('long_travel_over_150km');
+      return {
+        type: 'needs_work_allocation_review',
+        warnings: w,
+        confidence: 'low',
+      };
+    }
+
+    // Hem ↔ arbetsplats → commute.
+    if (ctx.fromSide === 'home_or_private' && isWorkSide(ctx.toSide)) {
+      const w: WorkdayAllocationWarning[] = [
+        'movement_classified_as_commute',
+        'normally_not_paid_commute',
+      ];
+      if (longTravel) w.push('long_travel_over_150km');
+      return { type: 'commute_travel', warnings: w, confidence: seg.confidence };
+    }
+    if (isWorkSide(ctx.fromSide) && ctx.toSide === 'home_or_private') {
+      const w: WorkdayAllocationWarning[] = [
+        'movement_classified_as_commute',
+        'normally_not_paid_homebound',
+      ];
+      if (longTravel) w.push('long_travel_over_150km');
+      return { type: 'commute_travel', warnings: w, confidence: seg.confidence };
+    }
+
+    // Arbete ↔ arbete → work_travel.
+    if (isWorkSide(ctx.fromSide) && isWorkSide(ctx.toSide)) {
+      const w: WorkdayAllocationWarning[] = ['movement_classified_as_work_travel'];
+      if (longTravel) w.push('long_travel_over_150km');
+      return { type: 'work_travel', warnings: w, confidence: seg.confidence };
+    }
+
+    // Hem ↔ hem eller andra konstellationer → review.
+    const w: WorkdayAllocationWarning[] = ['movement_missing_anchor'];
+    if (longTravel) w.push('long_travel_over_150km');
+    return { type: 'needs_work_allocation_review', warnings: w, confidence: 'low' };
   }
 
   if (seg.finalType === 'private_residence') {
@@ -469,6 +562,10 @@ export function buildWorkdayAllocationFromLocationTruth(
     unlinkedWorkAddressCount: 0,
     unassignedButPresentCount: 0,
     planningMismatchCount: 0,
+    workTravelCount: 0,
+    commuteTravelCount: 0,
+    longTravelOver150kmCount: 0,
+    movementReviewCount: 0,
     examples: [],
   };
 
@@ -485,6 +582,75 @@ export function buildWorkdayAllocationFromLocationTruth(
   // Track coverage för uncoveredWorkdayMinutes.
   const coveredIntervals: Array<[number, number]> = [];
 
+  // ── Lager 3.4 — pre-pass: bygg MovementContext per movement-segment ──
+  // Vi använder movementMeta från Lager 2.5 (fromTarget/toTarget/distanceMeters).
+  // Faller tillbaka till föregående/efterföljande segment när meta saknas.
+  const sortedLt = [...ltSegments].sort(
+    (a, b) => Date.parse(a.startAt) - Date.parse(b.startAt),
+  );
+  const movementCtxById = new Map<string, MovementContext>();
+  // Hitta första hem→arbete och sista arbete→hem.
+  let firstCommuteWorkboundIdx = -1;
+  let lastCommuteHomeboundIdx = -1;
+  const tentative: Array<{ idx: number; ctx: MovementContext; id: string }> = [];
+
+  for (let i = 0; i < sortedLt.length; i++) {
+    const seg = sortedLt[i];
+    if (seg.finalType !== 'movement') continue;
+    // movementMeta från detectTrueMovement.
+    const meta = (seg.diagnostics as { movementMeta?: {
+      fromTarget?: LocationTruthMatchedTargetLike;
+      toTarget?: LocationTruthMatchedTargetLike;
+      distanceMeters?: number;
+    } }).movementMeta;
+
+    let fromT: LocationTruthMatchedTargetLike | null = meta?.fromTarget ?? null;
+    let toT: LocationTruthMatchedTargetLike | null = meta?.toTarget ?? null;
+
+    // Fallback: läs grannsegmentens matchedTarget/finalType.
+    if (!fromT) {
+      for (let k = i - 1; k >= 0; k--) {
+        const p = sortedLt[k];
+        if (p.finalType === 'movement') continue;
+        const mt = p.businessContext?.matchedTarget ?? p.matchedTarget;
+        if (mt) { fromT = mt; break; }
+        if (p.finalType === 'private_residence') { fromT = { targetType: 'private_zone' }; break; }
+        break;
+      }
+    }
+    if (!toT) {
+      for (let k = i + 1; k < sortedLt.length; k++) {
+        const n = sortedLt[k];
+        if (n.finalType === 'movement') continue;
+        const mt = n.businessContext?.matchedTarget ?? n.matchedTarget;
+        if (mt) { toT = mt; break; }
+        if (n.finalType === 'private_residence') { toT = { targetType: 'private_zone' }; break; }
+        break;
+      }
+    }
+
+    const ctx: MovementContext = {
+      fromSide: classifyMovementSide(fromT),
+      toSide: classifyMovementSide(toT),
+      distanceMeters: typeof meta?.distanceMeters === 'number' ? meta!.distanceMeters! : null,
+      isFirstWorkboundCommuteOfDay: false,
+      isLastHomeboundCommuteOfDay: false,
+    };
+    movementCtxById.set(seg.id, ctx);
+    tentative.push({ idx: i, ctx, id: seg.id });
+
+    if (ctx.fromSide === 'home_or_private' && isWorkSide(ctx.toSide) && firstCommuteWorkboundIdx === -1) {
+      firstCommuteWorkboundIdx = i;
+    }
+    if (isWorkSide(ctx.fromSide) && ctx.toSide === 'home_or_private') {
+      lastCommuteHomeboundIdx = i; // overskrivs → blir sista
+    }
+  }
+  for (const t of tentative) {
+    if (t.idx === firstCommuteWorkboundIdx) t.ctx.isFirstWorkboundCommuteOfDay = true;
+    if (t.idx === lastCommuteHomeboundIdx) t.ctx.isLastHomeboundCommuteOfDay = true;
+  }
+
   for (const seg of ltSegments) {
     const sMs = toMs(seg.startAt);
     const eMs = toMs(seg.endAt);
@@ -495,7 +661,11 @@ export function buildWorkdayAllocationFromLocationTruth(
       diag.segmentsOutsideWorkday += 1;
       diag.segmentsOutsideEnvelope += 1;
       // Vi tar fortfarande med segmentet i debug-output men markerar det.
-      const allocOutside = deriveAllocation(seg, !!seg.evidence.assignmentSupportsTarget);
+      const allocOutside = deriveAllocation(
+        seg,
+        !!seg.evidence.assignmentSupportsTarget,
+        seg.finalType === 'movement' ? movementCtxById.get(seg.id) ?? null : null,
+      );
       const item: WorkdayAllocationSegment = {
         id: `wda_${seg.id}`,
         startAt: seg.startAt,
@@ -528,7 +698,10 @@ export function buildWorkdayAllocationFromLocationTruth(
     diag.segmentsInsideEnvelope += 1;
 
     const hasOverlap = !!seg.evidence.assignmentSupportsTarget;
-    const alloc = deriveAllocation(seg, hasOverlap);
+    const movementCtx = seg.finalType === 'movement'
+      ? movementCtxById.get(seg.id) ?? null
+      : null;
+    const alloc = deriveAllocation(seg, hasOverlap, movementCtx);
 
     // private_residence INNE i workday → fortfarande private_time, men kan
     // föreslås som workday-slut. Vi flaggar warning.
@@ -596,9 +769,30 @@ export function buildWorkdayAllocationFromLocationTruth(
       case 'warehouse_work': diag.warehouseWorkCount += 1; break;
       case 'supplier_visit': diag.supplierVisitCount += 1; break;
       case 'unlinked_work_address': diag.unlinkedWorkAddressCount += 1; break;
+      // Lager 3.4 — movement-räknare
+      case 'work_travel': diag.workTravelCount += 1; break;
+      case 'commute_travel': diag.commuteTravelCount += 1; break;
+      case 'needs_work_allocation_review':
+        if (seg.finalType === 'movement') diag.movementReviewCount += 1;
+        break;
     }
     if (assignmentStatus === 'unassigned_but_present') diag.unassignedButPresentCount += 1;
     if (item.warnings.includes('planning_geo_mismatch')) diag.planningMismatchCount += 1;
+    if (item.warnings.includes('long_travel_over_150km')) {
+      diag.longTravelOver150kmCount += 1;
+      // Lager 3.4 — read-only proposal: paid_travel_possible. Skriver inget.
+      proposals.push({
+        segmentId: seg.id,
+        proposedAllocationType: alloc.type,
+        targetType: matched?.targetType ?? null,
+        targetId: matched?.targetId ?? null,
+        label: matched?.label ?? seg.physicalLocation?.label ?? null,
+        startAt: new Date(clippedStartMs).toISOString(),
+        endAt: new Date(clippedEndMs).toISOString(),
+        confidence: 'medium',
+        reason: 'paid_travel_possible:long_travel_over_150km',
+      });
+    }
 
     coveredIntervals.push([clippedStartMs, clippedEndMs]);
 
