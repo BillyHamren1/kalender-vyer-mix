@@ -1034,11 +1034,12 @@ export function buildDisplayTimelineFromWorkdayAllocation(
       first.endAt = trailingPrivates[trailingPrivates.length - 1].endAt;
       first.durationMinutes = total;
       first.severity = 'info';
-      if (!first.actions.find((a) => a.type === 'open_correction_dialog')) {
-        first.actions.push({
-          type: 'open_correction_dialog',
+      if (!first.actions.find((a) => a.actionType === 'open_correction_dialog')) {
+        first.actions.push(mkAction({
+          actionType: 'open_correction_dialog',
           label: 'Arbetsdagen kan avslutas här',
-        });
+          severity: 'warning',
+        }));
       }
       // Ta bort de andra trailing-privates.
       const removeIds = new Set(trailingPrivates.slice(1).map((b) => b.id));
