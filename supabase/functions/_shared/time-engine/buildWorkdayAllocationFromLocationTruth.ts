@@ -461,6 +461,14 @@ export function buildWorkdayAllocationFromLocationTruth(
     envelopeWarnings: [...envelope.warnings],
     segmentsInsideEnvelope: 0,
     segmentsOutsideEnvelope: 0,
+    projectWorkCount: 0,
+    largeProjectWorkCount: 0,
+    bookingWorkCount: 0,
+    warehouseWorkCount: 0,
+    supplierVisitCount: 0,
+    unlinkedWorkAddressCount: 0,
+    unassignedButPresentCount: 0,
+    planningMismatchCount: 0,
     examples: [],
   };
 
