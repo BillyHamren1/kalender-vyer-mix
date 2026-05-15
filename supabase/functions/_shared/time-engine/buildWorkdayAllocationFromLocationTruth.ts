@@ -120,23 +120,34 @@ export type WorkdayAllocationWarning =
   | 'staff_not_assigned_to_matched_target'
   | 'no_project_link'
   | 'planning_geo_mismatch'
-  | 'supplier_visit_no_assignment'
-  | 'warehouse_presence_no_assignment'
   | 'needs_review_business_context'
-  | 'gap_in_workday'
   | 'allocation_low_confidence'
   // ── Lager 3.4 — movement-warnings ─────────────────────────────────────
   | 'normally_not_paid_commute'
   | 'normally_not_paid_homebound'
   | 'long_travel_over_150km'
   | 'movement_missing_anchor'
-  // ── Lager 3.5 — supplier-warning ──────────────────────────────────────
+  // ── Lager 3.5 — supplier-warnings ─────────────────────────────────────
   | 'supplier_visit_without_project_context'
+  | 'supplier_visit_during_planned_project'
   // ── Lager 3.6 — hem/private efter sista arbetsplats ───────────────────
   | 'home_after_last_work_location'
   | 'temporary_home_presence'
   // ── Lager 3.10C — uncovered workday time (mjuk varning) ────────────────
-  | 'workday_time_without_location_truth_segment';
+  | 'workday_time_without_location_truth_segment'
+  // ── Lager 3.11C — warehouse-warnings (ersätter warehouse_presence_no_assignment) ─
+  | 'warehouse_presence'
+  | 'warehouse_presence_during_planned_project';
+
+// ── Lager 3.11C — DEPRECATED warnings (får INTE emitteras) ─────────────
+//   - supplier_visit_no_assignment       → använd supplier_visit_without_project_context
+//                                          eller supplier_visit_during_planned_project
+//   - warehouse_presence_no_assignment   → använd warehouse_presence
+//                                          eller warehouse_presence_during_planned_project
+//   - gap_in_workday                     → använd uncovered_workday_time-proposal
+//                                          + workday_time_without_location_truth_segment
+// Borttagna ur unionen så TS-koden inte kan återinföra dem av misstag.
+
 
 export type WorkdayAllocationProposalType =
   | 'allocation_candidate'
