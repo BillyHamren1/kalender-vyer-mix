@@ -268,6 +268,7 @@ export async function buildDayEvidence(
       gpsFetchDiagnostics: null,
       gpsNormalizationDiagnostics: null,
       gpsOutlierDiagnostics: null,
+      assignmentEvidenceDiagnostics: null,
     },
   };
 
@@ -348,7 +349,47 @@ export async function buildDayEvidence(
     warnings.push(`gps_normalize_exception: ${msg}`);
   }
 
-  warnings.push('day_evidence_scaffold_v1: signals beyond gps not collected yet');
+  // ── Lager 1.5: Assignment Evidence (PLANNING IS CONTEXT, NOT PROOF) ─────
+  // Samlar booking_staff_assignments, staff_assignments + calendar_events och
+  // large_project_team_assignments för staff/dag. Får INTE användas som
+  // location truth, display-block eller för transport/okänd plats/granska.
+  // Lager 2 konsumerar detta som CONTEXT mot faktiska bevis.
+  try {
+    const ae = await buildAssignmentEvidence({
+      supabaseAdmin: input.supabaseAdmin,
+      organizationId: input.organizationId,
+      staffId: input.staffId,
+      date: input.date,
+      dayStartUtc,
+      dayEndUtc,
+    });
+    evidence.assignments.items = ae.items;
+    evidence.assignments.assignmentCount = ae.items.length;
+    evidence.assignments.bookingIds = Array.from(
+      new Set(ae.items.map((i) => i.bookingId).filter((x): x is string => !!x)),
+    );
+    evidence.assignments.largeProjectIds = Array.from(
+      new Set(ae.items.map((i) => i.largeProjectId).filter((x): x is string => !!x)),
+    );
+    evidence.assignments.hasPlannedDay = ae.items.some((i) => i.overlapsDate);
+    evidence.dataQuality.assignmentsAvailable = ae.items.length > 0;
+    evidence.diagnostics.counts.assignments = ae.items.length;
+    evidence.diagnostics.assignmentEvidenceDiagnostics = ae.diagnostics;
+    if (ae.diagnostics.warnings.length > 0) {
+      for (const w of ae.diagnostics.warnings) warnings.push(`assignment_evidence:${w}`);
+    }
+    if (ae.diagnostics.assignmentsWithoutTargetCount > 0) {
+      warnings.push(
+        `assignment_without_target:${ae.diagnostics.assignmentsWithoutTargetCount}`,
+      );
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    evidence.diagnostics.errors.assignments = msg;
+    warnings.push(`assignment_evidence_exception: ${msg}`);
+  }
+
+  warnings.push('day_evidence_scaffold_v1: signals beyond gps+assignments not collected yet');
   evidence.diagnostics.buildDurationMs = Date.now() - startedAt;
   return evidence;
 }
