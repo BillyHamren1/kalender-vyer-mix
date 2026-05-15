@@ -653,7 +653,7 @@ export function buildLocationTruthFromDayEvidence(
         startAt: cluster.startAt,
         endAt: cluster.endAt,
         type: segmentType,
-        finalType: 'unknown_area', // sätts korrekt i Lager 2.6-mappning nedan
+        finalType: 'unresolved_location', // sätts korrekt i Lager 2.6-mappning nedan
         matchedTarget,
         physicalLocation: phys.physicalLocation,
         businessContext,
