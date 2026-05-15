@@ -295,6 +295,7 @@ export async function buildDayEvidence(
       gpsNormalizationDiagnostics: null,
       gpsOutlierDiagnostics: null,
       assignmentEvidenceDiagnostics: null,
+      knownTargetsDiagnostics: null,
     },
   };
 
