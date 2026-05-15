@@ -407,13 +407,18 @@ export function resolveWorkdayEnvelope(
       effectiveWorkdayEndAt: null,
       analysisDayStartAt,
       analysisDayEndAt,
+      startWasClippedToDay: false,
+      endWasClippedToDay: false,
+      endWasClippedToNow: false,
     };
   }
 
   // ── Lager 3.11A — klipp start mot analysdag ──
   let effectiveStartMs = rawStartMs;
+  let startWasClippedToDay = false;
   if (analysisStartMs !== null && rawStartMs < analysisStartMs) {
     effectiveStartMs = analysisStartMs;
+    startWasClippedToDay = true;
     warnings.push('workday_started_before_analysis_day');
   }
 
@@ -435,14 +440,21 @@ export function resolveWorkdayEnvelope(
 
   // ── Lager 3.11A — klipp slut mot analysdag ──
   let effectiveEndMs = rawEndCandidateMs;
+  let endWasClippedToDay = false;
+  let endWasClippedToNow = false;
   if (analysisEndMs !== null && rawEndCandidateMs > analysisEndMs) {
     effectiveEndMs = analysisEndMs;
     endSource = 'analysis_window_end';
+    endWasClippedToDay = true;
     warnings.push('workday_continues_after_analysis_day');
     if (isOpen) warnings.push('envelope_clipped_to_analysis_window');
   } else if (isOpen && analysisEndMs !== null && rawEndCandidateMs < analysisEndMs) {
     // Öppen timer mitt i dagen → endAt = now < analysisEnd.
+    endWasClippedToNow = true;
     warnings.push('envelope_clipped_to_analysis_window');
+  } else if (isOpen && analysisEndMs === null) {
+    // Öppen utan analysfönster → endAt=now.
+    endWasClippedToNow = true;
   }
 
   if (effectiveEndMs < effectiveStartMs) effectiveEndMs = effectiveStartMs;
@@ -462,6 +474,9 @@ export function resolveWorkdayEnvelope(
     effectiveWorkdayEndAt: endAt,
     analysisDayStartAt,
     analysisDayEndAt,
+    startWasClippedToDay,
+    endWasClippedToDay,
+    endWasClippedToNow,
   };
 }
 
