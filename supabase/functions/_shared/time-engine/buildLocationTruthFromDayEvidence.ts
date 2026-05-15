@@ -776,21 +776,42 @@ export function buildLocationTruthFromDayEvidence(
         // Avgör nu fysisk-plats-styrkan: stabilt kluster ⇒ known_address,
         // svagt kluster ⇒ unresolved_location.
         const clusterStrongEnough = cluster.isStable;
+        // Lager 2.12C — match-helpern signalerar nu LP-missing-geo direkt här
+        // (i stället för needs_location_review). Plocka upp det som
+        // business/data-quality-problem snarare än fysisk-plats-okänt.
+        const lpMissingGeoSignaled =
+          match.warnings.includes('assigned_large_project_missing_geo') ||
+          match.warnings.includes('large_project_missing_geo');
         if (clusterStrongEnough) {
           segmentType = 'known_address';
-          businessStatus = match.planningIgnoredBecauseGeoDisagreed
-            ? 'planning_geo_mismatch'
-            : 'unresolved_business_context';
-          businessWarnings.push('no_eventflow_target_match');
-          if (match.planningIgnoredBecauseGeoDisagreed) {
-            businessWarnings.push('planned_target_does_not_match_physical_location');
+          if (lpMissingGeoSignaled) {
+            businessStatus = 'needs_review';
+            businessWarnings.push('large_project_missing_geo');
+            businessWarnings.push('business_target_missing_geo');
+            businessWarnings.push('assigned_large_project_missing_geo');
+            businessWarnings.push('planning_target_missing_geo');
+          } else {
+            businessStatus = match.planningIgnoredBecauseGeoDisagreed
+              ? 'planning_geo_mismatch'
+              : 'unresolved_business_context';
+            businessWarnings.push('no_eventflow_target_match');
+            if (match.planningIgnoredBecauseGeoDisagreed) {
+              businessWarnings.push('planned_target_does_not_match_physical_location');
+            }
+            physDiag.noEventFlowTargetMatchCount++;
           }
           physDiag.clustersWithKnownAddressNoTargetCount++;
-          physDiag.noEventFlowTargetMatchCount++;
           if (phys.centroidOnly) physDiag.centroidOnlyAddressCount++;
         } else {
-          segmentType = 'unresolved_location';
-          businessStatus = 'no_target_match';
+          if (lpMissingGeoSignaled) {
+            // Svagt kluster + LP utan geo → genuin platsgranskning behövs.
+            segmentType = 'needs_location_review';
+            businessStatus = 'needs_review';
+            businessWarnings.push('large_project_missing_geo_or_planning_conflict');
+          } else {
+            segmentType = 'unresolved_location';
+            businessStatus = 'no_target_match';
+          }
           physDiag.unresolvedLocationCount++;
         }
       }

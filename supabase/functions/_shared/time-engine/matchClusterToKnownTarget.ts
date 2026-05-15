@@ -338,15 +338,22 @@ export function matchClusterToKnownTarget(
         r.assignmentSupports,
     );
     if (lpAssignedButMissingGeo) {
+      // Lager 2.12C — LP utan egen geo är ett BUSINESS/data-quality-problem,
+      // inte en fysisk-plats-fråga. Returnera no_eventflow_target_match så
+      // att Lager 2 kan avgöra fysisk plats från klustrets stabilitet.
+      // needs_location_review reserveras för verkliga konflikter
+      // (impossible route, konkurrerande targets, home/project-konflikt).
       matched = {
-        type: 'needs_location_review',
+        type: 'no_eventflow_target_match',
         targetId: null,
-        label: 'Behöver platsgranskning',
+        label: 'Ingen EventFlow-target',
         knownTargetType: null,
       };
-      confidence = 'low';
-      decisionReason = 'large_project_assigned_but_missing_own_geo';
-      warnings.push('large_project_missing_own_geo_blocks_match');
+      confidence = cluster.confidence === 'high' ? 'medium' : 'low';
+      decisionReason = 'assigned_large_project_missing_geo_but_physical_location_stable';
+      warnings.push('assigned_large_project_missing_geo');
+      warnings.push('large_project_missing_geo');
+      warnings.push('business_target_missing_geo');
     } else {
       matched = {
         type: 'no_eventflow_target_match',
