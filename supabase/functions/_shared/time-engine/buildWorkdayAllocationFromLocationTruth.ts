@@ -769,9 +769,30 @@ export function buildWorkdayAllocationFromLocationTruth(
       case 'warehouse_work': diag.warehouseWorkCount += 1; break;
       case 'supplier_visit': diag.supplierVisitCount += 1; break;
       case 'unlinked_work_address': diag.unlinkedWorkAddressCount += 1; break;
+      // Lager 3.4 — movement-räknare
+      case 'work_travel': diag.workTravelCount += 1; break;
+      case 'commute_travel': diag.commuteTravelCount += 1; break;
+      case 'needs_work_allocation_review':
+        if (seg.finalType === 'movement') diag.movementReviewCount += 1;
+        break;
     }
     if (assignmentStatus === 'unassigned_but_present') diag.unassignedButPresentCount += 1;
     if (item.warnings.includes('planning_geo_mismatch')) diag.planningMismatchCount += 1;
+    if (item.warnings.includes('long_travel_over_150km')) {
+      diag.longTravelOver150kmCount += 1;
+      // Lager 3.4 — read-only proposal: paid_travel_possible. Skriver inget.
+      proposals.push({
+        segmentId: seg.id,
+        proposedAllocationType: alloc.type,
+        targetType: matched?.targetType ?? null,
+        targetId: matched?.targetId ?? null,
+        label: matched?.label ?? seg.physicalLocation?.label ?? null,
+        startAt: new Date(clippedStartMs).toISOString(),
+        endAt: new Date(clippedEndMs).toISOString(),
+        confidence: 'medium',
+        reason: 'paid_travel_possible:long_travel_over_150km',
+      });
+    }
 
     coveredIntervals.push([clippedStartMs, clippedEndMs]);
 
