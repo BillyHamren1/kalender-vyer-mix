@@ -7,7 +7,12 @@
  *   3. large_project (egen geo)
  *   4. project (ej child under large_project)
  *   5. booking (ej child under large_project)
- *   6. unknown_area / needs_location_review
+ *   6. no_eventflow_target_match / needs_location_review
+ *
+ * Lager 2.11D — 'unknown_area' är borttaget. När ingen EventFlow-target
+ * matchar returneras 'no_eventflow_target_match'. Lager 2 avgör sedan om
+ * fysisk plats är känd (known_address) eller okänd (unresolved_location)
+ * baserat på klustrets stabilitet.
  *
  * Regler:
  *  - GPS är primär bevisning. Planning är CONTEXT/tie-breaker, aldrig proof.
@@ -35,7 +40,7 @@ export type MatchedTargetType =
   | 'project'
   | 'booking'
   | 'private_residence'
-  | 'unknown_area'
+  | 'no_eventflow_target_match'
   | 'needs_location_review';
 
 export interface MatchedTarget {
@@ -344,9 +349,9 @@ export function matchClusterToKnownTarget(
       warnings.push('large_project_missing_own_geo_blocks_match');
     } else {
       matched = {
-        type: 'unknown_area',
+        type: 'no_eventflow_target_match',
         targetId: null,
-        label: 'Okänt område',
+        label: 'Ingen EventFlow-target',
         knownTargetType: null,
       };
       confidence = cluster.confidence === 'high' ? 'medium' : 'low';
@@ -360,9 +365,9 @@ export function matchClusterToKnownTarget(
   // (defensivt — privat ska ha riktig zone).
   if (matched.type === 'private_residence' && !input.privateResidence.hasUsableZone) {
     matched = {
-      type: 'unknown_area',
+      type: 'no_eventflow_target_match',
       targetId: null,
-      label: 'Okänt område',
+      label: 'Ingen EventFlow-target',
       knownTargetType: null,
     };
     confidence = 'low';

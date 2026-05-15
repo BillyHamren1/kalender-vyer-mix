@@ -515,7 +515,7 @@ export function buildLocationTruthFromDayEvidence(
           targetDiag.matchedBookingCount++;
           targetDiag.matchedKnownSiteCount++;
           break;
-        case 'unknown_area':
+        case 'no_eventflow_target_match':
           targetDiag.unknownClusterCount++;
           break;
         case 'needs_location_review':
@@ -661,7 +661,7 @@ export function buildLocationTruthFromDayEvidence(
           businessWarnings.push('large_project_missing_geo_or_planning_conflict');
         }
       } else {
-        // match.matchedTarget.type === 'unknown_area' — ingen EventFlow-target.
+        // match.matchedTarget.type === 'no_eventflow_target_match' (Lager 2.11D).
         // Avgör nu fysisk-plats-styrkan: stabilt kluster ⇒ known_address,
         // svagt kluster ⇒ unresolved_location.
         const clusterStrongEnough = cluster.isStable;

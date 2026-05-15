@@ -133,7 +133,7 @@ Deno.test('Lager 2.11B E: ingen target (centroid only) → ingen address, ingen 
   const r = resolvePhysicalLocationForCluster({
     cluster: makeCluster(59.5, 18.5),
     match: {
-      matchedTarget: { type: 'unknown_area', targetId: null, label: '?', knownTargetType: null },
+      matchedTarget: { type: 'no_eventflow_target_match', targetId: null, label: '?', knownTargetType: null },
       confidence: 'low',
       candidates: [], rejectedCandidates: [], warnings: [],
       decisionReason: 'no match',

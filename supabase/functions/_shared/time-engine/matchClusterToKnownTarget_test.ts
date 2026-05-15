@@ -156,7 +156,7 @@ Deno.test('F: GPS far from planned target → planning ignored', () => {
   ];
   const assignments = [makeAssignment({ bookingId: 'bk-far' })];
   const r = matchClusterToKnownTarget({ cluster, knownTargets: targets, assignments, privateResidence: NO_PRIVATE });
-  assertEquals(r.matchedTarget.type, 'unknown_area');
+  assertEquals(r.matchedTarget.type, 'no_eventflow_target_match');
   assert(r.planningIgnoredBecauseGeoDisagreed);
 });
 
