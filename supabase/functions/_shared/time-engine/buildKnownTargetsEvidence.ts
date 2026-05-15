@@ -150,6 +150,12 @@ export interface KnownTargetsDiagnostics {
   suppliersWithGeoCount: number;
   suppliersMissingGeoCount: number;
   suppliersMissingRadiusCount: number;
+  /** Lager 2.10 — vilken tabell som faktiskt användes för suppliers. */
+  supplierTableUsed: string | null;
+  /** Lager 2.10 — sant om ingen supplier-tabell hittades. */
+  supplierTableNotFoundWarning: boolean;
+  /** Lager 2.10 — antal suppliers där default-radius applicerades (coords men ingen radius). */
+  defaultSupplierRadiusAppliedCount: number;
   supplierExamples: Array<{
     targetId: string;
     label: string;
