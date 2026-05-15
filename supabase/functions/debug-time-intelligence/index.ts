@@ -40,6 +40,7 @@ import { processGpsTimelineForAutoStart } from "../_shared/time-engine/processGp
 import { assertNoLegacySources } from "../_shared/time-engine/assertNoLegacySources.ts";
 import { buildTimeRegistrationSegments } from "../_shared/time-engine/buildTimeRegistrationSegments.ts";
 import type { WorkTarget } from "../_shared/time-engine/contracts.ts";
+import { fetchAllStaffLocationPings as sharedFetchAllStaffLocationPings } from "../_shared/timeEngine/fetchAllStaffLocationPings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -60,55 +61,43 @@ function json(status: number, body: any) {
   });
 }
 
-/** Paginated raw pings — only allowed legacy read in this debugger. */
+/**
+ * Day-wide GPS via canonical paginated reader.
+ * Wraps the shared helper to keep the legacy return shape used below.
+ * Note: organizationId is required by the shared helper for multi-tenant
+ * safety. We resolve it from staff_members before calling.
+ */
 async function fetchAllStaffLocationPings(
   admin: any,
   staffId: string,
   dayStart: string,
   dayEnd: string,
 ) {
-  const pageSize = 1000;
-  const all: any[] = [];
-  let from = 0;
-  let pageCount = 0;
-  const primarySelect =
-    "id, recorded_at, lat, lng, accuracy, speed, source, created_at, app_state, activity_type";
-  const fallbackSelect = "id, recorded_at, lat, lng, accuracy, speed";
-  let selectCols = primarySelect;
-  let usedFallback = false;
-  while (true) {
-    let { data, error } = await admin
-      .from("staff_location_history")
-      .select(selectCols)
-      .eq("staff_id", staffId)
-      .gte("recorded_at", dayStart)
-      .lte("recorded_at", dayEnd)
-      .order("recorded_at", { ascending: true })
-      .range(from, from + pageSize - 1);
-    if (error && selectCols === primarySelect) {
-      selectCols = fallbackSelect;
-      usedFallback = true;
-      const retry = await admin
-        .from("staff_location_history")
-        .select(selectCols)
-        .eq("staff_id", staffId)
-        .gte("recorded_at", dayStart)
-        .lte("recorded_at", dayEnd)
-        .order("recorded_at", { ascending: true })
-        .range(from, from + pageSize - 1);
-      data = retry.data;
-      error = retry.error;
-    }
-    if (error) {
-      return { data: all, error, pageCount, pageSize, usedFallback } as any;
-    }
-    const batch = data ?? [];
-    pageCount++;
-    all.push(...batch);
-    if (batch.length < pageSize) break;
-    from += pageSize;
+  const { data: sm } = await admin
+    .from("staff_members")
+    .select("organization_id")
+    .eq("id", staffId)
+    .maybeSingle();
+  const organizationId: string | null = sm?.organization_id ?? null;
+  if (!organizationId) {
+    return { data: [], error: new Error("staff_members.organization_id missing"), pageCount: 0, pageSize: 1000, usedFallback: false } as any;
   }
-  return { data: all, error: null, pageCount, pageSize, usedFallback } as any;
+  const r = await sharedFetchAllStaffLocationPings({
+    supabaseAdmin: admin,
+    organizationId,
+    staffId,
+    startUtc: dayStart,
+    endUtc: dayEnd,
+    select: "id, recorded_at, lat, lng, accuracy, speed, source, created_at, app_state, activity_type",
+  });
+  return {
+    data: r.rows,
+    error: r.diagnostics.errorMessage ? new Error(r.diagnostics.errorMessage) : null,
+    pageCount: r.diagnostics.pageCount,
+    pageSize: r.diagnostics.pageSize,
+    usedFallback: false,
+    diagnostics: r.diagnostics,
+  } as any;
 }
 
 // ─── Forbidden tables — must NEVER be read as truth by the new engine ───────
