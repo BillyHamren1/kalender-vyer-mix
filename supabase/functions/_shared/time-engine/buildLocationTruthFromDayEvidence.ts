@@ -152,6 +152,8 @@ export interface LocationTruthDiagnostics {
   skippedReason: 'no_pings' | 'no_evidence' | 'not_implemented_yet' | null;
   /** Lager 2.2: stabila platskluster (diagnostics-only än så länge). */
   stableClusterDiagnostics: StableClusterDiagnostics | null;
+  /** Lager 2.3: target-match per kluster. */
+  targetMatchDiagnostics: TargetMatchDiagnostics | null;
 }
 
 export interface LocationTruthResult {
@@ -162,6 +164,8 @@ export interface LocationTruthResult {
    * Skrivs INTE till någon downstream-tabell ännu.
    */
   stableClusters: StableLocationCluster[];
+  /** Lager 2.3: matchningsresultat per kluster (debug/diagnostics-only). */
+  clusterMatches: ClusterMatchEntry[];
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -224,17 +228,107 @@ export function buildLocationTruthFromDayEvidence(
     skippedReason = 'no_pings';
     warnings.push('location_truth_no_location_logic_pings');
   } else if (counts.knownTargetsWithCoordinates === 0 && counts.privateZones === 0) {
-    // Vi har pings men inget att matcha mot — segmenten skulle ändå bli
-    // unknown_area i nästa fas. Markera tydligt.
     hasUsableEvidence = true;
     skippedReason = 'no_evidence';
     warnings.push('location_truth_no_target_geometry_to_match');
   } else {
     hasUsableEvidence = true;
-    // v2.2: vi har kluster men ännu inga segments. Lager 2.3 kommer matcha
-    // klustren mot knownTargets/privateZones.
     skippedReason = 'not_implemented_yet';
     warnings.push('location_truth_builder_scaffold_no_segments_emitted');
+  }
+
+  // Lager 2.3: matcha varje stabilt kluster mot known targets.
+  const clusterMatches: ClusterMatchEntry[] = [];
+  let targetMatchDiagnostics: TargetMatchDiagnostics | null = null;
+  try {
+    const knownTargets = dayEvidence.knownTargets?.items ?? [];
+    const assignments = dayEvidence.assignments?.items ?? [];
+    const privateResidence = {
+      hasUsableZone: dayEvidence.privateResidence?.hasUsableZone ?? false,
+    };
+
+    const diag: TargetMatchDiagnostics = {
+      clustersEvaluated: 0,
+      matchedKnownSiteCount: 0,
+      matchedPrivateCount: 0,
+      matchedWarehouseCount: 0,
+      matchedLargeProjectCount: 0,
+      matchedProjectCount: 0,
+      matchedBookingCount: 0,
+      matchedOrganizationLocationCount: 0,
+      unknownClusterCount: 0,
+      needsLocationReviewCount: 0,
+      planningUsedAsTieBreakerCount: 0,
+      planningIgnoredBecauseGeoDisagreedCount: 0,
+      examples: [],
+    };
+
+    for (const cluster of stableClusters) {
+      const match = matchClusterToKnownTarget({
+        cluster,
+        knownTargets,
+        assignments,
+        privateResidence,
+        dataQuality: dayEvidence.knownTargets?.dataQuality,
+      });
+      clusterMatches.push({ clusterId: cluster.id, match });
+
+      diag.clustersEvaluated++;
+      switch (match.matchedTarget.type) {
+        case 'private_residence':
+          diag.matchedPrivateCount++;
+          diag.matchedKnownSiteCount++;
+          break;
+        case 'warehouse':
+          diag.matchedWarehouseCount++;
+          diag.matchedKnownSiteCount++;
+          break;
+        case 'organization_location':
+          diag.matchedOrganizationLocationCount++;
+          diag.matchedKnownSiteCount++;
+          break;
+        case 'large_project':
+          diag.matchedLargeProjectCount++;
+          diag.matchedKnownSiteCount++;
+          break;
+        case 'project':
+          diag.matchedProjectCount++;
+          diag.matchedKnownSiteCount++;
+          break;
+        case 'booking':
+          diag.matchedBookingCount++;
+          diag.matchedKnownSiteCount++;
+          break;
+        case 'unknown_area':
+          diag.unknownClusterCount++;
+          break;
+        case 'needs_location_review':
+          diag.needsLocationReviewCount++;
+          break;
+      }
+      if (match.planningUsedAsTieBreaker) diag.planningUsedAsTieBreakerCount++;
+      if (match.planningIgnoredBecauseGeoDisagreed) {
+        diag.planningIgnoredBecauseGeoDisagreedCount++;
+      }
+      if (diag.examples.length < 5) {
+        diag.examples.push({
+          clusterId: cluster.id,
+          matchedType: match.matchedTarget.type,
+          targetId: match.matchedTarget.targetId,
+          label: match.matchedTarget.label,
+          confidence: match.confidence,
+          decisionReason: match.decisionReason,
+          candidateCount: match.candidates.length,
+          rejectedCount: match.rejectedCandidates.length,
+          warnings: match.warnings,
+        });
+      }
+    }
+    targetMatchDiagnostics = diag;
+  } catch (err) {
+    warnings.push(
+      `location_truth_target_match_failed:${(err as Error).message}`,
+    );
   }
 
   const diagnostics: LocationTruthDiagnostics = {
@@ -247,7 +341,8 @@ export function buildLocationTruthFromDayEvidence(
     warnings,
     skippedReason,
     stableClusterDiagnostics,
+    targetMatchDiagnostics,
   };
 
-  return { segments: [], diagnostics, stableClusters };
+  return { segments: [], diagnostics, stableClusters, clusterMatches };
 }
