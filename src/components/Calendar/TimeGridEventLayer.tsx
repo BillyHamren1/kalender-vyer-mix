@@ -4,6 +4,7 @@ import type { CalendarEvent, Resource } from './ResourceData';
 import CustomEvent from './CustomEvent';
 import { DRAG_DATA_TYPE, type DraggedEventData } from '@/hooks/useEventDragDrop';
 import type { OverlapInfo } from './timeGridLayout';
+import { useEventNavigation } from '@/hooks/useEventNavigation';
 
 export const EventWrapper: React.FC<{
   event: CalendarEvent;
