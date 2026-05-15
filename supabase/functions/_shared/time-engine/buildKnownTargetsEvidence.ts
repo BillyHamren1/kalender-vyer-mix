@@ -534,23 +534,44 @@ export async function buildKnownTargetsEvidence(
     diag.supplierTablesTried.push(table);
     if (supplierFetched) continue;
     let data: any[] | null = null;
+    let orgScopeColumnUsed: string | null = null;
+    let orgScopeMissing = false;
     try {
-      // Försök först med org-filter; faller tillbaka till osäkrad select om
-      // organization_id-kolumnen saknas. select('*') så varierande scheman
-      // inte ger "column does not exist" innan vi hinner till raw-extraction.
-      let res: any = await supabaseAdmin
-        .from(table)
-        .select('*')
-        .eq('organization_id', organizationId);
-      if (res?.error) {
-        const msg = String(res.error.message ?? '');
-        if (/organization_id|column .* does not exist/i.test(msg)) {
-          // Kolumnen finns inte → prova utan filter.
-          res = await supabaseAdmin.from(table).select('*');
+      // Lager 2.13 — försök varje godkänd org-scope-kolumn i tur och ordning.
+      // Faller ALDRIG tillbaka till osäkrad select. Om ingen org-kolumn finns
+      // → skippa tabellen helt med diagnostics.
+      let res: any = null;
+      let lastError: string | null = null;
+      let allColumnsMissing = true;
+      for (const col of ORG_SCOPE_COLUMNS) {
+        const attempt: any = await supabaseAdmin.from(table).select('*').eq(col, organizationId);
+        if (!attempt?.error) {
+          res = attempt;
+          orgScopeColumnUsed = col;
+          allColumnsMissing = false;
+          break;
+        }
+        const msg = String(attempt.error.message ?? '');
+        lastError = msg;
+        // Om felet INTE är "column does not exist" → annan typ av fel, sluta prova.
+        if (!/does not exist|undefined column|unknown column|column .* does not/i.test(msg)
+          && !new RegExp(`\\b${col}\\b`).test(msg)) {
+          allColumnsMissing = false;
+          break;
         }
       }
-      if (res?.error) {
-        diag.warnings.push(`supplier_table_probe_failed:${table}: ${res.error.message}`);
+      if (!res) {
+        if (allColumnsMissing) {
+          // Inget säkert sätt att org-scopa denna tabell.
+          orgScopeMissing = true;
+          if (!diag.supplierTablesSkippedMissingOrgScope.includes(table)) {
+            diag.supplierTablesSkippedMissingOrgScope.push(table);
+          }
+          const w = `supplier_table_skipped_missing_org_scope:${table}`;
+          if (!diag.warnings.includes(w)) diag.warnings.push(w);
+          continue;
+        }
+        diag.warnings.push(`supplier_table_probe_failed:${table}: ${lastError ?? 'unknown'}`);
         continue;
       }
       data = (res?.data ?? []) as any[];
@@ -567,6 +588,7 @@ export async function buildKnownTargetsEvidence(
 
     // Lager 2.12A — för breda tabeller, kräver att raden tydligt är supplier.
     const isBroad = BROAD_SUPPLIER_TABLES.includes(table);
+    let supplierMarkerWasRequired = isBroad;
     if (isBroad) {
       const filtered = data.filter(isSupplierRow);
       const skipped = data.length - filtered.length;
@@ -586,6 +608,7 @@ export async function buildKnownTargetsEvidence(
     }
 
     diag.supplierTableUsed = table;
+    if (!diag.supplierTablesUsed.includes(table)) diag.supplierTablesUsed.push(table);
     diag.supplierRowsFetchedTotal = data.length;
     supplierFetched = true;
 
@@ -630,18 +653,17 @@ export async function buildKnownTargetsEvidence(
         radiusSource = 'default_supplier_radius';
         defaultRadiusUsed = true;
       }
-      // Per spec: hasRadius=false när default applicerats (radius är inte
-      // verifierad från källan).
       const hasRadius = radiusSource === 'native';
 
       const isActive = (r?.is_active !== false) && (r?.active !== false);
       const status = isActive ? 'active' : 'inactive';
-      let suppressed: KnownTargetSuppressedReason = classifyStatusReason(label, status);
-      if (!suppressed && !hasCoords) suppressed = 'missing_coordinates';
+      // Lager 2.13 — saknad geo gör inte längre supplier suppressed; den är
+      // fortfarande ett giltigt business/work target, men inte geo target.
+      const suppressed: KnownTargetSuppressedReason = classifyStatusReason(label, status);
 
-      // canBeGeoTarget: true endast om geo (koordinater) finns och inte
-      // suppressed pga status. Default-radius räknas som tillräcklig grund.
-      const canBeGeo = !suppressed && hasCoords;
+      const canBePrimaryWorkTarget = !suppressed && isActive;
+      const canBeGeoTarget = !suppressed && hasCoords;
+
       const targetId = String(r?.id ?? r?.uuid ?? r?.supplier_id ?? '');
       if (!targetId) continue;
 
@@ -662,8 +684,8 @@ export async function buildKnownTargetsEvidence(
         dateWindow: null,
         parentLargeProjectId: null,
         belongsToLargeProject: false,
-        canBePrimaryWorkTarget: canBeGeo,
-        canBeGeoTarget: canBeGeo,
+        canBePrimaryWorkTarget,
+        canBeGeoTarget,
         suppressedReason: suppressed,
       };
       record(item);
@@ -686,15 +708,20 @@ export async function buildKnownTargetsEvidence(
       }
       if (diag.supplierExamples.length < 5) {
         diag.supplierExamples.push({
+          table,
           targetId,
           label,
           address,
+          hasGeo: hasCoords,
+          hasOrgScope: orgScopeColumnUsed !== null,
+          supplierMarkerFound: supplierMarkerWasRequired ? isSupplierRow(r) : true,
           hasCoordinates: hasCoords,
           hasRadius,
           suppressedReason: suppressed,
         });
       }
     }
+    void orgScopeMissing;
   }
   if (!supplierFetched) {
     diag.supplierTableNotFoundWarning = true;
