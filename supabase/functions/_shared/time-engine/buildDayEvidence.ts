@@ -410,6 +410,14 @@ export async function buildDayEvidence(
       gpsOutlierDiagnostics: null,
       assignmentEvidenceDiagnostics: null,
       knownTargetsDiagnostics: null,
+      gps: null,
+    },
+    internal: {
+      normalizedPings: [],
+      locationLogicPings: [],
+      hardRejectedPings: [],
+      dayWindowStartUtc: input.dayStartUtc ?? `${input.date}T00:00:00.000Z`,
+      dayWindowEndUtc: input.dayEndUtc ?? `${input.date}T23:59:59.999Z`,
     },
   };
 
