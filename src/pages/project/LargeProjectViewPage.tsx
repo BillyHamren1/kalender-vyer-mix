@@ -105,6 +105,10 @@ const LargeProjectViewPage = () => {
         <TabsContent value="transport">
           <ProjectTransportWidget bookingId={bookingId} />
         </TabsContent>
+
+        <TabsContent value="pickup">
+          <PickupStopsSection parent={{ type: "large_project", id: project.id }} />
+        </TabsContent>
       </Tabs>
     </div>
   );
