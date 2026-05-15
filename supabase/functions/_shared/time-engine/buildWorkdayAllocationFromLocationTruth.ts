@@ -282,27 +282,46 @@ export type WorkdayEnvelopeWarning =
   | 'workday_timer_open'
   | 'workday_start_missing'
   | 'workday_end_before_start'
-  | 'envelope_clipped_to_analysis_window';
+  | 'envelope_clipped_to_analysis_window'
+  // Lager 3.11A — analysdag-klippning
+  | 'workday_started_before_analysis_day'
+  | 'workday_continues_after_analysis_day';
 
 export interface WorkdayEnvelope {
-  /** Arbetsdagens startsanning. null = ingen aktiv dagtimer. */
+  /** Arbetsdagens startsanning (effektiv, klippt mot analysdagen). null = ingen aktiv dagtimer. */
   startAt: string | null;
-  /** Arbetsdagens slutsanning. Om isOpen=true är detta analysfönster/now. */
+  /** Arbetsdagens slutsanning (effektiv, klippt mot analysdagen). Om isOpen=true är detta analysfönster/now. */
   endAt: string | null;
   /** True om dagtimern fortfarande är öppen (ingen stopp registrerad). */
   isOpen: boolean;
   startSource: WorkdayEnvelopeStartSource;
   endSource: WorkdayEnvelopeEndSource;
   warnings: WorkdayEnvelopeWarning[];
+  // ── Lager 3.11A — diagnostics: bevara råa värden bredvid effektiva ──
+  /** Rå timer-start från active_time_registrations (oklippt). */
+  timerStartedAt?: string | null;
+  /** Rå timer-stop från active_time_registrations (null om öppen). */
+  timerStoppedAt?: string | null;
+  /** Effektiv start (= max(timerStart, analysisDayStart)). Alias för startAt. */
+  effectiveWorkdayStartAt?: string | null;
+  /** Effektivt slut (= min(timerStop ?? now, analysisDayEnd)). Alias för endAt. */
+  effectiveWorkdayEndAt?: string | null;
+  /** Analysfönsterstart som användes för klippning. */
+  analysisDayStartAt?: string | null;
+  /** Analysfönsterslut som användes för klippning. */
+  analysisDayEndAt?: string | null;
 }
 
 export interface ResolveWorkdayEnvelopeInput {
   activeWorkday: ActiveWorkdayInput | null;
   /** Yttre slut för analysfönstret (t.ex. dayEnd UTC eller now-iso). Optional. */
   analysisWindowEndIso?: string | null;
+  /** Lager 3.11A — analysfönsterstart (t.ex. dayStart UTC). Klipper bort tid före analysdagen. */
+  analysisWindowStartIso?: string | null;
   /** Optional "now"-injection för testbarhet. */
   nowIso?: string | null;
 }
+
 
 /**
  * Bygger workdayEnvelope från aktiv dagtimer.
