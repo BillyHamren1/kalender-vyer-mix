@@ -1,26 +1,62 @@
-## Problem
+## Mål
 
-`ProjectPlanningSheet` öppnas alltid med hårdkodade defaulttider (rig 08–16, event 17–23, rigDown 08–16) — även när bokningen redan har skarpa tider satta. Tiderna finns på `bookings` (`rig_start_time/end_time`, `event_start_time/end_time`, `rigdown_start_time/end_time`, hålls i synk via Phase Time Sync), men dialogen selectar dem inte och läser dem inte.
+När en bokning kommer in i `IncomingBookingsList` ska användaren klicka **Placera** och få EN dialog som både visar all bokningsinfo, låter användaren välja typ (medel / stort) och planera in rig + rigDown direkt mot personalkalenderns dagvy — i ett svep. Eventet placeras inte i personalkalendern.
 
-## Fix
+## UX-flöde
 
-I `src/components/project/ProjectPlanningSheet.tsx`:
+1. **Inkommande bokning → Placera-knapp** öppnar `BookingPlacementDialog` (ny komponent).
+2. Dialogen körs som en wizard, **en dag i taget** (rig-dagar + rigDown-dagar, kronologiskt; eventdagen hoppas över).
+3. Per steg/dag visas:
+   - **Övre sektion (bokningsinfo)** för hela bokningen, alltid synlig:
+     - Kund, bokningsnummer, leveransadress
+     - Kontaktperson + telefon + e-post
+     - Bokningens fasta tider (rig/event/rigDown med "Fast tid"-badge när låst)
+     - Produktlista (kollapsbar)
+     - Bilagor (kollapsbar, länkar)
+     - Internalnotes
+     - **Checkbox "Detta är ett stort projekt"** (synlig på första steget; låser typ för hela flödet).
+   - **Nedre sektion (dagens planering)** sida vid sida:
+     - **Vänster:** läsbar dagvy från personalkalendern för aktuellt datum (samma `TimeGrid` som personalkalendern, men read-only) — så användaren ser vem som är upptagen i vilket team.
+     - **Höger:** formulär för dagen — Datum (låst om bokningens tid är låst), Start, Slut, Team-dropdown.
+4. **Navigering:** `Tillbaka` / `Nästa` mellan dagar. Sista steget visar `Slutför planering`.
+5. **Commit på sista steget:** alla rig/rigDown-dagar skrivs i ett svep:
+   - Medel: skapa `projects`-rad + `calendar_events` per planerad dag.
+   - Stort: lägg till bokning i (ev. nytt) large project + `large_project_team_assignments` per dag.
+6. Toast + invalidate, dialog stänger.
 
-1. **Utöka bokningsquery** (raderna 86 och 100) — lägg till de sex tidsfälten i `select(...)`:
-   `rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time`.
+## Borttaget
 
-2. **Använd dem i seedningen** (raderna 108–117). Ersätt `DEFAULTS.<phase>.start/end` med en helper som:
-   - tar bokningens värde om det finns (trimma sekunder, `08:00:00` → `08:00`),
-   - faller tillbaka till `DEFAULTS[kind]` annars.
+- Den fristående **`ProjectPlanningSheet`** behövs inte längre som separat dag-för-dag-flöde efter att projektet skapats — innehållet flyttar in i den nya wizarden. Tas bort från `ProjectLayout` / `JobDetail` / `UnifiedProjectList` / `PlanningDashboard` / `UnplannedProjectsBanner`.
+- `IncomingBookingsList` kollapsar sina två knappar ("Skapa projekt" + "Stort projekt") till en enda **Placera**-knapp som öppnar nya dialogen.
 
-3. **Samma helper i `addDayForPhase`** (rad 141–156) — när användaren klickar "Lägg till dag" ska första dagen i en fas också ärva bokningens tid om en sådan finns, inte hårdkodade defaults. Andra dagen i samma fas behåller den redan inmatade tiden från befintlig dag (kopiera från sista raden i fasen istället för DEFAULTS).
+## Tekniska komponenter
 
-4. **Stora projekt**: behåll nuvarande logik som tar `ctx.bookings[0]` som källa för seed (representant). Phase Time Sync garanterar att alla syskon har samma tider per fas+datum, så det är säkert.
+```
+src/components/project/BookingPlacementDialog.tsx         (ny — wizard-skal + commit)
+  ├─ BookingInfoHeader.tsx                                (ny — översta info-block)
+  ├─ BookingPlacementDayStep.tsx                          (ny — dag + sida-vid-sida)
+  └─ ReadOnlyStaffDayView.tsx                             (ny — wrappar TimeGrid read-only)
+```
 
-5. **Test**: lägg till `src/components/project/__tests__/projectPlanningSheetSeed.test.ts` som verifierar helpern (`pickBookingTime(booking, 'rig', 'start')` etc.) — booking-värde vinner, fallback till DEFAULTS när null/tom.
+- Återanvänd `TimeGrid` från `src/components/Calendar/` med en `readOnly`-prop (eller wrapper som inaktiverar drag/klick).
+- Återanvänd seed-logik (`trimSec`, `FIELD_MAP`, `isPhaseLocked`) från nuvarande `ProjectPlanningSheet` — lyft ut i `src/components/project/bookingPlacementSeed.ts` och dela mellan ny dialog och tester.
+- Commit-logik:
+  - Medel: `createProjectFromBooking` (befintlig `createJobFromBooking`-stil) + `syncStandaloneProjectToCalendar` per dag.
+  - Stort: `addBookingToLargeProject` + `large_project_team_assignments` upsert.
+- Datakällor i dialogen (en `useQuery` per bokning):
+  - `bookings` (kund/adress/tider/notes/kontakt/låsflaggor)
+  - `booking_products` (produktlista)
+  - `attachments` filtrerade på `booking_id`
+  - `calendar_events` för dagens datum (för dagvyn)
+  - `staff_assignments` + `staff_directory` (för dagvyns kolumner)
 
-## Inte i scope
+## Tester (vitest)
 
-- Ingen ändring i save-pathen — den skriver redan tillbaka rätt tider.
-- Ingen ändring av booking-importen eller Phase Time Sync.
-- Ingen ändring av team-defaults (separat fråga).
+- `bookingPlacementWizard.test.tsx` — wizard navigerar rig → rigDown → slutför, hoppar event, respekterar låsta tider, commitar både medel- och stort-läge i ett svep.
+- Behåll `projectPlanningSheetSeed.test.ts` men byt namn/import till nya `bookingPlacementSeed.ts`.
+
+## Riskpunkter
+
+- `TimeGrid` används idag i interaktivt läge — read-only-wrapper får inte trigga drop-handlers.
+- Stort-projekt-flödet måste kunna både skapa nytt large project och bifoga till befintligt (samma val som dagens `AddToLargeProjectDialog`); behåll det valet i wizard-headern.
+- Commit-on-finish måste vara transaktionellt nog: om calendar_events-skrivning faller, rulla tillbaka projektet eller markera som ofullständigt och visa felet utan att stänga dialogen.

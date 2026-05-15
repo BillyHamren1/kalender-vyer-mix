@@ -1,0 +1,539 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import {
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+  Save,
+  Building2,
+  Calendar as CalIcon,
+} from 'lucide-react';
+import { format, parseISO } from 'date-fns';
+import { sv } from 'date-fns/locale';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useTeamResources } from '@/hooks/useTeamResources';
+import {
+  syncLargeProjectPlanningAssignments,
+} from '@/services/largeProjectPlannerService';
+import {
+  fetchLargeProjects,
+  createLargeProject,
+  addBookingToLargeProject,
+} from '@/services/largeProjectService';
+import {
+  PlanningDay,
+  DayKind,
+  isPhaseLocked,
+  phaseLabel,
+  seedDaysFromBooking,
+} from './bookingPlacementSeed';
+import { BookingInfoHeader } from './BookingInfoHeader';
+import { ReadOnlyStaffDayView } from './ReadOnlyStaffDayView';
+
+interface Props {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  bookingId: string | null;
+}
+
+const BOOKING_FIELDS = `
+  id, client, booking_number, deliveryaddress, organization_id,
+  contact_name, contact_phone, contact_email, internalnotes,
+  eventdate, rigdaydate, rigdowndate,
+  rig_start_time, rig_end_time, event_start_time, event_end_time,
+  rigdown_start_time, rigdown_end_time,
+  rig_time_locked, event_time_locked, rigdown_time_locked
+`;
+
+export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bookingId }) => {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const { teamResources } = useTeamResources();
+
+  const [days, setDays] = useState<PlanningDay[]>([]);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [isLarge, setIsLarge] = useState(false);
+  const [largeMode, setLargeMode] = useState<'new' | 'existing'>('new');
+  const [largeNewName, setLargeNewName] = useState('');
+  const [largeExistingId, setLargeExistingId] = useState<string>('');
+  const [saving, setSaving] = useState(false);
+
+  const { data: booking, isLoading } = useQuery({
+    queryKey: ['placement-booking', bookingId],
+    enabled: !!bookingId && open,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select(BOOKING_FIELDS)
+        .eq('id', bookingId!)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: largeProjects = [] } = useQuery({
+    queryKey: ['large-projects'],
+    queryFn: fetchLargeProjects,
+    enabled: open && isLarge && largeMode === 'existing',
+  });
+
+  // Reset on open
+  useEffect(() => {
+    if (open) {
+      setStepIndex(0);
+      setIsLarge(false);
+      setLargeMode('new');
+      setLargeNewName('');
+      setLargeExistingId('');
+    }
+  }, [open]);
+
+  // Seed days när bokning hämtats
+  useEffect(() => {
+    if (!booking) return;
+    setDays(seedDaysFromBooking(booking));
+    setLargeNewName(
+      booking.client && booking.eventdate
+        ? `${booking.client} – ${format(parseISO(booking.eventdate), 'd MMM yyyy', { locale: sv })}`
+        : booking.client || '',
+    );
+  }, [booking]);
+
+  // Endast rig + rigDown planeras (eventdagen hoppas över i wizarden)
+  const planSteps = useMemo(
+    () => days.filter((d) => d.kind !== 'event'),
+    [days],
+  );
+
+  const totalSteps = planSteps.length;
+  const currentDay: PlanningDay | undefined = planSteps[stepIndex];
+  const isLastStep = stepIndex >= totalSteps - 1;
+  const isFirstStep = stepIndex === 0;
+
+  const teamOptions = useMemo(
+    () =>
+      (teamResources || [])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((r: any) => r.id !== 'team-11' && r.id !== 'transport')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((r: any) => ({ id: r.id, title: r.title })),
+    [teamResources],
+  );
+
+  const updateCurrent = (patch: Partial<PlanningDay>) => {
+    if (!currentDay) return;
+    const idxInDays = days.indexOf(currentDay);
+    setDays((prev) => {
+      const next = [...prev];
+      next[idxInDays] = { ...next[idxInDays], ...patch };
+      return next;
+    });
+  };
+
+  const goNext = () => {
+    if (!isLastStep) setStepIndex((i) => i + 1);
+  };
+  const goBack = () => {
+    if (!isFirstStep) setStepIndex((i) => i - 1);
+  };
+
+  const phaseLockedForCurrent =
+    !!currentDay && !!booking && isPhaseLocked(booking, currentDay.kind);
+
+  const handleFinish = async () => {
+    if (!booking) return;
+    if (planSteps.length === 0) {
+      toast.error('Inga rig- eller demonteringsdagar att planera');
+      return;
+    }
+    if (isLarge && largeMode === 'new' && !largeNewName.trim()) {
+      toast.error('Ange ett namn för det stora projektet');
+      return;
+    }
+    if (isLarge && largeMode === 'existing' && !largeExistingId) {
+      toast.error('Välj ett befintligt stort projekt');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      let largeProjectId: string | null = null;
+      let mediumProjectId: string | null = null;
+
+      if (isLarge) {
+        if (largeMode === 'new') {
+          const created = await createLargeProject({ name: largeNewName.trim() });
+          largeProjectId = created.id;
+        } else {
+          largeProjectId = largeExistingId;
+        }
+        await addBookingToLargeProject(largeProjectId!, booking.id);
+      } else {
+        // Skapa medel-projekt på samma sätt som CreateProjectWizard
+        const dateStr = booking.eventdate
+          ? format(parseISO(booking.eventdate), 'd MMMM yyyy', { locale: sv })
+          : '';
+        const projectName = `${booking.client || 'Projekt'}${dateStr ? ` - ${dateStr}` : ''}`;
+
+        // Duplicate guard
+        const { data: existing } = await supabase
+          .from('projects')
+          .select('id')
+          .eq('booking_id', booking.id)
+          .not('status', 'in', '("completed","cancelled")')
+          .is('deleted_at', null);
+        if (existing && existing.length > 0) {
+          throw new Error('Bokningen har redan ett aktivt projekt.');
+        }
+
+        const { data: project, error: projErr } = await supabase
+          .from('projects')
+          .insert({
+            name: projectName,
+            booking_id: booking.id,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          } as any)
+          .select()
+          .single();
+        if (projErr) throw projErr;
+        mediumProjectId = project.id;
+
+        await supabase
+          .from('bookings')
+          .update({
+            assigned_to_project: true,
+            assigned_project_id: project.id,
+            assigned_project_name: projectName,
+          })
+          .eq('id', booking.id);
+      }
+
+      // Skriv calendar_events för rig + rigDown enligt planerade dagar
+      for (const day of planSteps) {
+        const { data: existing } = await supabase
+          .from('calendar_events')
+          .select('id')
+          .eq('booking_id', booking.id)
+          .eq('event_type', day.kind)
+          .eq('source_date', day.date)
+          .maybeSingle();
+
+        const payload = {
+          title: booking.client || 'Projekt',
+          start_time: `${day.date}T${day.startTime}:00+00:00`,
+          end_time: `${day.date}T${day.endTime}:00+00:00`,
+          resource_id: day.teamId,
+          booking_id: booking.id,
+          event_type: day.kind,
+          delivery_address: booking.deliveryaddress || null,
+          booking_number: booking.booking_number || null,
+          source_date: day.date,
+        };
+
+        if (existing?.id) {
+          const { error } = await supabase
+            .from('calendar_events')
+            .update(payload)
+            .eq('id', existing.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from('calendar_events').insert(payload);
+          if (error) throw error;
+        }
+      }
+
+      // Uppdatera bokningens fasta tider till första-dag-tiden om inte låst
+      const firstRig = planSteps.find((d) => d.kind === 'rig');
+      const firstDown = planSteps.find((d) => d.kind === 'rigDown');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const updates: any = {};
+      if (firstRig && !isPhaseLocked(booking, 'rig')) {
+        updates.rig_start_time = `${firstRig.startTime}:00`;
+        updates.rig_end_time = `${firstRig.endTime}:00`;
+      }
+      if (firstDown && !isPhaseLocked(booking, 'rigDown')) {
+        updates.rigdown_start_time = `${firstDown.startTime}:00`;
+        updates.rigdown_end_time = `${firstDown.endTime}:00`;
+      }
+      if (Object.keys(updates).length > 0) {
+        await supabase.from('bookings').update(updates).eq('id', booking.id);
+      }
+
+      if (isLarge && largeProjectId) {
+        await syncLargeProjectPlanningAssignments(largeProjectId, planSteps);
+        await supabase
+          .from('large_projects')
+          .update({ planning_status: 'planned' })
+          .eq('id', largeProjectId);
+      } else if (mediumProjectId) {
+        await supabase
+          .from('projects')
+          .update({ planning_status: 'planned' })
+          .eq('id', mediumProjectId);
+      }
+
+      toast.success('Bokningen är placerad och dagarna är inlagda i kalendern');
+      qc.invalidateQueries({ queryKey: ['bookings-without-project'] });
+      qc.invalidateQueries({ queryKey: ['calendar-events'] });
+      qc.invalidateQueries({ queryKey: ['planner-calendar'] });
+      qc.invalidateQueries({ queryKey: ['large-project-team-assignments'] });
+      qc.invalidateQueries({ queryKey: ['large-projects'] });
+      qc.invalidateQueries({ queryKey: ['projects'] });
+      qc.invalidateQueries({ queryKey: ['unplanned-projects'] });
+      try {
+        window.dispatchEvent(
+          new CustomEvent('planner-calendar-refresh', {
+            detail: { source: 'BookingPlacementDialog', bookingId: booking.id },
+          }),
+        );
+      } catch {
+        /* ignore */
+      }
+
+      onOpenChange(false);
+      if (largeProjectId) navigate(`/large-project/${largeProjectId}`);
+      else if (mediumProjectId) navigate(`/project/${mediumProjectId}`);
+    } catch (err) {
+      console.error('[BookingPlacementDialog] save error', err);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      toast.error((err as any)?.message || 'Kunde inte placera bokningen');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-5xl max-h-[92vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CalIcon className="h-5 w-5 text-primary" />
+            Placera bokning
+            {totalSteps > 0 && (
+              <Badge variant="outline" className="ml-2">
+                Steg {Math.min(stepIndex + 1, totalSteps)} av {totalSteps}
+              </Badge>
+            )}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto pr-1">
+          {isLoading || !booking ? (
+            <div className="flex items-center gap-2 py-12 justify-center text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Laddar bokning…
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-4">
+              {/* Vänster: dagvy + planeringsformulär för aktuell dag */}
+              <div className="space-y-3 min-w-0">
+                {currentDay ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{phaseLabel(currentDay.kind)}</Badge>
+                        <span className="text-sm font-medium">
+                          {(() => {
+                            try {
+                              return format(parseISO(currentDay.date), 'EEEE d MMMM yyyy', {
+                                locale: sv,
+                              });
+                            } catch {
+                              return currentDay.date;
+                            }
+                          })()}
+                        </span>
+                      </div>
+                      {phaseLockedForCurrent && (
+                        <Badge
+                          variant="outline"
+                          className="border-red-400 text-red-700 bg-red-50 text-[10px]"
+                        >
+                          Fast tid från bokning
+                        </Badge>
+                      )}
+                    </div>
+
+                    <ReadOnlyStaffDayView
+                      date={currentDay.date}
+                      highlightedTeamId={currentDay.teamId}
+                      previewBlock={{
+                        teamId: currentDay.teamId,
+                        startTime: currentDay.startTime,
+                        endTime: currentDay.endTime,
+                        label: `${booking.client || 'Bokning'} (${phaseLabel(currentDay.kind)})`,
+                      }}
+                    />
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-lg border border-border/60 bg-card p-3">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Datum</Label>
+                        <Input
+                          type="date"
+                          value={currentDay.date}
+                          onChange={(e) => updateCurrent({ date: e.target.value })}
+                          disabled={phaseLockedForCurrent}
+                          className="h-9"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Start</Label>
+                        <Input
+                          type="time"
+                          value={currentDay.startTime}
+                          onChange={(e) => updateCurrent({ startTime: e.target.value })}
+                          disabled={phaseLockedForCurrent}
+                          className="h-9"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Slut</Label>
+                        <Input
+                          type="time"
+                          value={currentDay.endTime}
+                          onChange={(e) => updateCurrent({ endTime: e.target.value })}
+                          disabled={phaseLockedForCurrent}
+                          className="h-9"
+                        />
+                      </div>
+                      <div className="sm:col-span-3">
+                        <Label className="text-xs text-muted-foreground">Team</Label>
+                        <Select
+                          value={currentDay.teamId}
+                          onValueChange={(v) => updateCurrent({ teamId: v })}
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {teamOptions.map((t) => (
+                              <SelectItem key={t.id} value={t.id}>
+                                {t.title}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-lg border border-border/60 p-6 text-center text-muted-foreground text-sm">
+                    Bokningen saknar rig- och demonteringsdatum — inget att planera.
+                  </div>
+                )}
+              </div>
+
+              {/* Höger: bokningsinfo + projekttyp */}
+              <div className="space-y-3 min-w-0">
+                <BookingInfoHeader booking={booking} />
+
+                <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3">
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={isLarge}
+                      onCheckedChange={(v) => setIsLarge(v === true)}
+                      className="mt-0.5"
+                    />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium flex items-center gap-1.5">
+                        <Building2 className="h-3.5 w-3.5" />
+                        Detta är ett stort projekt
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        Bokningen läggs in som del av ett stort projekt istället för ett medelprojekt.
+                      </div>
+                    </div>
+                  </label>
+
+                  {isLarge && (
+                    <div className="space-y-2 pl-6">
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant={largeMode === 'new' ? 'default' : 'outline'}
+                          onClick={() => setLargeMode('new')}
+                          className="flex-1 h-7 text-xs"
+                        >
+                          Skapa nytt
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={largeMode === 'existing' ? 'default' : 'outline'}
+                          onClick={() => setLargeMode('existing')}
+                          className="flex-1 h-7 text-xs"
+                        >
+                          Lägg till i befintligt
+                        </Button>
+                      </div>
+                      {largeMode === 'new' ? (
+                        <Input
+                          placeholder="Projektnamn"
+                          value={largeNewName}
+                          onChange={(e) => setLargeNewName(e.target.value)}
+                          className="h-8 text-sm"
+                        />
+                      ) : (
+                        <Select value={largeExistingId} onValueChange={setLargeExistingId}>
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue placeholder="Välj projekt…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {largeProjects.map((p) => (
+                              <SelectItem key={p.id} value={p.id}>
+                                {p.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="flex !justify-between gap-2 pt-2 border-t border-border/40">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+            Avbryt
+          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={goBack} disabled={isFirstStep || saving}>
+              <ChevronLeft className="h-4 w-4 mr-1" /> Tillbaka
+            </Button>
+            {isLastStep ? (
+              <Button onClick={handleFinish} disabled={saving || totalSteps === 0}>
+                {saving ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Slutför planering
+              </Button>
+            ) : (
+              <Button onClick={goNext} disabled={saving}>
+                Nästa <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            )}
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
