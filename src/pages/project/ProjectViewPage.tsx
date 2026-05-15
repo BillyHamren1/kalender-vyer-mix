@@ -186,6 +186,10 @@ const ProjectViewPage = () => {
         </div>
       </div>
 
+      {/* Materialhämtning från externa leverantörer */}
+      <PickupStopsSection parent={{ type: "project", id: project.id }} />
+
+
 
       {bookingId && (
         <ProjectTransportBookingDialog
