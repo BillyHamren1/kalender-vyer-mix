@@ -40,6 +40,12 @@ import {
   type AssignmentEvidenceItem,
   type AssignmentEvidenceDiagnostics,
 } from './buildAssignmentEvidence.ts';
+import {
+  buildKnownTargetsEvidence,
+  type KnownTargetEvidenceItem,
+  type KnownTargetsDataQuality,
+  type KnownTargetsDiagnostics,
+} from './buildKnownTargetsEvidence.ts';
 
 // ── Inputs ─────────────────────────────────────────────────────────────────
 
