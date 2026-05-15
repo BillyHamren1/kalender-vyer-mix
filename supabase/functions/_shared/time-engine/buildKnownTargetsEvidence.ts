@@ -167,9 +167,17 @@ export interface BuildKnownTargetsEvidenceInput {
   assignmentBookingIds?: string[];
   /** Optional list of large project ids referenced by assignment evidence (Lager 1.5). */
   assignmentLargeProjectIds?: string[];
-  /** Optional list of calendar events referenced by assignment evidence — used for
-   *  diagnostics only (calendarEventsWithoutTarget). */
-  assignmentCalendarEvents?: Array<{ id: string | null; bookingId: string | null }>;
+  /** Optional list of calendar events referenced by assignment evidence — rich
+   *  shape from Lager 1.9. Used for diagnostics only. */
+  assignmentCalendarEvents?: Array<{
+    id?: string | null;
+    eventId?: string | null;
+    bookingId: string | null;
+    largeProjectId?: string | null;
+    teamId?: string | null;
+    title?: string | null;
+    plannedPhase?: string | null;
+  }>;
   /** Optional raw assignment items for diagnostics (assignmentsWithoutMatchingTarget). */
   assignmentItems?: Array<{ assignmentId: string | null; bookingId: string | null; largeProjectId: string | null }>;
 }
