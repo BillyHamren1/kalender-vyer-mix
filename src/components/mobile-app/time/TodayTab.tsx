@@ -468,6 +468,7 @@ export const TodayTab: React.FC = () => {
 
   return (
     <div className="space-y-3">
+      <StaffDayRemindersBanner />
       <WorkdayStatusCard snapshot={snapshot} />
       <TotalsCard snapshot={snapshot} />
       <TimelineSection
