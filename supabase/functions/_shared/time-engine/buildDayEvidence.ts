@@ -25,6 +25,12 @@ import {
   fetchAllStaffLocationPings,
   type FetchAllStaffLocationPingsDiagnostics,
 } from '../timeEngine/fetchAllStaffLocationPings.ts';
+import {
+  normalizeGpsEvidence,
+  type GpsNormalizationDiagnostics,
+  type NormalizedGpsPing,
+  type HardRejectedGpsPing,
+} from './normalizeGpsEvidence.ts';
 
 // ── Inputs ─────────────────────────────────────────────────────────────────
 
@@ -128,6 +134,8 @@ export interface DayEvidenceDiagnostics {
   };
   /** Diagnostics from the canonical paginated GPS reader (Lager 1.2). */
   gpsFetchDiagnostics: FetchAllStaffLocationPingsDiagnostics | null;
+  /** Quality breakdown from GPS normalisation (Lager 1.3). */
+  gpsNormalizationDiagnostics: GpsNormalizationDiagnostics | null;
 }
 
 // ── Output ─────────────────────────────────────────────────────────────────
@@ -238,12 +246,14 @@ export async function buildDayEvidence(
         largeProjects: 0,
       },
       gpsFetchDiagnostics: null,
+      gpsNormalizationDiagnostics: null,
     },
   };
 
   // ── Lager 1.2: GPS via canonical paginated reader ────────────────────────
   const dayStartUtc = input.dayStartUtc ?? `${input.date}T00:00:00.000Z`;
   const dayEndUtc = input.dayEndUtc ?? `${input.date}T23:59:59.999Z`;
+  let rawPingRows: any[] = [];
   try {
     const fetchResult = await fetchAllStaffLocationPings({
       supabaseAdmin: input.supabaseAdmin,
@@ -251,8 +261,10 @@ export async function buildDayEvidence(
       staffId: input.staffId,
       startUtc: dayStartUtc,
       endUtc: dayEndUtc,
+      select: 'id, recorded_at, lat, lng, accuracy, speed',
     });
     evidence.diagnostics.gpsFetchDiagnostics = fetchResult.diagnostics;
+    rawPingRows = fetchResult.rows ?? [];
     evidence.gps.pingCount = fetchResult.diagnostics.totalFetched;
     evidence.gps.firstPingAt = fetchResult.diagnostics.firstRecordedAt;
     evidence.gps.lastPingAt = fetchResult.diagnostics.lastRecordedAt;
@@ -269,6 +281,28 @@ export async function buildDayEvidence(
     const msg = err instanceof Error ? err.message : String(err);
     evidence.diagnostics.errors.gps = msg;
     warnings.push(`gps_fetch_exception: ${msg}`);
+  }
+
+  // ── Lager 1.3: GPS-normalisering (read-only, ej downstream-konsumerad) ──
+  // Endast tekniskt ogiltiga pings hard-rejectas. Låg accuracy behålls med
+  // confidenceWeight så Lager 2 kan välja viktning. buildGpsDayTimeline rörs
+  // INTE i denna prompt.
+  try {
+    const norm = normalizeGpsEvidence(rawPingRows);
+    evidence.diagnostics.gpsNormalizationDiagnostics = norm.diagnostics;
+    if (norm.diagnostics.retainedLowAccuracyCount > 0) {
+      warnings.push(
+        `gps_low_accuracy_retained:${norm.diagnostics.retainedLowAccuracyCount}`,
+      );
+    }
+    if (norm.diagnostics.hardRejectedPingCount > 0) {
+      warnings.push(
+        `gps_hard_rejected:${norm.diagnostics.hardRejectedPingCount}`,
+      );
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    warnings.push(`gps_normalize_exception: ${msg}`);
   }
 
   warnings.push('day_evidence_scaffold_v1: signals beyond gps not collected yet');
