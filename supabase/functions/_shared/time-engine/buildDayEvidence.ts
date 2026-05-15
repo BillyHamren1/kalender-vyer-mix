@@ -304,6 +304,22 @@ export interface DayEvidence {
    * Få aldrig serialiseras 1:1 utåt om mängden blir stor; expose via summary.
    * normalizedPings = alla normaliserade pings (inkl. outlier-ignored).
    * locationLogicPings = pings där hardRejected=false och ignoredForLocationLogic=false.
+   *
+   * ── Lager 2 input contract ────────────────────────────────────────────
+   * Lager 2 ska använda:
+   *   - evidence.internal.locationLogicPings   (sanningskälla för plats-pings)
+   *   - evidence.gps.locationLogicPingCount
+   *   - evidence.assignments                   (CONTEXT, inte proof of location)
+   *   - evidence.knownTargets                  (CONTEXT, inte bevis på närvaro)
+   *   - evidence.privateResidence
+   *   - evidence.largeProjects
+   *   - evidence.dataQuality
+   *
+   * Lager 2 ska INTE använda:
+   *   - raw staff_location_history direkt
+   *   - buildGpsDayTimeline:s gamla accuracy-filter
+   *   - child booking geo som fallback för large project
+   *   - planning som proof of location
    */
   internal: {
     normalizedPings: NormalizedGpsPing[];
