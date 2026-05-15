@@ -188,12 +188,15 @@ export interface WorkdayAllocationDiagnostics {
 
 export interface WorkdayAllocationProposal {
   segmentId: string;
+  proposalType?: WorkdayAllocationProposalType;
   proposedAllocationType: WorkdayAllocationType;
   targetType: LocationTruthTargetType | null;
   targetId: string | null;
   label: string | null;
   startAt: string;
   endAt: string;
+  /** Lager 3.6 — för suggest_workday_end: föreslagen sluttidpunkt. */
+  suggestedEndAt?: string;
   confidence: WorkdayAllocationConfidence;
   reason: string;
 }
