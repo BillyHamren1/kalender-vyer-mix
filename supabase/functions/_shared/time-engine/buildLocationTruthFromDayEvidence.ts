@@ -239,6 +239,32 @@ export interface LocationTruthDiagnostics {
   gapBridgeDiagnostics: GapBridgeDiagnostics | null;
   /** Lager 2.5 — verklig förflyttning (movement). */
   movementDiagnostics: MovementDiagnostics | null;
+  /** Lager 2.6 — sammanfattning över final platstidslinje. */
+  locationTruthSummary: LocationTruthSummary | null;
+}
+
+export interface LocationTruthSummary {
+  inputPingCount: number;
+  clusterCount: number;
+  finalSegmentCount: number;
+  knownSiteSegmentCount: number;
+  movementSegmentCount: number;
+  privateResidenceSegmentCount: number;
+  unknownAreaSegmentCount: number;
+  reviewSegmentCount: number;
+  bridgedGapMinutesTotal: number;
+  ignoredOutlierPingCount: number;
+  finalSegmentsByType: Record<FinalLocationTruthSegmentType, number>;
+  examples: Array<{
+    segmentId: string;
+    finalType: FinalLocationTruthSegmentType;
+    confidence: 'high' | 'medium' | 'low';
+    label?: string;
+    targetType?: LocationTruthTargetType;
+    startAt: string;
+    endAt: string;
+    warnings: string[];
+  }>;
 }
 
 export interface LocationTruthResult {
