@@ -187,9 +187,9 @@ function mergeTwo(
       ...a.diagnostics,
       sourcePingIds,
       bridgedSignalGapMinutes: bridgedTotal,
-      // @ts-expect-error — utökar metadata utan att bryta typen.
+      // @ts-ignore — utökar metadata
       gapPolicy: 'bridged_same_target_after_gap',
-      // @ts-expect-error — utökar metadata utan att bryta typen.
+      // @ts-ignore — utökar metadata
       noEvidenceOfDeparture: true,
     },
   };
@@ -212,9 +212,9 @@ function tagTransitionCandidate(
   const tag = 'transition_candidate';
   for (const seg of [prev, next]) {
     if (!seg.warnings.includes(tag)) seg.warnings.push(tag);
-    // @ts-expect-error — utökar diagnostik utan att bryta typen.
+    // @ts-ignore — utökar metadata
     seg.diagnostics.gapPolicy = 'transition_candidate_no_transport_yet';
-    // @ts-expect-error
+    // @ts-ignore — utökar metadata
     seg.diagnostics.transitionGapMinutes = gapMin;
   }
 }
