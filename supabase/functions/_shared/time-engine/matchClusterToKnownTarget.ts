@@ -30,6 +30,7 @@ import type { StableLocationCluster } from './buildStableLocationClusters.ts';
 export type MatchedTargetType =
   | 'warehouse'
   | 'organization_location'
+  | 'supplier'
   | 'large_project'
   | 'project'
   | 'booking'
@@ -114,15 +115,17 @@ function distanceMeters(
 // ── Defaults ──────────────────────────────────────────────────────────────
 
 const DEFAULT_PRIORITY: Record<KnownTargetType, number> = {
-  // Lägre = vinner.
+  // Lägre = vinner. Supplier ligger mellan org_location och large_project:
+  // känd fysisk plats men inte primär projektarbetsplats.
   private_zone: 1,
   home_observation: 1,
   inferred_home: 1,
   warehouse: 2,
   organization_location: 2,
-  large_project: 3,
-  project: 4,
-  booking: 5,
+  supplier: 3,
+  large_project: 4,
+  project: 5,
+  booking: 6,
 };
 
 const DEFAULT_OPTIONS: Required<MatchOptions> = {
@@ -301,6 +304,7 @@ export function matchClusterToKnownTarget(
     if (isPrivateType(winner.targetType)) mtype = 'private_residence';
     else if (winner.targetType === 'warehouse') mtype = 'warehouse';
     else if (winner.targetType === 'organization_location') mtype = 'organization_location';
+    else if (winner.targetType === 'supplier') mtype = 'supplier';
     else if (winner.targetType === 'large_project') mtype = 'large_project';
     else if (winner.targetType === 'project') mtype = 'project';
     else mtype = 'booking';

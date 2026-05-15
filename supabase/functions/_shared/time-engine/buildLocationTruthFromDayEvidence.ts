@@ -41,6 +41,7 @@ export interface TargetMatchDiagnostics {
   matchedKnownSiteCount: number;
   matchedPrivateCount: number;
   matchedWarehouseCount: number;
+  matchedSupplierCount: number;
   matchedLargeProjectCount: number;
   matchedProjectCount: number;
   matchedBookingCount: number;
@@ -58,6 +59,24 @@ export interface TargetMatchDiagnostics {
     decisionReason: string;
     candidateCount: number;
     rejectedCount: number;
+    warnings: string[];
+  }>;
+}
+
+// ── Lager 2.3c — Supplier match diagnostics ───────────────────────────────
+
+export interface SupplierMatchDiagnostics {
+  supplierTargetsEvaluated: number;
+  supplierMatchedClusterCount: number;
+  supplierPlanningMismatchCount: number;
+  competingSupplierTargetCount: number;
+  examples: Array<{
+    clusterId: string;
+    supplierTargetId: string | null;
+    supplierLabel: string;
+    confidence: 'high' | 'medium' | 'low';
+    distanceMeters?: number;
+    competingCandidateCount: number;
     warnings: string[];
   }>;
 }
@@ -101,6 +120,7 @@ export type LocationTruthSegmentType =
 export type LocationTruthTargetType =
   | 'warehouse'
   | 'organization_location'
+  | 'supplier'
   | 'large_project'
   | 'project'
   | 'booking'
@@ -186,6 +206,8 @@ export interface LocationTruthDiagnostics {
   targetMatchDiagnostics: TargetMatchDiagnostics | null;
   /** Lager 2.3b — diagnostics för fysisk-plats vs business-context-uppdelning. */
   physicalLocationDiagnostics: PhysicalLocationDiagnostics | null;
+  /** Lager 2.3c — supplier-match diagnostics. */
+  supplierMatchDiagnostics: SupplierMatchDiagnostics | null;
 }
 
 export interface LocationTruthResult {
@@ -225,6 +247,7 @@ function mapMatchTypeToTargetType(
   switch (m) {
     case 'warehouse':
     case 'organization_location':
+    case 'supplier':
     case 'large_project':
     case 'project':
     case 'booking':
@@ -240,6 +263,7 @@ function isMatchedToTarget(m: MatchedTargetType): boolean {
   return (
     m === 'warehouse' ||
     m === 'organization_location' ||
+    m === 'supplier' ||
     m === 'large_project' ||
     m === 'project' ||
     m === 'booking' ||
@@ -296,6 +320,7 @@ export function buildLocationTruthFromDayEvidence(
     matchedKnownSiteCount: 0,
     matchedPrivateCount: 0,
     matchedWarehouseCount: 0,
+    matchedSupplierCount: 0,
     matchedLargeProjectCount: 0,
     matchedProjectCount: 0,
     matchedBookingCount: 0,
@@ -316,6 +341,18 @@ export function buildLocationTruthFromDayEvidence(
     centroidOnlyAddressCount: 0,
     noEventFlowTargetMatchCount: 0,
     planningGeoMismatchCount: 0,
+    examples: [],
+  };
+
+  // Lager 2.3c — supplier-diagnostics.
+  const supplierTargetsEvaluated = knownTargets.filter(
+    (t) => t.targetType === 'supplier',
+  ).length;
+  const supplierDiag: SupplierMatchDiagnostics = {
+    supplierTargetsEvaluated,
+    supplierMatchedClusterCount: 0,
+    supplierPlanningMismatchCount: 0,
+    competingSupplierTargetCount: 0,
     examples: [],
   };
 
@@ -343,6 +380,10 @@ export function buildLocationTruthFromDayEvidence(
           break;
         case 'organization_location':
           targetDiag.matchedOrganizationLocationCount++;
+          targetDiag.matchedKnownSiteCount++;
+          break;
+        case 'supplier':
+          targetDiag.matchedSupplierCount++;
           targetDiag.matchedKnownSiteCount++;
           break;
         case 'large_project':
@@ -420,6 +461,38 @@ export function buildLocationTruthFromDayEvidence(
           };
         }
         physDiag.clustersWithKnownTargetCount++;
+
+        // Lager 2.3c — supplier-special: tagga besök + flagga om personen
+        // var planerad på projekt/booking/LP samtidigt (Lager 3 avgör om det
+        // är hämtning/lämning kopplad till projekt).
+        if (match.matchedTarget.type === 'supplier') {
+          supplierDiag.supplierMatchedClusterCount++;
+          businessWarnings.push('supplier_visit');
+          const competing = match.candidates.filter(
+            (c) => c.targetId !== match.matchedTarget.targetId,
+          ).length;
+          if (competing > 0) supplierDiag.competingSupplierTargetCount++;
+          const plannedProjectOrBooking = assignments.some(
+            (a) => a.bookingId || a.projectId || a.largeProjectId,
+          );
+          if (plannedProjectOrBooking) {
+            businessWarnings.push('supplier_visit_during_planned_project');
+            supplierDiag.supplierPlanningMismatchCount++;
+          }
+          if (supplierDiag.examples.length < 5) {
+            supplierDiag.examples.push({
+              clusterId: cluster.id,
+              supplierTargetId: match.matchedTarget.targetId,
+              supplierLabel: match.matchedTarget.label,
+              confidence: match.confidence,
+              distanceMeters: match.candidates.find(
+                (c) => c.targetId === match.matchedTarget.targetId,
+              )?.distanceMeters,
+              competingCandidateCount: competing,
+              warnings: [...businessWarnings],
+            });
+          }
+        }
       } else if (match.matchedTarget.type === 'needs_location_review') {
         // Reserveras för konflikt som kräver mänsklig bedömning,
         // t.ex. LP saknar geo men assignment pekar dit.
@@ -525,6 +598,7 @@ export function buildLocationTruthFromDayEvidence(
     stableClusterDiagnostics,
     targetMatchDiagnostics: targetDiag,
     physicalLocationDiagnostics: physDiag,
+    supplierMatchDiagnostics: supplierDiag,
   };
 
   return { segments, diagnostics, stableClusters, clusterMatches };
