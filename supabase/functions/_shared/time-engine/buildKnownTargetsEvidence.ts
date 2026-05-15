@@ -267,6 +267,9 @@ export async function buildKnownTargetsEvidence(
     ambiguousLargeProjectChildProjects: [],
     assignmentsWithoutMatchingTarget: [],
     calendarEventsWithoutTarget: [],
+    calendarEventsWithLargeProjectContext: [],
+    calendarEventsPointingToChildBooking: [],
+    calendarEventsPointingToMissingGeoLargeProject: [],
     targetsWithNullRadius: [],
   };
   const diag: KnownTargetsDiagnostics = {
@@ -287,6 +290,15 @@ export async function buildKnownTargetsEvidence(
       childBookingsSuppressedCount: 0,
       childProjectsSuppressedCount: 0,
       ambiguousLargeProjectChildProjectCount: 0,
+    },
+    calendarEventTargetDiagnostics: {
+      calendarEventCount: 0,
+      calendarEventsWithTargetCount: 0,
+      calendarEventsWithoutTargetCount: 0,
+      calendarEventsWithLargeProjectContextCount: 0,
+      calendarEventsPointingToChildBookingCount: 0,
+      calendarEventsPointingToMissingGeoLargeProjectCount: 0,
+      examples: [],
     },
     warnings: [],
     examples: [],
