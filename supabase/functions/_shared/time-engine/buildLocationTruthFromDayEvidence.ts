@@ -485,6 +485,10 @@ export function buildLocationTruthFromDayEvidence(
     largeProjectMissingGeoBusinessWarningCount: 0,
     physicalLocationAddressFilledCount: 0,
     physicalLocationAddressMissingCount: 0,
+    overlappingAssignmentCount: 0,
+    nonOverlappingAssignmentIgnoredCount: 0,
+    assignmentMissingTimeWindowCount: 0,
+    planningWarningsSuppressedNoOverlapCount: 0,
     examples: [],
   };
 
