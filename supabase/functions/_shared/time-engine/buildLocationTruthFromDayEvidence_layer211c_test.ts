@@ -103,7 +103,7 @@ Deno.test('Lager 2.11C — A: supplier utan assignment + ingen planering', () =>
 Deno.test('Lager 2.11C — B: supplier utan assignment, planerad på projekt', () => {
   const sup = tgt('supplier', 'sup1', 59.3400, 18.0600, 'Acme', 'external_suppliers');
   const r = buildAt(sup, {
-    assignments: [{ bookingId: 'b1', projectId: null, largeProjectId: null, belongsToLargeProject: false }],
+    assignments: [{ bookingId: 'b1', projectId: null, largeProjectId: null, belongsToLargeProject: false, startAt: '2026-05-15T07:30:00Z', endAt: '2026-05-15T09:00:00Z' }],
   });
   const seg = findKnownTargetSeg(r);
   assertEquals(seg.businessContext?.status, 'supplier_visit');
