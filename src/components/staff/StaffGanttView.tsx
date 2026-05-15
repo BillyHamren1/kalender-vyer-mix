@@ -145,6 +145,34 @@ const formatRelativeDate = (date: Date): string => {
   return format(date, 'EEEE d MMMM', { locale: sv });
 };
 
+const blockTooltipText = (b: GanttBlock, displayTitle: string, overlapping: boolean): string => {
+  if (b.isNightGpsOnly) {
+    return `GPS-spår 00:00–05:00 utan tidrapport eller manuell timer.\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}`;
+  }
+
+  const lines = [
+    `${displayTitle}${b.subtitle ? ' · ' + b.subtitle : ''}`,
+    `${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}`,
+  ];
+
+  if (b.plannedBadgeLabel) lines.push(`Planerat: ${b.plannedBadgeLabel}`);
+
+  if (b.subBlocks && b.subBlocks.length > 1) {
+    lines.push('Underblock:');
+    for (const sub of b.subBlocks) {
+      const resolved = KIND_STYLE[sub.resolvedKind]?.label ?? sub.resolvedKind;
+      const raw = sub.rawKind && sub.rawKind !== sub.resolvedKind ? ` ← ${sub.rawKind}` : '';
+      lines.push(`• ${resolved}${raw} ${formatStockholmHm(sub.startAt)}–${formatStockholmHm(sub.endAt)} · ${fmtMin(sub.durationMinutes)}`);
+    }
+    if (b.visualGapMinutes && b.visualGapMinutes > 0) {
+      lines.push(`Visuellt glapp: ${fmtMin(b.visualGapMinutes)}`);
+    }
+  }
+
+  if (overlapping) lines.push('⚠ Överlappar annat block');
+  return lines.join('\n');
+};
+
 const getInitials = (name: string): string => {
   const parts = (name ?? '').trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return '?';
@@ -299,30 +327,22 @@ const MERGEABLE_KINDS: ReadonlySet<GanttKind> = new Set([
   'work', 'warehouse', 'rig', 'rigdown',
 ]);
 const applyVisualMerge = (blocks: GanttBlock[], staffName?: string): GanttBlock[] => {
-  // Splitta i mergeable vs ej-mergeable. Ej-mergeable (transport/review/
-  // unknown/break/pre_work) skickas igenom oförändrade.
-  const mergeable: MergeBlockInput[] = [];
-  const passthrough: GanttBlock[] = [];
   const byId = new Map<string, GanttBlock>();
-  for (const b of blocks) {
+  const mergeInput: MergeBlockInput[] = blocks.map((b) => {
     byId.set(b.id, b);
-    if (MERGEABLE_KINDS.has(b.kind) && b.sessionKey) {
-      mergeable.push({
-        id: b.id,
-        kind: b.kind as MergeableKind,
-        sessionKey: b.sessionKey,
-        startAt: b.startAt,
-        endAt: b.endAt,
-        durationMinutes: b.durationMinutes,
-        rawKind: b.rawKind,
-        isOpen: b.isOpen,
-        isNightGpsOnly: b.isNightGpsOnly,
-      });
-    } else {
-      passthrough.push(b);
-    }
-  }
-  const { blocks: merged, diagnostics } = mergeContiguousBlocks(mergeable, { maxGapMinutes: 15 });
+    return {
+      id: b.id,
+      kind: b.kind as MergeableKind,
+      sessionKey: b.sessionKey ?? `block:${b.id}`,
+      startAt: b.startAt,
+      endAt: b.endAt,
+      durationMinutes: b.durationMinutes,
+      rawKind: b.rawKind,
+      isOpen: b.isOpen,
+      isNightGpsOnly: b.isNightGpsOnly,
+    };
+  });
+  const { blocks: merged, diagnostics } = mergeContiguousBlocks(mergeInput, { maxGapMinutes: 15 });
 
   if (diagnostics.mergedBlockCount > 0 && typeof console !== 'undefined') {
     // eslint-disable-next-line no-console
@@ -352,8 +372,7 @@ const applyVisualMerge = (blocks: GanttBlock[], staffName?: string): GanttBlock[
       visualGapMinutes: m.visualGapMinutes,
     };
   });
-  // Mergea passthrough tillbaka och sortera på startAt för stabil ordning
-  return [...result, ...passthrough].sort(
+  return result.sort(
     (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
   );
 };
