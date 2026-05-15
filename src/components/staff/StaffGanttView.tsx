@@ -1158,6 +1158,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                               laneCount: number;
                             }> = [];
                             for (const b of blocks) {
+                              if (b.isNightGpsOnly) continue; // dölj GPS-natt helt från huvudtidslinjen
                               const g = blockGeometry(b);
                               if (!g) continue;
                               rects.push({
