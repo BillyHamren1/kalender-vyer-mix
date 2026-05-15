@@ -58,6 +58,8 @@ export interface KnownTargetEvidenceItem {
   targetType: KnownTargetType;
   targetId: string;
   label: string;
+  /** Lager 1.13 — fri textadress (för suppliers + ev. framtida targets). */
+  address?: string | null;
   lat: number | null;
   lng: number | null;
   radiusMeters: number | null;
