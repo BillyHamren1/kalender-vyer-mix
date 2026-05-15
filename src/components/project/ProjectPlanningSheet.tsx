@@ -42,16 +42,25 @@ const DEFAULTS: Record<DayKind, { start: string; end: string }> = {
 const PHASE_ORDER: DayKind[] = ['rig', 'event', 'rigDown'];
 const phaseLabel = (k: DayKind) => k === 'rig' ? 'Riggning' : k === 'rigDown' ? 'Demontering' : 'Event';
 
+/**
+ * Plockar HH:MM ur ett tidsfält som kan vara antingen
+ *   - "HH:MM" / "HH:MM:SS"   (time-kolumn)
+ *   - "YYYY-MM-DD HH:MM:SS+TZ" eller ISO ("…THH:MM…")  (timestamptz)
+ * Vi tar tiden som den står (dvs. UTC-timmen om det är timestamptz),
+ * eftersom Phase Time Sync skriver tillbaka som "HH:MM:00" utan TZ-skift
+ * — då måste avläsningen vara symmetrisk.
+ */
 const trimSec = (t: string | null | undefined): string | null => {
   if (!t || typeof t !== 'string') return null;
-  const m = t.match(/^(\d{2}):(\d{2})/);
+  // Försök matcha HH:MM efter ev. " " eller "T" (timestamp), annars i början (time)
+  const m = t.match(/(?:^|[T\s])(\d{2}):(\d{2})/);
   return m ? `${m[1]}:${m[2]}` : null;
 };
 
-const FIELD_MAP: Record<DayKind, { start: string; end: string }> = {
-  rig: { start: 'rig_start_time', end: 'rig_end_time' },
-  event: { start: 'event_start_time', end: 'event_end_time' },
-  rigDown: { start: 'rigdown_start_time', end: 'rigdown_end_time' },
+const FIELD_MAP: Record<DayKind, { start: string; end: string; lock: string }> = {
+  rig: { start: 'rig_start_time', end: 'rig_end_time', lock: 'rig_time_locked' },
+  event: { start: 'event_start_time', end: 'event_end_time', lock: 'event_time_locked' },
+  rigDown: { start: 'rigdown_start_time', end: 'rigdown_end_time', lock: 'rigdown_time_locked' },
 };
 
 export const pickBookingTime = (
@@ -61,6 +70,10 @@ export const pickBookingTime = (
 ): string => {
   const field = FIELD_MAP[kind][edge];
   return trimSec(booking?.[field]) ?? DEFAULTS[kind][edge];
+};
+
+export const isPhaseLocked = (booking: any, kind: DayKind): boolean => {
+  return booking?.[FIELD_MAP[kind].lock] === true;
 };
 
 const todayIso = () => {
