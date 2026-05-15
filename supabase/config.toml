@@ -165,3 +165,6 @@ verify_jwt = false
 
 [functions.process-day-timer-auto-stop]
 verify_jwt = false
+
+[functions.debug-day-evidence-l1-report]
+verify_jwt = false
