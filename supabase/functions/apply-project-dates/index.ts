@@ -103,7 +103,7 @@ function validate(body: unknown): { ok: true; data: RequestBody } | { ok: false;
 
 async function resolveBookingIds(
   supabase: ReturnType<typeof createClient>,
-  body: RequestBody,
+  body: ResolvedRequest,
 ): Promise<string[]> {
   if (body.project_type === 'medium') {
     const { data } = await supabase
