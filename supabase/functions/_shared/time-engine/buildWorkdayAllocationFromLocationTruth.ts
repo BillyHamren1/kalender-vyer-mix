@@ -158,6 +158,11 @@ export interface WorkdayAllocationDiagnostics {
   commuteTravelCount: number;
   longTravelOver150kmCount: number;
   movementReviewCount: number;
+  // ── Lager 3.5 — supplier-räknare ───────────────────────────────────────
+  /** Alias för supplierVisitCount (Lager 3.5-vokab). */
+  supplierVisits: number;
+  supplierVisitsLinkedToProjectCandidate: number;
+  supplierVisitsWithoutProjectContext: number;
   examples: Array<{
     id: string;
     allocationType: WorkdayAllocationType;
