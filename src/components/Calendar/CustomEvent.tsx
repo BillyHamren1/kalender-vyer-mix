@@ -11,6 +11,7 @@ import EventHoverCard from './EventHoverCard';
 import EventActionPopover from './EventActionPopover';
 import MoveEventDateDialog from './MoveEventDateDialog';
 import { DeleteDayButton } from './DeleteDayButton';
+import { TodoEventCard } from './TodoEventCard';
 import { useWarehouseResources } from '@/hooks/useWarehouseResources';
 import {
   ContextMenu,
