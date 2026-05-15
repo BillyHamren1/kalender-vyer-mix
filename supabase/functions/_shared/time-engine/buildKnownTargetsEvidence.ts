@@ -425,128 +425,198 @@ export async function buildKnownTargetsEvidence(
     diag.warnings.push(`organization_locations exception: ${(e as Error).message}`);
   }
 
-  // ── 1b. suppliers / samarbetspartners (Lager 1.13 + 2.10) ────────────────
-  // Vi probar candidate-tabeller i prioritetsordning. external_suppliers
-  // har is_active + raw jsonb där geo kan finnas. suppliers (lokal) saknar
-  // geo-kolumner i nuläget men används som fallback.
+  // ── 1b. suppliers / samarbetspartners (Lager 1.13 + 2.10 + 2.11A) ────────
+  // Vi probar flera kandidat-tabeller i prioritetsordning. Schemat varierar
+  // mellan installationer, så vi läser brett (top-level + raw + metadata)
+  // och normaliserar. Tom tabell → fortsätt prova nästa. Saknad tabell /
+  // saknade kolumner → fånga felet och fortsätt. Day Evidence får aldrig
+  // krascha pga supplier-läsning.
   // Suppliers blandas ALDRIG ihop med projects/bookings (egen targetType).
-  const SUPPLIER_DEFAULT_RADIUS_M = 120;
-  const SUPPLIER_TABLE_CANDIDATES: Array<{
-    table: string;
-    selectCols: string;
-    extractActive: (r: any) => boolean;
-    extractRaw: (r: any) => Record<string, unknown>;
-  }> = [
-    {
-      table: 'external_suppliers',
-      selectCols:
-        'id, name, address_line1, address_line2, postal_code, city, country, is_active, raw',
-      extractActive: (r) => r?.is_active !== false,
-      extractRaw: (r) => (r?.raw ?? {}) as Record<string, unknown>,
-    },
-    {
-      table: 'suppliers',
-      selectCols:
-        'id, name, address_line1, address_line2, postal_code, city, country',
-      extractActive: () => true,
-      extractRaw: () => ({}),
-    },
+  const SUPPLIER_DEFAULT_RADIUS_M = 150;
+  const SUPPLIER_TABLE_CANDIDATES: string[] = [
+    'external_suppliers',
+    'suppliers',
+    'partners',
+    'vendors',
+    'subcontractors',
+    'business_partners',
+    'supplier_addresses',
+    'contacts',
+    'companies',
   ];
 
+  const pickFiniteNum = (v: unknown): number | null => {
+    if (isFiniteNumber(v)) return v as number;
+    if (typeof v === 'string') {
+      const n = Number(v);
+      if (Number.isFinite(n)) return n;
+    }
+    return null;
+  };
+  const pickFirstNum = (sources: Array<unknown>): number | null => {
+    for (const s of sources) {
+      const n = pickFiniteNum(s);
+      if (n !== null) return n;
+    }
+    return null;
+  };
+  const pickFirstStr = (sources: Array<unknown>): string | null => {
+    for (const s of sources) {
+      if (typeof s === 'string' && s.trim().length > 0) return s.trim();
+    }
+    return null;
+  };
+  const composeAddress = (r: any): string | null => {
+    const parts = [r?.address_line1, r?.address_line2, r?.postal_code, r?.city, r?.country]
+      .filter((s) => typeof s === 'string' && s.trim().length > 0);
+    return parts.length ? parts.join(', ') : null;
+  };
+
   let supplierFetched = false;
-  for (const cand of SUPPLIER_TABLE_CANDIDATES) {
-    if (supplierFetched) break;
+  for (const table of SUPPLIER_TABLE_CANDIDATES) {
+    diag.supplierTablesTried.push(table);
+    if (supplierFetched) continue;
+    let data: any[] | null = null;
     try {
-      const { data, error } = await supabaseAdmin
-        .from(cand.table)
-        .select(cand.selectCols)
+      // Försök först med org-filter; faller tillbaka till osäkrad select om
+      // organization_id-kolumnen saknas. select('*') så varierande scheman
+      // inte ger "column does not exist" innan vi hinner till raw-extraction.
+      let res: any = await supabaseAdmin
+        .from(table)
+        .select('*')
         .eq('organization_id', organizationId);
-      if (error) {
-        diag.warnings.push(
-          `supplier_table_probe_failed:${cand.table}: ${error.message}`,
-        );
+      if (res?.error) {
+        const msg = String(res.error.message ?? '');
+        if (/organization_id|column .* does not exist/i.test(msg)) {
+          // Kolumnen finns inte → prova utan filter.
+          res = await supabaseAdmin.from(table).select('*');
+        }
+      }
+      if (res?.error) {
+        diag.warnings.push(`supplier_table_probe_failed:${table}: ${res.error.message}`);
         continue;
       }
-      diag.supplierTableUsed = cand.table;
-      supplierFetched = true;
-      for (const r of data ?? []) {
-        const raw = cand.extractRaw(r);
-        const pickNum = (v: unknown): number | null =>
-          isFiniteNumber(v) ? (v as number) :
-          (typeof v === 'string' && Number.isFinite(Number(v))) ? Number(v) : null;
-        const lat = pickNum(raw.latitude ?? raw.lat ?? raw.address_latitude);
-        const lng = pickNum(raw.longitude ?? raw.lng ?? raw.address_longitude);
-        const rawRadius = pickNum(raw.radius_meters ?? raw.address_radius_meters);
-        const hasCoords = lat !== null && lng !== null;
-        let radius: number | null = rawRadius;
-        let defaultRadiusUsed = false;
-        if (hasCoords && (radius === null || radius <= 0)) {
-          radius = SUPPLIER_DEFAULT_RADIUS_M;
-          defaultRadiusUsed = true;
-        }
-        const hasRadius = radius !== null && radius > 0;
-        const address =
-          [r.address_line1, r.address_line2, r.postal_code, r.city, r.country]
-            .filter((s) => typeof s === 'string' && s.trim().length > 0)
-            .join(', ') || null;
-        const status = cand.extractActive(r) ? 'active' : 'inactive';
-        let suppressed: KnownTargetSuppressedReason = classifyStatusReason(r.name, status);
-        if (!suppressed && !hasCoords) suppressed = 'missing_coordinates';
-        const usableGeo = !suppressed && hasCoords && hasRadius;
-        const label = (typeof r.name === 'string' && r.name.trim()) || '(unnamed supplier)';
-        const item: KnownTargetEvidenceItem = {
-          targetType: 'supplier',
-          targetId: r.id,
-          label,
-          address,
-          lat,
-          lng,
-          radiusMeters: radius,
-          polygon: null,
-          hasCoordinates: hasCoords,
-          hasRadius,
-          sourceTable: cand.table,
-          status,
-          dateWindow: null,
-          parentLargeProjectId: null,
-          belongsToLargeProject: false,
-          canBePrimaryWorkTarget: usableGeo,
-          canBeGeoTarget: usableGeo,
-          suppressedReason: suppressed,
-        };
-        record(item);
-        diag.supplierCount += 1;
-        if (hasCoords) {
-          diag.suppliersWithGeoCount += 1;
-        } else {
-          diag.suppliersMissingGeoCount += 1;
-          dq.suppliersMissingCoordinates.push({ targetId: r.id, label, address });
-        }
-        if (hasCoords && rawRadius === null) {
-          diag.suppliersMissingRadiusCount += 1;
-          dq.suppliersMissingRadius.push({ targetId: r.id, label, address });
-        }
-        if (defaultRadiusUsed) {
-          diag.defaultSupplierRadiusAppliedCount += 1;
-          if (!diag.warnings.includes('default_supplier_radius_applied')) {
-            diag.warnings.push('default_supplier_radius_applied');
-          }
-        }
-        if (diag.supplierExamples.length < 5) {
-          diag.supplierExamples.push({
-            targetId: r.id,
-            label,
-            address,
-            hasCoordinates: hasCoords,
-            hasRadius,
-            suppressedReason: suppressed,
-          });
+      data = (res?.data ?? []) as any[];
+      diag.supplierTablesFound.push(table);
+    } catch (e) {
+      diag.warnings.push(`supplier_table_probe_exception:${table}: ${(e as Error).message}`);
+      continue;
+    }
+
+    if (!data || data.length === 0) {
+      // Tabell finns men är tom → fortsätt testa nästa kandidat.
+      continue;
+    }
+
+    diag.supplierTableUsed = table;
+    diag.supplierRowsFetchedTotal = data.length;
+    supplierFetched = true;
+
+    for (const r of data) {
+      const raw = (r?.raw && typeof r.raw === 'object') ? (r.raw as Record<string, unknown>) : {};
+      const meta = (r?.metadata && typeof r.metadata === 'object')
+        ? (r.metadata as Record<string, unknown>) : {};
+
+      const label = pickFirstStr([
+        r?.name, r?.company_name, r?.supplier_name, r?.display_name, r?.title,
+        (raw as any)?.name, (raw as any)?.company_name, (meta as any)?.name,
+      ]) ?? '(unnamed supplier)';
+
+      const address = pickFirstStr([
+        r?.address, r?.visiting_address, r?.street_address, r?.delivery_address,
+        r?.full_address, r?.formatted_address,
+        (raw as any)?.address, (raw as any)?.formatted_address, (meta as any)?.address,
+      ]) ?? composeAddress(r);
+
+      const lat = pickFirstNum([
+        r?.latitude, r?.lat, r?.address_latitude, r?.geo_lat, r?.location_lat,
+        (raw as any)?.latitude, (raw as any)?.lat, (raw as any)?.address_latitude,
+        (meta as any)?.latitude, (meta as any)?.lat,
+      ]);
+      const lng = pickFirstNum([
+        r?.longitude, r?.lng, r?.lon, r?.address_longitude, r?.geo_lng, r?.location_lng,
+        (raw as any)?.longitude, (raw as any)?.lng, (raw as any)?.lon, (raw as any)?.address_longitude,
+        (meta as any)?.longitude, (meta as any)?.lng,
+      ]);
+      const rawRadius = pickFirstNum([
+        r?.radius_meters, r?.address_radius_meters,
+        (raw as any)?.radius_meters, (raw as any)?.address_radius_meters,
+        (meta as any)?.radius_meters,
+      ]);
+
+      const hasCoords = lat !== null && lng !== null;
+      let radius: number | null = rawRadius;
+      let radiusSource: 'native' | 'default_supplier_radius' | null = (rawRadius !== null && rawRadius > 0) ? 'native' : null;
+      let defaultRadiusUsed = false;
+      if (hasCoords && (radius === null || radius <= 0)) {
+        radius = SUPPLIER_DEFAULT_RADIUS_M;
+        radiusSource = 'default_supplier_radius';
+        defaultRadiusUsed = true;
+      }
+      // Per spec: hasRadius=false när default applicerats (radius är inte
+      // verifierad från källan).
+      const hasRadius = radiusSource === 'native';
+
+      const isActive = (r?.is_active !== false) && (r?.active !== false);
+      const status = isActive ? 'active' : 'inactive';
+      let suppressed: KnownTargetSuppressedReason = classifyStatusReason(label, status);
+      if (!suppressed && !hasCoords) suppressed = 'missing_coordinates';
+
+      // canBeGeoTarget: true endast om geo (koordinater) finns och inte
+      // suppressed pga status. Default-radius räknas som tillräcklig grund.
+      const canBeGeo = !suppressed && hasCoords;
+      const targetId = String(r?.id ?? r?.uuid ?? r?.supplier_id ?? '');
+      if (!targetId) continue;
+
+      const item: KnownTargetEvidenceItem = {
+        targetType: 'supplier',
+        targetId,
+        label,
+        address,
+        lat,
+        lng,
+        radiusMeters: radius,
+        polygon: null,
+        hasCoordinates: hasCoords,
+        hasRadius,
+        radiusSource,
+        sourceTable: table,
+        status,
+        dateWindow: null,
+        parentLargeProjectId: null,
+        belongsToLargeProject: false,
+        canBePrimaryWorkTarget: canBeGeo,
+        canBeGeoTarget: canBeGeo,
+        suppressedReason: suppressed,
+      };
+      record(item);
+      diag.supplierCount += 1;
+      if (hasCoords) {
+        diag.suppliersWithGeoCount += 1;
+      } else {
+        diag.suppliersMissingGeoCount += 1;
+        dq.suppliersMissingCoordinates.push({ targetId, label, address });
+      }
+      if (hasCoords && rawRadius === null) {
+        diag.suppliersMissingRadiusCount += 1;
+        dq.suppliersMissingRadius.push({ targetId, label, address });
+      }
+      if (defaultRadiusUsed) {
+        diag.defaultSupplierRadiusAppliedCount += 1;
+        if (!diag.warnings.includes('default_supplier_radius_applied')) {
+          diag.warnings.push('default_supplier_radius_applied');
         }
       }
-    } catch (e) {
-      diag.warnings.push(
-        `supplier_table_probe_exception:${cand.table}: ${(e as Error).message}`,
-      );
+      if (diag.supplierExamples.length < 5) {
+        diag.supplierExamples.push({
+          targetId,
+          label,
+          address,
+          hasCoordinates: hasCoords,
+          hasRadius,
+          suppressedReason: suppressed,
+        });
+      }
     }
   }
   if (!supplierFetched) {
