@@ -168,6 +168,9 @@ export type BusinessContextStatus =
   | 'matched_eventflow_target'
   | 'unresolved_business_context'
   | 'unassigned_known_target_presence'
+  | 'supplier_visit'
+  | 'warehouse_presence'
+  | 'organization_location_presence'
   | 'planning_geo_mismatch'
   | 'no_target_match'
   | 'needs_review';
@@ -565,7 +568,6 @@ export function buildLocationTruthFromDayEvidence(
         physDiag.clustersWithKnownTargetCount++;
       } else if (isMatchedToTarget(match.matchedTarget.type)) {
         segmentType = 'known_target';
-        businessStatus = 'matched_eventflow_target';
         const tt = mapMatchTypeToTargetType(match.matchedTarget.type);
         if (tt && match.matchedTarget.targetId) {
           matchedTarget = {
@@ -576,62 +578,67 @@ export function buildLocationTruthFromDayEvidence(
         }
         physDiag.clustersWithKnownTargetCount++;
 
-        // Lager 2.10 — assignment krävs INTE för att förstå plats. Om personen
-        // står på en känd target (warehouse/location/supplier/LP/project/
-        // booking) men ingen assignment stödjer den targeten ska vi BEHÅLLA
-        // known_target och bara flagga businessContext + warning.
         const winner = match.candidates.find(
           (c) => c.targetId === match.matchedTarget.targetId,
         );
         const assignmentSupports = winner?.assignmentSupports ?? false;
-        // (private_residence hanteras i tidigare gren — här kan typen aldrig
-        // vara private_residence.)
-        if (!assignmentSupports) {
-          businessStatus = 'unassigned_known_target_presence';
-          if (!businessWarnings.includes('staff_not_assigned_to_matched_target')) {
-            businessWarnings.push('staff_not_assigned_to_matched_target');
-          }
-        }
-        // Planning pekar på annan fysisk plats men GPS vinner: behåll target,
-        // markera planning_geo_mismatch (om inte unassigned redan satt).
-        if (match.planningIgnoredBecauseGeoDisagreed) {
-          if (businessStatus === 'matched_eventflow_target') {
-            businessStatus = 'planning_geo_mismatch';
-          }
-          if (!businessWarnings.includes('planned_target_does_not_match_physical_location')) {
-            businessWarnings.push('planned_target_does_not_match_physical_location');
-          }
-        }
+        const matchedKind = match.matchedTarget.type;
 
-        // Lager 2.3c — supplier-special: tagga besök + flagga om personen
-        // var planerad på projekt/booking/LP samtidigt (Lager 3 avgör om det
-        // är hämtning/lämning kopplad till projekt).
-        if (match.matchedTarget.type === 'supplier') {
+        // Personen är planerad på något annat (projekt/booking/LP) samtidigt?
+        const plannedElsewhere = assignments.some(
+          (a) => a.bookingId || a.projectId || a.largeProjectId,
+        );
+
+        // Lager 2.11C — businessContext beror på targetType.
+        if (matchedKind === 'supplier') {
+          // Supplier-besök: assignment krävs aldrig.
+          businessStatus = 'supplier_visit';
           supplierDiag.supplierMatchedClusterCount++;
-          businessWarnings.push('supplier_visit');
+          if (!plannedElsewhere) {
+            businessWarnings.push('supplier_visit_without_project_context');
+          } else {
+            businessWarnings.push('supplier_visit_during_planned_project');
+            supplierDiag.supplierPlanningMismatchCount++;
+          }
           const competing = match.candidates.filter(
             (c) => c.targetId !== match.matchedTarget.targetId,
           ).length;
           if (competing > 0) supplierDiag.competingSupplierTargetCount++;
-          const plannedProjectOrBooking = assignments.some(
-            (a) => a.bookingId || a.projectId || a.largeProjectId,
-          );
-          if (plannedProjectOrBooking) {
-            businessWarnings.push('supplier_visit_during_planned_project');
-            supplierDiag.supplierPlanningMismatchCount++;
-          }
           if (supplierDiag.examples.length < 5) {
             supplierDiag.examples.push({
               clusterId: cluster.id,
               supplierTargetId: match.matchedTarget.targetId,
               supplierLabel: match.matchedTarget.label,
               confidence: match.confidence,
-              distanceMeters: match.candidates.find(
-                (c) => c.targetId === match.matchedTarget.targetId,
-              )?.distanceMeters,
+              distanceMeters: winner?.distanceMeters,
               competingCandidateCount: competing,
               warnings: [...businessWarnings],
             });
+          }
+        } else if (matchedKind === 'warehouse') {
+          // Lager-närvaro: assignment krävs aldrig.
+          businessStatus = 'warehouse_presence';
+          if (plannedElsewhere) {
+            businessWarnings.push('warehouse_presence_during_planned_project');
+          }
+        } else if (matchedKind === 'organization_location') {
+          // Org-location: assignment krävs aldrig.
+          businessStatus = 'organization_location_presence';
+        } else {
+          // project / booking / large_project — assignment förväntas.
+          if (assignmentSupports) {
+            businessStatus = 'matched_eventflow_target';
+          } else {
+            businessStatus = 'unassigned_known_target_presence';
+            businessWarnings.push('staff_not_assigned_to_matched_target');
+          }
+        }
+
+        // Planning pekar på annan fysisk plats men GPS vinner.
+        if (match.planningIgnoredBecauseGeoDisagreed) {
+          businessStatus = 'planning_geo_mismatch';
+          if (!businessWarnings.includes('planned_target_does_not_match_physical_location')) {
+            businessWarnings.push('planned_target_does_not_match_physical_location');
           }
         }
       } else if (match.matchedTarget.type === 'needs_location_review') {
