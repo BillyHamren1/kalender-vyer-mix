@@ -47,6 +47,47 @@ import {
   type KnownTargetsDiagnostics,
 } from './buildKnownTargetsEvidence.ts';
 
+// ── Pure helpers (Lager 1.7) ──────────────────────────────────────────────
+
+/** Returnerar lokal timme [0..23] för iso-ts i given tz. */
+function localHour(iso: string, tz: string): number {
+  try {
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, hour: '2-digit', hour12: false,
+    });
+    const h = parseInt(fmt.format(new Date(iso)), 10);
+    return Number.isFinite(h) ? h % 24 : 0;
+  } catch {
+    return new Date(iso).getUTCHours();
+  }
+}
+
+/** True om iso-ts ligger i nattfönstret 21:00–06:00 lokal tid. */
+function isInNightWindow(iso: string, tz: string): boolean {
+  const h = localHour(iso, tz);
+  return h >= 21 || h < 6;
+}
+
+/** Coarse coverage ratio: andel hela minuter i [start..end] med någon ping. */
+function computeCoverageRatio(
+  pings: { ts: string }[],
+  startUtc: string,
+  endUtc: string,
+): number {
+  const startMs = Date.parse(startUtc);
+  const endMs = Date.parse(endUtc);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return 0;
+  const totalMinutes = Math.max(1, Math.round((endMs - startMs) / 60000));
+  if (pings.length === 0) return 0;
+  const covered = new Set<number>();
+  for (const p of pings) {
+    const t = Date.parse(p.ts);
+    if (!Number.isFinite(t) || t < startMs || t > endMs) continue;
+    covered.add(Math.floor((t - startMs) / 60000));
+  }
+  return +(covered.size / totalMinutes).toFixed(4);
+}
+
 // ── Inputs ─────────────────────────────────────────────────────────────────
 
 export interface BuildDayEvidenceInput {
