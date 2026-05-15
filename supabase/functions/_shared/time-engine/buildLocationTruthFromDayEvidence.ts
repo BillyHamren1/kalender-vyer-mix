@@ -756,15 +756,36 @@ export function buildLocationTruthFromDayEvidence(
       counts.segments++;
       counts.segmentsByType[segmentType]++;
 
+      // Lager 2.11F — räkna business-status och physicalLocation.address.
+      if (businessStatus === 'supplier_visit') physDiag.supplierVisitCount++;
+      if (businessStatus === 'warehouse_presence') physDiag.warehousePresenceCount++;
+      if (businessStatus === 'unassigned_known_target_presence') physDiag.unassignedProjectPresenceCount++;
+      if (
+        businessWarnings.includes('large_project_missing_geo') ||
+        businessWarnings.includes('assigned_large_project_missing_geo') ||
+        businessWarnings.includes('planned_target_missing_geo')
+      ) {
+        physDiag.largeProjectMissingGeoBusinessWarningCount++;
+      }
+      const addr = phys.physicalLocation.address;
+      if (typeof addr === 'string' && addr.trim().length > 0) {
+        physDiag.physicalLocationAddressFilledCount++;
+      } else {
+        physDiag.physicalLocationAddressMissingCount++;
+      }
+
       if (physDiag.examples.length < 5) {
         physDiag.examples.push({
           clusterId: cluster.id,
           segmentType,
           physicalLocationSource: phys.physicalLocation.source,
+          physicalLocationLabel: phys.physicalLocation.label,
+          physicalLocationAddress: phys.physicalLocation.address ?? null,
           businessContextStatus: businessStatus,
+          matchedTarget,
           matchedTargetType: matchedTarget?.targetType,
           label: phys.physicalLocation.label,
-          warnings: segWarnings,
+          warnings: [...segWarnings, ...businessWarnings],
         });
       }
     }
