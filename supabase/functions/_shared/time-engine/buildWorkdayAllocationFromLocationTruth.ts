@@ -45,6 +45,7 @@ export type WorkdayAllocationAssignmentStatus =
   | 'assigned_overlap'
   | 'assigned_no_overlap'
   | 'no_assignment'
+  | 'no_assignment_required'
   | 'unassigned_but_present'
   | 'unknown';
 
@@ -529,12 +530,14 @@ function deriveAllocation(
         return { type: 'booking_work', warnings, confidence: seg.confidence };
       case 'warehouse':
       case 'organization_location':
-        if (status === 'warehouse_presence' && !hasOverlapWithAssignment) {
-          warnings.push('warehouse_presence_no_assignment');
-        }
+        // Lager 3.10A: warehouse/organization_location kräver INGEN assignment.
+        // Det är normal arbetskontext inom aktiv dagtimer. Inga
+        // warehouse_presence_no_assignment / organization_location_no_assignment
+        // varningar emitteras längre.
         return { type: 'warehouse_work', warnings, confidence: seg.confidence };
       case 'supplier':
-        if (!hasOverlapWithAssignment) warnings.push('supplier_visit_no_assignment');
+        // Lager 3.10A: supplier kräver INGEN assignment.
+        // supplier_visit_no_assignment emitteras inte längre.
         return { type: 'supplier_visit', warnings, confidence: seg.confidence };
       case 'private_zone':
         return { type: 'private_time', warnings: ['private_residence_inside_workday'], confidence: seg.confidence };
@@ -778,13 +781,23 @@ export function buildWorkdayAllocationFromLocationTruth(
     }
 
     const matched = seg.businessContext?.matchedTarget ?? seg.matchedTarget;
-    // Lager 3.3 — assignmentStatus:
-    //   assigned_overlap = planerad på rätt target i intervallet
-    //   unassigned_but_present = matchad target finns men ingen assignment
-    //                            (GPS/plats vinner — kopplingen behålls)
-    //   no_assignment = ingen target alls
+    // Lager 3.3 + 3.10A — assignmentStatus:
+    //   assigned_overlap         = planerad på rätt target i intervallet
+    //   no_assignment_required   = matched target av typ supplier / warehouse /
+    //                              organization_location → assignment krävs INTE.
+    //                              Dessa är normal arbetskontext inom aktiv dagtimer.
+    //   unassigned_but_present   = matchat project / booking / large_project
+    //                              men ingen assignment (GPS/plats vinner —
+    //                              kopplingen behålls, men varning emitteras).
+    //   no_assignment            = ingen target alls.
+    const matchedNoAssignmentRequired = !!matched && (
+      matched.targetType === 'supplier' ||
+      matched.targetType === 'warehouse' ||
+      matched.targetType === 'organization_location'
+    );
     let assignmentStatus: WorkdayAllocationAssignmentStatus;
     if (matched && hasOverlap) assignmentStatus = 'assigned_overlap';
+    else if (matchedNoAssignmentRequired) assignmentStatus = 'no_assignment_required';
     else if (matched && !hasOverlap) assignmentStatus = 'unassigned_but_present';
     else assignmentStatus = 'no_assignment';
 
