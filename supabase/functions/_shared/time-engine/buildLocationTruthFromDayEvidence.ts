@@ -264,7 +264,8 @@ export interface LocationTruthSummary {
   knownSiteSegmentCount: number;
   movementSegmentCount: number;
   privateResidenceSegmentCount: number;
-  unknownAreaSegmentCount: number;
+  knownAddressSegmentCount: number;
+  unresolvedLocationSegmentCount: number;
   reviewSegmentCount: number;
   bridgedGapMinutesTotal: number;
   ignoredOutlierPingCount: number;
