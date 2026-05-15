@@ -240,10 +240,15 @@ Deno.serve(async (req) => {
   // Stockholm-lokal kalenderdag översatt till UTC-fönster (DST-säker)
   const { startUtc: dayStart, endUtc: dayEnd } = getStockholmDayWindowUtc(date);
 
-  // ── Day Evidence Layer (Time Engine 1.1) ──────────────────────────────
-  // READ-ONLY scaffold. Collects raw signals + diagnostics. NEVER feeds
-  // downstream block builders. Exposed via `dayEvidenceDiagnostics` only.
+  // ── Day Evidence Layer (Time Engine 1.x) ──────────────────────────────
+  // READ-ONLY. Collects raw signals + diagnostics. NEVER feeds downstream
+  // block builders. Exposed via `dayEvidenceDiagnostics` only.
+  // ── Location Truth Layer (Time Engine 2.1, scaffold) ──────────────────
+  // READ-ONLY. Konsumerar DayEvidence och returnerar diagnostics + (senare)
+  // segments. Påverkar INTE buildLocationTruthTimeline / Time Engine block.
   let dayEvidenceDiagnostics: any = null;
+  let locationTruthDiagnostics: any = null;
+  let locationTruthSegments: any[] = [];
   try {
     const dayEvidence = await buildDayEvidence({
       supabaseAdmin: admin,
@@ -254,6 +259,14 @@ Deno.serve(async (req) => {
       dayEndUtc: dayEnd,
     });
     dayEvidenceDiagnostics = dayEvidence.diagnostics;
+    try {
+      const lt = buildLocationTruthFromDayEvidence(dayEvidence);
+      locationTruthDiagnostics = lt.diagnostics;
+      locationTruthSegments = lt.segments; // tom i v1
+    } catch (e: any) {
+      console.warn('[presence-day] buildLocationTruthFromDayEvidence failed', e);
+      locationTruthDiagnostics = { error: e?.message ?? String(e) };
+    }
   } catch (e: any) {
     console.warn('[presence-day] buildDayEvidence failed', e);
     dayEvidenceDiagnostics = { error: e?.message ?? String(e) };
