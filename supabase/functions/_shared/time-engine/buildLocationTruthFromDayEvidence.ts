@@ -167,6 +167,7 @@ export type LocationTruthTargetType =
 export type BusinessContextStatus =
   | 'matched_eventflow_target'
   | 'unresolved_business_context'
+  | 'unassigned_known_target_presence'
   | 'planning_geo_mismatch'
   | 'no_target_match'
   | 'needs_review';
