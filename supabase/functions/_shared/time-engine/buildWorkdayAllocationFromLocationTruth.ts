@@ -427,6 +427,8 @@ export interface BuildWorkdayAllocationInput {
   workdayEnvelope?: WorkdayEnvelope | null;
   /** Optional analysfönsterslut för envelope-resolving (om vi resolvar internt). */
   analysisWindowEndIso?: string | null;
+  /** Lager 3.11A — Optional analysfönsterstart för envelope-klippning. */
+  analysisWindowStartIso?: string | null;
   /** Optional now-injection för testbarhet. */
   nowIso?: string | null;
 }
