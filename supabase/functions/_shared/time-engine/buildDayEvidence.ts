@@ -401,6 +401,8 @@ const emptyKnownTargets = (): DayKnownTargetsEvidence => ({
     calendarEventsPointingToChildBooking: [],
     calendarEventsPointingToMissingGeoLargeProject: [],
     targetsWithNullRadius: [],
+    suppliersMissingCoordinates: [],
+    suppliersMissingRadius: [],
   },
 });
 
