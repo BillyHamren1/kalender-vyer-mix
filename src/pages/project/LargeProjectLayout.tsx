@@ -304,16 +304,21 @@ const LargeProjectLayout = () => {
       return;
     }
 
-    // 2. Trigga calendar_events-regenerering från de nya LP-datumen.
+    // 2. Pusha till externa systemet + rebuilda calendar_events via central authority.
     if (bookingIds.length > 0) {
       try {
-        await propagateProjectDatesToBookings({ bookingIds, dateType, dates, startTime, endTime });
+        const res = await writeProjectDates({
+          projectId: id!,
+          projectType: 'large',
+          dates: { [dateType]: dates },
+        });
+        if (!res.ok) throw new Error(res.error || 'apply-project-dates failed');
       } catch (err: any) {
-        console.error('Error regenerating calendar for project dates:', err);
+        console.error('Error propagating project dates:', err);
         queryClient.invalidateQueries({ queryKey: ['large-project', id] });
         queryClient.invalidateQueries({ queryKey: ['large-project-gantt', id] });
         const msg = err?.message || 'Okänt fel';
-        toast.error(`Datumen sparades men kalendern kunde inte regenereras: ${msg}`);
+        toast.error(`Datumen sparades lokalt men kunde inte spridas: ${msg}`);
         return;
       }
     }
