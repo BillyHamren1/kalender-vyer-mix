@@ -838,6 +838,70 @@ export function buildWorkdayAllocationFromLocationTruth(
     }
   }
 
+  // ── Lager 3.5 — Supplier project candidate (deterministisk) ─────────
+  // För varje supplier_visit: försök hitta en rimlig projekt-/booking-
+  // /large_project-kandidat via (a) överlappande assignment, (b) projekt
+  // före, (c) projekt efter, plus mönster warehouse→supplier→project,
+  // project→supplier→project, project→supplier→warehouse.
+  // Skriver ALDRIG någonstans — bara segment.linkedProjectCandidate +
+  // proposal supplier_visit_linked_to_project_candidate.
+  const assignmentItems = input.dayEvidence?.assignments?.items ?? [];
+  const innerSegments = segments.filter((s) => !s.outsideWorkday);
+
+  for (let i = 0; i < innerSegments.length; i++) {
+    const sup = innerSegments[i];
+    if (sup.allocationType !== 'supplier_visit') continue;
+    diag.supplierVisits += 1;
+
+    const supStartMs = Date.parse(sup.startAt);
+    const supEndMs = Date.parse(sup.endAt);
+    const prevWork = findNeighborWork(innerSegments, i, -1);
+    const nextWork = findNeighborWork(innerSegments, i, +1);
+
+    let candidate: SupplierProjectCandidate | null =
+      pickAssignmentCandidate(assignmentItems, supStartMs, supEndMs);
+
+    if (!candidate && prevWork && nextWork) {
+      if (isProjectLike(prevWork) && isProjectLike(nextWork) && sameTarget(prevWork, nextWork)) {
+        candidate = toCandidate(prevWork, 'pattern_project_supplier_project', 'high');
+      } else if (isWarehouseLike(prevWork) && isProjectLike(nextWork)) {
+        candidate = toCandidate(nextWork, 'pattern_warehouse_supplier_project', 'high');
+      } else if (isProjectLike(prevWork) && isWarehouseLike(nextWork)) {
+        candidate = toCandidate(prevWork, 'pattern_project_supplier_warehouse', 'medium');
+      }
+    }
+    if (!candidate && prevWork && isProjectLike(prevWork)) {
+      candidate = toCandidate(prevWork, 'project_before', 'medium');
+    }
+    if (!candidate && nextWork && isProjectLike(nextWork)) {
+      candidate = toCandidate(nextWork, 'project_after', 'medium');
+    }
+
+    if (candidate) {
+      sup.linkedProjectCandidate = candidate;
+      if (sup.confidence === 'low') sup.confidence = 'medium';
+      diag.supplierVisitsLinkedToProjectCandidate += 1;
+      proposals.push({
+        segmentId: sup.sourceLocationTruthSegmentIds[0] ?? sup.id,
+        proposedAllocationType: 'supplier_visit',
+        targetType: candidate.targetType,
+        targetId: candidate.targetId,
+        label: candidate.label,
+        startAt: sup.startAt,
+        endAt: sup.endAt,
+        confidence: candidate.confidence,
+        reason: `supplier_visit_linked_to_project_candidate:${candidate.source}`,
+      });
+    } else {
+      sup.linkedProjectCandidate = null;
+      if (!sup.warnings.includes('supplier_visit_without_project_context')) {
+        sup.warnings.push('supplier_visit_without_project_context');
+        diag.warningsByType.supplier_visit_without_project_context += 1;
+      }
+      diag.supplierVisitsWithoutProjectContext += 1;
+    }
+  }
+
   // Beräkna uncovered minutes inom workday.
   coveredIntervals.sort((a, b) => a[0] - b[0]);
   let cursor = wdStartMs;
