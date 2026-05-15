@@ -3,6 +3,8 @@ import { describe, it, expect } from 'vitest';
 import {
   buildSessionPhaseMap,
   sessionKeyForBlock,
+  extractBookingNumberFromText,
+  resolveBookingPhaseFromTitle,
 } from '@/lib/staff/ganttPhaseColor';
 
 describe('sessionKeyForBlock', () => {
