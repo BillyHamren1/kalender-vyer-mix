@@ -331,13 +331,19 @@ export function resolveWorkdayEnvelope(
   input: ResolveWorkdayEnvelopeInput,
 ): WorkdayEnvelope {
   const wd = input.activeWorkday;
-  const startMs = toMs(wd?.startedAt ?? null);
-  const stopMs = toMs(wd?.stoppedAt ?? null);
+  const rawStartMs = toMs(wd?.startedAt ?? null);
+  const rawStopMs = toMs(wd?.stoppedAt ?? null);
   const nowMs = toMs(input.nowIso ?? null) ?? Date.now();
+  const analysisStartMs = toMs(input.analysisWindowStartIso ?? null);
   const analysisEndMs = toMs(input.analysisWindowEndIso ?? null);
   const warnings: WorkdayEnvelopeWarning[] = [];
 
-  if (startMs === null) {
+  const timerStartedAt = rawStartMs !== null ? new Date(rawStartMs).toISOString() : null;
+  const timerStoppedAt = rawStopMs !== null ? new Date(rawStopMs).toISOString() : null;
+  const analysisDayStartAt = analysisStartMs !== null ? new Date(analysisStartMs).toISOString() : null;
+  const analysisDayEndAt = analysisEndMs !== null ? new Date(analysisEndMs).toISOString() : null;
+
+  if (rawStartMs === null) {
     return {
       startAt: null,
       endAt: null,
@@ -345,44 +351,67 @@ export function resolveWorkdayEnvelope(
       startSource: 'unknown',
       endSource: 'unknown',
       warnings: ['workday_start_missing'],
+      timerStartedAt,
+      timerStoppedAt,
+      effectiveWorkdayStartAt: null,
+      effectiveWorkdayEndAt: null,
+      analysisDayStartAt,
+      analysisDayEndAt,
     };
+  }
+
+  // ── Lager 3.11A — klipp start mot analysdag ──
+  let effectiveStartMs = rawStartMs;
+  if (analysisStartMs !== null && rawStartMs < analysisStartMs) {
+    effectiveStartMs = analysisStartMs;
+    warnings.push('workday_started_before_analysis_day');
   }
 
   const startSource: WorkdayEnvelopeStartSource = 'active_time_registration';
+  const isOpen = rawStopMs === null;
 
-  // Sluten dagtimer.
-  if (stopMs !== null) {
-    if (stopMs <= startMs) warnings.push('workday_end_before_start');
-    return {
-      startAt: new Date(startMs).toISOString(),
-      endAt: new Date(stopMs).toISOString(),
-      isOpen: false,
-      startSource,
-      endSource: 'active_time_registration_stop',
-      warnings,
-    };
-  }
-
-  // Öppen dagtimer → analysfönstrets slut, annars now. Aldrig framåt i tiden.
-  warnings.push('workday_timer_open');
-  let endMs: number;
+  // Bestäm rå end-kandidat: timer-stop om stängd, annars now.
+  let rawEndCandidateMs: number;
   let endSource: WorkdayEnvelopeEndSource;
-  if (analysisEndMs !== null) {
-    endMs = Math.min(analysisEndMs, nowMs);
-    endSource = endMs < analysisEndMs ? 'now' : 'analysis_window_end';
-    if (endMs < analysisEndMs) warnings.push('envelope_clipped_to_analysis_window');
+  if (!isOpen) {
+    rawEndCandidateMs = rawStopMs!;
+    endSource = 'active_time_registration_stop';
+    if (rawEndCandidateMs <= rawStartMs) warnings.push('workday_end_before_start');
   } else {
-    endMs = nowMs;
+    warnings.push('workday_timer_open');
+    rawEndCandidateMs = nowMs;
     endSource = 'now';
   }
-  if (endMs < startMs) endMs = startMs;
+
+  // ── Lager 3.11A — klipp slut mot analysdag ──
+  let effectiveEndMs = rawEndCandidateMs;
+  if (analysisEndMs !== null && rawEndCandidateMs > analysisEndMs) {
+    effectiveEndMs = analysisEndMs;
+    endSource = 'analysis_window_end';
+    warnings.push('workday_continues_after_analysis_day');
+    if (isOpen) warnings.push('envelope_clipped_to_analysis_window');
+  } else if (isOpen && analysisEndMs !== null && rawEndCandidateMs < analysisEndMs) {
+    // Öppen timer mitt i dagen → endAt = now < analysisEnd.
+    warnings.push('envelope_clipped_to_analysis_window');
+  }
+
+  if (effectiveEndMs < effectiveStartMs) effectiveEndMs = effectiveStartMs;
+
+  const startAt = new Date(effectiveStartMs).toISOString();
+  const endAt = new Date(effectiveEndMs).toISOString();
   return {
-    startAt: new Date(startMs).toISOString(),
-    endAt: new Date(endMs).toISOString(),
-    isOpen: true,
+    startAt,
+    endAt,
+    isOpen,
     startSource,
     endSource,
     warnings,
+    timerStartedAt,
+    timerStoppedAt,
+    effectiveWorkdayStartAt: startAt,
+    effectiveWorkdayEndAt: endAt,
+    analysisDayStartAt,
+    analysisDayEndAt,
   };
 }
 
