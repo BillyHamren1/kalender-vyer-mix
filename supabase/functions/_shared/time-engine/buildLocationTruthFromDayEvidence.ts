@@ -41,6 +41,7 @@ export interface TargetMatchDiagnostics {
   matchedKnownSiteCount: number;
   matchedPrivateCount: number;
   matchedWarehouseCount: number;
+  matchedSupplierCount: number;
   matchedLargeProjectCount: number;
   matchedProjectCount: number;
   matchedBookingCount: number;
@@ -58,6 +59,24 @@ export interface TargetMatchDiagnostics {
     decisionReason: string;
     candidateCount: number;
     rejectedCount: number;
+    warnings: string[];
+  }>;
+}
+
+// ── Lager 2.3c — Supplier match diagnostics ───────────────────────────────
+
+export interface SupplierMatchDiagnostics {
+  supplierTargetsEvaluated: number;
+  supplierMatchedClusterCount: number;
+  supplierPlanningMismatchCount: number;
+  competingSupplierTargetCount: number;
+  examples: Array<{
+    clusterId: string;
+    supplierTargetId: string | null;
+    supplierLabel: string;
+    confidence: 'high' | 'medium' | 'low';
+    distanceMeters?: number;
+    competingCandidateCount: number;
     warnings: string[];
   }>;
 }
