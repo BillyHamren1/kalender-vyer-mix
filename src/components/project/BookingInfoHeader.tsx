@@ -32,10 +32,10 @@ export const BookingInfoHeader: React.FC<Props> = ({ booking }) => {
     queryFn: async () => {
       const { data } = await supabase
         .from('booking_products')
-        .select('id, product_name, quantity, unit')
+        .select('id, name, quantity')
         .eq('booking_id', bookingId)
-        .order('product_name', { ascending: true });
-      return data || [];
+        .order('name', { ascending: true });
+      return (data || []) as Array<{ id: string; name: string; quantity: number }>;
     },
   });
 
@@ -44,10 +44,10 @@ export const BookingInfoHeader: React.FC<Props> = ({ booking }) => {
     enabled: !!bookingId,
     queryFn: async () => {
       const { data } = await supabase
-        .from('attachments')
-        .select('id, file_name, file_url, mime_type')
+        .from('booking_attachments')
+        .select('id, file_name, url')
         .eq('booking_id', bookingId);
-      return data || [];
+      return (data || []) as Array<{ id: string; file_name: string | null; url: string }>;
     },
   });
 
@@ -140,12 +140,10 @@ export const BookingInfoHeader: React.FC<Props> = ({ booking }) => {
             <ChevronDown className="h-3 w-3 ml-auto" />
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-1 max-h-32 overflow-y-auto rounded border border-border/40 bg-card p-1.5 space-y-0.5">
-            {products.map((p: { id: string; product_name: string; quantity: number; unit: string }) => (
+            {products.map((p) => (
               <div key={p.id} className="flex justify-between text-[11px] gap-2">
-                <span className="truncate">{p.product_name}</span>
-                <span className="text-muted-foreground shrink-0">
-                  {p.quantity} {p.unit}
-                </span>
+                <span className="truncate">{p.name}</span>
+                <span className="text-muted-foreground shrink-0">{p.quantity} st</span>
               </div>
             ))}
           </CollapsibleContent>
@@ -160,16 +158,16 @@ export const BookingInfoHeader: React.FC<Props> = ({ booking }) => {
             <ChevronDown className="h-3 w-3 ml-auto" />
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-1 rounded border border-border/40 bg-card p-1.5 space-y-0.5">
-            {attachments.map((a: { id: string; file_name: string; file_url: string }) => (
+            {attachments.map((a) => (
               <a
                 key={a.id}
-                href={a.file_url}
+                href={a.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 text-[11px] text-primary hover:underline truncate"
               >
                 <FileText className="h-3 w-3 shrink-0" />
-                {a.file_name}
+                {a.file_name || a.url}
               </a>
             ))}
           </CollapsibleContent>
