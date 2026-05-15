@@ -328,7 +328,44 @@ function isMatchedToTarget(m: MatchedTargetType): boolean {
   );
 }
 
-// ── Builder ───────────────────────────────────────────────────────────────
+// ── Lager 2.6 — mappa intern typ till kanonisk Final-typ ──────────────────
+
+const STRONG_REVIEW_WARNINGS = new Set([
+  'large_project_missing_geo_or_planning_conflict',
+  'impossible_route',
+  'home_project_conflict',
+  'competing_targets_no_winner',
+]);
+
+function mapToFinalType(
+  seg: LocationTruthSegment,
+): FinalLocationTruthSegmentType {
+  switch (seg.type) {
+    case 'known_target':
+      return 'known_site';
+    case 'private_residence':
+      return 'private_residence';
+    case 'movement':
+      return 'movement';
+    case 'needs_location_review':
+      return 'needs_location_review';
+    case 'known_address':
+    case 'unresolved_location': {
+      const hasStrongReview = (seg.warnings ?? []).some((w) =>
+        STRONG_REVIEW_WARNINGS.has(w),
+      );
+      if (hasStrongReview) return 'needs_location_review';
+      return 'unknown_area';
+    }
+    default:
+      return 'unknown_area';
+  }
+}
+
+function targetLabelOf(seg: LocationTruthSegment): string | undefined {
+  if (seg.matchedTarget?.label) return seg.matchedTarget.label;
+  return seg.physicalLocation?.label;
+}
 
 export function buildLocationTruthFromDayEvidence(
   dayEvidence: DayEvidence,
