@@ -6,6 +6,11 @@
 //   day_attestations / time_reports / workdays / location_time_entries / travel_time_logs.
 import { corsHeaders } from "../_shared/cors.ts";
 import { authenticateStaffRequest, authorizeStaffAccess } from "../_shared/staff-auth.ts";
+import {
+  applyUserEditsToDisplayTimeline,
+  type DisplayBlockShape,
+  type UserEdit,
+} from "../_shared/time-engine/applyUserEditsToDisplayTimeline.ts";
 
 interface SubmitBody {
   staffId?: string;
@@ -14,6 +19,9 @@ interface SubmitBody {
   requestedEndAt?: string | null;
   breakMinutes?: number;
   comment?: string | null;
+  // Lager 5.3 — frivilliga fält. Saknas de beter sig endpointen som tidigare.
+  userEdits?: UserEdit[];
+  displayTimelineSnapshot?: DisplayBlockShape[];
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -70,17 +78,47 @@ Deno.serve(async (req: Request) => {
     console.error("[submit-staff-day-v3] cache snapshot failed", e);
   }
 
+  // Lager 5.3 — användarredigeringar. Påverkar ALDRIG GPS/evidence/time_reports.
+  const incomingEdits = Array.isArray(body.userEdits) ? body.userEdits : [];
+  const snapshotBlocks = Array.isArray(body.displayTimelineSnapshot)
+    ? body.displayTimelineSnapshot
+    : [];
+
+  let userEditsResult: ReturnType<typeof applyUserEditsToDisplayTimeline> | null = null;
+  let resolvedStatus = "submitted";
+  if (incomingEdits.length > 0) {
+    userEditsResult = applyUserEditsToDisplayTimeline(snapshotBlocks, incomingEdits);
+    // Mappa Lager 5.3-statusen mjukt till submission-statusvokabulären.
+    switch (userEditsResult.suggestedSubmissionStatus) {
+      case "ai_flagged": resolvedStatus = "ai_flagged"; break;
+      case "needs_user_attention": resolvedStatus = "needs_user_attention"; break;
+      case "edited_by_user": resolvedStatus = "edited"; break;
+      default: resolvedStatus = "submitted";
+    }
+  }
+
   const payload = {
     organization_id: orgId,
     staff_id: staffId,
     date,
-    status: "submitted",
+    status: resolvedStatus,
     requested_start_at: reqStart,
     requested_end_at: reqEnd,
     break_minutes: breakMin,
     comment,
     engine_version: engineVersion,
     source_summary_json: sourceSummary,
+    user_edits_json: userEditsResult
+      ? {
+          edits: incomingEdits,
+          appliedEdits: userEditsResult.appliedEdits,
+          dayLevelEdits: userEditsResult.dayLevelEdits,
+          editedBlocks: userEditsResult.editedBlocks,
+          diagnostics: userEditsResult.diagnostics,
+        }
+      : null,
+    display_timeline_snapshot_json: snapshotBlocks.length > 0 ? snapshotBlocks : null,
+    ai_validation_json: null, // sätts i Lager 5.4
     submitted_at: new Date().toISOString(),
     reviewed_at: null,
     reviewed_by: null,
