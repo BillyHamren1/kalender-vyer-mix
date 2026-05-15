@@ -168,6 +168,8 @@ export interface DayEvidenceDiagnostics {
   gpsOutlierDiagnostics: GpsOutlierDiagnostics | null;
   /** Assignment-evidence (Lager 1.5). PLANNING IS CONTEXT, NOT PROOF OF LOCATION. */
   assignmentEvidenceDiagnostics: AssignmentEvidenceDiagnostics | null;
+  /** Known targets + data quality (Lager 1.6). KNOWN TARGETS = INTE BEVIS. */
+  knownTargetsDiagnostics: KnownTargetsDiagnostics | null;
 }
 
 // ── Output ─────────────────────────────────────────────────────────────────
