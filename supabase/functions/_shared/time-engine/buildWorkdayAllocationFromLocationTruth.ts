@@ -45,6 +45,7 @@ export type WorkdayAllocationAssignmentStatus =
   | 'assigned_overlap'
   | 'assigned_no_overlap'
   | 'no_assignment'
+  | 'unassigned_but_present'
   | 'unknown';
 
 export interface WorkdayAllocationSegment {
