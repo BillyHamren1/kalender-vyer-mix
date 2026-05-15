@@ -300,7 +300,8 @@ const WARNING_TYPES: WorkdayAllocationWarning[] = [
   'no_active_workday', 'segment_outside_workday', 'segment_partially_outside_workday',
   'unresolved_location_inside_workday', 'private_residence_inside_workday',
   'movement_classified_as_work_travel', 'movement_classified_as_commute',
-  'unassigned_known_target_presence', 'planning_geo_mismatch',
+  'unassigned_known_target_presence', 'staff_not_assigned_to_matched_target',
+  'no_project_link', 'planning_geo_mismatch',
   'supplier_visit_no_assignment', 'warehouse_presence_no_assignment',
   'needs_review_business_context', 'gap_in_workday', 'allocation_low_confidence',
 ];
