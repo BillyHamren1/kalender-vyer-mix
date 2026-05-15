@@ -60,6 +60,7 @@ import { decideDayEndFromLocationTruth } from '../_shared/time-engine/dayEndFrom
 import { buildDayEvidence } from '../_shared/time-engine/buildDayEvidence.ts';
 import { buildLocationTruthFromDayEvidence } from '../_shared/time-engine/buildLocationTruthFromDayEvidence.ts';
 import { buildWorkdayAllocationFromLocationTruth, resolveWorkdayEnvelope } from '../_shared/time-engine/buildWorkdayAllocationFromLocationTruth.ts';
+import { buildDisplayTimelineFromWorkdayAllocation } from '../_shared/time-engine/buildDisplayTimelineFromWorkdayAllocation.ts';
 // Lager 3.7 — AI Workday Reviewer (read-only, no-op default).
 // WorkdayAllocation is read-only until Lager 4/display integration.
 import { buildAiWorkdayReviewInput, reviewWorkdayWithAi } from '../_shared/time-engine/aiWorkdayReviewer.ts';
