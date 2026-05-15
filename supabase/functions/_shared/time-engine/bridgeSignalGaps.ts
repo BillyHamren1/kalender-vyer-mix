@@ -55,13 +55,14 @@ const SHORT_GAP_MIN = 30;
 const LONG_GAP_MIN = 120;
 const OUTLIER_MAX_MIN = 5;
 const KNOWN_ADDRESS_BRIDGE_RADIUS_M = 100;
+/** Lager 2.10 — fysisk-närhet-bridge tillåter cross-type bridging. */
+const PHYSICAL_PROXIMITY_BRIDGE_RADIUS_M = 250;
 
 /** Tröskel för när två kluster räknas som "samma plats". */
 function sameTargetIdentity(
   a: LocationTruthSegment,
   b: LocationTruthSegment,
-): boolean {
-  if (a.type !== b.type) return false;
+): { same: boolean; via: 'target_id' | 'private_residence' | 'known_address_proximity' | 'physical_proximity' | null } {
   // Samma EventFlow-target via id räknas alltid som samma plats.
   if (
     a.matchedTarget &&
@@ -69,30 +70,56 @@ function sameTargetIdentity(
     a.matchedTarget.targetType === b.matchedTarget.targetType &&
     a.matchedTarget.targetId === b.matchedTarget.targetId
   ) {
-    return true;
+    return { same: true, via: 'target_id' };
   }
   // private_residence utan id → samma om båda är private_residence.
   if (a.type === 'private_residence' && b.type === 'private_residence') {
-    return true;
+    return { same: true, via: 'private_residence' };
   }
-  // known_address utan target ⇒ samma om centroider ligger nära.
+  // known_address ↔ known_address — strikt närhet (legacy).
   if (a.type === 'known_address' && b.type === 'known_address') {
-    if (
-      a.physicalLocation &&
-      b.physicalLocation &&
-      Number.isFinite(a.physicalLocation.lat) &&
-      Number.isFinite(b.physicalLocation.lat)
-    ) {
-      const d = haversineMeters(
-        a.physicalLocation.lat,
-        a.physicalLocation.lng,
-        b.physicalLocation.lat,
-        b.physicalLocation.lng,
-      );
-      return d <= KNOWN_ADDRESS_BRIDGE_RADIUS_M;
+    const d = physicalDistanceMeters(a, b);
+    if (d !== null && d <= KNOWN_ADDRESS_BRIDGE_RADIUS_M) {
+      return { same: true, via: 'known_address_proximity' };
     }
   }
-  return false;
+  // Lager 2.10 — fysisk-närhet bridge ÄVEN om typerna skiljer sig
+  // (known_target ↔ known_address etc). Kräver att båda har physicalLocation.
+  if (
+    isBridgeableType(a.type) &&
+    isBridgeableType(b.type) &&
+    !(a.type === 'private_residence' || b.type === 'private_residence')
+  ) {
+    const d = physicalDistanceMeters(a, b);
+    if (d !== null && d <= PHYSICAL_PROXIMITY_BRIDGE_RADIUS_M) {
+      return { same: true, via: 'physical_proximity' };
+    }
+  }
+  return { same: false, via: null };
+}
+
+function isBridgeableType(t: LocationTruthSegmentType): boolean {
+  return t === 'known_target' || t === 'known_address';
+}
+
+function physicalDistanceMeters(
+  a: LocationTruthSegment,
+  b: LocationTruthSegment,
+): number | null {
+  if (
+    !a.physicalLocation ||
+    !b.physicalLocation ||
+    !Number.isFinite(a.physicalLocation.lat) ||
+    !Number.isFinite(b.physicalLocation.lat)
+  ) {
+    return null;
+  }
+  return haversineMeters(
+    a.physicalLocation.lat,
+    a.physicalLocation.lng,
+    b.physicalLocation.lat,
+    b.physicalLocation.lng,
+  );
 }
 
 function haversineMeters(
