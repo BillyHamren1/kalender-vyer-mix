@@ -25,6 +25,12 @@ import {
   fetchAllStaffLocationPings,
   type FetchAllStaffLocationPingsDiagnostics,
 } from '../timeEngine/fetchAllStaffLocationPings.ts';
+import {
+  normalizeGpsEvidence,
+  type GpsNormalizationDiagnostics,
+  type NormalizedGpsPing,
+  type HardRejectedGpsPing,
+} from './normalizeGpsEvidence.ts';
 
 // ── Inputs ─────────────────────────────────────────────────────────────────
 
@@ -128,6 +134,8 @@ export interface DayEvidenceDiagnostics {
   };
   /** Diagnostics from the canonical paginated GPS reader (Lager 1.2). */
   gpsFetchDiagnostics: FetchAllStaffLocationPingsDiagnostics | null;
+  /** Quality breakdown from GPS normalisation (Lager 1.3). */
+  gpsNormalizationDiagnostics: GpsNormalizationDiagnostics | null;
 }
 
 // ── Output ─────────────────────────────────────────────────────────────────
