@@ -83,6 +83,28 @@ describe('mergeContiguousBlocks', () => {
     expect(mergeContiguousBlocks(input).blocks).toHaveLength(2);
   });
 
+  it('rig + transport + rig i samma session → transport blockerar merge-kedjan', () => {
+    const input = [
+      b('A', 'rig', '2026-05-15T08:00:00Z', '2026-05-15T09:00:00Z', 60, 'booking#:X', 'work'),
+      b('T', 'transport', '2026-05-15T09:03:00Z', '2026-05-15T09:10:00Z', 7, 'booking#:X', 'transport'),
+      b('B', 'rig', '2026-05-15T09:12:00Z', '2026-05-15T10:00:00Z', 48, 'booking#:X', 'rig'),
+    ];
+    const { blocks } = mergeContiguousBlocks(input);
+    expect(blocks).toHaveLength(3);
+    expect(blocks.map((x) => x.id)).toEqual(['A', 'T', 'B']);
+  });
+
+  it('rig + unknown + rig i samma session → unknown blockerar merge-kedjan', () => {
+    const input = [
+      b('A', 'rig', '2026-05-15T08:00:00Z', '2026-05-15T09:00:00Z', 60, 'booking#:X', 'rig'),
+      b('U', 'unknown', '2026-05-15T09:02:00Z', '2026-05-15T09:08:00Z', 6, 'booking#:X', 'unknown'),
+      b('B', 'rig', '2026-05-15T09:10:00Z', '2026-05-15T10:00:00Z', 50, 'booking#:X', 'rig'),
+    ];
+    const { blocks } = mergeContiguousBlocks(input);
+    expect(blocks).toHaveLength(3);
+    expect(blocks.map((x) => x.id)).toEqual(['A', 'U', 'B']);
+  });
+
   it('pre_work + work → INTE merge', () => {
     const input = [
       b('A', 'pre_work', '2026-05-15T07:00:00Z', '2026-05-15T07:50:00Z', 50),
