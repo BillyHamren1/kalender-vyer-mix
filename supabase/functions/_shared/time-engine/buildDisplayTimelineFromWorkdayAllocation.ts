@@ -365,18 +365,33 @@ function deriveActions(
 
 // ── Merge ────────────────────────────────────────────────────────────────
 
+/** Lager 4.2 — Två segment får slås ihop om "samma sak". */
+function sameLogicalTarget(a: WorkdayAllocationSegment, b: WorkdayAllocationSegment): boolean {
+  if (a.allocationType !== b.allocationType) return false;
+  if ((a.targetType ?? null) !== (b.targetType ?? null)) return false;
+  if ((a.targetId ?? null) !== (b.targetId ?? null)) return false;
+  if ((a.label ?? null) !== (b.label ?? null)) return false;
+  if ((a.address ?? null) !== (b.address ?? null)) return false;
+  return true;
+}
+
+/** Mjuk merge tröskel: 2 min utan extra villkor. */
+const MERGE_GAP_SOFT_MS = 2 * 60_000;
+/** Bridged merge tröskel: upp till 30 min för identisk target/label/address (Lager 2/3 har redan markerat platsen som densamma). */
+const MERGE_GAP_BRIDGED_MS = 30 * 60_000;
+
 function canMerge(
   a: WorkdayAllocationSegment,
   b: WorkdayAllocationSegment,
   gapMs: number,
 ): boolean {
-  if (a.allocationType !== b.allocationType) return false;
-  if ((a.targetType ?? null) !== (b.targetType ?? null)) return false;
-  if ((a.targetId ?? null) !== (b.targetId ?? null)) return false;
+  if (!sameLogicalTarget(a, b)) return false;
   if (!!a.outsideWorkday !== !!b.outsideWorkday) return false;
-  // Tillåt små glapp (≤2 min) mellan kontigta segment.
-  if (gapMs > 2 * 60_000) return false;
-  return true;
+  if (gapMs <= MERGE_GAP_SOFT_MS) return true;
+  // Större gap är ok när det är exakt samma plats — Lager 2/3 har redan
+  // bedömt att personen var kvar på samma punkt.
+  if (gapMs <= MERGE_GAP_BRIDGED_MS) return true;
+  return false;
 }
 
 function buildBlockFromSegments(
