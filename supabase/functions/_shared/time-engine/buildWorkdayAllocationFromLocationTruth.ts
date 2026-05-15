@@ -759,6 +759,8 @@ export function buildWorkdayAllocationFromLocationTruth(
     if (seg.finalType === 'private_residence') {
       proposals.push({
         segmentId: seg.id,
+        // Lager 3.10 — fix 1: proposalType saknades och loggades som undefined.
+        proposalType: 'consider_workday_end_from_private',
         proposedAllocationType: 'private_time',
         targetType: 'private_zone',
         targetId: (seg.businessContext?.matchedTarget ?? seg.matchedTarget)?.targetId ?? null,
