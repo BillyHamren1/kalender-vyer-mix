@@ -41,6 +41,7 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { SEG_ICON, SEG_TONE, SEG_KIND_LABEL, FallbackSegIcon } from './segmentVisuals';
 import EndDayButton from './EndDayButton';
 import SegmentDetailSheet from './SegmentDetailSheet';
+import DisplayTimelineV2Card from './DisplayTimelineV2Card';
 
 // 1Hz tick so the active timer's elapsed seconds roll forward.
 function useTick(intervalMs = 1000) {
@@ -477,6 +478,10 @@ export const TodayTab: React.FC = () => {
       <div className="pt-1">
         <PrimaryAction snapshot={snapshot} />
       </div>
+
+      {/* Lager 4.5 — read-only förhandsvisning av Display Timeline V2.
+          Renderar null när V2-data saknas (fallback till befintlig vy). */}
+      <DisplayTimelineV2Card date={snapshot.date} />
 
       <SegmentDetailSheet
         segment={selectedSeg}
