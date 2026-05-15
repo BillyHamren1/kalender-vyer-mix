@@ -210,6 +210,17 @@ const emptyKnownTargets = (): DayKnownTargetsEvidence => ({
   totalCount: 0,
   withCoordinatesCount: 0,
   invalidCount: 0,
+  items: [],
+  dataQuality: {
+    targetsMissingCoordinates: [],
+    targetsMissingRadius: [],
+    largeProjectsMissingGeo: [],
+    bookingsInsideLargeProjects: [],
+    childBookingsSuppressedAsTargets: [],
+    assignmentsWithoutMatchingTarget: [],
+    calendarEventsWithoutTarget: [],
+    targetsWithNullRadius: [],
+  },
 });
 
 const emptyPrivateResidence = (): DayPrivateResidenceEvidence => ({
