@@ -582,6 +582,75 @@ export function buildWorkdayAllocationFromLocationTruth(
   // Track coverage för uncoveredWorkdayMinutes.
   const coveredIntervals: Array<[number, number]> = [];
 
+  // ── Lager 3.4 — pre-pass: bygg MovementContext per movement-segment ──
+  // Vi använder movementMeta från Lager 2.5 (fromTarget/toTarget/distanceMeters).
+  // Faller tillbaka till föregående/efterföljande segment när meta saknas.
+  const sortedLt = [...ltSegments].sort(
+    (a, b) => Date.parse(a.startAt) - Date.parse(b.startAt),
+  );
+  const movementCtxById = new Map<string, MovementContext>();
+  // Hitta första hem→arbete och sista arbete→hem.
+  let firstCommuteWorkboundIdx = -1;
+  let lastCommuteHomeboundIdx = -1;
+  const tentative: Array<{ idx: number; ctx: MovementContext; id: string }> = [];
+
+  for (let i = 0; i < sortedLt.length; i++) {
+    const seg = sortedLt[i];
+    if (seg.finalType !== 'movement') continue;
+    // movementMeta från detectTrueMovement.
+    const meta = (seg.diagnostics as { movementMeta?: {
+      fromTarget?: LocationTruthMatchedTargetLike;
+      toTarget?: LocationTruthMatchedTargetLike;
+      distanceMeters?: number;
+    } }).movementMeta;
+
+    let fromT: LocationTruthMatchedTargetLike | null = meta?.fromTarget ?? null;
+    let toT: LocationTruthMatchedTargetLike | null = meta?.toTarget ?? null;
+
+    // Fallback: läs grannsegmentens matchedTarget/finalType.
+    if (!fromT) {
+      for (let k = i - 1; k >= 0; k--) {
+        const p = sortedLt[k];
+        if (p.finalType === 'movement') continue;
+        const mt = p.businessContext?.matchedTarget ?? p.matchedTarget;
+        if (mt) { fromT = mt; break; }
+        if (p.finalType === 'private_residence') { fromT = { targetType: 'private_zone' }; break; }
+        break;
+      }
+    }
+    if (!toT) {
+      for (let k = i + 1; k < sortedLt.length; k++) {
+        const n = sortedLt[k];
+        if (n.finalType === 'movement') continue;
+        const mt = n.businessContext?.matchedTarget ?? n.matchedTarget;
+        if (mt) { toT = mt; break; }
+        if (n.finalType === 'private_residence') { toT = { targetType: 'private_zone' }; break; }
+        break;
+      }
+    }
+
+    const ctx: MovementContext = {
+      fromSide: classifyMovementSide(fromT),
+      toSide: classifyMovementSide(toT),
+      distanceMeters: typeof meta?.distanceMeters === 'number' ? meta!.distanceMeters! : null,
+      isFirstWorkboundCommuteOfDay: false,
+      isLastHomeboundCommuteOfDay: false,
+    };
+    movementCtxById.set(seg.id, ctx);
+    tentative.push({ idx: i, ctx, id: seg.id });
+
+    if (ctx.fromSide === 'home_or_private' && isWorkSide(ctx.toSide) && firstCommuteWorkboundIdx === -1) {
+      firstCommuteWorkboundIdx = i;
+    }
+    if (isWorkSide(ctx.fromSide) && ctx.toSide === 'home_or_private') {
+      lastCommuteHomeboundIdx = i; // overskrivs → blir sista
+    }
+  }
+  for (const t of tentative) {
+    if (t.idx === firstCommuteWorkboundIdx) t.ctx.isFirstWorkboundCommuteOfDay = true;
+    if (t.idx === lastCommuteHomeboundIdx) t.ctx.isLastHomeboundCommuteOfDay = true;
+  }
+
   for (const seg of ltSegments) {
     const sMs = toMs(seg.startAt);
     const eMs = toMs(seg.endAt);
