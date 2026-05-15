@@ -749,5 +749,57 @@ export async function buildKnownTargetsEvidence(
 
   diag.targetsMissingRadiusCount = dq.targetsMissingRadius.length;
 
+  // ── 9. Post-pass: enrich largeProjectsMissingGeo + largeProjectRules ───
+  // Räkna child-objekt per LP och flagga LP utan egen geo. Vi använder
+  // ALDRIG child-geo som tyst fallback; vi rapporterar bara om det finns.
+  const childBookingsByLp = new Map<string, { count: number; anyGeo: boolean }>();
+  for (const it of items) {
+    if (it.targetType === 'booking' && it.parentLargeProjectId) {
+      const cur = childBookingsByLp.get(it.parentLargeProjectId) ?? { count: 0, anyGeo: false };
+      cur.count += 1;
+      if (it.hasCoordinates || it.polygon !== null) cur.anyGeo = true;
+      childBookingsByLp.set(it.parentLargeProjectId, cur);
+    }
+  }
+  const childProjectsByLp = new Map<string, { count: number; anyGeo: boolean }>();
+  for (const it of items) {
+    if (it.targetType === 'project' && it.parentLargeProjectId) {
+      const cur = childProjectsByLp.get(it.parentLargeProjectId) ?? { count: 0, anyGeo: false };
+      cur.count += 1;
+      if (it.hasCoordinates || it.polygon !== null) cur.anyGeo = true;
+      childProjectsByLp.set(it.parentLargeProjectId, cur);
+    }
+  }
+
+  let lpWithGeoCount = 0;
+  for (const lp of largeProjectInfoById.values()) {
+    if (lp.hasGeo) {
+      lpWithGeoCount += 1;
+      continue;
+    }
+    const cb = childBookingsByLp.get(lp.id) ?? { count: 0, anyGeo: false };
+    const cp = childProjectsByLp.get(lp.id) ?? { count: 0, anyGeo: false };
+    dq.largeProjectsMissingGeo.push({
+      targetId: lp.id,
+      largeProjectId: lp.id,
+      label: lp.label,
+      largeProjectName: lp.label,
+      reason: 'large_project_missing_own_geo',
+      childObjectsCount: cb.count + cp.count,
+      hasChildBookingGeo: cb.anyGeo,
+      hasChildProjectGeo: cp.anyGeo,
+    });
+    diag.largeProjectsMissingGeoCount += 1;
+  }
+
+  diag.largeProjectRules = {
+    largeProjectCount: diag.largeProjectCount,
+    largeProjectsWithGeoCount: lpWithGeoCount,
+    largeProjectsMissingGeoCount: diag.largeProjectsMissingGeoCount,
+    childBookingsSuppressedCount: diag.childBookingsSuppressedCount,
+    childProjectsSuppressedCount: diag.childProjectsSuppressedCount,
+    ambiguousLargeProjectChildProjectCount: dq.ambiguousLargeProjectChildProjects.length,
+  };
+
   return { items, dataQuality: dq, diagnostics: diag };
 }
