@@ -64,7 +64,7 @@ export function resolvePhysicalLocationForCluster(
     matchedId &&
     matchedKnownType &&
     match.matchedTarget.type !== 'needs_location_review' &&
-    match.matchedTarget.type !== 'unknown_area'
+    match.matchedTarget.type !== 'no_eventflow_target_match'
   ) {
     const t = knownTargets.find(
       (k) => k.targetId === matchedId && k.targetType === matchedKnownType,
