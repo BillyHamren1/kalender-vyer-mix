@@ -177,8 +177,12 @@ Deno.test('Lager 3.1: private_residence inom workday → private_time + proposal
     activeWorkday: wd('2026-05-13T07:00:00Z', '2026-05-13T17:30:00Z'),
   });
   assertEquals(r.segments[0].allocationType, 'private_time');
-  assertEquals(r.proposals.length, 1);
-  assertEquals(r.proposals[0].proposedAllocationType, 'private_time');
+  // Lager 3.10: private_residence inom workday genererar nu
+  // consider_workday_end_from_private + ev. suggest_workday_end + gap_in_workday.
+  // Vi verifierar bara att minst en private-proposal finns.
+  const privateProps = r.proposals.filter((p) => p.proposedAllocationType === 'private_time');
+  assert(privateProps.length >= 1);
+  assertEquals(privateProps[0].proposedAllocationType, 'private_time');
 });
 
 Deno.test('Lager 3.1: segment helt utanför workday → markeras outsideWorkday', () => {
