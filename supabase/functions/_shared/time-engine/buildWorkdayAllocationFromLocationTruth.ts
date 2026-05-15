@@ -42,12 +42,15 @@ export type WorkdayAllocationType =
 export type WorkdayAllocationConfidence = 'high' | 'medium' | 'low';
 
 export type WorkdayAllocationAssignmentStatus =
+  // ── Lager 3.10D — kanoniska värden enligt spec ───────────────────────
+  | 'assigned'
+  | 'unassigned_but_present'
+  | 'no_assignment_required'
+  | 'unknown'
+  // ── Legacy-värden (behålls för bakåtkompatibilitet med tester/UI) ────
   | 'assigned_overlap'
   | 'assigned_no_overlap'
-  | 'no_assignment'
-  | 'no_assignment_required'
-  | 'unassigned_but_present'
-  | 'unknown';
+  | 'no_assignment';
 
 export interface WorkdayAllocationSegment {
   id: string;
@@ -129,7 +132,9 @@ export type WorkdayAllocationProposalType =
   // ── Lager 3.10C — gap som signalfrånvaro, inte review per default ──────
   | 'uncovered_workday_time'
   // ── Lager 3.10B — supplier→projektkandidat ──────────────────────────────
-  | 'link_supplier_to_project_candidate';
+  | 'link_supplier_to_project_candidate'
+  // ── Lager 3.10D — explicit AI-review-kandidat (skickas vidare till aiWorkdayReviewer) ─
+  | 'ai_review_candidate';
 
 export type WorkdayAllocationProposalSeverity = 'low' | 'medium' | 'high';
 
