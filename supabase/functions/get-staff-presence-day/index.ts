@@ -298,9 +298,10 @@ Deno.serve(async (req) => {
           const activeWorkday = wdRow
             ? { startedAt: wdRow.started_at, stoppedAt: wdRow.stopped_at, staffId, date }
             : { startedAt: null, stoppedAt: null, staffId, date };
-          // Lager 3.2 — bygg envelope explicit (read-only) och skicka in.
+          // Lager 3.2 + 3.11A — bygg envelope explicit (read-only) klippt mot analysdagen.
           const envelope = resolveWorkdayEnvelope({
             activeWorkday,
+            analysisWindowStartIso: dayStart,
             analysisWindowEndIso: dayEnd,
           });
           const wda = buildWorkdayAllocationFromLocationTruth({
@@ -308,6 +309,8 @@ Deno.serve(async (req) => {
             locationTruthV2: lt,
             activeWorkday,
             workdayEnvelope: envelope,
+            analysisWindowStartIso: dayStart,
+            analysisWindowEndIso: dayEnd,
           });
           workdayAllocationDiagnostics = wda.diagnostics;
           workdayAllocationSegments = wda.segments;
