@@ -681,6 +681,9 @@ export async function buildKnownTargetsEvidence(
   if (!supplierFetched) {
     diag.supplierTableNotFoundWarning = true;
     diag.warnings.push('supplier_table_not_found_or_not_configured');
+    if (!diag.warnings.includes('no_safe_supplier_source_found')) {
+      diag.warnings.push('no_safe_supplier_source_found');
+    }
   }
 
 
