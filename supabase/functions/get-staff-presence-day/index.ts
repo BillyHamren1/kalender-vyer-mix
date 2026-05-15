@@ -254,27 +254,29 @@ Deno.serve(async (req) => {
   let dayEvidenceDiagnostics: any = null;
   let locationTruthDiagnostics: any = null;
   let locationTruthSegments: any[] = [];
-  try {
-    const dayEvidence = await buildDayEvidence({
-      supabaseAdmin: admin,
-      organizationId: orgId,
-      staffId,
-      date,
-      dayStartUtc: dayStart,
-      dayEndUtc: dayEnd,
-    });
-    dayEvidenceDiagnostics = dayEvidence.diagnostics;
+  if (ENABLE_LOCATION_TRUTH_V2_DIAGNOSTICS) {
     try {
-      const lt = buildLocationTruthFromDayEvidence(dayEvidence);
-      locationTruthDiagnostics = lt.diagnostics;
-      locationTruthSegments = lt.segments; // tom i v1
+      const dayEvidence = await buildDayEvidence({
+        supabaseAdmin: admin,
+        organizationId: orgId,
+        staffId,
+        date,
+        dayStartUtc: dayStart,
+        dayEndUtc: dayEnd,
+      });
+      dayEvidenceDiagnostics = dayEvidence.diagnostics;
+      try {
+        const lt = buildLocationTruthFromDayEvidence(dayEvidence);
+        locationTruthDiagnostics = lt.diagnostics;
+        locationTruthSegments = lt.segments;
+      } catch (e: any) {
+        console.warn('[presence-day] buildLocationTruthFromDayEvidence failed', e);
+        locationTruthDiagnostics = { error: e?.message ?? String(e) };
+      }
     } catch (e: any) {
-      console.warn('[presence-day] buildLocationTruthFromDayEvidence failed', e);
-      locationTruthDiagnostics = { error: e?.message ?? String(e) };
+      console.warn('[presence-day] buildDayEvidence failed', e);
+      dayEvidenceDiagnostics = { error: e?.message ?? String(e) };
     }
-  } catch (e: any) {
-    console.warn('[presence-day] buildDayEvidence failed', e);
-    dayEvidenceDiagnostics = { error: e?.message ?? String(e) };
   }
 
   // ── Presence events (arrival/departure/signal_lost/signal_resumed) ──
