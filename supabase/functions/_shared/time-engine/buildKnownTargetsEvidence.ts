@@ -30,6 +30,7 @@
 export type KnownTargetType =
   | 'warehouse'
   | 'organization_location'
+  | 'supplier'
   | 'large_project'
   | 'project'
   | 'booking'
