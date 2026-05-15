@@ -449,7 +449,7 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Avbryt</Button>
             <Button type="submit" disabled={create.isPending} className="bg-orange-500 hover:bg-orange-600 text-white">
-              {create.isPending ? 'Skapar…' : 'Skapa to do'}
+              {create.isPending ? (isEdit ? 'Sparar…' : 'Skapar…') : (isEdit ? 'Spara ändringar' : 'Skapa to do')}
             </Button>
           </DialogFooter>
         </form>
