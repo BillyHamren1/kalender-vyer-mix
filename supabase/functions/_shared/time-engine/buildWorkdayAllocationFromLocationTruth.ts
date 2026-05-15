@@ -236,6 +236,8 @@ export interface WorkdayAllocationProposal {
   candidateLabel?: string | null;
   /** True = föreslås, men kräver mänsklig godkänning innan något skrivs. */
   requiresHumanApproval?: boolean;
+  /** Lager 3.10C — severity för uncovered_workday_time. */
+  severity?: WorkdayAllocationProposalSeverity;
 }
 
 export interface WorkdayAllocationResult {
