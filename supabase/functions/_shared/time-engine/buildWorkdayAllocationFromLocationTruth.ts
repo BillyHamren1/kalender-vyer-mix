@@ -611,6 +611,10 @@ export function buildWorkdayAllocationFromLocationTruth(
     supplierVisits: 0,
     supplierVisitsLinkedToProjectCandidate: 0,
     supplierVisitsWithoutProjectContext: 0,
+    homeSegmentsAfterWork: 0,
+    homeOver90MinutesCount: 0,
+    suggestedWorkdayEndCount: 0,
+    temporaryHomePresenceCount: 0,
     examples: [],
   };
 
