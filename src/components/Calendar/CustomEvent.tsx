@@ -98,6 +98,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   // Check if booking is cancelled
   const isCancelled = event.bookingStatus === 'CANCELLED' || event.extendedProps?.bookingStatus === 'CANCELLED';
   const isLocked = event.extendedProps?.timeLocked === true;
+  const isTodo = event.eventType === 'todo' || (event.extendedProps as any)?.isTodo === true;
 
   // Context menu handlers
   const handleViewDetails = useCallback(() => {
