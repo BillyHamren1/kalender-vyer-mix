@@ -162,6 +162,19 @@ export interface KnownTargetsDiagnostics {
   projectCount: number;
   bookingCount: number;
   privateZoneCount: number;
+  /** Lager 1.13 — supplier/samarbetspartner-targets. */
+  supplierCount: number;
+  suppliersWithGeoCount: number;
+  suppliersMissingGeoCount: number;
+  suppliersMissingRadiusCount: number;
+  supplierExamples: Array<{
+    targetId: string;
+    label: string;
+    address: string | null;
+    hasCoordinates: boolean;
+    hasRadius: boolean;
+    suppressedReason: KnownTargetSuppressedReason;
+  }>;
   childBookingsSuppressedCount: number;
   childProjectsSuppressedCount: number;
   largeProjectsMissingGeoCount: number;
