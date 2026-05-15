@@ -1,5 +1,12 @@
 /**
- * Day Evidence Layer (Time Engine 1.1)
+ * Day Evidence Layer (Time Engine 1.x — Lager 1)
+ *
+ * Day Evidence is now a consumable read-only evidence layer.
+ * Lager 2 may consume DayEvidence.internal.locationLogicPings when
+ * explicitly wired. Downstream legacy engines must not assume raw GPS
+ * pings are already normalized.
+ *
+ * This layer does not build blocks, reports, payroll, or display timelines.
  *
  * Responsibilities:
  *   - collect raw signals (GPS pings, assignments, known targets, private
@@ -16,9 +23,6 @@
  *   - GPS / location evidence is handled later by Location Truth (1.2+).
  *   - Large project owns its own geo; child bookings are NOT geo fallback.
  *   - This layer must remain side-effect free and read-only.
- *
- * This file is intentionally a scaffold. Downstream callers must NOT consume
- * its output as work-block input until later phases wire it in explicitly.
  */
 
 import {
