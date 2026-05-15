@@ -34,6 +34,44 @@ import {
   type StableClusterDiagnostics,
   type StableLocationCluster,
 } from './buildStableLocationClusters.ts';
+import {
+  matchClusterToKnownTarget,
+  type MatchClusterResult,
+  type MatchedTargetType,
+} from './matchClusterToKnownTarget.ts';
+
+// ── Lager 2.3 — Target match diagnostics ───────────────────────────────────
+
+export interface TargetMatchDiagnostics {
+  clustersEvaluated: number;
+  matchedKnownSiteCount: number;
+  matchedPrivateCount: number;
+  matchedWarehouseCount: number;
+  matchedLargeProjectCount: number;
+  matchedProjectCount: number;
+  matchedBookingCount: number;
+  matchedOrganizationLocationCount: number;
+  unknownClusterCount: number;
+  needsLocationReviewCount: number;
+  planningUsedAsTieBreakerCount: number;
+  planningIgnoredBecauseGeoDisagreedCount: number;
+  examples: Array<{
+    clusterId: string;
+    matchedType: MatchedTargetType;
+    targetId: string | null;
+    label: string;
+    confidence: 'high' | 'medium' | 'low';
+    decisionReason: string;
+    candidateCount: number;
+    rejectedCount: number;
+    warnings: string[];
+  }>;
+}
+
+export interface ClusterMatchEntry {
+  clusterId: string;
+  match: MatchClusterResult;
+}
 
 // ── Output shape ──────────────────────────────────────────────────────────
 
