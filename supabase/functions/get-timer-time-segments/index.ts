@@ -154,15 +154,18 @@ Deno.serve(async (req) => {
   const fromTs = new Date(new Date(startedAt).getTime() - pad).toISOString();
   const toTs = new Date(new Date(endedAt).getTime() + pad).toISOString();
 
-  const { data: pingsData } = await admin
-    .from("staff_location_history")
-    .select("recorded_at, lat, lng, accuracy, speed")
-    .eq("organization_id", organizationId)
-    .eq("staff_id", staffId)
-    .gte("recorded_at", fromTs)
-    .lte("recorded_at", toTs)
-    .order("recorded_at", { ascending: true })
-    .limit(2000);
+  // Lager 1.10 — gick tidigare via .limit(2000) på staff_location_history.
+  // Day-wide / timer-wide analytics SKA gå via fetchAllStaffLocationPings
+  // (gpsFetchConsistency.ts). Window = timerns hela varaktighet ± pad.
+  const pingFetch = await fetchAllStaffLocationPings({
+    supabaseAdmin: admin,
+    organizationId,
+    staffId,
+    startUtc: fromTs,
+    endUtc: toTs,
+    select: "recorded_at, lat, lng, accuracy, speed",
+  });
+  const pingsData = pingFetch.rows;
 
   const pings: GpsPing[] = (pingsData ?? []).map((p: any) => ({
     ts: p.recorded_at,
