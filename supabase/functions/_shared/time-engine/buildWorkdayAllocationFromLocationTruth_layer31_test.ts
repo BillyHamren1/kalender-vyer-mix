@@ -140,7 +140,10 @@ Deno.test('Lager 3.1: known_address → unlinked_work_address', () => {
   assertEquals(r.segments[0].allocationType, 'unlinked_work_address');
 });
 
-Deno.test('Lager 3.1: movement → work_travel', () => {
+Deno.test('Lager 3.1: movement utan anchor → needs_work_allocation_review (Lager 3.4)', () => {
+  // Sedan Lager 3.4 kräver work_travel tydlig from/to-anchor.
+  // En naken movement utan from/to klassas som needs_work_allocation_review
+  // med warning movement_missing_anchor.
   const s = seg({
     id: 's1', start: '2026-05-13T08:00:00Z', end: '2026-05-13T08:30:00Z',
     finalType: 'movement',
@@ -149,7 +152,8 @@ Deno.test('Lager 3.1: movement → work_travel', () => {
     dayEvidence: null, locationTruthV2: ltResult([s]),
     activeWorkday: wd('2026-05-13T07:00:00Z', '2026-05-13T17:00:00Z'),
   });
-  assertEquals(r.segments[0].allocationType, 'work_travel');
+  assertEquals(r.segments[0].allocationType, 'needs_work_allocation_review');
+  assert(r.segments[0].warnings.includes('movement_missing_anchor'));
 });
 
 Deno.test('Lager 3.1: unresolved_location → needs_work_allocation_review (low)', () => {
@@ -177,8 +181,12 @@ Deno.test('Lager 3.1: private_residence inom workday → private_time + proposal
     activeWorkday: wd('2026-05-13T07:00:00Z', '2026-05-13T17:30:00Z'),
   });
   assertEquals(r.segments[0].allocationType, 'private_time');
-  assertEquals(r.proposals.length, 1);
-  assertEquals(r.proposals[0].proposedAllocationType, 'private_time');
+  // Lager 3.10: private_residence inom workday genererar nu
+  // consider_workday_end_from_private + ev. suggest_workday_end + gap_in_workday.
+  // Vi verifierar bara att minst en private-proposal finns.
+  const privateProps = r.proposals.filter((p) => p.proposedAllocationType === 'private_time');
+  assert(privateProps.length >= 1);
+  assertEquals(privateProps[0].proposedAllocationType, 'private_time');
 });
 
 Deno.test('Lager 3.1: segment helt utanför workday → markeras outsideWorkday', () => {

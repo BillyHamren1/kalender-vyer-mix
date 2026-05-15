@@ -121,7 +121,9 @@ export type WorkdayAllocationWarning =
 
 export type WorkdayAllocationProposalType =
   | 'allocation_candidate'
-  | 'suggest_workday_end';
+  | 'suggest_workday_end'
+  | 'consider_workday_end_from_private'
+  | 'gap_in_workday';
 
 export interface WorkdayAllocationDiagnostics {
   staffId: string | null;
@@ -757,6 +759,8 @@ export function buildWorkdayAllocationFromLocationTruth(
     if (seg.finalType === 'private_residence') {
       proposals.push({
         segmentId: seg.id,
+        // Lager 3.10 — fix 1: proposalType saknades och loggades som undefined.
+        proposalType: 'consider_workday_end_from_private',
         proposedAllocationType: 'private_time',
         targetType: 'private_zone',
         targetId: (seg.businessContext?.matchedTarget ?? seg.matchedTarget)?.targetId ?? null,
@@ -1012,15 +1016,31 @@ export function buildWorkdayAllocationFromLocationTruth(
     }
   }
 
-  // Beräkna uncovered minutes inom workday.
+  // Beräkna uncovered minutes inom workday + emittera gap-proposals (Lager 3.10).
   coveredIntervals.sort((a, b) => a[0] - b[0]);
   let cursor = wdStartMs;
   let uncoveredMs = 0;
+  const GAP_PROPOSAL_MIN_MS = 30 * 60_000; // ≥30 min synliggörs som proposal
+  const emitGap = (s: number, e: number) => {
+    if (e - s < GAP_PROPOSAL_MIN_MS) return;
+    proposals.push({
+      segmentId: `workday-gap-${new Date(s).toISOString()}`,
+      proposalType: 'gap_in_workday',
+      proposedAllocationType: 'needs_work_allocation_review',
+      targetType: null,
+      targetId: null,
+      label: null,
+      startAt: new Date(s).toISOString(),
+      endAt: new Date(e).toISOString(),
+      confidence: 'medium',
+      reason: 'gap_in_workday_uncovered_by_segments',
+    });
+  };
   for (const [s, e] of coveredIntervals) {
-    if (s > cursor) uncoveredMs += s - cursor;
+    if (s > cursor) { uncoveredMs += s - cursor; emitGap(cursor, s); }
     if (e > cursor) cursor = e;
   }
-  if (cursor < wdEnd) uncoveredMs += wdEnd - cursor;
+  if (cursor < wdEnd) { uncoveredMs += wdEnd - cursor; emitGap(cursor, wdEnd); }
   diag.uncoveredWorkdayMinutes = Math.round(uncoveredMs / 60_000);
   if (diag.uncoveredWorkdayMinutes > 0) {
     diag.warnings.push('gap_in_workday');
