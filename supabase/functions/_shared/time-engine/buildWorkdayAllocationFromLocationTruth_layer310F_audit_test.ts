@@ -117,6 +117,7 @@ Deno.test('3.10F#6 — LP missing geo som warning/businessContext → AI-review 
     sourceLocationTruthSegmentIds: ['lt'], allocationType: 'unlinked_work_address',
     targetType: null, targetId: null, label: 'Site', address: 'Adr',
     confidence: 'medium', warnings: [], assignmentStatus: 'unknown',
+    assignmentMatch: 'unknown',
     businessContextStatus: null,
   } as WorkdayAllocationSegment;
 
