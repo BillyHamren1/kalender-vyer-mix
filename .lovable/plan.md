@@ -1,78 +1,85 @@
+## Verifierat från eventflow-booking
+
+Externa Booking-systemet:
+- Lagrar datum som **arrayer**: `event_dates[]`, `rig_up_dates[]`, `rig_down_dates[]` + globala tider `rig_up_time`, `rig_down_time`.
+- Har en officiell skriv-endpoint: `update-booking-from-planning` som accepterar exakt dessa fält. Auth: `x-api-key: PLANNING_API_KEY` (vi har redan secret).
+- Whitelist tillåter: `event_dates`, `rig_up_dates`, `rig_down_dates`, `rig_up_time`, `rig_down_time` m.fl.
+
+**Konsekvens:** Memory `large-project-dates-local-authority-v1` baseras på fel endpoint. Externa systemet stödjer LP-datum perfekt — extra dagar = bara fler element i arrayen. Inga duplicerade sub-bookings behövs.
+
 ## Mål
 
-`calendar_events` blir den **enda interna sanningen** för rig/event/rigDown-dagar för alla projekt-vyer. `projects.<phase>date` slutar läsas av UI. **Personalkalendern, planeringskalendern och `import-bookings` rörs inte.**
+Efter konvertering bokning → projekt äger projektet rig/event/rigDown-datum för **alla sina sub-bookings**. När någon redigerar i projektvyn:
 
-## Säkerhetsprinciper (icke-förhandlingsbara)
+1. Lokal UPDATE på `bookings.rig_dates / event_dates / rigdown_dates` (arrays) + `rigdaydate / eventdate / rigdowndate` (= första elementet, för bakåtkompatibilitet).
+2. PUSH till externa systemet via `update-booking-from-planning` per booking — en payload med arrayerna.
+3. `import-bookings` (REP-path) eller direkt `materializeCalendarEvents` regenererar `calendar_events` från dessa arrayer.
+4. Personalkalendern: oförändrad path, läser `calendar_events` som vanligt.
 
-1. **Inga UPDATE/DELETE på befintliga `calendar_events`-rader** i migreringen. Migreringen är **additiv only** — skriver bara nya rader för saknade dagar.
-2. **Personalkalenderns läsväg är fryst** — låst med kontraktstest före första ändring:
-   - `src/services/staffCalendarService.ts`
-   - `src/services/plannerCalendarDerivation.ts`
-   - `src/lib/staffCalendar/deriveStaffEvents.ts`
-   - `src/services/eventService.ts` (write API som personalkalendern använder)
-3. **`import-bookings` och `receive-booking` rörs inte alls.** Ingen ny logik där.
-4. **Backup-tabell innan migrering**: `_backup_projects_phase_dates_20260515` (full kopia av `projects.id, rigdaydate, eventdate, rigdowndate, updated_at`).
-5. **Dry-run-rapport innan migrering körs** — listar alla projekt där `projects.<phase>date` skulle leda till en ny `calendar_events`-rad. Användaren godkänner siffran innan INSERT.
-6. **`projects.<phase>date`-kolumnerna droppas INTE** i denna omgång. De görs bara obsoleta som läskälla. Drop sker i en framtida städ-migrering.
+`projects.rigdaydate/eventdate/rigdowndate` blir **deprecated** (UI läser via `useBookingPhaseDays(bookingIds)` som vi redan börjat på).
 
-## Steg
+## Arkitektur
 
-### 1. Frys personalkalenderns kontrakt (ren testfil, ingen prod-ändring)
-Ny `src/test/personalkalenderUntouched.contract.test.ts`:
-- Snapshot av exporterade funktionssignaturer från staffCalendarService, plannerCalendarDerivation, deriveStaffEvents, eventService.
-- Snapshot av SELECT-fälten dessa hämtar från `calendar_events`.
-- Asserta att inga `projects.rigdaydate`-references injiceras i dessa filer.
+```text
+Projektvy (medium/LP)
+   │  edit dates
+   ▼
+projectDateAuthority.write({projectId, type, phase, dates[]})
+   │
+   ├─► edge: apply-project-dates
+   │     1. lookup bookings (medium=1, LP=N sub-bookings)
+   │     2. för varje booking:
+   │        a. UPDATE bookings.{phase}_dates + .{phase}date (=dates[0])
+   │        b. invoke external: update-booking-from-planning
+   │           { booking_id, organization_id, source:'planning',
+   │             fields:{ rig_up_dates|event_dates|rig_down_dates: dates } }
+   │        c. invoke import-bookings { localOnly:true, bookingIds:[bid] }
+   │           (rebuilds calendar_events från nya arrayen)
+   │     3. audit-loggar varje steg i sync_audit_log
+   │     4. returnerar per-booking-resultat
+   │
+   ▼
+QueryClient.invalidateQueries(['booking-phase-days'])
+   ▼
+Projektvy + personalkalender uppdateras via realtime
+```
 
-### 2. Inventarisera läsare av `projects.<phase>date`
-Read-only sweep, dokumenterad i `.lovable/phase-date-readers.md`:
-- Filtrera till **UI-läsare i projekt-/dashboard-vyer** (de som ska migreras till `useBookingPhaseDays`).
-- Markera **icke-UI-läsare** (export-functions, sync-reconciliation, planning/economy services) — dessa får ligga kvar i denna omgång.
+## Filer som skapas/ändras
 
-### 3. Backup + dry-run
-- Migration A (ren `CREATE TABLE`): `_backup_projects_phase_dates_20260515` med snapshot.
-- Edge function `dry-run-phase-date-consolidation` (read-only) som returnerar:
-  ```
-  { projectsScanned, divergencesFound, eventsToInsert, examples: [...10] }
-  ```
-  För varje projekt: jämför `projects.<phase>date` mot existerande `calendar_events` för dess `booking_id`. Om ingen rad finns för (booking_id, phase, that_date) → kandidat för INSERT.
+**Nya:**
+- `supabase/functions/apply-project-dates/index.ts` — central skriv-funktion (~150 rader)
+- `supabase/functions/_shared/external-booking-write.ts` — tunn klient för `update-booking-from-planning`
+- `src/services/projectDateAuthority.ts` — frontend-fasad (~80 rader)
+- `src/test/projectDateAuthority.contract.test.ts` — verifierar att alla 3 stegen körs i ordning
+- `supabase/functions/apply-project-dates/index.test.ts` — Deno-test mot mockad extern endpoint
+- `.lovable/memory/features/projects/project-owns-dates-v1.md` — ny memory
 
-### 4. Additiv migration (efter användarens godkännande av dry-run-siffrorna)
-Migration B: ren INSERT, en transaktion:
-- För varje kandidat: `INSERT INTO calendar_events (booking_id, event_type, source_date, start_time, end_time, organization_id, ...) ON CONFLICT (booking_id, event_type, source_date, organization_id) DO NOTHING`.
-- `start_time`/`end_time` defaultas till bookingens `<phase>_start_time`/`<phase>_end_time` (samma som `import-bookings` skulle skrivit).
-- Loggas till `sync_audit_log` med `source='phase_date_consolidation_v1'`.
-- **Ingen UPDATE, ingen DELETE.**
+**Uppdateras:**
+- `src/pages/project/LargeProjectLayout.tsx` — `handleScheduleUpdate` → `projectDateAuthority.write`
+- `src/components/project/ProjectScheduleEditable.tsx` — samma kall
+- `src/services/largeProjectScheduleSync.ts` — markeras `@deprecated`, delegera till nya tjänsten
+- `.lovable/memory/index.md` — pekar bort `large-project-dates-local-authority-v1` som superseded
 
-### 5. Verifieringstester (vitest + edge test)
-- `src/test/bookingPhaseDaysParity.contract.test.ts`: för 10 sample-projekt, asserta att `useBookingPhaseDays(booking_id)` returnerar minst alla dagar som finns i `projects.<phase>date`.
-- `src/test/personalkalenderUntouched.contract.test.ts` körs igen → måste vara grön.
-- Edge test som räknar `calendar_events`-rader före/efter på sample bookings → diff matchar dry-run.
+## Säkerhet / felhantering
 
-### 6. Stegvis UI-migrering (en fil i taget, varje med vitest)
-Prioritet (UI som visar "fel" antal dagar idag):
-1. `src/pages/project/ProjectLayout.tsx` (medium) → läs via `useBookingPhaseDays`, skriv via `syncBookingPhaseDays`.
-2. `src/components/project/ProjectScheduleEditable.tsx` → läsa `phaseDays` från props.
-3. `src/pages/project/ProjectViewPage.tsx`, dashboard-widgets, ekonomi-listor — efter att (1)+(2) är gröna.
+- **Multi-tenancy:** alla queries filtrerar på `organization_id`.
+- **Atomicitet:** lokal UPDATE först. Om externa failar → `sync_audit_log` markerar `external_push_failed` + retry-kö (ny tabell `pending_external_pushes` med org_id, booking_id, payload, attempts).
+- **Personalkalendern oförändrad:** `personalkalenderUntouched.contract.test.ts` (finns redan från förra steget) körs i CI.
+- **Rollback:** backup-tabellen `_backup_projects_phase_dates_20260515` finns redan.
 
-`LargeProjectLayout.tsx` är redan korrekt (läser från `large_projects.*` enligt LP-policy) → ingen ändring.
+## Migrationsordning (en commit per steg)
 
-### 7. Kvar för framtid (NOT i denna plan)
-- Drop av `projects.<phase>date`-kolumner (separat städ-migrering när alla läsare är borta).
-- Push tillbaka av extra-dagar till externa systemet via `planning-api-proxy` (eget arbete, kräver API-kontrakt).
-- Rensning av icke-UI-läsare som listades i steg 2.
+1. `apply-project-dates` edge function + Deno-test (ingen UI-koppling).
+2. `projectDateAuthority.ts` + frontend kontrakttest. Fortfarande ingen UI-koppling.
+3. `LargeProjectLayout.handleScheduleUpdate` byts till nya tjänsten. Personalkalendertest körs.
+4. `ProjectScheduleEditable` (medium) byts.
+5. `largeProjectScheduleSync.ts` markeras deprecated.
+6. Uppdatera memories.
 
-## Tekniska detaljer
+Tom rad mellan dem så användaren kan stoppa när som helst.
 
-**Identitetsnyckel för INSERT**: `(booking_id, event_type, source_date, organization_id)` — matchar befintligt unique constraint `uq_calendar_event_identity`. `ON CONFLICT DO NOTHING` garanterar att vi aldrig rör en rad personalkalendern redan känner till.
+## Frågor innan jag börjar
 
-**Standalone-projekt** (utan `booking_id`): hoppas över i denna migration. De använder redan `projectCalendarService` med `booking_id='project-<uuid>'` och har egna calendar_events. UI-migreringen i steg 6 fallback:ar till `projects.<phase>date` när inget `booking_id` finns.
-
-**Time-fält**: när `bookings.<phase>_start_time` saknas defaultas till `08:00:00` (samma defaults som `import-bookings` använder idag — speglas exakt).
-
-**Rollback-plan**: backup-tabellen + sync_audit_log innebär att vi kan köra `DELETE FROM calendar_events WHERE id IN (SELECT created_event_id FROM sync_audit_log WHERE source='phase_date_consolidation_v1')` om något gått fel. Eftersom migreringen bara INSERT:ar är detta garanterat säkert.
-
-## Vad jag behöver godkänt innan jag börjar
-
-1. OK att skapa backup-tabell + dry-run edge function (steg 1–3, ingen data ändras).
-2. Du tittar på dry-run-rapporten innan steg 4 körs.
-3. UI-migreringen i steg 6 sker en fil i taget med din review mellan varje.
+1. **Retry-policy om externa systemet är nere:** spara i `pending_external_pushes` och visa banner i projektvyn ("Datum sparade lokalt, väntar på sync till bokningssystemet"), eller blockera UI-spar tills push lyckas?
+2. **Eventdagen för LP:** ska den också skrivas tillbaka till externa? Memory `staff-calendar-no-event-day-v1` säger att eventdagen filtreras bort i personalkalendern, men det är en visnings-regel — själva datumet borde fortfarande pushas. OK?
+3. **Tider (`rig_up_time` / `rig_down_time`):** ska projektet också äga dessa, eller bara datumen? Externa har ett tidsfält per fas (globalt över alla dagar), inte per dag.
