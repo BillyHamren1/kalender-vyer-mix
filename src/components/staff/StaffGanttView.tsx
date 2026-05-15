@@ -474,7 +474,7 @@ const blocksFromStaff = (
         privateHomeBlocksSuppressedCount,
       });
     }
-    return out;
+    return applyVisualMerge(out, staff.name);
   }
   // Fallback: derive from journal sessions
   for (const s of staff.journal.sessions as ProjectSession[]) {
