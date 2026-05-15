@@ -65,18 +65,72 @@ export interface BuildDayEvidenceInput {
 
 // ── Sub-evidence shapes ────────────────────────────────────────────────────
 
+export interface GpsPingsSummary {
+  count: number;
+  firstAt: string | null;
+  lastAt: string | null;
+  qualityCounts: {
+    excellent: number;
+    good: number;
+    usable: number;
+    weak: number;
+    veryWeak: number;
+    outlierCandidate: number;
+    unknown: number;
+  };
+  retainedLowAccuracyCount: number;
+  ignoredForLocationLogicCount: number;
+  hardRejectedCount: number;
+}
+
+export interface LocationLogicPingsSummary {
+  count: number;
+  firstAt: string | null;
+  lastAt: string | null;
+  medianGapSeconds: number | null;
+  maxGapMinutes: number | null;
+}
+
 export interface DayGpsEvidence {
+  // ── Backwards-compat ───────────────────────────────────────────────────
+  /** @deprecated Behåll: alias för fetchedPingCount. */
   pingCount: number;
   firstPingAt: string | null;
   lastPingAt: string | null;
-  /** Coarse coverage 0..1 of the day window where pings exist. */
-  coverageRatio: number;
-  /** Gaps > 15 min between consecutive pings (count only — no segments). */
-  longGapCount: number;
-  /** Median accuracy in meters when reported (null if unknown). */
+
+  // ── Lager 1.7: explicita räkningar ────────────────────────────────────
+  rawPingCount: number;
+  fetchedPingCount: number;
+  normalizedPingCount: number;
+  /** Pings som faktiskt får användas i platslogik (ej hard reject, ej outlier-ignored). */
+  locationLogicPingCount: number;
+  hardRejectedPingCount: number;
+  ignoredOutlierPingCount: number;
+
+  /** Första/sista normaliserad ping (alla normaliserade, inkl. outliers). */
+  firstRecordedAt: string | null;
+  lastRecordedAt: string | null;
+  /** Första/sista ping i location-logic-setet. */
+  firstLocationLogicPingAt: string | null;
+  lastLocationLogicPingAt: string | null;
+
   medianAccuracyMeters: number | null;
-  /** True if night window 00:00–05:00 has any pings. */
+  p90AccuracyMeters: number | null;
+
+  /** Beräknat på locationLogicPings, inte raw. Gap > 15 min. */
+  longGapCount: number;
+  /** Största gap mellan två på varandra följande locationLogicPings i minuter. */
+  maxGapMinutes: number | null;
+
+  /** True om locationLogicPings finns mellan 21:00–06:00 lokal tid. */
   hasNightActivity: boolean;
+
+  /** Andel av dagfönstrets minuter som har minst en locationLogicPing. */
+  coverageRatio: number;
+
+  // ── Lager 1.7: summaries ──────────────────────────────────────────────
+  normalizedPingsSummary: GpsPingsSummary;
+  locationLogicPingsSummary: LocationLogicPingsSummary;
 }
 
 export interface DayAssignmentEvidence {
