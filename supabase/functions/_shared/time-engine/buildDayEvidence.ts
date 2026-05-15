@@ -214,6 +214,22 @@ export interface DayEvidenceDiagnostics {
     privateZones: number;
     largeProjects: number;
   };
+  /** Lager 1.7 — konsoliderad GPS-snapshot för Lager 2 + log scanning. */
+  gps: {
+    rawPingCount: number;
+    fetchedPingCount: number;
+    normalizedPingCount: number;
+    locationLogicPingCount: number;
+    hardRejectedPingCount: number;
+    ignoredOutlierPingCount: number;
+    retainedLowAccuracyCount: number;
+    medianAccuracyMeters: number | null;
+    p90AccuracyMeters: number | null;
+    longGapCount: number;
+    maxGapMinutes: number | null;
+    coverageRatio: number;
+    hasNightActivity: boolean;
+  } | null;
   /** Diagnostics from the canonical paginated GPS reader (Lager 1.2). */
   gpsFetchDiagnostics: FetchAllStaffLocationPingsDiagnostics | null;
   /** Quality breakdown from GPS normalisation (Lager 1.3). */
