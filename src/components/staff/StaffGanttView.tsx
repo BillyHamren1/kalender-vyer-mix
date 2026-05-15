@@ -1416,11 +1416,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                     color: '#0a0a0a',
                                     boxShadow: '0 1px 3px hsl(var(--foreground) / 0.06), inset 0 1px 0 hsl(0 0% 100% / 0.5)',
                                   }}
-                                  title={
-                                    b.isNightGpsOnly
-                                      ? `GPS-spår 00:00–05:00 utan tidrapport eller manuell timer.\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}`
-                                      : `${displayTitle}${b.subtitle ? ' · ' + b.subtitle : ''}\n${formatStockholmHm(b.startAt)}–${formatStockholmHm(b.endAt)} · ${fmtMin(b.durationMinutes)}${b.plannedBadgeLabel ? '\nPlanerat: ' + b.plannedBadgeLabel : ''}${overlapping ? '\n⚠ Överlappar annat block' : ''}`
-                                  }
+                                  title={blockTooltipText(b, displayTitle, overlapping)}
                                 >
                                   <div className="flex items-center gap-1.5">
                                     <span
