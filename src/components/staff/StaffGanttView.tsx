@@ -399,7 +399,7 @@ const blocksFromStaff = (
         id: isPreWork ? `pre-${b.id}` : b.id,
         kind: isPreWork
           ? 'pre_work'
-          : mapReportCandidateKind(b, bookingPhaseByDate, largeProjectPhaseByDate),
+          : mapReportCandidateKind(b, bookingPhaseByDate, largeProjectPhaseByDate, sessionPhaseMap),
         startAt: b.startAt,
         endAt: b.endAt,
         durationMinutes: b.durationMinutes,
@@ -409,6 +409,26 @@ const blocksFromStaff = (
         isNightGpsOnly,
       });
     };
+
+    // Pre-pass: bygg sessionPhaseMap så att fas ärvs INOM samma jobb/session.
+    // Warehouse-block exkluderas (eget visuellt spår; ska inte smitta projektrigg).
+    const phaseInputs = candidate.filter((b) => b.kind === 'work' && !isWarehouseTarget(b));
+    const perBlockPhase: Record<string, SessionPhaseKind | null> = {};
+    for (const b of phaseInputs) {
+      perBlockPhase[b.id] = resolveBlockPhaseDirect(b, bookingPhaseByDate, largeProjectPhaseByDate);
+    }
+    const sessionPhaseMap = buildSessionPhaseMap(
+      phaseInputs.map((b) => ({
+        id: b.id,
+        targetType: b.targetType,
+        targetId: b.targetId,
+        title: b.title,
+        subtitle: b.subtitle,
+        startAt: b.startAt,
+        endAt: b.endAt,
+      })),
+      perBlockPhase,
+    );
 
     for (const b of candidate) processBlock(b, false);
     if (excludedPreWork) for (const b of excludedPreWork) processBlock(b, true);
