@@ -73,7 +73,7 @@ export const EventWrapper: React.FC<{
         position: 'absolute',
         top: `${position.top}px`,
         height: `${position.height}px`,
-        left: `${horizontalInset + (leftPercent / 100) * Math.max(teamColumnWidth - horizontalInset * 2, 0)}px`,
+        left: `calc(${horizontalInset}px + ${leftPercent}%)`,
         width: `calc(${overlapWidthPercent}% - ${horizontalInset * 2}px)`,
         zIndex: baseZ,
         pointerEvents: 'auto',
