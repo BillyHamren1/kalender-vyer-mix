@@ -118,7 +118,9 @@ export type WorkdayAllocationWarning =
   | 'supplier_visit_without_project_context'
   // ── Lager 3.6 — hem/private efter sista arbetsplats ───────────────────
   | 'home_after_last_work_location'
-  | 'temporary_home_presence';
+  | 'temporary_home_presence'
+  // ── Lager 3.10C — uncovered workday time (mjuk varning) ────────────────
+  | 'workday_time_without_location_truth_segment';
 
 export type WorkdayAllocationProposalType =
   | 'allocation_candidate'
