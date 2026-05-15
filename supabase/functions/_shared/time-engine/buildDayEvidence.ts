@@ -238,6 +238,19 @@ export interface DayEvidence {
   largeProjects: DayLargeProjectEvidence;
   dataQuality: DayEvidenceDataQuality;
   diagnostics: DayEvidenceDiagnostics;
+  /**
+   * Lager 1.7 — internt evidence-set för Lager 2-konsumtion.
+   * Få aldrig serialiseras 1:1 utåt om mängden blir stor; expose via summary.
+   * normalizedPings = alla normaliserade pings (inkl. outlier-ignored).
+   * locationLogicPings = pings där hardRejected=false och ignoredForLocationLogic=false.
+   */
+  internal: {
+    normalizedPings: NormalizedGpsPing[];
+    locationLogicPings: NormalizedGpsPing[];
+    hardRejectedPings: HardRejectedGpsPing[];
+    dayWindowStartUtc: string;
+    dayWindowEndUtc: string;
+  };
 }
 
 // ── Safe defaults ──────────────────────────────────────────────────────────
@@ -246,10 +259,41 @@ const emptyGps = (): DayGpsEvidence => ({
   pingCount: 0,
   firstPingAt: null,
   lastPingAt: null,
-  coverageRatio: 0,
-  longGapCount: 0,
+  rawPingCount: 0,
+  fetchedPingCount: 0,
+  normalizedPingCount: 0,
+  locationLogicPingCount: 0,
+  hardRejectedPingCount: 0,
+  ignoredOutlierPingCount: 0,
+  firstRecordedAt: null,
+  lastRecordedAt: null,
+  firstLocationLogicPingAt: null,
+  lastLocationLogicPingAt: null,
   medianAccuracyMeters: null,
+  p90AccuracyMeters: null,
+  longGapCount: 0,
+  maxGapMinutes: null,
   hasNightActivity: false,
+  coverageRatio: 0,
+  normalizedPingsSummary: {
+    count: 0,
+    firstAt: null,
+    lastAt: null,
+    qualityCounts: {
+      excellent: 0, good: 0, usable: 0, weak: 0, veryWeak: 0,
+      outlierCandidate: 0, unknown: 0,
+    },
+    retainedLowAccuracyCount: 0,
+    ignoredForLocationLogicCount: 0,
+    hardRejectedCount: 0,
+  },
+  locationLogicPingsSummary: {
+    count: 0,
+    firstAt: null,
+    lastAt: null,
+    medianGapSeconds: null,
+    maxGapMinutes: null,
+  },
 });
 
 const emptyAssignments = (): DayAssignmentEvidence => ({
