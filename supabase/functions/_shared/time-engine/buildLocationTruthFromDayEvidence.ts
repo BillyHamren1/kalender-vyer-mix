@@ -99,17 +99,32 @@ export interface ClusterMatchEntry {
 export interface PhysicalLocationDiagnostics {
   clustersWithKnownTargetCount: number;
   clustersWithKnownAddressNoTargetCount: number;
+  /** Lager 2.11F — alias för clustersWithKnownAddressNoTargetCount. */
+  knownAddressNoTargetCount: number;
   unresolvedLocationCount: number;
   reverseGeocodeUsedCount: number;
   centroidOnlyAddressCount: number;
   noEventFlowTargetMatchCount: number;
   planningGeoMismatchCount: number;
+  /** Lager 2.11F — businessContext-utfall per typ. */
+  supplierVisitCount: number;
+  warehousePresenceCount: number;
+  unassignedProjectPresenceCount: number;
+  largeProjectMissingGeoBusinessWarningCount: number;
+  /** Lager 2.11F — physicalLocation.address fyllnadsgrad. */
+  physicalLocationAddressFilledCount: number;
+  physicalLocationAddressMissingCount: number;
   examples: Array<{
     clusterId: string;
     segmentType: LocationTruthSegmentType;
     physicalLocationSource: PhysicalLocation['source'];
+    physicalLocationLabel?: string;
+    physicalLocationAddress?: string | null;
     businessContextStatus: BusinessContextStatus;
+    matchedTarget?: LocationTruthMatchedTarget;
+    /** @deprecated använd matchedTarget.targetType. */
     matchedTargetType?: LocationTruthTargetType;
+    /** @deprecated använd physicalLocationLabel. */
     label?: string;
     warnings: string[];
   }>;
@@ -453,11 +468,18 @@ export function buildLocationTruthFromDayEvidence(
   const physDiag: PhysicalLocationDiagnostics = {
     clustersWithKnownTargetCount: 0,
     clustersWithKnownAddressNoTargetCount: 0,
+    knownAddressNoTargetCount: 0,
     unresolvedLocationCount: 0,
     reverseGeocodeUsedCount: 0,
     centroidOnlyAddressCount: 0,
     noEventFlowTargetMatchCount: 0,
     planningGeoMismatchCount: 0,
+    supplierVisitCount: 0,
+    warehousePresenceCount: 0,
+    unassignedProjectPresenceCount: 0,
+    largeProjectMissingGeoBusinessWarningCount: 0,
+    physicalLocationAddressFilledCount: 0,
+    physicalLocationAddressMissingCount: 0,
     examples: [],
   };
 
