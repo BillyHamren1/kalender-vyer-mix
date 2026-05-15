@@ -255,6 +255,8 @@ Deno.serve(async (req) => {
   let dayEvidenceDiagnostics: any = null;
   let locationTruthDiagnostics: any = null;
   let locationTruthSegments: any[] = [];
+  let workdayAllocationDiagnostics: any = null;
+  let workdayAllocationSegments: any[] = [];
   if (ENABLE_LOCATION_TRUTH_V2_DIAGNOSTICS) {
     try {
       const dayEvidence = await buildDayEvidence({
@@ -270,6 +272,35 @@ Deno.serve(async (req) => {
         const lt = buildLocationTruthFromDayEvidence(dayEvidence);
         locationTruthDiagnostics = lt.diagnostics;
         locationTruthSegments = lt.segments;
+
+        // ── Lager 3.1 — Workday Allocation (read-only debug) ──────────────
+        // Kör efter LocationTruthV2. Får INTE påverka något downstream.
+        // activeWorkday hämtas från active_time_registrations strax nedanför,
+        // men för att undvika ordnings-koppling läser vi en lättviktig query här.
+        try {
+          const { data: wdRow } = await admin
+            .from('active_time_registrations')
+            .select('started_at, stopped_at')
+            .eq('organization_id', orgId)
+            .eq('staff_id', staffId)
+            .lte('started_at', dayEnd)
+            .or(`stopped_at.is.null,stopped_at.gte.${dayStart}`)
+            .order('started_at', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+          const wda = buildWorkdayAllocationFromLocationTruth({
+            dayEvidence,
+            locationTruthV2: lt,
+            activeWorkday: wdRow
+              ? { startedAt: wdRow.started_at, stoppedAt: wdRow.stopped_at, staffId, date }
+              : { startedAt: null, stoppedAt: null, staffId, date },
+          });
+          workdayAllocationDiagnostics = wda.diagnostics;
+          workdayAllocationSegments = wda.segments;
+        } catch (e: any) {
+          console.warn('[presence-day] buildWorkdayAllocationFromLocationTruth failed', e);
+          workdayAllocationDiagnostics = { error: e?.message ?? String(e) };
+        }
       } catch (e: any) {
         console.warn('[presence-day] buildLocationTruthFromDayEvidence failed', e);
         locationTruthDiagnostics = { error: e?.message ?? String(e) };
