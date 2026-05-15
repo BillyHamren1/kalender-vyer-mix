@@ -33,6 +33,7 @@ import {
   resolveGanttPhaseKind,
   buildSessionPhaseMap,
   sessionKeyForBlock,
+  resolveBookingPhaseFromTitle,
   type SessionPhaseKind,
 } from '@/lib/staff/ganttPhaseColor';
 import type { ReviewWorkInput, ReviewTravelInput } from '@/lib/staff/timeReportReviewEntry';
@@ -235,6 +236,9 @@ const resolveBlockPhaseDirect = (
   });
   if (phaseKind === 'rig' || phaseKind === 'rigdown') return phaseKind;
   if (phaseKind === 'work') return 'work';
+  // Fallback: bokningsnummer i titel/subtitle (#2603-35R1) → bookingPhaseByDate
+  const fromTitle = resolveBookingPhaseFromTitle(b, bookingPhaseByDate);
+  if (fromTitle === 'rig' || fromTitle === 'rigdown') return fromTitle;
   const phase = detectPhase(b.title, b.subtitle);
   if (phase) return phase;
   return null;

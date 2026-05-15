@@ -1,85 +1,45 @@
-## Verifierat från eventflow-booking
+## Problem
 
-Externa Booking-systemet:
-- Lagrar datum som **arrayer**: `event_dates[]`, `rig_up_dates[]`, `rig_down_dates[]` + globala tider `rig_up_time`, `rig_down_time`.
-- Har en officiell skriv-endpoint: `update-booking-from-planning` som accepterar exakt dessa fält. Auth: `x-api-key: PLANNING_API_KEY` (vi har redan secret).
-- Whitelist tillåter: `event_dates`, `rig_up_dates`, `rig_down_dates`, `rig_up_time`, `rig_down_time` m.fl.
+Förra fixen byggde `sessionPhaseMap` per `targetType:targetId`. Men i Pavels rad har de två "Creative Meetings (#2603-35R1)"-blocken **olika** target-identitet:
 
-**Konsekvens:** Memory `large-project-dates-local-authority-v1` baseras på fel endpoint. Externa systemet stödjer LP-datum perfekt — extra dagar = bara fler element i arrayen. Inga duplicerade sub-bookings behövs.
+- Block 1 (07:53–12:03 → ARBETE): troligen `targetType=project` / annan `targetId` (eller saknar targetId helt) — fasen kan inte slås upp i `bookingPhaseByDate['2603-35R1']`, och `detectPhase("Creative Meetings")` matchar varken rig eller rigdown → `perBlockPhase = null`.
+- Block 2 (12:06–14:38 → RIGG): `targetType=booking`, `targetId='2603-35R1'` → får `rig` direkt från `bookingPhaseByDate`.
 
-## Mål
+Eftersom `sessionKeyForBlock` ger två olika nycklar (`project:X` vs `booking:2603-35R1`) ärver inte block 1 fas från block 2. Resultat: ARBETE + RIGG.
 
-Efter konvertering bokning → projekt äger projektet rig/event/rigDown-datum för **alla sina sub-bookings**. När någon redigerar i projektvyn:
+## Fix
 
-1. Lokal UPDATE på `bookings.rig_dates / event_dates / rigdown_dates` (arrays) + `rigdaydate / eventdate / rigdowndate` (= första elementet, för bakåtkompatibilitet).
-2. PUSH till externa systemet via `update-booking-from-planning` per booking — en payload med arrayerna.
-3. `import-bookings` (REP-path) eller direkt `materializeCalendarEvents` regenererar `calendar_events` från dessa arrayer.
-4. Personalkalendern: oförändrad path, läser `calendar_events` som vanligt.
+Lyft bokningsnumret från titel/subtitle som **kanonisk sessionsnyckel** och som **booking-fas-lookup**.
 
-`projects.rigdaydate/eventdate/rigdowndate` blir **deprecated** (UI läser via `useBookingPhaseDays(bookingIds)` som vi redan börjat på).
+### 1. `src/lib/staff/ganttPhaseColor.ts`
+- Ny exporterad helper `extractBookingNumberFromText(text)` med regex `#?\b(\d{3,5}-\w+)\b` (matchar både "#2603-35R1" och "2603-35R1").
+- I `sessionKeyForBlock`: om `extractBookingNumberFromText(title || subtitle)` ger träff → returnera `booking#:<num>` *som högsta prioritet* (slår targetType:targetId). Detta unifierar block oavsett om engine taggat dem som project/booking/null så länge titeln nämner samma bokning.
+- Ny helper `resolveBookingPhaseFromTitle(b, bookingPhaseByDate)` som plockar booking-nummer ur titel/subtitle och gör samma lookup som targetId-vägen. Används i `resolveBlockPhaseDirect` som ny fallback **före** `detectPhase`.
 
-## Arkitektur
+### 2. `src/components/staff/StaffGanttView.tsx`
+- I `resolveBlockPhaseDirect`: om `resolveGanttPhaseKind` ger null, prova `resolveBookingPhaseFromTitle` innan `detectPhase`. Det gör att även block 1 ovan får `rig` direkt utan att behöva sessions-arv — och som backup fångar sessions-arvet fortfarande de fall där bara ett av syskonblocken har bokningsnummer i titeln.
+- Inga ändringar i `mapReportCandidateKind`-flödet — bara uppströms data blir bättre.
 
-```text
-Projektvy (medium/LP)
-   │  edit dates
-   ▼
-projectDateAuthority.write({projectId, type, phase, dates[]})
-   │
-   ├─► edge: apply-project-dates
-   │     1. lookup bookings (medium=1, LP=N sub-bookings)
-   │     2. för varje booking:
-   │        a. UPDATE bookings.{phase}_dates + .{phase}date (=dates[0])
-   │        b. invoke external: update-booking-from-planning
-   │           { booking_id, organization_id, source:'planning',
-   │             fields:{ rig_up_dates|event_dates|rig_down_dates: dates } }
-   │        c. invoke import-bookings { localOnly:true, bookingIds:[bid] }
-   │           (rebuilds calendar_events från nya arrayen)
-   │     3. audit-loggar varje steg i sync_audit_log
-   │     4. returnerar per-booking-resultat
-   │
-   ▼
-QueryClient.invalidateQueries(['booking-phase-days'])
-   ▼
-Projektvy + personalkalender uppdateras via realtime
-```
+### 3. Regressionstester `src/test/sessionPhaseInheritance.test.ts`
+Lägg till case som speglar Pavels exakta data:
+- Block A: `targetType='project', targetId='other-uuid', title='Creative Meetings (#2603-35R1)'`
+- Block B: `targetType='booking', targetId='2603-35R1', title='Creative Meetings (#2603-35R1)'`
+- `bookingPhaseByDate['2603-35R1'] = 'rig'`
+- Förväntar: båda hamnar på `rig` — antingen via direkt booking#-lookup eller via sessions-arv (samma nyckel `booking#:2603-35R1`).
 
-## Filer som skapas/ändras
+Plus test för:
+- "(#2603-35R1)" och bara "2603-35R1" i titel matchas.
+- Olika bokningsnummer i samma rad ärver INTE mellan sig.
+- Warehouse-block med bokningsnummer i titeln ärver fortfarande inte rig (filtreras bort i pre-pass som idag).
+- `targetId='2603-35R1'` utan booking#-text fungerar oförändrat.
 
-**Nya:**
-- `supabase/functions/apply-project-dates/index.ts` — central skriv-funktion (~150 rader)
-- `supabase/functions/_shared/external-booking-write.ts` — tunn klient för `update-booking-from-planning`
-- `src/services/projectDateAuthority.ts` — frontend-fasad (~80 rader)
-- `src/test/projectDateAuthority.contract.test.ts` — verifierar att alla 3 stegen körs i ordning
-- `supabase/functions/apply-project-dates/index.test.ts` — Deno-test mot mockad extern endpoint
-- `.lovable/memory/features/projects/project-owns-dates-v1.md` — ny memory
+## Verifiering
+1. Kör `bunx vitest run src/test/sessionPhaseInheritance.test.ts`.
+2. Reload preview på `/staff-management/time-reports`, kontrollera att Pavels Creative Meetings-block båda blir RIGG (gröna), inte blandat ARBETE+RIGG.
 
-**Uppdateras:**
-- `src/pages/project/LargeProjectLayout.tsx` — `handleScheduleUpdate` → `projectDateAuthority.write`
-- `src/components/project/ProjectScheduleEditable.tsx` — samma kall
-- `src/services/largeProjectScheduleSync.ts` — markeras `@deprecated`, delegera till nya tjänsten
-- `.lovable/memory/index.md` — pekar bort `large-project-dates-local-authority-v1` som superseded
-
-## Säkerhet / felhantering
-
-- **Multi-tenancy:** alla queries filtrerar på `organization_id`.
-- **Atomicitet:** lokal UPDATE först. Om externa failar → `sync_audit_log` markerar `external_push_failed` + retry-kö (ny tabell `pending_external_pushes` med org_id, booking_id, payload, attempts).
-- **Personalkalendern oförändrad:** `personalkalenderUntouched.contract.test.ts` (finns redan från förra steget) körs i CI.
-- **Rollback:** backup-tabellen `_backup_projects_phase_dates_20260515` finns redan.
-
-## Migrationsordning (en commit per steg)
-
-1. `apply-project-dates` edge function + Deno-test (ingen UI-koppling).
-2. `projectDateAuthority.ts` + frontend kontrakttest. Fortfarande ingen UI-koppling.
-3. `LargeProjectLayout.handleScheduleUpdate` byts till nya tjänsten. Personalkalendertest körs.
-4. `ProjectScheduleEditable` (medium) byts.
-5. `largeProjectScheduleSync.ts` markeras deprecated.
-6. Uppdatera memories.
-
-Tom rad mellan dem så användaren kan stoppa när som helst.
-
-## Frågor innan jag börjar
-
-1. **Retry-policy om externa systemet är nere:** spara i `pending_external_pushes` och visa banner i projektvyn ("Datum sparade lokalt, väntar på sync till bokningssystemet"), eller blockera UI-spar tills push lyckas?
-2. **Eventdagen för LP:** ska den också skrivas tillbaka till externa? Memory `staff-calendar-no-event-day-v1` säger att eventdagen filtreras bort i personalkalendern, men det är en visnings-regel — själva datumet borde fortfarande pushas. OK?
-3. **Tider (`rig_up_time` / `rig_down_time`):** ska projektet också äga dessa, eller bara datumen? Externa har ett tidsfält per fas (globalt över alla dagar), inte per dag.
+## Rapport (svaren användaren bad om)
+- **A.** Första blocket blev ARBETE för att dess `targetType/targetId` inte pekade på bookingen `2603-35R1` — phase-lookup miss + `detectPhase("Creative Meetings")` matchar ingen rig-regex.
+- **B.** Andra blocket använde `bookingPhaseByDate['2603-35R1']` via dess `targetType=booking, targetId=2603-35R1`.
+- **C.** Med fixen: båda blocken landar på samma sessionsnyckel `booking#:2603-35R1` (plus direkt fas-lookup via bokningsnummer i titel), och rig vinner.
+- **D.** Före: ARBETE 07:53–12:03 + RIGG 12:06–14:38. Efter: RIGG 07:53–12:03 + RIGG 12:06–14:38.
+- **E.** ARBETE kvarstår bara om INGET block i sessionen kan resolveras till rig/rigdown via vare sig targetId, bokningsnummer i titel eller text-detektering — alltså rena event-/möten utan rigg-planering.

@@ -82,7 +82,40 @@ export interface SessionBlockInput {
  * Bygger en sessionsnyckel som grupperar block som hör till samma jobb.
  * Prioritet: targetType:targetId → normaliserad titel → block-id (unik).
  */
+/**
+ * Plockar bokningsnummer (t.ex. "2603-35R1") från fri text.
+ * Matchar både "#2603-35R1" och bart "2603-35R1".
+ */
+export function extractBookingNumberFromText(text?: string | null): string | null {
+  if (!text) return null;
+  const m = String(text).match(/#?\b(\d{3,5}-[A-Za-z0-9]+)\b/);
+  return m ? m[1] : null;
+}
+
+/**
+ * Slår upp booking-fas via bokningsnummer i titel/subtitle. Används som
+ * fallback när targetType/targetId inte pekar på bookingen direkt (t.ex.
+ * när blocket är resolved som project istället för booking).
+ */
+export function resolveBookingPhaseFromTitle(
+  b: { title?: string | null; subtitle?: string | null },
+  bookingPhaseByDate?: Record<string, CalendarPhase> | null,
+): SessionPhaseKind | null {
+  if (!bookingPhaseByDate) return null;
+  const num = extractBookingNumberFromText(b.title) ?? extractBookingNumberFromText(b.subtitle);
+  if (!num) return null;
+  const phase = bookingPhaseByDate[num];
+  if (!phase) return null;
+  return phase === 'event' ? 'work' : phase;
+}
+
 export function sessionKeyForBlock(b: SessionBlockInput): string {
+  // Bokningsnummer i titel/subtitle är högsta prioritet — unifierar block
+  // som engine taggat olika (project vs booking vs null) men som hör till
+  // samma jobb.
+  const bookingNum =
+    extractBookingNumberFromText(b.title) ?? extractBookingNumberFromText(b.subtitle);
+  if (bookingNum) return `booking#:${bookingNum}`;
   if (b.targetId && b.targetType) return `${b.targetType}:${b.targetId}`;
   if (b.targetId) return `tid:${b.targetId}`;
   const norm = (b.title ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
