@@ -218,6 +218,8 @@ export interface LocationTruthDiagnostics {
   supplierMatchDiagnostics: SupplierMatchDiagnostics | null;
   /** Lager 2.4 — gap-bridge diagnostics. */
   gapBridgeDiagnostics: GapBridgeDiagnostics | null;
+  /** Lager 2.5 — verklig förflyttning (movement). */
+  movementDiagnostics: MovementDiagnostics | null;
 }
 
 export interface LocationTruthResult {
