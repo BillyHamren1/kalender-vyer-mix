@@ -133,6 +133,11 @@ export interface WorkdayAllocationDiagnostics {
   unlinkedWorkAddressCount: number;
   unassignedButPresentCount: number;
   planningMismatchCount: number;
+  // ── Lager 3.4 — movement-räknare ───────────────────────────────────────
+  workTravelCount: number;
+  commuteTravelCount: number;
+  longTravelOver150kmCount: number;
+  movementReviewCount: number;
   examples: Array<{
     id: string;
     allocationType: WorkdayAllocationType;
