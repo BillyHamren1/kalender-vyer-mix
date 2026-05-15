@@ -101,10 +101,11 @@ Deno.test('4.1: olika targetId slås INTE ihop', () => {
   assertEquals(r.blocks.length, 2);
 });
 
-Deno.test('4.1: stora glapp (>2min) slås INTE ihop', () => {
+Deno.test('4.1: stora glapp (>30min på samma target) slås INTE ihop', () => {
+  // Lager 4.2: bridged merge upp till 30 min för samma target.
   const r = run(wda([
     seg({ id: 'a', startAt: '2026-05-15T08:00:00Z', endAt: '2026-05-15T08:30:00Z' }),
-    seg({ id: 'b', startAt: '2026-05-15T09:00:00Z', endAt: '2026-05-15T09:30:00Z' }),
+    seg({ id: 'b', startAt: '2026-05-15T09:30:00Z', endAt: '2026-05-15T10:00:00Z' }),
   ]));
   assertEquals(r.blocks.length, 2);
 });
