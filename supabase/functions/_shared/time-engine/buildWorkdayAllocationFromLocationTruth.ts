@@ -394,9 +394,21 @@ export function buildWorkdayAllocationFromLocationTruth(
 ): WorkdayAllocationResult {
   const startedAt = Date.now();
   const ltSegments = input.locationTruthV2?.segments ?? [];
-  const wd = input.activeWorkday;
-  const wdStartMs = toMs(wd?.startedAt ?? null);
-  const wdStopMs = toMs(wd?.stoppedAt ?? null);
+
+  // ── Lager 3.2 — resolva workday envelope ────────────────────────────
+  // Om callern skickade en färdig envelope använder vi den. Annars resolvar
+  // vi från activeWorkday (bakåtkompatibelt). Skriver INGENTING.
+  const envelope: WorkdayEnvelope = input.workdayEnvelope ?? resolveWorkdayEnvelope({
+    activeWorkday: input.activeWorkday ?? null,
+    analysisWindowEndIso: input.analysisWindowEndIso
+      ?? (input.locationTruthV2?.diagnostics.date
+        ? `${input.locationTruthV2.diagnostics.date}T23:59:59.999Z`
+        : null),
+    nowIso: input.nowIso ?? null,
+  });
+
+  const wd = input.activeWorkday ?? null;
+  const wdStartMs = toMs(envelope.startAt);
 
   const segments: WorkdayAllocationSegment[] = [];
   const proposals: WorkdayAllocationProposal[] = [];
@@ -406,8 +418,8 @@ export function buildWorkdayAllocationFromLocationTruth(
     builtAtIso: new Date().toISOString(),
     buildDurationMs: 0,
     hasActiveWorkday: !!wdStartMs,
-    workdayStartAt: wd?.startedAt ?? null,
-    workdayEndAt: wd?.stoppedAt ?? null,
+    workdayStartAt: envelope.startAt,
+    workdayEndAt: envelope.isOpen ? null : envelope.endAt,
     workdayDurationMinutes: 0,
     inputSegmentCount: ltSegments.length,
     segmentsInsideWorkday: 0,
@@ -415,8 +427,15 @@ export function buildWorkdayAllocationFromLocationTruth(
     segmentsPartiallyClipped: 0,
     allocationCounts: emptyAllocCounts(),
     warningsByType: emptyWarningCounts(),
-    warnings: [],
+    warnings: [...envelope.warnings],
     uncoveredWorkdayMinutes: 0,
+    workdayEnvelopeFound: !!wdStartMs,
+    openWorkday: envelope.isOpen,
+    workdayStartSource: envelope.startSource,
+    workdayEndSource: envelope.endSource,
+    envelopeWarnings: [...envelope.warnings],
+    segmentsInsideEnvelope: 0,
+    segmentsOutsideEnvelope: 0,
     examples: [],
   };
 
@@ -426,11 +445,8 @@ export function buildWorkdayAllocationFromLocationTruth(
     diag.buildDurationMs = Date.now() - startedAt;
     return { segments, proposals, diagnostics: diag };
   }
-  // Pågående workday: använd dagslut eller "nu" som fönsterslut.
-  const fallbackEnd = toMs(input.locationTruthV2?.diagnostics.date
-    ? `${input.locationTruthV2!.diagnostics.date}T23:59:59.999Z`
-    : null) ?? Date.now();
-  const wdEnd = wdStopMs ?? fallbackEnd;
+  // Använd envelope-end (täcker både stängd och öppen dagtimer).
+  const wdEnd = toMs(envelope.endAt) ?? Date.now();
   diag.workdayDurationMinutes = Math.max(0, Math.round((wdEnd - wdStartMs) / 60_000));
 
   // Track coverage för uncoveredWorkdayMinutes.
