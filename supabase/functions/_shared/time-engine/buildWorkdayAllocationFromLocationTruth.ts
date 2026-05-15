@@ -71,6 +71,24 @@ export interface WorkdayAllocationSegment {
   rawSegmentEndAt?: string;
   /** True om segmentet ligger utanför aktiv workday och därför ej tilldelas arbete. */
   outsideWorkday?: boolean;
+  /** Lager 3.5 — deterministisk projektkandidat för supplier_visit. */
+  linkedProjectCandidate?: SupplierProjectCandidate | null;
+}
+
+export type SupplierProjectCandidateSource =
+  | 'overlapping_assignment'
+  | 'project_before'
+  | 'project_after'
+  | 'pattern_warehouse_supplier_project'
+  | 'pattern_project_supplier_project'
+  | 'pattern_project_supplier_warehouse';
+
+export interface SupplierProjectCandidate {
+  targetType: LocationTruthTargetType;
+  targetId: string;
+  label: string | null;
+  source: SupplierProjectCandidateSource;
+  confidence: WorkdayAllocationConfidence;
 }
 
 export type WorkdayAllocationWarning =
