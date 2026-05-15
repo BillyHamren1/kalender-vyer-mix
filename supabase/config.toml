@@ -168,3 +168,6 @@ verify_jwt = false
 
 [functions.debug-day-evidence-l1-report]
 verify_jwt = false
+
+[functions.sync-external-suppliers]
+verify_jwt = false
