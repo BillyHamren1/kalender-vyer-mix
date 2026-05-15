@@ -161,6 +161,7 @@ export async function buildAssignmentEvidence(
   const { supabaseAdmin, organizationId, staffId, date, dayStartUtc, dayEndUtc } = input;
   const warnings: string[] = [];
   const items: AssignmentEvidenceItem[] = [];
+  const calendarEvents: AssignmentCalendarEvent[] = [];
 
   const diag: AssignmentEvidenceDiagnostics = {
     directBookingAssignmentCount: 0,
