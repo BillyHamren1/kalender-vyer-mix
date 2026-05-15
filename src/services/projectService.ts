@@ -35,6 +35,7 @@ export const fetchProject = async (id: string): Promise<ProjectWithBooking | nul
       *,
       booking:bookings(
         id,
+        large_project_id,
         client,
         eventdate,
         rigdaydate,
