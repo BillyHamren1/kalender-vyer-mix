@@ -79,6 +79,8 @@ export interface WorkdayAllocationSegment {
   warnings: WorkdayAllocationWarning[];
   /** Om personen var planerad på detta target i intervallet. */
   assignmentStatus: WorkdayAllocationAssignmentStatus;
+  /** Lager 3.11B — extra detalj om hur assignment matchades. */
+  assignmentMatch: WorkdayAllocationAssignmentMatch;
   /** Speglar Lager 2 businessContext.status — för transparens neråt. */
   businessContextStatus: BusinessContextStatus | null;
   /** Originalfönstret innan klippning till workday (debug). */
