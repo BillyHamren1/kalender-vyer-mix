@@ -73,15 +73,38 @@ export interface KnownTargetEvidenceItem {
   suppressedReason: KnownTargetSuppressedReason;
 }
 
+export interface LargeProjectMissingGeoEntry {
+  targetId: string;
+  largeProjectId: string;
+  label: string;
+  largeProjectName: string;
+  reason: 'large_project_missing_own_geo';
+  childObjectsCount: number;
+  hasChildBookingGeo: boolean;
+  hasChildProjectGeo: boolean;
+}
+
 export interface KnownTargetsDataQuality {
   targetsMissingCoordinates: Array<{ targetType: KnownTargetType; targetId: string; label: string }>;
   targetsMissingRadius: Array<{ targetType: KnownTargetType; targetId: string; label: string }>;
-  largeProjectsMissingGeo: Array<{ targetId: string; label: string }>;
+  largeProjectsMissingGeo: LargeProjectMissingGeoEntry[];
   bookingsInsideLargeProjects: Array<{ bookingId: string; largeProjectId: string; label: string }>;
+  projectsInsideLargeProjects: Array<{ projectId: string; largeProjectId: string; label: string }>;
   childBookingsSuppressedAsTargets: Array<{ bookingId: string; largeProjectId: string }>;
+  childProjectsSuppressedAsTargets: Array<{ projectId: string; largeProjectId: string }>;
+  ambiguousLargeProjectChildProjects: Array<{ projectId: string; largeProjectId: string; reason: string }>;
   assignmentsWithoutMatchingTarget: Array<{ assignmentId: string | null; bookingId: string | null; largeProjectId: string | null }>;
   calendarEventsWithoutTarget: Array<{ calendarEventId: string | null; bookingId: string | null }>;
   targetsWithNullRadius: Array<{ targetType: KnownTargetType; targetId: string; label: string }>;
+}
+
+export interface LargeProjectRulesDiagnostics {
+  largeProjectCount: number;
+  largeProjectsWithGeoCount: number;
+  largeProjectsMissingGeoCount: number;
+  childBookingsSuppressedCount: number;
+  childProjectsSuppressedCount: number;
+  ambiguousLargeProjectChildProjectCount: number;
 }
 
 export interface KnownTargetsDiagnostics {
@@ -92,8 +115,11 @@ export interface KnownTargetsDiagnostics {
   bookingCount: number;
   privateZoneCount: number;
   childBookingsSuppressedCount: number;
+  childProjectsSuppressedCount: number;
   largeProjectsMissingGeoCount: number;
   targetsMissingRadiusCount: number;
+  /** Lager 1.8 — konsoliderade large project-regler. */
+  largeProjectRules: LargeProjectRulesDiagnostics;
   warnings: string[];
   examples: Array<{
     targetType: KnownTargetType;
