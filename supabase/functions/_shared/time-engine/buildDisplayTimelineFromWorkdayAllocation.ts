@@ -179,6 +179,17 @@ export interface DisplayTimelineBlock {
     absorbedTravelSegments: Array<{
       startAt: string; endAt: string; durationMinutes: number;
     }>;
+    /** Map Trace 4 — fysisk plats från första segmentets LocationTruth. */
+    physicalLocationLabel?: string | null;
+    physicalLocationAddress?: string | null;
+    physicalLocationLat?: number | null;
+    physicalLocationLng?: number | null;
+    physicalLocationSource?: string | null;
+    physicalLocationConfidence?: 'high' | 'medium' | 'low' | null;
+    /** Map Trace 4 — full platsmatchnings-trace (kandidater, rejects, beslut). */
+    locationMatchDiagnostics?: unknown;
+    /** Map Trace 4 — business-context-resolution från Lager 3. */
+    businessContextResolution?: unknown;
   };
 }
 
