@@ -919,6 +919,36 @@ export function buildWorkdayAllocationFromLocationTruth(
     examples: [],
   };
 
+  // ── Time Engine Core Fix 1 — HÅRD GUARD: raw GPS finns men LT V2 saknas ──
+  // Om dagen har faktiska raw GPS-pings men 0 LocationTruth-segment har byggts
+  // får vi INTE skapa allocation/private/unlinked/uncovered-segment. Hela kedjan
+  // måste stoppas så att display/Gantt inte ritar falska heldags-block.
+  // LocationTruth är obligatorisk mellan raw GPS och WorkdayAllocation.
+  const rawPingCount: number =
+    (dayEv?.gps?.rawPingCount as number | undefined) ??
+    (dayEv?.diagnostics?.gps?.rawPingCount as number | undefined) ??
+    0;
+  diag.rawPingCount = rawPingCount;
+  diag.locationTruthV2SegmentCount = ltSegmentCount;
+  if (rawPingCount > 0 && ltSegmentCount === 0) {
+    diag.hasRawPingsButNoLocationTruth = true;
+    diag.engineBlockedBecauseLocationTruthMissing = true;
+    diag.hasActiveWorkday = false;
+    diag.workdayEnvelopeFound = false;
+    diag.workdayStartAt = null;
+    diag.workdayEndAt = null;
+    diag.workdayDurationMinutes = 0;
+    diag.uncoveredWorkdayMinutes = 0;
+    diag.workdayEnvelope.effectiveWorkdayStartAt = null;
+    diag.workdayEnvelope.effectiveWorkdayEndAt = null;
+    if (!diag.warnings.includes('raw_pings_exist_but_location_truth_missing')) {
+      diag.warnings.push('raw_pings_exist_but_location_truth_missing');
+    }
+    diag.warningsByType.raw_pings_exist_but_location_truth_missing += 1;
+    diag.buildDurationMs = Date.now() - startedAt;
+    return { segments, proposals, diagnostics: diag };
+  }
+
   // Time Engine 3 — suppress workday helt om open timer + ingen evidence.
   if (suppressForOpenTimerNoEvidence) {
     diag.warnings.push('no_active_workday');
