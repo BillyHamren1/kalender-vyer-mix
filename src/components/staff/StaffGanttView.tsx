@@ -2258,7 +2258,19 @@ const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
               <DecisionMapTab
                 staffId={staff.id}
                 date={dateStr}
-                reportCandidateBlocks={legacyBlock ? [legacyBlock] : []}
+                reportCandidateBlocks={
+                  legacyBlock
+                    ? [legacyBlock]
+                    : ([{
+                        id: selectedBlock.id,
+                        startAt: selectedBlock.startAt,
+                        endAt: selectedBlock.endAt,
+                        title: selectedBlock.title,
+                        kind: selectedBlock.kind,
+                      }] as unknown as ReportCandidateBlockUI[])
+                }
+                initialFromIso={selectedBlock.startAt}
+                initialToIso={selectedBlock.endAt}
               />
             </TabsContent>
 
