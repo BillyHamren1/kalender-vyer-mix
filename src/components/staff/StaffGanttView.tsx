@@ -1624,6 +1624,28 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                 </span>
                               )}
                             </div>
+                            {diagnosticsEnabled && (() => {
+                              const diag = diagnosisByStaff.get(staff.id);
+                              if (!diag || diag.status === 'ok') return null;
+                              const tone =
+                                diag.severity === 'critical'
+                                  ? 'bg-red-500/20 text-red-700 dark:text-red-300 border-red-500/40'
+                                  : diag.severity === 'warning'
+                                    ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40'
+                                    : 'bg-muted text-muted-foreground border-border';
+                              return (
+                                <div
+                                  className={cn(
+                                    'mt-1 inline-flex max-w-full items-center gap-1 truncate rounded border px-1.5 py-0.5 text-[9.5px]',
+                                    tone,
+                                  )}
+                                  title={`${describeReportDataGapStatus(diag.status)} — ${diag.reason}${diag.suggestedNextAction !== 'none' ? ` (next: ${diag.suggestedNextAction})` : ''}`}
+                                >
+                                  <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                                  <span className="truncate">{describeReportDataGapStatus(diag.status)}</span>
+                                </div>
+                              );
+                            })()}
                             {ganttDebug && (() => {
                               const d = visualDiagByStaff[staff.id];
                               const c = sourceCountsByStaff[staff.id];
