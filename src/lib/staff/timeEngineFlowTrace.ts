@@ -220,6 +220,10 @@ export interface BuildTimeEngineFlowTraceInput {
   ganttSourceCounts?: GanttSourceCounts | null;
   /** Optional raw GPS-debug-snapshot för personen (debug-raw-staff-pings). */
   rawPingDebug?: RawPingDebugSnapshot | null;
+  /** Optional battery diagnostics-snapshot (från computeBatteryDiagnostics). */
+  batteryDiagnostics?: (Partial<BatteryDiagnosticsSnapshot> & {
+    hasBatteryData?: boolean;
+  }) | null;
 }
 
 // ── helpers ────────────────────────────────────────────────────────
