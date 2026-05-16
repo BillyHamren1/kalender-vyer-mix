@@ -282,6 +282,18 @@ export function mapWorkdayAllocationSegmentsToGantt(
         allocationType: allocType,
         confidence: s.confidence ?? null,
         label: s.label ?? null,
+        targetLabel: s.targetLabel ?? null,
+        addressLabel: s.addressLabel ?? null,
+        locationName: s.locationName ?? null,
+        latitude: s.latitude ?? s.centroid?.lat ?? null,
+        longitude: s.longitude ?? s.centroid?.lng ?? null,
+        centroid: s.centroid ?? null,
+        sourceLocationTruthSegmentIds: Array.isArray(s.sourceLocationTruthSegmentIds)
+          ? [...s.sourceLocationTruthSegmentIds]
+          : null,
+        sourceAllocationSegmentIds: Array.isArray(s.sourceAllocationSegmentIds)
+          ? [...s.sourceAllocationSegmentIds]
+          : null,
       },
     });
   }
