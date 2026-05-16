@@ -140,7 +140,10 @@ export type WorkdayAllocationWarning =
   | 'warehouse_presence_during_planned_project'
   // ── Time Engine 3 — open/stale timer utan same-day evidence ──────────
   | 'open_timer_without_same_day_evidence'
-  | 'workday_start_adjusted_to_first_evidence';
+  | 'workday_start_adjusted_to_first_evidence'
+  // ── Time Engine STOP 1 — inferred day end pga non-work efter sista jobb ──
+  | 'day_end_inferred_from_non_work_presence'
+  | 'open_timer_ignored_after_inferred_day_end';
 
 // ── Lager 3.11C — DEPRECATED warnings (får INTE emitteras) ─────────────
 //   - supplier_visit_no_assignment       → använd supplier_visit_without_project_context
