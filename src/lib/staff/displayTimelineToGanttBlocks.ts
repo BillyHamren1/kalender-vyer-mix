@@ -274,6 +274,8 @@ export interface WorkdayAllocationSegmentLite {
   locationMatchDiagnostics?: unknown;
   businessContextResolution?: unknown;
   businessContextStatus?: string | null;
+  /** DEL 4 — segment som ligger utanför workday-envelopen. Filtreras bort i Gantt-mapparen. */
+  outsideWorkday?: boolean | null;
 }
 
 const ALLOC_TYPE_TO_KIND: Record<string, GanttKindLite | 'work_phase' | 'hidden'> = {
