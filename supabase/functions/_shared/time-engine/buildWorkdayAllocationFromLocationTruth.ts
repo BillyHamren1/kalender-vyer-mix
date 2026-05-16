@@ -940,9 +940,17 @@ export function buildWorkdayAllocationFromLocationTruth(
     thresholdMinutes: 90,
   });
 
+  // STOP1: applicera clamp PÅ wdEnd FÖRST efter Lager 3.6 (så att home_after_
+  // last_work_location-warning och 3.6:s suggest_workday_end-proposal hinner
+  // genereras mot orginal-wdEnd). Vi lagrar bara värdet här och skjuter upp
+  // mutationen till strax före gap-emissionen.
+  const stopClampEndMs: number | null =
+    stopDecision.shouldClamp && stopDecision.effectiveWorkdayEndMs !== null
+      ? Math.max(stopDecision.effectiveWorkdayEndMs, wdStartMs)
+      : null;
+
   if (stopDecision.shouldClamp && stopDecision.effectiveWorkdayEndMs !== null) {
-    wdEnd = Math.max(stopDecision.effectiveWorkdayEndMs, wdStartMs);
-    const newEndIso = new Date(wdEnd).toISOString();
+    const newEndIso = new Date(stopClampEndMs!).toISOString();
     diag.workdayEndAt = newEndIso;
     diag.workdayEnvelope.effectiveWorkdayEndAt = newEndIso;
     diag.workdayEnvelope.endWasInferredFromNonWorkPresence = true;
