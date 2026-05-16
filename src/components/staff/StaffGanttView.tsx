@@ -1574,15 +1574,31 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                 </span>
                               )}
                             </div>
-                            {ganttDebug && visualDiagByStaff[staff.id] && (() => {
+                            {ganttDebug && (() => {
                               const d = visualDiagByStaff[staff.id];
-                              const absorbed = d.absorbedTransportCount + d.absorbedReviewCount + d.absorbedUnknownCount + d.absorbedPreWorkCount;
+                              const c = sourceCountsByStaff[staff.id];
+                              const src = sourceByStaff[staff.id] ?? 'empty';
+                              const srcShort =
+                                src === 'displayTimelineV2' ? 'v2'
+                                : src === 'workdayAllocation' ? 'alloc'
+                                : src === 'reportCandidate' ? 'legacy'
+                                : 'empty';
+                              if (!d && !c) return null;
+                              const absorbed = d
+                                ? d.absorbedTransportCount + d.absorbedReviewCount + d.absorbedUnknownCount + d.absorbedPreWorkCount
+                                : 0;
                               return (
                                 <div
                                   className="mt-0.5 truncate font-mono text-[9px] text-muted-foreground/70"
-                                  title={`raw=${d.rawBlockCount} visual=${d.visualBlockCount} absorbed=${absorbed} (transport ${d.absorbedTransportCount} · review ${d.absorbedReviewCount} · unknown ${d.absorbedUnknownCount} · pre_work ${d.absorbedPreWorkCount}) hidden=${d.hiddenPreWorkCount} lanes=${d.lanePackedMainBlocksCount}`}
+                                  title={
+                                    `source=${src}` +
+                                    (c ? ` · v2 raw=${c.rawV2} mapped=${c.mappedV2} · alloc raw=${c.rawAlloc} mapped=${c.mappedAlloc} · legacy=${c.legacy} · rendered=${c.rendered}` : '') +
+                                    (d ? ` · merge raw=${d.rawBlockCount} visual=${d.visualBlockCount} absorbed=${absorbed} (transport ${d.absorbedTransportCount} · review ${d.absorbedReviewCount} · unknown ${d.absorbedUnknownCount} · pre_work ${d.absorbedPreWorkCount}) hidden=${d.hiddenPreWorkCount} lanes=${d.lanePackedMainBlocksCount}` : '')
+                                  }
                                 >
-                                  raw {d.rawBlockCount} → visual {d.visualBlockCount} · absorbed {absorbed} · hidden {d.hiddenPreWorkCount} · lanes {d.lanePackedMainBlocksCount}
+                                  {srcShort}
+                                  {c ? ` · raw ${srcShort === 'v2' ? c.rawV2 : srcShort === 'alloc' ? c.rawAlloc : c.legacy} → mapped ${srcShort === 'v2' ? c.mappedV2 : srcShort === 'alloc' ? c.mappedAlloc : c.legacy} → rendered ${c.rendered}` : ''}
+                                  {d ? ` · absorbed ${absorbed}` : ''}
                                 </div>
                               );
                             })()}
