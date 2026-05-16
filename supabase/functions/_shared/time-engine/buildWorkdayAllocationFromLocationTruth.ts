@@ -803,9 +803,11 @@ export function buildWorkdayAllocationFromLocationTruth(
     date: wd?.date ?? input.locationTruthV2?.diagnostics.date ?? null,
     builtAtIso: new Date().toISOString(),
     buildDurationMs: 0,
-    hasActiveWorkday: !!wdStartMs,
-    workdayStartAt: envelope.startAt,
-    workdayEndAt: envelope.isOpen ? null : envelope.endAt,
+    hasActiveWorkday: !!wdStartMs && !suppressForOpenTimerNoEvidence,
+    workdayStartAt: suppressForOpenTimerNoEvidence ? null : (effectiveStartIso ?? envelope.startAt),
+    workdayEndAt: suppressForOpenTimerNoEvidence
+      ? null
+      : (envelope.isOpen ? null : envelope.endAt),
     workdayDurationMinutes: 0,
     inputSegmentCount: ltSegments.length,
     segmentsInsideWorkday: 0,
@@ -815,7 +817,7 @@ export function buildWorkdayAllocationFromLocationTruth(
     warningsByType: emptyWarningCounts(),
     warnings: [...envelope.warnings],
     uncoveredWorkdayMinutes: 0,
-    workdayEnvelopeFound: !!wdStartMs,
+    workdayEnvelopeFound: !!wdStartMs && !suppressForOpenTimerNoEvidence,
     openWorkday: envelope.isOpen,
     workdayStartSource: envelope.startSource,
     workdayEndSource: envelope.endSource,
@@ -824,8 +826,12 @@ export function buildWorkdayAllocationFromLocationTruth(
       timerStartedAt: envelope.timerStartedAt ?? null,
       timerStoppedAt: envelope.timerStoppedAt ?? null,
       timerIsOpen: envelope.isOpen,
-      effectiveWorkdayStartAt: envelope.effectiveWorkdayStartAt ?? envelope.startAt ?? null,
-      effectiveWorkdayEndAt: envelope.effectiveWorkdayEndAt ?? envelope.endAt ?? null,
+      effectiveWorkdayStartAt: suppressForOpenTimerNoEvidence
+        ? null
+        : (effectiveStartIso ?? envelope.effectiveWorkdayStartAt ?? envelope.startAt ?? null),
+      effectiveWorkdayEndAt: suppressForOpenTimerNoEvidence
+        ? null
+        : (envelope.effectiveWorkdayEndAt ?? envelope.endAt ?? null),
       analysisDayStartAt: envelope.analysisDayStartAt ?? null,
       analysisDayEndAt: envelope.analysisDayEndAt ?? null,
       startWasClippedToDay: envelope.startWasClippedToDay ?? false,
