@@ -205,6 +205,33 @@ export function mapDisplayTimelineBlocksToGantt(
         sourceAllocationSegmentIds: Array.isArray(b.sourceAllocationSegmentIds)
           ? [...b.sourceAllocationSegmentIds]
           : null,
+        // Map Trace 4 — fysisk plats + matchnings-trace till block-detalj.
+        physicalLocationLabel:
+          b.physicalLocationLabel
+          ?? ((b.metadata as any)?.physicalLocationLabel ?? null),
+        physicalLocationAddress:
+          b.physicalLocationAddress
+          ?? ((b.metadata as any)?.physicalLocationAddress ?? null),
+        physicalLocationLat:
+          b.physicalLocationLat
+          ?? ((b.metadata as any)?.physicalLocationLat ?? null),
+        physicalLocationLng:
+          b.physicalLocationLng
+          ?? ((b.metadata as any)?.physicalLocationLng ?? null),
+        physicalLocationSource:
+          b.physicalLocationSource
+          ?? ((b.metadata as any)?.physicalLocationSource ?? null),
+        physicalLocationConfidence:
+          b.physicalLocationConfidence
+          ?? ((b.metadata as any)?.physicalLocationConfidence ?? null),
+        locationMatchDiagnostics:
+          b.locationMatchDiagnostics
+          ?? (b.metadata as any)?.locationMatchDiagnostics
+          ?? null,
+        businessContextResolution:
+          b.businessContextResolution
+          ?? (b.metadata as any)?.businessContextResolution
+          ?? null,
       },
     });
   }
