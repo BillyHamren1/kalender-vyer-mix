@@ -530,4 +530,24 @@ function AppHealthDetail({ appHealth }: { appHealth: AppHealth | null | undefine
   );
 }
 
+const DIAG_TONE: Record<ReportDataGapDiagnosis['severity'], string> = {
+  info: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+  warning: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+  critical: 'bg-red-500/20 text-red-700 dark:text-red-300',
+};
+
+function DiagnosisBadge({ diag }: { diag: ReportDataGapDiagnosis | undefined }) {
+  if (!diag) return <span className="text-[10px] text-muted-foreground">—</span>;
+  const label = describeReportDataGapStatus(diag.status);
+  const tone = diag.status === 'ok' ? DIAG_TONE.info : DIAG_TONE[diag.severity];
+  return (
+    <span
+      className={`inline-block rounded-full px-2 py-0.5 text-[10px] ${tone}`}
+      title={diag.reason}
+    >
+      {label}
+    </span>
+  );
+}
+
 export default RawPingsDebugPanel;
