@@ -135,13 +135,28 @@ const StaffDayAttestSection: React.FC<Props> = ({
 
   const { attestDay, isSaving, error } = useAttestStaffDay();
 
-  // ── State 1: open workday ───────────────────────────────────────────
-  if (!wd || isOpen) {
+  // ── State 1: aktiv/öppen workday — kräv stopp först ─────────────────
+  // Notera: !wd ensamt är INTE skäl att blockera. Tom dag (ingen Time
+  // Engine-data) ska kunna fyllas i manuellt så länge datumet är idag
+  // eller tidigare.
+  const todayLocal = new Intl.DateTimeFormat('sv-SE', { timeZone: TZ }).format(new Date());
+  const isFutureDate = date > todayLocal;
+  if (wd && isOpen) {
     return (
       <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 flex items-start gap-2 text-amber-800 dark:text-amber-300">
         <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
         <p className="text-xs font-semibold">
           Avsluta arbetsdagen först — sedan kan du justera och skicka in.
+        </p>
+      </div>
+    );
+  }
+  if (!wd && isFutureDate) {
+    return (
+      <div className="rounded-xl border border-border bg-muted/30 p-3 flex items-start gap-2 text-muted-foreground">
+        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+        <p className="text-xs font-semibold">
+          Framtida datum — du kan rapportera dagen tidigast samma dag.
         </p>
       </div>
     );
