@@ -11,6 +11,8 @@ interface MovementPoint {
   accuracy: number | null;
   speed: number | null;
   recorded_at: string;
+  battery_percent?: number | null;
+  source?: string | null;
 }
 
 interface StaffMovementMapProps {
