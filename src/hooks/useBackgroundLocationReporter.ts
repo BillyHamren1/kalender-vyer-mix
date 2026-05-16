@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
 import { enqueueLocationPoint, flushLocationQueue } from '@/services/locationSyncQueue';
+import { getBatterySnapshot } from '@/lib/mobile/getBatterySnapshot';
 import { GpsPosition, haversineDistance, ENTER_RADIUS } from '@/hooks/useGeofencing';
 import {
   decideLocationMode,
@@ -198,8 +199,24 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       lastReportRef.current = now;
 
       if (staffIdRef.current) {
-        enqueueLocationPoint({ latitude, longitude, accuracy, speed, source: 'background' });
-        void flushLocationQueue();
+        // Capture battery snapshot but never let it block the GPS ping.
+        void getBatterySnapshot()
+          .catch(() => null)
+          .then((battery) => {
+            enqueueLocationPoint({
+              latitude,
+              longitude,
+              accuracy,
+              speed,
+              source: 'background',
+              batteryLevel: battery?.battery_level ?? null,
+              batteryPercent: battery?.battery_percent ?? null,
+              isCharging: battery?.is_charging ?? null,
+              batteryCapturedAt: battery?.battery_captured_at ?? null,
+              batterySource: battery?.battery_source ?? null,
+            });
+            void flushLocationQueue();
+          });
         lastUploadAtRef.current = now;
       }
 
@@ -212,14 +229,23 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       const now = Date.now();
       if (pos && sid) {
         lastReportRef.current = now;
-        enqueueLocationPoint({
-          latitude: pos.lat,
-          longitude: pos.lng,
-          accuracy: pos.accuracy,
-          speed: pos.speed,
-          source: 'heartbeat',
-        });
-        void flushLocationQueue();
+        void getBatterySnapshot()
+          .catch(() => null)
+          .then((battery) => {
+            enqueueLocationPoint({
+              latitude: pos.lat,
+              longitude: pos.lng,
+              accuracy: pos.accuracy,
+              speed: pos.speed,
+              source: 'heartbeat',
+              batteryLevel: battery?.battery_level ?? null,
+              batteryPercent: battery?.battery_percent ?? null,
+              isCharging: battery?.is_charging ?? null,
+              batteryCapturedAt: battery?.battery_captured_at ?? null,
+              batterySource: battery?.battery_source ?? null,
+            });
+            void flushLocationQueue();
+          });
         lastUploadAtRef.current = now;
       }
       rescheduleHeartbeat();
