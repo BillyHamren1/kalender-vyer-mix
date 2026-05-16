@@ -100,6 +100,8 @@ export interface WorkdayAllocationSegment {
   outsideWorkday?: boolean;
   /** Lager 3.5 — deterministisk projektkandidat för supplier_visit. */
   linkedProjectCandidate?: SupplierProjectCandidate | null;
+  /** Time Engine Core Fix 2 — full business-context-resolution diagnostics. */
+  businessContextResolution?: BusinessContextResolution | null;
 }
 
 export type SupplierProjectCandidateSource =
