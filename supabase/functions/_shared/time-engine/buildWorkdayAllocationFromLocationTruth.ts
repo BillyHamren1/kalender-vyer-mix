@@ -1301,6 +1301,13 @@ export function buildWorkdayAllocationFromLocationTruth(
         rawSegmentEndAt: seg.endAt,
         outsideWorkday: true,
         businessContextResolution: bcrOutside ?? null,
+        physicalLocationLabel: seg.physicalLocation?.label ?? null,
+        physicalLocationAddress: seg.physicalLocation?.address ?? null,
+        physicalLocationLat: seg.physicalLocation?.lat ?? null,
+        physicalLocationLng: seg.physicalLocation?.lng ?? null,
+        physicalLocationSource: seg.physicalLocation?.source ?? null,
+        physicalLocationConfidence: seg.physicalLocation?.confidence ?? null,
+        locationMatchDiagnostics: (seg.diagnostics as any)?.match ?? null,
       };
       segments.push(item);
       diag.warningsByType.segment_outside_workday += 1;
