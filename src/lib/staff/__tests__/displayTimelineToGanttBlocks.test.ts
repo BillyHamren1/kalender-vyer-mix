@@ -44,13 +44,15 @@ describe('mapDisplayTimelineBlocksToGantt', () => {
     expect(out.map((b) => b.kind)).toEqual(['rig', 'rigdown', 'work']);
   });
 
-  it('unlinked_address eskaleras till review vid hög severity', () => {
+  it('TE4: unlinked_address eskaleras till review endast vid needs_user_review; warning/info → work', () => {
     const out = mapDisplayTimelineBlocksToGantt([
       { id: 'u1', startAt: iso(9), endAt: iso(10), displayType: 'unlinked_address', severity: 'needs_user_review' },
-      { id: 'u2', startAt: iso(10), endAt: iso(11), displayType: 'unlinked_address', severity: 'info' },
+      { id: 'u2', startAt: iso(10), endAt: iso(11), displayType: 'unlinked_address', severity: 'warning' },
+      { id: 'u3', startAt: iso(11), endAt: iso(12), displayType: 'unlinked_address', severity: 'info' },
     ]);
     expect(out[0].kind).toBe('review');
-    expect(out[1].kind).toBe('unknown');
+    expect(out[1].kind).toBe('work');
+    expect(out[2].kind).toBe('work');
   });
 
   it('saknad title → meningsfull fallback per displayType', () => {
