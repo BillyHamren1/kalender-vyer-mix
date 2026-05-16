@@ -10,6 +10,7 @@ import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { useInternalLagerCalendarEvents } from '@/hooks/useInternalLagerCalendarEvents';
+import { computeDefaultVisibleTeams, isRequiredTeam } from '@/lib/calendar/defaultVisibleTeams';
 
 /**
  * Ops Control planeringsruta — visar EXAKT samma dagsvy (teamvy 06–23)
@@ -54,17 +55,26 @@ const OpsPlanningDayPanel: React.FC = () => {
     localStorage.setItem('visibleTeamsByDay', JSON.stringify(visibleTeamsByDay));
   }, [visibleTeamsByDay]);
 
+  const defaultVisibleTeams = useMemo(
+    () => computeDefaultVisibleTeams(teamResources),
+    [teamResources],
+  );
+
   const getVisibleTeamsForDay = (date: Date): string[] => {
     const key = format(date, 'yyyy-MM-dd');
-    return visibleTeamsByDay[key] || ['team-1', 'team-2', 'team-3', 'team-4', 'transport', 'team-11'];
+    const stored = visibleTeamsByDay[key];
+    if (!stored) return defaultVisibleTeams;
+    const merged = new Set<string>(stored.filter(id => id !== 'team-11'));
+    for (const id of defaultVisibleTeams) merged.add(id);
+    return Array.from(merged);
   };
 
   const handleToggleTeamForDay = (teamId: string, date: Date) => {
     const key = format(date, 'yyyy-MM-dd');
     setVisibleTeamsByDay(prev => {
-      const current = prev[key] || ['team-1', 'team-2', 'team-3', 'team-4', 'transport', 'team-11'];
+      const current = prev[key] || defaultVisibleTeams;
       if (current.includes(teamId)) {
-        if (['team-1', 'team-2', 'team-3', 'team-4', 'team-11', 'transport'].includes(teamId)) {
+        if (isRequiredTeam(teamId)) {
           return prev;
         }
         return { ...prev, [key]: current.filter(id => id !== teamId) };

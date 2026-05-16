@@ -207,6 +207,9 @@ const CustomCalendarPage = () => {
   }, [currentWeekStart, viewMode, syncToStore]);
 
   // Visible teams state - per day { [dateString]: teamIds[] }
+  // Default = ALLA aktuella team + Lager (transport). Tidigare hårdkodades
+  // detta till team-1..4 + transport + team-11, vilket dolde Team 5–10 även
+  // när de hade planerade jobb. Se .lovable/plan.md (2026-05-16).
   const [visibleTeamsByDay, setVisibleTeamsByDay] = useState<{ [key: string]: string[] }>(() => {
     const stored = localStorage.getItem('visibleTeamsByDay');
     return stored ? JSON.parse(stored) : {};
@@ -217,21 +220,32 @@ const CustomCalendarPage = () => {
     localStorage.setItem('visibleTeamsByDay', JSON.stringify(visibleTeamsByDay));
   }, [visibleTeamsByDay]);
 
+  const defaultVisibleTeams = useMemo(
+    () => computeDefaultVisibleTeams(teamResources),
+    [teamResources],
+  );
+
   // Get visible teams for a specific day
   const getVisibleTeamsForDay = (date: Date): string[] => {
     const dateKey = format(date, 'yyyy-MM-dd');
-    return visibleTeamsByDay[dateKey] || ['team-1', 'team-2', 'team-3', 'team-4', 'transport', 'team-11'];
+    const stored = visibleTeamsByDay[dateKey];
+    if (!stored) return defaultVisibleTeams;
+    // Säkerhetsnät: lägg alltid till team som finns i resurslistan men inte
+    // har sparats av användaren (t.ex. nytt team som lagts till efter att
+    // valet sparades). Tar bort gamla deprecated team-11.
+    const merged = new Set<string>(stored.filter(id => id !== 'team-11'));
+    for (const id of defaultVisibleTeams) merged.add(id);
+    return Array.from(merged);
   };
 
   // Toggle team visibility for a specific day
   const handleToggleTeamForDay = (teamId: string, date: Date) => {
     const dateKey = format(date, 'yyyy-MM-dd');
     setVisibleTeamsByDay(prev => {
-      const currentVisible = prev[dateKey] || ['team-1', 'team-2', 'team-3', 'team-4', 'transport', 'team-11'];
-      
+      const currentVisible = prev[dateKey] || defaultVisibleTeams;
+
       if (currentVisible.includes(teamId)) {
-        // Don't allow hiding Team 1-4 and Live
-      if (['team-1', 'team-2', 'team-3', 'team-4', 'team-11', 'transport'].includes(teamId)) {
+        if (isRequiredTeam(teamId)) {
           return prev;
         }
         return {
