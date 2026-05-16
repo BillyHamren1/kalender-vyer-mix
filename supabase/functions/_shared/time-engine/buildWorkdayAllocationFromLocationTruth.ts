@@ -665,6 +665,7 @@ function deriveAllocation(
   seg: LocationTruthSegment,
   hasOverlapWithAssignment: boolean,
   movementCtx?: MovementContext | null,
+  businessContextResolution?: BusinessContextResolution | null,
 ): {
   type: WorkdayAllocationType;
   warnings: WorkdayAllocationWarning[];
