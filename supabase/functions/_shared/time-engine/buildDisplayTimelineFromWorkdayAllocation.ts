@@ -73,7 +73,11 @@ export type DisplayTimelineWarning =
   | 'workday_time_without_location_truth_segment'
   | 'warehouse_presence_during_planned_project'
   | 'segment_partially_outside_workday'
-  | 'needs_review_business_context';
+  | 'needs_review_business_context'
+  // Time Engine 4 — okopplad adress får synlig warning, inte review.
+  | 'no_project_link'
+  // Time Engine 4 — kort signalbortfall vikt in på närliggande block.
+  | 'absorbed_signal_gap';
 
 /**
  * Action användaren förväntas kunna ta från ett block (eller hela dagen).
