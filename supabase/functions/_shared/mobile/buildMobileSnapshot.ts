@@ -183,14 +183,48 @@ export function buildMobileSnapshot(input: BuildMobileSnapshotInput): MobileDayR
   const sub = mapSubmission(submission);
   const actionsNeeded = actionsFrom(segments, sub);
 
+  // Manual submission fallback: when cache is missing or has no segments
+  // but a submission exists with explicit start/end, derive summary +
+  // workday object purely from the submission. Read-model only — does
+  // NOT create workdays/time_reports rows.
+  let workdayStatus = workdayStatusFromSegments(segments);
+  let workdayObj = workdayObjFromSegments(segments);
+  const hasManualWindow =
+    !!submission &&
+    !!submission.requested_start_at &&
+    !!submission.requested_end_at;
+  if (hasManualWindow && segments.length === 0) {
+    const startMs = new Date(submission!.requested_start_at!).getTime();
+    const endMs = new Date(submission!.requested_end_at!).getTime();
+    if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs) {
+      const workMinutes = Math.round((endMs - startMs) / 60000);
+      const breakMinutes = Math.max(0, Number(submission!.break_minutes ?? 0));
+      const payableMinutes = Math.max(0, workMinutes - breakMinutes);
+      summary = {
+        workMinutes,
+        travelMinutes: 0,
+        breakMinutes,
+        reviewMinutes: 0,
+        payableMinutes,
+      };
+      workdayObj = {
+        startedAt: submission!.requested_start_at!,
+        endedAt: submission!.requested_end_at!,
+        isOpen: false,
+        status: "ended",
+      };
+      workdayStatus = "ended";
+    }
+  }
+
   return {
     date,
     staffId,
     engineVersion: cache?.engine_version ?? null,
     cacheStatus,
     cacheError: cache?.error ?? null,
-    workdayStatus: workdayStatusFromSegments(segments),
-    workday: workdayObjFromSegments(segments),
+    workdayStatus,
+    workday: workdayObj,
     summary,
     segments,
     actionsNeeded,
