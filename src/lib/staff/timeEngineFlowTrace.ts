@@ -168,6 +168,20 @@ export interface TimeEngineFlowTraceSummary {
     hasRawPingsButNoDisplayBlocks: boolean;
     hasRawPingsButMissingFromReportList: boolean | null;
   };
+  /** Diagnostics för batteri — kopplar inte mot Time Engine, bara visning. */
+  batteryDiagnostics: BatteryDiagnosticsSnapshot & {
+    /** Förbyggd text att visa i banner/summary om signal-loss-kandidat. */
+    signalLossBannerText: string | null;
+  };
+}
+
+/** Lättviktig decision-trace för battery-laget (visas i DecisionTraceDrawer). */
+export interface TimeEngineDecisionTraceItem {
+  layer: TimeEngineLayerKey | 'day_evidence';
+  decision: string;
+  reason: string;
+  confidence: 'low' | 'medium' | 'high';
+  warnings: string[];
 }
 
 export interface TimeEngineFlowTrace {
@@ -177,6 +191,8 @@ export interface TimeEngineFlowTrace {
   suspectedProblems: TimeEngineSuspectedProblem[];
   blockLineage: TimeEngineBlockLineage[];
   missingDataWarnings: string[];
+  /** Read-only diagnostic decision trace items (battery m.fl.). */
+  decisionTrace: TimeEngineDecisionTraceItem[];
 }
 
 export interface GanttSourceCounts {
