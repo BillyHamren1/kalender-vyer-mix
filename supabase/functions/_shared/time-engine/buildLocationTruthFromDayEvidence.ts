@@ -900,6 +900,55 @@ export function buildLocationTruthFromDayEvidence(
           rejectedReasons: match.rejectedCandidates
             .map((r) => r.rejectReason)
             .filter((x): x is string => !!x),
+          // Map Trace 4 — full match-trace för UI/diagnos.
+          match: {
+            matchedTarget: {
+              type: match.matchedTarget.type,
+              targetId: match.matchedTarget.targetId,
+              label: match.matchedTarget.label,
+              knownTargetType: match.matchedTarget.knownTargetType,
+            },
+            decisionReason: match.decisionReason,
+            confidence: match.confidence,
+            candidates: match.candidates.map((c) => ({
+              targetType: c.targetType,
+              targetId: c.targetId,
+              label: c.label,
+              distanceMeters: c.distanceMeters,
+              effectiveRadiusMeters: c.effectiveRadiusMeters,
+              insideRadius: c.insideRadius,
+              priority: c.priority,
+              assignmentSupports: c.assignmentSupports,
+              rejected: c.rejected,
+              rejectReason: c.rejectReason,
+            })),
+            rejectedCandidates: match.rejectedCandidates.map((c) => ({
+              targetType: c.targetType,
+              targetId: c.targetId,
+              label: c.label,
+              distanceMeters: c.distanceMeters,
+              effectiveRadiusMeters: c.effectiveRadiusMeters,
+              insideRadius: c.insideRadius,
+              priority: c.priority,
+              assignmentSupports: c.assignmentSupports,
+              rejected: c.rejected,
+              rejectReason: c.rejectReason,
+            })),
+            warnings: [...match.warnings],
+            planningUsedAsTieBreaker: match.planningUsedAsTieBreaker,
+            planningIgnoredBecauseGeoDisagreed: match.planningIgnoredBecauseGeoDisagreed,
+          },
+          physicalLocation: {
+            label: phys.physicalLocation.label,
+            address: phys.physicalLocation.address,
+            lat: phys.physicalLocation.lat,
+            lng: phys.physicalLocation.lng,
+            source: phys.physicalLocation.source,
+            confidence: phys.physicalLocation.confidence,
+            centroidOnly: phys.centroidOnly,
+            reverseGeocodeUsed: phys.reverseGeocodeUsed,
+            warnings: [...phys.warnings],
+          },
         },
       };
 
