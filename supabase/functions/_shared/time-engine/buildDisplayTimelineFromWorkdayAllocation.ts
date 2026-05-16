@@ -1404,6 +1404,18 @@ export function buildDisplayTimelineFromWorkdayAllocation(
   // Fix C — exponera review-absorption-mått.
   (diagnostics as any).absorbedReviewBetweenSameTargetCount = absorbedReviewCount;
   (diagnostics as any).absorbedReviewMinutesTotal = absorbedReviewMinutesTotal;
+  // Fix D — exponera gap-suppression-mått.
+  (diagnostics as any).suppressedGapBeforeFirstEvidence = suppressedGapBeforeFirstEvidence;
+  (diagnostics as any).suppressedGapAfterLastEvidence = suppressedGapAfterLastEvidence;
+  (diagnostics as any).suppressedGapNoEvidenceAtAll = suppressedGapNoEvidenceAtAll;
+  (diagnostics as any).suppressedGapByOpenStaleTimer = suppressedGapByOpenStaleTimer;
+  (diagnostics as any).suppressedGapMinutesTotal = suppressedGapMinutesTotal.v;
+  if (
+    suppressedGapBeforeFirstEvidence + suppressedGapAfterLastEvidence +
+    suppressedGapNoEvidenceAtAll + suppressedGapByOpenStaleTimer > 0
+  ) {
+    diagnostics.warnings.push('display_gap_suppressed_outside_work_evidence');
+  }
 
   if (!wda) {
     diagnostics.warnings.push('no_workday_allocation_input');
