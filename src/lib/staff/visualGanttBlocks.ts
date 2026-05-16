@@ -377,3 +377,26 @@ export function buildVisualGanttBlocks<TBlock extends GanttBlockLite>(
 
   return { blocks: out, diagnostics };
 }
+
+/**
+ * Begränsar antalet chips som renderas på själva huvudblocket.
+ * Returnerar synliga chips + en overflow-räknare. Alla originaldata
+ * finns kvar i tooltip/drawer — detta är ren rendering-policy.
+ *
+ * Regel (Gantt 5.1): max 1 chip syns på blocket, resten samlas i "+N".
+ */
+export const MAX_VISIBLE_CHIPS = 1;
+
+export function visibleChips(chips: readonly string[]): {
+  visible: string[];
+  overflowCount: number;
+} {
+  if (!chips || chips.length === 0) return { visible: [], overflowCount: 0 };
+  if (chips.length <= MAX_VISIBLE_CHIPS) {
+    return { visible: [...chips], overflowCount: 0 };
+  }
+  return {
+    visible: chips.slice(0, MAX_VISIBLE_CHIPS),
+    overflowCount: chips.length - MAX_VISIBLE_CHIPS,
+  };
+}

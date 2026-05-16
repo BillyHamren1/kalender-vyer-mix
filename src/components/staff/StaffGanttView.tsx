@@ -39,7 +39,7 @@ import {
   type SessionPhaseKind,
 } from '@/lib/staff/ganttPhaseColor';
 import { mergeContiguousBlocks, type MergeBlockInput, type MergeableKind } from '@/lib/staff/ganttBlockMerge';
-import { buildVisualGanttBlocks, type VisualGanttBlock } from '@/lib/staff/visualGanttBlocks';
+import { buildVisualGanttBlocks, visibleChips, type VisualGanttBlock, type VisualGanttDiagnostics } from '@/lib/staff/visualGanttBlocks';
 import type { ReviewWorkInput, ReviewTravelInput } from '@/lib/staff/timeReportReviewEntry';
 import type {
   DaySegment,
@@ -390,6 +390,7 @@ const blocksFromStaff = (
   excludedPreWork: ReportCandidateBlockUI[] | null | undefined,
   bookingPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
   largeProjectPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
+  diagSink?: (d: VisualGanttDiagnostics) => void,
 ): GanttBlock[] => {
   const out: GanttBlock[] = [];
   if (candidate && candidate.length) {
@@ -593,6 +594,7 @@ const blocksFromStaff = (
       { staffName: staff.name },
     );
 
+    if (diagSink) diagSink(visual.diagnostics);
     if (typeof console !== 'undefined' && (visual.diagnostics.absorbedTransportCount + visual.diagnostics.absorbedReviewCount + visual.diagnostics.absorbedUnknownCount + visual.diagnostics.absorbedPreWorkCount + visual.diagnostics.hiddenPreWorkCount) > 0) {
       // eslint-disable-next-line no-console
       console.warn('[Gantt 5.0] visualGanttDiagnostics', visual.diagnostics);
@@ -703,15 +705,34 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
     return null;
   })();
 
-  // Per-staff blocks
-  const blocksByStaff = useMemo(() => {
+  // Per-staff blocks + visual diagnostics
+  const { blocksByStaff, visualDiagByStaff } = useMemo(() => {
     const map: Record<string, GanttBlock[]> = {};
+    const diag: Record<string, VisualGanttDiagnostics> = {};
     for (const s of staffList) {
       const cand = reportCandidateByStaff?.[s.id];
-      map[s.id] = blocksFromStaff(s, cand?.blocks ?? null, cand?.excludedPreWorkBlocks ?? null, bookingPhaseByDate, largeProjectPhaseByDate);
+      map[s.id] = blocksFromStaff(
+        s,
+        cand?.blocks ?? null,
+        cand?.excludedPreWorkBlocks ?? null,
+        bookingPhaseByDate,
+        largeProjectPhaseByDate,
+        (d) => { diag[s.id] = d; },
+      );
     }
-    return map;
+    return { blocksByStaff: map, visualDiagByStaff: diag };
   }, [staffList, reportCandidateByStaff, bookingPhaseByDate, largeProjectPhaseByDate]);
+
+  // Dev/debug-flagga för att visa per-rad diagnostics-badge i UI.
+  // Aktiveras via: localStorage.setItem('gantt:debug','1')  eller via DEV-builds.
+  const ganttDebug = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      if (window.localStorage?.getItem('gantt:debug') === '1') return true;
+    } catch { /* ignore */ }
+    // @ts-ignore
+    return !!(import.meta as any)?.env?.DEV;
+  }, []);
 
   // Filter
   const filteredStaff = useMemo(() => {
@@ -1370,6 +1391,18 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                 </span>
                               )}
                             </div>
+                            {ganttDebug && visualDiagByStaff[staff.id] && (() => {
+                              const d = visualDiagByStaff[staff.id];
+                              const absorbed = d.absorbedTransportCount + d.absorbedReviewCount + d.absorbedUnknownCount + d.absorbedPreWorkCount;
+                              return (
+                                <div
+                                  className="mt-0.5 truncate font-mono text-[9px] text-muted-foreground/70"
+                                  title={`raw=${d.rawBlockCount} visual=${d.visualBlockCount} absorbed=${absorbed} (transport ${d.absorbedTransportCount} · review ${d.absorbedReviewCount} · unknown ${d.absorbedUnknownCount} · pre_work ${d.absorbedPreWorkCount}) hidden=${d.hiddenPreWorkCount} lanes=${d.lanePackedMainBlocksCount}`}
+                                >
+                                  raw {d.rawBlockCount} → visual {d.visualBlockCount} · absorbed {absorbed} · hidden {d.hiddenPreWorkCount} · lanes {d.lanePackedMainBlocksCount}
+                                </div>
+                              );
+                            })()}
                           </div>
                         </button>
 
@@ -1548,23 +1581,29 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                       {fmtMin(b.durationMinutes)}
                                     </div>
                                   )}
-                                  {showChips && (
-                                    <div className="mt-1 flex flex-wrap gap-1">
-                                      {b.attachedChips!.slice(0, 3).map((chip, ci) => (
-                                        <span
-                                          key={ci}
-                                          className="inline-flex items-center rounded-full bg-black/[0.06] px-1.5 py-px text-[9px] font-medium text-foreground/70"
-                                        >
-                                          {chip}
-                                        </span>
-                                      ))}
-                                      {b.attachedChips!.length > 3 && (
-                                        <span className="text-[9px] text-foreground/50">
-                                          +{b.attachedChips!.length - 3}
-                                        </span>
-                                      )}
-                                    </div>
-                                  )}
+                                  {showChips && (() => {
+                                    const { visible, overflowCount } = visibleChips(b.attachedChips!);
+                                    return (
+                                      <div className="mt-1 flex flex-wrap gap-1">
+                                        {visible.map((chip, ci) => (
+                                          <span
+                                            key={ci}
+                                            className="inline-flex items-center rounded-full bg-black/[0.06] px-1.5 py-px text-[9px] font-medium text-foreground/70"
+                                          >
+                                            {chip}
+                                          </span>
+                                        ))}
+                                        {overflowCount > 0 && (
+                                          <span
+                                            className="inline-flex items-center rounded-full bg-black/[0.06] px-1.5 py-px text-[9px] font-medium text-foreground/60"
+                                            title={b.attachedChips!.join(' · ')}
+                                          >
+                                            +{overflowCount}
+                                          </span>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                               );
                             });
