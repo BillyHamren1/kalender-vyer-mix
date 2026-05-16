@@ -556,9 +556,11 @@ const blocksFromStaff = (
     );
 
     for (const b of candidate) processBlock(b, false);
-    if (excludedPreWork) for (const b of excludedPreWork) processBlock(b, true);
+    // pre_work renderas INTE i huvudtidslinjen. Hålls bara som diagnostics
+    // (drawer kan fortfarande visa via reportCandidate.excludedPreWorkBlocks).
+    const hiddenPreWorkCount = excludedPreWork?.length ?? 0;
 
-    if ((labelDiagnostics.unknownKeptCount > 0 || nightGpsOnlySuppressedCount > 0 || privateHomeBlocksSuppressedCount > 0)
+    if ((labelDiagnostics.unknownKeptCount > 0 || nightGpsOnlySuppressedCount > 0 || privateHomeBlocksSuppressedCount > 0 || hiddenPreWorkCount > 0)
         && typeof console !== 'undefined') {
       // eslint-disable-next-line no-console
       console.warn('[Gantt 3.9] actualVsPlanned + nightGuard', {
@@ -566,9 +568,48 @@ const blocksFromStaff = (
         ...labelDiagnostics,
         nightGpsOnlySuppressedCount,
         privateHomeBlocksSuppressedCount,
+        hiddenPreWorkCountFromMainTimeline: hiddenPreWorkCount,
       });
     }
-    return applyVisualMerge(out, staff.name);
+
+    // Steg 1: merge angränsande tekniska block (befintligt beteende).
+    const merged = applyVisualMerge(out, staff.name);
+
+    // Steg 2: UI-derive — absorbera kort transport/granska/okänd som chips
+    // på närmaste huvudblock. Lane-packing får bara hända när två RIKTIGA
+    // huvudjobb överlappar.
+    const visual = buildVisualGanttBlocks(
+      merged.map((b) => ({
+        id: b.id,
+        kind: b.kind,
+        startAt: b.startAt,
+        endAt: b.endAt,
+        durationMinutes: b.durationMinutes,
+        title: b.title,
+        subtitle: b.subtitle ?? null,
+        sessionKey: b.sessionKey,
+        isNightGpsOnly: b.isNightGpsOnly,
+      })),
+      { staffName: staff.name },
+    );
+
+    if (typeof console !== 'undefined' && (visual.diagnostics.absorbedTransportCount + visual.diagnostics.absorbedReviewCount + visual.diagnostics.absorbedUnknownCount + visual.diagnostics.absorbedPreWorkCount + visual.diagnostics.hiddenPreWorkCount) > 0) {
+      // eslint-disable-next-line no-console
+      console.warn('[Gantt 5.0] visualGanttDiagnostics', visual.diagnostics);
+    }
+
+    const byId = new Map(merged.map((b) => [b.id, b]));
+    return visual.blocks
+      .map<GanttBlock | null>((v) => {
+        const src = byId.get(v.id);
+        if (!src) return null;
+        return {
+          ...src,
+          attachedChips: v.chips.length > 0 ? v.chips : undefined,
+          absorbedSourceIds: v.attachedEvents.map((a) => a.id),
+        };
+      })
+      .filter((b): b is GanttBlock => b !== null);
   }
   // Fallback: derive from journal sessions
   for (const s of staff.journal.sessions as ProjectSession[]) {
