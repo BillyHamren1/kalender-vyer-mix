@@ -378,11 +378,15 @@ Deno.serve(async (req) => {
       } catch (e: any) {
         console.warn('[presence-day] buildLocationTruthFromDayEvidence failed', e);
         locationTruthDiagnostics = { error: e?.message ?? String(e) };
+        locationTruthV2NotBuiltReason = 'builder_error';
       }
     } catch (e: any) {
       console.warn('[presence-day] buildDayEvidence failed', e);
       dayEvidenceDiagnostics = { error: e?.message ?? String(e) };
+      locationTruthV2NotBuiltReason = 'missing_day_evidence';
     }
+  } else {
+    locationTruthV2NotBuiltReason = 'disabled_by_flag';
   }
 
   // ── Presence events (arrival/departure/signal_lost/signal_resumed) ──
