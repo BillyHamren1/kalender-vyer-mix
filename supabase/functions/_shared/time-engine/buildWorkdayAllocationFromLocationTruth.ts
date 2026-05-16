@@ -276,6 +276,22 @@ export interface WorkdayAllocationDiagnostics {
   rawPingCount?: number;
   /** Antal LocationTruth V2-segment i input. */
   locationTruthV2SegmentCount?: number;
+  // ── Time Engine Core Fix 2 — business context resolution ─────────────
+  /** Antal segment där business context lyftes från assignment utan geo. */
+  businessContextFromAssignmentCount?: number;
+  /** Antal segment med target_missing_geo-warning. */
+  targetMissingGeoCount?: number;
+  /** Antal segment med konkurrerande targets. */
+  competingTargetsCount?: number;
+  /** Antal segment som fortfarande blir unlinked_work_address efter resolution. */
+  stableAddressNoTargetCount?: number;
+  /** Räkna fallbackUsed-utfall över alla segment. */
+  businessContextFallbackCounts?: {
+    none: number;
+    assignment_without_geo: number;
+    stable_address_no_target: number;
+    unknown_location: number;
+  };
 }
 
 export interface WorkdayAllocationProposal {
