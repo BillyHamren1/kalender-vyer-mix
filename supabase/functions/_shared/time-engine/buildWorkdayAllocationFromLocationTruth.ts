@@ -1353,26 +1353,28 @@ export function buildWorkdayAllocationFromLocationTruth(
     }
 
     const matched = seg.businessContext?.matchedTarget ?? seg.matchedTarget;
-    // Lager 3.11B — kanoniska assignmentStatus-värden:
-    //   assigned                 = matchad project/booking/large_project + overlap
-    //   unassigned_but_present   = matchad project/booking/large_project utan overlap
-    //   no_assignment_required   = matchad supplier/warehouse/organization_location
-    //   unknown                  = ingen target / kan ej avgöras
-    // assignmentMatch ger detaljnivån (overlap/no_overlap/not_required/missing/unknown).
-    const matchedNoAssignmentRequired = !!matched && (
-      matched.targetType === 'supplier' ||
-      matched.targetType === 'warehouse' ||
-      matched.targetType === 'organization_location'
+    // Time Engine Core Fix 2.1 — använd businessContextResolution som faktisk target.
+    const eff = pickEffectiveTarget(bcr, matched, seg);
+    // Lager 3.11B + Core Fix 2.1 — assignmentStatus mot effektiv target.
+    const effIsNoAssignmentRequired = !!eff.targetType && (
+      eff.targetType === 'supplier' ||
+      eff.targetType === 'warehouse' ||
+      eff.targetType === 'organization_location'
+    );
+    const effIsAssignableWork = !!eff.targetType && (
+      eff.targetType === 'project' ||
+      eff.targetType === 'booking' ||
+      eff.targetType === 'large_project'
     );
     let assignmentStatus: WorkdayAllocationAssignmentStatus;
     let assignmentMatch: WorkdayAllocationAssignmentMatch;
-    if (matchedNoAssignmentRequired) {
+    if (effIsNoAssignmentRequired) {
       assignmentStatus = 'no_assignment_required';
       assignmentMatch = 'not_required';
-    } else if (matched && hasOverlap) {
+    } else if (effIsAssignableWork && (hasOverlap || bcr?.fallbackUsed === 'assignment_without_geo')) {
       assignmentStatus = 'assigned';
-      assignmentMatch = 'overlap';
-    } else if (matched && !hasOverlap) {
+      assignmentMatch = hasOverlap ? 'overlap' : 'no_overlap';
+    } else if (effIsAssignableWork) {
       assignmentStatus = 'unassigned_but_present';
       assignmentMatch = 'no_overlap';
     } else {
@@ -1386,10 +1388,10 @@ export function buildWorkdayAllocationFromLocationTruth(
       endAt: new Date(clippedEndMs).toISOString(),
       sourceLocationTruthSegmentIds: [seg.id],
       allocationType: alloc.type,
-      targetType: matched?.targetType ?? null,
-      targetId: matched?.targetId ?? null,
-      label: matched?.label ?? seg.physicalLocation?.label ?? null,
-      address: seg.physicalLocation?.address ?? matched?.address ?? null,
+      targetType: eff.targetType,
+      targetId: eff.targetId,
+      label: eff.label,
+      address: eff.address,
       confidence: alloc.confidence,
       warnings: alloc.warnings,
       assignmentStatus,
