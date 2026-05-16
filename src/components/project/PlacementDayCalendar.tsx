@@ -5,6 +5,7 @@ import CustomCalendar from '@/components/Calendar/CustomCalendar';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useInternalLagerCalendarEvents } from '@/hooks/useInternalLagerCalendarEvents';
+import './PlacementDayCalendar.css';
 
 interface Props {
   /** ISO yyyy-MM-dd för den dag som ska visas */
@@ -35,7 +36,7 @@ export const PlacementDayCalendar: React.FC<Props> = ({ date }) => {
 
   return (
     <TooltipProvider>
-      <div className="rounded-lg border border-border/60 bg-card overflow-hidden w-full">
+      <div className="placement-day-calendar rounded-lg border border-border/60 bg-card overflow-hidden w-full">
         <CustomCalendar
           events={mergedEvents}
           resources={teamResources}
