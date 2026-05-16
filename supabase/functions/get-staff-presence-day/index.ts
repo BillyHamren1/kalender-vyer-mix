@@ -259,6 +259,7 @@ Deno.serve(async (req) => {
   let dayEvidenceDiagnostics: any = null;
   let locationTruthDiagnostics: any = null;
   let locationTruthSegments: any[] = [];
+  let locationTruthV2NotBuiltReason: string | null = null;
   let workdayAllocationDiagnostics: any = null;
   let workdayAllocationSegments: any[] = [];
   let workdayAllocationProposals: any[] = [];
@@ -283,6 +284,19 @@ Deno.serve(async (req) => {
         const lt = buildLocationTruthFromDayEvidence(dayEvidence);
         locationTruthDiagnostics = lt.diagnostics;
         locationTruthSegments = lt.segments;
+
+        // Time Engine Core Fix 1 — varför saknas LT V2-segment?
+        if (!locationTruthSegments || locationTruthSegments.length === 0) {
+          const rawCount = (dayEvidence as any)?.gps?.rawPingCount ?? 0;
+          const logicCount = (dayEvidence as any)?.gps?.locationLogicPingCount ?? 0;
+          if (rawCount === 0) {
+            locationTruthV2NotBuiltReason = 'no_raw_pings';
+          } else if (logicCount === 0) {
+            locationTruthV2NotBuiltReason = 'no_location_logic_pings';
+          } else {
+            locationTruthV2NotBuiltReason = 'all_pings_rejected';
+          }
+        }
 
         // ── Lager 3.1 — Workday Allocation (read-only debug) ──────────────
         // Kör efter LocationTruthV2. Får INTE påverka något downstream.
@@ -364,11 +378,15 @@ Deno.serve(async (req) => {
       } catch (e: any) {
         console.warn('[presence-day] buildLocationTruthFromDayEvidence failed', e);
         locationTruthDiagnostics = { error: e?.message ?? String(e) };
+        locationTruthV2NotBuiltReason = 'builder_error';
       }
     } catch (e: any) {
       console.warn('[presence-day] buildDayEvidence failed', e);
       dayEvidenceDiagnostics = { error: e?.message ?? String(e) };
+      locationTruthV2NotBuiltReason = 'missing_day_evidence';
     }
+  } else {
+    locationTruthV2NotBuiltReason = 'disabled_by_flag';
   }
 
   // ── Presence events (arrival/departure/signal_lost/signal_resumed) ──
@@ -1372,6 +1390,26 @@ Deno.serve(async (req) => {
     // Lager 2.10 — DayEvidence-baserad LocationTruth V2 (read-only).
     locationTruthV2Diagnostics: locationTruthDiagnostics,
     locationTruthV2Segments: locationTruthSegments,
+    // Time Engine Core Fix 1 — varför LT V2 inte byggdes (null = byggdes OK).
+    locationTruthV2NotBuiltReason,
+    // Time Engine Core Fix 1 — spegla guard-flaggor på toppnivå för trace.
+    engineBlockedBecauseLocationTruthMissing:
+      workdayAllocationDiagnostics?.engineBlockedBecauseLocationTruthMissing === true,
+    hasRawPingsButNoLocationTruth:
+      workdayAllocationDiagnostics?.hasRawPingsButNoLocationTruth === true,
+    displaySuppressedBecauseMissingLocationTruth:
+      (displayTimelineDiagnosticsV2?.warnings ?? []).includes(
+        'display_suppressed_because_missing_location_truth',
+      ),
+    openTimerIgnoredForDisplay:
+      (workdayAllocationDiagnostics?.warnings ?? []).includes(
+        'open_timer_without_same_day_evidence',
+      ) ||
+      (workdayAllocationDiagnostics?.warnings ?? []).includes(
+        'open_timer_ignored_after_inferred_day_end',
+      ),
+    rawPingCount: workdayAllocationDiagnostics?.rawPingCount ?? null,
+    locationTruthV2SegmentCount: locationTruthSegments?.length ?? 0,
     /** @deprecated Använd locationTruthV2Diagnostics. Tas bort när konsumenter bytt. */
     locationTruthDiagnostics,
     /** @deprecated Använd locationTruthV2Segments. Tas bort när konsumenter bytt. */
