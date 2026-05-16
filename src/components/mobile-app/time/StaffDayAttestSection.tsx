@@ -206,20 +206,30 @@ const StaffDayAttestSection: React.FC<Props> = ({
     const startIso = stockholmHmToIso(date, startHm);
     const endIso = stockholmHmToIso(date, endHm);
     if (!startIso || !endIso) return 'Ogiltig tid.';
-    if (Date.parse(startIso) >= Date.parse(endIso)) {
+    const startMs = Date.parse(startIso);
+    const endMs = Date.parse(endIso);
+    if (startMs >= endMs) {
       return 'Starttid måste vara före sluttid.';
     }
     // Sluttid får inte vara i framtiden om datumet är idag
     const todayLocal = new Intl.DateTimeFormat('sv-SE', { timeZone: TZ })
       .format(new Date());
-    if (date === todayLocal && Date.parse(endIso) > Date.now()) {
+    if (date === todayLocal && endMs > Date.now()) {
       return 'Sluttid kan inte ligga i framtiden.';
     }
     if (!Number.isFinite(breakMinutes) || breakMinutes < 0 || breakMinutes > 600) {
       return 'Rast måste vara 0–600 min.';
     }
+    const grossMin = Math.round((endMs - startMs) / 60000);
+    if (grossMin > 16 * 60) {
+      return 'Brutto överstiger 16 timmar — kontrollera tiderna.';
+    }
+    if (grossMin - breakMinutes <= 0) {
+      return 'Arbetstid efter rast måste vara större än 0.';
+    }
     return null;
   };
+
 
   const localError = validate();
 
