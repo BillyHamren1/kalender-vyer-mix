@@ -210,7 +210,7 @@ const ALLOC_TYPE_TO_KIND: Record<string, GanttKindLite | 'work_phase' | 'hidden'
   supplier_visit: 'work',
   work_travel: 'transport',
   commute_travel: 'transport',
-  unlinked_work_address: 'review',
+  unlinked_work_address: 'work',
   private_time: 'hidden',
   needs_work_allocation_review: 'review',
 };
