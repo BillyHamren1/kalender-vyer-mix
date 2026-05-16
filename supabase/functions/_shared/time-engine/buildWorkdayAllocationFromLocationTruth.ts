@@ -1443,6 +1443,12 @@ export function buildWorkdayAllocationFromLocationTruth(
   //                         'needs_work_allocation_review'
   // Review kräver: långt gap (>120 min) OCH ingen LT-segment-täckning för dagen
   // OCH inga bridge-relaterade LT-warnings.
+  // STOP1: applicera nu uppskjuten clamp av wdEnd så att gap-emissionen
+  // inte producerar stora "Glapp i dagen"-block efter inferred day end.
+  if (stopClampEndMs !== null && stopClampEndMs < wdEnd) {
+    wdEnd = stopClampEndMs;
+    diag.workdayDurationMinutes = Math.max(0, Math.round((wdEnd - wdStartMs) / 60_000));
+  }
   coveredIntervals.sort((a, b) => a[0] - b[0]);
   let cursor = wdStartMs;
   let uncoveredMs = 0;
