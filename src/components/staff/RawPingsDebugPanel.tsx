@@ -272,6 +272,7 @@ export function RawPingsDebugPanel({
                         <td className="px-2 py-1 text-right tabular-nums">{fmtNum(s.p90Accuracy, 0)}</td>
                         <td className="px-2 py-1 text-right tabular-nums">{fmtAgeMin(s.lastRecordedAt, intervalEndMs)}</td>
                         <td className="px-2 py-1"><BatteryCell battery={s.battery} /></td>
+                        <td className="px-2 py-1"><AppHealthCell appHealth={s.appHealth} intervalEndMs={intervalEndMs} /></td>
                         <td className="px-2 py-1">
                           <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] ${STATUS_CLASS[status]}`}>
                             {STATUS_LABEL[status]}
