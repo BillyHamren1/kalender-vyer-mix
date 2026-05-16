@@ -1505,7 +1505,7 @@ export function buildWorkdayAllocationFromLocationTruth(
     diag.uncoveredGapsProposedCount += 1;
   };
 
-  for (const [s, e] of coveredIntervals) {
+  for (const [s, e] of effectiveCovered) {
     if (s > cursor) { uncoveredMs += s - cursor; emitGap(cursor, s); }
     if (e > cursor) cursor = e;
   }
