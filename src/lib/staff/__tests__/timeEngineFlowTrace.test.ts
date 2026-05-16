@@ -1,0 +1,97 @@
+import { describe, it, expect } from 'vitest';
+import { buildTimeEngineFlowTrace } from '../timeEngineFlowTrace';
+
+const baseInput = {
+  staffId: 's1',
+  staffName: 'Test Tester',
+  date: '2026-05-16',
+};
+
+describe('buildTimeEngineFlowTrace', () => {
+  it('handles missing presence response gracefully', () => {
+    const t = buildTimeEngineFlowTrace({ ...baseInput, presenceResponse: null });
+    expect(t.summary.staffId).toBe('s1');
+    expect(t.layers.dayEvidence.available).toBe(false);
+    expect(t.missingDataWarnings.length).toBeGreaterThan(0);
+    expect(t.flowSteps.length).toBe(9);
+  });
+
+  it('flags stale open timer from midnight', () => {
+    const t = buildTimeEngineFlowTrace({
+      ...baseInput,
+      presenceResponse: {
+        summary: {
+          activeTimer: { startedAt: '2026-05-16T00:00:00Z', stoppedAt: null },
+        },
+        rawGpsTimeline: { rawPingCount: 100 },
+        dayEvidenceDiagnostics: { locationLogicPingCount: 90 },
+      },
+      selectedGanttSource: 'displayTimelineV2',
+      ganttSourceCounts: { rawV2: 3, mappedV2: 3, rawAlloc: 0, mappedAlloc: 0, legacy: 0, rendered: 3 },
+    });
+    expect(t.summary.staleOpenTimer).toBe(true);
+    expect(t.suspectedProblems.some((p) => p.key === 'stale_open_timer_created_day_from_midnight')).toBe(true);
+  });
+
+  it('flags V2 selected but rendered zero', () => {
+    const t = buildTimeEngineFlowTrace({
+      ...baseInput,
+      presenceResponse: {
+        displayTimelineBlocksV2: [{ id: 'd1' }, { id: 'd2' }],
+        displayTimelineDiagnosticsV2: {},
+      },
+      selectedGanttSource: 'displayTimelineV2',
+      ganttSourceCounts: { rawV2: 2, mappedV2: 2, rawAlloc: 0, mappedAlloc: 0, legacy: 0, rendered: 0 },
+    });
+    expect(t.suspectedProblems.some((p) => p.key === 'gantt_selected_v2_but_rendered_zero')).toBe(true);
+  });
+
+  it('flags location_truth_missing_despite_pings', () => {
+    const t = buildTimeEngineFlowTrace({
+      ...baseInput,
+      presenceResponse: {
+        rawGpsTimeline: { rawPingCount: 50 },
+        dayEvidenceDiagnostics: { locationLogicPingCount: 50 },
+        locationTruthV2Segments: [],
+      },
+    });
+    expect(t.suspectedProblems.some((p) => p.key === 'location_truth_missing_despite_pings')).toBe(true);
+  });
+
+  it('builds block lineage from V2 blocks when present', () => {
+    const t = buildTimeEngineFlowTrace({
+      ...baseInput,
+      presenceResponse: {
+        displayTimelineBlocksV2: [
+          {
+            id: 'dt1',
+            startAt: '2026-05-16T08:00:00Z',
+            endAt: '2026-05-16T10:00:00Z',
+            targetType: 'project',
+            targetId: 'p1',
+            allocationSegmentIds: ['a1', 'a2'],
+            locationTruthSegmentIds: ['l1'],
+            title: 'Projekt A',
+          },
+        ],
+      },
+    });
+    expect(t.blockLineage).toHaveLength(1);
+    expect(t.blockLineage[0].displayBlockId).toBe('dt1');
+    expect(t.blockLineage[0].allocationSegmentIds).toEqual(['a1', 'a2']);
+  });
+
+  it('falls back to legacy rcBlocks when no V2 blocks', () => {
+    const t = buildTimeEngineFlowTrace({
+      ...baseInput,
+      presenceResponse: {
+        reportCandidateBlocks: [
+          { id: 'rc1', startAt: '2026-05-16T08:00:00Z', endAt: '2026-05-16T09:00:00Z' },
+        ],
+      },
+    });
+    expect(t.blockLineage).toHaveLength(1);
+    expect(t.blockLineage[0].ganttBlockId).toBe('rc1');
+    expect(t.blockLineage[0].source).toBe('reportCandidate');
+  });
+});
