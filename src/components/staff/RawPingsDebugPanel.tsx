@@ -289,6 +289,7 @@ export function RawPingsDebugPanel({
                   <th className="px-2 py-1">App senast</th>
                   <th className="px-2 py-1">Status</th>
                   <th className="px-2 py-1">Diagnos</th>
+                </tr>
               </thead>
               <tbody>
                 {data.perStaff.map((s) => {
