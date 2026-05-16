@@ -180,4 +180,62 @@ describe('buildTimeEngineTraceExport', () => {
     expect(types).toContain('stale_timer_created_large_empty_day');
     expect(exp.staff[0].comparison.staleTimerSuspected).toBe(true);
   });
+
+  it('läser locationTruthV2Segments top-level från candidate (inte från displayTimelineDiagnosticsV2)', () => {
+    const input = baseInput({
+      reportCandidateByStaff: {
+        s1: {
+          blocks: [],
+          displayTimelineBlocksV2: [],
+          // Felaktig path tidigare — ska INTE användas längre.
+          displayTimelineDiagnosticsV2: {
+            ok: true,
+            locationTruth: { totalSegments: 0 },
+            locationTruthSegments: [],
+          },
+          // Riktiga LocationTruth-fält ligger top-level på presence-day-svaret.
+          locationTruthV2Segments: [
+            { id: 'seg_cluster_1', type: 'known_site', startAt: '2026-05-16T07:00:00Z', endAt: '2026-05-16T11:00:00Z', confidence: 'high', warnings: [], centroidLat: 59, centroidLng: 18 },
+            { id: 'seg_cluster_2', type: 'unknown_place', startAt: '2026-05-16T11:00:00Z', endAt: '2026-05-16T12:00:00Z', confidence: 'medium', warnings: [] },
+          ],
+          locationTruthV2Diagnostics: { totalSegments: 2 },
+          workdayAllocationSegments: [
+            { id: 'w1', sourceLocationTruthSegmentIds: ['seg_cluster_1'] },
+          ],
+        },
+      },
+    });
+    const exp = buildTimeEngineTraceExport(input);
+    const te = exp.staff[0].timeEngine;
+    expect(te.locationTruthV2Segments.length).toBe(2);
+    expect(te.locationTruthV2Segments[0].id).toBe('seg_cluster_1');
+    expect(te.locationTruthV2Diagnostics).toEqual({ totalSegments: 2 });
+    expect(exp.staff[0].comparison.hasLocationTruth).toBe(true);
+    const types = exp.staff[0].diffFindings.map(f => f.type);
+    expect(types).not.toContain('pings_exist_but_no_location_truth');
+    expect(types).not.toContain('allocation_references_unknown_location_truth_segment');
+  });
+
+  it('flaggar lineage-brott när workdayAllocation refererar till okänt LocationTruth-segment', () => {
+    const input = baseInput({
+      reportCandidateByStaff: {
+        s1: {
+          blocks: [],
+          displayTimelineBlocksV2: [],
+          locationTruthV2Segments: [
+            { id: 'seg_cluster_1', type: 'known_site', startAt: '2026-05-16T07:00:00Z', endAt: '2026-05-16T08:00:00Z', confidence: 'high', warnings: [] },
+          ],
+          workdayAllocationSegments: [
+            { id: 'w1', sourceLocationTruthSegmentIds: ['seg_cluster_1', 'seg_cluster_57'] },
+          ],
+        },
+      },
+    });
+    const exp = buildTimeEngineTraceExport(input);
+    const finding = exp.staff[0].diffFindings.find(
+      f => f.type === 'allocation_references_unknown_location_truth_segment',
+    );
+    expect(finding).toBeDefined();
+    expect((finding!.evidence as any).orphanSourceLocationTruthSegmentIds).toContain('seg_cluster_57');
+  });
 });
