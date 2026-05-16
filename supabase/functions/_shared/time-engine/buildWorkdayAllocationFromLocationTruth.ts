@@ -1398,6 +1398,13 @@ export function buildWorkdayAllocationFromLocationTruth(
       rawSegmentEndAt: seg.endAt,
       outsideWorkday: false,
       businessContextResolution: bcr ?? null,
+      physicalLocationLabel: seg.physicalLocation?.label ?? null,
+      physicalLocationAddress: seg.physicalLocation?.address ?? null,
+      physicalLocationLat: seg.physicalLocation?.lat ?? null,
+      physicalLocationLng: seg.physicalLocation?.lng ?? null,
+      physicalLocationSource: seg.physicalLocation?.source ?? null,
+      physicalLocationConfidence: seg.physicalLocation?.confidence ?? null,
+      locationMatchDiagnostics: (seg.diagnostics as any)?.match ?? null,
     };
     // Time Engine Core Fix 2 — counter-uppdatering.
     if (bcr) {
