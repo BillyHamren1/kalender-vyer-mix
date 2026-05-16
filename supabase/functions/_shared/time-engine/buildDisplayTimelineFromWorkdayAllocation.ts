@@ -928,8 +928,23 @@ export function buildDisplayTimelineFromWorkdayAllocation(
   }
 
   // Sortera segment efter starttid (utanför workday senast).
+  // DEL 4 — Filtrera bort outsideWorkday-segment INNAN display byggs.
+  // De får aldrig skapa unlinked_address/private/review/break_or_gap-block.
+  let outsideWorkdaySegmentsSuppressedCount = 0;
+  let outsideWorkdayMinutesSuppressed = 0;
   const sorted = [...allocSegments]
     .filter((s) => !!s.startAt && !!s.endAt)
+    .filter((s) => {
+      if ((s as any).outsideWorkday === true) {
+        outsideWorkdaySegmentsSuppressedCount += 1;
+        outsideWorkdayMinutesSuppressed += Math.max(
+          0,
+          Math.round((toMs(s.endAt) - toMs(s.startAt)) / 60_000),
+        );
+        return false;
+      }
+      return true;
+    })
     .sort((a, b) => toMs(a.startAt) - toMs(b.startAt));
 
   // Slå ihop kontigta likartade segment.
@@ -1232,6 +1247,9 @@ export function buildDisplayTimelineFromWorkdayAllocation(
     warnings: [],
     examples,
   };
+  // DEL 4 — exponera outsideWorkday-suppression-mått.
+  (diagnostics as any).outsideWorkdaySegmentsSuppressedCount = outsideWorkdaySegmentsSuppressedCount;
+  (diagnostics as any).outsideWorkdayMinutesSuppressed = outsideWorkdayMinutesSuppressed;
 
   if (!wda) {
     diagnostics.warnings.push('no_workday_allocation_input');

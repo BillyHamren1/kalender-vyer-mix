@@ -839,10 +839,28 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
       const mappedV2 = mapDisplayTimelineBlocksToGantt(v2Blocks as any).map(timelineBlockToGanttBlock);
       const mappedAlloc = mapWorkdayAllocationSegmentsToGantt(allocSegs as any).map(timelineBlockToGanttBlock);
 
+      // ── DEL 1 — V2 explicit suppression-guard ──
+      // När motorn (LT V2 / WorkdayAllocation / DisplayTimeline) explicit
+      // har valt att inte rendera dagen pga säkerhetsskäl får legacy
+      // reportCandidate INTE användas som fallback. Annars läcker en
+      // falsk arbetsdag in från legacy-pipeline.
+      const wdaDiag = cand?.workdayAllocationDiagnostics ?? null;
+      const dtDiag = cand?.displayTimelineDiagnosticsV2 ?? null;
+      const v2ExplicitlyBlocked =
+        wdaDiag?.engineBlockedBecauseLocationTruthMissing === true ||
+        wdaDiag?.hasRawPingsButNoLocationTruth === true ||
+        (Array.isArray(dtDiag?.warnings) &&
+          dtDiag.warnings.includes('display_suppressed_because_missing_location_truth')) ||
+        (Array.isArray(wdaDiag?.warnings) &&
+          (wdaDiag.warnings.includes('open_timer_without_same_day_evidence') ||
+            wdaDiag.warnings.includes('open_timer_ignored_after_inferred_day_end'))) ||
+        wdaDiag?.canonicalTimer?.staleOpenTimerIgnored === true;
+
       const selected = selectGanttSourceFromMapped({
         mappedV2Count: mappedV2.length,
         mappedAllocationCount: mappedAlloc.length,
-        legacyCount: legacyBlocks.length,
+        // Vid explicit V2-suppression: blockera legacy-fallback också.
+        legacyCount: v2ExplicitlyBlocked ? 0 : legacyBlocks.length,
       });
       sources[s.id] = selected;
 
