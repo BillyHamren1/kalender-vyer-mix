@@ -1127,11 +1127,41 @@ const StaffTimeReports: React.FC = () => {
       }
 
       // Listan = planerad personal för dagen + personer med FAKTISK arbets-
-      // aktivitet (time_reports/workdays/LTE/travel — redan i byStaff).
-      // Vi tar INTE in folk bara för att de har GPS-pings, assistant_events
-      // eller workday_flags — det skulle visa "alla med telefon på" oavsett
-      // om de jobbar idag eller inte.
+      // aktivitet (time_reports/workdays/LTE/travel — redan i byStaff)
+      // + personer med aktiv Time Engine-timer + personer med råa GPS-pings
+      // i staff_location_history. Detta för att inte missa personer som har
+      // GPS-data men aldrig fick en time_report/workday (t.ex. Billy Hamrén
+      // 2026-05-16: 536 pings, men ingen rapportrad).
       for (const id of plannedStaffIds) {
+        if (!byStaff.has(id)) byStaff.set(id, newAgg());
+      }
+      for (const id of activeRegByStaff.keys()) {
+        if (id && !byStaff.has(id)) byStaff.set(id, newAgg());
+      }
+
+      // ── Distinct staff_ids med råpings för dagen (read-only, paginerad).
+      // RLS isolerar org. Vi hämtar endast staff_id-kolumnen och dedupar i
+      // JS — billigt. Max 50k rader säkerhetstak.
+      const staffIdsWithRawPings = new Set<string>();
+      {
+        const PAGE = 1000;
+        const MAX_PAGES = 50;
+        for (let page = 0; page < MAX_PAGES; page++) {
+          const from = page * PAGE;
+          const { data, error } = await supabase
+            .from('staff_location_history')
+            .select('staff_id')
+            .gte('recorded_at', dayStartIso)
+            .lt('recorded_at', nextDayIso)
+            .range(from, from + PAGE - 1);
+          if (error || !data) break;
+          for (const r of data as any[]) {
+            if (r.staff_id) staffIdsWithRawPings.add(r.staff_id);
+          }
+          if (data.length < PAGE) break;
+        }
+      }
+      for (const id of staffIdsWithRawPings) {
         if (!byStaff.has(id)) byStaff.set(id, newAgg());
       }
 
