@@ -367,7 +367,30 @@ export interface WorkdayEnvelopeDiagnostics {
   startWasClippedToDay: boolean;
   endWasClippedToDay: boolean;
   endWasClippedToNow: boolean;
+  // ── Time Engine STOP 1 — inferred day end ────────────────────────────
+  /** True om effectiveWorkdayEndAt klippts pga non-work-närvaro efter sista jobb. */
+  endWasInferredFromNonWorkPresence?: boolean;
+  /** True om öppen timer ignorerats bortom inferred end. */
+  openTimerIgnoredAfterEnd?: boolean;
+  /** Total non-work-närvaro (minuter) efter sista work-evidence. */
+  nonWorkAfterLastWorkMinutes?: number;
   warnings: WorkdayEnvelopeWarning[];
+}
+
+// ── Time Engine STOP 1 — dayEndDecision i workdayAllocation ──────────────
+export type WorkdayDayEndReason =
+  | 'home_after_last_work_over_90m'
+  | 'private_after_last_work_over_90m'
+  | 'non_work_location_after_last_work_over_90m'
+  | 'no_work_evidence_after_last_work_over_90m'
+  | 'open_timer_ignored_after_inferred_day_end';
+
+export interface WorkdayDayEndDecision {
+  dayEnded: boolean;
+  endedAt: string | null;
+  endReason: WorkdayDayEndReason | null;
+  confidence: 'high' | 'medium' | 'low';
+  evidence: string[];
 }
 
 export interface ResolveWorkdayEnvelopeInput {
