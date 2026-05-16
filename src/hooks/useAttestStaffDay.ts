@@ -53,7 +53,7 @@ export function useAttestStaffDay(): AttestStaffDayResult {
     setIsSaving(true);
     setError(null);
     try {
-      await callStaffSnapshotFunction('attest-staff-day', {
+      await callStaffSnapshotFunction('submit-staff-day-v3', {
         staffId: input.staffId,
         date: input.date,
         breakMinutes,
@@ -62,9 +62,9 @@ export function useAttestStaffDay(): AttestStaffDayResult {
         requestedEndAt: input.requestedEndAt ?? null,
       });
       try {
-        window.dispatchEvent(new CustomEvent('staff-day-attested', {
-          detail: { staffId: input.staffId, date: input.date },
-        }));
+        const detail = { staffId: input.staffId, date: input.date };
+        window.dispatchEvent(new CustomEvent('staff-day-attested', { detail }));
+        window.dispatchEvent(new CustomEvent('staff-day-submitted', { detail }));
         window.dispatchEvent(new CustomEvent('timer-state-changed'));
       } catch { /* ignore */ }
     } catch (err: any) {
