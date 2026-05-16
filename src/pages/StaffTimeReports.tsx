@@ -1662,6 +1662,12 @@ const StaffTimeReports: React.FC = () => {
       targetMatchSummary: any;
       targets: any[];
       counts: any;
+      // Lager 4.1 — Display Timeline V2 (primär Gantt-källa).
+      displayTimelineBlocksV2: any[];
+      displayTimelineDiagnosticsV2: any;
+      // Lager 3 — Workday Allocation (fallback när V2 saknas).
+      workdayAllocationSegments: any[];
+      workdayAllocationDiagnostics: any;
       loading: boolean;
       missing: boolean;
     }> = {};
@@ -1691,6 +1697,10 @@ const StaffTimeReports: React.FC = () => {
         targetMatchSummary: data?.targetMatchSummary ?? null,
         targets: data?.targets ?? [],
         counts: data?.counts ?? null,
+        displayTimelineBlocksV2: data?.displayTimelineBlocksV2 ?? [],
+        displayTimelineDiagnosticsV2: data?.displayTimelineDiagnosticsV2 ?? null,
+        workdayAllocationSegments: data?.workdayAllocationSegments ?? [],
+        workdayAllocationDiagnostics: data?.workdayAllocationDiagnostics ?? null,
         loading: isLoading,
         missing,
       };
