@@ -74,8 +74,16 @@ export interface DisplayTimelineBlockLite {
     | 'break_or_gap';
   targetType?: string | null;
   targetId?: string | null;
+  targetLabel?: string | null;
   label?: string | null;
   address?: string | null;
+  addressLabel?: string | null;
+  locationName?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  centroid?: { lat: number; lng: number } | null;
+  sourceLocationTruthSegmentIds?: string[] | null;
+  sourceAllocationSegmentIds?: string[] | null;
   durationMinutes?: number;
   severity?: 'normal' | 'info' | 'warning' | 'needs_user_review' | string;
   confidence?: string | null;
