@@ -1461,7 +1461,7 @@ export function buildWorkdayAllocationFromLocationTruth(
 
   // Review-förutsättningar (samma för alla gaps på samma dag).
   const ltAll = input.locationTruthV2?.segments ?? [];
-  const hasAnyLtCoverageInWorkday = coveredIntervals.length > 0;
+  const hasAnyLtCoverageInWorkday = effectiveCovered.length > 0;
   const hasBridgeWarnings = ltAll.some((s: any) =>
     Array.isArray(s?.warnings) &&
     s.warnings.some((w: string) =>
