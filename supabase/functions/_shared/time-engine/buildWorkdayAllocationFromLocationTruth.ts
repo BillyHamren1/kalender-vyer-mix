@@ -28,6 +28,12 @@ import {
   resolveEffectiveWorkdayEndFromEvidence,
   type DayEndStopReason,
 } from './resolveEffectiveWorkdayEndFromEvidence.ts';
+import {
+  resolveBusinessContextForAllocation,
+  type BusinessContextResolution,
+} from './resolveBusinessContextForAllocation.ts';
+import type { AssignmentEvidenceItem } from './buildAssignmentEvidence.ts';
+import type { KnownTargetEvidenceItem } from './buildKnownTargetsEvidence.ts';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -94,6 +100,8 @@ export interface WorkdayAllocationSegment {
   outsideWorkday?: boolean;
   /** Lager 3.5 — deterministisk projektkandidat för supplier_visit. */
   linkedProjectCandidate?: SupplierProjectCandidate | null;
+  /** Time Engine Core Fix 2 — full business-context-resolution diagnostics. */
+  businessContextResolution?: BusinessContextResolution | null;
 }
 
 export type SupplierProjectCandidateSource =
@@ -149,7 +157,11 @@ export type WorkdayAllocationWarning =
   | 'day_end_inferred_from_non_work_presence'
   | 'open_timer_ignored_after_inferred_day_end'
   // ── Time Engine Core Fix 1 — raw GPS finns men LocationTruth saknas ──
-  | 'raw_pings_exist_but_location_truth_missing';
+  | 'raw_pings_exist_but_location_truth_missing'
+  // ── Time Engine Core Fix 2 — business context resolution ─────────────
+  | 'target_missing_geo'
+  | 'business_context_from_assignment'
+  | 'competing_targets';
 
 // ── Lager 3.11C — DEPRECATED warnings (får INTE emitteras) ─────────────
 //   - supplier_visit_no_assignment       → använd supplier_visit_without_project_context
@@ -264,6 +276,22 @@ export interface WorkdayAllocationDiagnostics {
   rawPingCount?: number;
   /** Antal LocationTruth V2-segment i input. */
   locationTruthV2SegmentCount?: number;
+  // ── Time Engine Core Fix 2 — business context resolution ─────────────
+  /** Antal segment där business context lyftes från assignment utan geo. */
+  businessContextFromAssignmentCount?: number;
+  /** Antal segment med target_missing_geo-warning. */
+  targetMissingGeoCount?: number;
+  /** Antal segment med konkurrerande targets. */
+  competingTargetsCount?: number;
+  /** Antal segment som fortfarande blir unlinked_work_address efter resolution. */
+  stableAddressNoTargetCount?: number;
+  /** Räkna fallbackUsed-utfall över alla segment. */
+  businessContextFallbackCounts?: {
+    none: number;
+    assignment_without_geo: number;
+    stable_address_no_target: number;
+    unknown_location: number;
+  };
 }
 
 export interface WorkdayAllocationProposal {
@@ -577,6 +605,7 @@ const WARNING_TYPES: WorkdayAllocationWarning[] = [
   'day_end_inferred_from_non_work_presence',
   'open_timer_ignored_after_inferred_day_end',
   'raw_pings_exist_but_location_truth_missing',
+  'target_missing_geo', 'business_context_from_assignment', 'competing_targets',
 ];
 
 const emptyAllocCounts = (): Record<WorkdayAllocationType, number> =>
@@ -636,6 +665,7 @@ function deriveAllocation(
   seg: LocationTruthSegment,
   hasOverlapWithAssignment: boolean,
   movementCtx?: MovementContext | null,
+  businessContextResolution?: BusinessContextResolution | null,
 ): {
   type: WorkdayAllocationType;
   warnings: WorkdayAllocationWarning[];
@@ -714,11 +744,51 @@ function deriveAllocation(
   }
 
   if (seg.finalType === 'known_address') {
-    // Fysisk plats stabil men ingen EventFlow-target → unlinked_work_address.
-    // Lager 3.3: signalera tydligt att projektkoppling saknas.
-    warnings.push('no_project_link');
+    // Time Engine Core Fix 2: pröva business-context-resolution INNAN
+    // vi faller till unlinked_work_address. Om personen är planerad på
+    // project/booking/large_project under samma tid är det inte en
+    // okopplad adress — det är planerat arbete där target saknar geo.
     if (status === 'planning_geo_mismatch') warnings.push('planning_geo_mismatch');
     if (status === 'needs_review') warnings.push('needs_review_business_context');
+
+    const r = businessContextResolution;
+    if (r && r.fallbackUsed === 'assignment_without_geo' && r.selectedTargetType) {
+      for (const w of r.extraWarnings) {
+        if (!warnings.includes(w as WorkdayAllocationWarning)) {
+          warnings.push(w as WorkdayAllocationWarning);
+        }
+      }
+      const typeMap: Record<string, WorkdayAllocationType> = {
+        large_project: 'large_project_work',
+        project: 'project_work',
+        booking: 'booking_work',
+        warehouse: 'warehouse_work',
+        organization_location: 'warehouse_work',
+        supplier: 'supplier_visit',
+      };
+      const allocType = typeMap[r.selectedTargetType as string] ?? 'unlinked_work_address';
+      return {
+        type: allocType,
+        warnings,
+        confidence: seg.confidence === 'high' ? 'medium' : seg.confidence,
+      };
+    }
+    if (r && r.competingTargets) {
+      for (const w of r.extraWarnings) {
+        if (!warnings.includes(w as WorkdayAllocationWarning)) {
+          warnings.push(w as WorkdayAllocationWarning);
+        }
+      }
+      return {
+        type: 'needs_work_allocation_review',
+        warnings,
+        confidence: 'low',
+      };
+    }
+
+    // Fysisk plats stabil men ingen assignment/target → unlinked_work_address.
+    // Severity warning/info via Lager 4-mappning.
+    warnings.push('no_project_link');
     return {
       type: 'unlinked_work_address',
       warnings,
@@ -917,6 +987,17 @@ export function buildWorkdayAllocationFromLocationTruth(
     shortUncoveredGapsIgnoredCount: 0,
     uncoveredGapsProposedCount: 0,
     examples: [],
+    // Time Engine Core Fix 2 — initial counters.
+    businessContextFromAssignmentCount: 0,
+    targetMissingGeoCount: 0,
+    competingTargetsCount: 0,
+    stableAddressNoTargetCount: 0,
+    businessContextFallbackCounts: {
+      none: 0,
+      assignment_without_geo: 0,
+      stable_address_no_target: 0,
+      unknown_location: 0,
+    },
   };
 
   // ── Time Engine Core Fix 1 — HÅRD GUARD: raw GPS finns men LT V2 saknas ──
@@ -1125,6 +1206,46 @@ export function buildWorkdayAllocationFromLocationTruth(
     if (t.idx === lastCommuteHomeboundIdx) t.ctx.isLastHomeboundCommuteOfDay = true;
   }
 
+  // ── Time Engine Core Fix 2 — overlap-helper + knownTargets för business context ──
+  const allAssignments: AssignmentEvidenceItem[] =
+    (input.dayEvidence?.assignments?.items as AssignmentEvidenceItem[] | undefined) ?? [];
+  const allKnownTargets: KnownTargetEvidenceItem[] =
+    (input.dayEvidence?.knownTargets?.items as KnownTargetEvidenceItem[] | undefined) ?? [];
+
+  function getOverlappingAssignmentsForInterval(
+    startMs: number,
+    endMs: number,
+  ): AssignmentEvidenceItem[] {
+    const out: AssignmentEvidenceItem[] = [];
+    for (const a of allAssignments) {
+      const aS = toMs(a.startAt ?? null);
+      const aE = toMs(a.endAt ?? null);
+      if (aS === null || aE === null) continue;
+      if (aS < endMs && aE > startMs) out.push(a);
+    }
+    return out;
+  }
+
+  function resolveSegBusinessContext(
+    seg: LocationTruthSegment,
+  ): BusinessContextResolution | null {
+    if (seg.finalType === 'movement' || seg.finalType === 'private_residence') {
+      return null;
+    }
+    const sMs = toMs(seg.startAt);
+    const eMs = toMs(seg.endAt);
+    if (sMs === null || eMs === null) return null;
+    const overlap = getOverlappingAssignmentsForInterval(sMs, eMs);
+    const physicallyStable =
+      seg.finalType === 'known_site' || seg.finalType === 'known_address';
+    return resolveBusinessContextForAllocation({
+      seg,
+      overlappingAssignments: overlap,
+      knownTargets: allKnownTargets,
+      physicallyStable,
+    });
+  }
+
   for (const seg of ltSegments) {
     const sMs = toMs(seg.startAt);
     const eMs = toMs(seg.endAt);
@@ -1144,10 +1265,12 @@ export function buildWorkdayAllocationFromLocationTruth(
           Math.max(0, Math.round((eMs - sMs) / 60_000));
       }
       // Vi tar fortfarande med segmentet i debug-output men markerar det.
+      const bcrOutside = resolveSegBusinessContext(seg);
       const allocOutside = deriveAllocation(
         seg,
         !!seg.evidence.assignmentSupportsTarget,
         seg.finalType === 'movement' ? movementCtxById.get(seg.id) ?? null : null,
+        bcrOutside,
       );
       const item: WorkdayAllocationSegment = {
         id: `wda_${seg.id}`,
@@ -1168,6 +1291,7 @@ export function buildWorkdayAllocationFromLocationTruth(
         rawSegmentStartAt: seg.startAt,
         rawSegmentEndAt: seg.endAt,
         outsideWorkday: true,
+        businessContextResolution: bcrOutside ?? null,
       };
       segments.push(item);
       diag.warningsByType.segment_outside_workday += 1;
@@ -1185,7 +1309,8 @@ export function buildWorkdayAllocationFromLocationTruth(
     const movementCtx = seg.finalType === 'movement'
       ? movementCtxById.get(seg.id) ?? null
       : null;
-    const alloc = deriveAllocation(seg, hasOverlap, movementCtx);
+    const bcr = resolveSegBusinessContext(seg);
+    const alloc = deriveAllocation(seg, hasOverlap, movementCtx, bcr);
 
     // private_residence INNE i workday → fortfarande private_time, men kan
     // föreslås som workday-slut. Vi flaggar warning.
@@ -1256,7 +1381,29 @@ export function buildWorkdayAllocationFromLocationTruth(
       rawSegmentStartAt: seg.startAt,
       rawSegmentEndAt: seg.endAt,
       outsideWorkday: false,
+      businessContextResolution: bcr ?? null,
     };
+    // Time Engine Core Fix 2 — counter-uppdatering.
+    if (bcr) {
+      if (diag.businessContextFallbackCounts) {
+        diag.businessContextFallbackCounts[bcr.fallbackUsed] =
+          (diag.businessContextFallbackCounts[bcr.fallbackUsed] ?? 0) + 1;
+      }
+      if (bcr.fallbackUsed === 'assignment_without_geo') {
+        diag.businessContextFromAssignmentCount =
+          (diag.businessContextFromAssignmentCount ?? 0) + 1;
+      }
+      if (bcr.fallbackUsed === 'stable_address_no_target') {
+        diag.stableAddressNoTargetCount =
+          (diag.stableAddressNoTargetCount ?? 0) + 1;
+      }
+      if (bcr.extraWarnings.includes('target_missing_geo')) {
+        diag.targetMissingGeoCount = (diag.targetMissingGeoCount ?? 0) + 1;
+      }
+      if (bcr.competingTargets) {
+        diag.competingTargetsCount = (diag.competingTargetsCount ?? 0) + 1;
+      }
+    }
     if (clipped) item.warnings.push('segment_partially_outside_workday');
 
     segments.push(item);

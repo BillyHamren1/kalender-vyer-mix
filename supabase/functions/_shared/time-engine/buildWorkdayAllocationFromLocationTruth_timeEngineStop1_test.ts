@@ -69,6 +69,8 @@ function ltResult(segs: SegInit[]): LocationTruthResult {
       staffId: 'staff-1',
       date: DAY,
     } as any,
+    stableClusters: [] as any,
+    clusterMatches: [] as any,
   };
 }
 
