@@ -300,19 +300,74 @@ Deno.serve(async (req) => {
 
         // ── Lager 3.1 — Workday Allocation (read-only debug) ──────────────
         // Kör efter LocationTruthV2. Får INTE påverka något downstream.
-        // activeWorkday hämtas från active_time_registrations strax nedanför,
-        // men för att undvika ordnings-koppling läser vi en lättviktig query här.
+        // Time Engine Core Stabilization (DEL 2) — kanonisk timer-selection:
+        //   A. timer som STARTAR inom Stockholm-dagen (oavsett stoppad eller ej)
+        //   B. annars stängd timer som överlappar dagen
+        //   C. annars senast startade öppna timer (gammal/stale)
+        // En öppen timer från tidigare dag (kategori C) flaggas som
+        // staleOpenTimer i diagnostics och får INTE skapa display från 00:00
+        // utan same-day evidence (säkrad av buildWorkdayAllocationFromLocationTruth
+        // -> open_timer_without_same_day_evidence / hasRawPingsButNoLocationTruth).
+        let canonicalTimerDiagnostics: any = {
+          activeTimersSeen: 0,
+          selectedTimerId: null,
+          selectedTimerStartedAt: null,
+          selectedTimerStoppedAt: null,
+          selectedTimerReason: 'none',
+          staleOpenTimerDetected: false,
+          staleOpenTimerIgnored: false,
+        };
         try {
-          const { data: wdRow } = await admin
+          const { data: allTimerRows } = await admin
             .from('active_time_registrations')
-            .select('started_at, stopped_at')
+            .select('id, started_at, stopped_at')
             .eq('organization_id', orgId)
             .eq('staff_id', staffId)
             .lte('started_at', dayEnd)
-            .or(`stopped_at.is.null,stopped_at.gte.${dayStart}`)
-            .order('started_at', { ascending: true })
-            .limit(1)
-            .maybeSingle();
+            .or(`stopped_at.is.null,stopped_at.gte.${dayStart}`);
+          const rows = Array.isArray(allTimerRows) ? allTimerRows : [];
+          canonicalTimerDiagnostics.activeTimersSeen = rows.length;
+
+          const dayStartMs = new Date(dayStart).getTime();
+          const dayEndMs = new Date(dayEnd).getTime();
+          const startedInDay = rows.filter((r: any) => {
+            const ms = r?.started_at ? new Date(r.started_at).getTime() : null;
+            return ms !== null && ms >= dayStartMs && ms <= dayEndMs;
+          }).sort((a: any, b: any) =>
+            new Date(a.started_at).getTime() - new Date(b.started_at).getTime(),
+          );
+          const closedOverlapping = rows.filter((r: any) => r?.stopped_at).sort((a: any, b: any) =>
+            new Date(a.started_at).getTime() - new Date(b.started_at).getTime(),
+          );
+          const openTimers = rows.filter((r: any) => !r?.stopped_at).sort((a: any, b: any) =>
+            new Date(b.started_at).getTime() - new Date(a.started_at).getTime(),
+          );
+
+          let wdRow: any = null;
+          if (startedInDay.length > 0) {
+            wdRow = startedInDay[0];
+            canonicalTimerDiagnostics.selectedTimerReason = 'started_in_day';
+          } else if (closedOverlapping.length > 0) {
+            wdRow = closedOverlapping[0];
+            canonicalTimerDiagnostics.selectedTimerReason = 'closed_overlapping_day';
+          } else if (openTimers.length > 0) {
+            wdRow = openTimers[0];
+            const startedMs = new Date(wdRow.started_at).getTime();
+            const isStale = startedMs < dayStartMs;
+            canonicalTimerDiagnostics.selectedTimerReason = isStale
+              ? 'stale_open_timer_from_previous_day'
+              : 'open_timer_in_day';
+            canonicalTimerDiagnostics.staleOpenTimerDetected = isStale;
+            // Stale open timer ignoreras downstream — buildWorkdayAllocation
+            // kräver same-day evidence (LocationTruth) och annars
+            // open_timer_without_same_day_evidence.
+            canonicalTimerDiagnostics.staleOpenTimerIgnored = isStale;
+          }
+          if (wdRow) {
+            canonicalTimerDiagnostics.selectedTimerId = wdRow.id ?? null;
+            canonicalTimerDiagnostics.selectedTimerStartedAt = wdRow.started_at ?? null;
+            canonicalTimerDiagnostics.selectedTimerStoppedAt = wdRow.stopped_at ?? null;
+          }
           const activeWorkday = wdRow
             ? { startedAt: wdRow.started_at, stoppedAt: wdRow.stopped_at, staffId, date }
             : { startedAt: null, stoppedAt: null, staffId, date };
