@@ -555,6 +555,26 @@ export function buildTimeEngineTraceExport(input: BuildTraceExportInput): TimeEn
         ?? cand?.displayTimelineDiagnosticsV2?.locationTruthSegments,
       ),
       locationTruthV2NotBuiltReason: cand?.locationTruthV2NotBuiltReason ?? null,
+      locationTruthV2SegmentCount:
+        cand?.locationTruthV2SegmentCount
+        ?? safeArr(cand?.locationTruthV2Segments).length,
+      rawPingCount:
+        cand?.rawPingCount
+        ?? cand?.workdayAllocationDiagnostics?.rawPingCount
+        ?? null,
+      engineBlockedBecauseLocationTruthMissing:
+        cand?.engineBlockedBecauseLocationTruthMissing === true
+        || cand?.workdayAllocationDiagnostics?.engineBlockedBecauseLocationTruthMissing === true,
+      hasRawPingsButNoLocationTruth:
+        cand?.hasRawPingsButNoLocationTruth === true
+        || cand?.workdayAllocationDiagnostics?.hasRawPingsButNoLocationTruth === true,
+      displaySuppressedBecauseMissingLocationTruth:
+        cand?.displaySuppressedBecauseMissingLocationTruth === true
+        || (Array.isArray(cand?.displayTimelineDiagnosticsV2?.warnings)
+            && cand.displayTimelineDiagnosticsV2.warnings.includes(
+              'display_suppressed_because_missing_location_truth',
+            )),
+      openTimerIgnoredForDisplay: cand?.openTimerIgnoredForDisplay === true,
       workdayAllocationDiagnostics: cand?.workdayAllocationDiagnostics ?? null,
       workdayAllocationSegments: safeArr(cand?.workdayAllocationSegments),
       workdayAllocationProposals: safeArr(cand?.workdayAllocationProposals),
