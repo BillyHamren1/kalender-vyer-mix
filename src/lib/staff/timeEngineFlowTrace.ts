@@ -878,5 +878,6 @@ export function buildTimeEngineFlowTrace(
     suspectedProblems: suspected,
     blockLineage: lineage,
     missingDataWarnings: missing,
+    decisionTrace,
   };
 }
