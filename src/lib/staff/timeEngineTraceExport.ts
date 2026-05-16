@@ -163,6 +163,13 @@ export interface TraceStaffEntry {
     locationTruthV2Diagnostics: any;
     locationTruthV2Segments: any[];
     locationTruthV2NotBuiltReason: string | null;
+    /** Time Engine Core Fix 1 — top-level guard-spegling. */
+    locationTruthV2SegmentCount?: number;
+    rawPingCount?: number | null;
+    engineBlockedBecauseLocationTruthMissing?: boolean;
+    hasRawPingsButNoLocationTruth?: boolean;
+    displaySuppressedBecauseMissingLocationTruth?: boolean;
+    openTimerIgnoredForDisplay?: boolean;
     workdayAllocationDiagnostics: any;
     workdayAllocationSegments: any[];
     workdayAllocationProposals: any[];
