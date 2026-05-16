@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -67,6 +67,7 @@ const statusVariant: Record<StatusKind, 'default' | 'secondary' | 'outline' | 'd
  */
 export const ProjectAutoTimeSection = ({ target, includeBookingIds = [], plannedStaff = [] }: Props) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { data: summary, isLoading } = useProjectTimeSummary({ target, includeBookingIds });
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -146,10 +147,12 @@ export const ProjectAutoTimeSection = ({ target, includeBookingIds = [], planned
   });
 
   const openDay = (staffId: string, isoDate?: string) => {
-    const params = new URLSearchParams();
-    params.set('staff', staffId);
-    if (isoDate) params.set('date', isoDate);
-    navigate(`/staff-management/time-reports?${params.toString()}`);
+    const path = isoDate
+      ? `/staff-management/time-reports/${staffId}/${isoDate}`
+      : `/staff-management/time-reports/${staffId}`;
+    navigate(path, {
+      state: { from: location.pathname + location.search },
+    });
   };
 
   if (isLoading || !summary) {
