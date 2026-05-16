@@ -391,22 +391,6 @@ const applyVisualMerge = (blocks: GanttBlock[], staffName?: string): GanttBlock[
   );
 };
 
-const blocksFromStaff = (
-  staff: StaffWithDayReport,
-  candidate: ReportCandidateBlockUI[] | null | undefined,
-  excludedPreWork: ReportCandidateBlockUI[] | null | undefined,
-  bookingPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
-  largeProjectPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
-  diagSink?: (d: VisualGanttDiagnostics) => void,
-): GanttBlock[] => {
-  // Adapter: konvertera mapper-output (V2/allocation) till GanttBlock så att
-  // resten av renderingen (geometri, lane-packing, tooltip) inte behöver veta
-  // vilken källa blocken kom från.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _unused = null;
-  return [];
-};
-
 const timelineBlockToGanttBlock = (b: GanttBlockFromTimeline): GanttBlock => ({
   id: b.id,
   kind: b.kind as GanttKind,
@@ -415,11 +399,14 @@ const timelineBlockToGanttBlock = (b: GanttBlockFromTimeline): GanttBlock => ({
   durationMinutes: b.durationMinutes,
   title: b.title,
   subtitle: b.subtitle ?? null,
-  rawKind: (b.meta && (b.meta.displayType as string)) || (b.meta && (b.meta.allocationType as string)) || undefined,
+  rawKind:
+    (b.meta && (b.meta.displayType as string)) ||
+    (b.meta && (b.meta.allocationType as string)) ||
+    undefined,
   sessionKey: `timeline:${b.source}:${b.id}`,
 });
 
-const _blocksFromStaffLegacy = (
+const blocksFromStaff = (
   staff: StaffWithDayReport,
   candidate: ReportCandidateBlockUI[] | null | undefined,
   excludedPreWork: ReportCandidateBlockUI[] | null | undefined,
