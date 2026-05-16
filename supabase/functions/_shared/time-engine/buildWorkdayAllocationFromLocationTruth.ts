@@ -966,20 +966,29 @@ export function buildWorkdayAllocationFromLocationTruth(
       diag.warningsByType.open_timer_ignored_after_inferred_day_end += 1;
     }
     // Read-only proposal — föreslagen sluttid för human review.
-    proposals.push({
-      segmentId: `inferred-day-end-${newEndIso}`,
-      proposalType: 'suggest_workday_end',
-      proposedAllocationType: 'private_time',
-      targetType: null,
-      targetId: null,
-      label: 'Arbetsdagen verkar ha slutat',
-      startAt: newEndIso,
-      endAt: newEndIso,
-      suggestedEndAt: newEndIso,
-      confidence: stopDecision.confidence === 'low' ? 'medium' : stopDecision.confidence,
-      reason: stopDecision.endReason ?? 'non_work_location_after_last_work_over_90m',
-    });
-    diag.suggestedWorkdayEndCount += 1;
+    // För private/home-fallen äger Lager 3.6 redan proposalen "suggest_workday_end"
+    // (med samma underliggande fakta). Vi skapar bara en STOP1-proposal för
+    // fall som 3.6 INTE täcker: okänd plats efter sista jobb eller helt utan
+    // jobb-evidence. På så sätt slipper vi dubbletter och dubbla counter-bumpar.
+    const ownedByLayer36 =
+      stopDecision.endReason === 'home_after_last_work_over_90m' ||
+      stopDecision.endReason === 'private_after_last_work_over_90m';
+    if (!ownedByLayer36) {
+      proposals.push({
+        segmentId: `inferred-day-end-${newEndIso}`,
+        proposalType: 'suggest_workday_end',
+        proposedAllocationType: 'private_time',
+        targetType: null,
+        targetId: null,
+        label: 'Arbetsdagen verkar ha slutat',
+        startAt: newEndIso,
+        endAt: newEndIso,
+        suggestedEndAt: newEndIso,
+        confidence: stopDecision.confidence === 'low' ? 'medium' : stopDecision.confidence,
+        reason: stopDecision.endReason ?? 'non_work_location_after_last_work_over_90m',
+      });
+      diag.suggestedWorkdayEndCount += 1;
+    }
   } else {
     diag.dayEndDecision = null;
     diag.workdayEnvelope.endWasInferredFromNonWorkPresence = false;
