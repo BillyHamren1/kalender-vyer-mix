@@ -1,17 +1,23 @@
 ## Problem
 
-De tre projekten ("Pick up key…", "Pick up carpet nessim", "Pick up tross workman") är redan **soft-deletade** i databasen — alla har `deleted_at = 2026-05-15 09:37:29`. Förra gången jag agerade tog jag alltså bort rätt projekt, men de visas fortfarande i "Att planera"-listan.
+`PlacementDayCalendar` mountar `CustomCalendar` med `viewMode="day"`. Day-läget i `CustomCalendar` (rad 250–296) renderar en **3D-carousel** (`carousel-3d-wrapper` / `carousel-3d-container`) som är byggd för att svepa mellan flera dagar och kräver perspective + fixerad höjd från `Carousel3DStyles.css`. När vi skickar in **bara en dag** via `daysOverride={[targetDate]}` får containern ingen höjd → inget syns (det är precis vad skärmdumpen visar: tom rad, ingen TimeGrid).
 
-Orsak: `src/hooks/useUnplannedProjects.ts` filtrerar bara på `planning_status = 'needs_planning'` och saknar filter på `deleted_at IS NULL`. Soft-deletade projekt läcker därför in i listan.
+Personalkalendern själv kör aldrig day-läge med en enda dag — den använder weekly-grid och låter användaren klicka på en dagrubrik för att öppna dagen fullskärm via `expandedDayDialog`.
 
-## Åtgärd (en fil)
+## Fix
 
-**`src/hooks/useUnplannedProjects.ts`**
-- Lägg till `.is('deleted_at', null)` på både `projects`- och `large_projects`-queryn.
+Rendera CustomCalendar i **weekly-läget men begränsa `daysOverride` till exakt en dag**. Då går renderingen genom `weekly-horizontal-grid` (rad 220–246) → `TimeGrid` direkt, vilket är samma kodväg personalkalendern faktiskt visar dagligen. En enda `weekly-day-card` växer naturligt till full bredd i container och får höjd från TimeGrid:s eget innehåll.
 
-Det räcker — projekten är redan borta, de ska bara försvinna ur vyn. Inget databasarbete behövs (de tre raderna är redan markerade raderade och hamnar i Papperskorgen där de kan återställas).
+### Ändring
+
+`src/components/project/PlacementDayCalendar.tsx`:
+- `viewMode="weekly"` (i stället för `"day"`)
+- Behåll `daysOverride={[targetDate]}` så bara den ena dagen visas
+- Behåll `timeGridFullWidth` så TimeGriden fyller dialogen
+- Inga andra ändringar; fortfarande read-only, samma events/resources/internalLager-merge
+
+Inget övrigt rörs — wizardens logik, sparflöde och övriga steg är oförändrade.
 
 ## Verifiering
 
-- Kör `bunx vitest run` för relevanta planning-tester.
-- Bekräfta i preview att de tre raderna försvinner ur "Att planera".
+Öppna "Placera bokning" på en bokning i `/projects` → steg 1 ska nu visa samma TimeGrid (med team-kolumner och eventuella existerande bokningar/Lager-pass) som motsvarande dag i `/personalkalendern`.

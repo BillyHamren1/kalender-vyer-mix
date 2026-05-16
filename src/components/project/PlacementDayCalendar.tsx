@@ -45,7 +45,7 @@ export const PlacementDayCalendar: React.FC<Props> = ({ date }) => {
           daysOverride={[targetDate]}
           onDateSet={handleDateSet}
           refreshEvents={refreshEvents}
-          viewMode="day"
+          viewMode="weekly"
           isEventReadOnly={isEventReadOnly}
           timeGridFullWidth
         />
