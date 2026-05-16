@@ -40,6 +40,7 @@ import {
 } from '@/lib/staff/ganttPhaseColor';
 import { mergeContiguousBlocks, type MergeBlockInput, type MergeableKind } from '@/lib/staff/ganttBlockMerge';
 import { buildVisualGanttBlocks, visibleChips, type VisualGanttBlock, type VisualGanttDiagnostics } from '@/lib/staff/visualGanttBlocks';
+import { applyGanttVisualPipeline as sharedApplyGanttVisualPipeline, type PipelineBlock } from '@/lib/staff/ganttVisualPipeline';
 import {
   mapDisplayTimelineBlocksToGantt,
   mapWorkdayAllocationSegmentsToGantt,
