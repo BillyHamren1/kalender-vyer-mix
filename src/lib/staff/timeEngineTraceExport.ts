@@ -468,6 +468,40 @@ function buildDiffFindings(
     });
   }
 
+  // Lineage-check: workdayAllocationSegments refererar till
+  // sourceLocationTruthSegmentIds (t.ex. seg_cluster_57). Om något av
+  // dessa IDn inte återfinns i locationTruthV2Segments betyder det att
+  // exporten har tappat segmenten (eller att backend byggde dem och
+  // sedan släppte dem mellan stegen). Detta är exakt det fel som
+  // tidigare gjorde att locationTruthV2Segments = [] medan allocation
+  // refererade till seg_cluster_N-IDn.
+  const ltIds = new Set<string>(
+    safeArr<any>(timeEngine.locationTruthV2Segments)
+      .map((s) => (s && typeof s.id === 'string' ? s.id : null))
+      .filter((x): x is string => !!x),
+  );
+  const referencedLtIds = new Set<string>();
+  for (const a of safeArr<any>(timeEngine.workdayAllocationSegments)) {
+    for (const sid of safeArr<any>(a?.sourceLocationTruthSegmentIds)) {
+      if (typeof sid === 'string') referencedLtIds.add(sid);
+    }
+  }
+  const orphanLtIds = [...referencedLtIds].filter((id) => !ltIds.has(id));
+  if (orphanLtIds.length > 0) {
+    findings.push({
+      severity: 'critical',
+      type: 'allocation_references_unknown_location_truth_segment',
+      message:
+        'WorkdayAllocation refererar till LocationTruth-segment som inte finns med i exporten — lineage bruten.',
+      evidence: {
+        orphanSourceLocationTruthSegmentIds: orphanLtIds.slice(0, 20),
+        orphanCount: orphanLtIds.length,
+        locationTruthSegmentCount: ltIds.size,
+        notBuiltReason: timeEngine.locationTruthV2NotBuiltReason,
+      },
+    });
+  }
+
   return findings;
 }
 
