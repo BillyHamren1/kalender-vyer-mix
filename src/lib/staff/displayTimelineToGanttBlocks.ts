@@ -184,6 +184,18 @@ export function mapDisplayTimelineBlocksToGantt(
         severity: b.severity ?? null,
         confidence: b.confidence ?? null,
         label: b.label ?? null,
+        targetLabel: b.targetLabel ?? null,
+        addressLabel: b.addressLabel ?? null,
+        locationName: b.locationName ?? null,
+        latitude: b.latitude ?? b.centroid?.lat ?? null,
+        longitude: b.longitude ?? b.centroid?.lng ?? null,
+        centroid: b.centroid ?? null,
+        sourceLocationTruthSegmentIds: Array.isArray(b.sourceLocationTruthSegmentIds)
+          ? [...b.sourceLocationTruthSegmentIds]
+          : null,
+        sourceAllocationSegmentIds: Array.isArray(b.sourceAllocationSegmentIds)
+          ? [...b.sourceAllocationSegmentIds]
+          : null,
       },
     });
   }
