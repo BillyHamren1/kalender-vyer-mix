@@ -215,8 +215,16 @@ export interface WorkdayAllocationSegmentLite {
   label?: string | null;
   title?: string | null;
   address?: string | null;
+  addressLabel?: string | null;
+  locationName?: string | null;
   targetType?: string | null;
   targetId?: string | null;
+  targetLabel?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  centroid?: { lat: number; lng: number } | null;
+  sourceLocationTruthSegmentIds?: string[] | null;
+  sourceAllocationSegmentIds?: string[] | null;
   durationMinutes?: number | null;
   warnings?: string[] | null;
   confidence?: string | null;
