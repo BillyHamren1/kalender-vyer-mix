@@ -1951,6 +1951,9 @@ interface BlockDetailDialogProps {
   dateLabel: string;
   reportCandidate?: any;
   blockId: string | null;
+  /** V2/allocation/legacy renderat block — används som fallback när blocket
+   *  inte finns i legacy reportCandidate.blocks. */
+  renderedBlock?: GanttBlock | null;
 }
 
 const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
@@ -1961,26 +1964,33 @@ const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
   dateLabel,
   reportCandidate,
   blockId,
+  renderedBlock,
 }) => {
   const blocks = reportCandidate?.blocks ?? [];
   const excludedPreWork = reportCandidate?.excludedPreWorkBlocks ?? [];
-  const selectedBlock = blockId
+  const legacyBlock: ReportCandidateBlockUI | null = blockId
     ? (blocks.find((block: ReportCandidateBlockUI) => block.id === blockId)
         ?? (blockId.startsWith('pre-')
           ? excludedPreWork.find((block: ReportCandidateBlockUI) => block.id === blockId.slice(4)) ?? null
           : null))
     : null;
-  const { pings } = useDayPings({ staffId: staff?.id ?? '', date: dateStr, enabled: open && !!staff?.id });
-  const { events } = useDayTimeline({ staffId: staff?.id ?? '', date: dateStr, enabled: open && !!staff?.id });
+  const isTimelineSource =
+    !legacyBlock &&
+    !!renderedBlock &&
+    (renderedBlock.source === 'displayTimelineV2' ||
+      renderedBlock.source === 'workdayAllocation');
+  const selectedBlock: any = legacyBlock ?? renderedBlock ?? null;
+  const { pings } = useDayPings({ staffId: staff?.id ?? '', date: dateStr, enabled: open && !!staff?.id && !isTimelineSource });
+  const { events } = useDayTimeline({ staffId: staff?.id ?? '', date: dateStr, enabled: open && !!staff?.id && !isTimelineSource });
   const selectedEvent = useMemo(() => {
-    if (!selectedBlock) return null;
+    if (!selectedBlock || isTimelineSource) return null;
     const start = new Date(selectedBlock.startAt).getTime();
     const end = new Date(selectedBlock.endAt).getTime();
     return events.find((event) => {
       const ts = new Date(event.ts).getTime();
       return Number.isFinite(ts) && ts >= start && ts <= end;
     }) ?? null;
-  }, [events, selectedBlock]);
+  }, [events, selectedBlock, isTimelineSource]);
 
   if (!staff || !selectedBlock) return null;
 
