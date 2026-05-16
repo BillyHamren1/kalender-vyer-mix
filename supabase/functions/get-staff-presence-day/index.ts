@@ -285,6 +285,19 @@ Deno.serve(async (req) => {
         locationTruthDiagnostics = lt.diagnostics;
         locationTruthSegments = lt.segments;
 
+        // Time Engine Core Fix 1 — varför saknas LT V2-segment?
+        if (!locationTruthSegments || locationTruthSegments.length === 0) {
+          const rawCount = (dayEvidence as any)?.gps?.rawPingCount ?? 0;
+          const logicCount = (dayEvidence as any)?.gps?.locationLogicPingCount ?? 0;
+          if (rawCount === 0) {
+            locationTruthV2NotBuiltReason = 'no_raw_pings';
+          } else if (logicCount === 0) {
+            locationTruthV2NotBuiltReason = 'no_location_logic_pings';
+          } else {
+            locationTruthV2NotBuiltReason = 'all_pings_rejected';
+          }
+        }
+
         // ── Lager 3.1 — Workday Allocation (read-only debug) ──────────────
         // Kör efter LocationTruthV2. Får INTE påverka något downstream.
         // activeWorkday hämtas från active_time_registrations strax nedanför,
