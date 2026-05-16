@@ -43,7 +43,8 @@ import { buildVisualGanttBlocks, visibleChips, type VisualGanttBlock, type Visua
 import {
   mapDisplayTimelineBlocksToGantt,
   mapWorkdayAllocationSegmentsToGantt,
-  selectGanttBlockSource,
+  selectGanttSourceFromMapped,
+  sessionKeyFromTimelineBlock,
   type GanttBlockFromTimeline,
   type GanttBlockSource,
 } from '@/lib/staff/displayTimelineToGanttBlocks';
@@ -270,6 +271,19 @@ interface GanttBlock {
   attachedChips?: string[];
   /** UI-layer: ID:n på block som absorberats in i detta visuella block. */
   absorbedSourceIds?: string[];
+  // ── V2/Allocation-metadata (Gantt 5.2) ────────────────────────────────
+  /** Engine-resolved targetType (project/large_project/booking/warehouse/...). */
+  targetType?: string | null;
+  /** Engine-resolved targetId. */
+  targetId?: string | null;
+  /** Engine-resolved adress (placeringssträng). */
+  address?: string | null;
+  /** Humanvarningar att visa i drawer/tooltip. */
+  warnings?: string[];
+  /** Källa: 'displayTimelineV2' | 'workdayAllocation' | 'reportCandidate'. */
+  source?: 'displayTimelineV2' | 'workdayAllocation' | 'reportCandidate';
+  /** Råa metadata (displayType, severity, allocationType, confidence, ...). */
+  meta?: Record<string, unknown>;
 }
 
 const isWarehouseTarget = (b: ReportCandidateBlockUI): boolean => {
@@ -403,8 +417,70 @@ const timelineBlockToGanttBlock = (b: GanttBlockFromTimeline): GanttBlock => ({
     (b.meta && (b.meta.displayType as string)) ||
     (b.meta && (b.meta.allocationType as string)) ||
     undefined,
-  sessionKey: `timeline:${b.source}:${b.id}`,
+  sessionKey: sessionKeyFromTimelineBlock(b),
+  targetType: b.targetType,
+  targetId: b.targetId,
+  address: b.address,
+  warnings: b.warnings,
+  source: b.source,
+  meta: b.meta,
 });
+
+/**
+ * Visual pipeline för V2/allocation-block: kör samma merge + chips-absorb
+ * som legacy går igenom (men utan geo-label-resolvern, som är reportCandidate-
+ * specifik). Returnerar färdiga renderbara block.
+ */
+const applyGanttVisualPipeline = (
+  blocks: GanttBlock[],
+  staffName: string,
+  diagSink?: (d: VisualGanttDiagnostics) => void,
+): GanttBlock[] => {
+  if (blocks.length === 0) return [];
+  const merged = applyVisualMerge(blocks, staffName);
+  const visual = buildVisualGanttBlocks(
+    merged.map((b) => ({
+      id: b.id,
+      kind: b.kind,
+      startAt: b.startAt,
+      endAt: b.endAt,
+      durationMinutes: b.durationMinutes,
+      title: b.title,
+      subtitle: b.subtitle ?? null,
+      sessionKey: b.sessionKey,
+      isNightGpsOnly: b.isNightGpsOnly,
+    })),
+    { staffName },
+  );
+  if (diagSink) diagSink(visual.diagnostics);
+  if (
+    typeof console !== 'undefined' &&
+    visual.diagnostics.absorbedTransportCount +
+      visual.diagnostics.absorbedReviewCount +
+      visual.diagnostics.absorbedUnknownCount +
+      visual.diagnostics.absorbedPreWorkCount +
+      visual.diagnostics.hiddenPreWorkCount >
+      0
+  ) {
+    // eslint-disable-next-line no-console
+    console.warn('[Gantt 5.2] visualPipeline (timeline source)', {
+      staff: staffName,
+      ...visual.diagnostics,
+    });
+  }
+  const byId = new Map(merged.map((b) => [b.id, b]));
+  return visual.blocks
+    .map<GanttBlock | null>((v) => {
+      const src = byId.get(v.id);
+      if (!src) return null;
+      return {
+        ...src,
+        attachedChips: v.chips.length > 0 ? v.chips : undefined,
+        absorbedSourceIds: v.attachedEvents.map((a) => a.id),
+      };
+    })
+    .filter((b): b is GanttBlock => b !== null);
+};
 
 const blocksFromStaff = (
   staff: StaffWithDayReport,
