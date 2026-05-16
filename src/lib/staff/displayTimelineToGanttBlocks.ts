@@ -90,6 +90,15 @@ export interface DisplayTimelineBlockLite {
   warnings?: string[] | null;
   humanWarnings?: string[] | null;
   metadata?: Record<string, unknown> | null;
+  // Map Trace 4 — fysisk plats och matchnings-trace propageras från Lager 2/3.
+  physicalLocationLabel?: string | null;
+  physicalLocationAddress?: string | null;
+  physicalLocationLat?: number | null;
+  physicalLocationLng?: number | null;
+  physicalLocationSource?: string | null;
+  physicalLocationConfidence?: string | null;
+  locationMatchDiagnostics?: unknown;
+  businessContextResolution?: unknown;
 }
 
 const DISPLAY_TYPE_TO_KIND: Record<
@@ -196,6 +205,33 @@ export function mapDisplayTimelineBlocksToGantt(
         sourceAllocationSegmentIds: Array.isArray(b.sourceAllocationSegmentIds)
           ? [...b.sourceAllocationSegmentIds]
           : null,
+        // Map Trace 4 — fysisk plats + matchnings-trace till block-detalj.
+        physicalLocationLabel:
+          b.physicalLocationLabel
+          ?? ((b.metadata as any)?.physicalLocationLabel ?? null),
+        physicalLocationAddress:
+          b.physicalLocationAddress
+          ?? ((b.metadata as any)?.physicalLocationAddress ?? null),
+        physicalLocationLat:
+          b.physicalLocationLat
+          ?? ((b.metadata as any)?.physicalLocationLat ?? null),
+        physicalLocationLng:
+          b.physicalLocationLng
+          ?? ((b.metadata as any)?.physicalLocationLng ?? null),
+        physicalLocationSource:
+          b.physicalLocationSource
+          ?? ((b.metadata as any)?.physicalLocationSource ?? null),
+        physicalLocationConfidence:
+          b.physicalLocationConfidence
+          ?? ((b.metadata as any)?.physicalLocationConfidence ?? null),
+        locationMatchDiagnostics:
+          b.locationMatchDiagnostics
+          ?? (b.metadata as any)?.locationMatchDiagnostics
+          ?? null,
+        businessContextResolution:
+          b.businessContextResolution
+          ?? (b.metadata as any)?.businessContextResolution
+          ?? null,
       },
     });
   }
@@ -228,6 +264,16 @@ export interface WorkdayAllocationSegmentLite {
   durationMinutes?: number | null;
   warnings?: string[] | null;
   confidence?: string | null;
+  // Map Trace 4 — fysisk plats + matchnings-trace propageras från Lager 2/3.
+  physicalLocationLabel?: string | null;
+  physicalLocationAddress?: string | null;
+  physicalLocationLat?: number | null;
+  physicalLocationLng?: number | null;
+  physicalLocationSource?: string | null;
+  physicalLocationConfidence?: string | null;
+  locationMatchDiagnostics?: unknown;
+  businessContextResolution?: unknown;
+  businessContextStatus?: string | null;
 }
 
 const ALLOC_TYPE_TO_KIND: Record<string, GanttKindLite | 'work_phase' | 'hidden'> = {
@@ -294,6 +340,15 @@ export function mapWorkdayAllocationSegmentsToGantt(
         sourceAllocationSegmentIds: Array.isArray(s.sourceAllocationSegmentIds)
           ? [...s.sourceAllocationSegmentIds]
           : null,
+        physicalLocationLabel: s.physicalLocationLabel ?? null,
+        physicalLocationAddress: s.physicalLocationAddress ?? null,
+        physicalLocationLat: s.physicalLocationLat ?? null,
+        physicalLocationLng: s.physicalLocationLng ?? null,
+        physicalLocationSource: s.physicalLocationSource ?? null,
+        physicalLocationConfidence: s.physicalLocationConfidence ?? null,
+        locationMatchDiagnostics: s.locationMatchDiagnostics ?? null,
+        businessContextResolution: s.businessContextResolution ?? null,
+        businessContextStatus: s.businessContextStatus ?? null,
       },
     });
   }

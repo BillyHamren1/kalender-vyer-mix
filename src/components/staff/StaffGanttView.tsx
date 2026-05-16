@@ -2129,6 +2129,102 @@ const TimelineBlockDetail: React.FC<{ block: GanttBlock }> = ({ block }) => {
           </div>
         );
       })()}
+      {(() => {
+        const m: any = meta;
+        const physLabel = (m.physicalLocationLabel as string | null) ?? null;
+        const physAddress = (m.physicalLocationAddress as string | null) ?? null;
+        const physLat = typeof m.physicalLocationLat === 'number' ? m.physicalLocationLat : null;
+        const physLng = typeof m.physicalLocationLng === 'number' ? m.physicalLocationLng : null;
+        const physSource = (m.physicalLocationSource as string | null) ?? null;
+        const physConf = (m.physicalLocationConfidence as string | null) ?? null;
+        const matchDiag = (m.locationMatchDiagnostics as any) ?? null;
+        const bcr = (m.businessContextResolution as any) ?? null;
+        if (!physLabel && !physAddress && physLat == null && !matchDiag && !bcr) return null;
+        const matched = matchDiag?.matchedTarget ?? null;
+        const candidates: any[] = Array.isArray(matchDiag?.candidates) ? matchDiag.candidates : [];
+        const rejected: any[] = Array.isArray(matchDiag?.rejectedCandidates) ? matchDiag.rejectedCandidates : [];
+        const matchWarnings: string[] = Array.isArray(matchDiag?.warnings) ? matchDiag.warnings : [];
+        return (
+          <div className="rounded-sm border bg-muted/30 px-2 py-1.5 space-y-1.5">
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Platsmatchning</div>
+            <div className="space-y-0.5">
+              <div className="text-[10px] text-muted-foreground">Fysisk plats</div>
+              <div className="font-medium">{physLabel ?? 'okänd'}</div>
+              {physAddress && <div className="text-muted-foreground">{physAddress}</div>}
+              {physLat != null && physLng != null && (
+                <div className="font-mono text-[10px] text-muted-foreground">
+                  {physLat.toFixed(5)}, {physLng.toFixed(5)}
+                </div>
+              )}
+              <div className="text-[10px] text-muted-foreground">
+                källa: <span className="font-mono">{physSource ?? '—'}</span>
+                {physConf && <> · konfidens: <span className="font-mono">{physConf}</span></>}
+              </div>
+            </div>
+            {matched && (
+              <div className="space-y-0.5">
+                <div className="text-[10px] text-muted-foreground">Matchad EventFlow-target</div>
+                <div className="font-medium">
+                  {matched.label ?? '—'}
+                  <span className="ml-1 font-mono text-[10px] text-muted-foreground">
+                    {matched.knownTargetType ?? matched.type}{matched.targetId ? `:${matched.targetId}` : ''}
+                  </span>
+                </div>
+              </div>
+            )}
+            {matchDiag?.decisionReason && (
+              <div className="text-[11px]">
+                <span className="text-muted-foreground">Varför vald:</span>{' '}
+                <span className="font-mono">{matchDiag.decisionReason}</span>
+              </div>
+            )}
+            {bcr?.fallbackUsed && (
+              <div className="text-[11px]">
+                <span className="text-muted-foreground">Business-fallback:</span>{' '}
+                <span className="font-mono">{String(bcr.fallbackUsed)}</span>
+              </div>
+            )}
+            {candidates.length > 0 && (
+              <details className="text-[11px]">
+                <summary className="cursor-pointer text-muted-foreground">
+                  Kandidater inom radie ({candidates.length})
+                </summary>
+                <ul className="mt-1 space-y-0.5 pl-3">
+                  {candidates.map((c, i) => (
+                    <li key={i} className="font-mono">
+                      {c.targetType}:{c.targetId} · {c.label} ·{' '}
+                      {Math.round(c.distanceMeters)}m / {Math.round(c.effectiveRadiusMeters)}m
+                      {c.assignmentSupports && ' · assignment'}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+            {rejected.length > 0 && (
+              <details className="text-[11px]">
+                <summary className="cursor-pointer text-muted-foreground">
+                  Avvisade kandidater ({rejected.length})
+                </summary>
+                <ul className="mt-1 space-y-0.5 pl-3">
+                  {rejected.map((c, i) => (
+                    <li key={i} className="font-mono">
+                      {c.targetType}:{c.targetId} · {c.label} ·{' '}
+                      {Number.isFinite(c.distanceMeters) ? `${Math.round(c.distanceMeters)}m` : '∞'}
+                      {c.rejectReason && ` · ${c.rejectReason}`}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+            {matchWarnings.length > 0 && (
+              <div className="text-[11px]">
+                <span className="text-muted-foreground">Warnings:</span>{' '}
+                <span className="font-mono">{matchWarnings.join(', ')}</span>
+              </div>
+            )}
+          </div>
+        );
+      })()}
       {block.warnings && block.warnings.length > 0 && (
         <div className="rounded-sm border border-amber-300/60 bg-amber-50 dark:bg-amber-400/10 px-2 py-1.5">
           <div className="font-medium text-amber-900 dark:text-amber-200 mb-0.5">Varningar</div>

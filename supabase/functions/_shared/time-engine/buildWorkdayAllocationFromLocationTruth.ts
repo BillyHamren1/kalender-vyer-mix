@@ -102,6 +102,15 @@ export interface WorkdayAllocationSegment {
   linkedProjectCandidate?: SupplierProjectCandidate | null;
   /** Time Engine Core Fix 2 — full business-context-resolution diagnostics. */
   businessContextResolution?: BusinessContextResolution | null;
+  /** Map Trace 4 — fysisk plats-fält från LocationTruth (oberoende av target). */
+  physicalLocationLabel?: string | null;
+  physicalLocationAddress?: string | null;
+  physicalLocationLat?: number | null;
+  physicalLocationLng?: number | null;
+  physicalLocationSource?: string | null;
+  physicalLocationConfidence?: 'high' | 'medium' | 'low' | null;
+  /** Map Trace 4 — full platsmatchnings-trace (kandidater/rejects/beslut). */
+  locationMatchDiagnostics?: unknown;
 }
 
 export type SupplierProjectCandidateSource =
@@ -1292,6 +1301,13 @@ export function buildWorkdayAllocationFromLocationTruth(
         rawSegmentEndAt: seg.endAt,
         outsideWorkday: true,
         businessContextResolution: bcrOutside ?? null,
+        physicalLocationLabel: seg.physicalLocation?.label ?? null,
+        physicalLocationAddress: seg.physicalLocation?.address ?? null,
+        physicalLocationLat: seg.physicalLocation?.lat ?? null,
+        physicalLocationLng: seg.physicalLocation?.lng ?? null,
+        physicalLocationSource: seg.physicalLocation?.source ?? null,
+        physicalLocationConfidence: seg.physicalLocation?.confidence ?? null,
+        locationMatchDiagnostics: (seg.diagnostics as any)?.match ?? null,
       };
       segments.push(item);
       diag.warningsByType.segment_outside_workday += 1;
@@ -1382,6 +1398,13 @@ export function buildWorkdayAllocationFromLocationTruth(
       rawSegmentEndAt: seg.endAt,
       outsideWorkday: false,
       businessContextResolution: bcr ?? null,
+      physicalLocationLabel: seg.physicalLocation?.label ?? null,
+      physicalLocationAddress: seg.physicalLocation?.address ?? null,
+      physicalLocationLat: seg.physicalLocation?.lat ?? null,
+      physicalLocationLng: seg.physicalLocation?.lng ?? null,
+      physicalLocationSource: seg.physicalLocation?.source ?? null,
+      physicalLocationConfidence: seg.physicalLocation?.confidence ?? null,
+      locationMatchDiagnostics: (seg.diagnostics as any)?.match ?? null,
     };
     // Time Engine Core Fix 2 — counter-uppdatering.
     if (bcr) {

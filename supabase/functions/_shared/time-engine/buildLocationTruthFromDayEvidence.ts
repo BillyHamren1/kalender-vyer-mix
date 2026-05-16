@@ -219,6 +219,52 @@ export interface LocationTruthSegmentEvidence {
   assignmentSupportsTarget?: boolean;
 }
 
+/** Map Trace 4 — kompakt vy av matchKandidat för diagnos i UI. */
+export interface LocationTruthMatchCandidateDiag {
+  targetType: string;
+  targetId: string;
+  label: string;
+  distanceMeters: number;
+  effectiveRadiusMeters: number;
+  insideRadius: boolean;
+  priority: number;
+  assignmentSupports: boolean;
+  rejected: boolean;
+  rejectReason?: string;
+}
+
+/** Map Trace 4 — komplett platsmatchnings-trace per segment. */
+export interface LocationTruthMatchDiagnostics {
+  matchedTarget: {
+    type: string;
+    targetId: string | null;
+    label: string;
+    knownTargetType: string | null;
+  };
+  decisionReason: string;
+  confidence: 'high' | 'medium' | 'low';
+  candidates: LocationTruthMatchCandidateDiag[];
+  rejectedCandidates: LocationTruthMatchCandidateDiag[];
+  warnings: string[];
+  planningUsedAsTieBreaker: boolean;
+  planningIgnoredBecauseGeoDisagreed: boolean;
+}
+
+export interface LocationTruthPhysicalLocationDiag {
+  label?: string;
+  address?: string;
+  lat: number;
+  lng: number;
+  source: PhysicalLocation['source'];
+  confidence: 'high' | 'medium' | 'low';
+  /** True om endast centroid kunde användas (ingen target, ingen reverse-geocode). */
+  centroidOnly: boolean;
+  /** True om reverse-geocode användes. */
+  reverseGeocodeUsed: boolean;
+  /** Warnings från resolvePhysicalLocationForCluster. */
+  warnings: string[];
+}
+
 export interface LocationTruthSegmentDiagnostics {
   sourcePingIds?: string[];
   bridgedSignalGapMinutes?: number;
@@ -226,6 +272,10 @@ export interface LocationTruthSegmentDiagnostics {
   competingTargets?: unknown[];
   rejectedReasons?: string[];
   decisionReason?: string;
+  /** Map Trace 4 — full platsmatchnings-trace (kandidater, rejects, beslut). */
+  match?: LocationTruthMatchDiagnostics;
+  /** Map Trace 4 — fysisk plats med källa och konfidens. */
+  physicalLocation?: LocationTruthPhysicalLocationDiag;
 }
 
 export interface LocationTruthSegment {
@@ -850,6 +900,55 @@ export function buildLocationTruthFromDayEvidence(
           rejectedReasons: match.rejectedCandidates
             .map((r) => r.rejectReason)
             .filter((x): x is string => !!x),
+          // Map Trace 4 — full match-trace för UI/diagnos.
+          match: {
+            matchedTarget: {
+              type: match.matchedTarget.type,
+              targetId: match.matchedTarget.targetId,
+              label: match.matchedTarget.label,
+              knownTargetType: match.matchedTarget.knownTargetType,
+            },
+            decisionReason: match.decisionReason,
+            confidence: match.confidence,
+            candidates: match.candidates.map((c) => ({
+              targetType: c.targetType,
+              targetId: c.targetId,
+              label: c.label,
+              distanceMeters: c.distanceMeters,
+              effectiveRadiusMeters: c.effectiveRadiusMeters,
+              insideRadius: c.insideRadius,
+              priority: c.priority,
+              assignmentSupports: c.assignmentSupports,
+              rejected: c.rejected,
+              rejectReason: c.rejectReason,
+            })),
+            rejectedCandidates: match.rejectedCandidates.map((c) => ({
+              targetType: c.targetType,
+              targetId: c.targetId,
+              label: c.label,
+              distanceMeters: c.distanceMeters,
+              effectiveRadiusMeters: c.effectiveRadiusMeters,
+              insideRadius: c.insideRadius,
+              priority: c.priority,
+              assignmentSupports: c.assignmentSupports,
+              rejected: c.rejected,
+              rejectReason: c.rejectReason,
+            })),
+            warnings: [...match.warnings],
+            planningUsedAsTieBreaker: match.planningUsedAsTieBreaker,
+            planningIgnoredBecauseGeoDisagreed: match.planningIgnoredBecauseGeoDisagreed,
+          },
+          physicalLocation: {
+            label: phys.physicalLocation.label,
+            address: phys.physicalLocation.address,
+            lat: phys.physicalLocation.lat,
+            lng: phys.physicalLocation.lng,
+            source: phys.physicalLocation.source,
+            confidence: phys.physicalLocation.confidence,
+            centroidOnly: phys.centroidOnly,
+            reverseGeocodeUsed: phys.reverseGeocodeUsed,
+            warnings: [...phys.warnings],
+          },
         },
       };
 
