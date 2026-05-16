@@ -37,7 +37,27 @@ export type SuspectedProblemKey =
   | 'unlinked_address_rendered_as_review'
   | 'break_or_gap_rendered_as_large_block'
   | 'assignment_overrode_gps'
-  | 'child_booking_used_instead_of_large_project';
+  | 'child_booking_used_instead_of_large_project'
+  | 'raw_pings_exist_but_no_location_truth'
+  | 'raw_pings_exist_but_no_display_blocks'
+  | 'raw_pings_exist_but_staff_missing_from_report'
+  | 'stale_timer_but_no_same_day_pings'
+  | 'large_raw_gap_before_first_location_truth';
+
+/**
+ * Optional raw GPS debug snapshot för en specifik staff/dag.
+ * Speglar fält från debug-raw-staff-pings (perStaff entry).
+ */
+export interface RawPingDebugSnapshot {
+  rawPingCount: number;
+  firstRawPingAt: string | null;
+  lastRawPingAt: string | null;
+  maxRawPingGapMinutes: number | null;
+  medianAccuracy: number | null;
+  p90Accuracy: number | null;
+  /** True om personen INTE finns i rapportlistans staffIds-set. */
+  missingFromReportList?: boolean;
+}
 
 export interface TimeEngineLayerInfo {
   key: TimeEngineLayerKey;
