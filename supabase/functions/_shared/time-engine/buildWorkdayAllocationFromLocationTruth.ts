@@ -380,6 +380,12 @@ export interface WorkdayEnvelopeDiagnostics {
   openTimerIgnoredAfterEnd?: boolean;
   /** Total non-work-närvaro (minuter) efter sista work-evidence. */
   nonWorkAfterLastWorkMinutes?: number;
+  /** Time Engine STOP 1.1 — true om wdEnd klippts FÖRE allocation-loopen körts. */
+  clampedBeforeAllocation?: boolean;
+  /** STOP 1.1 — antal LT-segment som ignorerats för att de ligger efter inferred end. */
+  segmentsIgnoredAfterInferredDayEnd?: number;
+  /** STOP 1.1 — total tid (minuter) i ignorerade segment efter inferred end. */
+  minutesIgnoredAfterInferredDayEnd?: number;
   warnings: WorkdayEnvelopeWarning[];
 }
 
@@ -930,8 +936,12 @@ export function buildWorkdayAllocationFromLocationTruth(
   const envelopeEndMs = toMs(envelope.endAt) ?? Date.now();
   let wdEnd = Math.max(envelopeEndMs, wdStartMs);
 
-  // ── Time Engine STOP 1 — clampa wdEnd om non-work efter sista jobb > 90m ──
+  // ── Time Engine STOP 1 / STOP 1.1 — clampa wdEnd om non-work efter sista jobb > 90m ──
   // Pure helper, läser bara LocationTruth-segment. Skriver INGENTING.
+  // STOP 1.1: clampen appliceras FÖRE allocation-loopen så att segment efter
+  // inferred end aldrig blir insideWorkday eller skapar synliga display-block.
+  // Layer 3.6:s home/private-proposals täcks i STOP 1.1 av STOP1:s egna
+  // suggest_workday_end-proposal (Layer 3.6 ser inte segmenten längre).
   const stopDecision = resolveEffectiveWorkdayEndFromEvidence({
     ltSegments,
     workdayStartMs: wdStartMs,
@@ -940,22 +950,23 @@ export function buildWorkdayAllocationFromLocationTruth(
     thresholdMinutes: 90,
   });
 
-  // STOP1: applicera clamp PÅ wdEnd FÖRST efter Lager 3.6 (så att home_after_
-  // last_work_location-warning och 3.6:s suggest_workday_end-proposal hinner
-  // genereras mot orginal-wdEnd). Vi lagrar bara värdet här och skjuter upp
-  // mutationen till strax före gap-emissionen.
   const stopClampEndMs: number | null =
     stopDecision.shouldClamp && stopDecision.effectiveWorkdayEndMs !== null
       ? Math.max(stopDecision.effectiveWorkdayEndMs, wdStartMs)
       : null;
 
-  if (stopDecision.shouldClamp && stopDecision.effectiveWorkdayEndMs !== null) {
-    const newEndIso = new Date(stopClampEndMs!).toISOString();
+  if (stopDecision.shouldClamp && stopClampEndMs !== null) {
+    // ── STOP 1.1: applicera clamp DIREKT (före allocation-loopen) ──
+    wdEnd = stopClampEndMs;
+    const newEndIso = new Date(stopClampEndMs).toISOString();
     diag.workdayEndAt = newEndIso;
     diag.workdayEnvelope.effectiveWorkdayEndAt = newEndIso;
     diag.workdayEnvelope.endWasInferredFromNonWorkPresence = true;
     diag.workdayEnvelope.openTimerIgnoredAfterEnd = stopDecision.shouldClampOpenTimer;
     diag.workdayEnvelope.nonWorkAfterLastWorkMinutes = stopDecision.nonWorkDurationMinutes;
+    diag.workdayEnvelope.clampedBeforeAllocation = true;
+    diag.workdayEnvelope.segmentsIgnoredAfterInferredDayEnd = 0;
+    diag.workdayEnvelope.minutesIgnoredAfterInferredDayEnd = 0;
     diag.dayEndDecision = {
       dayEnded: true,
       endedAt: newEndIso,
@@ -973,35 +984,29 @@ export function buildWorkdayAllocationFromLocationTruth(
       }
       diag.warningsByType.open_timer_ignored_after_inferred_day_end += 1;
     }
-    // Read-only proposal — föreslagen sluttid för human review.
-    // För private/home-fallen äger Lager 3.6 redan proposalen "suggest_workday_end"
-    // (med samma underliggande fakta). Vi skapar bara en STOP1-proposal för
-    // fall som 3.6 INTE täcker: okänd plats efter sista jobb eller helt utan
-    // jobb-evidence. På så sätt slipper vi dubbletter och dubbla counter-bumpar.
-    const ownedByLayer36 =
-      stopDecision.endReason === 'home_after_last_work_over_90m' ||
-      stopDecision.endReason === 'private_after_last_work_over_90m';
-    if (!ownedByLayer36) {
-      proposals.push({
-        segmentId: `inferred-day-end-${newEndIso}`,
-        proposalType: 'suggest_workday_end',
-        proposedAllocationType: 'private_time',
-        targetType: null,
-        targetId: null,
-        label: 'Arbetsdagen verkar ha slutat',
-        startAt: newEndIso,
-        endAt: newEndIso,
-        suggestedEndAt: newEndIso,
-        confidence: stopDecision.confidence === 'low' ? 'medium' : stopDecision.confidence,
-        reason: stopDecision.endReason ?? 'non_work_location_after_last_work_over_90m',
-      });
-      diag.suggestedWorkdayEndCount += 1;
-    }
+    // STOP 1.1: Layer 3.6 ser inte längre home-segmenten (de blir outsideWorkday).
+    // Därför äger STOP1 nu ALLTID suggest_workday_end-proposalen — annars tappas
+    // den helt för private/home-fallen.
+    proposals.push({
+      segmentId: `inferred-day-end-${newEndIso}`,
+      proposalType: 'suggest_workday_end',
+      proposedAllocationType: 'private_time',
+      targetType: null,
+      targetId: null,
+      label: 'Arbetsdagen verkar ha slutat',
+      startAt: newEndIso,
+      endAt: newEndIso,
+      suggestedEndAt: newEndIso,
+      confidence: stopDecision.confidence === 'low' ? 'medium' : stopDecision.confidence,
+      reason: stopDecision.endReason ?? 'non_work_location_after_last_work_over_90m',
+    });
+    diag.suggestedWorkdayEndCount += 1;
   } else {
     diag.dayEndDecision = null;
     diag.workdayEnvelope.endWasInferredFromNonWorkPresence = false;
     diag.workdayEnvelope.openTimerIgnoredAfterEnd = false;
     diag.workdayEnvelope.nonWorkAfterLastWorkMinutes = stopDecision.nonWorkDurationMinutes;
+    diag.workdayEnvelope.clampedBeforeAllocation = false;
   }
 
   diag.workdayDurationMinutes = Math.max(0, Math.round((wdEnd - wdStartMs) / 60_000));
@@ -1087,6 +1092,15 @@ export function buildWorkdayAllocationFromLocationTruth(
     if (!overlapsWorkday) {
       diag.segmentsOutsideWorkday += 1;
       diag.segmentsOutsideEnvelope += 1;
+      // STOP 1.1 — räkna segment som ignorerats pga inferred day end (ligger
+      // efter clampad wdEnd men skulle annars ha varit innanför envelope).
+      if (stopClampEndMs !== null && sMs >= stopClampEndMs) {
+        diag.workdayEnvelope.segmentsIgnoredAfterInferredDayEnd =
+          (diag.workdayEnvelope.segmentsIgnoredAfterInferredDayEnd ?? 0) + 1;
+        diag.workdayEnvelope.minutesIgnoredAfterInferredDayEnd =
+          (diag.workdayEnvelope.minutesIgnoredAfterInferredDayEnd ?? 0) +
+          Math.max(0, Math.round((eMs - sMs) / 60_000));
+      }
       // Vi tar fortfarande med segmentet i debug-output men markerar det.
       const allocOutside = deriveAllocation(
         seg,
@@ -1443,17 +1457,9 @@ export function buildWorkdayAllocationFromLocationTruth(
   //                         'needs_work_allocation_review'
   // Review kräver: långt gap (>120 min) OCH ingen LT-segment-täckning för dagen
   // OCH inga bridge-relaterade LT-warnings.
-  // STOP1: applicera nu uppskjuten clamp av wdEnd så att gap-emissionen
-  // inte producerar stora "Glapp i dagen"-block efter inferred day end.
-  let effectiveCovered = coveredIntervals;
-  if (stopClampEndMs !== null && stopClampEndMs < wdEnd) {
-    wdEnd = stopClampEndMs;
-    diag.workdayDurationMinutes = Math.max(0, Math.round((wdEnd - wdStartMs) / 60_000));
-    effectiveCovered = coveredIntervals
-      .map(([s, e]) => [s, Math.min(e, wdEnd)] as [number, number])
-      .filter(([s, e]) => e > s);
-  }
-  effectiveCovered.sort((a, b) => a[0] - b[0]);
+  // STOP 1.1: wdEnd är redan klampad ovan (före allocation-loopen). coveredIntervals
+  // byggdes mot den klampade wdEnd, så de behöver inte filtreras igen här.
+  const effectiveCovered = coveredIntervals.slice().sort((a, b) => a[0] - b[0]);
   let cursor = wdStartMs;
   let uncoveredMs = 0;
   const SHORT_GAP_MS = 30 * 60_000;
