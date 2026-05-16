@@ -924,7 +924,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
   const diagnosisByStaff = useMemo(() => {
     const map = new Map<string, ReportDataGapDiagnosis>();
     if (!diagnosticsEnabled) return map;
-    const pingsByStaff = new Map<string, typeof rawPingsData.perStaff[number]>();
+    const pingsByStaff = new Map<string, NonNullable<typeof rawPingsData>['perStaff'][number]>();
     for (const e of rawPingsData?.perStaff ?? []) pingsByStaff.set(e.staffId, e);
     for (const s of staffList) {
       const e = pingsByStaff.get(s.id);
