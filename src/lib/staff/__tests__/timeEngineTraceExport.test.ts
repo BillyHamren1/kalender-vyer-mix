@@ -87,7 +87,42 @@ describe('buildTimeEngineTraceExport', () => {
     expect(exp.staff[0].rawPings.rows).toHaveLength(1);
     expect(exp.staff[0].rawPings.rows[0].id).toBe('p1'); // tidigast
     expect(exp.staff[0].rawPings.truncated).toBe(true);
-    expect(exp.staff[0].rawPings.totalCountBeforeLimit).toBe(2);
+    // totalCountBeforeLimit speglar verkligt pingCount (3), inte sampleRows.length (2)
+    expect(exp.staff[0].rawPings.totalCountBeforeLimit).toBe(3);
+    expect(exp.summary.rawPingsTruncatedStaffCount).toBe(1);
+    expect(exp.summary.rawPingsTruncatedTotalMissingRows).toBe(2);
+  });
+
+  it('flaggar truncated när Edge Function-flaggan rowsTruncated=true även om vi inte kapar lokalt', () => {
+    const input = baseInput();
+    // Simulera EF som returnerade 2 sampleRows men säger pingCount=12000 + rowsTruncated.
+    input.rawPings!.perStaff[0].pingCount = 12000;
+    (input.rawPings!.perStaff[0] as any).rowsTruncated = true;
+    (input.rawPings!.perStaff[0] as any).totalPingCount = 12000;
+    (input.rawPings!.perStaff[0] as any).sampleRowsCount = 2;
+    (input.rawPings!.perStaff[0] as any).maxRowsPerStaffApplied = 10000;
+    const exp = buildTimeEngineTraceExport(input);
+    expect(exp.staff[0].rawPings.truncated).toBe(true);
+    expect(exp.staff[0].rawPings.totalCountBeforeLimit).toBe(12000);
+    expect(exp.summary.rawPingsTruncatedStaffCount).toBe(1);
+  });
+
+  it('flaggar inte truncated när alla pings ryms (pingCount matchar sampleRows)', () => {
+    const exp = buildTimeEngineTraceExport(baseInput());
+    // baseInput: pingCount=3 men bara 2 sampleRows → blir truncated (mer pings än rader).
+    expect(exp.staff[0].rawPings.truncated).toBe(true);
+    expect(exp.staff[0].rawPings.totalCountBeforeLimit).toBe(3);
+  });
+
+  it('propagerar rawPingsHardCapReached + warnings från Edge Function diagnostics', () => {
+    const input = baseInput();
+    input.rawPings!.diagnostics = {
+      paginationUsed: { pageSize: 1000, pageCount: 50, truncated: true },
+      warnings: ['row_hard_cap_50000_reached'],
+    } as any;
+    const exp = buildTimeEngineTraceExport(input);
+    expect(exp.summary.rawPingsHardCapReached).toBe(true);
+    expect(exp.summary.rawPingsWarnings).toContain('row_hard_cap_50000_reached');
   });
 
   it('inkluderar staff som har raw pings men saknas i rapportlistan + flaggar critical finding', () => {
