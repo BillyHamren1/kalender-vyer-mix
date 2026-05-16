@@ -43,7 +43,7 @@ import {
   seedDaysFromBooking,
 } from './bookingPlacementSeed';
 import { BookingInfoHeader } from './BookingInfoHeader';
-import { ReadOnlyStaffDayView } from './ReadOnlyStaffDayView';
+import { PlacementDayCalendar } from './PlacementDayCalendar';
 
 interface Props {
   open: boolean;
