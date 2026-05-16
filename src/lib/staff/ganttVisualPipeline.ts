@@ -141,21 +141,18 @@ export function applyGanttVisualPipeline<T extends PipelineBlock>(
     { staffName: options.staffName },
   );
 
-  const out = visual.blocks
-    .map((v) => {
-      const src = litesById.get(v.id);
-      if (!src) return null;
-      return {
-        ...src,
-        attachedChips: v.chips.length > 0 ? v.chips : undefined,
-        absorbedSourceIds: v.attachedEvents.length > 0
-          ? v.attachedEvents.map((a) => a.id)
-          : undefined,
-      };
-    })
-    .filter((b): b is T & { attachedChips?: string[]; absorbedSourceIds?: string[] } =>
-      b !== null,
-    );
+  type Out = T & { attachedChips?: string[]; absorbedSourceIds?: string[] };
+  const out: Out[] = [];
+  for (const v of visual.blocks) {
+    const src = litesById.get(v.id);
+    if (!src) continue;
+    out.push({
+      ...src,
+      attachedChips: v.chips.length > 0 ? v.chips : undefined,
+      absorbedSourceIds:
+        v.attachedEvents.length > 0 ? v.attachedEvents.map((a) => a.id) : undefined,
+    } as Out);
+  }
 
   return {
     blocks: out,
