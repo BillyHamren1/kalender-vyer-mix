@@ -4,6 +4,11 @@ import {
   useRawStaffPingsDebug,
   type RawPingStaffEntry,
 } from '@/hooks/staff/useRawStaffPingsDebug';
+import {
+  buildReportDataGapDiagnosis,
+  describeReportDataGapStatus,
+  type ReportDataGapDiagnosis,
+} from '@/lib/staff/reportDataGapDiagnostics';
 
 interface Props {
   organizationId: string | null;
