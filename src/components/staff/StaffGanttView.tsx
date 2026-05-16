@@ -810,33 +810,47 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
   })();
 
   // Per-staff blocks + visual diagnostics.
-  // Källprioritet (Gantt akutfix):
-  //   1. displayTimelineBlocksV2 (Lager 4.1)  — primär
-  //   2. workdayAllocationSegments (Lager 3)  — fallback
-  //   3. reportCandidateBlocks (legacy)       — sista fallback
-  // Det får aldrig bli tom Gantt bara för att V2 råkar vara tom när
-  // motorn faktiskt har producerat block i en annan källa.
-  const { blocksByStaff, visualDiagByStaff, sourceByStaff } = useMemo(() => {
+  // Källprioritet (Gantt 5.2):
+  //   1. mapped displayTimelineBlocksV2 > 0 → V2 (visual pipeline)
+  //   2. mapped workdayAllocationSegments > 0 → allocation (visual pipeline)
+  //   3. reportCandidateBlocks > 0 → legacy (geo + visual pipeline)
+  // OBS: vi väljer på MAPPED count, inte rå count. En V2-uppsättning med
+  // bara private/hidden-block får annars tom Gantt trots att legacy/alloc
+  // har riktiga block.
+  const { blocksByStaff, visualDiagByStaff, sourceByStaff, sourceCountsByStaff } = useMemo(() => {
     const map: Record<string, GanttBlock[]> = {};
     const diag: Record<string, VisualGanttDiagnostics> = {};
     const sources: Record<string, GanttBlockSource> = {};
+    const counts: Record<string, {
+      rawV2: number;
+      mappedV2: number;
+      rawAlloc: number;
+      mappedAlloc: number;
+      legacy: number;
+      rendered: number;
+    }> = {};
     for (const s of staffList) {
       const cand = reportCandidateByStaff?.[s.id];
       const v2Blocks = cand?.displayTimelineBlocksV2 ?? [];
       const allocSegs = cand?.workdayAllocationSegments ?? [];
       const legacyBlocks = cand?.blocks ?? [];
-      const selected = selectGanttBlockSource({
-        displayTimelineBlocksV2: v2Blocks,
-        workdayAllocationSegments: allocSegs,
-        reportCandidateBlocksCount: legacyBlocks.length,
+
+      // Mappa direkt så vi vet vad som är renderbart.
+      const mappedV2 = mapDisplayTimelineBlocksToGantt(v2Blocks as any).map(timelineBlockToGanttBlock);
+      const mappedAlloc = mapWorkdayAllocationSegmentsToGantt(allocSegs as any).map(timelineBlockToGanttBlock);
+
+      const selected = selectGanttSourceFromMapped({
+        mappedV2Count: mappedV2.length,
+        mappedAllocationCount: mappedAlloc.length,
+        legacyCount: legacyBlocks.length,
       });
       sources[s.id] = selected;
 
       let blocks: GanttBlock[] = [];
       if (selected === 'displayTimelineV2') {
-        blocks = mapDisplayTimelineBlocksToGantt(v2Blocks as any).map(timelineBlockToGanttBlock);
+        blocks = applyGanttVisualPipeline(mappedV2, s.name, (d) => { diag[s.id] = d; });
       } else if (selected === 'workdayAllocation') {
-        blocks = mapWorkdayAllocationSegmentsToGantt(allocSegs as any).map(timelineBlockToGanttBlock);
+        blocks = applyGanttVisualPipeline(mappedAlloc, s.name, (d) => { diag[s.id] = d; });
       } else if (selected === 'reportCandidate') {
         blocks = blocksFromStaff(
           s,
@@ -847,24 +861,50 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
           largeProjectPhaseByDate,
           (d) => { diag[s.id] = d; },
         );
+        // Markera legacy-block med source så drawern kan välja rätt dialog.
+        blocks = blocks.map((b) => ({ ...b, source: b.source ?? 'reportCandidate' }));
       }
       map[s.id] = blocks;
+      counts[s.id] = {
+        rawV2: v2Blocks.length,
+        mappedV2: mappedV2.length,
+        rawAlloc: allocSegs.length,
+        mappedAlloc: mappedAlloc.length,
+        legacy: legacyBlocks.length,
+        rendered: blocks.length,
+      };
 
       // Debug-logg så vi kan se vilken källa som valdes per staff.
       if (typeof console !== 'undefined') {
         // eslint-disable-next-line no-console
         console.warn('[Gantt source]', {
           staffName: s.name,
-          displayTimelineBlocksV2Count: v2Blocks.length,
-          workdayAllocationSegmentsCount: allocSegs.length,
+          rawDisplayTimelineBlocksV2Count: v2Blocks.length,
+          mappedDisplayTimelineBlocksV2Count: mappedV2.length,
+          rawWorkdayAllocationSegmentsCount: allocSegs.length,
+          mappedWorkdayAllocationBlocksCount: mappedAlloc.length,
           reportCandidateBlocksCount: legacyBlocks.length,
           selectedSource: selected,
           renderedBlockCount: blocks.length,
         });
       }
     }
-    return { blocksByStaff: map, visualDiagByStaff: diag, sourceByStaff: sources };
+    return {
+      blocksByStaff: map,
+      visualDiagByStaff: diag,
+      sourceByStaff: sources,
+      sourceCountsByStaff: counts,
+    };
   }, [staffList, reportCandidateByStaff, bookingPhaseByDate, largeProjectPhaseByDate]);
+
+  // Renderat block för aktuell selectedBlock — används av dialogen som
+  // fallback när blocket kommer från V2/allocation och inte finns i legacy
+  // reportCandidate.blocks.
+  const selectedRenderedBlock = useMemo<GanttBlock | null>(() => {
+    if (!selectedBlock) return null;
+    const list = blocksByStaff[selectedBlock.staffId] ?? [];
+    return list.find((b) => b.id === selectedBlock.blockId) ?? null;
+  }, [selectedBlock, blocksByStaff]);
 
   // Dev/debug-flagga för att visa per-rad diagnostics-badge i UI.
   // Aktiveras via: localStorage.setItem('gantt:debug','1')  eller via DEV-builds.
