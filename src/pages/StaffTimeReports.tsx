@@ -1581,27 +1581,29 @@ const StaffTimeReports: React.FC = () => {
                 hasAssistantEvents: staffAssistantEvents.length > 0,
                 hasWorkdayFlags: staffFlags.length > 0,
               };
-               const isPlanned = plannedStaffIds.has(s.id);
-              const hasActivity =
+                const isPlanned = plannedStaffIds.has(s.id);
+              const hasNonGpsActivity =
                 presenceFlags.hasTimeReports ||
                 presenceFlags.hasLocationTimeEntries ||
                 presenceFlags.hasTravelLogs ||
                 presenceFlags.hasWorkday ||
-                presenceFlags.hasGpsPings ||
                 presenceFlags.hasAssistantEvents ||
                 presenceFlags.hasWorkdayFlags;
+              const hasActivity = hasNonGpsActivity || presenceFlags.hasGpsPings;
 
               const status: PlanningStatus = presenceFlags.hasOpenWorkday
                 ? 'workday_active'
-                : isPlanned && !hasActivity
-                  ? 'planned_not_started'
-                  : !isPlanned && hasActivity
-                    ? 'unplanned_activity'
-                    : hasActivity && !presenceFlags.hasWorkday
-                      ? 'missing_workday'
-                      : presenceFlags.hasWorkday
-                        ? 'completed'
-                        : 'planned';
+                : !isPlanned && !hasNonGpsActivity && presenceFlags.hasGpsPings
+                  ? 'gps_only'
+                  : isPlanned && !hasActivity
+                    ? 'planned_not_started'
+                    : !isPlanned && hasActivity
+                      ? 'unplanned_activity'
+                      : hasActivity && !presenceFlags.hasWorkday
+                        ? 'missing_workday'
+                        : presenceFlags.hasWorkday
+                          ? 'completed'
+                          : 'planned';
 
               const visibilityParts: string[] = [];
               if (isPlanned) visibilityParts.push('planerad i personalkalendern för vald dag');
@@ -1626,6 +1628,7 @@ const StaffTimeReports: React.FC = () => {
                 missing_workday: 'Aktivitet finns (rapport/timer/GPS) men ingen workday-rad har skapats.',
                 completed: 'Workday avslutad (ended_at satt).',
                 planned: 'Jobbassignerad och normal dag.',
+                gps_only: 'Endast råa GPS-pings finns — ingen workday, rapport, timer eller planering matchar.',
               };
 
               return {
@@ -1647,7 +1650,8 @@ const StaffTimeReports: React.FC = () => {
             s.has_open_report ? 1 :
             s.planningStatus === 'missing_workday' ? 2 :
             s.planningStatus === 'unplanned_activity' ? 3 :
-            s.planningStatus === 'planned_not_started' ? 4 : 5;
+            s.planningStatus === 'planned_not_started' ? 4 :
+            s.planningStatus === 'gps_only' ? 5 : 6;
           const ra = rank(a); const rb = rank(b);
           if (ra !== rb) return ra - rb;
           return a.name.localeCompare(b.name, 'sv');
