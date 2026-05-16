@@ -872,6 +872,34 @@ export function buildDisplayTimelineFromWorkdayAllocation(
   const allocSegments = wda?.segments ?? [];
   const proposals = wda?.proposals ?? [];
 
+  // ── Time Engine Core Fix 1 — suppress display när LT V2 saknas ──
+  // Om allocation-lagret har blockerats pga saknad LocationTruth får vi inte
+  // rita NÅGOT Gantt-block (allocSegments är redan tomt, men vi vill aldrig
+  // generera fallback-block här heller). Returnera tom display + diagnostic.
+  if ((wda?.diagnostics as any)?.engineBlockedBecauseLocationTruthMissing === true) {
+    const diagnostics: DisplayTimelineDiagnostics = {
+      staffId: wda?.diagnostics.staffId ?? null,
+      date: wda?.diagnostics.date ?? null,
+      builtAtIso: new Date().toISOString(),
+      buildDurationMs: Date.now() - startedAt,
+      inputAllocationSegmentCount: 0,
+      inputProposalCount: 0,
+      outputDisplayBlockCount: 0,
+      outputBlockCount: 0,
+      mergedSegmentCount: 0,
+      mergedSegmentsCollapsed: 0,
+      absorbedGapCount: 0,
+      hiddenTechnicalWarningCount: 0,
+      blocksByDisplayType: {} as any,
+      blocksBySeverity: { info: 0, warning: 0, needs_user_review: 0 } as any,
+      totalDisplayMinutes: 0,
+      reviewBlockCount: 0,
+      warnings: ['display_suppressed_because_missing_location_truth' as any],
+      examples: [],
+    };
+    return { blocks: [], dayActions: [], diagnostics };
+  }
+
   const proposalsBySegmentId = new Map<string, WorkdayAllocationProposal[]>();
   for (const p of proposals) {
     const arr = proposalsBySegmentId.get(p.segmentId) ?? [];
