@@ -4,7 +4,7 @@ import {
   buildWorkdayAllocationFromLocationTruth,
   type WorkdayEnvelope,
 } from './buildWorkdayAllocationFromLocationTruth.ts';
-import { buildDisplayTimelineFromWorkdayAllocation } from './buildDisplayTimelineFromWorkdayAllocation.ts';
+
 
 const DAY = '2026-05-16';
 
