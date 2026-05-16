@@ -155,7 +155,11 @@ export type WorkdayAllocationWarning =
   | 'day_end_inferred_from_non_work_presence'
   | 'open_timer_ignored_after_inferred_day_end'
   // ── Time Engine Core Fix 1 — raw GPS finns men LocationTruth saknas ──
-  | 'raw_pings_exist_but_location_truth_missing';
+  | 'raw_pings_exist_but_location_truth_missing'
+  // ── Time Engine Core Fix 2 — business context resolution ─────────────
+  | 'target_missing_geo'
+  | 'business_context_from_assignment'
+  | 'competing_targets';
 
 // ── Lager 3.11C — DEPRECATED warnings (får INTE emitteras) ─────────────
 //   - supplier_visit_no_assignment       → använd supplier_visit_without_project_context
