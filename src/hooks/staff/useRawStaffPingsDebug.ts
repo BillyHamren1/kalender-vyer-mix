@@ -34,6 +34,14 @@ export interface RawPingStaffEntry {
   staffId: string;
   staffName: string | null;
   pingCount: number;
+  /** Total antal pings i window (samma som pingCount). */
+  totalPingCount?: number;
+  /** Antal rader som faktiskt returneras i sampleRows. */
+  sampleRowsCount?: number;
+  /** True när pingCount > sampleRows.length (rader klippta). */
+  rowsTruncated?: boolean;
+  /** Per-staff cap som Edge Function applicerade (null när includeRows=false). */
+  maxRowsPerStaffApplied?: number | null;
   firstRecordedAt: string;
   lastRecordedAt: string;
   firstCreatedAt: string | null;
