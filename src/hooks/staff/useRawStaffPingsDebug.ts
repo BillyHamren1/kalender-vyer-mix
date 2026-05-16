@@ -11,6 +11,23 @@ export interface RawPingSampleRow {
   accuracy: number | null;
   speed_mps: number | null;
   time_report_id: string | null;
+  battery_level: number | null;
+  battery_percent: number | null;
+  is_charging: boolean | null;
+  battery_captured_at: string | null;
+  battery_source: string | null;
+}
+
+export interface RawPingBatterySummary {
+  firstBatteryPercent: number | null;
+  lastBatteryPercent: number | null;
+  minBatteryPercent: number | null;
+  maxBatteryPercent: number | null;
+  latestIsCharging: boolean | null;
+  batterySamplesCount: number;
+  missingBatterySamplesCount: number;
+  batteryDroppedFast: boolean;
+  likelyBatteryRelatedSignalLoss: boolean;
 }
 
 export interface RawPingStaffEntry {
@@ -31,6 +48,8 @@ export interface RawPingStaffEntry {
   gapCountOver60Min: number;
   hasPingsBeforeWorkdayLikely: boolean;
   hasPingsAfterWorkdayLikely: boolean;
+  /** Battery diagnostics — alla fält kan vara null/0 om pings saknar batteridata. */
+  battery?: RawPingBatterySummary;
   sampleRows: RawPingSampleRow[];
 }
 

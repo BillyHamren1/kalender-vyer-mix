@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Database, X, ChevronRight, ChevronDown, AlertTriangle } from 'lucide-react';
+import { Database, X, ChevronRight, ChevronDown, AlertTriangle, BatteryLow, BatteryCharging, Battery } from 'lucide-react';
 import {
   useRawStaffPingsDebug,
   type RawPingStaffEntry,
@@ -239,6 +239,7 @@ export function RawPingsDebugPanel({
                   <th className="px-2 py-1 text-right">Med acc</th>
                   <th className="px-2 py-1 text-right">P90 acc</th>
                   <th className="px-2 py-1 text-right">Sista age</th>
+                  <th className="px-2 py-1">Batteri</th>
                   <th className="px-2 py-1">Status</th>
                 </tr>
               </thead>
@@ -269,6 +270,7 @@ export function RawPingsDebugPanel({
                         <td className="px-2 py-1 text-right tabular-nums">{fmtNum(s.medianAccuracy, 0)}</td>
                         <td className="px-2 py-1 text-right tabular-nums">{fmtNum(s.p90Accuracy, 0)}</td>
                         <td className="px-2 py-1 text-right tabular-nums">{fmtAgeMin(s.lastRecordedAt, intervalEndMs)}</td>
+                        <td className="px-2 py-1"><BatteryCell battery={s.battery} /></td>
                         <td className="px-2 py-1">
                           <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] ${STATUS_CLASS[status]}`}>
                             {STATUS_LABEL[status]}
@@ -277,7 +279,8 @@ export function RawPingsDebugPanel({
                       </tr>
                       {isOpen && (
                         <tr className="bg-muted/20">
-                          <td colSpan={12} className="px-2 py-2">
+                          <td colSpan={13} className="px-2 py-2">
+                            <BatterySummaryDetail battery={s.battery} />
                             <SampleRowsTable rows={s.sampleRows} />
                           </td>
                         </tr>
@@ -286,7 +289,7 @@ export function RawPingsDebugPanel({
                   );
                 })}
                 {data.perStaff.length === 0 && (
-                  <tr><td colSpan={12} className="px-2 py-6 text-center text-muted-foreground">
+                  <tr><td colSpan={13} className="px-2 py-6 text-center text-muted-foreground">
                     Inga pings för intervallet.
                   </td></tr>
                 )}
@@ -323,6 +326,9 @@ function SampleRowsTable({ rows }: { rows: ReturnType<typeof Array.prototype.sli
             <th className="px-2 py-1 text-right">lng</th>
             <th className="px-2 py-1 text-right">acc</th>
             <th className="px-2 py-1 text-right">speed</th>
+            <th className="px-2 py-1 text-right">batt %</th>
+            <th className="px-2 py-1">laddar</th>
+            <th className="px-2 py-1">batt källa</th>
             <th className="px-2 py-1">time_report_id</th>
           </tr>
         </thead>
@@ -335,11 +341,81 @@ function SampleRowsTable({ rows }: { rows: ReturnType<typeof Array.prototype.sli
               <td className="px-2 py-0.5 text-right font-mono">{r.longitude?.toFixed?.(5) ?? '—'}</td>
               <td className="px-2 py-0.5 text-right">{r.accuracy != null ? Math.round(r.accuracy) : '—'}</td>
               <td className="px-2 py-0.5 text-right">{r.speed_mps ?? '—'}</td>
+              <td className="px-2 py-0.5 text-right tabular-nums">{r.battery_percent != null ? `${r.battery_percent}%` : '—'}</td>
+              <td className="px-2 py-0.5">{r.is_charging == null ? '—' : (r.is_charging ? 'ja' : 'nej')}</td>
+              <td className="px-2 py-0.5 text-[10px] text-muted-foreground">{r.battery_source ?? '—'}</td>
               <td className="px-2 py-0.5 font-mono text-[10px] text-muted-foreground">{r.time_report_id ?? ''}</td>
             </tr>
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function BatteryCell({ battery }: { battery?: import('@/hooks/staff/useRawStaffPingsDebug').RawPingBatterySummary }) {
+  if (!battery || battery.batterySamplesCount === 0) {
+    return <span className="text-[10px] text-muted-foreground">Ingen batteridata</span>;
+  }
+  const last = battery.lastBatteryPercent;
+  const min = battery.minBatteryPercent;
+  const Icon = battery.latestIsCharging
+    ? BatteryCharging
+    : (last != null && last <= 10 ? BatteryLow : Battery);
+  const tone =
+    battery.likelyBatteryRelatedSignalLoss ? 'text-red-700 dark:text-red-300' :
+    (last != null && last <= 15) ? 'text-amber-700 dark:text-amber-300' :
+    'text-foreground';
+  return (
+    <div className={`flex flex-col gap-0.5 ${tone}`}>
+      <div className="flex items-center gap-1 text-[11px] tabular-nums">
+        <Icon className="h-3 w-3" />
+        <span>{last != null ? `${last}%` : '—'}</span>
+        <span className="text-[10px] text-muted-foreground">min {min ?? '—'}%</span>
+      </div>
+      <div className="flex flex-wrap gap-1 text-[9px]">
+        {battery.batteryDroppedFast && (
+          <span className="rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 px-1">snabbt fall</span>
+        )}
+        {battery.likelyBatteryRelatedSignalLoss && (
+          <span className="rounded bg-red-500/20 text-red-700 dark:text-red-300 px-1">trolig batterisignalförlust</span>
+        )}
+        {battery.missingBatterySamplesCount > 0 && (
+          <span className="rounded bg-muted text-muted-foreground px-1">
+            {battery.batterySamplesCount}/{battery.batterySamplesCount + battery.missingBatterySamplesCount} m. batt
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BatterySummaryDetail({ battery }: { battery?: import('@/hooks/staff/useRawStaffPingsDebug').RawPingBatterySummary }) {
+  if (!battery || battery.batterySamplesCount === 0) {
+    return (
+      <div className="mb-2 text-[11px] text-muted-foreground">Ingen batteridata på dagens pings.</div>
+    );
+  }
+  return (
+    <div className="mb-2 grid grid-cols-2 md:grid-cols-5 gap-1 text-[11px]">
+      <Stat k="Första" v={`${battery.firstBatteryPercent ?? '—'}%`} />
+      <Stat k="Sista" v={`${battery.lastBatteryPercent ?? '—'}%`} />
+      <Stat k="Min" v={`${battery.minBatteryPercent ?? '—'}%`} />
+      <Stat k="Max" v={`${battery.maxBatteryPercent ?? '—'}%`} />
+      <Stat k="Laddar" v={battery.latestIsCharging == null ? '—' : (battery.latestIsCharging ? 'ja' : 'nej')} />
+      <Stat k="Batt-samples" v={String(battery.batterySamplesCount)} />
+      <Stat k="Utan batt-data" v={String(battery.missingBatterySamplesCount)} />
+      <Stat k="Snabbt fall" v={battery.batteryDroppedFast ? 'ja' : 'nej'} />
+      <Stat k="Trolig batt-signalförlust" v={battery.likelyBatteryRelatedSignalLoss ? 'ja' : 'nej'} />
+    </div>
+  );
+}
+
+function Stat({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="rounded border border-border/40 bg-background px-2 py-1">
+      <div className="text-[9px] uppercase tracking-wide text-muted-foreground">{k}</div>
+      <div className="font-mono tabular-nums">{v}</div>
     </div>
   );
 }
