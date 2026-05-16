@@ -2168,7 +2168,9 @@ const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
     (renderedBlock.source === 'displayTimelineV2' ||
       renderedBlock.source === 'workdayAllocation');
   const selectedBlock: any = legacyBlock ?? renderedBlock ?? null;
-  const { pings } = useDayPings({ staffId: staff?.id ?? '', date: dateStr, enabled: open && !!staff?.id && !isTimelineSource });
+  // Map Trace 1: raw GPS hämtas alltid (även för V2/allocation-block),
+  // så vi kan filtrera och visa pings för det valda blocket.
+  const { pings } = useDayPings({ staffId: staff?.id ?? '', date: dateStr, enabled: open && !!staff?.id });
   const { events } = useDayTimeline({ staffId: staff?.id ?? '', date: dateStr, enabled: open && !!staff?.id && !isTimelineSource });
   const selectedEvent = useMemo(() => {
     if (!selectedBlock || isTimelineSource) return null;
@@ -2179,6 +2181,17 @@ const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
       return Number.isFinite(ts) && ts >= start && ts <= end;
     }) ?? null;
   }, [events, selectedBlock, isTimelineSource]);
+
+  const blockPings = useMemo(() => {
+    if (!selectedBlock) return [] as typeof pings;
+    const startMs = new Date(selectedBlock.startAt).getTime();
+    const endMs = new Date(selectedBlock.endAt).getTime();
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return [];
+    return pings.filter((p) => {
+      const t = new Date(p.recorded_at).getTime();
+      return Number.isFinite(t) && t >= startMs && t <= endMs;
+    });
+  }, [pings, selectedBlock]);
 
   if (!staff || !selectedBlock) return null;
 
@@ -2250,7 +2263,17 @@ const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
             </TabsContent>
 
             <TabsContent value="raw" className="mt-0 space-y-3">
-              <div className="flex justify-end">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs text-muted-foreground tabular-nums">
+                  {blockPings.length} pings i blocket
+                  {blockPings.length > 0 ? (
+                    <>
+                      {' · '}första {formatStockholmHm(blockPings[0].recorded_at)}
+                      {' · '}sista {formatStockholmHm(blockPings[blockPings.length - 1].recorded_at)}
+                    </>
+                  ) : null}
+                  <span className="ml-2 opacity-60">({pings.length} totalt på dagen)</span>
+                </div>
                 <RawGpsDrawer
                   pings={pings}
                   date={dateStr}
@@ -2259,8 +2282,37 @@ const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
                 />
               </div>
               <div className="rounded-md border border-border/60">
-                <div className="max-h-[420px] overflow-auto p-3 text-xs text-muted-foreground">
-                  Öppna “Visa rå GPS-data” för komplett pinglista filtrerad runt valt block.
+                <div className="max-h-[420px] overflow-auto">
+                  {blockPings.length === 0 ? (
+                    <div className="p-3 text-xs text-muted-foreground">
+                      Inga pings i blockets tidsintervall.
+                    </div>
+                  ) : (
+                    <table className="w-full text-xs">
+                      <thead className="sticky top-0 bg-muted/60 text-muted-foreground">
+                        <tr>
+                          <th className="text-left font-medium px-2 py-1">Tid</th>
+                          <th className="text-left font-medium px-2 py-1">Lat</th>
+                          <th className="text-left font-medium px-2 py-1">Lng</th>
+                          <th className="text-right font-medium px-2 py-1">Acc (m)</th>
+                          <th className="text-right font-medium px-2 py-1">Speed</th>
+                          <th className="text-left font-medium px-2 py-1">Source</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {blockPings.map((p) => (
+                          <tr key={p.id} className="border-t border-border/40">
+                            <td className="px-2 py-1 font-mono tabular-nums">{formatStockholmHm(p.recorded_at)}</td>
+                            <td className="px-2 py-1 font-mono">{p.lat.toFixed(5)}</td>
+                            <td className="px-2 py-1 font-mono">{p.lng.toFixed(5)}</td>
+                            <td className="px-2 py-1 text-right tabular-nums">{p.accuracy != null ? Math.round(p.accuracy) : '—'}</td>
+                            <td className="px-2 py-1 text-right tabular-nums">{p.speed != null ? p.speed.toFixed(1) : '—'}</td>
+                            <td className="px-2 py-1 text-muted-foreground">{p.source ?? '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
               </div>
             </TabsContent>
