@@ -105,9 +105,33 @@ export function useAppHealthReporter() {
     };
     window.addEventListener('workday-started', onStarted as EventListener);
     window.addEventListener('workday-ended', onEnded as EventListener);
+
+    const onPermDenied = () => {
+      const { staffId: sid, organizationId: oid } = ctxRef.current;
+      if (!sid || !oid) return;
+      void recordAppHealthEvent({
+        organizationId: oid,
+        staffId: sid,
+        eventType: 'location_permission_denied',
+      });
+    };
+    const onPermRestored = () => {
+      const { staffId: sid, organizationId: oid } = ctxRef.current;
+      if (!sid || !oid) return;
+      void recordAppHealthEvent({
+        organizationId: oid,
+        staffId: sid,
+        eventType: 'location_permission_restored',
+      });
+    };
+    window.addEventListener('location-permission-denied', onPermDenied as EventListener);
+    window.addEventListener('location-permission-restored', onPermRestored as EventListener);
+
     return () => {
       window.removeEventListener('workday-started', onStarted as EventListener);
       window.removeEventListener('workday-ended', onEnded as EventListener);
+      window.removeEventListener('location-permission-denied', onPermDenied as EventListener);
+      window.removeEventListener('location-permission-restored', onPermRestored as EventListener);
     };
   }, [user]);
 }
