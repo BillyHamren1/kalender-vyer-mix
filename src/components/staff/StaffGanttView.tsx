@@ -1569,23 +1569,29 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                       {fmtMin(b.durationMinutes)}
                                     </div>
                                   )}
-                                  {showChips && (
-                                    <div className="mt-1 flex flex-wrap gap-1">
-                                      {b.attachedChips!.slice(0, 3).map((chip, ci) => (
-                                        <span
-                                          key={ci}
-                                          className="inline-flex items-center rounded-full bg-black/[0.06] px-1.5 py-px text-[9px] font-medium text-foreground/70"
-                                        >
-                                          {chip}
-                                        </span>
-                                      ))}
-                                      {b.attachedChips!.length > 3 && (
-                                        <span className="text-[9px] text-foreground/50">
-                                          +{b.attachedChips!.length - 3}
-                                        </span>
-                                      )}
-                                    </div>
-                                  )}
+                                  {showChips && (() => {
+                                    const { visible, overflowCount } = visibleChips(b.attachedChips!);
+                                    return (
+                                      <div className="mt-1 flex flex-wrap gap-1">
+                                        {visible.map((chip, ci) => (
+                                          <span
+                                            key={ci}
+                                            className="inline-flex items-center rounded-full bg-black/[0.06] px-1.5 py-px text-[9px] font-medium text-foreground/70"
+                                          >
+                                            {chip}
+                                          </span>
+                                        ))}
+                                        {overflowCount > 0 && (
+                                          <span
+                                            className="inline-flex items-center rounded-full bg-black/[0.06] px-1.5 py-px text-[9px] font-medium text-foreground/60"
+                                            title={b.attachedChips!.join(' · ')}
+                                          >
+                                            +{overflowCount}
+                                          </span>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                               );
                             });
