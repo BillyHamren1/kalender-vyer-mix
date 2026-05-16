@@ -987,6 +987,17 @@ export function buildWorkdayAllocationFromLocationTruth(
     shortUncoveredGapsIgnoredCount: 0,
     uncoveredGapsProposedCount: 0,
     examples: [],
+    // Time Engine Core Fix 2 — initial counters.
+    businessContextFromAssignmentCount: 0,
+    targetMissingGeoCount: 0,
+    competingTargetsCount: 0,
+    stableAddressNoTargetCount: 0,
+    businessContextFallbackCounts: {
+      none: 0,
+      assignment_without_geo: 0,
+      stable_address_no_target: 0,
+      unknown_location: 0,
+    },
   };
 
   // ── Time Engine Core Fix 1 — HÅRD GUARD: raw GPS finns men LT V2 saknas ──
