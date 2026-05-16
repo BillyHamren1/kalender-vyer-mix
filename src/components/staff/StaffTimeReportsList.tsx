@@ -57,6 +57,7 @@ const PLANNING_BADGE: Record<PlanningStatus, { label: string; className: string 
   workday_active: { label: 'Pågående arbetsdag', className: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200 border border-emerald-300/40' },
   planned: { label: 'Planerad', className: 'bg-muted text-muted-foreground border' },
   completed: null,
+  gps_only: { label: 'Har GPS — saknar rapportdata', className: 'bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200 border border-amber-300/40' },
 };
 
 // "Tappad signal" — phone hasn't pinged in >10 min, but a report is still open.
