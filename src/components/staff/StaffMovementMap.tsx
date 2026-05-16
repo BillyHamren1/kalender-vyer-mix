@@ -144,7 +144,14 @@ export const StaffMovementMap = ({ staffId, date, fromIso, toIso, className }: S
               features: points.map((p) => ({
                 type: 'Feature',
                 properties: {
-                  time: new Date(p.recorded_at).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' }),
+                  time: new Date(p.recorded_at).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                  accuracy: p.accuracy ?? null,
+                  speed: p.speed ?? null,
+                  battery_percent: p.battery_percent ?? null,
+                  source: p.source ?? null,
+                  recorded_at: p.recorded_at,
+                  lat: p.lat,
+                  lng: p.lng,
                 },
                 geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
               })),
@@ -189,9 +196,29 @@ export const StaffMovementMap = ({ staffId, date, fromIso, toIso, className }: S
             const f = e.features?.[0];
             if (!f || !map.current) return;
             const [lng, lat] = (f.geometry as any).coordinates;
+            const p: any = f.properties || {};
+            const fmtRow = (label: string, value: string | null | undefined) =>
+              value == null || value === '' || value === 'null'
+                ? ''
+                : `<div style="font-size:11px"><span style="color:#666">${label}:</span> ${value}</div>`;
+            const acc = p.accuracy != null && p.accuracy !== 'null' ? `${Math.round(Number(p.accuracy))} m` : null;
+            const spd = p.speed != null && p.speed !== 'null' ? `${Number(p.speed).toFixed(1)} m/s` : null;
+            const bat = p.battery_percent != null && p.battery_percent !== 'null' ? `${p.battery_percent}%` : null;
+            const src = p.source && p.source !== 'null' ? String(p.source) : null;
+            const coords = `${Number(p.lat).toFixed(5)}, ${Number(p.lng).toFixed(5)}`;
             new mapboxgl.Popup({ offset: 8 })
               .setLngLat([lng, lat])
-              .setHTML(`<strong>Ping</strong><br/>${(f.properties as any).time}`)
+              .setHTML(
+                `<div style="font-family:system-ui;min-width:160px">
+                  <strong>Ping</strong>
+                  <div style="font-size:11px;margin-top:2px">${p.time ?? ''}</div>
+                  ${fmtRow('Accuracy', acc)}
+                  ${fmtRow('Speed', spd)}
+                  ${fmtRow('Batteri', bat)}
+                  ${fmtRow('Källa', src)}
+                  <div style="font-size:10px;color:#888;margin-top:4px;font-family:monospace">${coords}</div>
+                </div>`,
+              )
               .addTo(map.current);
           });
           map.current.on('mouseenter', 'ping-dots', () => {
