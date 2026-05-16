@@ -147,7 +147,9 @@ export type WorkdayAllocationWarning =
   | 'workday_start_adjusted_to_first_evidence'
   // ── Time Engine STOP 1 — inferred day end pga non-work efter sista jobb ──
   | 'day_end_inferred_from_non_work_presence'
-  | 'open_timer_ignored_after_inferred_day_end';
+  | 'open_timer_ignored_after_inferred_day_end'
+  // ── Time Engine Core Fix 1 — raw GPS finns men LocationTruth saknas ──
+  | 'raw_pings_exist_but_location_truth_missing';
 
 // ── Lager 3.11C — DEPRECATED warnings (får INTE emitteras) ─────────────
 //   - supplier_visit_no_assignment       → använd supplier_visit_without_project_context
