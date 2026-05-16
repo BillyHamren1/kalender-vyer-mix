@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Database, X, ChevronRight, ChevronDown } from 'lucide-react';
+import { Database, X, ChevronRight, ChevronDown, AlertTriangle } from 'lucide-react';
 import {
   useRawStaffPingsDebug,
   type RawPingStaffEntry,
@@ -8,6 +8,10 @@ import {
 interface Props {
   organizationId: string | null;
   date: string; // YYYY-MM-DD (Stockholm-day)
+  /** Staff som faktiskt syns i rapport/Gantt-listan just nu. */
+  shownStaffIds: string[];
+  /** Namn-lookup för staff som inte finns i pings-svaret (för missing-listan). */
+  shownStaffNames?: Record<string, string>;
   onClose: () => void;
 }
 
@@ -60,7 +64,9 @@ function fmtNum(n: number | null, digits = 0) {
   return n.toFixed(digits);
 }
 
-export function RawPingsDebugPanel({ organizationId, date, onClose }: Props) {
+export function RawPingsDebugPanel({
+  organizationId, date, shownStaffIds, shownStaffNames, onClose,
+}: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [withRows, setWithRows] = useState(true);
 
@@ -74,6 +80,32 @@ export function RawPingsDebugPanel({ organizationId, date, onClose }: Props) {
     () => (data?.summary.intervalEnd ? new Date(data.summary.intervalEnd).getTime() : Date.now()),
     [data?.summary.intervalEnd],
   );
+
+  // ─── Jämför rapportlistan mot pings-listan ─────────────────────────
+  const comparison = useMemo(() => {
+    const shown = new Set(shownStaffIds);
+    const pingMap = new Map<string, RawPingStaffEntry>();
+    for (const e of data?.perStaff ?? []) pingMap.set(e.staffId, e);
+
+    const shownInReportAndHasPings: string[] = [];
+    const shownInReportNoPings: string[] = [];
+    const hasPingsButMissingFromReport: RawPingStaffEntry[] = [];
+
+    for (const id of shown) {
+      if (pingMap.has(id)) shownInReportAndHasPings.push(id);
+      else shownInReportNoPings.push(id);
+    }
+    for (const [id, entry] of pingMap) {
+      if (!shown.has(id)) hasPingsButMissingFromReport.push(entry);
+    }
+    // "noPingsAndNotShown" är inte uppmätbar härifrån (vi vet inte vilka som
+    // existerar utan både att synas och att pinga). Vi lämnar det som 0.
+    return {
+      shownInReportAndHasPings,
+      shownInReportNoPings,
+      hasPingsButMissingFromReport,
+    };
+  }, [shownStaffIds, data?.perStaff]);
 
   const toggle = (id: string) => {
     setExpanded(prev => {
@@ -137,11 +169,61 @@ export function RawPingsDebugPanel({ organizationId, date, onClose }: Props) {
               <SummaryStat label="Tz" value={data.summary.timezoneUsed} mono />
             </div>
 
+            {/* Jämförelse rapport ↔ pings */}
+            <div className="mb-3 grid grid-cols-2 md:grid-cols-3 gap-2">
+              <SummaryStat label="Syns i rapport + har pings" value={comparison.shownInReportAndHasPings.length} />
+              <SummaryStat label="Syns i rapport, inga pings" value={comparison.shownInReportNoPings.length} />
+              <SummaryStat label="Har pings men saknas" value={comparison.hasPingsButMissingFromReport.length} />
+            </div>
+
+            {comparison.hasPingsButMissingFromReport.length > 0 && (
+              <div className="mb-3 rounded-md border border-red-500/40 bg-red-500/10 p-2">
+                <div className="flex items-center gap-2 text-red-700 dark:text-red-300 font-semibold mb-1">
+                  <AlertTriangle className="h-4 w-4" />
+                  {comparison.hasPingsButMissingFromReport.length} personer har GPS-pings men finns inte i rapportlistan.
+                </div>
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className="text-left text-red-700/80 dark:text-red-300/80">
+                      <th className="px-2 py-1">Personal</th>
+                      <th className="px-2 py-1 text-right">Pings</th>
+                      <th className="px-2 py-1">Första</th>
+                      <th className="px-2 py-1">Sista</th>
+                      <th className="px-2 py-1 text-right">Max gap (m)</th>
+                      <th className="px-2 py-1"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {comparison.hasPingsButMissingFromReport.map(m => (
+                      <tr key={m.staffId} className="border-t border-red-500/20">
+                        <td className="px-2 py-1">
+                          <div className="font-medium">
+                            {m.staffName ?? shownStaffNames?.[m.staffId] ?? '—'}
+                          </div>
+                          <div className="font-mono text-[10px] text-muted-foreground">{m.staffId}</div>
+                        </td>
+                        <td className="px-2 py-1 text-right tabular-nums">{m.pingCount}</td>
+                        <td className="px-2 py-1 font-mono">{fmtTime(m.firstRecordedAt)}</td>
+                        <td className="px-2 py-1 font-mono">{fmtTime(m.lastRecordedAt)}</td>
+                        <td className="px-2 py-1 text-right tabular-nums">{fmtNum(m.maxPingGapMinutes, 0)}</td>
+                        <td className="px-2 py-1">
+                          <span className="inline-block rounded-full px-2 py-0.5 text-[10px] bg-red-500/20 text-red-700 dark:text-red-300">
+                            Saknas i rapport
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
             {data.diagnostics.warnings.length > 0 && (
               <div className="mb-2 text-amber-700 dark:text-amber-300">
                 ⚠ {data.diagnostics.warnings.join(' · ')}
               </div>
             )}
+
 
             <table className="w-full border-collapse">
               <thead className="bg-muted/60 sticky top-0">

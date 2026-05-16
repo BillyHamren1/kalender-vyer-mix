@@ -1837,6 +1837,8 @@ const StaffTimeReports: React.FC = () => {
         <RawPingsDebugPanel
           organizationId={organizationId}
           date={dateStr}
+          shownStaffIds={staffList.map(s => s.id)}
+          shownStaffNames={Object.fromEntries(staffList.map(s => [s.id, s.name]))}
           onClose={() => setRawDebugOpen(false)}
         />
       )}
