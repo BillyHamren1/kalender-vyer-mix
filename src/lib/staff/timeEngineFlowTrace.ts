@@ -42,7 +42,43 @@ export type SuspectedProblemKey =
   | 'raw_pings_exist_but_no_display_blocks'
   | 'raw_pings_exist_but_staff_missing_from_report'
   | 'stale_timer_but_no_same_day_pings'
-  | 'large_raw_gap_before_first_location_truth';
+  | 'large_raw_gap_before_first_location_truth'
+  | 'battery_low_before_signal_loss';
+
+/**
+ * Optional battery diagnostics-snapshot för en staff/dag.
+ * Speglar fält från `computeBatteryDiagnostics` + valfritt sista ping
+ * före stort signal-gap för bannertext.
+ */
+export interface BatteryDiagnosticsSnapshot {
+  hasBatteryData: boolean;
+  firstBatteryPercent: number | null;
+  lastBatteryPercent: number | null;
+  minBatteryPercent: number | null;
+  latestIsCharging: boolean | null;
+  batterySamplesCount: number;
+  missingBatterySamplesCount: number;
+  likelyBatteryRelatedSignalLoss: boolean;
+  batteryDroppedFast: boolean;
+  /** Valfri lista över snabba batterifall (>15pp / 60min eller >30pp totalt). */
+  batteryDropEvents?: Array<{
+    fromPercent: number;
+    toPercent: number;
+    startedAt: string | null;
+    endedAt: string | null;
+    windowMinutes: number | null;
+  }>;
+  /**
+   * Valfritt: sista ping innan ett stort signal-gap (>30 min). Används endast
+   * för att bygga summary-bannertext typ "GPS-signal tappades efter 12:04…".
+   */
+  lastPingBeforeLargeGap?: {
+    recordedAt: string;
+    batteryPercent: number | null;
+    isCharging: boolean | null;
+    gapAfterMinutes: number;
+  } | null;
+}
 
 /**
  * Optional raw GPS debug snapshot för en specifik staff/dag.
