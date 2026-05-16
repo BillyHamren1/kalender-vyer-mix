@@ -760,6 +760,9 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                                     Stängd
                                   </Badge>
                                 ))}
+                                {submissionDisplay && (
+                                  <StaffDaySubmissionStatusBadge display={submissionDisplay} />
+                                )}
                                 {dateAnomalyCount > 0 && (
                                   <button
                                     onClick={(e) => { e.stopPropagation(); setAnomalyDate(date); }}
