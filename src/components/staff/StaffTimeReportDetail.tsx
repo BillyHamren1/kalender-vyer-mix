@@ -18,6 +18,11 @@ import { DailyOverviewDialog } from './DailyOverviewDialog';
 import { StaffMovementMap } from './StaffMovementMap';
 import { StaffLatestPing, type LatestPing } from './StaffLatestPing';
 import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
+import {
+  useStaffDaySubmissionsRange,
+  deriveSubmissionDisplay,
+} from '@/hooks/useStaffDaySubmissionsRange';
+import { StaffDaySubmissionStatusBadge } from './StaffDaySubmissionStatusBadge';
 
 interface StaffTimeReportDetailProps {
   staffId: string;
