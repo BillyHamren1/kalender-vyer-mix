@@ -98,7 +98,7 @@ Deno.test('4.2 B — kort uncovered gap (≤10 min) döljs från huvudvyn', () =
   assertEquals(r.diagnostics.hiddenTechnicalWarningCount >= 1, true);
 });
 
-Deno.test('4.2 B — långt uncovered gap visas som info (mjuk warning) under 30 min', () => {
+Deno.test('TE4 — gap 11–30 min vikts in i föregående block (ingen review)', () => {
   const segs = [seg({ id: 'a', startAt: '2026-05-15T08:00:00Z', endAt: '2026-05-15T09:00:00Z' })];
   const proposals: WorkdayAllocationProposal[] = [
     {
@@ -109,9 +109,13 @@ Deno.test('4.2 B — långt uncovered gap visas som info (mjuk warning) under 30
     } as any,
   ];
   const r = run(wda(segs, proposals));
+  // Inget gap-block ska skapas — vikt in på 'a'.
   const gapBlock = r.blocks.find((b) => b.displayType === 'break_or_gap');
-  assert(gapBlock, 'gap-block ska finnas');
-  assertEquals(gapBlock!.severity, 'info');
+  assertEquals(gapBlock, undefined, 'kort gap ska INTE bli huvudblock');
+  const host = r.blocks.find((b) => b.id.includes('_a'));
+  assert(host, 'host-block för "a" ska finnas');
+  assertEquals(host!.metadata.absorbedGapMinutes, 25);
+  assert(host!.humanWarnings.some((w) => /Signalbortfall/.test(w)));
 });
 
 Deno.test('4.2 D — kort supplier (10 min) med linkedProjectCandidate vikts in i grannprojektet', () => {

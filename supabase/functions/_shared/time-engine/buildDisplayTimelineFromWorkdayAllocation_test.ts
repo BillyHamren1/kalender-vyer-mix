@@ -112,13 +112,15 @@ Deno.test('4.1: stora glapp (>30min på samma target) slås INTE ihop', () => {
 
 // ── Severity ─────────────────────────────────────────────────────────────
 
-Deno.test('4.1: severity = needs_user_review för review/unlinked/gap', () => {
+Deno.test('TE4: severity = needs_user_review för review, warning för unlinked, info för gap', () => {
   const r = run(wda([
     seg({ id: 'a', allocationType: 'needs_work_allocation_review', targetType: null, targetId: null }),
     seg({ id: 'b', allocationType: 'unlinked_work_address', targetType: null, targetId: null, startAt: '2026-05-15T09:00:00Z', endAt: '2026-05-15T10:00:00Z' }),
   ]));
+  // review-allokering förblir needs_user_review.
   assertEquals(r.blocks[0].severity, 'needs_user_review');
-  assertEquals(r.blocks[1].severity, 'needs_user_review');
+  // unlinked_address är ARBETE som saknar projekt-koppling → warning, inte review.
+  assertEquals(r.blocks[1].severity, 'warning');
 });
 
 Deno.test('4.1: severity = warning vid staff_not_assigned_to_matched_target', () => {
@@ -260,16 +262,17 @@ Deno.test('4.1: tom segments-lista → empty_workday_allocation warning', () => 
 
 // ── Diagnostics ──────────────────────────────────────────────────────────
 
-Deno.test('4.1: diagnostics räknar block per displayType och severity', () => {
+Deno.test('TE4: diagnostics räknar block per displayType och severity', () => {
   const r = run(wda([
     seg({ id: 'a', confidence: 'high' }),
     seg({ id: 'b', allocationType: 'unlinked_work_address', targetType: null, targetId: null, startAt: '2026-05-15T09:00:00Z', endAt: '2026-05-15T10:00:00Z' }),
     seg({ id: 'c', warnings: ['staff_not_assigned_to_matched_target'], targetId: 'p2', startAt: '2026-05-15T10:00:00Z', endAt: '2026-05-15T11:00:00Z' }),
   ]));
   assertEquals(r.diagnostics.outputBlockCount, 3);
+  // TE4 — unlinked_address är nu severity=warning (inte needs_user_review).
   assertEquals(r.diagnostics.blocksBySeverity.normal, 1);
-  assertEquals(r.diagnostics.blocksBySeverity.warning, 1);
-  assertEquals(r.diagnostics.blocksBySeverity.needs_user_review, 1);
-  assertEquals(r.diagnostics.reviewBlockCount, 1);
+  assertEquals(r.diagnostics.blocksBySeverity.warning, 2);
+  assertEquals(r.diagnostics.blocksBySeverity.needs_user_review, 0);
+  assertEquals(r.diagnostics.reviewBlockCount, 0);
   assertEquals(r.diagnostics.totalDisplayMinutes, 60 + 60 + 60);
 });

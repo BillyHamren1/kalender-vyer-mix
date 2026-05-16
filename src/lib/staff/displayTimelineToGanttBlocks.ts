@@ -113,8 +113,11 @@ const resolveKindForDisplayBlock = (
     return 'work';
   }
   if (mapped === 'review' && b.displayType === 'unlinked_address') {
-    if (b.severity === 'needs_user_review' || b.severity === 'warning') return 'review';
-    return 'unknown';
+    // Time Engine 4 — unlinked_address är ARBETE som saknar projekt-koppling.
+    // Endast verklig konflikt (needs_user_review) renderas som review-block.
+    // warning/info → kind 'work' med chips/warnings som förklarar.
+    if (b.severity === 'needs_user_review') return 'review';
+    return 'work';
   }
   return mapped;
 };
@@ -207,7 +210,7 @@ const ALLOC_TYPE_TO_KIND: Record<string, GanttKindLite | 'work_phase' | 'hidden'
   supplier_visit: 'work',
   work_travel: 'transport',
   commute_travel: 'transport',
-  unlinked_work_address: 'review',
+  unlinked_work_address: 'work',
   private_time: 'hidden',
   needs_work_allocation_review: 'review',
 };

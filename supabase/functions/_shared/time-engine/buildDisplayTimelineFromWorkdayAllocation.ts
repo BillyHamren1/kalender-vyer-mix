@@ -73,7 +73,11 @@ export type DisplayTimelineWarning =
   | 'workday_time_without_location_truth_segment'
   | 'warehouse_presence_during_planned_project'
   | 'segment_partially_outside_workday'
-  | 'needs_review_business_context';
+  | 'needs_review_business_context'
+  // Time Engine 4 — okopplad adress får synlig warning, inte review.
+  | 'no_project_link'
+  // Time Engine 4 — kort signalbortfall vikt in på närliggande block.
+  | 'absorbed_signal_gap';
 
 /**
  * Action användaren förväntas kunna ta från ett block (eller hela dagen).
@@ -281,6 +285,8 @@ const USER_VISIBLE_WARNINGS = new Set<DisplayTimelineWarning>([
   'warehouse_presence_during_planned_project',
   'segment_partially_outside_workday',
   'needs_review_business_context',
+  'no_project_link',
+  'absorbed_signal_gap',
 ]);
 
 function toMs(iso: string): number {
@@ -309,7 +315,7 @@ function pickWarnings(raw: WorkdayAllocationWarning[]): DisplayTimelineWarning[]
 const WARNING_HUMAN_TEXT: Partial<Record<string, string>> = {
   staff_not_assigned_to_matched_target: 'Du var på plats men saknade assignment.',
   unassigned_known_target_presence: 'Närvaro på känd plats utan assignment.',
-  no_project_link: 'Adressen är inte kopplad till projekt.',
+  no_project_link: 'Saknar projektkoppling',
   long_signal_gap: 'Signal saknades en längre stund, men platsen verkar vara samma.',
   planning_geo_mismatch: 'Planeringen säger annan plats än GPS.',
   supplier_visit_without_project_context: 'Leverantörsbesöket saknar tydlig projektkoppling.',
@@ -326,6 +332,7 @@ const WARNING_HUMAN_TEXT: Partial<Record<string, string>> = {
   workday_time_without_location_truth_segment: 'Arbetstid utan platsdata.',
   segment_partially_outside_workday: 'Delvis utanför arbetsdagen.',
   needs_review_business_context: 'Affärsmässigt sammanhang behöver granskas.',
+  absorbed_signal_gap: 'Kort signalbortfall.',
 };
 
 function humanWarning(w: string): string | null {
@@ -350,9 +357,19 @@ function deriveSeverity(
   confidence: WorkdayAllocationConfidence,
   warnings: WorkdayAllocationWarning[],
 ): DisplayTimelineSeverity {
+  // Time Engine 4 — review behålls bara för verklig motor-osäkerhet.
   if (displayType === 'review') return 'needs_user_review';
-  if (displayType === 'unlinked_address') return 'needs_user_review';
-  if (displayType === 'break_or_gap') return 'needs_user_review';
+  // Time Engine 4 — unlinked_address är ARBETE som saknar projekt-koppling.
+  // Stabil fysisk plats utan länk → warning. Kort/osäker → info.
+  // needs_user_review bara om verklig konflikt (planning_geo_mismatch m.fl.).
+  if (displayType === 'unlinked_address') {
+    if (warnings.includes('planning_geo_mismatch')) return 'needs_user_review';
+    if (confidence === 'low') return 'info';
+    return 'warning';
+  }
+  // Time Engine 4 — break_or_gap-severity styrs i gap-byggar-steget (kort=info,
+  // lång=warning, kritisk=needs_user_review). Default här är info.
+  if (displayType === 'break_or_gap') return 'info';
   if (warnings.includes('staff_not_assigned_to_matched_target')) return 'warning';
   if (warnings.includes('planning_geo_mismatch')) return 'warning';
   if (warnings.includes('supplier_visit_during_planned_project')) return 'warning';
@@ -993,11 +1010,19 @@ export function buildDisplayTimelineFromWorkdayAllocation(
     if (tryFold(i)) blocks.splice(i, 1);
   }
 
-  // ── Lager 4.2 — Lägg till uncovered_workday_time som mjuka block ──
+  // ── Time Engine 4 — Gap-rendering ───────────────────────────────────────
+  // Tröskelvärden:
+  //   <= 10 min  → dölj helt
+  //   11–30 min  → vik in i föregående block (humanWarning + absorbedGap)
+  //   31–90 min  → discrete info-block ("Glapp i signal")
+  //   > 90 min   → needs_user_review-block ("Glapp i dagen")
   const SHORT_GAP_HIDE_MAX_MIN = 10;
+  const FOLD_GAP_MAX_MIN = 30;
+  const LONG_GAP_MAX_MIN = 90;
   const gapProposals = proposals.filter((p) => p.proposalType === 'uncovered_workday_time');
   let gapIdx = 0;
   let hiddenShortGapCount = 0;
+  let foldedGapCount = 0;
   for (const gp of gapProposals) {
     const gMin = durationMinutes(gp.startAt, gp.endAt);
     if (gMin <= SHORT_GAP_HIDE_MAX_MIN) {
@@ -1011,9 +1036,50 @@ export function buildDisplayTimelineFromWorkdayAllocation(
       }
       continue;
     }
+    if (gMin <= FOLD_GAP_MAX_MIN) {
+      // Vik in i föregående arbets-block om möjligt.
+      const gapStartMs = toMs(gp.startAt);
+      let host: DisplayTimelineBlock | null = null;
+      for (let i = blocks.length - 1; i >= 0; i--) {
+        const b = blocks[i];
+        if (b.displayType === 'break_or_gap' || b.displayType === 'private') continue;
+        if (toMs(b.endAt) <= gapStartMs) { host = b; break; }
+      }
+      if (host) {
+        host.metadata.absorbedGapMinutes =
+          (host.metadata.absorbedGapMinutes ?? 0) + gMin;
+        if (!host.warnings.includes('absorbed_signal_gap' as DisplayTimelineWarning)) {
+          host.warnings.push('absorbed_signal_gap' as DisplayTimelineWarning);
+        }
+        const text = `Signalbortfall ${gMin} min`;
+        if (!host.humanWarnings.includes(text)) host.humanWarnings.push(text);
+        foldedGapCount += 1;
+        if (examples.length < 6) {
+          examples.push({
+            kind: 'absorbed_small_gap',
+            startAt: gp.startAt, endAt: gp.endAt,
+            note: `Gap ${gMin} min vikt in på ${host.title}`,
+          });
+        }
+        continue;
+      }
+      // Ingen host → degradera till info-block men ändå discrete.
+      const block = buildGapBlock(gp.startAt, gp.endAt, gapIdx++, gp);
+      block.severity = 'info';
+      block.title = 'Glapp i signal';
+      blocks.push(block);
+      continue;
+    }
+    if (gMin <= LONG_GAP_MAX_MIN) {
+      const block = buildGapBlock(gp.startAt, gp.endAt, gapIdx++, gp);
+      block.severity = 'info';
+      block.title = 'Glapp i signal';
+      blocks.push(block);
+      continue;
+    }
+    // > 90 min → critical
     const block = buildGapBlock(gp.startAt, gp.endAt, gapIdx++, gp);
-    // Lager 4.2 — milda långa gaps; behåll review-action.
-    if (gMin <= 30) block.severity = 'info';
+    block.severity = 'needs_user_review';
     blocks.push(block);
   }
 
