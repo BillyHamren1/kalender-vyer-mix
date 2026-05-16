@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useQueries } from '@tanstack/react-query';
-import { Clock, ArrowLeft } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Clock } from 'lucide-react';
 import { PageContainer } from '@/components/ui/PageContainer';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { supabase } from '@/integrations/supabase/client';
 import { StaffGanttView } from '@/components/staff/StaffGanttView';
-import { StaffTimeReportDetail } from '@/components/staff/StaffTimeReportDetail';
 
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { format } from 'date-fns';
@@ -189,34 +188,25 @@ const composeLocalIso = (dateStr: string, timeStr: string): string =>
   stockholmWallClockToIso(dateStr, timeStr);
 
 const StaffTimeReports: React.FC = () => {
-  // Deep-link support: ?staff=<id>&date=YYYY-MM-DD öppnar direkt i detaljvyn.
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Bakåtkompat: gamla deep-links med ?staff=&date= redirectas till
+  // den dedikerade dagsroute som äger detaljvyn (egen Tillbaka osv.).
   const initialParams = typeof window !== 'undefined'
     ? new URLSearchParams(window.location.search)
     : new URLSearchParams();
-  const initialStaff = initialParams.get('staff');
-  const initialDateParam = initialParams.get('date');
-  const parsedInitialDate = initialDateParam && /^\d{4}-\d{2}-\d{2}$/.test(initialDateParam)
-    ? new Date(`${initialDateParam}T12:00:00Z`)
-    : new Date();
+  const legacyStaff = initialParams.get('staff');
+  const legacyDate = initialParams.get('date');
+  if (legacyStaff) {
+    const safeDate = legacyDate && /^\d{4}-\d{2}-\d{2}$/.test(legacyDate) ? legacyDate : '';
+    const target = safeDate
+      ? `/staff-management/time-reports/${legacyStaff}/${safeDate}`
+      : `/staff-management/time-reports/${legacyStaff}`;
+    return <Navigate to={target} replace />;
+  }
 
-  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(initialStaff);
-  const [selectedStaffName, setSelectedStaffName] = useState<string>('');
-  const [selectedDate, setSelectedDate] = useState(parsedInitialDate);
-
-  // Hämta staff-namn när deep-link används utan att ha klickat i listan.
-  useEffect(() => {
-    if (!selectedStaffId || selectedStaffName) return;
-    let cancelled = false;
-    (async () => {
-      const { data } = await supabase
-        .from('staff_members')
-        .select('name')
-        .eq('id', selectedStaffId)
-        .maybeSingle();
-      if (!cancelled && data?.name) setSelectedStaffName(data.name);
-    })();
-    return () => { cancelled = true; };
-  }, [selectedStaffId, selectedStaffName]);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
 
   // Tolka selectedDate som Europe/Stockholm-dag oavsett webbläsarens TZ.
