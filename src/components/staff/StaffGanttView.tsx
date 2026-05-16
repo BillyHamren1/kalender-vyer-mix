@@ -839,22 +839,48 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
       const mappedV2 = mapDisplayTimelineBlocksToGantt(v2Blocks as any).map(timelineBlockToGanttBlock);
       const mappedAlloc = mapWorkdayAllocationSegmentsToGantt(allocSegs as any).map(timelineBlockToGanttBlock);
 
-      // ── DEL 1 — V2 explicit suppression-guard ──
+      // ── DEL 1 / Fix B — V2 explicit suppression-guard ──
       // När motorn (LT V2 / WorkdayAllocation / DisplayTimeline) explicit
-      // har valt att inte rendera dagen pga säkerhetsskäl får legacy
-      // reportCandidate INTE användas som fallback. Annars läcker en
-      // falsk arbetsdag in från legacy-pipeline.
+      // har valt att inte rendera dagen pga säkerhetsskäl, ELLER när V2
+      // helt enkelt har analyserat dagen utan att hitta en aktiv arbetsdag,
+      // får legacy reportCandidate INTE användas som fallback. Annars läcker
+      // en falsk arbetsdag in från legacy-pipeline.
       const wdaDiag = cand?.workdayAllocationDiagnostics ?? null;
       const dtDiag = cand?.displayTimelineDiagnosticsV2 ?? null;
-      const v2ExplicitlyBlocked =
+      const wdaWarnings: string[] = Array.isArray(wdaDiag?.warnings) ? wdaDiag.warnings : [];
+      const dtWarnings: string[] = Array.isArray(dtDiag?.warnings) ? dtDiag.warnings : [];
+
+      const v2HardBlocked =
         wdaDiag?.engineBlockedBecauseLocationTruthMissing === true ||
         wdaDiag?.hasRawPingsButNoLocationTruth === true ||
-        (Array.isArray(dtDiag?.warnings) &&
-          dtDiag.warnings.includes('display_suppressed_because_missing_location_truth')) ||
-        (Array.isArray(wdaDiag?.warnings) &&
-          (wdaDiag.warnings.includes('open_timer_without_same_day_evidence') ||
-            wdaDiag.warnings.includes('open_timer_ignored_after_inferred_day_end'))) ||
+        dtWarnings.includes('display_suppressed_because_missing_location_truth') ||
+        dtWarnings.includes('display_suppressed_open_timer_without_evidence') ||
+        wdaWarnings.includes('open_timer_without_same_day_evidence') ||
+        wdaWarnings.includes('open_timer_ignored_after_inferred_day_end') ||
         wdaDiag?.canonicalTimer?.staleOpenTimerIgnored === true;
+
+      // Fix B — V2 har "rört" dagen om det finns diagnostics eller LT-segments.
+      const v2AnalyzedDay =
+        wdaDiag !== null ||
+        dtDiag !== null ||
+        typeof wdaDiag?.locationTruthV2SegmentCount === 'number' ||
+        (typeof cand?.counts?.locationTruthV2SegmentCount === 'number');
+
+      // Fix B — V2 säger uttryckligen "ingen aktiv arbetsdag".
+      const v2NoActiveWorkday =
+        wdaDiag?.hasActiveWorkday === false ||
+        wdaWarnings.includes('no_active_workday') ||
+        wdaWarnings.includes('workday_start_missing') ||
+        wdaWarnings.includes('empty_workday_allocation') ||
+        dtWarnings.includes('empty_workday_allocation');
+
+      const v2EmptyByDecision =
+        v2AnalyzedDay &&
+        mappedV2.length === 0 &&
+        mappedAlloc.length === 0 &&
+        v2NoActiveWorkday;
+
+      const v2ExplicitlyBlocked = v2HardBlocked || v2EmptyByDecision;
 
       const selected = selectGanttSourceFromMapped({
         mappedV2Count: mappedV2.length,
@@ -862,7 +888,12 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
         // Vid explicit V2-suppression: blockera legacy-fallback också.
         legacyCount: v2ExplicitlyBlocked ? 0 : legacyBlocks.length,
       });
-      sources[s.id] = selected;
+      // Fix B — märk explicit som v2_empty så drawer/trace ser skillnad mot
+      // 'empty' (där V2 inte ens har analyserat dagen).
+      const finalSelected: GanttBlockSource = v2ExplicitlyBlocked && selected === 'empty'
+        ? 'v2_empty'
+        : selected;
+      sources[s.id] = finalSelected;
 
       let blocks: GanttBlock[] = [];
       if (selected === 'displayTimelineV2') {
