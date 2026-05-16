@@ -1807,6 +1807,62 @@ const StaffTimeReports: React.FC = () => {
   const { organizationId } = useCurrentOrg();
   const rawDebugEnabled = isRawPingsDebugEnabled();
   const [rawDebugOpen, setRawDebugOpen] = useState(false);
+  const [exportingTrace, setExportingTrace] = useState(false);
+
+  // READ-ONLY: senast emitterad Gantt-diagnostik från StaffGanttView.
+  // Bara använd för Export Trace JSON. Påverkar inte rendering.
+  const ganttDiagnosticsRef = React.useRef<Record<string, GanttExportSnapshotForStaff>>({});
+  const handleGanttDiagnostics = React.useCallback(
+    (snap: Record<string, GanttExportSnapshotForStaff>) => {
+      ganttDiagnosticsRef.current = snap;
+    },
+    [],
+  );
+
+  const handleExportTrace = React.useCallback(async () => {
+    if (!organizationId) return;
+    setExportingTrace(true);
+    try {
+      // Hämta råpings INKL. rader för dagen (max 10000 per person).
+      const { data: rawPings, error } = await supabase.functions.invoke('debug-raw-staff-pings', {
+        body: {
+          organizationId,
+          date: dateStr,
+          includeRows: true,
+          maxRowsPerStaff: 10_000,
+        },
+      });
+      if (error) throw error;
+
+      const exp = buildTimeEngineTraceExport({
+        exportedAt: new Date().toISOString(),
+        organizationId,
+        date: dateStr,
+        timezone: 'Europe/Stockholm',
+        staffSeeds: staffList.map(s => ({
+          staffId: s.id,
+          staffName: s.name,
+          appearsInReportList: true,
+        })),
+        reportCandidateByStaff: reportCandidateByStaff as any,
+        rawPings: rawPings as any,
+        ganttDiagnosticsByStaff: ganttDiagnosticsRef.current,
+        maxRowsPerStaff: 10_000,
+      });
+      downloadTraceExportJson(exp);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[Export Trace JSON] failed', e);
+      try {
+        // Mjuk fallback: alert i debug-läget så vi vet att export inte gick.
+        if (typeof window !== 'undefined') {
+          window.alert(`Export Trace JSON misslyckades: ${(e as any)?.message ?? e}`);
+        }
+      } catch { /* ignore */ }
+    } finally {
+      setExportingTrace(false);
+    }
+  }, [organizationId, dateStr, staffList, reportCandidateByStaff]);
 
   return (
     <div className="h-screen flex flex-col overflow-hidden theme-purple bg-[hsl(220_20%_97%)] dark:bg-background">
@@ -1826,17 +1882,32 @@ const StaffTimeReports: React.FC = () => {
           engineMode={engineMode}
           bookingPhaseByDate={bookingPhaseByDate}
           largeProjectPhaseByDate={largeProjectPhaseByDate}
+          onGanttDiagnosticsChange={rawDebugEnabled ? handleGanttDiagnostics : undefined}
           />
         </div>
       </div>
-      {rawDebugEnabled && !rawDebugOpen && (
-        <button
-          type="button"
-          onClick={() => setRawDebugOpen(true)}
-          className="fixed bottom-3 right-3 z-40 flex items-center gap-1 rounded-full bg-primary text-primary-foreground px-3 py-1.5 text-xs shadow-lg hover:opacity-90"
-        >
-          <Database className="h-3.5 w-3.5" /> Raw GPS
-        </button>
+      {rawDebugEnabled && (
+        <div className="fixed bottom-3 right-3 z-40 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleExportTrace}
+            disabled={exportingTrace || !organizationId}
+            className="flex items-center gap-1 rounded-full bg-secondary text-secondary-foreground px-3 py-1.5 text-xs shadow-lg hover:opacity-90 disabled:opacity-60"
+            title="Exportera råpings + Time Engine-slutprodukt som JSON för analys"
+          >
+            <Download className="h-3.5 w-3.5" />
+            {exportingTrace ? 'Exporterar…' : 'Export Trace JSON'}
+          </button>
+          {!rawDebugOpen && (
+            <button
+              type="button"
+              onClick={() => setRawDebugOpen(true)}
+              className="flex items-center gap-1 rounded-full bg-primary text-primary-foreground px-3 py-1.5 text-xs shadow-lg hover:opacity-90"
+            >
+              <Database className="h-3.5 w-3.5" /> Raw GPS
+            </button>
+          )}
+        </div>
       )}
       {rawDebugEnabled && rawDebugOpen && (
         <RawPingsDebugPanel
