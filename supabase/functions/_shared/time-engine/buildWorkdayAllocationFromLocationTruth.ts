@@ -576,6 +576,7 @@ const WARNING_TYPES: WorkdayAllocationWarning[] = [
   'workday_start_adjusted_to_first_evidence',
   'day_end_inferred_from_non_work_presence',
   'open_timer_ignored_after_inferred_day_end',
+  'raw_pings_exist_but_location_truth_missing',
 ];
 
 const emptyAllocCounts = (): Record<WorkdayAllocationType, number> =>
