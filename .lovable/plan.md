@@ -1,39 +1,55 @@
-# Spåra och åtgärda feltoasten
+# Gantt 5.3 — Integrationstest för V2 visual pipeline
 
-## Vad jag ser
-Toasten "JSON object requested, multiple (or no) rows returned" är råtexten från PostgREST när ett `.single()`-anrop får 0 eller >1 rader tillbaka. Den dyker upp i `Placera bokning`-vyn (skärmdumpen visar dialogen + Spara-knappen synliga).
+## Mål
+Bevisa att V2 (`displayTimelineBlocksV2`) går genom EXAKT samma merge/absorb-pipeline som legacy, så block kan mergeas, korta transport/review absorberas, fallback fungerar och metadata bevaras.
 
-Inga konsol-/nätverksloggar finns sparade just nu, så jag kan inte peka ut exakt rad — men det finns några misstänkta `.single()`/`toast.error(err.message)`-platser i flödet runt `BookingPlacementDialog`, `useInternalLagerCalendarEvents`, `useRealTimeCalendarEvents` och `useProjectDetail`.
+## Problem att lösa först (refactor)
+Pipeline-helpern `applyGanttVisualPipeline` ligger inbäddad i `src/components/staff/StaffGanttView.tsx` (rad 434) och är inte exportbar. Den måste extraheras till en pure modul så testet kör samma kod som UI:t — inte en kopia.
 
-## Plan
+## Filer
 
-### 1. Hårda toasten så vi alltid ser var den kommer ifrån
-- I `BookingPlacementDialog.handleFinish` (catch): logga `err.code`, `err.details`, `err.hint`, och visa en svensk text istället för rå PostgREST-sträng. Översätt `PGRST116` → "Hittade inte rätt rad i databasen (kontakta admin)" + behåll `console.error` med stacktrace.
-- Lägg till en lättviktig global wrapper i `src/integrations/supabase/client.ts` (eller ny `src/lib/supabase/translateError.ts`) som mappar PGRST116/PGRST301 till svensk text — användas i alla catch-blocks i placerings-/projekt-flödet.
+### 1. Ny fil: `src/lib/staff/ganttVisualPipeline.ts`
+Flytta `applyGanttVisualPipeline` hit som pure helper:
+- Input: `GanttBlock[]` + staffName + valfri diagSink
+- Output: `GanttBlock[]` med `attachedChips` + `absorbedSourceIds`
+- Komponerar `applyVisualMerge` → `buildVisualGanttBlocks` → mappa tillbaka till `GanttBlock`
+- Beroenden importeras från befintliga moduler (`ganttBlockMerge`, `visualGanttBlocks`, `StaffGanttView`-typer flyttas vid behov till en typfil eller importeras tillbaka)
 
-### 2. Härda alla `.single()` i placeringsflödet
-Konvertera till `.maybeSingle()` + explicit nullkontroll där det är säkrare:
+### 2. Edit: `src/components/staff/StaffGanttView.tsx`
+- Ersätt lokala `applyGanttVisualPipeline` med import från `ganttVisualPipeline.ts`
+- Ingen funktionell ändring i renderingen
 
-- `src/components/project/BookingPlacementDialog.tsx`
-  - rad 84: hämtning av `bookings` per id → `.maybeSingle()`, kasta "Bokning hittades inte" om null.
-  - rad 213: insert+select projects → behåll `.single()` (insert returnerar alltid 1) men wrap i tydlig felöversättning.
-- `src/hooks/useInternalLagerCalendarEvents.ts` (rad 23): join `bookings:bookings!projects_booking_id_fkey` på `is_internal=true` — om flera interna projekt finns plockas `[0]`, men joinen kan returnera flera bokningar per projekt och PostgREST-kontraktet kan smälla. Lägg till `limit(1)` i underqueryn och fallback till null säkert.
-- `src/hooks/useProjectDetail.tsx` (rad 115, 144): vehicles per id → `.maybeSingle()` med fallback "Okänt fordon".
+### 3. Ny fil: `src/lib/staff/__tests__/ganttVisualPipeline.integration.test.ts`
+Testfall (5 st):
 
-### 3. Verifiera
-- Lägg till en vitest som mockar supabase och kör `handleFinish` med 0 rader → förväntar svensk text, inte PostgREST-strängen.
-- Lägg till en vitest för `useInternalLagerCalendarEvents` som returnerar 2 interna projekt + booking-join → ska inte kasta.
-- Kör `bash scripts/test-time-reporting.sh` ej nödvändigt; bara `bunx vitest run src/components/project src/hooks/useInternalLagerCalendarEvents` räcker.
+**Test 1 — Två V2 project-block med samma targetId**
+- block 1: 08:00–10:00, `displayType:project`, targetId A, gap 5 min
+- block 2: 10:05–12:00, `displayType:project`, targetId A
+- Kör: `mapDisplayTimelineBlocksToGantt` → tilldela `sessionKey` via `sessionKeyFromTimelineBlock` → `applyGanttVisualPipeline`
+- Expect: båda får sessionKey `target:project:A`; efter pipeline = 1 visuellt block; `absorbedSourceIds`/`sourceBlockIds` innehåller båda raw-id
 
-### 4. Efter implementation
-Be användaren reproducera samma klick i `Placera bokning` så vi får den nya, översatta toasten + en `console.error` med exakt PGRST-rad — då kan vi snabbt punkt-fixa den sista boven om den ligger utanför listan ovan.
+**Test 2 — V2 project + kort travel före/efter**
+- travel 07:45–08:00 (15 min), project 08:00–12:00, travel 12:00–12:15 (15 min)
+- Expect: 1 huvudblock (work), inga standalone transport-block, `attachedChips` innehåller "Transport före 15 min" + "Transport efter 15 min", `absorbedSourceIds` inkluderar båda travel-id
 
-## Filer som ändras
-- `src/lib/supabase/translateError.ts` (ny)
-- `src/components/project/BookingPlacementDialog.tsx`
-- `src/hooks/useInternalLagerCalendarEvents.ts`
-- `src/hooks/useProjectDetail.tsx`
-- `src/components/project/__tests__/BookingPlacementDialog.error.test.tsx` (ny)
-- `src/hooks/__tests__/useInternalLagerCalendarEvents.test.ts` (ny)
+**Test 3 — V2 project + kort review/unknown**
+- project 08:00–12:00, unlinked_address `severity:needs_user_review` 12:00–12:20
+- Expect: review absorberas (durationMinutes < 60 = longReview tröskel), huvudblock kvar, chip-label "Granska efter 20 min"
 
-Ingen DB-migration, ingen UI-omdesign — bara felhantering + härdning.
+**Test 4 — V2 endast private → fallback**
+- V2 endast `{displayType:'private'}` (mappar → 0)
+- allocation har 1 `project_work`-segment
+- Expect: `selectGanttSourceFromMapped({mappedV2Count:0, mappedAllocationCount:1, legacyCount:0})` === `'workdayAllocation'`; pipeline kör allocation-blocken och returnerar ≥1 renderbart block
+
+**Test 5 — Metadata bevaras genom hela pipeline**
+- V2 block med targetType, targetId, address, warnings + 1 absorberad travel
+- Efter pipeline: huvudblockets `targetType/targetId/address/warnings/source` finns kvar oförändrade på det returnerade `GanttBlock`-objektet; `source === 'displayTimelineV2'`; eventuella `sourceAllocationSegmentIds`/`sourceLocationTruthSegmentIds` (om de propageras i merge) bevaras
+
+## Constraints
+- Ingen renderingsändring om testerna passerar direkt efter refactor
+- Pure test, ingen React-rendering
+- Kör `bunx vitest run src/lib/staff/__tests__/ganttVisualPipeline.integration.test.ts` efter implementation
+
+## Rapport efter körning
+A. Vilka tester lades till (5 + refactor)
+B/C/D/E: pass/fail per testfall
