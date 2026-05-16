@@ -199,6 +199,14 @@ export interface TimeEngineTraceExport {
     totalDiffFindings: number;
     criticalFindings: number;
     warningFindings: number;
+    /** Antal staff där rawPings.truncated=true. */
+    rawPingsTruncatedStaffCount: number;
+    /** Totalt antal rader som inte kom med över alla truncerade staff. */
+    rawPingsTruncatedTotalMissingRows: number;
+    /** True om Edge Function nådde sin HARD_CAP (50000) totalt. */
+    rawPingsHardCapReached: boolean;
+    /** Edge Function-warnings (t.ex. row_hard_cap_50000_reached). */
+    rawPingsWarnings: string[];
   };
   staff: TraceStaffEntry[];
 }
@@ -262,7 +270,6 @@ function buildRawPingsSection(
   const rowsAll = safeArr<RawPingSampleRow>(entry.sampleRows)
     .slice()
     .sort((a, b) => (a.recorded_at < b.recorded_at ? -1 : 1));
-  const truncated = rowsAll.length > maxRows;
   const rows = rowsAll.slice(0, maxRows).map(r => ({
     id: r.id,
     recorded_at: r.recorded_at,
@@ -276,6 +283,11 @@ function buildRawPingsSection(
     is_charging: r.is_charging ?? null,
     battery_source: r.battery_source ?? null,
   }));
+  // Truncated om EF sade så, eller om pingCount > vad vi faktiskt har, eller om
+  // vår egen builder-cap kapade. totalCountBeforeLimit = verkligt pingCount.
+  const edgeFunctionTruncated = entry.rowsTruncated === true;
+  const moreThanRows = entry.pingCount > rows.length;
+  const truncated = edgeFunctionTruncated || moreThanRows;
   return {
     count: entry.pingCount,
     firstRecordedAt: entry.firstRecordedAt ?? null,
@@ -286,7 +298,7 @@ function buildRawPingsSection(
     medianAccuracy: entry.medianAccuracy ?? null,
     p90Accuracy: entry.p90Accuracy ?? null,
     truncated,
-    totalCountBeforeLimit: truncated ? rowsAll.length : null,
+    totalCountBeforeLimit: truncated ? entry.pingCount : null,
     rows,
   };
 }
@@ -530,6 +542,17 @@ export function buildTimeEngineTraceExport(input: BuildTraceExportInput): TimeEn
     (a.staffName ?? a.staffId).localeCompare(b.staffName ?? b.staffId, 'sv'),
   );
 
+  const truncatedStaff = staffEntries.filter(s => s.rawPings.truncated);
+  const rawPingsTruncatedTotalMissingRows = truncatedStaff.reduce((sum, s) => {
+    const total = s.rawPings.totalCountBeforeLimit ?? s.rawPings.count;
+    const got = s.rawPings.rows.length;
+    return sum + Math.max(0, total - got);
+  }, 0);
+  const rawPingsWarnings = safeArr<string>(input.rawPings?.diagnostics?.warnings);
+  const rawPingsHardCapReached =
+    input.rawPings?.diagnostics?.paginationUsed?.truncated === true ||
+    rawPingsWarnings.some(w => w.startsWith('row_hard_cap_'));
+
   const summary = {
     totalStaff: staffEntries.length,
     staffWithRawPings: staffEntries.filter(s => s.rawPings.count > 0).length,
@@ -545,6 +568,10 @@ export function buildTimeEngineTraceExport(input: BuildTraceExportInput): TimeEn
       (sum, s) => sum + s.diffFindings.filter(f => f.severity === 'warning').length,
       0,
     ),
+    rawPingsTruncatedStaffCount: truncatedStaff.length,
+    rawPingsTruncatedTotalMissingRows,
+    rawPingsHardCapReached,
+    rawPingsWarnings,
   };
 
   return {
