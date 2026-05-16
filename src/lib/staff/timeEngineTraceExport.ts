@@ -533,7 +533,7 @@ export function buildTimeEngineTraceExport(input: BuildTraceExportInput): TimeEn
       timeEngine.workdayAllocationDiagnostics,
     );
 
-    const diffFindings = buildDiffFindings(rawPings, appHealth, comparison, rawEntry);
+    const diffFindings = buildDiffFindings(rawPings, appHealth, comparison, rawEntry, timeEngine);
 
     const finalProduct: TraceStaffEntry['finalProduct'] = {
       reportBlocks: safeArr(cand?.blocks),
