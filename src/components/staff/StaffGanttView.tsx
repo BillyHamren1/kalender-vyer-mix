@@ -760,6 +760,15 @@ interface StaffGanttViewProps {
   engineMode?: 'report_candidate' | 'actual_model_fallback';
   bookingPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>;
   largeProjectPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>;
+  /**
+   * READ-ONLY diagnostics-callback: emitterar per-staff Gantt-källval,
+   * source-counts, renderade block och visualDiagnostics. Används av
+   * "Export Trace JSON" på /staff-management/time-reports. Påverkar
+   * INTE rendering.
+   */
+  onGanttDiagnosticsChange?: (
+    snapshot: Record<string, import('@/lib/staff/timeEngineTraceExport').GanttExportSnapshotForStaff>,
+  ) => void;
 }
 
 export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
@@ -772,6 +781,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
   engineMode = 'report_candidate',
   bookingPhaseByDate,
   largeProjectPhaseByDate,
+  onGanttDiagnosticsChange,
 }) => {
   const [search, setSearch] = useState('');
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -967,6 +977,41 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
     }
     return map;
   }, [diagnosticsEnabled, rawPingsData?.perStaff, staffList, sourceCountsByStaff, dateStr]);
+
+  // ── READ-ONLY: emittera Gantt-diagnostik till parent (för Export Trace JSON).
+  // Påverkar inte rendering. Aktiveras endast när parent bryr sig (callback satt).
+  useEffect(() => {
+    if (!onGanttDiagnosticsChange) return;
+    const snap: Record<string, import('@/lib/staff/timeEngineTraceExport').GanttExportSnapshotForStaff> = {};
+    for (const s of staffList) {
+      const blocks = blocksByStaff[s.id] ?? [];
+      const counts = sourceCountsByStaff[s.id];
+      snap[s.id] = {
+        selectedSource: sourceByStaff[s.id] ?? null,
+        rawV2: counts?.rawV2 ?? 0,
+        mappedV2: counts?.mappedV2 ?? 0,
+        rawAllocation: counts?.rawAlloc ?? 0,
+        mappedAllocation: counts?.mappedAlloc ?? 0,
+        legacyCount: counts?.legacy ?? 0,
+        renderedCount: counts?.rendered ?? blocks.length,
+        renderedBlocks: blocks.map((b: any) => ({
+          id: b.id,
+          kind: String(b.kind ?? ''),
+          startAt: b.startAt ?? null,
+          endAt: b.endAt ?? null,
+          durationMinutes: b.durationMinutes ?? null,
+          title: b.title ?? null,
+          subtitle: b.subtitle ?? null,
+          isOpen: !!b.isOpen,
+          source: b.source ?? null,
+        })),
+        visualDiagnostics: visualDiagByStaff[s.id] ?? null,
+        sourceCounts: counts ?? null,
+      };
+    }
+    onGanttDiagnosticsChange(snap);
+  }, [onGanttDiagnosticsChange, staffList, blocksByStaff, sourceByStaff, sourceCountsByStaff, visualDiagByStaff]);
+
   // Filter
   const filteredStaff = useMemo(() => {
     const q = search.trim().toLowerCase();
