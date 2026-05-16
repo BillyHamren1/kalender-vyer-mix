@@ -752,6 +752,75 @@ export function buildTimeEngineFlowTrace(
     }
   }
 
+  // ── battery diagnostics ─────────────────────────────────────────
+  const bdInput = input.batteryDiagnostics ?? null;
+  const hasBatteryData = Boolean(
+    bdInput &&
+      (bdInput.hasBatteryData ??
+        ((bdInput.batterySamplesCount ?? 0) > 0)),
+  );
+  const batterySnapshot: BatteryDiagnosticsSnapshot = {
+    hasBatteryData,
+    firstBatteryPercent: bdInput?.firstBatteryPercent ?? null,
+    lastBatteryPercent: bdInput?.lastBatteryPercent ?? null,
+    minBatteryPercent: bdInput?.minBatteryPercent ?? null,
+    latestIsCharging: bdInput?.latestIsCharging ?? null,
+    batterySamplesCount: bdInput?.batterySamplesCount ?? 0,
+    missingBatterySamplesCount: bdInput?.missingBatterySamplesCount ?? 0,
+    likelyBatteryRelatedSignalLoss: Boolean(bdInput?.likelyBatteryRelatedSignalLoss),
+    batteryDroppedFast: Boolean(bdInput?.batteryDroppedFast),
+    batteryDropEvents: bdInput?.batteryDropEvents ?? [],
+    lastPingBeforeLargeGap: bdInput?.lastPingBeforeLargeGap ?? null,
+  };
+
+  const decisionTrace: TimeEngineDecisionTraceItem[] = [];
+  let signalLossBannerText: string | null = null;
+
+  if (hasBatteryData) {
+    const lp = batterySnapshot.lastPingBeforeLargeGap;
+    const lastPctLow =
+      typeof batterySnapshot.lastBatteryPercent === 'number' &&
+      batterySnapshot.lastBatteryPercent <= 10;
+    const gapAfterLow =
+      (lp && lp.gapAfterMinutes > 30) ||
+      (batterySnapshot.likelyBatteryRelatedSignalLoss === true) ||
+      ((rpd?.maxRawPingGapMinutes ?? 0) > 30 && lastPctLow);
+
+    if ((lastPctLow || batterySnapshot.batteryDroppedFast) && gapAfterLow) {
+      const pct =
+        lp?.batteryPercent ?? batterySnapshot.lastBatteryPercent ?? null;
+      const charging =
+        lp?.isCharging ?? batterySnapshot.latestIsCharging ?? null;
+      const timeLabel = lp?.recordedAt
+        ? new Date(lp.recordedAt).toISOString().slice(11, 16)
+        : null;
+      signalLossBannerText = timeLabel
+        ? `GPS-signal tappades efter ${timeLabel}. Batteri vid sista ping: ${
+            pct != null ? `${pct} %` : 'okänt'
+          }, laddar: ${charging === true ? 'ja' : charging === false ? 'nej' : 'okänt'}.`
+        : `Sista batteri-läsning ${pct != null ? `${pct} %` : 'okänt'}, laddar: ${
+            charging === true ? 'ja' : charging === false ? 'nej' : 'okänt'
+          }. Signal tappades därefter.`;
+
+      suspected.push({
+        key: 'battery_low_before_signal_loss',
+        layer: 'dayEvidence',
+        severity: 'warning',
+        title: 'Lågt batteri före signalförlust',
+        detail: signalLossBannerText,
+      });
+
+      decisionTrace.push({
+        layer: 'day_evidence',
+        decision: 'battery_signal_loss_candidate',
+        reason:
+          'Last ping before large gap had battery_percent <= 10 (or fast battery drop) followed by >30 min signal silence.',
+        confidence: 'medium',
+        warnings: ['low_battery_before_signal_gap'],
+      });
+    }
+  }
+
   // ── summary ─────────────────────────────────────────────────────
   const summary: TimeEngineFlowTraceSummary = {
     staffId: input.staffId,
