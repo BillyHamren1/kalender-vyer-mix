@@ -1806,6 +1806,7 @@ const StaffTimeReports: React.FC = () => {
 
   const { organizationId } = useCurrentOrg();
   const rawDebugEnabled = isRawPingsDebugEnabled();
+  const canExportTrace = Boolean(organizationId);
   const [rawDebugOpen, setRawDebugOpen] = useState(false);
   const [exportingTrace, setExportingTrace] = useState(false);
 
@@ -1882,33 +1883,31 @@ const StaffTimeReports: React.FC = () => {
           engineMode={engineMode}
           bookingPhaseByDate={bookingPhaseByDate}
           largeProjectPhaseByDate={largeProjectPhaseByDate}
-          onGanttDiagnosticsChange={rawDebugEnabled ? handleGanttDiagnostics : undefined}
+          onGanttDiagnosticsChange={handleGanttDiagnostics}
           />
         </div>
       </div>
-      {rawDebugEnabled && (
-        <div className="fixed bottom-3 right-3 z-40 flex items-center gap-2">
+      <div className="fixed bottom-3 right-3 z-40 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={handleExportTrace}
+          disabled={exportingTrace || !canExportTrace}
+          className="flex items-center gap-1 rounded-full bg-secondary text-secondary-foreground px-3 py-1.5 text-xs shadow-lg hover:opacity-90 disabled:opacity-60"
+          title={`Exportera råpings + Time Engine-slutprodukt som JSON för ${dateStr}`}
+        >
+          <Download className="h-3.5 w-3.5" />
+          {exportingTrace ? 'Exporterar…' : `Export Trace JSON · ${dateStr}`}
+        </button>
+        {rawDebugEnabled && !rawDebugOpen && (
           <button
             type="button"
-            onClick={handleExportTrace}
-            disabled={exportingTrace || !organizationId}
-            className="flex items-center gap-1 rounded-full bg-secondary text-secondary-foreground px-3 py-1.5 text-xs shadow-lg hover:opacity-90 disabled:opacity-60"
-            title="Exportera råpings + Time Engine-slutprodukt som JSON för analys"
+            onClick={() => setRawDebugOpen(true)}
+            className="flex items-center gap-1 rounded-full bg-primary text-primary-foreground px-3 py-1.5 text-xs shadow-lg hover:opacity-90"
           >
-            <Download className="h-3.5 w-3.5" />
-            {exportingTrace ? 'Exporterar…' : 'Export Trace JSON'}
+            <Database className="h-3.5 w-3.5" /> Raw GPS
           </button>
-          {!rawDebugOpen && (
-            <button
-              type="button"
-              onClick={() => setRawDebugOpen(true)}
-              className="flex items-center gap-1 rounded-full bg-primary text-primary-foreground px-3 py-1.5 text-xs shadow-lg hover:opacity-90"
-            >
-              <Database className="h-3.5 w-3.5" /> Raw GPS
-            </button>
-          )}
-        </div>
-      )}
+        )}
+      </div>
       {rawDebugEnabled && rawDebugOpen && (
         <RawPingsDebugPanel
           organizationId={organizationId}
