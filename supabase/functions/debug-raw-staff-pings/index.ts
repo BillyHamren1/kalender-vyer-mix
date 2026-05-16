@@ -211,7 +211,7 @@ Deno.serve(async (req) => {
     while (true) {
       let q = admin
         .from('staff_location_history')
-        .select('id, staff_id, organization_id, recorded_at, created_at, lat, lng, accuracy, speed, time_report_id')
+        .select('id, staff_id, organization_id, recorded_at, created_at, lat, lng, accuracy, speed, time_report_id, battery_level, battery_percent, is_charging, battery_captured_at, battery_source')
         .eq('organization_id', organizationId)
         .gte('recorded_at', intervalStart)
         .lte('recorded_at', intervalEnd)
