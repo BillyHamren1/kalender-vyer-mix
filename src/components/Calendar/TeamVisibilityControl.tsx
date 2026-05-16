@@ -9,6 +9,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Resource } from './ResourceData';
+import { isRequiredTeam } from '@/lib/calendar/defaultVisibleTeams';
 
 interface TeamVisibilityControlProps {
   allTeams: Resource[];
@@ -44,7 +45,7 @@ const TeamVisibilityControl: React.FC<TeamVisibilityControlProps> = ({
           <p className="text-xs font-medium mb-1.5">Välj teams att visa:</p>
           {allTeams.map(team => {
             const isVisible = visibleTeams.includes(team.id);
-            const isRequired = ['team-1', 'team-2', 'team-3', 'team-4', 'team-11'].includes(team.id);
+            const isRequired = isRequiredTeam(team.id);
             
             return (
               <div key={team.id} className="flex items-center space-x-2">

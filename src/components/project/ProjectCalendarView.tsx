@@ -34,7 +34,10 @@ interface Props {
 }
 
 const TASK_RESOURCE: Resource = { id: 'team-tasks', title: 'Aktiviteter', eventColor: '#A78BFA' };
-const DEFAULT_TEAMS = ['team-1', 'team-2', 'team-3', 'team-4', 'transport', 'team-tasks'];
+// Projektkalendern visar projektets relevanta team. Default = ALLA aktuella
+// team + Lager + Aktiviteter-kolumnen. Tidigare hårdkodades till bara
+// team-1..4 + transport + team-tasks vilket dolde Team 5–10.
+const PROJECT_REQUIRED_TEAMS = ['team-1', 'team-2', 'team-3', 'team-4', 'transport', 'team-tasks'];
 
 const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) => {
   // 1. Hämta projektets events.
@@ -134,18 +137,31 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
     return Array.from(merged).sort().map((s) => parseISO(s));
   }, [projectDays, taskDayKeys]);
 
-  // 5. Synliga team per dag — samma default som personalkalendern.
+  // 5. Synliga team per dag — default = ALLA aktuella team + Lager + Aktiviteter.
+  const defaultVisibleTeams = useMemo(() => {
+    const ids = new Set<string>(PROJECT_REQUIRED_TEAMS);
+    for (const r of teamResourcesWithTasks) {
+      if (!r?.id || r.id === 'team-11') continue;
+      ids.add(r.id);
+    }
+    return Array.from(ids);
+  }, [teamResourcesWithTasks]);
+
   const [visibleTeamsByDay, setVisibleTeamsByDay] = useState<{ [key: string]: string[] }>({});
   const getVisibleTeamsForDay = (date: Date): string[] => {
     const dateKey = format(date, 'yyyy-MM-dd');
-    return visibleTeamsByDay[dateKey] || DEFAULT_TEAMS;
+    const stored = visibleTeamsByDay[dateKey];
+    if (!stored) return defaultVisibleTeams;
+    const merged = new Set<string>(stored.filter((id) => id !== 'team-11'));
+    for (const id of defaultVisibleTeams) merged.add(id);
+    return Array.from(merged);
   };
   const handleToggleTeamForDay = (teamId: string, date: Date) => {
     const dateKey = format(date, 'yyyy-MM-dd');
     setVisibleTeamsByDay((prev) => {
-      const current = prev[dateKey] || DEFAULT_TEAMS;
+      const current = prev[dateKey] || defaultVisibleTeams;
       if (current.includes(teamId)) {
-        if (DEFAULT_TEAMS.includes(teamId)) return prev;
+        if (PROJECT_REQUIRED_TEAMS.includes(teamId)) return prev;
         return { ...prev, [dateKey]: current.filter((id) => id !== teamId) };
       }
       return { ...prev, [dateKey]: [...current, teamId] };
