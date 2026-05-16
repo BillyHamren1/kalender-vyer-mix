@@ -5840,6 +5840,11 @@ async function handleUploadLocationBatch(
       accuracy: p.accuracy,
       speed: p.speed,
       recorded_at: p.recordedAt,
+      battery_level: p.batteryLevel,
+      battery_percent: p.batteryPercent,
+      is_charging: p.isCharging,
+      battery_captured_at: p.batteryCapturedAt,
+      battery_source: p.batterySource,
     })
     accepted.push(p.id)
     existingTimestamps.add(p.recordedMs)
