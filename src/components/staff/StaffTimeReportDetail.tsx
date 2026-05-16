@@ -18,6 +18,11 @@ import { DailyOverviewDialog } from './DailyOverviewDialog';
 import { StaffMovementMap } from './StaffMovementMap';
 import { StaffLatestPing, type LatestPing } from './StaffLatestPing';
 import { formatStockholmHm, formatStockholmHms } from '../../lib/staff/formatStockholmTime';
+import {
+  useStaffDaySubmissionsRange,
+  deriveSubmissionDisplay,
+} from '@/hooks/useStaffDaySubmissionsRange';
+import { StaffDaySubmissionStatusBadge } from './StaffDaySubmissionStatusBadge';
 
 interface StaffTimeReportDetailProps {
   staffId: string;
@@ -97,6 +102,14 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
     }
     return m;
   }, [pendingSuggestions]);
+
+  // Lager 5.7 — Användarens egna submissions för veckan (read-only, status-projektion).
+  const { data: weekSubmissions } = useStaffDaySubmissionsRange(staffId, monthStart, monthEnd);
+  const submissionByDate = useMemo(() => {
+    const m = new Map<string, (typeof weekSubmissions extends (infer U)[] | undefined ? U : never)>();
+    for (const s of weekSubmissions ?? []) m.set(s.date, s as any);
+    return m as Map<string, NonNullable<typeof weekSubmissions>[number]>;
+  }, [weekSubmissions]);
 
 
   const { data: queryData, isLoading } = useQuery({
@@ -702,6 +715,10 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                     const hasOpenWork = dateRows.some(r => r.type === 'work' && !r.end_time);
                     const hasAnyReport = dateRows.length > 0;
                     const dayIsToday = isToday(dayDate);
+                    const submissionDisplay = deriveSubmissionDisplay(
+                      submissionByDate.get(date),
+                      hasAnyReport,
+                    );
 
                     return (
                       <React.Fragment key={date}>
@@ -743,6 +760,9 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                                     Stängd
                                   </Badge>
                                 ))}
+                                {submissionDisplay && (
+                                  <StaffDaySubmissionStatusBadge display={submissionDisplay} />
+                                )}
                                 {dateAnomalyCount > 0 && (
                                   <button
                                     onClick={(e) => { e.stopPropagation(); setAnomalyDate(date); }}
