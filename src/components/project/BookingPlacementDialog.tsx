@@ -43,7 +43,7 @@ import {
   seedDaysFromBooking,
 } from './bookingPlacementSeed';
 import { BookingInfoHeader } from './BookingInfoHeader';
-import { ReadOnlyStaffDayView } from './ReadOnlyStaffDayView';
+import { PlacementDayCalendar } from './PlacementDayCalendar';
 
 interface Props {
   open: boolean;
@@ -369,16 +369,7 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
                       )}
                     </div>
 
-                    <ReadOnlyStaffDayView
-                      date={currentDay.date}
-                      highlightedTeamId={currentDay.teamId}
-                      previewBlock={{
-                        teamId: currentDay.teamId,
-                        startTime: currentDay.startTime,
-                        endTime: currentDay.endTime,
-                        label: `${booking.client || 'Bokning'} (${phaseLabel(currentDay.kind)})`,
-                      }}
-                    />
+                    <PlacementDayCalendar date={currentDay.date} />
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-lg border border-border/60 bg-card p-3">
                       <div>
