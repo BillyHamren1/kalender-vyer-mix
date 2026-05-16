@@ -259,6 +259,37 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Latest app health event per staff (diagnostics only — never feeds work time).
+    type HealthRow = {
+      staff_id: string;
+      event_type: string;
+      occurred_at: string;
+      battery_percent: number | null;
+      is_charging: boolean | null;
+      app_state: string | null;
+      platform: string | null;
+      app_version: string | null;
+    };
+    const latestHealthByStaff = new Map<string, HealthRow>();
+    if (staffIds.length > 0) {
+      try {
+        const { data: healthRows } = await admin
+          .from('staff_app_health_events')
+          .select('staff_id, event_type, occurred_at, battery_percent, is_charging, app_state, platform, app_version')
+          .eq('organization_id', organizationId)
+          .in('staff_id', staffIds)
+          .lte('occurred_at', intervalEnd)
+          .order('occurred_at', { ascending: false })
+          .limit(staffIds.length * 20);
+        for (const row of (healthRows ?? []) as HealthRow[]) {
+          if (!latestHealthByStaff.has(row.staff_id)) {
+            latestHealthByStaff.set(row.staff_id, row);
+          }
+        }
+      } catch (err) {
+        warnings.push(`health_events_query_failed:${(err as Error).message}`);
+      }
+    }
     const intervalStartMs = new Date(intervalStart).getTime();
     const intervalEndMs = new Date(intervalEnd).getTime();
     const workdayLikelyStartMs = intervalStartMs + 6 * 3600_000;   // 06:00 from window start
