@@ -896,7 +896,17 @@ export function buildDisplayTimelineFromWorkdayAllocation(
   // Om allocation-lagret har blockerats pga saknad LocationTruth får vi inte
   // rita NÅGOT Gantt-block (allocSegments är redan tomt, men vi vill aldrig
   // generera fallback-block här heller). Returnera tom display + diagnostic.
-  if ((wda?.diagnostics as any)?.engineBlockedBecauseLocationTruthMissing === true) {
+  // Fix A — samma behandling när open timer ignorerats pga 0 same-day evidence.
+  const wdDiag: any = wda?.diagnostics ?? {};
+  const allocWarnings: string[] = Array.isArray(wdDiag?.warnings) ? wdDiag.warnings : [];
+  const suppressForMissingLT = wdDiag?.engineBlockedBecauseLocationTruthMissing === true;
+  const suppressForOpenTimerNoEvidence =
+    wdDiag?.openTimerIgnoredForDisplay === true ||
+    allocWarnings.includes('open_timer_without_same_day_evidence');
+  if (suppressForMissingLT || suppressForOpenTimerNoEvidence) {
+    const suppressWarning = suppressForMissingLT
+      ? 'display_suppressed_because_missing_location_truth'
+      : 'display_suppressed_open_timer_without_evidence';
     const diagnostics: DisplayTimelineDiagnostics = {
       staffId: wda?.diagnostics.staffId ?? null,
       date: wda?.diagnostics.date ?? null,
@@ -914,7 +924,7 @@ export function buildDisplayTimelineFromWorkdayAllocation(
       blocksBySeverity: { info: 0, warning: 0, needs_user_review: 0 } as any,
       totalDisplayMinutes: 0,
       reviewBlockCount: 0,
-      warnings: ['display_suppressed_because_missing_location_truth' as any],
+      warnings: [suppressWarning as any],
       examples: [],
     };
     return { blocks: [], dayActions: [], diagnostics };
