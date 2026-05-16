@@ -320,7 +320,7 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[92vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-none w-screen h-screen sm:rounded-none p-6 overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalIcon className="h-5 w-5 text-primary" />
