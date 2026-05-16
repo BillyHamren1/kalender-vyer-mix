@@ -390,6 +390,7 @@ const blocksFromStaff = (
   excludedPreWork: ReportCandidateBlockUI[] | null | undefined,
   bookingPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
   largeProjectPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
+  diagSink?: (d: VisualGanttDiagnostics) => void,
 ): GanttBlock[] => {
   const out: GanttBlock[] = [];
   if (candidate && candidate.length) {
