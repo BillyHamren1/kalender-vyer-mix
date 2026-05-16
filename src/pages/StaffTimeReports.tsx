@@ -468,7 +468,13 @@ const StaffTimeReports: React.FC = () => {
       for (const r of saRows) {
         if (!r.staff_id) continue;
         plannedFromSA.add(r.staff_id);
-        const teamLabel = r.team_id ? `Team ${String(r.team_id).replace(/^team-/, '')}` : 'Planerad';
+        const tid = r.team_id ? String(r.team_id) : '';
+        const teamLabel = !tid ? 'Planerad'
+          : tid === 'team-11' ? 'Live'
+          : tid === 'transport' || tid === 'warehouse' ? 'Lager'
+          : tid.startsWith('lager-') ? `Lager ${tid.replace('lager-', '')}`
+          : tid.startsWith('team-') ? `Team ${tid.replace('team-', '')}`
+          : tid;
         addPlanned(r.staff_id, teamLabel);
       }
       // OBS: large_project_staff är projektmedlemskap, inte dagsassignering.
