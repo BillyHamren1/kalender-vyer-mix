@@ -295,6 +295,7 @@ export function RawPingsDebugPanel({
                 {data.perStaff.map((s) => {
                   const isOpen = expanded.has(s.staffId);
                   const status = statusOf(s, intervalEndMs);
+                  const diag = diagnosisByStaff.get(s.staffId);
                   return (
                     <>
                       <tr
@@ -325,10 +326,23 @@ export function RawPingsDebugPanel({
                             {STATUS_LABEL[status]}
                           </span>
                         </td>
+                        <td className="px-2 py-1"><DiagnosisBadge diag={diag} /></td>
                       </tr>
                       {isOpen && (
                         <tr className="bg-muted/20">
-                          <td colSpan={14} className="px-2 py-2">
+                          <td colSpan={15} className="px-2 py-2">
+                            {diag && (
+                              <div className="mb-2 text-[11px]">
+                                <span className="font-semibold">Diagnos: </span>
+                                <span>{describeReportDataGapStatus(diag.status)}</span>
+                                <span className="text-muted-foreground"> — {diag.reason}</span>
+                                {diag.suggestedNextAction !== 'none' && (
+                                  <span className="ml-2 rounded bg-muted px-1 py-0.5 text-[10px] font-mono">
+                                    next: {diag.suggestedNextAction}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                             <BatterySummaryDetail battery={s.battery} />
                             <AppHealthDetail appHealth={s.appHealth} />
                             <SampleRowsTable rows={s.sampleRows} />
@@ -339,7 +353,7 @@ export function RawPingsDebugPanel({
                   );
                 })}
                 {data.perStaff.length === 0 && (
-                  <tr><td colSpan={14} className="px-2 py-6 text-center text-muted-foreground">
+                  <tr><td colSpan={15} className="px-2 py-6 text-center text-muted-foreground">
                     Inga pings för intervallet.
                   </td></tr>
                 )}
