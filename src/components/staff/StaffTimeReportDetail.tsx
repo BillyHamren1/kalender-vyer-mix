@@ -103,6 +103,14 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
     return m;
   }, [pendingSuggestions]);
 
+  // Lager 5.7 — Användarens egna submissions för veckan (read-only, status-projektion).
+  const { data: weekSubmissions } = useStaffDaySubmissionsRange(staffId, monthStart, monthEnd);
+  const submissionByDate = useMemo(() => {
+    const m = new Map<string, (typeof weekSubmissions extends (infer U)[] | undefined ? U : never)>();
+    for (const s of weekSubmissions ?? []) m.set(s.date, s as any);
+    return m as Map<string, NonNullable<typeof weekSubmissions>[number]>;
+  }, [weekSubmissions]);
+
 
   const { data: queryData, isLoading } = useQuery({
     queryKey: ['staff-time-reports-detail', staffId, monthStart],
