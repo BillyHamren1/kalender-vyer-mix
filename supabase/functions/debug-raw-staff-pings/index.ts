@@ -169,7 +169,7 @@ Deno.serve(async (req) => {
     }
 
     const includeRows = body.includeRows === true;
-    const maxRowsPerStaff = Math.max(1, Math.min(2000, body.maxRowsPerStaff ?? 200));
+    const maxRowsPerStaff = Math.max(1, Math.min(10000, body.maxRowsPerStaff ?? 200));
 
     // Auth: require a user session in the same org. Mirrors other admin debug fns
     // by using service-role client for the read but verifying caller identity.
