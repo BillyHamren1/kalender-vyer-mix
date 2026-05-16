@@ -157,6 +157,7 @@ export interface TraceStaffEntry {
     dayEvidenceDiagnostics: any;
     locationTruthV2Diagnostics: any;
     locationTruthV2Segments: any[];
+    locationTruthV2NotBuiltReason: string | null;
     workdayAllocationDiagnostics: any;
     workdayAllocationSegments: any[];
     workdayAllocationProposals: any[];
