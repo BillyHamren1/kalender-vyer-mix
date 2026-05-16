@@ -1255,6 +1255,41 @@ export function buildWorkdayAllocationFromLocationTruth(
     });
   }
 
+  /**
+   * Time Engine Core Fix 2.1 — välj effektiv target.
+   * businessContextResolution vinner över råa matchedTarget för
+   * project/booking/large_project/warehouse/supplier/organization_location.
+   * 'unlinked_address'/'unknown' faller tillbaka på matchedTarget eller fysisk plats.
+   */
+  function pickEffectiveTarget(
+    bcr: BusinessContextResolution | null | undefined,
+    matched: { targetType?: LocationTruthTargetType | null; targetId?: string | null; label?: string | null; address?: string | null } | null | undefined,
+    seg: LocationTruthSegment,
+  ): {
+    targetType: LocationTruthTargetType | null;
+    targetId: string | null;
+    label: string | null;
+    address: string | null;
+  } {
+    const bcrTypeUsable =
+      !!bcr &&
+      bcr.selectedTargetType !== null &&
+      bcr.selectedTargetType !== 'unlinked_address' &&
+      bcr.selectedTargetType !== 'unknown';
+    const targetType: LocationTruthTargetType | null = bcrTypeUsable
+      ? (bcr!.selectedTargetType as LocationTruthTargetType)
+      : (matched?.targetType ?? null);
+    const targetId: string | null = bcrTypeUsable
+      ? (bcr!.selectedTargetId ?? matched?.targetId ?? null)
+      : (matched?.targetId ?? null);
+    const label: string | null = bcrTypeUsable
+      ? (bcr!.selectedTargetLabel ?? matched?.label ?? seg.physicalLocation?.label ?? null)
+      : (matched?.label ?? seg.physicalLocation?.label ?? null);
+    const address: string | null =
+      matched?.address ?? seg.physicalLocation?.address ?? null;
+    return { targetType, targetId, label, address };
+  }
+
   for (const seg of ltSegments) {
     const sMs = toMs(seg.startAt);
     const eMs = toMs(seg.endAt);
@@ -1281,17 +1316,18 @@ export function buildWorkdayAllocationFromLocationTruth(
         seg.finalType === 'movement' ? movementCtxById.get(seg.id) ?? null : null,
         bcrOutside,
       );
+      const matchedOutside = seg.businessContext?.matchedTarget ?? seg.matchedTarget;
+      const effOutside = pickEffectiveTarget(bcrOutside, matchedOutside, seg);
       const item: WorkdayAllocationSegment = {
         id: `wda_${seg.id}`,
         startAt: seg.startAt,
         endAt: seg.endAt,
         sourceLocationTruthSegmentIds: [seg.id],
         allocationType: allocOutside.type,
-        targetType: (seg.businessContext?.matchedTarget ?? seg.matchedTarget)?.targetType ?? null,
-        targetId: (seg.businessContext?.matchedTarget ?? seg.matchedTarget)?.targetId ?? null,
-        label: (seg.businessContext?.matchedTarget ?? seg.matchedTarget)?.label
-          ?? seg.physicalLocation?.label ?? null,
-        address: seg.physicalLocation?.address ?? (seg.businessContext?.matchedTarget?.address ?? null),
+        targetType: effOutside.targetType,
+        targetId: effOutside.targetId,
+        label: effOutside.label,
+        address: effOutside.address,
         confidence: allocOutside.confidence,
         warnings: ['segment_outside_workday'],
         assignmentStatus: 'unknown',
@@ -1352,26 +1388,28 @@ export function buildWorkdayAllocationFromLocationTruth(
     }
 
     const matched = seg.businessContext?.matchedTarget ?? seg.matchedTarget;
-    // Lager 3.11B — kanoniska assignmentStatus-värden:
-    //   assigned                 = matchad project/booking/large_project + overlap
-    //   unassigned_but_present   = matchad project/booking/large_project utan overlap
-    //   no_assignment_required   = matchad supplier/warehouse/organization_location
-    //   unknown                  = ingen target / kan ej avgöras
-    // assignmentMatch ger detaljnivån (overlap/no_overlap/not_required/missing/unknown).
-    const matchedNoAssignmentRequired = !!matched && (
-      matched.targetType === 'supplier' ||
-      matched.targetType === 'warehouse' ||
-      matched.targetType === 'organization_location'
+    // Time Engine Core Fix 2.1 — använd businessContextResolution som faktisk target.
+    const eff = pickEffectiveTarget(bcr, matched, seg);
+    // Lager 3.11B + Core Fix 2.1 — assignmentStatus mot effektiv target.
+    const effIsNoAssignmentRequired = !!eff.targetType && (
+      eff.targetType === 'supplier' ||
+      eff.targetType === 'warehouse' ||
+      eff.targetType === 'organization_location'
+    );
+    const effIsAssignableWork = !!eff.targetType && (
+      eff.targetType === 'project' ||
+      eff.targetType === 'booking' ||
+      eff.targetType === 'large_project'
     );
     let assignmentStatus: WorkdayAllocationAssignmentStatus;
     let assignmentMatch: WorkdayAllocationAssignmentMatch;
-    if (matchedNoAssignmentRequired) {
+    if (effIsNoAssignmentRequired) {
       assignmentStatus = 'no_assignment_required';
       assignmentMatch = 'not_required';
-    } else if (matched && hasOverlap) {
+    } else if (effIsAssignableWork && (hasOverlap || bcr?.fallbackUsed === 'assignment_without_geo')) {
       assignmentStatus = 'assigned';
-      assignmentMatch = 'overlap';
-    } else if (matched && !hasOverlap) {
+      assignmentMatch = hasOverlap ? 'overlap' : 'no_overlap';
+    } else if (effIsAssignableWork) {
       assignmentStatus = 'unassigned_but_present';
       assignmentMatch = 'no_overlap';
     } else {
@@ -1385,10 +1423,10 @@ export function buildWorkdayAllocationFromLocationTruth(
       endAt: new Date(clippedEndMs).toISOString(),
       sourceLocationTruthSegmentIds: [seg.id],
       allocationType: alloc.type,
-      targetType: matched?.targetType ?? null,
-      targetId: matched?.targetId ?? null,
-      label: matched?.label ?? seg.physicalLocation?.label ?? null,
-      address: seg.physicalLocation?.address ?? matched?.address ?? null,
+      targetType: eff.targetType,
+      targetId: eff.targetId,
+      label: eff.label,
+      address: eff.address,
       confidence: alloc.confidence,
       warnings: alloc.warnings,
       assignmentStatus,
