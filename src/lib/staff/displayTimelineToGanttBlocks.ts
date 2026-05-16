@@ -90,6 +90,15 @@ export interface DisplayTimelineBlockLite {
   warnings?: string[] | null;
   humanWarnings?: string[] | null;
   metadata?: Record<string, unknown> | null;
+  // Map Trace 4 — fysisk plats och matchnings-trace propageras från Lager 2/3.
+  physicalLocationLabel?: string | null;
+  physicalLocationAddress?: string | null;
+  physicalLocationLat?: number | null;
+  physicalLocationLng?: number | null;
+  physicalLocationSource?: string | null;
+  physicalLocationConfidence?: string | null;
+  locationMatchDiagnostics?: unknown;
+  businessContextResolution?: unknown;
 }
 
 const DISPLAY_TYPE_TO_KIND: Record<
