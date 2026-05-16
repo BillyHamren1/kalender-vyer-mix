@@ -907,6 +907,66 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
     return !!(import.meta as any)?.env?.DEV;
   }, []);
 
+  // ── Per-rad diagnos (Raw GPS + app health + Gantt-källkedjan) ─────────
+  // Aktiveras med: localStorage.setItem('time-engine:raw-pings','1')
+  //               eller localStorage.setItem('gantt:debug','1')
+  const diagnosticsEnabled = useMemo(() => {
+    if (ganttDebug) return true;
+    try { return isRawPingsDebugEnabled(); } catch { return false; }
+  }, [ganttDebug]);
+  const { organizationId: diagOrgId } = useCurrentOrg();
+  const { data: rawPingsData } = useRawStaffPingsDebug({
+    organizationId: diagOrgId,
+    date: dateStr,
+    includeRows: false,
+    enabled: diagnosticsEnabled,
+  });
+  const diagnosisByStaff = useMemo(() => {
+    const map = new Map<string, ReportDataGapDiagnosis>();
+    if (!diagnosticsEnabled) return map;
+    const pingsByStaff = new Map<string, typeof rawPingsData.perStaff[number]>();
+    for (const e of rawPingsData?.perStaff ?? []) pingsByStaff.set(e.staffId, e);
+    for (const s of staffList) {
+      const e = pingsByStaff.get(s.id);
+      const counts = sourceCountsByStaff[s.id];
+      map.set(
+        s.id,
+        buildReportDataGapDiagnosis({
+          staffId: s.id,
+          staffName: s.name,
+          date: dateStr,
+          rawPings: {
+            rawPingCount: e?.pingCount ?? 0,
+            firstRawPingAt: e?.firstRecordedAt ?? null,
+            lastRawPingAt: e?.lastRecordedAt ?? null,
+            maxRawGapMinutes: e?.maxPingGapMinutes ?? null,
+            gapCountOver15Min: e?.gapCountOver15Min,
+            gapCountOver60Min: e?.gapCountOver60Min,
+            medianAccuracy: e?.medianAccuracy ?? null,
+            p90Accuracy: e?.p90Accuracy ?? null,
+            lowBatteryBeforeGap: e?.battery?.likelyBatteryRelatedSignalLoss,
+            batteryDroppedFast: e?.battery?.batteryDroppedFast,
+            lastBatteryPercent: e?.battery?.lastBatteryPercent ?? null,
+          },
+          appHealth: e?.appHealth
+            ? {
+                lastAppSeenAt: e.appHealth.lastAppSeenAt,
+                lastAppState: e.appHealth.lastAppState,
+                lastHealthEventType: e.appHealth.lastEventType,
+                lastBatteryPercent: e.appHealth.lastBatteryPercent,
+                latestIsCharging: e.appHealth.lastIsCharging,
+              }
+            : null,
+          reportChain: {
+            isShownInReportList: true, // staff syns i listan
+            displayTimelineBlocksV2Count: counts?.mappedV2 ?? null,
+            renderedGanttBlocks: counts?.rendered ?? null,
+          },
+        }),
+      );
+    }
+    return map;
+  }, [diagnosticsEnabled, rawPingsData?.perStaff, staffList, sourceCountsByStaff, dateStr]);
   // Filter
   const filteredStaff = useMemo(() => {
     const q = search.trim().toLowerCase();
