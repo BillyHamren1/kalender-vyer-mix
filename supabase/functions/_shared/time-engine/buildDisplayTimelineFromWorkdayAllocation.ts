@@ -1096,8 +1096,81 @@ export function buildDisplayTimelineFromWorkdayAllocation(
   let gapIdx = 0;
   let hiddenShortGapCount = 0;
   let foldedGapCount = 0;
+
+  // ── Fix D — Suppress gaps utanför same-day work-evidence envelope ─────────
+  // Glapp som beror på workday envelope > faktisk location evidence (ofta från
+  // öppen/stale timer eller workday som startat före analysdagen) ska INTE
+  // renderas som stora break_or_gap-block. Vi kräver att gapet ligger MELLAN
+  // riktig work-evidence på samma dag. Annars: tyst diagnostik.
+  const SUPPRESS_CAUSING_WARNINGS = new Set<string>([
+    'workday_started_before_analysis_day',
+    'open_timer_without_same_day_evidence',
+    'open_timer_ignored_after_inferred_day_end',
+    'stale_open_timer_ignored',
+    'stale_open_timer',
+  ]);
+  const allocHasSuppressingWarning = allocWarnings.some((w) => SUPPRESS_CAUSING_WARNINGS.has(w));
+  // Beräkna envelope från befintliga work-evidence-block (allt utom gap/private).
+  const workEvidenceBlocks = blocks.filter(
+    (b) => b.displayType !== 'break_or_gap' && b.displayType !== 'private',
+  );
+  const firstEvidenceMs = workEvidenceBlocks.length
+    ? Math.min(...workEvidenceBlocks.map((b) => toMs(b.startAt)))
+    : null;
+  const lastEvidenceMs = workEvidenceBlocks.length
+    ? Math.max(...workEvidenceBlocks.map((b) => toMs(b.endAt)))
+    : null;
+  let suppressedGapBeforeFirstEvidence = 0;
+  let suppressedGapAfterLastEvidence = 0;
+  let suppressedGapNoEvidenceAtAll = 0;
+  let suppressedGapByOpenStaleTimer = 0;
+  const suppressedGapMinutesTotal = { v: 0 };
+  const recordSuppressedGap = (
+    gp: WorkdayAllocationProposal,
+    gMin: number,
+    reason:
+      | 'no_work_evidence'
+      | 'before_first_evidence'
+      | 'after_last_evidence'
+      | 'open_or_stale_timer',
+  ) => {
+    suppressedGapMinutesTotal.v += gMin;
+    if (reason === 'no_work_evidence') suppressedGapNoEvidenceAtAll += 1;
+    else if (reason === 'before_first_evidence') suppressedGapBeforeFirstEvidence += 1;
+    else if (reason === 'after_last_evidence') suppressedGapAfterLastEvidence += 1;
+    else if (reason === 'open_or_stale_timer') suppressedGapByOpenStaleTimer += 1;
+    if (examples.length < 6) {
+      examples.push({
+        kind: 'hidden_short_uncovered_gap',
+        startAt: gp.startAt,
+        endAt: gp.endAt,
+        note: `Glapp ${gMin} min döljs (${reason})`,
+      });
+    }
+  };
+
   for (const gp of gapProposals) {
     const gMin = durationMinutes(gp.startAt, gp.endAt);
+    // Fix D — gap-suppression FÖRE övriga regler.
+    const gStartMs = toMs(gp.startAt);
+    const gEndMs = toMs(gp.endAt);
+    if (workEvidenceBlocks.length === 0) {
+      recordSuppressedGap(gp, gMin, 'no_work_evidence');
+      continue;
+    }
+    if (firstEvidenceMs !== null && gEndMs <= firstEvidenceMs) {
+      recordSuppressedGap(gp, gMin, 'before_first_evidence');
+      continue;
+    }
+    if (lastEvidenceMs !== null && gStartMs >= lastEvidenceMs) {
+      recordSuppressedGap(gp, gMin, 'after_last_evidence');
+      continue;
+    }
+    if (allocHasSuppressingWarning && gMin > LONG_GAP_MAX_MIN) {
+      // Stort gap pga open/stale timer eller workday-start före analysdag → dölj.
+      recordSuppressedGap(gp, gMin, 'open_or_stale_timer');
+      continue;
+    }
     if (gMin <= SHORT_GAP_HIDE_MAX_MIN) {
       hiddenShortGapCount += 1;
       if (examples.length < 6) {
