@@ -113,8 +113,11 @@ const resolveKindForDisplayBlock = (
     return 'work';
   }
   if (mapped === 'review' && b.displayType === 'unlinked_address') {
-    if (b.severity === 'needs_user_review' || b.severity === 'warning') return 'review';
-    return 'unknown';
+    // Time Engine 4 — unlinked_address är ARBETE som saknar projekt-koppling.
+    // Endast verklig konflikt (needs_user_review) renderas som review-block.
+    // warning/info → kind 'work' med chips/warnings som förklarar.
+    if (b.severity === 'needs_user_review') return 'review';
+    return 'work';
   }
   return mapped;
 };
