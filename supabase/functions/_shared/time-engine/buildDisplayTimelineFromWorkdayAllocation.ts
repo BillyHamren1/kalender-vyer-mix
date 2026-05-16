@@ -315,7 +315,7 @@ function pickWarnings(raw: WorkdayAllocationWarning[]): DisplayTimelineWarning[]
 const WARNING_HUMAN_TEXT: Partial<Record<string, string>> = {
   staff_not_assigned_to_matched_target: 'Du var på plats men saknade assignment.',
   unassigned_known_target_presence: 'Närvaro på känd plats utan assignment.',
-  no_project_link: 'Adressen är inte kopplad till projekt.',
+  no_project_link: 'Saknar projektkoppling',
   long_signal_gap: 'Signal saknades en längre stund, men platsen verkar vara samma.',
   planning_geo_mismatch: 'Planeringen säger annan plats än GPS.',
   supplier_visit_without_project_context: 'Leverantörsbesöket saknar tydlig projektkoppling.',
@@ -332,6 +332,7 @@ const WARNING_HUMAN_TEXT: Partial<Record<string, string>> = {
   workday_time_without_location_truth_segment: 'Arbetstid utan platsdata.',
   segment_partially_outside_workday: 'Delvis utanför arbetsdagen.',
   needs_review_business_context: 'Affärsmässigt sammanhang behöver granskas.',
+  absorbed_signal_gap: 'Kort signalbortfall.',
 };
 
 function humanWarning(w: string): string | null {
