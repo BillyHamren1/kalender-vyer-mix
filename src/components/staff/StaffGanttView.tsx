@@ -1748,6 +1748,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                 src === 'displayTimelineV2' ? 'v2'
                                 : src === 'workdayAllocation' ? 'alloc'
                                 : src === 'reportCandidate' ? 'legacy'
+                                : src === 'v2_empty' ? 'v2_empty'
                                 : 'empty';
                               if (!d && !c) return null;
                               const absorbed = d
