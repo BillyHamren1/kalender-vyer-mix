@@ -1265,10 +1265,12 @@ export function buildWorkdayAllocationFromLocationTruth(
           Math.max(0, Math.round((eMs - sMs) / 60_000));
       }
       // Vi tar fortfarande med segmentet i debug-output men markerar det.
+      const bcrOutside = resolveSegBusinessContext(seg);
       const allocOutside = deriveAllocation(
         seg,
         !!seg.evidence.assignmentSupportsTarget,
         seg.finalType === 'movement' ? movementCtxById.get(seg.id) ?? null : null,
+        bcrOutside,
       );
       const item: WorkdayAllocationSegment = {
         id: `wda_${seg.id}`,
