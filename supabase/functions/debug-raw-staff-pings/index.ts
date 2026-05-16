@@ -375,6 +375,19 @@ Deno.serve(async (req) => {
         hasPingsBeforeWorkdayLikely,
         hasPingsAfterWorkdayLikely,
         battery,
+        appHealth: (() => {
+          const h = latestHealthByStaff.get(staffId);
+          if (!h) return null;
+          return {
+            lastAppSeenAt: h.occurred_at,
+            lastEventType: h.event_type,
+            lastAppState: h.app_state,
+            lastBatteryPercent: h.battery_percent,
+            lastIsCharging: h.is_charging,
+            lastPlatform: h.platform,
+            lastAppVersion: h.app_version,
+          };
+        })(),
         sampleRows: sampleRows.map(r => ({
           id: r.id,
           staff_id: r.staff_id,
