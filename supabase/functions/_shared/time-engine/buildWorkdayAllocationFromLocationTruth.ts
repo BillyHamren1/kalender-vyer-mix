@@ -137,7 +137,10 @@ export type WorkdayAllocationWarning =
   | 'workday_time_without_location_truth_segment'
   // ── Lager 3.11C — warehouse-warnings (ersätter warehouse_presence_no_assignment) ─
   | 'warehouse_presence'
-  | 'warehouse_presence_during_planned_project';
+  | 'warehouse_presence_during_planned_project'
+  // ── Time Engine 3 — open/stale timer utan same-day evidence ──────────
+  | 'open_timer_without_same_day_evidence'
+  | 'workday_start_adjusted_to_first_evidence';
 
 // ── Lager 3.11C — DEPRECATED warnings (får INTE emitteras) ─────────────
 //   - supplier_visit_no_assignment       → använd supplier_visit_without_project_context
@@ -520,6 +523,8 @@ const WARNING_TYPES: WorkdayAllocationWarning[] = [
   'home_after_last_work_location', 'temporary_home_presence',
   'workday_time_without_location_truth_segment',
   'warehouse_presence', 'warehouse_presence_during_planned_project',
+  'open_timer_without_same_day_evidence',
+  'workday_start_adjusted_to_first_evidence',
 ];
 
 const emptyAllocCounts = (): Record<WorkdayAllocationType, number> =>
@@ -736,7 +741,60 @@ export function buildWorkdayAllocationFromLocationTruth(
   });
 
   const wd = input.activeWorkday ?? null;
-  const wdStartMs = toMs(envelope.startAt);
+
+  // ── Time Engine 3 — same-day evidence check ─────────────────────────────
+  // En öppen/stale timer utan same-day evidence får INTE skapa en synlig
+  // workday-envelope (annars renderas hela dagen som "Glapp i dagen").
+  const dayEv: any = input.dayEvidence ?? null;
+  const gpsPingCount =
+    (dayEv?.gps?.locationLogicPingCount as number | undefined) ??
+    (dayEv?.diagnostics?.gps?.locationLogicPingCount as number | undefined) ??
+    (dayEv?.diagnostics?.counts?.pings as number | undefined) ??
+    0;
+  const ltSegmentCount = ltSegments.length;
+  const assignmentItemCount = (dayEv?.assignments?.items?.length as number | undefined) ?? 0;
+  const hasSameDayEvidence =
+    gpsPingCount > 0 || ltSegmentCount > 0 || assignmentItemCount > 0;
+
+  // Hitta tidigaste same-day evidence-tidpunkt för att kunna trimma stale start.
+  const firstEvidenceMs: number | null = (() => {
+    const candidates: number[] = [];
+    const firstPing = toMs(dayEv?.gps?.firstPingAt ?? dayEv?.gps?.firstRecordedAt ?? null);
+    if (firstPing !== null) candidates.push(firstPing);
+    const firstLt = ltSegments.length > 0
+      ? Math.min(...ltSegments.map((s) => toMs(s.startAt) ?? Infinity).filter((n) => Number.isFinite(n)))
+      : null;
+    if (firstLt !== null && Number.isFinite(firstLt)) candidates.push(firstLt as number);
+    return candidates.length > 0 ? Math.min(...candidates) : null;
+  })();
+
+  // Effektiv start — kan justeras nedåt om stale open timer + evidence finns.
+  let effectiveStartMs = toMs(envelope.startAt);
+  let workdayStartAdjusted = false;
+  let suppressForOpenTimerNoEvidence = false;
+
+  if (envelope.isOpen && !hasSameDayEvidence) {
+    // Inget bevis för dagen → ingen renderbar workday.
+    suppressForOpenTimerNoEvidence = true;
+    effectiveStartMs = null;
+  } else if (
+    envelope.isOpen &&
+    hasSameDayEvidence &&
+    envelope.startWasClippedToDay &&
+    firstEvidenceMs !== null &&
+    effectiveStartMs !== null &&
+    firstEvidenceMs > effectiveStartMs
+  ) {
+    // Stale open timer (startade före dagen) men dagen HAR evidence →
+    // använd första same-day evidence som effektiv start. Aldrig 00:00.
+    effectiveStartMs = firstEvidenceMs;
+    workdayStartAdjusted = true;
+  }
+
+  const wdStartMs = effectiveStartMs;
+  const effectiveStartIso = effectiveStartMs !== null
+    ? new Date(effectiveStartMs).toISOString()
+    : null;
 
   const segments: WorkdayAllocationSegment[] = [];
   const proposals: WorkdayAllocationProposal[] = [];
@@ -745,9 +803,11 @@ export function buildWorkdayAllocationFromLocationTruth(
     date: wd?.date ?? input.locationTruthV2?.diagnostics.date ?? null,
     builtAtIso: new Date().toISOString(),
     buildDurationMs: 0,
-    hasActiveWorkday: !!wdStartMs,
-    workdayStartAt: envelope.startAt,
-    workdayEndAt: envelope.isOpen ? null : envelope.endAt,
+    hasActiveWorkday: !!wdStartMs && !suppressForOpenTimerNoEvidence,
+    workdayStartAt: suppressForOpenTimerNoEvidence ? null : (effectiveStartIso ?? envelope.startAt),
+    workdayEndAt: suppressForOpenTimerNoEvidence
+      ? null
+      : (envelope.isOpen ? null : envelope.endAt),
     workdayDurationMinutes: 0,
     inputSegmentCount: ltSegments.length,
     segmentsInsideWorkday: 0,
@@ -757,7 +817,7 @@ export function buildWorkdayAllocationFromLocationTruth(
     warningsByType: emptyWarningCounts(),
     warnings: [...envelope.warnings],
     uncoveredWorkdayMinutes: 0,
-    workdayEnvelopeFound: !!wdStartMs,
+    workdayEnvelopeFound: !!wdStartMs && !suppressForOpenTimerNoEvidence,
     openWorkday: envelope.isOpen,
     workdayStartSource: envelope.startSource,
     workdayEndSource: envelope.endSource,
@@ -766,8 +826,12 @@ export function buildWorkdayAllocationFromLocationTruth(
       timerStartedAt: envelope.timerStartedAt ?? null,
       timerStoppedAt: envelope.timerStoppedAt ?? null,
       timerIsOpen: envelope.isOpen,
-      effectiveWorkdayStartAt: envelope.effectiveWorkdayStartAt ?? envelope.startAt ?? null,
-      effectiveWorkdayEndAt: envelope.effectiveWorkdayEndAt ?? envelope.endAt ?? null,
+      effectiveWorkdayStartAt: suppressForOpenTimerNoEvidence
+        ? null
+        : (effectiveStartIso ?? envelope.effectiveWorkdayStartAt ?? envelope.startAt ?? null),
+      effectiveWorkdayEndAt: suppressForOpenTimerNoEvidence
+        ? null
+        : (envelope.effectiveWorkdayEndAt ?? envelope.endAt ?? null),
       analysisDayStartAt: envelope.analysisDayStartAt ?? null,
       analysisDayEndAt: envelope.analysisDayEndAt ?? null,
       startWasClippedToDay: envelope.startWasClippedToDay ?? false,
@@ -803,14 +867,34 @@ export function buildWorkdayAllocationFromLocationTruth(
     examples: [],
   };
 
+  // Time Engine 3 — suppress workday helt om open timer + ingen evidence.
+  if (suppressForOpenTimerNoEvidence) {
+    diag.warnings.push('no_active_workday');
+    diag.warningsByType.no_active_workday += 1;
+    if (!diag.warnings.includes('open_timer_without_same_day_evidence')) {
+      diag.warnings.push('open_timer_without_same_day_evidence');
+    }
+    diag.warningsByType.open_timer_without_same_day_evidence += 1;
+    diag.buildDurationMs = Date.now() - startedAt;
+    return { segments, proposals, diagnostics: diag };
+  }
+
   if (!wdStartMs) {
     diag.warnings.push('no_active_workday');
     diag.warningsByType.no_active_workday += 1;
     diag.buildDurationMs = Date.now() - startedAt;
     return { segments, proposals, diagnostics: diag };
   }
+
+  if (workdayStartAdjusted) {
+    diag.warnings.push('workday_start_adjusted_to_first_evidence');
+    diag.warningsByType.workday_start_adjusted_to_first_evidence += 1;
+  }
+
   // Använd envelope-end (täcker både stängd och öppen dagtimer).
-  const wdEnd = toMs(envelope.endAt) ?? Date.now();
+  // Men klippt mot ev. justerad start så vi aldrig genererar negativ duration.
+  const envelopeEndMs = toMs(envelope.endAt) ?? Date.now();
+  const wdEnd = Math.max(envelopeEndMs, wdStartMs);
   diag.workdayDurationMinutes = Math.max(0, Math.round((wdEnd - wdStartMs) / 60_000));
 
   // Track coverage för uncoveredWorkdayMinutes.

@@ -128,7 +128,9 @@ Deno.test('Layer 3.2 — segment outside envelope → outsideWorkday + segment_o
 Deno.test('Layer 3.2 — diagnostics exposes envelope fields', () => {
   const lt = fakeLocationTruth([]);
   const wda = buildWorkdayAllocationFromLocationTruth({
-    dayEvidence: null,
+    // Time Engine 3 — open timer kräver same-day evidence för synlig envelope.
+    // Vi simulerar evidence här så att envelope-fälten rapporteras som tidigare.
+    dayEvidence: { gps: { locationLogicPingCount: 10 } } as any,
     locationTruthV2: lt,
     workdayEnvelope: {
       startAt: '2026-05-15T07:00:00.000Z',
