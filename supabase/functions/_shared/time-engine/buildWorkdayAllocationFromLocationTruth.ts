@@ -285,6 +285,8 @@ export interface WorkdayAllocationDiagnostics {
   rawPingCount?: number;
   /** Antal LocationTruth V2-segment i input. */
   locationTruthV2SegmentCount?: number;
+  /** Fix A — open timer ignorerad pga 0 same-day evidence (display ska suppressa). */
+  openTimerIgnoredForDisplay?: boolean;
   // ── Time Engine Core Fix 2 — business context resolution ─────────────
   /** Antal segment där business context lyftes från assignment utan geo. */
   businessContextFromAssignmentCount?: number;
@@ -1039,7 +1041,7 @@ export function buildWorkdayAllocationFromLocationTruth(
     return { segments, proposals, diagnostics: diag };
   }
 
-  // Time Engine 3 — suppress workday helt om open timer + ingen evidence.
+  // Time Engine 3 / Fix A — suppress workday helt om open timer + ingen evidence.
   if (suppressForOpenTimerNoEvidence) {
     diag.warnings.push('no_active_workday');
     diag.warningsByType.no_active_workday += 1;
@@ -1047,8 +1049,22 @@ export function buildWorkdayAllocationFromLocationTruth(
       diag.warnings.push('open_timer_without_same_day_evidence');
     }
     diag.warningsByType.open_timer_without_same_day_evidence += 1;
+    // Fix A: explicita 0/false-värden så display/Gantt inte ritar fall-back.
+    diag.openTimerIgnoredForDisplay = true;
+    diag.hasActiveWorkday = false;
+    diag.workdayEnvelopeFound = false;
+    diag.workdayStartAt = null;
+    diag.workdayEndAt = null;
+    diag.workdayDurationMinutes = 0;
+    diag.uncoveredWorkdayMinutes = 0;
+    diag.uncoveredGapCount = 0;
+    diag.uncoveredGapMinutesTotal = 0;
+    diag.uncoveredGapsProposedCount = 0;
+    diag.shortUncoveredGapsIgnoredCount = 0;
+    diag.workdayEnvelope.effectiveWorkdayStartAt = null;
+    diag.workdayEnvelope.effectiveWorkdayEndAt = null;
     diag.buildDurationMs = Date.now() - startedAt;
-    return { segments, proposals, diagnostics: diag };
+    return { segments: [], proposals: [], diagnostics: diag };
   }
 
   if (!wdStartMs) {
