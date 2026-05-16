@@ -18,6 +18,9 @@ interface Props {
   staffId: string;
   date: string; // YYYY-MM-DD
   reportCandidateBlocks: ReportCandidateBlockUI[];
+  /** Initial filter range (typically the clicked block's start/end ISO). */
+  initialFromIso?: string | null;
+  initialToIso?: string | null;
 }
 
 // Build a local-time ISO string from "YYYY-MM-DD" + "HH:MM"
@@ -44,12 +47,27 @@ export const DecisionMapTab: React.FC<Props> = ({
   staffId,
   date,
   reportCandidateBlocks,
+  initialFromIso,
+  initialToIso,
 }) => {
-  const [from, setFrom] = useState<string>('');
-  const [to, setTo] = useState<string>('');
+  const [from, setFrom] = useState<string>(() => isoToHm(initialFromIso));
+  const [to, setTo] = useState<string>(() => isoToHm(initialToIso));
 
-  const fromIso = useMemo(() => combineLocal(date, from), [date, from]);
-  const toIso = useMemo(() => combineLocal(date, to), [date, to]);
+  // Sync time-window when the caller's initial ISO range changes
+  // (e.g. user clicks a different block in BlockDetailDialog).
+  React.useEffect(() => {
+    setFrom(isoToHm(initialFromIso));
+    setTo(isoToHm(initialToIso));
+  }, [initialFromIso, initialToIso]);
+
+  const fromIso = useMemo(
+    () => combineLocal(date, from) ?? (initialFromIso || null),
+    [date, from, initialFromIso],
+  );
+  const toIso = useMemo(
+    () => combineLocal(date, to) ?? (initialToIso || null),
+    [date, to, initialToIso],
+  );
 
   const setRange = (f: string, t: string) => {
     setFrom(f);
