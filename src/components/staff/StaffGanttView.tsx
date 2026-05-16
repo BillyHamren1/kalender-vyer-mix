@@ -39,6 +39,7 @@ import {
   type SessionPhaseKind,
 } from '@/lib/staff/ganttPhaseColor';
 import { mergeContiguousBlocks, type MergeBlockInput, type MergeableKind } from '@/lib/staff/ganttBlockMerge';
+import { buildVisualGanttBlocks, type VisualGanttBlock } from '@/lib/staff/visualGanttBlocks';
 import type { ReviewWorkInput, ReviewTravelInput } from '@/lib/staff/timeReportReviewEntry';
 import type {
   DaySegment,
