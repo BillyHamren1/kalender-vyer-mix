@@ -1206,6 +1206,46 @@ export function buildWorkdayAllocationFromLocationTruth(
     if (t.idx === lastCommuteHomeboundIdx) t.ctx.isLastHomeboundCommuteOfDay = true;
   }
 
+  // ── Time Engine Core Fix 2 — overlap-helper + knownTargets för business context ──
+  const allAssignments: AssignmentEvidenceItem[] =
+    (input.dayEvidence?.assignments?.items as AssignmentEvidenceItem[] | undefined) ?? [];
+  const allKnownTargets: KnownTargetEvidenceItem[] =
+    (input.dayEvidence?.knownTargets?.items as KnownTargetEvidenceItem[] | undefined) ?? [];
+
+  function getOverlappingAssignmentsForInterval(
+    startMs: number,
+    endMs: number,
+  ): AssignmentEvidenceItem[] {
+    const out: AssignmentEvidenceItem[] = [];
+    for (const a of allAssignments) {
+      const aS = toMs(a.startAt ?? null);
+      const aE = toMs(a.endAt ?? null);
+      if (aS === null || aE === null) continue;
+      if (aS < endMs && aE > startMs) out.push(a);
+    }
+    return out;
+  }
+
+  function resolveSegBusinessContext(
+    seg: LocationTruthSegment,
+  ): BusinessContextResolution | null {
+    if (seg.finalType === 'movement' || seg.finalType === 'private_residence') {
+      return null;
+    }
+    const sMs = toMs(seg.startAt);
+    const eMs = toMs(seg.endAt);
+    if (sMs === null || eMs === null) return null;
+    const overlap = getOverlappingAssignmentsForInterval(sMs, eMs);
+    const physicallyStable =
+      seg.finalType === 'known_site' || seg.finalType === 'known_address';
+    return resolveBusinessContextForAllocation({
+      seg,
+      overlappingAssignments: overlap,
+      knownTargets: allKnownTargets,
+      physicallyStable,
+    });
+  }
+
   for (const seg of ltSegments) {
     const sMs = toMs(seg.startAt);
     const eMs = toMs(seg.endAt);
