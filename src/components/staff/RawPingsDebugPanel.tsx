@@ -64,7 +64,9 @@ function fmtNum(n: number | null, digits = 0) {
   return n.toFixed(digits);
 }
 
-export function RawPingsDebugPanel({ organizationId, date, onClose }: Props) {
+export function RawPingsDebugPanel({
+  organizationId, date, shownStaffIds, shownStaffNames, onClose,
+}: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [withRows, setWithRows] = useState(true);
 
@@ -78,6 +80,32 @@ export function RawPingsDebugPanel({ organizationId, date, onClose }: Props) {
     () => (data?.summary.intervalEnd ? new Date(data.summary.intervalEnd).getTime() : Date.now()),
     [data?.summary.intervalEnd],
   );
+
+  // ─── Jämför rapportlistan mot pings-listan ─────────────────────────
+  const comparison = useMemo(() => {
+    const shown = new Set(shownStaffIds);
+    const pingMap = new Map<string, RawPingStaffEntry>();
+    for (const e of data?.perStaff ?? []) pingMap.set(e.staffId, e);
+
+    const shownInReportAndHasPings: string[] = [];
+    const shownInReportNoPings: string[] = [];
+    const hasPingsButMissingFromReport: RawPingStaffEntry[] = [];
+
+    for (const id of shown) {
+      if (pingMap.has(id)) shownInReportAndHasPings.push(id);
+      else shownInReportNoPings.push(id);
+    }
+    for (const [id, entry] of pingMap) {
+      if (!shown.has(id)) hasPingsButMissingFromReport.push(entry);
+    }
+    // "noPingsAndNotShown" är inte uppmätbar härifrån (vi vet inte vilka som
+    // existerar utan både att synas och att pinga). Vi lämnar det som 0.
+    return {
+      shownInReportAndHasPings,
+      shownInReportNoPings,
+      hasPingsButMissingFromReport,
+    };
+  }, [shownStaffIds, data?.perStaff]);
 
   const toggle = (id: string) => {
     setExpanded(prev => {
