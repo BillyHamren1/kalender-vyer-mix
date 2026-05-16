@@ -140,4 +140,80 @@ describe('buildTimeEngineFlowTrace', () => {
     });
     expect(t.suspectedProblems.some((p) => p.key === 'stale_timer_but_no_same_day_pings')).toBe(true);
   });
+
+  it('exposes empty batteryDiagnostics when no input provided', () => {
+    const t = buildTimeEngineFlowTrace({ ...baseInput, presenceResponse: null });
+    expect(t.summary.batteryDiagnostics.hasBatteryData).toBe(false);
+    expect(t.summary.batteryDiagnostics.signalLossBannerText).toBeNull();
+    expect(t.decisionTrace).toEqual([]);
+    expect(t.suspectedProblems.some((p) => p.key === 'battery_low_before_signal_loss')).toBe(false);
+  });
+
+  it('flags battery_low_before_signal_loss when last ping <=10% and gap > 30 min', () => {
+    const t = buildTimeEngineFlowTrace({
+      ...baseInput,
+      presenceResponse: { rawGpsTimeline: { rawPingCount: 50 } },
+      rawPingDebug: {
+        rawPingCount: 50,
+        firstRawPingAt: '2026-05-16T08:00:00Z',
+        lastRawPingAt: '2026-05-16T12:04:00Z',
+        maxRawPingGapMinutes: 120,
+        medianAccuracy: 10,
+        p90Accuracy: 25,
+      },
+      batteryDiagnostics: {
+        hasBatteryData: true,
+        firstBatteryPercent: 80,
+        lastBatteryPercent: 4,
+        minBatteryPercent: 4,
+        latestIsCharging: false,
+        batterySamplesCount: 30,
+        missingBatterySamplesCount: 0,
+        likelyBatteryRelatedSignalLoss: true,
+        batteryDroppedFast: true,
+        lastPingBeforeLargeGap: {
+          recordedAt: '2026-05-16T12:04:00Z',
+          batteryPercent: 4,
+          isCharging: false,
+          gapAfterMinutes: 120,
+        },
+      },
+    });
+    expect(t.summary.batteryDiagnostics.hasBatteryData).toBe(true);
+    expect(t.summary.batteryDiagnostics.signalLossBannerText).toContain('12:04');
+    expect(t.summary.batteryDiagnostics.signalLossBannerText).toContain('4 %');
+    expect(t.summary.batteryDiagnostics.signalLossBannerText).toContain('nej');
+    expect(t.suspectedProblems.some((p) => p.key === 'battery_low_before_signal_loss')).toBe(true);
+    const dt = t.decisionTrace.find((d) => d.decision === 'battery_signal_loss_candidate');
+    expect(dt?.confidence).toBe('medium');
+    expect(dt?.warnings).toContain('low_battery_before_signal_gap');
+  });
+
+  it('does not flag battery_low_before_signal_loss when battery is healthy', () => {
+    const t = buildTimeEngineFlowTrace({
+      ...baseInput,
+      presenceResponse: { rawGpsTimeline: { rawPingCount: 50 } },
+      rawPingDebug: {
+        rawPingCount: 50,
+        firstRawPingAt: '2026-05-16T08:00:00Z',
+        lastRawPingAt: '2026-05-16T17:00:00Z',
+        maxRawPingGapMinutes: 5,
+        medianAccuracy: 10,
+        p90Accuracy: 20,
+      },
+      batteryDiagnostics: {
+        hasBatteryData: true,
+        firstBatteryPercent: 90,
+        lastBatteryPercent: 65,
+        minBatteryPercent: 65,
+        latestIsCharging: false,
+        batterySamplesCount: 40,
+        missingBatterySamplesCount: 0,
+        likelyBatteryRelatedSignalLoss: false,
+        batteryDroppedFast: false,
+      },
+    });
+    expect(t.suspectedProblems.some((p) => p.key === 'battery_low_before_signal_loss')).toBe(false);
+    expect(t.summary.batteryDiagnostics.signalLossBannerText).toBeNull();
+  });
 });
