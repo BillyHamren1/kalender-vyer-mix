@@ -357,9 +357,19 @@ function deriveSeverity(
   confidence: WorkdayAllocationConfidence,
   warnings: WorkdayAllocationWarning[],
 ): DisplayTimelineSeverity {
+  // Time Engine 4 — review behålls bara för verklig motor-osäkerhet.
   if (displayType === 'review') return 'needs_user_review';
-  if (displayType === 'unlinked_address') return 'needs_user_review';
-  if (displayType === 'break_or_gap') return 'needs_user_review';
+  // Time Engine 4 — unlinked_address är ARBETE som saknar projekt-koppling.
+  // Stabil fysisk plats utan länk → warning. Kort/osäker → info.
+  // needs_user_review bara om verklig konflikt (planning_geo_mismatch m.fl.).
+  if (displayType === 'unlinked_address') {
+    if (warnings.includes('planning_geo_mismatch')) return 'needs_user_review';
+    if (confidence === 'low') return 'info';
+    return 'warning';
+  }
+  // Time Engine 4 — break_or_gap-severity styrs i gap-byggar-steget (kort=info,
+  // lång=warning, kritisk=needs_user_review). Default här är info.
+  if (displayType === 'break_or_gap') return 'info';
   if (warnings.includes('staff_not_assigned_to_matched_target')) return 'warning';
   if (warnings.includes('planning_geo_mismatch')) return 'warning';
   if (warnings.includes('supplier_visit_during_planned_project')) return 'warning';
