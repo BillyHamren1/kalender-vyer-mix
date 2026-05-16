@@ -112,7 +112,7 @@ export const useProjectDetail = (projectId: string) => {
             .from('vehicles')
             .select('name')
             .eq('id', newRow.vehicle_id)
-            .single();
+            .maybeSingle();
           const vehicleName = vehicle?.name || 'Okänt fordon';
           logActivity('transport_added', `Transport bokad: ${vehicleName} (${newRow.transport_date})`, {
             vehicle_name: vehicleName,
@@ -141,7 +141,7 @@ export const useProjectDetail = (projectId: string) => {
             .from('vehicles')
             .select('name')
             .eq('id', newRow.vehicle_id)
-            .single();
+            .maybeSingle();
           const vehicleName = vehicle?.name || 'Okänt fordon';
 
           if (oldRow.partner_response !== newRow.partner_response && newRow.partner_response) {
