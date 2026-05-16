@@ -542,6 +542,17 @@ export function buildTimeEngineTraceExport(input: BuildTraceExportInput): TimeEn
     (a.staffName ?? a.staffId).localeCompare(b.staffName ?? b.staffId, 'sv'),
   );
 
+  const truncatedStaff = staffEntries.filter(s => s.rawPings.truncated);
+  const rawPingsTruncatedTotalMissingRows = truncatedStaff.reduce((sum, s) => {
+    const total = s.rawPings.totalCountBeforeLimit ?? s.rawPings.count;
+    const got = s.rawPings.rows.length;
+    return sum + Math.max(0, total - got);
+  }, 0);
+  const rawPingsWarnings = safeArr<string>(input.rawPings?.diagnostics?.warnings);
+  const rawPingsHardCapReached =
+    input.rawPings?.diagnostics?.paginationUsed?.truncated === true ||
+    rawPingsWarnings.some(w => w.startsWith('row_hard_cap_'));
+
   const summary = {
     totalStaff: staffEntries.length,
     staffWithRawPings: staffEntries.filter(s => s.rawPings.count > 0).length,
@@ -557,6 +568,10 @@ export function buildTimeEngineTraceExport(input: BuildTraceExportInput): TimeEn
       (sum, s) => sum + s.diffFindings.filter(f => f.severity === 'warning').length,
       0,
     ),
+    rawPingsTruncatedStaffCount: truncatedStaff.length,
+    rawPingsTruncatedTotalMissingRows,
+    rawPingsHardCapReached,
+    rawPingsWarnings,
   };
 
   return {
