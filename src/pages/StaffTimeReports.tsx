@@ -144,7 +144,8 @@ export type PlanningStatus =
   | 'unplanned_activity'     // Aktivitet finns men ingen planering
   | 'workday_active'         // Pågående arbetsdag
   | 'planned'                // Planerad + workday/aktivitet (normalt fall)
-  | 'completed';             // Workday avslutad
+  | 'completed'              // Workday avslutad
+  | 'gps_only';              // Har GPS-pings men saknar all annan rapportdata
 
 /**
  * Hämta hela dagens staff_location_history för EN staff via paginering.
