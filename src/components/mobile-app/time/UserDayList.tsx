@@ -1,9 +1,10 @@
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { StaffPeriodDaySummary } from '@/hooks/useStaffTimeReportPeriod';
 import { formatHoursMinutes } from '@/utils/formatHours';
+import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
 
 const STATUS_LABEL: Record<StaffPeriodDaySummary['status'], string> = {
   empty: 'Ingen tid',
@@ -14,11 +15,16 @@ const STATUS_LABEL: Record<StaffPeriodDaySummary['status'], string> = {
   approved: 'Godkänd',
 };
 
-// Färgschema enligt EventFlow Time-tema:
-//   primary  – aktiv dag
-//   emerald  – inskickad / godkänd
-//   amber    – behöver åtgärdas
-//   muted    – tom / inaktiv
+// CTA-text per status — visas som tydlig handlingsuppmaning på raden.
+const STATUS_CTA: Record<StaffPeriodDaySummary['status'], string> = {
+  empty: 'Rapportera tid',
+  open: 'Avsluta dagen',
+  needs_attest: 'Skicka in',
+  needs_action: 'Åtgärda',
+  attested: 'Inskickad',
+  approved: 'Godkänd',
+};
+
 const STATUS_TONE: Record<StaffPeriodDaySummary['status'], string> = {
   empty: 'bg-muted text-muted-foreground border-border',
   open: 'bg-primary/10 text-primary border-primary/20',
@@ -77,6 +83,19 @@ const DayRow = ({
   const minutes = day.grossWorkdayMinutes ?? 0;
   const breakMinutes = day.breakMinutes ?? 0;
   const payable = day.payableMinutes ?? 0;
+  const isEmpty = day.status === 'empty';
+
+  // Optional start/end — backend may add these later from manual submission.
+  const anyDay = day as StaffPeriodDaySummary & {
+    startedAt?: string | null;
+    endedAt?: string | null;
+    workdayStartedAt?: string | null;
+    workdayEndedAt?: string | null;
+  };
+  const startedAt = anyDay.startedAt ?? anyDay.workdayStartedAt ?? null;
+  const endedAt = anyDay.endedAt ?? anyDay.workdayEndedAt ?? null;
+  const showRange = !!startedAt && !!endedAt;
+
   return (
     <button
       type="button"
@@ -96,26 +115,46 @@ const DayRow = ({
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="flex items-baseline gap-2">
-          <p className="text-sm font-extrabold tabular-nums text-foreground">
-            {formatHoursMinutes(minutes / 60)}
-          </p>
-          <p className="text-[11px] text-muted-foreground">brutto</p>
-        </div>
-        <div className="flex items-center gap-3 mt-0.5 text-[11px] text-muted-foreground">
-          <span>
-            <span className="font-semibold text-foreground tabular-nums">
-              {formatHoursMinutes(payable / 60)}
-            </span>{' '}
-            lön
-          </span>
-          <span>
-            <span className="font-semibold text-foreground tabular-nums">
-              {formatHoursMinutes(breakMinutes / 60)}
-            </span>{' '}
-            rast
-          </span>
-        </div>
+        {isEmpty ? (
+          <>
+            <p className="text-sm font-extrabold text-foreground">Rapportera tid</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Tryck för att fylla i start, slut och rast.
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="flex items-baseline gap-2">
+              <p className="text-sm font-extrabold tabular-nums text-foreground">
+                {formatHoursMinutes(minutes / 60)}
+              </p>
+              <p className="text-[11px] text-muted-foreground">brutto</p>
+              {showRange && (
+                <p className="text-[11px] text-muted-foreground tabular-nums ml-auto">
+                  {formatStockholmHm(startedAt!)}–{formatStockholmHm(endedAt!)}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-3 mt-0.5 text-[11px] text-muted-foreground">
+              <span>
+                <span className="font-semibold text-foreground tabular-nums">
+                  {formatHoursMinutes(payable / 60)}
+                </span>{' '}
+                lön
+              </span>
+              <span>
+                <span className="font-semibold text-foreground tabular-nums">
+                  {formatHoursMinutes(breakMinutes / 60)}
+                </span>{' '}
+                rast
+              </span>
+              <span className="text-foreground/70 font-semibold ml-auto inline-flex items-center gap-0.5">
+                {STATUS_CTA[day.status]}
+                <ChevronRight className="w-3 h-3" />
+              </span>
+            </div>
+          </>
+        )}
       </div>
 
       <span className={cn(
@@ -130,3 +169,4 @@ const DayRow = ({
 };
 
 export default UserDayList;
+

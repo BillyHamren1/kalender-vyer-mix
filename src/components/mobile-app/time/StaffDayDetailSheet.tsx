@@ -156,6 +156,21 @@ const DayBody: React.FC<{
     (t?.warehouseMinutes ?? 0);
   const otherPlaceMin = t?.otherPlaceMinutes ?? 0;
 
+  // Manual fallback: attestation/submission can carry requestedStart/EndAt
+  // even when no workday row exists. Header + "Manuell tidrapport"-rad använder
+  // dessa när det inte finns en riktig workday.
+  const manualStart = snapshot.attestation?.requestedStartAt ?? null;
+  const manualEnd = snapshot.attestation?.requestedEndAt ?? null;
+  const headerStart = wd?.startedAt ?? manualStart;
+  const headerEnd = wd?.endedAt ?? manualEnd;
+  const headerOpen = !!wd?.isOpen;
+  const hasManualOnly = !wd && !!manualStart && !!manualEnd;
+  const manualMinutes = hasManualOnly && manualStart && manualEnd
+    ? Math.max(0, Math.round(
+        (new Date(manualEnd).getTime() - new Date(manualStart).getTime()) / 60000,
+      ))
+    : 0;
+
   const openFlags = useMemo(
     () => (snapshot.flags ?? []).filter(
       (f) => !f.resolved && f.severity !== 'info',
@@ -175,14 +190,15 @@ const DayBody: React.FC<{
 
   const statusChip = (() => {
     if (isLocked) return { label: 'Godkänd', tone: 'emerald' as const, Icon: Check };
-    if (!wd) return { label: 'Ingen tid', tone: 'muted' as const, Icon: AlertTriangle };
-    if (wd.isOpen) return { label: 'Pågår', tone: 'primary' as const, Icon: Loader2 };
+    if (!wd && !hasManualOnly) return { label: 'Ingen tid', tone: 'muted' as const, Icon: AlertTriangle };
+    if (headerOpen) return { label: 'Pågår', tone: 'primary' as const, Icon: Loader2 };
     if (snapshot.attestation?.status === 'attested') {
       return { label: 'Inskickad', tone: 'emerald' as const, Icon: Check };
     }
     if (hasOpenIssues) return { label: 'Behöver åtgärdas', tone: 'amber' as const, Icon: AlertTriangle };
     return { label: 'Ej inskickad', tone: 'amber' as const, Icon: Check };
   })();
+
 
   return (
     <div className="space-y-3 mt-2 pb-6">
@@ -204,12 +220,12 @@ const DayBody: React.FC<{
             </p>
             <p className="font-extrabold text-base text-foreground mt-1 flex items-center gap-1.5 flex-wrap">
               <Sun className="w-4 h-4 text-primary shrink-0" />
-              {wd ? (
+              {headerStart ? (
                 <>
-                  <span className="tabular-nums">{formatStockholmHm(wd.startedAt)}</span>
+                  <span className="tabular-nums">{formatStockholmHm(headerStart)}</span>
                   <span className="text-muted-foreground mx-0.5">→</span>
-                  {wd.endedAt ? (
-                    <span className="tabular-nums">{formatStockholmHm(wd.endedAt)}</span>
+                  {headerEnd && !headerOpen ? (
+                    <span className="tabular-nums">{formatStockholmHm(headerEnd)}</span>
                   ) : (
                     <span className="text-primary">pågår</span>
                   )}
@@ -343,10 +359,30 @@ const DayBody: React.FC<{
             </div>
           )}
         </section>
+      ) : hasManualOnly ? (
+        <section className="rounded-2xl border border-border bg-card p-4 space-y-2">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+            Tidslinje
+          </p>
+          <div className="rounded-xl border border-border bg-background/60 px-3 py-2.5 flex items-start gap-3">
+            <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10 text-primary">
+              <Sun className="w-4 h-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[12px] tabular-nums font-semibold text-muted-foreground">
+                {formatStockholmHm(manualStart!)}–{formatStockholmHm(manualEnd!)}
+              </p>
+              <p className="text-sm font-semibold text-foreground">Manuell tidrapport</p>
+            </div>
+            <div className="text-xs tabular-nums font-bold text-foreground/80 shrink-0 pt-0.5">
+              {formatHoursMinutes(manualMinutes / 60)}
+            </div>
+          </div>
+        </section>
       ) : (
         <>
           <p className="text-sm text-muted-foreground text-center py-4">
-            Inga registrerade aktiviteter denna dag.
+            Ingen tid rapporterad ännu. Fyll i tiderna nedan.
           </p>
           {isToday && !!snapshot.workday?.isOpen && (
             <EndDayButton workdayOpen onStopped={onChanged} />
