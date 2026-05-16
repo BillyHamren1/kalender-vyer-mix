@@ -92,10 +92,11 @@ Deno.serve(async (req) => {
 
     // Confirm caller belongs to organization (any role).
     const { data: membership } = await admin
-      .from('user_organizations')
+      .from('user_roles')
       .select('organization_id')
       .eq('user_id', userRes.user.id)
       .eq('organization_id', organizationId)
+      .limit(1)
       .maybeSingle();
     if (!membership) {
       return json({ error: 'forbidden_for_organization' }, 403);
