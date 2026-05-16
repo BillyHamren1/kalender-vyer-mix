@@ -281,8 +281,9 @@ export function RawPingsDebugPanel({
                       </tr>
                       {isOpen && (
                         <tr className="bg-muted/20">
-                          <td colSpan={13} className="px-2 py-2">
+                          <td colSpan={14} className="px-2 py-2">
                             <BatterySummaryDetail battery={s.battery} />
+                            <AppHealthDetail appHealth={s.appHealth} />
                             <SampleRowsTable rows={s.sampleRows} />
                           </td>
                         </tr>
@@ -291,7 +292,7 @@ export function RawPingsDebugPanel({
                   );
                 })}
                 {data.perStaff.length === 0 && (
-                  <tr><td colSpan={13} className="px-2 py-6 text-center text-muted-foreground">
+                  <tr><td colSpan={14} className="px-2 py-6 text-center text-muted-foreground">
                     Inga pings för intervallet.
                   </td></tr>
                 )}
