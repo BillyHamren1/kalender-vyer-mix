@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildVisualGanttBlocks, type GanttBlockLite } from '../visualGanttBlocks';
+import { buildVisualGanttBlocks, visibleChips, MAX_VISIBLE_CHIPS, type GanttBlockLite } from '../visualGanttBlocks';
 
 const iso = (h: number, m: number = 0) =>
   `2026-05-16T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00+02:00`;
