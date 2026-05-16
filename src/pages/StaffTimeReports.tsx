@@ -1702,6 +1702,10 @@ const StaffTimeReports: React.FC = () => {
       // Lager 3 — Workday Allocation (fallback när V2 saknas).
       workdayAllocationSegments: any[];
       workdayAllocationDiagnostics: any;
+      // Lager 2.10 — LocationTruth V2 från DayEvidence (top-level på response).
+      locationTruthV2Segments: any[];
+      locationTruthV2Diagnostics: any;
+      locationTruthV2NotBuiltReason: string | null;
       loading: boolean;
       missing: boolean;
     }> = {};
@@ -1735,6 +1739,17 @@ const StaffTimeReports: React.FC = () => {
         displayTimelineDiagnosticsV2: data?.displayTimelineDiagnosticsV2 ?? null,
         workdayAllocationSegments: data?.workdayAllocationSegments ?? [],
         workdayAllocationDiagnostics: data?.workdayAllocationDiagnostics ?? null,
+        // LocationTruth V2 — top-level på presence-day-response.
+        // Tidigare lästes detta från displayTimelineDiagnosticsV2.locationTruth*
+        // i trace-exporten, vilket alltid gav null/[] eftersom det är fel path.
+        locationTruthV2Segments: data?.locationTruthV2Segments ?? [],
+        locationTruthV2Diagnostics: data?.locationTruthV2Diagnostics ?? null,
+        locationTruthV2NotBuiltReason:
+          (Array.isArray(data?.locationTruthV2Segments) && data.locationTruthV2Segments.length > 0)
+            ? null
+            : (data?.locationTruthV2Diagnostics?.error
+                ?? data?.locationTruthV2Diagnostics?.notBuiltReason
+                ?? (data?.locationTruthV2Diagnostics ? 'no_segments_built' : 'not_attempted')),
         loading: isLoading,
         missing,
       };

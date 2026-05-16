@@ -50,6 +50,10 @@ export interface ReportCandidateLikeForExport {
   displayTimelineDiagnosticsV2?: any;
   workdayAllocationSegments?: any[];
   workdayAllocationDiagnostics?: any;
+  // Lager 2.10 — LocationTruth V2 (top-level på presence-day-svaret).
+  locationTruthV2Segments?: any[];
+  locationTruthV2Diagnostics?: any;
+  locationTruthV2NotBuiltReason?: string | null;
   presenceBlocks?: any[];
   presenceDaySummary?: any;
   presenceDayAggregation?: any;
@@ -92,7 +96,8 @@ export type DiffFindingType =
   | 'stale_timer_created_large_empty_day'
   | 'large_uncovered_time'
   | 'battery_low_before_signal_gap'
-  | 'rendered_gap_too_large';
+  | 'rendered_gap_too_large'
+  | 'allocation_references_unknown_location_truth_segment';
 
 export type DiffFindingSeverity = 'info' | 'warning' | 'critical';
 
@@ -157,6 +162,7 @@ export interface TraceStaffEntry {
     dayEvidenceDiagnostics: any;
     locationTruthV2Diagnostics: any;
     locationTruthV2Segments: any[];
+    locationTruthV2NotBuiltReason: string | null;
     workdayAllocationDiagnostics: any;
     workdayAllocationSegments: any[];
     workdayAllocationProposals: any[];
@@ -374,6 +380,7 @@ function buildDiffFindings(
   appHealth: TraceStaffEntry['appHealth'],
   comparison: TraceComparison,
   rawPingsRaw: RawPingStaffEntry | undefined,
+  timeEngine: TraceStaffEntry['timeEngine'],
 ): DiffFinding[] {
   const findings: DiffFinding[] = [];
 
@@ -461,6 +468,40 @@ function buildDiffFindings(
     });
   }
 
+  // Lineage-check: workdayAllocationSegments refererar till
+  // sourceLocationTruthSegmentIds (t.ex. seg_cluster_57). Om något av
+  // dessa IDn inte återfinns i locationTruthV2Segments betyder det att
+  // exporten har tappat segmenten (eller att backend byggde dem och
+  // sedan släppte dem mellan stegen). Detta är exakt det fel som
+  // tidigare gjorde att locationTruthV2Segments = [] medan allocation
+  // refererade till seg_cluster_N-IDn.
+  const ltIds = new Set<string>(
+    safeArr<any>(timeEngine.locationTruthV2Segments)
+      .map((s) => (s && typeof s.id === 'string' ? s.id : null))
+      .filter((x): x is string => !!x),
+  );
+  const referencedLtIds = new Set<string>();
+  for (const a of safeArr<any>(timeEngine.workdayAllocationSegments)) {
+    for (const sid of safeArr<any>(a?.sourceLocationTruthSegmentIds)) {
+      if (typeof sid === 'string') referencedLtIds.add(sid);
+    }
+  }
+  const orphanLtIds = [...referencedLtIds].filter((id) => !ltIds.has(id));
+  if (orphanLtIds.length > 0) {
+    findings.push({
+      severity: 'critical',
+      type: 'allocation_references_unknown_location_truth_segment',
+      message:
+        'WorkdayAllocation refererar till LocationTruth-segment som inte finns med i exporten — lineage bruten.',
+      evidence: {
+        orphanSourceLocationTruthSegmentIds: orphanLtIds.slice(0, 20),
+        orphanCount: orphanLtIds.length,
+        locationTruthSegmentCount: ltIds.size,
+        notBuiltReason: timeEngine.locationTruthV2NotBuiltReason,
+      },
+    });
+  }
+
   return findings;
 }
 
@@ -493,8 +534,20 @@ export function buildTimeEngineTraceExport(input: BuildTraceExportInput): TimeEn
 
     const timeEngine: TraceStaffEntry['timeEngine'] = {
       dayEvidenceDiagnostics: cand?.diagnostics ?? null,
-      locationTruthV2Diagnostics: cand?.displayTimelineDiagnosticsV2?.locationTruth ?? null,
-      locationTruthV2Segments: safeArr(cand?.displayTimelineDiagnosticsV2?.locationTruthSegments),
+      // FIX: LocationTruth V2 ligger top-level på presence-day-svaret —
+      // INTE under displayTimelineDiagnosticsV2.locationTruth*. Tidigare
+      // path gav alltid null/[] vilket gjorde att exporten såg ut som om
+      // LocationTruth aldrig byggts, trots att workdayAllocationSegments
+      // refererade till seg_cluster_N-IDn från LocationTruth.
+      locationTruthV2Diagnostics:
+        cand?.locationTruthV2Diagnostics
+        ?? cand?.displayTimelineDiagnosticsV2?.locationTruth
+        ?? null,
+      locationTruthV2Segments: safeArr(
+        cand?.locationTruthV2Segments
+        ?? cand?.displayTimelineDiagnosticsV2?.locationTruthSegments,
+      ),
+      locationTruthV2NotBuiltReason: cand?.locationTruthV2NotBuiltReason ?? null,
       workdayAllocationDiagnostics: cand?.workdayAllocationDiagnostics ?? null,
       workdayAllocationSegments: safeArr(cand?.workdayAllocationSegments),
       workdayAllocationProposals: safeArr(cand?.workdayAllocationProposals),
@@ -514,7 +567,7 @@ export function buildTimeEngineTraceExport(input: BuildTraceExportInput): TimeEn
       timeEngine.workdayAllocationDiagnostics,
     );
 
-    const diffFindings = buildDiffFindings(rawPings, appHealth, comparison, rawEntry);
+    const diffFindings = buildDiffFindings(rawPings, appHealth, comparison, rawEntry, timeEngine);
 
     const finalProduct: TraceStaffEntry['finalProduct'] = {
       reportBlocks: safeArr(cand?.blocks),
