@@ -285,6 +285,8 @@ const USER_VISIBLE_WARNINGS = new Set<DisplayTimelineWarning>([
   'warehouse_presence_during_planned_project',
   'segment_partially_outside_workday',
   'needs_review_business_context',
+  'no_project_link',
+  'absorbed_signal_gap',
 ]);
 
 function toMs(iso: string): number {
