@@ -397,6 +397,29 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
             <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-4">
               {/* Vänster: dagvy + planeringsformulär för aktuell dag */}
               <div className="space-y-3 min-w-0">
+                {/* Åtgärdsrad: lägg till rig/demonteringsdag */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleAddDay('rig')}
+                    className="h-8 text-xs"
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Lägg till riggdag
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleAddDay('rigDown')}
+                    className="h-8 text-xs"
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Lägg till demonteringsdag
+                  </Button>
+                  <span className="text-[11px] text-muted-foreground ml-1">
+                    {planSteps.length} dag{planSteps.length === 1 ? '' : 'ar'} att planera
+                  </span>
+                </div>
+
                 {currentDay ? (
                   <>
                     <div className="flex items-center justify-between">
@@ -414,14 +437,25 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
                           })()}
                         </span>
                       </div>
-                      {phaseLockedForCurrent && (
-                        <Badge
+                      <div className="flex items-center gap-2">
+                        {phaseLockedForCurrent && (
+                          <Badge
+                            variant="outline"
+                            className="border-red-400 text-red-700 bg-red-50 text-[10px]"
+                          >
+                            Fast tid från bokning
+                          </Badge>
+                        )}
+                        <Button
+                          size="sm"
                           variant="outline"
-                          className="border-red-400 text-red-700 bg-red-50 text-[10px]"
+                          onClick={handleRemoveCurrent}
+                          disabled={phaseLockedForCurrent || planSteps.length <= 1}
+                          className="h-7 text-xs text-red-700 border-red-300 hover:bg-red-50"
                         >
-                          Fast tid från bokning
-                        </Badge>
-                      )}
+                          <Trash2 className="h-3.5 w-3.5 mr-1" /> Ta bort dag
+                        </Button>
+                      </div>
                     </div>
 
                     <PlacementDayCalendar date={currentDay.date} />
