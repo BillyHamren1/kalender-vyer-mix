@@ -744,11 +744,51 @@ function deriveAllocation(
   }
 
   if (seg.finalType === 'known_address') {
-    // Fysisk plats stabil men ingen EventFlow-target → unlinked_work_address.
-    // Lager 3.3: signalera tydligt att projektkoppling saknas.
-    warnings.push('no_project_link');
+    // Time Engine Core Fix 2: pröva business-context-resolution INNAN
+    // vi faller till unlinked_work_address. Om personen är planerad på
+    // project/booking/large_project under samma tid är det inte en
+    // okopplad adress — det är planerat arbete där target saknar geo.
     if (status === 'planning_geo_mismatch') warnings.push('planning_geo_mismatch');
     if (status === 'needs_review') warnings.push('needs_review_business_context');
+
+    const r = businessContextResolution;
+    if (r && r.fallbackUsed === 'assignment_without_geo' && r.selectedTargetType) {
+      for (const w of r.extraWarnings) {
+        if (!warnings.includes(w as WorkdayAllocationWarning)) {
+          warnings.push(w as WorkdayAllocationWarning);
+        }
+      }
+      const typeMap: Record<string, WorkdayAllocationType> = {
+        large_project: 'large_project_work',
+        project: 'project_work',
+        booking: 'booking_work',
+        warehouse: 'warehouse_work',
+        organization_location: 'warehouse_work',
+        supplier: 'supplier_visit',
+      };
+      const allocType = typeMap[r.selectedTargetType as string] ?? 'unlinked_work_address';
+      return {
+        type: allocType,
+        warnings,
+        confidence: seg.confidence === 'high' ? 'medium' : seg.confidence,
+      };
+    }
+    if (r && r.competingTargets) {
+      for (const w of r.extraWarnings) {
+        if (!warnings.includes(w as WorkdayAllocationWarning)) {
+          warnings.push(w as WorkdayAllocationWarning);
+        }
+      }
+      return {
+        type: 'needs_work_allocation_review',
+        warnings,
+        confidence: 'low',
+      };
+    }
+
+    // Fysisk plats stabil men ingen assignment/target → unlinked_work_address.
+    // Severity warning/info via Lager 4-mappning.
+    warnings.push('no_project_link');
     return {
       type: 'unlinked_work_address',
       warnings,
