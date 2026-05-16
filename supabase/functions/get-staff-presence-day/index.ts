@@ -259,6 +259,7 @@ Deno.serve(async (req) => {
   let dayEvidenceDiagnostics: any = null;
   let locationTruthDiagnostics: any = null;
   let locationTruthSegments: any[] = [];
+  let locationTruthV2NotBuiltReason: string | null = null;
   let workdayAllocationDiagnostics: any = null;
   let workdayAllocationSegments: any[] = [];
   let workdayAllocationProposals: any[] = [];
