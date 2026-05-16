@@ -41,10 +41,14 @@ import {
   isPhaseLocked,
   phaseLabel,
   seedDaysFromBooking,
+  makeExtraDay,
+  insertDaySorted,
+  removeDayAt,
 } from './bookingPlacementSeed';
 import { BookingInfoHeader } from './BookingInfoHeader';
 import { PlacementDayCalendar } from './PlacementDayCalendar';
 import { translateSupabaseError } from '@/lib/supabase/translateError';
+import { Plus, Trash2 } from 'lucide-react';
 
 interface Props {
   open: boolean;
