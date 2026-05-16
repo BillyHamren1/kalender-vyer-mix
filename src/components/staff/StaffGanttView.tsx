@@ -1391,6 +1391,18 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                 </span>
                               )}
                             </div>
+                            {ganttDebug && visualDiagByStaff[staff.id] && (() => {
+                              const d = visualDiagByStaff[staff.id];
+                              const absorbed = d.absorbedTransportCount + d.absorbedReviewCount + d.absorbedUnknownCount + d.absorbedPreWorkCount;
+                              return (
+                                <div
+                                  className="mt-0.5 truncate font-mono text-[9px] text-muted-foreground/70"
+                                  title={`raw=${d.rawBlockCount} visual=${d.visualBlockCount} absorbed=${absorbed} (transport ${d.absorbedTransportCount} · review ${d.absorbedReviewCount} · unknown ${d.absorbedUnknownCount} · pre_work ${d.absorbedPreWorkCount}) hidden=${d.hiddenPreWorkCount} lanes=${d.lanePackedMainBlocksCount}`}
+                                >
+                                  raw {d.rawBlockCount} → visual {d.visualBlockCount} · absorbed {absorbed} · hidden {d.hiddenPreWorkCount} · lanes {d.lanePackedMainBlocksCount}
+                                </div>
+                              );
+                            })()}
                           </div>
                         </button>
 
