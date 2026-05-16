@@ -528,6 +528,8 @@ const WARNING_TYPES: WorkdayAllocationWarning[] = [
   'warehouse_presence', 'warehouse_presence_during_planned_project',
   'open_timer_without_same_day_evidence',
   'workday_start_adjusted_to_first_evidence',
+  'day_end_inferred_from_non_work_presence',
+  'open_timer_ignored_after_inferred_day_end',
 ];
 
 const emptyAllocCounts = (): Record<WorkdayAllocationType, number> =>
