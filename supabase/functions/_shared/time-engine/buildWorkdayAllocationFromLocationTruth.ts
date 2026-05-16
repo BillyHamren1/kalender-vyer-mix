@@ -285,6 +285,8 @@ export interface WorkdayAllocationDiagnostics {
   rawPingCount?: number;
   /** Antal LocationTruth V2-segment i input. */
   locationTruthV2SegmentCount?: number;
+  /** Fix A — open timer ignorerad pga 0 same-day evidence (display ska suppressa). */
+  openTimerIgnoredForDisplay?: boolean;
   // ── Time Engine Core Fix 2 — business context resolution ─────────────
   /** Antal segment där business context lyftes från assignment utan geo. */
   businessContextFromAssignmentCount?: number;
