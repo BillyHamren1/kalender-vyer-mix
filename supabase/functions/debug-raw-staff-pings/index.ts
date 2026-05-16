@@ -323,6 +323,8 @@ Deno.serve(async (req) => {
       // "no recent" = last ping more than 2h before window end
       if (intervalEndMs - lastMs > 2 * 3600_000) staffWithNoRecentPing.push(staffId);
 
+      const battery = computeBatteryStats(list, intervalEndMs);
+
       perStaff.push({
         staffId,
         staffName: nameById.get(staffId) ?? null,
@@ -341,6 +343,7 @@ Deno.serve(async (req) => {
         gapCountOver60Min,
         hasPingsBeforeWorkdayLikely,
         hasPingsAfterWorkdayLikely,
+        battery,
         sampleRows: sampleRows.map(r => ({
           id: r.id,
           staff_id: r.staff_id,
@@ -351,6 +354,11 @@ Deno.serve(async (req) => {
           accuracy: r.accuracy,
           speed_mps: r.speed,
           time_report_id: r.time_report_id,
+          battery_level: r.battery_level,
+          battery_percent: coerceBatteryPercent(r.battery_level, r.battery_percent),
+          is_charging: r.is_charging,
+          battery_captured_at: r.battery_captured_at,
+          battery_source: r.battery_source,
         })),
       });
     }
