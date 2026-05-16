@@ -1,16 +1,15 @@
 /**
- * useAttestStaffDay — user attestation of a finished workday with break.
+ * useAttestStaffDay — user submission of a workday (manual or system-suggested).
  *
- * Wraps the `attest-staff-day` Edge Function via the same dual-auth helper
- * the snapshot hooks use (mobile token preferred, Supabase JWT fallback).
+ * Calls `submit-staff-day-v3` via the dual-auth helper. Writes ONLY to
+ * staff_day_submissions — never touches workdays / time_reports /
+ * location_time_entries / travel_time_logs / day_attestations.
  *
- * This is USER attestation only — never call admin_approve_day from here
- * and never set workdays.approved_at. Backend enforces all locking rules
- * (locked / approved days are rejected for non-admin callers).
- *
- * On success we dispatch:
- *   - 'staff-day-attested'    → snapshot/month/period hooks refresh
- *   - 'timer-state-changed'   → generic timer surfaces refresh
+ * On success we dispatch (kept for back-compat with snapshot/month/period
+ * hooks and timer surfaces):
+ *   - 'staff-day-attested'
+ *   - 'staff-day-submitted'
+ *   - 'timer-state-changed'
  */
 import { useCallback, useState } from 'react';
 import { callStaffSnapshotFunction } from '@/services/staffSnapshotApi';
