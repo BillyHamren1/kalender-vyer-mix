@@ -102,6 +102,15 @@ export interface WorkdayAllocationSegment {
   linkedProjectCandidate?: SupplierProjectCandidate | null;
   /** Time Engine Core Fix 2 — full business-context-resolution diagnostics. */
   businessContextResolution?: BusinessContextResolution | null;
+  /** Map Trace 4 — fysisk plats-fält från LocationTruth (oberoende av target). */
+  physicalLocationLabel?: string | null;
+  physicalLocationAddress?: string | null;
+  physicalLocationLat?: number | null;
+  physicalLocationLng?: number | null;
+  physicalLocationSource?: string | null;
+  physicalLocationConfidence?: 'high' | 'medium' | 'low' | null;
+  /** Map Trace 4 — full platsmatchnings-trace (kandidater/rejects/beslut). */
+  locationMatchDiagnostics?: unknown;
 }
 
 export type SupplierProjectCandidateSource =
