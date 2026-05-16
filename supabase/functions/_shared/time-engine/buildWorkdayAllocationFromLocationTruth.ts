@@ -247,6 +247,8 @@ export interface WorkdayAllocationDiagnostics {
     confidence: WorkdayAllocationConfidence;
     warnings: WorkdayAllocationWarning[];
   }>;
+  /** Time Engine STOP 1 — inferred day end (om triggad). */
+  dayEndDecision?: WorkdayDayEndDecision | null;
 }
 
 export interface WorkdayAllocationProposal {
