@@ -298,6 +298,8 @@ export function mapWorkdayAllocationSegmentsToGantt(
   const out: GanttBlockFromTimeline[] = [];
   for (let i = 0; i < segments.length; i++) {
     const s = segments[i];
+    // DEL 4 — outsideWorkday-segment renderas aldrig som Gantt-block.
+    if (s.outsideWorkday === true) continue;
     const startAt = s.startAt ?? s.startIso ?? null;
     const endAt = s.endAt ?? s.endIso ?? null;
     if (!startAt || !endAt) continue;
