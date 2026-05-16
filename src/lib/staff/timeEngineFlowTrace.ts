@@ -166,6 +166,8 @@ export interface BuildTimeEngineFlowTraceInput {
     | null;
   /** Räknare från StaffGanttView.sourceCountsByStaff[staffId]. */
   ganttSourceCounts?: GanttSourceCounts | null;
+  /** Optional raw GPS-debug-snapshot för personen (debug-raw-staff-pings). */
+  rawPingDebug?: RawPingDebugSnapshot | null;
 }
 
 // ── helpers ────────────────────────────────────────────────────────
