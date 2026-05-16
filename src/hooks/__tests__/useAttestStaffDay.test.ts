@@ -32,7 +32,7 @@ describe('useAttestStaffDay', () => {
       });
     });
     expect(mockCall).toHaveBeenCalledTimes(1);
-    const [fnName, payload] = mockCall.mock.calls[0] as [string, any];
+    const [fnName, payload] = mockCall.mock.calls[0] as unknown as [string, any];
     expect(fnName).toBe('submit-staff-day-v3');
     expect(payload).toMatchObject({
       staffId: 'staff-1',
