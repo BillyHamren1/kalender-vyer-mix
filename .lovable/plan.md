@@ -1,61 +1,39 @@
-# Plan: visa alla planerade team i kalendern som standard
+# Spåra och åtgärda feltoasten
 
-## Mål
-Se till att `/calendar` inte längre döljer Team 5–10 när de har planerade jobb. Kalendern ska utgå från hela resurslistan som standard, inte från en gammal hårdkodad delmängd.
+## Vad jag ser
+Toasten "JSON object requested, multiple (or no) rows returned" är råtexten från PostgREST när ett `.single()`-anrop får 0 eller >1 rader tillbaka. Den dyker upp i `Placera bokning`-vyn (skärmdumpen visar dialogen + Spara-knappen synliga).
 
-## Vad jag kommer att ändra
+Inga konsol-/nätverksloggar finns sparade just nu, så jag kan inte peka ut exakt rad — men det finns några misstänkta `.single()`/`toast.error(err.message)`-platser i flödet runt `BookingPlacementDialog`, `useInternalLagerCalendarEvents`, `useRealTimeCalendarEvents` och `useProjectDetail`.
 
-1. **Byta defaultkälla för synliga team i personalkalendern**
-   - I `src/pages/CustomCalendarPage.tsx` ersätter jag den hårdkodade defaultlistan
-     `['team-1', 'team-2', 'team-3', 'team-4', 'transport', 'team-11']`
-     med en beräknad lista från aktuella `teamResources`.
-   - Det gör att Team 5–10 inkluderas automatiskt.
-   - `team-11` tas bort ur default eftersom team-hooken redan säger att Live-kolumnen är borttagen.
+## Plan
 
-2. **Rätta låsningen i teamväljaren**
-   - I samma fil uppdaterar jag toggle-logiken så att den inte fortfarande behandlar `team-11` som obligatorisk.
-   - Jag låter obligatoriska team följa samma nya defaultkälla i stället för en separat gammal lista.
+### 1. Hårda toasten så vi alltid ser var den kommer ifrån
+- I `BookingPlacementDialog.handleFinish` (catch): logga `err.code`, `err.details`, `err.hint`, och visa en svensk text istället för rå PostgREST-sträng. Översätt `PGRST116` → "Hittade inte rätt rad i databasen (kontakta admin)" + behåll `console.error` med stacktrace.
+- Lägg till en lättviktig global wrapper i `src/integrations/supabase/client.ts` (eller ny `src/lib/supabase/translateError.ts`) som mappar PGRST116/PGRST301 till svensk text — användas i alla catch-blocks i placerings-/projekt-flödet.
 
-3. **Göra UI:t konsekvent med den nya sanningen**
-   - I `src/components/Calendar/TeamVisibilityControl.tsx` synkar jag vilka team som markeras som “obligatorisk” med den nya standardmodellen.
-   - Målet är att användaren inte ska se en meny som antyder gamla regler.
+### 2. Härda alla `.single()` i placeringsflödet
+Konvertera till `.maybeSingle()` + explicit nullkontroll där det är säkrare:
 
-4. **Täppa igen övriga återstående planeringsvyer med samma risk**
-   - Jag uppdaterar också de andra planeringsvyer som återanvänder samma gamla defaultmönster:
-     - `src/components/ops-control/OpsPlanningDayPanel.tsx`
-     - `src/components/project/ProjectCalendarView.tsx`
-   - Fokus är att ta bort dolda team p.g.a. föråldrade defaultlistor, utan att ändra annan funktionalitet.
+- `src/components/project/BookingPlacementDialog.tsx`
+  - rad 84: hämtning av `bookings` per id → `.maybeSingle()`, kasta "Bokning hittades inte" om null.
+  - rad 213: insert+select projects → behåll `.single()` (insert returnerar alltid 1) men wrap i tydlig felöversättning.
+- `src/hooks/useInternalLagerCalendarEvents.ts` (rad 23): join `bookings:bookings!projects_booking_id_fkey` på `is_internal=true` — om flera interna projekt finns plockas `[0]`, men joinen kan returnera flera bokningar per projekt och PostgREST-kontraktet kan smälla. Lägg till `limit(1)` i underqueryn och fallback till null säkert.
+- `src/hooks/useProjectDetail.tsx` (rad 115, 144): vehicles per id → `.maybeSingle()` med fallback "Okänt fordon".
 
-5. **Verifiering**
-   - Jag lägger till/uppdaterar test som verifierar att:
-     - alla resurser i standard-teamlistan visas initialt,
-     - Team 5–10 inte filtreras bort av default,
-     - `team-11` inte längre krävs eller injiceras,
-     - användarval i `visibleTeamsByDay` fortfarande respekteras när något faktiskt sparats.
-   - Efter kodändringen testar jag i preview att teamväljaren och kalenderkolumnerna beter sig rätt.
+### 3. Verifiera
+- Lägg till en vitest som mockar supabase och kör `handleFinish` med 0 rader → förväntar svensk text, inte PostgREST-strängen.
+- Lägg till en vitest för `useInternalLagerCalendarEvents` som returnerar 2 interna projekt + booking-join → ska inte kasta.
+- Kör `bash scripts/test-time-reporting.sh` ej nödvändigt; bara `bunx vitest run src/components/project src/hooks/useInternalLagerCalendarEvents` räcker.
 
-## Förväntat resultat
-- Team 5–10 visas igen i `/calendar` när de finns i resurslistan.
-- Ingen dold begränsning till Team 1–4 + Lager.
-- Äldre `team-11`-antaganden försvinner från standardval och UI.
-- Sparade användarval fortsätter fungera, men nya dagar får korrekt komplett standard.
+### 4. Efter implementation
+Be användaren reproducera samma klick i `Placera bokning` så vi får den nya, översatta toasten + en `console.error` med exakt PGRST-rad — då kan vi snabbt punkt-fixa den sista boven om den ligger utanför listan ovan.
 
-## Tekniska detaljer
+## Filer som ändras
+- `src/lib/supabase/translateError.ts` (ny)
+- `src/components/project/BookingPlacementDialog.tsx`
+- `src/hooks/useInternalLagerCalendarEvents.ts`
+- `src/hooks/useProjectDetail.tsx`
+- `src/components/project/__tests__/BookingPlacementDialog.error.test.tsx` (ny)
+- `src/hooks/__tests__/useInternalLagerCalendarEvents.test.ts` (ny)
 
-Rotorsak just nu:
-- `useTeamResources` innehåller Team 1–10 och har tagit bort Live (`team-11`).
-- `CustomCalendar` filtrerar resurser strikt via `getVisibleTeamsForDay(date)`.
-- `CustomCalendarPage` returnerar fortfarande en gammal fallbacklista med bara Team 1–4 + `transport` + `team-11`.
-- Därför försvinner Team 5–10 innan de ens renderas.
-
-Berörda filer:
-- `src/pages/CustomCalendarPage.tsx`
-- `src/components/Calendar/TeamVisibilityControl.tsx`
-- `src/components/ops-control/OpsPlanningDayPanel.tsx`
-- `src/components/project/ProjectCalendarView.tsx`
-- ev. ny liten helper om jag vill centralisera default-teamlogiken i en återanvändbar util
-
-Vald riktning:
-- Ingen backendändring.
-- Ingen datamigrering.
-- Endast frontendfix av filtreringslogik och dess tester.
+Ingen DB-migration, ingen UI-omdesign — bara felhantering + härdning.
