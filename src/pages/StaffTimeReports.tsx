@@ -1799,8 +1799,7 @@ const StaffTimeReports: React.FC = () => {
   const bookingPhaseByDate = phaseMaps.bookingPhaseByDate;
   const largeProjectPhaseByDate = phaseMaps.largeProjectPhaseByDate;
 
-  const { data: orgData } = useCurrentOrg();
-  const organizationId = orgData?.organizationId ?? null;
+  const { organizationId } = useCurrentOrg();
   const rawDebugEnabled = isRawPingsDebugEnabled();
   const [rawDebugOpen, setRawDebugOpen] = useState(false);
 
