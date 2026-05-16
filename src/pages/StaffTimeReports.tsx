@@ -144,7 +144,8 @@ export type PlanningStatus =
   | 'unplanned_activity'     // Aktivitet finns men ingen planering
   | 'workday_active'         // Pågående arbetsdag
   | 'planned'                // Planerad + workday/aktivitet (normalt fall)
-  | 'completed';             // Workday avslutad
+  | 'completed'              // Workday avslutad
+  | 'gps_only';              // Har GPS-pings men saknar all annan rapportdata
 
 /**
  * Hämta hela dagens staff_location_history för EN staff via paginering.
@@ -1126,11 +1127,41 @@ const StaffTimeReports: React.FC = () => {
       }
 
       // Listan = planerad personal för dagen + personer med FAKTISK arbets-
-      // aktivitet (time_reports/workdays/LTE/travel — redan i byStaff).
-      // Vi tar INTE in folk bara för att de har GPS-pings, assistant_events
-      // eller workday_flags — det skulle visa "alla med telefon på" oavsett
-      // om de jobbar idag eller inte.
+      // aktivitet (time_reports/workdays/LTE/travel — redan i byStaff)
+      // + personer med aktiv Time Engine-timer + personer med råa GPS-pings
+      // i staff_location_history. Detta för att inte missa personer som har
+      // GPS-data men aldrig fick en time_report/workday (t.ex. Billy Hamrén
+      // 2026-05-16: 536 pings, men ingen rapportrad).
       for (const id of plannedStaffIds) {
+        if (!byStaff.has(id)) byStaff.set(id, newAgg());
+      }
+      for (const id of activeRegByStaff.keys()) {
+        if (id && !byStaff.has(id)) byStaff.set(id, newAgg());
+      }
+
+      // ── Distinct staff_ids med råpings för dagen (read-only, paginerad).
+      // RLS isolerar org. Vi hämtar endast staff_id-kolumnen och dedupar i
+      // JS — billigt. Max 50k rader säkerhetstak.
+      const staffIdsWithRawPings = new Set<string>();
+      {
+        const PAGE = 1000;
+        const MAX_PAGES = 50;
+        for (let page = 0; page < MAX_PAGES; page++) {
+          const from = page * PAGE;
+          const { data, error } = await supabase
+            .from('staff_location_history')
+            .select('staff_id')
+            .gte('recorded_at', dayStartIso)
+            .lt('recorded_at', nextDayIso)
+            .range(from, from + PAGE - 1);
+          if (error || !data) break;
+          for (const r of data as any[]) {
+            if (r.staff_id) staffIdsWithRawPings.add(r.staff_id);
+          }
+          if (data.length < PAGE) break;
+        }
+      }
+      for (const id of staffIdsWithRawPings) {
         if (!byStaff.has(id)) byStaff.set(id, newAgg());
       }
 
@@ -1550,27 +1581,29 @@ const StaffTimeReports: React.FC = () => {
                 hasAssistantEvents: staffAssistantEvents.length > 0,
                 hasWorkdayFlags: staffFlags.length > 0,
               };
-               const isPlanned = plannedStaffIds.has(s.id);
-              const hasActivity =
+                const isPlanned = plannedStaffIds.has(s.id);
+              const hasNonGpsActivity =
                 presenceFlags.hasTimeReports ||
                 presenceFlags.hasLocationTimeEntries ||
                 presenceFlags.hasTravelLogs ||
                 presenceFlags.hasWorkday ||
-                presenceFlags.hasGpsPings ||
                 presenceFlags.hasAssistantEvents ||
                 presenceFlags.hasWorkdayFlags;
+              const hasActivity = hasNonGpsActivity || presenceFlags.hasGpsPings;
 
               const status: PlanningStatus = presenceFlags.hasOpenWorkday
                 ? 'workday_active'
-                : isPlanned && !hasActivity
-                  ? 'planned_not_started'
-                  : !isPlanned && hasActivity
-                    ? 'unplanned_activity'
-                    : hasActivity && !presenceFlags.hasWorkday
-                      ? 'missing_workday'
-                      : presenceFlags.hasWorkday
-                        ? 'completed'
-                        : 'planned';
+                : !isPlanned && !hasNonGpsActivity && presenceFlags.hasGpsPings
+                  ? 'gps_only'
+                  : isPlanned && !hasActivity
+                    ? 'planned_not_started'
+                    : !isPlanned && hasActivity
+                      ? 'unplanned_activity'
+                      : hasActivity && !presenceFlags.hasWorkday
+                        ? 'missing_workday'
+                        : presenceFlags.hasWorkday
+                          ? 'completed'
+                          : 'planned';
 
               const visibilityParts: string[] = [];
               if (isPlanned) visibilityParts.push('planerad i personalkalendern för vald dag');
@@ -1595,6 +1628,7 @@ const StaffTimeReports: React.FC = () => {
                 missing_workday: 'Aktivitet finns (rapport/timer/GPS) men ingen workday-rad har skapats.',
                 completed: 'Workday avslutad (ended_at satt).',
                 planned: 'Jobbassignerad och normal dag.',
+                gps_only: 'Endast råa GPS-pings finns — ingen workday, rapport, timer eller planering matchar.',
               };
 
               return {
@@ -1616,7 +1650,8 @@ const StaffTimeReports: React.FC = () => {
             s.has_open_report ? 1 :
             s.planningStatus === 'missing_workday' ? 2 :
             s.planningStatus === 'unplanned_activity' ? 3 :
-            s.planningStatus === 'planned_not_started' ? 4 : 5;
+            s.planningStatus === 'planned_not_started' ? 4 :
+            s.planningStatus === 'gps_only' ? 5 : 6;
           const ra = rank(a); const rb = rank(b);
           if (ra !== rb) return ra - rb;
           return a.name.localeCompare(b.name, 'sv');
