@@ -715,6 +715,10 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
                     const hasOpenWork = dateRows.some(r => r.type === 'work' && !r.end_time);
                     const hasAnyReport = dateRows.length > 0;
                     const dayIsToday = isToday(dayDate);
+                    const submissionDisplay = deriveSubmissionDisplay(
+                      submissionByDate.get(date),
+                      hasAnyReport,
+                    );
 
                     return (
                       <React.Fragment key={date}>
