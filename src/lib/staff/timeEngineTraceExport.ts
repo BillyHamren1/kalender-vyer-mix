@@ -494,8 +494,20 @@ export function buildTimeEngineTraceExport(input: BuildTraceExportInput): TimeEn
 
     const timeEngine: TraceStaffEntry['timeEngine'] = {
       dayEvidenceDiagnostics: cand?.diagnostics ?? null,
-      locationTruthV2Diagnostics: cand?.displayTimelineDiagnosticsV2?.locationTruth ?? null,
-      locationTruthV2Segments: safeArr(cand?.displayTimelineDiagnosticsV2?.locationTruthSegments),
+      // FIX: LocationTruth V2 ligger top-level på presence-day-svaret —
+      // INTE under displayTimelineDiagnosticsV2.locationTruth*. Tidigare
+      // path gav alltid null/[] vilket gjorde att exporten såg ut som om
+      // LocationTruth aldrig byggts, trots att workdayAllocationSegments
+      // refererade till seg_cluster_N-IDn från LocationTruth.
+      locationTruthV2Diagnostics:
+        cand?.locationTruthV2Diagnostics
+        ?? cand?.displayTimelineDiagnosticsV2?.locationTruth
+        ?? null,
+      locationTruthV2Segments: safeArr(
+        cand?.locationTruthV2Segments
+        ?? cand?.displayTimelineDiagnosticsV2?.locationTruthSegments,
+      ),
+      locationTruthV2NotBuiltReason: cand?.locationTruthV2NotBuiltReason ?? null,
       workdayAllocationDiagnostics: cand?.workdayAllocationDiagnostics ?? null,
       workdayAllocationSegments: safeArr(cand?.workdayAllocationSegments),
       workdayAllocationProposals: safeArr(cand?.workdayAllocationProposals),
