@@ -423,4 +423,50 @@ function Stat({ k, v }: { k: string; v: string }) {
   );
 }
 
+type AppHealth = NonNullable<import('@/hooks/staff/useRawStaffPingsDebug').RawPingStaffEntry['appHealth']>;
+
+function fmtAge(iso: string | null | undefined, refMs: number): string {
+  if (!iso) return '—';
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return '—';
+  const min = Math.max(0, Math.round((refMs - t) / 60_000));
+  if (min < 60) return `${min}m`;
+  return `${Math.round(min / 60)}h`;
+}
+
+function AppHealthCell({
+  appHealth,
+  intervalEndMs,
+}: { appHealth: AppHealth | null | undefined; intervalEndMs: number }) {
+  if (!appHealth) return <span className="text-[10px] text-muted-foreground">—</span>;
+  const pct = appHealth.lastBatteryPercent;
+  return (
+    <div className="flex flex-col gap-0.5 text-[10px]">
+      <span className="font-mono">{fmtAge(appHealth.lastAppSeenAt, intervalEndMs)} sen</span>
+      <span className="text-muted-foreground">
+        {appHealth.lastEventType}
+        {pct != null ? ` · ${pct}%` : ''}
+        {appHealth.lastIsCharging === true ? ' ⚡' : ''}
+      </span>
+    </div>
+  );
+}
+
+function AppHealthDetail({ appHealth }: { appHealth: AppHealth | null | undefined }) {
+  if (!appHealth) {
+    return <div className="mb-2 text-[11px] text-muted-foreground">Inga app health-events.</div>;
+  }
+  return (
+    <div className="mb-2 grid grid-cols-2 gap-1 text-[11px] sm:grid-cols-4">
+      <Stat k="Senaste app-event" v={appHealth.lastEventType} />
+      <Stat k="Tid" v={appHealth.lastAppSeenAt} />
+      <Stat k="App-state" v={appHealth.lastAppState ?? '—'} />
+      <Stat k="Batt %" v={appHealth.lastBatteryPercent != null ? `${appHealth.lastBatteryPercent}%` : '—'} />
+      <Stat k="Laddar" v={appHealth.lastIsCharging == null ? '—' : appHealth.lastIsCharging ? 'ja' : 'nej'} />
+      <Stat k="Plattform" v={appHealth.lastPlatform ?? '—'} />
+      <Stat k="App-version" v={appHealth.lastAppVersion ?? '—'} />
+    </div>
+  );
+}
+
 export default RawPingsDebugPanel;
