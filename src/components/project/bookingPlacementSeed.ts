@@ -54,13 +54,67 @@ export const todayIso = (): string => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+const fmtIso = (d: Date): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 export const nextDayIso = (iso: string): string => {
   try {
-    const d = addDays(parseISO(iso), 1);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return fmtIso(addDays(parseISO(iso), 1));
   } catch {
     return todayIso();
   }
+};
+
+export const prevDayIso = (iso: string): string => {
+  try {
+    return fmtIso(addDays(parseISO(iso), -1));
+  } catch {
+    return todayIso();
+  }
+};
+
+/**
+ * Bygger en ny extra rig- eller demonteringsdag att lägga till i wizarden.
+ * - rig: defaultdatum = dagen FÖRE baseDate (en extra dag tidigare)
+ * - rigDown: defaultdatum = dagen EFTER baseDate (en extra dag senare)
+ */
+export const makeExtraDay = (
+  kind: 'rig' | 'rigDown',
+  baseDate: string,
+  teamId: string,
+): PlanningDay => ({
+  date: kind === 'rig' ? prevDayIso(baseDate) : nextDayIso(baseDate),
+  kind,
+  startTime: DEFAULTS[kind].start,
+  endTime: DEFAULTS[kind].end,
+  teamId,
+});
+
+/**
+ * Sätter in en ny dag i listan och behåller kronologisk ordning (event sist
+ * bland samma datum, så stepperns ordning blir naturlig).
+ */
+export const insertDaySorted = (days: PlanningDay[], day: PlanningDay): PlanningDay[] => {
+  const next = [...days, day];
+  const kindRank: Record<DayKind, number> = { rig: 0, event: 1, rigDown: 2 };
+  next.sort((a, z) => {
+    const c = a.date.localeCompare(z.date);
+    if (c !== 0) return c;
+    return kindRank[a.kind] - kindRank[z.kind];
+  });
+  return next;
+};
+
+/**
+ * Tar bort en dag på given index. Event-dagen är skyddad — den filtreras
+ * bort i wizarden ändå, men vi tillåter inte explicit borttagning av event.
+ */
+export const removeDayAt = (days: PlanningDay[], index: number): PlanningDay[] => {
+  if (index < 0 || index >= days.length) return days;
+  if (days[index].kind === 'event') return days;
+  const next = [...days];
+  next.splice(index, 1);
+  return next;
 };
 
 /**
