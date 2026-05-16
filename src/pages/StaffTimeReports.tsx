@@ -31,7 +31,12 @@ import { deriveStaffEvents } from '@/lib/staffCalendar/deriveStaffEvents';
 import { useCurrentOrg } from '@/hooks/useCurrentOrg';
 import { isRawPingsDebugEnabled } from '@/hooks/staff/useRawStaffPingsDebug';
 import { RawPingsDebugPanel } from '@/components/staff/RawPingsDebugPanel';
-import { Database } from 'lucide-react';
+import {
+  buildTimeEngineTraceExport,
+  downloadTraceExportJson,
+  type GanttExportSnapshotForStaff,
+} from '@/lib/staff/timeEngineTraceExport';
+import { Database, Download } from 'lucide-react';
 
 export type SegmentKind = 'location' | 'booking' | 'travel' | 'workday';
 
