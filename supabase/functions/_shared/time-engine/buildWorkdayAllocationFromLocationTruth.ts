@@ -28,6 +28,12 @@ import {
   resolveEffectiveWorkdayEndFromEvidence,
   type DayEndStopReason,
 } from './resolveEffectiveWorkdayEndFromEvidence.ts';
+import {
+  resolveBusinessContextForAllocation,
+  type BusinessContextResolution,
+} from './resolveBusinessContextForAllocation.ts';
+import type { AssignmentEvidenceItem } from './buildAssignmentEvidence.ts';
+import type { KnownTargetEvidenceItem } from './buildKnownTargetsEvidence.ts';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
