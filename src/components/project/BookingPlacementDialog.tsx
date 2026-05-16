@@ -44,6 +44,7 @@ import {
 } from './bookingPlacementSeed';
 import { BookingInfoHeader } from './BookingInfoHeader';
 import { PlacementDayCalendar } from './PlacementDayCalendar';
+import { translateSupabaseError } from '@/lib/supabase/translateError';
 
 interface Props {
   open: boolean;
@@ -81,8 +82,9 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
         .from('bookings')
         .select(BOOKING_FIELDS)
         .eq('id', bookingId!)
-        .single();
+        .maybeSingle();
       if (error) throw error;
+      if (!data) throw new Error('Bokningen kunde inte hittas.');
       return data;
     },
   });
@@ -310,9 +312,16 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
       if (largeProjectId) navigate(`/large-project/${largeProjectId}`);
       else if (mediumProjectId) navigate(`/project/${mediumProjectId}`);
     } catch (err) {
-      console.error('[BookingPlacementDialog] save error', err);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      toast.error((err as any)?.message || 'Kunde inte placera bokningen');
+      const e = err as any;
+      console.error('[BookingPlacementDialog] save error', {
+        code: e?.code,
+        message: e?.message,
+        details: e?.details,
+        hint: e?.hint,
+        err,
+      });
+      toast.error(translateSupabaseError(err, 'Kunde inte placera bokningen'));
     } finally {
       setSaving(false);
     }
