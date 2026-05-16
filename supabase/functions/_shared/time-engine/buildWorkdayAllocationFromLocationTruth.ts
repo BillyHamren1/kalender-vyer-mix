@@ -1381,7 +1381,29 @@ export function buildWorkdayAllocationFromLocationTruth(
       rawSegmentStartAt: seg.startAt,
       rawSegmentEndAt: seg.endAt,
       outsideWorkday: false,
+      businessContextResolution: bcr ?? null,
     };
+    // Time Engine Core Fix 2 — counter-uppdatering.
+    if (bcr) {
+      if (diag.businessContextFallbackCounts) {
+        diag.businessContextFallbackCounts[bcr.fallbackUsed] =
+          (diag.businessContextFallbackCounts[bcr.fallbackUsed] ?? 0) + 1;
+      }
+      if (bcr.fallbackUsed === 'assignment_without_geo') {
+        diag.businessContextFromAssignmentCount =
+          (diag.businessContextFromAssignmentCount ?? 0) + 1;
+      }
+      if (bcr.fallbackUsed === 'stable_address_no_target') {
+        diag.stableAddressNoTargetCount =
+          (diag.stableAddressNoTargetCount ?? 0) + 1;
+      }
+      if (bcr.extraWarnings.includes('target_missing_geo')) {
+        diag.targetMissingGeoCount = (diag.targetMissingGeoCount ?? 0) + 1;
+      }
+      if (bcr.competingTargets) {
+        diag.competingTargetsCount = (diag.competingTargetsCount ?? 0) + 1;
+      }
+    }
     if (clipped) item.warnings.push('segment_partially_outside_workday');
 
     segments.push(item);
