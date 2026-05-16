@@ -705,15 +705,34 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
     return null;
   })();
 
-  // Per-staff blocks
-  const blocksByStaff = useMemo(() => {
+  // Per-staff blocks + visual diagnostics
+  const { blocksByStaff, visualDiagByStaff } = useMemo(() => {
     const map: Record<string, GanttBlock[]> = {};
+    const diag: Record<string, VisualGanttDiagnostics> = {};
     for (const s of staffList) {
       const cand = reportCandidateByStaff?.[s.id];
-      map[s.id] = blocksFromStaff(s, cand?.blocks ?? null, cand?.excludedPreWorkBlocks ?? null, bookingPhaseByDate, largeProjectPhaseByDate);
+      map[s.id] = blocksFromStaff(
+        s,
+        cand?.blocks ?? null,
+        cand?.excludedPreWorkBlocks ?? null,
+        bookingPhaseByDate,
+        largeProjectPhaseByDate,
+        (d) => { diag[s.id] = d; },
+      );
     }
-    return map;
+    return { blocksByStaff: map, visualDiagByStaff: diag };
   }, [staffList, reportCandidateByStaff, bookingPhaseByDate, largeProjectPhaseByDate]);
+
+  // Dev/debug-flagga för att visa per-rad diagnostics-badge i UI.
+  // Aktiveras via: localStorage.setItem('gantt:debug','1')  eller via DEV-builds.
+  const ganttDebug = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      if (window.localStorage?.getItem('gantt:debug') === '1') return true;
+    } catch { /* ignore */ }
+    // @ts-ignore
+    return !!(import.meta as any)?.env?.DEV;
+  }, []);
 
   // Filter
   const filteredStaff = useMemo(() => {
