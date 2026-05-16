@@ -359,10 +359,30 @@ const DayBody: React.FC<{
             </div>
           )}
         </section>
+      ) : hasManualOnly ? (
+        <section className="rounded-2xl border border-border bg-card p-4 space-y-2">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+            Tidslinje
+          </p>
+          <div className="rounded-xl border border-border bg-background/60 px-3 py-2.5 flex items-start gap-3">
+            <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10 text-primary">
+              <Sun className="w-4 h-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[12px] tabular-nums font-semibold text-muted-foreground">
+                {formatStockholmHm(manualStart!)}–{formatStockholmHm(manualEnd!)}
+              </p>
+              <p className="text-sm font-semibold text-foreground">Manuell tidrapport</p>
+            </div>
+            <div className="text-xs tabular-nums font-bold text-foreground/80 shrink-0 pt-0.5">
+              {formatHoursMinutes(manualMinutes / 60)}
+            </div>
+          </div>
+        </section>
       ) : (
         <>
           <p className="text-sm text-muted-foreground text-center py-4">
-            Inga registrerade aktiviteter denna dag.
+            Ingen tid rapporterad ännu. Fyll i tiderna nedan.
           </p>
           {isToday && !!snapshot.workday?.isOpen && (
             <EndDayButton workdayOpen onStopped={onChanged} />
