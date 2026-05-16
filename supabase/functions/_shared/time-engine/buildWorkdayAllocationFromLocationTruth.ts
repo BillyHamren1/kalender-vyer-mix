@@ -741,7 +741,60 @@ export function buildWorkdayAllocationFromLocationTruth(
   });
 
   const wd = input.activeWorkday ?? null;
-  const wdStartMs = toMs(envelope.startAt);
+
+  // ── Time Engine 3 — same-day evidence check ─────────────────────────────
+  // En öppen/stale timer utan same-day evidence får INTE skapa en synlig
+  // workday-envelope (annars renderas hela dagen som "Glapp i dagen").
+  const dayEv: any = input.dayEvidence ?? null;
+  const gpsPingCount =
+    (dayEv?.gps?.locationLogicPingCount as number | undefined) ??
+    (dayEv?.diagnostics?.gps?.locationLogicPingCount as number | undefined) ??
+    (dayEv?.diagnostics?.counts?.pings as number | undefined) ??
+    0;
+  const ltSegmentCount = ltSegments.length;
+  const assignmentItemCount = (dayEv?.assignments?.items?.length as number | undefined) ?? 0;
+  const hasSameDayEvidence =
+    gpsPingCount > 0 || ltSegmentCount > 0 || assignmentItemCount > 0;
+
+  // Hitta tidigaste same-day evidence-tidpunkt för att kunna trimma stale start.
+  const firstEvidenceMs: number | null = (() => {
+    const candidates: number[] = [];
+    const firstPing = toMs(dayEv?.gps?.firstPingAt ?? dayEv?.gps?.firstRecordedAt ?? null);
+    if (firstPing !== null) candidates.push(firstPing);
+    const firstLt = ltSegments.length > 0
+      ? Math.min(...ltSegments.map((s) => toMs(s.startAt) ?? Infinity).filter((n) => Number.isFinite(n)))
+      : null;
+    if (firstLt !== null && Number.isFinite(firstLt)) candidates.push(firstLt as number);
+    return candidates.length > 0 ? Math.min(...candidates) : null;
+  })();
+
+  // Effektiv start — kan justeras nedåt om stale open timer + evidence finns.
+  let effectiveStartMs = toMs(envelope.startAt);
+  let workdayStartAdjusted = false;
+  let suppressForOpenTimerNoEvidence = false;
+
+  if (envelope.isOpen && !hasSameDayEvidence) {
+    // Inget bevis för dagen → ingen renderbar workday.
+    suppressForOpenTimerNoEvidence = true;
+    effectiveStartMs = null;
+  } else if (
+    envelope.isOpen &&
+    hasSameDayEvidence &&
+    envelope.startWasClippedToDay &&
+    firstEvidenceMs !== null &&
+    effectiveStartMs !== null &&
+    firstEvidenceMs > effectiveStartMs
+  ) {
+    // Stale open timer (startade före dagen) men dagen HAR evidence →
+    // använd första same-day evidence som effektiv start. Aldrig 00:00.
+    effectiveStartMs = firstEvidenceMs;
+    workdayStartAdjusted = true;
+  }
+
+  const wdStartMs = effectiveStartMs;
+  const effectiveStartIso = effectiveStartMs !== null
+    ? new Date(effectiveStartMs).toISOString()
+    : null;
 
   const segments: WorkdayAllocationSegment[] = [];
   const proposals: WorkdayAllocationProposal[] = [];
