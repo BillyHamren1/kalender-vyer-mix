@@ -380,6 +380,7 @@ function buildDiffFindings(
   appHealth: TraceStaffEntry['appHealth'],
   comparison: TraceComparison,
   rawPingsRaw: RawPingStaffEntry | undefined,
+  timeEngine: TraceStaffEntry['timeEngine'],
 ): DiffFinding[] {
   const findings: DiffFinding[] = [];
 
