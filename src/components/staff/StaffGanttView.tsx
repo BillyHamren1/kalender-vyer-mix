@@ -2015,13 +2015,6 @@ const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
             </TabsList>
 
             <TabsContent value="overview" className="mt-0">
-              {/*
-                BLOCK-DETALJ — visar ENBART det valda blockets information.
-                (Tidigare renderades hela dagens StaffDayTimelineCard här,
-                vilket gjorde att klick på ett block återöppnade hela dagen.)
-                Använder samma EvidencePanel som /staff-management/time-reports
-                så data och layout är identisk per block.
-              */}
               <div className="space-y-3">
                 <div className="rounded-md border bg-card px-3 py-2">
                   <div className="text-sm font-semibold text-foreground truncate">
@@ -2039,20 +2032,24 @@ const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
                       : ''}
                   </div>
                 </div>
-                <EvidencePanel
-                  block={selectedBlock}
-                  lookups={{
-                    presenceById: new Map(
-                      (reportCandidate?.presenceBlocks ?? []).map((p: any) => [p.id, p]),
-                    ),
-                    targetById: new Map(
-                      (reportCandidate?.targets ?? []).map((t: any) => [t.id, t]),
-                    ),
-                  }}
-                  staffId={staff.id}
-                  staffName={staff.name}
-                  date={dateStr}
-                />
+                {isTimelineSource && renderedBlock ? (
+                  <TimelineBlockDetail block={renderedBlock} />
+                ) : (
+                  <EvidencePanel
+                    block={selectedBlock}
+                    lookups={{
+                      presenceById: new Map(
+                        (reportCandidate?.presenceBlocks ?? []).map((p: any) => [p.id, p]),
+                      ),
+                      targetById: new Map(
+                        (reportCandidate?.targets ?? []).map((t: any) => [t.id, t]),
+                      ),
+                    }}
+                    staffId={staff.id}
+                    staffName={staff.name}
+                    date={dateStr}
+                  />
+                )}
               </div>
             </TabsContent>
 
@@ -2060,7 +2057,7 @@ const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
               <DecisionMapTab
                 staffId={staff.id}
                 date={dateStr}
-                reportCandidateBlocks={selectedBlock ? [selectedBlock] : []}
+                reportCandidateBlocks={legacyBlock ? [legacyBlock] : []}
               />
             </TabsContent>
 
