@@ -404,7 +404,9 @@ export type GanttBlockSource =
   | 'displayTimelineV2'
   | 'workdayAllocation'
   | 'reportCandidate'
-  | 'empty';
+  | 'empty'
+  /** Fix B — V2 har analyserat dagen men producerat 0 block; legacy får inte falla in. */
+  | 'v2_empty';
 
 export interface SelectGanttSourceInput {
   displayTimelineBlocksV2?: readonly DisplayTimelineBlockLite[] | null;
