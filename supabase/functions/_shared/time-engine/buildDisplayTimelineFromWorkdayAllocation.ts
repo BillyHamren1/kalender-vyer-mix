@@ -1328,6 +1328,9 @@ export function buildDisplayTimelineFromWorkdayAllocation(
   // DEL 4 — exponera outsideWorkday-suppression-mått.
   (diagnostics as any).outsideWorkdaySegmentsSuppressedCount = outsideWorkdaySegmentsSuppressedCount;
   (diagnostics as any).outsideWorkdayMinutesSuppressed = outsideWorkdayMinutesSuppressed;
+  // Fix C — exponera review-absorption-mått.
+  (diagnostics as any).absorbedReviewBetweenSameTargetCount = absorbedReviewCount;
+  (diagnostics as any).absorbedReviewMinutesTotal = absorbedReviewMinutesTotal;
 
   if (!wda) {
     diagnostics.warnings.push('no_workday_allocation_input');
