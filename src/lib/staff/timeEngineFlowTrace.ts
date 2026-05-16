@@ -119,6 +119,19 @@ export interface TimeEngineFlowTraceSummary {
   uncoveredWorkdayMinutes: number | null;
   largestGapMinutes: number | null;
   suspectedProblemLayer: TimeEngineLayerKey | null;
+  // ── Raw GPS snapshot (från debug-raw-staff-pings) ────────────────
+  rawDebug: {
+    available: boolean;
+    rawPingCount: number;
+    firstRawPingAt: string | null;
+    lastRawPingAt: string | null;
+    maxRawPingGapMinutes: number | null;
+    medianAccuracy: number | null;
+    p90Accuracy: number | null;
+    hasRawPingsButNoLocationTruth: boolean;
+    hasRawPingsButNoDisplayBlocks: boolean;
+    hasRawPingsButMissingFromReportList: boolean | null;
+  };
 }
 
 export interface TimeEngineFlowTrace {
