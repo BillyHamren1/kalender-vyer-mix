@@ -107,6 +107,7 @@ Deno.test('Core Fix 2.1 — A: known_address + booking-assignment utan geo → e
   // buildDisplayTimeline från (displayType='booking_work', label='Handelsbanken 2026')
   // → 'Bokning — Handelsbanken 2026' (täckt av separata displayTimeline-tester).
   assertEquals(it!.label, 'Handelsbanken 2026');
+});
 
 Deno.test('Core Fix 2.1 — B: known_address + project-assignment utan geo → effective target = project + label', () => {
   const target = knownAddressSeg('cluster_b', `${DAY}T09:00:00Z`, `${DAY}T11:00:00Z`);
