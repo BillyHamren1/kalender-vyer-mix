@@ -50,6 +50,16 @@ export interface RawPingStaffEntry {
   hasPingsAfterWorkdayLikely: boolean;
   /** Battery diagnostics — alla fält kan vara null/0 om pings saknar batteridata. */
   battery?: RawPingBatterySummary;
+  /** Senaste app health-event (diagnostik, skapar ALDRIG arbetstid). */
+  appHealth?: {
+    lastAppSeenAt: string;
+    lastEventType: string;
+    lastAppState: string | null;
+    lastBatteryPercent: number | null;
+    lastIsCharging: boolean | null;
+    lastPlatform: string | null;
+    lastAppVersion: string | null;
+  } | null;
   sampleRows: RawPingSampleRow[];
 }
 

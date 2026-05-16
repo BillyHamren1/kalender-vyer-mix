@@ -3,6 +3,7 @@ import MobileBottomNav from './MobileBottomNav';
 import MobileGlobalOverlays from './MobileGlobalOverlays';
 import { ViewAsBanner } from './ViewAsPicker';
 import { GeofencingProvider } from '@/contexts/GeofencingContext';
+import { useAppHealthReporter } from '@/hooks/useAppHealthReporter';
 
 interface MobileAppLayoutProps {
   children: React.ReactNode;
@@ -17,6 +18,9 @@ interface MobileAppLayoutProps {
  * shared with TimeAppLayout (native EventFlow Time shell).
  */
 const MobileAppLayout: React.FC<MobileAppLayoutProps> = ({ children }) => {
+  // Diagnostics-only app health events (app start, fg/bg, workday start/stop).
+  useAppHealthReporter();
+
   // Paint the document background teal so iOS rubber-band overscroll at the
   // top reveals the same colour as the sticky header (no white flash), and
   // disable overscroll bounce so the header doesn't get dragged away.

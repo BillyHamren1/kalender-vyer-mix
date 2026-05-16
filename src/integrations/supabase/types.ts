@@ -5538,6 +5538,54 @@ export type Database = {
           },
         ]
       }
+      staff_app_health_events: {
+        Row: {
+          app_state: string | null
+          app_version: string | null
+          battery_level: number | null
+          battery_percent: number | null
+          created_at: string
+          event_type: string
+          id: string
+          is_charging: boolean | null
+          metadata: Json
+          occurred_at: string
+          organization_id: string
+          platform: string | null
+          staff_id: string
+        }
+        Insert: {
+          app_state?: string | null
+          app_version?: string | null
+          battery_level?: number | null
+          battery_percent?: number | null
+          created_at?: string
+          event_type: string
+          id?: string
+          is_charging?: boolean | null
+          metadata?: Json
+          occurred_at: string
+          organization_id: string
+          platform?: string | null
+          staff_id: string
+        }
+        Update: {
+          app_state?: string | null
+          app_version?: string | null
+          battery_level?: number | null
+          battery_percent?: number | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          is_charging?: boolean | null
+          metadata?: Json
+          occurred_at?: string
+          organization_id?: string
+          platform?: string | null
+          staff_id?: string
+        }
+        Relationships: []
+      }
       staff_assignments: {
         Row: {
           assignment_date: string

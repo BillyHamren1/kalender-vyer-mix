@@ -369,6 +369,9 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
           if (error) {
             if (error.code === 'NOT_AUTHORIZED') {
               console.warn('[BGLocation] User denied location permission');
+              try {
+                window.dispatchEvent(new CustomEvent('location-permission-denied'));
+              } catch { /* ignore */ }
             } else {
               console.warn('[BGLocation] error:', error.code);
             }
