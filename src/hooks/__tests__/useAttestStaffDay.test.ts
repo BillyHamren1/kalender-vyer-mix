@@ -6,9 +6,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 
-const mockCall = vi.fn(async () => ({}));
+const mockCall = vi.fn(async (..._args: unknown[]) => ({}));
 vi.mock('@/services/staffSnapshotApi', () => ({
-  callStaffSnapshotFunction: (...args: unknown[]) => mockCall(...args),
+  callStaffSnapshotFunction: (name: string, body: Record<string, unknown>) =>
+    mockCall(name, body),
 }));
 
 import { useAttestStaffDay } from '@/hooks/useAttestStaffDay';
