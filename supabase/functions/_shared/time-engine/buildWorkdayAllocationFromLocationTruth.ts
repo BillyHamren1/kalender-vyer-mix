@@ -1281,17 +1281,18 @@ export function buildWorkdayAllocationFromLocationTruth(
         seg.finalType === 'movement' ? movementCtxById.get(seg.id) ?? null : null,
         bcrOutside,
       );
+      const matchedOutside = seg.businessContext?.matchedTarget ?? seg.matchedTarget;
+      const effOutside = pickEffectiveTarget(bcrOutside, matchedOutside, seg);
       const item: WorkdayAllocationSegment = {
         id: `wda_${seg.id}`,
         startAt: seg.startAt,
         endAt: seg.endAt,
         sourceLocationTruthSegmentIds: [seg.id],
         allocationType: allocOutside.type,
-        targetType: (seg.businessContext?.matchedTarget ?? seg.matchedTarget)?.targetType ?? null,
-        targetId: (seg.businessContext?.matchedTarget ?? seg.matchedTarget)?.targetId ?? null,
-        label: (seg.businessContext?.matchedTarget ?? seg.matchedTarget)?.label
-          ?? seg.physicalLocation?.label ?? null,
-        address: seg.physicalLocation?.address ?? (seg.businessContext?.matchedTarget?.address ?? null),
+        targetType: effOutside.targetType,
+        targetId: effOutside.targetId,
+        label: effOutside.label,
+        address: effOutside.address,
         confidence: allocOutside.confidence,
         warnings: ['segment_outside_workday'],
         assignmentStatus: 'unknown',
