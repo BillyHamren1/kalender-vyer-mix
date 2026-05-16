@@ -253,6 +253,15 @@ export interface WorkdayAllocationDiagnostics {
   }>;
   /** Time Engine STOP 1 — inferred day end (om triggad). */
   dayEndDecision?: WorkdayDayEndDecision | null;
+  // ── Time Engine Core Fix 1 — LocationTruth obligatorisk ──────────────
+  /** True om dagen har raw GPS-pings men 0 LocationTruth V2-segment. */
+  hasRawPingsButNoLocationTruth?: boolean;
+  /** True om allocation/display blockerats pga saknad LocationTruth. */
+  engineBlockedBecauseLocationTruthMissing?: boolean;
+  /** Antal raw pings i input (för debug/trace). */
+  rawPingCount?: number;
+  /** Antal LocationTruth V2-segment i input. */
+  locationTruthV2SegmentCount?: number;
 }
 
 export interface WorkdayAllocationProposal {
