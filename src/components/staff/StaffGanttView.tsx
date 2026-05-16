@@ -428,9 +428,9 @@ const timelineBlockToGanttBlock = (b: GanttBlockFromTimeline): GanttBlock => ({
 });
 
 /**
- * Visual pipeline för V2/allocation-block: kör samma merge + chips-absorb
- * som legacy går igenom (men utan geo-label-resolvern, som är reportCandidate-
- * specifik). Returnerar färdiga renderbara block.
+ * Visual pipeline för V2/allocation-block: delegerar till den delade,
+ * testtäckta helpern i @/lib/staff/ganttVisualPipeline så att UI och
+ * integrationstester garanterat kör samma kod.
  */
 const applyGanttVisualPipeline = (
   blocks: GanttBlock[],
@@ -438,49 +438,31 @@ const applyGanttVisualPipeline = (
   diagSink?: (d: VisualGanttDiagnostics) => void,
 ): GanttBlock[] => {
   if (blocks.length === 0) return [];
-  const merged = applyVisualMerge(blocks, staffName);
-  const visual = buildVisualGanttBlocks(
-    merged.map((b) => ({
-      id: b.id,
-      kind: b.kind,
-      startAt: b.startAt,
-      endAt: b.endAt,
-      durationMinutes: b.durationMinutes,
-      title: b.title,
-      subtitle: b.subtitle ?? null,
-      sessionKey: b.sessionKey,
-      isNightGpsOnly: b.isNightGpsOnly,
-    })),
-    { staffName },
-  );
-  if (diagSink) diagSink(visual.diagnostics);
+  // GanttBlock är strukturellt kompatibel med PipelineBlock (id/kind/start/end/...).
+  const { blocks: out, mergeDiagnostics, visualDiagnostics } =
+    sharedApplyGanttVisualPipeline<GanttBlock & PipelineBlock>(
+      blocks as Array<GanttBlock & PipelineBlock>,
+      { staffName, maxMergeGapMinutes: 15 },
+    );
+  if (diagSink) diagSink(visualDiagnostics);
   if (
     typeof console !== 'undefined' &&
-    visual.diagnostics.absorbedTransportCount +
-      visual.diagnostics.absorbedReviewCount +
-      visual.diagnostics.absorbedUnknownCount +
-      visual.diagnostics.absorbedPreWorkCount +
-      visual.diagnostics.hiddenPreWorkCount >
-      0
+    (mergeDiagnostics.mergedBlockCount > 0 ||
+      visualDiagnostics.absorbedTransportCount +
+        visualDiagnostics.absorbedReviewCount +
+        visualDiagnostics.absorbedUnknownCount +
+        visualDiagnostics.absorbedPreWorkCount +
+        visualDiagnostics.hiddenPreWorkCount >
+        0)
   ) {
     // eslint-disable-next-line no-console
-    console.warn('[Gantt 5.2] visualPipeline (timeline source)', {
+    console.warn('[Gantt 5.4] visualPipeline (shared)', {
       staff: staffName,
-      ...visual.diagnostics,
+      merge: mergeDiagnostics,
+      visual: visualDiagnostics,
     });
   }
-  const byId = new Map(merged.map((b) => [b.id, b]));
-  return visual.blocks
-    .map<GanttBlock | null>((v) => {
-      const src = byId.get(v.id);
-      if (!src) return null;
-      return {
-        ...src,
-        attachedChips: v.chips.length > 0 ? v.chips : undefined,
-        absorbedSourceIds: v.attachedEvents.map((a) => a.id),
-      };
-    })
-    .filter((b): b is GanttBlock => b !== null);
+  return out as GanttBlock[];
 };
 
 const blocksFromStaff = (
