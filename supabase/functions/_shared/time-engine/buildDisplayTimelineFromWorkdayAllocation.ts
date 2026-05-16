@@ -1261,8 +1261,6 @@ export function buildDisplayTimelineFromWorkdayAllocation(
       });
     }
   }
-  (diagnostics as any).absorbedReviewBetweenSameTargetCount = absorbedReviewCount;
-  (diagnostics as any).absorbedReviewMinutesTotal = absorbedReviewMinutesTotal;
 
   // Slutsortera kronologiskt.
   blocks.sort((a, b) => toMs(a.startAt) - toMs(b.startAt));
