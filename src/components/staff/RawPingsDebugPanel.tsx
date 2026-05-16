@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Database, X, ChevronRight, ChevronDown } from 'lucide-react';
+import { Database, X, ChevronRight, ChevronDown, AlertTriangle } from 'lucide-react';
 import {
   useRawStaffPingsDebug,
   type RawPingStaffEntry,
@@ -8,6 +8,10 @@ import {
 interface Props {
   organizationId: string | null;
   date: string; // YYYY-MM-DD (Stockholm-day)
+  /** Staff som faktiskt syns i rapport/Gantt-listan just nu. */
+  shownStaffIds: string[];
+  /** Namn-lookup för staff som inte finns i pings-svaret (för missing-listan). */
+  shownStaffNames?: Record<string, string>;
   onClose: () => void;
 }
 
