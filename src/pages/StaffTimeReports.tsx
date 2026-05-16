@@ -1795,29 +1795,6 @@ const StaffTimeReports: React.FC = () => {
   const bookingPhaseByDate = phaseMaps.bookingPhaseByDate;
   const largeProjectPhaseByDate = phaseMaps.largeProjectPhaseByDate;
 
-  if (selectedStaffId) {
-    return (
-      <PageContainer theme="purple">
-        <PageHeader
-          icon={Clock}
-          title={selectedStaffName}
-          subtitle="Tidrapporter per vecka"
-          variant="purple"
-        >
-          <Button variant="outline" size="sm" onClick={() => setSelectedStaffId(null)} className="rounded-lg gap-1.5 h-8 px-3">
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Tillbaka
-          </Button>
-        </PageHeader>
-        <StaffTimeReportDetail
-          staffId={selectedStaffId}
-          staffName={selectedStaffName}
-          initialDate={selectedDate}
-        />
-      </PageContainer>
-    );
-  }
-
   return (
     <div className="h-screen flex flex-col overflow-hidden theme-purple bg-[hsl(220_20%_97%)] dark:bg-background">
       <div className="flex-1 min-h-0 p-3 sm:p-4 lg:p-5 overflow-hidden">
@@ -1825,9 +1802,10 @@ const StaffTimeReports: React.FC = () => {
           <StaffGanttView
           staffList={staffList}
           isLoading={isLoading}
-          onSelectStaff={(id, name) => {
-            setSelectedStaffId(id);
-            setSelectedStaffName(name);
+          onSelectStaff={(id) => {
+            navigate(`/staff-management/time-reports/${id}/${dateStr}`, {
+              state: { from: location.pathname + location.search },
+            });
           }}
           selectedDate={selectedDate}
           onDateChange={setSelectedDate}
