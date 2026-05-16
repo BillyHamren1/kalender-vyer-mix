@@ -43,7 +43,8 @@ import { buildVisualGanttBlocks, visibleChips, type VisualGanttBlock, type Visua
 import {
   mapDisplayTimelineBlocksToGantt,
   mapWorkdayAllocationSegmentsToGantt,
-  selectGanttBlockSource,
+  selectGanttSourceFromMapped,
+  sessionKeyFromTimelineBlock,
   type GanttBlockFromTimeline,
   type GanttBlockSource,
 } from '@/lib/staff/displayTimelineToGanttBlocks';
@@ -270,6 +271,19 @@ interface GanttBlock {
   attachedChips?: string[];
   /** UI-layer: ID:n på block som absorberats in i detta visuella block. */
   absorbedSourceIds?: string[];
+  // ── V2/Allocation-metadata (Gantt 5.2) ────────────────────────────────
+  /** Engine-resolved targetType (project/large_project/booking/warehouse/...). */
+  targetType?: string | null;
+  /** Engine-resolved targetId. */
+  targetId?: string | null;
+  /** Engine-resolved adress (placeringssträng). */
+  address?: string | null;
+  /** Humanvarningar att visa i drawer/tooltip. */
+  warnings?: string[];
+  /** Källa: 'displayTimelineV2' | 'workdayAllocation' | 'reportCandidate'. */
+  source?: 'displayTimelineV2' | 'workdayAllocation' | 'reportCandidate';
+  /** Råa metadata (displayType, severity, allocationType, confidence, ...). */
+  meta?: Record<string, unknown>;
 }
 
 const isWarehouseTarget = (b: ReportCandidateBlockUI): boolean => {
@@ -403,8 +417,70 @@ const timelineBlockToGanttBlock = (b: GanttBlockFromTimeline): GanttBlock => ({
     (b.meta && (b.meta.displayType as string)) ||
     (b.meta && (b.meta.allocationType as string)) ||
     undefined,
-  sessionKey: `timeline:${b.source}:${b.id}`,
+  sessionKey: sessionKeyFromTimelineBlock(b),
+  targetType: b.targetType,
+  targetId: b.targetId,
+  address: b.address,
+  warnings: b.warnings,
+  source: b.source,
+  meta: b.meta,
 });
+
+/**
+ * Visual pipeline för V2/allocation-block: kör samma merge + chips-absorb
+ * som legacy går igenom (men utan geo-label-resolvern, som är reportCandidate-
+ * specifik). Returnerar färdiga renderbara block.
+ */
+const applyGanttVisualPipeline = (
+  blocks: GanttBlock[],
+  staffName: string,
+  diagSink?: (d: VisualGanttDiagnostics) => void,
+): GanttBlock[] => {
+  if (blocks.length === 0) return [];
+  const merged = applyVisualMerge(blocks, staffName);
+  const visual = buildVisualGanttBlocks(
+    merged.map((b) => ({
+      id: b.id,
+      kind: b.kind,
+      startAt: b.startAt,
+      endAt: b.endAt,
+      durationMinutes: b.durationMinutes,
+      title: b.title,
+      subtitle: b.subtitle ?? null,
+      sessionKey: b.sessionKey,
+      isNightGpsOnly: b.isNightGpsOnly,
+    })),
+    { staffName },
+  );
+  if (diagSink) diagSink(visual.diagnostics);
+  if (
+    typeof console !== 'undefined' &&
+    visual.diagnostics.absorbedTransportCount +
+      visual.diagnostics.absorbedReviewCount +
+      visual.diagnostics.absorbedUnknownCount +
+      visual.diagnostics.absorbedPreWorkCount +
+      visual.diagnostics.hiddenPreWorkCount >
+      0
+  ) {
+    // eslint-disable-next-line no-console
+    console.warn('[Gantt 5.2] visualPipeline (timeline source)', {
+      staff: staffName,
+      ...visual.diagnostics,
+    });
+  }
+  const byId = new Map(merged.map((b) => [b.id, b]));
+  return visual.blocks
+    .map<GanttBlock | null>((v) => {
+      const src = byId.get(v.id);
+      if (!src) return null;
+      return {
+        ...src,
+        attachedChips: v.chips.length > 0 ? v.chips : undefined,
+        absorbedSourceIds: v.attachedEvents.map((a) => a.id),
+      };
+    })
+    .filter((b): b is GanttBlock => b !== null);
+};
 
 const blocksFromStaff = (
   staff: StaffWithDayReport,
@@ -734,33 +810,47 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
   })();
 
   // Per-staff blocks + visual diagnostics.
-  // Källprioritet (Gantt akutfix):
-  //   1. displayTimelineBlocksV2 (Lager 4.1)  — primär
-  //   2. workdayAllocationSegments (Lager 3)  — fallback
-  //   3. reportCandidateBlocks (legacy)       — sista fallback
-  // Det får aldrig bli tom Gantt bara för att V2 råkar vara tom när
-  // motorn faktiskt har producerat block i en annan källa.
-  const { blocksByStaff, visualDiagByStaff, sourceByStaff } = useMemo(() => {
+  // Källprioritet (Gantt 5.2):
+  //   1. mapped displayTimelineBlocksV2 > 0 → V2 (visual pipeline)
+  //   2. mapped workdayAllocationSegments > 0 → allocation (visual pipeline)
+  //   3. reportCandidateBlocks > 0 → legacy (geo + visual pipeline)
+  // OBS: vi väljer på MAPPED count, inte rå count. En V2-uppsättning med
+  // bara private/hidden-block får annars tom Gantt trots att legacy/alloc
+  // har riktiga block.
+  const { blocksByStaff, visualDiagByStaff, sourceByStaff, sourceCountsByStaff } = useMemo(() => {
     const map: Record<string, GanttBlock[]> = {};
     const diag: Record<string, VisualGanttDiagnostics> = {};
     const sources: Record<string, GanttBlockSource> = {};
+    const counts: Record<string, {
+      rawV2: number;
+      mappedV2: number;
+      rawAlloc: number;
+      mappedAlloc: number;
+      legacy: number;
+      rendered: number;
+    }> = {};
     for (const s of staffList) {
       const cand = reportCandidateByStaff?.[s.id];
       const v2Blocks = cand?.displayTimelineBlocksV2 ?? [];
       const allocSegs = cand?.workdayAllocationSegments ?? [];
       const legacyBlocks = cand?.blocks ?? [];
-      const selected = selectGanttBlockSource({
-        displayTimelineBlocksV2: v2Blocks,
-        workdayAllocationSegments: allocSegs,
-        reportCandidateBlocksCount: legacyBlocks.length,
+
+      // Mappa direkt så vi vet vad som är renderbart.
+      const mappedV2 = mapDisplayTimelineBlocksToGantt(v2Blocks as any).map(timelineBlockToGanttBlock);
+      const mappedAlloc = mapWorkdayAllocationSegmentsToGantt(allocSegs as any).map(timelineBlockToGanttBlock);
+
+      const selected = selectGanttSourceFromMapped({
+        mappedV2Count: mappedV2.length,
+        mappedAllocationCount: mappedAlloc.length,
+        legacyCount: legacyBlocks.length,
       });
       sources[s.id] = selected;
 
       let blocks: GanttBlock[] = [];
       if (selected === 'displayTimelineV2') {
-        blocks = mapDisplayTimelineBlocksToGantt(v2Blocks as any).map(timelineBlockToGanttBlock);
+        blocks = applyGanttVisualPipeline(mappedV2, s.name, (d) => { diag[s.id] = d; });
       } else if (selected === 'workdayAllocation') {
-        blocks = mapWorkdayAllocationSegmentsToGantt(allocSegs as any).map(timelineBlockToGanttBlock);
+        blocks = applyGanttVisualPipeline(mappedAlloc, s.name, (d) => { diag[s.id] = d; });
       } else if (selected === 'reportCandidate') {
         blocks = blocksFromStaff(
           s,
@@ -771,24 +861,50 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
           largeProjectPhaseByDate,
           (d) => { diag[s.id] = d; },
         );
+        // Markera legacy-block med source så drawern kan välja rätt dialog.
+        blocks = blocks.map((b) => ({ ...b, source: b.source ?? 'reportCandidate' }));
       }
       map[s.id] = blocks;
+      counts[s.id] = {
+        rawV2: v2Blocks.length,
+        mappedV2: mappedV2.length,
+        rawAlloc: allocSegs.length,
+        mappedAlloc: mappedAlloc.length,
+        legacy: legacyBlocks.length,
+        rendered: blocks.length,
+      };
 
       // Debug-logg så vi kan se vilken källa som valdes per staff.
       if (typeof console !== 'undefined') {
         // eslint-disable-next-line no-console
         console.warn('[Gantt source]', {
           staffName: s.name,
-          displayTimelineBlocksV2Count: v2Blocks.length,
-          workdayAllocationSegmentsCount: allocSegs.length,
+          rawDisplayTimelineBlocksV2Count: v2Blocks.length,
+          mappedDisplayTimelineBlocksV2Count: mappedV2.length,
+          rawWorkdayAllocationSegmentsCount: allocSegs.length,
+          mappedWorkdayAllocationBlocksCount: mappedAlloc.length,
           reportCandidateBlocksCount: legacyBlocks.length,
           selectedSource: selected,
           renderedBlockCount: blocks.length,
         });
       }
     }
-    return { blocksByStaff: map, visualDiagByStaff: diag, sourceByStaff: sources };
+    return {
+      blocksByStaff: map,
+      visualDiagByStaff: diag,
+      sourceByStaff: sources,
+      sourceCountsByStaff: counts,
+    };
   }, [staffList, reportCandidateByStaff, bookingPhaseByDate, largeProjectPhaseByDate]);
+
+  // Renderat block för aktuell selectedBlock — används av dialogen som
+  // fallback när blocket kommer från V2/allocation och inte finns i legacy
+  // reportCandidate.blocks.
+  const selectedRenderedBlock = useMemo<GanttBlock | null>(() => {
+    if (!selectedBlock) return null;
+    const list = blocksByStaff[selectedBlock.staffId] ?? [];
+    return list.find((b) => b.id === selectedBlock.blockId) ?? null;
+  }, [selectedBlock, blocksByStaff]);
 
   // Dev/debug-flagga för att visa per-rad diagnostics-badge i UI.
   // Aktiveras via: localStorage.setItem('gantt:debug','1')  eller via DEV-builds.
@@ -1458,15 +1574,31 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                 </span>
                               )}
                             </div>
-                            {ganttDebug && visualDiagByStaff[staff.id] && (() => {
+                            {ganttDebug && (() => {
                               const d = visualDiagByStaff[staff.id];
-                              const absorbed = d.absorbedTransportCount + d.absorbedReviewCount + d.absorbedUnknownCount + d.absorbedPreWorkCount;
+                              const c = sourceCountsByStaff[staff.id];
+                              const src = sourceByStaff[staff.id] ?? 'empty';
+                              const srcShort =
+                                src === 'displayTimelineV2' ? 'v2'
+                                : src === 'workdayAllocation' ? 'alloc'
+                                : src === 'reportCandidate' ? 'legacy'
+                                : 'empty';
+                              if (!d && !c) return null;
+                              const absorbed = d
+                                ? d.absorbedTransportCount + d.absorbedReviewCount + d.absorbedUnknownCount + d.absorbedPreWorkCount
+                                : 0;
                               return (
                                 <div
                                   className="mt-0.5 truncate font-mono text-[9px] text-muted-foreground/70"
-                                  title={`raw=${d.rawBlockCount} visual=${d.visualBlockCount} absorbed=${absorbed} (transport ${d.absorbedTransportCount} · review ${d.absorbedReviewCount} · unknown ${d.absorbedUnknownCount} · pre_work ${d.absorbedPreWorkCount}) hidden=${d.hiddenPreWorkCount} lanes=${d.lanePackedMainBlocksCount}`}
+                                  title={
+                                    `source=${src}` +
+                                    (c ? ` · v2 raw=${c.rawV2} mapped=${c.mappedV2} · alloc raw=${c.rawAlloc} mapped=${c.mappedAlloc} · legacy=${c.legacy} · rendered=${c.rendered}` : '') +
+                                    (d ? ` · merge raw=${d.rawBlockCount} visual=${d.visualBlockCount} absorbed=${absorbed} (transport ${d.absorbedTransportCount} · review ${d.absorbedReviewCount} · unknown ${d.absorbedUnknownCount} · pre_work ${d.absorbedPreWorkCount}) hidden=${d.hiddenPreWorkCount} lanes=${d.lanePackedMainBlocksCount}` : '')
+                                  }
                                 >
-                                  raw {d.rawBlockCount} → visual {d.visualBlockCount} · absorbed {absorbed} · hidden {d.hiddenPreWorkCount} · lanes {d.lanePackedMainBlocksCount}
+                                  {srcShort}
+                                  {c ? ` · raw ${srcShort === 'v2' ? c.rawV2 : srcShort === 'alloc' ? c.rawAlloc : c.legacy} → mapped ${srcShort === 'v2' ? c.mappedV2 : srcShort === 'alloc' ? c.mappedAlloc : c.legacy} → rendered ${c.rendered}` : ''}
+                                  {d ? ` · absorbed ${absorbed}` : ''}
                                 </div>
                               );
                             })()}
@@ -1745,7 +1877,11 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
       </Sheet>
 
       <BlockDetailDialog
-        open={!!selectedBlock && !!selectedBlockStaff && !!selectedBlockReportCandidate && !!selectedReportBlock}
+        open={
+          !!selectedBlock &&
+          !!selectedBlockStaff &&
+          (!!selectedReportBlock || !!selectedRenderedBlock)
+        }
         onOpenChange={(open) => {
           if (!open) setSelectedBlock(null);
         }}
@@ -1754,6 +1890,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
         dateLabel={subLabel}
         reportCandidate={selectedBlockReportCandidate}
         blockId={selectedReportBlock?.id ?? null}
+        renderedBlock={selectedRenderedBlock}
       />
     </div>
   );
@@ -1822,6 +1959,61 @@ interface DrawerBodyProps {
   onAutoRepairFromEvidence: (staffId: string, input: any) => Promise<{ status: 'created' | 'existing' | 'skipped' }>;
 }
 
+const TimelineBlockDetail: React.FC<{ block: GanttBlock }> = ({ block }) => {
+  const meta = block.meta ?? {};
+  const sourceLabel =
+    block.source === 'displayTimelineV2' ? 'Display Timeline V2'
+    : block.source === 'workdayAllocation' ? 'Workday Allocation (Lager 3)'
+    : 'Legacy';
+  const allocIds = Array.isArray((meta as any).sourceAllocationSegmentIds) ? (meta as any).sourceAllocationSegmentIds : null;
+  const truthIds = Array.isArray((meta as any).sourceLocationTruthSegmentIds) ? (meta as any).sourceLocationTruthSegmentIds : null;
+  return (
+    <div className="rounded-md border bg-card px-3 py-3 space-y-2 text-xs">
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        <span><span className="text-muted-foreground">Källa:</span> <span className="font-medium">{sourceLabel}</span></span>
+        {block.targetType && (
+          <span><span className="text-muted-foreground">Target:</span> <span className="font-mono">{block.targetType}{block.targetId ? `:${block.targetId}` : ''}</span></span>
+        )}
+        {block.sessionKey && (
+          <span><span className="text-muted-foreground">Session:</span> <span className="font-mono">{block.sessionKey}</span></span>
+        )}
+      </div>
+      {block.address && (
+        <div><span className="text-muted-foreground">Adress:</span> {block.address}</div>
+      )}
+      {block.warnings && block.warnings.length > 0 && (
+        <div className="rounded-sm border border-amber-300/60 bg-amber-50 dark:bg-amber-400/10 px-2 py-1.5">
+          <div className="font-medium text-amber-900 dark:text-amber-200 mb-0.5">Varningar</div>
+          <ul className="list-disc pl-4 space-y-0.5 text-amber-900 dark:text-amber-100">
+            {block.warnings.map((w, i) => <li key={i}>{w}</li>)}
+          </ul>
+        </div>
+      )}
+      {(meta as any).displayType && (
+        <div><span className="text-muted-foreground">displayType:</span> <span className="font-mono">{String((meta as any).displayType)}</span></div>
+      )}
+      {(meta as any).allocationType && (
+        <div><span className="text-muted-foreground">allocationType:</span> <span className="font-mono">{String((meta as any).allocationType)}</span></div>
+      )}
+      {(meta as any).severity && (
+        <div><span className="text-muted-foreground">severity:</span> <span className="font-mono">{String((meta as any).severity)}</span></div>
+      )}
+      {(meta as any).confidence && (
+        <div><span className="text-muted-foreground">confidence:</span> <span className="font-mono">{String((meta as any).confidence)}</span></div>
+      )}
+      {allocIds && allocIds.length > 0 && (
+        <div className="text-[10px] font-mono text-muted-foreground break-all">allocation ids: {allocIds.join(', ')}</div>
+      )}
+      {truthIds && truthIds.length > 0 && (
+        <div className="text-[10px] font-mono text-muted-foreground break-all">location-truth ids: {truthIds.join(', ')}</div>
+      )}
+      {block.absorbedSourceIds && block.absorbedSourceIds.length > 0 && (
+        <div className="text-[10px] font-mono text-muted-foreground break-all">absorbed: {block.absorbedSourceIds.join(', ')}</div>
+      )}
+    </div>
+  );
+};
+
 interface BlockDetailDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -1830,6 +2022,9 @@ interface BlockDetailDialogProps {
   dateLabel: string;
   reportCandidate?: any;
   blockId: string | null;
+  /** V2/allocation/legacy renderat block — används som fallback när blocket
+   *  inte finns i legacy reportCandidate.blocks. */
+  renderedBlock?: GanttBlock | null;
 }
 
 const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
@@ -1840,26 +2035,33 @@ const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
   dateLabel,
   reportCandidate,
   blockId,
+  renderedBlock,
 }) => {
   const blocks = reportCandidate?.blocks ?? [];
   const excludedPreWork = reportCandidate?.excludedPreWorkBlocks ?? [];
-  const selectedBlock = blockId
+  const legacyBlock: ReportCandidateBlockUI | null = blockId
     ? (blocks.find((block: ReportCandidateBlockUI) => block.id === blockId)
         ?? (blockId.startsWith('pre-')
           ? excludedPreWork.find((block: ReportCandidateBlockUI) => block.id === blockId.slice(4)) ?? null
           : null))
     : null;
-  const { pings } = useDayPings({ staffId: staff?.id ?? '', date: dateStr, enabled: open && !!staff?.id });
-  const { events } = useDayTimeline({ staffId: staff?.id ?? '', date: dateStr, enabled: open && !!staff?.id });
+  const isTimelineSource =
+    !legacyBlock &&
+    !!renderedBlock &&
+    (renderedBlock.source === 'displayTimelineV2' ||
+      renderedBlock.source === 'workdayAllocation');
+  const selectedBlock: any = legacyBlock ?? renderedBlock ?? null;
+  const { pings } = useDayPings({ staffId: staff?.id ?? '', date: dateStr, enabled: open && !!staff?.id && !isTimelineSource });
+  const { events } = useDayTimeline({ staffId: staff?.id ?? '', date: dateStr, enabled: open && !!staff?.id && !isTimelineSource });
   const selectedEvent = useMemo(() => {
-    if (!selectedBlock) return null;
+    if (!selectedBlock || isTimelineSource) return null;
     const start = new Date(selectedBlock.startAt).getTime();
     const end = new Date(selectedBlock.endAt).getTime();
     return events.find((event) => {
       const ts = new Date(event.ts).getTime();
       return Number.isFinite(ts) && ts >= start && ts <= end;
     }) ?? null;
-  }, [events, selectedBlock]);
+  }, [events, selectedBlock, isTimelineSource]);
 
   if (!staff || !selectedBlock) return null;
 
@@ -1884,13 +2086,6 @@ const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
             </TabsList>
 
             <TabsContent value="overview" className="mt-0">
-              {/*
-                BLOCK-DETALJ — visar ENBART det valda blockets information.
-                (Tidigare renderades hela dagens StaffDayTimelineCard här,
-                vilket gjorde att klick på ett block återöppnade hela dagen.)
-                Använder samma EvidencePanel som /staff-management/time-reports
-                så data och layout är identisk per block.
-              */}
               <div className="space-y-3">
                 <div className="rounded-md border bg-card px-3 py-2">
                   <div className="text-sm font-semibold text-foreground truncate">
@@ -1908,20 +2103,24 @@ const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
                       : ''}
                   </div>
                 </div>
-                <EvidencePanel
-                  block={selectedBlock}
-                  lookups={{
-                    presenceById: new Map(
-                      (reportCandidate?.presenceBlocks ?? []).map((p: any) => [p.id, p]),
-                    ),
-                    targetById: new Map(
-                      (reportCandidate?.targets ?? []).map((t: any) => [t.id, t]),
-                    ),
-                  }}
-                  staffId={staff.id}
-                  staffName={staff.name}
-                  date={dateStr}
-                />
+                {isTimelineSource && renderedBlock ? (
+                  <TimelineBlockDetail block={renderedBlock} />
+                ) : (
+                  <EvidencePanel
+                    block={selectedBlock}
+                    lookups={{
+                      presenceById: new Map(
+                        (reportCandidate?.presenceBlocks ?? []).map((p: any) => [p.id, p]),
+                      ),
+                      targetById: new Map(
+                        (reportCandidate?.targets ?? []).map((t: any) => [t.id, t]),
+                      ),
+                    }}
+                    staffId={staff.id}
+                    staffName={staff.name}
+                    date={dateStr}
+                  />
+                )}
               </div>
             </TabsContent>
 
@@ -1929,7 +2128,7 @@ const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
               <DecisionMapTab
                 staffId={staff.id}
                 date={dateStr}
-                reportCandidateBlocks={selectedBlock ? [selectedBlock] : []}
+                reportCandidateBlocks={legacyBlock ? [legacyBlock] : []}
               />
             </TabsContent>
 

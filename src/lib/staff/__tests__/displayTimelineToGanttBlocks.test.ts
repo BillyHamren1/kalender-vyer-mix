@@ -3,6 +3,8 @@ import {
   mapDisplayTimelineBlocksToGantt,
   mapWorkdayAllocationSegmentsToGantt,
   selectGanttBlockSource,
+  selectGanttSourceFromMapped,
+  sessionKeyFromTimelineBlock,
   type DisplayTimelineBlockLite,
 } from '../displayTimelineToGanttBlocks';
 
@@ -97,21 +99,13 @@ describe('mapWorkdayAllocationSegmentsToGantt', () => {
   });
 });
 
-describe('selectGanttBlockSource', () => {
+describe('selectGanttBlockSource (legacy, råa counts)', () => {
   it('V2 vinner när den har block', () => {
     expect(selectGanttBlockSource({
       displayTimelineBlocksV2: [{ id: 'a', startAt: iso(8), endAt: iso(9), displayType: 'project' }],
       workdayAllocationSegments: [{ id: 'x', startAt: iso(8), endAt: iso(9), allocationType: 'project_work' }],
       reportCandidateBlocksCount: 5,
     })).toBe('displayTimelineV2');
-  });
-
-  it('allocation används när V2 är tom', () => {
-    expect(selectGanttBlockSource({
-      displayTimelineBlocksV2: [],
-      workdayAllocationSegments: [{ id: 'x', startAt: iso(8), endAt: iso(9), allocationType: 'project_work' }],
-      reportCandidateBlocksCount: 5,
-    })).toBe('workdayAllocation');
   });
 
   it('legacy används när V2 OCH allocation är tomma', () => {
@@ -129,12 +123,81 @@ describe('selectGanttBlockSource', () => {
       reportCandidateBlocksCount: 0,
     })).toBe('empty');
   });
+});
 
-  it('V2 tom + legacy fyllt → legacy (aldrig tom Gantt)', () => {
-    expect(selectGanttBlockSource({
-      displayTimelineBlocksV2: [],
-      workdayAllocationSegments: null,
-      reportCandidateBlocksCount: 7,
+describe('selectGanttSourceFromMapped (Gantt 5.2)', () => {
+  it('V2 mapped > 0 vinner', () => {
+    expect(selectGanttSourceFromMapped({
+      mappedV2Count: 3, mappedAllocationCount: 2, legacyCount: 5,
+    })).toBe('displayTimelineV2');
+  });
+
+  it('V2 raw fanns men mappade till 0 (bara private) → allocation används', () => {
+    expect(selectGanttSourceFromMapped({
+      mappedV2Count: 0, mappedAllocationCount: 2, legacyCount: 5,
+    })).toBe('workdayAllocation');
+  });
+
+  it('V2 + allocation mappar till 0 → legacy används (aldrig tom Gantt)', () => {
+    expect(selectGanttSourceFromMapped({
+      mappedV2Count: 0, mappedAllocationCount: 0, legacyCount: 7,
     })).toBe('reportCandidate');
+  });
+
+  it('allt 0 → empty', () => {
+    expect(selectGanttSourceFromMapped({
+      mappedV2Count: 0, mappedAllocationCount: 0, legacyCount: 0,
+    })).toBe('empty');
+  });
+});
+
+describe('sessionKeyFromTimelineBlock', () => {
+  it('prioriterar targetType + targetId', () => {
+    expect(sessionKeyFromTimelineBlock({
+      id: 'x', targetType: 'large_project', targetId: 'abc', address: 'Kungsgatan 1', title: 'Skip',
+    })).toBe('target:large_project:abc');
+  });
+
+  it('faller tillbaka på normaliserad adress när targetId saknas', () => {
+    expect(sessionKeyFromTimelineBlock({
+      id: 'x', address: 'Kaggeholms Slott, Ekerö', title: 'Rigg',
+    })).toBe('address:kaggeholms-slott-ekero');
+  });
+
+  it('faller tillbaka på normaliserad titel när inget annat finns', () => {
+    expect(sessionKeyFromTimelineBlock({
+      id: 'x', title: 'Rigg Kaggeholm',
+    })).toBe('title:rigg-kaggeholm');
+  });
+
+  it('id som sista utväg', () => {
+    expect(sessionKeyFromTimelineBlock({ id: 'fallback-id' })).toBe('id:fallback-id');
+  });
+
+  it('två V2-block med samma targetId får samma sessionKey (mergebart)', () => {
+    const k1 = sessionKeyFromTimelineBlock({ id: 'a', targetType: 'project', targetId: '42' });
+    const k2 = sessionKeyFromTimelineBlock({ id: 'b', targetType: 'project', targetId: '42' });
+    expect(k1).toBe(k2);
+  });
+});
+
+describe('mapDisplayTimelineBlocksToGantt + sessionKey-integration', () => {
+  it('mappade block har targetType/targetId/address bevarade', () => {
+    const out = mapDisplayTimelineBlocksToGantt([
+      {
+        id: 'a',
+        startAt: iso(8),
+        endAt: iso(12),
+        displayType: 'large_project',
+        title: 'Globen',
+        targetType: 'large_project',
+        targetId: 'lp-1',
+        address: 'Arenavägen 1',
+      },
+    ]);
+    expect(out[0].targetType).toBe('large_project');
+    expect(out[0].targetId).toBe('lp-1');
+    expect(out[0].address).toBe('Arenavägen 1');
+    expect(sessionKeyFromTimelineBlock(out[0])).toBe('target:large_project:lp-1');
   });
 });

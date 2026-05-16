@@ -2,8 +2,8 @@
  * Display Timeline V2 → Gantt Block mapper (UI-only).
  *
  * Tar `displayTimelineBlocksV2` (Lager 4.1 från get-staff-presence-day) och
- * översätter till den enkla `GanttBlockLite`-formen som StaffGanttView ritar.
- * Pure function, ingen DOM, inga writes.
+ * översätter till den enkla `GanttBlockFromTimeline`-formen som StaffGanttView
+ * ritar. Pure function, ingen DOM, inga writes.
  *
  * Också fallback-mapper för `workdayAllocationSegments` (Lager 3) så att Gantt
  * kan rita NÅGOT så fort motorn producerat segment, även om V2 inte hunnit
@@ -113,8 +113,6 @@ const resolveKindForDisplayBlock = (
     return 'work';
   }
   if (mapped === 'review' && b.displayType === 'unlinked_address') {
-    // Eskalera till "review" om severity kräver det, annars stanna review
-    // (visas redan dämpat). Använd `unknown` bara om severity är normal/info.
     if (b.severity === 'needs_user_review' || b.severity === 'warning') return 'review';
     return 'unknown';
   }
@@ -174,6 +172,7 @@ export function mapDisplayTimelineBlocksToGantt(
         displayType: b.displayType,
         severity: b.severity ?? null,
         confidence: b.confidence ?? null,
+        label: b.label ?? null,
       },
     });
   }
@@ -251,10 +250,50 @@ export function mapWorkdayAllocationSegmentsToGantt(
       meta: {
         allocationType: allocType,
         confidence: s.confidence ?? null,
+        label: s.label ?? null,
       },
     });
   }
   return out;
+}
+
+// ── Stabil sessionKey för V2/allocation-block ────────────────────────────
+
+const normalizeKeyPart = (s: string): string =>
+  s
+    .toLowerCase()
+    .replace(/[åä]/g, 'a')
+    .replace(/ö/g, 'o')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+/**
+ * Bygg en stabil sessionKey som låter merge-passet slå ihop flera V2/allocation-
+ * block på samma jobb/plats.
+ *
+ * Prioritet:
+ *   1. target:{targetType}:{targetId}
+ *   2. address:{normalized}
+ *   3. title:{normalized}
+ *   4. id:{id} (sista utvägen — block får inte mergeas med någon)
+ */
+export function sessionKeyFromTimelineBlock(b: {
+  id: string;
+  title?: string | null;
+  targetType?: string | null;
+  targetId?: string | null;
+  address?: string | null;
+}): string {
+  if (b.targetType && b.targetId) {
+    return `target:${b.targetType}:${b.targetId}`;
+  }
+  if (b.address && b.address.trim()) {
+    return `address:${normalizeKeyPart(b.address.trim())}`;
+  }
+  if (b.title && b.title.trim()) {
+    return `title:${normalizeKeyPart(b.title.trim())}`;
+  }
+  return `id:${b.id}`;
 }
 
 // ── Source selector ──────────────────────────────────────────────────────
@@ -272,8 +311,9 @@ export interface SelectGanttSourceInput {
 }
 
 /**
- * Deterministisk källprioritet. V2 vinner; om V2 är tomt och legacy finns,
- * fallar vi tillbaka till legacy så vyn aldrig blir tom p.g.a. fel källa.
+ * @deprecated Bygger valet på RÅA counts. Använd `selectGanttSourceFromMapped`
+ * — det förhindrar tomma Gantts när V2 fanns men bara innehöll private/hidden-
+ * block (mapped → 0). Behålls för bakåtkompatibilitet med tester.
  */
 export function selectGanttBlockSource(input: SelectGanttSourceInput): GanttBlockSource {
   const v2 = input.displayTimelineBlocksV2?.length ?? 0;
@@ -282,5 +322,26 @@ export function selectGanttBlockSource(input: SelectGanttSourceInput): GanttBloc
   if (v2 > 0) return 'displayTimelineV2';
   if (alloc > 0) return 'workdayAllocation';
   if (legacy > 0) return 'reportCandidate';
+  return 'empty';
+}
+
+export interface SelectFromMappedInput {
+  mappedV2Count: number;
+  mappedAllocationCount: number;
+  legacyCount: number;
+}
+
+/**
+ * Deterministisk källprioritet baserad på RENDERBARA block (efter mapping).
+ *
+ * Använd detta när du har kört `mapDisplayTimelineBlocksToGantt` /
+ * `mapWorkdayAllocationSegmentsToGantt`. Då räknar vi bara block som faktiskt
+ * kan ritas — så en V2-uppsättning med enbart private/hidden eskalerar
+ * korrekt till allocation eller legacy istället för att lämna tom Gantt.
+ */
+export function selectGanttSourceFromMapped(input: SelectFromMappedInput): GanttBlockSource {
+  if (input.mappedV2Count > 0) return 'displayTimelineV2';
+  if (input.mappedAllocationCount > 0) return 'workdayAllocation';
+  if (input.legacyCount > 0) return 'reportCandidate';
   return 'empty';
 }
