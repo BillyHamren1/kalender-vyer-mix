@@ -822,6 +822,15 @@ function buildBlockFromSegments(
       absorbedGapMinutes: 0,
       absorbedSupplierVisits: [],
       absorbedTravelSegments: [],
+      // Map Trace 4 — för vidare fysisk plats och matchnings-trace.
+      physicalLocationLabel: (first as any).physicalLocationLabel ?? null,
+      physicalLocationAddress: (first as any).physicalLocationAddress ?? null,
+      physicalLocationLat: (first as any).physicalLocationLat ?? null,
+      physicalLocationLng: (first as any).physicalLocationLng ?? null,
+      physicalLocationSource: (first as any).physicalLocationSource ?? null,
+      physicalLocationConfidence: (first as any).physicalLocationConfidence ?? null,
+      locationMatchDiagnostics: (first as any).locationMatchDiagnostics ?? null,
+      businessContextResolution: (first as any).businessContextResolution ?? null,
     },
   };
   const subtitle = deriveSubtitle(displayType, {
