@@ -37,7 +37,27 @@ export type SuspectedProblemKey =
   | 'unlinked_address_rendered_as_review'
   | 'break_or_gap_rendered_as_large_block'
   | 'assignment_overrode_gps'
-  | 'child_booking_used_instead_of_large_project';
+  | 'child_booking_used_instead_of_large_project'
+  | 'raw_pings_exist_but_no_location_truth'
+  | 'raw_pings_exist_but_no_display_blocks'
+  | 'raw_pings_exist_but_staff_missing_from_report'
+  | 'stale_timer_but_no_same_day_pings'
+  | 'large_raw_gap_before_first_location_truth';
+
+/**
+ * Optional raw GPS debug snapshot för en specifik staff/dag.
+ * Speglar fält från debug-raw-staff-pings (perStaff entry).
+ */
+export interface RawPingDebugSnapshot {
+  rawPingCount: number;
+  firstRawPingAt: string | null;
+  lastRawPingAt: string | null;
+  maxRawPingGapMinutes: number | null;
+  medianAccuracy: number | null;
+  p90Accuracy: number | null;
+  /** True om personen INTE finns i rapportlistans staffIds-set. */
+  missingFromReportList?: boolean;
+}
 
 export interface TimeEngineLayerInfo {
   key: TimeEngineLayerKey;
@@ -99,6 +119,19 @@ export interface TimeEngineFlowTraceSummary {
   uncoveredWorkdayMinutes: number | null;
   largestGapMinutes: number | null;
   suspectedProblemLayer: TimeEngineLayerKey | null;
+  // ── Raw GPS snapshot (från debug-raw-staff-pings) ────────────────
+  rawDebug: {
+    available: boolean;
+    rawPingCount: number;
+    firstRawPingAt: string | null;
+    lastRawPingAt: string | null;
+    maxRawPingGapMinutes: number | null;
+    medianAccuracy: number | null;
+    p90Accuracy: number | null;
+    hasRawPingsButNoLocationTruth: boolean;
+    hasRawPingsButNoDisplayBlocks: boolean;
+    hasRawPingsButMissingFromReportList: boolean | null;
+  };
 }
 
 export interface TimeEngineFlowTrace {
@@ -133,6 +166,8 @@ export interface BuildTimeEngineFlowTraceInput {
     | null;
   /** Räknare från StaffGanttView.sourceCountsByStaff[staffId]. */
   ganttSourceCounts?: GanttSourceCounts | null;
+  /** Optional raw GPS-debug-snapshot för personen (debug-raw-staff-pings). */
+  rawPingDebug?: RawPingDebugSnapshot | null;
 }
 
 // ── helpers ────────────────────────────────────────────────────────
@@ -594,6 +629,73 @@ export function buildTimeEngineFlowTrace(
     }
   }
 
+  // ── raw GPS debug snapshot ──────────────────────────────────────
+  const rpd = input.rawPingDebug ?? null;
+  const rawDebugAvailable = !!rpd;
+  const rawDebugCount = num(rpd?.rawPingCount, 0);
+  const hasRawPingsButNoLocationTruth = rawDebugAvailable && rawDebugCount > 0 && ltSegCount === 0;
+  const hasRawPingsButNoDisplayBlocks = rawDebugAvailable && rawDebugCount > 0 && dtBlockCount === 0;
+  const hasRawPingsButMissingFromReportList = rawDebugAvailable
+    ? Boolean(rpd?.missingFromReportList && rawDebugCount > 0)
+    : false;
+  const noSameDayPings = rawDebugAvailable && rawDebugCount === 0;
+
+  if (hasRawPingsButNoLocationTruth) {
+    suspected.push({
+      key: 'raw_pings_exist_but_no_location_truth',
+      layer: 'locationTruthV2',
+      severity: 'problem',
+      title: 'Råa pings finns men ingen LocationTruth',
+      detail: `Råa pings: ${rawDebugCount}, men 0 LocationTruth-segment producerades.`,
+    });
+  }
+  if (hasRawPingsButNoDisplayBlocks) {
+    suspected.push({
+      key: 'raw_pings_exist_but_no_display_blocks',
+      layer: 'displayTimelineV2',
+      severity: 'problem',
+      title: 'Råa pings finns men inga display-block',
+      detail: `Råa pings: ${rawDebugCount}, men display timeline är tom.`,
+    });
+  }
+  if (hasRawPingsButMissingFromReportList) {
+    suspected.push({
+      key: 'raw_pings_exist_but_staff_missing_from_report',
+      layer: 'gantt',
+      severity: 'problem',
+      title: 'Person saknas i rapportlistan trots pings',
+      detail: `Personen har ${rawDebugCount} råa pings men finns inte i rapportlistans staff-set.`,
+    });
+  }
+  if (staleOpenTimer && noSameDayPings) {
+    suspected.push({
+      key: 'stale_timer_but_no_same_day_pings',
+      layer: 'workdayAllocation',
+      severity: 'problem',
+      title: 'Stale timer utan dagens pings',
+      detail: 'Aktiv timer rullar från midnatt men inga råa pings finns för dagen.',
+    });
+  }
+  if (
+    rawDebugAvailable &&
+    rpd?.firstRawPingAt &&
+    effectiveWorkdayStartAt &&
+    ltSegCount > 0
+  ) {
+    const firstLtStart =
+      (ltV2Segments[0] as any)?.startAt ?? (ltV2Segments[0] as any)?.start_at ?? null;
+    const gap = minutesBetween(rpd.firstRawPingAt, firstLtStart);
+    if (gap != null && gap > 30) {
+      suspected.push({
+        key: 'large_raw_gap_before_first_location_truth',
+        layer: 'locationTruthV2',
+        severity: 'warning',
+        title: 'Stort gap mellan första ping och första LocationTruth',
+        detail: `Första råa ping ${rpd.firstRawPingAt} → första LT-segment ${firstLtStart} (${gap} min).`,
+      });
+    }
+  }
+
   // ── summary ─────────────────────────────────────────────────────
   const summary: TimeEngineFlowTraceSummary = {
     staffId: input.staffId,
@@ -616,6 +718,20 @@ export function buildTimeEngineFlowTrace(
       suspected.find((s) => s.severity === 'problem')?.layer ??
       suspected[0]?.layer ??
       null,
+    rawDebug: {
+      available: rawDebugAvailable,
+      rawPingCount: rawDebugCount,
+      firstRawPingAt: rpd?.firstRawPingAt ?? null,
+      lastRawPingAt: rpd?.lastRawPingAt ?? null,
+      maxRawPingGapMinutes: rpd?.maxRawPingGapMinutes ?? null,
+      medianAccuracy: rpd?.medianAccuracy ?? null,
+      p90Accuracy: rpd?.p90Accuracy ?? null,
+      hasRawPingsButNoLocationTruth,
+      hasRawPingsButNoDisplayBlocks,
+      hasRawPingsButMissingFromReportList: rawDebugAvailable
+        ? hasRawPingsButMissingFromReportList
+        : null,
+    },
   };
 
   // Indikera saknad data globalt
