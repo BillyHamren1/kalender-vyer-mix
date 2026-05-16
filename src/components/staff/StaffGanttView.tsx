@@ -259,6 +259,10 @@ interface GanttBlock {
   countedDurationMinutes?: number;
   /** Summa av glapp mellan underblock i ett mergat block. */
   visualGapMinutes?: number;
+  /** UI-layer: chips från absorberade transport/granska/pre_work-block. */
+  attachedChips?: string[];
+  /** UI-layer: ID:n på block som absorberats in i detta visuella block. */
+  absorbedSourceIds?: string[];
 }
 
 const isWarehouseTarget = (b: ReportCandidateBlockUI): boolean => {
