@@ -1959,6 +1959,61 @@ interface DrawerBodyProps {
   onAutoRepairFromEvidence: (staffId: string, input: any) => Promise<{ status: 'created' | 'existing' | 'skipped' }>;
 }
 
+const TimelineBlockDetail: React.FC<{ block: GanttBlock }> = ({ block }) => {
+  const meta = block.meta ?? {};
+  const sourceLabel =
+    block.source === 'displayTimelineV2' ? 'Display Timeline V2'
+    : block.source === 'workdayAllocation' ? 'Workday Allocation (Lager 3)'
+    : 'Legacy';
+  const allocIds = Array.isArray((meta as any).sourceAllocationSegmentIds) ? (meta as any).sourceAllocationSegmentIds : null;
+  const truthIds = Array.isArray((meta as any).sourceLocationTruthSegmentIds) ? (meta as any).sourceLocationTruthSegmentIds : null;
+  return (
+    <div className="rounded-md border bg-card px-3 py-3 space-y-2 text-xs">
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        <span><span className="text-muted-foreground">Källa:</span> <span className="font-medium">{sourceLabel}</span></span>
+        {block.targetType && (
+          <span><span className="text-muted-foreground">Target:</span> <span className="font-mono">{block.targetType}{block.targetId ? `:${block.targetId}` : ''}</span></span>
+        )}
+        {block.sessionKey && (
+          <span><span className="text-muted-foreground">Session:</span> <span className="font-mono">{block.sessionKey}</span></span>
+        )}
+      </div>
+      {block.address && (
+        <div><span className="text-muted-foreground">Adress:</span> {block.address}</div>
+      )}
+      {block.warnings && block.warnings.length > 0 && (
+        <div className="rounded-sm border border-amber-300/60 bg-amber-50 dark:bg-amber-400/10 px-2 py-1.5">
+          <div className="font-medium text-amber-900 dark:text-amber-200 mb-0.5">Varningar</div>
+          <ul className="list-disc pl-4 space-y-0.5 text-amber-900 dark:text-amber-100">
+            {block.warnings.map((w, i) => <li key={i}>{w}</li>)}
+          </ul>
+        </div>
+      )}
+      {(meta as any).displayType && (
+        <div><span className="text-muted-foreground">displayType:</span> <span className="font-mono">{String((meta as any).displayType)}</span></div>
+      )}
+      {(meta as any).allocationType && (
+        <div><span className="text-muted-foreground">allocationType:</span> <span className="font-mono">{String((meta as any).allocationType)}</span></div>
+      )}
+      {(meta as any).severity && (
+        <div><span className="text-muted-foreground">severity:</span> <span className="font-mono">{String((meta as any).severity)}</span></div>
+      )}
+      {(meta as any).confidence && (
+        <div><span className="text-muted-foreground">confidence:</span> <span className="font-mono">{String((meta as any).confidence)}</span></div>
+      )}
+      {allocIds && allocIds.length > 0 && (
+        <div className="text-[10px] font-mono text-muted-foreground break-all">allocation ids: {allocIds.join(', ')}</div>
+      )}
+      {truthIds && truthIds.length > 0 && (
+        <div className="text-[10px] font-mono text-muted-foreground break-all">location-truth ids: {truthIds.join(', ')}</div>
+      )}
+      {block.absorbedSourceIds && block.absorbedSourceIds.length > 0 && (
+        <div className="text-[10px] font-mono text-muted-foreground break-all">absorbed: {block.absorbedSourceIds.join(', ')}</div>
+      )}
+    </div>
+  );
+};
+
 interface BlockDetailDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
