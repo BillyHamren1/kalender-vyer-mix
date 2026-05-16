@@ -386,6 +386,10 @@ Deno.serve(async (req) => {
             analysisWindowEndIso: dayEnd,
           });
           workdayAllocationDiagnostics = wda.diagnostics;
+          // DEL 2 — spegla canonical timer-selection i diagnostics.
+          if (workdayAllocationDiagnostics) {
+            (workdayAllocationDiagnostics as any).canonicalTimer = canonicalTimerDiagnostics;
+          }
           workdayAllocationSegments = wda.segments;
           workdayAllocationProposals = wda.proposals;
 
