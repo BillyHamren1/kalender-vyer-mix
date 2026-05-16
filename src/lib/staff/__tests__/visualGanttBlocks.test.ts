@@ -91,3 +91,91 @@ describe('buildVisualGanttBlocks', () => {
     expect(blocks.every((x) => x.attachedEvents.length === 0)).toBe(true);
   });
 });
+
+describe('visibleChips (Gantt 5.1 chip-policy)', () => {
+  it('MAX_VISIBLE_CHIPS är 1', () => {
+    expect(MAX_VISIBLE_CHIPS).toBe(1);
+  });
+
+  it('1 chip → visas 1, ingen overflow', () => {
+    const r = visibleChips(['Transport före 24 min']);
+    expect(r.visible).toEqual(['Transport före 24 min']);
+    expect(r.overflowCount).toBe(0);
+  });
+
+  it('3 chips → visar 1 + "+2"', () => {
+    const chips = ['Transport före 24 min', 'Granska 12 min', 'Okänd 8 min'];
+    const r = visibleChips(chips);
+    expect(r.visible).toEqual(['Transport före 24 min']);
+    expect(r.overflowCount).toBe(2);
+  });
+
+  it('tom lista → ingenting', () => {
+    expect(visibleChips([])).toEqual({ visible: [], overflowCount: 0 });
+  });
+
+  it('alla originalchips finns kvar i källblockets attachedEvents (tooltip-källa)', () => {
+    // Verifierar att buildVisualGanttBlocks fortfarande ger oss ALLA chips,
+    // även när rendering bara visar 1 + overflow.
+    const rig = {
+      id: 'r1', kind: 'rig' as const,
+      startAt: '2026-05-16T08:00:00+02:00',
+      endAt: '2026-05-16T18:00:00+02:00',
+      durationMinutes: 600,
+    };
+    const t = {
+      id: 't1', kind: 'transport' as const,
+      startAt: '2026-05-16T07:40:00+02:00',
+      endAt: '2026-05-16T08:00:00+02:00',
+      durationMinutes: 20,
+    };
+    const rev = {
+      id: 'rv1', kind: 'review' as const,
+      startAt: '2026-05-16T10:00:00+02:00',
+      endAt: '2026-05-16T10:10:00+02:00',
+      durationMinutes: 10,
+    };
+    const u = {
+      id: 'u1', kind: 'unknown' as const,
+      startAt: '2026-05-16T13:00:00+02:00',
+      endAt: '2026-05-16T13:08:00+02:00',
+      durationMinutes: 8,
+    };
+    const { blocks } = buildVisualGanttBlocks([rig, t, rev, u]);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].chips.length).toBe(3);
+    const r = visibleChips(blocks[0].chips);
+    expect(r.visible.length).toBe(1);
+    expect(r.overflowCount).toBe(2);
+    // tooltip-källan (attachedEvents) innehåller alla 3
+    expect(blocks[0].attachedEvents.map((a) => a.id).sort()).toEqual(['rv1', 't1', 'u1']);
+  });
+
+  it('diagnostics summerar korrekt över alla absorberade kinds', () => {
+    const rig = {
+      id: 'r1', kind: 'rig' as const,
+      startAt: '2026-05-16T08:00:00+02:00',
+      endAt: '2026-05-16T18:00:00+02:00',
+      durationMinutes: 600,
+    };
+    const t = {
+      id: 't1', kind: 'transport' as const,
+      startAt: '2026-05-16T07:50:00+02:00',
+      endAt: '2026-05-16T08:00:00+02:00',
+      durationMinutes: 10,
+    };
+    const rev = {
+      id: 'rv1', kind: 'review' as const,
+      startAt: '2026-05-16T10:00:00+02:00',
+      endAt: '2026-05-16T10:10:00+02:00',
+      durationMinutes: 10,
+    };
+    const { diagnostics } = buildVisualGanttBlocks([rig, t, rev]);
+    expect(diagnostics.rawBlockCount).toBe(3);
+    expect(diagnostics.visualBlockCount).toBe(1);
+    expect(diagnostics.absorbedTransportCount).toBe(1);
+    expect(diagnostics.absorbedReviewCount).toBe(1);
+    expect(diagnostics.absorbedUnknownCount).toBe(0);
+    expect(diagnostics.lanePackedMainBlocksCount).toBe(0);
+  });
+});
