@@ -40,6 +40,13 @@ import {
 } from '@/lib/staff/ganttPhaseColor';
 import { mergeContiguousBlocks, type MergeBlockInput, type MergeableKind } from '@/lib/staff/ganttBlockMerge';
 import { buildVisualGanttBlocks, visibleChips, type VisualGanttBlock, type VisualGanttDiagnostics } from '@/lib/staff/visualGanttBlocks';
+import {
+  mapDisplayTimelineBlocksToGantt,
+  mapWorkdayAllocationSegmentsToGantt,
+  selectGanttBlockSource,
+  type GanttBlockFromTimeline,
+  type GanttBlockSource,
+} from '@/lib/staff/displayTimelineToGanttBlocks';
 import type { ReviewWorkInput, ReviewTravelInput } from '@/lib/staff/timeReportReviewEntry';
 import type {
   DaySegment,
@@ -384,6 +391,21 @@ const applyVisualMerge = (blocks: GanttBlock[], staffName?: string): GanttBlock[
   );
 };
 
+const timelineBlockToGanttBlock = (b: GanttBlockFromTimeline): GanttBlock => ({
+  id: b.id,
+  kind: b.kind as GanttKind,
+  startAt: b.startAt,
+  endAt: b.endAt,
+  durationMinutes: b.durationMinutes,
+  title: b.title,
+  subtitle: b.subtitle ?? null,
+  rawKind:
+    (b.meta && (b.meta.displayType as string)) ||
+    (b.meta && (b.meta.allocationType as string)) ||
+    undefined,
+  sessionKey: `timeline:${b.source}:${b.id}`,
+});
+
 const blocksFromStaff = (
   staff: StaffWithDayReport,
   candidate: ReportCandidateBlockUI[] | null | undefined,
@@ -659,6 +681,12 @@ interface StaffGanttViewProps {
       targetMatchSummary?: any;
       targets?: any[];
       counts?: any;
+      // Lager 4.1 — Display Timeline V2 (primär Gantt-källa).
+      displayTimelineBlocksV2?: any[];
+      displayTimelineDiagnosticsV2?: any;
+      // Lager 3 — Workday Allocation (fallback när V2 saknas).
+      workdayAllocationSegments?: any[];
+      workdayAllocationDiagnostics?: any;
       loading: boolean;
       missing?: boolean;
     } | undefined
@@ -705,22 +733,61 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
     return null;
   })();
 
-  // Per-staff blocks + visual diagnostics
-  const { blocksByStaff, visualDiagByStaff } = useMemo(() => {
+  // Per-staff blocks + visual diagnostics.
+  // Källprioritet (Gantt akutfix):
+  //   1. displayTimelineBlocksV2 (Lager 4.1)  — primär
+  //   2. workdayAllocationSegments (Lager 3)  — fallback
+  //   3. reportCandidateBlocks (legacy)       — sista fallback
+  // Det får aldrig bli tom Gantt bara för att V2 råkar vara tom när
+  // motorn faktiskt har producerat block i en annan källa.
+  const { blocksByStaff, visualDiagByStaff, sourceByStaff } = useMemo(() => {
     const map: Record<string, GanttBlock[]> = {};
     const diag: Record<string, VisualGanttDiagnostics> = {};
+    const sources: Record<string, GanttBlockSource> = {};
     for (const s of staffList) {
       const cand = reportCandidateByStaff?.[s.id];
-      map[s.id] = blocksFromStaff(
-        s,
-        cand?.blocks ?? null,
-        cand?.excludedPreWorkBlocks ?? null,
-        bookingPhaseByDate,
-        largeProjectPhaseByDate,
-        (d) => { diag[s.id] = d; },
-      );
+      const v2Blocks = cand?.displayTimelineBlocksV2 ?? [];
+      const allocSegs = cand?.workdayAllocationSegments ?? [];
+      const legacyBlocks = cand?.blocks ?? [];
+      const selected = selectGanttBlockSource({
+        displayTimelineBlocksV2: v2Blocks,
+        workdayAllocationSegments: allocSegs,
+        reportCandidateBlocksCount: legacyBlocks.length,
+      });
+      sources[s.id] = selected;
+
+      let blocks: GanttBlock[] = [];
+      if (selected === 'displayTimelineV2') {
+        blocks = mapDisplayTimelineBlocksToGantt(v2Blocks as any).map(timelineBlockToGanttBlock);
+      } else if (selected === 'workdayAllocation') {
+        blocks = mapWorkdayAllocationSegmentsToGantt(allocSegs as any).map(timelineBlockToGanttBlock);
+      } else if (selected === 'reportCandidate') {
+        blocks = blocksFromStaff(
+          s,
+          legacyBlocks,
+          // Pre-work renderas ALDRIG som huvudblock.
+          null,
+          bookingPhaseByDate,
+          largeProjectPhaseByDate,
+          (d) => { diag[s.id] = d; },
+        );
+      }
+      map[s.id] = blocks;
+
+      // Debug-logg så vi kan se vilken källa som valdes per staff.
+      if (typeof console !== 'undefined') {
+        // eslint-disable-next-line no-console
+        console.warn('[Gantt source]', {
+          staffName: s.name,
+          displayTimelineBlocksV2Count: v2Blocks.length,
+          workdayAllocationSegmentsCount: allocSegs.length,
+          reportCandidateBlocksCount: legacyBlocks.length,
+          selectedSource: selected,
+          renderedBlockCount: blocks.length,
+        });
+      }
     }
-    return { blocksByStaff: map, visualDiagByStaff: diag };
+    return { blocksByStaff: map, visualDiagByStaff: diag, sourceByStaff: sources };
   }, [staffList, reportCandidateByStaff, bookingPhaseByDate, largeProjectPhaseByDate]);
 
   // Dev/debug-flagga för att visa per-rad diagnostics-badge i UI.
