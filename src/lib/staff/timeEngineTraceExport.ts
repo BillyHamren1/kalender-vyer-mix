@@ -54,6 +54,13 @@ export interface ReportCandidateLikeForExport {
   locationTruthV2Segments?: any[];
   locationTruthV2Diagnostics?: any;
   locationTruthV2NotBuiltReason?: string | null;
+  // Time Engine Core Fix 1 — top-level guard-spegling från presence-day.
+  locationTruthV2SegmentCount?: number;
+  rawPingCount?: number | null;
+  engineBlockedBecauseLocationTruthMissing?: boolean;
+  hasRawPingsButNoLocationTruth?: boolean;
+  displaySuppressedBecauseMissingLocationTruth?: boolean;
+  openTimerIgnoredForDisplay?: boolean;
   presenceBlocks?: any[];
   presenceDaySummary?: any;
   presenceDayAggregation?: any;
