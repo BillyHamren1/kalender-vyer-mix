@@ -199,6 +199,14 @@ export interface TimeEngineTraceExport {
     totalDiffFindings: number;
     criticalFindings: number;
     warningFindings: number;
+    /** Antal staff där rawPings.truncated=true. */
+    rawPingsTruncatedStaffCount: number;
+    /** Totalt antal rader som inte kom med över alla truncerade staff. */
+    rawPingsTruncatedTotalMissingRows: number;
+    /** True om Edge Function nådde sin HARD_CAP (50000) totalt. */
+    rawPingsHardCapReached: boolean;
+    /** Edge Function-warnings (t.ex. row_hard_cap_50000_reached). */
+    rawPingsWarnings: string[];
   };
   staff: TraceStaffEntry[];
 }
