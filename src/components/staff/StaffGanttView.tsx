@@ -399,6 +399,34 @@ const blocksFromStaff = (
   largeProjectPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
   diagSink?: (d: VisualGanttDiagnostics) => void,
 ): GanttBlock[] => {
+  // Adapter: konvertera mapper-output (V2/allocation) till GanttBlock så att
+  // resten av renderingen (geometri, lane-packing, tooltip) inte behöver veta
+  // vilken källa blocken kom från.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _unused = null;
+  return [];
+};
+
+const timelineBlockToGanttBlock = (b: GanttBlockFromTimeline): GanttBlock => ({
+  id: b.id,
+  kind: b.kind as GanttKind,
+  startAt: b.startAt,
+  endAt: b.endAt,
+  durationMinutes: b.durationMinutes,
+  title: b.title,
+  subtitle: b.subtitle ?? null,
+  rawKind: (b.meta && (b.meta.displayType as string)) || (b.meta && (b.meta.allocationType as string)) || undefined,
+  sessionKey: `timeline:${b.source}:${b.id}`,
+});
+
+const _blocksFromStaffLegacy = (
+  staff: StaffWithDayReport,
+  candidate: ReportCandidateBlockUI[] | null | undefined,
+  excludedPreWork: ReportCandidateBlockUI[] | null | undefined,
+  bookingPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
+  largeProjectPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
+  diagSink?: (d: VisualGanttDiagnostics) => void,
+): GanttBlock[] => {
   const out: GanttBlock[] = [];
   if (candidate && candidate.length) {
     const labelDiagnostics = {
