@@ -4,6 +4,11 @@ import {
   useRawStaffPingsDebug,
   type RawPingStaffEntry,
 } from '@/hooks/staff/useRawStaffPingsDebug';
+import {
+  buildReportDataGapDiagnosis,
+  describeReportDataGapStatus,
+  type ReportDataGapDiagnosis,
+} from '@/lib/staff/reportDataGapDiagnostics';
 
 interface Props {
   organizationId: string | null;
@@ -107,6 +112,47 @@ export function RawPingsDebugPanel({
     };
   }, [shownStaffIds, data?.perStaff]);
 
+  // ─── Per-staff diagnos (pure helper) ────────────────────────────────
+  const diagnosisByStaff = useMemo(() => {
+    const shown = new Set(shownStaffIds);
+    const map = new Map<string, ReportDataGapDiagnosis>();
+    for (const e of data?.perStaff ?? []) {
+      map.set(
+        e.staffId,
+        buildReportDataGapDiagnosis({
+          staffId: e.staffId,
+          staffName: e.staffName,
+          date,
+          rawPings: {
+            rawPingCount: e.pingCount,
+            firstRawPingAt: e.firstRecordedAt,
+            lastRawPingAt: e.lastRecordedAt,
+            maxRawGapMinutes: e.maxPingGapMinutes,
+            gapCountOver15Min: e.gapCountOver15Min,
+            gapCountOver60Min: e.gapCountOver60Min,
+            medianAccuracy: e.medianAccuracy,
+            p90Accuracy: e.p90Accuracy,
+            lowBatteryBeforeGap: e.battery?.likelyBatteryRelatedSignalLoss,
+            batteryDroppedFast: e.battery?.batteryDroppedFast,
+            lastBatteryPercent: e.battery?.lastBatteryPercent ?? null,
+          },
+          appHealth: e.appHealth
+            ? {
+                lastAppSeenAt: e.appHealth.lastAppSeenAt,
+                lastAppState: e.appHealth.lastAppState,
+                lastHealthEventType: e.appHealth.lastEventType,
+                lastBatteryPercent: e.appHealth.lastBatteryPercent,
+                latestIsCharging: e.appHealth.lastIsCharging,
+              }
+            : null,
+          reportChain: {
+            isShownInReportList: shown.has(e.staffId),
+          },
+        }),
+      );
+    }
+    return map;
+  }, [data?.perStaff, shownStaffIds, date]);
   const toggle = (id: string) => {
     setExpanded(prev => {
       const next = new Set(prev);
@@ -242,12 +288,14 @@ export function RawPingsDebugPanel({
                   <th className="px-2 py-1">Batteri</th>
                   <th className="px-2 py-1">App senast</th>
                   <th className="px-2 py-1">Status</th>
+                  <th className="px-2 py-1">Diagnos</th>
                 </tr>
               </thead>
               <tbody>
                 {data.perStaff.map((s) => {
                   const isOpen = expanded.has(s.staffId);
                   const status = statusOf(s, intervalEndMs);
+                  const diag = diagnosisByStaff.get(s.staffId);
                   return (
                     <>
                       <tr
@@ -278,10 +326,23 @@ export function RawPingsDebugPanel({
                             {STATUS_LABEL[status]}
                           </span>
                         </td>
+                        <td className="px-2 py-1"><DiagnosisBadge diag={diag} /></td>
                       </tr>
                       {isOpen && (
                         <tr className="bg-muted/20">
-                          <td colSpan={14} className="px-2 py-2">
+                          <td colSpan={15} className="px-2 py-2">
+                            {diag && (
+                              <div className="mb-2 text-[11px]">
+                                <span className="font-semibold">Diagnos: </span>
+                                <span>{describeReportDataGapStatus(diag.status)}</span>
+                                <span className="text-muted-foreground"> — {diag.reason}</span>
+                                {diag.suggestedNextAction !== 'none' && (
+                                  <span className="ml-2 rounded bg-muted px-1 py-0.5 text-[10px] font-mono">
+                                    next: {diag.suggestedNextAction}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                             <BatterySummaryDetail battery={s.battery} />
                             <AppHealthDetail appHealth={s.appHealth} />
                             <SampleRowsTable rows={s.sampleRows} />
@@ -292,7 +353,7 @@ export function RawPingsDebugPanel({
                   );
                 })}
                 {data.perStaff.length === 0 && (
-                  <tr><td colSpan={14} className="px-2 py-6 text-center text-muted-foreground">
+                  <tr><td colSpan={15} className="px-2 py-6 text-center text-muted-foreground">
                     Inga pings för intervallet.
                   </td></tr>
                 )}
@@ -466,6 +527,26 @@ function AppHealthDetail({ appHealth }: { appHealth: AppHealth | null | undefine
       <Stat k="Plattform" v={appHealth.lastPlatform ?? '—'} />
       <Stat k="App-version" v={appHealth.lastAppVersion ?? '—'} />
     </div>
+  );
+}
+
+const DIAG_TONE: Record<ReportDataGapDiagnosis['severity'], string> = {
+  info: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+  warning: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+  critical: 'bg-red-500/20 text-red-700 dark:text-red-300',
+};
+
+function DiagnosisBadge({ diag }: { diag: ReportDataGapDiagnosis | undefined }) {
+  if (!diag) return <span className="text-[10px] text-muted-foreground">—</span>;
+  const label = describeReportDataGapStatus(diag.status);
+  const tone = diag.status === 'ok' ? DIAG_TONE.info : DIAG_TONE[diag.severity];
+  return (
+    <span
+      className={`inline-block rounded-full px-2 py-0.5 text-[10px] ${tone}`}
+      title={diag.reason}
+    >
+      {label}
+    </span>
   );
 }
 
