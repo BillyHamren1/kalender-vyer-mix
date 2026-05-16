@@ -594,6 +594,7 @@ const blocksFromStaff = (
       { staffName: staff.name },
     );
 
+    if (diagSink) diagSink(visual.diagnostics);
     if (typeof console !== 'undefined' && (visual.diagnostics.absorbedTransportCount + visual.diagnostics.absorbedReviewCount + visual.diagnostics.absorbedUnknownCount + visual.diagnostics.absorbedPreWorkCount + visual.diagnostics.hiddenPreWorkCount) > 0) {
       // eslint-disable-next-line no-console
       console.warn('[Gantt 5.0] visualGanttDiagnostics', visual.diagnostics);
