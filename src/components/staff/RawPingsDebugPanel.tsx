@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Database, X, ChevronRight, ChevronDown, AlertTriangle } from 'lucide-react';
+import { Database, X, ChevronRight, ChevronDown, AlertTriangle, BatteryLow, BatteryCharging, Battery } from 'lucide-react';
 import {
   useRawStaffPingsDebug,
   type RawPingStaffEntry,
@@ -239,6 +239,7 @@ export function RawPingsDebugPanel({
                   <th className="px-2 py-1 text-right">Med acc</th>
                   <th className="px-2 py-1 text-right">P90 acc</th>
                   <th className="px-2 py-1 text-right">Sista age</th>
+                  <th className="px-2 py-1">Batteri</th>
                   <th className="px-2 py-1">Status</th>
                 </tr>
               </thead>
@@ -269,6 +270,7 @@ export function RawPingsDebugPanel({
                         <td className="px-2 py-1 text-right tabular-nums">{fmtNum(s.medianAccuracy, 0)}</td>
                         <td className="px-2 py-1 text-right tabular-nums">{fmtNum(s.p90Accuracy, 0)}</td>
                         <td className="px-2 py-1 text-right tabular-nums">{fmtAgeMin(s.lastRecordedAt, intervalEndMs)}</td>
+                        <td className="px-2 py-1"><BatteryCell battery={s.battery} /></td>
                         <td className="px-2 py-1">
                           <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] ${STATUS_CLASS[status]}`}>
                             {STATUS_LABEL[status]}
@@ -277,7 +279,8 @@ export function RawPingsDebugPanel({
                       </tr>
                       {isOpen && (
                         <tr className="bg-muted/20">
-                          <td colSpan={12} className="px-2 py-2">
+                          <td colSpan={13} className="px-2 py-2">
+                            <BatterySummaryDetail battery={s.battery} />
                             <SampleRowsTable rows={s.sampleRows} />
                           </td>
                         </tr>
@@ -286,7 +289,7 @@ export function RawPingsDebugPanel({
                   );
                 })}
                 {data.perStaff.length === 0 && (
-                  <tr><td colSpan={12} className="px-2 py-6 text-center text-muted-foreground">
+                  <tr><td colSpan={13} className="px-2 py-6 text-center text-muted-foreground">
                     Inga pings för intervallet.
                   </td></tr>
                 )}
