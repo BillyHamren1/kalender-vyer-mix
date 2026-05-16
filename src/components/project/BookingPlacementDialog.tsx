@@ -152,6 +152,48 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
     });
   };
 
+  const inheritedTeamId = useMemo(
+    () => currentDay?.teamId || days[0]?.teamId || teamOptions[0]?.id || 'team-1',
+    [currentDay, days, teamOptions],
+  );
+
+  const handleAddDay = (kind: 'rig' | 'rigDown') => {
+    const samePhase = days.filter((d) => d.kind === kind);
+    let baseDate: string;
+    if (kind === 'rig') {
+      baseDate = samePhase[0]?.date || booking?.rigdaydate || booking?.eventdate || new Date().toISOString().slice(0, 10);
+    } else {
+      baseDate = samePhase[samePhase.length - 1]?.date || booking?.rigdowndate || booking?.eventdate || new Date().toISOString().slice(0, 10);
+    }
+    const newDay = makeExtraDay(kind, baseDate, inheritedTeamId);
+    setDays((prev) => {
+      const next = insertDaySorted(prev, newDay);
+      const planOnly = next.filter((d) => d.kind !== 'event');
+      const newIdx = planOnly.findIndex(
+        (d) => d.date === newDay.date && d.kind === newDay.kind,
+      );
+      if (newIdx >= 0) setStepIndex(newIdx);
+      return next;
+    });
+    toast.success(`La till ${kind === 'rig' ? 'riggdag' : 'demonteringsdag'}`);
+  };
+
+  const handleRemoveCurrent = () => {
+    if (!currentDay) return;
+    if (phaseLockedForCurrent) {
+      toast.error('Denna dag har fast tid från bokningen och kan inte tas bort här');
+      return;
+    }
+    if (planSteps.length <= 1) {
+      toast.error('Minst en dag måste vara kvar att planera');
+      return;
+    }
+    const idxInDays = days.indexOf(currentDay);
+    setDays((prev) => removeDayAt(prev, idxInDays));
+    setStepIndex((i) => Math.max(0, i - 1));
+    toast.success('Dag borttagen');
+  };
+
   const goNext = () => {
     if (!isLastStep) setStepIndex((i) => i + 1);
   };
