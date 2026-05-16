@@ -17,7 +17,7 @@ function baseInput(over: Partial<BuildTraceExportInput> = {}): BuildTraceExportI
       s1: {
         blocks: [{ id: 'b1' }],
         displayTimelineBlocksV2: [{ id: 'd1', lane: 'main' }],
-        displayTimelineDiagnosticsV2: { ok: true },
+        displayTimelineDiagnosticsV2: { ok: true, locationTruthSegments: [{ id: 'lt1' }] },
         workdayAllocationSegments: [{ id: 'w1' }],
         workdayAllocationDiagnostics: { uncoveredWorkdayMinutes: 0 },
       },
