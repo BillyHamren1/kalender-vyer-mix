@@ -1799,6 +1799,11 @@ const StaffTimeReports: React.FC = () => {
   const bookingPhaseByDate = phaseMaps.bookingPhaseByDate;
   const largeProjectPhaseByDate = phaseMaps.largeProjectPhaseByDate;
 
+  const { data: orgData } = useCurrentOrg();
+  const organizationId = orgData?.organizationId ?? null;
+  const rawDebugEnabled = isRawPingsDebugEnabled();
+  const [rawDebugOpen, setRawDebugOpen] = useState(false);
+
   return (
     <div className="h-screen flex flex-col overflow-hidden theme-purple bg-[hsl(220_20%_97%)] dark:bg-background">
       <div className="flex-1 min-h-0 p-3 sm:p-4 lg:p-5 overflow-hidden">
@@ -1820,6 +1825,22 @@ const StaffTimeReports: React.FC = () => {
           />
         </div>
       </div>
+      {rawDebugEnabled && !rawDebugOpen && (
+        <button
+          type="button"
+          onClick={() => setRawDebugOpen(true)}
+          className="fixed bottom-3 right-3 z-40 flex items-center gap-1 rounded-full bg-primary text-primary-foreground px-3 py-1.5 text-xs shadow-lg hover:opacity-90"
+        >
+          <Database className="h-3.5 w-3.5" /> Raw GPS
+        </button>
+      )}
+      {rawDebugEnabled && rawDebugOpen && (
+        <RawPingsDebugPanel
+          organizationId={organizationId}
+          date={dateStr}
+          onClose={() => setRawDebugOpen(false)}
+        />
+      )}
     </div>
   );
 };
