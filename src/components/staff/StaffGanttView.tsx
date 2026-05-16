@@ -1483,9 +1483,14 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                             return rects.map(({ b, left, width, lane, laneCount }) => {
                               const style = KIND_STYLE[b.kind];
                               const overlapping = overlapsPrev.has(b.id);
-                              const laneHeight = (ROW_PX - 10) / laneCount;
-                              const top = 5 + lane * laneHeight;
-                              const showTime = width >= 130 && laneHeight >= 30;
+                              const laneHeight = (ROW_PX - 12) / laneCount;
+                              const top = 6 + lane * laneHeight;
+                              const isSecondary = !['work', 'warehouse', 'rig', 'rigdown'].includes(b.kind);
+                              const isNarrow = width < 90;
+                              const isShort = laneHeight < 42;
+                              const showTime = width >= 130 && laneHeight >= 42 && !isSecondary;
+                              const showChips = !!b.attachedChips?.length && width >= 160 && laneHeight >= 50;
+                              const showLabel = width >= 70;
                               const displayTitle = blockDisplayTitle(
                                 b,
                                 b.isNightGpsOnly ? 'GPS-natt' : style.label,
@@ -1500,22 +1505,24 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                     setSelectedBlock({ staffId: staff.id, blockId: b.id });
                                   }}
                                   className={cn(
-                                    'absolute cursor-pointer overflow-hidden rounded-xl border px-2.5 py-1.5 text-[11px] leading-tight backdrop-blur-[2px] transition-all hover:-translate-y-px hover:shadow-md hover:z-20',
+                                    'absolute cursor-pointer overflow-hidden rounded-xl border text-[11px] leading-tight backdrop-blur-[2px] transition-all hover:-translate-y-px hover:shadow-md hover:z-20',
+                                    isNarrow ? 'px-1.5 py-1' : 'px-2.5 py-1.5',
                                     b.isNightGpsOnly
                                       ? 'bg-muted/40 border-dashed border-border/60 opacity-60'
                                       : style.bg,
                                     !b.isNightGpsOnly && style.border,
+                                    isSecondary && !b.isNightGpsOnly && 'opacity-80',
                                     overlapping && 'ring-1 ring-amber-400/70',
                                   )}
                                   style={{
                                     left: left + 2,
                                     width: Math.max(40, width - 4),
                                     top,
-                                    height: laneHeight - 3,
+                                    height: laneHeight - 4,
                                     color: '#0a0a0a',
                                     boxShadow: '0 1px 3px hsl(var(--foreground) / 0.06), inset 0 1px 0 hsl(0 0% 100% / 0.5)',
                                   }}
-                                  title={blockTooltipText(b, displayTitle, overlapping)}
+                                  title={blockTooltipText(b, displayTitle, overlapping) + (b.attachedChips?.length ? '\n' + b.attachedChips.map(c => '• ' + c).join('\n') : '')}
                                 >
                                   <div className="flex items-center gap-1.5">
                                     <span
@@ -1531,12 +1538,31 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                     >
                                       {b.isNightGpsOnly ? 'GPS-natt' : style.label}
                                     </span>
-                                    <span className="truncate font-semibold">{displayTitle}</span>
+                                    {showLabel && (
+                                      <span className="truncate font-semibold">{displayTitle}</span>
+                                    )}
                                   </div>
                                   {showTime && (
                                     <div className="mt-0.5 truncate text-[10px] tabular-nums opacity-80">
                                       {formatStockholmHm(b.startAt)}–{formatStockholmHm(b.endAt)} ·{' '}
                                       {fmtMin(b.durationMinutes)}
+                                    </div>
+                                  )}
+                                  {showChips && (
+                                    <div className="mt-1 flex flex-wrap gap-1">
+                                      {b.attachedChips!.slice(0, 3).map((chip, ci) => (
+                                        <span
+                                          key={ci}
+                                          className="inline-flex items-center rounded-full bg-black/[0.06] px-1.5 py-px text-[9px] font-medium text-foreground/70"
+                                        >
+                                          {chip}
+                                        </span>
+                                      ))}
+                                      {b.attachedChips!.length > 3 && (
+                                        <span className="text-[9px] text-foreground/50">
+                                          +{b.attachedChips!.length - 3}
+                                        </span>
+                                      )}
                                     </div>
                                   )}
                                 </div>
