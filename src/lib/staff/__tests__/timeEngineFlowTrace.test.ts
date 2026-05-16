@@ -94,4 +94,50 @@ describe('buildTimeEngineFlowTrace', () => {
     expect(t.blockLineage[0].ganttBlockId).toBe('rc1');
     expect(t.blockLineage[0].source).toBe('reportCandidate');
   });
+
+  it('adds raw GPS debug snapshot + suspected problems', () => {
+    const t = buildTimeEngineFlowTrace({
+      ...baseInput,
+      presenceResponse: {
+        rawGpsTimeline: { rawPingCount: 0 },
+        summary: { activeTimer: { startedAt: '2026-05-16T00:00:00Z', stoppedAt: null } },
+      },
+      rawPingDebug: {
+        rawPingCount: 120,
+        firstRawPingAt: '2026-05-16T06:00:00Z',
+        lastRawPingAt: '2026-05-16T15:00:00Z',
+        maxRawPingGapMinutes: 12,
+        medianAccuracy: 18,
+        p90Accuracy: 40,
+        missingFromReportList: true,
+      },
+    });
+    expect(t.summary.rawDebug.available).toBe(true);
+    expect(t.summary.rawDebug.rawPingCount).toBe(120);
+    expect(t.summary.rawDebug.hasRawPingsButNoLocationTruth).toBe(true);
+    expect(t.summary.rawDebug.hasRawPingsButNoDisplayBlocks).toBe(true);
+    expect(t.summary.rawDebug.hasRawPingsButMissingFromReportList).toBe(true);
+    const keys = t.suspectedProblems.map((p) => p.key);
+    expect(keys).toContain('raw_pings_exist_but_no_location_truth');
+    expect(keys).toContain('raw_pings_exist_but_no_display_blocks');
+    expect(keys).toContain('raw_pings_exist_but_staff_missing_from_report');
+  });
+
+  it('flags stale_timer_but_no_same_day_pings when raw debug has 0 pings', () => {
+    const t = buildTimeEngineFlowTrace({
+      ...baseInput,
+      presenceResponse: {
+        summary: { activeTimer: { startedAt: '2026-05-16T00:00:00Z', stoppedAt: null } },
+      },
+      rawPingDebug: {
+        rawPingCount: 0,
+        firstRawPingAt: null,
+        lastRawPingAt: null,
+        maxRawPingGapMinutes: null,
+        medianAccuracy: null,
+        p90Accuracy: null,
+      },
+    });
+    expect(t.suspectedProblems.some((p) => p.key === 'stale_timer_but_no_same_day_pings')).toBe(true);
+  });
 });
