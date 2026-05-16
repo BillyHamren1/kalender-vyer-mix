@@ -50,6 +50,10 @@ export interface ReportCandidateLikeForExport {
   displayTimelineDiagnosticsV2?: any;
   workdayAllocationSegments?: any[];
   workdayAllocationDiagnostics?: any;
+  // Lager 2.10 — LocationTruth V2 (top-level på presence-day-svaret).
+  locationTruthV2Segments?: any[];
+  locationTruthV2Diagnostics?: any;
+  locationTruthV2NotBuiltReason?: string | null;
   presenceBlocks?: any[];
   presenceDaySummary?: any;
   presenceDayAggregation?: any;
