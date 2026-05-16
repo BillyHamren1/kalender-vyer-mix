@@ -28,6 +28,10 @@ import { buildPlaceVisits, buildDayTimeline, type KnownSite } from '@/lib/staff/
 import type { Ping } from '@/lib/staff/movementDetection';
 import { fetchStaffMembers } from '@/services/staffService';
 import { deriveStaffEvents } from '@/lib/staffCalendar/deriveStaffEvents';
+import { useCurrentOrg } from '@/hooks/useCurrentOrg';
+import { isRawPingsDebugEnabled } from '@/hooks/staff/useRawStaffPingsDebug';
+import { RawPingsDebugPanel } from '@/components/staff/RawPingsDebugPanel';
+import { Database } from 'lucide-react';
 
 export type SegmentKind = 'location' | 'booking' | 'travel' | 'workday';
 
