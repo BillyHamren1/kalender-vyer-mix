@@ -1291,6 +1291,7 @@ export function buildWorkdayAllocationFromLocationTruth(
         rawSegmentStartAt: seg.startAt,
         rawSegmentEndAt: seg.endAt,
         outsideWorkday: true,
+        businessContextResolution: bcrOutside ?? null,
       };
       segments.push(item);
       diag.warningsByType.segment_outside_workday += 1;
