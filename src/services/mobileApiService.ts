@@ -659,6 +659,12 @@ export const mobileApi = {
     speed: number | null;
     source: string;
     recordedAt: string;
+    // Battery diagnostics — all optional, server tolerates missing fields.
+    batteryLevel?: number | null;
+    batteryPercent?: number | null;
+    isCharging?: boolean | null;
+    batteryCapturedAt?: string | null;
+    batterySource?: string | null;
   }>) => {
     const { getAppMeta } = await import('./appMeta');
     const meta = await getAppMeta();

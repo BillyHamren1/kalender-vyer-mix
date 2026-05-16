@@ -5711,6 +5711,11 @@ async function handleUploadLocationBatch(
     source: string | null
     recordedAt: string
     recordedMs: number
+    batteryLevel: number | null
+    batteryPercent: number | null
+    isCharging: boolean | null
+    batteryCapturedAt: string | null
+    batterySource: string | null
   }
 
   const valid: ValidPoint[] = []
@@ -5738,6 +5743,31 @@ async function handleUploadLocationBatch(
       rejected.push({ id, reason: 'invalid recordedAt' })
       continue
     }
+
+    // ── Soft battery validation ──
+    // Never reject a GPS ping for bad battery data — just drop the field.
+    let batteryLevel: number | null = null
+    if (typeof p?.batteryLevel === 'number' && Number.isFinite(p.batteryLevel)
+      && p.batteryLevel >= 0 && p.batteryLevel <= 1) {
+      batteryLevel = p.batteryLevel
+    }
+    let batteryPercent: number | null = null
+    if (typeof p?.batteryPercent === 'number' && Number.isFinite(p.batteryPercent)
+      && p.batteryPercent >= 0 && p.batteryPercent <= 100) {
+      batteryPercent = Math.round(p.batteryPercent)
+    } else if (batteryLevel !== null) {
+      batteryPercent = Math.round(batteryLevel * 100)
+    }
+    const isCharging = typeof p?.isCharging === 'boolean' ? p.isCharging : null
+    const batteryCapturedAt =
+      typeof p?.batteryCapturedAt === 'string' && p.batteryCapturedAt.length > 0
+        ? p.batteryCapturedAt
+        : null
+    const batterySource =
+      typeof p?.batterySource === 'string' && p.batterySource.length > 0
+        ? p.batterySource
+        : null
+
     valid.push({
       id,
       latitude: p.latitude,
@@ -5747,6 +5777,11 @@ async function handleUploadLocationBatch(
       source: typeof p.source === 'string' ? p.source : null,
       recordedAt,
       recordedMs,
+      batteryLevel,
+      batteryPercent,
+      isCharging,
+      batteryCapturedAt,
+      batterySource,
     })
   }
 
@@ -5805,6 +5840,11 @@ async function handleUploadLocationBatch(
       accuracy: p.accuracy,
       speed: p.speed,
       recorded_at: p.recordedAt,
+      battery_level: p.batteryLevel,
+      battery_percent: p.batteryPercent,
+      is_charging: p.isCharging,
+      battery_captured_at: p.batteryCapturedAt,
+      battery_source: p.batterySource,
     })
     accepted.push(p.id)
     existingTimestamps.add(p.recordedMs)

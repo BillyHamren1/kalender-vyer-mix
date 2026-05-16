@@ -6008,8 +6008,13 @@ export type Database = {
       staff_location_history: {
         Row: {
           accuracy: number | null
+          battery_captured_at: string | null
+          battery_level: number | null
+          battery_percent: number | null
+          battery_source: string | null
           created_at: string
           id: string
+          is_charging: boolean | null
           lat: number
           lng: number
           organization_id: string
@@ -6020,8 +6025,13 @@ export type Database = {
         }
         Insert: {
           accuracy?: number | null
+          battery_captured_at?: string | null
+          battery_level?: number | null
+          battery_percent?: number | null
+          battery_source?: string | null
           created_at?: string
           id?: string
+          is_charging?: boolean | null
           lat: number
           lng: number
           organization_id: string
@@ -6032,8 +6042,13 @@ export type Database = {
         }
         Update: {
           accuracy?: number | null
+          battery_captured_at?: string | null
+          battery_level?: number | null
+          battery_percent?: number | null
+          battery_source?: string | null
           created_at?: string
           id?: string
+          is_charging?: boolean | null
           lat?: number
           lng?: number
           organization_id?: string

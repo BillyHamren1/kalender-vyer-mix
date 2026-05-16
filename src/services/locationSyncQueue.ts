@@ -42,6 +42,8 @@ export type LocationPointStatus =
   | 'uploaded'
   | 'failed';
 
+export type BatterySource = 'capacitor_device' | 'unavailable' | 'error';
+
 export interface PendingLocationPoint {
   id: string;
   recordedAt: string;       // ISO timestamp from the device clock
@@ -54,6 +56,12 @@ export interface PendingLocationPoint {
   attempts: number;
   nextAttemptAt: number;    // epoch ms
   createdAt: number;        // epoch ms — when enqueued locally
+  // ── Battery diagnostics (optional; older queued points won't have these) ──
+  batteryLevel?: number | null;          // 0–1
+  batteryPercent?: number | null;        // 0–100
+  isCharging?: boolean | null;
+  batteryCapturedAt?: string | null;     // ISO
+  batterySource?: BatterySource | null;
 }
 
 type Listener = (queue: PendingLocationPoint[]) => void;
@@ -209,6 +217,12 @@ export interface EnqueueLocationPointInput {
   recordedAt?: string;
   /** Optional caller-supplied id for idempotency across hot reloads */
   id?: string;
+  // ── Battery diagnostics (optional) ──
+  batteryLevel?: number | null;
+  batteryPercent?: number | null;
+  isCharging?: boolean | null;
+  batteryCapturedAt?: string | null;
+  batterySource?: BatterySource | null;
 }
 
 /**
@@ -248,6 +262,11 @@ export function enqueueLocationPoint(input: EnqueueLocationPointInput): string {
     attempts: 0,
     nextAttemptAt: Date.now(),
     createdAt: Date.now(),
+    batteryLevel: input.batteryLevel ?? null,
+    batteryPercent: input.batteryPercent ?? null,
+    isCharging: input.isCharging ?? null,
+    batteryCapturedAt: input.batteryCapturedAt ?? null,
+    batterySource: input.batterySource ?? null,
   };
 
   queue.push(point);
@@ -326,6 +345,11 @@ export async function flushLocationQueue(): Promise<void> {
             speed: p.speed,
             source: p.source,
             recordedAt: p.recordedAt,
+            batteryLevel: p.batteryLevel ?? null,
+            batteryPercent: p.batteryPercent ?? null,
+            isCharging: p.isCharging ?? null,
+            batteryCapturedAt: p.batteryCapturedAt ?? null,
+            batterySource: p.batterySource ?? null,
           })),
         );
 
