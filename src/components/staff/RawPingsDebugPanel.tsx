@@ -112,6 +112,47 @@ export function RawPingsDebugPanel({
     };
   }, [shownStaffIds, data?.perStaff]);
 
+  // ─── Per-staff diagnos (pure helper) ────────────────────────────────
+  const diagnosisByStaff = useMemo(() => {
+    const shown = new Set(shownStaffIds);
+    const map = new Map<string, ReportDataGapDiagnosis>();
+    for (const e of data?.perStaff ?? []) {
+      map.set(
+        e.staffId,
+        buildReportDataGapDiagnosis({
+          staffId: e.staffId,
+          staffName: e.staffName,
+          date,
+          rawPings: {
+            rawPingCount: e.pingCount,
+            firstRawPingAt: e.firstRecordedAt,
+            lastRawPingAt: e.lastRecordedAt,
+            maxRawGapMinutes: e.maxPingGapMinutes,
+            gapCountOver15Min: e.gapCountOver15Min,
+            gapCountOver60Min: e.gapCountOver60Min,
+            medianAccuracy: e.medianAccuracy,
+            p90Accuracy: e.p90Accuracy,
+            lowBatteryBeforeGap: e.battery?.likelyBatteryRelatedSignalLoss,
+            batteryDroppedFast: e.battery?.batteryDroppedFast,
+            lastBatteryPercent: e.battery?.lastBatteryPercent ?? null,
+          },
+          appHealth: e.appHealth
+            ? {
+                lastAppSeenAt: e.appHealth.lastAppSeenAt,
+                lastAppState: e.appHealth.lastAppState,
+                lastHealthEventType: e.appHealth.lastEventType,
+                lastBatteryPercent: e.appHealth.lastBatteryPercent,
+                latestIsCharging: e.appHealth.lastIsCharging,
+              }
+            : null,
+          reportChain: {
+            isShownInReportList: shown.has(e.staffId),
+          },
+        }),
+      );
+    }
+    return map;
+  }, [data?.perStaff, shownStaffIds, date]);
   const toggle = (id: string) => {
     setExpanded(prev => {
       const next = new Set(prev);
