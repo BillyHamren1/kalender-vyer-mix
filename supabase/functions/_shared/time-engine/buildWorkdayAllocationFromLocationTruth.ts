@@ -928,7 +928,65 @@ export function buildWorkdayAllocationFromLocationTruth(
   // Använd envelope-end (täcker både stängd och öppen dagtimer).
   // Men klippt mot ev. justerad start så vi aldrig genererar negativ duration.
   const envelopeEndMs = toMs(envelope.endAt) ?? Date.now();
-  const wdEnd = Math.max(envelopeEndMs, wdStartMs);
+  let wdEnd = Math.max(envelopeEndMs, wdStartMs);
+
+  // ── Time Engine STOP 1 — clampa wdEnd om non-work efter sista jobb > 90m ──
+  // Pure helper, läser bara LocationTruth-segment. Skriver INGENTING.
+  const stopDecision = resolveEffectiveWorkdayEndFromEvidence({
+    ltSegments,
+    workdayStartMs: wdStartMs,
+    envelopeEndMs: wdEnd,
+    envelopeIsOpen: envelope.isOpen,
+    thresholdMinutes: 90,
+  });
+
+  if (stopDecision.shouldClamp && stopDecision.effectiveWorkdayEndMs !== null) {
+    wdEnd = Math.max(stopDecision.effectiveWorkdayEndMs, wdStartMs);
+    const newEndIso = new Date(wdEnd).toISOString();
+    diag.workdayEndAt = newEndIso;
+    diag.workdayEnvelope.effectiveWorkdayEndAt = newEndIso;
+    diag.workdayEnvelope.endWasInferredFromNonWorkPresence = true;
+    diag.workdayEnvelope.openTimerIgnoredAfterEnd = stopDecision.shouldClampOpenTimer;
+    diag.workdayEnvelope.nonWorkAfterLastWorkMinutes = stopDecision.nonWorkDurationMinutes;
+    diag.dayEndDecision = {
+      dayEnded: true,
+      endedAt: newEndIso,
+      endReason: stopDecision.endReason as DayEndStopReason,
+      confidence: stopDecision.confidence,
+      evidence: stopDecision.evidence,
+    };
+    if (!diag.warnings.includes('day_end_inferred_from_non_work_presence')) {
+      diag.warnings.push('day_end_inferred_from_non_work_presence');
+    }
+    diag.warningsByType.day_end_inferred_from_non_work_presence += 1;
+    if (stopDecision.shouldClampOpenTimer) {
+      if (!diag.warnings.includes('open_timer_ignored_after_inferred_day_end')) {
+        diag.warnings.push('open_timer_ignored_after_inferred_day_end');
+      }
+      diag.warningsByType.open_timer_ignored_after_inferred_day_end += 1;
+    }
+    // Read-only proposal — föreslagen sluttid för human review.
+    proposals.push({
+      segmentId: `inferred-day-end-${newEndIso}`,
+      proposalType: 'suggest_workday_end',
+      proposedAllocationType: 'private_time',
+      targetType: null,
+      targetId: null,
+      label: 'Arbetsdagen verkar ha slutat',
+      startAt: newEndIso,
+      endAt: newEndIso,
+      suggestedEndAt: newEndIso,
+      confidence: stopDecision.confidence === 'low' ? 'medium' : stopDecision.confidence,
+      reason: stopDecision.endReason ?? 'non_work_location_after_last_work_over_90m',
+    });
+    diag.suggestedWorkdayEndCount += 1;
+  } else {
+    diag.dayEndDecision = null;
+    diag.workdayEnvelope.endWasInferredFromNonWorkPresence = false;
+    diag.workdayEnvelope.openTimerIgnoredAfterEnd = false;
+    diag.workdayEnvelope.nonWorkAfterLastWorkMinutes = stopDecision.nonWorkDurationMinutes;
+  }
+
   diag.workdayDurationMinutes = Math.max(0, Math.round((wdEnd - wdStartMs) / 60_000));
 
   // Track coverage för uncoveredWorkdayMinutes.
