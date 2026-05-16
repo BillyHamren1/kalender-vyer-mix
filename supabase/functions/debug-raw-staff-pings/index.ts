@@ -356,10 +356,31 @@ Deno.serve(async (req) => {
 
       const battery = computeBatteryStats(list, intervalEndMs);
 
+      const sampleRowsMapped = sampleRows.map(r => ({
+          id: r.id,
+          staff_id: r.staff_id,
+          recorded_at: r.recorded_at,
+          created_at: r.created_at,
+          latitude: r.lat,
+          longitude: r.lng,
+          accuracy: r.accuracy,
+          speed_mps: r.speed,
+          time_report_id: r.time_report_id,
+          battery_level: r.battery_level,
+          battery_percent: coerceBatteryPercent(r.battery_level, r.battery_percent),
+          is_charging: r.is_charging,
+          battery_captured_at: r.battery_captured_at,
+          battery_source: r.battery_source,
+        }));
+
       perStaff.push({
         staffId,
         staffName: nameById.get(staffId) ?? null,
         pingCount,
+        totalPingCount: pingCount,
+        sampleRowsCount: sampleRowsMapped.length,
+        rowsTruncated: includeRows ? pingCount > sampleRowsMapped.length : false,
+        maxRowsPerStaffApplied: includeRows ? maxRowsPerStaff : null,
         firstRecordedAt: first.recorded_at,
         lastRecordedAt: last.recorded_at,
         firstCreatedAt: first.created_at,
@@ -388,22 +409,7 @@ Deno.serve(async (req) => {
             lastAppVersion: h.app_version,
           };
         })(),
-        sampleRows: sampleRows.map(r => ({
-          id: r.id,
-          staff_id: r.staff_id,
-          recorded_at: r.recorded_at,
-          created_at: r.created_at,
-          latitude: r.lat,
-          longitude: r.lng,
-          accuracy: r.accuracy,
-          speed_mps: r.speed,
-          time_report_id: r.time_report_id,
-          battery_level: r.battery_level,
-          battery_percent: coerceBatteryPercent(r.battery_level, r.battery_percent),
-          is_charging: r.is_charging,
-          battery_captured_at: r.battery_captured_at,
-          battery_source: r.battery_source,
-        })),
+        sampleRows: sampleRowsMapped,
       });
     }
 
