@@ -760,6 +760,15 @@ interface StaffGanttViewProps {
   engineMode?: 'report_candidate' | 'actual_model_fallback';
   bookingPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>;
   largeProjectPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>;
+  /**
+   * READ-ONLY diagnostics-callback: emitterar per-staff Gantt-källval,
+   * source-counts, renderade block och visualDiagnostics. Används av
+   * "Export Trace JSON" på /staff-management/time-reports. Påverkar
+   * INTE rendering.
+   */
+  onGanttDiagnosticsChange?: (
+    snapshot: Record<string, import('@/lib/staff/timeEngineTraceExport').GanttExportSnapshotForStaff>,
+  ) => void;
 }
 
 export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
@@ -772,6 +781,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
   engineMode = 'report_candidate',
   bookingPhaseByDate,
   largeProjectPhaseByDate,
+  onGanttDiagnosticsChange,
 }) => {
   const [search, setSearch] = useState('');
   const [calendarOpen, setCalendarOpen] = useState(false);
