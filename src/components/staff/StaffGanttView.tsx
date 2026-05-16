@@ -1861,7 +1861,11 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
       </Sheet>
 
       <BlockDetailDialog
-        open={!!selectedBlock && !!selectedBlockStaff && !!selectedBlockReportCandidate && !!selectedReportBlock}
+        open={
+          !!selectedBlock &&
+          !!selectedBlockStaff &&
+          (!!selectedReportBlock || !!selectedRenderedBlock)
+        }
         onOpenChange={(open) => {
           if (!open) setSelectedBlock(null);
         }}
@@ -1870,6 +1874,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
         dateLabel={subLabel}
         reportCandidate={selectedBlockReportCandidate}
         blockId={selectedReportBlock?.id ?? null}
+        renderedBlock={selectedRenderedBlock}
       />
     </div>
   );
