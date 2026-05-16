@@ -42,7 +42,43 @@ export type SuspectedProblemKey =
   | 'raw_pings_exist_but_no_display_blocks'
   | 'raw_pings_exist_but_staff_missing_from_report'
   | 'stale_timer_but_no_same_day_pings'
-  | 'large_raw_gap_before_first_location_truth';
+  | 'large_raw_gap_before_first_location_truth'
+  | 'battery_low_before_signal_loss';
+
+/**
+ * Optional battery diagnostics-snapshot för en staff/dag.
+ * Speglar fält från `computeBatteryDiagnostics` + valfritt sista ping
+ * före stort signal-gap för bannertext.
+ */
+export interface BatteryDiagnosticsSnapshot {
+  hasBatteryData: boolean;
+  firstBatteryPercent: number | null;
+  lastBatteryPercent: number | null;
+  minBatteryPercent: number | null;
+  latestIsCharging: boolean | null;
+  batterySamplesCount: number;
+  missingBatterySamplesCount: number;
+  likelyBatteryRelatedSignalLoss: boolean;
+  batteryDroppedFast: boolean;
+  /** Valfri lista över snabba batterifall (>15pp / 60min eller >30pp totalt). */
+  batteryDropEvents?: Array<{
+    fromPercent: number;
+    toPercent: number;
+    startedAt: string | null;
+    endedAt: string | null;
+    windowMinutes: number | null;
+  }>;
+  /**
+   * Valfritt: sista ping innan ett stort signal-gap (>30 min). Används endast
+   * för att bygga summary-bannertext typ "GPS-signal tappades efter 12:04…".
+   */
+  lastPingBeforeLargeGap?: {
+    recordedAt: string;
+    batteryPercent: number | null;
+    isCharging: boolean | null;
+    gapAfterMinutes: number;
+  } | null;
+}
 
 /**
  * Optional raw GPS debug snapshot för en specifik staff/dag.
@@ -132,6 +168,20 @@ export interface TimeEngineFlowTraceSummary {
     hasRawPingsButNoDisplayBlocks: boolean;
     hasRawPingsButMissingFromReportList: boolean | null;
   };
+  /** Diagnostics för batteri — kopplar inte mot Time Engine, bara visning. */
+  batteryDiagnostics: BatteryDiagnosticsSnapshot & {
+    /** Förbyggd text att visa i banner/summary om signal-loss-kandidat. */
+    signalLossBannerText: string | null;
+  };
+}
+
+/** Lättviktig decision-trace för battery-laget (visas i DecisionTraceDrawer). */
+export interface TimeEngineDecisionTraceItem {
+  layer: TimeEngineLayerKey | 'day_evidence';
+  decision: string;
+  reason: string;
+  confidence: 'low' | 'medium' | 'high';
+  warnings: string[];
 }
 
 export interface TimeEngineFlowTrace {
@@ -141,6 +191,8 @@ export interface TimeEngineFlowTrace {
   suspectedProblems: TimeEngineSuspectedProblem[];
   blockLineage: TimeEngineBlockLineage[];
   missingDataWarnings: string[];
+  /** Read-only diagnostic decision trace items (battery m.fl.). */
+  decisionTrace: TimeEngineDecisionTraceItem[];
 }
 
 export interface GanttSourceCounts {
@@ -168,6 +220,10 @@ export interface BuildTimeEngineFlowTraceInput {
   ganttSourceCounts?: GanttSourceCounts | null;
   /** Optional raw GPS-debug-snapshot för personen (debug-raw-staff-pings). */
   rawPingDebug?: RawPingDebugSnapshot | null;
+  /** Optional battery diagnostics-snapshot (från computeBatteryDiagnostics). */
+  batteryDiagnostics?: (Partial<BatteryDiagnosticsSnapshot> & {
+    hasBatteryData?: boolean;
+  }) | null;
 }
 
 // ── helpers ────────────────────────────────────────────────────────
@@ -696,6 +752,75 @@ export function buildTimeEngineFlowTrace(
     }
   }
 
+  // ── battery diagnostics ─────────────────────────────────────────
+  const bdInput = input.batteryDiagnostics ?? null;
+  const hasBatteryData = Boolean(
+    bdInput &&
+      (bdInput.hasBatteryData ??
+        ((bdInput.batterySamplesCount ?? 0) > 0)),
+  );
+  const batterySnapshot: BatteryDiagnosticsSnapshot = {
+    hasBatteryData,
+    firstBatteryPercent: bdInput?.firstBatteryPercent ?? null,
+    lastBatteryPercent: bdInput?.lastBatteryPercent ?? null,
+    minBatteryPercent: bdInput?.minBatteryPercent ?? null,
+    latestIsCharging: bdInput?.latestIsCharging ?? null,
+    batterySamplesCount: bdInput?.batterySamplesCount ?? 0,
+    missingBatterySamplesCount: bdInput?.missingBatterySamplesCount ?? 0,
+    likelyBatteryRelatedSignalLoss: Boolean(bdInput?.likelyBatteryRelatedSignalLoss),
+    batteryDroppedFast: Boolean(bdInput?.batteryDroppedFast),
+    batteryDropEvents: bdInput?.batteryDropEvents ?? [],
+    lastPingBeforeLargeGap: bdInput?.lastPingBeforeLargeGap ?? null,
+  };
+
+  const decisionTrace: TimeEngineDecisionTraceItem[] = [];
+  let signalLossBannerText: string | null = null;
+
+  if (hasBatteryData) {
+    const lp = batterySnapshot.lastPingBeforeLargeGap;
+    const lastPctLow =
+      typeof batterySnapshot.lastBatteryPercent === 'number' &&
+      batterySnapshot.lastBatteryPercent <= 10;
+    const gapAfterLow =
+      (lp && lp.gapAfterMinutes > 30) ||
+      (batterySnapshot.likelyBatteryRelatedSignalLoss === true) ||
+      ((rpd?.maxRawPingGapMinutes ?? 0) > 30 && lastPctLow);
+
+    if ((lastPctLow || batterySnapshot.batteryDroppedFast) && gapAfterLow) {
+      const pct =
+        lp?.batteryPercent ?? batterySnapshot.lastBatteryPercent ?? null;
+      const charging =
+        lp?.isCharging ?? batterySnapshot.latestIsCharging ?? null;
+      const timeLabel = lp?.recordedAt
+        ? new Date(lp.recordedAt).toISOString().slice(11, 16)
+        : null;
+      signalLossBannerText = timeLabel
+        ? `GPS-signal tappades efter ${timeLabel}. Batteri vid sista ping: ${
+            pct != null ? `${pct} %` : 'okänt'
+          }, laddar: ${charging === true ? 'ja' : charging === false ? 'nej' : 'okänt'}.`
+        : `Sista batteri-läsning ${pct != null ? `${pct} %` : 'okänt'}, laddar: ${
+            charging === true ? 'ja' : charging === false ? 'nej' : 'okänt'
+          }. Signal tappades därefter.`;
+
+      suspected.push({
+        key: 'battery_low_before_signal_loss',
+        layer: 'dayEvidence',
+        severity: 'warning',
+        title: 'Lågt batteri före signalförlust',
+        detail: signalLossBannerText,
+      });
+
+      decisionTrace.push({
+        layer: 'day_evidence',
+        decision: 'battery_signal_loss_candidate',
+        reason:
+          'Last ping before large gap had battery_percent <= 10 (or fast battery drop) followed by >30 min signal silence.',
+        confidence: 'medium',
+        warnings: ['low_battery_before_signal_gap'],
+      });
+    }
+  }
+
   // ── summary ─────────────────────────────────────────────────────
   const summary: TimeEngineFlowTraceSummary = {
     staffId: input.staffId,
@@ -732,6 +857,10 @@ export function buildTimeEngineFlowTrace(
         ? hasRawPingsButMissingFromReportList
         : null,
     },
+    batteryDiagnostics: {
+      ...batterySnapshot,
+      signalLossBannerText,
+    },
   };
 
   // Indikera saknad data globalt
@@ -749,5 +878,6 @@ export function buildTimeEngineFlowTrace(
     suspectedProblems: suspected,
     blockLineage: lineage,
     missingDataWarnings: missing,
+    decisionTrace,
   };
 }
