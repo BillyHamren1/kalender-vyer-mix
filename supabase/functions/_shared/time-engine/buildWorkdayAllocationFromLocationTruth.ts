@@ -1092,6 +1092,15 @@ export function buildWorkdayAllocationFromLocationTruth(
     if (!overlapsWorkday) {
       diag.segmentsOutsideWorkday += 1;
       diag.segmentsOutsideEnvelope += 1;
+      // STOP 1.1 — räkna segment som ignorerats pga inferred day end (ligger
+      // efter clampad wdEnd men skulle annars ha varit innanför envelope).
+      if (stopClampEndMs !== null && sMs >= stopClampEndMs) {
+        diag.workdayEnvelope.segmentsIgnoredAfterInferredDayEnd =
+          (diag.workdayEnvelope.segmentsIgnoredAfterInferredDayEnd ?? 0) + 1;
+        diag.workdayEnvelope.minutesIgnoredAfterInferredDayEnd =
+          (diag.workdayEnvelope.minutesIgnoredAfterInferredDayEnd ?? 0) +
+          Math.max(0, Math.round((eMs - sMs) / 60_000));
+      }
       // Vi tar fortfarande med segmentet i debug-output men markerar det.
       const allocOutside = deriveAllocation(
         seg,
