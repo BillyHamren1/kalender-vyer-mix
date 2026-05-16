@@ -35,7 +35,7 @@ export const PlacementDayCalendar: React.FC<Props> = ({ date }) => {
 
   return (
     <TooltipProvider>
-      <div className="rounded-lg border border-border/60 bg-card overflow-hidden">
+      <div className="rounded-lg border border-border/60 bg-card overflow-auto">
         <CustomCalendar
           events={mergedEvents}
           resources={teamResources}
@@ -47,7 +47,6 @@ export const PlacementDayCalendar: React.FC<Props> = ({ date }) => {
           refreshEvents={refreshEvents}
           viewMode="weekly"
           isEventReadOnly={isEventReadOnly}
-          timeGridFullWidth
         />
       </div>
     </TooltipProvider>
