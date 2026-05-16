@@ -2168,7 +2168,9 @@ const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
     (renderedBlock.source === 'displayTimelineV2' ||
       renderedBlock.source === 'workdayAllocation');
   const selectedBlock: any = legacyBlock ?? renderedBlock ?? null;
-  const { pings } = useDayPings({ staffId: staff?.id ?? '', date: dateStr, enabled: open && !!staff?.id && !isTimelineSource });
+  // Map Trace 1: raw GPS hämtas alltid (även för V2/allocation-block),
+  // så vi kan filtrera och visa pings för det valda blocket.
+  const { pings } = useDayPings({ staffId: staff?.id ?? '', date: dateStr, enabled: open && !!staff?.id });
   const { events } = useDayTimeline({ staffId: staff?.id ?? '', date: dateStr, enabled: open && !!staff?.id && !isTimelineSource });
   const selectedEvent = useMemo(() => {
     if (!selectedBlock || isTimelineSource) return null;
@@ -2179,6 +2181,17 @@ const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
       return Number.isFinite(ts) && ts >= start && ts <= end;
     }) ?? null;
   }, [events, selectedBlock, isTimelineSource]);
+
+  const blockPings = useMemo(() => {
+    if (!selectedBlock) return [] as typeof pings;
+    const startMs = new Date(selectedBlock.startAt).getTime();
+    const endMs = new Date(selectedBlock.endAt).getTime();
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return [];
+    return pings.filter((p) => {
+      const t = new Date(p.recorded_at).getTime();
+      return Number.isFinite(t) && t >= startMs && t <= endMs;
+    });
+  }, [pings, selectedBlock]);
 
   if (!staff || !selectedBlock) return null;
 
