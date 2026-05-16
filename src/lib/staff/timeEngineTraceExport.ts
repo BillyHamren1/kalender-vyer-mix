@@ -270,7 +270,6 @@ function buildRawPingsSection(
   const rowsAll = safeArr<RawPingSampleRow>(entry.sampleRows)
     .slice()
     .sort((a, b) => (a.recorded_at < b.recorded_at ? -1 : 1));
-  const truncated = rowsAll.length > maxRows;
   const rows = rowsAll.slice(0, maxRows).map(r => ({
     id: r.id,
     recorded_at: r.recorded_at,
@@ -284,6 +283,11 @@ function buildRawPingsSection(
     is_charging: r.is_charging ?? null,
     battery_source: r.battery_source ?? null,
   }));
+  // Truncated om EF sade så, eller om pingCount > vad vi faktiskt har, eller om
+  // vår egen builder-cap kapade. totalCountBeforeLimit = verkligt pingCount.
+  const edgeFunctionTruncated = entry.rowsTruncated === true;
+  const moreThanRows = entry.pingCount > rows.length;
+  const truncated = edgeFunctionTruncated || moreThanRows;
   return {
     count: entry.pingCount,
     firstRecordedAt: entry.firstRecordedAt ?? null,
@@ -294,7 +298,7 @@ function buildRawPingsSection(
     medianAccuracy: entry.medianAccuracy ?? null,
     p90Accuracy: entry.p90Accuracy ?? null,
     truncated,
-    totalCountBeforeLimit: truncated ? rowsAll.length : null,
+    totalCountBeforeLimit: truncated ? entry.pingCount : null,
     rows,
   };
 }
