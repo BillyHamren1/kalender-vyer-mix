@@ -24,6 +24,10 @@ import type {
   LocationTruthTargetType,
   BusinessContextStatus,
 } from './buildLocationTruthFromDayEvidence.ts';
+import {
+  resolveEffectiveWorkdayEndFromEvidence,
+  type DayEndStopReason,
+} from './resolveEffectiveWorkdayEndFromEvidence.ts';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
