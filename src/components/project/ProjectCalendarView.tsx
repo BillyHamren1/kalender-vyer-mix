@@ -34,7 +34,10 @@ interface Props {
 }
 
 const TASK_RESOURCE: Resource = { id: 'team-tasks', title: 'Aktiviteter', eventColor: '#A78BFA' };
-const DEFAULT_TEAMS = ['team-1', 'team-2', 'team-3', 'team-4', 'transport', 'team-tasks'];
+// Projektkalendern visar projektets relevanta team. Default = ALLA aktuella
+// team + Lager + Aktiviteter-kolumnen. Tidigare hårdkodades till bara
+// team-1..4 + transport + team-tasks vilket dolde Team 5–10.
+const PROJECT_REQUIRED_TEAMS = ['team-1', 'team-2', 'team-3', 'team-4', 'transport', 'team-tasks'];
 
 const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) => {
   // 1. Hämta projektets events.
