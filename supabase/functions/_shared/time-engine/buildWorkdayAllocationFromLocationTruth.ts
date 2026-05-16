@@ -867,14 +867,34 @@ export function buildWorkdayAllocationFromLocationTruth(
     examples: [],
   };
 
+  // Time Engine 3 — suppress workday helt om open timer + ingen evidence.
+  if (suppressForOpenTimerNoEvidence) {
+    diag.warnings.push('no_active_workday');
+    diag.warningsByType.no_active_workday += 1;
+    if (!diag.warnings.includes('open_timer_without_same_day_evidence')) {
+      diag.warnings.push('open_timer_without_same_day_evidence');
+    }
+    diag.warningsByType.open_timer_without_same_day_evidence += 1;
+    diag.buildDurationMs = Date.now() - startedAt;
+    return { segments, proposals, diagnostics: diag };
+  }
+
   if (!wdStartMs) {
     diag.warnings.push('no_active_workday');
     diag.warningsByType.no_active_workday += 1;
     diag.buildDurationMs = Date.now() - startedAt;
     return { segments, proposals, diagnostics: diag };
   }
+
+  if (workdayStartAdjusted) {
+    diag.warnings.push('workday_start_adjusted_to_first_evidence');
+    diag.warningsByType.workday_start_adjusted_to_first_evidence += 1;
+  }
+
   // Använd envelope-end (täcker både stängd och öppen dagtimer).
-  const wdEnd = toMs(envelope.endAt) ?? Date.now();
+  // Men klippt mot ev. justerad start så vi aldrig genererar negativ duration.
+  const envelopeEndMs = toMs(envelope.endAt) ?? Date.now();
+  const wdEnd = Math.max(envelopeEndMs, wdStartMs);
   diag.workdayDurationMinutes = Math.max(0, Math.round((wdEnd - wdStartMs) / 60_000));
 
   // Track coverage för uncoveredWorkdayMinutes.
