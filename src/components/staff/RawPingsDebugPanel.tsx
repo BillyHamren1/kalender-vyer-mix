@@ -240,6 +240,7 @@ export function RawPingsDebugPanel({
                   <th className="px-2 py-1 text-right">P90 acc</th>
                   <th className="px-2 py-1 text-right">Sista age</th>
                   <th className="px-2 py-1">Batteri</th>
+                  <th className="px-2 py-1">App senast</th>
                   <th className="px-2 py-1">Status</th>
                 </tr>
               </thead>
