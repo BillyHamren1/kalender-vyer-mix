@@ -71,24 +71,39 @@ function run(segments: LocationTruthSegment[]) {
   });
 }
 
-Deno.test('Lager 3.6 — > 90 min hemma efter sista jobb → suggest_workday_end', () => {
+Deno.test('Lager 3.6 — > 90 min hemma efter sista jobb → STOP 1.1 clampar wdEnd före allocation', () => {
+  // STOP 1.1: hem-segmentet ligger > 90 min efter sista jobb → wdEnd clampas
+  // till 16:00 FÖRE allocation-loopen. Hem blir outsideWorkday och Layer 3.6
+  // genererar inte sin egen warning/proposal. STOP 1 äger suggest_workday_end.
   const segs = [
     siteSeg('p1', '2026-05-15T08:00:00Z', '2026-05-15T16:00:00Z', 'project'),
     siteSeg('h1', '2026-05-15T16:30:00Z', '2026-05-15T20:00:00Z', 'private_zone'),
   ];
   const res = run(segs);
 
-  const home = res.segments.find((s) => s.allocationType === 'private_time')!;
-  assert(home.warnings.includes('home_after_last_work_location'));
-  assert(!home.warnings.includes('temporary_home_presence'));
+  // Hem-segmentet ska vara outsideWorkday och inte ha private_time-allokering inne i workday.
+  const homeOutside = res.segments.find(
+    (s) => s.sourceLocationTruthSegmentIds.includes('h1') && s.outsideWorkday,
+  );
+  assert(homeOutside, 'hem-segmentet ska markeras outsideWorkday');
+  const homeInside = res.segments.find(
+    (s) => s.sourceLocationTruthSegmentIds.includes('h1') && !s.outsideWorkday,
+  );
+  assertEquals(homeInside, undefined);
 
+  // STOP 1 emitterar suggest_workday_end (Layer 3.6 körs inte på outside-segment).
   const stop = res.proposals.find((p) => p.proposalType === 'suggest_workday_end')!;
-  assertEquals(stop.reason, 'home_private_over_90_minutes_after_last_work_location');
-  assertEquals(stop.suggestedEndAt, '2026-05-15T16:30:00.000Z');
-
-  assertEquals(res.diagnostics.homeSegmentsAfterWork, 1);
-  assertEquals(res.diagnostics.homeOver90MinutesCount, 1);
+  assertEquals(stop.suggestedEndAt, '2026-05-15T16:00:00.000Z');
   assertEquals(res.diagnostics.suggestedWorkdayEndCount, 1);
+
+  // STOP 1.1 diagnostics.
+  assertEquals(res.diagnostics.workdayEnvelope.clampedBeforeAllocation, true);
+  assertEquals(res.diagnostics.workdayEndAt, '2026-05-15T16:00:00.000Z');
+  assertEquals(res.diagnostics.dayEndDecision?.endReason, 'home_after_last_work_over_90m');
+
+  // Layer 3.6:s counters för hem-segment efter jobb är 0 (segmentet är utanför workday).
+  assertEquals(res.diagnostics.homeSegmentsAfterWork, 0);
+  assertEquals(res.diagnostics.homeOver90MinutesCount, 0);
   assertEquals(res.diagnostics.temporaryHomePresenceCount, 0);
 });
 
