@@ -264,6 +264,16 @@ export interface WorkdayAllocationSegmentLite {
   durationMinutes?: number | null;
   warnings?: string[] | null;
   confidence?: string | null;
+  // Map Trace 4 — fysisk plats + matchnings-trace propageras från Lager 2/3.
+  physicalLocationLabel?: string | null;
+  physicalLocationAddress?: string | null;
+  physicalLocationLat?: number | null;
+  physicalLocationLng?: number | null;
+  physicalLocationSource?: string | null;
+  physicalLocationConfidence?: string | null;
+  locationMatchDiagnostics?: unknown;
+  businessContextResolution?: unknown;
+  businessContextStatus?: string | null;
 }
 
 const ALLOC_TYPE_TO_KIND: Record<string, GanttKindLite | 'work_phase' | 'hidden'> = {
