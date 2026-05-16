@@ -1702,6 +1702,10 @@ const StaffTimeReports: React.FC = () => {
       // Lager 3 — Workday Allocation (fallback när V2 saknas).
       workdayAllocationSegments: any[];
       workdayAllocationDiagnostics: any;
+      // Lager 2.10 — LocationTruth V2 från DayEvidence (top-level på response).
+      locationTruthV2Segments: any[];
+      locationTruthV2Diagnostics: any;
+      locationTruthV2NotBuiltReason: string | null;
       loading: boolean;
       missing: boolean;
     }> = {};
