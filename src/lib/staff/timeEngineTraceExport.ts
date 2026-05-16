@@ -96,7 +96,8 @@ export type DiffFindingType =
   | 'stale_timer_created_large_empty_day'
   | 'large_uncovered_time'
   | 'battery_low_before_signal_gap'
-  | 'rendered_gap_too_large';
+  | 'rendered_gap_too_large'
+  | 'allocation_references_unknown_location_truth_segment';
 
 export type DiffFindingSeverity = 'info' | 'warning' | 'critical';
 
