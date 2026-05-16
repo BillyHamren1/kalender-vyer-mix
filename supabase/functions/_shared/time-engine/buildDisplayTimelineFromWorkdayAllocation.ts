@@ -1194,6 +1194,76 @@ export function buildDisplayTimelineFromWorkdayAllocation(
     }
   }
 
+  // ── Fix C — Absorbera review mellan två block med samma target ─────────
+  // Om ett review-block ligger mellan två work-block med identiskt (targetType,
+  // targetId) eller identisk title/sessionKey, och review ≤ 45 min, så slukas
+  // review in i föregående host-block och nästa-blocket slås ihop till samma
+  // host. Review renderas bara om: ingen host, competing targets, low conf
+  // utan target, eller review > 45 min.
+  const REVIEW_ABSORB_MAX_MIN = 45;
+  const WORK_LIKE_FOR_REVIEW = new Set<DisplayTimelineBlockType>([
+    'project', 'large_project', 'booking', 'warehouse',
+  ]);
+  const sameTarget = (a: DisplayTimelineBlock, b: DisplayTimelineBlock): boolean => {
+    if (a.targetType && b.targetType && a.targetId && b.targetId) {
+      return a.targetType === b.targetType && a.targetId === b.targetId;
+    }
+    // Fallback: samma title (lower-case trim) räcker när targetId saknas.
+    const at = (a.title ?? '').trim().toLowerCase();
+    const bt = (b.title ?? '').trim().toLowerCase();
+    return at.length > 0 && at === bt;
+  };
+  let absorbedReviewCount = 0;
+  let absorbedReviewMinutesTotal = 0;
+  blocks.sort((a, b) => toMs(a.startAt) - toMs(b.startAt));
+  for (let i = blocks.length - 2; i >= 1; i--) {
+    const cur = blocks[i];
+    if (cur.displayType !== 'review') continue;
+    if (cur.durationMinutes > REVIEW_ABSORB_MAX_MIN) continue;
+    const prev = blocks[i - 1];
+    const next = blocks[i + 1];
+    if (!prev || !next) continue;
+    if (!WORK_LIKE_FOR_REVIEW.has(prev.displayType)) continue;
+    if (!WORK_LIKE_FOR_REVIEW.has(next.displayType)) continue;
+    if (!sameTarget(prev, next)) continue;
+    // Absorb: extend prev to cover review + merge next.
+    const reviewMin = cur.durationMinutes;
+    prev.endAt = next.endAt;
+    prev.durationMinutes = prev.durationMinutes + reviewMin + next.durationMinutes;
+    prev.sourceAllocationSegmentIds = [
+      ...prev.sourceAllocationSegmentIds,
+      ...cur.sourceAllocationSegmentIds,
+      ...next.sourceAllocationSegmentIds,
+    ];
+    prev.sourceLocationTruthSegmentIds = [
+      ...prev.sourceLocationTruthSegmentIds,
+      ...cur.sourceLocationTruthSegmentIds,
+      ...next.sourceLocationTruthSegmentIds,
+    ];
+    const meta: any = prev.metadata as any;
+    meta.absorbedReviewMinutes = (meta.absorbedReviewMinutes ?? 0) + reviewMin;
+    meta.absorbedReviewBlockIds = [...(meta.absorbedReviewBlockIds ?? []), cur.id];
+    meta.mergedCount = (meta.mergedCount ?? 1) + 1;
+    const humanText = `Granska mellanperiod ${reviewMin} min`;
+    if (!prev.humanWarnings.includes(humanText)) prev.humanWarnings.push(humanText);
+    if (!prev.warnings.includes('absorbed_signal_gap' as DisplayTimelineWarning)) {
+      prev.warnings.push('absorbed_signal_gap' as DisplayTimelineWarning);
+    }
+    // Ta bort review + next (next är nu en del av prev).
+    blocks.splice(i, 2);
+    absorbedReviewCount += 1;
+    absorbedReviewMinutesTotal += reviewMin;
+    if (examples.length < 6) {
+      examples.push({
+        kind: 'absorbed_small_gap',
+        startAt: cur.startAt, endAt: cur.endAt,
+        note: `Review ${reviewMin} min absorberad mellan samma ${prev.targetType ?? 'target'}`,
+      });
+    }
+  }
+  (diagnostics as any).absorbedReviewBetweenSameTargetCount = absorbedReviewCount;
+  (diagnostics as any).absorbedReviewMinutesTotal = absorbedReviewMinutesTotal;
+
   // Slutsortera kronologiskt.
   blocks.sort((a, b) => toMs(a.startAt) - toMs(b.startAt));
 
