@@ -1255,6 +1255,41 @@ export function buildWorkdayAllocationFromLocationTruth(
     });
   }
 
+  /**
+   * Time Engine Core Fix 2.1 — välj effektiv target.
+   * businessContextResolution vinner över råa matchedTarget för
+   * project/booking/large_project/warehouse/supplier/organization_location.
+   * 'unlinked_address'/'unknown' faller tillbaka på matchedTarget eller fysisk plats.
+   */
+  function pickEffectiveTarget(
+    bcr: BusinessContextResolution | null | undefined,
+    matched: { targetType?: LocationTruthTargetType | null; targetId?: string | null; label?: string | null; address?: string | null } | null | undefined,
+    seg: LocationTruthSegment,
+  ): {
+    targetType: LocationTruthTargetType | null;
+    targetId: string | null;
+    label: string | null;
+    address: string | null;
+  } {
+    const bcrTypeUsable =
+      !!bcr &&
+      bcr.selectedTargetType !== null &&
+      bcr.selectedTargetType !== 'unlinked_address' &&
+      bcr.selectedTargetType !== 'unknown';
+    const targetType: LocationTruthTargetType | null = bcrTypeUsable
+      ? (bcr!.selectedTargetType as LocationTruthTargetType)
+      : (matched?.targetType ?? null);
+    const targetId: string | null = bcrTypeUsable
+      ? (bcr!.selectedTargetId ?? matched?.targetId ?? null)
+      : (matched?.targetId ?? null);
+    const label: string | null = bcrTypeUsable
+      ? (bcr!.selectedTargetLabel ?? matched?.label ?? seg.physicalLocation?.label ?? null)
+      : (matched?.label ?? seg.physicalLocation?.label ?? null);
+    const address: string | null =
+      matched?.address ?? seg.physicalLocation?.address ?? null;
+    return { targetType, targetId, label, address };
+  }
+
   for (const seg of ltSegments) {
     const sMs = toMs(seg.startAt);
     const eMs = toMs(seg.endAt);
