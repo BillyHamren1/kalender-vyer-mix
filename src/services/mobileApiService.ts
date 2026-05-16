@@ -947,7 +947,7 @@ export const mobileApi = {
     callApi<{ position: { lat: number; lng: number; accuracy: number | null; recorded_at: string } | null }>('get_position_at_time', { at }),
 
   getMovementForDay: (staffId: string, date: string) =>
-    callApi<{ points: { lat: number; lng: number; accuracy: number | null; speed: number | null; recorded_at: string }[] }>('get_movement_for_day', { staff_id: staffId, date }),
+    callApi<{ points: { lat: number; lng: number; accuracy: number | null; speed: number | null; recorded_at: string; battery_percent?: number | null; source?: string | null }[] }>('get_movement_for_day', { staff_id: staffId, date }),
 
   // Travel logs
   createTravelLog: (data: {

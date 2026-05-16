@@ -74,8 +74,16 @@ export interface DisplayTimelineBlockLite {
     | 'break_or_gap';
   targetType?: string | null;
   targetId?: string | null;
+  targetLabel?: string | null;
   label?: string | null;
   address?: string | null;
+  addressLabel?: string | null;
+  locationName?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  centroid?: { lat: number; lng: number } | null;
+  sourceLocationTruthSegmentIds?: string[] | null;
+  sourceAllocationSegmentIds?: string[] | null;
   durationMinutes?: number;
   severity?: 'normal' | 'info' | 'warning' | 'needs_user_review' | string;
   confidence?: string | null;
@@ -176,6 +184,18 @@ export function mapDisplayTimelineBlocksToGantt(
         severity: b.severity ?? null,
         confidence: b.confidence ?? null,
         label: b.label ?? null,
+        targetLabel: b.targetLabel ?? null,
+        addressLabel: b.addressLabel ?? null,
+        locationName: b.locationName ?? null,
+        latitude: b.latitude ?? b.centroid?.lat ?? null,
+        longitude: b.longitude ?? b.centroid?.lng ?? null,
+        centroid: b.centroid ?? null,
+        sourceLocationTruthSegmentIds: Array.isArray(b.sourceLocationTruthSegmentIds)
+          ? [...b.sourceLocationTruthSegmentIds]
+          : null,
+        sourceAllocationSegmentIds: Array.isArray(b.sourceAllocationSegmentIds)
+          ? [...b.sourceAllocationSegmentIds]
+          : null,
       },
     });
   }
@@ -195,8 +215,16 @@ export interface WorkdayAllocationSegmentLite {
   label?: string | null;
   title?: string | null;
   address?: string | null;
+  addressLabel?: string | null;
+  locationName?: string | null;
   targetType?: string | null;
   targetId?: string | null;
+  targetLabel?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  centroid?: { lat: number; lng: number } | null;
+  sourceLocationTruthSegmentIds?: string[] | null;
+  sourceAllocationSegmentIds?: string[] | null;
   durationMinutes?: number | null;
   warnings?: string[] | null;
   confidence?: string | null;
@@ -254,6 +282,18 @@ export function mapWorkdayAllocationSegmentsToGantt(
         allocationType: allocType,
         confidence: s.confidence ?? null,
         label: s.label ?? null,
+        targetLabel: s.targetLabel ?? null,
+        addressLabel: s.addressLabel ?? null,
+        locationName: s.locationName ?? null,
+        latitude: s.latitude ?? s.centroid?.lat ?? null,
+        longitude: s.longitude ?? s.centroid?.lng ?? null,
+        centroid: s.centroid ?? null,
+        sourceLocationTruthSegmentIds: Array.isArray(s.sourceLocationTruthSegmentIds)
+          ? [...s.sourceLocationTruthSegmentIds]
+          : null,
+        sourceAllocationSegmentIds: Array.isArray(s.sourceAllocationSegmentIds)
+          ? [...s.sourceAllocationSegmentIds]
+          : null,
       },
     });
   }

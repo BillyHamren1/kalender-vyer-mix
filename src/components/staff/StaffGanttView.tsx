@@ -2095,9 +2095,40 @@ const TimelineBlockDetail: React.FC<{ block: GanttBlock }> = ({ block }) => {
           <span><span className="text-muted-foreground">Session:</span> <span className="font-mono">{block.sessionKey}</span></span>
         )}
       </div>
-      {block.address && (
-        <div><span className="text-muted-foreground">Adress:</span> {block.address}</div>
-      )}
+      {(() => {
+        const m: any = meta;
+        const targetLabel = (m.targetLabel as string | null) ?? null;
+        const addressLabel = (m.addressLabel as string | null) ?? null;
+        const locationName = (m.locationName as string | null) ?? null;
+        const address = block.address ?? null;
+        const lat = typeof m.latitude === 'number' ? m.latitude : m.centroid?.lat ?? null;
+        const lng = typeof m.longitude === 'number' ? m.longitude : m.centroid?.lng ?? null;
+        const primary =
+          targetLabel || addressLabel || locationName || address || null;
+        const fallbackCoords = !primary && typeof lat === 'number' && typeof lng === 'number'
+          ? `${lat.toFixed(5)}, ${lng.toFixed(5)}`
+          : null;
+        return (
+          <div className="rounded-sm border bg-muted/40 px-2 py-1.5 space-y-0.5">
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Plats</div>
+            {primary ? (
+              <div className="font-medium text-foreground">{primary}</div>
+            ) : fallbackCoords ? (
+              <div className="font-mono text-foreground">{fallbackCoords}</div>
+            ) : (
+              <div className="italic text-muted-foreground">Platsnamn saknas</div>
+            )}
+            {address && primary && address !== primary && (
+              <div className="text-muted-foreground">{address}</div>
+            )}
+            {typeof lat === 'number' && typeof lng === 'number' && (
+              <div className="font-mono text-[10px] text-muted-foreground">
+                {lat.toFixed(5)}, {lng.toFixed(5)}
+              </div>
+            )}
+          </div>
+        );
+      })()}
       {block.warnings && block.warnings.length > 0 && (
         <div className="rounded-sm border border-amber-300/60 bg-amber-50 dark:bg-amber-400/10 px-2 py-1.5">
           <div className="font-medium text-amber-900 dark:text-amber-200 mb-0.5">Varningar</div>
