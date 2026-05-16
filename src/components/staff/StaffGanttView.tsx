@@ -70,6 +70,13 @@ import { EvidencePanel } from './ReportCandidateTimeline';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
+import { useCurrentOrg } from '@/hooks/useCurrentOrg';
+import { useRawStaffPingsDebug, isRawPingsDebugEnabled } from '@/hooks/staff/useRawStaffPingsDebug';
+import {
+  buildReportDataGapDiagnosis,
+  describeReportDataGapStatus,
+  type ReportDataGapDiagnosis,
+} from '@/lib/staff/reportDataGapDiagnostics';
 
 interface ProjectInfo {
   booking_id: string;
