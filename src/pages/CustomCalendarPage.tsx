@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { usePlannerSync } from '@/stores/plannerStore';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
+import { computeDefaultVisibleTeams, isRequiredTeam } from '@/lib/calendar/defaultVisibleTeams';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { useTaskCalendarEvents } from '@/hooks/useTaskCalendarEvents';
 
