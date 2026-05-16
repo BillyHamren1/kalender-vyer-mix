@@ -857,6 +857,10 @@ export function buildTimeEngineFlowTrace(
         ? hasRawPingsButMissingFromReportList
         : null,
     },
+    batteryDiagnostics: {
+      ...batterySnapshot,
+      signalLossBannerText,
+    },
   };
 
   // Indikera saknad data globalt
