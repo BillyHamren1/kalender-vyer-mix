@@ -220,12 +220,12 @@ const DayBody: React.FC<{
             </p>
             <p className="font-extrabold text-base text-foreground mt-1 flex items-center gap-1.5 flex-wrap">
               <Sun className="w-4 h-4 text-primary shrink-0" />
-              {wd ? (
+              {headerStart ? (
                 <>
-                  <span className="tabular-nums">{formatStockholmHm(wd.startedAt)}</span>
+                  <span className="tabular-nums">{formatStockholmHm(headerStart)}</span>
                   <span className="text-muted-foreground mx-0.5">→</span>
-                  {wd.endedAt ? (
-                    <span className="tabular-nums">{formatStockholmHm(wd.endedAt)}</span>
+                  {headerEnd && !headerOpen ? (
+                    <span className="tabular-nums">{formatStockholmHm(headerEnd)}</span>
                   ) : (
                     <span className="text-primary">pågår</span>
                   )}
