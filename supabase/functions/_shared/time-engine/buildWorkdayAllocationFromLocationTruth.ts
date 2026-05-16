@@ -137,7 +137,10 @@ export type WorkdayAllocationWarning =
   | 'workday_time_without_location_truth_segment'
   // ── Lager 3.11C — warehouse-warnings (ersätter warehouse_presence_no_assignment) ─
   | 'warehouse_presence'
-  | 'warehouse_presence_during_planned_project';
+  | 'warehouse_presence_during_planned_project'
+  // ── Time Engine 3 — open/stale timer utan same-day evidence ──────────
+  | 'open_timer_without_same_day_evidence'
+  | 'workday_start_adjusted_to_first_evidence';
 
 // ── Lager 3.11C — DEPRECATED warnings (får INTE emitteras) ─────────────
 //   - supplier_visit_no_assignment       → använd supplier_visit_without_project_context
