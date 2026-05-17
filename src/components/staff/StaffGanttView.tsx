@@ -1035,6 +1035,73 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
     return map;
   }, [diagnosticsEnabled, rawPingsData?.perStaff, staffList, sourceCountsByStaff, dateStr]);
 
+  // ── GPS-evidence (UI-only, räknas ALDRIG som arbetstid) ──────────────
+  // När en rad saknar renderbar arbetstid men ändå har GPS/LocationTruth,
+  // bygger vi en separat evidence-beskrivning som renderas som en diskret
+  // bar i timeline-cellen. Detta påverkar INTE:
+  //   • staff.metrics.activityMinutes / travelMinutes / lönegrundande tid
+  //   • exports som arbetstid
+  //   • filter typ "bara projekt"
+  // Den syns bara i Gantt-vyn för att operator ska se att systemet HAR data.
+  const evidenceByStaff = useMemo<Record<string, {
+    startAt: string | null;
+    endAt: string | null;
+    source: 'raw_pings' | 'location_truth_v2' | 'missing_engine';
+    label: string;
+    rawPingCount: number;
+    locationTruthSegmentCount: number;
+  } | null>>(() => {
+    const pingsByStaff = new Map<string, NonNullable<typeof rawPingsData>['perStaff'][number]>();
+    for (const e of rawPingsData?.perStaff ?? []) pingsByStaff.set(e.staffId, e);
+    const out: Record<string, any> = {};
+    for (const s of staffList) {
+      if ((blocksByStaff[s.id]?.length ?? 0) > 0) { out[s.id] = null; continue; }
+      const ping = pingsByStaff.get(s.id);
+      const rawPingCount = ping?.pingCount ?? 0;
+      const cand: any = reportCandidateByStaff?.[s.id];
+      const ltSegs: any[] = Array.isArray(cand?.locationTruthV2Segments) ? cand.locationTruthV2Segments : [];
+      const ltCount = ltSegs.length
+        || (cand?.workdayAllocationDiagnostics?.locationTruthV2SegmentCount ?? 0)
+        || (cand?.counts?.locationTruthV2SegmentCount ?? 0)
+        || 0;
+
+      let startAt: string | null = null;
+      let endAt: string | null = null;
+      let source: 'raw_pings' | 'location_truth_v2' | 'missing_engine' = 'missing_engine';
+      let label = 'GPS finns men Time Engine saknas';
+
+      if (rawPingCount > 0 && ping?.firstRecordedAt && ping?.lastRecordedAt) {
+        startAt = ping.firstRecordedAt;
+        endAt = ping.lastRecordedAt;
+        source = 'raw_pings';
+        const range = `${formatStockholmHm(startAt)}–${formatStockholmHm(endAt)}`;
+        label = ltCount > 0
+          ? `Platsdata finns ${range} · ingen renderbar arbetstid`
+          : `GPS finns ${range} · ingen aktiv arbetsdag`;
+      } else if (ltSegs.length > 0) {
+        const sorted = ltSegs
+          .filter((x) => x && (x.startAt || x.startsAt) && (x.endAt || x.endsAt))
+          .map((x) => ({ s: x.startAt ?? x.startsAt, e: x.endAt ?? x.endsAt }))
+          .sort((a, b) => new Date(a.s).getTime() - new Date(b.s).getTime());
+        if (sorted.length > 0) {
+          startAt = sorted[0].s;
+          endAt = sorted[sorted.length - 1].e;
+          source = 'location_truth_v2';
+          label = `Platsdata finns ${formatStockholmHm(startAt!)}–${formatStockholmHm(endAt!)} · ingen renderbar arbetstid`;
+        }
+      } else if (rawPingCount > 0) {
+        source = 'raw_pings';
+        label = 'GPS finns men Time Engine saknas';
+      } else {
+        out[s.id] = null;
+        continue;
+      }
+      out[s.id] = { startAt, endAt, source, label, rawPingCount, locationTruthSegmentCount: ltCount };
+    }
+    return out;
+  }, [staffList, blocksByStaff, rawPingsData?.perStaff, reportCandidateByStaff]);
+
+
   // ── READ-ONLY: emittera Gantt-diagnostik till parent (för Export Trace JSON).
   // Påverkar inte rendering. Aktiveras endast när parent bryr sig (callback satt).
   useEffect(() => {
