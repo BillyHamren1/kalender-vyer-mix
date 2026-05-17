@@ -1883,6 +1883,48 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                             />
                           )}
 
+                          {/* GPS-evidence bar (UI-only; ALDRIG arbetstid) */}
+                          {(() => {
+                            const ev = evidenceByStaff[staff.id];
+                            if (!ev) return null;
+                            let left = 8;
+                            let width = Math.max(60, timelineWidth - 16);
+                            if (ev.startAt && ev.endAt) {
+                              const sH = hourOfDay(ev.startAt, dateStr);
+                              const eH = hourOfDay(ev.endAt, dateStr);
+                              const clampedS = Math.max(startHour, Math.min(endHour, sH));
+                              const clampedE = Math.max(startHour, Math.min(endHour, eH));
+                              if (clampedE > clampedS) {
+                                left = (clampedS - startHour) * HOUR_PX;
+                                width = Math.max(40, (clampedE - clampedS) * HOUR_PX);
+                              }
+                            }
+                            return (
+                              <div
+                                role="button"
+                                tabIndex={0}
+                                title={ev.label}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenStaffId(staff.id);
+                                }}
+                                className={cn(
+                                  'absolute z-[5] cursor-pointer overflow-hidden rounded-md border border-dashed',
+                                  'border-muted-foreground/30 bg-muted/30 text-[10px] text-muted-foreground',
+                                  'flex items-center px-2 hover:bg-muted/50 hover:border-muted-foreground/50',
+                                )}
+                                style={{
+                                  left: left + 2,
+                                  width: Math.max(40, width - 4),
+                                  top: ROW_PX - 18,
+                                  height: 12,
+                                }}
+                              >
+                                <span className="truncate">{ev.label}</span>
+                              </div>
+                            );
+                          })()}
+
                           {/* Block — lane-packing */}
                           {(() => {
                             const rects: Array<{
