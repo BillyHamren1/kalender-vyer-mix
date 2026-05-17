@@ -43,6 +43,7 @@ import EndDayButton from './EndDayButton';
 import SegmentDetailSheet from './SegmentDetailSheet';
 import DisplayTimelineV2Card from './DisplayTimelineV2Card';
 import StaffDayRemindersBanner from './StaffDayRemindersBanner';
+import { deriveDayStatus, type DayStatusResult } from './dayStatus';
 
 // 1Hz tick so the active timer's elapsed seconds roll forward.
 function useTick(intervalMs = 1000) {
@@ -68,13 +69,22 @@ function segmentRange(s: StaffDaySegment) {
 // 1) Översta statuskortet — Arbetsdag
 // ────────────────────────────────────────────────────────────────────
 
-const WorkdayStatusCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => {
+const WorkdayStatusCard: React.FC<{
+  snapshot: StaffDaySnapshot;
+  dayStatus: DayStatusResult;
+}> = ({ snapshot, dayStatus }) => {
   const wd = snapshot.workday;
-  const isOpen = !!wd?.isOpen;
+  const isOpen = dayStatus.status === 'active_day';
   useTick(isOpen ? 1000 : 60_000);
 
-  const statusLine = wd?.statusLabel
-    ?? (wd ? (isOpen ? 'Arbetsdag igång' : 'Arbetsdag avslutad') : 'Ingen arbetsdag startad');
+  // Backendens statusLabel respekteras BARA när vi är trygga (active/ended).
+  // För has_time_not_ended/empty_day använder vi vår egen label så att en
+  // backend som t.ex. säger "Arbetsdag avslutad" pga sista segmentet slutade
+  // inte läcker igenom UI:t.
+  const statusLine =
+    dayStatus.status === 'active_day' || dayStatus.status === 'ended_day'
+      ? (wd?.statusLabel ?? dayStatus.label)
+      : dayStatus.label;
 
   // Brutto kommer ALLTID från backend. Vid pågående dag tickar vi sekundvis
   // mellan refetch genom att räkna live elapsed från startedAt — men vi
