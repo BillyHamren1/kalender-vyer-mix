@@ -1806,7 +1806,14 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                             </div>
                             {(() => {
                               const ev = evidenceByStaff[staff.id];
-                              if (!ev || staff.metrics.activityMinutes > 0) return null;
+                              const sum = reportCandidateByStaff?.[staff.id]?.summary as
+                                | { workMinutes?: number; transportMinutes?: number }
+                                | null
+                                | undefined;
+                              const hasAnySuggested = (sum?.workMinutes ?? 0) > 0
+                                || (sum?.transportMinutes ?? 0) > 0
+                                || staff.metrics.activityMinutes > 0;
+                              if (!ev || hasAnySuggested) return null;
                               const range = ev.startAt && ev.endAt
                                 ? `${formatStockholmHm(ev.startAt)}–${formatStockholmHm(ev.endAt)}`
                                 : '—';
