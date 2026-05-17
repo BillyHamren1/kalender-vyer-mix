@@ -149,7 +149,6 @@ const DayBody: React.FC<{
   const isLocked = !!wd?.approved;
   const grossMin = t?.grossWorkdayMinutes ?? t?.workdayMinutes ?? 0;
   const breakMin = t?.breakMinutes ?? 0;
-  const payableMin = t?.payableMinutes ?? grossMin;
   const transportMin = t?.transportMinutes ?? t?.travelMinutes ?? 0;
   const projectMin =
     (t?.projectMinutes ?? t?.allocatedProjectMinutes ?? 0) +
