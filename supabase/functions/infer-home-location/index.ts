@@ -163,7 +163,7 @@ Deno.serve(async (req) => {
     {
       const { data: orgLocs } = await supabase
         .from('organization_locations')
-        .select('organization_id, name, latitude, longitude, radius_meters, location_type, is_active, is_private_residence, geofence_polygon')
+        .select('id, organization_id, name, latitude, longitude, radius_meters, location_type, is_active, is_private_residence, geofence_polygon')
         .eq('is_active', true);
       const rows = orgLocs ?? [];
 
