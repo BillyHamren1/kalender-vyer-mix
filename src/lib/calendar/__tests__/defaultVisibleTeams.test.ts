@@ -6,28 +6,19 @@ import {
 } from '../defaultVisibleTeams';
 
 describe('defaultVisibleTeams', () => {
-  it('inkluderar alla 10 team + transport som standard', () => {
+  it('visar endast Team 1–4 + Lager som standard (Team 5–10 är opt-in)', () => {
     const resources = Array.from({ length: 10 }, (_, i) => ({ id: `team-${i + 1}` }));
     const visible = computeDefaultVisibleTeams(resources);
-    for (let i = 1; i <= 10; i++) {
-      expect(visible).toContain(`team-${i}`);
-    }
+    expect(visible).toEqual(expect.arrayContaining(['team-1', 'team-2', 'team-3', 'team-4', 'transport']));
     expect(visible).toContain('transport');
+    expect(visible).not.toContain('team-5');
+    expect(visible).not.toContain('team-10');
   });
 
-  it('döljer ALDRIG Team 5–10 (regressionsskydd)', () => {
-    const resources = [
-      { id: 'team-1' }, { id: 'team-5' }, { id: 'team-7' }, { id: 'team-10' },
-    ];
-    const visible = computeDefaultVisibleTeams(resources);
-    expect(visible).toContain('team-5');
-    expect(visible).toContain('team-7');
-    expect(visible).toContain('team-10');
-  });
-
-  it('filtrerar bort deprecated team-11 (Live)', () => {
-    const visible = computeDefaultVisibleTeams([{ id: 'team-1' }, { id: 'team-11' }]);
-    expect(visible).not.toContain('team-11');
+  it('Lager (transport) finns alltid med i defaults', () => {
+    expect(computeDefaultVisibleTeams([])).toContain('transport');
+    expect(computeDefaultVisibleTeams(null)).toContain('transport');
+    expect(computeDefaultVisibleTeams([{ id: 'team-1' }])).toContain('transport');
   });
 
   it('inkluderar alltid obligatoriska team även med tom input', () => {

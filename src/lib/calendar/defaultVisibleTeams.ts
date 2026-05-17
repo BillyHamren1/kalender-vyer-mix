@@ -21,22 +21,18 @@ export const isRequiredTeam = (teamId: string): boolean =>
 /**
  * Default set of visible team columns for a planning day.
  *
- * Includes EVERY team column that currently exists in `resources` (Team 1–10
- * and any custom teams), plus the Lager (`transport`) column. This is
- * deliberate: previously the default was a hardcoded subset
- * (`team-1..4 + transport + team-11`) which silently hid Team 5–10 even
- * when they had planned jobs — see plan 2026-05-16.
+ * Returns the REQUIRED teams only (Team 1–4 + Lager/transport). Team 5–10
+ * och egna team kan slås på per dag via TeamVisibilityControl-knappen i
+ * dagens header. Att visa alla 10 + Lager som default trängde undan
+ * Lager-kolumnen och toggle-knappen i veckovyn (11 kolumner per dag fick
+ * inte plats) — se chat 2026-05-18.
  *
- * The deprecated `team-11` ("Live") column is filtered out.
+ * `resources`-argumentet behålls i signaturen för bakåtkompatibilitet men
+ * påverkar inte längre defaults; det filtrerar bara bort team-11 om någon
+ * skulle råka skicka in det.
  */
 export const computeDefaultVisibleTeams = (
-  resources: Pick<Resource, 'id'>[] | null | undefined,
+  _resources?: Pick<Resource, 'id'>[] | null | undefined,
 ): string[] => {
-  const ids = new Set<string>(REQUIRED_TEAM_IDS);
-  for (const r of resources ?? []) {
-    if (!r?.id) continue;
-    if (r.id === 'team-11') continue;
-    ids.add(r.id);
-  }
-  return Array.from(ids);
+  return [...REQUIRED_TEAM_IDS];
 };
