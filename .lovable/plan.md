@@ -1,83 +1,40 @@
-## Mål
+## Diagnos
 
-Tidslinjen i mobilappen (/m/report) ska visa **exakt samma block** som administrativa /staff-management/time-reports gör för inloggad personal+datum — samma källval, samma fas-färgning, samma absorberade chips, samma rubriker/tider.
+Du har rätt — det är inte en rimlig tolkning. Rotorsaken finns i `supabase/functions/_shared/timeline/buildGpsDayTimelineOnly.ts`:
 
-## Var diskrepansen ligger idag
+1. **Klustring ignorerar target-radien.** `clusterPings` använder en hård `STATIONARY_RADIUS_M = 80 m` för att avgöra om något är "stationärt". En target (projekt/lager) har ofta 200–500 m radie. Står du och rör dig 100–200 m inom samma target (mässhall, lager, festival, byggområde) sprängs 80 m-gränsen → ingen stationär kluster bildas.
+2. **Travel-chain byggs blint från "rörelse-pings".** `buildTravelChains` (rad 200–277) plockar alla pings som inte ligger i en stay-window och bakar in dem i en `transport`-chain — den frågar aldrig om hela chainen råkar ligga inuti samma kända target.
+3. **Resultat:** 8 av 9 pings ligger inom samma target, en ligger marginellt utanför → algoritmen bygger en `transport`-segment ("Resa") + en `gps_gap` ("Osäker period / GRANSKA"). Admin-vyn visar precis det du ser på bild 2.
 
-| Steg | Admin (StaffGanttView) | Mobil (TodayTab/DisplayTimelineV2Card) |
-|---|---|---|
-| Källval | `reportCandidateBlocks` först om de finns → annars V2/allocation | `displayTimelineBlocksV2` först (även tom!) → fallback candidate |
-| Fas-prefix (RIGG/EVENT/RIGDOWN) | applyPlanningPhaseToGanttBlocks via calendar_events | saknas helt |
-| Visuell merge + chips | applyGanttVisualPipeline (merge + absorbera korta transport/granska som chips) | ingen — råblock visas |
-| Tickande aktiv timer | nej | ja (TimelineSection ActiveSegmentRow) |
+`matchSegmentsToPlaces` (matcher.ts) matchar alltid bara mot stationära kluster, så en travel-chain som faktiskt ligger inuti ett target tappas helt.
 
-Resultatet: olika antal block, olika titlar, olika färger.
+## Fix
 
-## Plan
+Lägg till ett efter-steg i `buildGpsDayTimelineOnly.ts` som "drar in" rörelse-pings i target:
 
-### 1. Bryt ut admin-byggaren till en delad ren funktion
-- Ny fil `src/lib/staff/buildStaffGanttBlocks.ts` med `buildStaffGanttBlocksFromCandidate({ staffName, cand, dateStr, bookingPhaseByDate, largeProjectPhaseByDate })` → `{ blocks: GanttBlock[]; source; counts; visualDiag }`.
-- Innehåller exakt samma steg som dagens useMemo i `StaffGanttView.tsx` rad 903–1000: map V2/alloc/legacy → planning phase → suppression-guard → `selectGanttSourceFromMapped` → `applyGanttVisualPipeline` (eller legacy `blocksFromStaff`).
-- `StaffGanttView` refaktoreras att kalla samma helper (ingen beteendeändring).
+### Steg 1 — Target-aware reclassification av travel-chains
+I `buildTravelChains` (eller direkt efter den), för varje chain:
+- Räkna hur stor andel av chainens pings som ligger inom någon `knownTarget` (samma id för alla, eller ≥80 % inom samma target).
+- Om ja → emitera ett `stay` med `type: "known_site"` och target-namnet istället för `transport`. Sätt `reason: "within_target_geofence_movement"` och `confidence: 0.75`.
+- Om chainen ligger blandat (några inom target A, några utanför) men hela bounding-boxen täcks av target A:s radie → samma sak.
 
-### 2. Ny hook för en enskild staff i mobilen
-- `src/hooks/useStaffGanttMirror.ts` (mobile-context):
-  - Anropar `get-staff-presence-day` direkt (samma motor admin använder).
-  - Hämtar fas-map från `calendar_events` på dagen (samma query som StaffTimeReports).
-  - Bygger `GanttBlock[]` via helpern från steg 1.
-  - Returnerar `{ blocks, source, isLoading, error }`.
-- Detta är fortfarande "mirror only" i andan av memory-regeln — vi hämtar från samma server-källa och kör samma deterministiska klient-pipeline som admin.
+### Steg 2 — Merge in i angränsande matched stay
+Om en target-internal travel-chain ligger direkt före eller efter en `stay` på samma target → slå ihop till en sammanhängande stay (utöka `startTs`/`endTs`). Detta tar bort onödiga delningar.
 
-### 3. Ny mobil-tidslinjekomponent
-- `src/components/mobile-app/time/StaffGanttMirrorTimeline.tsx`:
-  - Vertikal lista av `GanttBlock[]` (en rad per block).
-  - Återanvänder `resolveGanttBlockTitle`, fas-färg, chip-rendering, `attachedChips` från `visualGanttBlocks`.
-  - Render-format: ikon + tid (HH:mm–HH:mm) + titel + chips + duration. Identisk semantik som admin-raden, men staplat istället för horisontellt.
-  - Den senaste pågående raden får pulserande indikator (motsvarar admin "isOpen").
+### Steg 3 — Inga gps_gap inom target
+I gap-injectionen (rad 304–315): om både `prev` och `next` segment är `known_site` med samma `matchedSiteId`, ELLER om gap-pingsen ligger inom target → hoppa över `gps_gap`-injektionen (eller markera den `reason: "within_target_signal_dip"` och rendera dämpat istället för GRANSKA).
 
-### 4. Wire-in i TodayTab
-- Byt ut `TimelineSection` (snapshot.segments-baserad) mot `StaffGanttMirrorTimeline` när dagen inte är inskickad. Den nya komponenten är primär tidslinje.
-- Ta bort `DisplayTimelineV2Card` från icke-submitted-läge (V2-flödet återanvänds bara för "godkänn/redigera"-flödet vilket vi behåller separat när submission startar).
-- Behåll redan implementerad döljning av Arbetsdag-kortet + Totaler-kortet.
+### Steg 4 — Test
+Lägg till `supabase/functions/_shared/timeline/buildGpsDayTimelineOnly.targetWiggle.test.ts` med exakt scenariot från bild 1 (9 pings, 8 inom target-radie, en ~100 m utanför). Förväntat output: **ett** `stay`-segment på target, ingen `transport`, ingen `gps_gap`.
 
-### 5. Tester
-- `src/test/staffGanttMirrorParity.contract.test.ts`: matar samma `cand`-fixture (display V2, candidate, allocation, mixed) genom helpern och säkerställer att utvärden matchar dagens admin-output (`buildStaffGanttBlocksFromCandidate` vs nuvarande inline useMemo via snapshot-fixture).
-- Snapshot-test för 3 representativa dagar: stor projekt-rigg med absorberad transport, ren lager-dag, dag med "Osäker period".
-- Behåll befintliga gantt-tester gröna (visualGanttBlocks, applyPlanningPhaseToGanttBlocks, ganttSourceSelection).
+## Filer som ändras
 
-### 6. Riskhantering
-- Refaktoreringen av `StaffGanttView` rör en stor useMemo — vi gör den till ett rent funktionsanrop med oförändrad signatur så att admin-rendering inte ändras.
-- Vi tar **inte** bort `staff_day_report_cache`-vägen — den används fortfarande av `useStaffDayStatusViaMobileReport` för status/totaler (Arbetsdag-banner när dag är inskickad).
-- Memory-regeln "Mobile Time App Mirror Only" uppdateras: mobilen får läsa `get-staff-presence-day` direkt så länge den kör exakt samma deterministiska klient-pipeline som admin.
+- `supabase/functions/_shared/timeline/buildGpsDayTimelineOnly.ts` — ny helper `reclassifyTravelInsideTargets(segments, knownTargets)` som körs efter `buildTravelChains` och före `gap-injection`.
+- `supabase/functions/_shared/timeline/buildGpsDayTimelineOnly.targetWiggle.test.ts` — ny kontrakts-test.
+- Inga frontend-ändringar krävs — admin-Gantten och mobilspegelns pipeline plockar upp den nya segmentstrukturen automatiskt.
 
-## Tekniska detaljer
+## Vad detta INTE rör
 
-```text
-/m/report (TodayTab)
- ├── StaffDayRemindersBanner
- ├── [isSubmitted] WorkdayStatusCard + TotalsCard      (oförändrat)
- ├── StaffGanttMirrorTimeline  ◄── NY
- │      useStaffGanttMirror(staffId, date)
- │        ├── supabase.functions.invoke('get-staff-presence-day')
- │        ├── supabase.from('calendar_events') för phase
- │        └── buildStaffGanttBlocksFromCandidate(...)  (delad helper)
- ├── ActionsNeededSection
- ├── PrimaryAction (Starta/Avsluta arbetsdag)
- └── DisplayTimelineV2Card  (bara om submission påbörjad — godkänn/redigera)
-```
-
-Filer som ändras eller läggs till:
-- `src/lib/staff/buildStaffGanttBlocks.ts` (ny, ren helper)
-- `src/components/staff/StaffGanttView.tsx` (kallar helpern)
-- `src/hooks/useStaffGanttMirror.ts` (ny)
-- `src/components/mobile-app/time/StaffGanttMirrorTimeline.tsx` (ny)
-- `src/components/mobile-app/time/TodayTab.tsx` (byt timeline)
-- `src/test/staffGanttMirrorParity.contract.test.ts` (nya tester)
-- `mem://constraints/mobile-time-app-mirror-only-v1` (uppdaterad — tillåter direktanrop av `get-staff-presence-day` så länge samma klient-pipeline används)
-
-## Vad jag INTE rör
-
-- Tidsmotorn själv (`get-staff-presence-day`, `time-engine`) — ingen logikändring.
-- Submission/AI-validering — `DisplayTimelineV2Card` lever kvar för det flödet.
-- Admin-sidans visuella beteende — refaktorn är ren extraktion.
-- Andra appar (Scanner, Time-appens andra flikar).
+- Klustringströsklarna (80 m / 5 min) lämnas orörda — vi tolkar bara om resultatet i ljuset av kända targets.
+- Inga ändringar i regelmotorn för "oklara segment" eller AI — färre `gps_gap` betyder bara färre GRANSKA-chips, vilket är hela poängen.
+- Ingen ändring i `time_reports`/lön/fakturering — bara visningen + det som regelmotorn matas med.
