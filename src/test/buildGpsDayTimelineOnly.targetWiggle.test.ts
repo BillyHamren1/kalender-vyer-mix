@@ -71,6 +71,8 @@ describe('buildGpsDayTimelineOnly — target wiggle', () => {
     });
     const transports = out.segments.filter((s: any) => s.kind === 'travel' && s.type === 'transport');
     expect(transports.length).toBeGreaterThanOrEqual(1);
+  });
+
   it('hem-target (type=home) blir ALDRIG ett known_site stay — hem är inte arbete', () => {
     const home = {
       id: 'home:billy',
