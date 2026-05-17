@@ -841,8 +841,20 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
       const hasV2Field = (cand as any)?.hasDisplayTimelineV2Field === true;
 
       // Mappa direkt så vi vet vad som är renderbart.
-      const mappedV2 = mapDisplayTimelineBlocksToGantt(v2Blocks as any).map(timelineBlockToGanttBlock);
-      const mappedAlloc = mapWorkdayAllocationSegmentsToGantt(allocSegs as any).map(timelineBlockToGanttBlock);
+      const mappedV2Raw = mapDisplayTimelineBlocksToGantt(v2Blocks as any).map(timelineBlockToGanttBlock);
+      const mappedAllocRaw = mapWorkdayAllocationSegmentsToGantt(allocSegs as any).map(timelineBlockToGanttBlock);
+      // Time Gantt Phase Fix — applicera personalkalenderns rig/event/rigdown
+      // även på V2 och allocation-block. Warehouse/transport/review rörs ej.
+      const mappedV2 = applyPlanningPhaseToGanttBlocks(
+        mappedV2Raw,
+        bookingPhaseByDate,
+        largeProjectPhaseByDate,
+      ) as GanttBlock[];
+      const mappedAlloc = applyPlanningPhaseToGanttBlocks(
+        mappedAllocRaw,
+        bookingPhaseByDate,
+        largeProjectPhaseByDate,
+      ) as GanttBlock[];
 
       // ── DEL 1 / Fix B — V2 explicit suppression-guard ──
       const wdaDiag = cand?.workdayAllocationDiagnostics ?? null;
