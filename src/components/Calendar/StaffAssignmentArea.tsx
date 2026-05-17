@@ -42,7 +42,8 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
 
   const handleRemoveStaff = (staffId: string) => {
     if (onStaffDrop) {
-      onStaffDrop(staffId, null, day);
+      // Multi-team: only remove THIS team-row, not all teams for the day.
+      onStaffDrop(staffId, null, day, resource.id);
     }
   };
 
