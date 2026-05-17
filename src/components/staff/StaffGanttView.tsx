@@ -1582,6 +1582,29 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
               </select>
               <ChevronRight className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-90 text-muted-foreground" />
             </div>
+            <div className="flex items-center gap-1 rounded-xl border border-border/70 bg-background px-1 shadow-sm">
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7"
+                onClick={() => setHourPx((px) => Math.max(24, px - 16))}
+                title="Zooma ut tidslinjen"
+                aria-label="Zooma ut"
+              >
+                <span className="text-base leading-none">−</span>
+              </Button>
+              <span className="min-w-[2.5rem] text-center text-xs tabular-nums text-muted-foreground">{hourPx}px/h</span>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7"
+                onClick={() => setHourPx((px) => Math.min(240, px + 16))}
+                title="Zooma in tidslinjen"
+                aria-label="Zooma in"
+              >
+                <span className="text-base leading-none">+</span>
+              </Button>
+            </div>
           </div>
         </div>
 
