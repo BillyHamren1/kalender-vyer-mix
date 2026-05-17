@@ -208,6 +208,14 @@ export interface TraceStaffEntry {
   };
   comparison: TraceComparison;
   diffFindings: DiffFinding[];
+  /** Time Legacy Purge 4 — GPS evidence (presentation, ej arbete). */
+  gpsEvidence: {
+    hasGpsEvidenceButNoRenderedWork: boolean;
+    gpsEvidenceStartAt: string | null;
+    gpsEvidenceEndAt: string | null;
+    rawPingCount: number;
+    reasonNoWorkRendered: string | null;
+  };
 }
 
 export interface TimeEngineTraceExport {
