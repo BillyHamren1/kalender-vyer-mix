@@ -413,14 +413,26 @@ function buildDiffFindings(
   }
 
   if (comparison.hasRawPings && !comparison.appearsInReportList) {
+    // Fix 4 — nedgradera till warning om Time Engine ändå har körts.
+    // Det är diagnostiskt, inte blockerande, så länge motorn har data.
+    const engineRan =
+      !!timeEngine.dayEvidenceDiagnostics ||
+      !!timeEngine.workdayAllocationDiagnostics ||
+      !!timeEngine.displayTimelineDiagnosticsV2 ||
+      !!timeEngine.locationTruthV2Diagnostics ||
+      (timeEngine.locationTruthV2Segments?.length ?? 0) > 0;
     findings.push({
-      severity: 'critical',
+      severity: engineRan ? 'warning' : 'critical',
       type: 'staff_has_pings_but_missing_from_report',
-      message: 'Personen har GPS-pings men finns inte i rapportlistan.',
+      message: engineRan
+        ? 'Personen har GPS-pings och saknas i rapportlistan, men Time Engine kördes och har diagnostik.'
+        : 'Personen har GPS-pings men finns inte i rapportlistan och Time Engine har ingen diagnostik.',
       evidence: {
         rawPingCount: rawPings.count,
         firstRecordedAt: rawPings.firstRecordedAt,
         lastRecordedAt: rawPings.lastRecordedAt,
+        timeEngineFetchError: timeEngine.timeEngineFetchError,
+        engineRan,
       },
     });
   }
