@@ -1931,33 +1931,107 @@ const StaffTimeReports: React.FC = () => {
       });
       if (error) throw error;
 
+      // ── Time Legacy Purge Kontrollfix 2 — staffUnion för export ──
+      // staffList kan sakna staff som bara har raw GPS för dagen (race/
+      // pagination/health-cache off). För att TimeEngine-diagnostik aldrig
+      // ska bli null för Billy/Raivis-fallet bygger vi en union mellan:
+      //   1. staffList (existerande rapport-/planering-/GPS-union)
+      //   2. rawPings.perStaff (raw GPS-only personer)
+      // och kör get-staff-presence-day för raw-only-staff inline innan
+      // exporten byggs. Påverkar inte UI/Gantt — endast trace export.
+      const existingIds = new Set(staffList.map(s => s.id));
+      const rawOnlyEntries = (((rawPings as any)?.perStaff ?? []) as Array<{
+        staffId: string;
+        staffName: string | null;
+      }>).filter(p => p.staffId && !existingIds.has(p.staffId));
+
+      const extraReportCandidateByStaff: Record<string, any> = {};
+      if (rawOnlyEntries.length > 0) {
+        const results = await Promise.all(
+          rawOnlyEntries.map(async (p) => {
+            try {
+              const { data, error: invErr } = await supabase.functions.invoke('get-staff-presence-day', {
+                body: { staffId: p.staffId, date: dateStr },
+              });
+              if (invErr) {
+                return { id: p.staffId, data: null, error: invErr.message };
+              }
+              if (data && (data as any).ok === false) {
+                return { id: p.staffId, data: null, error: (data as any).error ?? 'presence_day_failed' };
+              }
+              return { id: p.staffId, data, error: null };
+            } catch (e: any) {
+              return { id: p.staffId, data: null, error: e?.message ?? String(e) };
+            }
+          }),
+        );
+        for (const r of results) {
+          const d = r.data as any;
+          extraReportCandidateByStaff[r.id] = {
+            blocks: d?.reportCandidateBlocks ?? [],
+            summary: d?.reportCandidateSummary ?? null,
+            diagnostics: d?.reportCandidateDiagnostics ?? null,
+            displayTimelineBlocksV2: d?.displayTimelineBlocksV2 ?? [],
+            hasDisplayTimelineV2Field: Array.isArray(d?.displayTimelineBlocksV2),
+            displayTimelineDiagnosticsV2: d?.displayTimelineDiagnosticsV2 ?? null,
+            workdayAllocationSegments: d?.workdayAllocationSegments ?? [],
+            workdayAllocationDiagnostics: d?.workdayAllocationDiagnostics ?? null,
+            locationTruthV2Segments: d?.locationTruthV2Segments ?? [],
+            locationTruthV2Diagnostics: d?.locationTruthV2Diagnostics ?? null,
+            locationTruthV2NotBuiltReason:
+              (Array.isArray(d?.locationTruthV2Segments) && d.locationTruthV2Segments.length > 0)
+                ? null
+                : (d?.locationTruthV2Diagnostics?.error
+                    ?? d?.locationTruthV2Diagnostics?.notBuiltReason
+                    ?? (d?.locationTruthV2Diagnostics ? 'no_segments_built' : (r.error ?? 'not_attempted'))),
+            loading: false,
+            missing: !d,
+          };
+        }
+      }
+
+      const mergedReportCandidateByStaff = {
+        ...(reportCandidateByStaff as any),
+        ...extraReportCandidateByStaff,
+      };
+
+      const baseSeeds = staffList.map(s => {
+        // Time Legacy Purge 5 — diagnostik: vilka källor triggade union.
+        const sources: string[] = [];
+        const p = s.presence;
+        if (p?.hasTimeReports) sources.push('time_reports');
+        if (p?.hasWorkday) sources.push('workday');
+        if (p?.hasLocationTimeEntries) sources.push('location_time_entries');
+        if (p?.hasTravelLogs) sources.push('travel_time_logs');
+        if (p?.hasGpsPings) sources.push('raw_gps');
+        if (p?.hasAssistantEvents) sources.push('assistant_events');
+        if (p?.hasWorkdayFlags) sources.push('workday_flags');
+        if (p?.plannedFromBookingStaffAssignments) sources.push('booking_staff_assignments');
+        if (p?.plannedFromStaffAssignments) sources.push('staff_assignments');
+        if (p?.plannedFromLargeProjectStaff) sources.push('large_project_staff');
+        return {
+          staffId: s.id,
+          staffName: s.name,
+          appearsInReportList: true,
+          inclusionSources: sources,
+        };
+      });
+      // Raw-only staff: ingår inte i rapportlistan men har GPS-evidence
+      // och har fått presence-day kört explicit ovan.
+      const rawOnlySeeds = rawOnlyEntries.map(p => ({
+        staffId: p.staffId,
+        staffName: p.staffName ?? null,
+        appearsInReportList: false,
+        inclusionSources: ['raw_gps'],
+      }));
+
       const exp = buildTimeEngineTraceExport({
         exportedAt: new Date().toISOString(),
         organizationId,
         date: dateStr,
         timezone: 'Europe/Stockholm',
-        staffSeeds: staffList.map(s => {
-          // Time Legacy Purge 5 — diagnostik: vilka källor triggade union.
-          const sources: string[] = [];
-          const p = s.presence;
-          if (p?.hasTimeReports) sources.push('time_reports');
-          if (p?.hasWorkday) sources.push('workday');
-          if (p?.hasLocationTimeEntries) sources.push('location_time_entries');
-          if (p?.hasTravelLogs) sources.push('travel_time_logs');
-          if (p?.hasGpsPings) sources.push('raw_gps');
-          if (p?.hasAssistantEvents) sources.push('assistant_events');
-          if (p?.hasWorkdayFlags) sources.push('workday_flags');
-          if (p?.plannedFromBookingStaffAssignments) sources.push('booking_staff_assignments');
-          if (p?.plannedFromStaffAssignments) sources.push('staff_assignments');
-          if (p?.plannedFromLargeProjectStaff) sources.push('large_project_staff');
-          return {
-            staffId: s.id,
-            staffName: s.name,
-            appearsInReportList: true,
-            inclusionSources: sources,
-          };
-        }),
-        reportCandidateByStaff: reportCandidateByStaff as any,
+        staffSeeds: [...baseSeeds, ...rawOnlySeeds],
+        reportCandidateByStaff: mergedReportCandidateByStaff,
         rawPings: rawPings as any,
         ganttDiagnosticsByStaff: ganttDiagnosticsRef.current,
         maxRowsPerStaff: 10_000,
