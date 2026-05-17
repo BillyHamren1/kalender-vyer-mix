@@ -482,7 +482,6 @@ export interface ResolveWorkdayEnvelopeInput {
   nowIso?: string | null;
   }
 
-  for (const seg of ltSegments) {
 
 /**
  * Bygger workdayEnvelope från aktiv dagtimer.
