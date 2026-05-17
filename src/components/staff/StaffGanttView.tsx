@@ -75,6 +75,15 @@ import { cn } from '@/lib/utils';
 import { useCurrentOrg } from '@/hooks/useCurrentOrg';
 import { useRawStaffPingsDebug, isRawPingsDebugEnabled } from '@/hooks/staff/useRawStaffPingsDebug';
 import {
+  GANTT_HEADER_PX,
+  GANTT_NAME_COL_PX,
+  GANTT_ROW_PX,
+  getGanttEvidenceBarStyle,
+  getGanttLaneMetrics,
+  shouldShowCompactBlockBadge,
+  shouldShowCompactBlockTime,
+} from '@/lib/staff/ganttCompactLayout';
+import {
   buildReportDataGapDiagnosis,
   describeReportDataGapStatus,
   type ReportDataGapDiagnosis,
@@ -1689,9 +1698,9 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
           </div>
         ) : (
           (() => {
-            const NAME_COL_PX = 240;
+            const NAME_COL_PX = GANTT_NAME_COL_PX;
             const HOUR_PX = hourPx;
-            const ROW_PX = 96;
+            const ROW_PX = GANTT_ROW_PX;
             const timelineWidth = totalHours * HOUR_PX;
 
             const blockGeometry = (b: GanttBlock) => {
@@ -1711,7 +1720,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                   {/* Header-rad: "Personal" + timmar */}
                   <div
                     className="sticky top-0 z-30 flex border-b border-border/60 bg-card/95 backdrop-blur-md"
-                    style={{ height: 52 }}
+                    style={{ height: GANTT_HEADER_PX }}
                   >
                     <div
                       className="sticky left-0 z-40 flex flex-col justify-center border-r border-border/60 bg-card/95 px-4 backdrop-blur-md"
@@ -1722,7 +1731,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                         {ganttStaff.length} personer
                       </div>
                     </div>
-                    <div className="relative" style={{ width: timelineWidth, height: 32 }}>
+                      <div className="relative" style={{ width: timelineWidth, height: GANTT_HEADER_PX - 12 }}>
                       {hours.slice(0, -1).map((h, i) => {
                         const isLunch = h === 12;
                         return (
@@ -1812,9 +1821,6 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                             <div className="truncate text-[13px] font-semibold leading-tight">
                               {staff.name}
                             </div>
-                            <div className="mt-0.5 truncate text-[10.5px] text-muted-foreground">
-                              {staff.plannedLabels[0] ?? staff.role ?? '—'}
-                            </div>
                             <div className="mt-0.5 flex items-center gap-2 text-[10px] tabular-nums text-muted-foreground">
                               {(() => {
                                 // Suggested-Only: visa SAMMA siffror som modalen (reportCandidateSummary).
@@ -1842,25 +1848,6 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                 );
                               })()}
                             </div>
-                            {(() => {
-                              const ev = evidenceByStaff[staff.id];
-                              const sum = reportCandidateByStaff?.[staff.id]?.summary as
-                                | { workMinutes?: number; transportMinutes?: number }
-                                | null
-                                | undefined;
-                              const hasAnySuggested = (sum?.workMinutes ?? 0) > 0
-                                || (sum?.transportMinutes ?? 0) > 0
-                                || staff.metrics.activityMinutes > 0;
-                              if (!ev || hasAnySuggested) return null;
-                              const range = ev.startAt && ev.endAt
-                                ? `${formatStockholmHm(ev.startAt)}–${formatStockholmHm(ev.endAt)}`
-                                : '—';
-                              return (
-                                <div className="mt-0.5 truncate text-[10px] italic text-muted-foreground/70">
-                                  GPS {range}
-                                </div>
-                              );
-                            })()}
                             {diagnosticsEnabled && (() => {
                               const diag = diagnosisByStaff.get(staff.id);
                               if (!diag || diag.status === 'ok') return null;
@@ -1977,18 +1964,17 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                   setOpenStaffId(staff.id);
                                 }}
                                 className={cn(
-                                  'absolute z-[5] cursor-pointer overflow-hidden rounded-md border border-dashed',
-                                  'border-muted-foreground/30 bg-muted/30 text-[10px] text-muted-foreground',
-                                  'flex items-center px-2 hover:bg-muted/50 hover:border-muted-foreground/50',
+                                  'absolute z-[5] cursor-pointer overflow-hidden rounded-full border border-dashed',
+                                  'border-muted-foreground/30 bg-muted/30 text-[9px] text-muted-foreground',
+                                  'flex items-center px-1.5 hover:bg-muted/50 hover:border-muted-foreground/50',
                                 )}
                                 style={{
                                   left: left + 2,
                                   width: Math.max(40, width - 4),
-                                  top: ROW_PX - 18,
-                                  height: 12,
+                                  ...getGanttEvidenceBarStyle(ROW_PX),
                                 }}
                               >
-                                <span className="truncate">{ev.label}</span>
+                                <span className="truncate">GPS</span>
                               </div>
                             );
                           })()}
@@ -2067,14 +2053,15 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                             return rects.map(({ b, left, width, lane, laneCount }) => {
                               const style = KIND_STYLE[b.kind];
                               const overlapping = overlapsPrev.has(b.id);
-                              const laneHeight = (ROW_PX - 12) / laneCount;
-                              const top = 6 + lane * laneHeight;
+                              const laneMetrics = getGanttLaneMetrics(laneCount, ROW_PX);
+                              const laneHeight = laneMetrics.laneHeight;
+                              const top = laneMetrics.topInset + lane * laneHeight;
                               const isSecondary = !['work', 'warehouse', 'rig', 'rigdown'].includes(b.kind);
                               const isNarrow = width < 90;
-                              const isShort = laneHeight < 42;
-                              const showTime = width >= 110 && laneHeight >= 50 && !isSecondary;
-                              const showChips = !!b.attachedChips?.length && width >= 160 && laneHeight >= 64;
+                              const showTime = shouldShowCompactBlockTime({ width, laneHeight, isSecondary });
+                              const showChips = false;
                               const showLabel = width >= 50;
+                              const showBadge = shouldShowCompactBlockBadge({ width, laneHeight });
                               const displayTitle = blockDisplayTitle(
                                 b,
                                 b.isNightGpsOnly ? 'GPS-natt' : style.label,
@@ -2089,8 +2076,8 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                     setSelectedBlock({ staffId: staff.id, blockId: b.id });
                                   }}
                                   className={cn(
-                                    'absolute cursor-pointer overflow-hidden rounded-xl border text-[11px] leading-tight backdrop-blur-[2px] transition-all hover:-translate-y-px hover:shadow-md hover:z-20',
-                                    isNarrow ? 'px-1 py-0.5' : 'px-2 py-1',
+                                    'absolute cursor-pointer overflow-hidden rounded-md border text-[10px] leading-tight backdrop-blur-[2px] transition-all hover:-translate-y-px hover:shadow-md hover:z-20',
+                                    isNarrow ? 'px-1 py-0.5' : 'px-1.5 py-0.5',
                                     b.isNightGpsOnly
                                       ? 'bg-muted/40 border-dashed border-border/60 opacity-60'
                                       : style.bg,
@@ -2102,33 +2089,34 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                     left: left + 2,
                                     width: Math.max(40, width - 4),
                                     top,
-                                    height: laneHeight - 4,
+                                    height: laneMetrics.blockHeight,
                                     color: '#0a0a0a',
                                     boxShadow: '0 1px 3px hsl(var(--foreground) / 0.06), inset 0 1px 0 hsl(0 0% 100% / 0.5)',
                                   }}
                                   title={blockTooltipText(b, displayTitle, overlapping) + (b.attachedChips?.length ? '\n' + b.attachedChips.map(c => '• ' + c).join('\n') : '')}
                                 >
-                                  <div className="flex min-w-0 flex-col gap-0.5">
-                                    <span
-                                      className="self-start shrink-0 rounded-[5px] px-1.5 py-px text-[8.5px] font-bold uppercase tracking-[0.06em]"
-                                      style={{
-                                        backgroundColor: b.isNightGpsOnly
-                                          ? 'hsl(var(--muted) / 0.7)'
-                                          : 'hsl(0 0% 0% / 0.08)',
-                                        color: b.isNightGpsOnly
-                                          ? 'hsl(var(--muted-foreground))'
-                                          : 'hsl(0 0% 12%)',
-                                      }}
-                                    >
-                                      {b.isNightGpsOnly ? 'GPS-natt' : style.label}
-                                    </span>
+                                  <div className="flex min-w-0 items-center gap-1">
+                                    {showBadge && (
+                                      <span
+                                        className="shrink-0 rounded-[4px] px-1 py-px text-[8px] font-bold uppercase"
+                                        style={{
+                                          backgroundColor: b.isNightGpsOnly
+                                            ? 'hsl(var(--muted) / 0.7)'
+                                            : 'hsl(0 0% 0% / 0.08)',
+                                          color: b.isNightGpsOnly
+                                            ? 'hsl(var(--muted-foreground))'
+                                            : 'hsl(0 0% 12%)',
+                                        }}
+                                      >
+                                        {b.isNightGpsOnly ? 'GPS' : style.label}
+                                      </span>
+                                    )}
                                     {showLabel && (
-                                      <span className="truncate font-semibold">{displayTitle}</span>
+                                      <span className="min-w-0 truncate font-semibold">{displayTitle}</span>
                                     )}
                                     {showTime && (
-                                      <span className="truncate text-[10px] tabular-nums opacity-80">
-                                        {formatStockholmHm(b.startAt)}–{formatStockholmHm(b.endAt)} ·{' '}
-                                        {fmtMin(b.durationMinutes)}
+                                      <span className="shrink-0 truncate text-[9px] tabular-nums opacity-75">
+                                        {formatStockholmHm(b.startAt)}–{formatStockholmHm(b.endAt)}
                                       </span>
                                     )}
                                   </div>
