@@ -40,6 +40,11 @@ interface RequestBody {
 }
 
 type DebugSource = "cache" | "live_engine" | "missing" | "missing_engine_result";
+type DisplaySourceUsed =
+  | "display_timeline_v2"
+  | "report_candidate_legacy_fallback"
+  | "empty_v2_decision"
+  | "none";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -54,15 +59,30 @@ function blockArrayLength(v: unknown): number {
 
 /**
  * Mirror of `pickCacheBlocks` in _shared/mobile/mapReportBlocksToSegments.ts.
- * Centralises priority: display_blocks_json → report_candidate_blocks_json.
+ * V2-aware: when `display_blocks_json` is an Array (even empty) it counts as
+ * the V2 decision and we DO NOT fall back to report_candidate_blocks_json.
  * Used here only for the `cacheUnusable` decision; the actual mapping in
  * `buildMobileSnapshot` calls `pickCacheBlocks` directly.
  */
 function effectiveCacheBlockCount(cache: CacheRow | null): number {
   if (!cache) return 0;
-  const display = blockArrayLength(cache.display_blocks_json);
-  if (display > 0) return display;
+  if (Array.isArray(cache.display_blocks_json)) {
+    return cache.display_blocks_json.length;
+  }
   return blockArrayLength(cache.report_candidate_blocks_json);
+}
+
+function describeDisplaySource(cache: CacheRow | null): DisplaySourceUsed {
+  if (!cache) return "none";
+  if (Array.isArray(cache.display_blocks_json)) {
+    return cache.display_blocks_json.length > 0
+      ? "display_timeline_v2"
+      : "empty_v2_decision";
+  }
+  if (Array.isArray(cache.report_candidate_blocks_json) && cache.report_candidate_blocks_json.length > 0) {
+    return "report_candidate_legacy_fallback";
+  }
+  return "none";
 }
 
 /**
@@ -99,18 +119,45 @@ async function fetchLiveEngineAsCacheRow(
         error: json?.error ?? `presence_day_http_${resp.status}`,
       };
     }
-    const blocks = Array.isArray(json.reportCandidateBlocks)
+    // V2 PRIORITY (Time Reporting Fix 1):
+    //   Mobilen MÅSTE använda displayTimelineBlocksV2 som primär källa –
+    //   samma som admin-Gantt. reportCandidateBlocks är bara en
+    //   legacy-fallback när V2-fältet saknas helt (äldre backend).
+    //
+    //   Om V2-fältet finns men är tomt = explicit V2-beslut → display
+    //   förblir tomt (UI visar V2-tom evidence-status). Vi får ALDRIG
+    //   fallbacka till reportCandidateBlocks i det läget.
+    const hasV2Field = Array.isArray(json.displayTimelineBlocksV2);
+    const displayBlocks = hasV2Field
+      ? (json.displayTimelineBlocksV2 as any[])
+      : (Array.isArray(json.reportCandidateBlocks) ? json.reportCandidateBlocks : []);
+    const reportCandidateBlocks = Array.isArray(json.reportCandidateBlocks)
       ? json.reportCandidateBlocks
       : [];
+    const workdayAllocationSegments = Array.isArray(json.workdayAllocationSegments)
+      ? json.workdayAllocationSegments
+      : [];
+    const locationTruthSegments = Array.isArray(json.locationTruthV2Segments)
+      ? json.locationTruthV2Segments
+      : [];
+    const sourceUsed: DisplaySourceUsed = hasV2Field
+      ? (displayBlocks.length > 0 ? "display_timeline_v2" : "empty_v2_decision")
+      : (reportCandidateBlocks.length > 0 ? "report_candidate_legacy_fallback" : "none");
     const summary = json.reportCandidateSummary ?? null;
     const row: CacheRow = {
       engine_version: json?.reportCandidateDiagnostics?.engineVersion ?? "live",
       summary_json: summary ?? {},
-      report_candidate_blocks_json: blocks,
-      display_blocks_json: blocks,
+      report_candidate_blocks_json: reportCandidateBlocks,
+      display_blocks_json: displayBlocks,
       diagnostics_json: {
         ...(json.reportCandidateDiagnostics ?? {}),
         unknownLocationDiagnostics: json.unknownLocationDiagnostics ?? null,
+        displayTimelineDiagnosticsV2: json.displayTimelineDiagnosticsV2 ?? null,
+        workdayAllocationDiagnostics: json.workdayAllocationDiagnostics ?? null,
+        workdayAllocationSegmentsCount: workdayAllocationSegments.length,
+        locationTruthV2SegmentsCount: locationTruthSegments.length,
+        mobileDisplaySourceUsed: sourceUsed,
+        v2FieldPresent: hasV2Field,
       },
       built_at: new Date().toISOString(),
       stale: false,
@@ -188,14 +235,21 @@ Deno.serve(async (req: Request) => {
   }
 
   // 3) Decide whether to use cache or fall back to live engine.
-  // The mobile mirror MUST NOT show 0h if admin web's live engine has data.
-  // Priority: display_blocks_json → report_candidate_blocks_json → live engine.
+  //
+  // V2-aware (Time Reporting Fix 1):
+  //   - Om cache har display_blocks_json som Array (även tom) = explicit V2-beslut.
+  //     Då fetchar vi INTE live; tom är ett legitimt svar och får inte fyllas
+  //     med reportCandidate-fallback.
+  //   - Vi fetchar live ENDAST när cache helt saknas/har error/är stale eller
+  //     när V2-fältet aldrig kommit in (display_blocks_json saknas) och inga
+  //     candidate-blocks heller finns.
+  const cacheHasV2Field = Array.isArray(cache?.display_blocks_json);
   const cacheBlockCount = effectiveCacheBlockCount(cache);
   const cacheUnusable =
     !cache ||
     !!cache.error ||
     !!cache.stale ||
-    cacheBlockCount === 0 ||
+    (!cacheHasV2Field && cacheBlockCount === 0) ||
     body.force === true;
 
   let debugSource: DebugSource = cache ? "cache" : "missing";
@@ -204,19 +258,22 @@ Deno.serve(async (req: Request) => {
 
   if (cacheUnusable) {
     const live = await fetchLiveEngineAsCacheRow(staffId, orgId, date);
-    if (live.row && effectiveCacheBlockCount(live.row) > 0) {
+    if (live.row) {
+      // Adopt live row even when V2 is empty — that's an explicit V2 decision
+      // that must reach the mobile UI (instead of legacy candidate fallback).
       effectiveCache = live.row;
       debugSource = "live_engine";
+      liveEngineError = live.error;
     } else if (!cache) {
-      // Neither cache nor live engine produced anything.
       debugSource = live.error ? "missing_engine_result" : "missing";
       liveEngineError = live.error;
     } else {
-      // Cache exists but empty/stale and live didn't help — keep cache as-is.
       debugSource = "cache";
       liveEngineError = live.error;
     }
   }
+
+  const displaySourceUsed = describeDisplaySource(effectiveCache);
 
   // NOTE: workdays / active_time_registrations are intentionally NOT read here.
   const snapshot = buildMobileSnapshot({
@@ -253,6 +310,8 @@ Deno.serve(async (req: Request) => {
     cacheError: cache?.error ?? null,
     cacheFetchError,
     cacheBlockCount,
+    cacheHasV2Field,
+    displaySourceUsed,
     liveEngineError,
     timerOwnership,
   };

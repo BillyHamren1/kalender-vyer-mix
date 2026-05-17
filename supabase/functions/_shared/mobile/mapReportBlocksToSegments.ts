@@ -39,22 +39,29 @@ interface RawBlock {
 
 /**
  * Source-of-truth selector for which cache JSON column the mobile mirror
- * should render. Priority matches the request:
- *   1. display_blocks_json    (Time Engine consumer-facing)
- *   2. report_candidate_blocks_json (engine raw, same shape today)
+ * should render. Priority matches admin web's StaffGanttView (Fix B):
  *
- * Returns [] when both are missing/empty so callers can decide on a
- * presence-day fallback.
+ *   1. display_blocks_json   — V2 DisplayTimeline output. If this field is
+ *      an Array (EVEN EMPTY) it represents an explicit V2 decision and is
+ *      returned as-is. Mobile MUST NOT fall back to legacy candidate blocks
+ *      when V2 has analysed the day and decided it's empty.
+ *   2. report_candidate_blocks_json — Legacy fallback. Only used when
+ *      display_blocks_json is not an Array at all (missing field / older
+ *      backend without V2 support).
+ *
+ * Returns [] when both are missing/empty.
  */
 export function pickCacheBlocks(cache: {
   display_blocks_json?: unknown;
   report_candidate_blocks_json?: unknown;
 } | null): unknown[] {
   if (!cache) return [];
-  if (Array.isArray(cache.display_blocks_json) && cache.display_blocks_json.length > 0) {
+  // V2 explicit-decision wins: an empty Array means "V2 analysed → empty".
+  if (Array.isArray(cache.display_blocks_json)) {
     return cache.display_blocks_json as unknown[];
   }
-  if (Array.isArray(cache.report_candidate_blocks_json) && cache.report_candidate_blocks_json.length > 0) {
+  // Legacy fallback only when display field is absent entirely.
+  if (Array.isArray(cache.report_candidate_blocks_json)) {
     return cache.report_candidate_blocks_json as unknown[];
   }
   return [];
