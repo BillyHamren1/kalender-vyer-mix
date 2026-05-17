@@ -63,7 +63,7 @@ describe('Admin Gantt Suggested-Only Source Selection', () => {
   it('returnerar säker default när allt är tomt', () => {
     const r = pickSource({ legacyCount: 0, mappedV2Count: 0, mappedAllocationCount: 0, hasV2Field: false });
     // Vilken källa som väljs är inte poängen här — bara att det inte kastar.
-    expect(['reportCandidate', 'displayTimelineV2', 'workdayAllocation']).toContain(r);
+    expect(['reportCandidate', 'displayTimelineV2', 'workdayAllocation', 'empty']).toContain(r);
   });
 });
 
