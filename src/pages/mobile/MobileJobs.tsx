@@ -218,13 +218,8 @@ const MobileJobs = () => {
         )}
       </div>
 
-      {geofenceEvent && (
-        <GeofencePrompt
-          event={geofenceEvent}
-          onConfirm={handleGeofenceConfirm}
-          onDismiss={dismissGeofenceEvent}
-        />
-      )}
+      {/* Time Legacy Purge 6 — GeofencePrompt borttagen. Ingen popup på
+          geofence enter/exit. GPS-pings/evidence skickas fortfarande. */}
     </div>
   );
 };
