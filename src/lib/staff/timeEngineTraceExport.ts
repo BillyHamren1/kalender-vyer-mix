@@ -223,6 +223,12 @@ export interface TraceStaffEntry {
     rawPingCount: number;
     reasonNoWorkRendered: string | null;
   };
+  /**
+   * Time Legacy Purge 5 — vilka union-källor som triggade att denna staff
+   * körs genom Time Engine. Tom array = ingen explicit källa (t.ex. staff
+   * uppstod bara från debug-raw-pings utan att finnas i staffList).
+   */
+  inclusionSources: string[];
 }
 
 export interface TimeEngineTraceExport {
