@@ -108,6 +108,23 @@ export interface MobileTrackingPolicy {
   isSignalStale: boolean;
 }
 
+/**
+ * Time Reporting Fix 6 — diagnostik för vilken cache-källa mobilen valde.
+ * Surfar hasDisplayTimelineV2Field, counts och fallbackReason så admin och
+ * mobil kan jämföra sanning utan att gissa.
+ */
+export interface MobileSourceSelection {
+  hasDisplayTimelineV2Field: boolean;
+  displayTimelineV2Count: number;
+  reportCandidateCount: number;
+  selectedSegmentSource: MobileSegmentSource | "none";
+  fallbackReason:
+    | "v2_present"
+    | "v2_present_empty_no_fallback"
+    | "v2_missing_used_legacy"
+    | "no_cache_or_blocks";
+}
+
 export interface MobileWorkday {
   startedAt: string;
   endedAt: string | null;
@@ -126,6 +143,8 @@ export interface MobileDayReport {
   /** Time Reporting Fix 2 — explicit day-level status (preferred by UI). */
   dayStatus: MobileDayStatus;
   debugDayStatus: MobileDayStatusDebug;
+  /** Time Reporting Fix 6 — vilken cache-källa drev segments. */
+  debugSourceSelection: MobileSourceSelection;
   summary: MobileSummary;
   segments: MobileSegment[];
   actionsNeeded: MobileActionItem[];
