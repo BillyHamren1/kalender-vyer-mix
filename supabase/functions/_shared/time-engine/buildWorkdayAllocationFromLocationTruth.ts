@@ -715,10 +715,18 @@ function deriveAllocation(
     const dist = ctx?.distanceMeters ?? null;
     const longTravel = dist !== null && dist > 150_000;
 
-    // Saknar tydlig fram/till-anchor → behöver review.
+    // Saknar tydlig fram/till-anchor.
     if (!ctx || ctx.fromSide === 'unknown' || ctx.toSide === 'unknown') {
       const w: WorkdayAllocationWarning[] = ['movement_missing_anchor'];
       if (longTravel) w.push('long_travel_over_150km');
+      // Time Engine Movement Anchor Fix —
+      // Om vi har faktisk GPS-rutt (route-pings) ska blocket renderas som
+      // Transport (work_travel) med varning — inte som "Behöver granskning".
+      // Endast helt blint movement utan rutt blir review.
+      if (ctx?.hasGpsRoute) {
+        w.unshift('movement_classified_as_work_travel');
+        return { type: 'work_travel', warnings: w, confidence: 'low' };
+      }
       return {
         type: 'needs_work_allocation_review',
         warnings: w,
@@ -751,9 +759,13 @@ function deriveAllocation(
       return { type: 'work_travel', warnings: w, confidence: seg.confidence };
     }
 
-    // Hem ↔ hem eller andra konstellationer → review.
+    // Hem ↔ hem eller andra konstellationer → review (men Transport om GPS-rutt).
     const w: WorkdayAllocationWarning[] = ['movement_missing_anchor'];
     if (longTravel) w.push('long_travel_over_150km');
+    if (ctx.hasGpsRoute) {
+      w.unshift('movement_classified_as_work_travel');
+      return { type: 'work_travel', warnings: w, confidence: 'low' };
+    }
     return { type: 'needs_work_allocation_review', warnings: w, confidence: 'low' };
   }
 
