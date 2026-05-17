@@ -132,6 +132,15 @@ export interface MobileWorkday {
   status: MobileWorkdayStatus;
 }
 
+export interface MobileGpsEvidence {
+  /** True när V2 inte gav arbetstid men raw GPS finns för dagen. */
+  hasGpsEvidenceButNoRenderedWork: boolean;
+  gpsEvidenceStartAt: string | null;
+  gpsEvidenceEndAt: string | null;
+  rawPingCount: number;
+  reasonNoWorkRendered: string | null;
+}
+
 export interface MobileDayReport {
   date: string;
   staffId: string;
@@ -151,4 +160,6 @@ export interface MobileDayReport {
   submission: MobileSubmission | null;
   trackingPolicy: MobileTrackingPolicy | null;
   lastUpdatedAt: string | null;
+  /** Time Legacy Purge 4 — info-rad, ALDRIG arbetstid. */
+  gpsEvidence?: MobileGpsEvidence | null;
 }
