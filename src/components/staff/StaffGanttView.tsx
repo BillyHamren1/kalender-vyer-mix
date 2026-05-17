@@ -2719,6 +2719,7 @@ const DrawerBody: React.FC<DrawerBodyProps> = ({
   onAutoRepairFromEvidence,
 }) => {
   const { work, travel } = buildReviewInputs(staff);
+  const { pings } = useDayPings({ staffId: staff.id, date: dateStr, enabled: true });
   return (
     <div className="space-y-3">
       {staff.pingsFetchError && (
@@ -2726,43 +2727,106 @@ const DrawerBody: React.FC<DrawerBodyProps> = ({
           GPS-historik kunde inte hämtas. ({staff.pingsFetchError})
         </div>
       )}
-      <StaffDayTimelineCard
-        staffName={staff.name}
-        staffId={staff.id}
-        date={dateStr}
-        model={staff.actualModel}
-        lastPingIso={staff.latestPing?.updated_at ?? null}
-        reportCandidateBlocks={reportCandidate?.blocks ?? null}
-        reportCandidateSummary={reportCandidate?.summary ?? null}
-        reportCandidateLoading={reportCandidate?.loading ?? false}
-        reportCandidatePresenceBlocks={reportCandidate?.presenceBlocks ?? null}
-        reportCandidateTargets={reportCandidate?.targets ?? null}
-        reportCandidateDiagnostics={reportCandidate?.diagnostics ?? null}
-        reportCandidateExcludedPreWorkBlocks={reportCandidate?.excludedPreWorkBlocks ?? null}
-        reportCandidatePreWorkExclusionDiagnostics={reportCandidate?.preWorkExclusionDiagnostics ?? null}
-        reportCandidateTargetResolution={reportCandidate?.targetResolution ?? null}
-        reportCandidatePresenceRawEvidence={reportCandidate?.presenceRawEvidence ?? null}
-        reportCandidateRawGpsTimeline={reportCandidate?.rawGpsTimeline ?? null}
-        reportCandidateTechnicalTimeline={reportCandidate?.technicalTimeline ?? null}
-        reportCandidatePresenceDaySummary={reportCandidate?.presenceDaySummary ?? null}
-        reportCandidatePresenceDayAggregation={reportCandidate?.presenceDayAggregation ?? null}
-        reportCandidateTargetMatchSummary={reportCandidate?.targetMatchSummary ?? null}
-        reportCandidateCounts={reportCandidate?.counts ?? null}
-        engineMode={engineMode}
-        reportSlot={
-          <TimeReportReviewTable
-            date={dateStr}
+      <Tabs defaultValue="overview" className="flex flex-col gap-3">
+        <TabsList className="w-full justify-start">
+          <TabsTrigger value="overview">Översikt</TabsTrigger>
+          <TabsTrigger value="map">Karta ({pings.length})</TabsTrigger>
+          <TabsTrigger value="raw">Rå GPS ({pings.length})</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="mt-0">
+          <StaffDayTimelineCard
             staffName={staff.name}
             staffId={staff.id}
-            work={work}
-            travel={travel}
-            canonical={staff.canonical}
+            date={dateStr}
+            model={staff.actualModel}
+            lastPingIso={staff.latestPing?.updated_at ?? null}
+            reportCandidateBlocks={reportCandidate?.blocks ?? null}
+            reportCandidateSummary={reportCandidate?.summary ?? null}
+            reportCandidateLoading={reportCandidate?.loading ?? false}
+            reportCandidatePresenceBlocks={reportCandidate?.presenceBlocks ?? null}
+            reportCandidateTargets={reportCandidate?.targets ?? null}
+            reportCandidateDiagnostics={reportCandidate?.diagnostics ?? null}
+            reportCandidateExcludedPreWorkBlocks={reportCandidate?.excludedPreWorkBlocks ?? null}
+            reportCandidatePreWorkExclusionDiagnostics={reportCandidate?.preWorkExclusionDiagnostics ?? null}
+            reportCandidateTargetResolution={reportCandidate?.targetResolution ?? null}
+            reportCandidatePresenceRawEvidence={reportCandidate?.presenceRawEvidence ?? null}
+            reportCandidateRawGpsTimeline={reportCandidate?.rawGpsTimeline ?? null}
+            reportCandidateTechnicalTimeline={reportCandidate?.technicalTimeline ?? null}
+            reportCandidatePresenceDaySummary={reportCandidate?.presenceDaySummary ?? null}
+            reportCandidatePresenceDayAggregation={reportCandidate?.presenceDayAggregation ?? null}
+            reportCandidateTargetMatchSummary={reportCandidate?.targetMatchSummary ?? null}
+            reportCandidateCounts={reportCandidate?.counts ?? null}
+            engineMode={engineMode}
+            reportSlot={
+              <TimeReportReviewTable
+                date={dateStr}
+                staffName={staff.name}
+                staffId={staff.id}
+                work={work}
+                travel={travel}
+                canonical={staff.canonical}
+              />
+            }
+            onResolvePlannedGap={(input) => onResolvePlannedGap(staff.id, input)}
+            onRepairWorkdayFromEvidence={(input) => onRepairFromEvidence(staff.id, input)}
+            onAutoRepairWorkdayFromEvidence={(input) => onAutoRepairFromEvidence(staff.id, input)}
           />
-        }
-        onResolvePlannedGap={(input) => onResolvePlannedGap(staff.id, input)}
-        onRepairWorkdayFromEvidence={(input) => onRepairFromEvidence(staff.id, input)}
-        onAutoRepairWorkdayFromEvidence={(input) => onAutoRepairFromEvidence(staff.id, input)}
-      />
+        </TabsContent>
+
+        <TabsContent value="map" className="mt-0">
+          <DecisionMapTab
+            staffId={staff.id}
+            date={dateStr}
+            reportCandidateBlocks={(reportCandidate?.blocks ?? []) as ReportCandidateBlockUI[]}
+          />
+        </TabsContent>
+
+        <TabsContent value="raw" className="mt-0">
+          <div className="rounded-md border border-border/60">
+            <div className="px-3 py-2 text-xs text-muted-foreground border-b">
+              {pings.length} pings på {dateStr}
+              {pings.length > 0 && (
+                <>
+                  {' · '}första {formatStockholmHm(pings[0].recorded_at)}
+                  {' · '}sista {formatStockholmHm(pings[pings.length - 1].recorded_at)}
+                </>
+              )}
+            </div>
+            <div className="max-h-[60vh] overflow-auto">
+              {pings.length === 0 ? (
+                <div className="p-3 text-xs text-muted-foreground">Inga pings för dagen.</div>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-muted/60 text-muted-foreground">
+                    <tr>
+                      <th className="text-left font-medium px-2 py-1">Tid</th>
+                      <th className="text-left font-medium px-2 py-1">Lat</th>
+                      <th className="text-left font-medium px-2 py-1">Lng</th>
+                      <th className="text-right font-medium px-2 py-1">Acc (m)</th>
+                      <th className="text-right font-medium px-2 py-1">Speed</th>
+                      <th className="text-left font-medium px-2 py-1">Källa</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pings.map((p) => (
+                      <tr key={p.id} className="border-t border-border/40">
+                        <td className="px-2 py-1 font-mono tabular-nums">{formatStockholmHm(p.recorded_at)}</td>
+                        <td className="px-2 py-1 font-mono">{p.lat.toFixed(5)}</td>
+                        <td className="px-2 py-1 font-mono">{p.lng.toFixed(5)}</td>
+                        <td className="px-2 py-1 text-right tabular-nums">{p.accuracy != null ? Math.round(p.accuracy) : '—'}</td>
+                        <td className="px-2 py-1 text-right tabular-nums">{p.speed != null ? p.speed.toFixed(1) : '—'}</td>
+                        <td className="px-2 py-1 text-muted-foreground">{p.source ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
+
