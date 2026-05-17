@@ -990,6 +990,8 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
     const list = blocksByStaff[selectedBlock.staffId] ?? [];
     return list.find((b) => b.id === selectedBlock.blockId) ?? null;
   }, [selectedBlock, blocksByStaff]);
+  const selectedCanonicalReportBlock =
+    selectedReportBlock ?? selectedRenderedBlock?.reportCandidateBlock ?? null;
 
   // Dev/debug-flagga för att visa per-rad diagnostics-badge i UI.
   // Aktiveras via: localStorage.setItem('gantt:debug','1')  eller via DEV-builds.
@@ -2233,7 +2235,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
         open={
           !!selectedBlock &&
           !!selectedBlockStaff &&
-          (!!selectedReportBlock || !!selectedRenderedBlock)
+          (!!selectedCanonicalReportBlock || !!selectedRenderedBlock)
         }
         onOpenChange={(open) => {
           if (!open) setSelectedBlock(null);
@@ -2242,7 +2244,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
         dateStr={dateStr}
         dateLabel={subLabel}
         reportCandidate={selectedBlockReportCandidate}
-        blockId={selectedReportBlock?.id ?? null}
+        blockId={selectedCanonicalReportBlock?.id ?? null}
         renderedBlock={selectedRenderedBlock}
       />
     </div>
