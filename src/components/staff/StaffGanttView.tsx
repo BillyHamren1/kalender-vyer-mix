@@ -1793,6 +1793,18 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                 </span>
                               )}
                             </div>
+                            {(() => {
+                              const ev = evidenceByStaff[staff.id];
+                              if (!ev || staff.metrics.activityMinutes > 0) return null;
+                              const range = ev.startAt && ev.endAt
+                                ? `${formatStockholmHm(ev.startAt)}–${formatStockholmHm(ev.endAt)}`
+                                : '—';
+                              return (
+                                <div className="mt-0.5 truncate text-[10px] italic text-muted-foreground/70">
+                                  GPS {range}
+                                </div>
+                              );
+                            })()}
                             {diagnosticsEnabled && (() => {
                               const diag = diagnosisByStaff.get(staff.id);
                               if (!diag || diag.status === 'ok') return null;
