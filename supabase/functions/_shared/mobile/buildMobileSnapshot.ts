@@ -7,17 +7,23 @@ import type {
   MobileDayStatus,
   MobileDayStatusDebug,
   MobileSegment,
+  MobileSourceSelection,
   MobileSubmission,
   MobileSummary,
   MobileWorkdayStatus,
 } from "./types.ts";
-import { mapReportBlocksToSegments, pickCacheBlocks } from "./mapReportBlocksToSegments.ts";
+import {
+  mapReportBlocksToSegments,
+  selectCacheBlockSource,
+} from "./mapReportBlocksToSegments.ts";
 
 export interface CacheRow {
   engine_version: string | null;
   summary_json: any;
   report_candidate_blocks_json: any;
   display_blocks_json: any;
+  /** Optional explicit fallback layer between V2 and legacy. */
+  workday_allocation_segments_json?: any;
   diagnostics_json: any;
   built_at: string | null;
   stale: boolean | null;
