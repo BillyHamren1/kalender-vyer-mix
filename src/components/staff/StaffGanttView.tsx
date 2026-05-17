@@ -2207,7 +2207,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
 
       {/* Detail drawer */}
       <Sheet open={!!openStaff} onOpenChange={(o) => { if (!o) setOpenStaffId(null); }}>
-        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+        <SheetContent side="right" className="w-full sm:max-w-4xl overflow-y-auto">
           {openStaff && (
             <>
               <SheetHeader className="mb-3">
