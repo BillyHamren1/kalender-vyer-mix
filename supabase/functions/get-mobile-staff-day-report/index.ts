@@ -119,18 +119,45 @@ async function fetchLiveEngineAsCacheRow(
         error: json?.error ?? `presence_day_http_${resp.status}`,
       };
     }
-    const blocks = Array.isArray(json.reportCandidateBlocks)
+    // V2 PRIORITY (Time Reporting Fix 1):
+    //   Mobilen MÅSTE använda displayTimelineBlocksV2 som primär källa –
+    //   samma som admin-Gantt. reportCandidateBlocks är bara en
+    //   legacy-fallback när V2-fältet saknas helt (äldre backend).
+    //
+    //   Om V2-fältet finns men är tomt = explicit V2-beslut → display
+    //   förblir tomt (UI visar V2-tom evidence-status). Vi får ALDRIG
+    //   fallbacka till reportCandidateBlocks i det läget.
+    const hasV2Field = Array.isArray(json.displayTimelineBlocksV2);
+    const displayBlocks = hasV2Field
+      ? (json.displayTimelineBlocksV2 as any[])
+      : (Array.isArray(json.reportCandidateBlocks) ? json.reportCandidateBlocks : []);
+    const reportCandidateBlocks = Array.isArray(json.reportCandidateBlocks)
       ? json.reportCandidateBlocks
       : [];
+    const workdayAllocationSegments = Array.isArray(json.workdayAllocationSegments)
+      ? json.workdayAllocationSegments
+      : [];
+    const locationTruthSegments = Array.isArray(json.locationTruthV2Segments)
+      ? json.locationTruthV2Segments
+      : [];
+    const sourceUsed: DisplaySourceUsed = hasV2Field
+      ? (displayBlocks.length > 0 ? "display_timeline_v2" : "empty_v2_decision")
+      : (reportCandidateBlocks.length > 0 ? "report_candidate_legacy_fallback" : "none");
     const summary = json.reportCandidateSummary ?? null;
     const row: CacheRow = {
       engine_version: json?.reportCandidateDiagnostics?.engineVersion ?? "live",
       summary_json: summary ?? {},
-      report_candidate_blocks_json: blocks,
-      display_blocks_json: blocks,
+      report_candidate_blocks_json: reportCandidateBlocks,
+      display_blocks_json: displayBlocks,
       diagnostics_json: {
         ...(json.reportCandidateDiagnostics ?? {}),
         unknownLocationDiagnostics: json.unknownLocationDiagnostics ?? null,
+        displayTimelineDiagnosticsV2: json.displayTimelineDiagnosticsV2 ?? null,
+        workdayAllocationDiagnostics: json.workdayAllocationDiagnostics ?? null,
+        workdayAllocationSegmentsCount: workdayAllocationSegments.length,
+        locationTruthV2SegmentsCount: locationTruthSegments.length,
+        mobileDisplaySourceUsed: sourceUsed,
+        v2FieldPresent: hasV2Field,
       },
       built_at: new Date().toISOString(),
       stale: false,
