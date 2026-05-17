@@ -1,80 +1,83 @@
+## Mål
 
-# Plan: "Boende"-platser ska alltid vara hem, och hem-inferensen ska räcka med en natt
+Tidslinjen i mobilappen (/m/report) ska visa **exakt samma block** som administrativa /staff-management/time-reports gör för inloggad personal+datum — samma källval, samma fas-färgning, samma absorberade chips, samma rubriker/tider.
 
-## Bakgrund (vad jag hittade)
+## Var diskrepansen ligger idag
 
-- Ni har redan två platser markerade korrekt i DB:
-  - `Boende - Vällsta` (`is_private_residence=true`, polygon)
-  - `Boende - Venngarn` (`is_private_residence=true`, polygon)
-- Båda används redan som "stäng av dagen"-zoner i mobilen (`useGeofencing` dispatchar `request-end-day` på enter).
-- MEN: i hela home-stacken (`useEndDayOnArrivalHome`, `process-day-timer-auto-stop`, `close-stale-workday-entries`, `workday-ai-auto-stop`, `get-staff-presence-day`) läses hem ENBART från `staff_inferred_home_locations`. De markerade boendena räknas aldrig som "personens hem".
-- `infer-home-location` kräver ≥ 2 nätter i samma 100 m‑kluster i rad. Billy har 7 nattobservationer men bara 2 sammanhängande → en (svag) primary, övrig personal saknar helt.
+| Steg | Admin (StaffGanttView) | Mobil (TodayTab/DisplayTimelineV2Card) |
+|---|---|---|
+| Källval | `reportCandidateBlocks` först om de finns → annars V2/allocation | `displayTimelineBlocksV2` först (även tom!) → fallback candidate |
+| Fas-prefix (RIGG/EVENT/RIGDOWN) | applyPlanningPhaseToGanttBlocks via calendar_events | saknas helt |
+| Visuell merge + chips | applyGanttVisualPipeline (merge + absorbera korta transport/granska som chips) | ingen — råblock visas |
+| Tickande aktiv timer | nej | ja (TimelineSection ActiveSegmentRow) |
 
-## Beslut (utifrån era svar)
+Resultatet: olika antal block, olika titlar, olika färger.
 
-1. **Boende-platser = alltid hem för alla.** Polygonen är källan. Behöver inte vara "min" adress för att räknas som hem.
-2. **Boende vinner direkt.** Om en persons nattcluster ligger inuti en `is_private_residence`-polygon → spara hem omedelbart (en natt räcker), oavsett 2-natters-regeln. Annars kör vanlig inferens som idag.
+## Plan
 
-## Vad jag bygger
+### 1. Bryt ut admin-byggaren till en delad ren funktion
+- Ny fil `src/lib/staff/buildStaffGanttBlocks.ts` med `buildStaffGanttBlocksFromCandidate({ staffName, cand, dateStr, bookingPhaseByDate, largeProjectPhaseByDate })` → `{ blocks: GanttBlock[]; source; counts; visualDiag }`.
+- Innehåller exakt samma steg som dagens useMemo i `StaffGanttView.tsx` rad 903–1000: map V2/alloc/legacy → planning phase → suppression-guard → `selectGanttSourceFromMapped` → `applyGanttVisualPipeline` (eller legacy `blocksFromStaff`).
+- `StaffGanttView` refaktoreras att kalla samma helper (ingen beteendeändring).
 
-### 1. Ny gemensam hem-resolver (server)
+### 2. Ny hook för en enskild staff i mobilen
+- `src/hooks/useStaffGanttMirror.ts` (mobile-context):
+  - Anropar `get-staff-presence-day` direkt (samma motor admin använder).
+  - Hämtar fas-map från `calendar_events` på dagen (samma query som StaffTimeReports).
+  - Bygger `GanttBlock[]` via helpern från steg 1.
+  - Returnerar `{ blocks, source, isLoading, error }`.
+- Detta är fortfarande "mirror only" i andan av memory-regeln — vi hämtar från samma server-källa och kör samma deterministiska klient-pipeline som admin.
 
-`supabase/functions/_shared/home-zones/resolveHomeZones.ts` — singel sanningskälla:
+### 3. Ny mobil-tidslinjekomponent
+- `src/components/mobile-app/time/StaffGanttMirrorTimeline.tsx`:
+  - Vertikal lista av `GanttBlock[]` (en rad per block).
+  - Återanvänder `resolveGanttBlockTitle`, fas-färg, chip-rendering, `attachedChips` från `visualGanttBlocks`.
+  - Render-format: ikon + tid (HH:mm–HH:mm) + titel + chips + duration. Identisk semantik som admin-raden, men staplat istället för horisontellt.
+  - Den senaste pågående raden får pulserande indikator (motsvarar admin "isOpen").
+
+### 4. Wire-in i TodayTab
+- Byt ut `TimelineSection` (snapshot.segments-baserad) mot `StaffGanttMirrorTimeline` när dagen inte är inskickad. Den nya komponenten är primär tidslinje.
+- Ta bort `DisplayTimelineV2Card` från icke-submitted-läge (V2-flödet återanvänds bara för "godkänn/redigera"-flödet vilket vi behåller separat när submission startar).
+- Behåll redan implementerad döljning av Arbetsdag-kortet + Totaler-kortet.
+
+### 5. Tester
+- `src/test/staffGanttMirrorParity.contract.test.ts`: matar samma `cand`-fixture (display V2, candidate, allocation, mixed) genom helpern och säkerställer att utvärden matchar dagens admin-output (`buildStaffGanttBlocksFromCandidate` vs nuvarande inline useMemo via snapshot-fixture).
+- Snapshot-test för 3 representativa dagar: stor projekt-rigg med absorberad transport, ren lager-dag, dag med "Osäker period".
+- Behåll befintliga gantt-tester gröna (visualGanttBlocks, applyPlanningPhaseToGanttBlocks, ganttSourceSelection).
+
+### 6. Riskhantering
+- Refaktoreringen av `StaffGanttView` rör en stor useMemo — vi gör den till ett rent funktionsanrop med oförändrad signatur så att admin-rendering inte ändras.
+- Vi tar **inte** bort `staff_day_report_cache`-vägen — den används fortfarande av `useStaffDayStatusViaMobileReport` för status/totaler (Arbetsdag-banner när dag är inskickad).
+- Memory-regeln "Mobile Time App Mirror Only" uppdateras: mobilen får läsa `get-staff-presence-day` direkt så länge den kör exakt samma deterministiska klient-pipeline som admin.
+
+## Tekniska detaljer
 
 ```text
-resolveHomeZones(supabase, { organization_id, staff_id })
-  → HomeZone[]   // { kind: 'private_residence_polygon' | 'inferred_primary' | 'inferred_temporary' | 'manual_private_zone',
-                 //   lat, lng, radius_m?, polygon?, source_id, label }
+/m/report (TodayTab)
+ ├── StaffDayRemindersBanner
+ ├── [isSubmitted] WorkdayStatusCard + TotalsCard      (oförändrat)
+ ├── StaffGanttMirrorTimeline  ◄── NY
+ │      useStaffGanttMirror(staffId, date)
+ │        ├── supabase.functions.invoke('get-staff-presence-day')
+ │        ├── supabase.from('calendar_events') för phase
+ │        └── buildStaffGanttBlocksFromCandidate(...)  (delad helper)
+ ├── ActionsNeededSection
+ ├── PrimaryAction (Starta/Avsluta arbetsdag)
+ └── DisplayTimelineV2Card  (bara om submission påbörjad — godkänn/redigera)
 ```
 
-Reglerna:
-- Hämta ALLA aktiva `organization_locations` där `is_private_residence=true` för org → varje sådan polygon är en hemzon **för all personal i org**.
-- Lägg på `staff_private_zones` (manuella, per staff) som idag.
-- Lägg på `staff_inferred_home_locations` (primary + giltig temporary) som idag.
-- Inside-test: polygon vinner alltid över cirkel.
+Filer som ändras eller läggs till:
+- `src/lib/staff/buildStaffGanttBlocks.ts` (ny, ren helper)
+- `src/components/staff/StaffGanttView.tsx` (kallar helpern)
+- `src/hooks/useStaffGanttMirror.ts` (ny)
+- `src/components/mobile-app/time/StaffGanttMirrorTimeline.tsx` (ny)
+- `src/components/mobile-app/time/TodayTab.tsx` (byt timeline)
+- `src/test/staffGanttMirrorParity.contract.test.ts` (nya tester)
+- `mem://constraints/mobile-time-app-mirror-only-v1` (uppdaterad — tillåter direktanrop av `get-staff-presence-day` så länge samma klient-pipeline används)
 
-### 2. Byt ut alla ställen som idag bara läser `staff_inferred_home_locations`
+## Vad jag INTE rör
 
-Ersätt direkta selects i:
-- `supabase/functions/process-day-timer-auto-stop/index.ts` (`loadHomeZones`)
-- `supabase/functions/close-stale-workday-entries/index.ts` (suggestions: `arrived_home`)
-- `supabase/functions/workday-ai-auto-stop/index.ts`
-- `supabase/functions/get-staff-presence-day/index.ts`
-- `supabase/functions/backfill-staff-day-report-cache/index.ts`
-- Frontend: `src/hooks/useEndDayOnArrivalHome.ts` → använd nytt endpoint i `mobile-app-api` `get_home_zones` istället för direkt select. (Polygon-stöd: hem är "inne om dist < radius ELLER inside polygon".)
-
-### 3. `infer-home-location`: Boende vinner direkt
-
-I `supabase/functions/infer-home-location/index.ts` per (staff, datum)-observation:
-- Snap-klustret kontrolleras mot alla aktiva `is_private_residence`-polygoner i org.
-- Träff → upsert direkt `staff_inferred_home_locations` med:
-  - `kind='primary'`, `cluster_key='residence:<location_id>'`,
-  - `lat/lng` = polygonens centroid, `radius_m=HOME_RADIUS_M`,
-  - `confidence=1.0`, `nights_observed=1`, `valid_until=null`,
-  - `metadata.source='private_residence_polygon'`, `metadata.location_id=<id>`.
-- Hoppa över 2-natters-regeln för dessa.
-- Behåll exklusionen av andra org-locations (warehouse/projektplats) som idag.
-
-Detta gör att Billy direkt får en primary om hans nattcluster ligger i Vällsta eller Venngarn — utan att vi väntar två nätter i följd.
-
-### 4. Engångs-backfill nu (manuell körning av cron)
-
-Efter deploy: trigga `infer-home-location` en gång manuellt så att alla personer med nattobservationer i Vällsta/Venngarn omedelbart får primary hem. Jag kör den från min sida.
-
-### 5. Tester (vitest + Deno)
-
-- `src/test/homeZones.privateResidenceWins.test.ts` — kontrakt: `infer-home-location/index.ts` innehåller polygon-check + en-natt-shortcut.
-- `supabase/functions/_shared/home-zones/resolveHomeZones.test.ts` — Deno-test som matar in (polygon + inferred + private_zone) och verifierar prioritet, inside-test, multi-tenant filter.
-- Kontrakttest att alla 5 server-funktionerna importerar `resolveHomeZones` (inte längre rå select från `staff_inferred_home_locations`).
-
-## Teknisk detalj — datamodell rörs INTE
-
-- Inga nya tabeller, inga schema-ändringar.
-- `staff_inferred_home_locations` blir fortsatt enda hem-tabellen som klienten/funktionerna läser; vi använder den för att projicera Boende-polygonerna in i samma form (med markör i `metadata`). Det håller bakåtkompatibilitet med admin-UI som listar hem per person.
-- Multi-tenant: allt filtreras alltid på `organization_id`.
-
-## Vad ni märker efteråt
-
-- Billy och alla andra som ofta sover på Vällsta/Venngarn får hem **direkt efter nästa nattscan** (eller direkt vid backfill).
-- "Du kom hem"-logik, auto-stop-dagen, dag-stäng-förslag, presence-vyer — alla använder samma sanning.
-- Markerar ni ett nytt "Boende" i Ops Control räcker det att en person sover där en natt för att personen ska få det som hem.
+- Tidsmotorn själv (`get-staff-presence-day`, `time-engine`) — ingen logikändring.
+- Submission/AI-validering — `DisplayTimelineV2Card` lever kvar för det flödet.
+- Admin-sidans visuella beteende — refaktorn är ren extraktion.
+- Andra appar (Scanner, Time-appens andra flikar).
