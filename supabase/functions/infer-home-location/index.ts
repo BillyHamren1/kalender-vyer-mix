@@ -491,6 +491,8 @@ Deno.serve(async (req) => {
         work_exclusions_loaded: workExclusions.length,
         observations_written: observationsWritten,
         primaries_upserted: primariesUpserted,
+        residence_homes_upserted: residenceHomesUpserted,
+        residences_loaded: residences.length,
         temporaries_upserted: temporariesUpserted,
         temporaries_expired: temporariesExpired,
       }),
