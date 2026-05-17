@@ -99,7 +99,9 @@ const canMergePair = (
   // "Två block av samma typ bredvid varandra ska alltid mergas" — vi tittar
   // bara på visualKind, inte på sessionKey/bokning. Två rigg-block intill
   // varandra ska bli ett, även om de tillhör olika bokningar.
-  if (prev.kind !== next.kind) return false;
+  // 'work' och 'rig' renderas identiskt → behandlas som samma typ vid merge.
+  const normKind = (k: MergeableKind): MergeableKind => (k === 'work' ? 'rig' : k);
+  if (normKind(prev.kind) !== normKind(next.kind)) return false;
   if (prev.isNightGpsOnly || next.isNightGpsOnly) return false;
   if ((prev.isOpen ?? false) !== (next.isOpen ?? false)) return false;
   const gap = ms(next.startAt) - ms(prev.endAt);
