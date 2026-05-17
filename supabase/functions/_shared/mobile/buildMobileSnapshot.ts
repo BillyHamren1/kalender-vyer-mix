@@ -126,7 +126,14 @@ function workdayStatusFromSegments(segments: MobileSegment[]): MobileWorkdayStat
   return open ? "active" : "inactive";
 }
 
-function workdayObjFromSegments(segments: MobileSegment[]) {
+interface InternalWorkdayObj {
+  startedAt: string;
+  endedAt: string | null;
+  isOpen: boolean;
+  status: MobileWorkdayStatus;
+}
+
+function workdayObjFromSegments(segments: MobileSegment[]): InternalWorkdayObj | null {
   if (segments.length === 0) return null;
   const sorted = [...segments].sort(
     (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime(),
@@ -134,13 +141,12 @@ function workdayObjFromSegments(segments: MobileSegment[]) {
   const startedAt = sorted[0].startedAt;
   const open = sorted.some((s) => !s.endedAt || s.isActive === true);
   // endedAt EXPONERAS ALDRIG från segment-kedjan — bara explicit dag-stop får
-  // sätta detta. Annars riskerar UI att tolka sista segmentets endedAt som
-  // "dagen är slut".
+  // sätta detta.
   return {
     startedAt,
     endedAt: null,
     isOpen: open,
-    status: (open ? "active" : "inactive") as MobileWorkdayStatus,
+    status: open ? "active" : "inactive",
   };
 }
 
