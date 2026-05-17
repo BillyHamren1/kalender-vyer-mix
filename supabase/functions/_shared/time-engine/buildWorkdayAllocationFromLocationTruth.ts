@@ -1122,6 +1122,8 @@ export function buildWorkdayAllocationFromLocationTruth(
       inferredFromLocationTruth = true;
       inferredMs = { startMs: minStartMs, endMs: maxEndMs };
       effectiveStartMs = minStartMs;
+      wdStartMs = minStartMs;
+      effectiveStartIso = new Date(minStartMs).toISOString();
       diag.inferredWorkdayFromLocationTruth = true;
       diag.inferredWorkdayWritesToDb = false;
       diag.inferredWorkdayStartAt = new Date(minStartMs).toISOString();
