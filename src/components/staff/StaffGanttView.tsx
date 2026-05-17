@@ -208,11 +208,21 @@ const colorFromString = (s: string): { bg: string; fg: string } => {
   return { bg: `hsl(${h} 70% 88%)`, fg: `hsl(${h} 55% 28%)` };
 };
 
+// Stripa trailing " - <datum>" från titel (t.ex. "Westmans Uthyrning - 23 maj 2026")
+const stripTrailingDate = (s: string): string => {
+  const months = '(?:jan|feb|mar|apr|maj|jun|jul|aug|sep|okt|nov|dec)[a-z]*';
+  // " - 23 maj 2026" eller " - 23 maj"
+  let out = s.replace(new RegExp(`\\s*[-–·]\\s*\\d{1,2}\\s+${months}\\.?(?:\\s+\\d{4})?\\s*$`, 'i'), '');
+  // " - 2026-05-23"
+  out = out.replace(/\s*[-–·]\s*\d{4}-\d{2}-\d{2}\s*$/, '');
+  return out.trim();
+};
+
 // Fallback för tomma titlar — använd subtitle eller targetLabel om title är tom
 const blockDisplayTitle = (b: GanttBlock, defaultLabel: string): string => {
-  const t = (b.title ?? '').trim();
+  const t = stripTrailingDate((b.title ?? '').trim());
   if (t) return t;
-  const sub = (b.subtitle ?? '').trim();
+  const sub = stripTrailingDate((b.subtitle ?? '').trim());
   if (sub) return sub;
   return defaultLabel;
 };
@@ -1745,22 +1755,21 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                         {ganttStaff.length} personer
                       </div>
                     </div>
-                    <div className="relative" style={{ width: timelineWidth, height: 52 }}>
+                    <div className="relative" style={{ width: timelineWidth, height: 32 }}>
                       {hours.slice(0, -1).map((h, i) => {
                         const isLunch = h === 12;
                         return (
                           <div
                             key={h}
                             className={cn(
-                              'absolute top-0 bottom-0 flex flex-col justify-center text-[11px] tabular-nums',
-                              isLunch ? 'text-foreground/80' : 'text-muted-foreground/70',
+                              'absolute top-0 bottom-0 flex items-center text-[11px] tabular-nums',
+                              isLunch ? 'text-foreground/80 font-medium' : 'text-muted-foreground/70',
                             )}
                             style={{ left: i * HOUR_PX, width: HOUR_PX, paddingLeft: 8 }}
                           >
-                            <span className="text-[9px] uppercase tracking-wider opacity-60">
+                            <span className="text-[11px] uppercase tracking-wider">
                               {String(h).padStart(2, '0')}
                             </span>
-                            <span className="text-[10px] opacity-50">:00</span>
                           </div>
                         );
                       })}
@@ -2096,9 +2105,9 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                               const isSecondary = !['work', 'warehouse', 'rig', 'rigdown'].includes(b.kind);
                               const isNarrow = width < 90;
                               const isShort = laneHeight < 42;
-                              const showTime = width >= 130 && laneHeight >= 42 && !isSecondary;
-                              const showChips = !!b.attachedChips?.length && width >= 160 && laneHeight >= 50;
-                              const showLabel = width >= 70;
+                              const showTime = width >= 110 && laneHeight >= 50 && !isSecondary;
+                              const showChips = !!b.attachedChips?.length && width >= 160 && laneHeight >= 64;
+                              const showLabel = width >= 50;
                               const displayTitle = blockDisplayTitle(
                                 b,
                                 b.isNightGpsOnly ? 'GPS-natt' : style.label,
@@ -2114,7 +2123,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                   }}
                                   className={cn(
                                     'absolute cursor-pointer overflow-hidden rounded-xl border text-[11px] leading-tight backdrop-blur-[2px] transition-all hover:-translate-y-px hover:shadow-md hover:z-20',
-                                    isNarrow ? 'px-1.5 py-1' : 'px-2.5 py-1.5',
+                                    isNarrow ? 'px-1 py-0.5' : 'px-2 py-1',
                                     b.isNightGpsOnly
                                       ? 'bg-muted/40 border-dashed border-border/60 opacity-60'
                                       : style.bg,
@@ -2132,9 +2141,9 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                   }}
                                   title={blockTooltipText(b, displayTitle, overlapping) + (b.attachedChips?.length ? '\n' + b.attachedChips.map(c => '• ' + c).join('\n') : '')}
                                 >
-                                  <div className="flex items-center gap-1.5">
+                                  <div className="flex min-w-0 flex-col gap-0.5">
                                     <span
-                                      className="shrink-0 rounded-[5px] px-1.5 py-px text-[8.5px] font-bold uppercase tracking-[0.06em]"
+                                      className="self-start shrink-0 rounded-[5px] px-1.5 py-px text-[8.5px] font-bold uppercase tracking-[0.06em]"
                                       style={{
                                         backgroundColor: b.isNightGpsOnly
                                           ? 'hsl(var(--muted) / 0.7)'
@@ -2149,13 +2158,13 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                     {showLabel && (
                                       <span className="truncate font-semibold">{displayTitle}</span>
                                     )}
+                                    {showTime && (
+                                      <span className="truncate text-[10px] tabular-nums opacity-80">
+                                        {formatStockholmHm(b.startAt)}–{formatStockholmHm(b.endAt)} ·{' '}
+                                        {fmtMin(b.durationMinutes)}
+                                      </span>
+                                    )}
                                   </div>
-                                  {showTime && (
-                                    <div className="mt-0.5 truncate text-[10px] tabular-nums opacity-80">
-                                      {formatStockholmHm(b.startAt)}–{formatStockholmHm(b.endAt)} ·{' '}
-                                      {fmtMin(b.durationMinutes)}
-                                    </div>
-                                  )}
                                   {showChips && (() => {
                                     const { visible, overflowCount } = visibleChips(b.attachedChips!);
                                     return (
