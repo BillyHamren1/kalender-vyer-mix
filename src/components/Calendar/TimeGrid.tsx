@@ -23,7 +23,7 @@ interface TimeGridProps {
   events: CalendarEvent[];
   getEventsForDayAndResource: (date: Date, resourceId: string) => CalendarEvent[];
   onEventDrop?: (e: React.DragEvent, targetDateStr: string, targetResourceId?: string) => void | Promise<void>;
-  onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
+  onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date, fromTeamId?: string) => Promise<void>;
   onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date, buttonElement?: HTMLElement) => void;
   dayWidth?: number;
   weeklyStaffOperations?: {
@@ -122,8 +122,9 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     await onStaffDrop(staffId, teamId, day);
   };
 
-  const handleStaffRemoval = async (staffId: string) => {
-    if (onStaffDrop) await onStaffDrop(staffId, null, day);
+  const handleStaffRemoval = async (staffId: string, fromTeamId?: string) => {
+    // Multi-team: only remove THIS team-row, not all teams for the day.
+    if (onStaffDrop) await onStaffDrop(staffId, null, day, fromTeamId);
   };
 
   const gridTemplateColumns = fullWidth
@@ -256,7 +257,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                       <StaffItem
                         key={staff.id}
                         staff={{ id: staff.id, name: staff.name, color: staff.color, assignedTeam: resource.id }}
-                        onRemove={() => handleStaffRemoval(staff.id)}
+                        onRemove={() => handleStaffRemoval(staff.id, resource.id)}
                         currentDate={day}
                         teamName={resource.title}
                         variant="compact"

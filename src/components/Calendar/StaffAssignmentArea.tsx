@@ -13,7 +13,7 @@ interface StaffAssignmentAreaProps {
   day: Date;
   resource: Resource;
   events: CalendarEvent[];
-  onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
+  onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date, fromTeamId?: string) => Promise<void>;
   onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date) => void;
   timeSlots?: TimeSlot[];
   isHeaderRow?: boolean;
@@ -42,7 +42,8 @@ const StaffAssignmentArea: React.FC<StaffAssignmentAreaProps> = ({
 
   const handleRemoveStaff = (staffId: string) => {
     if (onStaffDrop) {
-      onStaffDrop(staffId, null, day);
+      // Multi-team: only remove THIS team-row, not all teams for the day.
+      onStaffDrop(staffId, null, day, resource.id);
     }
   };
 

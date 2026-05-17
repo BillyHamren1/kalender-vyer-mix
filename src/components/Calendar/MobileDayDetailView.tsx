@@ -10,7 +10,7 @@ interface MobileDayDetailViewProps {
   events: CalendarEvent[];
   resources: Resource[];
   onBack: () => void;
-  onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
+  onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date, fromTeamId?: string) => Promise<void>;
   onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date, buttonElement?: HTMLElement) => void;
   weeklyStaffOperations?: any;
 }

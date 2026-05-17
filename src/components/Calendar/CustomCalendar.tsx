@@ -23,7 +23,7 @@ interface CustomCalendarProps {
   currentDate: Date;
   onDateSet: (dateInfo: any) => void;
   refreshEvents: () => Promise<void>;
-  onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
+  onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date, fromTeamId?: string) => Promise<void>;
   onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date, buttonElement?: HTMLElement) => void;
   viewMode: 'weekly' | 'monthly' | 'day';
   weeklyStaffOperations?: {
