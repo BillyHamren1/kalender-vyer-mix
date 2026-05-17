@@ -497,9 +497,30 @@ const blocksFromStaff = (
       date: date ?? null,
     });
     if (parityBlocks.length > 0) {
+      const phaseInputs = parityBlocks.filter((b) => b.kind === 'work' && !isWarehouseTarget(b));
+      const perBlockPhase: Record<string, SessionPhaseKind | null> = {};
+      for (const b of phaseInputs) {
+        perBlockPhase[b.id] = resolveBlockPhaseDirect(b, bookingPhaseByDate, largeProjectPhaseByDate);
+      }
+      const sessionPhaseMap = buildSessionPhaseMap(
+        phaseInputs.map((b) => ({
+          id: b.id,
+          targetType: b.targetType,
+          targetId: b.targetId,
+          title: b.title,
+          subtitle: b.subtitle,
+          startAt: b.startAt,
+          endAt: b.endAt,
+        })),
+        perBlockPhase,
+      );
+
       return parityBlocks.map((b) => ({
         id: b.id,
-        kind: b.ganttKind,
+        kind:
+          b.kind === 'work'
+            ? mapReportCandidateKind(b, bookingPhaseByDate, largeProjectPhaseByDate, sessionPhaseMap)
+            : b.ganttKind,
         startAt: b.startAt,
         endAt: b.endAt,
         durationMinutes: b.durationMinutes,
