@@ -48,7 +48,7 @@ import {
 import { BookingInfoHeader } from './BookingInfoHeader';
 import { PlacementDayCalendar } from './PlacementDayCalendar';
 import { translateSupabaseError } from '@/lib/supabase/translateError';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Check } from 'lucide-react';
 
 interface Props {
   open: boolean;
@@ -425,6 +425,9 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">{phaseLabel(currentDay.kind)}</Badge>
+                        <Badge variant="secondary">
+                          {teamOptions.find((t) => t.id === currentDay.teamId)?.title || 'Välj team'}
+                        </Badge>
                         <span className="text-sm font-medium">
                           {(() => {
                             try {
@@ -455,6 +458,36 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
                         >
                           <Trash2 className="h-3.5 w-3.5 mr-1" /> Ta bort dag
                         </Button>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Team</Label>
+                          <p className="text-sm font-medium">Välj vilket team blocket ska placeras i</p>
+                        </div>
+                        <Badge variant="outline">
+                          {teamOptions.find((t) => t.id === currentDay.teamId)?.title || 'Inget team valt'}
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-6">
+                        {teamOptions.map((team) => {
+                          const isSelected = team.id === currentDay.teamId;
+                          return (
+                            <Button
+                              key={team.id}
+                              type="button"
+                              variant={isSelected ? 'default' : 'outline'}
+                              onClick={() => updateCurrent({ teamId: team.id })}
+                              className="h-10 justify-between px-3 text-xs sm:text-sm"
+                              aria-pressed={isSelected}
+                            >
+                              <span>{team.title}</span>
+                              {isSelected ? <Check className="h-4 w-4" /> : null}
+                            </Button>
+                          );
+                        })}
                       </div>
                     </div>
 
