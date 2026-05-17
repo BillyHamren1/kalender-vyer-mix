@@ -112,18 +112,18 @@ function mapSubmission(row: SubmissionRow | null): MobileSubmission | null {
 }
 
 /**
- * Derive liveness purely from cache. The mirror does NOT read workdays
- * or active_time_registrations — admin web's report cache is the
- * single source of truth.
+ * Time Reporting Fix 2 — workdayStatus får ALDRIG bli "ended" bara för att
+ * alla segment har endedAt. Segment är fördelning inom dagen, inte ett
+ * dag-stop. Vi tolkar "ended" endast vid explicit submission.
  *
- *  - "active": cache has any segment without endedAt
- *  - "ended" : cache has segments and all have endedAt
- *  - "inactive": no segments
+ *  - "active":  sista segmentet saknar endedAt ELLER isActive=true
+ *  - "ended":   submission finns med submitted/approved (sätts senare i build)
+ *  - "inactive": annars (även om historiska segment finns utan submit)
  */
 function workdayStatusFromSegments(segments: MobileSegment[]): MobileWorkdayStatus {
   if (segments.length === 0) return "inactive";
-  const open = segments.some((s) => !s.endedAt);
-  return open ? "active" : "ended";
+  const open = segments.some((s) => !s.endedAt || s.isActive === true);
+  return open ? "active" : "inactive";
 }
 
 function workdayObjFromSegments(segments: MobileSegment[]) {
@@ -132,22 +132,90 @@ function workdayObjFromSegments(segments: MobileSegment[]) {
     (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime(),
   );
   const startedAt = sorted[0].startedAt;
-  const open = sorted.some((s) => !s.endedAt);
-  // endedAt: latest endedAt across closed segments (only if all closed)
-  let endedAt: string | null = null;
-  if (!open) {
-    endedAt = sorted.reduce<string | null>((acc, s) => {
-      if (!s.endedAt) return acc;
-      if (!acc) return s.endedAt;
-      return new Date(s.endedAt).getTime() > new Date(acc).getTime() ? s.endedAt : acc;
-    }, null);
-  }
+  const open = sorted.some((s) => !s.endedAt || s.isActive === true);
+  // endedAt EXPONERAS ALDRIG från segment-kedjan — bara explicit dag-stop får
+  // sätta detta. Annars riskerar UI att tolka sista segmentets endedAt som
+  // "dagen är slut".
   return {
     startedAt,
-    endedAt,
+    endedAt: null,
     isOpen: open,
-    status: (open ? "active" : "ended") as MobileWorkdayStatus,
+    status: (open ? "active" : "inactive") as MobileWorkdayStatus,
   };
+}
+
+const WORKISH_KINDS = new Set([
+  "project", "warehouse", "booking", "travel",
+  "large_project", "location", "needs_review",
+]);
+
+function deriveDayStatus(args: {
+  segments: MobileSegment[];
+  submission: MobileSubmission | null;
+  workdayObj: { startedAt: string; endedAt: string | null; isOpen: boolean } | null;
+  hasManualSubmissionWindow: boolean;
+}): { status: MobileDayStatus; reason: string; debug: MobileDayStatusDebug } {
+  const { segments, submission, workdayObj, hasManualSubmissionWindow } = args;
+
+  const activeTimerExists = !!workdayObj?.isOpen;
+  const hasSegments = segments.length > 0;
+  const hasWorkBlocks = segments.some(
+    (s) => WORKISH_KINDS.has(String(s.kind)) && (s.durationMinutes ?? 0) > 0,
+  );
+
+  const submissionStatus = submission?.status ?? null;
+  const hasSubmission =
+    !!submission &&
+    (submissionStatus === "submitted" ||
+      submissionStatus === "approved" ||
+      submissionStatus === "rejected" ||
+      submissionStatus === "correction_requested");
+  // I mirror-modellen är "explicit stop" synonymt med en giltig submission.
+  // workdayObj.endedAt sätts numera ALDRIG från segments.
+  const hasExplicitStoppedAt = hasSubmission || hasManualSubmissionWindow;
+
+  const lastSeg = hasSegments
+    ? segments.reduce((acc, s) => {
+        const aEnd = acc.endedAt ?? acc.startedAt;
+        const sEnd = s.endedAt ?? s.startedAt;
+        return new Date(sEnd).getTime() > new Date(aEnd).getTime() ? s : acc;
+      }, segments[0])
+    : null;
+
+  let status: MobileDayStatus;
+  let reason: string;
+  if (submission && (submissionStatus === "submitted" || submissionStatus === "approved")) {
+    status = "submitted_day";
+    reason = `submission.status=${submissionStatus}`;
+  } else if (activeTimerExists) {
+    status = "active_day";
+    reason = "workday.isOpen=true (active segment)";
+  } else if (hasExplicitStoppedAt) {
+    status = "ended_day";
+    reason = hasSubmission
+      ? `submission.status=${submissionStatus}`
+      : "manual_submission_window";
+  } else if (hasSegments || hasWorkBlocks) {
+    status = "has_time_not_submitted";
+    reason = "segments_exist_without_submit";
+  } else {
+    status = "empty_day";
+    reason = "no_workday_no_segments";
+  }
+
+  const debug: MobileDayStatusDebug = {
+    dayStatus: status,
+    reasonForDayStatus: reason,
+    activeTimerExists,
+    hasSegments,
+    hasWorkBlocks,
+    hasExplicitStoppedAt,
+    hasSubmission,
+    submissionStatus,
+    lastSegmentKind: (lastSeg?.kind as string) ?? null,
+    lastSegmentEndedAt: lastSeg?.endedAt ?? null,
+  };
+  return { status, reason, debug };
 }
 
 export interface BuildMobileSnapshotInput {
@@ -169,15 +237,9 @@ export function buildMobileSnapshot(input: BuildMobileSnapshotInput): MobileDayR
   };
 
   if (cache) {
-    if (cache.error) {
-      cacheStatus = "error";
-    } else if (cache.stale) {
-      cacheStatus = "stale";
-    } else {
-      cacheStatus = "ready";
-    }
-    // Source priority owned by pickCacheBlocks: display_blocks_json first,
-    // report_candidate_blocks_json as fallback. Mobile must mirror admin web.
+    if (cache.error) cacheStatus = "error";
+    else if (cache.stale) cacheStatus = "stale";
+    else cacheStatus = "ready";
     segments = mapReportBlocksToSegments(pickCacheBlocks(cache));
     summary = summaryFrom(cache.summary_json, segments);
   }
@@ -185,16 +247,14 @@ export function buildMobileSnapshot(input: BuildMobileSnapshotInput): MobileDayR
   const sub = mapSubmission(submission);
   const actionsNeeded = actionsFrom(segments, sub);
 
-  // Manual submission fallback: when cache is missing or has no segments
-  // but a submission exists with explicit start/end, derive summary +
-  // workday object purely from the submission. Read-model only — does
-  // NOT create workdays/time_reports rows.
   let workdayStatus = workdayStatusFromSegments(segments);
   let workdayObj = workdayObjFromSegments(segments);
   const hasManualWindow =
     !!submission &&
     !!submission.requested_start_at &&
     !!submission.requested_end_at;
+
+  // Manual submission fallback: explicit window räknas som ended.
   if (hasManualWindow && segments.length === 0) {
     const startMs = new Date(submission!.requested_start_at!).getTime();
     const endMs = new Date(submission!.requested_end_at!).getTime();
@@ -202,13 +262,7 @@ export function buildMobileSnapshot(input: BuildMobileSnapshotInput): MobileDayR
       const workMinutes = Math.round((endMs - startMs) / 60000);
       const breakMinutes = Math.max(0, Number(submission!.break_minutes ?? 0));
       const payableMinutes = Math.max(0, workMinutes - breakMinutes);
-      summary = {
-        workMinutes,
-        travelMinutes: 0,
-        breakMinutes,
-        reviewMinutes: 0,
-        payableMinutes,
-      };
+      summary = { workMinutes, travelMinutes: 0, breakMinutes, reviewMinutes: 0, payableMinutes };
       workdayObj = {
         startedAt: submission!.requested_start_at!,
         endedAt: submission!.requested_end_at!,
@@ -219,6 +273,23 @@ export function buildMobileSnapshot(input: BuildMobileSnapshotInput): MobileDayR
     }
   }
 
+  // Submission med submitted/approved räcker för "ended" workday även utan window.
+  if (
+    workdayStatus !== "ended" &&
+    sub &&
+    (sub.status === "submitted" || sub.status === "approved")
+  ) {
+    workdayStatus = "ended";
+    if (workdayObj) workdayObj = { ...workdayObj, isOpen: false, status: "ended" };
+  }
+
+  const dayStatusResult = deriveDayStatus({
+    segments,
+    submission: sub,
+    workdayObj,
+    hasManualSubmissionWindow: hasManualWindow,
+  });
+
   return {
     date,
     staffId,
@@ -227,11 +298,13 @@ export function buildMobileSnapshot(input: BuildMobileSnapshotInput): MobileDayR
     cacheError: cache?.error ?? null,
     workdayStatus,
     workday: workdayObj,
+    dayStatus: dayStatusResult.status,
+    debugDayStatus: dayStatusResult.debug,
     summary,
     segments,
     actionsNeeded,
     submission: sub,
-    trackingPolicy: null, // owned by background reporter; not changed here
+    trackingPolicy: null,
     lastUpdatedAt: cache?.built_at ?? null,
   };
 }
