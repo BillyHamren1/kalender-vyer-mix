@@ -461,11 +461,12 @@ function deriveEffectiveSnapshot(snapshot: StaffDaySnapshot): StaffDaySnapshot {
   if (activeBlocks.length === 0) return snapshot;
 
   // Bara "riktiga" arbetsblock räknas — inte private/gps_gap/unknown-gap.
-  const workish = activeBlocks.filter((s) =>
-    s.kind === 'project' || s.kind === 'warehouse' || s.kind === 'booking'
-      || s.kind === 'travel' || s.kind === 'other_place' || s.kind === 'work'
-      || s.kind === 'location' || (s as any).kind === 'activity',
-  );
+  const workish = activeBlocks.filter((s) => {
+    const k = s.kind as string;
+    return k === 'project' || k === 'warehouse' || k === 'booking'
+      || k === 'travel' || k === 'other_place' || k === 'location'
+      || k === 'active' || k === 'work' || k === 'activity';
+  });
   const pickFrom = workish.length > 0 ? workish : activeBlocks;
   const earliest = pickFrom.reduce<StaffDaySegment | null>((acc, s) => {
     if (!acc) return s;
