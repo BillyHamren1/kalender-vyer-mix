@@ -83,7 +83,7 @@ Deno.test("Transport som sista segment avslutar INTE arbetsdagen", () => {
     display_blocks_json: [
       {
         id: "t1", kind: "transport",
-        startAt: "2026-05-17T14:00:00.000Z", endAt: "2026-05-17T14:30:00.000Z",
+        startAt: "2025-05-17T14:00:00.000Z", endAt: "2025-05-17T14:30:00.000Z",
         durationMinutes: 30,
       },
     ],
