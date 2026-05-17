@@ -79,6 +79,13 @@ export interface StaffSeedForExport {
   staffId: string;
   staffName: string | null;
   appearsInReportList: boolean;
+  /**
+   * Time Legacy Purge 5 — vilka källor som triggade union-medlemskap för
+   * denna person (raw_gps, time_reports, workday, location_time_entries,
+   * travel_time_logs, active_time_registration, assignment, app_health,
+   * day_report_cache, assistant_events, workday_flags). Diagnostik enbart.
+   */
+  inclusionSources?: string[];
 }
 
 export interface BuildTraceExportInput {
@@ -216,6 +223,12 @@ export interface TraceStaffEntry {
     rawPingCount: number;
     reasonNoWorkRendered: string | null;
   };
+  /**
+   * Time Legacy Purge 5 — vilka union-källor som triggade att denna staff
+   * körs genom Time Engine. Tom array = ingen explicit källa (t.ex. staff
+   * uppstod bara från debug-raw-pings utan att finnas i staffList).
+   */
+  inclusionSources: string[];
 }
 
 export interface TimeEngineTraceExport {
@@ -238,6 +251,9 @@ export interface TimeEngineTraceExport {
     rawPingsHardCapReached: boolean;
     /** Edge Function-warnings (t.ex. row_hard_cap_50000_reached). */
     rawPingsWarnings: string[];
+    /** Time Legacy Purge 5 — antal staff med rawPings>0 där Time Engine
+     *  inte returnerade någon diagnostik alls (kandidat för blockerare). */
+    staffWithRawPingsButNoEngineDiagnostics: number;
   };
   staff: TraceStaffEntry[];
 }
@@ -684,6 +700,9 @@ export function buildTimeEngineTraceExport(input: BuildTraceExportInput): TimeEn
       comparison,
       diffFindings,
       gpsEvidence,
+      inclusionSources: seed?.inclusionSources
+        ? [...seed.inclusionSources]
+        : (rawEntry ? ['raw_gps_only'] : []),
     });
   }
 
@@ -721,6 +740,9 @@ export function buildTimeEngineTraceExport(input: BuildTraceExportInput): TimeEn
     rawPingsTruncatedTotalMissingRows,
     rawPingsHardCapReached,
     rawPingsWarnings,
+    staffWithRawPingsButNoEngineDiagnostics: staffEntries.filter(
+      s => s.rawPings.count > 0 && !!s.timeEngine.timeEngineFetchError,
+    ).length,
   };
 
   return {

@@ -125,17 +125,34 @@ describe('buildTimeEngineTraceExport', () => {
     expect(exp.summary.rawPingsWarnings).toContain('row_hard_cap_50000_reached');
   });
 
-  it('inkluderar staff som har raw pings men saknas i rapportlistan + flaggar critical finding', () => {
+  it('inkluderar staff som har raw pings men saknas i rapportlistan + flaggar som warning när Time Engine kördes (Purge 5)', () => {
     const input = baseInput({
       staffSeeds: [], // tom rapportlista
     });
     const exp = buildTimeEngineTraceExport(input);
     expect(exp.staff).toHaveLength(1);
     expect(exp.staff[0].comparison.appearsInReportList).toBe(false);
-    const types = exp.staff[0].diffFindings.map(f => f.type);
-    expect(types).toContain('staff_has_pings_but_missing_from_report');
+    const finding = exp.staff[0].diffFindings.find(
+      f => f.type === 'staff_has_pings_but_missing_from_report',
+    );
+    expect(finding).toBeTruthy();
+    // Time Engine kördes (diagnostics finns) → får inte vara critical.
+    expect(finding!.severity).toBe('warning');
     expect(exp.summary.staffMissingFromReport).toBe(1);
-    expect(exp.summary.criticalFindings).toBeGreaterThan(0);
+  });
+
+  it('flaggar staff_has_pings_but_missing_from_report som critical när Time Engine inte gav någon diagnostik', () => {
+    const input = baseInput({
+      staffSeeds: [],
+      reportCandidateByStaff: {}, // ingen presence-day-data alls
+    });
+    const exp = buildTimeEngineTraceExport(input);
+    const finding = exp.staff[0].diffFindings.find(
+      f => f.type === 'staff_has_pings_but_missing_from_report',
+    );
+    expect(finding?.severity).toBe('critical');
+    expect(exp.staff[0].timeEngine.timeEngineFetchError).toBe('time_engine_not_invoked_for_staff');
+    expect(exp.summary.staffWithRawPingsButNoEngineDiagnostics).toBe(1);
   });
 
   it('flaggar raw_pings_missing när inga pings finns', () => {
