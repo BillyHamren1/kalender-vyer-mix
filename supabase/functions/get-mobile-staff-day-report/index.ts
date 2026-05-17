@@ -40,6 +40,11 @@ interface RequestBody {
 }
 
 type DebugSource = "cache" | "live_engine" | "missing" | "missing_engine_result";
+type DisplaySourceUsed =
+  | "display_timeline_v2"
+  | "report_candidate_legacy_fallback"
+  | "empty_v2_decision"
+  | "none";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -54,15 +59,30 @@ function blockArrayLength(v: unknown): number {
 
 /**
  * Mirror of `pickCacheBlocks` in _shared/mobile/mapReportBlocksToSegments.ts.
- * Centralises priority: display_blocks_json → report_candidate_blocks_json.
+ * V2-aware: when `display_blocks_json` is an Array (even empty) it counts as
+ * the V2 decision and we DO NOT fall back to report_candidate_blocks_json.
  * Used here only for the `cacheUnusable` decision; the actual mapping in
  * `buildMobileSnapshot` calls `pickCacheBlocks` directly.
  */
 function effectiveCacheBlockCount(cache: CacheRow | null): number {
   if (!cache) return 0;
-  const display = blockArrayLength(cache.display_blocks_json);
-  if (display > 0) return display;
+  if (Array.isArray(cache.display_blocks_json)) {
+    return cache.display_blocks_json.length;
+  }
   return blockArrayLength(cache.report_candidate_blocks_json);
+}
+
+function describeDisplaySource(cache: CacheRow | null): DisplaySourceUsed {
+  if (!cache) return "none";
+  if (Array.isArray(cache.display_blocks_json)) {
+    return cache.display_blocks_json.length > 0
+      ? "display_timeline_v2"
+      : "empty_v2_decision";
+  }
+  if (Array.isArray(cache.report_candidate_blocks_json) && cache.report_candidate_blocks_json.length > 0) {
+    return "report_candidate_legacy_fallback";
+  }
+  return "none";
 }
 
 /**
