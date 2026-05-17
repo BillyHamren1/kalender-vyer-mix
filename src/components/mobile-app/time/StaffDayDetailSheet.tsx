@@ -250,15 +250,15 @@ const DayBody: React.FC<{
         {/* Inga totals-rutor här — Summering nedan äger siffrorna. */}
       </section>
 
-      {/* B. Summering — Brutto/Rast/Lön framträdande, övrigt som chips */}
+      {/* B. Summering — Total/Rast/Transport (mobilen visar inte lönegrundande) */}
       <section className="rounded-2xl border border-border bg-card p-4 space-y-3">
         <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
           Summering
         </p>
         <div className="grid grid-cols-3 gap-2">
-          <Stat label="Brutto" value={formatHoursMinutes(grossMin / 60)} />
+          <Stat label="Total tid" value={formatHoursMinutes(grossMin / 60)} strong />
           <Stat label="Rast" value={breakMin > 0 ? formatHoursMinutes(breakMin / 60) : '—'} muted={breakMin === 0} />
-          <Stat label="Lönegrundande" value={formatHoursMinutes(payableMin / 60)} strong />
+          <Stat label="Transport" value={transportMin > 0 ? formatHoursMinutes(transportMin / 60) : '—'} muted={transportMin === 0} />
         </div>
         {(projectMin > 0 || transportMin > 0 || otherPlaceMin > 0) && (
           <div className="flex flex-wrap gap-1.5">
