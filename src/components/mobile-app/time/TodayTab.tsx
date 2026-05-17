@@ -119,10 +119,12 @@ const WorkdayStatusCard: React.FC<{
                 {formatStockholmHm(wd.startedAt)}
               </span>{' '}
               →{' '}
-              {wd.endedAt ? (
+              {dayStatus.status === 'ended_day' && wd.endedAt ? (
                 <span className="font-semibold text-foreground/80">
                   {formatStockholmHm(wd.endedAt)}
                 </span>
+              ) : dayStatus.status === 'has_time_not_ended' ? (
+                <span className="text-muted-foreground font-semibold">ej inskickad</span>
               ) : (
                 <span className="text-primary font-semibold">pågår</span>
               )}
