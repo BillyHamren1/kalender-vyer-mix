@@ -169,7 +169,7 @@ export function mergeContiguousBlocks(
   input: MergeBlockInput[],
   opts?: MergeOptions,
 ): MergeResult {
-  const maxGapMs = (opts?.maxGapMinutes ?? 15) * 60_000;
+  const maxGapMs = (opts?.maxGapMinutes ?? 60) * 60_000;
   const sorted = [...input].sort((a, b) => ms(a.startAt) - ms(b.startAt));
 
   const out: InternalMerged[] = [];
