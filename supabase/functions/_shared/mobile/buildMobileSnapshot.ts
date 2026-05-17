@@ -326,6 +326,7 @@ export function buildMobileSnapshot(input: BuildMobileSnapshotInput): MobileDayR
     workday: workdayObj,
     dayStatus: dayStatusResult.status,
     debugDayStatus: dayStatusResult.debug,
+    debugSourceSelection: sourceSelection,
     summary,
     segments,
     actionsNeeded,
