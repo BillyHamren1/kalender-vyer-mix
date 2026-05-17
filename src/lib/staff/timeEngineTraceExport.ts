@@ -592,6 +592,25 @@ export function buildTimeEngineTraceExport(input: BuildTraceExportInput): TimeEn
       displayTimelineBlocksV2: safeArr(cand?.displayTimelineBlocksV2),
       aiWorkdayReviewSummary: cand?.aiWorkdayReviewSummary ?? null,
       aiWorkdayReviewProposals: safeArr(cand?.aiWorkdayReviewProposals),
+      timeEngineFetchError: (() => {
+        if (!cand) {
+          return rawPings.count > 0
+            ? 'time_engine_not_invoked_for_staff'
+            : null;
+        }
+        if (cand.missing) return (cand as any)?.error || 'presence_day_returned_missing';
+        if (cand.loading) return null;
+        // Inga diagnostik-objekt alls trots att vi fick svar
+        const noDiagnostics =
+          !cand.diagnostics &&
+          !cand.workdayAllocationDiagnostics &&
+          !cand.displayTimelineDiagnosticsV2 &&
+          !cand.locationTruthV2Diagnostics;
+        if (rawPings.count > 0 && noDiagnostics) {
+          return 'presence_day_returned_empty_diagnostics_despite_raw_pings';
+        }
+        return null;
+      })(),
     };
 
     const gantt = buildGanttSection(ganttSnap);
