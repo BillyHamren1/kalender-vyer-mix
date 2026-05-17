@@ -10,7 +10,9 @@
   border-radius: 0;
   box-shadow: none;
   border: none;
-  overflow: hidden;
+  /* Horisontell scroll så extra teamkolumner (inkl. Lager längst till höger) alltid är nåbara */
+  overflow-x: auto;
+  overflow-y: hidden;
   display: flex;
   flex-direction: column;
   min-height: 400px;
@@ -66,7 +68,9 @@
     inset 0 1px 0 0 rgba(255, 255, 255, 0.8),
     inset 0 -1px 0 0 rgba(0, 0, 0, 0.05);
   border: 1px solid hsl(var(--border) / 0.3);
-  overflow: hidden;
+  /* Tillåt intern horisontell scroll när fler team än standardbredden visas */
+  overflow-x: auto;
+  overflow-y: hidden;
   transform: translateZ(0);
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   display: flex;
