@@ -1085,7 +1085,67 @@ export function buildWorkdayAllocationFromLocationTruth(
     return { segments: [], proposals: [], diagnostics: diag };
   }
 
+  // ── Time Engine Fix — Inferred Workday from LocationTruth (read-only) ──
+  // Om dagtimer saknas men LocationTruth visar tydlig närvaro på work target
+  // (project/large_project/booking/warehouse/organization_location/supplier)
+  // ska vi skapa en read-only envelope för display/review.
+  // Skriver ALDRIG active_time_registrations eller time_reports.
+  // private_zone räknas ALDRIG — privat tid får inte inferra arbetsdag.
+  const INFERRED_WORK_TARGETS: LocationTruthTargetType[] = [
+    'project', 'large_project', 'booking', 'warehouse', 'organization_location', 'supplier',
+  ];
+  const INFERRED_MIN_MINUTES = 15;
+  let inferredFromLocationTruth = false;
+  let inferredMs: { startMs: number; endMs: number } | null = null;
+
   if (!wdStartMs) {
+    const workSegs = ltSegments.filter((s) => {
+      const tt = (s as any).targetType ?? null;
+      return tt && INFERRED_WORK_TARGETS.includes(tt as LocationTruthTargetType);
+    });
+    let totalWorkMs = 0;
+    let minStartMs: number | null = null;
+    let maxEndMs: number | null = null;
+    const contributingTargetTypes = new Set<LocationTruthTargetType>();
+    for (const s of workSegs) {
+      const sMs = toMs(s.startAt);
+      const eMs = toMs(s.endAt);
+      if (sMs === null || eMs === null || eMs <= sMs) continue;
+      totalWorkMs += (eMs - sMs);
+      if (minStartMs === null || sMs < minStartMs) minStartMs = sMs;
+      if (maxEndMs === null || eMs > maxEndMs) maxEndMs = eMs;
+      const tt = (s as any).targetType as LocationTruthTargetType | null;
+      if (tt) contributingTargetTypes.add(tt);
+    }
+    const totalWorkMin = Math.round(totalWorkMs / 60_000);
+    if (totalWorkMin >= INFERRED_MIN_MINUTES && minStartMs !== null && maxEndMs !== null) {
+      inferredFromLocationTruth = true;
+      inferredMs = { startMs: minStartMs, endMs: maxEndMs };
+      effectiveStartMs = minStartMs;
+      diag.inferredWorkdayFromLocationTruth = true;
+      diag.inferredWorkdayWritesToDb = false;
+      diag.inferredWorkdayStartAt = new Date(minStartMs).toISOString();
+      diag.inferredWorkdayEndAt = new Date(maxEndMs).toISOString();
+      diag.inferredWorkdayWorkTargetMinutes = totalWorkMin;
+      diag.inferredWorkdayTargetTypes = Array.from(contributingTargetTypes);
+      diag.workdayStartAt = diag.inferredWorkdayStartAt;
+      diag.workdayEndAt = diag.inferredWorkdayEndAt;
+      diag.workdayStartSource = 'inferred_from_location_truth';
+      diag.workdayEndSource = 'inferred_from_location_truth';
+      diag.workdayEnvelopeFound = true;
+      diag.hasActiveWorkday = true;
+      diag.workdayEnvelope.effectiveWorkdayStartAt = diag.inferredWorkdayStartAt;
+      diag.workdayEnvelope.effectiveWorkdayEndAt = diag.inferredWorkdayEndAt;
+      diag.workdayEnvelope.timerIsOpen = false;
+      if (!diag.warnings.includes('workday_inferred_from_location_truth')) {
+        diag.warnings.push('workday_inferred_from_location_truth');
+      }
+      diag.warningsByType.workday_inferred_from_location_truth += 1;
+    }
+  }
+
+  const wdStartMsFinal: number | null = effectiveStartMs;
+  if (!wdStartMsFinal) {
     diag.warnings.push('no_active_workday');
     diag.warningsByType.no_active_workday += 1;
     diag.buildDurationMs = Date.now() - startedAt;
