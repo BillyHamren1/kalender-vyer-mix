@@ -2532,7 +2532,7 @@ const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
     !!renderedBlock &&
     (renderedBlock.source === 'displayTimelineV2' ||
       renderedBlock.source === 'workdayAllocation');
-  const selectedBlock: any = legacyBlock ?? renderedBlock ?? null;
+  const selectedBlock: any = legacyBlock ?? renderedBlock?.reportCandidateBlock ?? renderedBlock ?? null;
   // Map Trace 1: raw GPS hämtas alltid (även för V2/allocation-block),
   // så vi kan filtrera och visa pings för det valda blocket.
   const { pings } = useDayPings({ staffId: staff?.id ?? '', date: dateStr, enabled: open && !!staff?.id });
