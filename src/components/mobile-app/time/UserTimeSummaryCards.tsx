@@ -29,14 +29,13 @@ const fmt = (m: number) => formatHoursMinutes((m ?? 0) / 60);
  * UserTimeSummaryCards — premium summary used by TimeReportTab for
  * Day/Week/Month. All values come from canonical backend snapshots.
  *
- * Status buckets visas i tre kort:
- *   - Ej inskickat (awaitingUserAttestPayableMinutes)
- *   - Inskickat   (submittedPayableMinutes)
- *   - Godkänt     (approvedPayableMinutes)
+ * OBS: Mobilen visar ALDRIG "lönegrundande", "betalbar" eller "payroll".
+ * Den visar registrerad/arbetad tid och rapportstatus (ej inskickat/
+ * inskickat/godkänt). Lönegrundande beräknas i admin/export.
  */
 export const UserTimeSummaryCards = ({ totals, targetMinutes, remainingActions }: Props) => {
   const pct = targetMinutes && targetMinutes > 0
-    ? Math.min(100, Math.round((totals.payableMinutes / targetMinutes) * 100))
+    ? Math.min(100, Math.round((totals.grossWorkdayMinutes / targetMinutes) * 100))
     : null;
 
   const awaitingUser =
@@ -48,29 +47,19 @@ export const UserTimeSummaryCards = ({ totals, targetMinutes, remainingActions }
 
   return (
     <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
-      {/* Tre primära siffror — Brutto/Rast/Lön */}
+      {/* Tre primära siffror — Total / Rast / Transport (ingen lönegrundande) */}
       <div className="grid grid-cols-3 gap-2">
-        <Cell label="Brutto" value={fmt(totals.grossWorkdayMinutes)} />
+        <Cell label="Total tid" value={fmt(totals.grossWorkdayMinutes)} primary />
         <Cell label="Rast" value={fmt(totals.breakMinutes)} />
-        <Cell label="Lönegrundande" value={fmt(totals.payableMinutes)} primary />
+        <Cell label="Transport" value={fmt(totals.transportMinutes)} />
       </div>
 
-      {/* Status-kort */}
+      {/* Rapportstatus-kort (registrerad tid per status, ej payroll) */}
       <div className="mt-3 grid grid-cols-3 gap-2">
         <Cell label="Ej inskickat" value={fmt(awaitingUser)} tone="amber" compact />
         <Cell label="Inskickat" value={fmt(submitted)} tone="emerald" compact />
         <Cell label="Godkänt" value={fmt(approved)} tone="emerald" compact />
       </div>
-
-      {/* Transport som diskret chip — får inte dominera */}
-      {totals.transportMinutes > 0 && (
-        <div className="mt-3">
-          <span className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-2.5 py-1 text-[11px] font-semibold tabular-nums">
-            <span className="text-foreground/70">Transport</span>
-            <span className="text-foreground">{fmt(totals.transportMinutes)}</span>
-          </span>
-        </div>
-      )}
 
       {pct !== null && (
         <div className="mt-4">
