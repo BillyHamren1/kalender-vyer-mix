@@ -1936,11 +1936,27 @@ const StaffTimeReports: React.FC = () => {
         organizationId,
         date: dateStr,
         timezone: 'Europe/Stockholm',
-        staffSeeds: staffList.map(s => ({
-          staffId: s.id,
-          staffName: s.name,
-          appearsInReportList: true,
-        })),
+        staffSeeds: staffList.map(s => {
+          // Time Legacy Purge 5 — diagnostik: vilka källor triggade union.
+          const sources: string[] = [];
+          const p = s.presence;
+          if (p?.hasTimeReports) sources.push('time_reports');
+          if (p?.hasWorkday) sources.push('workday');
+          if (p?.hasLocationTimeEntries) sources.push('location_time_entries');
+          if (p?.hasTravelLogs) sources.push('travel_time_logs');
+          if (p?.hasGpsPings) sources.push('raw_gps');
+          if (p?.hasAssistantEvents) sources.push('assistant_events');
+          if (p?.hasWorkdayFlags) sources.push('workday_flags');
+          if (p?.plannedFromBookingStaffAssignments) sources.push('booking_staff_assignments');
+          if (p?.plannedFromStaffAssignments) sources.push('staff_assignments');
+          if (p?.plannedFromLargeProjectStaff) sources.push('large_project_staff');
+          return {
+            staffId: s.id,
+            staffName: s.name,
+            appearsInReportList: true,
+            inclusionSources: sources,
+          };
+        }),
         reportCandidateByStaff: reportCandidateByStaff as any,
         rawPings: rawPings as any,
         ganttDiagnosticsByStaff: ganttDiagnosticsRef.current,
