@@ -1430,6 +1430,12 @@ export function buildWorkdayAllocationFromLocationTruth(
       fromTarget?: LocationTruthMatchedTargetLike;
       toTarget?: LocationTruthMatchedTargetLike;
       distanceMeters?: number;
+      pingsBetween?: number;
+      routePingCount?: number;
+      fromPhysicalLocation?: { label?: string | null; address?: string | null; lat?: number | null; lng?: number | null } | null;
+      toPhysicalLocation?: { label?: string | null; address?: string | null; lat?: number | null; lng?: number | null } | null;
+      fromLabel?: string | null;
+      toLabel?: string | null;
     } }).movementMeta;
 
     let fromT: LocationTruthMatchedTargetLike | null = meta?.fromTarget ?? null;
@@ -1462,12 +1468,23 @@ export function buildWorkdayAllocationFromLocationTruth(
       }
     }
 
+    // Time Engine Movement Anchor Fix — GPS-rutt = route-pings finns mellan A och B
+    // ELLER pingsBetween > 0 (vi har faktisk rörelse-evidence, inte bara two-stay-gap).
+    const hasGpsRoute =
+      (typeof meta?.routePingCount === 'number' && meta.routePingCount > 0) ||
+      (typeof meta?.pingsBetween === 'number' && meta.pingsBetween > 0);
+
     const ctx: MovementContext = {
       fromSide: classifyMovementSide(fromT),
       toSide: classifyMovementSide(toT),
       distanceMeters: typeof meta?.distanceMeters === 'number' ? meta!.distanceMeters! : null,
       isFirstWorkboundCommuteOfDay: false,
       isLastHomeboundCommuteOfDay: false,
+      hasGpsRoute,
+      fromAnchorLabel:
+        meta?.fromLabel ?? meta?.fromPhysicalLocation?.label ?? meta?.fromPhysicalLocation?.address ?? null,
+      toAnchorLabel:
+        meta?.toLabel ?? meta?.toPhysicalLocation?.label ?? meta?.toPhysicalLocation?.address ?? null,
     };
     movementCtxById.set(seg.id, ctx);
     tentative.push({ idx: i, ctx, id: seg.id });
