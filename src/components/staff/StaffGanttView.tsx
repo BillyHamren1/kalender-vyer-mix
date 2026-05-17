@@ -1624,29 +1624,6 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
         {/* Filter chips */}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            {([
-              { k: 'all', label: 'Alla' },
-              { k: 'live', label: 'Pågående' },
-              { k: 'review', label: 'Behöver granskas' },
-              { k: 'planned_only', label: 'Planerade utan rapport' },
-              { k: 'lager', label: 'Bara lager' },
-              { k: 'project', label: 'Bara projekt' },
-              { k: 'transport', label: 'Bara transport' },
-            ] as { k: FilterKey; label: string }[]).map((f) => (
-              <button
-                key={f.k}
-                type="button"
-                onClick={() => setFilterKey(f.k)}
-                className={cn(
-                  'inline-flex h-8 items-center rounded-full border px-3.5 text-[12.5px] font-medium transition-colors',
-                  filterKey === f.k
-                    ? 'border-primary/40 bg-primary/10 text-primary shadow-sm'
-                    : 'border-border/70 bg-background text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-                )}
-              >
-                {f.label}
-              </button>
-            ))}
             {engineMode === 'actual_model_fallback' && (
               <span className="ml-1 inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-[11px] text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
                 <AlertTriangle className="h-3 w-3" /> fallback motor
