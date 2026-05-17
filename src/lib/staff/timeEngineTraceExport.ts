@@ -251,6 +251,9 @@ export interface TimeEngineTraceExport {
     rawPingsHardCapReached: boolean;
     /** Edge Function-warnings (t.ex. row_hard_cap_50000_reached). */
     rawPingsWarnings: string[];
+    /** Time Legacy Purge 5 — antal staff med rawPings>0 där Time Engine
+     *  inte returnerade någon diagnostik alls (kandidat för blockerare). */
+    staffWithRawPingsButNoEngineDiagnostics: number;
   };
   staff: TraceStaffEntry[];
 }
