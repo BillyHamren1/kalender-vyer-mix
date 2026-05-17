@@ -96,8 +96,10 @@ const canMergePair = (
   maxGapMs: number,
 ): boolean => {
   if (!MERGEABLE.has(prev.kind) || !MERGEABLE.has(next.kind)) return false;
+  // "Två block av samma typ bredvid varandra ska alltid mergas" — vi tittar
+  // bara på visualKind, inte på sessionKey/bokning. Två rigg-block intill
+  // varandra ska bli ett, även om de tillhör olika bokningar.
   if (prev.kind !== next.kind) return false;
-  if (prev.sessionKey !== next.sessionKey) return false;
   if (prev.isNightGpsOnly || next.isNightGpsOnly) return false;
   if ((prev.isOpen ?? false) !== (next.isOpen ?? false)) return false;
   const gap = ms(next.startAt) - ms(prev.endAt);
