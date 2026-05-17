@@ -1,40 +1,63 @@
-## Diagnos
+## Mål
+Göra mobilen till en ren spegling av `/staff-management/time-reports` så att Billys dag visas identiskt i app och webb, inklusive när dagen ska sluta renderas när personen åkt hem och inte fortsätter till ny target.
 
-Du har rätt — det är inte en rimlig tolkning. Rotorsaken finns i `supabase/functions/_shared/timeline/buildGpsDayTimelineOnly.ts`:
+## Rotorsak
+Idag finns flera konkurrerande läsmodeller i mobilen:
 
-1. **Klustring ignorerar target-radien.** `clusterPings` använder en hård `STATIONARY_RADIUS_M = 80 m` för att avgöra om något är "stationärt". En target (projekt/lager) har ofta 200–500 m radie. Står du och rör dig 100–200 m inom samma target (mässhall, lager, festival, byggområde) sprängs 80 m-gränsen → ingen stationär kluster bildas.
-2. **Travel-chain byggs blint från "rörelse-pings".** `buildTravelChains` (rad 200–277) plockar alla pings som inte ligger i en stay-window och bakar in dem i en `transport`-chain — den frågar aldrig om hela chainen råkar ligga inuti samma kända target.
-3. **Resultat:** 8 av 9 pings ligger inom samma target, en ligger marginellt utanför → algoritmen bygger en `transport`-segment ("Resa") + en `gps_gap` ("Osäker period / GRANSKA"). Admin-vyn visar precis det du ser på bild 2.
+1. `useStaffDayStatusViaMobileReport` / `get-mobile-staff-day-report` bygger snapshot/segment från cache.
+2. `DisplayTimelineV2Card` läser direkt från `get-staff-presence-day`.
+3. `StaffGanttMirrorTimeline` bygger en separat mobil spegling av admin-Ganttens block.
 
-`matchSegmentsToPlaces` (matcher.ts) matchar alltid bara mot stationära kluster, så en travel-chain som faktiskt ligger inuti ett target tappas helt.
+Det betyder att mobilen kan visa block från en källa medan Gantt visar block från en annan. För Billy blir det därför olika trots att underliggande signaler avser samma dag.
 
-## Fix
+## Plan
 
-Lägg till ett efter-steg i `buildGpsDayTimelineOnly.ts` som "drar in" rörelse-pings i target:
+### 1. En enda kanonisk mobilkälla: Gantt-mirror
+- Göra mobilens dagvy beroende av samma blockurval som admin-Gantt använder.
+- Låta `StaffGanttMirrorTimeline` / `buildStaffGanttMirrorBlocks` vara enda renderingskälla för block i mobilen.
+- Sluta rendera parallella blocklistor från `DisplayTimelineV2Card` där de överlappar Gantt-vyn.
 
-### Steg 1 — Target-aware reclassification av travel-chains
-I `buildTravelChains` (eller direkt efter den), för varje chain:
-- Räkna hur stor andel av chainens pings som ligger inom någon `knownTarget` (samma id för alla, eller ≥80 % inom samma target).
-- Om ja → emitera ett `stay` med `type: "known_site"` och target-namnet istället för `transport`. Sätt `reason: "within_target_geofence_movement"` och `confidence: 0.75`.
-- Om chainen ligger blandat (några inom target A, några utanför) men hela bounding-boxen täcks av target A:s radie → samma sak.
+### 2. Sluta låta mobilen "räkna själv"
+- Ta bort mobil logik som bygger eller väljer alternativa blockkedjor när Gantt redan har ett explicit beslut.
+- Säkerställa att totals/summeringar i relevanta mobilvyer härleds från samma speglade dagsmodell, inte från annan blocklista.
+- Behålla möjligheten att skicka in/justera tid, men utan att UI visar en annan tidslinje än admin.
 
-### Steg 2 — Merge in i angränsande matched stay
-Om en target-internal travel-chain ligger direkt före eller efter en `stay` på samma target → slå ihop till en sammanhängande stay (utöka `startTs`/`endTs`). Detta tar bort onödiga delningar.
+### 3. Flytta hemkomst/slut-på-dag-logik till den servermodell som Gantt använder
+- Identifiera och justera serverdelen kring `get-staff-presence-day` + Ganttens blockbyggare så att "lämnat arbete och åkt hem, ingen ny target" klampar/sätter slut på synliga block konsekvent.
+- Se till att samma regel används både för admin-Gantt och mobil spegling.
+- Målet är: appen ska inte behöva förstå hemfärd själv; serverns Ganttmodell ska redan ha fattat beslutet.
 
-### Steg 3 — Inga gps_gap inom target
-I gap-injectionen (rad 304–315): om både `prev` och `next` segment är `known_site` med samma `matchedSiteId`, ELLER om gap-pingsen ligger inom target → hoppa över `gps_gap`-injektionen (eller markera den `reason: "within_target_signal_dip"` och rendera dämpat istället för GRANSKA).
+### 4. Rensa mobil UI från dubbla sanningar
+- Ta bort eller neutralisera komponenter/headers/status som visar andra blockantal eller andra block än Gantt.
+- Säkerställa att dagdetalj, Today-tab och eventuell attest/justering läser samma dagsutfall visuellt.
 
-### Steg 4 — Test
-Lägg till `supabase/functions/_shared/timeline/buildGpsDayTimelineOnly.targetWiggle.test.ts` med exakt scenariot från bild 1 (9 pings, 8 inom target-radie, en ~100 m utanför). Förväntat output: **ett** `stay`-segment på target, ingen `transport`, ingen `gps_gap`.
+### 5. Lås beteendet med tester
+- Utöka parity-tester för mobil vs admin-Gantt.
+- Lägga till testfall för exakt scenariot:
+  - arbete på target
+  - transport därifrån
+  - hem / ingen ny target
+  - ingen fortsatt renderad arbetskedja efter hemkomst
+- Lägga till regressionsskydd så V2-tomt beslut och Gantt-spegel inte divergerar igen.
 
-## Filer som ändras
+### 6. Validering efter ändring
+- Köra relevanta tester.
+- Verifiera i preview att mobilens tidslinje och admin-Gantt visar samma blockkedja för samma dag.
+- Kontrollera särskilt att Billy/Pavel-liknande kvällsfall inte fortsätter rendera tid efter hemfärd.
 
-- `supabase/functions/_shared/timeline/buildGpsDayTimelineOnly.ts` — ny helper `reclassifyTravelInsideTargets(segments, knownTargets)` som körs efter `buildTravelChains` och före `gap-injection`.
-- `supabase/functions/_shared/timeline/buildGpsDayTimelineOnly.targetWiggle.test.ts` — ny kontrakts-test.
-- Inga frontend-ändringar krävs — admin-Gantten och mobilspegelns pipeline plockar upp den nya segmentstrukturen automatiskt.
+## Tekniska detaljer
+- Berörda delar kommer sannolikt att vara:
+  - `src/components/mobile-app/time/TodayTab.tsx`
+  - `src/components/mobile-app/time/DisplayTimelineV2Card.tsx`
+  - `src/components/mobile-app/time/StaffDayDetailSheet.tsx`
+  - `src/components/mobile-app/time/StaffGanttMirrorTimeline.tsx`
+  - `src/hooks/useDisplayTimelineV2.ts`
+  - `src/hooks/useStaffGanttMirror.ts`
+  - `src/lib/staff/buildStaffGanttMirrorBlocks.ts`
+  - `supabase/functions/get-staff-presence-day/index.ts`
+  - relevanta tester i `src/test/*`
 
-## Vad detta INTE rör
-
-- Klustringströsklarna (80 m / 5 min) lämnas orörda — vi tolkar bara om resultatet i ljuset av kända targets.
-- Inga ändringar i regelmotorn för "oklara segment" eller AI — färre `gps_gap` betyder bara färre GRANSKA-chips, vilket är hela poängen.
-- Ingen ändring i `time_reports`/lön/fakturering — bara visningen + det som regelmotorn matas med.
+## Förväntat resultat
+- Appen visar exakt samma block som Gantt.
+- Ingen separat mobiltolkning av "när Billy åker hem".
+- När systemet bedömer att dagen ska sluta renderas, slutar både webb och app rendera samtidigt.

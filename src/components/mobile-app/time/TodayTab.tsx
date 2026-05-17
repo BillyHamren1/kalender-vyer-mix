@@ -41,7 +41,7 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { SEG_ICON, SEG_TONE, SEG_KIND_LABEL, FallbackSegIcon } from './segmentVisuals';
 import EndDayButton from './EndDayButton';
 import SegmentDetailSheet from './SegmentDetailSheet';
-import DisplayTimelineV2Card from './DisplayTimelineV2Card';
+
 import StaffDayRemindersBanner from './StaffDayRemindersBanner';
 import StaffGanttMirrorTimeline from './StaffGanttMirrorTimeline';
 import { deriveDayStatus, type DayStatusResult } from './dayStatus';
@@ -598,18 +598,12 @@ export const TodayTab: React.FC = () => {
           <TotalsCard snapshot={snapshot} dayStatus={dayStatus} />
         </>
       )}
-      {/* Mobile Time App Mirror — exakt spegling av admin-Gantten i
-          /staff-management/time-reports. Ersätter den gamla
-          TimelineSection (snapshot.segments) så att rubriker, tider,
-          fas-färger och absorberade chips matchar admin 1:1. */}
+      {/* Mobile Time App Mirror — ENDA tidslinje i mobilen.
+          Speglar admin-Gantten i /staff-management/time-reports bit för bit.
+          Inga parallella blocklistor får renderas här (DisplayTimelineV2Card
+          och snapshot.segments-baserad TimelineSection är borttagna för att
+          undvika divergens mellan app och webb). */}
       <StaffGanttMirrorTimeline date={snapshot.date} />
-      {isSubmitted && (
-        <TimelineSection
-          snapshot={snapshot}
-          onChanged={() => { void refresh(); }}
-          onSelectSegment={setSelectedSeg}
-        />
-      )}
       <ActionsNeededSection snapshot={snapshot} />
       <div className="pt-1">
         <PrimaryAction snapshot={snapshot} dayStatus={dayStatus} />
@@ -623,10 +617,6 @@ export const TodayTab: React.FC = () => {
           </pre>
         </details>
       )}
-
-      {/* Lager 4.5 — read-only förhandsvisning av Display Timeline V2.
-          Renderar null när V2-data saknas (fallback till befintlig vy). */}
-      <DisplayTimelineV2Card date={snapshot.date} />
 
       <SegmentDetailSheet
         segment={selectedSeg}
