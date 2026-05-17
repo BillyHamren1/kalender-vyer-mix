@@ -82,7 +82,6 @@ const DayRow = ({
   const date = parseISO(day.date);
   const minutes = day.grossWorkdayMinutes ?? 0;
   const breakMinutes = day.breakMinutes ?? 0;
-  const payable = day.payableMinutes ?? 0;
   const isEmpty = day.status === 'empty';
 
   // Optional start/end — backend may add these later from manual submission.
