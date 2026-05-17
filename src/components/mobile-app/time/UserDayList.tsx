@@ -127,7 +127,7 @@ const DayRow = ({
               <p className="text-sm font-extrabold tabular-nums text-foreground">
                 {formatHoursMinutes(minutes / 60)}
               </p>
-              <p className="text-[11px] text-muted-foreground">brutto</p>
+              <p className="text-[11px] text-muted-foreground">total tid</p>
               {showRange && (
                 <p className="text-[11px] text-muted-foreground tabular-nums ml-auto">
                   {formatStockholmHm(startedAt!)}–{formatStockholmHm(endedAt!)}
@@ -135,12 +135,6 @@ const DayRow = ({
               )}
             </div>
             <div className="flex items-center gap-3 mt-0.5 text-[11px] text-muted-foreground">
-              <span>
-                <span className="font-semibold text-foreground tabular-nums">
-                  {formatHoursMinutes(payable / 60)}
-                </span>{' '}
-                lön
-              </span>
               <span>
                 <span className="font-semibold text-foreground tabular-nums">
                   {formatHoursMinutes(breakMinutes / 60)}
