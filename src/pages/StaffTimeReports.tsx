@@ -1856,19 +1856,21 @@ const StaffTimeReports: React.FC = () => {
     }> => {
       const startIso = `${dateStr}T00:00:00.000Z`;
       const endIso = `${dateStr}T23:59:59.999Z`;
+      // Time Gantt Phase Fix — hämtar brett och normaliserar event_type via
+      // normalizeCalendarPhase så att 'rigDown' / 'rig_down' / 'nedrigg' inte
+      // ramlar bort på grund av .in()-filter.
       const { data: events, error: evErr } = await supabase
         .from('calendar_events')
         .select('booking_id, event_type, start_time')
         .gte('start_time', startIso)
-        .lte('start_time', endIso)
-        .in('event_type', ['rig', 'event', 'rigdown']);
+        .lte('start_time', endIso);
       if (evErr || !events) return { bookingPhaseByDate: {}, largeProjectPhaseByDate: {} };
 
       const priority: Record<'rig' | 'event' | 'rigdown', number> = { rig: 3, rigdown: 2, event: 1 };
       const bookingPhaseByDate: Record<string, 'rig' | 'event' | 'rigdown'> = {};
       for (const r of events) {
         const bid = (r as any).booking_id as string | null;
-        const et = (r as any).event_type as 'rig' | 'event' | 'rigdown' | null;
+        const et = normalizeCalendarPhase((r as any).event_type);
         if (!bid || !et) continue;
         const existing = bookingPhaseByDate[bid];
         if (!existing || priority[et] > priority[existing]) bookingPhaseByDate[bid] = et;
