@@ -480,8 +480,9 @@ export interface ResolveWorkdayEnvelopeInput {
   analysisWindowStartIso?: string | null;
   /** Optional "now"-injection för testbarhet. */
   nowIso?: string | null;
-}
+  }
 
+  for (const seg of ltSegments) {
 
 /**
  * Bygger workdayEnvelope från aktiv dagtimer.
