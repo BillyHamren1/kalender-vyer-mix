@@ -117,7 +117,7 @@ Deno.test('Inferred Workday A — Billy/Westmans: ingen timer men project-match 
   assertEquals(r.segments.length, 1);
   const it = r.segments[0];
   assertEquals(it.allocationType, 'project_work');
-  assertEquals(it.outsideWorkday, undefined);
+  assert(!it.outsideWorkday, 'segment ska vara inne i inferred workday');
   assert(!it.warnings.includes('segment_outside_workday'));
 });
 
