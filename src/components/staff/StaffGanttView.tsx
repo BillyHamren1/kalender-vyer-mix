@@ -234,7 +234,8 @@ const KIND_STYLE: Record<
   { bg: string; border: string; text: string; ring?: string; label: string }
 > = {
   // Generellt event-/projektarbete (ej rig, ej rigdown, ej lager) — neutral slate så lila reserveras för warehouse
-  work:      { bg: 'bg-slate-300/70 dark:bg-slate-500/40',                                  border: 'border-slate-400',                text: 'text-slate-900 dark:text-slate-50',     label: 'Arbete' },
+  // "Arbete" renderas identiskt med rig — användaren vill aldrig se en separat ARBETE-stil i Gantt-vyn.
+  work:      { bg: 'bg-[#F2FCE2] dark:bg-[#F2FCE2]/30',                                     border: 'border-[#C9E8A8]',                text: 'text-[#1f3b14] dark:text-[#F2FCE2]',    label: 'Rigg' },
   // Warehouse/lager = lila (matchar planeringens lager-tagg)
   warehouse: { bg: 'bg-[#E5DEFF] dark:bg-[#E5DEFF]/30',                                     border: 'border-[#BFB1F5]',                text: 'text-[#2a1f5e] dark:text-[#E5DEFF]',    label: 'Lager' },
   // rig + rigdown matchar planeringskalenderns BookingEvent-färger exakt
