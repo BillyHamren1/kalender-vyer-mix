@@ -1664,7 +1664,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
         ) : (
           (() => {
             const NAME_COL_PX = 240;
-            const HOUR_PX = 52;
+            const HOUR_PX = hourPx;
             const ROW_PX = 96;
             const timelineWidth = totalHours * HOUR_PX;
 
