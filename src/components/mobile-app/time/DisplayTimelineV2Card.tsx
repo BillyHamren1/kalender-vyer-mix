@@ -254,8 +254,8 @@ const DisplayTimelineV2Card: React.FC<Props> = ({ date }) => {
           <div className="text-xs text-muted-foreground">{status}</div>
         </div>
         <div className="text-right">
-          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Total tid</div>
-          <div className="text-sm font-semibold tabular-nums">{formatHoursMinutes(totalMin / 60)}</div>
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Block</div>
+          <div className="text-sm font-semibold tabular-nums">{data.blocks.length}</div>
         </div>
       </header>
 
