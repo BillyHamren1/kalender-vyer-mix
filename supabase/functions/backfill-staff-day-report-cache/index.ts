@@ -567,7 +567,9 @@ async function processOne(
             engine_version: engineVersion,
             summary_json: summary,
             report_candidate_blocks_json: enrichedBlocks,
-            display_blocks_json: enrichedBlocks,
+            // ── Time Legacy Purge: backfill skriver INTE display_blocks_json ──
+            // Endast DisplayTimelineV2-pipelinen får skriva display_blocks_json.
+            // Vi rör inte kolumnen alls här (befintliga värden bevaras orörda).
             diagnostics_json: {
               ...((report as any).diagnostics ?? {}),
               sessionConsolidation: report.summary?.sessionConsolidationDiagnostics ?? null,
