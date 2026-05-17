@@ -77,14 +77,11 @@ const WorkdayStatusCard: React.FC<{
   const isOpen = dayStatus.status === 'active_day';
   useTick(isOpen ? 1000 : 60_000);
 
-  // Backendens statusLabel respekteras BARA när vi är trygga (active/ended).
-  // För has_time_not_ended/empty_day använder vi vår egen label så att en
-  // backend som t.ex. säger "Arbetsdag avslutad" pga sista segmentet slutade
-  // inte läcker igenom UI:t.
-  const statusLine =
-    dayStatus.status === 'active_day' || dayStatus.status === 'ended_day'
-      ? (wd?.statusLabel ?? dayStatus.label)
-      : dayStatus.label;
+  // Time Legacy Purge 3 — Mobilen visar ALDRIG backendens statusLabel direkt.
+  // Lokal deriveDayStatus är enda källan för "active/ended/registrerad"-text
+  // så att segment-kedjor (transport slut, sista projektet endedAt) aldrig
+  // kan flippa UI till "Arbetsdag avslutad" utan explicit stop/submission.
+  const statusLine = dayStatus.label;
 
   // Brutto kommer ALLTID från backend. Vid pågående dag tickar vi sekundvis
   // mellan refetch genom att räkna live elapsed från startedAt — men vi
