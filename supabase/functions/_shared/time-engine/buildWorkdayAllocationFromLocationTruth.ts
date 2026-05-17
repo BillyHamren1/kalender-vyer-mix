@@ -942,8 +942,8 @@ export function buildWorkdayAllocationFromLocationTruth(
     workdayStartAdjusted = true;
   }
 
-  const wdStartMs = effectiveStartMs;
-  const effectiveStartIso = effectiveStartMs !== null
+  let wdStartMs = effectiveStartMs;
+  let effectiveStartIso = effectiveStartMs !== null
     ? new Date(effectiveStartMs).toISOString()
     : null;
 
