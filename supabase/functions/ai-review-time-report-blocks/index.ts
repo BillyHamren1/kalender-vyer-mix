@@ -1,16 +1,20 @@
 // ai-review-time-report-blocks
 // ─────────────────────────────────────────────────────────────────────────────
+// LEGACY AUDIT ONLY (Time Legacy Purge 2, 2026-05).
 // Helautomatisk AI-granskning av oklara block i staff_day_report_cache.
 // Triggas av DB-trigger trg_ai_review_time_report_blocks (pg_net) när cachen
 // uppdateras med needs_review/unknown-block och dagen INTE är submitted/approved.
 //
 // Skriver ENBART till:
 //   - staff_day_report_cache (report_candidate_blocks_json + summary_json
-//     + ai_review_signature/at)
-//   - time_report_ai_block_audit
+//     + ai_review_signature/at) — LEGACY-fält som inte längre används som
+//     UI-källa i admin eller mobil.
+//   - time_report_ai_block_audit (audit-rader markerade med
+//     source='legacy_report_candidate_ai_review').
 //
-// Rör ALDRIG: gps_pings, staff_location_history, time_reports, workdays,
-// location_time_entries, travel_time_logs, staff_day_submissions.
+// FÅR ALDRIG skriva: display_blocks_json (DisplayTimelineV2 är canonical),
+//   gps_pings, staff_location_history, time_reports, workdays,
+//   location_time_entries, travel_time_logs, staff_day_submissions.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { corsHeaders } from "../_shared/cors.ts";
@@ -229,8 +233,12 @@ Deno.serve(async (req) => {
   await admin
     .from("staff_day_report_cache")
     .update({
+      // Time Legacy Purge 2: AI får ENDAST uppdatera legacy-fält
+      // (report_candidate_blocks_json + summary_json). display_blocks_json
+      // ägs uteslutande av DisplayTimelineV2-pipelinen och får aldrig skrivas
+      // härifrån — annars läcker AI-tolkade legacy-block in som canonical
+      // UI-sanning i admin/mobil.
       report_candidate_blocks_json: updatedBlocks,
-      display_blocks_json: updatedBlocks,
       summary_json: newSummary,
       ai_review_signature: newSignature,
       ai_review_pending: false,
@@ -240,6 +248,9 @@ Deno.serve(async (req) => {
 
   return json(200, {
     ok: true,
+    source: "legacy_report_candidate_ai_review",
+    canonicalDisplaySource: "display_timeline_v2",
+    displayBlocksWritten: false,
     candidatesProcessed: candidates.length,
     autoApplied: auditRows.filter((r) => r.status === "auto_applied").length,
     uncertain: auditRows.filter((r) => r.status === "uncertain").length,
