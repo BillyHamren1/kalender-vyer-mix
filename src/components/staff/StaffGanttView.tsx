@@ -294,6 +294,8 @@ interface GanttBlock {
   source?: 'displayTimelineV2' | 'workdayAllocation' | 'reportCandidate';
   /** Råa metadata (displayType, severity, allocationType, confidence, ...). */
   meta?: Record<string, unknown>;
+  /** ReportCandidate/display-block som denna Gantt-ruta bygger på. */
+  reportCandidateBlock?: ReportCandidateBlockUI;
 }
 
 const isWarehouseTarget = (b: ReportCandidateBlockUI): boolean => {
@@ -478,6 +480,9 @@ const blocksFromStaff = (
   staff: StaffWithDayReport,
   candidate: ReportCandidateBlockUI[] | null | undefined,
   excludedPreWork: ReportCandidateBlockUI[] | null | undefined,
+  presenceBlocks?: any[] | null,
+  targets?: any[] | null,
+  date?: string | null,
   bookingPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
   largeProjectPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
   diagSink?: (d: VisualGanttDiagnostics) => void,
@@ -486,10 +491,10 @@ const blocksFromStaff = (
   if (candidate && candidate.length) {
     const parityBlocks = buildSuggestedDisplayBlocksForAdminGantt({
       blocks: candidate,
-      presenceBlocks: (staff as any).__reportCandidatePresenceBlocks ?? [],
-      targets: (staff as any).__reportCandidateTargets ?? [],
+      presenceBlocks: presenceBlocks ?? [],
+      targets: targets ?? [],
       staffName: staff.name,
-      date: null,
+      date: date ?? null,
     });
     if (parityBlocks.length > 0) {
       return parityBlocks.map((b) => ({
@@ -511,6 +516,7 @@ const blocksFromStaff = (
         targetType: b.targetType,
         targetId: b.targetId,
         source: 'reportCandidate',
+        reportCandidateBlock: b,
       }));
     }
 
@@ -929,12 +935,13 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
       } else if (selected === 'workdayAllocation') {
         blocks = applyGanttVisualPipeline(mappedAlloc, s.name, (d) => { diag[s.id] = d; });
       } else if (selected === 'reportCandidate') {
-        (s as any).__reportCandidatePresenceBlocks = cand?.presenceBlocks ?? [];
-        (s as any).__reportCandidateTargets = cand?.targets ?? [];
         blocks = blocksFromStaff(
           s,
           legacyBlocks,
           null,
+          cand?.presenceBlocks ?? [],
+          cand?.targets ?? [],
+          dateStr,
           bookingPhaseByDate,
           largeProjectPhaseByDate,
           (d) => { diag[s.id] = d; },
