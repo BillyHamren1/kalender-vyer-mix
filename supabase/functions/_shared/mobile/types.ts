@@ -14,6 +14,16 @@ export type MobileSegmentKind =
 
 export type MobileSegmentConfidence = "high" | "medium" | "low";
 
+/**
+ * Time Reporting Fix 6 — varje segment bär sin källa så UI/debug kan se om
+ * mobilen renderar V2 (display_timeline_v2), workday_allocation_fallback
+ * eller legacy report_candidate_legacy_fallback.
+ */
+export type MobileSegmentSource =
+  | "display_timeline_v2"
+  | "workday_allocation_fallback"
+  | "report_candidate_legacy_fallback";
+
 export interface MobileSegment {
   id: string;
   kind: MobileSegmentKind;
@@ -30,6 +40,8 @@ export interface MobileSegment {
   largeProjectId: string | null;
   locationId: string | null;
   sourceBlockId: string;
+  /** Time Reporting Fix 6 — vilken cache-källa byggde detta segment. */
+  source: MobileSegmentSource;
 }
 
 export interface MobileSummary {
@@ -96,6 +108,23 @@ export interface MobileTrackingPolicy {
   isSignalStale: boolean;
 }
 
+/**
+ * Time Reporting Fix 6 — diagnostik för vilken cache-källa mobilen valde.
+ * Surfar hasDisplayTimelineV2Field, counts och fallbackReason så admin och
+ * mobil kan jämföra sanning utan att gissa.
+ */
+export interface MobileSourceSelection {
+  hasDisplayTimelineV2Field: boolean;
+  displayTimelineV2Count: number;
+  reportCandidateCount: number;
+  selectedSegmentSource: MobileSegmentSource | "none";
+  fallbackReason:
+    | "v2_present"
+    | "v2_present_empty_no_fallback"
+    | "v2_missing_used_legacy"
+    | "no_cache_or_blocks";
+}
+
 export interface MobileWorkday {
   startedAt: string;
   endedAt: string | null;
@@ -114,6 +143,8 @@ export interface MobileDayReport {
   /** Time Reporting Fix 2 — explicit day-level status (preferred by UI). */
   dayStatus: MobileDayStatus;
   debugDayStatus: MobileDayStatusDebug;
+  /** Time Reporting Fix 6 — vilken cache-källa drev segments. */
+  debugSourceSelection: MobileSourceSelection;
   summary: MobileSummary;
   segments: MobileSegment[];
   actionsNeeded: MobileActionItem[];

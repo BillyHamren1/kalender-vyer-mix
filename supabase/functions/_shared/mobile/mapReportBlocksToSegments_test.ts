@@ -6,7 +6,90 @@
 //   - displayLabel is preferred over targetLabel/title
 //   - warningReasons[] collapses into a single warningLabel
 import { assertEquals, assertExists } from "https://deno.land/std@0.208.0/assert/mod.ts";
-import { mapReportBlocksToSegments, pickCacheBlocks } from "./mapReportBlocksToSegments.ts";
+import {
+  mapReportBlocksToSegments,
+  pickCacheBlocks,
+  selectCacheBlockSource,
+} from "./mapReportBlocksToSegments.ts";
+
+// ─────────────────────────────────────────────────────────────────────
+// Time Reporting Fix 6 — source selection + per-segment source stamping
+// ─────────────────────────────────────────────────────────────────────
+
+Deno.test("Fix6: selectCacheBlockSource — V2 with blocks → display_timeline_v2 (Eduards)", () => {
+  const res = selectCacheBlockSource({
+    display_blocks_json: [{ id: "lager", kind: "work", targetType: "warehouse" }],
+    report_candidate_blocks_json: [{ id: "legacy" }],
+  });
+  assertEquals(res.source, "display_timeline_v2");
+  assertEquals(res.selection.fallbackReason, "v2_present");
+  assertEquals(res.selection.hasDisplayTimelineV2Field, true);
+  assertEquals(res.selection.displayTimelineV2Count, 1);
+  assertEquals(res.selection.reportCandidateCount, 1);
+});
+
+Deno.test("Fix6: selectCacheBlockSource — V2 empty (Billy) → none, NO legacy fallback", () => {
+  const res = selectCacheBlockSource({
+    display_blocks_json: [],
+    report_candidate_blocks_json: [
+      { id: "westmans", kind: "work", targetType: "project" },
+      { id: "transport", kind: "transport" },
+    ],
+  });
+  assertEquals(res.source, "none");
+  assertEquals(res.blocks.length, 0);
+  assertEquals(res.selection.fallbackReason, "v2_present_empty_no_fallback");
+  assertEquals(res.selection.hasDisplayTimelineV2Field, true);
+  assertEquals(res.selection.displayTimelineV2Count, 0);
+  assertEquals(res.selection.reportCandidateCount, 2);
+  assertEquals(res.selection.selectedSegmentSource, "none");
+});
+
+Deno.test("Fix6: selectCacheBlockSource — V2 field missing → report_candidate_legacy_fallback", () => {
+  const res = selectCacheBlockSource({
+    report_candidate_blocks_json: [{ id: "legacy", kind: "work", targetType: "project" }],
+  } as any);
+  assertEquals(res.source, "report_candidate_legacy_fallback");
+  assertEquals(res.selection.fallbackReason, "v2_missing_used_legacy");
+  assertEquals(res.selection.hasDisplayTimelineV2Field, false);
+});
+
+Deno.test("Fix6: selectCacheBlockSource — workday_allocation_segments_json fallback", () => {
+  const res = selectCacheBlockSource({
+    workday_allocation_segments_json: [
+      { id: "wa1", kind: "work", targetType: "project", startAt: "x", endAt: "y" },
+    ],
+    report_candidate_blocks_json: [{ id: "legacy" }],
+  } as any);
+  assertEquals(res.source, "workday_allocation_fallback");
+  assertEquals(res.selection.selectedSegmentSource, "workday_allocation_fallback");
+});
+
+Deno.test("Fix6: mapReportBlocksToSegments stamps source on every segment", () => {
+  const segs = mapReportBlocksToSegments(
+    [{
+      id: "x", kind: "work", targetType: "warehouse", targetLabel: "Lager",
+      startAt: "2026-05-13T08:00:00Z", endAt: "2026-05-13T09:00:00Z",
+      durationMinutes: 60,
+    }],
+    { source: "report_candidate_legacy_fallback" },
+  );
+  assertEquals(segs.length, 1);
+  assertEquals(segs[0].source, "report_candidate_legacy_fallback");
+});
+
+Deno.test("Fix6: mapReportBlocksToSegments default source = display_timeline_v2", () => {
+  const segs = mapReportBlocksToSegments([{
+    id: "x", kind: "work", targetType: "project",
+    startAt: "2026-05-13T08:00:00Z", endAt: "2026-05-13T09:00:00Z",
+    durationMinutes: 60,
+  }]);
+  assertEquals(segs[0].source, "display_timeline_v2");
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// Legacy pickCacheBlocks wrapper — kept for backwards compatibility
+// ─────────────────────────────────────────────────────────────────────
 
 Deno.test("pickCacheBlocks prefers display_blocks_json", () => {
   const blocks = pickCacheBlocks({
