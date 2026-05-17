@@ -308,8 +308,16 @@ const TimelineSection: React.FC<{
 }> = ({ snapshot, onChanged, onSelectSegment }) => {
   const segments = snapshot.segments ?? [];
   const workdayOpen = !!snapshot.workday?.isOpen;
+  // Time Legacy Purge 4 — GPS evidence visas BARA när vi varken har segment
+  // eller öppen arbetsdag, men staffen har raw GPS för dagen. Det är en
+  // info-rad — inte arbete, inte i totals.
+  const gpsEv = snapshot.gpsEvidence ?? null;
+  const showGpsEvidence =
+    segments.length === 0 &&
+    !workdayOpen &&
+    !!gpsEv?.hasGpsEvidenceButNoRenderedWork;
 
-  if (segments.length === 0 && !workdayOpen) return null;
+  if (segments.length === 0 && !workdayOpen && !showGpsEvidence) return null;
 
   return (
     <section className="rounded-2xl border border-border bg-card p-4 shadow-sm space-y-2">
