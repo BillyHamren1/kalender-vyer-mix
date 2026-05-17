@@ -444,10 +444,20 @@ const ActionsNeededSection: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapsh
 //    - Ingen arbetsdag: länk till /m där WorkDayPanel äger startflödet.
 // ────────────────────────────────────────────────────────────────────
 
-const PrimaryAction: React.FC<{ snapshot: StaffDaySnapshot | null }> = ({ snapshot }) => {
+const PrimaryAction: React.FC<{
+  snapshot: StaffDaySnapshot | null;
+  dayStatus: DayStatusResult;
+}> = ({ dayStatus }) => {
   const navigate = useNavigate();
-  const isOpen = snapshot?.workday?.isOpen ?? false;
-  if (isOpen) return null;
+  // Inline-stoppknappen finns redan under tidslinjen vid active_day.
+  // Vid has_time_not_ended visar vi ingen primärknapp — användaren ser kortet
+  // "Tid registrerad" och kan trycka Avsluta dag via banner/lista.
+  if (dayStatus.status === 'active_day' || dayStatus.status === 'has_time_not_ended') {
+    return null;
+  }
+  if (dayStatus.status === 'ended_day') {
+    return null;
+  }
   return (
     <Button
       size="lg"
