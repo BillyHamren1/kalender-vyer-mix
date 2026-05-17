@@ -871,21 +871,24 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
         wdaWarnings.includes('open_timer_ignored_after_inferred_day_end') ||
         wdaDiag?.canonicalTimer?.staleOpenTimerIgnored === true;
 
-      // Time Legacy Purge 1 — legacyCount=0 så fort V2-fältet finns ELLER
-      // V2 hard-blockerat dagen. Bara när V2 saknas helt (gammal engine /
-      // fetch-fel) får legacy köra som UI-källa.
-      const legacyIgnored = hasV2Field || v2HardBlocked;
-      const legacyIgnoredReason: string | null =
-        hasV2Field ? 'v2_field_present'
-        : v2HardBlocked ? 'v2_hard_blocked'
-        : null;
+      // Suggested-Only Policy (2026-05-17):
+      // I admin-tidrapportsvyn är ALLT förslag. reportCandidate är samma
+      // motor som detaljmodalen renderar, så när motorn producerat block
+      // för dagen ska Gantt-raden visa exakt dessa block — oavsett om V2-
+      // fältet finns eller om committed time_reports/LTE saknas.
+      // V2/allocation används endast som visuell pipeline när reportCandidate
+      // är tom (t.ex. dag helt utan GPS).
+      const legacyIgnored = false;
+      const legacyIgnoredReason: string | null = null;
 
-      const selected = selectGanttSourceFromMapped({
-        mappedV2Count: mappedV2.length,
-        mappedAllocationCount: mappedAlloc.length,
-        legacyCount: legacyIgnored ? 0 : legacyBlocks.length,
-        hasV2Field,
-      });
+      const selected: GanttBlockSource = legacyBlocks.length > 0
+        ? 'reportCandidate'
+        : selectGanttSourceFromMapped({
+            mappedV2Count: mappedV2.length,
+            mappedAllocationCount: mappedAlloc.length,
+            legacyCount: 0,
+            hasV2Field,
+          });
       const finalSelected: GanttBlockSource = selected;
       sources[s.id] = finalSelected;
 
@@ -1775,21 +1778,42 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                               {staff.plannedLabels[0] ?? staff.role ?? '—'}
                             </div>
                             <div className="mt-0.5 flex items-center gap-2 text-[10px] tabular-nums text-muted-foreground">
-                              <span>
-                                <span className="font-semibold text-foreground">
-                                  {fmtMin(staff.metrics.activityMinutes)}
-                                </span>{' '}
-                                arbete
-                              </span>
-                              {staff.metrics.travelMinutes > 0 && (
-                                <span className="text-sky-600 dark:text-sky-400">
-                                  {fmtMin(staff.metrics.travelMinutes)} resa
-                                </span>
-                              )}
+                              {(() => {
+                                // Suggested-Only: visa SAMMA siffror som modalen (reportCandidateSummary).
+                                // staff.metrics är committed/lönegrundande och hör inte hemma i denna vy.
+                                const sum = reportCandidateByStaff?.[staff.id]?.summary as
+                                  | { workMinutes?: number; transportMinutes?: number }
+                                  | null
+                                  | undefined;
+                                const workMin = sum?.workMinutes ?? staff.metrics.activityMinutes;
+                                const travelMin = sum?.transportMinutes ?? staff.metrics.travelMinutes;
+                                return (
+                                  <>
+                                    <span>
+                                      <span className="font-semibold text-foreground">
+                                        {fmtMin(workMin)}
+                                      </span>{' '}
+                                      arbete
+                                    </span>
+                                    {travelMin > 0 && (
+                                      <span className="text-sky-600 dark:text-sky-400">
+                                        {fmtMin(travelMin)} resa
+                                      </span>
+                                    )}
+                                  </>
+                                );
+                              })()}
                             </div>
                             {(() => {
                               const ev = evidenceByStaff[staff.id];
-                              if (!ev || staff.metrics.activityMinutes > 0) return null;
+                              const sum = reportCandidateByStaff?.[staff.id]?.summary as
+                                | { workMinutes?: number; transportMinutes?: number }
+                                | null
+                                | undefined;
+                              const hasAnySuggested = (sum?.workMinutes ?? 0) > 0
+                                || (sum?.transportMinutes ?? 0) > 0
+                                || staff.metrics.activityMinutes > 0;
+                              if (!ev || hasAnySuggested) return null;
                               const range = ev.startAt && ev.endAt
                                 ? `${formatStockholmHm(ev.startAt)}–${formatStockholmHm(ev.endAt)}`
                                 : '—';
