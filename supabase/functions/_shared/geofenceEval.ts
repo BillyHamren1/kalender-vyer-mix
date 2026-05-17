@@ -35,7 +35,7 @@ function pointInRing(lng: number, lat: number, ring: number[][]): boolean {
   return inside;
 }
 
-function pointInPolygon(lng: number, lat: number, poly: { coordinates: number[][][] }): boolean {
+export function pointInPolygon(lng: number, lat: number, poly: { coordinates: number[][][] }): boolean {
   const rings = poly.coordinates;
   if (!rings || rings.length === 0) return false;
   if (!pointInRing(lng, lat, rings[0])) return false;

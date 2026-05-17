@@ -22,6 +22,48 @@
  * (staff_id, observed_date, cluster_key).
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import { pointInPolygon } from '../_shared/geofenceEval.ts';
+
+interface ResidencePolygon {
+  org: string;
+  location_id: string;
+  name: string;
+  centroidLat: number;
+  centroidLng: number;
+  polygon: { type: 'Polygon'; coordinates: number[][][] };
+}
+
+function polygonCentroid(poly: { coordinates: number[][][] }): { lat: number; lng: number } {
+  // Simple average of outer ring vertices — good enough for a "home anchor"
+  // since we use it only for distance fallback, polygon test is exact.
+  const ring = poly.coordinates?.[0] ?? [];
+  let sLat = 0, sLng = 0, n = 0;
+  for (const [lng, lat] of ring) {
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      sLat += lat; sLng += lng; n++;
+    }
+  }
+  return n > 0 ? { lat: sLat / n, lng: sLng / n } : { lat: 0, lng: 0 };
+}
+
+/**
+ * Find a private-residence ("Boende") polygon containing the given point.
+ * Returns null if no polygon contains it. Boende polygons ALWAYS win as home —
+ * a single nightly cluster inside one is enough to materialise a primary
+ * home row, bypassing the 2-consecutive-nights rule used for inferred homes.
+ */
+function findResidenceForPoint(
+  org: string,
+  lat: number,
+  lng: number,
+  residences: ResidencePolygon[],
+): ResidencePolygon | null {
+  for (const r of residences) {
+    if (r.org !== org) continue;
+    if (pointInPolygon(lng, lat, r.polygon)) return r;
+  }
+  return null;
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -107,22 +149,30 @@ Deno.serve(async (req) => {
   });
 
   let workExclusions: WorkExclusion[] = [];
+  let residences: ResidencePolygon[] = [];
   let pingsExcludedAtWork = 0;
   let homesSkippedAtWork = 0;
+  let residenceHomesUpserted = 0;
 
   try {
-    // Load active org locations that are NOT private residences. Anything
-    // inside their radius is a workplace, never a home.
+    // Load active org locations. Split into:
+    //   - workExclusions: anything inside their radius is a workplace, never a home.
+    //   - residences: "Boende"-platser (is_private_residence/private_residence) — these
+    //     ALWAYS count as home for any staff whose nightly cluster lands inside them,
+    //     bypassing the 2-consecutive-nights rule.
     {
       const { data: orgLocs } = await supabase
         .from('organization_locations')
-        .select('organization_id, name, latitude, longitude, radius_meters, location_type, is_active')
+        .select('id, organization_id, name, latitude, longitude, radius_meters, location_type, is_active, is_private_residence, geofence_polygon')
         .eq('is_active', true);
-      workExclusions = (orgLocs ?? [])
+      const rows = orgLocs ?? [];
+
+      workExclusions = rows
         .filter((l: any) =>
           l.latitude != null &&
           l.longitude != null &&
-          (l.location_type ?? '') !== 'private_residence',
+          (l.location_type ?? '') !== 'private_residence' &&
+          l.is_private_residence !== true,
         )
         .map((l: any) => ({
           org: l.organization_id as string,
@@ -131,7 +181,26 @@ Deno.serve(async (req) => {
           radiusM: Number(l.radius_meters ?? 200) || 200,
           name: l.name as string,
         }));
-      console.log(`[infer-home] loaded ${workExclusions.length} work exclusions`);
+
+      residences = rows
+        .filter((l: any) =>
+          (l.location_type === 'private_residence' || l.is_private_residence === true) &&
+          l.geofence_polygon &&
+          Array.isArray(l.geofence_polygon.coordinates),
+        )
+        .map((l: any) => {
+          const c = polygonCentroid(l.geofence_polygon);
+          return {
+            org: l.organization_id as string,
+            location_id: l.id as string,
+            name: l.name as string,
+            centroidLat: c.lat,
+            centroidLng: c.lng,
+            polygon: l.geofence_polygon,
+          } as ResidencePolygon;
+        });
+
+      console.log(`[infer-home] loaded ${workExclusions.length} work exclusions, ${residences.length} residence polygons`);
     }
 
     // 1+2. Pull night pings (cursor pagination on recorded_at to bypass
@@ -240,6 +309,56 @@ Deno.serve(async (req) => {
         .limit(LOOKBACK_DAYS);
 
       if (!obs || obs.length === 0) continue;
+
+      // ── SHORTCUT: "Boende"-polygoner vinner alltid som hem ───────────────
+      // Om någon av de senaste nattobservationerna ligger i en aktiv
+      // private_residence-polygon → upsert primary direkt (en natt räcker),
+      // hoppa över 2-natters-regeln nedan. Räknar nights_observed som antalet
+      // observerade nätter i den senaste serien som hamnar i SAMMA polygon.
+      let residenceHit: { residence: ResidencePolygon; nights: number; firstDate: string } | null = null;
+      for (const o of obs) {
+        const r = findResidenceForPoint(
+          o.organization_id as string,
+          o.lat as number,
+          o.lng as number,
+          residences,
+        );
+        if (!r) continue;
+        if (!residenceHit || residenceHit.residence.location_id !== r.location_id) {
+          residenceHit = { residence: r, nights: 1, firstDate: o.observed_date as string };
+        } else {
+          residenceHit.nights++;
+          residenceHit.firstDate = o.observed_date as string;
+        }
+      }
+
+      if (residenceHit) {
+        const r = residenceHit.residence;
+        const { error: rErr } = await supabase
+          .from('staff_inferred_home_locations')
+          .upsert(
+            {
+              staff_id: staffId,
+              organization_id: r.org,
+              lat: r.centroidLat,
+              lng: r.centroidLng,
+              radius_m: HOME_RADIUS_M,
+              kind: 'primary',
+              cluster_key: `residence:${r.location_id}`,
+              valid_from: new Date(residenceHit.firstDate + 'T00:00:00Z').toISOString(),
+              valid_until: null,
+              confidence: 1,
+              nights_observed: residenceHit.nights,
+              last_observed_at: new Date().toISOString(),
+            },
+            { onConflict: 'staff_id,kind,cluster_key' },
+          );
+        if (!rErr) {
+          residenceHomesUpserted++;
+          continue;
+        }
+        console.warn(`[infer-home] residence upsert failed for staff ${staffId} / ${r.name}:`, rErr.message);
+      }
 
       const runs = new Map<string, { count: number; lat: number; lng: number; org: string; lastDate: string }>();
       let prevDate: string | null = null;
@@ -372,6 +491,8 @@ Deno.serve(async (req) => {
         work_exclusions_loaded: workExclusions.length,
         observations_written: observationsWritten,
         primaries_upserted: primariesUpserted,
+        residence_homes_upserted: residenceHomesUpserted,
+        residences_loaded: residences.length,
         temporaries_upserted: temporariesUpserted,
         temporaries_expired: temporariesExpired,
       }),
