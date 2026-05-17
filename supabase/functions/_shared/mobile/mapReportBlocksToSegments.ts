@@ -13,6 +13,8 @@ import type {
   MobileSegment,
   MobileSegmentConfidence,
   MobileSegmentKind,
+  MobileSegmentSource,
+  MobileSourceSelection,
 } from "./types.ts";
 
 interface RawBlock {
@@ -38,33 +40,132 @@ interface RawBlock {
 }
 
 /**
- * Source-of-truth selector for which cache JSON column the mobile mirror
- * should render. Priority matches admin web's StaffGanttView (Fix B):
+ * Time Reporting Fix 6 — strukturerad källval. Returnerar både blocks som ska
+ * renderas OCH vilken källa de kommer från + diagnostics. Detta gör att V2
+ * tom ALDRIG faller tillbaka till legacy, samtidigt som UI/debug kan se
+ * exakt vad som hände.
  *
- *   1. display_blocks_json   — V2 DisplayTimeline output. If this field is
- *      an Array (EVEN EMPTY) it represents an explicit V2 decision and is
- *      returned as-is. Mobile MUST NOT fall back to legacy candidate blocks
- *      when V2 has analysed the day and decided it's empty.
- *   2. report_candidate_blocks_json — Legacy fallback. Only used when
- *      display_blocks_json is not an Array at all (missing field / older
- *      backend without V2 support).
- *
- * Returns [] when both are missing/empty.
+ *   - display_blocks_json som Array (även tom) → V2 vinner. Tom V2 = explicit
+ *     "ingen rapporterad tid", och vi faller INTE tillbaka till legacy.
+ *   - workday_allocation_segments_json (om fältet finns som Array och V2-fältet
+ *     saknas helt) → workday_allocation_fallback.
+ *   - report_candidate_blocks_json → legacy fallback endast när V2-fältet
+ *     saknas helt.
+ */
+export function selectCacheBlockSource(cache: {
+  display_blocks_json?: unknown;
+  report_candidate_blocks_json?: unknown;
+  workday_allocation_segments_json?: unknown;
+} | null): {
+  blocks: unknown[];
+  source: MobileSegmentSource | "none";
+  selection: MobileSourceSelection;
+} {
+  const hasDisplayV2 = !!cache && Array.isArray(cache.display_blocks_json);
+  const v2Count = hasDisplayV2 ? (cache!.display_blocks_json as unknown[]).length : 0;
+  const candCount = cache && Array.isArray(cache.report_candidate_blocks_json)
+    ? (cache.report_candidate_blocks_json as unknown[]).length
+    : 0;
+
+  if (!cache) {
+    return {
+      blocks: [],
+      source: "none",
+      selection: {
+        hasDisplayTimelineV2Field: false,
+        displayTimelineV2Count: 0,
+        reportCandidateCount: 0,
+        selectedSegmentSource: "none",
+        fallbackReason: "no_cache_or_blocks",
+      },
+    };
+  }
+
+  // 1. V2 explicit-decision vinner — även när tom.
+  if (hasDisplayV2) {
+    if (v2Count > 0) {
+      return {
+        blocks: cache.display_blocks_json as unknown[],
+        source: "display_timeline_v2",
+        selection: {
+          hasDisplayTimelineV2Field: true,
+          displayTimelineV2Count: v2Count,
+          reportCandidateCount: candCount,
+          selectedSegmentSource: "display_timeline_v2",
+          fallbackReason: "v2_present",
+        },
+      };
+    }
+    // V2 tom = ingen rapporterad tid. INGEN legacy-fallback.
+    return {
+      blocks: [],
+      source: "none",
+      selection: {
+        hasDisplayTimelineV2Field: true,
+        displayTimelineV2Count: 0,
+        reportCandidateCount: candCount,
+        selectedSegmentSource: "none",
+        fallbackReason: "v2_present_empty_no_fallback",
+      },
+    };
+  }
+
+  // 2. workday_allocation_segments_json — explicit mellannivå-fallback.
+  if (Array.isArray(cache.workday_allocation_segments_json)) {
+    const wac = cache.workday_allocation_segments_json as unknown[];
+    if (wac.length > 0) {
+      return {
+        blocks: wac,
+        source: "workday_allocation_fallback",
+        selection: {
+          hasDisplayTimelineV2Field: false,
+          displayTimelineV2Count: 0,
+          reportCandidateCount: candCount,
+          selectedSegmentSource: "workday_allocation_fallback",
+          fallbackReason: "v2_missing_used_legacy",
+        },
+      };
+    }
+  }
+
+  // 3. Legacy fallback endast när V2 saknas helt.
+  if (candCount > 0) {
+    return {
+      blocks: cache.report_candidate_blocks_json as unknown[],
+      source: "report_candidate_legacy_fallback",
+      selection: {
+        hasDisplayTimelineV2Field: false,
+        displayTimelineV2Count: 0,
+        reportCandidateCount: candCount,
+        selectedSegmentSource: "report_candidate_legacy_fallback",
+        fallbackReason: "v2_missing_used_legacy",
+      },
+    };
+  }
+
+  return {
+    blocks: [],
+    source: "none",
+    selection: {
+      hasDisplayTimelineV2Field: false,
+      displayTimelineV2Count: 0,
+      reportCandidateCount: candCount,
+      selectedSegmentSource: "none",
+      fallbackReason: "no_cache_or_blocks",
+    },
+  };
+}
+
+/**
+ * @deprecated Use selectCacheBlockSource for source-aware selection.
+ * Returns same priority list (V2 even when empty → no legacy fallback).
  */
 export function pickCacheBlocks(cache: {
   display_blocks_json?: unknown;
   report_candidate_blocks_json?: unknown;
+  workday_allocation_segments_json?: unknown;
 } | null): unknown[] {
-  if (!cache) return [];
-  // V2 explicit-decision wins: an empty Array means "V2 analysed → empty".
-  if (Array.isArray(cache.display_blocks_json)) {
-    return cache.display_blocks_json as unknown[];
-  }
-  // Legacy fallback only when display field is absent entirely.
-  if (Array.isArray(cache.report_candidate_blocks_json)) {
-    return cache.report_candidate_blocks_json as unknown[];
-  }
-  return [];
+  return selectCacheBlockSource(cache).blocks;
 }
 
 const HIDDEN_RAW_KINDS = new Set<string>([
