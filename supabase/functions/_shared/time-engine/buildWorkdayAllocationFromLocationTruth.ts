@@ -170,7 +170,9 @@ export type WorkdayAllocationWarning =
   // ── Time Engine Core Fix 2 — business context resolution ─────────────
   | 'target_missing_geo'
   | 'business_context_from_assignment'
-  | 'competing_targets';
+  | 'competing_targets'
+  // ── Time Engine Fix — Inferred workday from LocationTruth (read-only) ──
+  | 'workday_inferred_from_location_truth';
 
 // ── Lager 3.11C — DEPRECATED warnings (får INTE emitteras) ─────────────
 //   - supplier_visit_no_assignment       → använd supplier_visit_without_project_context
@@ -303,6 +305,19 @@ export interface WorkdayAllocationDiagnostics {
     stable_address_no_target: number;
     unknown_location: number;
   };
+  // ── Time Engine Fix — Inferred Workday from LocationTruth (read-only) ──
+  /** True om workday-envelope inferrades från LocationTruth-work-target när dagtimer saknades. */
+  inferredWorkdayFromLocationTruth?: boolean;
+  /** Hård invariant: inferred envelope skriver ALDRIG till databasen. */
+  inferredWorkdayWritesToDb?: boolean;
+  /** Effektiv start för inferred envelope (ISO). */
+  inferredWorkdayStartAt?: string | null;
+  /** Effektivt slut för inferred envelope (ISO). */
+  inferredWorkdayEndAt?: string | null;
+  /** Total work-target-närvaro (minuter) som triggade inferred envelope. */
+  inferredWorkdayWorkTargetMinutes?: number;
+  /** Vilka targetTypes som bidrog till inferred envelope. */
+  inferredWorkdayTargetTypes?: LocationTruthTargetType[];
 }
 
 export interface WorkdayAllocationProposal {
@@ -357,6 +372,7 @@ export interface ActiveWorkdayInput {
 export type WorkdayEnvelopeStartSource =
   | 'active_time_registration'
   | 'manual_input'
+  | 'inferred_from_location_truth'
   | 'unknown';
 
 export type WorkdayEnvelopeEndSource =
@@ -364,6 +380,7 @@ export type WorkdayEnvelopeEndSource =
   | 'analysis_window_end'
   | 'now'
   | 'manual_input'
+  | 'inferred_from_location_truth'
   | 'unknown';
 
 export type WorkdayEnvelopeWarning =
@@ -617,6 +634,7 @@ const WARNING_TYPES: WorkdayAllocationWarning[] = [
   'open_timer_ignored_after_inferred_day_end',
   'raw_pings_exist_but_location_truth_missing',
   'target_missing_geo', 'business_context_from_assignment', 'competing_targets',
+  'workday_inferred_from_location_truth',
 ];
 
 const emptyAllocCounts = (): Record<WorkdayAllocationType, number> =>
@@ -924,8 +942,8 @@ export function buildWorkdayAllocationFromLocationTruth(
     workdayStartAdjusted = true;
   }
 
-  const wdStartMs = effectiveStartMs;
-  const effectiveStartIso = effectiveStartMs !== null
+  let wdStartMs = effectiveStartMs;
+  let effectiveStartIso = effectiveStartMs !== null
     ? new Date(effectiveStartMs).toISOString()
     : null;
 
@@ -1067,7 +1085,69 @@ export function buildWorkdayAllocationFromLocationTruth(
     return { segments: [], proposals: [], diagnostics: diag };
   }
 
+  // ── Time Engine Fix — Inferred Workday from LocationTruth (read-only) ──
+  // Om dagtimer saknas men LocationTruth visar tydlig närvaro på work target
+  // (project/large_project/booking/warehouse/organization_location/supplier)
+  // ska vi skapa en read-only envelope för display/review.
+  // Skriver ALDRIG active_time_registrations eller time_reports.
+  // private_zone räknas ALDRIG — privat tid får inte inferra arbetsdag.
+  const INFERRED_WORK_TARGETS: LocationTruthTargetType[] = [
+    'project', 'large_project', 'booking', 'warehouse', 'organization_location', 'supplier',
+  ];
+  const INFERRED_MIN_MINUTES = 15;
+  let inferredFromLocationTruth = false;
+  let inferredMs: { startMs: number; endMs: number } | null = null;
+
   if (!wdStartMs) {
+    const workSegs = ltSegments.filter((s) => {
+      const tt = (s as any).targetType ?? null;
+      return tt && INFERRED_WORK_TARGETS.includes(tt as LocationTruthTargetType);
+    });
+    let totalWorkMs = 0;
+    let minStartMs: number | null = null;
+    let maxEndMs: number | null = null;
+    const contributingTargetTypes = new Set<LocationTruthTargetType>();
+    for (const s of workSegs) {
+      const sMs = toMs(s.startAt);
+      const eMs = toMs(s.endAt);
+      if (sMs === null || eMs === null || eMs <= sMs) continue;
+      totalWorkMs += (eMs - sMs);
+      if (minStartMs === null || sMs < minStartMs) minStartMs = sMs;
+      if (maxEndMs === null || eMs > maxEndMs) maxEndMs = eMs;
+      const tt = (s as any).targetType as LocationTruthTargetType | null;
+      if (tt) contributingTargetTypes.add(tt);
+    }
+    const totalWorkMin = Math.round(totalWorkMs / 60_000);
+    if (totalWorkMin >= INFERRED_MIN_MINUTES && minStartMs !== null && maxEndMs !== null) {
+      inferredFromLocationTruth = true;
+      inferredMs = { startMs: minStartMs, endMs: maxEndMs };
+      effectiveStartMs = minStartMs;
+      wdStartMs = minStartMs;
+      effectiveStartIso = new Date(minStartMs).toISOString();
+      diag.inferredWorkdayFromLocationTruth = true;
+      diag.inferredWorkdayWritesToDb = false;
+      diag.inferredWorkdayStartAt = new Date(minStartMs).toISOString();
+      diag.inferredWorkdayEndAt = new Date(maxEndMs).toISOString();
+      diag.inferredWorkdayWorkTargetMinutes = totalWorkMin;
+      diag.inferredWorkdayTargetTypes = Array.from(contributingTargetTypes);
+      diag.workdayStartAt = diag.inferredWorkdayStartAt;
+      diag.workdayEndAt = diag.inferredWorkdayEndAt;
+      diag.workdayStartSource = 'inferred_from_location_truth';
+      diag.workdayEndSource = 'inferred_from_location_truth';
+      diag.workdayEnvelopeFound = true;
+      diag.hasActiveWorkday = true;
+      diag.workdayEnvelope.effectiveWorkdayStartAt = diag.inferredWorkdayStartAt;
+      diag.workdayEnvelope.effectiveWorkdayEndAt = diag.inferredWorkdayEndAt;
+      diag.workdayEnvelope.timerIsOpen = false;
+      if (!diag.warnings.includes('workday_inferred_from_location_truth')) {
+        diag.warnings.push('workday_inferred_from_location_truth');
+      }
+      diag.warningsByType.workday_inferred_from_location_truth += 1;
+    }
+  }
+
+  const wdStartMsFinal: number | null = effectiveStartMs;
+  if (!wdStartMsFinal) {
     diag.warnings.push('no_active_workday');
     diag.warningsByType.no_active_workday += 1;
     diag.buildDurationMs = Date.now() - startedAt;
@@ -1080,9 +1160,12 @@ export function buildWorkdayAllocationFromLocationTruth(
   }
 
   // Använd envelope-end (täcker både stängd och öppen dagtimer).
+  // Inferred envelope använder sin egen end (sista work-target-segmentets slut).
   // Men klippt mot ev. justerad start så vi aldrig genererar negativ duration.
-  const envelopeEndMs = toMs(envelope.endAt) ?? Date.now();
-  let wdEnd = Math.max(envelopeEndMs, wdStartMs);
+  const envelopeEndMs = inferredFromLocationTruth && inferredMs !== null
+    ? inferredMs.endMs
+    : (toMs(envelope.endAt) ?? Date.now());
+  let wdEnd = Math.max(envelopeEndMs, wdStartMs!);
 
   // ── Time Engine STOP 1 / STOP 1.1 — clampa wdEnd om non-work efter sista jobb > 90m ──
   // Pure helper, läser bara LocationTruth-segment. Skriver INGENTING.
@@ -1094,7 +1177,7 @@ export function buildWorkdayAllocationFromLocationTruth(
     ltSegments,
     workdayStartMs: wdStartMs,
     envelopeEndMs: wdEnd,
-    envelopeIsOpen: envelope.isOpen,
+    envelopeIsOpen: inferredFromLocationTruth ? false : envelope.isOpen,
     thresholdMinutes: 90,
   });
 
