@@ -247,12 +247,26 @@ export function buildMobileSnapshot(input: BuildMobileSnapshotInput): MobileDayR
   let summary: MobileSummary = {
     workMinutes: 0, travelMinutes: 0, breakMinutes: 0, reviewMinutes: 0, payableMinutes: 0,
   };
+  let sourceSelection: MobileSourceSelection = {
+    hasDisplayTimelineV2Field: false,
+    displayTimelineV2Count: 0,
+    reportCandidateCount: 0,
+    selectedSegmentSource: "none",
+    fallbackReason: "no_cache_or_blocks",
+  };
 
   if (cache) {
     if (cache.error) cacheStatus = "error";
     else if (cache.stale) cacheStatus = "stale";
     else cacheStatus = "ready";
-    segments = mapReportBlocksToSegments(pickCacheBlocks(cache));
+    const picked = selectCacheBlockSource(cache);
+    sourceSelection = picked.selection;
+    // Time Reporting Fix 6 — om V2-fältet finns men är tomt så bygger vi
+    // INGA segment. Mobilen får visa GPS-evidence/status istället för att
+    // fylla på från legacy.
+    if (picked.source !== "none") {
+      segments = mapReportBlocksToSegments(picked.blocks, { source: picked.source });
+    }
     summary = summaryFrom(cache.summary_json, segments);
   }
 
