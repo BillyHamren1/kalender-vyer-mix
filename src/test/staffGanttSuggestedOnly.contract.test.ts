@@ -17,6 +17,9 @@ import {
   selectGanttSourceFromMapped,
   type GanttBlockSource,
 } from '@/lib/staff/displayTimelineToGanttBlocks';
+import { buildReportDisplayBlocks } from '@/lib/staff/buildReportDisplayBlocks';
+import { buildSuggestedDisplayBlocksForAdminGantt } from '@/lib/staff/reportCandidateGanttParity';
+import type { ReportCandidateBlockUI } from '@/components/staff/ReportCandidateTimeline';
 
 function pickSource(args: {
   legacyCount: number;
@@ -99,5 +102,108 @@ describe('Admin Gantt row totals come from suggested (reportCandidateSummary)', 
     );
     expect(r.workMin).toBe(544);
     expect(r.travelMin).toBe(181);
+  });
+});
+
+describe('Admin Gantt block sequence matches modal display sequence', () => {
+  const candidateBlocks: ReportCandidateBlockUI[] = [
+    {
+      id: 'travel-1',
+      kind: 'transport',
+      startAt: '2026-05-17T06:14:00.000Z',
+      endAt: '2026-05-17T07:36:00.000Z',
+      durationMinutes: 82,
+      title: 'Resa mot Westmans',
+      subtitle: 'till Westmans',
+      targetType: null,
+      targetId: null,
+      targetLabel: null,
+      fromLabel: 'Signal saknas',
+      toLabel: 'Westmans Uthyrning - 23 maj 2026',
+      confidence: 'medium',
+      reviewState: 'ok',
+    },
+    {
+      id: 'work-1',
+      kind: 'work',
+      startAt: '2026-05-17T07:36:00.000Z',
+      endAt: '2026-05-17T08:40:00.000Z',
+      durationMinutes: 64,
+      title: 'Westmans Uthyrning - 23 maj 2026',
+      subtitle: '07:36–08:40',
+      targetType: 'booking',
+      targetId: 'booking-1',
+      targetLabel: 'Westmans Uthyrning - 23 maj 2026',
+      confidence: 'high',
+      reviewState: 'ok',
+    },
+    {
+      id: 'travel-2',
+      kind: 'transport',
+      startAt: '2026-05-17T08:40:00.000Z',
+      endAt: '2026-05-17T09:22:00.000Z',
+      durationMinutes: 42,
+      title: 'Resa',
+      subtitle: 'Westmans → FA Warehouse',
+      targetType: null,
+      targetId: null,
+      targetLabel: null,
+      fromLabel: 'Westmans Uthyrning - 23 maj 2026',
+      toLabel: 'FA Warehouse',
+      confidence: 'high',
+      reviewState: 'ok',
+    },
+    {
+      id: 'work-2',
+      kind: 'work',
+      startAt: '2026-05-17T09:25:00.000Z',
+      endAt: '2026-05-17T10:04:00.000Z',
+      durationMinutes: 39,
+      title: 'FA Warehouse',
+      subtitle: '09:25–10:04',
+      targetType: 'project',
+      targetId: 'warehouse-1',
+      targetLabel: 'FA Warehouse',
+      confidence: 'high',
+      reviewState: 'ok',
+    },
+  ];
+
+  it('använder exakt samma blockordning som modalen', () => {
+    const modal = buildReportDisplayBlocks({
+      blocks: candidateBlocks,
+      presenceBlocks: [],
+      targets: [],
+      staffName: 'Markuss Minalto',
+      date: '2026-05-17',
+    }).filter((b) => ['work', 'transport', 'unknown', 'needs_review'].includes(b.kind));
+
+    const gantt = buildSuggestedDisplayBlocksForAdminGantt({
+      blocks: candidateBlocks,
+      presenceBlocks: [],
+      targets: [],
+      staffName: 'Markuss Minalto',
+      date: '2026-05-17',
+    });
+
+    expect(gantt.map((b) => b.id)).toEqual(modal.map((b) => b.id));
+    expect(gantt.map((b) => b.displayTitle)).toEqual(modal.map((b) => b.displayTitle));
+    expect(gantt.map((b) => b.displaySubtitle ?? null)).toEqual(modal.map((b) => b.displaySubtitle ?? null));
+  });
+
+  it('absorberar inte kort transport som chips eller slår ihop block', () => {
+    const gantt = buildSuggestedDisplayBlocksForAdminGantt({
+      blocks: candidateBlocks,
+      presenceBlocks: [],
+      targets: [],
+      staffName: 'Markuss Minalto',
+      date: '2026-05-17',
+    });
+
+    expect(gantt).toHaveLength(4);
+    expect(gantt[0].ganttKind).toBe('transport');
+    expect(gantt[1].ganttKind).toBe('work');
+    expect(gantt[2].ganttKind).toBe('transport');
+    expect(gantt[3].ganttKind).toBe('work');
   });
 });
