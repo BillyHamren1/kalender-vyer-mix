@@ -1165,6 +1165,34 @@ const StaffTimeReports: React.FC = () => {
         if (!byStaff.has(id)) byStaff.set(id, newAgg());
       }
 
+      // ── Time Reporting Fix 4 — Union även med staff som har:
+      //   C. appHealth-event för dagen (staff_app_health_events)
+      //   F. redan persisterade staff_day_report_cache-rader
+      // Annars kan Billy/Raivis sakna från presence-day-anrop trots att
+      // systemet har data om dem.
+      try {
+        const { data: hEvents } = await supabase
+          .from('staff_app_health_events')
+          .select('staff_id')
+          .gte('occurred_at', dayStartIso)
+          .lt('occurred_at', nextDayIso)
+          .limit(5000);
+        for (const r of (hEvents ?? []) as any[]) {
+          if (r.staff_id && !byStaff.has(r.staff_id)) byStaff.set(r.staff_id, newAgg());
+        }
+      } catch { /* non-fatal */ }
+      try {
+        const { data: cacheRows } = await supabase
+          .from('staff_day_report_cache')
+          .select('staff_id')
+          .eq('date', dateStr)
+          .limit(5000);
+        for (const r of (cacheRows ?? []) as any[]) {
+          const sid = r.staff_id ? String(r.staff_id) : null;
+          if (sid && !byStaff.has(sid)) byStaff.set(sid, newAgg());
+        }
+      } catch { /* non-fatal */ }
+
       const staffIds = [...byStaff.keys()];
       if (staffIds.length === 0) return [];
 
