@@ -440,10 +440,60 @@ const PrimaryAction: React.FC<{ snapshot: StaffDaySnapshot | null }> = ({ snapsh
 // Main
 // ────────────────────────────────────────────────────────────────────
 
+/**
+ * Derived rule: ett pågående arbetsblock = pågående arbetsdag.
+ * Om backend-snapshot saknar workday.isOpen men det finns ett aktivt segment
+ * (projekt/lager/booking-block som tickar), synthesiserar vi en öppen workday
+ * med startedAt = tidigaste aktiva segments startedAt. Detta påverkar bara UI;
+ * inga timers skapas i databasen härifrån.
+ */
+function deriveEffectiveSnapshot(snapshot: StaffDaySnapshot): StaffDaySnapshot {
+  const wd = snapshot.workday;
+  if (wd?.isOpen) return snapshot;
+
+  const segments = snapshot.segments ?? [];
+  const activeBlocks = segments.filter((s) => {
+    if (!s) return false;
+    if (s.isActive === true) return true;
+    if (!s.endedAt) return true;
+    return false;
+  });
+  if (activeBlocks.length === 0) return snapshot;
+
+  // Bara "riktiga" arbetsblock räknas — inte private/gps_gap/unknown-gap.
+  const workish = activeBlocks.filter((s) =>
+    s.kind === 'project' || s.kind === 'warehouse' || s.kind === 'booking'
+      || s.kind === 'travel' || s.kind === 'other_place' || s.kind === 'work'
+      || s.kind === 'location' || (s as any).kind === 'activity',
+  );
+  const pickFrom = workish.length > 0 ? workish : activeBlocks;
+  const earliest = pickFrom.reduce<StaffDaySegment | null>((acc, s) => {
+    if (!acc) return s;
+    return new Date(s.startedAt).getTime() < new Date(acc.startedAt).getTime() ? s : acc;
+  }, null);
+  if (!earliest) return snapshot;
+
+  return {
+    ...snapshot,
+    workday: {
+      ...(wd ?? {}),
+      isOpen: true,
+      startedAt: earliest.startedAt,
+      endedAt: null,
+      statusLabel: wd?.statusLabel ?? 'Arbetsdag pågår',
+    } as StaffDaySnapshot['workday'],
+  };
+}
+
 export const TodayTab: React.FC = () => {
-  const { snapshot, isLoading, error, refresh } = useStaffDayStatusViaMobileReport();
+  const { snapshot: rawSnapshot, isLoading, error, refresh } = useStaffDayStatusViaMobileReport();
   const { effectiveStaffId, staff } = useMobileAuth();
   const [selectedSeg, setSelectedSeg] = useState<StaffDaySegment | null>(null);
+
+  const snapshot = useMemo(
+    () => (rawSnapshot ? deriveEffectiveSnapshot(rawSnapshot) : null),
+    [rawSnapshot],
+  );
 
   if (isLoading && !snapshot) {
     return (
