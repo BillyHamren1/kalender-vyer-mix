@@ -13,7 +13,7 @@ interface StaffMember {
 
 interface AvailableStaffDisplayProps {
   currentDate: Date;
-  onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
+  onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date, fromTeamId?: string) => Promise<void>;
   availableStaff: StaffMember[];
   isLoading: boolean;
 }
