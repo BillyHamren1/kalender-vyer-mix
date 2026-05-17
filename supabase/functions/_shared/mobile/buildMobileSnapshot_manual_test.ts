@@ -115,3 +115,82 @@ Deno.test("Aktivt segment → active_day", () => {
   assertEquals(snap.dayStatus, "active_day");
   assertEquals(snap.workday?.isOpen, true);
 });
+
+// ─────────────────────────────────────────────────────────────────────
+// Time Reporting Fix 6 — snapshot uses canonical V2; never bygger egen
+// sanning från legacy report_candidate när V2 finns.
+// ─────────────────────────────────────────────────────────────────────
+
+Deno.test("Fix6: Billy — V2 tom + legacy fyllt → INGEN legacy-fallback, source=none", () => {
+  const cache = {
+    engine_version: "v2", summary_json: {},
+    display_blocks_json: [], // V2 explicit "empty"
+    report_candidate_blocks_json: [
+      {
+        id: "westmans", kind: "work", targetType: "project", targetId: "p1",
+        targetLabel: "Westmans",
+        startAt: "2026-05-15T07:56:00.000Z", endAt: "2026-05-15T10:22:00.000Z",
+        durationMinutes: 146,
+      },
+      {
+        id: "transport", kind: "transport",
+        startAt: "2026-05-15T10:22:00.000Z", endAt: "2026-05-15T10:40:00.000Z",
+        durationMinutes: 18,
+      },
+    ],
+    diagnostics_json: null, built_at: null, stale: false, error: null,
+  };
+  const snap = buildMobileSnapshot({
+    date: "2026-05-15", staffId: "billy", cache, submission: null,
+  });
+  assertEquals(snap.segments.length, 0);
+  assertEquals(snap.debugSourceSelection.selectedSegmentSource, "none");
+  assertEquals(snap.debugSourceSelection.fallbackReason, "v2_present_empty_no_fallback");
+  assertEquals(snap.debugSourceSelection.hasDisplayTimelineV2Field, true);
+  assertEquals(snap.debugSourceSelection.reportCandidateCount, 2);
+});
+
+Deno.test("Fix6: Eduards — V2 har Lager-block → source=display_timeline_v2 på varje segment", () => {
+  const cache = {
+    engine_version: "v2", summary_json: { workMinutes: 60 },
+    display_blocks_json: [
+      {
+        id: "lager", kind: "work", targetType: "warehouse", targetId: "loc1",
+        targetLabel: "Lager",
+        startAt: "2026-05-15T07:00:00.000Z", endAt: "2026-05-15T08:00:00.000Z",
+        durationMinutes: 60,
+      },
+    ],
+    report_candidate_blocks_json: null,
+    diagnostics_json: null, built_at: null, stale: false, error: null,
+  };
+  const snap = buildMobileSnapshot({
+    date: "2026-05-15", staffId: "eduards", cache, submission: null,
+  });
+  assertEquals(snap.segments.length, 1);
+  assertEquals(snap.segments[0].source, "display_timeline_v2");
+  assertEquals(snap.debugSourceSelection.selectedSegmentSource, "display_timeline_v2");
+});
+
+Deno.test("Fix6: Legacy — V2 fält saknas helt → report_candidate_legacy_fallback", () => {
+  const cache = {
+    engine_version: "legacy", summary_json: {},
+    report_candidate_blocks_json: [
+      {
+        id: "legacy", kind: "work", targetType: "project", targetId: "p1",
+        targetLabel: "Project X",
+        startAt: "2026-05-15T07:00:00.000Z", endAt: "2026-05-15T08:00:00.000Z",
+        durationMinutes: 60,
+      },
+    ],
+    // display_blocks_json intentionally omitted
+    diagnostics_json: null, built_at: null, stale: false, error: null,
+  } as any;
+  const snap = buildMobileSnapshot({
+    date: "2026-05-15", staffId: "x", cache, submission: null,
+  });
+  assertEquals(snap.segments.length, 1);
+  assertEquals(snap.segments[0].source, "report_candidate_legacy_fallback");
+  assertEquals(snap.debugSourceSelection.selectedSegmentSource, "report_candidate_legacy_fallback");
+  assertEquals(snap.debugSourceSelection.fallbackReason, "v2_missing_used_legacy");
+});
