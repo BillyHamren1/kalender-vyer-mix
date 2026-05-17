@@ -352,13 +352,7 @@ const DayBody: React.FC<{
         </>
       )}
 
-      {/* E. Rast/lunch + Godkänn dagen */}
-      <StaffDayAttestSection
-        staffId={staffId}
-        date={date}
-        snapshot={snapshot}
-        attestBlocked={false}
-      />
+      {/* E. (Flyttad högst upp) Rast/lunch + Godkänn dagen */}
 
       {/* F. (Borttagen) "Begär korrigering" — admin sköter ev. komplettering. */}
 
