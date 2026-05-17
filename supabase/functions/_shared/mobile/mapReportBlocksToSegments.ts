@@ -291,6 +291,7 @@ export function mapReportBlocksToSegments(
       largeProjectId: refs.largeProjectId,
       locationId: refs.locationId,
       sourceBlockId: String(b.id ?? ""),
+      source,
     });
   }
   // Only the last segment (chronologically) may be active.
