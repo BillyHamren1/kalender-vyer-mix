@@ -23,7 +23,7 @@ interface TimeGridProps {
   events: CalendarEvent[];
   getEventsForDayAndResource: (date: Date, resourceId: string) => CalendarEvent[];
   onEventDrop?: (e: React.DragEvent, targetDateStr: string, targetResourceId?: string) => void | Promise<void>;
-  onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
+  onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date, fromTeamId?: string) => Promise<void>;
   onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date, buttonElement?: HTMLElement) => void;
   dayWidth?: number;
   weeklyStaffOperations?: {
