@@ -17,7 +17,7 @@ import MobileJobListView from '@/components/mobile-app/calendar/MobileJobListVie
 import LagerDayCard from '@/components/mobile-app/LagerDayCard';
 import { Loader2, RefreshCw, Building2, MapPin, UserCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
+// toast import removed — no popup confirmations on geofence events.
 import { useLanguage } from '@/i18n/LanguageContext';
 
 
