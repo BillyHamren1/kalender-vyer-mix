@@ -205,28 +205,57 @@ export function buildGpsDayTimelineOnly(
       if (chain.length === 0) return;
       if (chain.length === 1) {
         const p = chain[0];
-        out.push({
-          startTs: p.ts,
-          endTs: p.ts,
-          durationMin: 0,
-          kind: "travel",
-          type: "single_ping_movement" as any,
-          label: "Enstaka rörelseping",
-          matchedSiteId: null,
-          matchedSiteType: null,
-          matchedSiteName: null,
-          centerLat: p.lat,
-          centerLng: p.lng,
-          startLat: p.lat,
-          startLng: p.lng,
-          endLat: p.lat,
-          endLng: p.lng,
-          pingCount: 1,
-          distanceMeters: 0,
-          avgKmh: null,
-          confidence: 0.3,
-          reason: "isolated_movement_ping",
-        });
+        // Target-aware: even a single ping inside a target's geofence should
+        // count as a (tiny) stay at that target, not an "isolated movement"
+        // floating outside the worksite.
+        const containingTarget = findContainingTarget(chain);
+        if (containingTarget) {
+          out.push({
+            startTs: p.ts,
+            endTs: p.ts,
+            durationMin: 0,
+            kind: "stay",
+            type: "known_site",
+            label: containingTarget.name || "Plats",
+            matchedSiteId: containingTarget.id,
+            matchedSiteType: containingTarget.type,
+            matchedSiteName: containingTarget.name,
+            centerLat: p.lat,
+            centerLng: p.lng,
+            startLat: p.lat,
+            startLng: p.lng,
+            endLat: p.lat,
+            endLng: p.lng,
+            pingCount: 1,
+            distanceMeters: 0,
+            avgKmh: null,
+            confidence: 0.6,
+            reason: "single_ping_inside_target",
+          });
+        } else {
+          out.push({
+            startTs: p.ts,
+            endTs: p.ts,
+            durationMin: 0,
+            kind: "travel",
+            type: "single_ping_movement" as any,
+            label: "Enstaka rörelseping",
+            matchedSiteId: null,
+            matchedSiteType: null,
+            matchedSiteName: null,
+            centerLat: p.lat,
+            centerLng: p.lng,
+            startLat: p.lat,
+            startLng: p.lng,
+            endLat: p.lat,
+            endLng: p.lng,
+            pingCount: 1,
+            distanceMeters: 0,
+            avgKmh: null,
+            confidence: 0.3,
+            reason: "isolated_movement_ping",
+          });
+        }
       } else {
         let dist = 0;
         for (let i = 1; i < chain.length; i++) {
@@ -238,28 +267,56 @@ export function buildGpsDayTimelineOnly(
         const avgKmh = durationMin > 0 ? (dist / 1000) / (durationMin / 60) : null;
         const cLat = chain.reduce((s, p) => s + p.lat, 0) / chain.length;
         const cLng = chain.reduce((s, p) => s + p.lng, 0) / chain.length;
-        out.push({
-          startTs,
-          endTs,
-          durationMin: Math.max(1, Math.round(durationMin)),
-          kind: "travel",
-          type: "transport",
-          label: "Förflyttning",
-          matchedSiteId: null,
-          matchedSiteType: null,
-          matchedSiteName: null,
-          centerLat: cLat,
-          centerLng: cLng,
-          startLat: chain[0].lat,
-          startLng: chain[0].lng,
-          endLat: chain[chain.length - 1].lat,
-          endLng: chain[chain.length - 1].lng,
-          pingCount: chain.length,
-          distanceMeters: Math.round(dist),
-          avgKmh: avgKmh != null ? Math.round(avgKmh * 10) / 10 : null,
-          confidence: 0.7,
-          reason: "continuous_movement",
-        });
+        // Target-aware override: if the whole chain lies inside one target's
+        // geofence, this is movement WITHIN a worksite, not transport between.
+        const containingTarget = findContainingTarget(chain);
+        if (containingTarget) {
+          out.push({
+            startTs,
+            endTs,
+            durationMin: Math.max(1, Math.round(durationMin)),
+            kind: "stay",
+            type: "known_site",
+            label: containingTarget.name || "Plats",
+            matchedSiteId: containingTarget.id,
+            matchedSiteType: containingTarget.type,
+            matchedSiteName: containingTarget.name,
+            centerLat: cLat,
+            centerLng: cLng,
+            startLat: chain[0].lat,
+            startLng: chain[0].lng,
+            endLat: chain[chain.length - 1].lat,
+            endLng: chain[chain.length - 1].lng,
+            pingCount: chain.length,
+            distanceMeters: Math.round(dist),
+            avgKmh: null,
+            confidence: 0.75,
+            reason: "within_target_geofence_movement",
+          });
+        } else {
+          out.push({
+            startTs,
+            endTs,
+            durationMin: Math.max(1, Math.round(durationMin)),
+            kind: "travel",
+            type: "transport",
+            label: "Förflyttning",
+            matchedSiteId: null,
+            matchedSiteType: null,
+            matchedSiteName: null,
+            centerLat: cLat,
+            centerLng: cLng,
+            startLat: chain[0].lat,
+            startLng: chain[0].lng,
+            endLat: chain[chain.length - 1].lat,
+            endLng: chain[chain.length - 1].lng,
+            pingCount: chain.length,
+            distanceMeters: Math.round(dist),
+            avgKmh: avgKmh != null ? Math.round(avgKmh * 10) / 10 : null,
+            confidence: 0.7,
+            reason: "continuous_movement",
+          });
+        }
       }
       chain = [];
     };
@@ -274,6 +331,30 @@ export function buildGpsDayTimelineOnly(
     }
     flushChain();
     return out;
+  };
+
+  // Target-aware reclassification: if ≥80% of pings in a travel chain lie
+  // within the same known target's geofence, emit it as a stay at that target
+  // instead of "transport". Fixes the case where a person walks/moves around
+  // inside a large project/warehouse footprint (>80m wiggle) and gets falsely
+  // labelled as "Resa" + "Osäker period".
+  const TARGET_CONTAINMENT_RATIO = 0.8;
+  const findContainingTarget = (chain: Ping[]): KnownPlace | null => {
+    if (chain.length === 0 || knownTargets.length === 0) return null;
+    let best: { place: KnownPlace; count: number } | null = null;
+    for (const place of knownTargets) {
+      let inside = 0;
+      for (const p of chain) {
+        if (distanceMeters(p.lat, p.lng, place.lat, place.lng) <= place.radiusM) {
+          inside++;
+        }
+      }
+      const ratio = inside / chain.length;
+      if (ratio >= TARGET_CONTAINMENT_RATIO) {
+        if (!best || inside > best.count) best = { place, count: inside };
+      }
+    }
+    return best?.place ?? null;
   };
 
   // Movement pings = pings outside any stay window
@@ -301,15 +382,52 @@ export function buildGpsDayTimelineOnly(
     segments.push(...buildTravelChains(movementPings.slice(mvIdx)));
   }
 
-  // Inject gps_gap entries between segments separated by long silence
+  // Merge adjacent stays at the same known target (e.g. cluster-stay + an
+  // immediately following target-internal "movement" chain). Produces a single
+  // continuous stay instead of N tiny slices.
+  const merged: GpsTimelineSegment[] = [];
+  for (const seg of segments) {
+    const last = merged[merged.length - 1];
+    if (
+      last &&
+      last.kind === "stay" &&
+      seg.kind === "stay" &&
+      last.type === "known_site" &&
+      seg.type === "known_site" &&
+      last.matchedSiteId &&
+      last.matchedSiteId === seg.matchedSiteId &&
+      last.matchedSiteType === seg.matchedSiteType
+    ) {
+      const durMin = (new Date(seg.endTs).getTime() - new Date(last.startTs).getTime()) / 60000;
+      last.endTs = seg.endTs;
+      last.durationMin = Math.max(1, Math.round(durMin));
+      last.pingCount += seg.pingCount;
+      last.endLat = seg.endLat;
+      last.endLng = seg.endLng;
+    } else {
+      merged.push({ ...seg });
+    }
+  }
+
+  // Inject gps_gap entries between segments separated by long silence —
+  // EXCEPT when both sides are the same known target (signal dip inside the
+  // worksite is not an unclear period).
   const final: GpsTimelineSegment[] = [];
-  for (let i = 0; i < segments.length; i++) {
-    final.push(segments[i]);
-    const next = segments[i + 1];
+  for (let i = 0; i < merged.length; i++) {
+    final.push(merged[i]);
+    const next = merged[i + 1];
     if (next) {
-      const gapMin = (new Date(next.startTs).getTime() - new Date(segments[i].endTs).getTime()) / 60000;
+      const gapMin = (new Date(next.startTs).getTime() - new Date(merged[i].endTs).getTime()) / 60000;
       if (gapMin >= GAP_THRESHOLD_MIN) {
-        final.push(makeGapSegment(segments[i].endTs, next.startTs, Math.round(gapMin)));
+        const sameTarget =
+          merged[i].kind === "stay" &&
+          next.kind === "stay" &&
+          merged[i].matchedSiteId &&
+          merged[i].matchedSiteId === next.matchedSiteId &&
+          merged[i].matchedSiteType === next.matchedSiteType;
+        if (!sameTarget) {
+          final.push(makeGapSegment(merged[i].endTs, next.startTs, Math.round(gapMin)));
+        }
       }
     }
   }
