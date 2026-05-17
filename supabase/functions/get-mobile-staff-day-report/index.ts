@@ -235,14 +235,21 @@ Deno.serve(async (req: Request) => {
   }
 
   // 3) Decide whether to use cache or fall back to live engine.
-  // The mobile mirror MUST NOT show 0h if admin web's live engine has data.
-  // Priority: display_blocks_json → report_candidate_blocks_json → live engine.
+  //
+  // V2-aware (Time Reporting Fix 1):
+  //   - Om cache har display_blocks_json som Array (även tom) = explicit V2-beslut.
+  //     Då fetchar vi INTE live; tom är ett legitimt svar och får inte fyllas
+  //     med reportCandidate-fallback.
+  //   - Vi fetchar live ENDAST när cache helt saknas/har error/är stale eller
+  //     när V2-fältet aldrig kommit in (display_blocks_json saknas) och inga
+  //     candidate-blocks heller finns.
+  const cacheHasV2Field = Array.isArray(cache?.display_blocks_json);
   const cacheBlockCount = effectiveCacheBlockCount(cache);
   const cacheUnusable =
     !cache ||
     !!cache.error ||
     !!cache.stale ||
-    cacheBlockCount === 0 ||
+    (!cacheHasV2Field && cacheBlockCount === 0) ||
     body.force === true;
 
   let debugSource: DebugSource = cache ? "cache" : "missing";
@@ -251,19 +258,22 @@ Deno.serve(async (req: Request) => {
 
   if (cacheUnusable) {
     const live = await fetchLiveEngineAsCacheRow(staffId, orgId, date);
-    if (live.row && effectiveCacheBlockCount(live.row) > 0) {
+    if (live.row) {
+      // Adopt live row even when V2 is empty — that's an explicit V2 decision
+      // that must reach the mobile UI (instead of legacy candidate fallback).
       effectiveCache = live.row;
       debugSource = "live_engine";
+      liveEngineError = live.error;
     } else if (!cache) {
-      // Neither cache nor live engine produced anything.
       debugSource = live.error ? "missing_engine_result" : "missing";
       liveEngineError = live.error;
     } else {
-      // Cache exists but empty/stale and live didn't help — keep cache as-is.
       debugSource = "cache";
       liveEngineError = live.error;
     }
   }
+
+  const displaySourceUsed = describeDisplaySource(effectiveCache);
 
   // NOTE: workdays / active_time_registrations are intentionally NOT read here.
   const snapshot = buildMobileSnapshot({
