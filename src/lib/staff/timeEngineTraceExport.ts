@@ -184,6 +184,9 @@ export interface TraceStaffEntry {
     displayTimelineBlocksV2: any[];
     aiWorkdayReviewSummary: any;
     aiWorkdayReviewProposals: any[];
+    /** Fix 4 — när presence-day inte returnerat något (cand saknas/missing/loading)
+     *  men staff har raw pings: tydlig förklaring istället för bara null. */
+    timeEngineFetchError: string | null;
   };
   gantt: {
     selectedSource: string | null;
@@ -410,14 +413,26 @@ function buildDiffFindings(
   }
 
   if (comparison.hasRawPings && !comparison.appearsInReportList) {
+    // Fix 4 — nedgradera till warning om Time Engine ändå har körts.
+    // Det är diagnostiskt, inte blockerande, så länge motorn har data.
+    const engineRan =
+      !!timeEngine.dayEvidenceDiagnostics ||
+      !!timeEngine.workdayAllocationDiagnostics ||
+      !!timeEngine.displayTimelineDiagnosticsV2 ||
+      !!timeEngine.locationTruthV2Diagnostics ||
+      (timeEngine.locationTruthV2Segments?.length ?? 0) > 0;
     findings.push({
-      severity: 'critical',
+      severity: engineRan ? 'warning' : 'critical',
       type: 'staff_has_pings_but_missing_from_report',
-      message: 'Personen har GPS-pings men finns inte i rapportlistan.',
+      message: engineRan
+        ? 'Personen har GPS-pings och saknas i rapportlistan, men Time Engine kördes och har diagnostik.'
+        : 'Personen har GPS-pings men finns inte i rapportlistan och Time Engine har ingen diagnostik.',
       evidence: {
         rawPingCount: rawPings.count,
         firstRecordedAt: rawPings.firstRecordedAt,
         lastRecordedAt: rawPings.lastRecordedAt,
+        timeEngineFetchError: timeEngine.timeEngineFetchError,
+        engineRan,
       },
     });
   }
@@ -589,6 +604,25 @@ export function buildTimeEngineTraceExport(input: BuildTraceExportInput): TimeEn
       displayTimelineBlocksV2: safeArr(cand?.displayTimelineBlocksV2),
       aiWorkdayReviewSummary: cand?.aiWorkdayReviewSummary ?? null,
       aiWorkdayReviewProposals: safeArr(cand?.aiWorkdayReviewProposals),
+      timeEngineFetchError: (() => {
+        if (!cand) {
+          return rawPings.count > 0
+            ? 'time_engine_not_invoked_for_staff'
+            : null;
+        }
+        if (cand.missing) return (cand as any)?.error || 'presence_day_returned_missing';
+        if (cand.loading) return null;
+        // Inga diagnostik-objekt alls trots att vi fick svar
+        const noDiagnostics =
+          !cand.diagnostics &&
+          !cand.workdayAllocationDiagnostics &&
+          !cand.displayTimelineDiagnosticsV2 &&
+          !cand.locationTruthV2Diagnostics;
+        if (rawPings.count > 0 && noDiagnostics) {
+          return 'presence_day_returned_empty_diagnostics_despite_raw_pings';
+        }
+        return null;
+      })(),
     };
 
     const gantt = buildGanttSection(ganttSnap);
