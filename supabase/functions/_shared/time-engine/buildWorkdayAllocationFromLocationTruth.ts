@@ -621,6 +621,7 @@ const WARNING_TYPES: WorkdayAllocationWarning[] = [
   'open_timer_ignored_after_inferred_day_end',
   'raw_pings_exist_but_location_truth_missing',
   'target_missing_geo', 'business_context_from_assignment', 'competing_targets',
+  'workday_inferred_from_location_truth',
 ];
 
 const emptyAllocCounts = (): Record<WorkdayAllocationType, number> =>
