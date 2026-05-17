@@ -1778,17 +1778,31 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                               {staff.plannedLabels[0] ?? staff.role ?? '—'}
                             </div>
                             <div className="mt-0.5 flex items-center gap-2 text-[10px] tabular-nums text-muted-foreground">
-                              <span>
-                                <span className="font-semibold text-foreground">
-                                  {fmtMin(staff.metrics.activityMinutes)}
-                                </span>{' '}
-                                arbete
-                              </span>
-                              {staff.metrics.travelMinutes > 0 && (
-                                <span className="text-sky-600 dark:text-sky-400">
-                                  {fmtMin(staff.metrics.travelMinutes)} resa
-                                </span>
-                              )}
+                              {(() => {
+                                // Suggested-Only: visa SAMMA siffror som modalen (reportCandidateSummary).
+                                // staff.metrics är committed/lönegrundande och hör inte hemma i denna vy.
+                                const sum = reportCandidateByStaff?.[staff.id]?.summary as
+                                  | { workMinutes?: number; transportMinutes?: number }
+                                  | null
+                                  | undefined;
+                                const workMin = sum?.workMinutes ?? staff.metrics.activityMinutes;
+                                const travelMin = sum?.transportMinutes ?? staff.metrics.travelMinutes;
+                                return (
+                                  <>
+                                    <span>
+                                      <span className="font-semibold text-foreground">
+                                        {fmtMin(workMin)}
+                                      </span>{' '}
+                                      arbete
+                                    </span>
+                                    {travelMin > 0 && (
+                                      <span className="text-sky-600 dark:text-sky-400">
+                                        {fmtMin(travelMin)} resa
+                                      </span>
+                                    )}
+                                  </>
+                                );
+                              })()}
                             </div>
                             {(() => {
                               const ev = evidenceByStaff[staff.id];
