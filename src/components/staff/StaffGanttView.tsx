@@ -526,7 +526,7 @@ const blocksFromStaff = (
         perBlockPhase,
       );
 
-      return parityBlocks.map((b) => ({
+      const parityGantt: GanttBlock[] = parityBlocks.map((b) => ({
         id: b.id,
         kind:
           b.kind === 'work'
@@ -550,6 +550,9 @@ const blocksFromStaff = (
         source: 'reportCandidate',
         reportCandidateBlock: b,
       }));
+      // Samma visualMerge som engine-vägen — annars blir adjacent RIGG-block
+      // (olika bookings) renderade som separata kort i stället för ett.
+      return applyVisualMerge(parityGantt, staff.name);
     }
 
     const labelDiagnostics = {
