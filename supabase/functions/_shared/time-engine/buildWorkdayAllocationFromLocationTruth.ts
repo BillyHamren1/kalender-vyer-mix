@@ -1160,9 +1160,12 @@ export function buildWorkdayAllocationFromLocationTruth(
   }
 
   // Använd envelope-end (täcker både stängd och öppen dagtimer).
+  // Inferred envelope använder sin egen end (sista work-target-segmentets slut).
   // Men klippt mot ev. justerad start så vi aldrig genererar negativ duration.
-  const envelopeEndMs = toMs(envelope.endAt) ?? Date.now();
-  let wdEnd = Math.max(envelopeEndMs, wdStartMs);
+  const envelopeEndMs = inferredFromLocationTruth && inferredMs !== null
+    ? inferredMs.endMs
+    : (toMs(envelope.endAt) ?? Date.now());
+  let wdEnd = Math.max(envelopeEndMs, wdStartMs!);
 
   // ── Time Engine STOP 1 / STOP 1.1 — clampa wdEnd om non-work efter sista jobb > 90m ──
   // Pure helper, läser bara LocationTruth-segment. Skriver INGENTING.
