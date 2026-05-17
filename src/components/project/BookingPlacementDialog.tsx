@@ -278,68 +278,94 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
           .eq('id', booking.id);
       }
 
-      // Skriv calendar_events för rig + rigDown enligt planerade dagar
-      for (const day of planSteps) {
-        const { data: existing } = await supabase
-          .from('calendar_events')
-          .select('id')
-          .eq('booking_id', booking.id)
-          .eq('event_type', day.kind)
-          .eq('source_date', day.date)
+      if (linkingToExistingLarge && largeProjectId) {
+        // Bokningen ärver datum/tider från det stora projektet.
+        // Hämta LP:s nuvarande datum-arrayer och propagera (apply-project-dates
+        // bygger calendar_events för alla sub-bookings inkl. den nya).
+        const { data: lp } = await supabase
+          .from('large_projects')
+          .select('start_date, event_date, end_date')
+          .eq('id', largeProjectId)
           .maybeSingle();
-
-        const payload = {
-          title: booking.client || 'Projekt',
-          start_time: `${day.date}T${day.startTime}:00+00:00`,
-          end_time: `${day.date}T${day.endTime}:00+00:00`,
-          resource_id: day.teamId,
-          booking_id: booking.id,
-          event_type: day.kind,
-          delivery_address: booking.deliveryaddress || null,
-          booking_number: booking.booking_number || null,
-          source_date: day.date,
-        };
-
-        if (existing?.id) {
-          const { error } = await supabase
-            .from('calendar_events')
-            .update(payload)
-            .eq('id', existing.id);
-          if (error) throw error;
-        } else {
-          const { error } = await supabase.from('calendar_events').insert(payload);
-          if (error) throw error;
+        const phaseDates: Partial<Record<'rig' | 'event' | 'rigDown', string[]>> = {};
+        if (Array.isArray(lp?.start_date) && lp.start_date.length) phaseDates.rig = lp.start_date;
+        if (Array.isArray(lp?.event_date) && lp.event_date.length) phaseDates.event = lp.event_date;
+        if (Array.isArray(lp?.end_date) && lp.end_date.length) phaseDates.rigDown = lp.end_date;
+        if (Object.keys(phaseDates).length > 0) {
+          await writeProjectDates({
+            projectId: largeProjectId,
+            projectType: 'large',
+            dates: phaseDates,
+          });
         }
-      }
-
-      // Uppdatera bokningens fasta tider till första-dag-tiden om inte låst
-      const firstRig = planSteps.find((d) => d.kind === 'rig');
-      const firstDown = planSteps.find((d) => d.kind === 'rigDown');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const updates: any = {};
-      if (firstRig && !isPhaseLocked(booking, 'rig')) {
-        updates.rig_start_time = `${firstRig.startTime}:00`;
-        updates.rig_end_time = `${firstRig.endTime}:00`;
-      }
-      if (firstDown && !isPhaseLocked(booking, 'rigDown')) {
-        updates.rigdown_start_time = `${firstDown.startTime}:00`;
-        updates.rigdown_end_time = `${firstDown.endTime}:00`;
-      }
-      if (Object.keys(updates).length > 0) {
-        await supabase.from('bookings').update(updates).eq('id', booking.id);
-      }
-
-      if (isLarge && largeProjectId) {
-        await syncLargeProjectPlanningAssignments(largeProjectId, planSteps);
         await supabase
           .from('large_projects')
           .update({ planning_status: 'planned' })
           .eq('id', largeProjectId);
-      } else if (mediumProjectId) {
-        await supabase
-          .from('projects')
-          .update({ planning_status: 'planned' })
-          .eq('id', mediumProjectId);
+      } else {
+        // Skriv calendar_events för rig + rigDown enligt planerade dagar
+        for (const day of planSteps) {
+          const { data: existing } = await supabase
+            .from('calendar_events')
+            .select('id')
+            .eq('booking_id', booking.id)
+            .eq('event_type', day.kind)
+            .eq('source_date', day.date)
+            .maybeSingle();
+
+          const payload = {
+            title: booking.client || 'Projekt',
+            start_time: `${day.date}T${day.startTime}:00+00:00`,
+            end_time: `${day.date}T${day.endTime}:00+00:00`,
+            resource_id: day.teamId,
+            booking_id: booking.id,
+            event_type: day.kind,
+            delivery_address: booking.deliveryaddress || null,
+            booking_number: booking.booking_number || null,
+            source_date: day.date,
+          };
+
+          if (existing?.id) {
+            const { error } = await supabase
+              .from('calendar_events')
+              .update(payload)
+              .eq('id', existing.id);
+            if (error) throw error;
+          } else {
+            const { error } = await supabase.from('calendar_events').insert(payload);
+            if (error) throw error;
+          }
+        }
+
+        // Uppdatera bokningens fasta tider till första-dag-tiden om inte låst
+        const firstRig = planSteps.find((d) => d.kind === 'rig');
+        const firstDown = planSteps.find((d) => d.kind === 'rigDown');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const updates: any = {};
+        if (firstRig && !isPhaseLocked(booking, 'rig')) {
+          updates.rig_start_time = `${firstRig.startTime}:00`;
+          updates.rig_end_time = `${firstRig.endTime}:00`;
+        }
+        if (firstDown && !isPhaseLocked(booking, 'rigDown')) {
+          updates.rigdown_start_time = `${firstDown.startTime}:00`;
+          updates.rigdown_end_time = `${firstDown.endTime}:00`;
+        }
+        if (Object.keys(updates).length > 0) {
+          await supabase.from('bookings').update(updates).eq('id', booking.id);
+        }
+
+        if (isLarge && largeProjectId) {
+          await syncLargeProjectPlanningAssignments(largeProjectId, planSteps);
+          await supabase
+            .from('large_projects')
+            .update({ planning_status: 'planned' })
+            .eq('id', largeProjectId);
+        } else if (mediumProjectId) {
+          await supabase
+            .from('projects')
+            .update({ planning_status: 'planned' })
+            .eq('id', mediumProjectId);
+        }
       }
 
       toast.success('Bokningen är placerad och dagarna är inlagda i kalendern');
