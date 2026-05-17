@@ -121,15 +121,20 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
     );
   }, [booking]);
 
+  // När bokningen länkas till ett BEFINTLIGT stort projekt ärvs riggdagar
+  // och tider från det stora projektet — användaren ska då inte planera dagar.
+  const linkingToExistingLarge = isLarge && largeMode === 'existing' && !!largeExistingId;
+
   // Endast rig + rigDown planeras (eventdagen hoppas över i wizarden)
   const planSteps = useMemo(
-    () => days.filter((d) => d.kind !== 'event'),
-    [days],
+    () => (linkingToExistingLarge ? [] : days.filter((d) => d.kind !== 'event')),
+    [days, linkingToExistingLarge],
   );
 
-  const totalSteps = planSteps.length;
+  // När vi länkar till befintligt stort projekt: wizarden blir 1 steg (bekräftelse).
+  const totalSteps = linkingToExistingLarge ? 1 : planSteps.length;
   const currentDay: PlanningDay | undefined = planSteps[stepIndex];
-  const isLastStep = stepIndex >= totalSteps - 1;
+  const isLastStep = linkingToExistingLarge ? true : stepIndex >= totalSteps - 1;
   const isFirstStep = stepIndex === 0;
 
   const teamOptions = useMemo(
