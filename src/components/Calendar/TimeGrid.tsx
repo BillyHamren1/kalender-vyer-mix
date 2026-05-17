@@ -257,7 +257,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                       <StaffItem
                         key={staff.id}
                         staff={{ id: staff.id, name: staff.name, color: staff.color, assignedTeam: resource.id }}
-                        onRemove={() => handleStaffRemoval(staff.id)}
+                        onRemove={() => handleStaffRemoval(staff.id, resource.id)}
                         currentDate={day}
                         teamName={resource.title}
                         variant="compact"
