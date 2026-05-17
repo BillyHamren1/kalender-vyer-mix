@@ -871,21 +871,24 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
         wdaWarnings.includes('open_timer_ignored_after_inferred_day_end') ||
         wdaDiag?.canonicalTimer?.staleOpenTimerIgnored === true;
 
-      // Time Legacy Purge 1 — legacyCount=0 så fort V2-fältet finns ELLER
-      // V2 hard-blockerat dagen. Bara när V2 saknas helt (gammal engine /
-      // fetch-fel) får legacy köra som UI-källa.
-      const legacyIgnored = hasV2Field || v2HardBlocked;
-      const legacyIgnoredReason: string | null =
-        hasV2Field ? 'v2_field_present'
-        : v2HardBlocked ? 'v2_hard_blocked'
-        : null;
+      // Suggested-Only Policy (2026-05-17):
+      // I admin-tidrapportsvyn är ALLT förslag. reportCandidate är samma
+      // motor som detaljmodalen renderar, så när motorn producerat block
+      // för dagen ska Gantt-raden visa exakt dessa block — oavsett om V2-
+      // fältet finns eller om committed time_reports/LTE saknas.
+      // V2/allocation används endast som visuell pipeline när reportCandidate
+      // är tom (t.ex. dag helt utan GPS).
+      const legacyIgnored = false;
+      const legacyIgnoredReason: string | null = null;
 
-      const selected = selectGanttSourceFromMapped({
-        mappedV2Count: mappedV2.length,
-        mappedAllocationCount: mappedAlloc.length,
-        legacyCount: legacyIgnored ? 0 : legacyBlocks.length,
-        hasV2Field,
-      });
+      const selected: GanttBlockSource = legacyBlocks.length > 0
+        ? 'reportCandidate'
+        : selectGanttSourceFromMapped({
+            mappedV2Count: mappedV2.length,
+            mappedAllocationCount: mappedAlloc.length,
+            legacyCount: 0,
+            hasV2Field,
+          });
       const finalSelected: GanttBlockSource = selected;
       sources[s.id] = finalSelected;
 
