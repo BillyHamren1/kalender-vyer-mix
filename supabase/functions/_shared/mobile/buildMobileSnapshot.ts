@@ -4,6 +4,8 @@ import type {
   MobileActionItem,
   MobileCacheStatus,
   MobileDayReport,
+  MobileDayStatus,
+  MobileDayStatusDebug,
   MobileSegment,
   MobileSubmission,
   MobileSummary,
