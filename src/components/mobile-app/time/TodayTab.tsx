@@ -171,7 +171,10 @@ const WorkdayStatusCard: React.FC<{
 // 3) Totaler
 // ────────────────────────────────────────────────────────────────────
 
-const TotalsCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => {
+const TotalsCard: React.FC<{
+  snapshot: StaffDaySnapshot;
+  dayStatus: DayStatusResult;
+}> = ({ snapshot, dayStatus }) => {
   const t = snapshot.totals;
   const grossMin = t.grossWorkdayMinutes ?? t.workdayMinutes ?? 0;
   const transportMin = t.transportMinutes ?? t.travelMinutes ?? 0;
@@ -179,6 +182,11 @@ const TotalsCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => {
   const otherMin = t.otherPlaceMinutes ?? 0;
   const breakMin = t.breakMinutes;
   const payableMin = t.payableMinutes ?? grossMin;
+
+  // Lönegrundande visas som slutlig sanning ENDAST när dagen är inskickad.
+  // Annars visar vi den som "Föreslagen arbetstid" (mjukt språk, ej slutlig).
+  const isFinal = dayStatus.status === 'ended_day';
+  const payableLabel = isFinal ? 'Lönegrundande' : 'Föreslagen arbetstid';
 
   // Sekundära fält visas bara om de har värde > 0 — inget brus.
   const secondary: Array<{ label: string; value: string }> = [];
@@ -198,8 +206,13 @@ const TotalsCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => {
           value={breakMin != null ? fmtMinutes(breakMin) : '—'}
           muted={breakMin == null}
         />
-        <PrimaryStat label="Lönegrundande" value={fmtMinutes(payableMin)} highlight />
+        <PrimaryStat label={payableLabel} value={fmtMinutes(payableMin)} highlight />
       </div>
+      {!isFinal && dayStatus.status !== 'empty_day' && (
+        <p className="text-[11px] text-muted-foreground italic">
+          Ej inskickad — siffrorna kan ändras tills dagen är granskad.
+        </p>
+      )}
       {secondary.length > 0 && (
         <div className="flex flex-wrap gap-1.5 pt-1">
           {secondary.map((s) => (
