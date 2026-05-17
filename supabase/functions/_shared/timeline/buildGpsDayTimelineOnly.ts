@@ -205,28 +205,57 @@ export function buildGpsDayTimelineOnly(
       if (chain.length === 0) return;
       if (chain.length === 1) {
         const p = chain[0];
-        out.push({
-          startTs: p.ts,
-          endTs: p.ts,
-          durationMin: 0,
-          kind: "travel",
-          type: "single_ping_movement" as any,
-          label: "Enstaka rörelseping",
-          matchedSiteId: null,
-          matchedSiteType: null,
-          matchedSiteName: null,
-          centerLat: p.lat,
-          centerLng: p.lng,
-          startLat: p.lat,
-          startLng: p.lng,
-          endLat: p.lat,
-          endLng: p.lng,
-          pingCount: 1,
-          distanceMeters: 0,
-          avgKmh: null,
-          confidence: 0.3,
-          reason: "isolated_movement_ping",
-        });
+        // Target-aware: even a single ping inside a target's geofence should
+        // count as a (tiny) stay at that target, not an "isolated movement"
+        // floating outside the worksite.
+        const containingTarget = findContainingTarget(chain);
+        if (containingTarget) {
+          out.push({
+            startTs: p.ts,
+            endTs: p.ts,
+            durationMin: 0,
+            kind: "stay",
+            type: "known_site",
+            label: containingTarget.name || "Plats",
+            matchedSiteId: containingTarget.id,
+            matchedSiteType: containingTarget.type,
+            matchedSiteName: containingTarget.name,
+            centerLat: p.lat,
+            centerLng: p.lng,
+            startLat: p.lat,
+            startLng: p.lng,
+            endLat: p.lat,
+            endLng: p.lng,
+            pingCount: 1,
+            distanceMeters: 0,
+            avgKmh: null,
+            confidence: 0.6,
+            reason: "single_ping_inside_target",
+          });
+        } else {
+          out.push({
+            startTs: p.ts,
+            endTs: p.ts,
+            durationMin: 0,
+            kind: "travel",
+            type: "single_ping_movement" as any,
+            label: "Enstaka rörelseping",
+            matchedSiteId: null,
+            matchedSiteType: null,
+            matchedSiteName: null,
+            centerLat: p.lat,
+            centerLng: p.lng,
+            startLat: p.lat,
+            startLng: p.lng,
+            endLat: p.lat,
+            endLng: p.lng,
+            pingCount: 1,
+            distanceMeters: 0,
+            avgKmh: null,
+            confidence: 0.3,
+            reason: "isolated_movement_ping",
+          });
+        }
       } else {
         let dist = 0;
         for (let i = 1; i < chain.length; i++) {
