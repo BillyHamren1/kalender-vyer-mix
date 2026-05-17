@@ -1,16 +1,20 @@
 // ai-review-time-report-blocks
 // ─────────────────────────────────────────────────────────────────────────────
+// LEGACY AUDIT ONLY (Time Legacy Purge 2, 2026-05).
 // Helautomatisk AI-granskning av oklara block i staff_day_report_cache.
 // Triggas av DB-trigger trg_ai_review_time_report_blocks (pg_net) när cachen
 // uppdateras med needs_review/unknown-block och dagen INTE är submitted/approved.
 //
 // Skriver ENBART till:
 //   - staff_day_report_cache (report_candidate_blocks_json + summary_json
-//     + ai_review_signature/at)
-//   - time_report_ai_block_audit
+//     + ai_review_signature/at) — LEGACY-fält som inte längre används som
+//     UI-källa i admin eller mobil.
+//   - time_report_ai_block_audit (audit-rader markerade med
+//     source='legacy_report_candidate_ai_review').
 //
-// Rör ALDRIG: gps_pings, staff_location_history, time_reports, workdays,
-// location_time_entries, travel_time_logs, staff_day_submissions.
+// FÅR ALDRIG skriva: display_blocks_json (DisplayTimelineV2 är canonical),
+//   gps_pings, staff_location_history, time_reports, workdays,
+//   location_time_entries, travel_time_logs, staff_day_submissions.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { corsHeaders } from "../_shared/cors.ts";
