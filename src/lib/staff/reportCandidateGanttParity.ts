@@ -4,10 +4,7 @@ import {
   type PresenceBlockLite,
   type TargetLite,
 } from '@/lib/staff/buildReportDisplayBlocks';
-import type {
-  ReportBlockKind,
-  ReportCandidateBlockUI,
-} from '@/components/staff/ReportCandidateTimeline';
+import type { ReportBlockKind, ReportCandidateBlockUI } from '@/components/staff/ReportCandidateTimeline';
 
 export const ADMIN_GANTT_VISIBLE_REPORT_KINDS = new Set<ReportBlockKind>([
   'work',
