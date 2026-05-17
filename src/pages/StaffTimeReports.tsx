@@ -1236,14 +1236,28 @@ const StaffTimeReports: React.FC = () => {
         }
       }
 
-      const { data: staff, error: staffError } = await supabase
+      const { data: staffRaw, error: staffError } = await supabase
         .from('staff_members')
         .select('id, name, role, color')
         .in('id', staffIds);
 
       if (staffError) throw staffError;
 
-      return (staff || [])
+      // Fix 4 — staff_members kan sakna rader för inaktiva/borttagna personer
+      // som ändå har GPS/health/cache-data för dagen. Synta placeholders så
+      // Time Engine fortfarande körs på deras id och de syns i exporten.
+      const knownStaffIds = new Set((staffRaw || []).map((s: any) => s.id));
+      const synthStaff = staffIds
+        .filter((id) => !knownStaffIds.has(id))
+        .map((id) => ({
+          id,
+          name: staffNames.get(id) || `(okänd staff ${id.slice(0, 8)})`,
+          role: null as string | null,
+          color: null as string | null,
+        }));
+      const staff = [...(staffRaw || []), ...synthStaff];
+
+      return staff
         .map(s => {
           const a = byStaff.get(s.id)!;
           // Sort segments: open first, then newest start desc
