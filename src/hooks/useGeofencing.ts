@@ -320,6 +320,9 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
   const [activeTimers, setActiveTimers] = useState<Map<string, ActiveTimer>>(loadTimers);
   const [userPosition, setUserPosition] = useState<GpsPosition | null>(null);
   const [isTracking, setIsTracking] = useState(false);
+  // Time Legacy Purge 6 — geofenceEvent är intern signal/telemetri. Ingen
+  // komponent renderar längre den som popup (GeofencePrompt borttagen). GPS
+  // skickar pings/evidence; Time Engine tolkar närvaron i efterhand.
   const [geofenceEvent, setGeofenceEvent] = useState<GeofenceEvent | null>(null);
   const [nearbyBookings, setNearbyBookings] = useState<(MobileBooking & { distance: number })[]>([]);
   const [orgLocations, setOrgLocations] = useState<OrganizationLocationMobile[]>([]);

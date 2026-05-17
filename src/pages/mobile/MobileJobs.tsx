@@ -4,7 +4,8 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useScheduledShifts } from '@/hooks/useScheduledShifts';
 import { useGeofencingContext } from '@/contexts/GeofencingContext';
-import GeofencePrompt from '@/components/mobile-app/GeofencePrompt';
+// Time Legacy Purge 6 — GeofencePrompt borttagen som UI-källa. GPS/geofence
+// är passiv evidence; ingen popup får längre fråga om att starta tid.
 import { HeaderShell } from '@/components/mobile-app/MobileHeader';
 import { Clock } from 'lucide-react';
 import CalendarViewToggle, { type CalendarViewMode } from '@/components/mobile-app/calendar/CalendarViewToggle';
@@ -16,7 +17,7 @@ import MobileJobListView from '@/components/mobile-app/calendar/MobileJobListVie
 import LagerDayCard from '@/components/mobile-app/LagerDayCard';
 import { Loader2, RefreshCw, Building2, MapPin, UserCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
+// toast import removed — no popup confirmations on geofence events.
 import { useLanguage } from '@/i18n/LanguageContext';
 
 
@@ -56,27 +57,16 @@ const MobileJobs = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
   useEffect(() => { localStorage.setItem(VIEW_MODE_KEY, viewMode); }, [viewMode]);
 
-  const { geofenceEvent, dismissGeofenceEvent, orgLocations } = useGeofencingContext();
+  const { orgLocations } = useGeofencingContext();
 
   // Fixed locations that should appear as job cards (read-only)
   const locationJobs = orgLocations.filter(loc => loc.show_as_project === true);
 
-  /**
-   * Geofence ENTER no longer auto-starts any timer here. The arrival popup
-   * (UnifiedArrivalPrompt, rendered globally by MobileGlobalOverlays) is
-   * the single user-visible entry point for geo-driven starts. EXIT routes
-   * the user to /m/report so save-then-stop runs (handled globally now).
-   */
-  const handleGeofenceConfirm = () => {
-    if (!geofenceEvent) return;
-    if (geofenceEvent.type === 'enter') {
-      console.log('[MobileJobs] geofence enter — deferring to arrival popup');
-    } else {
-      toast.success(t('timer.stoppedCreateReport'));
-      navigate('/m/report');
-    }
-    dismissGeofenceEvent();
-  };
+  // Time Legacy Purge 6 — geofenceEvent renderas inte längre som popup. GPS
+  // pings/evidence skickas fortfarande via useBackgroundLocationReporter +
+  // useGeofencing → mobile-app-api/upload_location_batch. Time Engine tolkar
+  // närvaron i efterhand. Inga separata projekt-/plats-/bokningstimers får
+  // startas via popup (Single Timer Policy).
 
   // Empty set — cards are not visually tied to legacy activeTimers anymore.
   // The single timer surface is WorkDayPanel.
@@ -228,13 +218,8 @@ const MobileJobs = () => {
         )}
       </div>
 
-      {geofenceEvent && (
-        <GeofencePrompt
-          event={geofenceEvent}
-          onConfirm={handleGeofenceConfirm}
-          onDismiss={dismissGeofenceEvent}
-        />
-      )}
+      {/* Time Legacy Purge 6 — GeofencePrompt borttagen. Ingen popup på
+          geofence enter/exit. GPS-pings/evidence skickas fortfarande. */}
     </div>
   );
 };
