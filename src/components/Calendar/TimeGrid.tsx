@@ -48,6 +48,7 @@ interface TimeGridProps {
 
 const TIME_COLUMN_WIDTH = 28;
 const TEAM_COLUMN_WIDTH = 95;
+const MIN_COMPRESSED_TEAM_COLUMN_WIDTH = 68;
 const ASSIGNED_STAFF_ROW_HEIGHT = 88;
 
 const TimeGrid: React.FC<TimeGridProps> = ({
@@ -127,15 +128,18 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     if (onStaffDrop) await onStaffDrop(staffId, null, day, fromTeamId);
   };
 
+  const responsiveColumnWidth = resources.length > 0
+    ? `minmax(${MIN_COMPRESSED_TEAM_COLUMN_WIDTH}px, 1fr)`
+    : '1fr';
   const gridTemplateColumns = fullWidth
-    ? `${TIME_COLUMN_WIDTH}px repeat(${resources.length}, 1fr) ${TIME_COLUMN_WIDTH}px`
+    ? `${TIME_COLUMN_WIDTH}px repeat(${resources.length}, ${responsiveColumnWidth}) ${TIME_COLUMN_WIDTH}px`
     : `${TIME_COLUMN_WIDTH}px ${teamColumnWidths.map((w) => `${w}px`).join(' ')} ${TIME_COLUMN_WIDTH}px`;
-  const totalWidth = fullWidth ? '100%' : `${TIME_COLUMN_WIDTH * 2 + totalTeamColumnsWidth}px`;
+  const totalWidth = '100%';
   const rightTimeColumn = resources.length + 2;
 
   return (
     <>
-      <div className={`time-grid-with-staff-header day-card bg-background rounded-2xl shadow-lg border overflow-x-auto overflow-y-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
+      <div className={`time-grid-with-staff-header day-card bg-background rounded-2xl shadow-lg border overflow-y-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
         {/* Fixed header */}
         <div
           className="time-grid-fixed-header"
@@ -146,11 +150,11 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
           <div
             className="day-header-teams"
-            style={{
-              gridColumn: `2 / ${rightTimeColumn}`,
-              width: fullWidth ? 'auto' : `${totalTeamColumnsWidth}px`,
-              maxWidth: fullWidth ? 'none' : `${totalTeamColumnsWidth}px`,
-            }}
+              style={{
+                gridColumn: `2 / ${rightTimeColumn}`,
+                width: 'auto',
+                maxWidth: 'none',
+              }}
           >
             <div className="day-header-content">
               {carouselNav ? (
