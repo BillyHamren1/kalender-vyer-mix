@@ -184,6 +184,9 @@ export interface TraceStaffEntry {
     displayTimelineBlocksV2: any[];
     aiWorkdayReviewSummary: any;
     aiWorkdayReviewProposals: any[];
+    /** Fix 4 — när presence-day inte returnerat något (cand saknas/missing/loading)
+     *  men staff har raw pings: tydlig förklaring istället för bara null. */
+    timeEngineFetchError: string | null;
   };
   gantt: {
     selectedSource: string | null;
