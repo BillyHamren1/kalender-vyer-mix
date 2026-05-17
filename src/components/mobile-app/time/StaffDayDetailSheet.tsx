@@ -43,6 +43,7 @@ import { SEG_ICON, SEG_TONE, FallbackSegIcon } from './segmentVisuals';
 import StaffDayAttestSection from './StaffDayAttestSection';
 import EndDayButton from './EndDayButton';
 import SegmentDetailSheet from './SegmentDetailSheet';
+import StaffGanttMirrorTimeline from './StaffGanttMirrorTimeline';
 
 const TZ_TODAY = 'Europe/Stockholm';
 function useTick(intervalMs = 1000) {
