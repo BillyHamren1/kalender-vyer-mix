@@ -43,6 +43,7 @@ import EndDayButton from './EndDayButton';
 import SegmentDetailSheet from './SegmentDetailSheet';
 import DisplayTimelineV2Card from './DisplayTimelineV2Card';
 import StaffDayRemindersBanner from './StaffDayRemindersBanner';
+import { deriveDayStatus, type DayStatusResult } from './dayStatus';
 
 // 1Hz tick so the active timer's elapsed seconds roll forward.
 function useTick(intervalMs = 1000) {
@@ -68,13 +69,22 @@ function segmentRange(s: StaffDaySegment) {
 // 1) Översta statuskortet — Arbetsdag
 // ────────────────────────────────────────────────────────────────────
 
-const WorkdayStatusCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => {
+const WorkdayStatusCard: React.FC<{
+  snapshot: StaffDaySnapshot;
+  dayStatus: DayStatusResult;
+}> = ({ snapshot, dayStatus }) => {
   const wd = snapshot.workday;
-  const isOpen = !!wd?.isOpen;
+  const isOpen = dayStatus.status === 'active_day';
   useTick(isOpen ? 1000 : 60_000);
 
-  const statusLine = wd?.statusLabel
-    ?? (wd ? (isOpen ? 'Arbetsdag igång' : 'Arbetsdag avslutad') : 'Ingen arbetsdag startad');
+  // Backendens statusLabel respekteras BARA när vi är trygga (active/ended).
+  // För has_time_not_ended/empty_day använder vi vår egen label så att en
+  // backend som t.ex. säger "Arbetsdag avslutad" pga sista segmentet slutade
+  // inte läcker igenom UI:t.
+  const statusLine =
+    dayStatus.status === 'active_day' || dayStatus.status === 'ended_day'
+      ? (wd?.statusLabel ?? dayStatus.label)
+      : dayStatus.label;
 
   // Brutto kommer ALLTID från backend. Vid pågående dag tickar vi sekundvis
   // mellan refetch genom att räkna live elapsed från startedAt — men vi
@@ -109,10 +119,12 @@ const WorkdayStatusCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot 
                 {formatStockholmHm(wd.startedAt)}
               </span>{' '}
               →{' '}
-              {wd.endedAt ? (
+              {dayStatus.status === 'ended_day' && wd.endedAt ? (
                 <span className="font-semibold text-foreground/80">
                   {formatStockholmHm(wd.endedAt)}
                 </span>
+              ) : dayStatus.status === 'has_time_not_ended' ? (
+                <span className="text-muted-foreground font-semibold">ej inskickad</span>
               ) : (
                 <span className="text-primary font-semibold">pågår</span>
               )}
@@ -159,7 +171,10 @@ const WorkdayStatusCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot 
 // 3) Totaler
 // ────────────────────────────────────────────────────────────────────
 
-const TotalsCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => {
+const TotalsCard: React.FC<{
+  snapshot: StaffDaySnapshot;
+  dayStatus: DayStatusResult;
+}> = ({ snapshot, dayStatus }) => {
   const t = snapshot.totals;
   const grossMin = t.grossWorkdayMinutes ?? t.workdayMinutes ?? 0;
   const transportMin = t.transportMinutes ?? t.travelMinutes ?? 0;
@@ -167,6 +182,11 @@ const TotalsCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => {
   const otherMin = t.otherPlaceMinutes ?? 0;
   const breakMin = t.breakMinutes;
   const payableMin = t.payableMinutes ?? grossMin;
+
+  // Lönegrundande visas som slutlig sanning ENDAST när dagen är inskickad.
+  // Annars visar vi den som "Föreslagen arbetstid" (mjukt språk, ej slutlig).
+  const isFinal = dayStatus.status === 'ended_day';
+  const payableLabel = isFinal ? 'Lönegrundande' : 'Föreslagen arbetstid';
 
   // Sekundära fält visas bara om de har värde > 0 — inget brus.
   const secondary: Array<{ label: string; value: string }> = [];
@@ -186,8 +206,13 @@ const TotalsCard: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapshot }) => {
           value={breakMin != null ? fmtMinutes(breakMin) : '—'}
           muted={breakMin == null}
         />
-        <PrimaryStat label="Lönegrundande" value={fmtMinutes(payableMin)} highlight />
+        <PrimaryStat label={payableLabel} value={fmtMinutes(payableMin)} highlight />
       </div>
+      {!isFinal && dayStatus.status !== 'empty_day' && (
+        <p className="text-[11px] text-muted-foreground italic">
+          Ej inskickad — siffrorna kan ändras tills dagen är granskad.
+        </p>
+      )}
       {secondary.length > 0 && (
         <div className="flex flex-wrap gap-1.5 pt-1">
           {secondary.map((s) => (
@@ -419,10 +444,20 @@ const ActionsNeededSection: React.FC<{ snapshot: StaffDaySnapshot }> = ({ snapsh
 //    - Ingen arbetsdag: länk till /m där WorkDayPanel äger startflödet.
 // ────────────────────────────────────────────────────────────────────
 
-const PrimaryAction: React.FC<{ snapshot: StaffDaySnapshot | null }> = ({ snapshot }) => {
+const PrimaryAction: React.FC<{
+  snapshot: StaffDaySnapshot | null;
+  dayStatus: DayStatusResult;
+}> = ({ dayStatus }) => {
   const navigate = useNavigate();
-  const isOpen = snapshot?.workday?.isOpen ?? false;
-  if (isOpen) return null;
+  // Inline-stoppknappen finns redan under tidslinjen vid active_day.
+  // Vid has_time_not_ended visar vi ingen primärknapp — användaren ser kortet
+  // "Tid registrerad" och kan trycka Avsluta dag via banner/lista.
+  if (dayStatus.status === 'active_day' || dayStatus.status === 'has_time_not_ended') {
+    return null;
+  }
+  if (dayStatus.status === 'ended_day') {
+    return null;
+  }
   return (
     <Button
       size="lg"
@@ -496,6 +531,8 @@ export const TodayTab: React.FC = () => {
     [rawSnapshot],
   );
 
+  const dayStatus = useMemo(() => deriveDayStatus(snapshot), [snapshot]);
+
   if (isLoading && !snapshot) {
     return (
       <div className="rounded-2xl border border-border bg-card p-8 flex items-center justify-center">
@@ -517,11 +554,13 @@ export const TodayTab: React.FC = () => {
 
   if (!snapshot) return null;
 
+  const showDebug = import.meta.env.DEV;
+
   return (
     <div className="space-y-3">
       <StaffDayRemindersBanner />
-      <WorkdayStatusCard snapshot={snapshot} />
-      <TotalsCard snapshot={snapshot} />
+      <WorkdayStatusCard snapshot={snapshot} dayStatus={dayStatus} />
+      <TotalsCard snapshot={snapshot} dayStatus={dayStatus} />
       <TimelineSection
         snapshot={snapshot}
         onChanged={() => { void refresh(); }}
@@ -529,8 +568,17 @@ export const TodayTab: React.FC = () => {
       />
       <ActionsNeededSection snapshot={snapshot} />
       <div className="pt-1">
-        <PrimaryAction snapshot={snapshot} />
+        <PrimaryAction snapshot={snapshot} dayStatus={dayStatus} />
       </div>
+
+      {showDebug && (
+        <details className="rounded-xl border border-dashed border-border bg-muted/30 p-2 text-[10px] font-mono text-muted-foreground">
+          <summary className="cursor-pointer">dayStatus debug</summary>
+          <pre className="whitespace-pre-wrap mt-1">
+{JSON.stringify({ status: dayStatus.status, reason: dayStatus.reason, ...dayStatus.debug }, null, 2)}
+          </pre>
+        </details>
+      )}
 
       {/* Lager 4.5 — read-only förhandsvisning av Display Timeline V2.
           Renderar null när V2-data saknas (fallback till befintlig vy). */}
