@@ -1552,35 +1552,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
             </div>
           </div>
 
-          {/* Summary cards */}
-          <div className="flex flex-wrap items-stretch gap-2.5">
-            <SummaryCard
-              icon={<Briefcase className="h-4 w-4" />}
-              iconClass="bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300"
-              value={fmtMin(totals.work)}
-              label="Arbete"
-            />
-            <SummaryCard
-              icon={<Plane className="h-4 w-4" />}
-              iconClass="bg-sky-50 text-sky-600 dark:bg-sky-500/15 dark:text-sky-300"
-              value={fmtMin(totals.travel)}
-              label="Resa"
-            />
-            <SummaryCard
-              icon={<Activity className="h-4 w-4" />}
-              iconClass="bg-violet-50 text-violet-600 dark:bg-violet-500/15 dark:text-violet-300"
-              value={String(totals.workdayActive)}
-              label="Pågår"
-              accent={totals.workdayActive > 0 ? 'emerald' : undefined}
-            />
-            <SummaryCard
-              icon={<CalendarDays className="h-4 w-4" />}
-              iconClass="bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300"
-              value={String(totals.plannedNoReport)}
-              label="Planerade utan rapport"
-              accent={totals.plannedNoReport > 0 ? 'amber' : undefined}
-            />
-          </div>
+          {/* Summary cards borttagna per användarens önskemål */}
 
           {/* Right tools */}
           <div className="flex flex-wrap items-center gap-2">
