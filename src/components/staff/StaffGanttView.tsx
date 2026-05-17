@@ -36,6 +36,7 @@ import {
   buildSessionPhaseMap,
   sessionKeyForBlock,
   resolveBookingPhaseFromTitle,
+  applyPlanningPhaseToGanttBlocks,
   type SessionPhaseKind,
 } from '@/lib/staff/ganttPhaseColor';
 import { mergeContiguousBlocks, type MergeBlockInput, type MergeableKind } from '@/lib/staff/ganttBlockMerge';
