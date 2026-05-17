@@ -1740,6 +1740,7 @@ const StaffTimeReports: React.FC = () => {
       counts: any;
       // Lager 4.1 — Display Timeline V2 (primär Gantt-källa).
       displayTimelineBlocksV2: any[];
+      hasDisplayTimelineV2Field: boolean;
       displayTimelineDiagnosticsV2: any;
       // Lager 3 — Workday Allocation (fallback när V2 saknas).
       workdayAllocationSegments: any[];
@@ -1778,6 +1779,9 @@ const StaffTimeReports: React.FC = () => {
         targets: data?.targets ?? [],
         counts: data?.counts ?? null,
         displayTimelineBlocksV2: data?.displayTimelineBlocksV2 ?? [],
+        // Time Legacy Purge 1 — true om engine returnerade V2-fältet (även tom
+        // array). Används av StaffGanttView för att blockera legacy fallback.
+        hasDisplayTimelineV2Field: Array.isArray(data?.displayTimelineBlocksV2),
         displayTimelineDiagnosticsV2: data?.displayTimelineDiagnosticsV2 ?? null,
         workdayAllocationSegments: data?.workdayAllocationSegments ?? [],
         workdayAllocationDiagnostics: data?.workdayAllocationDiagnostics ?? null,

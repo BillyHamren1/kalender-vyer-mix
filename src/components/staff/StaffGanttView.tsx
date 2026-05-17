@@ -835,16 +835,15 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
       const allocSegs = cand?.workdayAllocationSegments ?? [];
       const legacyBlocks = cand?.blocks ?? [];
 
+      // Time Legacy Purge 1 — om V2-fältet returnerades alls (även tom array)
+      // är V2 sanningen. Legacy reportCandidate får inte fylla i som UI-källa.
+      const hasV2Field = (cand as any)?.hasDisplayTimelineV2Field === true;
+
       // Mappa direkt så vi vet vad som är renderbart.
       const mappedV2 = mapDisplayTimelineBlocksToGantt(v2Blocks as any).map(timelineBlockToGanttBlock);
       const mappedAlloc = mapWorkdayAllocationSegmentsToGantt(allocSegs as any).map(timelineBlockToGanttBlock);
 
       // ── DEL 1 / Fix B — V2 explicit suppression-guard ──
-      // När motorn (LT V2 / WorkdayAllocation / DisplayTimeline) explicit
-      // har valt att inte rendera dagen pga säkerhetsskäl, ELLER när V2
-      // helt enkelt har analyserat dagen utan att hitta en aktiv arbetsdag,
-      // får legacy reportCandidate INTE användas som fallback. Annars läcker
-      // en falsk arbetsdag in från legacy-pipeline.
       const wdaDiag = cand?.workdayAllocationDiagnostics ?? null;
       const dtDiag = cand?.displayTimelineDiagnosticsV2 ?? null;
       const wdaWarnings: string[] = Array.isArray(wdaDiag?.warnings) ? wdaDiag.warnings : [];
@@ -859,40 +858,22 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
         wdaWarnings.includes('open_timer_ignored_after_inferred_day_end') ||
         wdaDiag?.canonicalTimer?.staleOpenTimerIgnored === true;
 
-      // Fix B — V2 har "rört" dagen om det finns diagnostics eller LT-segments.
-      const v2AnalyzedDay =
-        wdaDiag !== null ||
-        dtDiag !== null ||
-        typeof wdaDiag?.locationTruthV2SegmentCount === 'number' ||
-        (typeof cand?.counts?.locationTruthV2SegmentCount === 'number');
-
-      // Fix B — V2 säger uttryckligen "ingen aktiv arbetsdag".
-      const v2NoActiveWorkday =
-        wdaDiag?.hasActiveWorkday === false ||
-        wdaWarnings.includes('no_active_workday') ||
-        wdaWarnings.includes('workday_start_missing') ||
-        wdaWarnings.includes('empty_workday_allocation') ||
-        dtWarnings.includes('empty_workday_allocation');
-
-      const v2EmptyByDecision =
-        v2AnalyzedDay &&
-        mappedV2.length === 0 &&
-        mappedAlloc.length === 0 &&
-        v2NoActiveWorkday;
-
-      const v2ExplicitlyBlocked = v2HardBlocked || v2EmptyByDecision;
+      // Time Legacy Purge 1 — legacyCount=0 så fort V2-fältet finns ELLER
+      // V2 hard-blockerat dagen. Bara när V2 saknas helt (gammal engine /
+      // fetch-fel) får legacy köra som UI-källa.
+      const legacyIgnored = hasV2Field || v2HardBlocked;
+      const legacyIgnoredReason: string | null =
+        hasV2Field ? 'v2_field_present'
+        : v2HardBlocked ? 'v2_hard_blocked'
+        : null;
 
       const selected = selectGanttSourceFromMapped({
         mappedV2Count: mappedV2.length,
         mappedAllocationCount: mappedAlloc.length,
-        // Vid explicit V2-suppression: blockera legacy-fallback också.
-        legacyCount: v2ExplicitlyBlocked ? 0 : legacyBlocks.length,
+        legacyCount: legacyIgnored ? 0 : legacyBlocks.length,
+        hasV2Field,
       });
-      // Fix B — märk explicit som v2_empty så drawer/trace ser skillnad mot
-      // 'empty' (där V2 inte ens har analyserat dagen).
-      const finalSelected: GanttBlockSource = v2ExplicitlyBlocked && selected === 'empty'
-        ? 'v2_empty'
-        : selected;
+      const finalSelected: GanttBlockSource = selected;
       sources[s.id] = finalSelected;
 
       let blocks: GanttBlock[] = [];
@@ -901,16 +882,15 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
       } else if (selected === 'workdayAllocation') {
         blocks = applyGanttVisualPipeline(mappedAlloc, s.name, (d) => { diag[s.id] = d; });
       } else if (selected === 'reportCandidate') {
+        // Endast nås när hasV2Field=false OCH v2HardBlocked=false (legacy-läge).
         blocks = blocksFromStaff(
           s,
           legacyBlocks,
-          // Pre-work renderas ALDRIG som huvudblock.
           null,
           bookingPhaseByDate,
           largeProjectPhaseByDate,
           (d) => { diag[s.id] = d; },
         );
-        // Markera legacy-block med source så drawern kan välja rätt dialog.
         blocks = blocks.map((b) => ({ ...b, source: b.source ?? 'reportCandidate' }));
       }
       map[s.id] = blocks;
@@ -923,7 +903,6 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
         rendered: blocks.length,
       };
 
-      // Debug-logg så vi kan se vilken källa som valdes per staff.
       if (typeof console !== 'undefined') {
         // eslint-disable-next-line no-console
         console.warn('[Gantt source]', {
@@ -933,7 +912,9 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
           rawWorkdayAllocationSegmentsCount: allocSegs.length,
           mappedWorkdayAllocationBlocksCount: mappedAlloc.length,
           reportCandidateBlocksCount: legacyBlocks.length,
-          selectedSource: selected,
+          selectedCanonicalSource: finalSelected,
+          legacyReportCandidateIgnored: legacyIgnored,
+          legacyIgnoredReason,
           renderedBlockCount: blocks.length,
         });
       }

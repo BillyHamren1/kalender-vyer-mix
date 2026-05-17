@@ -433,19 +433,28 @@ export interface SelectFromMappedInput {
   mappedV2Count: number;
   mappedAllocationCount: number;
   legacyCount: number;
+  /**
+   * Time Legacy Purge 1 — true när presence-day-svaret hade fältet
+   * `displayTimelineBlocksV2` som Array (även tom). Då är V2 den auktoritativa
+   * källan och legacy `reportCandidateBlocks` får INTE användas som UI-källa.
+   * Endast när V2-fältet helt saknas (engine inte körd / gammal version) tillåts
+   * legacy som fallback.
+   */
+  hasV2Field?: boolean;
 }
 
 /**
  * Deterministisk källprioritet baserad på RENDERBARA block (efter mapping).
  *
- * Använd detta när du har kört `mapDisplayTimelineBlocksToGantt` /
- * `mapWorkdayAllocationSegmentsToGantt`. Då räknar vi bara block som faktiskt
- * kan ritas — så en V2-uppsättning med enbart private/hidden eskalerar
- * korrekt till allocation eller legacy istället för att lämna tom Gantt.
+ * Time Legacy Purge 1 (2026-05):
+ *   - Om `hasV2Field` = true → legacy reportCandidate spärras helt (returnerar
+ *     `v2_empty` istället för `reportCandidate` när V2/alloc=0).
+ *   - Endast när V2-fältet saknas i svaret tillåts legacy som fallback.
  */
 export function selectGanttSourceFromMapped(input: SelectFromMappedInput): GanttBlockSource {
   if (input.mappedV2Count > 0) return 'displayTimelineV2';
   if (input.mappedAllocationCount > 0) return 'workdayAllocation';
+  if (input.hasV2Field === true) return 'v2_empty';
   if (input.legacyCount > 0) return 'reportCandidate';
   return 'empty';
 }
