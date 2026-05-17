@@ -82,7 +82,6 @@ const DayRow = ({
   const date = parseISO(day.date);
   const minutes = day.grossWorkdayMinutes ?? 0;
   const breakMinutes = day.breakMinutes ?? 0;
-  const payable = day.payableMinutes ?? 0;
   const isEmpty = day.status === 'empty';
 
   // Optional start/end — backend may add these later from manual submission.
@@ -128,7 +127,7 @@ const DayRow = ({
               <p className="text-sm font-extrabold tabular-nums text-foreground">
                 {formatHoursMinutes(minutes / 60)}
               </p>
-              <p className="text-[11px] text-muted-foreground">brutto</p>
+              <p className="text-[11px] text-muted-foreground">total tid</p>
               {showRange && (
                 <p className="text-[11px] text-muted-foreground tabular-nums ml-auto">
                   {formatStockholmHm(startedAt!)}–{formatStockholmHm(endedAt!)}
@@ -136,12 +135,6 @@ const DayRow = ({
               )}
             </div>
             <div className="flex items-center gap-3 mt-0.5 text-[11px] text-muted-foreground">
-              <span>
-                <span className="font-semibold text-foreground tabular-nums">
-                  {formatHoursMinutes(payable / 60)}
-                </span>{' '}
-                lön
-              </span>
               <span>
                 <span className="font-semibold text-foreground tabular-nums">
                   {formatHoursMinutes(breakMinutes / 60)}

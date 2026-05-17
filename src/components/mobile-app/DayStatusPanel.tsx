@@ -147,7 +147,7 @@ export const DayStatusPanel: React.FC<Props> = ({ onChanged }) => {
             </p>
           </div>
           <div className="text-right">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Lönegrundande</p>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Total tid</p>
             <p className="font-extrabold text-base text-foreground tabular-nums">
               {formatHoursMinutes((totals?.workdayMinutes ?? 0) / 60)}
             </p>

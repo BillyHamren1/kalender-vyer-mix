@@ -181,12 +181,9 @@ const TotalsCard: React.FC<{
   const projectMin = (t.projectMinutes ?? t.allocatedProjectMinutes ?? 0) + (t.warehouseMinutes ?? 0);
   const otherMin = t.otherPlaceMinutes ?? 0;
   const breakMin = t.breakMinutes;
-  const payableMin = t.payableMinutes ?? grossMin;
 
-  // Lönegrundande visas som slutlig sanning ENDAST när dagen är inskickad.
-  // Annars visar vi den som "Föreslagen arbetstid" (mjukt språk, ej slutlig).
-  const isFinal = dayStatus.status === 'ended_day';
-  const payableLabel = isFinal ? 'Lönegrundande' : 'Föreslagen arbetstid';
+  // OBS: Mobilen visar ALDRIG "lönegrundande", "betalbar", "payroll" eller "föreslagen lön".
+  // Den visar bara registrerad/arbetad tid. Lön/payroll hanteras i admin/export.
 
   // Sekundära fält visas bara om de har värde > 0 — inget brus.
   const secondary: Array<{ label: string; value: string }> = [];
@@ -194,21 +191,22 @@ const TotalsCard: React.FC<{
   if (transportMin > 0) secondary.push({ label: 'Transport', value: fmtMinutes(transportMin) });
   if (otherMin > 0) secondary.push({ label: 'Annan plats', value: fmtMinutes(otherMin) });
 
+  const isSubmitted = dayStatus.debug.hasSubmittedDay === true;
+
   return (
     <section className="rounded-2xl border border-border bg-card p-4 shadow-sm space-y-3">
       <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
         Totaler idag
       </p>
-      <div className="grid grid-cols-3 gap-2">
-        <PrimaryStat label="Brutto" value={fmtMinutes(grossMin)} />
+      <div className="grid grid-cols-2 gap-2">
+        <PrimaryStat label="Total tid" value={fmtMinutes(grossMin)} highlight />
         <PrimaryStat
           label="Rast"
           value={breakMin != null ? fmtMinutes(breakMin) : '—'}
           muted={breakMin == null}
         />
-        <PrimaryStat label={payableLabel} value={fmtMinutes(payableMin)} highlight />
       </div>
-      {!isFinal && dayStatus.status !== 'empty_day' && (
+      {!isSubmitted && dayStatus.status !== 'empty_day' && (
         <p className="text-[11px] text-muted-foreground italic">
           Ej inskickad — siffrorna kan ändras tills dagen är granskad.
         </p>
