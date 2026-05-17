@@ -357,20 +357,10 @@ const DayBody: React.FC<{
         staffId={staffId}
         date={date}
         snapshot={snapshot}
-        attestBlocked={hasOpenIssues}
-        attestBlockedReason={hasOpenIssues
-          ? 'Lös frågorna eller skicka korrigeringsbegäran först.'
-          : undefined}
+        attestBlocked={false}
       />
 
-      {/* F. Begär korrigering */}
-      {!isLocked && (
-        <CorrectionRequest
-          date={date}
-          snapshot={snapshot}
-          onSubmitted={onChanged}
-        />
-      )}
+      {/* F. (Borttagen) "Begär korrigering" — admin sköter ev. komplettering. */}
 
       <SegmentDetailSheet
         segment={selectedSeg}
