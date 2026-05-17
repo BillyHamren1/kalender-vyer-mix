@@ -201,6 +201,15 @@ const DayBody: React.FC<{
         </div>
       )}
 
+      {/* Justera dagen — högst upp så den syns direkt */}
+      <StaffDayAttestSection
+        staffId={staffId}
+        date={date}
+        snapshot={snapshot}
+        attestBlocked={false}
+      />
+
+
       {/* A. Header */}
       <section className="rounded-2xl border border-border bg-card p-4 space-y-3">
         <div className="flex items-start justify-between gap-3">
