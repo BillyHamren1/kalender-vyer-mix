@@ -308,8 +308,16 @@ const TimelineSection: React.FC<{
 }> = ({ snapshot, onChanged, onSelectSegment }) => {
   const segments = snapshot.segments ?? [];
   const workdayOpen = !!snapshot.workday?.isOpen;
+  // Time Legacy Purge 4 — GPS evidence visas BARA när vi varken har segment
+  // eller öppen arbetsdag, men staffen har raw GPS för dagen. Det är en
+  // info-rad — inte arbete, inte i totals.
+  const gpsEv = snapshot.gpsEvidence ?? null;
+  const showGpsEvidence =
+    segments.length === 0 &&
+    !workdayOpen &&
+    !!gpsEv?.hasGpsEvidenceButNoRenderedWork;
 
-  if (segments.length === 0 && !workdayOpen) return null;
+  if (segments.length === 0 && !workdayOpen && !showGpsEvidence) return null;
 
   return (
     <section className="rounded-2xl border border-border bg-card p-4 shadow-sm space-y-2">
@@ -318,26 +326,51 @@ const TimelineSection: React.FC<{
       </p>
 
       {segments.length === 0 ? (
-        <div className="rounded-xl border-2 border-primary bg-primary/5 px-3 py-3 flex items-center gap-3">
-          <span className="shrink-0 w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-            <Sun className="w-4 h-4" />
-          </span>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-extrabold text-foreground">Arbetsdag pågår</p>
-            {snapshot.workday?.startedAt && (
-              <p className="text-[12px] text-muted-foreground tabular-nums">
-                Sedan{' '}
-                <span className="font-semibold text-foreground/80">
-                  {formatStockholmHm(snapshot.workday.startedAt)}
-                </span>
-              </p>
-            )}
+        workdayOpen ? (
+          <div className="rounded-xl border-2 border-primary bg-primary/5 px-3 py-3 flex items-center gap-3">
+            <span className="shrink-0 w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+              <Sun className="w-4 h-4" />
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-extrabold text-foreground">Arbetsdag pågår</p>
+              {snapshot.workday?.startedAt && (
+                <p className="text-[12px] text-muted-foreground tabular-nums">
+                  Sedan{' '}
+                  <span className="font-semibold text-foreground/80">
+                    {formatStockholmHm(snapshot.workday.startedAt)}
+                  </span>
+                </p>
+              )}
+            </div>
+            <span className="flex w-2.5 h-2.5">
+              <span className="absolute inline-flex w-2.5 h-2.5 rounded-full bg-primary opacity-75 animate-ping" />
+              <span className="relative inline-flex w-2.5 h-2.5 rounded-full bg-primary" />
+            </span>
           </div>
-          <span className="flex w-2.5 h-2.5">
-            <span className="absolute inline-flex w-2.5 h-2.5 rounded-full bg-primary opacity-75 animate-ping" />
-            <span className="relative inline-flex w-2.5 h-2.5 rounded-full bg-primary" />
-          </span>
-        </div>
+        ) : showGpsEvidence && gpsEv ? (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-3 flex items-start gap-3">
+            <span className="shrink-0 w-9 h-9 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-400 flex items-center justify-center">
+              <Clock className="w-4 h-4" />
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-extrabold text-foreground">
+                GPS finns{' '}
+                {gpsEv.gpsEvidenceStartAt && gpsEv.gpsEvidenceEndAt ? (
+                  <span className="tabular-nums">
+                    {formatStockholmHm(gpsEv.gpsEvidenceStartAt)}–
+                    {formatStockholmHm(gpsEv.gpsEvidenceEndAt)}
+                  </span>
+                ) : null}
+              </p>
+              <p className="text-[12px] text-muted-foreground mt-0.5">
+                Ingen renderbar arbetstid. {gpsEv.rawPingCount} signal{gpsEv.rawPingCount === 1 ? '' : 'er'} registrerade.
+              </p>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground mt-1">
+                Endast info — räknas inte som arbete
+              </p>
+            </div>
+          </div>
+        ) : null
       ) : (
         <div className="space-y-1.5">
           {segments.map((seg, idx) => {

@@ -283,6 +283,65 @@ Deno.serve(async (req: Request) => {
     submission,
   });
 
+  // Time Legacy Purge 4 — GPS evidence.
+  // När mirror inte gav några segment (V2 tom / inga blocks alls) men staffen
+  // har raw GPS-pings för dagen, exponera en separat evidence-rad så mobilen
+  // kan visa "GPS finns HH:mm–HH:mm" i stället för tomt eller legacy-fallback.
+  // Räknas ALDRIG som arbete, påverkar inte totals.
+  let gpsEvidence: import("../_shared/mobile/types.ts").MobileGpsEvidence | null = null;
+  try {
+    if (snapshot.segments.length === 0) {
+      // Stockholm day window via simple UTC bounds (dagen i Europe/Stockholm
+      // ligger ca [date 00:00 +01/+02, date+1 00:00 +01/+02]). Vi padar med
+      // ±2h för att täcka DST utan att blöda in i grannens dag.
+      const dayStartUtc = new Date(`${date}T00:00:00+02:00`);
+      const dayEndUtc = new Date(`${date}T23:59:59+01:00`);
+      const startIso = new Date(dayStartUtc.getTime() - 2 * 3600 * 1000).toISOString();
+      const endIso = new Date(dayEndUtc.getTime() + 2 * 3600 * 1000).toISOString();
+      const { count, error: countErr } = await admin
+        .from("staff_location_history")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", orgId)
+        .eq("staff_id", staffId)
+        .gte("recorded_at", startIso)
+        .lte("recorded_at", endIso);
+      const pingCount = countErr ? 0 : (count ?? 0);
+      if (pingCount > 0) {
+        const [{ data: firstRow }, { data: lastRow }] = await Promise.all([
+          admin.from("staff_location_history")
+            .select("recorded_at")
+            .eq("organization_id", orgId).eq("staff_id", staffId)
+            .gte("recorded_at", startIso).lte("recorded_at", endIso)
+            .order("recorded_at", { ascending: true }).limit(1).maybeSingle(),
+          admin.from("staff_location_history")
+            .select("recorded_at")
+            .eq("organization_id", orgId).eq("staff_id", staffId)
+            .gte("recorded_at", startIso).lte("recorded_at", endIso)
+            .order("recorded_at", { ascending: false }).limit(1).maybeSingle(),
+        ]);
+        gpsEvidence = {
+          hasGpsEvidenceButNoRenderedWork: true,
+          gpsEvidenceStartAt: (firstRow as any)?.recorded_at ?? null,
+          gpsEvidenceEndAt: (lastRow as any)?.recorded_at ?? null,
+          rawPingCount: pingCount,
+          reasonNoWorkRendered: effectiveCache
+            ? (cacheHasV2Field ? "v2_present_but_empty" : "no_renderable_work_blocks")
+            : "no_cache_no_engine_result",
+        };
+      } else {
+        gpsEvidence = {
+          hasGpsEvidenceButNoRenderedWork: false,
+          gpsEvidenceStartAt: null,
+          gpsEvidenceEndAt: null,
+          rawPingCount: 0,
+          reasonNoWorkRendered: null,
+        };
+      }
+    }
+  } catch (e) {
+    console.warn("[get-mobile-staff-day-report] gpsEvidence fetch failed", e);
+  }
+
   // READ-ONLY ownership diagnostics (Single Timer Policy verifier).
   // Gated on body.debug — opt-in only, never affects snapshot.
   // Display timeline comes from staff_day_report_cache (above).
@@ -314,11 +373,12 @@ Deno.serve(async (req: Request) => {
     displaySourceUsed,
     liveEngineError,
     timerOwnership,
+    gpsEvidence,
   };
 
   console.info("[get-mobile-staff-day-report] mirror", {
     staffId, date, ...debug,
   });
 
-  return jsonResponse({ ...snapshot, debug });
+  return jsonResponse({ ...snapshot, gpsEvidence, debug });
 });

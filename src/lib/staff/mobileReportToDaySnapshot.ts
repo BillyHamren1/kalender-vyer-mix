@@ -171,5 +171,7 @@ export function mobileReportToDaySnapshot(report: MobileDayReport): StaffDaySnap
         }
       : null,
     lastUpdatedAt: report.lastUpdatedAt ?? new Date().toISOString(),
+    // Time Legacy Purge 4 — bär GPS evidence till UI utan att räkna som arbete.
+    gpsEvidence: (report as any).gpsEvidence ?? null,
   };
 }
