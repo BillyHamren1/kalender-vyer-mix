@@ -654,6 +654,25 @@ export function buildTimeEngineTraceExport(input: BuildTraceExportInput): TimeEn
       ),
     };
 
+    // Time Legacy Purge 4 — derive GPS evidence per staff: pings finns men
+    // ingen renderbar arbetstid (gantt/display/report alla tomma).
+    const renderedWorkCount =
+      gantt.renderedCount
+      + timeEngine.displayTimelineBlocksV2.length
+      + safeArr(cand?.blocks).length;
+    const hasGpsEvidenceButNoRenderedWork =
+      rawPings.count > 0 && renderedWorkCount === 0;
+    const gpsEvidence: TraceStaffEntry['gpsEvidence'] = {
+      hasGpsEvidenceButNoRenderedWork,
+      gpsEvidenceStartAt: hasGpsEvidenceButNoRenderedWork ? rawPings.firstRecordedAt : null,
+      gpsEvidenceEndAt: hasGpsEvidenceButNoRenderedWork ? rawPings.lastRecordedAt : null,
+      rawPingCount: rawPings.count,
+      reasonNoWorkRendered: hasGpsEvidenceButNoRenderedWork
+        ? (timeEngine.timeEngineFetchError
+            ?? (timeEngine.hasRawPingsButNoLocationTruth ? 'no_location_truth' : 'no_renderable_work_blocks'))
+        : null,
+    };
+
     staffEntries.push({
       staffId,
       staffName,
@@ -664,6 +683,7 @@ export function buildTimeEngineTraceExport(input: BuildTraceExportInput): TimeEn
       finalProduct,
       comparison,
       diffFindings,
+      gpsEvidence,
     });
   }
 
