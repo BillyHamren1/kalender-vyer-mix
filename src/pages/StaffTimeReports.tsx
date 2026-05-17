@@ -1778,6 +1778,9 @@ const StaffTimeReports: React.FC = () => {
         targets: data?.targets ?? [],
         counts: data?.counts ?? null,
         displayTimelineBlocksV2: data?.displayTimelineBlocksV2 ?? [],
+        // Time Legacy Purge 1 — true om engine returnerade V2-fältet (även tom
+        // array). Används av StaffGanttView för att blockera legacy fallback.
+        hasDisplayTimelineV2Field: Array.isArray(data?.displayTimelineBlocksV2),
         displayTimelineDiagnosticsV2: data?.displayTimelineDiagnosticsV2 ?? null,
         workdayAllocationSegments: data?.workdayAllocationSegments ?? [],
         workdayAllocationDiagnostics: data?.workdayAllocationDiagnostics ?? null,
