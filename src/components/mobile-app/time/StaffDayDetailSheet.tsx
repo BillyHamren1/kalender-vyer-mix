@@ -185,7 +185,7 @@ const DayBody: React.FC<{
     if (snapshot.attestation?.status === 'attested') {
       return { label: 'Inskickad', tone: 'emerald' as const, Icon: Check };
     }
-    if (hasOpenIssues) return { label: 'Behöver åtgärdas', tone: 'amber' as const, Icon: AlertTriangle };
+    
     return { label: 'Ej inskickad', tone: 'amber' as const, Icon: Check };
   })();
 
