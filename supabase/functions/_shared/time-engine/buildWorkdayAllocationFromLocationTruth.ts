@@ -1147,12 +1147,15 @@ export function buildWorkdayAllocationFromLocationTruth(
   }
 
   const wdStartMsFinal: number | null = effectiveStartMs;
-  if (!wdStartMsFinal) {
+  if (!wdStartMsFinal || wdStartMs === null) {
     diag.warnings.push('no_active_workday');
     diag.warningsByType.no_active_workday += 1;
     diag.buildDurationMs = Date.now() - startedAt;
     return { segments, proposals, diagnostics: diag };
   }
+  // Efter denna guard är wdStartMs garanterat number. Återbinder lokal const
+  // så TypeScript kan narrowa typen i resten av funktionen utan `!`-assertions.
+  const wdStartMsNN: number = wdStartMs;
 
   if (workdayStartAdjusted) {
     diag.warnings.push('workday_start_adjusted_to_first_evidence');
