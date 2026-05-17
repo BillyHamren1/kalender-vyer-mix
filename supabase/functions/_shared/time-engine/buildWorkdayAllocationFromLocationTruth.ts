@@ -170,7 +170,9 @@ export type WorkdayAllocationWarning =
   // ── Time Engine Core Fix 2 — business context resolution ─────────────
   | 'target_missing_geo'
   | 'business_context_from_assignment'
-  | 'competing_targets';
+  | 'competing_targets'
+  // ── Time Engine Fix — Inferred workday from LocationTruth (read-only) ──
+  | 'workday_inferred_from_location_truth';
 
 // ── Lager 3.11C — DEPRECATED warnings (får INTE emitteras) ─────────────
 //   - supplier_visit_no_assignment       → använd supplier_visit_without_project_context
