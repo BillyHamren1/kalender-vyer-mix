@@ -80,20 +80,23 @@ const DayRow = ({
   onOpen: (date: string) => void;
 }) => {
   const date = parseISO(day.date);
-  const minutes = day.grossWorkdayMinutes ?? 0;
   const breakMinutes = day.breakMinutes ?? 0;
   const isEmpty = day.status === 'empty';
 
-  // Optional start/end — backend may add these later from manual submission.
-  const anyDay = day as StaffPeriodDaySummary & {
-    startedAt?: string | null;
-    endedAt?: string | null;
-    workdayStartedAt?: string | null;
-    workdayEndedAt?: string | null;
-  };
-  const startedAt = anyDay.startedAt ?? anyDay.workdayStartedAt ?? null;
-  const endedAt = anyDay.endedAt ?? anyDay.workdayEndedAt ?? null;
+  // Wallclock start/slut kommer nu kanoniskt från backend (toDaySummary)
+  // med samma prioritetskedja som "Justera dagen"-dialogen
+  // (attestation.requestedStart/End → workday.started/ended → första/sista segment).
+  // ÄLDRE backend kan sakna fälten — då faller vi tillbaka till grossWorkdayMinutes.
+  const startedAt = day.workdayStartedAt ?? null;
+  const endedAt = day.workdayEndedAt ?? null;
   const showRange = !!startedAt && !!endedAt;
+
+  // "Total tid" = wallclock end − start när vi har båda. Annars
+  // grossWorkdayMinutes. Detta säkerställer att listraden visar SAMMA tid
+  // som dialogen — annars uppstår "ORIMLIG" inkonsekvens (rapporterat bug).
+  const minutes = showRange
+    ? Math.max(0, Math.round((new Date(endedAt!).getTime() - new Date(startedAt!).getTime()) / 60000))
+    : (day.grossWorkdayMinutes ?? 0);
 
   return (
     <button
