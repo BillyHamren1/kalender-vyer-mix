@@ -211,10 +211,7 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
 
   const handleFinish = async () => {
     if (!booking) return;
-    if (planSteps.length === 0) {
-      toast.error('Inga rig- eller demonteringsdagar att planera');
-      return;
-    }
+    // Tom planSteps är OK när vi länkar till befintligt LP (dagar ärvs).
     if (isLarge && largeMode === 'new' && !largeNewName.trim()) {
       toast.error('Ange ett namn för det stora projektet');
       return;
