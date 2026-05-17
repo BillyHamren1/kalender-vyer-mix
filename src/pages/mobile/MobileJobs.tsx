@@ -4,7 +4,8 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useScheduledShifts } from '@/hooks/useScheduledShifts';
 import { useGeofencingContext } from '@/contexts/GeofencingContext';
-import GeofencePrompt from '@/components/mobile-app/GeofencePrompt';
+// Time Legacy Purge 6 — GeofencePrompt borttagen som UI-källa. GPS/geofence
+// är passiv evidence; ingen popup får längre fråga om att starta tid.
 import { HeaderShell } from '@/components/mobile-app/MobileHeader';
 import { Clock } from 'lucide-react';
 import CalendarViewToggle, { type CalendarViewMode } from '@/components/mobile-app/calendar/CalendarViewToggle';
