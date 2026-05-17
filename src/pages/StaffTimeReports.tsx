@@ -1740,6 +1740,7 @@ const StaffTimeReports: React.FC = () => {
       counts: any;
       // Lager 4.1 — Display Timeline V2 (primär Gantt-källa).
       displayTimelineBlocksV2: any[];
+      hasDisplayTimelineV2Field: boolean;
       displayTimelineDiagnosticsV2: any;
       // Lager 3 — Workday Allocation (fallback när V2 saknas).
       workdayAllocationSegments: any[];
