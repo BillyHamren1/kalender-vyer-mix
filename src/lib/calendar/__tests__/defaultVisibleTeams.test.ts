@@ -33,15 +33,15 @@ describe('defaultVisibleTeams', () => {
     expect(computeDefaultVisibleTeams(null)).toEqual(expect.arrayContaining([...REQUIRED_TEAM_IDS]));
   });
 
-  it('isRequiredTeam täcker team-1..4 + transport men INTE team-11 eller team-5+', () => {
-    expect(isRequiredTeam('team-1')).toBe(true);
-    expect(isRequiredTeam('team-4')).toBe(true);
+  it('isRequiredTeam täcker bara Lager (transport)', () => {
+    expect(isRequiredTeam('team-1')).toBe(false);
+    expect(isRequiredTeam('team-4')).toBe(false);
     expect(isRequiredTeam('transport')).toBe(true);
     expect(isRequiredTeam('team-5')).toBe(false);
     expect(isRequiredTeam('team-11')).toBe(false);
   });
 
-  it('visar bara obligatoriska team + team med jobb för dagen utan scrollbehov', () => {
+  it('visar bara Lager + team med jobb för dagen utan scrollbehov', () => {
     const resources = [
       { id: 'team-1' },
       { id: 'team-2' },
@@ -61,7 +61,7 @@ describe('defaultVisibleTeams', () => {
       date: new Date('2026-05-24T12:00:00.000Z'),
     });
 
-    expect(visible).toEqual(['team-1', 'team-2', 'team-3', 'team-4', 'team-5', 'transport']);
+    expect(visible).toEqual(['team-2', 'team-5', 'transport']);
   });
 
   it('bevarar manuellt påslagna team även om de saknar jobb den dagen', () => {
@@ -72,6 +72,6 @@ describe('defaultVisibleTeams', () => {
       persistedTeamIds: ['team-5'],
     });
 
-    expect(visible).toEqual(['team-1', 'team-5', 'transport']);
+    expect(visible).toEqual(['team-5', 'transport']);
   });
 });
