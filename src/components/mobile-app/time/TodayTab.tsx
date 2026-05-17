@@ -43,6 +43,7 @@ import EndDayButton from './EndDayButton';
 import SegmentDetailSheet from './SegmentDetailSheet';
 import DisplayTimelineV2Card from './DisplayTimelineV2Card';
 import StaffDayRemindersBanner from './StaffDayRemindersBanner';
+import StaffGanttMirrorTimeline from './StaffGanttMirrorTimeline';
 import { deriveDayStatus, type DayStatusResult } from './dayStatus';
 
 // 1Hz tick so the active timer's elapsed seconds roll forward.
@@ -597,11 +598,18 @@ export const TodayTab: React.FC = () => {
           <TotalsCard snapshot={snapshot} dayStatus={dayStatus} />
         </>
       )}
-      <TimelineSection
-        snapshot={snapshot}
-        onChanged={() => { void refresh(); }}
-        onSelectSegment={setSelectedSeg}
-      />
+      {/* Mobile Time App Mirror — exakt spegling av admin-Gantten i
+          /staff-management/time-reports. Ersätter den gamla
+          TimelineSection (snapshot.segments) så att rubriker, tider,
+          fas-färger och absorberade chips matchar admin 1:1. */}
+      <StaffGanttMirrorTimeline date={snapshot.date} />
+      {isSubmitted && (
+        <TimelineSection
+          snapshot={snapshot}
+          onChanged={() => { void refresh(); }}
+          onSelectSegment={setSelectedSeg}
+        />
+      )}
       <ActionsNeededSection snapshot={snapshot} />
       <div className="pt-1">
         <PrimaryAction snapshot={snapshot} dayStatus={dayStatus} />
