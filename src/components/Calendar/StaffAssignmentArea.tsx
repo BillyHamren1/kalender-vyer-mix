@@ -13,7 +13,7 @@ interface StaffAssignmentAreaProps {
   day: Date;
   resource: Resource;
   events: CalendarEvent[];
-  onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date) => Promise<void>;
+  onStaffDrop?: (staffId: string, resourceId: string | null, targetDate?: Date, fromTeamId?: string) => Promise<void>;
   onOpenStaffSelection?: (resourceId: string, resourceTitle: string, targetDate: Date) => void;
   timeSlots?: TimeSlot[];
   isHeaderRow?: boolean;
