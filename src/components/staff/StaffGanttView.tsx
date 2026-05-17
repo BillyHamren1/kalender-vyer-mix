@@ -880,12 +880,19 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
         : v2HardBlocked ? 'v2_hard_blocked'
         : null;
 
-      const selected = selectGanttSourceFromMapped({
+      // ── Mirror-policy (2026-05-17) ──
+      // Detaljvyn (ReportCandidateTimeline) renderar ALLTID reportCandidateBlocks
+      // rakt av. För att Gantt ska visa exakt samma block som dialogen
+      // prioriterar vi reportCandidate så fort det finns block (oavsett V2/alloc).
+      // V2/alloc används bara som fallback när legacy är tomt.
+      const baseSelected = selectGanttSourceFromMapped({
         mappedV2Count: mappedV2.length,
         mappedAllocationCount: mappedAlloc.length,
         legacyCount: legacyIgnored ? 0 : legacyBlocks.length,
         hasV2Field,
       });
+      const selected: GanttBlockSource =
+        legacyBlocks.length > 0 ? 'reportCandidate' : baseSelected;
       const finalSelected: GanttBlockSource = selected;
       sources[s.id] = finalSelected;
 
