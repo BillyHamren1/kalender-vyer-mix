@@ -16,11 +16,22 @@ Deno.test("pickCacheBlocks prefers display_blocks_json", () => {
   assertEquals((blocks[0] as any).id, "d1");
 });
 
-Deno.test("pickCacheBlocks falls back to report_candidate_blocks_json", () => {
+Deno.test("pickCacheBlocks: V2 explicit empty wins — NO fallback to candidate (Billy)", () => {
+  // Time Reporting Fix 1: when displayTimelineBlocksV2 (display_blocks_json)
+  // is an Array (even empty) it is an explicit V2 decision. Mobile must
+  // mirror admin-Gantt and NOT fall back to legacy candidate blocks.
   const blocks = pickCacheBlocks({
     display_blocks_json: [],
-    report_candidate_blocks_json: [{ id: "c1" }],
+    report_candidate_blocks_json: [{ id: "westmans" }, { id: "transport" }],
   });
+  assertEquals(blocks.length, 0);
+});
+
+Deno.test("pickCacheBlocks falls back to candidate ONLY when V2 field is missing entirely", () => {
+  const blocks = pickCacheBlocks({
+    // display_blocks_json intentionally undefined (legacy backend)
+    report_candidate_blocks_json: [{ id: "c1" }],
+  } as any);
   assertEquals((blocks[0] as any).id, "c1");
 });
 
