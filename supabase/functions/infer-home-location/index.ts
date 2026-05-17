@@ -22,6 +22,48 @@
  * (staff_id, observed_date, cluster_key).
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import { pointInPolygon } from '../_shared/geofenceEval.ts';
+
+interface ResidencePolygon {
+  org: string;
+  location_id: string;
+  name: string;
+  centroidLat: number;
+  centroidLng: number;
+  polygon: { type: 'Polygon'; coordinates: number[][][] };
+}
+
+function polygonCentroid(poly: { coordinates: number[][][] }): { lat: number; lng: number } {
+  // Simple average of outer ring vertices — good enough for a "home anchor"
+  // since we use it only for distance fallback, polygon test is exact.
+  const ring = poly.coordinates?.[0] ?? [];
+  let sLat = 0, sLng = 0, n = 0;
+  for (const [lng, lat] of ring) {
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      sLat += lat; sLng += lng; n++;
+    }
+  }
+  return n > 0 ? { lat: sLat / n, lng: sLng / n } : { lat: 0, lng: 0 };
+}
+
+/**
+ * Find a private-residence ("Boende") polygon containing the given point.
+ * Returns null if no polygon contains it. Boende polygons ALWAYS win as home —
+ * a single nightly cluster inside one is enough to materialise a primary
+ * home row, bypassing the 2-consecutive-nights rule used for inferred homes.
+ */
+function findResidenceForPoint(
+  org: string,
+  lat: number,
+  lng: number,
+  residences: ResidencePolygon[],
+): ResidencePolygon | null {
+  for (const r of residences) {
+    if (r.org !== org) continue;
+    if (pointInPolygon(lng, lat, r.polygon)) return r;
+  }
+  return null;
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
