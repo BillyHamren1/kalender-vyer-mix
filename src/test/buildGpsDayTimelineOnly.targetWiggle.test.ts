@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-// @ts-expect-error — cross-repo import of Deno-style .ts file; Vite resolves it.
 import { buildGpsDayTimelineOnly } from '../../supabase/functions/_shared/timeline/buildGpsDayTimelineOnly.ts';
 
 /**
