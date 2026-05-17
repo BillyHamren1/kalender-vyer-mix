@@ -6,13 +6,11 @@ import {
 } from '../defaultVisibleTeams';
 
 describe('defaultVisibleTeams', () => {
-  it('visar endast Team 1–4 + Lager som standard (Team 5–10 är opt-in)', () => {
+  it('inkluderar alla team + Lager (transport) som standard', () => {
     const resources = Array.from({ length: 10 }, (_, i) => ({ id: `team-${i + 1}` }));
     const visible = computeDefaultVisibleTeams(resources);
-    expect(visible).toEqual(expect.arrayContaining(['team-1', 'team-2', 'team-3', 'team-4', 'transport']));
+    for (let i = 1; i <= 10; i++) expect(visible).toContain(`team-${i}`);
     expect(visible).toContain('transport');
-    expect(visible).not.toContain('team-5');
-    expect(visible).not.toContain('team-10');
   });
 
   it('Lager (transport) finns alltid med i defaults', () => {
