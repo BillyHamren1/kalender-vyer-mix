@@ -208,11 +208,21 @@ const colorFromString = (s: string): { bg: string; fg: string } => {
   return { bg: `hsl(${h} 70% 88%)`, fg: `hsl(${h} 55% 28%)` };
 };
 
+// Stripa trailing " - <datum>" från titel (t.ex. "Westmans Uthyrning - 23 maj 2026")
+const stripTrailingDate = (s: string): string => {
+  const months = '(?:jan|feb|mar|apr|maj|jun|jul|aug|sep|okt|nov|dec)[a-z]*';
+  // " - 23 maj 2026" eller " - 23 maj"
+  let out = s.replace(new RegExp(`\\s*[-–·]\\s*\\d{1,2}\\s+${months}\\.?(?:\\s+\\d{4})?\\s*$`, 'i'), '');
+  // " - 2026-05-23"
+  out = out.replace(/\s*[-–·]\s*\d{4}-\d{2}-\d{2}\s*$/, '');
+  return out.trim();
+};
+
 // Fallback för tomma titlar — använd subtitle eller targetLabel om title är tom
 const blockDisplayTitle = (b: GanttBlock, defaultLabel: string): string => {
-  const t = (b.title ?? '').trim();
+  const t = stripTrailingDate((b.title ?? '').trim());
   if (t) return t;
-  const sub = (b.subtitle ?? '').trim();
+  const sub = stripTrailingDate((b.subtitle ?? '').trim());
   if (sub) return sub;
   return defaultLabel;
 };
