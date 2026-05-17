@@ -133,6 +133,185 @@ const PHASE_PRIORITY: Record<SessionPhaseKind, number> = { rig: 3, rigdown: 2, w
  * `perBlockPhase` är fas per block (efter resolveGanttPhaseKind + ev. text-detektering),
  * eller null om inget hittades.
  */
+// ── Calendar event_type normalisering ─────────────────────────────────────
+/**
+ * Normaliserar `calendar_events.event_type` till den interna CalendarPhase-
+ * vokabulären. Stöder rig/event/rigdown samt camelCase- och snake_case-
+ * varianter ("rigDown", "rig_down", "nedrigg").
+ *
+ * Returnerar null om värdet inte är en phase (t.ex. 'meeting', 'unavailable').
+ */
+export function normalizeCalendarPhase(value: unknown): CalendarPhase | null {
+  if (typeof value !== 'string') return null;
+  const v = value.trim().toLowerCase().replace(/[\s_-]+/g, '');
+  if (v === 'rig' || v === 'rigg') return 'rig';
+  if (v === 'event') return 'event';
+  if (v === 'rigdown' || v === 'riggdown' || v === 'nedrigg' || v === 'rigner' || v === 'riggner') return 'rigdown';
+  return null;
+}
+
+// ── Phase application on V2/Allocation Gantt blocks ───────────────────────
+type GanttKindForPhase =
+  | 'work'
+  | 'warehouse'
+  | 'rig'
+  | 'rigdown'
+  | 'transport'
+  | 'review'
+  | 'unknown'
+  | 'break'
+  | 'pre_work'
+  | string;
+
+interface PhaseApplicableBlock {
+  id: string;
+  kind: GanttKindForPhase;
+  title?: string | null;
+  subtitle?: string | null;
+  targetType?: string | null;
+  targetId?: string | null;
+  startAt?: string | null;
+  endAt?: string | null;
+  meta?: Record<string, unknown> | null;
+}
+
+const PHASE_OVERRIDABLE_KINDS = new Set<string>(['work', 'project', 'booking', 'large_project']);
+const PHASE_LOCKED_KINDS = new Set<string>([
+  'warehouse', 'transport', 'review', 'unknown', 'break', 'private', 'pre_work',
+]);
+
+/**
+ * Försök hitta targetType/targetId från block-metadata
+ * (businessContextResolution.selectedTargetType/Id), när det saknas på blocket.
+ */
+function resolveTargetFromMeta(b: PhaseApplicableBlock): { targetType?: string | null; targetId?: string | null } {
+  const meta = b.meta ?? null;
+  const bc = (meta && (meta as any).businessContextResolution) || null;
+  if (bc && typeof bc === 'object') {
+    const t = (bc as any).selectedTargetType ?? null;
+    const id = (bc as any).selectedTargetId ?? null;
+    if (t || id) return { targetType: t, targetId: id };
+  }
+  return {};
+}
+
+function resolveBlockPhaseForPlanning<T extends PhaseApplicableBlock>(
+  b: T,
+  bookingPhaseByDate?: Record<string, CalendarPhase> | null,
+  largeProjectPhaseByDate?: Record<string, CalendarPhase> | null,
+): SessionPhaseKind | null {
+  const targetType = b.targetType ?? null;
+  const targetId = b.targetId ?? null;
+
+  // Direkt resolve på block-target
+  const direct = resolveGanttPhaseKind({
+    targetType,
+    targetId,
+    bookingPhaseByDate: bookingPhaseByDate ?? undefined,
+    largeProjectPhaseByDate: largeProjectPhaseByDate ?? undefined,
+  });
+  if (direct === 'rig' || direct === 'rigdown') return direct;
+  if (direct === 'work') return 'work';
+
+  // Fallback: targetType=project men targetId egentligen large_project_id
+  if (targetType === 'project' && targetId && largeProjectPhaseByDate?.[targetId]) {
+    const p = largeProjectPhaseByDate[targetId];
+    return p === 'event' ? 'work' : p;
+  }
+
+  // Fallback: targetType saknas → läs från metadata.businessContextResolution
+  if (!targetId) {
+    const fromMeta = resolveTargetFromMeta(b);
+    if (fromMeta.targetId) {
+      const viaMeta = resolveGanttPhaseKind({
+        targetType: fromMeta.targetType ?? null,
+        targetId: fromMeta.targetId,
+        bookingPhaseByDate: bookingPhaseByDate ?? undefined,
+        largeProjectPhaseByDate: largeProjectPhaseByDate ?? undefined,
+      });
+      if (viaMeta === 'rig' || viaMeta === 'rigdown') return viaMeta;
+      if (viaMeta === 'work') return 'work';
+      if (fromMeta.targetType === 'project' && largeProjectPhaseByDate?.[fromMeta.targetId]) {
+        const p = largeProjectPhaseByDate[fromMeta.targetId];
+        return p === 'event' ? 'work' : p;
+      }
+    }
+  }
+
+  // Fallback: bokningsnummer i title/subtitle
+  const fromTitle = resolveBookingPhaseFromTitle(
+    { title: b.title ?? null, subtitle: b.subtitle ?? null },
+    bookingPhaseByDate ?? undefined,
+  );
+  if (fromTitle === 'rig' || fromTitle === 'rigdown') return fromTitle;
+  if (fromTitle === 'work') return 'work';
+
+  return null;
+}
+
+/**
+ * Post-processar Gantt-block från V2 (`displayTimelineV2`) och allocation
+ * (`workdayAllocation`) med phase-resolve mot personalkalendern.
+ *
+ * Block med kind warehouse/transport/review/unknown/break/private rörs aldrig.
+ * Endast work/project/booking/large_project-liknande block får kind = rig/rigdown
+ * om fas resolveras. Inkluderar sessions-arv: om något syskonblock i samma
+ * session resolveras till rig/rigdown ärver övriga samma fas.
+ */
+export function applyPlanningPhaseToGanttBlocks<T extends PhaseApplicableBlock>(
+  blocks: T[],
+  bookingPhaseByDate?: Record<string, CalendarPhase> | null,
+  largeProjectPhaseByDate?: Record<string, CalendarPhase> | null,
+): T[] {
+  if (!blocks || blocks.length === 0) return blocks;
+
+  // Per-block direkt fas (utan sessionsarv)
+  const perBlockPhase: Record<string, SessionPhaseKind | null> = {};
+  for (const b of blocks) {
+    if (PHASE_LOCKED_KINDS.has(String(b.kind))) {
+      perBlockPhase[b.id] = null;
+      continue;
+    }
+    perBlockPhase[b.id] = resolveBlockPhaseForPlanning(b, bookingPhaseByDate, largeProjectPhaseByDate);
+  }
+
+  // Sessionsarv: rig/rigdown smittar syskon
+  const sessionMap = buildSessionPhaseMap(
+    blocks.map((b) => ({
+      id: b.id,
+      targetType: b.targetType ?? null,
+      targetId: b.targetId ?? null,
+      title: b.title ?? null,
+      subtitle: b.subtitle ?? null,
+      startAt: b.startAt ?? null,
+      endAt: b.endAt ?? null,
+    })),
+    perBlockPhase,
+  );
+
+  return blocks.map((b) => {
+    if (PHASE_LOCKED_KINDS.has(String(b.kind))) return b;
+    if (!PHASE_OVERRIDABLE_KINDS.has(String(b.kind))) return b;
+
+    let phase: SessionPhaseKind | null = perBlockPhase[b.id] ?? null;
+    if (phase !== 'rig' && phase !== 'rigdown') {
+      const inherited = sessionMap[sessionKeyForBlock({
+        id: b.id,
+        title: b.title ?? null,
+        subtitle: b.subtitle ?? null,
+        targetType: b.targetType ?? null,
+        targetId: b.targetId ?? null,
+      })];
+      if (inherited === 'rig' || inherited === 'rigdown') phase = inherited;
+    }
+
+    if (phase === 'rig') return { ...b, kind: 'rig' as GanttKindForPhase };
+    if (phase === 'rigdown') return { ...b, kind: 'rigdown' as GanttKindForPhase };
+    if (phase === 'work') return { ...b, kind: 'work' as GanttKindForPhase };
+    return b;
+  });
+}
+
 export function buildSessionPhaseMap(
   blocks: SessionBlockInput[],
   perBlockPhase: Record<string, SessionPhaseKind | null | undefined>,
