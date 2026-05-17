@@ -204,6 +204,23 @@ export interface StaffDaySnapshot {
     originalSuggestedEndAt?: string | null;
   } | null;
   lastUpdatedAt: string;
+  /** Time Legacy Purge 4 — diagnostics, ej arbetstid. */
+  rawPingCoverage?: {
+    totalFetched: number;
+    firstPingAt: string | null;
+    lastPingAt: string | null;
+    truncated: boolean;
+    pageCount: number;
+  } | null;
+  /** Time Legacy Purge 4 — GPS evidence när V2 inte gav arbetstid.
+   *  Får ALDRIG räknas som arbete, syns bara som info-rad. */
+  gpsEvidence?: {
+    hasGpsEvidenceButNoRenderedWork: boolean;
+    gpsEvidenceStartAt: string | null;
+    gpsEvidenceEndAt: string | null;
+    rawPingCount: number;
+    reasonNoWorkRendered: string | null;
+  } | null;
 }
 
 interface Result {
