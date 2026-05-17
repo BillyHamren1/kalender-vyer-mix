@@ -2105,9 +2105,9 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                               const isSecondary = !['work', 'warehouse', 'rig', 'rigdown'].includes(b.kind);
                               const isNarrow = width < 90;
                               const isShort = laneHeight < 42;
-                              const showTime = width >= 130 && laneHeight >= 42 && !isSecondary;
-                              const showChips = !!b.attachedChips?.length && width >= 160 && laneHeight >= 50;
-                              const showLabel = width >= 70;
+                              const showTime = width >= 110 && laneHeight >= 50 && !isSecondary;
+                              const showChips = !!b.attachedChips?.length && width >= 160 && laneHeight >= 64;
+                              const showLabel = width >= 50;
                               const displayTitle = blockDisplayTitle(
                                 b,
                                 b.isNightGpsOnly ? 'GPS-natt' : style.label,
@@ -2123,7 +2123,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                   }}
                                   className={cn(
                                     'absolute cursor-pointer overflow-hidden rounded-xl border text-[11px] leading-tight backdrop-blur-[2px] transition-all hover:-translate-y-px hover:shadow-md hover:z-20',
-                                    isNarrow ? 'px-1.5 py-1' : 'px-2.5 py-1.5',
+                                    isNarrow ? 'px-1 py-0.5' : 'px-2 py-1',
                                     b.isNightGpsOnly
                                       ? 'bg-muted/40 border-dashed border-border/60 opacity-60'
                                       : style.bg,
@@ -2141,9 +2141,9 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                   }}
                                   title={blockTooltipText(b, displayTitle, overlapping) + (b.attachedChips?.length ? '\n' + b.attachedChips.map(c => '• ' + c).join('\n') : '')}
                                 >
-                                  <div className="flex items-center gap-1.5">
+                                  <div className="flex min-w-0 flex-col gap-0.5">
                                     <span
-                                      className="shrink-0 rounded-[5px] px-1.5 py-px text-[8.5px] font-bold uppercase tracking-[0.06em]"
+                                      className="self-start shrink-0 rounded-[5px] px-1.5 py-px text-[8.5px] font-bold uppercase tracking-[0.06em]"
                                       style={{
                                         backgroundColor: b.isNightGpsOnly
                                           ? 'hsl(var(--muted) / 0.7)'
@@ -2158,13 +2158,13 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                                     {showLabel && (
                                       <span className="truncate font-semibold">{displayTitle}</span>
                                     )}
+                                    {showTime && (
+                                      <span className="truncate text-[10px] tabular-nums opacity-80">
+                                        {formatStockholmHm(b.startAt)}–{formatStockholmHm(b.endAt)} ·{' '}
+                                        {fmtMin(b.durationMinutes)}
+                                      </span>
+                                    )}
                                   </div>
-                                  {showTime && (
-                                    <div className="mt-0.5 truncate text-[10px] tabular-nums opacity-80">
-                                      {formatStockholmHm(b.startAt)}–{formatStockholmHm(b.endAt)} ·{' '}
-                                      {fmtMin(b.durationMinutes)}
-                                    </div>
-                                  )}
                                   {showChips && (() => {
                                     const { visible, overflowCount } = visibleChips(b.attachedChips!);
                                     return (
