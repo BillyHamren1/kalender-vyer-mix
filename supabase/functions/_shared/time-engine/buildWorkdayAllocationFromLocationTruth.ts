@@ -1464,6 +1464,7 @@ export function buildWorkdayAllocationFromLocationTruth(
     if (t.idx === lastCommuteHomeboundIdx) t.ctx.isLastHomeboundCommuteOfDay = true;
   }
 
+  for (const seg of ltSegments) {
     const sMs = toMs(seg.startAt);
     const eMs = toMs(seg.endAt);
     if (sMs === null || eMs === null || eMs <= sMs) continue;
