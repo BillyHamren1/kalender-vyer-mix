@@ -149,22 +149,30 @@ Deno.serve(async (req) => {
   });
 
   let workExclusions: WorkExclusion[] = [];
+  let residences: ResidencePolygon[] = [];
   let pingsExcludedAtWork = 0;
   let homesSkippedAtWork = 0;
+  let residenceHomesUpserted = 0;
 
   try {
-    // Load active org locations that are NOT private residences. Anything
-    // inside their radius is a workplace, never a home.
+    // Load active org locations. Split into:
+    //   - workExclusions: anything inside their radius is a workplace, never a home.
+    //   - residences: "Boende"-platser (is_private_residence/private_residence) — these
+    //     ALWAYS count as home for any staff whose nightly cluster lands inside them,
+    //     bypassing the 2-consecutive-nights rule.
     {
       const { data: orgLocs } = await supabase
         .from('organization_locations')
-        .select('organization_id, name, latitude, longitude, radius_meters, location_type, is_active')
+        .select('organization_id, name, latitude, longitude, radius_meters, location_type, is_active, is_private_residence, geofence_polygon')
         .eq('is_active', true);
-      workExclusions = (orgLocs ?? [])
+      const rows = orgLocs ?? [];
+
+      workExclusions = rows
         .filter((l: any) =>
           l.latitude != null &&
           l.longitude != null &&
-          (l.location_type ?? '') !== 'private_residence',
+          (l.location_type ?? '') !== 'private_residence' &&
+          l.is_private_residence !== true,
         )
         .map((l: any) => ({
           org: l.organization_id as string,
@@ -173,7 +181,26 @@ Deno.serve(async (req) => {
           radiusM: Number(l.radius_meters ?? 200) || 200,
           name: l.name as string,
         }));
-      console.log(`[infer-home] loaded ${workExclusions.length} work exclusions`);
+
+      residences = rows
+        .filter((l: any) =>
+          (l.location_type === 'private_residence' || l.is_private_residence === true) &&
+          l.geofence_polygon &&
+          Array.isArray(l.geofence_polygon.coordinates),
+        )
+        .map((l: any) => {
+          const c = polygonCentroid(l.geofence_polygon);
+          return {
+            org: l.organization_id as string,
+            location_id: l.id as string,
+            name: l.name as string,
+            centroidLat: c.lat,
+            centroidLng: c.lng,
+            polygon: l.geofence_polygon,
+          } as ResidencePolygon;
+        });
+
+      console.log(`[infer-home] loaded ${workExclusions.length} work exclusions, ${residences.length} residence polygons`);
     }
 
     // 1+2. Pull night pings (cursor pagination on recorded_at to bypass
