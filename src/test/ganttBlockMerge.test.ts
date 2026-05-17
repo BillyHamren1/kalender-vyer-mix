@@ -37,13 +37,13 @@ describe('mergeContiguousBlocks', () => {
     expect(diagnostics.visualBlockCount).toBe(1);
   });
 
-  it('olika visualKind (work + rig) → INTE merge', () => {
+  it('work + rig renderas identiskt → MERGE', () => {
     const input = [
       b('A', 'work', '2026-05-15T08:00:00Z', '2026-05-15T09:00:00Z', 60),
       b('B', 'rig', '2026-05-15T09:03:00Z', '2026-05-15T10:00:00Z', 57),
     ];
     const { blocks } = mergeContiguousBlocks(input);
-    expect(blocks).toHaveLength(2);
+    expect(blocks).toHaveLength(1);
   });
 
   it('glapp 90 min, samma kind → INTE merge (över maxGap=60)', () => {
