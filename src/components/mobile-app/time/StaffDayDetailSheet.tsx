@@ -283,82 +283,12 @@ const DayBody: React.FC<{
 
       {/* D. (Borttagen) "Behöver åtgärdas" — personal ska bara rapportera tid. */}
 
-      {/* C. Tidslinje */}
-      {snapshot.segments.length > 0 ? (
-        <section className="rounded-2xl border border-border bg-card p-4 space-y-2">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-            Tidslinje
-          </p>
-          <div className="space-y-1.5">
-            {snapshot.segments.map((seg, idx) => {
-              const Icon = SEG_ICON[seg.kind] ?? FallbackSegIcon;
-              const isActive = !!seg.isActive || !seg.endedAt;
-              if (isActive && isToday) {
-                return <ActiveTimelineRow key={`${seg.startedAt}-${idx}`} seg={seg} />;
-              }
-              return (
-                <button
-                  type="button"
-                  key={`${seg.startedAt}-${idx}`}
-                  onClick={() => setSelectedSeg(seg)}
-                  className={cn(
-                    'w-full text-left flex items-start gap-3 rounded-xl border border-border bg-background/60 px-3 py-2 active:bg-muted/50 transition-colors',
-                    seg.kind === 'unknown' && 'border-amber-500/30 bg-amber-500/5',
-                    isActive && 'border-primary/30 bg-primary/5',
-                  )}
-                >
-                  <div className={cn('shrink-0 w-8 h-8 rounded-lg flex items-center justify-center', SEG_TONE[seg.kind])}>
-                    <Icon className="w-4 h-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[12px] tabular-nums font-semibold text-muted-foreground">
-                      {segmentRange(seg)}
-                    </p>
-                    <p className="text-sm font-semibold text-foreground truncate">{seg.label}</p>
-                  </div>
-                  <div className="text-xs tabular-nums font-bold text-foreground/80 shrink-0 pt-0.5">
-                    {formatHoursMinutes(seg.durationMinutes / 60)}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          {/* Stoppknapp under sista raden när det är dagens datum + arbetsdag pågår. */}
-          {isToday && !!snapshot.workday?.isOpen && (
-            <div className="pt-2">
-              <EndDayButton workdayOpen onStopped={onChanged} />
-            </div>
-          )}
-        </section>
-      ) : hasManualOnly ? (
-        <section className="rounded-2xl border border-border bg-card p-4 space-y-2">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-            Tidslinje
-          </p>
-          <div className="rounded-xl border border-border bg-background/60 px-3 py-2.5 flex items-start gap-3">
-            <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10 text-primary">
-              <Sun className="w-4 h-4" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[12px] tabular-nums font-semibold text-muted-foreground">
-                {formatStockholmHm(manualStart!)}–{formatStockholmHm(manualEnd!)}
-              </p>
-              <p className="text-sm font-semibold text-foreground">Manuell tidrapport</p>
-            </div>
-            <div className="text-xs tabular-nums font-bold text-foreground/80 shrink-0 pt-0.5">
-              {formatHoursMinutes(manualMinutes / 60)}
-            </div>
-          </div>
-        </section>
-      ) : (
-        <>
-          <p className="text-sm text-muted-foreground text-center py-4">
-            Ingen tid rapporterad ännu. Fyll i tiderna nedan.
-          </p>
-          {isToday && !!snapshot.workday?.isOpen && (
-            <EndDayButton workdayOpen onStopped={onChanged} />
-          )}
-        </>
+      {/* C. Tidslinje — ENDA källa: admin-Gantten via StaffGanttMirrorTimeline.
+          Tidigare renderades snapshot.segments här (egen cache-källa) vilket
+          gav olika block i app vs webb. Nu speglas Gantten 1:1. */}
+      <StaffGanttMirrorTimeline date={date} />
+      {isToday && !!snapshot.workday?.isOpen && (
+        <EndDayButton workdayOpen onStopped={onChanged} />
       )}
 
       {/* E. (Flyttad högst upp) Rast/lunch + Godkänn dagen */}
