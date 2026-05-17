@@ -685,45 +685,25 @@ const blocksFromStaff = (
       });
     }
 
-    // Steg 1: merge angränsande tekniska block (befintligt beteende).
-    const merged = applyVisualMerge(out, staff.name);
-
-    // Steg 2: UI-derive — absorbera kort transport/granska/okänd som chips
-    // på närmaste huvudblock. Lane-packing får bara hända när två RIKTIGA
-    // huvudjobb överlappar.
-    const visual = buildVisualGanttBlocks(
-      merged.map((b) => ({
-        id: b.id,
-        kind: b.kind,
-        startAt: b.startAt,
-        endAt: b.endAt,
-        durationMinutes: b.durationMinutes,
-        title: b.title,
-        subtitle: b.subtitle ?? null,
-        sessionKey: b.sessionKey,
-        isNightGpsOnly: b.isNightGpsOnly,
-      })),
-      { staffName: staff.name },
-    );
-
-    if (diagSink) diagSink(visual.diagnostics);
-    if (typeof console !== 'undefined' && (visual.diagnostics.absorbedTransportCount + visual.diagnostics.absorbedReviewCount + visual.diagnostics.absorbedUnknownCount + visual.diagnostics.absorbedPreWorkCount + visual.diagnostics.hiddenPreWorkCount) > 0) {
-      // eslint-disable-next-line no-console
-      console.warn('[Gantt 5.0] visualGanttDiagnostics', visual.diagnostics);
+    // Mirror-policy (2026-05-17): hoppa över både `applyVisualMerge` och
+    // `buildVisualGanttBlocks`. Detaljvyn (ReportCandidateTimeline) visar
+    // varje block för sig — Gantt ska spegla det 1:1, inga sammanslagna
+    // syskonblock, inga absorberade transport/granska-chips.
+    if (diagSink) {
+      diagSink({
+        absorbedTransportCount: 0,
+        absorbedReviewCount: 0,
+        absorbedUnknownCount: 0,
+        absorbedPreWorkCount: 0,
+        hiddenPreWorkCount: excludedPreWork?.length ?? 0,
+        lanePackedMainBlocksCount: 0,
+        rawBlockCount: out.length,
+        visualBlockCount: out.length,
+      } as VisualGanttDiagnostics);
     }
-
-    const byId = new Map(merged.map((b) => [b.id, b]));
-    return visual.blocks
-      .map<GanttBlock | null>((v) => {
-        const src = byId.get(v.id);
-        if (!src) return null;
-        return {
-          ...src,
-          attachedChips: v.chips.length > 0 ? v.chips : undefined,
-          absorbedSourceIds: v.attachedEvents.map((a) => a.id),
-        };
-      })
-      .filter((b): b is GanttBlock => b !== null);
+    return out
+      .slice()
+      .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
   }
   // Fallback: derive from journal sessions
   for (const s of staff.journal.sessions as ProjectSession[]) {
