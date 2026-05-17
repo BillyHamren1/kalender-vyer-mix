@@ -170,18 +170,9 @@ const DayBody: React.FC<{
       ))
     : 0;
 
-  const openFlags = useMemo(
-    () => (snapshot.flags ?? []).filter(
-      (f) => !f.resolved && f.severity !== 'info',
-    ),
-    [snapshot.flags],
-  );
-  const flagsNeedingInput = useMemo(
-    () => openFlags.filter((f) => f.needsUserInput),
-    [openFlags],
-  );
-  const actions = snapshot.actionsNeeded ?? [];
-  const hasOpenIssues = flagsNeedingInput.length > 0 || actions.length > 0;
+  // Tidigare visades en "Behöver åtgärdas"-sektion + korrigeringsbegäran som
+  // spärrade godkännande. Borttaget: personal rapporterar bara sin tid; admin
+  // granskar och begär ev. komplettering separat.
   const todayStockholm = new Intl.DateTimeFormat('sv-SE', { timeZone: TZ_TODAY }).format(new Date());
   const isToday = date === todayStockholm;
 
