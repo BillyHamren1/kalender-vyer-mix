@@ -974,11 +974,19 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
     try { return isRawPingsDebugEnabled(); } catch { return false; }
   }, [ganttDebug]);
   const { organizationId: diagOrgId } = useCurrentOrg();
+  // GPS-evidence guard: hämta råa pings när minst en staff i listan saknar
+  // renderbar arbetstid, så att vi kan visa en diskret evidence-bar i Gantt
+  // även när V2/allocation/legacy alla säger "tomt". Detta skapar ALDRIG
+  // arbetstid — det visar bara att systemet har platsdata.
+  const someStaffMissingRenderedWork = useMemo(
+    () => staffList.some((s) => (blocksByStaff[s.id]?.length ?? 0) === 0),
+    [staffList, blocksByStaff],
+  );
   const { data: rawPingsData } = useRawStaffPingsDebug({
     organizationId: diagOrgId,
     date: dateStr,
     includeRows: false,
-    enabled: diagnosticsEnabled,
+    enabled: diagnosticsEnabled || someStaffMissingRenderedWork,
   });
   const diagnosisByStaff = useMemo(() => {
     const map = new Map<string, ReportDataGapDiagnosis>();
