@@ -96,7 +96,7 @@ export const MobileDayCard: React.FC<Props> = ({ model, dateLabel, onClick }) =>
         </div>
       </div>
 
-      {/* Totals row — workday total = lönegrundande */}
+      {/* Totals row — workday = registrerad total tid (mobilen visar inte lönegrundande) */}
       <div className="grid grid-cols-3 gap-2">
         <Cell
           label="Arbetsdag"
