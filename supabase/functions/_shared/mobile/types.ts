@@ -61,6 +61,31 @@ export interface MobileSubmission {
 export type MobileCacheStatus = "ready" | "missing" | "stale" | "error";
 export type MobileWorkdayStatus = "inactive" | "active" | "ended";
 
+/**
+ * Time Reporting Fix 2 — Day status får ALDRIG härledas från att alla segment
+ * har endedAt. Endast explicit dagtimer-stop, backend dayEnded eller
+ * submission/approve får sätta dagen som avslutad/inskickad.
+ */
+export type MobileDayStatus =
+  | "active_day"
+  | "ended_day"
+  | "submitted_day"
+  | "has_time_not_submitted"
+  | "empty_day";
+
+export interface MobileDayStatusDebug {
+  dayStatus: MobileDayStatus;
+  reasonForDayStatus: string;
+  activeTimerExists: boolean;
+  hasSegments: boolean;
+  hasWorkBlocks: boolean;
+  hasExplicitStoppedAt: boolean;
+  hasSubmission: boolean;
+  submissionStatus: string | null;
+  lastSegmentKind: string | null;
+  lastSegmentEndedAt: string | null;
+}
+
 export interface MobileTrackingPolicy {
   mode: string;
   heartbeatMs: number;
@@ -86,6 +111,9 @@ export interface MobileDayReport {
   cacheError: string | null;
   workdayStatus: MobileWorkdayStatus;
   workday: MobileWorkday | null;
+  /** Time Reporting Fix 2 — explicit day-level status (preferred by UI). */
+  dayStatus: MobileDayStatus;
+  debugDayStatus: MobileDayStatusDebug;
   summary: MobileSummary;
   segments: MobileSegment[];
   actionsNeeded: MobileActionItem[];
