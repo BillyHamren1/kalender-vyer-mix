@@ -602,6 +602,8 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
                     Bokningen saknar rig- och demonteringsdatum — inget att planera.
                   </div>
                 )}
+                </>
+                )}
               </div>
 
               {/* Höger: bokningsinfo + projekttyp */}
