@@ -276,6 +276,30 @@ export function buildGpsDayTimelineOnly(
     return out;
   };
 
+  // Target-aware reclassification: if ≥80% of pings in a travel chain lie
+  // within the same known target's geofence, emit it as a stay at that target
+  // instead of "transport". Fixes the case where a person walks/moves around
+  // inside a large project/warehouse footprint (>80m wiggle) and gets falsely
+  // labelled as "Resa" + "Osäker period".
+  const TARGET_CONTAINMENT_RATIO = 0.8;
+  const findContainingTarget = (chain: Ping[]): KnownPlace | null => {
+    if (chain.length === 0 || knownTargets.length === 0) return null;
+    let best: { place: KnownPlace; count: number } | null = null;
+    for (const place of knownTargets) {
+      let inside = 0;
+      for (const p of chain) {
+        if (distanceMeters(p.lat, p.lng, place.lat, place.lng) <= place.radiusM) {
+          inside++;
+        }
+      }
+      const ratio = inside / chain.length;
+      if (ratio >= TARGET_CONTAINMENT_RATIO) {
+        if (!best || inside > best.count) best = { place, count: inside };
+      }
+    }
+    return best?.place ?? null;
+  };
+
   // Movement pings = pings outside any stay window
   const movementPings = clusterInput.filter((p) => !inAnyStay(new Date(p.ts).getTime()));
 
