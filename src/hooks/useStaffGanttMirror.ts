@@ -9,7 +9,7 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { normalizeCalendarPhase } from '@/lib/staff/normalizeCalendarPhase';
+import { normalizeCalendarPhase } from '@/lib/staff/ganttPhaseColor';
 import {
   buildStaffGanttMirrorBlocks,
   type BuildStaffGanttMirrorResult,
