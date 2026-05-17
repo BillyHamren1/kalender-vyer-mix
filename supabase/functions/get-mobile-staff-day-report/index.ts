@@ -310,6 +310,8 @@ Deno.serve(async (req: Request) => {
     cacheError: cache?.error ?? null,
     cacheFetchError,
     cacheBlockCount,
+    cacheHasV2Field,
+    displaySourceUsed,
     liveEngineError,
     timerOwnership,
   };
