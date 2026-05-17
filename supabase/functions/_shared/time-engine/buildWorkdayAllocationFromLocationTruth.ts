@@ -480,7 +480,7 @@ export interface ResolveWorkdayEnvelopeInput {
   analysisWindowStartIso?: string | null;
   /** Optional "now"-injection för testbarhet. */
   nowIso?: string | null;
-}
+  }
 
 
 /**
@@ -1147,12 +1147,15 @@ export function buildWorkdayAllocationFromLocationTruth(
   }
 
   const wdStartMsFinal: number | null = effectiveStartMs;
-  if (!wdStartMsFinal) {
+  if (!wdStartMsFinal || wdStartMs === null) {
     diag.warnings.push('no_active_workday');
     diag.warningsByType.no_active_workday += 1;
     diag.buildDurationMs = Date.now() - startedAt;
     return { segments, proposals, diagnostics: diag };
   }
+  // Efter denna guard är wdStartMs garanterat number. Återbinder lokal const
+  // så TypeScript kan narrowa typen i resten av funktionen utan `!`-assertions.
+  const wdStartMsNN: number = wdStartMs;
 
   if (workdayStartAdjusted) {
     diag.warnings.push('workday_start_adjusted_to_first_evidence');
@@ -1245,74 +1248,14 @@ export function buildWorkdayAllocationFromLocationTruth(
   // Track coverage för uncoveredWorkdayMinutes.
   const coveredIntervals: Array<[number, number]> = [];
 
-  // ── Lager 3.4 — pre-pass: bygg MovementContext per movement-segment ──
-  // Vi använder movementMeta från Lager 2.5 (fromTarget/toTarget/distanceMeters).
-  // Faller tillbaka till föregående/efterföljande segment när meta saknas.
+  // Lager 3.4 — pre-pass för MovementContext är flyttat till efter helpers
+  // (resolveSegBusinessContext / allKnownTargets) längre ner, så att vi kan
+  // resolvera grannars target via business-context-fallback OCH via
+  // coord-overlap mot KnownTargetEvidenceItem. Här deklareras bara state.
   const sortedLt = [...ltSegments].sort(
     (a, b) => Date.parse(a.startAt) - Date.parse(b.startAt),
   );
   const movementCtxById = new Map<string, MovementContext>();
-  // Hitta första hem→arbete och sista arbete→hem.
-  let firstCommuteWorkboundIdx = -1;
-  let lastCommuteHomeboundIdx = -1;
-  const tentative: Array<{ idx: number; ctx: MovementContext; id: string }> = [];
-
-  for (let i = 0; i < sortedLt.length; i++) {
-    const seg = sortedLt[i];
-    if (seg.finalType !== 'movement') continue;
-    // movementMeta från detectTrueMovement.
-    const meta = (seg.diagnostics as { movementMeta?: {
-      fromTarget?: LocationTruthMatchedTargetLike;
-      toTarget?: LocationTruthMatchedTargetLike;
-      distanceMeters?: number;
-    } }).movementMeta;
-
-    let fromT: LocationTruthMatchedTargetLike | null = meta?.fromTarget ?? null;
-    let toT: LocationTruthMatchedTargetLike | null = meta?.toTarget ?? null;
-
-    // Fallback: läs grannsegmentens matchedTarget/finalType.
-    if (!fromT) {
-      for (let k = i - 1; k >= 0; k--) {
-        const p = sortedLt[k];
-        if (p.finalType === 'movement') continue;
-        const mt = p.businessContext?.matchedTarget ?? p.matchedTarget;
-        if (mt) { fromT = mt; break; }
-        if (p.finalType === 'private_residence') { fromT = { targetType: 'private_zone' }; break; }
-        break;
-      }
-    }
-    if (!toT) {
-      for (let k = i + 1; k < sortedLt.length; k++) {
-        const n = sortedLt[k];
-        if (n.finalType === 'movement') continue;
-        const mt = n.businessContext?.matchedTarget ?? n.matchedTarget;
-        if (mt) { toT = mt; break; }
-        if (n.finalType === 'private_residence') { toT = { targetType: 'private_zone' }; break; }
-        break;
-      }
-    }
-
-    const ctx: MovementContext = {
-      fromSide: classifyMovementSide(fromT),
-      toSide: classifyMovementSide(toT),
-      distanceMeters: typeof meta?.distanceMeters === 'number' ? meta!.distanceMeters! : null,
-      isFirstWorkboundCommuteOfDay: false,
-      isLastHomeboundCommuteOfDay: false,
-    };
-    movementCtxById.set(seg.id, ctx);
-    tentative.push({ idx: i, ctx, id: seg.id });
-
-    if (ctx.fromSide === 'home_or_private' && isWorkSide(ctx.toSide) && firstCommuteWorkboundIdx === -1) {
-      firstCommuteWorkboundIdx = i;
-    }
-    if (isWorkSide(ctx.fromSide) && ctx.toSide === 'home_or_private') {
-      lastCommuteHomeboundIdx = i; // overskrivs → blir sista
-    }
-  }
-  for (const t of tentative) {
-    if (t.idx === firstCommuteWorkboundIdx) t.ctx.isFirstWorkboundCommuteOfDay = true;
-    if (t.idx === lastCommuteHomeboundIdx) t.ctx.isLastHomeboundCommuteOfDay = true;
-  }
 
   // ── Time Engine Core Fix 2 — overlap-helper + knownTargets för business context ──
   const allAssignments: AssignmentEvidenceItem[] =
@@ -1387,6 +1330,141 @@ export function buildWorkdayAllocationFromLocationTruth(
     const address: string | null =
       matched?.address ?? seg.physicalLocation?.address ?? null;
     return { targetType, targetId, label, address };
+  }
+
+  // ── Lager 3.4 — pre-pass: bygg MovementContext per movement-segment ──
+  // Travel-block ska bara bli `needs_work_allocation_review` med varningen
+  // `movement_missing_anchor` när vi VERKLIGEN inte kan koppla någondera sidan
+  // till hem/jobb. Tidigare avbröts grannresolvering vid första non-movement-
+  // granne även om DEN saknade matchedTarget (men nästa granne hade target).
+  // Vi går nu längre tillbaka/framåt och konsulterar även
+  // resolveSegBusinessContext + coord-overlap mot allKnownTargets.
+  const HAVERSINE_EARTH_M = 6371000;
+  function haversineMeters(
+    aLat: number, aLng: number, bLat: number, bLng: number,
+  ): number {
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const dLat = toRad(bLat - aLat);
+    const dLng = toRad(bLng - aLng);
+    const lat1 = toRad(aLat);
+    const lat2 = toRad(bLat);
+    const h = Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+    return 2 * HAVERSINE_EARTH_M * Math.asin(Math.sqrt(Math.min(1, Math.sqrt(h))));
+  }
+
+  function knownTargetTypeToLT(t: KnownTargetEvidenceItem['targetType']): LocationTruthTargetType | null {
+    switch (t) {
+      case 'project': return 'project';
+      case 'large_project': return 'large_project';
+      case 'booking': return 'booking';
+      case 'organization_location': return 'organization_location';
+      case 'supplier': return 'supplier';
+      default: return null;
+    }
+  }
+
+  function targetFromKnownCoordMatch(
+    seg: LocationTruthSegment,
+  ): LocationTruthMatchedTargetLike | null {
+    const lat = seg.physicalLocation?.lat ?? null;
+    const lng = seg.physicalLocation?.lng ?? null;
+    if (lat === null || lng === null) return null;
+    for (const kt of allKnownTargets) {
+      if (!kt.hasCoordinates || kt.lat === null || kt.lng === null) continue;
+      const radius = kt.hasRadius && kt.radiusMeters !== null ? kt.radiusMeters : 150;
+      const d = haversineMeters(lat, lng, kt.lat, kt.lng);
+      if (d <= radius) {
+        const tt = knownTargetTypeToLT(kt.targetType);
+        if (tt) return { targetType: tt };
+      }
+    }
+    return null;
+  }
+
+  function resolveNeighborTarget(
+    neighbor: LocationTruthSegment,
+  ): LocationTruthMatchedTargetLike | null {
+    if (neighbor.finalType === 'private_residence') return { targetType: 'private_zone' };
+    const raw = neighbor.businessContext?.matchedTarget ?? neighbor.matchedTarget;
+    if (raw && raw.targetType) return raw;
+    // Försök business-context-resolvering.
+    const bcr = resolveSegBusinessContext(neighbor);
+    if (bcr && bcr.selectedTargetType &&
+        bcr.selectedTargetType !== 'unlinked_address' &&
+        bcr.selectedTargetType !== 'unknown') {
+      return { targetType: bcr.selectedTargetType as LocationTruthTargetType };
+    }
+    // Sista resort: coord-match mot kända targets.
+    const coord = targetFromKnownCoordMatch(neighbor);
+    if (coord) return coord;
+    return null;
+  }
+
+  const MAX_NEIGHBOR_GAP_MS = 4 * 60 * 60 * 1000; // 4h
+  let firstCommuteWorkboundIdx = -1;
+  let lastCommuteHomeboundIdx = -1;
+  const tentative: Array<{ idx: number; ctx: MovementContext; id: string }> = [];
+
+  for (let i = 0; i < sortedLt.length; i++) {
+    const seg = sortedLt[i];
+    if (seg.finalType !== 'movement') continue;
+    const meta = (seg.diagnostics as { movementMeta?: {
+      fromTarget?: LocationTruthMatchedTargetLike;
+      toTarget?: LocationTruthMatchedTargetLike;
+      distanceMeters?: number;
+    } }).movementMeta;
+
+    let fromT: LocationTruthMatchedTargetLike | null = meta?.fromTarget ?? null;
+    let toT: LocationTruthMatchedTargetLike | null = meta?.toTarget ?? null;
+
+    const movementStartMs = Date.parse(seg.startAt);
+    const movementEndMs = Date.parse(seg.endAt);
+
+    if (!fromT) {
+      for (let k = i - 1; k >= 0; k--) {
+        const p = sortedLt[k];
+        if (p.finalType === 'movement') continue;
+        const pEnd = Date.parse(p.endAt);
+        if (Number.isFinite(pEnd) && Number.isFinite(movementStartMs) &&
+            (movementStartMs - pEnd) > MAX_NEIGHBOR_GAP_MS) break;
+        const t = resolveNeighborTarget(p);
+        if (t) { fromT = t; break; }
+        // Fortsätt walka — granne utan target får inte längre stoppa kedjan.
+      }
+    }
+    if (!toT) {
+      for (let k = i + 1; k < sortedLt.length; k++) {
+        const n = sortedLt[k];
+        if (n.finalType === 'movement') continue;
+        const nStart = Date.parse(n.startAt);
+        if (Number.isFinite(nStart) && Number.isFinite(movementEndMs) &&
+            (nStart - movementEndMs) > MAX_NEIGHBOR_GAP_MS) break;
+        const t = resolveNeighborTarget(n);
+        if (t) { toT = t; break; }
+      }
+    }
+
+    const ctx: MovementContext = {
+      fromSide: classifyMovementSide(fromT),
+      toSide: classifyMovementSide(toT),
+      distanceMeters: typeof meta?.distanceMeters === 'number' ? meta!.distanceMeters! : null,
+      isFirstWorkboundCommuteOfDay: false,
+      isLastHomeboundCommuteOfDay: false,
+    };
+    movementCtxById.set(seg.id, ctx);
+    tentative.push({ idx: i, ctx, id: seg.id });
+
+    if (ctx.fromSide === 'home_or_private' && isWorkSide(ctx.toSide) && firstCommuteWorkboundIdx === -1) {
+      firstCommuteWorkboundIdx = i;
+    }
+    if (isWorkSide(ctx.fromSide) && ctx.toSide === 'home_or_private') {
+      lastCommuteHomeboundIdx = i;
+    }
+  }
+  for (const t of tentative) {
+    if (t.idx === firstCommuteWorkboundIdx) t.ctx.isFirstWorkboundCommuteOfDay = true;
+    if (t.idx === lastCommuteHomeboundIdx) t.ctx.isLastHomeboundCommuteOfDay = true;
   }
 
   for (const seg of ltSegments) {

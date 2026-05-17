@@ -195,3 +195,53 @@ Deno.test('Lager 3.4 — fallback: anchor härleds från grannsegment', () => {
   const m = r.segments.find((s) => s.sourceLocationTruthSegmentIds.includes('m1'))!;
   assertEquals(m.allocationType, 'work_travel');
 });
+
+// ── Time Legacy Purge / Anchor fallback v2 ──────────────────────────────
+// Helper: stay-segment som SAKNAR matchedTarget (t.ex. unresolved_location).
+function unresolvedStaySeg(id: string, start: string, end: string): LocationTruthSegment {
+  return {
+    id, staffId: 'staff-1', startAt: start, endAt: end,
+    type: 'unresolved_location' as any,
+    finalType: 'unresolved_location' as FinalLocationTruthSegmentType,
+    confidence: 'low',
+    physicalLocation: { label: null, address: null } as any,
+    matchedTarget: null,
+    businessContext: { status: 'unresolved_business_context' },
+    evidence: { pingCount: 2 } as any,
+    warnings: [],
+    diagnostics: {} as any,
+  } as any;
+}
+
+Deno.test('Anchor fallback v2 — hoppar över unresolved neighbor och hittar target längre bort', () => {
+  // s1 = warehouse, s_mid = unresolved (utan matchedTarget), m1 = movement,
+  // s2 = project. Tidigare avbröts walken vid s_mid → fromSide=unknown → review.
+  // Nu ska walken fortsätta till s1 → fromSide=warehouse → work_travel.
+  const segs = [
+    siteSeg('s1', '2026-05-15T08:00:00Z', '2026-05-15T09:00:00Z', 'organization_location'),
+    unresolvedStaySeg('s_mid', '2026-05-15T09:00:00Z', '2026-05-15T09:15:00Z'),
+    movementSeg({ id: 'm1', start: '2026-05-15T09:15:00Z', end: '2026-05-15T09:45:00Z',
+      fromType: null, toType: null, distanceMeters: 4_000 }),
+    siteSeg('s2', '2026-05-15T09:45:00Z', '2026-05-15T12:00:00Z', 'project'),
+  ];
+  const r = run(segs);
+  const m = r.segments.find((s) => s.sourceLocationTruthSegmentIds.includes('m1'))!;
+  assertEquals(m.allocationType, 'work_travel');
+  assert(!m.warnings.includes('movement_missing_anchor'),
+    'movement_missing_anchor ska INTE finnas när target hittas via fallback');
+});
+
+Deno.test('Anchor fallback v2 — gap > 4h stoppar walken', () => {
+  // s1 långt före movement (>4h), inget annat. fromSide ska bli unknown.
+  const segs = [
+    siteSeg('s1', '2026-05-15T01:00:00Z', '2026-05-15T02:00:00Z', 'project'),
+    movementSeg({ id: 'm1', start: '2026-05-15T10:00:00Z', end: '2026-05-15T10:30:00Z',
+      fromType: null, toType: null, distanceMeters: 4_000 }),
+    siteSeg('s2', '2026-05-15T10:30:00Z', '2026-05-15T12:00:00Z', 'project'),
+  ];
+  const r = run(segs);
+  const m = r.segments.find((s) => s.sourceLocationTruthSegmentIds.includes('m1'))!;
+  assertEquals(m.allocationType, 'needs_work_allocation_review');
+  assert(m.warnings.includes('movement_missing_anchor'));
+});
+
