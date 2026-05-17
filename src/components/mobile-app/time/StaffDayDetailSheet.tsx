@@ -272,35 +272,7 @@ const DayBody: React.FC<{
         )}
       </section>
 
-      {/* D. Behöver åtgärdas */}
-      {(actions.length > 0 || openFlags.length > 0) && (
-        <section className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-2">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
-            <AlertTriangle className="w-3.5 h-3.5" /> Behöver åtgärdas
-          </p>
-          {actions.map((a) => (
-            <div key={a.id} className="rounded-lg border border-amber-500/30 bg-card p-2.5">
-              <p className="font-bold text-sm text-foreground">{a.title}</p>
-              {a.description && (
-                <p className="text-[12px] text-muted-foreground mt-0.5">{a.description}</p>
-              )}
-            </div>
-          ))}
-          {openFlags.map((f) => (
-            <div key={f.id} className="rounded-lg border border-amber-500/30 bg-card p-2.5">
-              <p className="font-bold text-sm text-foreground">{f.title}</p>
-              {f.description && (
-                <p className="text-[12px] text-muted-foreground mt-0.5">{f.description}</p>
-              )}
-            </div>
-          ))}
-          {hasOpenIssues && !isLocked && (
-            <p className="text-[12px] text-amber-800 dark:text-amber-300 mt-1">
-              Lös frågorna eller skicka korrigeringsbegäran innan du skickar in dagen.
-            </p>
-          )}
-        </section>
-      )}
+      {/* D. (Borttagen) "Behöver åtgärdas" — personal ska bara rapportera tid. */}
 
       {/* C. Tidslinje */}
       {snapshot.segments.length > 0 ? (
