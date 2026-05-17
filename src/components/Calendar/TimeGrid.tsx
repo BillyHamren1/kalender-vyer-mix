@@ -135,7 +135,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   return (
     <>
-      <div className={`time-grid-with-staff-header day-card bg-background rounded-2xl shadow-lg border overflow-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
+      <div className={`time-grid-with-staff-header day-card bg-background rounded-2xl shadow-lg border overflow-x-auto overflow-y-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
         {/* Fixed header */}
         <div
           className="time-grid-fixed-header"
