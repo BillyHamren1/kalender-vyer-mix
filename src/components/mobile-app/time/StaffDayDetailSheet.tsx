@@ -170,18 +170,9 @@ const DayBody: React.FC<{
       ))
     : 0;
 
-  const openFlags = useMemo(
-    () => (snapshot.flags ?? []).filter(
-      (f) => !f.resolved && f.severity !== 'info',
-    ),
-    [snapshot.flags],
-  );
-  const flagsNeedingInput = useMemo(
-    () => openFlags.filter((f) => f.needsUserInput),
-    [openFlags],
-  );
-  const actions = snapshot.actionsNeeded ?? [];
-  const hasOpenIssues = flagsNeedingInput.length > 0 || actions.length > 0;
+  // Tidigare visades en "Behöver åtgärdas"-sektion + korrigeringsbegäran som
+  // spärrade godkännande. Borttaget: personal rapporterar bara sin tid; admin
+  // granskar och begär ev. komplettering separat.
   const todayStockholm = new Intl.DateTimeFormat('sv-SE', { timeZone: TZ_TODAY }).format(new Date());
   const isToday = date === todayStockholm;
 
@@ -194,7 +185,7 @@ const DayBody: React.FC<{
     if (snapshot.attestation?.status === 'attested') {
       return { label: 'Inskickad', tone: 'emerald' as const, Icon: Check };
     }
-    if (hasOpenIssues) return { label: 'Behöver åtgärdas', tone: 'amber' as const, Icon: AlertTriangle };
+    
     return { label: 'Ej inskickad', tone: 'amber' as const, Icon: Check };
   })();
 
@@ -281,35 +272,7 @@ const DayBody: React.FC<{
         )}
       </section>
 
-      {/* D. Behöver åtgärdas */}
-      {(actions.length > 0 || openFlags.length > 0) && (
-        <section className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-2">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
-            <AlertTriangle className="w-3.5 h-3.5" /> Behöver åtgärdas
-          </p>
-          {actions.map((a) => (
-            <div key={a.id} className="rounded-lg border border-amber-500/30 bg-card p-2.5">
-              <p className="font-bold text-sm text-foreground">{a.title}</p>
-              {a.description && (
-                <p className="text-[12px] text-muted-foreground mt-0.5">{a.description}</p>
-              )}
-            </div>
-          ))}
-          {openFlags.map((f) => (
-            <div key={f.id} className="rounded-lg border border-amber-500/30 bg-card p-2.5">
-              <p className="font-bold text-sm text-foreground">{f.title}</p>
-              {f.description && (
-                <p className="text-[12px] text-muted-foreground mt-0.5">{f.description}</p>
-              )}
-            </div>
-          ))}
-          {hasOpenIssues && !isLocked && (
-            <p className="text-[12px] text-amber-800 dark:text-amber-300 mt-1">
-              Lös frågorna eller skicka korrigeringsbegäran innan du skickar in dagen.
-            </p>
-          )}
-        </section>
-      )}
+      {/* D. (Borttagen) "Behöver åtgärdas" — personal ska bara rapportera tid. */}
 
       {/* C. Tidslinje */}
       {snapshot.segments.length > 0 ? (
@@ -394,20 +357,10 @@ const DayBody: React.FC<{
         staffId={staffId}
         date={date}
         snapshot={snapshot}
-        attestBlocked={hasOpenIssues}
-        attestBlockedReason={hasOpenIssues
-          ? 'Lös frågorna eller skicka korrigeringsbegäran först.'
-          : undefined}
+        attestBlocked={false}
       />
 
-      {/* F. Begär korrigering */}
-      {!isLocked && (
-        <CorrectionRequest
-          date={date}
-          snapshot={snapshot}
-          onSubmitted={onChanged}
-        />
-      )}
+      {/* F. (Borttagen) "Begär korrigering" — admin sköter ev. komplettering. */}
 
       <SegmentDetailSheet
         segment={selectedSeg}
