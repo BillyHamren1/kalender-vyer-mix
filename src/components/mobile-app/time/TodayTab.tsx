@@ -584,11 +584,19 @@ export const TodayTab: React.FC = () => {
 
   const showDebug = import.meta.env.DEV;
 
+  // När dagen INTE är inskickad: visa endast dagens tidslinje (ingen
+  // Arbetsdag-status och inga totaler — de kan ändå ändras tills granskning).
+  const isSubmitted = dayStatus.debug.hasSubmittedDay === true;
+
   return (
     <div className="space-y-3">
       <StaffDayRemindersBanner />
-      <WorkdayStatusCard snapshot={snapshot} dayStatus={dayStatus} />
-      <TotalsCard snapshot={snapshot} dayStatus={dayStatus} />
+      {isSubmitted && (
+        <>
+          <WorkdayStatusCard snapshot={snapshot} dayStatus={dayStatus} />
+          <TotalsCard snapshot={snapshot} dayStatus={dayStatus} />
+        </>
+      )}
       <TimelineSection
         snapshot={snapshot}
         onChanged={() => { void refresh(); }}
