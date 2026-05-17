@@ -233,8 +233,12 @@ Deno.serve(async (req) => {
   await admin
     .from("staff_day_report_cache")
     .update({
+      // Time Legacy Purge 2: AI får ENDAST uppdatera legacy-fält
+      // (report_candidate_blocks_json + summary_json). display_blocks_json
+      // ägs uteslutande av DisplayTimelineV2-pipelinen och får aldrig skrivas
+      // härifrån — annars läcker AI-tolkade legacy-block in som canonical
+      // UI-sanning i admin/mobil.
       report_candidate_blocks_json: updatedBlocks,
-      display_blocks_json: updatedBlocks,
       summary_json: newSummary,
       ai_review_signature: newSignature,
       ai_review_pending: false,
@@ -244,6 +248,9 @@ Deno.serve(async (req) => {
 
   return json(200, {
     ok: true,
+    source: "legacy_report_candidate_ai_review",
+    canonicalDisplaySource: "display_timeline_v2",
+    displayBlocksWritten: false,
     candidatesProcessed: candidates.length,
     autoApplied: auditRows.filter((r) => r.status === "auto_applied").length,
     uncertain: auditRows.filter((r) => r.status === "uncertain").length,
