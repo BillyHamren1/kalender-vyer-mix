@@ -1663,7 +1663,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
         ) : (
           (() => {
             const NAME_COL_PX = 240;
-            const HOUR_PX = 88;
+            const HOUR_PX = 52;
             const ROW_PX = 96;
             const timelineWidth = totalHours * HOUR_PX;
 
@@ -1674,7 +1674,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
               const clampedE = Math.max(startHour, Math.min(endHour, eH));
               if (clampedE <= clampedS) return null;
               const left = (clampedS - startHour) * HOUR_PX;
-              const width = Math.max(56, (clampedE - clampedS) * HOUR_PX);
+              const width = Math.max(36, (clampedE - clampedS) * HOUR_PX);
               return { left, width };
             };
 
