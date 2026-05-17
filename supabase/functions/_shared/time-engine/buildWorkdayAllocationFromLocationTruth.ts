@@ -305,6 +305,19 @@ export interface WorkdayAllocationDiagnostics {
     stable_address_no_target: number;
     unknown_location: number;
   };
+  // ── Time Engine Fix — Inferred Workday from LocationTruth (read-only) ──
+  /** True om workday-envelope inferrades från LocationTruth-work-target när dagtimer saknades. */
+  inferredWorkdayFromLocationTruth?: boolean;
+  /** Hård invariant: inferred envelope skriver ALDRIG till databasen. */
+  inferredWorkdayWritesToDb?: boolean;
+  /** Effektiv start för inferred envelope (ISO). */
+  inferredWorkdayStartAt?: string | null;
+  /** Effektivt slut för inferred envelope (ISO). */
+  inferredWorkdayEndAt?: string | null;
+  /** Total work-target-närvaro (minuter) som triggade inferred envelope. */
+  inferredWorkdayWorkTargetMinutes?: number;
+  /** Vilka targetTypes som bidrog till inferred envelope. */
+  inferredWorkdayTargetTypes?: LocationTruthTargetType[];
 }
 
 export interface WorkdayAllocationProposal {
