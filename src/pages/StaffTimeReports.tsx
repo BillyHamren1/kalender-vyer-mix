@@ -37,6 +37,7 @@ import {
   type GanttExportSnapshotForStaff,
 } from '@/lib/staff/timeEngineTraceExport';
 import { Database, Download } from 'lucide-react';
+import { normalizeCalendarPhase } from '@/lib/staff/ganttPhaseColor';
 
 export type SegmentKind = 'location' | 'booking' | 'travel' | 'workday';
 
