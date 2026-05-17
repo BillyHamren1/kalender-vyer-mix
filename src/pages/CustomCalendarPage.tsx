@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { usePlannerSync } from '@/stores/plannerStore';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
-import { computeDefaultVisibleTeams, isRequiredTeam } from '@/lib/calendar/defaultVisibleTeams';
+import { computeAutoVisibleTeamsForDay, computeDefaultVisibleTeams, isRequiredTeam } from '@/lib/calendar/defaultVisibleTeams';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { useTaskCalendarEvents } from '@/hooks/useTaskCalendarEvents';
 
@@ -230,13 +230,12 @@ const CustomCalendarPage = () => {
   const getVisibleTeamsForDay = (date: Date): string[] => {
     const dateKey = format(date, 'yyyy-MM-dd');
     const stored = visibleTeamsByDay[dateKey];
-    if (!stored) return defaultVisibleTeams;
-    // Säkerhetsnät: lägg alltid till team som finns i resurslistan men inte
-    // har sparats av användaren (t.ex. nytt team som lagts till efter att
-    // valet sparades). Tar bort gamla deprecated team-11.
-    const merged = new Set<string>(stored.filter(id => id !== 'team-11'));
-    for (const id of defaultVisibleTeams) merged.add(id);
-    return Array.from(merged);
+    return computeAutoVisibleTeamsForDay({
+      resources: teamResources,
+      events: mergedEvents,
+      date,
+      persistedTeamIds: stored,
+    });
   };
 
   // Toggle team visibility for a specific day
@@ -413,6 +412,7 @@ const CustomCalendarPage = () => {
                       allTeams={teamResources}
                       onEventClick={handleEventClick}
                       isEventReadOnly={isEventReadOnly}
+                      timeGridFullWidth
                     />
                   </div>
                   <WeekTabsNavigation
