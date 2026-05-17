@@ -67,6 +67,7 @@ import {
   classifyNightGpsOnly,
   type NightGuardEvidence,
 } from '@/lib/staff/nightGpsOnlyGuard';
+import { buildSuggestedDisplayBlocksForAdminGantt } from '@/lib/staff/reportCandidateGanttParity';
 import { EvidencePanel } from './ReportCandidateTimeline';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -293,6 +294,8 @@ interface GanttBlock {
   source?: 'displayTimelineV2' | 'workdayAllocation' | 'reportCandidate';
   /** Råa metadata (displayType, severity, allocationType, confidence, ...). */
   meta?: Record<string, unknown>;
+  /** ReportCandidate/display-block som denna Gantt-ruta bygger på. */
+  reportCandidateBlock?: ReportCandidateBlockUI;
 }
 
 const isWarehouseTarget = (b: ReportCandidateBlockUI): boolean => {
@@ -477,12 +480,67 @@ const blocksFromStaff = (
   staff: StaffWithDayReport,
   candidate: ReportCandidateBlockUI[] | null | undefined,
   excludedPreWork: ReportCandidateBlockUI[] | null | undefined,
+  presenceBlocks?: any[] | null,
+  targets?: any[] | null,
+  date?: string | null,
   bookingPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
   largeProjectPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
   diagSink?: (d: VisualGanttDiagnostics) => void,
 ): GanttBlock[] => {
   const out: GanttBlock[] = [];
   if (candidate && candidate.length) {
+    const parityBlocks = buildSuggestedDisplayBlocksForAdminGantt({
+      blocks: candidate,
+      presenceBlocks: presenceBlocks ?? [],
+      targets: targets ?? [],
+      staffName: staff.name,
+      date: date ?? null,
+    });
+    if (parityBlocks.length > 0) {
+      const phaseInputs = parityBlocks.filter((b) => b.kind === 'work' && !isWarehouseTarget(b));
+      const perBlockPhase: Record<string, SessionPhaseKind | null> = {};
+      for (const b of phaseInputs) {
+        perBlockPhase[b.id] = resolveBlockPhaseDirect(b, bookingPhaseByDate, largeProjectPhaseByDate);
+      }
+      const sessionPhaseMap = buildSessionPhaseMap(
+        phaseInputs.map((b) => ({
+          id: b.id,
+          targetType: b.targetType,
+          targetId: b.targetId,
+          title: b.title,
+          subtitle: b.subtitle,
+          startAt: b.startAt,
+          endAt: b.endAt,
+        })),
+        perBlockPhase,
+      );
+
+      return parityBlocks.map((b) => ({
+        id: b.id,
+        kind:
+          b.kind === 'work'
+            ? mapReportCandidateKind(b, bookingPhaseByDate, largeProjectPhaseByDate, sessionPhaseMap)
+            : b.ganttKind,
+        startAt: b.startAt,
+        endAt: b.endAt,
+        durationMinutes: b.durationMinutes,
+        title: b.displayTitle ?? b.title,
+        subtitle: b.displaySubtitle ?? b.subtitle ?? null,
+        rawKind: b.kind,
+        sessionKey: sessionKeyForBlock({
+          id: b.id,
+          targetType: b.targetType,
+          targetId: b.targetId,
+          title: b.title,
+          subtitle: b.subtitle,
+        }),
+        targetType: b.targetType,
+        targetId: b.targetId,
+        source: 'reportCandidate',
+        reportCandidateBlock: b,
+      }));
+    }
+
     const labelDiagnostics = {
       missingTitleBlocksCount: 0,
       genericTitleBlocksCount: 0,
@@ -898,11 +956,13 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
       } else if (selected === 'workdayAllocation') {
         blocks = applyGanttVisualPipeline(mappedAlloc, s.name, (d) => { diag[s.id] = d; });
       } else if (selected === 'reportCandidate') {
-        // Endast nås när hasV2Field=false OCH v2HardBlocked=false (legacy-läge).
         blocks = blocksFromStaff(
           s,
           legacyBlocks,
           null,
+          cand?.presenceBlocks ?? [],
+          cand?.targets ?? [],
+          dateStr,
           bookingPhaseByDate,
           largeProjectPhaseByDate,
           (d) => { diag[s.id] = d; },
@@ -951,6 +1011,8 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
     const list = blocksByStaff[selectedBlock.staffId] ?? [];
     return list.find((b) => b.id === selectedBlock.blockId) ?? null;
   }, [selectedBlock, blocksByStaff]);
+  const selectedCanonicalReportBlock =
+    selectedReportBlock ?? selectedRenderedBlock?.reportCandidateBlock ?? null;
 
   // Dev/debug-flagga för att visa per-rad diagnostics-badge i UI.
   // Aktiveras via: localStorage.setItem('gantt:debug','1')  eller via DEV-builds.
@@ -2194,7 +2256,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
         open={
           !!selectedBlock &&
           !!selectedBlockStaff &&
-          (!!selectedReportBlock || !!selectedRenderedBlock)
+          (!!selectedCanonicalReportBlock || !!selectedRenderedBlock)
         }
         onOpenChange={(open) => {
           if (!open) setSelectedBlock(null);
@@ -2203,7 +2265,7 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
         dateStr={dateStr}
         dateLabel={subLabel}
         reportCandidate={selectedBlockReportCandidate}
-        blockId={selectedReportBlock?.id ?? null}
+        blockId={selectedCanonicalReportBlock?.id ?? null}
         renderedBlock={selectedRenderedBlock}
       />
     </div>
@@ -2491,7 +2553,7 @@ const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
     !!renderedBlock &&
     (renderedBlock.source === 'displayTimelineV2' ||
       renderedBlock.source === 'workdayAllocation');
-  const selectedBlock: any = legacyBlock ?? renderedBlock ?? null;
+  const selectedBlock: any = legacyBlock ?? renderedBlock?.reportCandidateBlock ?? renderedBlock ?? null;
   // Map Trace 1: raw GPS hämtas alltid (även för V2/allocation-block),
   // så vi kan filtrera och visa pings för det valda blocket.
   const { pings } = useDayPings({ staffId: staff?.id ?? '', date: dateStr, enabled: open && !!staff?.id });
