@@ -359,6 +359,7 @@ export interface ActiveWorkdayInput {
 export type WorkdayEnvelopeStartSource =
   | 'active_time_registration'
   | 'manual_input'
+  | 'inferred_from_location_truth'
   | 'unknown';
 
 export type WorkdayEnvelopeEndSource =
@@ -366,6 +367,7 @@ export type WorkdayEnvelopeEndSource =
   | 'analysis_window_end'
   | 'now'
   | 'manual_input'
+  | 'inferred_from_location_truth'
   | 'unknown';
 
 export type WorkdayEnvelopeWarning =
