@@ -102,8 +102,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     const overlapWidth = overlapLanes * TEAM_COLUMN_WIDTH;
     return Math.max(staffWidth, overlapWidth);
   });
-  const totalTeamColumnsWidth = teamColumnWidths.reduce((sum, w) => sum + w, 0);
-
   const handleBookingEventClick = (event: CalendarEvent) => {
     if (onEventClick) { onEventClick(event); return; }
     handleEventClick({
