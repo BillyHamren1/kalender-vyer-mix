@@ -447,7 +447,7 @@ const PrimaryAction: React.FC<{ snapshot: StaffDaySnapshot | null }> = ({ snapsh
  * med startedAt = tidigaste aktiva segments startedAt. Detta påverkar bara UI;
  * inga timers skapas i databasen härifrån.
  */
-function deriveEffectiveSnapshot(snapshot: StaffDaySnapshot): StaffDaySnapshot {
+export function deriveEffectiveSnapshot(snapshot: StaffDaySnapshot): StaffDaySnapshot {
   const wd = snapshot.workday;
   if (wd?.isOpen) return snapshot;
 
