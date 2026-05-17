@@ -626,7 +626,7 @@ const blocksFromStaff = (
         id: isPreWork ? `pre-${b.id}` : b.id,
         kind: isPreWork
           ? 'pre_work'
-          : mapReportCandidateKind(b, bookingPhaseByDate, largeProjectPhaseByDate, sessionPhaseMap),
+          : mapReportCandidateKindMirror(b),
         startAt: b.startAt,
         endAt: b.endAt,
         durationMinutes: b.durationMinutes,
@@ -642,6 +642,9 @@ const blocksFromStaff = (
           subtitle: b.subtitle,
         }),
         rawKind: b.kind,
+        targetType: b.targetType ?? null,
+        targetId: b.targetId ?? null,
+        source: 'reportCandidate',
       });
     };
 
