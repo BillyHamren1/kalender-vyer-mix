@@ -238,28 +238,56 @@ export function buildGpsDayTimelineOnly(
         const avgKmh = durationMin > 0 ? (dist / 1000) / (durationMin / 60) : null;
         const cLat = chain.reduce((s, p) => s + p.lat, 0) / chain.length;
         const cLng = chain.reduce((s, p) => s + p.lng, 0) / chain.length;
-        out.push({
-          startTs,
-          endTs,
-          durationMin: Math.max(1, Math.round(durationMin)),
-          kind: "travel",
-          type: "transport",
-          label: "Förflyttning",
-          matchedSiteId: null,
-          matchedSiteType: null,
-          matchedSiteName: null,
-          centerLat: cLat,
-          centerLng: cLng,
-          startLat: chain[0].lat,
-          startLng: chain[0].lng,
-          endLat: chain[chain.length - 1].lat,
-          endLng: chain[chain.length - 1].lng,
-          pingCount: chain.length,
-          distanceMeters: Math.round(dist),
-          avgKmh: avgKmh != null ? Math.round(avgKmh * 10) / 10 : null,
-          confidence: 0.7,
-          reason: "continuous_movement",
-        });
+        // Target-aware override: if the whole chain lies inside one target's
+        // geofence, this is movement WITHIN a worksite, not transport between.
+        const containingTarget = findContainingTarget(chain);
+        if (containingTarget) {
+          out.push({
+            startTs,
+            endTs,
+            durationMin: Math.max(1, Math.round(durationMin)),
+            kind: "stay",
+            type: "known_site",
+            label: containingTarget.name || "Plats",
+            matchedSiteId: containingTarget.id,
+            matchedSiteType: containingTarget.type,
+            matchedSiteName: containingTarget.name,
+            centerLat: cLat,
+            centerLng: cLng,
+            startLat: chain[0].lat,
+            startLng: chain[0].lng,
+            endLat: chain[chain.length - 1].lat,
+            endLng: chain[chain.length - 1].lng,
+            pingCount: chain.length,
+            distanceMeters: Math.round(dist),
+            avgKmh: null,
+            confidence: 0.75,
+            reason: "within_target_geofence_movement",
+          });
+        } else {
+          out.push({
+            startTs,
+            endTs,
+            durationMin: Math.max(1, Math.round(durationMin)),
+            kind: "travel",
+            type: "transport",
+            label: "Förflyttning",
+            matchedSiteId: null,
+            matchedSiteType: null,
+            matchedSiteName: null,
+            centerLat: cLat,
+            centerLng: cLng,
+            startLat: chain[0].lat,
+            startLng: chain[0].lng,
+            endLat: chain[chain.length - 1].lat,
+            endLng: chain[chain.length - 1].lng,
+            pingCount: chain.length,
+            distanceMeters: Math.round(dist),
+            avgKmh: avgKmh != null ? Math.round(avgKmh * 10) / 10 : null,
+            confidence: 0.7,
+            reason: "continuous_movement",
+          });
+        }
       }
       chain = [];
     };
