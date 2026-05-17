@@ -220,6 +220,15 @@ export interface DaySummary {
   attested: boolean;
   actionsCount: number;
   status: "empty" | "open" | "needs_attest" | "needs_action" | "attested" | "approved";
+  /**
+   * Wallclock start/slut för dagen — SAMMA prioritetskedja som
+   * StaffDayAttestSection's "Justera dagen"-dialog:
+   *   attestation.requestedStartAt → workday.startedAt → null
+   * Säkerställer att period-listans "total tid" matchar dialogens förslag
+   * (annars uppstår ORIMLIG inkonsekvens mellan listsumma och dialog).
+   */
+  workdayStartedAt: string | null;
+  workdayEndedAt: string | null;
 }
 
 function isoWeekday(date: string): number {
