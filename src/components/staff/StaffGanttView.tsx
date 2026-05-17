@@ -356,6 +356,26 @@ const mapReportCandidateKind = (
 };
 
 /**
+ * Mirror-mappning (2026-05-17): klassar reportCandidate-block 1:1 mot vad
+ * ReportCandidateTimeline (detaljdialogen) visar. INGEN rig/rigdown-
+ * omklassning baserat på bokningens fas — Westmans förblir 'work', inte
+ * 'rig'. Warehouse-target visas som 'warehouse' (LAGER), needs_review eller
+ * "låg konfidens" → 'review' (GRANSK), transport → 'transport'.
+ */
+const mapReportCandidateKindMirror = (b: ReportCandidateBlockUI): GanttKind => {
+  if (b.kind === 'transport') return 'transport';
+  if (b.kind === 'needs_review') return 'review';
+  if (b.kind === 'unknown') return 'unknown';
+  if (b.kind === 'break') return 'break';
+  if (b.kind === 'work') {
+    if (b.reviewState === 'needs_review') return 'review';
+    if (isWarehouseTarget(b)) return 'warehouse';
+    return 'work';
+  }
+  return 'unknown';
+};
+
+/**
  * Visual merge — slår ihop adjacent block med samma resolved visualKind +
  * sessionKey + glapp ≤15min till ETT block. Phase inheritance har redan
  * körts före detta steg via mapReportCandidateKind.
