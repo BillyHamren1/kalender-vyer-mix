@@ -67,6 +67,7 @@ import {
   classifyNightGpsOnly,
   type NightGuardEvidence,
 } from '@/lib/staff/nightGpsOnlyGuard';
+import { buildSuggestedDisplayBlocksForAdminGantt } from '@/lib/staff/reportCandidateGanttParity';
 import { EvidencePanel } from './ReportCandidateTimeline';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -483,6 +484,36 @@ const blocksFromStaff = (
 ): GanttBlock[] => {
   const out: GanttBlock[] = [];
   if (candidate && candidate.length) {
+    const parityBlocks = buildSuggestedDisplayBlocksForAdminGantt({
+      blocks: candidate,
+      presenceBlocks: (staff as any).__reportCandidatePresenceBlocks ?? [],
+      targets: (staff as any).__reportCandidateTargets ?? [],
+      staffName: staff.name,
+      date: null,
+    });
+    if (parityBlocks.length > 0) {
+      return parityBlocks.map((b) => ({
+        id: b.id,
+        kind: b.ganttKind,
+        startAt: b.startAt,
+        endAt: b.endAt,
+        durationMinutes: b.durationMinutes,
+        title: b.displayTitle ?? b.title,
+        subtitle: b.displaySubtitle ?? b.subtitle ?? null,
+        rawKind: b.kind,
+        sessionKey: sessionKeyForBlock({
+          id: b.id,
+          targetType: b.targetType,
+          targetId: b.targetId,
+          title: b.title,
+          subtitle: b.subtitle,
+        }),
+        targetType: b.targetType,
+        targetId: b.targetId,
+        source: 'reportCandidate',
+      }));
+    }
+
     const labelDiagnostics = {
       missingTitleBlocksCount: 0,
       genericTitleBlocksCount: 0,
@@ -898,7 +929,8 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
       } else if (selected === 'workdayAllocation') {
         blocks = applyGanttVisualPipeline(mappedAlloc, s.name, (d) => { diag[s.id] = d; });
       } else if (selected === 'reportCandidate') {
-        // Endast nås när hasV2Field=false OCH v2HardBlocked=false (legacy-läge).
+        (s as any).__reportCandidatePresenceBlocks = cand?.presenceBlocks ?? [];
+        (s as any).__reportCandidateTargets = cand?.targets ?? [];
         blocks = blocksFromStaff(
           s,
           legacyBlocks,
