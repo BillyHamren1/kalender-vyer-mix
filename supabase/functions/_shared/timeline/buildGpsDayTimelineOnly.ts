@@ -343,6 +343,9 @@ export function buildGpsDayTimelineOnly(
     if (chain.length === 0 || knownTargets.length === 0) return null;
     let best: { place: KnownPlace; count: number } | null = null;
     for (const place of knownTargets) {
+      // NEVER reclassify movement as a "stay" at a home target. Hem är inte
+      // arbete — pings nära/på hemmet får aldrig bli ett arbetsblock i appen.
+      if (place.type === "home") continue;
       let inside = 0;
       for (const p of chain) {
         if (distanceMeters(p.lat, p.lng, place.lat, place.lng) <= place.radiusM) {

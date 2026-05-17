@@ -72,4 +72,31 @@ describe('buildGpsDayTimelineOnly — target wiggle', () => {
     const transports = out.segments.filter((s: any) => s.kind === 'travel' && s.type === 'transport');
     expect(transports.length).toBeGreaterThanOrEqual(1);
   });
+
+  it('hem-target (type=home) blir ALDRIG ett known_site stay — hem är inte arbete', () => {
+    const home = {
+      id: 'home:billy',
+      type: 'home' as const,
+      name: 'Hemma',
+      lat: 59.33061,
+      lng: 18.07,
+      radiusM: 500,
+    };
+    // Två pings strax efter midnatt nära hemmet — exakt Billys scenario.
+    const nightPings = [
+      { recorded_at: '2026-05-18T00:28:00Z', lat: 59.33061, lng: 18.07005, accuracy: 20 },
+      { recorded_at: '2026-05-18T00:29:00Z', lat: 59.33062, lng: 18.07006, accuracy: 20 },
+    ];
+    const out = buildGpsDayTimelineOnly({
+      staffId: 'billy',
+      organizationId: 'o1',
+      date: '2026-05-18',
+      pings: nightPings,
+      knownTargets: [home],
+    });
+    const knownSiteStays = out.segments.filter(
+      (s: any) => s.kind === 'stay' && s.type === 'known_site',
+    );
+    expect(knownSiteStays, JSON.stringify(knownSiteStays, null, 2)).toHaveLength(0);
+  });
 });
