@@ -9,10 +9,6 @@ import type { CalendarEvent, Resource } from '@/components/Calendar/ResourceData
  * — it has been deprecated, see useTeamResources.tsx.
  */
 export const REQUIRED_TEAM_IDS: readonly string[] = [
-  'team-1',
-  'team-2',
-  'team-3',
-  'team-4',
   'transport',
 ];
 
@@ -22,10 +18,8 @@ export const isRequiredTeam = (teamId: string): boolean =>
 /**
  * Default set of visible team columns for a planning day.
  *
- * Includes EVERY team column that currently exists in `resources` (Team 1–10
- * and any custom teams), plus the Lager (`transport`) column. Day-card
- * scrollar horisontellt så Lager-kolumnen alltid är nåbar längst till höger
- * även när alla team är på.
+ * Includes EVERY team column that currently exists in `resources` plus the
+ * always-visible Lager (`transport`) column.
  */
 export const computeDefaultVisibleTeams = (
   resources: Pick<Resource, 'id'>[] | null | undefined,
