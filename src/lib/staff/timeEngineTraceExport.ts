@@ -740,6 +740,9 @@ export function buildTimeEngineTraceExport(input: BuildTraceExportInput): TimeEn
     rawPingsTruncatedTotalMissingRows,
     rawPingsHardCapReached,
     rawPingsWarnings,
+    staffWithRawPingsButNoEngineDiagnostics: staffEntries.filter(
+      s => s.rawPings.count > 0 && !!s.timeEngine.timeEngineFetchError,
+    ).length,
   };
 
   return {
