@@ -191,7 +191,7 @@ const TotalsCard: React.FC<{
   if (transportMin > 0) secondary.push({ label: 'Transport', value: fmtMinutes(transportMin) });
   if (otherMin > 0) secondary.push({ label: 'Annan plats', value: fmtMinutes(otherMin) });
 
-  const isSubmitted = dayStatus.status === 'submitted_day';
+  const isSubmitted = dayStatus.debug.hasSubmittedDay === true;
 
   return (
     <section className="rounded-2xl border border-border bg-card p-4 shadow-sm space-y-3">
