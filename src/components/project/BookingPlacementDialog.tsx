@@ -428,8 +428,28 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-4">
-              {/* Vänster: dagvy + planeringsformulär för aktuell dag */}
+              {/* Vänster: dagvy + planeringsformulär — döljs när vi länkar till befintligt LP */}
               <div className="space-y-3 min-w-0">
+                {linkingToExistingLarge ? (
+                  <div className="rounded-lg border border-primary/30 bg-primary/5 p-6 space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-medium text-primary">
+                      <Building2 className="h-4 w-4" />
+                      Ärvs från det stora projektet
+                    </div>
+                    <p className="text-sm text-foreground/80">
+                      Den här bokningen läggs in i{' '}
+                      <strong>
+                        {largeProjects.find((p) => p.id === largeExistingId)?.name ?? 'valt stort projekt'}
+                      </strong>
+                      . Riggdagar, demonteringsdagar, tider och team ärvs automatiskt
+                      från projektet — du behöver inte välja dem här.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Tryck <strong>Slutför planering</strong> för att lägga till bokningen.
+                    </p>
+                  </div>
+                ) : (
+                <>
                 {/* Åtgärdsrad: lägg till rig/demonteringsdag */}
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
