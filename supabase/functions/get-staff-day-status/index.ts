@@ -318,7 +318,27 @@ Deno.serve(async (req) => {
     pageCount: pingsAll.pageCount,
   };
 
-  return new Response(JSON.stringify({ ...snapshot, rawPingCoverage }), {
+  // Time Legacy Purge 4 — GPS evidence (presentation-only, not work time).
+  // När snapshot inte producerar renderbar arbetstid (segments=0) men raw GPS
+  // finns: exponera ett separat evidence-block så UI kan visa "GPS finns
+  // HH:mm–HH:mm" istället för att antingen visa tomt eller falla tillbaka
+  // till legacy reportCandidate. Räknas ALDRIG som arbete.
+  const renderedSegmentCount = Array.isArray((snapshot as any)?.segments)
+    ? (snapshot as any).segments.length
+    : 0;
+  const hasGpsEvidenceButNoRenderedWork =
+    renderedSegmentCount === 0 && rawPingCoverage.totalFetched > 0;
+  const gpsEvidence = {
+    hasGpsEvidenceButNoRenderedWork,
+    gpsEvidenceStartAt: hasGpsEvidenceButNoRenderedWork ? rawPingCoverage.firstPingAt : null,
+    gpsEvidenceEndAt: hasGpsEvidenceButNoRenderedWork ? rawPingCoverage.lastPingAt : null,
+    rawPingCount: rawPingCoverage.totalFetched,
+    reasonNoWorkRendered: hasGpsEvidenceButNoRenderedWork
+      ? (((snapshot as any)?.workday?.isOpen ?? false) ? 'workday_open_no_blocks' : 'no_renderable_work_blocks')
+      : null,
+  };
+
+  return new Response(JSON.stringify({ ...snapshot, rawPingCoverage, gpsEvidence }), {
     status: 200,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
