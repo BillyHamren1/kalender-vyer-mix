@@ -1177,7 +1177,7 @@ export function buildWorkdayAllocationFromLocationTruth(
     ltSegments,
     workdayStartMs: wdStartMs,
     envelopeEndMs: wdEnd,
-    envelopeIsOpen: envelope.isOpen,
+    envelopeIsOpen: inferredFromLocationTruth ? false : envelope.isOpen,
     thresholdMinutes: 90,
   });
 
