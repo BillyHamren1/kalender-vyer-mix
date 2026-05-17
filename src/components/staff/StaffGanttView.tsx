@@ -1755,22 +1755,21 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                         {ganttStaff.length} personer
                       </div>
                     </div>
-                    <div className="relative" style={{ width: timelineWidth, height: 52 }}>
+                    <div className="relative" style={{ width: timelineWidth, height: 32 }}>
                       {hours.slice(0, -1).map((h, i) => {
                         const isLunch = h === 12;
                         return (
                           <div
                             key={h}
                             className={cn(
-                              'absolute top-0 bottom-0 flex flex-col justify-center text-[11px] tabular-nums',
-                              isLunch ? 'text-foreground/80' : 'text-muted-foreground/70',
+                              'absolute top-0 bottom-0 flex items-center text-[11px] tabular-nums',
+                              isLunch ? 'text-foreground/80 font-medium' : 'text-muted-foreground/70',
                             )}
                             style={{ left: i * HOUR_PX, width: HOUR_PX, paddingLeft: 8 }}
                           >
-                            <span className="text-[9px] uppercase tracking-wider opacity-60">
+                            <span className="text-[11px] uppercase tracking-wider">
                               {String(h).padStart(2, '0')}
                             </span>
-                            <span className="text-[10px] opacity-50">:00</span>
                           </div>
                         );
                       })}
