@@ -521,6 +521,8 @@ export const TodayTab: React.FC = () => {
     [rawSnapshot],
   );
 
+  const dayStatus = useMemo(() => deriveDayStatus(snapshot), [snapshot]);
+
   if (isLoading && !snapshot) {
     return (
       <div className="rounded-2xl border border-border bg-card p-8 flex items-center justify-center">
@@ -542,11 +544,13 @@ export const TodayTab: React.FC = () => {
 
   if (!snapshot) return null;
 
+  const showDebug = import.meta.env.DEV;
+
   return (
     <div className="space-y-3">
       <StaffDayRemindersBanner />
-      <WorkdayStatusCard snapshot={snapshot} />
-      <TotalsCard snapshot={snapshot} />
+      <WorkdayStatusCard snapshot={snapshot} dayStatus={dayStatus} />
+      <TotalsCard snapshot={snapshot} dayStatus={dayStatus} />
       <TimelineSection
         snapshot={snapshot}
         onChanged={() => { void refresh(); }}
@@ -554,8 +558,17 @@ export const TodayTab: React.FC = () => {
       />
       <ActionsNeededSection snapshot={snapshot} />
       <div className="pt-1">
-        <PrimaryAction snapshot={snapshot} />
+        <PrimaryAction snapshot={snapshot} dayStatus={dayStatus} />
       </div>
+
+      {showDebug && (
+        <details className="rounded-xl border border-dashed border-border bg-muted/30 p-2 text-[10px] font-mono text-muted-foreground">
+          <summary className="cursor-pointer">dayStatus debug</summary>
+          <pre className="whitespace-pre-wrap mt-1">
+{JSON.stringify({ status: dayStatus.status, reason: dayStatus.reason, ...dayStatus.debug }, null, 2)}
+          </pre>
+        </details>
+      )}
 
       {/* Lager 4.5 — read-only förhandsvisning av Display Timeline V2.
           Renderar null när V2-data saknas (fallback till befintlig vy). */}
