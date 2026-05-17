@@ -345,7 +345,7 @@ export function detectTrueMovement(
     if (routePingCount >= 2 && reasonableSpeed) confidence = 'high';
     if (routePingCount === 1 || !reasonableSpeed) confidence = 'low';
 
-    const segment = makeMovementSegment(A, B, distance, between.length, confidence);
+    const segment = makeMovementSegment(A, B, distance, between.length, routePingCount, confidence);
     inserts.push({ afterIndex: i, segment });
     diag.movementCreatedCount++;
     pushExample(diag, A.id, B.id, distance, gapMin, between.length, 'movement_created', confidence);
