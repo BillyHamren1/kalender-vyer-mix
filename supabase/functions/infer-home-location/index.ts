@@ -310,6 +310,56 @@ Deno.serve(async (req) => {
 
       if (!obs || obs.length === 0) continue;
 
+      // ── SHORTCUT: "Boende"-polygoner vinner alltid som hem ───────────────
+      // Om någon av de senaste nattobservationerna ligger i en aktiv
+      // private_residence-polygon → upsert primary direkt (en natt räcker),
+      // hoppa över 2-natters-regeln nedan. Räknar nights_observed som antalet
+      // observerade nätter i den senaste serien som hamnar i SAMMA polygon.
+      let residenceHit: { residence: ResidencePolygon; nights: number; firstDate: string } | null = null;
+      for (const o of obs) {
+        const r = findResidenceForPoint(
+          o.organization_id as string,
+          o.lat as number,
+          o.lng as number,
+          residences,
+        );
+        if (!r) continue;
+        if (!residenceHit || residenceHit.residence.location_id !== r.location_id) {
+          residenceHit = { residence: r, nights: 1, firstDate: o.observed_date as string };
+        } else {
+          residenceHit.nights++;
+          residenceHit.firstDate = o.observed_date as string;
+        }
+      }
+
+      if (residenceHit) {
+        const r = residenceHit.residence;
+        const { error: rErr } = await supabase
+          .from('staff_inferred_home_locations')
+          .upsert(
+            {
+              staff_id: staffId,
+              organization_id: r.org,
+              lat: r.centroidLat,
+              lng: r.centroidLng,
+              radius_m: HOME_RADIUS_M,
+              kind: 'primary',
+              cluster_key: `residence:${r.location_id}`,
+              valid_from: new Date(residenceHit.firstDate + 'T00:00:00Z').toISOString(),
+              valid_until: null,
+              confidence: 1,
+              nights_observed: residenceHit.nights,
+              last_observed_at: new Date().toISOString(),
+            },
+            { onConflict: 'staff_id,kind,cluster_key' },
+          );
+        if (!rErr) {
+          residenceHomesUpserted++;
+          continue;
+        }
+        console.warn(`[infer-home] residence upsert failed for staff ${staffId} / ${r.name}:`, rErr.message);
+      }
+
       const runs = new Map<string, { count: number; lat: number; lng: number; org: string; lastDate: string }>();
       let prevDate: string | null = null;
       let prevKey: string | null = null;
