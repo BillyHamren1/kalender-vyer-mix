@@ -80,6 +80,13 @@ export interface StaffPeriodDaySummary {
     | 'needs_action'
     | 'attested'
     | 'approved';
+  /**
+   * Wallclock start/slut — speglar dialogens "Justera dagen"-förslag.
+   * UserDayList visar (end − start) som "total tid" så listsumman matchar
+   * dialogen exakt. Backend levererar dessa från toDaySummary.
+   */
+  workdayStartedAt: string | null;
+  workdayEndedAt: string | null;
 }
 
 export interface StaffTimeReportPeriod {

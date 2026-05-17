@@ -220,6 +220,15 @@ export interface DaySummary {
   attested: boolean;
   actionsCount: number;
   status: "empty" | "open" | "needs_attest" | "needs_action" | "attested" | "approved";
+  /**
+   * Wallclock start/slut för dagen — SAMMA prioritetskedja som
+   * StaffDayAttestSection's "Justera dagen"-dialog:
+   *   attestation.requestedStartAt → workday.startedAt → null
+   * Säkerställer att period-listans "total tid" matchar dialogens förslag
+   * (annars uppstår ORIMLIG inkonsekvens mellan listsumma och dialog).
+   */
+  workdayStartedAt: string | null;
+  workdayEndedAt: string | null;
 }
 
 function isoWeekday(date: string): number {
@@ -241,6 +250,23 @@ export function toDaySummary(s: StaffDaySnapshot): DaySummary {
   else if (!attested) status = "needs_attest";
   else status = "attested";
 
+  // Samma prioritetskedja som StaffDayAttestSection — annars visar listan
+  // ett värde och dialogens "Förslag" ett annat (ORIMLIG inkonsekvens).
+  const att = s.attestation ?? null;
+  const wd = s.workday ?? null;
+  const firstSegStart = s.segments?.[0]?.startedAt ?? null;
+  let lastSegEnd: string | null = null;
+  if (s.segments) {
+    for (let i = s.segments.length - 1; i >= 0; i--) {
+      const seg = s.segments[i];
+      if (seg.endedAt) { lastSegEnd = seg.endedAt; break; }
+    }
+  }
+  const workdayStartedAt =
+    (att as any)?.requestedStartAt ?? wd?.startedAt ?? firstSegStart ?? null;
+  const workdayEndedAt =
+    (att as any)?.requestedEndAt ?? wd?.endedAt ?? lastSegEnd ?? null;
+
   return {
     date: s.date,
     weekday: isoWeekday(s.date),
@@ -256,6 +282,8 @@ export function toDaySummary(s: StaffDaySnapshot): DaySummary {
     attested,
     actionsCount,
     status,
+    workdayStartedAt,
+    workdayEndedAt,
   };
 }
 
