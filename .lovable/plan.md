@@ -1,97 +1,58 @@
-## Problem
+# Fix: Travel-block markeras som review trots kända targets i båda ändar
 
-Routen `/staff-management/time-reports` används idag som **två olika saker**:
+## Vad jag hittade
 
-1. Huvudvyn under Personal (vecko-Gantt med all personal).
-2. En "drilldown" till en enskild persons dag — t.ex. från:
-   - `ProjectAutoTimeSection` (projektets ekonomi/tidsrapportering → "Öppna dag")
-   - Externa länkar / bokmärken med `?staff=…&date=…`
-   - Klick i Gantt-listan internt
+I `supabase/functions/_shared/time-engine/buildWorkdayAllocationFromLocationTruth.ts` byggs `MovementContext` för varje movement-segment i ett pre-pass (rad 1248–1315). Det är detta pre-pass som avgör om en förflyttning blir:
+- `commute_travel`,
+- `work_travel`, eller
+- `needs_work_allocation_review` med varningen `movement_missing_anchor` (som UI:n felöversätter till "saknar start- och slutadress").
 
-Sidan växlar internt mellan översikt och detaljvy via `selectedStaffId`, men den vet inte *varifrån* användaren kom. "Tillbaka"-knappen i detaljvyn gör alltid `setSelectedStaffId(null)` → man landar i vecko-Ganttsidan oavsett om man kom från ett projekt, från ekonomi eller någon annan vy. Det är det som upplevs som "felaktigt inkopplat lite överallt".
+Logiken i `deriveAllocation` (rad 714) säger:
+```
+if (!ctx || ctx.fromSide === 'unknown' || ctx.toSide === 'unknown')
+   → needs_work_allocation_review + movement_missing_anchor
+```
 
-Användarens svar:
-- **Tidrapportsidan ska bara nås från Personal.**
-- **Tillbaka ska gå tillbaka till ursprungssidan.**
+Pre-passet sätter `fromSide`/`toSide = 'unknown'` så fort EN av dessa är sann:
 
-## Plan
+1. `movementMeta.fromTarget` / `toTarget` saknas (`detectTrueMovement` skickar bara med grannens `matchedTarget` ELLER inget).
+2. Fallback-loopen läser endast `p.businessContext.matchedTarget ?? p.matchedTarget` på närmaste icke-movement-granne, OCH `break`:ar direkt om grannen inte har någon raw `matchedTarget` — även om grannen senare får en target via `resolveSegBusinessContext` (Lager 3.7), via assignments-overlap, eller via known_targets.
+3. Targets som faktiskt syns i UI/karta (t.ex. resolverad via businessContext-fallback, manuell override, large_project-hint, BSA-overlap) räknas inte i pre-passet eftersom businessContext-resolveringen körs FÖR VARJE segment senare i huvudloopen (rad ~1415).
 
-### 1. Tidrapportsidan är endast egen sida från Personal
+Resultat: trots att UI:n renderar start- och slutmarkörer (för att de hittas via senare resolverings­steg eller via efterföljande segments faktiska target), tror motorn att fromSide/toSide är `unknown` och flaggar `movement_missing_anchor`.
 
-`/staff-management/time-reports` ska enbart vara översiktsvyn (Gantt + vecka). Den ska inte längre fungera som drilldown till en specifik person/dag via querystring.
+## Vad jag vill ändra
 
-**Ändringar:**
-- `src/pages/StaffTimeReports.tsx`
-  - Ta bort deep-link-läsningen av `?staff` och `?date` i komponenten.
-  - Ta bort det interna detaljvyläget (`selectedStaffId` → `<StaffTimeReportDetail/>`). När man klickar på en person i Ganttsen `onSelectStaff` → navigera till en *egen* dagsroute istället (se punkt 2).
-  - Sidan visar alltid bara Gantt-vyn.
+Endast frontend/timeengine-presentation. Inga regler för user-bekräftelse, lön eller submission rörs.
 
-### 2. Ny dedikerad dagsdetalj-route med smart Tillbaka
+### 1. Stärk fallback-kedjan för from/to-target i movement-prepasset
+Fil: `supabase/functions/_shared/time-engine/buildWorkdayAllocationFromLocationTruth.ts` (rad 1273–1293).
 
-Lägg in en separat route för en persons dag, så att den kan ha sin egen URL, sitt eget tillbaka-beteende och inte tränger sig in över tidrapportsidan.
+- Sluta `break`:a direkt efter första icke-movement-grannen utan target. Fortsätt loopa tills:
+  - vi hittar en granne med target (matchedTarget eller `private_residence`), ELLER
+  - tidsavståndet till föregående/efterföljande stay blir för stort (säg > 4h), eller listan tar slut.
+- Innan vi ger upp, kör en sista resort: kalla `resolveSegBusinessContext(neighbor)` (helpern definieras längre ned i samma fil) och använd dess resulterande target. Det betyder att vi måste antingen flytta `resolveSegBusinessContext` upp eller bygga ett litet inline-uppslag via `allKnownTargets` + `getOverlappingAssignmentsForInterval` för grannsegmentets intervall.
+- Om grannen är `known_address` utan target men har koordinater som matchar ett `KnownTargetEvidenceItem` (radius/zone), använd det target:et.
 
-- Ny route i `src/App.tsx`:
-  ```
-  /staff-management/time-reports/:staffId            → StaffTimeReportDay (defaultdatum = idag)
-  /staff-management/time-reports/:staffId/:date      → StaffTimeReportDay (date = YYYY-MM-DD)
-  ```
-- Ny sida `src/pages/StaffTimeReportDay.tsx`:
-  - Läser `staffId` och valfri `:date` från params.
-  - Hämtar staffens namn (samma `staff_members.select('name')` som idag).
-  - Renderar `<StaffTimeReportDetail staffId=… staffName=… initialDate=… />` (komponenten är redan separerad).
-  - Header: `PageHeader` med personens namn + "Tidrapporter per vecka", precis som idag.
-  - **Tillbaka-knapp** med smart fallback:
-    - `navigate(-1)` om `location.state?.from` finns *eller* `window.history.length > 1` och föregående entry är intern.
-    - Annars fallback till `/staff-management/time-reports`.
-    - Implementeras som en liten hook `useSmartBack(fallbackPath)`.
+### 2. Spegla fixen i frontend-kopian
+Fil: `src/lib/time-engine/buildWorkdayAllocationFromLocationTruth.ts` om den existerar speglad. Annars: ingen åtgärd där, men kontrollera först.
 
-### 3. Uppdatera alla call-sites att navigera till nya routen och skicka `from`
+### 3. Bättre varningskod när vi verkligen inte hittar
+När pre-passet trots allt landar i `unknown`, byt varningen från `movement_missing_anchor` till en mer korrekt: lägg till en ny variant t.ex. `movement_anchor_unresolved_to_target` så att UI:n kan visa "Start eller slut kan inte kopplas till känt projekt/lager/hem" i stället för den missvisande "saknar start- och slutadress".
 
-- `src/pages/StaffTimeReports.tsx` (Gantt-klick i översikten):
-  ```ts
-  onSelectStaff={(id, _name) =>
-    navigate(`/staff-management/time-reports/${id}/${dateStr}`, {
-      state: { from: location.pathname + location.search },
-    })
-  }
-  ```
-- `src/components/project/ProjectAutoTimeSection.tsx` (`openDay`):
-  - Sluta länka till `/staff-management/time-reports?staff=…&date=…`.
-  - Byt till `/staff-management/time-reports/${staffId}/${isoDate ?? ''}` med `state: { from: location.pathname + location.search }`.
-- Sök/uppdatera ev. andra ställen som länkar till `/staff-management/time-reports?staff=` (i denna sökning fanns bara `ProjectAutoTimeSection`, men jag dubbelkollar i implementationssteget).
+UI-mappningen (där texten "saknar start- och slutadress" produceras — `timeReportReviewEntry.ts` eller `segmentVisuals.tsx`) uppdateras till att läsa nya koden och alltid visa reverse-geocode-adressen (eller råa lat/lng) som from/till-label så att användaren ser den faktiska GPS-platsen i blocket.
 
-### 4. Behåll en mjuk redirect för gamla deep-links
+### 4. Tester
+Lägg till test i `buildWorkdayAllocationFromLocationTruth_layer34_test.ts`:
+- **Test A:** Movement där omedelbart föregående grannsegment är `unresolved_location` utan matchedTarget, men segmentet före det är `known_site` med matchedTarget=project. Förväntat: `fromSide = work_project`, allokering = `work_travel`.
+- **Test B:** Movement där neighbor stay är `known_address` utan matchedTarget men koordinater overlap:ar ett `KnownTargetEvidenceItem` (warehouse). Förväntat: `toSide = work_warehouse`.
+- **Test C:** Movement där båda sidor är project/large_project via businessContext-fallback. Förväntat: `work_travel`, ingen `movement_missing_anchor`-varning.
 
-För att inte krascha gamla bokmärken eller länkar (`?staff=…&date=…`):
-- I `StaffTimeReports.tsx`: om query innehåller `staff`, gör en `<Navigate replace>` till `/staff-management/time-reports/:staff/:date` på mount, och *behåll inte* deep-link-logiken i själva översikten.
+## Det jag INTE rör
+- Submission / user confirmed / payroll-regler
+- Geofence-, GPS- eller ping-logik
+- Calendar/rig/rigdown-färgning (separat fix levererad tidigare)
+- Mobil-tidslinjens egen tolkning av movement
 
-### 5. Sidomenyn
-
-`Sidebar3D` länkar redan bara till översikten, ingen ändring behövs.
-
-### 6. Tester
-
-Lägg till lightweight test som verifierar:
-- `useSmartBack` fallback till given path när history är tom / extern referrer.
-- Att den nya routen renderar `StaffTimeReportDetail` med rätt staffId/initialDate (snapshot/render-test med MemoryRouter).
-- Att `?staff=…` på översikten gör redirect till `/staff-management/time-reports/:staff/:date`.
-
-Kör `bun vitest run` för relevanta filer efter ändringarna.
-
-## Tekniska detaljer
-
-- `useSmartBack(fallback: string)`:
-  - returnerar `() => { if (location.state?.from) navigate(location.state.from); else if (window.history.length > 1 && document.referrer && new URL(document.referrer).origin === window.location.origin) navigate(-1); else navigate(fallback); }`
-  - Placering: `src/hooks/useSmartBack.ts`.
-
-- Datumformat i URL: `YYYY-MM-DD` (Europe/Stockholm), samma format som dagens deep-link.
-
-- Inga ändringar i `StaffTimeReportDetail` själv. Den är redan en ren komponent som tar `staffId/staffName/initialDate`.
-
-- Inga datamodell- eller backend-ändringar.
-
-## Utanför scope
-
-- Layouten/innehållet i själva dagsdetaljen (`StaffTimeReportDetail`) rörs inte — bara hur man tar sig dit och tillbaka.
-- Mobilappens spegling (`/m/report`) påverkas inte.
-- Ingen ändring av Personal-översiktens länk eller behörigheter.
+## Resultat efter fix
+Travel-blocket i Gantt:n för den dag du tittade på ska gå från "Behöver kontrolleras: saknar start- och slutadress" → vanligt grönt/blått `work_travel`-block (eller `commute_travel` om en sida är `private_zone`), med korrekta start- och slutadresser i tooltipen.
