@@ -353,15 +353,52 @@ export function buildGpsDayTimelineOnly(
     segments.push(...buildTravelChains(movementPings.slice(mvIdx)));
   }
 
-  // Inject gps_gap entries between segments separated by long silence
+  // Merge adjacent stays at the same known target (e.g. cluster-stay + an
+  // immediately following target-internal "movement" chain). Produces a single
+  // continuous stay instead of N tiny slices.
+  const merged: GpsTimelineSegment[] = [];
+  for (const seg of segments) {
+    const last = merged[merged.length - 1];
+    if (
+      last &&
+      last.kind === "stay" &&
+      seg.kind === "stay" &&
+      last.type === "known_site" &&
+      seg.type === "known_site" &&
+      last.matchedSiteId &&
+      last.matchedSiteId === seg.matchedSiteId &&
+      last.matchedSiteType === seg.matchedSiteType
+    ) {
+      const durMin = (new Date(seg.endTs).getTime() - new Date(last.startTs).getTime()) / 60000;
+      last.endTs = seg.endTs;
+      last.durationMin = Math.max(1, Math.round(durMin));
+      last.pingCount += seg.pingCount;
+      last.endLat = seg.endLat;
+      last.endLng = seg.endLng;
+    } else {
+      merged.push({ ...seg });
+    }
+  }
+
+  // Inject gps_gap entries between segments separated by long silence —
+  // EXCEPT when both sides are the same known target (signal dip inside the
+  // worksite is not an unclear period).
   const final: GpsTimelineSegment[] = [];
-  for (let i = 0; i < segments.length; i++) {
-    final.push(segments[i]);
-    const next = segments[i + 1];
+  for (let i = 0; i < merged.length; i++) {
+    final.push(merged[i]);
+    const next = merged[i + 1];
     if (next) {
-      const gapMin = (new Date(next.startTs).getTime() - new Date(segments[i].endTs).getTime()) / 60000;
+      const gapMin = (new Date(next.startTs).getTime() - new Date(merged[i].endTs).getTime()) / 60000;
       if (gapMin >= GAP_THRESHOLD_MIN) {
-        final.push(makeGapSegment(segments[i].endTs, next.startTs, Math.round(gapMin)));
+        const sameTarget =
+          merged[i].kind === "stay" &&
+          next.kind === "stay" &&
+          merged[i].matchedSiteId &&
+          merged[i].matchedSiteId === next.matchedSiteId &&
+          merged[i].matchedSiteType === next.matchedSiteType;
+        if (!sameTarget) {
+          final.push(makeGapSegment(merged[i].endTs, next.startTs, Math.round(gapMin)));
+        }
       }
     }
   }
