@@ -46,22 +46,22 @@ describe('mergeContiguousBlocks', () => {
     expect(blocks).toHaveLength(2);
   });
 
-  it('glapp 20 min, samma session+kind → INTE merge', () => {
+  it('glapp 90 min, samma kind → INTE merge (över maxGap=60)', () => {
     const input = [
       b('A', 'rig', '2026-05-15T08:00:00Z', '2026-05-15T09:00:00Z', 60),
-      b('B', 'rig', '2026-05-15T09:20:00Z', '2026-05-15T10:00:00Z', 40),
+      b('B', 'rig', '2026-05-15T10:30:00Z', '2026-05-15T11:00:00Z', 30),
     ];
     const { blocks } = mergeContiguousBlocks(input);
     expect(blocks).toHaveLength(2);
   });
 
-  it('olika sessionKey → INTE merge', () => {
+  it('olika sessionKey men samma kind, bredvid varandra → MERGE (user-policy)', () => {
     const input = [
       b('A', 'rig', '2026-05-15T08:00:00Z', '2026-05-15T09:00:00Z', 60, 'booking#:1111'),
       b('B', 'rig', '2026-05-15T09:03:00Z', '2026-05-15T10:00:00Z', 57, 'booking#:2222'),
     ];
     const { blocks } = mergeContiguousBlocks(input);
-    expect(blocks).toHaveLength(2);
+    expect(blocks).toHaveLength(1);
   });
 
   it('warehouse + warehouse, samma session, 5 min glapp → merge', () => {
