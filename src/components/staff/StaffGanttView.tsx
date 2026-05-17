@@ -1581,16 +1581,6 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
               </select>
               <ChevronRight className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-90 text-muted-foreground" />
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-9 rounded-xl border-border/70 bg-background px-3 text-sm shadow-sm"
-              onClick={() => setCompactRange((v) => !v)}
-              title="Växla tidsintervall"
-            >
-              <CalendarDays className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
-              {compactRange ? `Auto ${String(startHour).padStart(2,'0')}–${String(endHour).padStart(2,'0')}` : '00–24'}
-            </Button>
           </div>
         </div>
 
