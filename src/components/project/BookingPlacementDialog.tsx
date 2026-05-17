@@ -223,6 +223,10 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
       toast.error('Välj ett befintligt stort projekt');
       return;
     }
+    if (!linkingToExistingLarge && planSteps.length === 0) {
+      toast.error('Inga rig- eller demonteringsdagar att planera');
+      return;
+    }
 
     setSaving(true);
     try {
