@@ -572,6 +572,9 @@ async function processOne(
             // Vi rör inte kolumnen alls här (befintliga värden bevaras orörda).
             diagnostics_json: {
               ...((report as any).diagnostics ?? {}),
+              // ── Time Legacy Purge — legacy display_blocks_json får aldrig skrivas härifrån ──
+              legacyBackfillDisplayBlocksWritten: false,
+              canonicalDisplaySource: 'display_timeline_v2',
               sessionConsolidation: report.summary?.sessionConsolidationDiagnostics ?? null,
               // Time Engine 3.12 — samlad diagnostik-vy för felsökning av motorn.
               // Alla underdiagnostik-objekt äger fortfarande sina respektive
