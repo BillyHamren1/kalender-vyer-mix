@@ -666,6 +666,11 @@ export interface MovementContext {
   isFirstWorkboundCommuteOfDay: boolean;
   /** True om detta är dagens sista movement från jobb → hem. */
   isLastHomeboundCommuteOfDay: boolean;
+  /** True om vi har faktisk GPS-rutt mellan A och B (route-pings >= 1). */
+  hasGpsRoute?: boolean;
+  /** Optional fysisk anchor som UI kan visa även när target saknas. */
+  fromAnchorLabel?: string | null;
+  toAnchorLabel?: string | null;
 }
 
 function isWorkSide(s: MovementSide): boolean {
