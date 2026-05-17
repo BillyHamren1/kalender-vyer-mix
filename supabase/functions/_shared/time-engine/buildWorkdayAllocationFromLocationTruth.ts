@@ -666,6 +666,11 @@ export interface MovementContext {
   isFirstWorkboundCommuteOfDay: boolean;
   /** True om detta är dagens sista movement från jobb → hem. */
   isLastHomeboundCommuteOfDay: boolean;
+  /** True om vi har faktisk GPS-rutt mellan A och B (route-pings >= 1). */
+  hasGpsRoute?: boolean;
+  /** Optional fysisk anchor som UI kan visa även när target saknas. */
+  fromAnchorLabel?: string | null;
+  toAnchorLabel?: string | null;
 }
 
 function isWorkSide(s: MovementSide): boolean {
@@ -710,10 +715,18 @@ function deriveAllocation(
     const dist = ctx?.distanceMeters ?? null;
     const longTravel = dist !== null && dist > 150_000;
 
-    // Saknar tydlig fram/till-anchor → behöver review.
+    // Saknar tydlig fram/till-anchor.
     if (!ctx || ctx.fromSide === 'unknown' || ctx.toSide === 'unknown') {
       const w: WorkdayAllocationWarning[] = ['movement_missing_anchor'];
       if (longTravel) w.push('long_travel_over_150km');
+      // Time Engine Movement Anchor Fix —
+      // Om vi har faktisk GPS-rutt (route-pings) ska blocket renderas som
+      // Transport (work_travel) med varning — inte som "Behöver granskning".
+      // Endast helt blint movement utan rutt blir review.
+      if (ctx?.hasGpsRoute) {
+        w.unshift('movement_classified_as_work_travel');
+        return { type: 'work_travel', warnings: w, confidence: 'low' };
+      }
       return {
         type: 'needs_work_allocation_review',
         warnings: w,
@@ -746,9 +759,13 @@ function deriveAllocation(
       return { type: 'work_travel', warnings: w, confidence: seg.confidence };
     }
 
-    // Hem ↔ hem eller andra konstellationer → review.
+    // Hem ↔ hem eller andra konstellationer → review (men Transport om GPS-rutt).
     const w: WorkdayAllocationWarning[] = ['movement_missing_anchor'];
     if (longTravel) w.push('long_travel_over_150km');
+    if (ctx.hasGpsRoute) {
+      w.unshift('movement_classified_as_work_travel');
+      return { type: 'work_travel', warnings: w, confidence: 'low' };
+    }
     return { type: 'needs_work_allocation_review', warnings: w, confidence: 'low' };
   }
 
@@ -1413,6 +1430,12 @@ export function buildWorkdayAllocationFromLocationTruth(
       fromTarget?: LocationTruthMatchedTargetLike;
       toTarget?: LocationTruthMatchedTargetLike;
       distanceMeters?: number;
+      pingsBetween?: number;
+      routePingCount?: number;
+      fromPhysicalLocation?: { label?: string | null; address?: string | null; lat?: number | null; lng?: number | null } | null;
+      toPhysicalLocation?: { label?: string | null; address?: string | null; lat?: number | null; lng?: number | null } | null;
+      fromLabel?: string | null;
+      toLabel?: string | null;
     } }).movementMeta;
 
     let fromT: LocationTruthMatchedTargetLike | null = meta?.fromTarget ?? null;
@@ -1445,12 +1468,23 @@ export function buildWorkdayAllocationFromLocationTruth(
       }
     }
 
+    // Time Engine Movement Anchor Fix — GPS-rutt = route-pings finns mellan A och B
+    // ELLER pingsBetween > 0 (vi har faktisk rörelse-evidence, inte bara two-stay-gap).
+    const hasGpsRoute =
+      (typeof meta?.routePingCount === 'number' && meta.routePingCount > 0) ||
+      (typeof meta?.pingsBetween === 'number' && meta.pingsBetween > 0);
+
     const ctx: MovementContext = {
       fromSide: classifyMovementSide(fromT),
       toSide: classifyMovementSide(toT),
       distanceMeters: typeof meta?.distanceMeters === 'number' ? meta!.distanceMeters! : null,
       isFirstWorkboundCommuteOfDay: false,
       isLastHomeboundCommuteOfDay: false,
+      hasGpsRoute,
+      fromAnchorLabel:
+        meta?.fromLabel ?? meta?.fromPhysicalLocation?.label ?? meta?.fromPhysicalLocation?.address ?? null,
+      toAnchorLabel:
+        meta?.toLabel ?? meta?.toPhysicalLocation?.label ?? meta?.toPhysicalLocation?.address ?? null,
     };
     movementCtxById.set(seg.id, ctx);
     tentative.push({ idx: i, ctx, id: seg.id });

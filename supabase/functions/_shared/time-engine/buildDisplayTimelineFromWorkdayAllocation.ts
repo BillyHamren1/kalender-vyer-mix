@@ -337,7 +337,7 @@ const WARNING_HUMAN_TEXT: Partial<Record<string, string>> = {
   normally_not_paid_commute: 'Pendling räknas normalt inte som arbetstid.',
   normally_not_paid_homebound: 'Hemresa räknas normalt inte som arbetstid.',
   long_travel_over_150km: 'Lång resa (över 150 km).',
-  movement_missing_anchor: 'Start eller slut kunde inte kopplas till känt projekt, lager eller hem.',
+  movement_missing_anchor: 'Förflyttningens start/slut kunde inte kopplas till känd plats.',
   home_after_last_work_location: 'Hemma efter sista arbetsplatsen för dagen.',
   temporary_home_presence: 'Kort vistelse hemma.',
   workday_time_without_location_truth_segment: 'Arbetstid utan platsdata.',

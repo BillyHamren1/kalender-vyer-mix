@@ -99,10 +99,34 @@ function makeMovementSegment(
   to: LocationTruthSegment,
   distanceMeters: number,
   pingsBetween: number,
+  routePingCount: number,
   confidence: 'high' | 'medium' | 'low',
 ): LocationTruthSegment {
   const fromTarget: LocationTruthMatchedTarget | undefined = from.matchedTarget;
   const toTarget: LocationTruthMatchedTarget | undefined = to.matchedTarget;
+  // Time Engine Movement Anchor Fix — spara även segment-id, finalType,
+  // physicalLocation och label så movement-anchor kan resolveras även när
+  // matchedTarget saknas på grannarna.
+  const fromPhysical = from.physicalLocation
+    ? {
+        label: from.physicalLocation.label ?? null,
+        address: from.physicalLocation.address ?? null,
+        lat: from.physicalLocation.lat ?? null,
+        lng: from.physicalLocation.lng ?? null,
+      }
+    : null;
+  const toPhysical = to.physicalLocation
+    ? {
+        label: to.physicalLocation.label ?? null,
+        address: to.physicalLocation.address ?? null,
+        lat: to.physicalLocation.lat ?? null,
+        lng: to.physicalLocation.lng ?? null,
+      }
+    : null;
+  const fromLabel =
+    fromTarget?.label ?? from.physicalLocation?.label ?? from.physicalLocation?.address ?? null;
+  const toLabel =
+    toTarget?.label ?? to.physicalLocation?.label ?? to.physicalLocation?.address ?? null;
   return {
     id: `mov_${from.id}__${to.id}`,
     staffId: from.staffId,
@@ -127,6 +151,15 @@ function makeMovementSegment(
       movementMeta: {
         fromTarget,
         toTarget,
+        fromSegmentId: from.id,
+        toSegmentId: to.id,
+        fromFinalType: from.finalType,
+        toFinalType: to.finalType,
+        fromPhysicalLocation: fromPhysical,
+        toPhysicalLocation: toPhysical,
+        fromLabel,
+        toLabel,
+        routePingCount,
         distanceMeters,
         pingsBetween,
       },
@@ -312,7 +345,7 @@ export function detectTrueMovement(
     if (routePingCount >= 2 && reasonableSpeed) confidence = 'high';
     if (routePingCount === 1 || !reasonableSpeed) confidence = 'low';
 
-    const segment = makeMovementSegment(A, B, distance, between.length, confidence);
+    const segment = makeMovementSegment(A, B, distance, between.length, routePingCount, confidence);
     inserts.push({ afterIndex: i, segment });
     diag.movementCreatedCount++;
     pushExample(diag, A.id, B.id, distance, gapMin, between.length, 'movement_created', confidence);
