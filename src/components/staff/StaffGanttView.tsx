@@ -859,7 +859,8 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
   const [filterKey, setFilterKey] = useState<FilterKey>('all');
   const [openStaffId, setOpenStaffId] = useState<string | null>(null);
   const [selectedBlock, setSelectedBlock] = useState<{ staffId: string; blockId: string } | null>(null);
-  const [compactRange, setCompactRange] = useState(true); // 06–22 default
+  const [compactRange, setCompactRange] = useState(false); // visa hela dygnet 00–24
+  const [hourPx, setHourPx] = useState(56); // användarstyrd zoom (px per timme)
   const queryClient = useQueryClient();
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
