@@ -697,6 +697,9 @@ export function buildTimeEngineTraceExport(input: BuildTraceExportInput): TimeEn
       comparison,
       diffFindings,
       gpsEvidence,
+      inclusionSources: seed?.inclusionSources
+        ? [...seed.inclusionSources]
+        : (rawEntry ? ['raw_gps_only'] : []),
     });
   }
 
