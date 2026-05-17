@@ -228,9 +228,10 @@ function refsFor(b: RawBlock): {
 
 export function mapReportBlocksToSegments(
   rawBlocks: unknown,
-  opts: { now?: Date } = {},
+  opts: { now?: Date; source?: MobileSegmentSource } = {},
 ): MobileSegment[] {
   if (!Array.isArray(rawBlocks)) return [];
+  const source: MobileSegmentSource = opts.source ?? "display_timeline_v2";
   const now = opts.now ?? new Date();
   const out: MobileSegment[] = [];
   for (const raw of rawBlocks) {
