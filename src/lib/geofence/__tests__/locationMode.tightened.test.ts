@@ -9,14 +9,16 @@
 import { describe, it, expect } from 'vitest';
 import { decideLocationMode } from '../locationMode';
 
-const EMPTY = {
+import type { ModeInputs } from '../locationMode';
+
+const EMPTY: ModeInputs = {
   position: null,
   targets: [],
   hasActiveTimer: false,
   hasPendingArrival: false,
   insideKeys: new Set<string>(),
   previousMode: null,
-} as const;
+};
 
 describe('locationMode tightened defaults (2026-05-18)', () => {
   it('idle mode: heartbeat <= 3 min och distanceFilter <= 50m', () => {
