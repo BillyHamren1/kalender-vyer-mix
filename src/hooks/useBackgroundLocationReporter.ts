@@ -577,6 +577,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       // the app cannot invent a denser tracking intensity than the server.
       const backend = readBackendPolicy();
       if (backend) {
+        backendPolicyModeRef.current = backend.mode;
         return {
           ...decision,
           heartbeatMs: backend.heartbeatMs,
@@ -584,8 +585,10 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
           reasonForModeChange: `${decision.reasonForModeChange} (backend:${backend.mode})`,
         };
       }
+      backendPolicyModeRef.current = null;
       return decision;
     };
+
 
     /**
      * Restart the native tracker with a new distanceFilter when the mode
