@@ -165,6 +165,40 @@ export interface BackgroundLocationDebugInfo {
   backendPolicyMode: string | null;
   isNativePlatform: boolean;
   appVisibilityState: 'visible' | 'hidden' | 'unknown';
+  /**
+   * Sammanvägd "silent"-status baserat på senaste native-event och
+   * senaste server-accepted upload. Diagnostik — skapar ALDRIG arbetstid.
+   */
+  gpsSilentState: 'ok' | 'native_silent' | 'upload_silent' | 'native_and_upload_silent';
+}
+
+/**
+ * Avgör om GPS-pipelinen är "tyst". Räknas tyst om appen är visible och:
+ *   - senaste native location-event är äldre än threshold, ELLER
+ *   - senaste server-accepted upload är äldre än threshold
+ * Returnerar 'ok' om appen inte är visible (kan inte avgöra) eller om
+ * båda signalerna är färska.
+ */
+export function computeGpsSilentState(args: {
+  appVisibilityState: 'visible' | 'hidden' | 'unknown';
+  lastNativeLocationEventAt: number | null;
+  lastAcceptedUploadAt: number | null;
+  now?: number;
+  thresholdMs?: number;
+}): BackgroundLocationDebugInfo['gpsSilentState'] {
+  const now = args.now ?? Date.now();
+  const threshold = args.thresholdMs ?? 5 * 60_000;
+  if (args.appVisibilityState !== 'visible') return 'ok';
+  const nativeSilent =
+    args.lastNativeLocationEventAt == null ||
+    now - args.lastNativeLocationEventAt > threshold;
+  const uploadSilent =
+    args.lastAcceptedUploadAt == null ||
+    now - args.lastAcceptedUploadAt > threshold;
+  if (nativeSilent && uploadSilent) return 'native_and_upload_silent';
+  if (nativeSilent) return 'native_silent';
+  if (uploadSilent) return 'upload_silent';
+  return 'ok';
 }
 
 export const useBackgroundLocationReporter = (staffId: string | null | undefined) => {
@@ -199,6 +233,9 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
   const backendPolicyModeRef = useRef<string | null>(null);
   // Senaste sync-status från locationSyncQueue
   const syncStatusRef = useRef<LocationSyncStatus>(getLocationSyncStatus());
+  // Throttle för gps_silent app-health events (max 1/5min per session)
+  const lastGpsSilentSentAtRef = useRef<number>(0);
+
 
   const [debug, setDebug] = useState<BackgroundLocationDebugInfo>({
     currentLocationMode: null,
@@ -226,6 +263,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       typeof document !== 'undefined'
         ? (document.visibilityState as 'visible' | 'hidden')
         : 'unknown',
+    gpsSilentState: 'ok',
   });
 
   // Subscribe to upload status from the location sync queue so debug fields
@@ -245,6 +283,75 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
 
   // Keep ref in sync so heartbeat survives auth-token refreshes without restart
   useEffect(() => { staffIdRef.current = staffId; }, [staffId]);
+
+  // ── SILENT-MONITOR ─────────────────────────────────────────────────────
+  // Diagnostik. Var 60:e sekund: när appen är visible, kontrollera om
+  // senaste native-event eller senaste accepted upload är äldre än 5 min.
+  // Om så, skicka ett `gps_silent` app-health event (throttlat till 1/5min).
+  // Skapar ALDRIG arbetstid. Uppdaterar bara debug-state.
+  useEffect(() => {
+    if (!staffId) return;
+    const SILENT_THRESHOLD_MS = 5 * 60_000;
+    const THROTTLE_MS = 5 * 60_000;
+
+    const tick = () => {
+      const visibility: 'visible' | 'hidden' | 'unknown' =
+        typeof document !== 'undefined'
+          ? (document.visibilityState as 'visible' | 'hidden')
+          : 'unknown';
+      const state = computeGpsSilentState({
+        appVisibilityState: visibility,
+        lastNativeLocationEventAt: lastNativeLocationEventAtRef.current,
+        lastAcceptedUploadAt: syncStatusRef.current.lastUploadAt,
+        thresholdMs: SILENT_THRESHOLD_MS,
+      });
+
+      setDebug((prev) =>
+        prev.gpsSilentState === state && prev.appVisibilityState === visibility
+          ? prev
+          : { ...prev, gpsSilentState: state, appVisibilityState: visibility },
+      );
+
+      if (state === 'ok') return;
+      const now = Date.now();
+      if (now - lastGpsSilentSentAtRef.current < THROTTLE_MS) return;
+      lastGpsSilentSentAtRef.current = now;
+
+      let orgId: string | null = null;
+      try {
+        const raw = localStorage.getItem('eventflow-mobile-staff');
+        if (raw) orgId = JSON.parse(raw)?.organization_id ?? null;
+      } catch { /* ignore */ }
+      if (!orgId) return;
+
+      void recordAppHealthEvent({
+        organizationId: orgId,
+        staffId,
+        eventType: 'gps_silent',
+        appState: visibility,
+        skipBattery: true,
+        metadata: {
+          lastNativeLocationEventAt: lastNativeLocationEventAtRef.current,
+          lastAcceptedUploadAt: syncStatusRef.current.lastUploadAt,
+          lastJsHeartbeatAt: lastJsHeartbeatAtRef.current,
+          currentDistanceFilter: currentDistanceFilterRef.current,
+          currentHeartbeatMs: currentHeartbeatMsRef.current,
+          backendPolicyMode: backendPolicyModeRef.current,
+          appVisibilityState: visibility,
+          silentState: state,
+          reason: 'visible_but_no_recent_gps',
+        },
+      });
+    };
+
+    const id = window.setInterval(tick, 60_000);
+    // Kör en initial tick efter 10s så debug-state hinner stabilisera
+    const initial = window.setTimeout(tick, 10_000);
+    return () => {
+      window.clearInterval(id);
+      window.clearTimeout(initial);
+    };
+  }, [staffId]);
 
 
 
