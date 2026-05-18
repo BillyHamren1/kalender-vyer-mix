@@ -412,7 +412,6 @@ const CustomCalendarPage = () => {
                       allTeams={teamResources}
                       onEventClick={handleEventClick}
                       isEventReadOnly={isEventReadOnly}
-                      timeGridFullWidth
                     />
                   </div>
                   <WeekTabsNavigation
