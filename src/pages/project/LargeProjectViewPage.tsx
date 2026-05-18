@@ -25,6 +25,8 @@ const tabTriggerClass =
 const LargeProjectViewPage = () => {
   const detail = useOutletContext<ReturnType<typeof useLargeProjectDetail>>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [createTodoOpen, setCreateTodoOpen] = useState(false);
 
   const { project, tasks, files } = detail;
 
@@ -41,6 +43,18 @@ const LargeProjectViewPage = () => {
 
   return (
     <div className="space-y-6">
+      {/* Quick actions */}
+      <div className="flex justify-end">
+        <Button
+          size="sm"
+          onClick={() => setCreateTodoOpen(true)}
+          className="rounded-lg h-8 shadow-sm bg-primary hover:bg-[hsl(var(--primary-hover))]"
+        >
+          <Plus className="h-4 w-4 mr-1.5" />
+          Skapa to do
+        </Button>
+      </div>
+
       {/* Overview dashboard */}
       <ProjectOverviewHeader
         tasks={tasks}
@@ -48,6 +62,7 @@ const LargeProjectViewPage = () => {
         commentsCount={0}
         activities={[]}
       />
+
 
       {/* Anslagstavla — interna anteckningar (ETT enhetligt fält) */}
       <ProjectInternalNotes
