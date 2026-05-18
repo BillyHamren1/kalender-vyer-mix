@@ -177,37 +177,27 @@ const DayBody: React.FC<{
   const todayStockholm = new Intl.DateTimeFormat('sv-SE', { timeZone: TZ_TODAY }).format(new Date());
   const isToday = date === todayStockholm;
 
-  const recommendBreak = !isLocked && grossMin > 300 && breakMin === 0;
+  const recommendBreak = grossMin > 300 && breakMin === 0;
 
   const statusChip = (() => {
-    if (isLocked) return { label: 'Godkänd', tone: 'emerald' as const, Icon: Check };
-    if (!wd && !hasManualOnly) return { label: 'Ingen tid', tone: 'muted' as const, Icon: AlertTriangle };
+    if (!wd && !hasManualOnly) return { label: 'Ej rapporterad', tone: 'muted' as const, Icon: AlertTriangle };
     if (headerOpen) return { label: 'Pågår', tone: 'primary' as const, Icon: Loader2 };
-    if (snapshot.attestation?.status === 'attested') {
+    // Inskickad täcker både legacy approved (admin-lås) och attested —
+    // TIME-vyn pratar bara om rapporteringsläge.
+    if (snapshot.attestation?.status === 'attested' || !!wd?.approved) {
       return { label: 'Inskickad', tone: 'emerald' as const, Icon: Check };
     }
-    
     return { label: 'Ej inskickad', tone: 'amber' as const, Icon: Check };
   })();
 
 
   return (
     <div className="space-y-3 mt-2 pb-6">
-      {isLocked && (
-        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
-          <Lock className="w-4 h-4 shrink-0" />
-          <p className="text-xs font-semibold">
-            Dagen är godkänd och låst — kan inte ändras av dig.
-          </p>
-        </div>
-      )}
-
-      {/* Justera dagen — högst upp så den syns direkt */}
-      <StaffDayAttestSection
+      {/* Rapportera dagen — högst upp så den syns direkt */}
+      <StaffDaySubmitSection
         staffId={staffId}
         date={date}
         snapshot={snapshot}
-        attestBlocked={false}
       />
 
 
