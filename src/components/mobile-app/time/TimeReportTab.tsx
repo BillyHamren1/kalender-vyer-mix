@@ -217,33 +217,8 @@ const PeriodView = ({
         </div>
       )}
 
-      {!isLoading && allClear ? (
-        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 flex items-start gap-3">
-          <div className="h-9 w-9 rounded-full bg-emerald-500/15 flex items-center justify-center shrink-0">
-            <FileCheck2 className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
-              Tidrapporten är klar
-            </p>
-          </div>
-        </div>
-      ) : blockers.length > 0 ? (
-        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
-          <p className="text-sm font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
-            <AlertTriangle className="w-4 h-4" />
-            Tidrapporten behöver kompletteras
-          </p>
-          <ul className="mt-2 space-y-1">
-            {blockers.slice(0, 4).map((b, i) => (
-              <li key={i} className="text-[12px] text-foreground/80">
-                {b.date && <span className="font-semibold tabular-nums">{b.date}: </span>}
-                {b.message}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+      {/* Tidigare "Tidrapporten är klar" / "behöver kompletteras"-block
+          (approved/blockers) borttaget — TIME-vyn pratar inte om attest. */}
 
       <div className="space-y-2">
         <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-1 flex items-center gap-1.5">
