@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useCallback, useState } from 'react';
+import React, { useRef, useMemo, useCallback, useState, useEffect } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format, addDays, getWeek } from 'date-fns';
 import { sv } from 'date-fns/locale';
