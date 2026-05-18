@@ -693,9 +693,10 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
         if (!Capacitor.isNativePlatform()) return;
         const { App } = await import('@capacitor/app');
         const h1 = await App.addListener('appStateChange', ({ isActive }) => {
-          if (isActive) forcePing('cap-appStateChange-active');
+          if (isActive) void forcePing('cap-appStateChange-active');
         });
-        const h2 = await App.addListener('resume', () => forcePing('cap-resume'));
+        const h2 = await App.addListener('resume', () => { void forcePing('cap-resume'); });
+
         removeCapResume = () => { void h1.remove(); void h2.remove(); };
       } catch { /* not native — ok */ }
     })();
