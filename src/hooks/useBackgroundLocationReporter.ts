@@ -260,6 +260,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       typeof document !== 'undefined'
         ? (document.visibilityState as 'visible' | 'hidden')
         : 'unknown',
+    gpsSilentState: 'ok',
   });
 
   // Subscribe to upload status from the location sync queue so debug fields
