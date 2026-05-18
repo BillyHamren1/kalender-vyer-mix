@@ -662,18 +662,25 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
     // återupptas (focus / visibilitychange / Capacitor resume) MÅSTE vi
     // tvinga in en ping omedelbart, annars kan telefonen ha varit "tyst"
     // i flera timmar utan en enda rad i staff_location_history.
-    const forcePing = (reason: string) => {
+    const forcePing = async (reason: string) => {
       // eslint-disable-next-line no-console
       console.info('[BGLocation] forcePing on', reason);
-      sendHeartbeat();
-      // Och kick i ny mode-bedömning så distanceFilter blir rätt.
+      // 1. Försök ALLTID hämta färsk position först — sendHeartbeat skickar
+      //    bara lastKnownPos och kan vara timmar gammal efter bakgrundsperiod.
+      const ok = await enqueueFreshPosition(reason);
+      if (!ok) {
+        // 2. Fallback till lastKnownPos om vi inte kunde hämta färsk fix.
+        sendHeartbeat();
+      }
+      // 3. Reschedule så distanceFilter/heartbeat blir rätt för nuvarande mode.
       rescheduleHeartbeat();
     };
-    const onWindowFocus = () => forcePing('window-focus');
+    const onWindowFocus = () => { void forcePing('window-focus'); };
     const onVisibility = () => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        forcePing('visibilitychange');
+        void forcePing('visibilitychange');
       }
+
     };
     window.addEventListener('focus', onWindowFocus);
     if (typeof document !== 'undefined') {
