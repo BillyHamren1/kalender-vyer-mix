@@ -75,16 +75,21 @@ interface ModePreset {
  * boost mode caps at 20m — the app must not run a permanent 10m filter.
  */
 const PRESETS: Record<TrackingMode, ModePreset> = {
-  // Idle / no workday — very cheap.
+  // Idle / no workday — very cheap. 500m endast när workday=stängd OCH
+  // ingen aktiv timer/boost. Annars klampas distanceFilter ner längre ner.
   battery_saver:        { heartbeatMs: 15 * 60_000, distanceFilter: 500, maxSilenceMs: 30 * 60_000 },
-  // Workday open: ~3 min normal heartbeat, ~7 min hard silence ceiling.
-  normal:               { heartbeatMs:  3 * 60_000, distanceFilter: 200, maxSilenceMs:  7 * 60_000 },
+  // Workday open utan target/timer: ~3 min heartbeat, MAX 50m distanceFilter
+  // (tidigare 200m). 200m var för glest för att fånga vanlig promenad/byggen.
+  normal:               { heartbeatMs:  3 * 60_000, distanceFilter:  50, maxSilenceMs:  7 * 60_000 },
   approaching_target:   { heartbeatMs:  60_000,     distanceFilter:  60, maxSilenceMs:  4 * 60_000 },
+  // Inne vid eller alldeles utanför target — 20m räcker.
   near_target:          { heartbeatMs:  20_000,     distanceFilter:  20, maxSilenceMs:  3 * 60_000 },
   clarification_boost:  { heartbeatMs:  15_000,     distanceFilter:  20, maxSilenceMs:  2 * 60_000 },
-  // Active timer: ~1 min heartbeat, 7-min ceiling (matches "normal" silence).
-  active_work:          { heartbeatMs:  60_000,     distanceFilter:  50, maxSilenceMs:  7 * 60_000 },
+  // Active timer: ~1 min heartbeat, MAX 25m distanceFilter
+  // (tidigare 50m). Aktiv arbetsdag får aldrig vara glesare än 25m.
+  active_work:          { heartbeatMs:  60_000,     distanceFilter:  25, maxSilenceMs:  7 * 60_000 },
 };
+
 
 export interface BoostRow {
   mode: "clarification_boost" | "near_target" | "approaching_target";
