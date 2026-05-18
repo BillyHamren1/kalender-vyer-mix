@@ -142,6 +142,20 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     event.currentTarget.scrollLeft += horizontalDelta;
   }, []);
 
+  // Blockera browserns back/forward (swipe-back på trackpad/mobil) i veckovyn
+  useEffect(() => {
+    if (!isWeeklyMode) return;
+    const url = window.location.href;
+    window.history.pushState({ __weeklyGuard: true }, '', url);
+    const onPop = () => {
+      window.history.pushState({ __weeklyGuard: true }, '', url);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+    };
+  }, [isWeeklyMode]);
+
   if (isLoading && !isMounted) {
     return (
       <div className="flex items-center justify-center h-64">
