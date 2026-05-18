@@ -3,11 +3,9 @@ import { useOutletContext, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { List, Users } from "lucide-react";
+import { List, Users, CalendarDays, ClipboardList } from "lucide-react";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
 import ProjectCalendarView from "@/components/project/ProjectCalendarView";
-import ProjectControlPanel from "@/components/project/planning/ProjectControlPanel";
-import type { OverviewFilter } from "@/components/project/planning/ProjectControlPanel";
 import PlanningTaskList from "@/components/project/planning/PlanningTaskList";
 import PlanningFilterBar, { applyFilters, hasActiveFilters, EMPTY_FILTERS, type PlanningFilters } from "@/components/project/planning/PlanningFilterBar";
 import PeopleOverview from "@/components/project/planning/PeopleOverview";
@@ -63,11 +61,9 @@ const EstablishmentPage = () => {
   }, [location.state]);
 
   const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [pageMode, setPageMode] = useState<"plan" | "calendar">("plan");
   const [filters, setFilters] = useState<PlanningFilters>(EMPTY_FILTERS);
   const workspaceRef = useRef<HTMLDivElement>(null);
-
-  // (Tabs removed — Etablering/Avetablering är nu samma vy: projektkalendern + lista över establishment_tasks)
-
 
   // Fetch staff pool: unique staff assigned to this booking
   const { data: staffPool = [] } = useQuery({
@@ -98,11 +94,6 @@ const EstablishmentPage = () => {
     if (!hasActiveFilters(filters)) return analytics.tasks;
     return applyFilters(analytics.tasks, filters);
   }, [analytics.tasks, filters]);
-
-  const visibleTaskIds = useMemo(() => {
-    if (!hasActiveFilters(filters)) return null;
-    return new Set(filteredTasks.map((t) => t.id));
-  }, [filteredTasks, filters]);
 
   const handleTaskClick = useCallback((task: SelectedTask) => {
     setSelectedTask(task);
@@ -135,84 +126,86 @@ const EstablishmentPage = () => {
     [analytics.tasks]
   );
 
-  const handleOverviewFilter = useCallback((filter: OverviewFilter) => {
-    const newFilters: PlanningFilters = { ...EMPTY_FILTERS };
-    if (filter.section === "overdue") newFilters.quickFilter = "overdue";
-    else if (filter.section === "today") newFilters.quickFilter = "today";
-    else if (filter.section === "unassigned") newFilters.quickFilter = "unassigned";
-    else if (filter.status === "done") newFilters.quickFilter = "completed";
-    else if (filter.status) newFilters.status = filter.status as any;
-    if (filter.person) newFilters.assignedTo = filter.person;
-
-    setFilters(newFilters);
-    setViewMode("list");
-    setTimeout(() => workspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
-  }, []);
-
   if (!project) return null;
 
   return (
     <div className="space-y-3">
-      {/* LEVEL 1: Project overview — same as LargeEstablishmentPage */}
-      <ProjectControlPanel
-        analytics={analytics}
-        staffPool={staffPool}
-        onTaskClick={handleControlPanelTaskClick}
-        onFilterChange={handleOverviewFilter}
-      />
+      {/* Top toggle: Planera vs Kalender — samma layout som stora projekt */}
+      <div className="flex items-center justify-center">
+        <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
+          <Button
+            variant={pageMode === "plan" ? "default" : "ghost"}
+            size="sm"
+            className="h-9 px-6 text-sm gap-2"
+            onClick={() => setPageMode("plan")}
+          >
+            <ClipboardList className="h-4 w-4" />
+            Planera
+          </Button>
+          <Button
+            variant={pageMode === "calendar" ? "default" : "ghost"}
+            size="sm"
+            className="h-9 px-6 text-sm gap-2"
+            onClick={() => setPageMode("calendar")}
+          >
+            <CalendarDays className="h-4 w-4" />
+            Kalender
+          </Button>
+        </div>
+      </div>
 
-      {/* LEVEL 1.5: Projektkalender — speglar personalkalendern */}
-      <ProjectCalendarView projectId={project.id} bookingId={bookingId} isLargeProject={false} />
-
-      {/* LEVEL 2: Workspace — lista/personal över samma establishment_tasks som projektkalendern */}
-      <Card ref={workspaceRef} className="border-border/50 shadow-sm overflow-hidden">
-        <div className="border-b border-border/40 px-3 py-2 flex items-center justify-end">
-          <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
-            <Button
-              variant={viewMode === "list" ? "default" : "ghost"}
-              size="sm"
-              className="h-7 px-2.5 text-xs gap-1"
-              onClick={() => setViewMode("list")}
-            >
-              <List className="h-3.5 w-3.5" />
-              Lista
-            </Button>
-            <Button
-              variant={viewMode === "people" ? "default" : "ghost"}
-              size="sm"
-              className="h-7 px-2.5 text-xs gap-1"
-              onClick={() => setViewMode("people")}
-            >
-              <Users className="h-3.5 w-3.5" />
-              Personal
-            </Button>
+      {pageMode === "calendar" ? (
+        <ProjectCalendarView projectId={project.id} bookingId={bookingId} isLargeProject={false} />
+      ) : (
+        <Card ref={workspaceRef} className="border-border/50 shadow-sm overflow-hidden">
+          <div className="border-b border-border/40 px-3 py-2 flex items-center justify-end">
+            <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
+              <Button
+                variant={viewMode === "list" ? "default" : "ghost"}
+                size="sm"
+                className="h-7 px-2.5 text-xs gap-1"
+                onClick={() => setViewMode("list")}
+              >
+                <List className="h-3.5 w-3.5" />
+                Lista
+              </Button>
+              <Button
+                variant={viewMode === "people" ? "default" : "ghost"}
+                size="sm"
+                className="h-7 px-2.5 text-xs gap-1"
+                onClick={() => setViewMode("people")}
+              >
+                <Users className="h-3.5 w-3.5" />
+                Personal
+              </Button>
+            </div>
           </div>
-        </div>
 
-        <div className="mt-0 p-3 space-y-2">
-          <PlanningFilterBar
-            tasks={analytics.tasks}
-            filters={filters}
-            onFiltersChange={setFilters}
-            staffPool={staffPool}
-            filteredCount={filteredTasks.length}
-          />
-          {viewMode === "list" ? (
-            <PlanningTaskList
-              tasks={filteredTasks}
+          <div className="mt-0 p-3 space-y-2">
+            <PlanningFilterBar
+              tasks={analytics.tasks}
+              filters={filters}
+              onFiltersChange={setFilters}
               staffPool={staffPool}
-              onTaskClick={handleTaskClick}
-              bookingId={bookingId}
+              filteredCount={filteredTasks.length}
             />
-          ) : (
-            <PeopleOverview
-              analytics={analytics}
-              staffPool={staffPool}
-              onTaskClick={handleControlPanelTaskClick}
-            />
-          )}
-        </div>
-      </Card>
+            {viewMode === "list" ? (
+              <PlanningTaskList
+                tasks={filteredTasks}
+                staffPool={staffPool}
+                onTaskClick={handleTaskClick}
+                bookingId={bookingId}
+              />
+            ) : (
+              <PeopleOverview
+                analytics={analytics}
+                staffPool={staffPool}
+                onTaskClick={handleControlPanelTaskClick}
+              />
+            )}
+          </div>
+        </Card>
+      )}
 
       <EstablishmentTaskDetailSheet
         open={sheetOpen}
