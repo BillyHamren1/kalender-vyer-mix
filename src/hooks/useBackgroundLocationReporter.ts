@@ -256,6 +256,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
 
     const rescheduleHeartbeat = () => {
       const decision = computeMode();
+      const prevMode = currentModeRef.current;
       currentHeartbeatMsRef.current = decision.heartbeatMs;
       currentDistanceFilterRef.current = decision.distanceFilter;
       if (heartbeatTimerRef.current != null) clearTimeout(heartbeatTimerRef.current);
@@ -277,6 +278,43 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
         lastUploadAt: lastUploadAtRef.current,
         lastNativeRestartAt: lastNativeRestartRef.current || null,
       });
+
+      // ── Mode-telemetri ────────────────────────────────────────────────
+      // Vid varje LÄGESBYTE: skicka ett app_health-event så admin kan se
+      // EXAKT varför pingar blev glesa (mode=idle 50m → telefonen står still
+      // → noll OS-events). Best-effort, fire-and-forget. Maxar sig själv
+      // till mode-changes så ingen översvämning vid stillastående.
+      if (prevMode !== decision.mode) {
+        const sid = staffIdRef.current;
+        if (sid) {
+          void import('@/lib/mobile/recordAppHealthEvent').then(mod => {
+            // Hämta org via cached staff in localStorage (samma som MobileAuth)
+            let orgId: string | null = null;
+            try {
+              const raw = localStorage.getItem('eventflow-mobile-staff');
+              if (raw) orgId = JSON.parse(raw)?.organization_id ?? null;
+            } catch { /* ignore */ }
+            if (!orgId) return;
+            void mod.recordAppHealthEvent({
+              organizationId: orgId,
+              staffId: sid,
+              eventType: 'location_mode_changed',
+              appState: 'active',
+              skipBattery: true,
+              metadata: {
+                from: prevMode,
+                to: decision.mode,
+                heartbeatMs: decision.heartbeatMs,
+                distanceFilter: decision.distanceFilter,
+                nearestTargetDistanceMeters: decision.nearestTargetDistanceMeters,
+                hasActiveTimer: readHasActiveSession(),
+                hasPendingArrival: arrivals.length > 0,
+                reason: decision.reasonForModeChange,
+              },
+            });
+          }).catch(() => { /* never crash on diagnostics */ });
+        }
+      }
     };
 
     const readBackendPolicy = (): { heartbeatMs: number; distanceFilter: number; mode: string } | null => {
