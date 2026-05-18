@@ -47,6 +47,73 @@ export function useAppHealthReporter() {
     });
   }, [user, staffId, organizationId]);
 
+  // Heartbeat — låg-frekvent puls (var 5:e min) som garanterar att admin
+  // ser "App PÅ" även när telefonen står stilla och inte byter state.
+  // Pausar när tab/app är gömd så vi inte spammar när användaren stängt
+  // appen via App Switcher (Capacitor visibilitychange fires reliably).
+  useEffect(() => {
+    if (!user || !staffId || !organizationId) return;
+    const HEARTBEAT_MS = 5 * 60 * 1000;
+
+    let timer: ReturnType<typeof setInterval> | null = null;
+    let lastSentMs = 0;
+
+    const sendHeartbeat = (reason: string) => {
+      const { staffId: sid, organizationId: oid } = ctxRef.current;
+      if (!sid || !oid) return;
+      // Throttle: aldrig oftare än var 60:e sekund även om flera triggers samverkar.
+      const now = Date.now();
+      if (now - lastSentMs < 60_000) return;
+      lastSentMs = now;
+      void recordAppHealthEvent({
+        organizationId: oid,
+        staffId: sid,
+        eventType: 'heartbeat',
+        appState: typeof document !== 'undefined' && document.visibilityState === 'visible'
+          ? 'active'
+          : 'background',
+        metadata: { reason },
+      });
+    };
+
+    const start = () => {
+      if (timer) return;
+      // Skicka en direkt så vi inte väntar 5 min på första pulsen.
+      sendHeartbeat('interval_start');
+      timer = setInterval(() => sendHeartbeat('interval_tick'), HEARTBEAT_MS);
+    };
+    const stop = () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+
+    const onVisibility = () => {
+      if (typeof document === 'undefined') return;
+      if (document.visibilityState === 'visible') {
+        start();
+      } else {
+        stop();
+      }
+    };
+
+    if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+      start();
+    }
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisibility);
+    }
+
+    return () => {
+      stop();
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisibility);
+      }
+    };
+  }, [user, staffId, organizationId]);
+
+
   // Capacitor App lifecycle (native only).
   useEffect(() => {
     if (!user) return;
