@@ -167,9 +167,86 @@ export interface BackgroundLocationDebugInfo {
   appVisibilityState: 'visible' | 'hidden' | 'unknown';
 }
 
+export const useBackgroundLocationReporter = (staffId: string | null | undefined) => {
+  const lastReportRef = useRef(0);
+  const watchIdRef = useRef<number | null>(null);
+  const heartbeatTimerRef = useRef<number | null>(null);
+  const lastKnownPosRef = useRef<{ lat: number; lng: number; accuracy: number | null; speed: number | null } | null>(null);
+  const staffIdRef = useRef<string | null | undefined>(staffId);
+  const startedRef = useRef(false);
+  const [latestPosition, setLatestPosition] = useState<GpsPosition | null>(null);
+  // Track which targets we're currently inside (to avoid duplicate pending arrivals)
+  const insideRef = useRef<Set<string>>(new Set());
+  // Adaptive mode state
+  const currentModeRef = useRef<LocationMode | null>(null);
+  const currentHeartbeatMsRef = useRef<number>(DEFAULT_HEARTBEAT_MS);
+  const currentDistanceFilterRef = useRef<number>(DEFAULT_DISTANCE_FILTER);
+  const lastNativeRestartRef = useRef<number>(0);
+  // Senaste native/browser location-event (rå callback)
+  const lastNativeLocationEventAtRef = useRef<number | null>(null);
+  // Senaste JS heartbeat-timer-fyrning
+  const lastJsHeartbeatAtRef = useRef<number | null>(null);
+  // Senaste lyckade fresh-getCurrentPosition på resume/focus
+  const lastFreshResumePingAtRef = useRef<number | null>(null);
+  // Senaste lokala enqueue (≠ server-accepted)
+  const lastEnqueuedAtRef = useRef<number | null>(null);
+  // Senaste geolocation-fel
+  const lastGeolocationErrorRef = useRef<string | null>(null);
+  // ── DEPRECATED, behålls för bakåtkomp i debug-vyer som ännu läser dem
+  const lastPingAtRef = useRef<number | null>(null);
+  const lastUploadAtRef = useRef<number | null>(null);
+  // Senaste backend-policy-snapshot (för debug)
+  const backendPolicyModeRef = useRef<string | null>(null);
+  // Senaste sync-status från locationSyncQueue
+  const syncStatusRef = useRef<LocationSyncStatus>(getLocationSyncStatus());
+
+  const [debug, setDebug] = useState<BackgroundLocationDebugInfo>({
+    currentLocationMode: null,
+    selectedHeartbeatMs: DEFAULT_HEARTBEAT_MS,
+    selectedDistanceFilter: DEFAULT_DISTANCE_FILTER,
+    nearestTargetDistanceMeters: null,
+    hasActiveTimer: readHasActiveSession(),
+    hasPendingArrival: false,
+    lastPingAt: null,
+    lastUploadAt: null,
+    lastNativeRestartAt: null,
+    lastNativeLocationEventAt: null,
+    lastJsHeartbeatAt: null,
+    lastFreshResumePingAt: null,
+    lastEnqueuedAt: null,
+    lastAcceptedUploadAt: null,
+    lastUploadRejected: 0,
+    lastUploadError: null,
+    lastGeolocationError: null,
+    currentDistanceFilter: DEFAULT_DISTANCE_FILTER,
+    currentHeartbeatMs: DEFAULT_HEARTBEAT_MS,
+    backendPolicyMode: null,
+    isNativePlatform: typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform(),
+    appVisibilityState:
+      typeof document !== 'undefined'
+        ? (document.visibilityState as 'visible' | 'hidden')
+        : 'unknown',
+  });
+
+  // Subscribe to upload status from the location sync queue so debug fields
+  // can distinguish "lagt i kö" från "servern faktiskt accepterade".
+  useEffect(() => {
+    const unsub = subscribeLocationSyncStatus((s) => {
+      syncStatusRef.current = s;
+      setDebug((prev) => ({
+        ...prev,
+        lastAcceptedUploadAt: s.lastUploadAt,
+        lastUploadRejected: s.lastUploadRejected,
+        lastUploadError: s.lastErrorMessage,
+      }));
+    });
+    return unsub;
+  }, []);
 
   // Keep ref in sync so heartbeat survives auth-token refreshes without restart
   useEffect(() => { staffIdRef.current = staffId; }, [staffId]);
+
+
 
   useEffect(() => {
     // CRITICAL: Start tracker ONCE per app lifetime. Do NOT stop it just because
