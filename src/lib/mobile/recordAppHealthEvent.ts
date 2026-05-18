@@ -19,7 +19,11 @@ export type AppHealthEventType =
   | 'workday_timer_stopped'
   | 'location_permission_denied'
   | 'location_permission_restored'
-  | 'battery_snapshot';
+  | 'battery_snapshot'
+  // Skickas när adaptiv locationMode byter läge — admin kan se EXAKT
+  // varför en telefon pingade glest (t.ex. mode=idle distanceFilter=500m
+  // → telefonen står stilla → inga GPS-events från OS).
+  | 'location_mode_changed';
 
 export interface RecordAppHealthEventInput {
   organizationId: string;

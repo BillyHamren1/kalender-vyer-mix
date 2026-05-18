@@ -60,15 +60,20 @@ export interface ModeInputs {
   previousMode: LocationMode | null;
 }
 
+// Tightened 2026-05-18: tidigare 5–10 min heartbeat + 300–500m distanceFilter
+// gjorde att stillastående telefoner i `idle`/`workday_far` slutade pinga helt
+// efter 1–2 träffar (iOS pausar JS-setTimeout i bakgrund, native plugin
+// rapporterar bara vid rörelse > distanceFilter). Vi sänker rejält så minsta
+// rörelse fångas och heartbeat triggar oftare när appen är aktiv.
 const SETTINGS: Record<LocationMode, LocationModeSettings> = {
-  idle:                          { heartbeatMs: 10 * 60 * 1000, distanceFilter: 500 },
-  workday_far:                   { heartbeatMs:  5 * 60 * 1000, distanceFilter: 300 },
-  approaching_target:            { heartbeatMs:  90 * 1000,     distanceFilter: 120 },
-  near_target:                   { heartbeatMs:  20 * 1000,     distanceFilter: 35  },
-  inside_geofence_pending:       { heartbeatMs:  15 * 1000,     distanceFilter: 15  },
-  arrived_pending_user_response: { heartbeatMs:  3 * 60 * 1000, distanceFilter: 100 },
-  dismissed_cooldown:            { heartbeatMs:  4 * 60 * 1000, distanceFilter: 200 },
-  active_timer:                  { heartbeatMs:  60 * 1000,     distanceFilter: 50  },
+  idle:                          { heartbeatMs:  3 * 60 * 1000, distanceFilter:  50 },
+  workday_far:                   { heartbeatMs:  2 * 60 * 1000, distanceFilter:  50 },
+  approaching_target:            { heartbeatMs:  90 * 1000,     distanceFilter:  60 },
+  near_target:                   { heartbeatMs:  20 * 1000,     distanceFilter:  35 },
+  inside_geofence_pending:       { heartbeatMs:  15 * 1000,     distanceFilter:  15 },
+  arrived_pending_user_response: { heartbeatMs:  2 * 60 * 1000, distanceFilter:  60 },
+  dismissed_cooldown:            { heartbeatMs:  3 * 60 * 1000, distanceFilter: 100 },
+  active_timer:                  { heartbeatMs:  60 * 1000,     distanceFilter:  30 },
 };
 
 function haversineMeters(aLat: number, aLng: number, bLat: number, bLng: number): number {
