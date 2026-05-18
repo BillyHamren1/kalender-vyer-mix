@@ -348,7 +348,9 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       }
 
       const arrivals = loadPendingArrivals();
-      setDebug({
+      const syncStatus = syncStatusRef.current;
+      setDebug((prev) => ({
+        ...prev,
         currentLocationMode: decision.mode,
         selectedHeartbeatMs: decision.heartbeatMs,
         selectedDistanceFilter: decision.distanceFilter,
@@ -358,7 +360,24 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
         lastPingAt: lastPingAtRef.current,
         lastUploadAt: lastUploadAtRef.current,
         lastNativeRestartAt: lastNativeRestartRef.current || null,
-      });
+        lastNativeLocationEventAt: lastNativeLocationEventAtRef.current,
+        lastJsHeartbeatAt: lastJsHeartbeatAtRef.current,
+        lastFreshResumePingAt: lastFreshResumePingAtRef.current,
+        lastEnqueuedAt: lastEnqueuedAtRef.current,
+        lastAcceptedUploadAt: syncStatus.lastUploadAt,
+        lastUploadRejected: syncStatus.lastUploadRejected,
+        lastUploadError: syncStatus.lastErrorMessage,
+        lastGeolocationError: lastGeolocationErrorRef.current,
+        currentDistanceFilter: decision.distanceFilter,
+        currentHeartbeatMs: decision.heartbeatMs,
+        backendPolicyMode: backendPolicyModeRef.current,
+        isNativePlatform: Capacitor.isNativePlatform(),
+        appVisibilityState:
+          typeof document !== 'undefined'
+            ? (document.visibilityState as 'visible' | 'hidden')
+            : 'unknown',
+      }));
+
 
       // ── Mode-telemetri ────────────────────────────────────────────────
       // Vid varje LÄGESBYTE: skicka ett app_health-event så admin kan se
