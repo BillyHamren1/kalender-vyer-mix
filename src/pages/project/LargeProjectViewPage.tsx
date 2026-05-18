@@ -130,6 +130,18 @@ const LargeProjectViewPage = () => {
           <PickupStopsSection parent={{ type: "large_project", id: project.id }} />
         </TabsContent>
       </Tabs>
+
+      <CreateTodoWizard
+        open={createTodoOpen}
+        onOpenChange={setCreateTodoOpen}
+        preselectedBookingId={bookingId}
+        onSuccess={() => {
+          setCreateTodoOpen(false);
+          queryClient.invalidateQueries({ queryKey: ['large-project-detail', project.id] });
+          queryClient.invalidateQueries({ queryKey: ['projects'] });
+          queryClient.invalidateQueries({ queryKey: ['planner-calendar-events'] });
+        }}
+      />
     </div>
   );
 };
