@@ -346,16 +346,16 @@
 }
 
 .weekly-day-card {
-  flex: 0 0 min(420px, calc((100% - 72px) / 7));
-  min-width: min(420px, calc((100% - 72px) / 7));
-  max-width: min(420px, calc((100% - 72px) / 7));
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: none;
   height: 100%;
 }
 
 .weekly-day-card .day-card {
-  width: 100%;
+  width: auto;
   height: 100%;
-  overflow-x: hidden;
+  overflow-x: visible;
   overflow-y: hidden;
   display: flex;
   flex-direction: column;
@@ -398,9 +398,7 @@
   }
   
   .weekly-day-card {
-    flex-basis: 280px;
-    min-width: 280px;
-    max-width: 280px;
+    min-width: 0;
   }
 }
 
@@ -412,9 +410,7 @@
   }
   
   .weekly-day-card {
-    flex-basis: 260px;
-    min-width: 260px;
-    max-width: 260px;
+    min-width: 0;
   }
 }
 
