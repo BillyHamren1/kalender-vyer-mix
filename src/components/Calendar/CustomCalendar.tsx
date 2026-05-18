@@ -128,14 +128,6 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     return resources.filter(r => getVisibleTeamsForDay(date).includes(r.id));
   };
 
-  if (isLoading && !isMounted) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-muted-foreground">Loading staff planning calendar...</div>
-      </div>
-    );
-  }
-
   const isWeeklyMode = viewMode === 'weekly' || viewMode === 'monthly';
   const handleWeeklyWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
     const horizontalDelta = getWeeklyHorizontalScrollDelta({
@@ -149,6 +141,14 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     event.preventDefault();
     event.currentTarget.scrollLeft += horizontalDelta;
   }, []);
+
+  if (isLoading && !isMounted) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-muted-foreground">Loading staff planning calendar...</div>
+      </div>
+    );
+  }
 
   const buildTimeGridProps = (date: Date, fullWidth: boolean, isCenter?: boolean) => {
     const filteredResources = getFilteredResourcesForDay(date);
