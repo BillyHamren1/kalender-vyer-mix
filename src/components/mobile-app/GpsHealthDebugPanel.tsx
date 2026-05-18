@@ -96,7 +96,7 @@ export const GpsHealthDebugPanel: React.FC<Props> = ({ debug }) => {
 
   const rows: Array<[string, string]> = [
     ['staffId', staff?.id ?? '—'],
-    ['orgId', staff?.organization_id ?? '—'],
+    ['orgId', (() => { try { const r = localStorage.getItem('eventflow-mobile-staff'); return r ? (JSON.parse(r)?.organization_id ?? '—') : '—'; } catch { return '—'; } })()],
     ['permission', permission ?? 'okänd'],
     ['isNativePlatform', String(debug.isNativePlatform)],
     ['appVisibilityState', debug.appVisibilityState],
