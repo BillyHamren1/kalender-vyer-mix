@@ -27,7 +27,17 @@ export type AppHealthEventType =
   // Lågfrekvent puls från useAppHealthReporter (var 5:e min när appen
   // är i förgrunden). Gör att admin kan se "App PÅ" även när telefonen
   // står helt stilla och inte byter app-state. INGEN arbetstid skapas.
-  | 'heartbeat';
+  | 'heartbeat'
+  // GPS-diagnostik: telefonen har inte fått en native location-event på länge.
+  | 'gps_silent'
+  // GPS-diagnostik: native eller browser geolocation gav fel.
+  | 'gps_error'
+  // Resume/focus: getCurrentPosition lyckades hämta färsk position.
+  | 'location_resume_fresh_position_ok'
+  // Resume/focus: getCurrentPosition failade. fallbackUsed visar om
+  // sendHeartbeat (lastKnownPos) användes som fallback.
+  | 'location_resume_fresh_position_failed';
+
 
 export interface RecordAppHealthEventInput {
   organizationId: string;
