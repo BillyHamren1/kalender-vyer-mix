@@ -2,6 +2,8 @@ import React, { useEffect } from 'react';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useBackgroundLocationReporter } from '@/hooks/useBackgroundLocationReporter';
 import { initLocationPingHandler } from '@/services/locationPingHandler';
+import GpsHealthDebugPanel from '@/components/mobile-app/GpsHealthDebugPanel';
+
 
 /**
  * MobileGlobalOverlays — PASSIVE in the new Time Engine v2 world.
