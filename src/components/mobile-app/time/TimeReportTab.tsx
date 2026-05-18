@@ -134,27 +134,17 @@ const DayView = ({ date, onOpen }: { date: string; onOpen: (d: string) => void }
   const totals = snapshot?.totals;
 
   const figures = useMemo(() => {
-    // Canonical fields från snapshot.totals (backend-byggda).
-    // Legacy workdayMinutes/travelMinutes används endast som typ-fallback.
+    // TIME-vyn visar ENDAST registrerade summor — inget
+    // payable/approved/awaiting. Lönegrundande hanteras i admin.
     const gross = totals?.grossWorkdayMinutes ?? totals?.workdayMinutes ?? 0;
     const breaks = totals?.breakMinutes ?? 0;
-    const payable = totals?.payableMinutes ?? 0;
     const transport = totals?.transportMinutes ?? totals?.travelMinutes ?? 0;
-    const approved = !!snapshot?.workday?.approved;
-    const attested = !!snapshot?.attestation;
     return {
       grossWorkdayMinutes: gross,
       breakMinutes: breaks,
-      payableMinutes: payable,
       transportMinutes: transport,
-      approvedPayableMinutes: approved ? payable : 0,
-      submittedPayableMinutes: !approved && attested ? payable : 0,
-      awaitingUserAttestPayableMinutes:
-        !approved && !attested && payable > 0 ? payable : 0,
-      awaitingAttestPayableMinutes:
-        !approved && !attested && payable > 0 ? payable : 0,
     };
-  }, [totals, snapshot?.workday?.approved, snapshot?.attestation]);
+  }, [totals]);
 
   return (
     <div className="space-y-4">
@@ -178,10 +168,10 @@ const DayView = ({ date, onOpen }: { date: string; onOpen: (d: string) => void }
             Dagdetalj
           </p>
           <p className="text-sm font-bold text-foreground">
-            {snapshot?.workday?.statusLabel ?? (snapshot?.workday ? 'Dagen är registrerad' : 'Ingen registrerad tid')}
+            {snapshot?.workday ? 'Dagen är registrerad' : 'Ingen registrerad tid'}
           </p>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            Tryck för att granska tidslinje, lägga rast eller skicka in dagen.
+            Tryck för att granska tidslinjen och rapportera dagen.
           </p>
         </button>
       )}
@@ -196,23 +186,11 @@ const PeriodView = ({
 }: { kind: 'week' | 'month'; anchor: Date; onOpen: (d: string) => void }) => {
   const { period, isLoading, error } = useStaffTimeReportPeriod({ kind, anchor });
   const totals = period?.totals;
-  const blockers = period?.blockers ?? [];
-  const status = period?.status ?? 'empty';
-  const allClear = !isLoading && status === 'approved';
 
   const figures = {
     grossWorkdayMinutes: totals?.grossWorkdayMinutes ?? 0,
     breakMinutes: totals?.breakMinutes ?? 0,
-    payableMinutes: totals?.payableMinutes ?? 0,
     transportMinutes: totals?.transportMinutes ?? 0,
-    approvedPayableMinutes: totals?.approvedPayableMinutes ?? 0,
-    submittedPayableMinutes: totals?.submittedPayableMinutes ?? 0,
-    awaitingUserAttestPayableMinutes:
-      totals?.awaitingUserAttestPayableMinutes ??
-      totals?.awaitingAttestPayableMinutes ?? 0,
-    awaitingAttestPayableMinutes:
-      totals?.awaitingAttestPayableMinutes ??
-      totals?.awaitingUserAttestPayableMinutes ?? 0,
   };
 
   return (
