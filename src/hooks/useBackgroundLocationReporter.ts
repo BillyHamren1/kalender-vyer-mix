@@ -270,8 +270,19 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       handlePosition(latitude, longitude, accuracy, speed);
     };
 
+    const getCachedOrgId = (): string | null => {
+      try {
+        const raw = localStorage.getItem('eventflow-mobile-staff');
+        if (!raw) return null;
+        return JSON.parse(raw)?.organization_id ?? null;
+      } catch {
+        return null;
+      }
+    };
+
     const handlePosition = (latitude: number, longitude: number, accuracy: number | null, speed: number | null) => {
       lastPingAtRef.current = Date.now();
+      lastNativeLocationEventAtRef.current = Date.now();
       setLatestPosition({ lat: latitude, lng: longitude, accuracy, speed, timestamp: Date.now() });
       lastKnownPosRef.current = { lat: latitude, lng: longitude, accuracy, speed };
 
@@ -299,18 +310,26 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
               batteryCapturedAt: battery?.battery_captured_at ?? null,
               batterySource: battery?.battery_source ?? null,
             });
+            lastEnqueuedAtRef.current = Date.now();
             void flushLocationQueue();
           });
+        // DEPRECATED: lastUploadAt = enqueue, INTE server-accepted.
+        // Kvar för bakåtkomp. Använd lastAcceptedUploadAt för sanning.
         lastUploadAtRef.current = now;
       }
 
       checkBackgroundGeofences(latitude, longitude);
     };
 
+    const onLocation = (latitude: number, longitude: number, accuracy: number | null, speed: number | null) => {
+      handlePosition(latitude, longitude, accuracy, speed);
+    };
+
     const sendHeartbeat = () => {
       const pos = lastKnownPosRef.current;
       const sid = staffIdRef.current;
       const now = Date.now();
+      lastJsHeartbeatAtRef.current = now;
       if (pos && sid) {
         lastReportRef.current = now;
         void getBatterySnapshot()
@@ -328,12 +347,113 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
               batteryCapturedAt: battery?.battery_captured_at ?? null,
               batterySource: battery?.battery_source ?? null,
             });
+            lastEnqueuedAtRef.current = Date.now();
             void flushLocationQueue();
           });
         lastUploadAtRef.current = now;
       }
       rescheduleHeartbeat();
     };
+
+    /**
+     * Hämta en FÄRSK GPS-position via navigator.geolocation och enqueua.
+     * Detta är det som körs på resume/focus/visibilitychange — INTE
+     * sendHeartbeat (som bara skickar lastKnownPos). Returnerar true
+     * om vi lyckades, false annars. Skickar appHealth-event på resultatet.
+     */
+    const enqueueFreshPosition = async (reason: string): Promise<boolean> => {
+      const sid = staffIdRef.current;
+      if (!sid) return false;
+      if (typeof navigator === 'undefined' || !navigator.geolocation) return false;
+
+      return await new Promise<boolean>((resolve) => {
+        let settled = false;
+        const finish = (v: boolean) => {
+          if (settled) return;
+          settled = true;
+          resolve(v);
+        };
+        try {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const latitude = pos.coords.latitude;
+              const longitude = pos.coords.longitude;
+              const accuracy = pos.coords.accuracy ?? null;
+              const speed = pos.coords.speed ?? null;
+              lastKnownPosRef.current = { lat: latitude, lng: longitude, accuracy, speed };
+              setLatestPosition({ lat: latitude, lng: longitude, accuracy, speed, timestamp: pos.timestamp || Date.now() });
+              const recordedAt = new Date(pos.timestamp || Date.now()).toISOString();
+              const now = Date.now();
+              lastReportRef.current = now;
+              lastFreshResumePingAtRef.current = now;
+              void getBatterySnapshot()
+                .catch(() => null)
+                .then((battery) => {
+                  enqueueLocationPoint({
+                    latitude,
+                    longitude,
+                    accuracy,
+                    speed,
+                    source: 'foreground',
+                    recordedAt,
+                    batteryLevel: battery?.battery_level ?? null,
+                    batteryPercent: battery?.battery_percent ?? null,
+                    isCharging: battery?.is_charging ?? null,
+                    batteryCapturedAt: battery?.battery_captured_at ?? null,
+                    batterySource: battery?.battery_source ?? null,
+                  });
+                  lastEnqueuedAtRef.current = Date.now();
+                  void flushLocationQueue();
+                });
+              // App health: success
+              const oid = getCachedOrgId();
+              if (oid) {
+                void recordAppHealthEvent({
+                  organizationId: oid,
+                  staffId: sid,
+                  eventType: 'location_resume_fresh_position_ok',
+                  appState: 'active',
+                  skipBattery: true,
+                  metadata: {
+                    reason,
+                    accuracy,
+                    source: 'fresh_getCurrentPosition',
+                  },
+                });
+              }
+              finish(true);
+            },
+            (err) => {
+              const msg = err?.message || `code_${err?.code}`;
+              lastGeolocationErrorRef.current = msg;
+              const oid = getCachedOrgId();
+              if (oid) {
+                void recordAppHealthEvent({
+                  organizationId: oid,
+                  staffId: sid,
+                  eventType: 'location_resume_fresh_position_failed',
+                  appState: 'active',
+                  skipBattery: true,
+                  metadata: {
+                    reason,
+                    errorMessage: msg,
+                    fallbackUsed: !!lastKnownPosRef.current,
+                  },
+                });
+              }
+              finish(false);
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+          );
+        } catch (err: any) {
+          const msg = err?.message || String(err);
+          lastGeolocationErrorRef.current = msg;
+          finish(false);
+        }
+      });
+    };
+
+
 
     const rescheduleHeartbeat = () => {
       const decision = computeMode();
