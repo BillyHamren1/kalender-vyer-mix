@@ -24,7 +24,7 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from '@/components/ui/sheet';
 import {
-  Sun, AlertTriangle, Check, Lock, Loader2, Wrench, Send, ShieldCheck,
+  Sun, AlertTriangle, Check, Loader2, Wrench, Send, ShieldCheck,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -40,7 +40,7 @@ import { formatHoursMinutes } from '@/utils/formatHours';
 import { mobileApi } from '@/services/mobileApiService';
 import { cn } from '@/lib/utils';
 import { SEG_ICON, SEG_TONE, FallbackSegIcon } from './segmentVisuals';
-import StaffDayAttestSection from './StaffDayAttestSection';
+import StaffDaySubmitSection from './StaffDaySubmitSection';
 // EndDayButton borttagen — TIME-vyn är ren rapportering (se MobileTimeReport).
 import SegmentDetailSheet from './SegmentDetailSheet';
 import StaffGanttMirrorTimeline from './StaffGanttMirrorTimeline';
