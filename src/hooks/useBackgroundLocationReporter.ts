@@ -233,6 +233,9 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
   const backendPolicyModeRef = useRef<string | null>(null);
   // Senaste sync-status från locationSyncQueue
   const syncStatusRef = useRef<LocationSyncStatus>(getLocationSyncStatus());
+  // Throttle för gps_silent app-health events (max 1/5min per session)
+  const lastGpsSilentSentAtRef = useRef<number>(0);
+
 
   const [debug, setDebug] = useState<BackgroundLocationDebugInfo>({
     currentLocationMode: null,
