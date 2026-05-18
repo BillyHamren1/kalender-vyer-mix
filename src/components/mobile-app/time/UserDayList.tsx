@@ -6,23 +6,25 @@ import type { StaffPeriodDaySummary } from '@/hooks/useStaffTimeReportPeriod';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
 
+// TIME-vyn pratar bara om rapporteringsläge — aldrig admin-godkännande.
+// Backend-status mappas till tre etiketter: Ej rapporterad / Utkast / Inskickad.
+// (open = pågående arbetsdag visas som "Pågår" tills användaren avslutar.)
 const STATUS_LABEL: Record<StaffPeriodDaySummary['status'], string> = {
-  empty: 'Ingen tid',
+  empty: 'Ej rapporterad',
   open: 'Pågår',
-  needs_attest: 'Ej inskickad',
-  needs_action: 'Behöver åtgärdas',
+  needs_attest: 'Utkast',
+  needs_action: 'Utkast',
   attested: 'Inskickad',
-  approved: 'Godkänd',
+  approved: 'Inskickad',
 };
 
-// CTA-text per status — visas som tydlig handlingsuppmaning på raden.
 const STATUS_CTA: Record<StaffPeriodDaySummary['status'], string> = {
   empty: 'Rapportera tid',
   open: 'Avsluta dagen',
   needs_attest: 'Skicka in',
-  needs_action: 'Åtgärda',
+  needs_action: 'Skicka in',
   attested: 'Inskickad',
-  approved: 'Godkänd',
+  approved: 'Inskickad',
 };
 
 const STATUS_TONE: Record<StaffPeriodDaySummary['status'], string> = {
