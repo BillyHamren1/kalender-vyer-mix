@@ -89,7 +89,10 @@ function loadGeofenceTargets(): GeofenceTarget[] {
  * Exposes `latestPosition` so other hooks (e.g. useTravelDetection)
  * can consume GPS data without creating their own watcher.
  */
-const REPORT_THROTTLE_MS = 30_000;     // normal movement-driven report
+// Sänkt 2026-05-18 från 30s → 10s. iOS levererar location-events glest i
+// bakgrund (en update vid varje >distanceFilter rörelse). 30s throttle slukade
+// då ~75 % av dem och det enda spåret in i DB försvann.
+const REPORT_THROTTLE_MS = 10_000;     // normal movement-driven report
 const DEFAULT_HEARTBEAT_MS = 60_000;   // fallback if mode engine not ready
 const DEFAULT_DISTANCE_FILTER = 50;    // fallback if mode engine not ready
 const RESTART_MIN_INTERVAL_MS = 60_000; // min time between native restarts
@@ -253,6 +256,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
 
     const rescheduleHeartbeat = () => {
       const decision = computeMode();
+      const prevMode = currentModeRef.current;
       currentHeartbeatMsRef.current = decision.heartbeatMs;
       currentDistanceFilterRef.current = decision.distanceFilter;
       if (heartbeatTimerRef.current != null) clearTimeout(heartbeatTimerRef.current);
@@ -274,6 +278,43 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
         lastUploadAt: lastUploadAtRef.current,
         lastNativeRestartAt: lastNativeRestartRef.current || null,
       });
+
+      // ── Mode-telemetri ────────────────────────────────────────────────
+      // Vid varje LÄGESBYTE: skicka ett app_health-event så admin kan se
+      // EXAKT varför pingar blev glesa (mode=idle 50m → telefonen står still
+      // → noll OS-events). Best-effort, fire-and-forget. Maxar sig själv
+      // till mode-changes så ingen översvämning vid stillastående.
+      if (prevMode !== decision.mode) {
+        const sid = staffIdRef.current;
+        if (sid) {
+          void import('@/lib/mobile/recordAppHealthEvent').then(mod => {
+            // Hämta org via cached staff in localStorage (samma som MobileAuth)
+            let orgId: string | null = null;
+            try {
+              const raw = localStorage.getItem('eventflow-mobile-staff');
+              if (raw) orgId = JSON.parse(raw)?.organization_id ?? null;
+            } catch { /* ignore */ }
+            if (!orgId) return;
+            void mod.recordAppHealthEvent({
+              organizationId: orgId,
+              staffId: sid,
+              eventType: 'location_mode_changed',
+              appState: 'active',
+              skipBattery: true,
+              metadata: {
+                from: prevMode,
+                to: decision.mode,
+                heartbeatMs: decision.heartbeatMs,
+                distanceFilter: decision.distanceFilter,
+                nearestTargetDistanceMeters: decision.nearestTargetDistanceMeters,
+                hasActiveTimer: readHasActiveSession(),
+                hasPendingArrival: arrivals.length > 0,
+                reason: decision.reasonForModeChange,
+              },
+            });
+          }).catch(() => { /* never crash on diagnostics */ });
+        }
+      }
     };
 
     const readBackendPolicy = (): { heartbeatMs: number; distanceFilter: number; mode: string } | null => {
@@ -395,6 +436,42 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
     // Re-apply heartbeat as soon as a fresh backend policy arrives.
     const onPolicyUpdated = () => { rescheduleHeartbeat(); };
     window.addEventListener('tracking-policy-updated', onPolicyUpdated);
+
+    // ── FOREGROUND/RESUME FORCE-PING ─────────────────────────────────────
+    // iOS pausar JS-setTimeout när webview ligger i bakgrund. När appen
+    // återupptas (focus / visibilitychange / Capacitor resume) MÅSTE vi
+    // tvinga in en ping omedelbart, annars kan telefonen ha varit "tyst"
+    // i flera timmar utan en enda rad i staff_location_history.
+    const forcePing = (reason: string) => {
+      // eslint-disable-next-line no-console
+      console.info('[BGLocation] forcePing on', reason);
+      sendHeartbeat();
+      // Och kick i ny mode-bedömning så distanceFilter blir rätt.
+      rescheduleHeartbeat();
+    };
+    const onWindowFocus = () => forcePing('window-focus');
+    const onVisibility = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        forcePing('visibilitychange');
+      }
+    };
+    window.addEventListener('focus', onWindowFocus);
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisibility);
+    }
+    // Capacitor App resume (mest pålitligt på iOS).
+    let removeCapResume: (() => void) | null = null;
+    void (async () => {
+      try {
+        if (!Capacitor.isNativePlatform()) return;
+        const { App } = await import('@capacitor/app');
+        const h1 = await App.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) forcePing('cap-appStateChange-active');
+        });
+        const h2 = await App.addListener('resume', () => forcePing('cap-resume'));
+        removeCapResume = () => { void h1.remove(); void h2.remove(); };
+      } catch { /* not native — ok */ }
+    })();
 
     const checkBackgroundGeofences = (lat: number, lng: number) => {
       const targets = loadGeofenceTargets();
