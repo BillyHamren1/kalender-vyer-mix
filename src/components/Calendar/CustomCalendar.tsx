@@ -10,6 +10,7 @@ import { useAvailableStaffWeek } from '@/hooks/useAvailableStaffWeek';
 import { useStableEvents } from '@/hooks/useMemoizedEvents';
 import { EditControllerProvider } from '@/contexts/EditControllerContext';
 import { useEventDragDrop } from '@/hooks/useEventDragDrop';
+import { getWeeklyHorizontalScrollDelta } from '@/lib/calendar/weeklyScrollRouting';
 import { extractUTCDate } from '@/utils/dateUtils';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import './Carousel3DStyles.css';
@@ -136,6 +137,18 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   }
 
   const isWeeklyMode = viewMode === 'weekly' || viewMode === 'monthly';
+  const handleWeeklyWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    const horizontalDelta = getWeeklyHorizontalScrollDelta({
+      deltaX: event.deltaX,
+      deltaY: event.deltaY,
+      shiftKey: event.shiftKey,
+    });
+
+    if (horizontalDelta === 0) return;
+
+    event.preventDefault();
+    event.currentTarget.scrollLeft += horizontalDelta;
+  }, []);
 
   const buildTimeGridProps = (date: Date, fullWidth: boolean, isCenter?: boolean) => {
     const filteredResources = getFilteredResourcesForDay(date);
@@ -221,7 +234,10 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     return (
       <EditControllerProvider>
         <div className="custom-calendar-container weekly-view" ref={containerRef}>
-          <div className={`weekly-horizontal-grid ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
+          <div
+            className={`weekly-horizontal-grid ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}
+            onWheel={handleWeeklyWheel}
+          >
             {days.map((date) => {
               const dateStr = format(date, 'yyyy-MM-dd');
               const isToday = dateStr === format(new Date(), 'yyyy-MM-dd');
