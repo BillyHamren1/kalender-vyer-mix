@@ -89,7 +89,10 @@ function loadGeofenceTargets(): GeofenceTarget[] {
  * Exposes `latestPosition` so other hooks (e.g. useTravelDetection)
  * can consume GPS data without creating their own watcher.
  */
-const REPORT_THROTTLE_MS = 30_000;     // normal movement-driven report
+// Sänkt 2026-05-18 från 30s → 10s. iOS levererar location-events glest i
+// bakgrund (en update vid varje >distanceFilter rörelse). 30s throttle slukade
+// då ~75 % av dem och det enda spåret in i DB försvann.
+const REPORT_THROTTLE_MS = 10_000;     // normal movement-driven report
 const DEFAULT_HEARTBEAT_MS = 60_000;   // fallback if mode engine not ready
 const DEFAULT_DISTANCE_FILTER = 50;    // fallback if mode engine not ready
 const RESTART_MIN_INTERVAL_MS = 60_000; // min time between native restarts
