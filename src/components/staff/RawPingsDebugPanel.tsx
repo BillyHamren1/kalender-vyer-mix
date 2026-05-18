@@ -501,6 +501,8 @@ function AppHealthCell({
 }: { appHealth: AppHealth | null | undefined; intervalEndMs: number }) {
   if (!appHealth) return <span className="text-[10px] text-muted-foreground">—</span>;
   const pct = appHealth.lastBatteryPercent;
+  const source = appHealth.lastAppSeenSource ?? '';
+  const isFallback = source === 'gps_ping' || source === 'staff_locations';
   return (
     <div className="flex flex-col gap-0.5 text-[10px]">
       <span className="font-mono">{fmtAge(appHealth.lastAppSeenAt, intervalEndMs)} sen</span>
@@ -509,6 +511,19 @@ function AppHealthCell({
         {pct != null ? ` · ${pct}%` : ''}
         {appHealth.lastIsCharging === true ? ' ⚡' : ''}
       </span>
+      {appHealth.heartbeatMissing ? (
+        <span
+          className="rounded bg-amber-500/15 px-1 py-0.5 font-medium text-amber-700 dark:text-amber-300"
+          title="Telefonen pingar GPS men skickar inga app health-events. Troligen en gammal app-build utan heartbeat-telemetri."
+        >
+          Heartbeat saknas
+        </span>
+      ) : null}
+      {isFallback && !appHealth.heartbeatMissing ? (
+        <span className="text-[9px] text-muted-foreground italic" title={`Källa: ${source}`}>
+          via {source === 'gps_ping' ? 'GPS' : 'staff_locations'}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -521,6 +536,8 @@ function AppHealthDetail({ appHealth }: { appHealth: AppHealth | null | undefine
     <div className="mb-2 grid grid-cols-2 gap-1 text-[11px] sm:grid-cols-4">
       <Stat k="Senaste app-event" v={appHealth.lastEventType} />
       <Stat k="Tid" v={appHealth.lastAppSeenAt} />
+      <Stat k="Källa" v={appHealth.lastAppSeenSource ?? 'health'} />
+      <Stat k="Heartbeat" v={appHealth.heartbeatMissing ? 'SAKNAS' : 'OK'} />
       <Stat k="App-state" v={appHealth.lastAppState ?? '—'} />
       <Stat k="Batt %" v={appHealth.lastBatteryPercent != null ? `${appHealth.lastBatteryPercent}%` : '—'} />
       <Stat k="Laddar" v={appHealth.lastIsCharging == null ? '—' : appHealth.lastIsCharging ? 'ja' : 'nej'} />
