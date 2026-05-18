@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useCallback, useState } from 'react';
+import React, { useRef, useMemo, useCallback, useState, useEffect } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format, addDays, getWeek } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -141,6 +141,20 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
     event.preventDefault();
     event.currentTarget.scrollLeft += horizontalDelta;
   }, []);
+
+  // Blockera browserns back/forward (swipe-back på trackpad/mobil) i veckovyn
+  useEffect(() => {
+    if (!isWeeklyMode) return;
+    const url = window.location.href;
+    window.history.pushState({ __weeklyGuard: true }, '', url);
+    const onPop = () => {
+      window.history.pushState({ __weeklyGuard: true }, '', url);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+    };
+  }, [isWeeklyMode]);
 
   if (isLoading && !isMounted) {
     return (
