@@ -424,15 +424,33 @@ Deno.serve(async (req) => {
         battery,
         appHealth: (() => {
           const h = latestHealthByStaff.get(staffId);
-          if (!h) return null;
+          const loc = latestLocByStaff.get(staffId);
+          const candidates: Array<{ at: string; src: string }> = [];
+          if (h?.occurred_at) candidates.push({ at: h.occurred_at, src: `health:${h.event_type}` });
+          if (loc?.updated_at) candidates.push({ at: loc.updated_at, src: 'staff_locations' });
+          if (last?.recorded_at) candidates.push({ at: last.recorded_at, src: 'gps_ping' });
+          if (candidates.length === 0) return null;
+          candidates.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+          const newest = candidates[0];
+          // "Heartbeat saknas" = vi har GPS-pings nyligen men inget
+          // health-event på 30+ min. Då vet vi att appen sänder data,
+          // men telemetri-byggen är gammal → admin behöver inte få "App AV".
+          const lastHealthMs = h?.occurred_at ? new Date(h.occurred_at).getTime() : 0;
+          const lastPingMs = last?.recorded_at ? new Date(last.recorded_at).getTime() : 0;
+          const heartbeatMissing = lastPingMs > 0
+            && (intervalEndMs - lastPingMs) < 30 * 60_000
+            && (lastHealthMs === 0 || (lastPingMs - lastHealthMs) > 30 * 60_000);
           return {
-            lastAppSeenAt: h.occurred_at,
-            lastEventType: h.event_type,
-            lastAppState: h.app_state,
-            lastBatteryPercent: h.battery_percent,
-            lastIsCharging: h.is_charging,
-            lastPlatform: h.platform,
-            lastAppVersion: h.app_version,
+            lastAppSeenAt: newest.at,
+            lastEventType: h?.event_type ?? (newest.src === 'gps_ping' ? 'gps_ping_fallback' : 'staff_locations_fallback'),
+            lastAppState: h?.app_state ?? null,
+            lastBatteryPercent: h?.battery_percent ?? null,
+            lastIsCharging: h?.is_charging ?? null,
+            lastPlatform: h?.platform ?? loc?.platform ?? null,
+            lastAppVersion: h?.app_version ?? loc?.app_version ?? null,
+            // Nytt fält (bakåtkompatibelt — gamla klienter ignorerar det).
+            lastAppSeenSource: newest.src,
+            heartbeatMissing,
           };
         })(),
         sampleRows: sampleRowsMapped,
