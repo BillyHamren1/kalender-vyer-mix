@@ -113,6 +113,7 @@ export const GpsHealthDebugPanel: React.FC<Props> = ({ debug }) => {
     ['rejected (last batch)', String(syncStatus.lastUploadRejected)],
     ['last upload error', syncStatus.lastErrorMessage ?? '—'],
     ['last geo error', debug.lastGeolocationError ?? '—'],
+    ['gpsSilentState', debug.gpsSilentState],
   ];
 
   return (
