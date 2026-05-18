@@ -222,6 +222,18 @@ const ProjectViewPage = () => {
           }}
         />
       )}
+
+      <CreateTodoWizard
+        open={createTodoOpen}
+        onOpenChange={setCreateTodoOpen}
+        preselectedBookingId={bookingId}
+        onSuccess={() => {
+          setCreateTodoOpen(false);
+          queryClient.invalidateQueries({ queryKey: ['projects'] });
+          queryClient.invalidateQueries({ queryKey: ['project-detail', project.id] });
+          queryClient.invalidateQueries({ queryKey: ['planner-calendar-events'] });
+        }}
+      />
     </div>
   );
 };
