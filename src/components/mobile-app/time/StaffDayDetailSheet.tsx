@@ -41,7 +41,7 @@ import { mobileApi } from '@/services/mobileApiService';
 import { cn } from '@/lib/utils';
 import { SEG_ICON, SEG_TONE, FallbackSegIcon } from './segmentVisuals';
 import StaffDayAttestSection from './StaffDayAttestSection';
-import EndDayButton from './EndDayButton';
+// EndDayButton borttagen — TIME-vyn är ren rapportering (se MobileTimeReport).
 import SegmentDetailSheet from './SegmentDetailSheet';
 import StaffGanttMirrorTimeline from './StaffGanttMirrorTimeline';
 
