@@ -35,7 +35,7 @@ const MobileGlobalOverlays: React.FC = () => {
   // Passive GPS reporter — pings are saved as location data only.
   // Frontend overlays never start/stop timers directly. GPS auto-start is
   // handled only by backend Time Engine via active_time_registrations.
-  useBackgroundLocationReporter(staff?.id);
+  const { debug: gpsDebug } = useBackgroundLocationReporter(staff?.id);
 
   // Server-triggered "ping the phone" — listen for FCM data-pushes with
   // notification_type=location_ping and respond with a fresh GPS sample.
