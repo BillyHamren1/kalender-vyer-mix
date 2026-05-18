@@ -43,6 +43,8 @@ const SectionHeader = ({ icon: Icon, title, count }: { icon: React.ElementType; 
 const ProjectViewPage = () => {
   const detail = useOutletContext<ReturnType<typeof useProjectDetail>>();
   const [transportBookingOpen, setTransportBookingOpen] = useState(false);
+  const [createTodoOpen, setCreateTodoOpen] = useState(false);
+  const queryClient = useQueryClient();
 
   const { project, tasks, files, activities, bookingAttachments } = detail;
   const bookingId = project?.booking_id || project?.booking?.id || null;
