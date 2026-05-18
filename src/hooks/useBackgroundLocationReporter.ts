@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
-import { enqueueLocationPoint, flushLocationQueue } from '@/services/locationSyncQueue';
+import {
+  enqueueLocationPoint,
+  flushLocationQueue,
+  getLocationSyncStatus,
+  subscribeLocationSyncStatus,
+  type LocationSyncStatus,
+} from '@/services/locationSyncQueue';
 import { getBatterySnapshot } from '@/lib/mobile/getBatterySnapshot';
 import { GpsPosition, haversineDistance, ENTER_RADIUS } from '@/hooks/useGeofencing';
 import {
@@ -12,6 +18,8 @@ import {
 } from '@/lib/geofence/locationMode';
 import { isInDismissCooldown } from '@/lib/geofence/dismissCooldown';
 import { isWorkdayActive } from '@/lib/workday/workdayActiveSignal';
+import { recordAppHealthEvent } from '@/lib/mobile/recordAppHealthEvent';
+
 
 const PENDING_ARRIVALS_KEY = 'eventflow-pending-arrivals';
 const GEOFENCE_TARGETS_KEY = 'eventflow-geofence-targets';
