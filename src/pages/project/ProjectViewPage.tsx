@@ -21,8 +21,10 @@ import ProjectTeamPanel from "@/components/project/ProjectTeamPanel";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
 import { useRefreshBooking } from "@/hooks/useRefreshBooking";
-import { FileText, MessageSquare, History, RefreshCw, ArrowRight } from "lucide-react";
+import { FileText, MessageSquare, History, RefreshCw, ArrowRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import CreateTodoWizard from "@/components/todo/CreateTodoWizard";
+import { useQueryClient } from "@tanstack/react-query";
 
 const SectionHeader = ({ icon: Icon, title, count }: { icon: React.ElementType; title: string; count?: number }) => (
   <div className="flex items-center gap-2 mb-3">
