@@ -122,7 +122,9 @@ export function useRawStaffPingsDebug({
           date,
           staffIds: staffIds && staffIds.length > 0 ? staffIds : undefined,
           includeRows,
-          maxRowsPerStaff: 200,
+          // Höjt 2026-05-18: tidigare cap 200 dolde att tabellen faktiskt har
+          // alla pingar — admin trodde att "rådatan var filtrerad".
+          maxRowsPerStaff: 5000,
         },
       });
       if (error) throw error;
