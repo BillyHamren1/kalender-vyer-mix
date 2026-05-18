@@ -10,12 +10,13 @@
   border-radius: 0;
   box-shadow: none;
   border: none;
-  overflow-x: hidden;
+  overflow-x: clip;
   overflow-y: hidden;
   display: flex;
   flex-direction: column;
   min-height: 400px;
   height: 100%;
+  touch-action: pan-y;
 }
 
 /* Warehouse Theme Override (Amber) */
@@ -39,7 +40,9 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: clip;
+  touch-action: pan-y;
+  overscroll-behavior-x: auto;
 }
 
 /* Scrollbar styling — dolt handtag, scroll fungerar fortfarande */
@@ -69,6 +72,7 @@
   border: 1px solid hsl(var(--border) / 0.3);
   overflow-x: hidden;
   overflow-y: hidden;
+  touch-action: pan-y;
   transform: translateZ(0);
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   display: flex;
