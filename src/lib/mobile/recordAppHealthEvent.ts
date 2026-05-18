@@ -23,7 +23,11 @@ export type AppHealthEventType =
   // Skickas när adaptiv locationMode byter läge — admin kan se EXAKT
   // varför en telefon pingade glest (t.ex. mode=idle distanceFilter=500m
   // → telefonen står stilla → inga GPS-events från OS).
-  | 'location_mode_changed';
+  | 'location_mode_changed'
+  // Lågfrekvent puls från useAppHealthReporter (var 5:e min när appen
+  // är i förgrunden). Gör att admin kan se "App PÅ" även när telefonen
+  // står helt stilla och inte byter app-state. INGEN arbetstid skapas.
+  | 'heartbeat';
 
 export interface RecordAppHealthEventInput {
   organizationId: string;
