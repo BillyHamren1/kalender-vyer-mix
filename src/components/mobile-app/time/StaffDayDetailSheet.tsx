@@ -286,11 +286,10 @@ const DayBody: React.FC<{
 
       {/* C. Tidslinje — ENDA källa: admin-Gantten via StaffGanttMirrorTimeline.
           Tidigare renderades snapshot.segments här (egen cache-källa) vilket
-          gav olika block i app vs webb. Nu speglas Gantten 1:1. */}
+          gav olika block i app vs webb. Nu speglas Gantten 1:1.
+          EndDayButton är BORTTAGEN: TIME-vyn är ren rapportering, inte
+          live-flöde. Start/stopp av arbetsdag sker via banner/WorkDayPanel. */}
       <StaffGanttMirrorTimeline date={date} />
-      {isToday && !!snapshot.workday?.isOpen && (
-        <EndDayButton workdayOpen onStopped={onChanged} />
-      )}
 
       {/* E. (Flyttad högst upp) Rast/lunch + Godkänn dagen */}
 
