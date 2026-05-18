@@ -284,6 +284,75 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
   // Keep ref in sync so heartbeat survives auth-token refreshes without restart
   useEffect(() => { staffIdRef.current = staffId; }, [staffId]);
 
+  // ── SILENT-MONITOR ─────────────────────────────────────────────────────
+  // Diagnostik. Var 60:e sekund: när appen är visible, kontrollera om
+  // senaste native-event eller senaste accepted upload är äldre än 5 min.
+  // Om så, skicka ett `gps_silent` app-health event (throttlat till 1/5min).
+  // Skapar ALDRIG arbetstid. Uppdaterar bara debug-state.
+  useEffect(() => {
+    if (!staffId) return;
+    const SILENT_THRESHOLD_MS = 5 * 60_000;
+    const THROTTLE_MS = 5 * 60_000;
+
+    const tick = () => {
+      const visibility: 'visible' | 'hidden' | 'unknown' =
+        typeof document !== 'undefined'
+          ? (document.visibilityState as 'visible' | 'hidden')
+          : 'unknown';
+      const state = computeGpsSilentState({
+        appVisibilityState: visibility,
+        lastNativeLocationEventAt: lastNativeLocationEventAtRef.current,
+        lastAcceptedUploadAt: syncStatusRef.current.lastUploadAt,
+        thresholdMs: SILENT_THRESHOLD_MS,
+      });
+
+      setDebug((prev) =>
+        prev.gpsSilentState === state && prev.appVisibilityState === visibility
+          ? prev
+          : { ...prev, gpsSilentState: state, appVisibilityState: visibility },
+      );
+
+      if (state === 'ok') return;
+      const now = Date.now();
+      if (now - lastGpsSilentSentAtRef.current < THROTTLE_MS) return;
+      lastGpsSilentSentAtRef.current = now;
+
+      let orgId: string | null = null;
+      try {
+        const raw = localStorage.getItem('eventflow-mobile-staff');
+        if (raw) orgId = JSON.parse(raw)?.organization_id ?? null;
+      } catch { /* ignore */ }
+      if (!orgId) return;
+
+      void recordAppHealthEvent({
+        organizationId: orgId,
+        staffId,
+        eventType: 'gps_silent',
+        appState: visibility,
+        skipBattery: true,
+        metadata: {
+          lastNativeLocationEventAt: lastNativeLocationEventAtRef.current,
+          lastAcceptedUploadAt: syncStatusRef.current.lastUploadAt,
+          lastJsHeartbeatAt: lastJsHeartbeatAtRef.current,
+          currentDistanceFilter: currentDistanceFilterRef.current,
+          currentHeartbeatMs: currentHeartbeatMsRef.current,
+          backendPolicyMode: backendPolicyModeRef.current,
+          appVisibilityState: visibility,
+          silentState: state,
+          reason: 'visible_but_no_recent_gps',
+        },
+      });
+    };
+
+    const id = window.setInterval(tick, 60_000);
+    // Kör en initial tick efter 10s så debug-state hinner stabilisera
+    const initial = window.setTimeout(tick, 10_000);
+    return () => {
+      window.clearInterval(id);
+      window.clearTimeout(initial);
+    };
+  }, [staffId]);
+
 
 
   useEffect(() => {
