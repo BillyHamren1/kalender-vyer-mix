@@ -67,6 +67,10 @@ export interface RawPingStaffEntry {
     lastIsCharging: boolean | null;
     lastPlatform: string | null;
     lastAppVersion: string | null;
+    /** Källan till lastAppSeenAt: `health:<type>` | `gps_ping` | `staff_locations`. */
+    lastAppSeenSource?: string;
+    /** True när pings finns nyligen men inga health-events på 30+ min (gammal build). */
+    heartbeatMissing?: boolean;
   } | null;
   sampleRows: RawPingSampleRow[];
 }
