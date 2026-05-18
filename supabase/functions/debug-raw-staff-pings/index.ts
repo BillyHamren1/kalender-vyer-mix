@@ -290,6 +290,32 @@ Deno.serve(async (req) => {
         warnings.push(`health_events_query_failed:${(err as Error).message}`);
       }
     }
+
+    // Fallback: staff_locations.updated_at är ofta nyare än senaste
+    // health-event (telefoner postar GPS oftare än de byter state). Vi
+    // använder detta för att kunna rita "App PÅ" även för gamla builds
+    // som inte skickar heartbeat ännu.
+    type StaffLocRow = {
+      staff_id: string;
+      updated_at: string | null;
+      platform: string | null;
+      app_version: string | null;
+    };
+    const latestLocByStaff = new Map<string, StaffLocRow>();
+    if (staffIds.length > 0) {
+      try {
+        const { data: locRows } = await admin
+          .from('staff_locations')
+          .select('staff_id, updated_at, platform, app_version')
+          .eq('organization_id', organizationId)
+          .in('staff_id', staffIds);
+        for (const row of (locRows ?? []) as StaffLocRow[]) {
+          latestLocByStaff.set(row.staff_id, row);
+        }
+      } catch (err) {
+        warnings.push(`staff_locations_query_failed:${(err as Error).message}`);
+      }
+    }
     const intervalStartMs = new Date(intervalStart).getTime();
     const intervalEndMs = new Date(intervalEnd).getTime();
     const workdayLikelyStartMs = intervalStartMs + 6 * 3600_000;   // 06:00 from window start
