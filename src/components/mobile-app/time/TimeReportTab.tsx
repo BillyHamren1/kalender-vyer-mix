@@ -17,7 +17,7 @@ import {
 } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import {
-  ChevronLeft, ChevronRight, Loader2, AlertTriangle, FileCheck2, CalendarDays,
+  ChevronLeft, ChevronRight, Loader2, CalendarDays,
 } from 'lucide-react';
 import { useStaffTimeReportPeriod } from '@/hooks/useStaffTimeReportPeriod';
 import { useStaffDayStatusViaMobileReport } from '@/hooks/useStaffDayStatusViaMobileReport';
@@ -29,7 +29,9 @@ import UserDayList from './UserDayList';
 const todayStr = () => format(new Date(), 'yyyy-MM-dd');
 
 export const TimeReportTab = () => {
-  const [kind, setKind] = useState<PeriodKind>('week');
+  // Default: månadens dagar. PeriodSwitcher är sekundär — användaren kan
+  // växla till vecka/dag, men TIME-vyn öppnar alltid månadsöversikten.
+  const [kind, setKind] = useState<PeriodKind>('month');
   const [anchor, setAnchor] = useState<Date>(() => new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
