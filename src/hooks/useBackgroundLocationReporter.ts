@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
-import { enqueueLocationPoint, flushLocationQueue } from '@/services/locationSyncQueue';
+import {
+  enqueueLocationPoint,
+  flushLocationQueue,
+  getLocationSyncStatus,
+  subscribeLocationSyncStatus,
+  type LocationSyncStatus,
+} from '@/services/locationSyncQueue';
 import { getBatterySnapshot } from '@/lib/mobile/getBatterySnapshot';
 import { GpsPosition, haversineDistance, ENTER_RADIUS } from '@/hooks/useGeofencing';
 import {
@@ -12,6 +18,8 @@ import {
 } from '@/lib/geofence/locationMode';
 import { isInDismissCooldown } from '@/lib/geofence/dismissCooldown';
 import { isWorkdayActive } from '@/lib/workday/workdayActiveSignal';
+import { recordAppHealthEvent } from '@/lib/mobile/recordAppHealthEvent';
+
 
 const PENDING_ARRIVALS_KEY = 'eventflow-pending-arrivals';
 const GEOFENCE_TARGETS_KEY = 'eventflow-geofence-targets';
@@ -130,9 +138,33 @@ export interface BackgroundLocationDebugInfo {
   nearestTargetDistanceMeters: number | null;
   hasActiveTimer: boolean;
   hasPendingArrival: boolean;
+  /** @deprecated — use lastNativeLocationEventAt + lastJsHeartbeatAt. */
   lastPingAt: number | null;
+  /** @deprecated — does NOT mean server-accepted; använd lastAcceptedUploadAt. */
   lastUploadAt: number | null;
   lastNativeRestartAt: number | null;
+  // ── Nya, ärliga fält ───────────────────────────────────────────────
+  /** Senaste callback från native BGGeo / browser watchPosition. */
+  lastNativeLocationEventAt: number | null;
+  /** Senaste gång JS-heartbeat-timern fyrade av (sendHeartbeat). */
+  lastJsHeartbeatAt: number | null;
+  /** Senaste gång forcePing/enqueueFreshPosition lyckades hämta färsk pos. */
+  lastFreshResumePingAt: number | null;
+  /** Senaste gång en GPS-punkt lagts i lokala kön (≠ server-accepted). */
+  lastEnqueuedAt: number | null;
+  /** Senaste gång servern faktiskt accepterade en upload. */
+  lastAcceptedUploadAt: number | null;
+  /** Antal punkter som servern rejecterade i senaste batch. */
+  lastUploadRejected: number;
+  /** Senaste fel från upload (om något). */
+  lastUploadError: string | null;
+  /** Senaste fel från native/browser geolocation. */
+  lastGeolocationError: string | null;
+  currentDistanceFilter: number;
+  currentHeartbeatMs: number;
+  backendPolicyMode: string | null;
+  isNativePlatform: boolean;
+  appVisibilityState: 'visible' | 'hidden' | 'unknown';
 }
 
 export const useBackgroundLocationReporter = (staffId: string | null | undefined) => {
@@ -150,8 +182,24 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
   const currentHeartbeatMsRef = useRef<number>(DEFAULT_HEARTBEAT_MS);
   const currentDistanceFilterRef = useRef<number>(DEFAULT_DISTANCE_FILTER);
   const lastNativeRestartRef = useRef<number>(0);
+  // Senaste native/browser location-event (rå callback)
+  const lastNativeLocationEventAtRef = useRef<number | null>(null);
+  // Senaste JS heartbeat-timer-fyrning
+  const lastJsHeartbeatAtRef = useRef<number | null>(null);
+  // Senaste lyckade fresh-getCurrentPosition på resume/focus
+  const lastFreshResumePingAtRef = useRef<number | null>(null);
+  // Senaste lokala enqueue (≠ server-accepted)
+  const lastEnqueuedAtRef = useRef<number | null>(null);
+  // Senaste geolocation-fel
+  const lastGeolocationErrorRef = useRef<string | null>(null);
+  // ── DEPRECATED, behålls för bakåtkomp i debug-vyer som ännu läser dem
   const lastPingAtRef = useRef<number | null>(null);
   const lastUploadAtRef = useRef<number | null>(null);
+  // Senaste backend-policy-snapshot (för debug)
+  const backendPolicyModeRef = useRef<string | null>(null);
+  // Senaste sync-status från locationSyncQueue
+  const syncStatusRef = useRef<LocationSyncStatus>(getLocationSyncStatus());
+
   const [debug, setDebug] = useState<BackgroundLocationDebugInfo>({
     currentLocationMode: null,
     selectedHeartbeatMs: DEFAULT_HEARTBEAT_MS,
@@ -162,10 +210,43 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
     lastPingAt: null,
     lastUploadAt: null,
     lastNativeRestartAt: null,
+    lastNativeLocationEventAt: null,
+    lastJsHeartbeatAt: null,
+    lastFreshResumePingAt: null,
+    lastEnqueuedAt: null,
+    lastAcceptedUploadAt: null,
+    lastUploadRejected: 0,
+    lastUploadError: null,
+    lastGeolocationError: null,
+    currentDistanceFilter: DEFAULT_DISTANCE_FILTER,
+    currentHeartbeatMs: DEFAULT_HEARTBEAT_MS,
+    backendPolicyMode: null,
+    isNativePlatform: typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform(),
+    appVisibilityState:
+      typeof document !== 'undefined'
+        ? (document.visibilityState as 'visible' | 'hidden')
+        : 'unknown',
   });
+
+  // Subscribe to upload status from the location sync queue so debug fields
+  // can distinguish "lagt i kö" från "servern faktiskt accepterade".
+  useEffect(() => {
+    const unsub = subscribeLocationSyncStatus((s) => {
+      syncStatusRef.current = s;
+      setDebug((prev) => ({
+        ...prev,
+        lastAcceptedUploadAt: s.lastUploadAt,
+        lastUploadRejected: s.lastUploadRejected,
+        lastUploadError: s.lastErrorMessage,
+      }));
+    });
+    return unsub;
+  }, []);
 
   // Keep ref in sync so heartbeat survives auth-token refreshes without restart
   useEffect(() => { staffIdRef.current = staffId; }, [staffId]);
+
+
 
   useEffect(() => {
     // CRITICAL: Start tracker ONCE per app lifetime. Do NOT stop it just because
@@ -185,12 +266,20 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
     let restartingNative = false;
     let appliedDistanceFilter = -1;
 
-    const onLocation = (latitude: number, longitude: number, accuracy: number | null, speed: number | null) => {
-      handlePosition(latitude, longitude, accuracy, speed);
+
+    const getCachedOrgId = (): string | null => {
+      try {
+        const raw = localStorage.getItem('eventflow-mobile-staff');
+        if (!raw) return null;
+        return JSON.parse(raw)?.organization_id ?? null;
+      } catch {
+        return null;
+      }
     };
 
     const handlePosition = (latitude: number, longitude: number, accuracy: number | null, speed: number | null) => {
       lastPingAtRef.current = Date.now();
+      lastNativeLocationEventAtRef.current = Date.now();
       setLatestPosition({ lat: latitude, lng: longitude, accuracy, speed, timestamp: Date.now() });
       lastKnownPosRef.current = { lat: latitude, lng: longitude, accuracy, speed };
 
@@ -218,18 +307,26 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
               batteryCapturedAt: battery?.battery_captured_at ?? null,
               batterySource: battery?.battery_source ?? null,
             });
+            lastEnqueuedAtRef.current = Date.now();
             void flushLocationQueue();
           });
+        // DEPRECATED: lastUploadAt = enqueue, INTE server-accepted.
+        // Kvar för bakåtkomp. Använd lastAcceptedUploadAt för sanning.
         lastUploadAtRef.current = now;
       }
 
       checkBackgroundGeofences(latitude, longitude);
     };
 
+    const onLocation = (latitude: number, longitude: number, accuracy: number | null, speed: number | null) => {
+      handlePosition(latitude, longitude, accuracy, speed);
+    };
+
     const sendHeartbeat = () => {
       const pos = lastKnownPosRef.current;
       const sid = staffIdRef.current;
       const now = Date.now();
+      lastJsHeartbeatAtRef.current = now;
       if (pos && sid) {
         lastReportRef.current = now;
         void getBatterySnapshot()
@@ -247,12 +344,113 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
               batteryCapturedAt: battery?.battery_captured_at ?? null,
               batterySource: battery?.battery_source ?? null,
             });
+            lastEnqueuedAtRef.current = Date.now();
             void flushLocationQueue();
           });
         lastUploadAtRef.current = now;
       }
       rescheduleHeartbeat();
     };
+
+    /**
+     * Hämta en FÄRSK GPS-position via navigator.geolocation och enqueua.
+     * Detta är det som körs på resume/focus/visibilitychange — INTE
+     * sendHeartbeat (som bara skickar lastKnownPos). Returnerar true
+     * om vi lyckades, false annars. Skickar appHealth-event på resultatet.
+     */
+    const enqueueFreshPosition = async (reason: string): Promise<boolean> => {
+      const sid = staffIdRef.current;
+      if (!sid) return false;
+      if (typeof navigator === 'undefined' || !navigator.geolocation) return false;
+
+      return await new Promise<boolean>((resolve) => {
+        let settled = false;
+        const finish = (v: boolean) => {
+          if (settled) return;
+          settled = true;
+          resolve(v);
+        };
+        try {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const latitude = pos.coords.latitude;
+              const longitude = pos.coords.longitude;
+              const accuracy = pos.coords.accuracy ?? null;
+              const speed = pos.coords.speed ?? null;
+              lastKnownPosRef.current = { lat: latitude, lng: longitude, accuracy, speed };
+              setLatestPosition({ lat: latitude, lng: longitude, accuracy, speed, timestamp: pos.timestamp || Date.now() });
+              const recordedAt = new Date(pos.timestamp || Date.now()).toISOString();
+              const now = Date.now();
+              lastReportRef.current = now;
+              lastFreshResumePingAtRef.current = now;
+              void getBatterySnapshot()
+                .catch(() => null)
+                .then((battery) => {
+                  enqueueLocationPoint({
+                    latitude,
+                    longitude,
+                    accuracy,
+                    speed,
+                    source: 'foreground',
+                    recordedAt,
+                    batteryLevel: battery?.battery_level ?? null,
+                    batteryPercent: battery?.battery_percent ?? null,
+                    isCharging: battery?.is_charging ?? null,
+                    batteryCapturedAt: battery?.battery_captured_at ?? null,
+                    batterySource: battery?.battery_source ?? null,
+                  });
+                  lastEnqueuedAtRef.current = Date.now();
+                  void flushLocationQueue();
+                });
+              // App health: success
+              const oid = getCachedOrgId();
+              if (oid) {
+                void recordAppHealthEvent({
+                  organizationId: oid,
+                  staffId: sid,
+                  eventType: 'location_resume_fresh_position_ok',
+                  appState: 'active',
+                  skipBattery: true,
+                  metadata: {
+                    reason,
+                    accuracy,
+                    source: 'fresh_getCurrentPosition',
+                  },
+                });
+              }
+              finish(true);
+            },
+            (err) => {
+              const msg = err?.message || `code_${err?.code}`;
+              lastGeolocationErrorRef.current = msg;
+              const oid = getCachedOrgId();
+              if (oid) {
+                void recordAppHealthEvent({
+                  organizationId: oid,
+                  staffId: sid,
+                  eventType: 'location_resume_fresh_position_failed',
+                  appState: 'active',
+                  skipBattery: true,
+                  metadata: {
+                    reason,
+                    errorMessage: msg,
+                    fallbackUsed: !!lastKnownPosRef.current,
+                  },
+                });
+              }
+              finish(false);
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+          );
+        } catch (err: any) {
+          const msg = err?.message || String(err);
+          lastGeolocationErrorRef.current = msg;
+          finish(false);
+        }
+      });
+    };
+
+
 
     const rescheduleHeartbeat = () => {
       const decision = computeMode();
@@ -267,7 +465,9 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       }
 
       const arrivals = loadPendingArrivals();
-      setDebug({
+      const syncStatus = syncStatusRef.current;
+      setDebug((prev) => ({
+        ...prev,
         currentLocationMode: decision.mode,
         selectedHeartbeatMs: decision.heartbeatMs,
         selectedDistanceFilter: decision.distanceFilter,
@@ -277,7 +477,24 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
         lastPingAt: lastPingAtRef.current,
         lastUploadAt: lastUploadAtRef.current,
         lastNativeRestartAt: lastNativeRestartRef.current || null,
-      });
+        lastNativeLocationEventAt: lastNativeLocationEventAtRef.current,
+        lastJsHeartbeatAt: lastJsHeartbeatAtRef.current,
+        lastFreshResumePingAt: lastFreshResumePingAtRef.current,
+        lastEnqueuedAt: lastEnqueuedAtRef.current,
+        lastAcceptedUploadAt: syncStatus.lastUploadAt,
+        lastUploadRejected: syncStatus.lastUploadRejected,
+        lastUploadError: syncStatus.lastErrorMessage,
+        lastGeolocationError: lastGeolocationErrorRef.current,
+        currentDistanceFilter: decision.distanceFilter,
+        currentHeartbeatMs: decision.heartbeatMs,
+        backendPolicyMode: backendPolicyModeRef.current,
+        isNativePlatform: Capacitor.isNativePlatform(),
+        appVisibilityState:
+          typeof document !== 'undefined'
+            ? (document.visibilityState as 'visible' | 'hidden')
+            : 'unknown',
+      }));
+
 
       // ── Mode-telemetri ────────────────────────────────────────────────
       // Vid varje LÄGESBYTE: skicka ett app_health-event så admin kan se
@@ -360,6 +577,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       // the app cannot invent a denser tracking intensity than the server.
       const backend = readBackendPolicy();
       if (backend) {
+        backendPolicyModeRef.current = backend.mode;
         return {
           ...decision,
           heartbeatMs: backend.heartbeatMs,
@@ -367,8 +585,10 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
           reasonForModeChange: `${decision.reasonForModeChange} (backend:${backend.mode})`,
         };
       }
+      backendPolicyModeRef.current = null;
       return decision;
     };
+
 
     /**
      * Restart the native tracker with a new distanceFilter when the mode
@@ -442,18 +662,25 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
     // återupptas (focus / visibilitychange / Capacitor resume) MÅSTE vi
     // tvinga in en ping omedelbart, annars kan telefonen ha varit "tyst"
     // i flera timmar utan en enda rad i staff_location_history.
-    const forcePing = (reason: string) => {
+    const forcePing = async (reason: string) => {
       // eslint-disable-next-line no-console
       console.info('[BGLocation] forcePing on', reason);
-      sendHeartbeat();
-      // Och kick i ny mode-bedömning så distanceFilter blir rätt.
+      // 1. Försök ALLTID hämta färsk position först — sendHeartbeat skickar
+      //    bara lastKnownPos och kan vara timmar gammal efter bakgrundsperiod.
+      const ok = await enqueueFreshPosition(reason);
+      if (!ok) {
+        // 2. Fallback till lastKnownPos om vi inte kunde hämta färsk fix.
+        sendHeartbeat();
+      }
+      // 3. Reschedule så distanceFilter/heartbeat blir rätt för nuvarande mode.
       rescheduleHeartbeat();
     };
-    const onWindowFocus = () => forcePing('window-focus');
+    const onWindowFocus = () => { void forcePing('window-focus'); };
     const onVisibility = () => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        forcePing('visibilitychange');
+        void forcePing('visibilitychange');
       }
+
     };
     window.addEventListener('focus', onWindowFocus);
     if (typeof document !== 'undefined') {
@@ -466,9 +693,10 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
         if (!Capacitor.isNativePlatform()) return;
         const { App } = await import('@capacitor/app');
         const h1 = await App.addListener('appStateChange', ({ isActive }) => {
-          if (isActive) forcePing('cap-appStateChange-active');
+          if (isActive) void forcePing('cap-appStateChange-active');
         });
-        const h2 = await App.addListener('resume', () => forcePing('cap-resume'));
+        const h2 = await App.addListener('resume', () => { void forcePing('cap-resume'); });
+
         removeCapResume = () => { void h1.remove(); void h2.remove(); };
       } catch { /* not native — ok */ }
     })();

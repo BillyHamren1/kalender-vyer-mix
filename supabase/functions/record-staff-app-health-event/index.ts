@@ -15,7 +15,12 @@ const ALLOWED_EVENT_TYPES = new Set([
   'battery_snapshot',
   'location_mode_changed',
   'heartbeat',
+  'gps_silent',
+  'gps_error',
+  'location_resume_fresh_position_ok',
+  'location_resume_fresh_position_failed',
 ]);
+
 
 interface Body {
   organizationId?: string;

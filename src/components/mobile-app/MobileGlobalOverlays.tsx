@@ -2,6 +2,8 @@ import React, { useEffect } from 'react';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useBackgroundLocationReporter } from '@/hooks/useBackgroundLocationReporter';
 import { initLocationPingHandler } from '@/services/locationPingHandler';
+import GpsHealthDebugPanel from '@/components/mobile-app/GpsHealthDebugPanel';
+
 
 /**
  * MobileGlobalOverlays — PASSIVE in the new Time Engine v2 world.
@@ -33,7 +35,7 @@ const MobileGlobalOverlays: React.FC = () => {
   // Passive GPS reporter — pings are saved as location data only.
   // Frontend overlays never start/stop timers directly. GPS auto-start is
   // handled only by backend Time Engine via active_time_registrations.
-  useBackgroundLocationReporter(staff?.id);
+  const { debug: gpsDebug } = useBackgroundLocationReporter(staff?.id);
 
   // Server-triggered "ping the phone" — listen for FCM data-pushes with
   // notification_type=location_ping and respond with a fresh GPS sample.
@@ -62,7 +64,7 @@ const MobileGlobalOverlays: React.FC = () => {
     return dispose;
   }, [staff]);
 
-  return null;
+  return <GpsHealthDebugPanel debug={gpsDebug} />;
 };
 
 export default MobileGlobalOverlays;
