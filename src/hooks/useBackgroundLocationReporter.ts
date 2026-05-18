@@ -138,39 +138,35 @@ export interface BackgroundLocationDebugInfo {
   nearestTargetDistanceMeters: number | null;
   hasActiveTimer: boolean;
   hasPendingArrival: boolean;
+  /** @deprecated — use lastNativeLocationEventAt + lastJsHeartbeatAt. */
   lastPingAt: number | null;
+  /** @deprecated — does NOT mean server-accepted; använd lastAcceptedUploadAt. */
   lastUploadAt: number | null;
   lastNativeRestartAt: number | null;
+  // ── Nya, ärliga fält ───────────────────────────────────────────────
+  /** Senaste callback från native BGGeo / browser watchPosition. */
+  lastNativeLocationEventAt: number | null;
+  /** Senaste gång JS-heartbeat-timern fyrade av (sendHeartbeat). */
+  lastJsHeartbeatAt: number | null;
+  /** Senaste gång forcePing/enqueueFreshPosition lyckades hämta färsk pos. */
+  lastFreshResumePingAt: number | null;
+  /** Senaste gång en GPS-punkt lagts i lokala kön (≠ server-accepted). */
+  lastEnqueuedAt: number | null;
+  /** Senaste gång servern faktiskt accepterade en upload. */
+  lastAcceptedUploadAt: number | null;
+  /** Antal punkter som servern rejecterade i senaste batch. */
+  lastUploadRejected: number;
+  /** Senaste fel från upload (om något). */
+  lastUploadError: string | null;
+  /** Senaste fel från native/browser geolocation. */
+  lastGeolocationError: string | null;
+  currentDistanceFilter: number;
+  currentHeartbeatMs: number;
+  backendPolicyMode: string | null;
+  isNativePlatform: boolean;
+  appVisibilityState: 'visible' | 'hidden' | 'unknown';
 }
 
-export const useBackgroundLocationReporter = (staffId: string | null | undefined) => {
-  const lastReportRef = useRef(0);
-  const watchIdRef = useRef<number | null>(null);
-  const heartbeatTimerRef = useRef<number | null>(null);
-  const lastKnownPosRef = useRef<{ lat: number; lng: number; accuracy: number | null; speed: number | null } | null>(null);
-  const staffIdRef = useRef<string | null | undefined>(staffId);
-  const startedRef = useRef(false);
-  const [latestPosition, setLatestPosition] = useState<GpsPosition | null>(null);
-  // Track which targets we're currently inside (to avoid duplicate pending arrivals)
-  const insideRef = useRef<Set<string>>(new Set());
-  // Adaptive mode state
-  const currentModeRef = useRef<LocationMode | null>(null);
-  const currentHeartbeatMsRef = useRef<number>(DEFAULT_HEARTBEAT_MS);
-  const currentDistanceFilterRef = useRef<number>(DEFAULT_DISTANCE_FILTER);
-  const lastNativeRestartRef = useRef<number>(0);
-  const lastPingAtRef = useRef<number | null>(null);
-  const lastUploadAtRef = useRef<number | null>(null);
-  const [debug, setDebug] = useState<BackgroundLocationDebugInfo>({
-    currentLocationMode: null,
-    selectedHeartbeatMs: DEFAULT_HEARTBEAT_MS,
-    selectedDistanceFilter: DEFAULT_DISTANCE_FILTER,
-    nearestTargetDistanceMeters: null,
-    hasActiveTimer: readHasActiveSession(),
-    hasPendingArrival: false,
-    lastPingAt: null,
-    lastUploadAt: null,
-    lastNativeRestartAt: null,
-  });
 
   // Keep ref in sync so heartbeat survives auth-token refreshes without restart
   useEffect(() => { staffIdRef.current = staffId; }, [staffId]);
