@@ -278,6 +278,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         {/* Scrollable time slots */}
         <div
           className="time-grid-scrollable-content"
+          data-weekly-vertical-scroll="true"
           style={{ display: 'grid', gridTemplateColumns, width: totalWidth, flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'clip', touchAction: 'pan-y' }}
         >
           <div className="time-labels-column" style={{ gridColumn: 1 }}>
