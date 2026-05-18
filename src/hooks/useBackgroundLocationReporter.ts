@@ -165,6 +165,40 @@ export interface BackgroundLocationDebugInfo {
   backendPolicyMode: string | null;
   isNativePlatform: boolean;
   appVisibilityState: 'visible' | 'hidden' | 'unknown';
+  /**
+   * Sammanvägd "silent"-status baserat på senaste native-event och
+   * senaste server-accepted upload. Diagnostik — skapar ALDRIG arbetstid.
+   */
+  gpsSilentState: 'ok' | 'native_silent' | 'upload_silent' | 'native_and_upload_silent';
+}
+
+/**
+ * Avgör om GPS-pipelinen är "tyst". Räknas tyst om appen är visible och:
+ *   - senaste native location-event är äldre än threshold, ELLER
+ *   - senaste server-accepted upload är äldre än threshold
+ * Returnerar 'ok' om appen inte är visible (kan inte avgöra) eller om
+ * båda signalerna är färska.
+ */
+export function computeGpsSilentState(args: {
+  appVisibilityState: 'visible' | 'hidden' | 'unknown';
+  lastNativeLocationEventAt: number | null;
+  lastAcceptedUploadAt: number | null;
+  now?: number;
+  thresholdMs?: number;
+}): BackgroundLocationDebugInfo['gpsSilentState'] {
+  const now = args.now ?? Date.now();
+  const threshold = args.thresholdMs ?? 5 * 60_000;
+  if (args.appVisibilityState !== 'visible') return 'ok';
+  const nativeSilent =
+    args.lastNativeLocationEventAt == null ||
+    now - args.lastNativeLocationEventAt > threshold;
+  const uploadSilent =
+    args.lastAcceptedUploadAt == null ||
+    now - args.lastAcceptedUploadAt > threshold;
+  if (nativeSilent && uploadSilent) return 'native_and_upload_silent';
+  if (nativeSilent) return 'native_silent';
+  if (uploadSilent) return 'upload_silent';
+  return 'ok';
 }
 
 export const useBackgroundLocationReporter = (staffId: string | null | undefined) => {
