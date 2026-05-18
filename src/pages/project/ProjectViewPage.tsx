@@ -21,8 +21,10 @@ import ProjectTeamPanel from "@/components/project/ProjectTeamPanel";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
 import { useRefreshBooking } from "@/hooks/useRefreshBooking";
-import { FileText, MessageSquare, History, RefreshCw, ArrowRight } from "lucide-react";
+import { FileText, MessageSquare, History, RefreshCw, ArrowRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import CreateTodoWizard from "@/components/todo/CreateTodoWizard";
+import { useQueryClient } from "@tanstack/react-query";
 
 const SectionHeader = ({ icon: Icon, title, count }: { icon: React.ElementType; title: string; count?: number }) => (
   <div className="flex items-center gap-2 mb-3">
@@ -41,6 +43,8 @@ const SectionHeader = ({ icon: Icon, title, count }: { icon: React.ElementType; 
 const ProjectViewPage = () => {
   const detail = useOutletContext<ReturnType<typeof useProjectDetail>>();
   const [transportBookingOpen, setTransportBookingOpen] = useState(false);
+  const [createTodoOpen, setCreateTodoOpen] = useState(false);
+  const queryClient = useQueryClient();
 
   const { project, tasks, files, activities, bookingAttachments } = detail;
   const bookingId = project?.booking_id || project?.booking?.id || null;
@@ -119,6 +123,18 @@ const ProjectViewPage = () => {
 
   return (
     <div className="space-y-6">
+      {/* Quick actions */}
+      <div className="flex justify-end">
+        <Button
+          size="sm"
+          onClick={() => setCreateTodoOpen(true)}
+          className="rounded-lg h-8 shadow-sm bg-primary hover:bg-[hsl(var(--primary-hover))]"
+        >
+          <Plus className="h-4 w-4 mr-1.5" />
+          Skapa to do
+        </Button>
+      </div>
+
       {/* Overview dashboard */}
       <ProjectOverviewHeader
         tasks={tasks}
@@ -126,6 +142,7 @@ const ProjectViewPage = () => {
         commentsCount={0}
         activities={activities}
       />
+
 
       {/* Two-column layout: Booking info + Tasks & Transport */}
       <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6 items-start">
@@ -205,6 +222,18 @@ const ProjectViewPage = () => {
           }}
         />
       )}
+
+      <CreateTodoWizard
+        open={createTodoOpen}
+        onOpenChange={setCreateTodoOpen}
+        preselectedBookingId={bookingId}
+        onSuccess={() => {
+          setCreateTodoOpen(false);
+          queryClient.invalidateQueries({ queryKey: ['projects'] });
+          queryClient.invalidateQueries({ queryKey: ['project-detail', project.id] });
+          queryClient.invalidateQueries({ queryKey: ['planner-calendar-events'] });
+        }}
+      />
     </div>
   );
 };
