@@ -64,7 +64,7 @@ const MobileGlobalOverlays: React.FC = () => {
     return dispose;
   }, [staff]);
 
-  return null;
+  return <GpsHealthDebugPanel debug={gpsDebug} />;
 };
 
 export default MobileGlobalOverlays;
