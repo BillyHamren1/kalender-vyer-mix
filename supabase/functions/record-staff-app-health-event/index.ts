@@ -14,6 +14,7 @@ const ALLOWED_EVENT_TYPES = new Set([
   'location_permission_restored',
   'battery_snapshot',
   'location_mode_changed',
+  'heartbeat',
 ]);
 
 interface Body {
