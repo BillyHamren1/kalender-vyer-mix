@@ -437,6 +437,42 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
     const onPolicyUpdated = () => { rescheduleHeartbeat(); };
     window.addEventListener('tracking-policy-updated', onPolicyUpdated);
 
+    // ── FOREGROUND/RESUME FORCE-PING ─────────────────────────────────────
+    // iOS pausar JS-setTimeout när webview ligger i bakgrund. När appen
+    // återupptas (focus / visibilitychange / Capacitor resume) MÅSTE vi
+    // tvinga in en ping omedelbart, annars kan telefonen ha varit "tyst"
+    // i flera timmar utan en enda rad i staff_location_history.
+    const forcePing = (reason: string) => {
+      // eslint-disable-next-line no-console
+      console.info('[BGLocation] forcePing on', reason);
+      sendHeartbeat();
+      // Och kick i ny mode-bedömning så distanceFilter blir rätt.
+      rescheduleHeartbeat();
+    };
+    const onWindowFocus = () => forcePing('window-focus');
+    const onVisibility = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        forcePing('visibilitychange');
+      }
+    };
+    window.addEventListener('focus', onWindowFocus);
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisibility);
+    }
+    // Capacitor App resume (mest pålitligt på iOS).
+    let removeCapResume: (() => void) | null = null;
+    void (async () => {
+      try {
+        if (!Capacitor.isNativePlatform()) return;
+        const { App } = await import('@capacitor/app');
+        const h1 = await App.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) forcePing('cap-appStateChange-active');
+        });
+        const h2 = await App.addListener('resume', () => forcePing('cap-resume'));
+        removeCapResume = () => { void h1.remove(); void h2.remove(); };
+      } catch { /* not native — ok */ }
+    })();
+
     const checkBackgroundGeofences = (lat: number, lng: number) => {
       const targets = loadGeofenceTargets();
       if (targets.length === 0) return;
