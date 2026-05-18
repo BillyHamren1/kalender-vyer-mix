@@ -266,9 +266,6 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
     let restartingNative = false;
     let appliedDistanceFilter = -1;
 
-    const onLocation = (latitude: number, longitude: number, accuracy: number | null, speed: number | null) => {
-      handlePosition(latitude, longitude, accuracy, speed);
-    };
 
     const getCachedOrgId = (): string | null => {
       try {
