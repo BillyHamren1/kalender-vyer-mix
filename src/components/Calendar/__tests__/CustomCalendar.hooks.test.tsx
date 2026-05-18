@@ -94,4 +94,25 @@ describe('CustomCalendar hook stability', () => {
       );
     }).not.toThrow();
   });
+
+  it('blockerar inte vertikal wheel i veckovyn när dagsinnehållet kan scrolla', () => {
+    const { container } = render(<CustomCalendar {...baseProps} />);
+    const weeklyGrid = container.querySelector('.weekly-horizontal-grid') as HTMLDivElement;
+    const verticalScrollContainer = container.querySelector('[data-weekly-vertical-scroll="true"]') as HTMLDivElement;
+
+    expect(weeklyGrid).toBeTruthy();
+    expect(verticalScrollContainer).toBeTruthy();
+
+    Object.defineProperty(verticalScrollContainer, 'clientHeight', { configurable: true, value: 400 });
+    Object.defineProperty(verticalScrollContainer, 'scrollHeight', { configurable: true, value: 1200 });
+    Object.defineProperty(verticalScrollContainer, 'scrollTop', { configurable: true, value: 120 });
+
+    const preventDefault = vi.fn();
+    const wheelEvent = new WheelEvent('wheel', { deltaY: 80, bubbles: true, cancelable: true });
+    Object.defineProperty(wheelEvent, 'preventDefault', { configurable: true, value: preventDefault });
+
+    verticalScrollContainer.dispatchEvent(wheelEvent);
+
+    expect(preventDefault).not.toHaveBeenCalled();
+  });
 });

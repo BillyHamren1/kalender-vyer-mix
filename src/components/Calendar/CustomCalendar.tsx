@@ -10,7 +10,7 @@ import { useAvailableStaffWeek } from '@/hooks/useAvailableStaffWeek';
 import { useStableEvents } from '@/hooks/useMemoizedEvents';
 import { EditControllerProvider } from '@/contexts/EditControllerContext';
 import { useEventDragDrop } from '@/hooks/useEventDragDrop';
-import { getWeeklyHorizontalScrollDelta } from '@/lib/calendar/weeklyScrollRouting';
+import { canConsumeVerticalScroll, getWeeklyHorizontalScrollDelta } from '@/lib/calendar/weeklyScrollRouting';
 import { extractUTCDate } from '@/utils/dateUtils';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import './Carousel3DStyles.css';
@@ -130,6 +130,17 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
 
   const isWeeklyMode = viewMode === 'weekly' || viewMode === 'monthly';
   const handleWeeklyWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    const verticalScrollContainer = (event.target as HTMLElement | null)?.closest('[data-weekly-vertical-scroll="true"]') as HTMLElement | null;
+
+    if (verticalScrollContainer && canConsumeVerticalScroll({
+      scrollTop: verticalScrollContainer.scrollTop,
+      clientHeight: verticalScrollContainer.clientHeight,
+      scrollHeight: verticalScrollContainer.scrollHeight,
+      deltaY: event.deltaY,
+    })) {
+      return;
+    }
+
     const horizontalDelta = getWeeklyHorizontalScrollDelta({
       deltaX: event.deltaX,
       deltaY: event.deltaY,
