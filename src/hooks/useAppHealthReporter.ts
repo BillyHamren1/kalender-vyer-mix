@@ -10,6 +10,9 @@
  *   - app_foreground/background  — Capacitor App appStateChange (native only)
  *   - workday_timer_started      — window 'workday-started'
  *   - workday_timer_stopped      — window 'workday-ended'
+ *   - heartbeat                  — var 5:e minut när appen är i förgrunden
+ *     (oavsett state-change). Detta är det som driver "App PÅ"-indikatorn
+ *     i admin när telefonen står stilla. INGEN arbetstid skapas.
  */
 import { useEffect, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
