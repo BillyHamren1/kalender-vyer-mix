@@ -31,10 +31,8 @@
  * ReportCandidateSummary.signalGapSuppressionDiagnostics.
  */
 
-import type {
-  ReportCandidateBlock,
-  PresenceDayBlock,
-} from './buildReportCandidateBlocks.ts';
+import type { ReportCandidateBlock } from './buildReportCandidateBlocks.ts';
+import type { PresenceDayBlock } from './buildPresenceDayBlocks.ts';
 
 export interface SignalGapSuppressionDiagnostics {
   openDaySignalGapSuppressedCount: number;
