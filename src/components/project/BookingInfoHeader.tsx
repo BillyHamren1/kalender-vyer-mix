@@ -25,7 +25,7 @@ const fmtDate = (s: string | null | undefined) => {
   }
 };
 
-export const BookingInfoHeader: React.FC<Props> = ({ booking }) => {
+export const BookingInfoHeader: React.FC<Props> = ({ booking, hideTimes = false }) => {
   const bookingId = booking?.id;
 
   const { data: products } = useQuery({
