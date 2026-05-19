@@ -192,36 +192,8 @@ const PhaseBlock: React.FC<{
       </div>
 
 
-      {phaseDays.length === 0 ? (
-        <div className="text-[11px] text-muted-foreground italic px-1">Inga datum valda</div>
-      ) : (
-        <div className="flex flex-wrap gap-1">
-          {phaseDays.map((d) => (
-            <Badge
-              key={d.date}
-              variant="secondary"
-              className="h-6 pl-2 pr-1 text-[11px] gap-1 font-normal"
-            >
-              <CalIcon className="h-3 w-3" />
-              {(() => {
-                try {
-                  return format(parseISO(d.date), 'EEE d MMM', { locale: sv });
-                } catch {
-                  return d.date;
-                }
-              })()}
-              <button
-                type="button"
-                onClick={() => removeDate(d.date)}
-                className="ml-0.5 rounded hover:bg-destructive/20 p-0.5"
-                aria-label="Ta bort datum"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))}
-        </div>
-      )}
+
+
 
       <div className="grid grid-cols-2 gap-2">
         <div>
