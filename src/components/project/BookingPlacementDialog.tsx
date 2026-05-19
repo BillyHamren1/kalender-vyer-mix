@@ -39,6 +39,7 @@ import {
 } from './bookingPlacementSeed';
 import { BookingInfoHeader } from './BookingInfoHeader';
 import { PhaseDatesEditor } from './PhaseDatesEditor';
+import { PlacementDayCalendar } from './PlacementDayCalendar';
 import { translateSupabaseError } from '@/lib/supabase/translateError';
 
 
