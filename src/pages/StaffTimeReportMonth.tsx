@@ -159,8 +159,9 @@ const StaffTimeReportMonth: React.FC = () => {
         </Button>
       </div>
       <PageHeader
+        icon={Clock}
         title="Tidrapport per person — månadsvy"
-        description="Rapporterad tid per dag. Klicka på en dag för att se var personen befann sig."
+        subtitle="Rapporterad tid per dag. Klicka på en dag för att se var personen befann sig."
       />
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
