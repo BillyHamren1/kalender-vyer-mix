@@ -41,6 +41,7 @@ import { BookingInfoHeader } from './BookingInfoHeader';
 import { PhaseDatesEditor } from './PhaseDatesEditor';
 import { PlacementDayCalendar } from './PlacementDayCalendar';
 import { translateSupabaseError } from '@/lib/supabase/translateError';
+import { findAvailableTeam } from '@/utils/teamAvailability';
 
 
 interface Props {
@@ -102,16 +103,53 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
     }
   }, [open]);
 
-  // Seed days när bokning hämtats
+  // Seed days när bokning hämtats — välj första lediga team för rig (rigDown ärver)
   useEffect(() => {
     if (!booking) return;
-    setDays(seedDaysFromBooking(booking));
-    setLargeNewName(
-      booking.client && booking.eventdate
-        ? `${booking.client} – ${format(parseISO(booking.eventdate), 'd MMM yyyy', { locale: sv })}`
-        : booking.client || '',
-    );
-  }, [booking]);
+    let cancelled = false;
+    (async () => {
+      const seed = seedDaysFromBooking(booking);
+      const dates = Array.from(new Set(seed.map((d) => d.date)));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let dayEvents: any[] = [];
+      if (dates.length > 0) {
+        const { data } = await supabase
+          .from('calendar_events')
+          .select('start_time, end_time, resource_id, source_date, booking_id')
+          .in('source_date', dates);
+        dayEvents = data || [];
+      }
+      // Räkna ut första lediga team för rig-dagen (rigDown ärver sedan rig)
+      const rig = seed.find((d) => d.kind === 'rig');
+      let rigTeamId: string | null = null;
+      if (rig && teamResources && teamResources.length > 0) {
+        const start = new Date(`${rig.date}T${rig.startTime}:00`);
+        const end = new Date(`${rig.date}T${rig.endTime}:00`);
+        const eventsLike = dayEvents
+          .filter((e) => e.source_date === rig.date && e.booking_id !== booking.id)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .map((e) => ({ id: e.resource_id, resourceId: e.resource_id, start: e.start_time, end: e.end_time, title: '' } as any));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        rigTeamId = findAvailableTeam(start, end, eventsLike as any, teamResources as any, true);
+      }
+      const finalDays = seed.map((d) => {
+        if ((d.kind === 'rig' || d.kind === 'rigDown') && rigTeamId) {
+          return { ...d, teamId: rigTeamId };
+        }
+        return d;
+      });
+      if (cancelled) return;
+      setDays(finalDays);
+      setLargeNewName(
+        booking.client && booking.eventdate
+          ? `${booking.client} – ${format(parseISO(booking.eventdate), 'd MMM yyyy', { locale: sv })}`
+          : booking.client || '',
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [booking, teamResources]);
 
   // När bokningen länkas till ett BEFINTLIGT stort projekt ärvs riggdagar
   // och tider från det stora projektet — användaren ska då inte planera dagar.
