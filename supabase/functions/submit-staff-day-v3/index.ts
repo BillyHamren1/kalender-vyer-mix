@@ -114,7 +114,7 @@ Deno.serve(async (req: Request) => {
   const isPrivilegedAdmin =
     authResult.auth.mode === "jwt" && authResult.auth.isPrivileged === true;
 
-  // ── Approved-lock: only privileged JWT can change ───────────────
+  // ── Lock: payroll_approved (alltid) + approved (legacy) kräver admin ──
   try {
     const { data: existing } = await admin
       .from("staff_day_submissions")
@@ -123,14 +123,15 @@ Deno.serve(async (req: Request) => {
       .eq("staff_id", staffId)
       .eq("date", date)
       .maybeSingle();
-    if (existing && (existing as any).status === "approved" && !isPrivilegedAdmin) {
+    const lockedStatuses = new Set(["approved", "payroll_approved"]);
+    if (existing && lockedStatuses.has((existing as any).status) && !isPrivilegedAdmin) {
       return jsonResponse(
-        { error: "Dagen är redan godkänd och kan inte ändras" },
+        { error: "Dagen är låst (godkänd / utbetald) och kan inte ändras av användaren" },
         409,
       );
     }
   } catch (e) {
-    console.error("[submit-staff-day-v3] approved-lock check failed", e);
+    console.error("[submit-staff-day-v3] lock check failed", e);
   }
 
   // Snapshot the cache summary at submission time for traceability.
