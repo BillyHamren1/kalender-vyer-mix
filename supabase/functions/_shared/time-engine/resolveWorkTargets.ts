@@ -485,6 +485,20 @@ export async function resolveWorkTargets(
   }
 
   // ─────────────────────────── Large projects ──────────────────────────────
+  // PRODUKTREGEL: Stora projekt äger platsen. Tid får ALDRIG attribueras
+  // till child-bokningar — varken via GPS-match eller via auto-start.
+  // Vi laddar därför LP-info först, sedan promotar vi child-bookings till
+  // LP-targets (med bokningens geo) om LP saknar egen geo. Om LP har egen
+  // geo undertrycks child-booking-targets helt.
+  type LpInfo = {
+    id: string;
+    name: string;
+    status: string | null;
+    rawAddress: string | null;
+    hasOwnGeo: boolean;
+  };
+  const lpInfoById = new Map<string, LpInfo>();
+
   try {
     const { data, error } = await supabaseAdmin
       .from('large_projects')
@@ -505,10 +519,19 @@ export async function resolveWorkTargets(
         const isPlannedToday = todayLargeProjectIds.has(r.id);
         const status = (r.planning_status as string | null) ?? r.status ?? null;
         const validity = classifyValidity(r.name, status, lat, lng, polygon, radius, true);
+        const hasOwnGeo = validity === 'valid' && (polygon !== null || (lat !== null && lng !== null));
+
+        lpInfoById.set(r.id, {
+          id: r.id,
+          name: r.name ?? 'Stort projekt',
+          status,
+          rawAddress: (r.address as string | null) ?? null,
+          hasOwnGeo,
+        });
 
         if (lat != null && lng != null) diag.candidatesWithCoordinates += 1;
 
-        const key = `project:${r.id}`;
+        const key = `large_project:${r.id}`;
         if (seenKey.has(key)) continue;
         seenKey.add(key);
 
@@ -590,12 +613,35 @@ export async function resolveWorkTargets(
     }
   }
 
+  // bookingToLp: COMPLETE map across ALL known LPs (not just today). Detta
+  // krävs för att kunna promota child-bokningar till LP-targets även när
+  // LP:n inte är "planerad idag" via BSA. Källa A: large_project_bookings.
+  // Källa B (kompletteras nedan): bookings.large_project_id-kolumnen.
+  const bookingToLp = new Map<string, string>();
+  if (lpInfoById.size > 0) {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('large_project_bookings')
+        .select('booking_id, large_project_id')
+        .eq('organization_id', organizationId);
+      if (error) diag.warnings.push(`large_project_bookings (all): ${error.message}`);
+      else (data ?? []).forEach((r: any) => {
+        if (r.booking_id && r.large_project_id && lpInfoById.has(r.large_project_id)) {
+          bookingToLp.set(r.booking_id, r.large_project_id);
+        }
+      });
+    } catch (e) {
+      diag.warnings.push(`large_project_bookings (all) failed: ${(e as Error).message}`);
+    }
+  }
+
+
   if (bookingSourceMap.size > 0) {
     try {
       const { data, error } = await supabaseAdmin
         .from('bookings')
         .select(
-          'id, title, client, booking_number, status, deliveryaddress, delivery_latitude, delivery_longitude, eventdate, rigdaydate, rigdowndate',
+          'id, title, client, booking_number, status, deliveryaddress, delivery_latitude, delivery_longitude, eventdate, rigdaydate, rigdowndate, large_project_id',
         )
         .eq('organization_id', organizationId)
         .in('id', Array.from(bookingSourceMap.keys()));
@@ -603,6 +649,13 @@ export async function resolveWorkTargets(
       if (error) {
         diag.warnings.push(`bookings: ${error.message}`);
       } else {
+        // Komplettera bookingToLp med direktkolumnen.
+        for (const r of data ?? []) {
+          if (r.large_project_id && lpInfoById.has(r.large_project_id) && !bookingToLp.has(r.id)) {
+            bookingToLp.set(r.id, r.large_project_id);
+          }
+        }
+
         for (const r of data ?? []) {
           diag.totalFetched += 1;
           const lat = isFiniteNumber(r.delivery_latitude) ? r.delivery_latitude : null;
@@ -611,13 +664,6 @@ export async function resolveWorkTargets(
           const validity = classifyValidity(r.title, r.status, lat, lng, null, radius, true);
 
           if (lat != null && lng != null) diag.candidatesWithCoordinates += 1;
-
-          const key = `booking:${r.id}`;
-          if (seenKey.has(key)) continue;
-          seenKey.add(key);
-
-          if (validity !== 'valid') bumpExcluded(diag, validity);
-          else diag.validTargets += 1;
 
           const source = bookingSourceMap.get(r.id) ?? 'date_relevant_booking';
           const isDateMatch =
@@ -637,6 +683,58 @@ export async function resolveWorkTargets(
             titleTrim ||
             (clientTrim && bookingNumTrim ? `${clientTrim} (#${bookingNumTrim})` : clientTrim) ||
             (bookingNumTrim ? `Bokning #${bookingNumTrim}` : `Bokning ${r.id.slice(0, 8)}`);
+
+          // PRODUKTREGEL: child-bokning under stort projekt får ALDRIG bli
+          // eget primary work target. LP äger platsen och tiden.
+          //   - Om LP har EGEN geo  → undertryck bokningen helt (LP-target matchar).
+          //   - Om LP saknar geo    → PROMOTERA: emittera som large_project-target
+          //                            med LP:s id+namn men bokningens geo, så
+          //                            GPS-matchen attribueras till LP istället.
+          const parentLpId = bookingToLp.get(r.id) ?? null;
+          if (parentLpId) {
+            const lp = lpInfoById.get(parentLpId);
+            if (lp) {
+              if (lp.hasOwnGeo) {
+                // LP-target redan emitterad med egen geo — släng bokningen.
+                bNotes.push(`suppressed_child_of_large_project:${parentLpId}`);
+                if (validity !== 'valid') bumpExcluded(diag, validity);
+                continue;
+              }
+              // LP saknar geo → promotera bokningens geo till LP-target.
+              if (validity !== 'valid') {
+                bumpExcluded(diag, validity);
+                continue;
+              }
+              const promotedKey = `large_project:${parentLpId}:via-booking:${r.id}`;
+              if (seenKey.has(promotedKey)) continue;
+              seenKey.add(promotedKey);
+              diag.validTargets += 1;
+              targets.push({
+                id: parentLpId,
+                type: 'large_project',
+                name: lp.name,
+                latitude: lat,
+                longitude: lng,
+                radiusMeters: radius,
+                polygon: null,
+                targetSource: 'large_project_linked_booking',
+                targetValidity: 'valid',
+                timeTrackingAllowed: true,
+                dateRelevance,
+                status: lp.status,
+                rawAddress: (r.deliveryaddress as string | null) ?? lp.rawAddress,
+                diagnostics: { notes: [...bNotes, `promoted_from_booking:${r.id}`] },
+              });
+              continue;
+            }
+          }
+
+          const key = `booking:${r.id}`;
+          if (seenKey.has(key)) continue;
+          seenKey.add(key);
+
+          if (validity !== 'valid') bumpExcluded(diag, validity);
+          else diag.validTargets += 1;
 
           targets.push({
             id: r.id,
@@ -660,6 +758,7 @@ export async function resolveWorkTargets(
       diag.warnings.push(`bookings fetch failed: ${(e as Error).message}`);
     }
   }
+
 
   // ─────────────────────────── Permanent locations / warehouses ────────────
   try {
