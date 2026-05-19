@@ -232,6 +232,7 @@ const StaffDaySubmitSection: React.FC<Props> = ({ staffId, date, snapshot }) => 
 
   return (
     <section className="rounded-2xl border border-border bg-card p-4 space-y-4">
+      {openWarning}
       <div>
         <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
           Rapportera dagen
