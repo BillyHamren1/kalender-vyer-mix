@@ -9,6 +9,7 @@ export interface PayrollPeriod {
   period_end: string;
   status: "draft" | "approved_for_payout" | string;
   created_at?: string;
+  approved_for_payout_at?: string | null;
 }
 
 export interface PayrollPeriodReportRow {

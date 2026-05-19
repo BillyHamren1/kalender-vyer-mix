@@ -28,6 +28,7 @@ import {
   type PayrollPeriodReportRow,
 } from "@/hooks/staff/usePayrollPeriods";
 import { useApprovePayrollPeriodDays } from "@/hooks/staff/useApprovePayrollPeriodDays";
+import { PayrollPeriodApprovalPanel } from "./PayrollPeriodApprovalPanel";
 
 function fmtDuration(min: number | null | undefined): string {
   if (min == null) return "—";
@@ -208,6 +209,14 @@ export function PayrollPeriodReportTable({ periodId }: Props) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <PayrollPeriodApprovalPanel
+        periodId={period.id}
+        isLocked={isLocked}
+        approvedAt={(period as any).approved_for_payout_at ?? null}
+      />
+
+
 
       {groups.length === 0 ? (
         <Card className="p-8 text-center text-muted-foreground">

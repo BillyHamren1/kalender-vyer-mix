@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
 
   const { data: period, error: pe } = await admin
     .from("staff_payroll_periods")
-    .select("id, organization_id, name, period_start, period_end, status")
+    .select("id, organization_id, name, period_start, period_end, status, approved_for_payout_at")
     .eq("id", period_id)
     .maybeSingle();
   if (pe) return json({ error: "load_failed", detail: pe.message }, 500);
