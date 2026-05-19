@@ -414,13 +414,9 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
           <DialogTitle className="flex items-center gap-2">
             <CalIcon className="h-5 w-5 text-primary" />
             Placera bokning
-            {totalSteps > 0 && (
-              <Badge variant="outline" className="ml-2">
-                Steg {Math.min(stepIndex + 1, totalSteps)} av {totalSteps}
-              </Badge>
-            )}
           </DialogTitle>
         </DialogHeader>
+
 
         <div className="flex-1 overflow-y-auto pr-1">
           {isLoading || !booking ? (
