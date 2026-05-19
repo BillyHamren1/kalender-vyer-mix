@@ -269,13 +269,17 @@ Deno.serve(async (req) => {
       app_state: string | null;
       platform: string | null;
       app_version: string | null;
+      app_build: string | null;
+      os_version: string | null;
+      device_model: string | null;
+      app_id: string | null;
     };
     const latestHealthByStaff = new Map<string, HealthRow>();
     if (staffIds.length > 0) {
       try {
         const { data: healthRows } = await admin
           .from('staff_app_health_events')
-          .select('staff_id, event_type, occurred_at, battery_percent, is_charging, app_state, platform, app_version')
+          .select('staff_id, event_type, occurred_at, battery_percent, is_charging, app_state, platform, app_version, app_build, os_version, device_model, app_id')
           .eq('organization_id', organizationId)
           .in('staff_id', staffIds)
           .lte('occurred_at', intervalEnd)
