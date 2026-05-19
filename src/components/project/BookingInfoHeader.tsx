@@ -167,17 +167,24 @@ export const BookingInfoHeader: React.FC<Props> = ({ booking }) => {
         {phaseRow('Demont.', booking.rigdowndate, 'rigDown')}
       </div>
 
-      {(products && products.length > 0) && (
+      {(orderedProducts.length > 0) && (
         <Collapsible defaultOpen>
           <CollapsibleTrigger className="flex items-center gap-1 text-xs font-medium hover:text-primary w-full">
             <Package className="h-3 w-3" />
-            Produkter ({products.length})
+            Produkter ({orderedProducts.length})
             <ChevronDown className="h-3 w-3 ml-auto" />
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-1 max-h-72 overflow-y-auto rounded border border-border/40 bg-card p-1.5 space-y-0.5">
-            {products.map((p) => (
-              <div key={p.id} className="flex justify-between text-[11px] gap-2 py-0.5 border-b border-border/20 last:border-0">
-                <span className="truncate" title={p.name}>{p.name}</span>
+            {orderedProducts.map((p) => (
+              <div
+                key={p.id}
+                className="flex justify-between text-[11px] gap-2 py-0.5 border-b border-border/20 last:border-0"
+                style={{ paddingLeft: p.depth ? p.depth * 12 : 0 }}
+              >
+                <span className="truncate" title={p.name}>
+                  {p.depth > 0 && <span className="text-muted-foreground mr-1">↳</span>}
+                  {p.name}
+                </span>
                 <span className="text-muted-foreground shrink-0 font-mono">{p.quantity} st</span>
               </div>
             ))}
