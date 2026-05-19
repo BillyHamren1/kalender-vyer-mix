@@ -21,12 +21,18 @@ import {
   phaseLabel,
 } from './bookingPlacementSeed';
 
+interface TeamOption {
+  id: string;
+  title: string;
+}
+
 interface Props {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   booking: any;
   days: PlanningDay[];
   onChange: (next: PlanningDay[]) => void;
   inheritedTeamId: string;
+  teamOptions: TeamOption[];
 }
 
 const PHASES: DayKind[] = ['rig', 'event', 'rigDown'];
@@ -54,6 +60,7 @@ export const PhaseDatesEditor: React.FC<Props> = ({
   days,
   onChange,
   inheritedTeamId,
+  teamOptions,
 }) => {
   return (
     <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3">
@@ -68,6 +75,7 @@ export const PhaseDatesEditor: React.FC<Props> = ({
           days={days}
           onChange={onChange}
           inheritedTeamId={inheritedTeamId}
+          teamOptions={teamOptions}
         />
       ))}
     </div>
@@ -81,7 +89,8 @@ const PhaseBlock: React.FC<{
   days: PlanningDay[];
   onChange: (next: PlanningDay[]) => void;
   inheritedTeamId: string;
-}> = ({ phase, booking, days, onChange, inheritedTeamId }) => {
+  teamOptions: TeamOption[];
+}> = ({ phase, booking, days, onChange, inheritedTeamId, teamOptions }) => {
   const locked = isPhaseLocked(booking, phase);
 
   const phaseDays = useMemo(
@@ -125,6 +134,11 @@ const PhaseBlock: React.FC<{
   const setEnd = (v: string) => {
     onChange(days.map((d) => (d.kind === phase ? { ...d, endTime: v } : d)));
   };
+  const setTeam = (v: string) => {
+    onChange(days.map((d) => (d.kind === phase ? { ...d, teamId: v } : d)));
+  };
+
+  const teamId = phaseDays[0]?.teamId ?? inheritedTeamId;
 
   // Default-månad för kalendervisning: första valda dagen eller idag
   const defaultMonth = selectedDates[0] ?? new Date();
@@ -224,6 +238,22 @@ const PhaseBlock: React.FC<{
             </SelectContent>
           </Select>
         </div>
+      </div>
+
+      <div>
+        <Label className="text-[10px] text-muted-foreground">Team</Label>
+        <Select value={teamId} onValueChange={setTeam} disabled={locked}>
+          <SelectTrigger className="h-7 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="max-h-72">
+            {teamOptions.map((t) => (
+              <SelectItem key={t.id} value={t.id} className="text-xs">
+                {t.title}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
     </div>
   );
