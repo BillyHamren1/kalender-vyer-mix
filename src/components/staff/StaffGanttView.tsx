@@ -2636,6 +2636,9 @@ const BlockDetailDialog: React.FC<BlockDetailDialogProps> = ({
                   ) : null}
                   <span className="ml-2 opacity-60">({pings.length} totalt på dagen)</span>
                 </div>
+                <div className="mb-2 text-[10px] text-muted-foreground/70">
+                  Blocket innehåller bara GPS inom valt tidsintervall. Total dag-GPS används som jämförelse.
+                </div>
                 <RawGpsDrawer
                   pings={pings}
                   date={dateStr}
