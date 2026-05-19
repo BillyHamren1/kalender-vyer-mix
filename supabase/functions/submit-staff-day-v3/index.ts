@@ -104,9 +104,9 @@ Deno.serve(async (req: Request) => {
   if (breakMin < 0 || breakMin > MAX_BREAK_MIN) {
     return jsonResponse({ error: `Rast måste vara 0–${MAX_BREAK_MIN} minuter` }, 400);
   }
-  const payableMin = grossMin - breakMin;
-  if (payableMin <= 0) {
-    return jsonResponse({ error: "Lönegrundande tid måste vara större än 0" }, 400);
+  const netMin = grossMin - breakMin;
+  if (netMin <= 0) {
+    return jsonResponse({ error: "Rast kan inte vara lika lång eller längre än arbetspasset" }, 400);
   }
   const stockholmStartDate = stockholmDateOf(reqStart);
   if (!stockholmStartDate || stockholmStartDate !== date) {
