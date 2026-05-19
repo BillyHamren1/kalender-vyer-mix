@@ -74,6 +74,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { useCurrentOrg } from '@/hooks/useCurrentOrg';
 import { useRawStaffPingsDebug, isRawPingsDebugEnabled } from '@/hooks/staff/useRawStaffPingsDebug';
+import { StaffAppStatusPopover, type StaffAppHealthSummary } from './StaffAppStatusPopover';
 import {
   GANTT_HEADER_PX,
   GANTT_NAME_COL_PX,
