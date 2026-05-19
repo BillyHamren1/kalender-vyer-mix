@@ -74,6 +74,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { useCurrentOrg } from '@/hooks/useCurrentOrg';
 import { useRawStaffPingsDebug, isRawPingsDebugEnabled } from '@/hooks/staff/useRawStaffPingsDebug';
+import { StaffAppStatusPopover, type StaffAppHealthSummary } from './StaffAppStatusPopover';
 import {
   GANTT_HEADER_PX,
   GANTT_NAME_COL_PX,
@@ -1063,20 +1064,41 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
     try { return isRawPingsDebugEnabled(); } catch { return false; }
   }, [ganttDebug]);
   const { organizationId: diagOrgId } = useCurrentOrg();
-  // GPS-evidence guard: hämta råa pings när minst en staff i listan saknar
-  // renderbar arbetstid, så att vi kan visa en diskret evidence-bar i Gantt
-  // även när V2/allocation/legacy alla säger "tomt". Detta skapar ALDRIG
-  // arbetstid — det visar bara att systemet har platsdata.
-  const someStaffMissingRenderedWork = useMemo(
-    () => staffList.some((s) => (blocksByStaff[s.id]?.length ?? 0) === 0),
-    [staffList, blocksByStaff],
-  );
+  // (Tidigare gate `someStaffMissingRenderedWork` borttagen — rawPings
+  // hämtas nu alltid för aktiv personal-lista så att telefonikonen kan
+  // visa app-health per rad. Skapar fortfarande ALDRIG arbetstid.)
   const { data: rawPingsData } = useRawStaffPingsDebug({
     organizationId: diagOrgId,
     date: dateStr,
     includeRows: false,
-    enabled: diagnosticsEnabled || someStaffMissingRenderedWork,
+    // Alltid på när det finns personal — vi behöver appHealth-summary för
+    // telefonikonen per rad (StaffAppStatusPopover) utöver diagnos-badgen.
+    enabled: staffList.length > 0,
   });
+  const appHealthByStaff = useMemo(() => {
+    const map = new Map<string, StaffAppHealthSummary | null>();
+    for (const e of rawPingsData?.perStaff ?? []) {
+      const h = e.appHealth;
+      if (!h) {
+        map.set(e.staffId, null);
+        continue;
+      }
+      map.set(e.staffId, {
+        lastAppVersion: h.lastAppVersion ?? null,
+        lastAppBuild: h.lastAppBuild ?? null,
+        lastOsVersion: h.lastOsVersion ?? null,
+        lastDeviceModel: h.lastDeviceModel ?? null,
+        lastAppId: h.lastAppId ?? null,
+        lastAppHealthAt: h.lastAppHealthAt ?? null,
+        lastGpsAt: h.lastGpsAt ?? null,
+        lastPlatform: h.lastPlatform ?? null,
+        lastAppSeenAt: h.lastAppSeenAt ?? null,
+        lastEventType: h.lastEventType ?? null,
+        heartbeatMissing: h.heartbeatMissing ?? false,
+      });
+    }
+    return map;
+  }, [rawPingsData?.perStaff]);
   const diagnosisByStaff = useMemo(() => {
     const map = new Map<string, ReportDataGapDiagnosis>();
     if (!diagnosticsEnabled) return map;
@@ -1824,8 +1846,14 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                           </div>
                           {/* Namn + meta */}
                           <div className="min-w-0 flex-1">
-                            <div className="truncate text-[13px] font-semibold leading-tight">
-                              {staff.name}
+                            <div className="flex items-center gap-1.5">
+                              <div className="truncate text-[13px] font-semibold leading-tight">
+                                {staff.name}
+                              </div>
+                              <StaffAppStatusPopover
+                                staffName={staff.name}
+                                appHealth={appHealthByStaff.get(staff.id) ?? null}
+                              />
                             </div>
                             <div className="mt-0.5 flex items-center gap-2 text-[10px] tabular-nums text-muted-foreground">
                               {(() => {
