@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { sv } from 'date-fns/locale';
+import { format, parseISO } from 'date-fns';
 import { Lock, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 
 import { Calendar } from '@/components/ui/calendar';
@@ -34,6 +35,8 @@ interface Props {
   onChange: (next: PlanningDay[]) => void;
   inheritedTeamId: string;
   teamOptions: TeamOption[];
+  focusedDate: string | null;
+  onFocusedDateChange: (iso: string | null) => void;
 }
 
 const PHASES: DayKind[] = ['rig', 'event', 'rigDown'];
@@ -62,6 +65,8 @@ export const PhaseDatesEditor: React.FC<Props> = ({
   onChange,
   inheritedTeamId,
   teamOptions,
+  focusedDate,
+  onFocusedDateChange,
 }) => {
   const [step, setStep] = useState<DayKind>('rig');
   const stepIndex = PHASES.indexOf(step);
@@ -128,6 +133,8 @@ export const PhaseDatesEditor: React.FC<Props> = ({
         onChange={onChange}
         inheritedTeamId={inheritedTeamId}
         teamOptions={teamOptions}
+        focusedDate={focusedDate}
+        onFocusedDateChange={onFocusedDateChange}
       />
 
       <div className="flex items-center justify-between pt-1">
@@ -166,7 +173,9 @@ const PhaseBlock: React.FC<{
   onChange: (next: PlanningDay[]) => void;
   inheritedTeamId: string;
   teamOptions: TeamOption[];
-}> = ({ phase, booking, days, onChange, inheritedTeamId, teamOptions }) => {
+  focusedDate: string | null;
+  onFocusedDateChange: (iso: string | null) => void;
+}> = ({ phase, booking, days, onChange, inheritedTeamId, teamOptions, focusedDate, onFocusedDateChange }) => {
   const locked = isPhaseLocked(booking, phase);
 
   const phaseDays = useMemo(
@@ -176,9 +185,26 @@ const PhaseBlock: React.FC<{
 
   const selectedDates = useMemo(() => phaseDays.map((d) => parseIsoLocal(d.date)), [phaseDays]);
 
-  // Tiderna är gemensamma per fas: visa första dagens tid och uppdatera alla
-  const start = phaseDays[0]?.startTime ?? DEFAULTS[phase].start;
-  const end = phaseDays[0]?.endTime ?? DEFAULTS[phase].end;
+  // Auto-fokusera första dagen i fasen om inget eller annan fas valt
+  useEffect(() => {
+    if (phaseDays.length === 0) {
+      if (focusedDate !== null) onFocusedDateChange(null);
+      return;
+    }
+    const focusInPhase = phaseDays.some((d) => d.date === focusedDate);
+    if (!focusInPhase) onFocusedDateChange(phaseDays[0].date);
+  }, [phase, phaseDays, focusedDate, onFocusedDateChange]);
+
+  const focusedIdx = Math.max(
+    0,
+    phaseDays.findIndex((d) => d.date === focusedDate),
+  );
+  const focusedDay = phaseDays[focusedIdx];
+
+  // Tider/team för den FOKUSERADE dagen (eller defaults om ingen vald än)
+  const start = focusedDay?.startTime ?? DEFAULTS[phase].start;
+  const end = focusedDay?.endTime ?? DEFAULTS[phase].end;
+  const teamId = focusedDay?.teamId ?? inheritedTeamId;
 
   const setDates = (next: Date[] | undefined) => {
     const nextIso = new Set((next ?? []).map(fmtIso));
@@ -186,33 +212,66 @@ const PhaseBlock: React.FC<{
 
     // Behåll dem som fortsatt är valda; lägg till nya
     let nextDays = days.filter((d) => d.kind !== phase || nextIso.has(d.date));
+    let lastAdded: string | null = null;
     for (const iso of nextIso) {
       if (!existingIso.has(iso)) {
+        // Ärver tid/team från första befintliga dagen i fasen, eller defaults
         nextDays = insertDaySorted(nextDays, {
           date: iso,
           kind: phase,
-          startTime: start,
-          endTime: end,
+          startTime: phaseDays[0]?.startTime ?? DEFAULTS[phase].start,
+          endTime: phaseDays[0]?.endTime ?? DEFAULTS[phase].end,
           teamId: phaseDays[0]?.teamId ?? inheritedTeamId,
         });
+        lastAdded = iso;
       }
     }
     onChange(nextDays);
+
+    // Fokusera den nyligen tillagda dagen (hjälper användaren planera dag för dag)
+    if (lastAdded) onFocusedDateChange(lastAdded);
+    else if (focusedDate && !nextIso.has(focusedDate)) {
+      // Den fokuserade dagen togs bort — välj första kvarvarande
+      const remaining = phaseDays.filter((d) => nextIso.has(d.date));
+      onFocusedDateChange(remaining[0]?.date ?? null);
+    }
   };
 
-
-
+  // Tider/team patchar ENDAST den fokuserade dagen
   const setStart = (v: string) => {
-    onChange(days.map((d) => (d.kind === phase ? { ...d, startTime: v } : d)));
+    if (!focusedDay) return;
+    onChange(days.map((d) => (d.date === focusedDay.date && d.kind === phase ? { ...d, startTime: v } : d)));
   };
   const setEnd = (v: string) => {
-    onChange(days.map((d) => (d.kind === phase ? { ...d, endTime: v } : d)));
+    if (!focusedDay) return;
+    onChange(days.map((d) => (d.date === focusedDay.date && d.kind === phase ? { ...d, endTime: v } : d)));
   };
   const setTeam = (v: string) => {
-    onChange(days.map((d) => (d.kind === phase ? { ...d, teamId: v } : d)));
+    if (!focusedDay) return;
+    onChange(days.map((d) => (d.date === focusedDay.date && d.kind === phase ? { ...d, teamId: v } : d)));
   };
 
-  const teamId = phaseDays[0]?.teamId ?? inheritedTeamId;
+  const applyToAllInPhase = () => {
+    if (!focusedDay) return;
+    onChange(
+      days.map((d) =>
+        d.kind === phase
+          ? { ...d, startTime: focusedDay.startTime, endTime: focusedDay.endTime, teamId: focusedDay.teamId }
+          : d,
+      ),
+    );
+  };
+
+  const gotoPrev = () => {
+    if (phaseDays.length === 0) return;
+    const idx = (focusedIdx - 1 + phaseDays.length) % phaseDays.length;
+    onFocusedDateChange(phaseDays[idx].date);
+  };
+  const gotoNext = () => {
+    if (phaseDays.length === 0) return;
+    const idx = (focusedIdx + 1) % phaseDays.length;
+    onFocusedDateChange(phaseDays[idx].date);
+  };
 
   // Default-månad: första valda dagen, annars bokningens fas-starttid, annars idag
   const bookingPhaseDate = useMemo(() => {
@@ -265,58 +324,105 @@ const PhaseBlock: React.FC<{
         />
       </div>
 
+      {/* Dag-navigator: planera EN dag i taget */}
+      {phaseDays.length > 0 && (
+        <div className="rounded border border-primary/30 bg-primary/5 p-2 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0"
+              onClick={gotoPrev}
+              disabled={phaseDays.length < 2}
+              aria-label="Föregående dag"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="text-center">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                Dag {focusedIdx + 1} av {phaseDays.length}
+              </div>
+              <div className="text-xs font-semibold">
+                {focusedDay ? format(parseISO(focusedDay.date), 'EEE d MMM yyyy', { locale: sv }) : '—'}
+              </div>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0"
+              onClick={gotoNext}
+              disabled={phaseDays.length < 2}
+              aria-label="Nästa dag"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
 
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-[10px] text-muted-foreground">Start</Label>
+              <Select value={start} onValueChange={setStart} disabled={locked}>
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {TIME_OPTIONS.map((t) => (
+                    <SelectItem key={t} value={t} className="text-xs">
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">Slut</Label>
+              <Select value={end} onValueChange={setEnd} disabled={locked}>
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {TIME_OPTIONS.map((t) => (
+                    <SelectItem key={t} value={t} className="text-xs">
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
+          <div>
+            <Label className="text-[10px] text-muted-foreground">Team</Label>
+            <Select value={teamId} onValueChange={setTeam} disabled={locked}>
+              <SelectTrigger className="h-7 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-h-72">
+                {teamOptions.map((t) => (
+                  <SelectItem key={t.id} value={t.id} className="text-xs">
+                    {t.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <Label className="text-[10px] text-muted-foreground">Start</Label>
-          <Select value={start} onValueChange={setStart} disabled={locked}>
-            <SelectTrigger className="h-7 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="max-h-72">
-              {TIME_OPTIONS.map((t) => (
-                <SelectItem key={t} value={t} className="text-xs">
-                  {t}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {phaseDays.length > 1 && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-6 w-full text-[10px]"
+              onClick={applyToAllInPhase}
+              disabled={locked}
+            >
+              Använd samma tid/team för alla {phaseDays.length} dagarna
+            </Button>
+          )}
         </div>
-        <div>
-          <Label className="text-[10px] text-muted-foreground">Slut</Label>
-          <Select value={end} onValueChange={setEnd} disabled={locked}>
-            <SelectTrigger className="h-7 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="max-h-72">
-              {TIME_OPTIONS.map((t) => (
-                <SelectItem key={t} value={t} className="text-xs">
-                  {t}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <div>
-        <Label className="text-[10px] text-muted-foreground">Team</Label>
-        <Select value={teamId} onValueChange={setTeam} disabled={locked}>
-          <SelectTrigger className="h-7 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="max-h-72">
-            {teamOptions.map((t) => (
-              <SelectItem key={t.id} value={t.id} className="text-xs">
-                {t.title}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      )}
     </div>
   );
 };
