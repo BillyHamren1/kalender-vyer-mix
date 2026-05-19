@@ -37,6 +37,7 @@ const StaffManagement = lazyWithRecovery(() => import("./pages/StaffManagement")
 const TimeReportApprovals = lazyWithRecovery(() => import("./pages/TimeReportApprovals"));
 const StaffTimeReports = lazyWithRecovery(() => import("./pages/StaffTimeReports"));
 const StaffTimeReportDay = lazyWithRecovery(() => import("./pages/StaffTimeReportDay"));
+const StaffTimeReportMonth = lazyWithRecovery(() => import("./pages/StaffTimeReportMonth"));
 const AdminTimeReview = lazyWithRecovery(() => import("./pages/AdminTimeReview"));
 const StaffDetail = lazyWithRecovery(() => import("./pages/StaffDetail"));
 const BookingDetail = lazyWithRecovery(() => import("./pages/BookingDetail"));
