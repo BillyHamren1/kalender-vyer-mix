@@ -150,16 +150,21 @@ Deno.serve(async (req) => {
   if (!lock.locked) {
     try {
       const url = `${SUPABASE_URL}/functions/v1/day-timeline-engine`;
+      const engineSecret = Deno.env.get("CRON_SECRET") ?? "";
       const resp = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${SERVICE_ROLE}`,
+          // day-timeline-engine kräver antingen user-JWT eller x-engine-secret;
+          // service-role bearer räcker inte — använd CRON_SECRET för server-till-server.
+          ...(engineSecret ? { "x-engine-secret": engineSecret } : {}),
         },
         body: JSON.stringify({
           action: "compute",
-          staffId: parsed.staffId,
+          staff_id: parsed.staffId,
           date: parsed.date,
+          force: true,
           reason: `rebuild:${parsed.reason}`,
         }),
       });
