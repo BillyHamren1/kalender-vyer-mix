@@ -248,7 +248,12 @@ function WhyReview({ block }: { block: ReportCandidateBlockUI }) {
   if (!block.targetId && !block.targetLabel) hints.push('Inget target kunde matchas.');
   if ((ev.confirmedMinutes ?? 0) === 0) hints.push('Inga bekräftade minuter (alla pings sannolika/saknas).');
   if ((ev.signalGapMinutes ?? 0) > 0) hints.push(`Signalglapp inom blocket: ${ev.signalGapMinutes}m.`);
-  if ((ev.presenceBlockCount ?? 0) === 0) hints.push('Inga underliggande närvaro-block.');
+  const actualSourceCount = block.sourcePresenceBlockIds?.length ?? 0;
+  if (actualSourceCount === 0) hints.push('Inga underliggande närvaro-block.');
+  if ((ev.presenceBlockCount ?? 0) !== actualSourceCount) {
+    hints.push(`Evidence-count mismatch: summary ${ev.presenceBlockCount ?? 0}, sourceIds ${actualSourceCount}`);
+  }
+  if (block.hiddenReason) hints.push(`Suppressad — ${block.hiddenReason}`);
   return (
     <div className="rounded-md border border-amber-300 bg-amber-50/70 p-2 text-[11px] text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
       <div className="mb-1 flex items-center gap-1.5 font-medium">
