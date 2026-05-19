@@ -210,6 +210,14 @@ export function PayrollPeriodReportTable({ periodId }: Props) {
         </AlertDialogContent>
       </AlertDialog>
 
+      <PayrollPeriodApprovalPanel
+        periodId={period.id}
+        isLocked={isLocked}
+        approvedAt={(period as any).approved_for_payout_at ?? null}
+      />
+
+
+
       {groups.length === 0 ? (
         <Card className="p-8 text-center text-muted-foreground">
           Inga inskickade dagrapporter i perioden.
