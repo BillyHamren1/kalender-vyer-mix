@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
-import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { Calendar as CalIcon, X, Lock } from 'lucide-react';
+import { Lock } from 'lucide-react';
+
 import { Calendar } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
@@ -124,9 +124,7 @@ const PhaseBlock: React.FC<{
     onChange(nextDays);
   };
 
-  const removeDate = (iso: string) => {
-    onChange(days.filter((d) => !(d.kind === phase && d.date === iso)));
-  };
+
 
   const setStart = (v: string) => {
     onChange(days.map((d) => (d.kind === phase ? { ...d, startTime: v } : d)));
@@ -140,8 +138,22 @@ const PhaseBlock: React.FC<{
 
   const teamId = phaseDays[0]?.teamId ?? inheritedTeamId;
 
-  // Default-månad för kalendervisning: första valda dagen eller idag
-  const defaultMonth = selectedDates[0] ?? new Date();
+  // Default-månad: första valda dagen, annars bokningens fas-starttid, annars idag
+  const bookingPhaseDate = useMemo(() => {
+    const field =
+      phase === 'rig'
+        ? 'rig_start_time'
+        : phase === 'event'
+          ? 'event_start_time'
+          : 'rigdown_start_time';
+    const raw = booking?.[field];
+    if (!raw) return null;
+    const d = new Date(raw);
+    return isNaN(d.getTime()) ? null : d;
+  }, [booking, phase]);
+
+  const defaultMonth = selectedDates[0] ?? bookingPhaseDate ?? new Date();
+  const monthKey = `${defaultMonth.getFullYear()}-${defaultMonth.getMonth()}`;
 
   return (
     <div className="rounded border border-border/40 bg-muted/10 p-2 space-y-2">
@@ -165,6 +177,7 @@ const PhaseBlock: React.FC<{
 
       <div className="rounded border border-border/40 bg-card overflow-hidden">
         <Calendar
+          key={monthKey}
           mode="multiple"
           selected={selectedDates}
           onSelect={(next) => !locked && setDates(next as Date[] | undefined)}
@@ -176,36 +189,9 @@ const PhaseBlock: React.FC<{
         />
       </div>
 
-      {phaseDays.length === 0 ? (
-        <div className="text-[11px] text-muted-foreground italic px-1">Inga datum valda</div>
-      ) : (
-        <div className="flex flex-wrap gap-1">
-          {phaseDays.map((d) => (
-            <Badge
-              key={d.date}
-              variant="secondary"
-              className="h-6 pl-2 pr-1 text-[11px] gap-1 font-normal"
-            >
-              <CalIcon className="h-3 w-3" />
-              {(() => {
-                try {
-                  return format(parseISO(d.date), 'EEE d MMM', { locale: sv });
-                } catch {
-                  return d.date;
-                }
-              })()}
-              <button
-                type="button"
-                onClick={() => removeDate(d.date)}
-                className="ml-0.5 rounded hover:bg-destructive/20 p-0.5"
-                aria-label="Ta bort datum"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))}
-        </div>
-      )}
+
+
+
 
       <div className="grid grid-cols-2 gap-2">
         <div>
