@@ -453,7 +453,9 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
                   )}
                 </div>
               </div>
+              </div>
             </div>
+
           )}
         </div>
 
