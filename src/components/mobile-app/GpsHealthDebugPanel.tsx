@@ -104,9 +104,23 @@ export const GpsHealthDebugPanel: React.FC<Props> = ({ debug }) => {
 
   if (!enabled) return null;
 
+  const buildState = classifyAppBuild(buildInfo?.appBuild ?? null);
+  const buildBadge =
+    buildState === 'missing'
+      ? ' ⚠ saknas — installera om'
+      : buildState === 'outdated'
+        ? ` ⚠ gammal (väntat ${CURRENT_EXPECTED_APP_BUILD})`
+        : '';
+
   const rows: Array<[string, string]> = [
     ['staffId', staff?.id ?? '—'],
     ['orgId', (() => { try { const r = localStorage.getItem('eventflow-mobile-staff'); return r ? (JSON.parse(r)?.organization_id ?? '—') : '—'; } catch { return '—'; } })()],
+    ['appVersion', (buildInfo?.appVersion ?? 'okänd') + buildBadge],
+    ['appBuild', buildInfo?.appBuild ?? 'okänd'],
+    ['platform', buildInfo?.platform ?? 'okänd'],
+    ['osVersion', buildInfo?.osVersion ?? '—'],
+    ['deviceModel', buildInfo?.deviceModel ?? '—'],
+    ['appId', buildInfo?.appId ?? '—'],
     ['permission', permission ?? 'okänd'],
     ['isNativePlatform', String(debug.isNativePlatform)],
     ['appVisibilityState', debug.appVisibilityState],
