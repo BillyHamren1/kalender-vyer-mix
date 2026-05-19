@@ -3759,8 +3759,10 @@ export function buildReportCandidateBlocks(
       examples: input.workAreaToleranceFromGps?.examples ?? [],
     },
     singleTimelineDiagnostics: singleTimelineDiag,
+    signalGapSuppressionDiagnostics,
   };
   for (const r of out) {
+    if (r.hiddenReason) continue;
     if (r.kind === 'work') {
       summary.workBlocksCount += 1;
       summary.workMinutes += r.durationMinutes;
