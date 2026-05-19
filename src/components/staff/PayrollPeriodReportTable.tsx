@@ -1,8 +1,19 @@
-import { Fragment } from "react";
-import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { Fragment, useMemo, useState } from "react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Table,
   TableBody,
@@ -16,6 +27,7 @@ import {
   type PayrollPeriodReportGroup,
   type PayrollPeriodReportRow,
 } from "@/hooks/staff/usePayrollPeriods";
+import { useApprovePayrollPeriodDays } from "@/hooks/staff/useApprovePayrollPeriodDays";
 
 function fmtDuration(min: number | null | undefined): string {
   if (min == null) return "—";
