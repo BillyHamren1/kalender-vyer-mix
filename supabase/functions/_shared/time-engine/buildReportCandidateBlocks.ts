@@ -1406,7 +1406,11 @@ export function buildReportCandidateBlocks(
     // ── SIGNAL_GAP / UNCERTAIN_TRANSITION
     if (b.kind === 'signal_gap' || b.kind === 'uncertain_transition') {
       // Try to bridge inside the current work block: same target returns later?
-      if (acc && acc.kind === 'work') {
+      // Hard cap: a single signal_gap longer than maxWorkBridgeMinutes (default
+      // 120 min) is NEVER bridged — staff almost certainly went elsewhere
+      // (home) between two short arrivals. Two separate work blocks instead,
+      // with the gap exposed as needs_review / transport via the lone-gap path.
+      if (acc && acc.kind === 'work' && b.durationMinutes <= policy.maxWorkBridgeMinutes) {
         const ret = findSameTargetReturn(blocks, i + 1, acc, policy);
         if (ret >= 0) {
           // Absorb everything from i..ret-1 as bridge inside work, then the
@@ -1420,6 +1424,7 @@ export function buildReportCandidateBlocks(
           continue;
         }
       }
+
 
       // No same-target return → close current work
       flush();
