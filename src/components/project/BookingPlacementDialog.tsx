@@ -425,7 +425,7 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-4">
-              {/* Vänster: dagvy + planeringsformulär — döljs när vi länkar till befintligt LP */}
+              {/* Vänster: planering via kalender */}
               <div className="space-y-3 min-w-0">
                 {linkingToExistingLarge ? (
                   <div className="rounded-lg border border-primary/30 bg-primary/5 p-6 space-y-2">
@@ -446,180 +446,19 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
                     </p>
                   </div>
                 ) : (
-                <>
-                {/* Åtgärdsrad: lägg till rig/demonteringsdag */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleAddDay('rig')}
-                    className="h-8 text-xs"
-                  >
-                    <Plus className="h-3.5 w-3.5 mr-1" /> Lägg till riggdag
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleAddDay('rigDown')}
-                    className="h-8 text-xs"
-                  >
-                    <Plus className="h-3.5 w-3.5 mr-1" /> Lägg till demonteringsdag
-                  </Button>
-                  <span className="text-[11px] text-muted-foreground ml-1">
-                    {planSteps.length} dag{planSteps.length === 1 ? '' : 'ar'} att planera
-                  </span>
-                </div>
-
-                {currentDay ? (
-                  <>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline">{phaseLabel(currentDay.kind)}</Badge>
-                        <Badge variant="secondary">
-                          {teamOptions.find((t) => t.id === currentDay.teamId)?.title || 'Välj team'}
-                        </Badge>
-                        <span className="text-sm font-medium">
-                          {(() => {
-                            try {
-                              return format(parseISO(currentDay.date), 'EEEE d MMMM yyyy', {
-                                locale: sv,
-                              });
-                            } catch {
-                              return currentDay.date;
-                            }
-                          })()}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {phaseLockedForCurrent && (
-                          <Badge
-                            variant="outline"
-                            className="border-red-400 text-red-700 bg-red-50 text-[10px]"
-                          >
-                            Fast tid från bokning
-                          </Badge>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={handleRemoveCurrent}
-                          disabled={phaseLockedForCurrent || planSteps.length <= 1}
-                          className="h-7 text-xs text-red-700 border-red-300 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-3.5 w-3.5 mr-1" /> Ta bort dag
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Team</Label>
-                          <p className="text-sm font-medium">Välj vilket team blocket ska placeras i</p>
-                        </div>
-                        <Badge variant="outline">
-                          {teamOptions.find((t) => t.id === currentDay.teamId)?.title || 'Inget team valt'}
-                        </Badge>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-6">
-                        {teamOptions.map((team) => {
-                          const isSelected = team.id === currentDay.teamId;
-                          return (
-                            <Button
-                              key={team.id}
-                              type="button"
-                              variant={isSelected ? 'default' : 'outline'}
-                              onClick={() => updateCurrent({ teamId: team.id })}
-                              className="h-10 justify-between px-3 text-xs sm:text-sm"
-                              aria-pressed={isSelected}
-                            >
-                              <span>{team.title}</span>
-                              {isSelected ? <Check className="h-4 w-4" /> : null}
-                            </Button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <PlacementDayCalendar date={currentDay.date} />
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-lg border border-border/60 bg-card p-3">
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Datum</Label>
-                        <Input
-                          type="date"
-                          value={currentDay.date}
-                          onChange={(e) => updateCurrent({ date: e.target.value })}
-                          disabled={phaseLockedForCurrent}
-                          className="h-9"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Start</Label>
-                        <Input
-                          type="time"
-                          value={currentDay.startTime}
-                          onChange={(e) => updateCurrent({ startTime: e.target.value })}
-                          disabled={phaseLockedForCurrent}
-                          className="h-9"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Slut</Label>
-                        <Input
-                          type="time"
-                          value={currentDay.endTime}
-                          onChange={(e) => updateCurrent({ endTime: e.target.value })}
-                          disabled={phaseLockedForCurrent}
-                          className="h-9"
-                        />
-                      </div>
-                      <div className="sm:col-span-3">
-                        <Label className="text-xs text-muted-foreground">Team</Label>
-                        <Select
-                          value={currentDay.teamId}
-                          onValueChange={(v) => updateCurrent({ teamId: v })}
-                        >
-                          <SelectTrigger className="h-9">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {teamOptions.map((t) => (
-                              <SelectItem key={t.id} value={t.id}>
-                                {t.title}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="rounded-lg border border-border/60 p-6 text-center text-muted-foreground text-sm">
-                    Bokningen saknar rig- och demonteringsdatum — inget att planera.
-                  </div>
-                )}
-                </>
+                  <PhaseDatesEditor
+                    booking={booking}
+                    days={days}
+                    onChange={setDays}
+                    inheritedTeamId={inheritedTeamId}
+                    teamOptions={teamOptions}
+                  />
                 )}
               </div>
 
-              {/* Höger: bokningsinfo + datum/tids-editor + projekttyp */}
+              {/* Höger: bokningsinfo + projekttyp */}
               <div className="space-y-3 min-w-0">
                 <BookingInfoHeader booking={booking} hideTimes />
-
-                <PhaseDatesEditor
-                  booking={booking}
-                  days={days}
-                  onChange={(next) => {
-                    setDays(next);
-                    // Klampa stepIndex om dagar tagits bort
-                    const planLen = next.filter((d) => d.kind !== 'event').length;
-                    if (stepIndex >= planLen) setStepIndex(Math.max(0, planLen - 1));
-                  }}
-                  inheritedTeamId={inheritedTeamId}
-                  teamOptions={teamOptions}
-                />
-
 
                 <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3">
                   <label className="flex items-start gap-2 cursor-pointer">
@@ -687,6 +526,7 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
             </div>
           )}
         </div>
+
 
         <DialogFooter className="flex !justify-between gap-2 pt-2 border-t border-border/40">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
