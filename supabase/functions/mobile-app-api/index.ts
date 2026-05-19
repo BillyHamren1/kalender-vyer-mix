@@ -5411,6 +5411,9 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
   if (typeof app_version === 'string') appMetaUpdate.app_version = app_version
   if (typeof app_build === 'string') appMetaUpdate.app_build = app_build
   if (typeof app_platform === 'string') appMetaUpdate.app_platform = app_platform
+  if (typeof os_version === 'string') appMetaUpdate.os_version = os_version
+  if (typeof device_model === 'string') appMetaUpdate.device_model = device_model
+  if (typeof app_id === 'string') appMetaUpdate.app_id = app_id
 
   const { error } = await supabase
     .from('staff_locations')
