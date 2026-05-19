@@ -33,6 +33,10 @@ interface Body {
   appState?: string | null;
   platform?: string | null;
   appVersion?: string | null;
+  appBuild?: string | null;
+  osVersion?: string | null;
+  deviceModel?: string | null;
+  appId?: string | null;
   metadata?: Record<string, unknown> | null;
 }
 
