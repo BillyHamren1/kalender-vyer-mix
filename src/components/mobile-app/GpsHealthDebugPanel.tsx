@@ -54,6 +54,14 @@ export const GpsHealthDebugPanel: React.FC<Props> = ({ debug }) => {
   const [permission, setPermission] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<LocationSyncStatus>(getLocationSyncStatus());
   const [pendingCount, setPendingCount] = useState<number>(getPendingLocationPoints().length);
+  const [buildInfo, setBuildInfo] = useState<AppBuildInfo | null>(null);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    getAppBuildInfo().then((info) => { if (!cancelled) setBuildInfo(info); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [enabled]);
 
   // Tick var 2s så "ago"-fält uppdateras
   const [, setTick] = useState(0);
