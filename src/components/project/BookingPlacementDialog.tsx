@@ -137,6 +137,27 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
     [days, teamOptions],
   );
 
+  // Datum som ska visas i personalkalendern (vänster kolumn).
+  // Använd alla planerade dagar (rig/event/rigDown); om inga finns ännu,
+  // fall tillbaka till bokningens egna datumfält så kalendern öppnas på rätt vecka.
+  const calendarDates = useMemo<string[]>(() => {
+    const fromDays = days.map((d) => d.date);
+    if (fromDays.length > 0) {
+      return Array.from(new Set(fromDays)).sort();
+    }
+    const fallback: string[] = [];
+    const pushIso = (raw: unknown) => {
+      if (typeof raw !== 'string' || !raw) return;
+      // Acceptera 'yyyy-MM-dd' eller ISO med tid
+      const iso = raw.length >= 10 ? raw.slice(0, 10) : raw;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) fallback.push(iso);
+    };
+    pushIso(booking?.rigdaydate);
+    pushIso(booking?.eventdate);
+    pushIso(booking?.rigdowndate);
+    return Array.from(new Set(fallback)).sort();
+  }, [days, booking]);
+
 
 
   const handleFinish = async () => {
