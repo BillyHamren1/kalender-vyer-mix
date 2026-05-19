@@ -74,6 +74,10 @@ Deno.serve(async (req) => {
       appState = null,
       platform = null,
       appVersion = null,
+      appBuild = null,
+      osVersion = null,
+      deviceModel = null,
+      appId = null,
       metadata = {},
     } = body;
 
