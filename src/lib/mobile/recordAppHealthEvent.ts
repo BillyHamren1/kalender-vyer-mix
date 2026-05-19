@@ -9,7 +9,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { Capacitor } from '@capacitor/core';
 import { getBatterySnapshot } from './getBatterySnapshot';
-import { getAppMeta } from '@/services/appMeta';
+import { getAppBuildInfo } from './getAppBuildInfo';
 
 export type AppHealthEventType =
   | 'app_start'
