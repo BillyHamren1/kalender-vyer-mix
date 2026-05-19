@@ -12,6 +12,8 @@ import { ChevronDown } from 'lucide-react';
 interface Props {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   booking: any;
+  /** Göm read-only "Tider från bokning"-blocket (när en editor visas separat) */
+  hideTimes?: boolean;
 }
 
 const fmtDate = (s: string | null | undefined) => {
@@ -23,7 +25,7 @@ const fmtDate = (s: string | null | undefined) => {
   }
 };
 
-export const BookingInfoHeader: React.FC<Props> = ({ booking }) => {
+export const BookingInfoHeader: React.FC<Props> = ({ booking, hideTimes = false }) => {
   const bookingId = booking?.id;
 
   const { data: products } = useQuery({
@@ -138,14 +140,16 @@ export const BookingInfoHeader: React.FC<Props> = ({ booking }) => {
         </div>
       )}
 
-      <div className="rounded border border-border/40 bg-card p-2">
-        <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
-          Tider från bokning
+      {!hideTimes && (
+        <div className="rounded border border-border/40 bg-card p-2">
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+            Tider från bokning
+          </div>
+          {phaseRow('Riggning', booking.rigdaydate, 'rig')}
+          {phaseRow('Event', booking.eventdate, 'event')}
+          {phaseRow('Demont.', booking.rigdowndate, 'rigDown')}
         </div>
-        {phaseRow('Riggning', booking.rigdaydate, 'rig')}
-        {phaseRow('Event', booking.eventdate, 'event')}
-        {phaseRow('Demont.', booking.rigdowndate, 'rigDown')}
-      </div>
+      )}
 
       {(orderedProducts.length > 0) && (
         <Collapsible defaultOpen>
