@@ -399,7 +399,9 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
                     </p>
                   </div>
                 ) : (
-                  <PlacementDayCalendar dates={calendarDates} />
+                  <PlacementDayCalendar
+                    dates={focusedDate ? [focusedDate] : calendarDates}
+                  />
                 )}
               </div>
 
@@ -412,6 +414,8 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
                     onChange={setDays}
                     inheritedTeamId={inheritedTeamId}
                     teamOptions={teamOptions}
+                    focusedDate={focusedDate}
+                    onFocusedDateChange={setFocusedDate}
                   />
                 )}
 
