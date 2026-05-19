@@ -19,6 +19,16 @@ vi.mock('@/lib/mobile/getBatterySnapshot', () => ({
 vi.mock('@/services/appMeta', () => ({
   getAppMeta: vi.fn(async () => ({ app_version: '1.2.3', app_platform: 'ios' })),
 }));
+vi.mock('@/lib/mobile/getAppBuildInfo', () => ({
+  getAppBuildInfo: vi.fn(async () => ({
+    appVersion: '1.2.3',
+    appBuild: '1',
+    platform: 'ios',
+    osVersion: '17.0',
+    deviceModel: 'iPhone15,2',
+    appId: 'app.lovable.test',
+  })),
+}));
 vi.mock('@capacitor/core', () => ({
   Capacitor: { getPlatform: () => 'ios', isNativePlatform: () => true },
 }));
