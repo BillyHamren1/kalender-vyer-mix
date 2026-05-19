@@ -354,9 +354,9 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
           ) : (
             <div className="space-y-4">
               <BookingInfoHeader booking={booking} hideTimes />
-              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_400px] gap-4">
 
-              {/* Vänster: planering via kalender */}
+              {/* Vänster: personalkalendern (team-vy) — så man ser vilka team som är lediga */}
               <div className="space-y-3 min-w-0">
                 {linkingToExistingLarge ? (
                   <div className="rounded-lg border border-primary/30 bg-primary/5 p-6 space-y-2">
@@ -377,6 +377,13 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
                     </p>
                   </div>
                 ) : (
+                  <PlacementDayCalendar dates={calendarDates} />
+                )}
+              </div>
+
+              {/* Höger: månadsväljare + projekttyp */}
+              <div className="space-y-3 min-w-0">
+                {!linkingToExistingLarge && (
                   <PhaseDatesEditor
                     booking={booking}
                     days={days}
@@ -385,11 +392,6 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
                     teamOptions={teamOptions}
                   />
                 )}
-              </div>
-
-              {/* Höger: bokningsinfo + projekttyp */}
-              <div className="space-y-3 min-w-0">
-
 
                 <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3">
                   <label className="flex items-start gap-2 cursor-pointer">
