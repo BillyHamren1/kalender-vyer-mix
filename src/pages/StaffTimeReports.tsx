@@ -2079,6 +2079,14 @@ const StaffTimeReports: React.FC = () => {
       <div className="fixed bottom-3 right-3 z-40 flex items-center gap-2">
         <button
           type="button"
+          onClick={() => navigate('/staff-management/time-reports/month')}
+          className="flex items-center gap-1 rounded-full bg-primary text-primary-foreground px-3 py-1.5 text-xs shadow-lg hover:opacity-90"
+          title="Månadsvy per person"
+        >
+          <Clock className="h-3.5 w-3.5" /> Månadsvy per person
+        </button>
+        <button
+          type="button"
           onClick={handleExportTrace}
           disabled={exportingTrace || !canExportTrace}
           className="flex items-center gap-1 rounded-full bg-secondary text-secondary-foreground px-3 py-1.5 text-xs shadow-lg hover:opacity-90 disabled:opacity-60"
