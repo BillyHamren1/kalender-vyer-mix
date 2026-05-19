@@ -452,6 +452,12 @@ Deno.serve(async (req) => {
             lastIsCharging: h?.is_charging ?? null,
             lastPlatform: h?.platform ?? loc?.platform ?? null,
             lastAppVersion: h?.app_version ?? loc?.app_version ?? null,
+            lastAppBuild: h?.app_build ?? null,
+            lastOsVersion: h?.os_version ?? null,
+            lastDeviceModel: h?.device_model ?? null,
+            lastAppId: h?.app_id ?? null,
+            lastAppHealthAt: h?.occurred_at ?? null,
+            lastGpsAt: last?.recorded_at ?? null,
             // Nytt fält (bakåtkompatibelt — gamla klienter ignorerar det).
             lastAppSeenSource: newest.src,
             heartbeatMissing,
