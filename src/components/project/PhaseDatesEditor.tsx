@@ -134,6 +134,11 @@ const PhaseBlock: React.FC<{
   const setEnd = (v: string) => {
     onChange(days.map((d) => (d.kind === phase ? { ...d, endTime: v } : d)));
   };
+  const setTeam = (v: string) => {
+    onChange(days.map((d) => (d.kind === phase ? { ...d, teamId: v } : d)));
+  };
+
+  const teamId = phaseDays[0]?.teamId ?? inheritedTeamId;
 
   // Default-månad för kalendervisning: första valda dagen eller idag
   const defaultMonth = selectedDates[0] ?? new Date();
