@@ -64,6 +64,7 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
   const { teamResources } = useTeamResources();
 
   const [days, setDays] = useState<PlanningDay[]>([]);
+  const [focusedDate, setFocusedDate] = useState<string | null>(null);
   const [isLarge, setIsLarge] = useState(false);
   const [largeMode, setLargeMode] = useState<'new' | 'existing'>('new');
   const [largeNewName, setLargeNewName] = useState('');
@@ -398,7 +399,9 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
                     </p>
                   </div>
                 ) : (
-                  <PlacementDayCalendar dates={calendarDates} />
+                  <PlacementDayCalendar
+                    dates={focusedDate ? [focusedDate] : calendarDates}
+                  />
                 )}
               </div>
 
@@ -411,6 +414,8 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
                     onChange={setDays}
                     inheritedTeamId={inheritedTeamId}
                     teamOptions={teamOptions}
+                    focusedDate={focusedDate}
+                    onFocusedDateChange={setFocusedDate}
                   />
                 )}
 
