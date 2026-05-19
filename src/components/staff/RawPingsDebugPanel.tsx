@@ -9,6 +9,7 @@ import {
   describeReportDataGapStatus,
   type ReportDataGapDiagnosis,
 } from '@/lib/staff/reportDataGapDiagnostics';
+import { classifyAppBuild, CURRENT_EXPECTED_APP_BUILD } from '@/lib/mobile/expectedAppBuild';
 
 interface Props {
   organizationId: string | null;
