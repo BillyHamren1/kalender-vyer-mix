@@ -37,6 +37,7 @@ const StaffManagement = lazyWithRecovery(() => import("./pages/StaffManagement")
 const TimeReportApprovals = lazyWithRecovery(() => import("./pages/TimeReportApprovals"));
 const StaffTimeReports = lazyWithRecovery(() => import("./pages/StaffTimeReports"));
 const StaffDayReportsAdmin = lazyWithRecovery(() => import("./pages/StaffDayReportsAdmin"));
+const StaffPayrollPeriods = lazyWithRecovery(() => import("./pages/StaffPayrollPeriods"));
 const StaffTimeReportDay = lazyWithRecovery(() => import("./pages/StaffTimeReportDay"));
 const StaffTimeReportMonth = lazyWithRecovery(() => import("./pages/StaffTimeReportMonth"));
 const AdminTimeReview = lazyWithRecovery(() => import("./pages/AdminTimeReview"));
@@ -312,6 +313,7 @@ const WebRoutes: React.FC = () => {
               <Route path="/staff-management/time-approvals" element={<TimeReportApprovals />} />
               <Route path="/staff-management/time-reports" element={<StaffTimeReports />} />
               <Route path="/staff-management/day-reports" element={<StaffDayReportsAdmin />} />
+              <Route path="/staff-management/payroll-periods" element={<StaffPayrollPeriods />} />
               <Route path="/staff-management/time-reports/month" element={<StaffTimeReportMonth />} />
               <Route path="/staff-management/time-reports/month/:staffId" element={<StaffTimeReportMonth />} />
               <Route path="/staff-management/time-reports/:staffId" element={<StaffTimeReportDay />} />
