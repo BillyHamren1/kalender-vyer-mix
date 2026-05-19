@@ -637,6 +637,12 @@ const blocksFromStaff = (
     };
 
     const processBlock = (b: ReportCandidateBlockUI, isPreWork: boolean) => {
+      // Time Engine 4.x — hiddenReason-block får aldrig renderas i Gantt.
+      // Backend flaggar dem (open_day_signal_gap_without_presence, pre_first_gps_signal_gap,
+      // short_onsite_anchor_noise) men de ligger kvar i cache för diagnostics.
+      if ((b as any).hiddenReason) {
+        return;
+      }
       if (isPrivateHomeBlock(b as any)) {
         privateHomeBlocksSuppressedCount += 1;
         return;
