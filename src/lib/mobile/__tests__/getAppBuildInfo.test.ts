@@ -35,8 +35,8 @@ describe('getAppBuildInfo (web fallback)', () => {
   it('never throws even if navigator is missing', async () => {
     _resetAppBuildInfoCacheForTests();
     const originalNav = globalThis.navigator;
-    // @ts-expect-error - simulate missing navigator
-    delete globalThis.navigator;
+    // simulate missing navigator
+    (globalThis as { navigator?: Navigator }).navigator = undefined as unknown as Navigator;
     await expect(getAppBuildInfo()).resolves.toBeDefined();
     globalThis.navigator = originalNav;
   });
