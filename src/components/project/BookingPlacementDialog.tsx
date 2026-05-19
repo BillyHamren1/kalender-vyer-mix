@@ -607,9 +607,22 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
                 )}
               </div>
 
-              {/* Höger: bokningsinfo + projekttyp */}
+              {/* Höger: bokningsinfo + datum/tids-editor + projekttyp */}
               <div className="space-y-3 min-w-0">
-                <BookingInfoHeader booking={booking} />
+                <BookingInfoHeader booking={booking} hideTimes />
+
+                <PhaseDatesEditor
+                  booking={booking}
+                  days={days}
+                  onChange={(next) => {
+                    setDays(next);
+                    // Klampa stepIndex om dagar tagits bort
+                    const planLen = next.filter((d) => d.kind !== 'event').length;
+                    if (stepIndex >= planLen) setStepIndex(Math.max(0, planLen - 1));
+                  }}
+                  inheritedTeamId={inheritedTeamId}
+                />
+
 
                 <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3">
                   <label className="flex items-start gap-2 cursor-pointer">
