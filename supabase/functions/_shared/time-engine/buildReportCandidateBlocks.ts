@@ -724,7 +724,13 @@ export interface ReportCandidatePolicy {
    *  inherited if both sides match, otherwise unlabeled work) when its
    *  duration is ≤ this. Default 90 min. Set to 0 to disable. */
   sandwichInferWorkMaxMinutes?: number;
+  /** Maximum length of a single signal_gap that may be absorbed as a "same-target
+   *  bridge" inside a work block. Gaps longer than this are NOT bridged — they
+   *  split the work into two separate blocks (e.g. arrived briefly → went home
+   *  → came back). Default 120 min. */
+  maxWorkBridgeMinutes?: number;
 }
+
 
 export interface HomeAnchorInput {
   /** Identifier from staff_inferred_home_locations / staff_private_zones. */
