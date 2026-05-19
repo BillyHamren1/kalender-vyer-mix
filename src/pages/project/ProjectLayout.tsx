@@ -1,5 +1,7 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useParams, useNavigate, Outlet, useLocation, Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MapPin, Pencil, FolderKanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -112,14 +114,51 @@ const ProjectLayout = () => {
     );
   }
 
+  // Fallback: medium-projektet hittades inte. Kanske är det egentligen ett stort projekt
+  // (eller en bokning som redan migrerats) — kolla då upp och redirecta istället för att visa fel.
+  const lpFallback = useQuery({
+    queryKey: ['project-fallback-large', projectId],
+    queryFn: async () => {
+      if (!projectId) return null;
+      // Är id:t ett stort projekt direkt?
+      const lp = await supabase.from('large_projects').select('id').eq('id', projectId).maybeSingle();
+      if (lp.data?.id) return { type: 'large' as const, id: lp.data.id };
+      // Eller är id:t en bokning som hör till ett stort projekt?
+      const b = await supabase.from('bookings').select('large_project_id, assigned_project_id').eq('id', projectId).maybeSingle();
+      if (b.data?.large_project_id) return { type: 'large' as const, id: b.data.large_project_id };
+      if (b.data?.assigned_project_id && b.data.assigned_project_id !== projectId) {
+        return { type: 'medium' as const, id: b.data.assigned_project_id };
+      }
+      return null;
+    },
+    enabled: !isLoading && !project && !!projectId,
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    const target = lpFallback.data;
+    if (!target) return;
+    if (target.type === 'large') navigate(`/large-project/${target.id}`, { replace: true });
+    else navigate(`/project/${target.id}`, { replace: true });
+  }, [lpFallback.data, navigate]);
+
   if (!project) {
     return (
       <div className="container mx-auto px-4 py-8 text-center">
-        <h2 className="text-xl font-semibold mb-4">Projektet hittades inte</h2>
-        <Button onClick={() => navigate(-1)}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Tillbaka
-        </Button>
+        {lpFallback.isLoading ? (
+          <p className="text-muted-foreground">Letar projekt…</p>
+        ) : (
+          <>
+            <h2 className="text-xl font-semibold mb-4">Projektet hittades inte</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Det kan ha tagits bort, konverterats till ett stort projekt eller ligga under en annan bokning.
+            </p>
+            <Button onClick={() => navigate(-1)}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Tillbaka
+            </Button>
+          </>
+        )}
       </div>
     );
   }
