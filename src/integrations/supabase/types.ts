@@ -5540,47 +5540,59 @@ export type Database = {
       }
       staff_app_health_events: {
         Row: {
+          app_build: string | null
+          app_id: string | null
           app_state: string | null
           app_version: string | null
           battery_level: number | null
           battery_percent: number | null
           created_at: string
+          device_model: string | null
           event_type: string
           id: string
           is_charging: boolean | null
           metadata: Json
           occurred_at: string
           organization_id: string
+          os_version: string | null
           platform: string | null
           staff_id: string
         }
         Insert: {
+          app_build?: string | null
+          app_id?: string | null
           app_state?: string | null
           app_version?: string | null
           battery_level?: number | null
           battery_percent?: number | null
           created_at?: string
+          device_model?: string | null
           event_type: string
           id?: string
           is_charging?: boolean | null
           metadata?: Json
           occurred_at: string
           organization_id: string
+          os_version?: string | null
           platform?: string | null
           staff_id: string
         }
         Update: {
+          app_build?: string | null
+          app_id?: string | null
           app_state?: string | null
           app_version?: string | null
           battery_level?: number | null
           battery_percent?: number | null
           created_at?: string
+          device_model?: string | null
           event_type?: string
           id?: string
           is_charging?: boolean | null
           metadata?: Json
           occurred_at?: string
           organization_id?: string
+          os_version?: string | null
           platform?: string | null
           staff_id?: string
         }
@@ -6056,16 +6068,22 @@ export type Database = {
       staff_location_history: {
         Row: {
           accuracy: number | null
+          app_build: string | null
+          app_id: string | null
+          app_version: string | null
           battery_captured_at: string | null
           battery_level: number | null
           battery_percent: number | null
           battery_source: string | null
           created_at: string
+          device_model: string | null
           id: string
           is_charging: boolean | null
           lat: number
           lng: number
           organization_id: string
+          os_version: string | null
+          platform: string | null
           recorded_at: string
           speed: number | null
           staff_id: string
@@ -6073,16 +6091,22 @@ export type Database = {
         }
         Insert: {
           accuracy?: number | null
+          app_build?: string | null
+          app_id?: string | null
+          app_version?: string | null
           battery_captured_at?: string | null
           battery_level?: number | null
           battery_percent?: number | null
           battery_source?: string | null
           created_at?: string
+          device_model?: string | null
           id?: string
           is_charging?: boolean | null
           lat: number
           lng: number
           organization_id: string
+          os_version?: string | null
+          platform?: string | null
           recorded_at: string
           speed?: number | null
           staff_id: string
@@ -6090,16 +6114,22 @@ export type Database = {
         }
         Update: {
           accuracy?: number | null
+          app_build?: string | null
+          app_id?: string | null
+          app_version?: string | null
           battery_captured_at?: string | null
           battery_level?: number | null
           battery_percent?: number | null
           battery_source?: string | null
           created_at?: string
+          device_model?: string | null
           id?: string
           is_charging?: boolean | null
           lat?: number
           lng?: number
           organization_id?: string
+          os_version?: string | null
+          platform?: string | null
           recorded_at?: string
           speed?: number | null
           staff_id?: string
