@@ -1851,8 +1851,14 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
                           </div>
                           {/* Namn + meta */}
                           <div className="min-w-0 flex-1">
-                            <div className="truncate text-[13px] font-semibold leading-tight">
-                              {staff.name}
+                            <div className="flex items-center gap-1.5">
+                              <div className="truncate text-[13px] font-semibold leading-tight">
+                                {staff.name}
+                              </div>
+                              <StaffAppStatusPopover
+                                staffName={staff.name}
+                                appHealth={appHealthByStaff.get(staff.id) ?? null}
+                              />
                             </div>
                             <div className="mt-0.5 flex items-center gap-2 text-[10px] tabular-nums text-muted-foreground">
                               {(() => {
