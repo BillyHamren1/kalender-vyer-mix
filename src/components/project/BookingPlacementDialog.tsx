@@ -64,6 +64,7 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
   const { teamResources } = useTeamResources();
 
   const [days, setDays] = useState<PlanningDay[]>([]);
+  const [focusedDate, setFocusedDate] = useState<string | null>(null);
   const [isLarge, setIsLarge] = useState(false);
   const [largeMode, setLargeMode] = useState<'new' | 'existing'>('new');
   const [largeNewName, setLargeNewName] = useState('');
