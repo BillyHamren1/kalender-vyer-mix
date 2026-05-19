@@ -22,6 +22,8 @@ import {
   type LocationSyncStatus,
 } from '@/services/locationSyncQueue';
 import type { BackgroundLocationDebugInfo } from '@/hooks/useBackgroundLocationReporter';
+import { getAppBuildInfo, type AppBuildInfo } from '@/lib/mobile/getAppBuildInfo';
+import { classifyAppBuild, CURRENT_EXPECTED_APP_BUILD } from '@/lib/mobile/expectedAppBuild';
 
 interface Props {
   debug: BackgroundLocationDebugInfo;
