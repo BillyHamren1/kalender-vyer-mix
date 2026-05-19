@@ -207,6 +207,12 @@ const PhaseBlock: React.FC<{
   const end = focusedDay?.endTime ?? DEFAULTS[phase].end;
   const teamId = focusedDay?.teamId ?? inheritedTeamId;
 
+  // Rig-fasens första dag används som mall när rigDown läggs till utan egna värden.
+  const rigSeed = useMemo(
+    () => days.find((d) => d.kind === 'rig'),
+    [days],
+  );
+
   const setDates = (next: Date[] | undefined) => {
     const nextIso = new Set((next ?? []).map(fmtIso));
     const existingIso = new Set(phaseDays.map((d) => d.date));
@@ -216,13 +222,20 @@ const PhaseBlock: React.FC<{
     let lastAdded: string | null = null;
     for (const iso of nextIso) {
       if (!existingIso.has(iso)) {
-        // Ärver tid/team från första befintliga dagen i fasen, eller defaults
+        // Ärver tid/team från första befintliga dagen i fasen; för rigDown
+        // ärvs annars från rig (samma team + tider som default).
+        const fallbackStart =
+          phase === 'rigDown' ? (rigSeed?.startTime ?? DEFAULTS[phase].start) : DEFAULTS[phase].start;
+        const fallbackEnd =
+          phase === 'rigDown' ? (rigSeed?.endTime ?? DEFAULTS[phase].end) : DEFAULTS[phase].end;
+        const fallbackTeam =
+          phase === 'rigDown' ? (rigSeed?.teamId ?? inheritedTeamId) : inheritedTeamId;
         nextDays = insertDaySorted(nextDays, {
           date: iso,
           kind: phase,
-          startTime: phaseDays[0]?.startTime ?? DEFAULTS[phase].start,
-          endTime: phaseDays[0]?.endTime ?? DEFAULTS[phase].end,
-          teamId: phaseDays[0]?.teamId ?? inheritedTeamId,
+          startTime: phaseDays[0]?.startTime ?? fallbackStart,
+          endTime: phaseDays[0]?.endTime ?? fallbackEnd,
+          teamId: phaseDays[0]?.teamId ?? fallbackTeam,
         });
         lastAdded = iso;
       }
