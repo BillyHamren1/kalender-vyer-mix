@@ -339,8 +339,10 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
       }
 
       onOpenChange(false);
-      if (largeProjectId) navigate(`/large-project/${largeProjectId}`);
-      else if (mediumProjectId) navigate(`/project/${mediumProjectId}`);
+      // Stanna kvar i projektlistan istället för att hoppa in i projektet.
+      void navigate;
+      void largeProjectId;
+      void mediumProjectId;
     } catch (err) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const e = err as any;
