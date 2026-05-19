@@ -310,6 +310,8 @@ const WebRoutes: React.FC = () => {
               <Route path="/ops-control" element={<OpsControlCenter />} />
               <Route path="/staff-management/time-approvals" element={<TimeReportApprovals />} />
               <Route path="/staff-management/time-reports" element={<StaffTimeReports />} />
+              <Route path="/staff-management/time-reports/month" element={<StaffTimeReportMonth />} />
+              <Route path="/staff-management/time-reports/month/:staffId" element={<StaffTimeReportMonth />} />
               <Route path="/staff-management/time-reports/:staffId" element={<StaffTimeReportDay />} />
               <Route path="/staff-management/time-reports/:staffId/:date" element={<StaffTimeReportDay />} />
               <Route path="/admin/time-review" element={<AdminTimeReview />} />
