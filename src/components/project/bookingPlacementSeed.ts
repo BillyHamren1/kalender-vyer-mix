@@ -143,12 +143,16 @@ export const seedDaysFromBooking = (b: any, defaultTeamId = 'team-1'): PlanningD
     });
   }
   if (b?.rigdowndate) {
+    // Default: rigDown ärver tid/team från rig om bokningen inte har egna värden.
+    const rig = list.find((d) => d.kind === 'rig');
+    const hasOwnStart = !!trimSec(b?.rigdown_start_time);
+    const hasOwnEnd = !!trimSec(b?.rigdown_end_time);
     list.push({
       date: b.rigdowndate,
       kind: 'rigDown',
-      startTime: pickBookingTime(b, 'rigDown', 'start'),
-      endTime: pickBookingTime(b, 'rigDown', 'end'),
-      teamId: defaultTeamId,
+      startTime: hasOwnStart ? pickBookingTime(b, 'rigDown', 'start') : (rig?.startTime ?? DEFAULTS.rigDown.start),
+      endTime: hasOwnEnd ? pickBookingTime(b, 'rigDown', 'end') : (rig?.endTime ?? DEFAULTS.rigDown.end),
+      teamId: rig?.teamId ?? defaultTeamId,
     });
   }
   list.sort((a, z) => a.date.localeCompare(z.date));
