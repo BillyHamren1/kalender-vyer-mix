@@ -129,17 +129,17 @@ const StaffDaySubmitSection: React.FC<Props> = ({ staffId, date, snapshot }) => 
   const todayLocal = new Intl.DateTimeFormat('sv-SE', { timeZone: TZ }).format(new Date());
   const isFutureDate = date > todayLocal;
 
-  // Pågående arbetsdag → uppmana att avsluta dagen via banner.
-  if (wd && isOpen) {
-    return (
-      <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 flex items-start gap-2 text-amber-800 dark:text-amber-300">
-        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-        <p className="text-xs font-semibold">
-          Arbetsdagen pågår fortfarande — avsluta dagen först, sedan kan du skicka in den.
-        </p>
-      </div>
-    );
-  }
+  // Pågående arbetsdag spärrar INTE inskick — TIME är manuell rapportering.
+  // Vi visar bara en varning ovanför formuläret så användaren ser att systemet
+  // tror att dagen kan vara öppen.
+  const openWarning = wd && isOpen ? (
+    <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 flex items-start gap-2 text-amber-800 dark:text-amber-300">
+      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+      <p className="text-xs font-semibold">
+        Systemet ser att dagen kan vara öppen. Kontrollera start/slut innan du skickar in.
+      </p>
+    </div>
+  ) : null;
 
   if (!wd && isFutureDate) {
     return (
