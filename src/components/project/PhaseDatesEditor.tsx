@@ -140,8 +140,22 @@ const PhaseBlock: React.FC<{
 
   const teamId = phaseDays[0]?.teamId ?? inheritedTeamId;
 
-  // Default-månad för kalendervisning: första valda dagen eller idag
-  const defaultMonth = selectedDates[0] ?? new Date();
+  // Default-månad: första valda dagen, annars bokningens fas-starttid, annars idag
+  const bookingPhaseDate = useMemo(() => {
+    const field =
+      phase === 'rig'
+        ? 'rig_start_time'
+        : phase === 'event'
+          ? 'event_start_time'
+          : 'rigdown_start_time';
+    const raw = booking?.[field];
+    if (!raw) return null;
+    const d = new Date(raw);
+    return isNaN(d.getTime()) ? null : d;
+  }, [booking, phase]);
+
+  const defaultMonth = selectedDates[0] ?? bookingPhaseDate ?? new Date();
+  const monthKey = `${defaultMonth.getFullYear()}-${defaultMonth.getMonth()}`;
 
   return (
     <div className="rounded border border-border/40 bg-muted/10 p-2 space-y-2">
@@ -165,6 +179,7 @@ const PhaseBlock: React.FC<{
 
       <div className="rounded border border-border/40 bg-card overflow-hidden">
         <Calendar
+          key={monthKey}
           mode="multiple"
           selected={selectedDates}
           onSelect={(next) => !locked && setDates(next as Date[] | undefined)}
@@ -175,6 +190,7 @@ const PhaseBlock: React.FC<{
           className="p-2 [&_table]:w-full [&_button]:h-7 [&_button]:w-7 [&_button]:text-[11px]"
         />
       </div>
+
 
       {phaseDays.length === 0 ? (
         <div className="text-[11px] text-muted-foreground italic px-1">Inga datum valda</div>
