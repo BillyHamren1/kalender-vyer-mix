@@ -3675,6 +3675,29 @@ export function buildReportCandidateBlocks(
   out.forEach(assignId);
   excludedPreWorkBlocks.forEach(assignId);
 
+  // ───────────────────────────────────────────────────────────────────────
+  // POST-PASS 7 — suppressEmptySignalGapReviewBlocks (Time Engine 4.x)
+  //
+  // Markerar tomma `signal_gap_open_day`-block, pre-first-GPS-gap och
+  // korta on-site-blippar (< 5 min) följda av lång signalsaknad som
+  // `hiddenReason`. Block tas INTE bort — bara markeras. Gantt/mirror
+  // filtrerar bort dem; summary nedan hoppar över dem så totals
+  // påverkas inte.
+  // ───────────────────────────────────────────────────────────────────────
+  const ankerWindowsForSuppress = (input.activeTimeRegistrations ?? [])
+    .map((r) => ({
+      startAt: r.startedAt,
+      endAt: (r.stoppedAt ?? r.endedAt ?? r.startedAt) as string,
+    }))
+    .filter((w) => Boolean(w.startAt) && Boolean(w.endAt));
+  const signalGapSuppressionDiagnostics: SignalGapSuppressionDiagnostics =
+    suppressEmptySignalGapReviewBlocks({
+      blocks: out,
+      presenceDayBlocks: input.presenceDayBlocks,
+      ankerWindows: ankerWindowsForSuppress,
+    });
+
+
   // ── Summary
   const summary: ReportCandidateSummary = {
     reportCandidateBlocksCount: out.length,
