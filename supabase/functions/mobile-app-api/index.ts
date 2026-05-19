@@ -5370,7 +5370,18 @@ function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number)
 }
 
 async function handleReportLocation(supabase: any, staffId: string, data: any, organizationId: string) {
-  const { latitude, longitude, accuracy, speed, app_version, app_build, app_platform } = data || {}
+  const {
+    latitude,
+    longitude,
+    accuracy,
+    speed,
+    app_version,
+    app_build,
+    app_platform,
+    os_version,
+    device_model,
+    app_id,
+  } = data || {}
 
   if (typeof latitude !== 'number' || typeof longitude !== 'number') {
     return new Response(
@@ -5400,6 +5411,9 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
   if (typeof app_version === 'string') appMetaUpdate.app_version = app_version
   if (typeof app_build === 'string') appMetaUpdate.app_build = app_build
   if (typeof app_platform === 'string') appMetaUpdate.app_platform = app_platform
+  if (typeof os_version === 'string') appMetaUpdate.os_version = os_version
+  if (typeof device_model === 'string') appMetaUpdate.device_model = device_model
+  if (typeof app_id === 'string') appMetaUpdate.app_id = app_id
 
   const { error } = await supabase
     .from('staff_locations')
@@ -5446,6 +5460,12 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
         accuracy: accuracy ?? null,
         speed: speed ?? null,
         recorded_at: new Date().toISOString(),
+        app_version: typeof app_version === 'string' ? app_version : null,
+        app_build: typeof app_build === 'string' ? app_build : null,
+        platform: typeof app_platform === 'string' ? app_platform : null,
+        os_version: typeof os_version === 'string' ? os_version : null,
+        device_model: typeof device_model === 'string' ? device_model : null,
+        app_id: typeof app_id === 'string' ? app_id : null,
       })
     }
   } catch (histErr) {

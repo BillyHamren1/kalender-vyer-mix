@@ -9,6 +9,7 @@ import {
   describeReportDataGapStatus,
   type ReportDataGapDiagnosis,
 } from '@/lib/staff/reportDataGapDiagnostics';
+import { classifyAppBuild, CURRENT_EXPECTED_APP_BUILD } from '@/lib/mobile/expectedAppBuild';
 
 interface Props {
   organizationId: string | null;
@@ -532,17 +533,43 @@ function AppHealthDetail({ appHealth }: { appHealth: AppHealth | null | undefine
   if (!appHealth) {
     return <div className="mb-2 text-[11px] text-muted-foreground">Inga app health-events.</div>;
   }
+  const buildStatus = classifyAppBuild(appHealth.lastAppBuild);
+  const badgeClass =
+    buildStatus === 'ok'
+      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+      : buildStatus === 'outdated'
+        ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+        : 'bg-red-500/20 text-red-700 dark:text-red-300';
+  const badgeText =
+    buildStatus === 'ok'
+      ? 'Build OK'
+      : buildStatus === 'outdated'
+        ? `Gammal build — väntat ${CURRENT_EXPECTED_APP_BUILD}`
+        : 'Version saknas — installera om';
   return (
-    <div className="mb-2 grid grid-cols-2 gap-1 text-[11px] sm:grid-cols-4">
-      <Stat k="Senaste app-event" v={appHealth.lastEventType} />
-      <Stat k="Tid" v={appHealth.lastAppSeenAt} />
-      <Stat k="Källa" v={appHealth.lastAppSeenSource ?? 'health'} />
-      <Stat k="Heartbeat" v={appHealth.heartbeatMissing ? 'SAKNAS' : 'OK'} />
-      <Stat k="App-state" v={appHealth.lastAppState ?? '—'} />
-      <Stat k="Batt %" v={appHealth.lastBatteryPercent != null ? `${appHealth.lastBatteryPercent}%` : '—'} />
-      <Stat k="Laddar" v={appHealth.lastIsCharging == null ? '—' : appHealth.lastIsCharging ? 'ja' : 'nej'} />
-      <Stat k="Plattform" v={appHealth.lastPlatform ?? '—'} />
-      <Stat k="App-version" v={appHealth.lastAppVersion ?? '—'} />
+    <div className="mb-2 space-y-2">
+      <div className="grid grid-cols-2 gap-1 text-[11px] sm:grid-cols-4">
+        <Stat k="Senaste app-event" v={appHealth.lastEventType} />
+        <Stat k="Tid" v={appHealth.lastAppSeenAt} />
+        <Stat k="Källa" v={appHealth.lastAppSeenSource ?? 'health'} />
+        <Stat k="Heartbeat" v={appHealth.heartbeatMissing ? 'SAKNAS' : 'OK'} />
+        <Stat k="App-state" v={appHealth.lastAppState ?? '—'} />
+        <Stat k="Batt %" v={appHealth.lastBatteryPercent != null ? `${appHealth.lastBatteryPercent}%` : '—'} />
+        <Stat k="Laddar" v={appHealth.lastIsCharging == null ? '—' : appHealth.lastIsCharging ? 'ja' : 'nej'} />
+        <Stat k="Plattform" v={appHealth.lastPlatform ?? '—'} />
+        <Stat k="App-version" v={appHealth.lastAppVersion ?? '—'} />
+        <Stat k="Build" v={appHealth.lastAppBuild ?? '—'} />
+        <Stat k="OS" v={appHealth.lastOsVersion ?? '—'} />
+        <Stat k="Device" v={appHealth.lastDeviceModel ?? '—'} />
+        <Stat k="App ID" v={appHealth.lastAppId ?? '—'} />
+        <Stat k="Senaste health" v={fmtTime(appHealth.lastAppHealthAt ?? null)} />
+        <Stat k="Senaste GPS" v={fmtTime(appHealth.lastGpsAt ?? null)} />
+      </div>
+      <div>
+        <span className={`inline-block rounded px-2 py-0.5 text-[10px] font-medium ${badgeClass}`}>
+          {badgeText}
+        </span>
+      </div>
     </div>
   );
 }
