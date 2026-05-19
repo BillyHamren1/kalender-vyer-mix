@@ -599,6 +599,20 @@ export interface ReportCandidateSummary {
         | 'fallback';
     }>;
   };
+  /**
+   * Time Engine 4.x — diagnostics för suppressEmptySignalGapReviewBlocks.
+   * Counts/minuter för block som markerats `hiddenReason` i sista post-passet.
+   * Påverkar inte totals/lön/ekonomi — bara UI-rendering.
+   */
+  signalGapSuppressionDiagnostics?: {
+    openDaySignalGapSuppressedCount: number;
+    openDaySignalGapSuppressedMinutes: number;
+    preFirstGpsSignalGapSuppressedCount: number;
+    preFirstGpsSignalGapSuppressedMinutes: number;
+    shortOnSiteAnchorSuppressedCount: number;
+    shortOnSiteAnchorSuppressedMinutes: number;
+    firstUsableGpsTs: string | null;
+  };
 }
 
 /**
