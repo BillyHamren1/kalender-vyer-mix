@@ -259,8 +259,12 @@ const buildReportCandidateBlocks = (
   bookingPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
   largeProjectPhaseByDate?: Record<string, 'rig' | 'event' | 'rigdown'>,
 ): MirrorGanttBlock[] => {
+  // Time Engine 4.x — filtrera bort UI-suppressade block (open_day_signal_gap,
+  // pre_first_gps_signal_gap, short_onsite_anchor_noise) innan parity-bygget.
+  // De ligger kvar i cache/diagnostics men ska aldrig renderas i Gantt.
+  const visibleCandidate = candidate.filter((b) => !b.hiddenReason);
   const parityBlocks = buildSuggestedDisplayBlocksForAdminGantt({
-    blocks: candidate,
+    blocks: visibleCandidate,
     presenceBlocks,
     targets,
     staffName,
