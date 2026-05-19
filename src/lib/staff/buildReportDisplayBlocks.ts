@@ -231,7 +231,14 @@ export function buildReportDisplayBlocks(
     (t) => !(t.matchRole === 'primary' && t.canAutoMatchAsWork === true),
   );
 
-  const enriched: DisplayBlock[] = input.blocks.map((block) => {
+  // Time Engine 4.x — backend flaggar vissa block med hiddenReason
+  // (open_day_signal_gap_without_presence, pre_first_gps_signal_gap,
+  // short_onsite_anchor_noise). De får aldrig renderas som arbetstid/Gantt-block.
+  // Filtrera bort dem innan vi bygger display-blocken. Diagnostik/debug kan
+  // läsa input.blocks direkt om de vill visa suppressade poster.
+  const visibleBlocks = input.blocks.filter((b) => !b.hiddenReason);
+
+  const enriched: DisplayBlock[] = visibleBlocks.map((block) => {
     // 1) Hitta koordinat-center från första källblocket som har lat/lng.
     let lat: number | null = null;
     let lng: number | null = null;
