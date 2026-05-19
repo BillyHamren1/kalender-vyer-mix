@@ -5407,13 +5407,12 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
 
   // App meta is best-effort: only persist when the client actually sent it,
   // so older app builds (that don't include it yet) don't blank the column.
-  const appMetaUpdate: Record<string, string | null> = {}
-  if (typeof app_version === 'string') appMetaUpdate.app_version = app_version
-  if (typeof app_build === 'string') appMetaUpdate.app_build = app_build
-  if (typeof app_platform === 'string') appMetaUpdate.app_platform = app_platform
-  if (typeof os_version === 'string') appMetaUpdate.os_version = os_version
-  if (typeof device_model === 'string') appMetaUpdate.device_model = device_model
-  if (typeof app_id === 'string') appMetaUpdate.app_id = app_id
+  // staff_locations ONLY has: app_version, app_build, app_platform
+  // staff_location_history has: app_version, app_build, platform, os_version, device_model, app_id
+  const staffLocationMetaUpdate: Record<string, string | null> = {}
+  if (typeof app_version === 'string') staffLocationMetaUpdate.app_version = app_version
+  if (typeof app_build === 'string') staffLocationMetaUpdate.app_build = app_build
+  if (typeof app_platform === 'string') staffLocationMetaUpdate.app_platform = app_platform
 
   const { error } = await supabase
     .from('staff_locations')
@@ -5426,7 +5425,7 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
       speed: speed ?? null,
       updated_at: new Date().toISOString(),
       location_since: locationSince,
-      ...appMetaUpdate,
+      ...staffLocationMetaUpdate,
     }, { onConflict: 'staff_id' })
 
   if (error) {
