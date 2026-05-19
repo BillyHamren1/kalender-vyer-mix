@@ -100,30 +100,14 @@ const ProjectLayout = () => {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="theme-purple h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-muted rounded w-1/3" />
-            <div className="h-32 bg-muted rounded" />
-            <div className="h-24 bg-muted rounded" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Fallback: medium-projektet hittades inte. Kanske är det egentligen ett stort projekt
-  // (eller en bokning som redan migrerats) — kolla då upp och redirecta istället för att visa fel.
+  // Fallback-uppslag: id:t kan vara ett stort projekt eller en bokning som migrerats.
+  // VIKTIGT: dessa hooks MÅSTE ligga före alla early returns (Rules of Hooks).
   const lpFallback = useQuery({
     queryKey: ['project-fallback-large', projectId],
     queryFn: async () => {
       if (!projectId) return null;
-      // Är id:t ett stort projekt direkt?
       const lp = await supabase.from('large_projects').select('id').eq('id', projectId).maybeSingle();
       if (lp.data?.id) return { type: 'large' as const, id: lp.data.id };
-      // Eller är id:t en bokning som hör till ett stort projekt?
       const b = await supabase.from('bookings').select('large_project_id, assigned_project_id').eq('id', projectId).maybeSingle();
       if (b.data?.large_project_id) return { type: 'large' as const, id: b.data.large_project_id };
       if (b.data?.assigned_project_id && b.data.assigned_project_id !== projectId) {
@@ -142,10 +126,24 @@ const ProjectLayout = () => {
     else navigate(`/project/${target.id}`, { replace: true });
   }, [lpFallback.data, navigate]);
 
+  if (isLoading) {
+    return (
+      <div className="theme-purple h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-muted rounded w-1/3" />
+            <div className="h-32 bg-muted rounded" />
+            <div className="h-24 bg-muted rounded" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!project) {
     return (
       <div className="container mx-auto px-4 py-8 text-center">
-        {lpFallback.isLoading ? (
+        {lpFallback.isLoading || lpFallback.data ? (
           <p className="text-muted-foreground">Letar projekt…</p>
         ) : (
           <>
