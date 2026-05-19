@@ -532,25 +532,15 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Avbryt
           </Button>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={goBack} disabled={isFirstStep || saving}>
-              <ChevronLeft className="h-4 w-4 mr-1" /> Tillbaka
-            </Button>
-            {isLastStep ? (
-              <Button onClick={handleFinish} disabled={saving || totalSteps === 0}>
-                {saving ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Save className="h-4 w-4 mr-2" />
-                )}
-                Slutför planering
-              </Button>
+          <Button onClick={handleFinish} disabled={saving || (!linkingToExistingLarge && planSteps.length === 0)}>
+            {saving ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (
-              <Button onClick={goNext} disabled={saving}>
-                Nästa <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
+              <Save className="h-4 w-4 mr-2" />
             )}
-          </div>
+            Slutför planering
+          </Button>
+
         </DialogFooter>
       </DialogContent>
     </Dialog>
