@@ -192,6 +192,8 @@ Deno.serve(async (req: Request) => {
     status: resolvedStatus,
     requested_start_at: reqStart,
     requested_end_at: reqEnd,
+    start_time: stockholmTimeOf(reqStart),
+    end_time: stockholmTimeOf(reqEnd),
     break_minutes: breakMin,
     comment,
     engine_version: engineVersion,
@@ -215,7 +217,7 @@ Deno.serve(async (req: Request) => {
 
   const { data, error } = await admin
     .from("staff_day_submissions")
-    .upsert(payload, { onConflict: "staff_id,date" })
+    .upsert(payload, { onConflict: "organization_id,staff_id,date" })
     .select()
     .single();
 
