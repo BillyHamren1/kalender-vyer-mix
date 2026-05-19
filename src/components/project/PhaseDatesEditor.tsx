@@ -21,12 +21,18 @@ import {
   phaseLabel,
 } from './bookingPlacementSeed';
 
+interface TeamOption {
+  id: string;
+  title: string;
+}
+
 interface Props {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   booking: any;
   days: PlanningDay[];
   onChange: (next: PlanningDay[]) => void;
   inheritedTeamId: string;
+  teamOptions: TeamOption[];
 }
 
 const PHASES: DayKind[] = ['rig', 'event', 'rigDown'];
@@ -54,6 +60,7 @@ export const PhaseDatesEditor: React.FC<Props> = ({
   days,
   onChange,
   inheritedTeamId,
+  teamOptions,
 }) => {
   return (
     <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3">
@@ -68,6 +75,7 @@ export const PhaseDatesEditor: React.FC<Props> = ({
           days={days}
           onChange={onChange}
           inheritedTeamId={inheritedTeamId}
+          teamOptions={teamOptions}
         />
       ))}
     </div>
