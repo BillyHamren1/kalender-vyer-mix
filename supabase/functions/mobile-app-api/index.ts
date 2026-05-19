@@ -5460,6 +5460,12 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
         accuracy: accuracy ?? null,
         speed: speed ?? null,
         recorded_at: new Date().toISOString(),
+        app_version: typeof app_version === 'string' ? app_version : null,
+        app_build: typeof app_build === 'string' ? app_build : null,
+        platform: typeof app_platform === 'string' ? app_platform : null,
+        os_version: typeof os_version === 'string' ? os_version : null,
+        device_model: typeof device_model === 'string' ? device_model : null,
+        app_id: typeof app_id === 'string' ? app_id : null,
       })
     }
   } catch (histErr) {
