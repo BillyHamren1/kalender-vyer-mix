@@ -7,9 +7,9 @@ export default function StaffDayReportsAdmin() {
   return (
     <PageContainer>
       <PageHeader
-        icon={<ClipboardCheck className="h-6 w-6" />}
+        icon={ClipboardCheck}
         title="Inskickade dagrapporter"
-        description="Granska personalens inskickade dagrapporter – godkänn för OK eller markera för kontroll."
+        subtitle="Granska personalens inskickade dagrapporter – godkänn för OK eller markera för kontroll."
       />
       <StaffDayReportsList />
     </PageContainer>
