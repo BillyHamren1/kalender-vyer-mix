@@ -4,7 +4,7 @@
 // one 7-hour "work" block.
 import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 import { buildReportCandidateBlocks } from '../buildReportCandidateBlocks.ts';
-import type { PresenceDayBlock } from '../buildReportCandidateBlocks.ts';
+import type { PresenceDayBlock } from '../buildPresenceDayBlocks.ts';
 
 const date = '2026-05-19';
 const STAFF = 'staff-1';
