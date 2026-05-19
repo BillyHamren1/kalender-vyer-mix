@@ -149,6 +149,18 @@ export interface ReportCandidateBlock {
    * Display-/edge-lager kan attachera fältet i ett senare steg. Ingen AI körs nu.
    */
   aiReviewContext?: AiReviewContext | null;
+  /**
+   * Time Engine 4.x — UI-suppression. När satt ska blocket inte renderas
+   * i Gantt/timeline. Behålls i cache + diagnostics för spårbarhet.
+   * Sätts av suppressEmptySignalGapReviewBlocks (post-pass).
+   */
+  hiddenReason?:
+    | 'open_day_signal_gap_without_presence'
+    | 'pre_first_gps_signal_gap'
+    | 'short_onsite_anchor_noise';
+  /** Time Engine 4.x — warningReason från suppress-passet, t.ex.
+   *  'signal_gap_open_day_suppressed'. Visas i debug/decision trace. */
+  warningReason?: string;
 }
 
 /**
