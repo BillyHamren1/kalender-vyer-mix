@@ -239,6 +239,22 @@ const PhaseBlock: React.FC<{
           </Select>
         </div>
       </div>
+
+      <div>
+        <Label className="text-[10px] text-muted-foreground">Team</Label>
+        <Select value={teamId} onValueChange={setTeam} disabled={locked}>
+          <SelectTrigger className="h-7 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="max-h-72">
+            {teamOptions.map((t) => (
+              <SelectItem key={t.id} value={t.id} className="text-xs">
+                {t.title}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
     </div>
   );
 };
