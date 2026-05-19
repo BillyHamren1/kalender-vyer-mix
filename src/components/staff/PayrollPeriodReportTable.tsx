@@ -97,12 +97,53 @@ export function PayrollPeriodReportTable({ periodId }: Props) {
 
   const { period, totals, groups } = q.data;
 
+  const counts = useMemo(() => {
+    let needsControl = 0;
+    let eligible = 0;
+    let payrollApproved = 0;
+    for (const g of groups) {
+      for (const r of g.rows) {
+        if (r.status === "needs_control") needsControl++;
+        else if (r.status === "payroll_approved") payrollApproved++;
+        else if (r.status === "submitted" || r.status === "edited" || r.status === "approved") eligible++;
+      }
+    }
+    return { needsControl, eligible, payrollApproved };
+  }, [groups]);
+
+  const isLocked = period.status === "approved_for_payout";
+  const approve = useApprovePayrollPeriodDays();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const handleApprove = async () => {
+    try {
+      const s = await approve.mutateAsync(period.id);
+      toast.success(
+        `Godkände ${s.includedDays} dagar för ${s.staffCount} personal` +
+          (s.excludedNeedsControl > 0
+            ? ` (${s.excludedNeedsControl} kontrollmarkerade ingår inte)`
+            : ""),
+      );
+    } catch (e: any) {
+      toast.error(e?.message ?? "Kunde inte godkänna perioden");
+    } finally {
+      setConfirmOpen(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <Card className="p-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="text-sm text-muted-foreground">Period</div>
-          <div className="text-lg font-semibold">{period.name}</div>
+          <div className="text-lg font-semibold flex items-center gap-2">
+            {period.name}
+            {isLocked ? (
+              <Badge variant="outline" className="bg-violet-500/15 text-violet-600 border-violet-500/30">
+                Godkänd för utbetalning
+              </Badge>
+            ) : null}
+          </div>
           <div className="text-sm text-muted-foreground">
             {period.period_start} → {period.period_end}
           </div>
@@ -121,7 +162,52 @@ export function PayrollPeriodReportTable({ periodId }: Props) {
             <div className="font-semibold text-base">{fmtDuration(totals.total_minutes)}</div>
           </div>
         </div>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setConfirmOpen(true)}
+            disabled={isLocked || approve.isPending || counts.eligible === 0}
+            className="gap-2"
+          >
+            {approve.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <CheckCircle2 className="h-4 w-4" />
+            )}
+            Godkänn alla dagar i perioden
+          </Button>
+        </div>
       </Card>
+
+      {counts.needsControl > 0 && !isLocked ? (
+        <Card className="p-3 border-yellow-500/40 bg-yellow-500/10 text-yellow-800 dark:text-yellow-200 flex items-start gap-2 text-sm">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+          <div>
+            {counts.needsControl} dagar är markerade för kontroll och ingår inte förrän de är åtgärdade.
+          </div>
+        </Card>
+      ) : null}
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Godkänn alla dagar i perioden?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {counts.eligible} dagar markeras som Godkänd för utbetalning.
+              {counts.needsControl > 0
+                ? ` ${counts.needsControl} kontrollmarkerade dagar ingår inte.`
+                : ""}
+              {counts.payrollApproved > 0
+                ? ` ${counts.payrollApproved} dagar är redan godkända.`
+                : ""}
+              {" "}Detta kan inte ångras från listan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Avbryt</AlertDialogCancel>
+            <AlertDialogAction onClick={handleApprove}>Godkänn</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {groups.length === 0 ? (
         <Card className="p-8 text-center text-muted-foreground">
