@@ -39,7 +39,8 @@ interface Props {
   onFocusedDateChange: (iso: string | null) => void;
 }
 
-const PHASES: DayKind[] = ['rig', 'event', 'rigDown'];
+// Event-steget planeras inte i widgeten — endast rig + rigDown.
+const PHASES: DayKind[] = ['rig', 'rigDown'];
 
 const TIME_OPTIONS: string[] = (() => {
   const out: string[] = [];
