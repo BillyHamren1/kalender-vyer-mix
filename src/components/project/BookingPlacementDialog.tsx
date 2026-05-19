@@ -72,9 +72,10 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
   const [largeExistingId, setLargeExistingId] = useState<string>('');
   const [saving, setSaving] = useState(false);
 
-  const { data: booking, isLoading } = useQuery({
+  const { data: booking, isLoading, error: bookingError, refetch: refetchBooking } = useQuery({
     queryKey: ['placement-booking', bookingId],
     enabled: !!bookingId && open,
+    retry: 1,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('bookings')
