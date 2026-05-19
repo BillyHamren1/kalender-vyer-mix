@@ -18,7 +18,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Loader2, AlertCircle, Sun, Moon, Coffee, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAttestStaffDay } from '@/hooks/useAttestStaffDay';
+import { useSubmitStaffDayReport } from '@/hooks/useSubmitStaffDayReport';
 import type { StaffDaySnapshot } from '@/hooks/useStaffDaySnapshot';
 import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
 
@@ -124,7 +124,7 @@ const StaffDaySubmitSection: React.FC<Props> = ({ staffId, date, snapshot }) => 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialBreak, att?.comment, initialStartHm, initialEndHm]);
 
-  const { attestDay, isSaving, error } = useAttestStaffDay();
+  const { submitDayReport, isSaving, error } = useSubmitStaffDayReport();
 
   const todayLocal = new Intl.DateTimeFormat('sv-SE', { timeZone: TZ }).format(new Date());
   const isFutureDate = date > todayLocal;
@@ -204,7 +204,7 @@ const StaffDaySubmitSection: React.FC<Props> = ({ staffId, date, snapshot }) => 
     const requestedStartAt = stockholmHmToIso(date, startHm);
     const requestedEndAt = stockholmHmToIso(date, endHm);
     try {
-      await attestDay({
+      await submitDayReport({
         staffId,
         date,
         breakMinutes: clampBreak(breakMinutes),
