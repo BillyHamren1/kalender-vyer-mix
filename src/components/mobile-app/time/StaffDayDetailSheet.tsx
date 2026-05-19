@@ -19,16 +19,15 @@
  * Tider visas alltid i Europe/Stockholm via `formatStockholmHm` —
  * `extractUTCTime` används INTE här.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from '@/components/ui/sheet';
 import {
-  Sun, AlertTriangle, Check, Loader2, Wrench, Send, ShieldCheck,
+  Sun, AlertTriangle, Check, Loader2, ShieldCheck,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { toast } from 'sonner';
 import {
   type StaffDaySegment,
   type StaffDaySnapshot,
@@ -37,7 +36,6 @@ import { useStaffDayStatusViaMobileReport } from '@/hooks/useStaffDayStatusViaMo
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
 import { formatHoursMinutes } from '@/utils/formatHours';
-import { mobileApi } from '@/services/mobileApiService';
 import { cn } from '@/lib/utils';
 import { SEG_ICON, SEG_TONE, FallbackSegIcon } from './segmentVisuals';
 import StaffDaySubmitSection from './StaffDaySubmitSection';
@@ -181,13 +179,13 @@ const DayBody: React.FC<{
 
   const statusChip = (() => {
     if (!wd && !hasManualOnly) return { label: 'Ej rapporterad', tone: 'muted' as const, Icon: AlertTriangle };
-    if (headerOpen) return { label: 'Pågår', tone: 'primary' as const, Icon: Loader2 };
     // Inskickad täcker både legacy approved (admin-lås) och attested —
     // TIME-vyn pratar bara om rapporteringsläge.
     if (snapshot.attestation?.status === 'attested' || !!wd?.approved) {
       return { label: 'Inskickad', tone: 'emerald' as const, Icon: Check };
     }
-    return { label: 'Ej inskickad', tone: 'amber' as const, Icon: Check };
+    if (headerOpen) return { label: 'Utkast', tone: 'amber' as const, Icon: AlertTriangle };
+    return { label: 'Utkast', tone: 'amber' as const, Icon: Check };
   })();
 
 
@@ -206,7 +204,7 @@ const DayBody: React.FC<{
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-              Arbetsdag
+              Rapportunderlag
             </p>
             <p className="font-extrabold text-base text-foreground mt-1 flex items-center gap-1.5 flex-wrap">
               <Sun className="w-4 h-4 text-primary shrink-0" />
@@ -217,23 +215,28 @@ const DayBody: React.FC<{
                   {headerEnd && !headerOpen ? (
                     <span className="tabular-nums">{formatStockholmHm(headerEnd)}</span>
                   ) : (
-                    <span className="text-primary">pågår</span>
+                    <span className="text-muted-foreground">—</span>
                   )}
                 </>
               ) : (
-                <span className="text-muted-foreground text-sm font-semibold">Ingen arbetsdag</span>
+                <span className="text-muted-foreground text-sm font-semibold">Ingen registrerad tid</span>
               )}
             </p>
+            {headerOpen && (
+              <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                Systemet ser pågående underlag — kontrollera tiderna.
+              </p>
+            )}
           </div>
 
           <span className={cn(
             'inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold border whitespace-nowrap',
             statusChip.tone === 'emerald' && 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30',
             statusChip.tone === 'amber' && 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30',
-            statusChip.tone === 'primary' && 'bg-primary/10 text-primary border-primary/20',
             statusChip.tone === 'muted' && 'bg-muted text-muted-foreground border-border',
           )}>
-            <statusChip.Icon className={cn('w-3 h-3', statusChip.tone === 'primary' && 'animate-spin')} />
+            <statusChip.Icon className="w-3 h-3" />
             {statusChip.label}
           </span>
         </div>
@@ -296,107 +299,8 @@ const DayBody: React.FC<{
 };
 
 // ────────────────────────────────────────────────────────────────────
-
-const CorrectionRequest: React.FC<{
-  date: string;
-  snapshot: StaffDaySnapshot;
-  onSubmitted: () => void;
-}> = ({ date, snapshot, onSubmitted }) => {
-  const [open, setOpen] = useState(false);
-  const [text, setText] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  const submit = async () => {
-    const trimmed = text.trim();
-    if (!trimmed) {
-      toast.error('Beskriv kort vad som behöver ändras.');
-      return;
-    }
-    setSaving(true);
-    try {
-      await mobileApi.createWorkdayFlag({
-        flag_type: snapshot.workday ? 'time_gap' : 'missing_report',
-        flag_date: date,
-        title: 'Korrigeringsbegäran från användare',
-        description: trimmed,
-        severity: 'warning',
-        needs_user_input: false,
-        context: {
-          source: 'mobile_time_day_detail',
-          requestedChange: trimmed,
-          snapshotDate: date,
-          workdayId: snapshot.workday?.id ?? null,
-          currentBreakMinutes: snapshot.totals?.breakMinutes ?? 0,
-          currentTotals: snapshot.totals,
-        },
-      });
-      toast.success('Korrigeringsbegäran skickad');
-      setText('');
-      setOpen(false);
-      onSubmitted();
-    } catch (err: any) {
-      toast.error(err?.message || 'Kunde inte skicka begäran');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="w-full rounded-2xl border border-border bg-card px-4 py-3 text-sm font-bold text-foreground/80 active:bg-muted/40 flex items-center justify-center gap-2"
-      >
-        <Wrench className="w-4 h-4" />
-        Begär korrigering
-      </button>
-    );
-  }
-
-  return (
-    <section className="rounded-2xl border border-border bg-card p-4 space-y-3">
-      <div>
-        <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-          Begär korrigering
-        </p>
-        <p className="text-[12px] text-muted-foreground mt-1">
-          Beskriv kort vad som behöver ändras. En administratör tar emot begäran.
-        </p>
-      </div>
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value.slice(0, 1000))}
-        rows={3}
-        autoFocus
-        placeholder="Vad behöver ändras?"
-        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm resize-none"
-      />
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => { setOpen(false); setText(''); }}
-          disabled={saving}
-          className="flex-1 rounded-xl border border-border bg-background py-2.5 text-sm font-bold text-foreground/80 active:bg-muted/40"
-        >
-          Avbryt
-        </button>
-        <button
-          type="button"
-          onClick={submit}
-          disabled={saving || !text.trim()}
-          className={cn(
-            'flex-1 rounded-xl bg-primary text-primary-foreground py-2.5 text-sm font-extrabold flex items-center justify-center gap-2 active:opacity-80',
-            (saving || !text.trim()) && 'opacity-60',
-          )}
-        >
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-          Skicka
-        </button>
-      </div>
-    </section>
-  );
-};
+// CorrectionRequest borttagen — TIME-vyn pratar inte om admin-flöden;
+// ev. korrigeringar hanteras av admin separat.
 
 const Stat: React.FC<{ label: string; value: string; strong?: boolean; muted?: boolean }> = ({
   label, value, strong, muted,

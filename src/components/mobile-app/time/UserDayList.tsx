@@ -7,38 +7,31 @@ import { formatHoursMinutes } from '@/utils/formatHours';
 import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
 
 // TIME-vyn pratar bara om rapporteringsläge — aldrig admin-godkännande.
-// Backend-status mappas till tre etiketter: Ej rapporterad / Utkast / Inskickad.
-// (open = pågående arbetsdag visas som "Pågår" tills användaren avslutar.)
+// Statusarna är normaliserade i useStaffTimeReportPeriod till:
+//   empty / open / draft / submitted
 const STATUS_LABEL: Record<StaffPeriodDaySummary['status'], string> = {
   empty: 'Ej rapporterad',
   open: 'Pågår',
-  needs_attest: 'Utkast',
-  needs_action: 'Utkast',
-  attested: 'Inskickad',
-  approved: 'Inskickad',
+  draft: 'Utkast',
+  submitted: 'Inskickad',
 };
 
 const STATUS_CTA: Record<StaffPeriodDaySummary['status'], string> = {
   empty: 'Rapportera tid',
   open: 'Avsluta dagen',
-  needs_attest: 'Skicka in',
-  needs_action: 'Skicka in',
-  attested: 'Inskickad',
-  approved: 'Inskickad',
+  draft: 'Skicka in',
+  submitted: 'Inskickad',
 };
 
 const STATUS_TONE: Record<StaffPeriodDaySummary['status'], string> = {
   empty: 'bg-muted text-muted-foreground border-border',
   open: 'bg-primary/10 text-primary border-primary/20',
-  needs_attest: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30',
-  needs_action: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30',
-  attested: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
-  approved: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
+  draft: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30',
+  submitted: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
 };
 
 const NEEDS_ATTENTION = new Set<StaffPeriodDaySummary['status']>([
-  'needs_action',
-  'needs_attest',
+  'draft',
 ]);
 
 interface Props {
