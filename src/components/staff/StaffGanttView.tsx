@@ -1076,8 +1076,34 @@ export const StaffGanttView: React.FC<StaffGanttViewProps> = ({
     organizationId: diagOrgId,
     date: dateStr,
     includeRows: false,
-    enabled: diagnosticsEnabled || someStaffMissingRenderedWork,
+    // Alltid på när det finns personal — vi behöver appHealth-summary för
+    // telefonikonen per rad (StaffAppStatusPopover) utöver diagnos-badgen.
+    enabled: staffList.length > 0,
   });
+  const appHealthByStaff = useMemo(() => {
+    const map = new Map<string, StaffAppHealthSummary | null>();
+    for (const e of rawPingsData?.perStaff ?? []) {
+      const h = e.appHealth;
+      if (!h) {
+        map.set(e.staffId, null);
+        continue;
+      }
+      map.set(e.staffId, {
+        lastAppVersion: h.lastAppVersion ?? null,
+        lastAppBuild: h.lastAppBuild ?? null,
+        lastOsVersion: h.lastOsVersion ?? null,
+        lastDeviceModel: h.lastDeviceModel ?? null,
+        lastAppId: h.lastAppId ?? null,
+        lastAppHealthAt: h.lastAppHealthAt ?? null,
+        lastGpsAt: h.lastGpsAt ?? null,
+        lastPlatform: h.lastPlatform ?? null,
+        lastAppSeenAt: h.lastAppSeenAt ?? null,
+        lastEventType: h.lastEventType ?? null,
+        heartbeatMissing: h.heartbeatMissing ?? false,
+      });
+    }
+    return map;
+  }, [rawPingsData?.perStaff]);
   const diagnosisByStaff = useMemo(() => {
     const map = new Map<string, ReportDataGapDiagnosis>();
     if (!diagnosticsEnabled) return map;
