@@ -104,9 +104,18 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
     }
   }, [open]);
 
-  // Seed days när bokning hämtats — välj första lediga team för rig (rigDown ärver)
+  // Seed days när bokning hämtats — välj första lediga team för rig (rigDown ärver).
+  // Seedas EN gång per bokning (id) så att användarens ändringar av tid/team inte skrivs över.
+  const seededForBookingId = React.useRef<string | null>(null);
   useEffect(() => {
+    if (!open) {
+      seededForBookingId.current = null;
+      return;
+    }
     if (!booking) return;
+    if (seededForBookingId.current === booking.id) return;
+    if (!teamResources || teamResources.length === 0) return;
+    seededForBookingId.current = booking.id;
     let cancelled = false;
     (async () => {
       const seed = seedDaysFromBooking(booking);
@@ -120,10 +129,9 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
           .in('source_date', dates);
         dayEvents = data || [];
       }
-      // Räkna ut första lediga team för rig-dagen (rigDown ärver sedan rig)
       const rig = seed.find((d) => d.kind === 'rig');
       let rigTeamId: string | null = null;
-      if (rig && teamResources && teamResources.length > 0) {
+      if (rig) {
         const start = new Date(`${rig.date}T${rig.startTime}:00`);
         const end = new Date(`${rig.date}T${rig.endTime}:00`);
         const eventsLike = dayEvents
@@ -150,7 +158,7 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
     return () => {
       cancelled = true;
     };
-  }, [booking, teamResources]);
+  }, [open, booking, teamResources]);
 
   // När bokningen länkas till ett BEFINTLIGT stort projekt ärvs riggdagar
   // och tider från det stora projektet — användaren ska då inte planera dagar.
