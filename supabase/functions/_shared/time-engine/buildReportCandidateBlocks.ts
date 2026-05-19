@@ -32,6 +32,10 @@ import type {
 import type { ISODate, ISODateTime, UUID } from './contracts.ts';
 import { TRANSPORT_MIN_DISTANCE_METERS } from './transportThreshold.ts';
 import { consolidateReportBlocksIntoSessions } from './consolidateReportBlocksIntoSessions.ts';
+import {
+  suppressEmptySignalGapReviewBlocks,
+  type SignalGapSuppressionDiagnostics,
+} from './suppressEmptySignalGapReviewBlocks.ts';
 import { getStockholmDayWindowUtc, stockholmDateKey } from '../stockholmDayWindow.ts';
 import { COMMUTE_DISTANCE_THRESHOLD_METERS } from './computeDayEndDecision.ts';
 
@@ -149,6 +153,18 @@ export interface ReportCandidateBlock {
    * Display-/edge-lager kan attachera fältet i ett senare steg. Ingen AI körs nu.
    */
   aiReviewContext?: AiReviewContext | null;
+  /**
+   * Time Engine 4.x — UI-suppression. När satt ska blocket inte renderas
+   * i Gantt/timeline. Behålls i cache + diagnostics för spårbarhet.
+   * Sätts av suppressEmptySignalGapReviewBlocks (post-pass).
+   */
+  hiddenReason?:
+    | 'open_day_signal_gap_without_presence'
+    | 'pre_first_gps_signal_gap'
+    | 'short_onsite_anchor_noise';
+  /** Time Engine 4.x — warningReason från suppress-passet, t.ex.
+   *  'signal_gap_open_day_suppressed'. Visas i debug/decision trace. */
+  warningReason?: string;
 }
 
 /**
@@ -586,6 +602,20 @@ export interface ReportCandidateSummary {
         | 'originalTitle'
         | 'fallback';
     }>;
+  };
+  /**
+   * Time Engine 4.x — diagnostics för suppressEmptySignalGapReviewBlocks.
+   * Counts/minuter för block som markerats `hiddenReason` i sista post-passet.
+   * Påverkar inte totals/lön/ekonomi — bara UI-rendering.
+   */
+  signalGapSuppressionDiagnostics?: {
+    openDaySignalGapSuppressedCount: number;
+    openDaySignalGapSuppressedMinutes: number;
+    preFirstGpsSignalGapSuppressedCount: number;
+    preFirstGpsSignalGapSuppressedMinutes: number;
+    shortOnSiteAnchorSuppressedCount: number;
+    shortOnSiteAnchorSuppressedMinutes: number;
+    firstUsableGpsTs: string | null;
   };
 }
 
@@ -3645,6 +3675,29 @@ export function buildReportCandidateBlocks(
   out.forEach(assignId);
   excludedPreWorkBlocks.forEach(assignId);
 
+  // ───────────────────────────────────────────────────────────────────────
+  // POST-PASS 7 — suppressEmptySignalGapReviewBlocks (Time Engine 4.x)
+  //
+  // Markerar tomma `signal_gap_open_day`-block, pre-first-GPS-gap och
+  // korta on-site-blippar (< 5 min) följda av lång signalsaknad som
+  // `hiddenReason`. Block tas INTE bort — bara markeras. Gantt/mirror
+  // filtrerar bort dem; summary nedan hoppar över dem så totals
+  // påverkas inte.
+  // ───────────────────────────────────────────────────────────────────────
+  const ankerWindowsForSuppress = (input.activeTimeRegistrations ?? [])
+    .map((r) => ({
+      startAt: r.startedAt,
+      endAt: (r.stoppedAt ?? r.endedAt ?? r.startedAt) as string,
+    }))
+    .filter((w) => Boolean(w.startAt) && Boolean(w.endAt));
+  const signalGapSuppressionDiagnostics: SignalGapSuppressionDiagnostics =
+    suppressEmptySignalGapReviewBlocks({
+      blocks: out,
+      presenceDayBlocks: input.presenceDayBlocks,
+      ankerWindows: ankerWindowsForSuppress,
+    });
+
+
   // ── Summary
   const summary: ReportCandidateSummary = {
     reportCandidateBlocksCount: out.length,
@@ -3706,8 +3759,10 @@ export function buildReportCandidateBlocks(
       examples: input.workAreaToleranceFromGps?.examples ?? [],
     },
     singleTimelineDiagnostics: singleTimelineDiag,
+    signalGapSuppressionDiagnostics,
   };
   for (const r of out) {
+    if (r.hiddenReason) continue;
     if (r.kind === 'work') {
       summary.workBlocksCount += 1;
       summary.workMinutes += r.durationMinutes;
