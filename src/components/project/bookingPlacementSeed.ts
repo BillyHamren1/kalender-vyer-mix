@@ -12,9 +12,9 @@ export interface PlanningDay {
 }
 
 export const DEFAULTS: Record<DayKind, { start: string; end: string }> = {
-  rig: { start: '08:00', end: '16:00' },
+  rig: { start: '08:00', end: '12:00' },
   event: { start: '17:00', end: '23:00' },
-  rigDown: { start: '08:00', end: '16:00' },
+  rigDown: { start: '08:00', end: '12:00' },
 };
 
 export const PHASE_ORDER: DayKind[] = ['rig', 'event', 'rigDown'];
