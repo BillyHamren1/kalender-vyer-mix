@@ -19,16 +19,15 @@
  * Tider visas alltid i Europe/Stockholm via `formatStockholmHm` —
  * `extractUTCTime` används INTE här.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from '@/components/ui/sheet';
 import {
-  Sun, AlertTriangle, Check, Loader2, Wrench, Send, ShieldCheck,
+  Sun, AlertTriangle, Check, Loader2, ShieldCheck,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { toast } from 'sonner';
 import {
   type StaffDaySegment,
   type StaffDaySnapshot,
@@ -37,7 +36,6 @@ import { useStaffDayStatusViaMobileReport } from '@/hooks/useStaffDayStatusViaMo
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
 import { formatHoursMinutes } from '@/utils/formatHours';
-import { mobileApi } from '@/services/mobileApiService';
 import { cn } from '@/lib/utils';
 import { SEG_ICON, SEG_TONE, FallbackSegIcon } from './segmentVisuals';
 import StaffDaySubmitSection from './StaffDaySubmitSection';
