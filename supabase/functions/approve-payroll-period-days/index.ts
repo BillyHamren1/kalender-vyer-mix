@@ -122,15 +122,8 @@ Deno.serve(async (req) => {
     if (ue2) return json({ error: "status_update_failed", detail: ue2.message }, 500);
   }
 
-  // Mark period approved_for_payout
-  await admin
-    .from("staff_payroll_periods")
-    .update({
-      status: "approved_for_payout",
-      approved_for_payout_at: nowIso,
-      approved_for_payout_by: userId,
-    })
-    .eq("id", period_id);
+  // NOTE: Period status is NOT changed here. Use mark-payroll-period-approved
+  // for the explicit "Godkänd för utbetalning"-step (TIME Admin 7).
 
   const includedDays = eligible.length;
   const totalMinutes = eligible.reduce((acc, r) => acc + totalMin(r as any), 0);
