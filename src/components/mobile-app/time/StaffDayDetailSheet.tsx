@@ -204,7 +204,7 @@ const DayBody: React.FC<{
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-              Arbetsdag
+              Rapportunderlag
             </p>
             <p className="font-extrabold text-base text-foreground mt-1 flex items-center gap-1.5 flex-wrap">
               <Sun className="w-4 h-4 text-primary shrink-0" />
@@ -215,23 +215,28 @@ const DayBody: React.FC<{
                   {headerEnd && !headerOpen ? (
                     <span className="tabular-nums">{formatStockholmHm(headerEnd)}</span>
                   ) : (
-                    <span className="text-primary">pågår</span>
+                    <span className="text-muted-foreground">—</span>
                   )}
                 </>
               ) : (
-                <span className="text-muted-foreground text-sm font-semibold">Ingen arbetsdag</span>
+                <span className="text-muted-foreground text-sm font-semibold">Ingen registrerad tid</span>
               )}
             </p>
+            {headerOpen && (
+              <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                Systemet ser pågående underlag — kontrollera tiderna.
+              </p>
+            )}
           </div>
 
           <span className={cn(
             'inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold border whitespace-nowrap',
             statusChip.tone === 'emerald' && 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30',
             statusChip.tone === 'amber' && 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30',
-            statusChip.tone === 'primary' && 'bg-primary/10 text-primary border-primary/20',
             statusChip.tone === 'muted' && 'bg-muted text-muted-foreground border-border',
           )}>
-            <statusChip.Icon className={cn('w-3 h-3', statusChip.tone === 'primary' && 'animate-spin')} />
+            <statusChip.Icon className="w-3 h-3" />
             {statusChip.label}
           </span>
         </div>
