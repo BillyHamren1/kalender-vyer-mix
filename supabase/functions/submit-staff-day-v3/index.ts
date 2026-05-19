@@ -10,7 +10,7 @@
 //   - start strictly before end
 //   - gross ≤ 16h (960 min)
 //   - breakMinutes 0..600
-//   - payable (gross - break) > 0
+//   - total rapporttid (gross) måste vara större än rast
 //   - payload `date` must match Stockholm-local date of requestedStartAt
 //   - if existing submission.status === 'approved' → block unless caller is
 //     privileged JWT (admin/projekt/lager). Vanlig användare kan inte ändra.
