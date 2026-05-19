@@ -54,16 +54,23 @@ interface DaySummaryOut {
   weekday: number;
   grossWorkdayMinutes: number;
   breakMinutes: number;
+  /** @deprecated TIME-vyn använder inte payable. Kvar för bakåtkompatibilitet. */
   payableMinutes: number;
   projectMinutes: number;
   warehouseMinutes: number;
   transportMinutes: number;
   otherPlaceMinutes: number;
   isWorkdayOpen: boolean;
+  /** @deprecated TIME-vyn pratar inte om admin-godkännande. */
   approved: boolean;
+  /** @deprecated TIME-vyn pratar inte om attest. */
   attested: boolean;
   actionsCount: number;
-  status: "empty" | "open" | "needs_attest" | "needs_action" | "attested" | "approved";
+  /** TIME-vyn har bara tre statusar: empty / draft / submitted. `open` finns kvar för pågående arbetsdag. */
+  status: "empty" | "open" | "draft" | "submitted";
+  /** Wallclock start/slut — speglar dialogens "Justera dagen"-förslag. */
+  workdayStartedAt: string | null;
+  workdayEndedAt: string | null;
 }
 
 function categorize(segments: MobileSegment[]) {
@@ -104,17 +111,26 @@ function dayFromReport(
   // läses inte här — Time Engine-cachen är enda källan.
   const isOpen = report.segments.some((s) => s.isActive);
   const sub = report.submission;
+  const hasSubmission = !!sub && sub.status !== "withdrawn" && sub.status !== "rejected";
+  // Legacy flaggor — kvar i payload tills alla klienter slutat läsa dem.
   const approved = sub?.status === "approved";
   const attested = !!sub && (sub.status === "submitted" || sub.status === "approved");
   const actionsCount = report.segments.filter((s) => s.kind === "needs_review").length;
 
+  // Wallclock start/slut — samma prioritetskedja som "Justera dagen"-dialogen.
+  const segmentStart = report.segments.length > 0 ? report.segments[0].startedAt : null;
+  const segmentEnd = [...report.segments].reverse().find((s) => s.endedAt)?.endedAt ?? null;
+  const submittedStart = sub?.requestedStartAt ?? null;
+  const submittedEnd = sub?.requestedEndAt ?? null;
+  const workdayStartedAt = submittedStart ?? report.workday?.startedAt ?? segmentStart ?? null;
+  const workdayEndedAt = submittedEnd ?? report.workday?.endedAt ?? segmentEnd ?? null;
+
+  // Förenklad TIME-status: empty / open / draft / submitted.
   let status: DaySummaryOut["status"];
-  if (gross === 0 && !isOpen && !sub) status = "empty";
+  if (gross === 0 && !isOpen && !hasSubmission) status = "empty";
+  else if (hasSubmission) status = "submitted";
   else if (isOpen) status = "open";
-  else if (approved) status = "approved";
-  else if (attested) status = "attested";
-  else if (actionsCount > 0) status = "needs_action";
-  else status = "needs_attest";
+  else status = "draft";
 
   return {
     date,
@@ -131,6 +147,8 @@ function dayFromReport(
     attested,
     actionsCount,
     status,
+    workdayStartedAt,
+    workdayEndedAt,
   };
 }
 
