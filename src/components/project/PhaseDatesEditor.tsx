@@ -89,7 +89,8 @@ const PhaseBlock: React.FC<{
   days: PlanningDay[];
   onChange: (next: PlanningDay[]) => void;
   inheritedTeamId: string;
-}> = ({ phase, booking, days, onChange, inheritedTeamId }) => {
+  teamOptions: TeamOption[];
+}> = ({ phase, booking, days, onChange, inheritedTeamId, teamOptions }) => {
   const locked = isPhaseLocked(booking, phase);
 
   const phaseDays = useMemo(
