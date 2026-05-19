@@ -12,6 +12,8 @@ import { ChevronDown } from 'lucide-react';
 interface Props {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   booking: any;
+  /** Göm read-only "Tider från bokning"-blocket (när en editor visas separat) */
+  hideTimes?: boolean;
 }
 
 const fmtDate = (s: string | null | undefined) => {
