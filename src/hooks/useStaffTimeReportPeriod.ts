@@ -230,7 +230,13 @@ export function useStaffTimeReportPeriod(
           transportMinutes: t.transportMinutes ?? 0,
           otherPlaceMinutes: t.otherPlaceMinutes ?? 0,
         },
-        days: (data?.days ?? []) as StaffPeriodDaySummary[],
+        days: ((data?.days ?? []) as Array<Record<string, unknown>>).map(
+          (d) =>
+            ({
+              ...d,
+              status: normalizeUserReportStatus((d as { status?: unknown }).status),
+            }) as StaffPeriodDaySummary,
+        ),
         blockers: data?.blockers ?? [],
         lastUpdatedAt: data?.lastUpdatedAt ?? new Date().toISOString(),
       });
