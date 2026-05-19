@@ -39,6 +39,7 @@ import {
 } from './bookingPlacementSeed';
 import { BookingInfoHeader } from './BookingInfoHeader';
 import { PhaseDatesEditor } from './PhaseDatesEditor';
+import { PlacementDayCalendar } from './PlacementDayCalendar';
 import { translateSupabaseError } from '@/lib/supabase/translateError';
 
 
@@ -135,6 +136,27 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
     () => days[0]?.teamId || teamOptions[0]?.id || 'team-1',
     [days, teamOptions],
   );
+
+  // Datum som ska visas i personalkalendern (vänster kolumn).
+  // Använd alla planerade dagar (rig/event/rigDown); om inga finns ännu,
+  // fall tillbaka till bokningens egna datumfält så kalendern öppnas på rätt vecka.
+  const calendarDates = useMemo<string[]>(() => {
+    const fromDays = days.map((d) => d.date);
+    if (fromDays.length > 0) {
+      return Array.from(new Set(fromDays)).sort();
+    }
+    const fallback: string[] = [];
+    const pushIso = (raw: unknown) => {
+      if (typeof raw !== 'string' || !raw) return;
+      // Acceptera 'yyyy-MM-dd' eller ISO med tid
+      const iso = raw.length >= 10 ? raw.slice(0, 10) : raw;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) fallback.push(iso);
+    };
+    pushIso(booking?.rigdaydate);
+    pushIso(booking?.eventdate);
+    pushIso(booking?.rigdowndate);
+    return Array.from(new Set(fallback)).sort();
+  }, [days, booking]);
 
 
 
@@ -353,9 +375,9 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
           ) : (
             <div className="space-y-4">
               <BookingInfoHeader booking={booking} hideTimes />
-              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_400px] gap-4">
 
-              {/* Vänster: planering via kalender */}
+              {/* Vänster: personalkalendern (team-vy) — så man ser vilka team som är lediga */}
               <div className="space-y-3 min-w-0">
                 {linkingToExistingLarge ? (
                   <div className="rounded-lg border border-primary/30 bg-primary/5 p-6 space-y-2">
@@ -376,6 +398,13 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
                     </p>
                   </div>
                 ) : (
+                  <PlacementDayCalendar dates={calendarDates} />
+                )}
+              </div>
+
+              {/* Höger: månadsväljare + projekttyp */}
+              <div className="space-y-3 min-w-0">
+                {!linkingToExistingLarge && (
                   <PhaseDatesEditor
                     booking={booking}
                     days={days}
@@ -384,11 +413,6 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
                     teamOptions={teamOptions}
                   />
                 )}
-              </div>
-
-              {/* Höger: bokningsinfo + projekttyp */}
-              <div className="space-y-3 min-w-0">
-
 
                 <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3">
                   <label className="flex items-start gap-2 cursor-pointer">
