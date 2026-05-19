@@ -159,12 +159,8 @@ export const BookingInfoHeader: React.FC<Props> = ({ booking }) => {
               <div
                 key={p.id}
                 className="flex justify-between text-[11px] gap-2 py-0.5 border-b border-border/20 last:border-0"
-                style={{ paddingLeft: p.depth ? p.depth * 12 : 0 }}
               >
-                <span className="truncate" title={p.name}>
-                  {p.depth > 0 && <span className="text-muted-foreground mr-1">↳</span>}
-                  {p.name}
-                </span>
+                <span className="truncate" title={p.name}>{p.name}</span>
                 <span className="text-muted-foreground shrink-0 font-mono">{p.quantity} st</span>
               </div>
             ))}
