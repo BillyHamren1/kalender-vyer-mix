@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { Check, AlertTriangle, MessageSquare, ExternalLink } from "lucide-react";
+import { Check, AlertTriangle, MessageSquare, ExternalLink, Lock } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,11 +11,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import type { StaffDaySubmissionRow } from "@/hooks/staff/useStaffDaySubmissions";
 import {
-  useUpdateDaySubmissionStatus,
-  type DaySubmissionStatus,
-  type StaffDaySubmissionRow,
-} from "@/hooks/staff/useStaffDaySubmissions";
+  useUpdateStaffDaySubmissionStatus,
+  type AdminDayStatusUpdate,
+} from "@/hooks/staff/useUpdateStaffDaySubmissionStatus";
 import { toast } from "sonner";
 
 interface Props {
