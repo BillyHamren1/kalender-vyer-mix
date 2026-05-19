@@ -41,6 +41,7 @@ import { BookingInfoHeader } from './BookingInfoHeader';
 import { PhaseDatesEditor } from './PhaseDatesEditor';
 import { PlacementDayCalendar } from './PlacementDayCalendar';
 import { translateSupabaseError } from '@/lib/supabase/translateError';
+import { findAvailableTeam } from '@/utils/teamAvailability';
 
 
 interface Props {
