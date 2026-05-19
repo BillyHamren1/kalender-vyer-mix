@@ -388,7 +388,7 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
 
               {/* Höger: bokningsinfo + projekttyp */}
               <div className="space-y-3 min-w-0">
-                <BookingInfoHeader booking={booking} hideTimes />
+
 
                 <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3">
                   <label className="flex items-start gap-2 cursor-pointer">
