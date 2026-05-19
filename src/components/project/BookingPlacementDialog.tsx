@@ -10,14 +10,10 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import {
   Loader2,
-  ChevronLeft,
-  ChevronRight,
   Save,
   Building2,
   Calendar as CalIcon,
@@ -38,19 +34,13 @@ import {
 import { writeProjectDates } from '@/services/projectDateAuthority';
 import {
   PlanningDay,
-  DayKind,
   isPhaseLocked,
-  phaseLabel,
   seedDaysFromBooking,
-  makeExtraDay,
-  insertDaySorted,
-  removeDayAt,
 } from './bookingPlacementSeed';
 import { BookingInfoHeader } from './BookingInfoHeader';
-import { PlacementDayCalendar } from './PlacementDayCalendar';
 import { PhaseDatesEditor } from './PhaseDatesEditor';
 import { translateSupabaseError } from '@/lib/supabase/translateError';
-import { Plus, Trash2, Check } from 'lucide-react';
+
 
 interface Props {
   open: boolean;
@@ -73,7 +63,6 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
   const { teamResources } = useTeamResources();
 
   const [days, setDays] = useState<PlanningDay[]>([]);
-  const [stepIndex, setStepIndex] = useState(0);
   const [isLarge, setIsLarge] = useState(false);
   const [largeMode, setLargeMode] = useState<'new' | 'existing'>('new');
   const [largeNewName, setLargeNewName] = useState('');
@@ -104,7 +93,6 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
   // Reset on open
   useEffect(() => {
     if (open) {
-      setStepIndex(0);
       setIsLarge(false);
       setLargeMode('new');
       setLargeNewName('');
@@ -127,17 +115,11 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
   // och tider från det stora projektet — användaren ska då inte planera dagar.
   const linkingToExistingLarge = isLarge && largeMode === 'existing' && !!largeExistingId;
 
-  // Endast rig + rigDown planeras (eventdagen hoppas över i wizarden)
+  // Endast rig + rigDown skrivs till kalendern (eventdagen hoppas över)
   const planSteps = useMemo(
     () => (linkingToExistingLarge ? [] : days.filter((d) => d.kind !== 'event')),
     [days, linkingToExistingLarge],
   );
-
-  // När vi länkar till befintligt stort projekt: wizarden blir 1 steg (bekräftelse).
-  const totalSteps = linkingToExistingLarge ? 1 : planSteps.length;
-  const currentDay: PlanningDay | undefined = planSteps[stepIndex];
-  const isLastStep = linkingToExistingLarge ? true : stepIndex >= totalSteps - 1;
-  const isFirstStep = stepIndex === 0;
 
   const teamOptions = useMemo(
     () =>
@@ -149,67 +131,12 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
     [teamResources],
   );
 
-  const updateCurrent = (patch: Partial<PlanningDay>) => {
-    if (!currentDay) return;
-    const idxInDays = days.indexOf(currentDay);
-    setDays((prev) => {
-      const next = [...prev];
-      next[idxInDays] = { ...next[idxInDays], ...patch };
-      return next;
-    });
-  };
-
   const inheritedTeamId = useMemo(
-    () => currentDay?.teamId || days[0]?.teamId || teamOptions[0]?.id || 'team-1',
-    [currentDay, days, teamOptions],
+    () => days[0]?.teamId || teamOptions[0]?.id || 'team-1',
+    [days, teamOptions],
   );
 
-  const handleAddDay = (kind: 'rig' | 'rigDown') => {
-    const samePhase = days.filter((d) => d.kind === kind);
-    let baseDate: string;
-    if (kind === 'rig') {
-      baseDate = samePhase[0]?.date || booking?.rigdaydate || booking?.eventdate || new Date().toISOString().slice(0, 10);
-    } else {
-      baseDate = samePhase[samePhase.length - 1]?.date || booking?.rigdowndate || booking?.eventdate || new Date().toISOString().slice(0, 10);
-    }
-    const newDay = makeExtraDay(kind, baseDate, inheritedTeamId);
-    setDays((prev) => {
-      const next = insertDaySorted(prev, newDay);
-      const planOnly = next.filter((d) => d.kind !== 'event');
-      const newIdx = planOnly.findIndex(
-        (d) => d.date === newDay.date && d.kind === newDay.kind,
-      );
-      if (newIdx >= 0) setStepIndex(newIdx);
-      return next;
-    });
-    toast.success(`La till ${kind === 'rig' ? 'riggdag' : 'demonteringsdag'}`);
-  };
 
-  const handleRemoveCurrent = () => {
-    if (!currentDay) return;
-    if (phaseLockedForCurrent) {
-      toast.error('Denna dag har fast tid från bokningen och kan inte tas bort här');
-      return;
-    }
-    if (planSteps.length <= 1) {
-      toast.error('Minst en dag måste vara kvar att planera');
-      return;
-    }
-    const idxInDays = days.indexOf(currentDay);
-    setDays((prev) => removeDayAt(prev, idxInDays));
-    setStepIndex((i) => Math.max(0, i - 1));
-    toast.success('Dag borttagen');
-  };
-
-  const goNext = () => {
-    if (!isLastStep) setStepIndex((i) => i + 1);
-  };
-  const goBack = () => {
-    if (!isFirstStep) setStepIndex((i) => i - 1);
-  };
-
-  const phaseLockedForCurrent =
-    !!currentDay && !!booking && isPhaseLocked(booking, currentDay.kind);
 
   const handleFinish = async () => {
     if (!booking) return;
@@ -414,13 +341,9 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
           <DialogTitle className="flex items-center gap-2">
             <CalIcon className="h-5 w-5 text-primary" />
             Placera bokning
-            {totalSteps > 0 && (
-              <Badge variant="outline" className="ml-2">
-                Steg {Math.min(stepIndex + 1, totalSteps)} av {totalSteps}
-              </Badge>
-            )}
           </DialogTitle>
         </DialogHeader>
+
 
         <div className="flex-1 overflow-y-auto pr-1">
           {isLoading || !booking ? (
@@ -429,7 +352,7 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-4">
-              {/* Vänster: dagvy + planeringsformulär — döljs när vi länkar till befintligt LP */}
+              {/* Vänster: planering via kalender */}
               <div className="space-y-3 min-w-0">
                 {linkingToExistingLarge ? (
                   <div className="rounded-lg border border-primary/30 bg-primary/5 p-6 space-y-2">
@@ -450,180 +373,19 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
                     </p>
                   </div>
                 ) : (
-                <>
-                {/* Åtgärdsrad: lägg till rig/demonteringsdag */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleAddDay('rig')}
-                    className="h-8 text-xs"
-                  >
-                    <Plus className="h-3.5 w-3.5 mr-1" /> Lägg till riggdag
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleAddDay('rigDown')}
-                    className="h-8 text-xs"
-                  >
-                    <Plus className="h-3.5 w-3.5 mr-1" /> Lägg till demonteringsdag
-                  </Button>
-                  <span className="text-[11px] text-muted-foreground ml-1">
-                    {planSteps.length} dag{planSteps.length === 1 ? '' : 'ar'} att planera
-                  </span>
-                </div>
-
-                {currentDay ? (
-                  <>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline">{phaseLabel(currentDay.kind)}</Badge>
-                        <Badge variant="secondary">
-                          {teamOptions.find((t) => t.id === currentDay.teamId)?.title || 'Välj team'}
-                        </Badge>
-                        <span className="text-sm font-medium">
-                          {(() => {
-                            try {
-                              return format(parseISO(currentDay.date), 'EEEE d MMMM yyyy', {
-                                locale: sv,
-                              });
-                            } catch {
-                              return currentDay.date;
-                            }
-                          })()}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {phaseLockedForCurrent && (
-                          <Badge
-                            variant="outline"
-                            className="border-red-400 text-red-700 bg-red-50 text-[10px]"
-                          >
-                            Fast tid från bokning
-                          </Badge>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={handleRemoveCurrent}
-                          disabled={phaseLockedForCurrent || planSteps.length <= 1}
-                          className="h-7 text-xs text-red-700 border-red-300 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-3.5 w-3.5 mr-1" /> Ta bort dag
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Team</Label>
-                          <p className="text-sm font-medium">Välj vilket team blocket ska placeras i</p>
-                        </div>
-                        <Badge variant="outline">
-                          {teamOptions.find((t) => t.id === currentDay.teamId)?.title || 'Inget team valt'}
-                        </Badge>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-6">
-                        {teamOptions.map((team) => {
-                          const isSelected = team.id === currentDay.teamId;
-                          return (
-                            <Button
-                              key={team.id}
-                              type="button"
-                              variant={isSelected ? 'default' : 'outline'}
-                              onClick={() => updateCurrent({ teamId: team.id })}
-                              className="h-10 justify-between px-3 text-xs sm:text-sm"
-                              aria-pressed={isSelected}
-                            >
-                              <span>{team.title}</span>
-                              {isSelected ? <Check className="h-4 w-4" /> : null}
-                            </Button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <PlacementDayCalendar date={currentDay.date} />
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-lg border border-border/60 bg-card p-3">
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Datum</Label>
-                        <Input
-                          type="date"
-                          value={currentDay.date}
-                          onChange={(e) => updateCurrent({ date: e.target.value })}
-                          disabled={phaseLockedForCurrent}
-                          className="h-9"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Start</Label>
-                        <Input
-                          type="time"
-                          value={currentDay.startTime}
-                          onChange={(e) => updateCurrent({ startTime: e.target.value })}
-                          disabled={phaseLockedForCurrent}
-                          className="h-9"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Slut</Label>
-                        <Input
-                          type="time"
-                          value={currentDay.endTime}
-                          onChange={(e) => updateCurrent({ endTime: e.target.value })}
-                          disabled={phaseLockedForCurrent}
-                          className="h-9"
-                        />
-                      </div>
-                      <div className="sm:col-span-3">
-                        <Label className="text-xs text-muted-foreground">Team</Label>
-                        <Select
-                          value={currentDay.teamId}
-                          onValueChange={(v) => updateCurrent({ teamId: v })}
-                        >
-                          <SelectTrigger className="h-9">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {teamOptions.map((t) => (
-                              <SelectItem key={t.id} value={t.id}>
-                                {t.title}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="rounded-lg border border-border/60 p-6 text-center text-muted-foreground text-sm">
-                    Bokningen saknar rig- och demonteringsdatum — inget att planera.
-                  </div>
-                )}
-                </>
+                  <PhaseDatesEditor
+                    booking={booking}
+                    days={days}
+                    onChange={setDays}
+                    inheritedTeamId={inheritedTeamId}
+                    teamOptions={teamOptions}
+                  />
                 )}
               </div>
 
-              {/* Höger: bokningsinfo + datum/tids-editor + projekttyp */}
+              {/* Höger: bokningsinfo + projekttyp */}
               <div className="space-y-3 min-w-0">
                 <BookingInfoHeader booking={booking} hideTimes />
-
-                <PhaseDatesEditor
-                  booking={booking}
-                  days={days}
-                  onChange={(next) => {
-                    setDays(next);
-                    // Klampa stepIndex om dagar tagits bort
-                    const planLen = next.filter((d) => d.kind !== 'event').length;
-                    if (stepIndex >= planLen) setStepIndex(Math.max(0, planLen - 1));
-                  }}
-                  inheritedTeamId={inheritedTeamId}
-                  teamOptions={teamOptions}
-                />
-
 
                 <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3">
                   <label className="flex items-start gap-2 cursor-pointer">
@@ -692,29 +454,20 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
           )}
         </div>
 
+
         <DialogFooter className="flex !justify-between gap-2 pt-2 border-t border-border/40">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Avbryt
           </Button>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={goBack} disabled={isFirstStep || saving}>
-              <ChevronLeft className="h-4 w-4 mr-1" /> Tillbaka
-            </Button>
-            {isLastStep ? (
-              <Button onClick={handleFinish} disabled={saving || totalSteps === 0}>
-                {saving ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Save className="h-4 w-4 mr-2" />
-                )}
-                Slutför planering
-              </Button>
+          <Button onClick={handleFinish} disabled={saving || (!linkingToExistingLarge && planSteps.length === 0)}>
+            {saving ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (
-              <Button onClick={goNext} disabled={saving}>
-                Nästa <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
+              <Save className="h-4 w-4 mr-2" />
             )}
-          </div>
+            Slutför planering
+          </Button>
+
         </DialogFooter>
       </DialogContent>
     </Dialog>
