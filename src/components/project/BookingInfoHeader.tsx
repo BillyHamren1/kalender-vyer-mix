@@ -140,14 +140,16 @@ export const BookingInfoHeader: React.FC<Props> = ({ booking, hideTimes = false 
         </div>
       )}
 
-      <div className="rounded border border-border/40 bg-card p-2">
-        <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
-          Tider från bokning
+      {!hideTimes && (
+        <div className="rounded border border-border/40 bg-card p-2">
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+            Tider från bokning
+          </div>
+          {phaseRow('Riggning', booking.rigdaydate, 'rig')}
+          {phaseRow('Event', booking.eventdate, 'event')}
+          {phaseRow('Demont.', booking.rigdowndate, 'rigDown')}
         </div>
-        {phaseRow('Riggning', booking.rigdaydate, 'rig')}
-        {phaseRow('Event', booking.eventdate, 'event')}
-        {phaseRow('Demont.', booking.rigdowndate, 'rigDown')}
-      </div>
+      )}
 
       {(orderedProducts.length > 0) && (
         <Collapsible defaultOpen>
