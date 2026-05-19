@@ -1,10 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { Calendar as CalIcon, Plus, X, Lock } from 'lucide-react';
+import { Calendar as CalIcon, X, Lock } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import {
@@ -84,7 +82,6 @@ const PhaseBlock: React.FC<{
   onChange: (next: PlanningDay[]) => void;
   inheritedTeamId: string;
 }> = ({ phase, booking, days, onChange, inheritedTeamId }) => {
-  const [open, setOpen] = useState(false);
   const locked = isPhaseLocked(booking, phase);
 
   const phaseDays = useMemo(
@@ -129,6 +126,9 @@ const PhaseBlock: React.FC<{
     onChange(days.map((d) => (d.kind === phase ? { ...d, endTime: v } : d)));
   };
 
+  // Default-månad för kalendervisning: första valda dagen eller idag
+  const defaultMonth = selectedDates[0] ?? new Date();
+
   return (
     <div className="rounded border border-border/40 bg-muted/10 p-2 space-y-2">
       <div className="flex items-center justify-between">
@@ -144,23 +144,22 @@ const PhaseBlock: React.FC<{
             </Badge>
           )}
         </div>
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <Button size="sm" variant="outline" className="h-6 px-2 text-[11px]">
-              <Plus className="h-3 w-3 mr-1" /> Datum
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-auto p-0">
-            <Calendar
-              mode="multiple"
-              selected={selectedDates}
-              onSelect={setDates}
-              weekStartsOn={1}
-              locale={sv}
-              initialFocus
-            />
-          </PopoverContent>
-        </Popover>
+        <span className="text-[10px] text-muted-foreground">
+          Klicka på datum för att lägga till/ta bort
+        </span>
+      </div>
+
+      <div className="rounded border border-border/40 bg-card overflow-hidden">
+        <Calendar
+          mode="multiple"
+          selected={selectedDates}
+          onSelect={(next) => !locked && setDates(next as Date[] | undefined)}
+          defaultMonth={defaultMonth}
+          weekStartsOn={1}
+          locale={sv}
+          disabled={locked}
+          className="p-2 [&_table]:w-full [&_button]:h-7 [&_button]:w-7 [&_button]:text-[11px]"
+        />
       </div>
 
       {phaseDays.length === 0 ? (
