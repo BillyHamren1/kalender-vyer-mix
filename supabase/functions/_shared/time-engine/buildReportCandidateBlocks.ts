@@ -724,7 +724,13 @@ export interface ReportCandidatePolicy {
    *  inherited if both sides match, otherwise unlabeled work) when its
    *  duration is ≤ this. Default 90 min. Set to 0 to disable. */
   sandwichInferWorkMaxMinutes?: number;
+  /** Maximum length of a single signal_gap that may be absorbed as a "same-target
+   *  bridge" inside a work block. Gaps longer than this are NOT bridged — they
+   *  split the work into two separate blocks (e.g. arrived briefly → went home
+   *  → came back). Default 120 min. */
+  maxWorkBridgeMinutes?: number;
 }
+
 
 export interface HomeAnchorInput {
   /** Identifier from staff_inferred_home_locations / staff_private_zones. */
@@ -862,7 +868,9 @@ const DEFAULT_POLICY: Required<ReportCandidatePolicy> = {
   shortCrossTargetReviewMaxMinutes: 5,
   shortUnknownTransportHideMaxMinutes: 3,
   sandwichInferWorkMaxMinutes: 90,
+  maxWorkBridgeMinutes: 120,
 };
+
 
 // ───────────────────────────────────────────────────────────────────────────
 // Deterministic block ID
@@ -1398,7 +1406,11 @@ export function buildReportCandidateBlocks(
     // ── SIGNAL_GAP / UNCERTAIN_TRANSITION
     if (b.kind === 'signal_gap' || b.kind === 'uncertain_transition') {
       // Try to bridge inside the current work block: same target returns later?
-      if (acc && acc.kind === 'work') {
+      // Hard cap: a single signal_gap longer than maxWorkBridgeMinutes (default
+      // 120 min) is NEVER bridged — staff almost certainly went elsewhere
+      // (home) between two short arrivals. Two separate work blocks instead,
+      // with the gap exposed as needs_review / transport via the lone-gap path.
+      if (acc && acc.kind === 'work' && b.durationMinutes <= policy.maxWorkBridgeMinutes) {
         const ret = findSameTargetReturn(blocks, i + 1, acc, policy);
         if (ret >= 0) {
           // Absorb everything from i..ret-1 as bridge inside work, then the
@@ -1412,6 +1424,7 @@ export function buildReportCandidateBlocks(
           continue;
         }
       }
+
 
       // No same-target return → close current work
       flush();
