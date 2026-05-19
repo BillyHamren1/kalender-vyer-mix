@@ -32,12 +32,47 @@ export const BookingInfoHeader: React.FC<Props> = ({ booking }) => {
     queryFn: async () => {
       const { data } = await supabase
         .from('booking_products')
-        .select('id, name, quantity')
+        .select('id, name, quantity, parent_product_id, is_package_component, sort_index')
         .eq('booking_id', bookingId)
-        .order('name', { ascending: true });
-      return (data || []) as Array<{ id: string; name: string; quantity: number }>;
+        .order('sort_index', { ascending: true, nullsFirst: false });
+      return (data || []) as Array<{
+        id: string;
+        name: string;
+        quantity: number;
+        parent_product_id: string | null;
+        is_package_component: boolean | null;
+        sort_index: number | null;
+      }>;
     },
   });
+
+  // Bygg hierarkisk lista: parents i sort_index-ordning, varje child direkt under sin parent
+  const orderedProducts = React.useMemo(() => {
+    if (!products || products.length === 0) return [];
+    const visible = products.filter((p) => p.is_package_component !== true);
+    const parents = visible.filter((p) => !p.parent_product_id);
+    const childrenBy = new Map<string, typeof visible>();
+    for (const p of visible) {
+      if (p.parent_product_id) {
+        const arr = childrenBy.get(p.parent_product_id) || [];
+        arr.push(p);
+        childrenBy.set(p.parent_product_id, arr);
+      }
+    }
+    const out: Array<(typeof visible)[number] & { depth: number }> = [];
+    for (const parent of parents) {
+      out.push({ ...parent, depth: 0 });
+      for (const child of childrenBy.get(parent.id) || []) {
+        out.push({ ...child, depth: 1 });
+      }
+    }
+    // Orfana children (parent saknas) sist
+    const seen = new Set(out.map((p) => p.id));
+    for (const p of visible) {
+      if (!seen.has(p.id)) out.push({ ...p, depth: 0 });
+    }
+    return out;
+  }, [products]);
 
   const { data: attachments } = useQuery({
     queryKey: ['placement-info-attachments', bookingId],
@@ -132,17 +167,24 @@ export const BookingInfoHeader: React.FC<Props> = ({ booking }) => {
         {phaseRow('Demont.', booking.rigdowndate, 'rigDown')}
       </div>
 
-      {(products && products.length > 0) && (
+      {(orderedProducts.length > 0) && (
         <Collapsible defaultOpen>
           <CollapsibleTrigger className="flex items-center gap-1 text-xs font-medium hover:text-primary w-full">
             <Package className="h-3 w-3" />
-            Produkter ({products.length})
+            Produkter ({orderedProducts.length})
             <ChevronDown className="h-3 w-3 ml-auto" />
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-1 max-h-72 overflow-y-auto rounded border border-border/40 bg-card p-1.5 space-y-0.5">
-            {products.map((p) => (
-              <div key={p.id} className="flex justify-between text-[11px] gap-2 py-0.5 border-b border-border/20 last:border-0">
-                <span className="truncate" title={p.name}>{p.name}</span>
+            {orderedProducts.map((p) => (
+              <div
+                key={p.id}
+                className="flex justify-between text-[11px] gap-2 py-0.5 border-b border-border/20 last:border-0"
+                style={{ paddingLeft: p.depth ? p.depth * 12 : 0 }}
+              >
+                <span className="truncate" title={p.name}>
+                  {p.depth > 0 && <span className="text-muted-foreground mr-1">↳</span>}
+                  {p.name}
+                </span>
                 <span className="text-muted-foreground shrink-0 font-mono">{p.quantity} st</span>
               </div>
             ))}
