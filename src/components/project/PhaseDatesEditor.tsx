@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
-import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { Calendar as CalIcon, X, Lock } from 'lucide-react';
+import { Lock } from 'lucide-react';
+
 import { Calendar } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
