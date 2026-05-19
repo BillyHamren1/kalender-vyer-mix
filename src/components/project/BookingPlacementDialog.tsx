@@ -63,7 +63,6 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
   const { teamResources } = useTeamResources();
 
   const [days, setDays] = useState<PlanningDay[]>([]);
-  const [stepIndex, setStepIndex] = useState(0);
   const [isLarge, setIsLarge] = useState(false);
   const [largeMode, setLargeMode] = useState<'new' | 'existing'>('new');
   const [largeNewName, setLargeNewName] = useState('');
@@ -94,7 +93,6 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
   // Reset on open
   useEffect(() => {
     if (open) {
-      setStepIndex(0);
       setIsLarge(false);
       setLargeMode('new');
       setLargeNewName('');
@@ -117,17 +115,11 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
   // och tider från det stora projektet — användaren ska då inte planera dagar.
   const linkingToExistingLarge = isLarge && largeMode === 'existing' && !!largeExistingId;
 
-  // Endast rig + rigDown planeras (eventdagen hoppas över i wizarden)
+  // Endast rig + rigDown skrivs till kalendern (eventdagen hoppas över)
   const planSteps = useMemo(
     () => (linkingToExistingLarge ? [] : days.filter((d) => d.kind !== 'event')),
     [days, linkingToExistingLarge],
   );
-
-  // När vi länkar till befintligt stort projekt: wizarden blir 1 steg (bekräftelse).
-  const totalSteps = linkingToExistingLarge ? 1 : planSteps.length;
-  const currentDay: PlanningDay | undefined = planSteps[stepIndex];
-  const isLastStep = linkingToExistingLarge ? true : stepIndex >= totalSteps - 1;
-  const isFirstStep = stepIndex === 0;
 
   const teamOptions = useMemo(
     () =>
@@ -139,67 +131,12 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
     [teamResources],
   );
 
-  const updateCurrent = (patch: Partial<PlanningDay>) => {
-    if (!currentDay) return;
-    const idxInDays = days.indexOf(currentDay);
-    setDays((prev) => {
-      const next = [...prev];
-      next[idxInDays] = { ...next[idxInDays], ...patch };
-      return next;
-    });
-  };
-
   const inheritedTeamId = useMemo(
-    () => currentDay?.teamId || days[0]?.teamId || teamOptions[0]?.id || 'team-1',
-    [currentDay, days, teamOptions],
+    () => days[0]?.teamId || teamOptions[0]?.id || 'team-1',
+    [days, teamOptions],
   );
 
-  const handleAddDay = (kind: 'rig' | 'rigDown') => {
-    const samePhase = days.filter((d) => d.kind === kind);
-    let baseDate: string;
-    if (kind === 'rig') {
-      baseDate = samePhase[0]?.date || booking?.rigdaydate || booking?.eventdate || new Date().toISOString().slice(0, 10);
-    } else {
-      baseDate = samePhase[samePhase.length - 1]?.date || booking?.rigdowndate || booking?.eventdate || new Date().toISOString().slice(0, 10);
-    }
-    const newDay = makeExtraDay(kind, baseDate, inheritedTeamId);
-    setDays((prev) => {
-      const next = insertDaySorted(prev, newDay);
-      const planOnly = next.filter((d) => d.kind !== 'event');
-      const newIdx = planOnly.findIndex(
-        (d) => d.date === newDay.date && d.kind === newDay.kind,
-      );
-      if (newIdx >= 0) setStepIndex(newIdx);
-      return next;
-    });
-    toast.success(`La till ${kind === 'rig' ? 'riggdag' : 'demonteringsdag'}`);
-  };
 
-  const handleRemoveCurrent = () => {
-    if (!currentDay) return;
-    if (phaseLockedForCurrent) {
-      toast.error('Denna dag har fast tid från bokningen och kan inte tas bort här');
-      return;
-    }
-    if (planSteps.length <= 1) {
-      toast.error('Minst en dag måste vara kvar att planera');
-      return;
-    }
-    const idxInDays = days.indexOf(currentDay);
-    setDays((prev) => removeDayAt(prev, idxInDays));
-    setStepIndex((i) => Math.max(0, i - 1));
-    toast.success('Dag borttagen');
-  };
-
-  const goNext = () => {
-    if (!isLastStep) setStepIndex((i) => i + 1);
-  };
-  const goBack = () => {
-    if (!isFirstStep) setStepIndex((i) => i - 1);
-  };
-
-  const phaseLockedForCurrent =
-    !!currentDay && !!booking && isPhaseLocked(booking, currentDay.kind);
 
   const handleFinish = async () => {
     if (!booking) return;
