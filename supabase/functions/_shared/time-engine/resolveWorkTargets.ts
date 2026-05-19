@@ -485,6 +485,20 @@ export async function resolveWorkTargets(
   }
 
   // ─────────────────────────── Large projects ──────────────────────────────
+  // PRODUKTREGEL: Stora projekt äger platsen. Tid får ALDRIG attribueras
+  // till child-bokningar — varken via GPS-match eller via auto-start.
+  // Vi laddar därför LP-info först, sedan promotar vi child-bookings till
+  // LP-targets (med bokningens geo) om LP saknar egen geo. Om LP har egen
+  // geo undertrycks child-booking-targets helt.
+  type LpInfo = {
+    id: string;
+    name: string;
+    status: string | null;
+    rawAddress: string | null;
+    hasOwnGeo: boolean;
+  };
+  const lpInfoById = new Map<string, LpInfo>();
+
   try {
     const { data, error } = await supabaseAdmin
       .from('large_projects')
@@ -505,10 +519,19 @@ export async function resolveWorkTargets(
         const isPlannedToday = todayLargeProjectIds.has(r.id);
         const status = (r.planning_status as string | null) ?? r.status ?? null;
         const validity = classifyValidity(r.name, status, lat, lng, polygon, radius, true);
+        const hasOwnGeo = validity === 'valid' && (polygon !== null || (lat !== null && lng !== null));
+
+        lpInfoById.set(r.id, {
+          id: r.id,
+          name: r.name ?? 'Stort projekt',
+          status,
+          rawAddress: (r.address as string | null) ?? null,
+          hasOwnGeo,
+        });
 
         if (lat != null && lng != null) diag.candidatesWithCoordinates += 1;
 
-        const key = `project:${r.id}`;
+        const key = `large_project:${r.id}`;
         if (seenKey.has(key)) continue;
         seenKey.add(key);
 
@@ -589,6 +612,29 @@ export async function resolveWorkTargets(
       diag.warnings.push(`large_project_bookings failed: ${(e as Error).message}`);
     }
   }
+
+  // bookingToLp: COMPLETE map across ALL known LPs (not just today). Detta
+  // krävs för att kunna promota child-bokningar till LP-targets även när
+  // LP:n inte är "planerad idag" via BSA. Källa A: large_project_bookings.
+  // Källa B (kompletteras nedan): bookings.large_project_id-kolumnen.
+  const bookingToLp = new Map<string, string>();
+  if (lpInfoById.size > 0) {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('large_project_bookings')
+        .select('booking_id, large_project_id')
+        .eq('organization_id', organizationId);
+      if (error) diag.warnings.push(`large_project_bookings (all): ${error.message}`);
+      else (data ?? []).forEach((r: any) => {
+        if (r.booking_id && r.large_project_id && lpInfoById.has(r.large_project_id)) {
+          bookingToLp.set(r.booking_id, r.large_project_id);
+        }
+      });
+    } catch (e) {
+      diag.warnings.push(`large_project_bookings (all) failed: ${(e as Error).message}`);
+    }
+  }
+
 
   if (bookingSourceMap.size > 0) {
     try {
