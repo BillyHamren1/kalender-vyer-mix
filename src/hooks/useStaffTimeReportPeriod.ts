@@ -56,37 +56,58 @@ export interface StaffTimeReportPeriodTotals {
   otherPlaceMinutes: number;
 }
 
+export type StaffPeriodDayStatus = 'empty' | 'open' | 'draft' | 'submitted';
+
 /**
- * Per-day summary — matches backend `DaySummary` from `day-snapshot-range.ts`.
+ * Per-day summary — TIME-vyn pratar bara om rapporteringsläge.
+ * Legacy statusar (needs_attest/needs_action/attested/approved) normaliseras
+ * i hooken till empty/open/draft/submitted.
  */
 export interface StaffPeriodDaySummary {
   date: string;
   weekday: number;
   grossWorkdayMinutes: number;
   breakMinutes: number;
+  /** @deprecated TIME-vyn använder inte payable. */
   payableMinutes: number;
   projectMinutes: number;
   warehouseMinutes: number;
   transportMinutes: number;
   otherPlaceMinutes: number;
   isWorkdayOpen: boolean;
+  /** @deprecated */
   approved: boolean;
+  /** @deprecated */
   attested: boolean;
   actionsCount: number;
-  status:
-    | 'empty'
-    | 'open'
-    | 'needs_attest'
-    | 'needs_action'
-    | 'attested'
-    | 'approved';
+  status: StaffPeriodDayStatus;
   /**
    * Wallclock start/slut — speglar dialogens "Justera dagen"-förslag.
-   * UserDayList visar (end − start) som "total tid" så listsumman matchar
-   * dialogen exakt. Backend levererar dessa från toDaySummary.
+   * Backend levererar dessa från dayFromReport.
    */
   workdayStartedAt: string | null;
   workdayEndedAt: string | null;
+}
+
+/**
+ * Normalize legacy backend status strings to the TIME-vy vocabulary.
+ */
+function normalizeUserReportStatus(status: unknown): StaffPeriodDayStatus {
+  switch (status) {
+    case 'empty':
+      return 'empty';
+    case 'open':
+      return 'open';
+    case 'submitted':
+    case 'attested':
+    case 'approved':
+      return 'submitted';
+    case 'needs_attest':
+    case 'needs_action':
+    case 'draft':
+    default:
+      return 'draft';
+  }
 }
 
 export interface StaffTimeReportPeriod {
