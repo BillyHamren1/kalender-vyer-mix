@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { Check, AlertTriangle, MessageSquare, ExternalLink } from "lucide-react";
+import { Check, AlertTriangle, MessageSquare, ExternalLink, Lock } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,11 +11,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import type { StaffDaySubmissionRow } from "@/hooks/staff/useStaffDaySubmissions";
 import {
-  useUpdateDaySubmissionStatus,
-  type DaySubmissionStatus,
-  type StaffDaySubmissionRow,
-} from "@/hooks/staff/useStaffDaySubmissions";
+  useUpdateStaffDaySubmissionStatus,
+  type AdminDayStatusUpdate,
+} from "@/hooks/staff/useUpdateStaffDaySubmissionStatus";
 import { toast } from "sonner";
 
 interface Props {
@@ -80,19 +80,23 @@ function statusBadge(status: string) {
 }
 
 export function StaffDayReportRow({ row, staffName }: Props) {
-  const update = useUpdateDaySubmissionStatus();
-  const [busy, setBusy] = useState<DaySubmissionStatus | null>(null);
+  const update = useUpdateStaffDaySubmissionStatus();
+  const [busy, setBusy] = useState<AdminDayStatusUpdate | null>(null);
 
-  const handle = async (status: DaySubmissionStatus) => {
+  const isLocked = row.status === "payroll_approved";
+
+  const handle = async (status: AdminDayStatusUpdate) => {
+    if (isLocked) {
+      toast.error("Dagrapporten är låst (godkänd för utbetalning).");
+      return;
+    }
     setBusy(status);
     try {
-      await update.mutateAsync({ id: row.id, status });
+      await update.mutateAsync({ submission_id: row.id, status });
       toast.success(
         status === "approved"
           ? "Dagrapport markerad som OK"
-          : status === "needs_control"
-          ? "Dagrapport markerad för kontroll"
-          : "Status uppdaterad",
+          : "Dagrapport markerad för kontroll",
       );
     } catch (e: any) {
       toast.error(e?.message ?? "Kunde inte uppdatera");
@@ -101,7 +105,6 @@ export function StaffDayReportRow({ row, staffName }: Props) {
     }
   };
 
-  const isLocked = row.status === "payroll_approved";
   const total = totalMinutes(row);
 
   return (
@@ -129,13 +132,26 @@ export function StaffDayReportRow({ row, staffName }: Props) {
           <span className="text-muted-foreground/50">—</span>
         )}
       </TableCell>
-      <TableCell>{statusBadge(row.status)}</TableCell>
+      <TableCell>
+        {isLocked ? (
+          <Badge variant="outline" className="bg-violet-500/15 text-violet-600 border-violet-500/30 gap-1">
+            <Lock className="h-3 w-3" />
+            Godkänd för utbetalning
+          </Badge>
+        ) : (
+          statusBadge(row.status)
+        )}
+      </TableCell>
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-1">
           <Button
             size="sm"
-            variant="ghost"
-            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
+            variant={row.status === "approved" ? "default" : "ghost"}
+            className={
+              row.status === "approved"
+                ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                : "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
+            }
             disabled={isLocked || busy !== null}
             onClick={() => handle("approved")}
             title="Markera OK"
@@ -144,8 +160,12 @@ export function StaffDayReportRow({ row, staffName }: Props) {
           </Button>
           <Button
             size="sm"
-            variant="ghost"
-            className="text-yellow-600 hover:text-yellow-700 hover:bg-yellow-500/10"
+            variant={row.status === "needs_control" ? "default" : "ghost"}
+            className={
+              row.status === "needs_control"
+                ? "bg-yellow-500 hover:bg-yellow-600 text-white"
+                : "text-yellow-600 hover:text-yellow-700 hover:bg-yellow-500/10"
+            }
             disabled={isLocked || busy !== null}
             onClick={() => handle("needs_control")}
             title="Markera för kontroll"
