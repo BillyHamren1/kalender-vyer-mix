@@ -48,6 +48,7 @@ import {
 } from './bookingPlacementSeed';
 import { BookingInfoHeader } from './BookingInfoHeader';
 import { PlacementDayCalendar } from './PlacementDayCalendar';
+import { PhaseDatesEditor } from './PhaseDatesEditor';
 import { translateSupabaseError } from '@/lib/supabase/translateError';
 import { Plus, Trash2, Check } from 'lucide-react';
 
