@@ -162,8 +162,9 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({
           action: "compute",
-          staffId: parsed.staffId,
+          staff_id: parsed.staffId,
           date: parsed.date,
+          force: true,
           reason: `rebuild:${parsed.reason}`,
         }),
       });
