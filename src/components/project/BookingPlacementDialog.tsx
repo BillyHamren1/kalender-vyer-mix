@@ -621,6 +621,7 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
                     if (stepIndex >= planLen) setStepIndex(Math.max(0, planLen - 1));
                   }}
                   inheritedTeamId={inheritedTeamId}
+                  teamOptions={teamOptions}
                 />
 
 
