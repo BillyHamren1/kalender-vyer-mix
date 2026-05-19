@@ -5821,6 +5821,17 @@ async function handleUploadLocationBatch(
     console.warn('[mobile-app-api] upload_location_batch dedupe lookup failed:', lookupErr)
   }
 
+  // App build metadata skickas på batch-nivå (per device, inte per ping)
+  // men vi taggar varje history-rad så vi kan se exakt vilken version
+  // postade en given GPS-ping. Bakåtkompatibelt — gamla appar utan
+  // dessa fält får null i kolumnerna.
+  const batchAppVersion = typeof data?.app_version === 'string' ? data.app_version : null
+  const batchAppBuild = typeof data?.app_build === 'string' ? data.app_build : null
+  const batchAppPlatform = typeof data?.app_platform === 'string' ? data.app_platform : null
+  const batchOsVersion = typeof data?.os_version === 'string' ? data.os_version : null
+  const batchDeviceModel = typeof data?.device_model === 'string' ? data.device_model : null
+  const batchAppId = typeof data?.app_id === 'string' ? data.app_id : null
+
   const rowsToInsert: any[] = []
   for (const p of valid) {
     // Treat any history row within the same second as a duplicate.
@@ -5845,6 +5856,12 @@ async function handleUploadLocationBatch(
       is_charging: p.isCharging,
       battery_captured_at: p.batteryCapturedAt,
       battery_source: p.batterySource,
+      app_version: batchAppVersion,
+      app_build: batchAppBuild,
+      platform: batchAppPlatform,
+      os_version: batchOsVersion,
+      device_model: batchDeviceModel,
+      app_id: batchAppId,
     })
     accepted.push(p.id)
     existingTimestamps.add(p.recordedMs)

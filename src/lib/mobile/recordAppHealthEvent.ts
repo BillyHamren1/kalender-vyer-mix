@@ -9,7 +9,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { Capacitor } from '@capacitor/core';
 import { getBatterySnapshot } from './getBatterySnapshot';
-import { getAppMeta } from '@/services/appMeta';
+import { getAppBuildInfo } from './getAppBuildInfo';
 
 export type AppHealthEventType =
   | 'app_start'
@@ -74,11 +74,19 @@ export async function recordAppHealthEvent(input: RecordAppHealthEventInput): Pr
     }
 
     let app_version: string | null = null;
+    let app_build: string | null = null;
     let platform: string | null = null;
+    let os_version: string | null = null;
+    let device_model: string | null = null;
+    let app_id: string | null = null;
     try {
-      const meta = await getAppMeta();
-      app_version = meta.app_version ?? null;
-      platform = meta.app_platform ?? Capacitor.getPlatform();
+      const info = await getAppBuildInfo();
+      app_version = info.appVersion;
+      app_build = info.appBuild;
+      platform = info.platform ?? Capacitor.getPlatform();
+      os_version = info.osVersion;
+      device_model = info.deviceModel;
+      app_id = info.appId;
     } catch {
       try {
         platform = Capacitor.getPlatform();
@@ -99,7 +107,21 @@ export async function recordAppHealthEvent(input: RecordAppHealthEventInput): Pr
         appState: input.appState ?? null,
         platform,
         appVersion: app_version,
-        metadata: input.metadata ?? {},
+        appBuild: app_build,
+        osVersion: os_version,
+        deviceModel: device_model,
+        appId: app_id,
+        metadata: {
+          ...(input.metadata ?? {}),
+          // Speglas även i metadata_json så historisk frågning fungerar
+          // även om kolumnen skulle saknas (ren defensiv praxis).
+          app_version,
+          app_build,
+          platform,
+          os_version,
+          device_model,
+          app_id,
+        },
       },
     });
     return { ok: true };

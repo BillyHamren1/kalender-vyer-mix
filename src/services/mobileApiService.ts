@@ -667,13 +667,26 @@ export const mobileApi = {
     batterySource?: string | null;
   }>) => {
     const { getAppMeta } = await import('./appMeta');
-    const meta = await getAppMeta();
+    const { getAppBuildInfo } = await import('@/lib/mobile/getAppBuildInfo');
+    const [meta, build] = await Promise.all([getAppMeta(), getAppBuildInfo()]);
     return callApi<{
       success: boolean;
       accepted: string[];
       rejected: { id: string; reason: string }[];
       received: number;
-    }>('upload_location_batch', { points, ...meta });
+    }>('upload_location_batch', {
+      points,
+      // Legacy fält (staff_locations använder dem fortfarande).
+      ...meta,
+      // Utökad app-byggnadsinfo som persisteras på varje staff_location_history-rad
+      // så vi kan se exakt vilken version som postade en given GPS-ping.
+      app_version: build.appVersion ?? meta.app_version ?? null,
+      app_build: build.appBuild ?? null,
+      app_platform: build.platform ?? meta.app_platform ?? null,
+      os_version: build.osVersion ?? null,
+      device_model: build.deviceModel ?? null,
+      app_id: build.appId ?? null,
+    });
   },
 
   // Organization locations (fixed places)

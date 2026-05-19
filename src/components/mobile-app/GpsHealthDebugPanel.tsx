@@ -22,6 +22,8 @@ import {
   type LocationSyncStatus,
 } from '@/services/locationSyncQueue';
 import type { BackgroundLocationDebugInfo } from '@/hooks/useBackgroundLocationReporter';
+import { getAppBuildInfo, type AppBuildInfo } from '@/lib/mobile/getAppBuildInfo';
+import { classifyAppBuild, CURRENT_EXPECTED_APP_BUILD } from '@/lib/mobile/expectedAppBuild';
 
 interface Props {
   debug: BackgroundLocationDebugInfo;
@@ -52,6 +54,14 @@ export const GpsHealthDebugPanel: React.FC<Props> = ({ debug }) => {
   const [permission, setPermission] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<LocationSyncStatus>(getLocationSyncStatus());
   const [pendingCount, setPendingCount] = useState<number>(getPendingLocationPoints().length);
+  const [buildInfo, setBuildInfo] = useState<AppBuildInfo | null>(null);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    getAppBuildInfo().then((info) => { if (!cancelled) setBuildInfo(info); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [enabled]);
 
   // Tick var 2s så "ago"-fält uppdateras
   const [, setTick] = useState(0);
@@ -94,9 +104,23 @@ export const GpsHealthDebugPanel: React.FC<Props> = ({ debug }) => {
 
   if (!enabled) return null;
 
+  const buildState = classifyAppBuild(buildInfo?.appBuild ?? null);
+  const buildBadge =
+    buildState === 'missing'
+      ? ' ⚠ saknas — installera om'
+      : buildState === 'outdated'
+        ? ` ⚠ gammal (väntat ${CURRENT_EXPECTED_APP_BUILD})`
+        : '';
+
   const rows: Array<[string, string]> = [
     ['staffId', staff?.id ?? '—'],
     ['orgId', (() => { try { const r = localStorage.getItem('eventflow-mobile-staff'); return r ? (JSON.parse(r)?.organization_id ?? '—') : '—'; } catch { return '—'; } })()],
+    ['appVersion', (buildInfo?.appVersion ?? 'okänd') + buildBadge],
+    ['appBuild', buildInfo?.appBuild ?? 'okänd'],
+    ['platform', buildInfo?.platform ?? 'okänd'],
+    ['osVersion', buildInfo?.osVersion ?? '—'],
+    ['deviceModel', buildInfo?.deviceModel ?? '—'],
+    ['appId', buildInfo?.appId ?? '—'],
     ['permission', permission ?? 'okänd'],
     ['isNativePlatform', String(debug.isNativePlatform)],
     ['appVisibilityState', debug.appVisibilityState],

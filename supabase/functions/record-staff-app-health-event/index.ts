@@ -33,6 +33,10 @@ interface Body {
   appState?: string | null;
   platform?: string | null;
   appVersion?: string | null;
+  appBuild?: string | null;
+  osVersion?: string | null;
+  deviceModel?: string | null;
+  appId?: string | null;
   metadata?: Record<string, unknown> | null;
 }
 
@@ -70,6 +74,10 @@ Deno.serve(async (req) => {
       appState = null,
       platform = null,
       appVersion = null,
+      appBuild = null,
+      osVersion = null,
+      deviceModel = null,
+      appId = null,
       metadata = {},
     } = body;
 
@@ -138,6 +146,10 @@ Deno.serve(async (req) => {
       app_state: appState ?? null,
       platform: platform ?? null,
       app_version: appVersion ?? null,
+      app_build: appBuild ?? null,
+      os_version: osVersion ?? null,
+      device_model: deviceModel ?? null,
+      app_id: appId ?? null,
       metadata: metadata && typeof metadata === 'object' ? metadata : {},
     });
 
