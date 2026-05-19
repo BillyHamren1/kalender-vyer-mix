@@ -179,13 +179,13 @@ const DayBody: React.FC<{
 
   const statusChip = (() => {
     if (!wd && !hasManualOnly) return { label: 'Ej rapporterad', tone: 'muted' as const, Icon: AlertTriangle };
-    if (headerOpen) return { label: 'Pågår', tone: 'primary' as const, Icon: Loader2 };
     // Inskickad täcker både legacy approved (admin-lås) och attested —
     // TIME-vyn pratar bara om rapporteringsläge.
     if (snapshot.attestation?.status === 'attested' || !!wd?.approved) {
       return { label: 'Inskickad', tone: 'emerald' as const, Icon: Check };
     }
-    return { label: 'Ej inskickad', tone: 'amber' as const, Icon: Check };
+    if (headerOpen) return { label: 'Utkast', tone: 'amber' as const, Icon: AlertTriangle };
+    return { label: 'Utkast', tone: 'amber' as const, Icon: Check };
   })();
 
 
