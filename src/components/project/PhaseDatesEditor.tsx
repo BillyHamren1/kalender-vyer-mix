@@ -1,10 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { sv } from 'date-fns/locale';
-import { Lock } from 'lucide-react';
+import { Lock, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 
 import { Calendar } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -62,22 +63,97 @@ export const PhaseDatesEditor: React.FC<Props> = ({
   inheritedTeamId,
   teamOptions,
 }) => {
+  const [step, setStep] = useState<DayKind>('rig');
+  const stepIndex = PHASES.indexOf(step);
+
+  const isPhaseDone = (phase: DayKind): boolean => {
+    if (isPhaseLocked(booking, phase)) return true;
+    return days.some((d) => d.kind === phase);
+  };
+
   return (
     <div className="rounded-lg border border-border/60 bg-card p-3 space-y-3">
-      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-        Datum &amp; tider
+      <div className="flex items-center justify-between">
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+          Datum &amp; tider
+        </div>
+        <div className="text-[10px] text-muted-foreground">
+          Steg {stepIndex + 1} av {PHASES.length}
+        </div>
       </div>
-      {PHASES.map((phase) => (
-        <PhaseBlock
-          key={phase}
-          phase={phase}
-          booking={booking}
-          days={days}
-          onChange={onChange}
-          inheritedTeamId={inheritedTeamId}
-          teamOptions={teamOptions}
-        />
-      ))}
+
+      {/* Stepper */}
+      <div className="flex items-center gap-1">
+        {PHASES.map((phase, idx) => {
+          const active = phase === step;
+          const done = isPhaseDone(phase);
+          return (
+            <React.Fragment key={phase}>
+              <button
+                type="button"
+                onClick={() => setStep(phase)}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+                  active
+                    ? 'bg-primary text-primary-foreground'
+                    : done
+                      ? 'bg-primary/10 text-primary hover:bg-primary/20'
+                      : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                }`}
+              >
+                <span
+                  className={`flex items-center justify-center h-4 w-4 rounded-full text-[9px] ${
+                    active
+                      ? 'bg-primary-foreground text-primary'
+                      : done
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-background text-muted-foreground border border-border'
+                  }`}
+                >
+                  {done && !active ? <Check className="h-2.5 w-2.5" /> : idx + 1}
+                </span>
+                {phaseLabel(phase)}
+              </button>
+              {idx < PHASES.length - 1 && (
+                <div className="flex-1 h-px bg-border" />
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+
+      <PhaseBlock
+        phase={step}
+        booking={booking}
+        days={days}
+        onChange={onChange}
+        inheritedTeamId={inheritedTeamId}
+        teamOptions={teamOptions}
+      />
+
+      <div className="flex items-center justify-between pt-1">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs"
+          disabled={stepIndex === 0}
+          onClick={() => setStep(PHASES[stepIndex - 1])}
+        >
+          <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+          Tillbaka
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="default"
+          className="h-7 text-xs"
+          disabled={stepIndex === PHASES.length - 1}
+          onClick={() => setStep(PHASES[stepIndex + 1])}
+        >
+          Nästa
+          <ChevronRight className="h-3.5 w-3.5 ml-1" />
+        </Button>
+      </div>
     </div>
   );
 };
