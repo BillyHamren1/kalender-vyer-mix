@@ -263,22 +263,22 @@ Deno.serve(async (req) => {
   );
   totals.awaitingAttestPayableMinutes = totals.awaitingUserAttestPayableMinutes;
 
-  // Blockers — same buckets as legacy endpoint so UI banner stays intact.
+  // Blockers — TIME-vyn pratar inte om attest. Vi rapporterar bara öppen
+  // arbetsdag och dagar som ännu inte är inskickade (informativt, ej spärr).
   const blockers: Array<{ date: string; type: string; message: string }> = [];
   for (const d of days) {
     if (d.isWorkdayOpen) blockers.push({ date: d.date, type: "open_workday", message: "Arbetsdag pågår fortfarande" });
     if (d.actionsCount > 0) blockers.push({ date: d.date, type: "needs_action", message: "Dagen behöver åtgärd" });
-    if (!d.approved && !d.attested && d.grossWorkdayMinutes > 0 && !d.isWorkdayOpen) {
-      blockers.push({ date: d.date, type: "needs_attest", message: "Saknar attest" });
+    if (!d.attested && !d.approved && d.grossWorkdayMinutes > 0 && !d.isWorkdayOpen) {
+      blockers.push({ date: d.date, type: "not_submitted", message: "Ej inskickad" });
     }
   }
 
-  let status: "empty" | "draft" | "submitted" | "approved";
+  let status: "empty" | "draft" | "submitted";
   const hasAny = days.some((d) => d.grossWorkdayMinutes > 0 || d.isWorkdayOpen);
   if (!hasAny) status = "empty";
-  else if (days.every((d) => d.grossWorkdayMinutes === 0 || d.approved)) status = "approved";
-  else if (blockers.length > 0) status = "draft";
-  else status = "submitted";
+  else if (days.every((d) => d.grossWorkdayMinutes === 0 || d.status === "submitted")) status = "submitted";
+  else status = "draft";
 
   return new Response(
     JSON.stringify({
