@@ -124,9 +124,7 @@ const PhaseBlock: React.FC<{
     onChange(nextDays);
   };
 
-  const removeDate = (iso: string) => {
-    onChange(days.filter((d) => !(d.kind === phase && d.date === iso)));
-  };
+
 
   const setStart = (v: string) => {
     onChange(days.map((d) => (d.kind === phase ? { ...d, startTime: v } : d)));
