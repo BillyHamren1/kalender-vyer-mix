@@ -868,7 +868,9 @@ const DEFAULT_POLICY: Required<ReportCandidatePolicy> = {
   shortCrossTargetReviewMaxMinutes: 5,
   shortUnknownTransportHideMaxMinutes: 3,
   sandwichInferWorkMaxMinutes: 90,
+  maxWorkBridgeMinutes: 120,
 };
+
 
 // ───────────────────────────────────────────────────────────────────────────
 // Deterministic block ID
