@@ -5861,6 +5861,7 @@ export type Database = {
           created_at: string
           date: string
           display_timeline_snapshot_json: Json | null
+          end_time: string | null
           engine_version: string | null
           id: string
           organization_id: string
@@ -5871,6 +5872,7 @@ export type Database = {
           reviewed_by: string | null
           source_summary_json: Json | null
           staff_id: string
+          start_time: string | null
           status: string
           submitted_at: string
           updated_at: string
@@ -5883,6 +5885,7 @@ export type Database = {
           created_at?: string
           date: string
           display_timeline_snapshot_json?: Json | null
+          end_time?: string | null
           engine_version?: string | null
           id?: string
           organization_id: string
@@ -5893,6 +5896,7 @@ export type Database = {
           reviewed_by?: string | null
           source_summary_json?: Json | null
           staff_id: string
+          start_time?: string | null
           status?: string
           submitted_at?: string
           updated_at?: string
@@ -5905,6 +5909,7 @@ export type Database = {
           created_at?: string
           date?: string
           display_timeline_snapshot_json?: Json | null
+          end_time?: string | null
           engine_version?: string | null
           id?: string
           organization_id?: string
@@ -5915,6 +5920,7 @@ export type Database = {
           reviewed_by?: string | null
           source_summary_json?: Json | null
           staff_id?: string
+          start_time?: string | null
           status?: string
           submitted_at?: string
           updated_at?: string
@@ -6357,6 +6363,90 @@ export type Database = {
           sender_type?: string
           staff_id?: string
           staff_name?: string
+        }
+        Relationships: []
+      }
+      staff_payroll_period_days: {
+        Row: {
+          day_submission_id: string
+          id: string
+          included_at: string
+          organization_id: string
+          payroll_period_id: string
+          report_date: string
+          staff_id: string
+        }
+        Insert: {
+          day_submission_id: string
+          id?: string
+          included_at?: string
+          organization_id: string
+          payroll_period_id: string
+          report_date: string
+          staff_id: string
+        }
+        Update: {
+          day_submission_id?: string
+          id?: string
+          included_at?: string
+          organization_id?: string
+          payroll_period_id?: string
+          report_date?: string
+          staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_payroll_period_days_day_submission_id_fkey"
+            columns: ["day_submission_id"]
+            isOneToOne: false
+            referencedRelation: "staff_day_submissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_payroll_period_days_payroll_period_id_fkey"
+            columns: ["payroll_period_id"]
+            isOneToOne: false
+            referencedRelation: "staff_payroll_periods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_payroll_periods: {
+        Row: {
+          approved_for_payout_at: string | null
+          approved_for_payout_by: string | null
+          created_at: string
+          id: string
+          name: string | null
+          organization_id: string
+          period_end: string
+          period_start: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          approved_for_payout_at?: string | null
+          approved_for_payout_by?: string | null
+          created_at?: string
+          id?: string
+          name?: string | null
+          organization_id: string
+          period_end: string
+          period_start: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          approved_for_payout_at?: string | null
+          approved_for_payout_by?: string | null
+          created_at?: string
+          id?: string
+          name?: string | null
+          organization_id?: string
+          period_end?: string
+          period_start?: string
+          status?: string
+          updated_at?: string
         }
         Relationships: []
       }
