@@ -10,14 +10,10 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import {
   Loader2,
-  ChevronLeft,
-  ChevronRight,
   Save,
   Building2,
   Calendar as CalIcon,
@@ -38,19 +34,13 @@ import {
 import { writeProjectDates } from '@/services/projectDateAuthority';
 import {
   PlanningDay,
-  DayKind,
   isPhaseLocked,
-  phaseLabel,
   seedDaysFromBooking,
-  makeExtraDay,
-  insertDaySorted,
-  removeDayAt,
 } from './bookingPlacementSeed';
 import { BookingInfoHeader } from './BookingInfoHeader';
-import { PlacementDayCalendar } from './PlacementDayCalendar';
 import { PhaseDatesEditor } from './PhaseDatesEditor';
 import { translateSupabaseError } from '@/lib/supabase/translateError';
-import { Plus, Trash2, Check } from 'lucide-react';
+
 
 interface Props {
   open: boolean;
