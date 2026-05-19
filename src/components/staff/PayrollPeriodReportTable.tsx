@@ -28,6 +28,7 @@ import {
   type PayrollPeriodReportRow,
 } from "@/hooks/staff/usePayrollPeriods";
 import { useApprovePayrollPeriodDays } from "@/hooks/staff/useApprovePayrollPeriodDays";
+import { PayrollPeriodApprovalPanel } from "./PayrollPeriodApprovalPanel";
 
 function fmtDuration(min: number | null | undefined): string {
   if (min == null) return "—";
