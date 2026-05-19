@@ -45,9 +45,7 @@ const PHASES: DayKind[] = ['rig', 'rigDown'];
 const TIME_OPTIONS: string[] = (() => {
   const out: string[] = [];
   for (let h = 4; h <= 23; h++) {
-    for (const m of [0, 15, 30, 45]) {
-      out.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-    }
+    out.push(`${String(h).padStart(2, '0')}:00`);
   }
   return out;
 })();
