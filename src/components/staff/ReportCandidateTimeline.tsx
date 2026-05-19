@@ -68,6 +68,14 @@ export interface ReportCandidateBlockUI {
   firstConfirmedAt?: string | null;
   lastConfirmedAt?: string | null;
   isOngoing?: boolean;
+  /** Time Engine 4.x — när satt ska blocket inte renderas i Gantt; visas
+   *  endast i detail/debug. */
+  hiddenReason?:
+    | 'open_day_signal_gap_without_presence'
+    | 'pre_first_gps_signal_gap'
+    | 'short_onsite_anchor_noise';
+  /** Time Engine 4.x — orsak till suppression (visas i decision trace). */
+  warningReason?: string;
 }
 
 export interface ReportCandidateSummaryUI {
