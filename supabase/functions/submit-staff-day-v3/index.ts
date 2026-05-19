@@ -55,6 +55,18 @@ function stockholmDateOf(iso: string): string | null {
   return /^\d{4}-\d{2}-\d{2}$/.test(parts) ? parts : null;
 }
 
+/** Stockholm-lokal HH:MM:SS från ISO/UTC-tid. */
+function stockholmTimeOf(iso: string): string | null {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return null;
+  const parts = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: TZ, hour12: false,
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  }).format(new Date(t));
+  // sv-SE ger "HH:MM:SS"
+  return /^\d{2}:\d{2}:\d{2}$/.test(parts) ? parts : null;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
