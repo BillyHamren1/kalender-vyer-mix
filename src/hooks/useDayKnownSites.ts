@@ -76,7 +76,7 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
         bookingIds.size
           ? supabase
               .from('bookings')
-              .select('id, client, booking_number, deliveryaddress, delivery_latitude, delivery_longitude')
+              .select('id, client, booking_number, deliveryaddress, delivery_latitude, delivery_longitude, large_project_id')
               .in('id', [...bookingIds])
           : Promise.resolve({ data: [] as any[] }),
         largeIds.size
