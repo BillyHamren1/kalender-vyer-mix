@@ -24,6 +24,27 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
     enabled: enabled && !!staffId && !!date,
     staleTime: 60_000,
     queryFn: async () => {
+      // 1) BSA → resource_ids för dagen
+      const bsaRes = await supabase
+        .from('staff_assignments')
+        .select('resource_id')
+        .eq('staff_id', staffId)
+        .eq('assignment_date', date);
+      const resourceIds = Array.from(
+        new Set(((bsaRes.data || []) as any[]).map(r => String(r.resource_id)).filter(Boolean)),
+      );
+
+      // 2) calendar_events för dessa resource_ids den dagen → booking_ids
+      const dayStartIso = `${date}T00:00:00.000Z`;
+      const dayEndIso = `${date}T23:59:59.999Z`;
+      const eventsRes = resourceIds.length
+        ? await supabase
+            .from('calendar_events')
+            .select('booking_id, start_time, end_time, source_date')
+            .in('resource_id', resourceIds)
+            .or(`source_date.eq.${date},and(start_time.lte.${dayEndIso},end_time.gte.${dayStartIso})`)
+        : { data: [] as any[] };
+
       const [reportsRes, ltesRes] = await Promise.all([
         supabase
           .from('time_reports')
@@ -39,6 +60,9 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
 
       const bookingIds = new Set<string>();
       const largeIds = new Set<string>();
+      for (const e of ((eventsRes as any).data || []) as any[]) {
+        if (e.booking_id) bookingIds.add(String(e.booking_id));
+      }
       for (const r of (reportsRes.data || []) as any[]) {
         if (r.booking_id) bookingIds.add(String(r.booking_id));
         if (r.large_project_id) largeIds.add(String(r.large_project_id));
@@ -52,7 +76,7 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
         bookingIds.size
           ? supabase
               .from('bookings')
-              .select('id, client, booking_number, deliveryaddress, delivery_latitude, delivery_longitude')
+              .select('id, client, booking_number, deliveryaddress, delivery_latitude, delivery_longitude, large_project_id')
               .in('id', [...bookingIds])
           : Promise.resolve({ data: [] as any[] }),
         largeIds.size
@@ -78,7 +102,9 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
       ]);
 
       const sites: KnownSite[] = [];
+      const extraLargeIds = new Set<string>();
       for (const b of ((bookingsRes as any).data || [])) {
+        if (b.large_project_id) extraLargeIds.add(String(b.large_project_id));
         if (b.delivery_latitude == null || b.delivery_longitude == null) continue;
         const label = b.booking_number
           ? `${b.booking_number} · ${b.client ?? 'Bokning'}`
@@ -91,7 +117,19 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
           radiusMeters: 200,
         });
       }
-      for (const lp of ((largeRes as any).data || [])) {
+      // Slå upp ev. stora projekt som bokningarna hör till (utöver TR/LTE-källor).
+      const missingLarge = [...extraLargeIds].filter(id => !largeIds.has(id));
+      const extraLargeRes = missingLarge.length
+        ? await supabase
+            .from('large_projects')
+            .select('id, name, address_latitude, address_longitude, address_radius_meters')
+            .in('id', missingLarge)
+        : { data: [] as any[] };
+      const allLarge = [...((largeRes as any).data || []), ...((extraLargeRes as any).data || [])];
+      const seenLarge = new Set<string>();
+      for (const lp of allLarge) {
+        if (seenLarge.has(lp.id)) continue;
+        seenLarge.add(lp.id);
         if (lp.address_latitude == null || lp.address_longitude == null) continue;
         sites.push({
           id: `large:${lp.id}`,
