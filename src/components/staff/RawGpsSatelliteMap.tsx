@@ -513,12 +513,12 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       const lineFeatures = segments
         .filter((s) => s.kind === 'move' && s.pings.length >= 2)
         .map((s) => {
-          const firstP = s.pings[0];
-          const lastP = s.pings[s.pings.length - 1];
-          // En "rörelse" räknas som intra-fence om både start och slut är
-          // inom samma typ av geofence — då är det jitter, inte en resa.
-          const insideFence =
-            pingInsideAnyFence(firstP, fences) && pingInsideAnyFence(lastP, fences);
+          // En linje räknas som intra-fence så fort en MAJORITET av dess
+          // pings ligger inom någon geofence. Då är det jitter/förflyttningar
+          // inuti området och ska aldrig synas i "rörelse mellan platser"-vyn.
+          let inside = 0;
+          for (const p of s.pings) if (pingInsideAnyFence(p, fences)) inside++;
+          const insideFence = inside * 2 >= s.pings.length; // ≥ 50 %
           return {
             type: 'Feature' as const,
             geometry: {
@@ -528,6 +528,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
             properties: { color: colorForSegment(s.colorIndex, 'move'), insideFence },
           };
         });
+
 
 
       map.addSource('gps-line-src', {
