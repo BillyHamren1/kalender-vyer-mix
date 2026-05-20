@@ -20,6 +20,7 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4';
+import { authenticateStaffRequest, authorizeStaffAccess } from '../_shared/staff-auth.ts';
 import {
   buildGpsDayTimeline,
   type GpsPing,
@@ -195,48 +196,49 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-  // ── Auth ──
+  // ── Auth (dual: mobile token + Supabase JWT) ──
+  let body: any = {};
+  try { body = await req.json(); } catch { body = {}; }
+
+  const requestedStaffId: string | null = body?.staffId ?? null;
+  const date: string = body?.date || new Date().toISOString().slice(0, 10);
+
+  // Service-role bypass behåller bakåtkompat för interna anrop.
   const authHeader = req.headers.get('authorization') ?? '';
   const bearer = authHeader.toLowerCase().startsWith('bearer ')
     ? authHeader.slice(7).trim()
     : '';
-  if (!bearer) return json(401, { ok: false, error: 'unauthorized' });
+  const okSvc = !!bearer && SERVICE_ROLE.length > 0 && bearer === SERVICE_ROLE;
 
-  const okSvc = SERVICE_ROLE.length > 0 && bearer === SERVICE_ROLE;
-  let userOrgId: string | null = null;
-  if (!okSvc) {
-    try {
-      const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-        global: { headers: { Authorization: `Bearer ${bearer}` } },
-        auth: { persistSession: false },
-      });
-      const { data, error } = await userClient.auth.getUser();
-      if (error || !data?.user) return json(401, { ok: false, error: 'unauthorized' });
-      const { data: prof } = await userClient
-        .from('profiles')
-        .select('organization_id')
-        .eq('user_id', data.user.id)
-        .maybeSingle();
-      userOrgId = prof?.organization_id ?? null;
-    } catch {
-      return json(401, { ok: false, error: 'unauthorized' });
+  let staffId: string | null = requestedStaffId;
+  let orgId: string | null = null;
+  let admin: any;
+
+  if (okSvc) {
+    orgId = body?.organizationId ?? null;
+    admin = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
+  } else {
+    const authRes = await authenticateStaffRequest(req, { requestedStaffId });
+    if (!authRes.ok) return json(authRes.err.status, { ok: false, error: authRes.err.error });
+    const auth = authRes.auth;
+    admin = auth.admin;
+    if (auth.mode === 'mobile') {
+      // Mobile-token: default till self om staffId saknas, annars måste matcha.
+      staffId = staffId ?? auth.staffId;
+      if (staffId !== auth.staffId) {
+        return json(403, { ok: false, error: 'Staff may only read self' });
+      }
+      orgId = auth.organizationId;
+    } else {
+      if (!staffId) return json(400, { ok: false, error: 'staffId_required' });
+      const authz = await authorizeStaffAccess(auth, staffId);
+      if (!authz.ok) return json(authz.err.status, { ok: false, error: authz.err.error });
+      orgId = authz.orgId;
     }
-    if (!userOrgId) return json(403, { ok: false, error: 'no_org' });
   }
-
-  let body: any = {};
-  try { body = await req.json(); } catch { body = {}; }
-
-  const staffId: string | null = body?.staffId ?? null;
-  const date: string = body?.date || new Date().toISOString().slice(0, 10);
-  const orgId: string | null = okSvc ? (body?.organizationId ?? null) : userOrgId;
 
   if (!staffId) return json(400, { ok: false, error: 'staffId_required' });
   if (!orgId) return json(400, { ok: false, error: 'organizationId_required' });
-
-  const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
-    auth: { persistSession: false },
-  });
 
   // ── Staff ──
   const { data: staff } = await admin

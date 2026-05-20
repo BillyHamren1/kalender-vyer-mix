@@ -23,6 +23,7 @@ export type StaffSnapshotFunctionName =
   | 'get-active-time-registration-status'
   | 'get-timer-time-segments'
   | 'attest-staff-day'
+  | 'get-staff-presence-day'
   // Time App single-source endpoints (cache-driven):
   | 'get-mobile-staff-day-report'
   | 'get-mobile-staff-time-report-period'

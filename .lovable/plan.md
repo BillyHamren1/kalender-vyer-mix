@@ -1,56 +1,39 @@
-## Mål
+## Problem
 
-Gör om `PhaseDatesEditor` (höger widget i `BookingPlacementDialog`) till en **wizard med 3 steg** istället för att visa alla tre faserna staplade samtidigt:
+I mobilens "Dagens tidslinje" (`StaffGanttMirrorTimeline`) anropas edge-funktionen `get-staff-presence-day` via `useStaffGanttMirror` → `supabase.functions.invoke(...)`.
 
-1. **Steg 1 – RIG** (riggdagar, tider, team)
-2. **Steg 2 – EVENT** (eventdagar, tider, team)
-3. **Steg 3 – NEDRIGG** (demonteringsdagar, tider, team)
+Funktionen kräver en Supabase-JWT (kallar `userClient.auth.getUser()` på Bearer-token). Mobilappen är inloggad med **mobil-token** (base64 `{staffId, expiresAt}`, ej JWT), inte med Supabase Auth. Resultat: 401 `unauthorized` → komponenten visar "Kunde inte hämta tidslinjen (Edge Function returned a non-2xx status code)".
 
-Personalkalendern till vänster fortsätter att visa alla valda dagar (rig + event + rigDown) hela tiden — bara editorn till höger blir stegvis.
+Detta är samma mönster som tidigare lösts för `get-staff-day-status` m.fl. via `_shared/staff-auth.ts` (memory: `staff-snapshot-dual-auth-v1`). `get-staff-presence-day` har bara aldrig konverterats.
 
-## UI
+## Lösning
 
-Wizard-widget överst i `PhaseDatesEditor`:
+### 1. Edge function: `supabase/functions/get-staff-presence-day/index.ts`
+Byt nuvarande inline-auth (rad ~195–220) mot `authenticateStaffRequest` från `_shared/staff-auth.ts`:
 
-```text
-┌───────────── Datum & tider ────────────┐
-│  ●─────○─────○                         │
-│  Rig   Event Nedrigg     (Steg 1 av 3) │
-├────────────────────────────────────────┤
-│  [Aktuell fas: PhaseBlock-innehållet]  │
-│                                        │
-│   Kalender (en månad i taget)          │
-│   Start / Slut                         │
-│   Team                                 │
-├────────────────────────────────────────┤
-│         [← Tillbaka]   [Nästa →]       │
-└────────────────────────────────────────┘
-```
+- Stöder både mobile token och Supabase JWT (samt admin view-as via `x-view-as-staff`).
+- För `mode === 'mobile'`: använd `auth.staffId` som default när `body.staffId` saknas, och kräv att `body.staffId === auth.staffId` (eller view-as redan löst i staff-auth).
+- För `mode === 'jwt'`: behåll dagens beteende — `body.staffId` krävs, `organizationId` tas från auth (privilegierad eller självkontroll).
+- Använd `auth.admin`-klienten (redan service-role) — ta bort den lokala `createClient(... SERVICE_ROLE)`.
 
-- Stepper visar tre prickar med fasnamn och en räknare "Steg X av 3".
-- Klick på en prick hoppar direkt till den fasen (fri navigation, inga lås).
-- Steg 1: bara **Nästa →**.
-- Steg 2: **← Tillbaka** + **Nästa →**.
-- Steg 3: **← Tillbaka** (ingen Nästa — användaren använder dialogens egen **Slutför planering**-knapp i footern).
-- Klar-markering: en fas räknas som "klar" (grön bock på steppern) om minst en dag är vald för fasen, eller om fasen är låst (`isPhaseLocked`).
-- Låst fas (`Fast tid`-badge) visas som tidigare i den aktiva stegvyn.
+### 2. Frontend: `src/hooks/useStaffGanttMirror.ts`
+Byt `supabase.functions.invoke('get-staff-presence-day', ...)` mot `callStaffSnapshotFunction('get-staff-presence-day', ...)` (lägg till `'get-staff-presence-day'` i `StaffSnapshotFunctionName`-unionen i `src/services/staffSnapshotApi.ts`).
 
-## Förändring per fil
+Då skickas mobil-token automatiskt när användaren är inloggad via `MobileAuthContext`, och Supabase-JWT när admin/web kör.
 
-**`src/components/project/PhaseDatesEditor.tsx`**
-- Lägg till `const [step, setStep] = useState<DayKind>('rig')`.
-- Ersätt `PHASES.map(...)`-renderingen med:
-  - En `PhaseStepper`-rad (3 prickar, klickbara, visar klar/aktiv/inaktiv).
-  - Render endast `<PhaseBlock phase={step} ... />`.
-  - Navigationsknappar (`← Tillbaka` / `Nästa →`) under PhaseBlock.
-- Ingen ändring av `PhaseBlock`-internerna eller props-API:t mot `BookingPlacementDialog`.
+### 3. Verifiering
+- Typecheck.
+- `supabase--curl_edge_functions` mot `/get-staff-presence-day` med en mobile token (samma teststeg som övriga snapshot-funktioner).
+- Ladda om mobilens "Dagens tidslinje" och bekräfta att felet försvinner (eller blir `Inga händelser registrerade ännu`).
 
-**`src/components/project/BookingPlacementDialog.tsx`**
-- Ingen ändring i logik. `PlacementDayCalendar` får fortfarande `calendarDates` (alla faser), så personalkalendern visar hela bilden även medan användaren bara redigerar en fas i taget.
+## Vad som INTE ändras
 
-## Det här ändras inte
+- Ingen Time-Engine-logik, ingen GPS-pipeline, ingen Gantt-rendering, inga blockbyggare.
+- Admin-flödet (`/staff-management/time-reports`) fortsätter fungera oförändrat via Supabase-JWT-grenen.
+- Inga DB-migrationer.
 
-- Spar-flöde (`handleFinish`), datamodell, `PlanningDay`, `seedDaysFromBooking`, kalender-skrivningar.
-- Personalkalendern till vänster (visar fortsatt alla dagar).
-- "Detta är ett stort projekt"-checkboxen och dess kontroller (ligger kvar utanför wizarden, under).
-- Inga DB-ändringar, inga edge functions, inga policies.
+## Filer som ändras
+
+- `supabase/functions/get-staff-presence-day/index.ts` (auth-block)
+- `src/services/staffSnapshotApi.ts` (lägg till funktionsnamn i union)
+- `src/hooks/useStaffGanttMirror.ts` (byt invoke → callStaffSnapshotFunction)

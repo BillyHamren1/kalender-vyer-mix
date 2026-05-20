@@ -9,6 +9,7 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { callStaffSnapshotFunction } from '@/services/staffSnapshotApi';
 import { normalizeCalendarPhase } from '@/lib/staff/ganttPhaseColor';
 import {
   buildStaffGanttMirrorBlocks,
@@ -80,14 +81,14 @@ export function useStaffGanttMirror(opts: UseStaffGanttMirrorOptions) {
     queryKey: ['mobile-staff-gantt-mirror', 'presence', staffId, date],
     enabled: enabled && !!staffId && !!date,
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('get-staff-presence-day', {
-        body: { staffId, date },
+      const data = await callStaffSnapshotFunction<any>('get-staff-presence-day', {
+        staffId,
+        date,
       });
-      if (error) throw new Error(error.message);
-      if (data && (data as any).ok === false) {
-        throw new Error((data as any).error ?? 'presence_day_failed');
+      if (data && data.ok === false) {
+        throw new Error(data.error ?? 'presence_day_failed');
       }
-      return data as any;
+      return data;
     },
     staleTime: 30_000,
     refetchInterval: 60_000,
