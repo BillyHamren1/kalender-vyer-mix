@@ -231,7 +231,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
             </label>
             <label className="flex items-center gap-2 text-xs cursor-pointer">
               <Checkbox checked={showTargets} onCheckedChange={(v) => setShowTargets(v === true)} />
-              <span>Targets (dagen)</span>
+              <span>Targets (alla projekt)</span>
             </label>
           </div>
         </div>
