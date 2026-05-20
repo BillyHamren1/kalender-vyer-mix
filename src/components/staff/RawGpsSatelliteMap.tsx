@@ -12,10 +12,12 @@ import {
   geofencesToFeatures,
   type GeofenceSite,
 } from '@/lib/staff/geofencesToFeatures';
+import type { PlaceVisit } from '@/lib/staff/pingPlaceSegments';
 
 interface Props {
   pings: RawStaffGpsPing[];
   geofences?: GeofenceSite[];
+  visits?: PlaceVisit[];
   className?: string;
 }
 
