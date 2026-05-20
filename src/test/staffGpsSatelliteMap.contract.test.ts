@@ -13,7 +13,7 @@ const FORBIDDEN = [
   '@/lib/staff/dayJournal',
   '@/lib/staff/actualStaffDayModel',
   '@/lib/staff/canonicalDayModel',
-  '@/lib/staff/pingPlaceSegments',
+  // pingPlaceSegments tillåts: behövs för att visa exakt IN/UT-tid per geofence-besök på kartan.
   'reportCandidate',
   'WorkdayAllocation',
   'staff_day_report_cache',

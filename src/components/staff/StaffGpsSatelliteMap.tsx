@@ -272,7 +272,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
       {/* Karta */}
       <div className="relative h-[55vh] min-h-[360px] rounded-md overflow-hidden border bg-muted/30">
         {pings.length > 0 || geofences.length > 0 ? (
-          <RawGpsSatelliteMap pings={pings} geofences={geofences} className="h-full w-full" />
+          <RawGpsSatelliteMap pings={pings} geofences={geofences} visits={geofenceVisits} className="h-full w-full" />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
             {pingsQuery.isLoading ? 'Laddar pings…' : 'Inga GPS-pings eller geofences för vald person och dag.'}
