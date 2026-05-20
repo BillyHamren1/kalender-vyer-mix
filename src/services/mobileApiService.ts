@@ -2,6 +2,10 @@ import { Capacitor } from '@capacitor/core';
 
 const SUPABASE_URL = "https://pihrhltinhewhoxefjxv.supabase.co";
 const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/mobile-app-api`;
+// Login går till en separat liten edge-funktion. mobile-app-api är ~13k rader
+// och har 1.5–2.5 s cold start; login-only-funktionen bootar på ~50–150 ms.
+// Tokens är formatkompatibla mellan båda funktionerna.
+const LOGIN_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/mobile-app-auth`;
 const ASSISTANT_EVENTS_URL = `${SUPABASE_URL}/functions/v1/assistant-events`;
 
 const TOKEN_KEY = 'eventflow-mobile-token';
@@ -280,7 +284,10 @@ async function callApi<T = any>(action: string, data?: any): Promise<T> {
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 
   const isNative = typeof (window as any)?.Capacitor !== 'undefined';
-  console.log(`[mobileApi] → ${action} (timeout: ${timeoutMs}ms, native: ${isNative}, url: ${FUNCTION_URL})`);
+  // Routa login till den lilla mobile-app-auth-funktionen (snabb cold start).
+  // Alla andra actions går till mobile-app-api som vanligt.
+  const url = action === 'login' ? LOGIN_FUNCTION_URL : FUNCTION_URL;
+  console.log(`[mobileApi] → ${action} (timeout: ${timeoutMs}ms, native: ${isNative}, url: ${url})`);
 
   // Build headers. When there is no mobile token (web/admin caller), forward
   // the Supabase web JWT so the edge function can verify the user via getClaims().
@@ -300,7 +307,7 @@ async function callApi<T = any>(action: string, data?: any): Promise<T> {
   }
 
   try {
-    const res = await fetch(FUNCTION_URL, {
+    const res = await fetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify({ action, token, data }),

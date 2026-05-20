@@ -88,6 +88,9 @@ verify_jwt = false
 [functions.mobile-app-api]
 verify_jwt = false
 
+[functions.mobile-app-auth]
+verify_jwt = false
+
 [functions.establishment-ai-assistant]
 verify_jwt = false
 
