@@ -51,17 +51,9 @@ const ProjectManagement = () => {
     const t0 = performance.now();
     console.group('[ProjectSync] Starting incremental sync');
     try {
-      // Resolve organization_id (same pattern as useRefreshBooking)
-      const { data: { user } } = await supabase.auth.getUser();
-      let orgId: string | undefined;
-      if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('organization_id')
-          .eq('user_id', user.id)
-          .single();
-        orgId = profile?.organization_id ?? undefined;
-      }
+      // Resolve organization_id via shared cache (avoids duplicate /auth/user + profiles roundtrip)
+      const { getOrganizationId } = await import('@/hooks/useOrganizationId');
+      const orgId = (await getOrganizationId()) ?? undefined;
 
       const { data, error } = await supabase.functions.invoke('import-bookings', {
         body: { historicalMode: true, forceHistoricalImport: true, organization_id: orgId },
