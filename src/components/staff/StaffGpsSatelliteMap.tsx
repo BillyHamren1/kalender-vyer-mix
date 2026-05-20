@@ -69,7 +69,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     }
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['day-known-sites'] }),
-      queryClient.invalidateQueries({ queryKey: ['organization-locations'] }),
+      queryClient.invalidateQueries({ queryKey: ['organization-locations-known'] }),
     ]);
   }, [queryClient]);
 
