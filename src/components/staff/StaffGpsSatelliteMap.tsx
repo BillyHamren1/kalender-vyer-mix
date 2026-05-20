@@ -15,6 +15,7 @@ import { fetchStaffMembers } from '@/services/staffService';
 import { supabase } from '@/integrations/supabase/client';
 import { useStaffGpsPingsForDay, type RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
 import { useDayKnownSites } from '@/hooks/useDayKnownSites';
+import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
 import RawGpsSatelliteMap from './RawGpsSatelliteMap';
 import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
 import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
@@ -100,6 +101,16 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
 
   // Geofences: alla org-platser + dagens targets (samma källa som GPS-motorn matchar mot).
   const { knownSites } = useDayKnownSites(effectiveStaffId ?? '', dateStr, !!effectiveStaffId);
+  const { data: orgLocations = [] } = useOrganizationLocations();
+  // Polygoner finns ENDAST på organization_locations. Mappa id → polygon
+  // så vi kan attacha den till `loc:<id>`-sites utan att röra KnownSite-typen.
+  const polygonByLocId = useMemo(() => {
+    const m = new Map<string, GeoJSON.Polygon>();
+    for (const l of orgLocations) {
+      if (l.polygon) m.set(`loc:${l.id}`, l.polygon);
+    }
+    return m;
+  }, [orgLocations]);
   const geofences = useMemo<GeofenceSite[]>(() => {
     return knownSites
       .filter((s) => {
@@ -107,8 +118,15 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
         if (isLoc) return showLocations;
         return showTargets;
       })
-      .map((s) => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng, radiusMeters: s.radiusMeters }));
-  }, [knownSites, showLocations, showTargets]);
+      .map((s) => ({
+        id: s.id,
+        name: s.name,
+        lat: s.lat,
+        lng: s.lng,
+        radiusMeters: s.radiusMeters,
+        polygon: polygonByLocId.get(s.id),
+      }));
+  }, [knownSites, polygonByLocId, showLocations, showTargets]);
 
   const summary = useMemo(() => {
     if (!pings.length) return null;
