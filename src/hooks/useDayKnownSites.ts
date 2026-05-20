@@ -125,7 +125,11 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
             .select('id, name, address_latitude, address_longitude, address_radius_meters')
             .in('id', missingLarge)
         : { data: [] as any[] };
-      for (const lp of ((largeRes as any).data || [])) {
+      const allLarge = [...((largeRes as any).data || []), ...((extraLargeRes as any).data || [])];
+      const seenLarge = new Set<string>();
+      for (const lp of allLarge) {
+        if (seenLarge.has(lp.id)) continue;
+        seenLarge.add(lp.id);
         if (lp.address_latitude == null || lp.address_longitude == null) continue;
         sites.push({
           id: `large:${lp.id}`,
