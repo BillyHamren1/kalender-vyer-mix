@@ -16,6 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useStaffGpsPingsForDay, type RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
 import { useDayKnownSites } from '@/hooks/useDayKnownSites';
 import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
+import { useAllTargetGeofences } from '@/hooks/useAllTargetGeofences';
 import RawGpsSatelliteMap from './RawGpsSatelliteMap';
 import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
 import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
