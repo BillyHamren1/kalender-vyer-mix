@@ -44,6 +44,20 @@ const StaffDetail: React.FC = () => {
     enabled: !!staffId
   });
 
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ['suppliers-for-staff', staffMember?.organization_id],
+    enabled: !!staffMember?.organization_id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('suppliers')
+        .select('id, name')
+        .eq('organization_id', staffMember!.organization_id)
+        .order('name', { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const handleTimeReportSubmit = () => {
     setShowTimeReportForm(false);
     toast.success('Tidrapport skickad');
