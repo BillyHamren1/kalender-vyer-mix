@@ -192,8 +192,25 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
           </Popover>
         </div>
 
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-muted-foreground">Lager på kartan</label>
+          <div className="flex items-center gap-3 h-10 px-3 border rounded-md">
+            <label className="flex items-center gap-2 text-xs cursor-pointer">
+              <Checkbox checked={showLocations} onCheckedChange={(v) => setShowLocations(v === true)} />
+              <span>Platser</span>
+            </label>
+            <label className="flex items-center gap-2 text-xs cursor-pointer">
+              <Checkbox checked={showTargets} onCheckedChange={(v) => setShowTargets(v === true)} />
+              <span>Targets (dagen)</span>
+            </label>
+          </div>
+        </div>
+
         <div className="flex flex-wrap items-center gap-2 ml-auto">
           {pingsQuery.isLoading && <Badge variant="outline">Laddar…</Badge>}
+          {geofences.length > 0 && (
+            <Badge variant="outline">{geofences.length} geofences</Badge>
+          )}
           {summary && (
             <>
               <Badge variant="secondary">{summary.count} pings</Badge>
@@ -208,14 +225,15 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
 
       {/* Karta */}
       <div className="relative h-[55vh] min-h-[360px] rounded-md overflow-hidden border bg-muted/30">
-        {pings.length > 0 ? (
-          <RawGpsSatelliteMap pings={pings} className="h-full w-full" />
+        {pings.length > 0 || geofences.length > 0 ? (
+          <RawGpsSatelliteMap pings={pings} geofences={geofences} className="h-full w-full" />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-            {pingsQuery.isLoading ? 'Laddar pings…' : 'Inga GPS-pings hittades för vald person och dag.'}
+            {pingsQuery.isLoading ? 'Laddar pings…' : 'Inga GPS-pings eller geofences för vald person och dag.'}
           </div>
         )}
       </div>
+
 
       {/* Tabell — samma gruppering som kartan: stay-block (≥20 min på samma plats) slås ihop */}
       <PingTimelineTable pings={pings} />
