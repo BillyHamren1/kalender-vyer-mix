@@ -24,28 +24,18 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
     enabled: enabled && !!staffId && !!date,
     staleTime: 60_000,
     queryFn: async () => {
-      // 1) BSA → resource_ids för dagen
-      const bsaRes = await supabase
-        .from('staff_assignments')
-        .select('resource_id')
-        .eq('staff_id', staffId)
-        .eq('assignment_date', date);
-      const resourceIds = Array.from(
-        new Set(((bsaRes.data || []) as any[]).map(r => String(r.resource_id)).filter(Boolean)),
-      );
-
-      // 2) calendar_events för dessa resource_ids den dagen → booking_ids
-      const dayStartIso = `${date}T00:00:00.000Z`;
-      const dayEndIso = `${date}T23:59:59.999Z`;
-      const eventsRes = resourceIds.length
-        ? await supabase
-            .from('calendar_events')
-            .select('booking_id, start_time, end_time, source_date')
-            .in('resource_id', resourceIds)
-            .or(`source_date.eq.${date},and(start_time.lte.${dayEndIso},end_time.gte.${dayStartIso})`)
-        : { data: [] as any[] };
-
-      const [reportsRes, ltesRes] = await Promise.all([
+      // 1) Dagens team + direkta bokningstilldelningar för personen.
+      const [teamAssignmentsRes, bookingAssignmentsRes, reportsRes, ltesRes] = await Promise.all([
+        supabase
+          .from('staff_assignments')
+          .select('team_id')
+          .eq('staff_id', staffId)
+          .eq('assignment_date', date),
+        supabase
+          .from('booking_staff_assignments')
+          .select('booking_id')
+          .eq('staff_id', staffId)
+          .eq('assignment_date', date),
         supabase
           .from('time_reports')
           .select('booking_id, large_project_id')
@@ -58,8 +48,26 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
           .eq('entry_date', date),
       ]);
 
+      const teamIds = Array.from(
+        new Set(((teamAssignmentsRes.data || []) as any[]).map(r => String(r.team_id)).filter(Boolean)),
+      );
+
+      // 2) calendar_events för personens team den dagen → booking_ids.
+      const dayStartIso = `${date}T00:00:00.000Z`;
+      const dayEndIso = `${date}T23:59:59.999Z`;
+      const eventsRes = teamIds.length
+        ? await supabase
+            .from('calendar_events')
+            .select('booking_id, start_time, end_time, source_date')
+            .in('resource_id', teamIds)
+            .or(`source_date.eq.${date},and(start_time.lte.${dayEndIso},end_time.gte.${dayStartIso})`)
+        : { data: [] as any[] };
+
       const bookingIds = new Set<string>();
       const largeIds = new Set<string>();
+      for (const a of (bookingAssignmentsRes.data || []) as any[]) {
+        if (a.booking_id) bookingIds.add(String(a.booking_id));
+      }
       for (const e of ((eventsRes as any).data || []) as any[]) {
         if (e.booking_id) bookingIds.add(String(e.booking_id));
       }
@@ -72,39 +80,30 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
         if (r.large_project_id) largeIds.add(String(r.large_project_id));
       }
 
-      const [bookingsRes, largeRes, projectsTodayRes, projectsByBookingRes] = await Promise.all([
+      const [bookingsRes, largeProjectBookingsRes] = await Promise.all([
         bookingIds.size
           ? supabase
               .from('bookings')
-              .select('id, client, booking_number, deliveryaddress, delivery_latitude, delivery_longitude, large_project_id')
+              .select('id, client, booking_number, deliveryaddress, delivery_latitude, delivery_longitude, large_project_id, assigned_project_id')
               .in('id', [...bookingIds])
           : Promise.resolve({ data: [] as any[] }),
-        largeIds.size
-          ? supabase
-              .from('large_projects')
-              .select('id, name, address_latitude, address_longitude, address_radius_meters')
-              .in('id', [...largeIds])
-          : Promise.resolve({ data: [] as any[] }),
-        // Lokala projekt planerade idag (event/rig/down = date)
-        supabase
-          .from('projects')
-          .select('id, name, delivery_latitude, delivery_longitude, address_radius_meters, status, planning_status, deleted_at, eventdate, rigdaydate, rigdowndate')
-          .is('deleted_at', null)
-          .or(`eventdate.eq.${date},rigdaydate.eq.${date},rigdowndate.eq.${date}`),
-        // Lokala projekt kopplade till dagens TR/LTE-bokningar
         bookingIds.size
           ? supabase
-              .from('projects')
-              .select('id, name, delivery_latitude, delivery_longitude, address_radius_meters, status, planning_status, deleted_at, booking_id')
+              .from('large_project_bookings')
+              .select('large_project_id, booking_id')
               .in('booking_id', [...bookingIds])
-              .is('deleted_at', null)
           : Promise.resolve({ data: [] as any[] }),
       ]);
 
       const sites: KnownSite[] = [];
       const extraLargeIds = new Set<string>();
+      const projectIds = new Set<string>();
+      for (const row of ((largeProjectBookingsRes as any).data || []) as any[]) {
+        if (row.large_project_id) largeIds.add(String(row.large_project_id));
+      }
       for (const b of ((bookingsRes as any).data || [])) {
         if (b.large_project_id) extraLargeIds.add(String(b.large_project_id));
+        if (b.assigned_project_id) projectIds.add(String(b.assigned_project_id));
         if (b.delivery_latitude == null || b.delivery_longitude == null) continue;
         const label = b.booking_number
           ? `${b.booking_number} · ${b.client ?? 'Bokning'}`
@@ -117,6 +116,30 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
           radiusMeters: 200,
         });
       }
+
+      const [largeRes, projectsByBookingRes, projectsByIdRes] = await Promise.all([
+        largeIds.size || extraLargeIds.size
+          ? supabase
+              .from('large_projects')
+              .select('id, name, address_latitude, address_longitude, address_radius_meters')
+              .in('id', [...new Set([...largeIds, ...extraLargeIds])])
+          : Promise.resolve({ data: [] as any[] }),
+        bookingIds.size
+          ? supabase
+              .from('projects')
+              .select('id, name, delivery_latitude, delivery_longitude, address_radius_meters, status, planning_status, deleted_at, booking_id')
+              .in('booking_id', [...bookingIds])
+              .is('deleted_at', null)
+          : Promise.resolve({ data: [] as any[] }),
+        projectIds.size
+          ? supabase
+              .from('projects')
+              .select('id, name, delivery_latitude, delivery_longitude, address_radius_meters, status, planning_status, deleted_at')
+              .in('id', [...projectIds])
+              .is('deleted_at', null)
+          : Promise.resolve({ data: [] as any[] }),
+      ]);
+
       // Slå upp ev. stora projekt som bokningarna hör till (utöver TR/LTE-källor).
       const missingLarge = [...extraLargeIds].filter(id => !largeIds.has(id));
       const extraLargeRes = missingLarge.length
@@ -141,8 +164,8 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
       }
       const seenProjects = new Set<string>();
       const projectRows = [
-        ...(((projectsTodayRes as any).data || []) as any[]),
         ...(((projectsByBookingRes as any).data || []) as any[]),
+        ...(((projectsByIdRes as any).data || []) as any[]),
       ];
       for (const p of projectRows) {
         if (seenProjects.has(p.id)) continue;
