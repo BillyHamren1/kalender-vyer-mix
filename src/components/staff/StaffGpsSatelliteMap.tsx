@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useCallback, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -41,6 +41,38 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
   const [showTargets, setShowTargets] = useState(true);
 
   const dateStr = format(date, 'yyyy-MM-dd');
+  const queryClient = useQueryClient();
+
+  const saveRadius = useCallback(async (id: string, radiusMeters: number) => {
+    const [prefix, rawId] = id.split(':');
+    if (!rawId) throw new Error('Ogiltigt geofence-id');
+    if (prefix === 'loc') {
+      const { error } = await supabase
+        .from('organization_locations')
+        .update({ radius_meters: radiusMeters })
+        .eq('id', rawId);
+      if (error) throw error;
+    } else if (prefix === 'project') {
+      const { error } = await supabase
+        .from('projects')
+        .update({ address_radius_meters: radiusMeters })
+        .eq('id', rawId);
+      if (error) throw error;
+    } else if (prefix === 'large') {
+      const { error } = await supabase
+        .from('large_projects')
+        .update({ address_radius_meters: radiusMeters })
+        .eq('id', rawId);
+      if (error) throw error;
+    } else {
+      throw new Error(`Radie kan inte sparas för ${prefix}`);
+    }
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['day-known-sites'] }),
+      queryClient.invalidateQueries({ queryKey: ['organization-locations-known'] }),
+    ]);
+  }, [queryClient]);
+
 
   const staffQuery = useQuery({
     queryKey: ['staff-members-all-gps-map'],
@@ -255,7 +287,8 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
       {/* Karta */}
       <div className="relative h-[55vh] min-h-[360px] rounded-md overflow-hidden border bg-muted/30">
         {pings.length > 0 || geofences.length > 0 ? (
-          <RawGpsSatelliteMap pings={pings} geofences={geofences} visits={geofenceVisits} className="h-full w-full" />
+          <RawGpsSatelliteMap pings={pings} geofences={geofences} visits={geofenceVisits} onSaveRadius={saveRadius} className="h-full w-full" />
+
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
             {pingsQuery.isLoading ? 'Laddar pings…' : 'Inga GPS-pings eller geofences för vald person och dag.'}
