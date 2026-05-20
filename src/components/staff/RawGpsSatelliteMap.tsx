@@ -188,14 +188,11 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     visitMarkersRef.current = [];
   }
 
-  // Layers vars rörelse-features taggas med `insideFence` och kan filtreras.
+  // Endast själva linjerna kan döljas av fence-filtret. Stay-markörer (röda långvistelser)
+  // och rörelse-tidstämplar visas ALLTID — vi sorterar bara linjer i UI, ingen data tas bort.
   const FENCE_HIDEABLE_LAYERS = [
     'gps-line-segments',
     'gps-line-arrows',
-    'gps-move-points',
-    'gps-move-labels',
-    'gps-stay-points',
-    'gps-stay-labels',
   ];
 
   function applyFenceFilter() {
