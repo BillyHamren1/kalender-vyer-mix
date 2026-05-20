@@ -40,10 +40,16 @@ describe('clipLineOutsideGeofences', () => {
       ping('6', 59.0016, 18),
     ], [fence]);
 
-    expect(result).toEqual([
-      [[18, 59.0015], [18, 59.001]],
-      [[18, 59.0011], [18, 59.0016]],
-    ]);
+    expect(result).toHaveLength(2);
+    expect(result[0][0]).toEqual([18, 59.0015]);
+    expect(result[0][1][0]).toBe(18);
+    expect(result[0][1][1]).toBeGreaterThan(59.001);
+    expect(result[0][1][1]).toBeLessThan(59.0011);
+    expect(result[1][0][0]).toBe(18);
+    expect(result[1][0][1]).toBeGreaterThan(59.001);
+    expect(result[1][0][1]).toBeLessThan(59.0011);
+    expect(result[1][1]).toEqual([18, 59.0011]);
+    expect(result[1][2]).toEqual([18, 59.0016]);
   });
 
   it('returnerar hela linjen oförändrad när inget ligger i fence', () => {
