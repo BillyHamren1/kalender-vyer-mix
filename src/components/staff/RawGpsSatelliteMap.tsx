@@ -148,16 +148,20 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], className }:
           source: 'geofence-label-src',
           layout: {
             'text-field': ['get', 'label'],
+            'text-font': ['Inter Medium', 'Open Sans Semibold', 'Arial Unicode MS Bold'],
             'text-size': 11,
+            'text-letter-spacing': 0.04,
             'text-anchor': 'top',
-            'text-offset': [0, 0.6],
+            'text-offset': [0, 0.8],
             'text-allow-overlap': false,
             'text-optional': true,
+            'text-padding': 6,
           },
           paint: {
-            'text-color': '#fff',
-            'text-halo-color': '#0f172a',
-            'text-halo-width': 1.5,
+            'text-color': '#f8fafc',
+            'text-halo-color': 'rgba(15,23,42,0.85)',
+            'text-halo-width': 1.2,
+            'text-halo-blur': 0.4,
           },
         });
         map.on('click', 'geofence-fill', (e) => {
