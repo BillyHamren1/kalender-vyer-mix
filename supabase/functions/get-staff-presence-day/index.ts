@@ -20,6 +20,7 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4';
+import { authenticateStaffRequest, authorizeStaffAccess } from '../_shared/staff-auth.ts';
 import {
   buildGpsDayTimeline,
   type GpsPing,
