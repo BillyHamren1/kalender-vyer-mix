@@ -102,7 +102,9 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
       ]);
 
       const sites: KnownSite[] = [];
+      const extraLargeIds = new Set<string>();
       for (const b of ((bookingsRes as any).data || [])) {
+        if (b.large_project_id) extraLargeIds.add(String(b.large_project_id));
         if (b.delivery_latitude == null || b.delivery_longitude == null) continue;
         const label = b.booking_number
           ? `${b.booking_number} · ${b.client ?? 'Bokning'}`
@@ -115,6 +117,14 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
           radiusMeters: 200,
         });
       }
+      // Slå upp ev. stora projekt som bokningarna hör till (utöver TR/LTE-källor).
+      const missingLarge = [...extraLargeIds].filter(id => !largeIds.has(id));
+      const extraLargeRes = missingLarge.length
+        ? await supabase
+            .from('large_projects')
+            .select('id, name, address_latitude, address_longitude, address_radius_meters')
+            .in('id', missingLarge)
+        : { data: [] as any[] };
       for (const lp of ((largeRes as any).data || [])) {
         if (lp.address_latitude == null || lp.address_longitude == null) continue;
         sites.push({
