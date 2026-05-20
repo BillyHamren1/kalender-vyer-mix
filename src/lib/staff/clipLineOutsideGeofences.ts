@@ -40,15 +40,65 @@ export function clipLineOutsideGeofences(
   const pieces: Array<Array<[number, number]>> = [];
   let current: Array<[number, number]> = [];
 
-  for (const p of pings) {
-    const inside = pingInsideAnyFence(p, fences);
-    if (inside) {
+  const samePoint = (a: [number, number], b: [number, number]) =>
+    Math.abs(a[0] - b[0]) < 1e-9 && Math.abs(a[1] - b[1]) < 1e-9;
+
+  const pushPoint = (arr: Array<[number, number]>, point: [number, number]) => {
+    if (!arr.length || !samePoint(arr[arr.length - 1], point)) arr.push(point);
+  };
+
+  const lerp = (a: RawStaffGpsPing, b: RawStaffGpsPing, t: number) => ({
+    lat: a.lat + (b.lat - a.lat) * t,
+    lng: a.lng + (b.lng - a.lng) * t,
+  });
+
+  const boundaryPoint = (
+    a: RawStaffGpsPing,
+    b: RawStaffGpsPing,
+    aInside: boolean,
+  ): [number, number] => {
+    let lo = 0;
+    let hi = 1;
+    for (let i = 0; i < 18; i++) {
+      const mid = (lo + hi) / 2;
+      const sample = lerp(a, b, mid);
+      const inside = pingInsideAnyFence(sample, fences);
+      if (inside === aInside) lo = mid;
+      else hi = mid;
+    }
+    const edge = lerp(a, b, (lo + hi) / 2);
+    return [edge.lng, edge.lat];
+  };
+
+  for (let i = 0; i < pings.length - 1; i++) {
+    const a = pings[i];
+    const b = pings[i + 1];
+    const aInside = pingInsideAnyFence(a, fences);
+    const bInside = pingInsideAnyFence(b, fences);
+
+    if (!aInside && !bInside) {
+      pushPoint(current, [a.lng, a.lat]);
+      pushPoint(current, [b.lng, b.lat]);
+      continue;
+    }
+
+    if (!aInside && bInside) {
+      pushPoint(current, [a.lng, a.lat]);
+      pushPoint(current, boundaryPoint(a, b, false));
       if (current.length >= 2) pieces.push(current);
       current = [];
       continue;
     }
 
-    current.push([p.lng, p.lat]);
+    if (aInside && !bInside) {
+      current = [];
+      pushPoint(current, boundaryPoint(a, b, true));
+      pushPoint(current, [b.lng, b.lat]);
+      continue;
+    }
+
+    if (current.length >= 2) pieces.push(current);
+    current = [];
   }
 
   if (current.length >= 2) pieces.push(current);
