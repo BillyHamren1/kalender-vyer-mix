@@ -12,21 +12,14 @@ import {
   geofencesToFeatures,
   type GeofenceSite,
 } from '@/lib/staff/geofencesToFeatures';
+import { clipLineOutsideGeofences, pingInsideAnyFence } from '@/lib/staff/clipLineOutsideGeofences';
 import type { PlaceVisit } from '@/lib/staff/pingPlaceSegments';
-import { haversineMeters } from '@/lib/staff/movementDetection';
 
 interface Props {
   pings: RawStaffGpsPing[];
   geofences?: GeofenceSite[];
   visits?: PlaceVisit[];
   className?: string;
-  /**
-   * När true: dölj rörelser UTANFÖR geofences och fokusera kartan på fence-
-   * området så bara INNANFÖR-rörelser syns. När false (default): tvärtom —
-   * dölj alla rörelser som ligger inom någon geofence; visa endast vägen
-   * mellan platserna.
-   */
-  showInsideFenceMoves?: boolean;
   /**
    * Anropas när användaren sparar ny radie för en geofence från kartans popup.
    * id-prefix bestämmer mål: `loc:` → organization_locations,
@@ -55,35 +48,6 @@ function dash(v: unknown): string {
   if (typeof v === 'number' && !Number.isFinite(v)) return '—';
   return String(v);
 }
-
-function pointInPolygon(lng: number, lat: number, polygon: GeoJSON.Polygon): boolean {
-  const ring = polygon.coordinates[0];
-  if (!ring || ring.length < 3) return false;
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const xi = ring[i][0], yi = ring[i][1];
-    const xj = ring[j][0], yj = ring[j][1];
-    const intersect =
-      ((yi > lat) !== (yj > lat)) &&
-      (lng < ((xj - xi) * (lat - yi)) / ((yj - yi) || 1e-12) + xi);
-    if (intersect) inside = !inside;
-  }
-  return inside;
-}
-
-function pingInsideAnyFence(p: { lat: number; lng: number }, fences: GeofenceSite[]): boolean {
-  for (const f of fences) {
-    if (f.polygon) {
-      if (pointInPolygon(p.lng, p.lat, f.polygon)) return true;
-    } else if (Number.isFinite(f.lat) && Number.isFinite(f.lng)) {
-      const r = Math.max(10, Number(f.radiusMeters) || 200);
-      const d = haversineMeters({ lat: f.lat, lng: f.lng }, { lat: p.lat, lng: p.lng });
-      if (d <= r) return true;
-    }
-  }
-  return false;
-}
-
 
 function popupHtml(p: RawStaffGpsPing): string {
   const rows: Array<[string, string]> = [
@@ -141,14 +105,12 @@ const SOURCE_IDS = [
 
 const ZOOM_DETAIL_THRESHOLD = 14;
 
-export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [], className, onSaveRadius, showInsideFenceMoves = false }: Props) {
+export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [], className, onSaveRadius }: Props) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
   const onSaveRadiusRef = useRef<Props['onSaveRadius']>(onSaveRadius);
   onSaveRadiusRef.current = onSaveRadius;
   const visitMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; el: HTMLElement; kind: 'compact' | 'detail' }>>([]);
-  const showInsideRef = useRef<boolean>(showInsideFenceMoves);
-  showInsideRef.current = showInsideFenceMoves;
 
   const handleReady = (map: mapboxgl.Map) => {
     mapRef.current = map;
@@ -167,50 +129,9 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visits]);
 
-  // När toggeln byts: applicera nytt filter direkt och fokusera om kartan.
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    applyFenceFilter();
-    applyZoomVisibility();
-    if (showInsideFenceMoves && geofences.length) {
-      try {
-        const b = new mapboxgl.LngLatBounds();
-        geofences.forEach((f) => b.extend([f.lng, f.lat]));
-        map.fitBounds(b, { padding: 80, duration: 500, maxZoom: 17 });
-      } catch { /* ignore */ }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showInsideFenceMoves]);
-
   function clearVisitMarkers() {
     for (const m of visitMarkersRef.current) m.marker.remove();
     visitMarkersRef.current = [];
-  }
-
-  // Endast själva linjerna kan döljas av fence-filtret. Stay-markörer (röda långvistelser)
-  // och rörelse-tidstämplar visas ALLTID — vi sorterar bara linjer i UI, ingen data tas bort.
-  const FENCE_HIDEABLE_LAYERS = [
-    'gps-line-segments',
-    'gps-line-arrows',
-  ];
-
-  function applyFenceFilter() {
-    const map = mapRef.current;
-    if (!map) return;
-    const showInside = showInsideRef.current;
-    for (const lid of FENCE_HIDEABLE_LAYERS) {
-      if (!map.getLayer(lid)) continue;
-      try {
-        if (showInside) {
-          // Inside-läge: visa BARA features inom någon geofence.
-          map.setFilter(lid, ['==', ['get', 'insideFence'], true] as any);
-        } else {
-          // Standard: visa BARA features utanför geofences.
-          map.setFilter(lid, ['!=', ['get', 'insideFence'], true] as any);
-        }
-      } catch { /* ignore */ }
-    }
   }
 
   function applyZoomVisibility() {
