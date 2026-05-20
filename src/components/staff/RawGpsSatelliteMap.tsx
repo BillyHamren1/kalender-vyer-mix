@@ -51,10 +51,10 @@ export default function RawGpsSatelliteMap({ pings, className }: Props) {
   function renderLayers(map: mapboxgl.Map, data: RawStaffGpsPing[]) {
     const apply = () => {
       // remove previous
-      for (const id of ['gps-raw-points', 'gps-raw-line', 'gps-raw-first', 'gps-raw-last']) {
+      for (const id of ['gps-raw-points', 'gps-raw-line', 'gps-raw-first', 'gps-raw-last', 'gps-raw-time-labels', 'gps-raw-clusters', 'gps-raw-cluster-count', 'gps-raw-cluster-span']) {
         if (map.getLayer(id)) map.removeLayer(id);
       }
-      for (const id of ['gps-raw-points-src', 'gps-raw-line-src', 'gps-raw-endpoints-src']) {
+      for (const id of ['gps-raw-points-src', 'gps-raw-line-src', 'gps-raw-endpoints-src', 'gps-raw-clusters-src']) {
         if (map.getSource(id)) map.removeSource(id);
       }
       if (!data.length) return;
@@ -62,12 +62,29 @@ export default function RawGpsSatelliteMap({ pings, className }: Props) {
       const features = data.map((p, i) => ({
         type: 'Feature' as const,
         geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] },
-        properties: { id: p.id, idx: i, t: p.recorded_at },
+        properties: {
+          id: p.id,
+          idx: i,
+          t: p.recorded_at,
+          ts: new Date(p.recorded_at).getTime(),
+          label: i % 5 === 0 ? formatStockholmHms(p.recorded_at) : '',
+        },
       }));
 
       map.addSource('gps-raw-points-src', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features },
+      });
+      map.addSource('gps-raw-clusters-src', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features },
+        cluster: true,
+        clusterRadius: 35,
+        clusterMaxZoom: 20,
+        clusterProperties: {
+          ts_min: ['min', ['get', 'ts']],
+          ts_max: ['max', ['get', 'ts']],
+        },
       });
       map.addSource('gps-raw-line-src', {
         type: 'geojson',
