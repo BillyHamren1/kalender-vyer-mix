@@ -8,9 +8,14 @@ import {
   colorForSegment,
   type PingSegment,
 } from '@/lib/staff/segmentPingsForDisplay';
+import {
+  geofencesToFeatures,
+  type GeofenceSite,
+} from '@/lib/staff/geofencesToFeatures';
 
 interface Props {
   pings: RawStaffGpsPing[];
+  geofences?: GeofenceSite[];
   className?: string;
 }
 
