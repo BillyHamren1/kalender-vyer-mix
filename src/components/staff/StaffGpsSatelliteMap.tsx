@@ -273,17 +273,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
           </div>
         </div>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground">Rörelser</label>
-          <Button
-            variant={showInsideFenceMoves ? 'default' : 'outline'}
-            size="sm"
-            className="h-10"
-            onClick={() => setShowInsideFenceMoves((v) => !v)}
-          >
-            {showInsideFenceMoves ? 'Visa rörelser mellan' : 'Visa rörelser innanför'}
-          </Button>
-        </div>
+        {/* Linjer inuti geofence döljs alltid visuellt (logiken är orörd). */}
 
 
         <div className="flex flex-wrap items-center gap-2 ml-auto">
@@ -306,7 +296,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
       {/* Karta */}
       <div className="relative h-[55vh] min-h-[360px] rounded-md overflow-hidden border bg-muted/30">
         {pings.length > 0 || geofences.length > 0 ? (
-          <RawGpsSatelliteMap pings={pings} geofences={geofences} visits={geofenceVisits} onSaveRadius={saveRadius} showInsideFenceMoves={showInsideFenceMoves} className="h-full w-full" />
+          <RawGpsSatelliteMap pings={pings} geofences={geofences} visits={geofenceVisits} onSaveRadius={saveRadius} className="h-full w-full" />
 
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
