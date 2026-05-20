@@ -544,9 +544,11 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
               id: p.id,
               color,
               label: formatHm(p.recorded_at),
+              insideFence: pingInsideAnyFence(p, fences),
             },
           });
         }
+
       }
       map.addSource('gps-move-points-src', {
         type: 'geojson',
