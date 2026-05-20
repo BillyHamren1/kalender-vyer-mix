@@ -70,6 +70,7 @@ function stayPopupHtml(seg: Extract<PingSegment<RawStaffGpsPing>, { kind: 'stay'
 
 const LAYER_IDS = [
   'geofence-fill',
+  'geofence-outline-casing',
   'geofence-outline',
   'geofence-label',
   'gps-line-segments',
@@ -119,13 +120,22 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], className }:
           id: 'geofence-fill',
           type: 'fill',
           source: 'geofence-fill-src',
-          paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.12 },
+          paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.10 },
+        });
+        // Vit "casing" under den färgade kanten — syns alltid mot satellitbakgrund.
+        map.addLayer({
+          id: 'geofence-outline-casing',
+          type: 'line',
+          source: 'geofence-outline-src',
+          paint: { 'line-color': '#ffffff', 'line-width': 4, 'line-opacity': 0.55 },
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
         });
         map.addLayer({
           id: 'geofence-outline',
           type: 'line',
           source: 'geofence-outline-src',
-          paint: { 'line-color': ['get', 'color'], 'line-width': 1.5, 'line-opacity': 0.9 },
+          paint: { 'line-color': ['get', 'color'], 'line-width': 2.5, 'line-opacity': 1 },
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
         });
         map.addLayer({
           id: 'geofence-label',
@@ -134,7 +144,8 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], className }:
           layout: {
             'text-field': ['get', 'label'],
             'text-size': 11,
-            'text-anchor': 'center',
+            'text-anchor': 'top',
+            'text-offset': [0, 0.6],
             'text-allow-overlap': false,
             'text-optional': true,
           },
