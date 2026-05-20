@@ -70,6 +70,7 @@ function stayPopupHtml(seg: Extract<PingSegment<RawStaffGpsPing>, { kind: 'stay'
 
 const LAYER_IDS = [
   'geofence-fill',
+  'geofence-outline-casing',
   'geofence-outline',
   'geofence-label',
   'gps-line-segments',
