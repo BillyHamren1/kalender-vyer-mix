@@ -43,10 +43,6 @@ function popupHtml(p: RawStaffGpsPing): string {
     .join('')}</div>`;
 }
 
-export default function RawGpsSatelliteMap({ pings, className }: Props) {
-  const mapRef = useRef<mapboxgl.Map | null>(null);
-  const popupRef = useRef<mapboxgl.Popup | null>(null);
-
 export default function RawGpsSatelliteMap({ pings, className, bucketMinutes = 5 }: Props) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
