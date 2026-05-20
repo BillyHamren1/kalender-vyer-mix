@@ -36,6 +36,7 @@ const CustomCalendarPage = lazyWithRecovery(() => import("./pages/CustomCalendar
 const StaffManagement = lazyWithRecovery(() => import("./pages/StaffManagement"));
 const TimeReportApprovals = lazyWithRecovery(() => import("./pages/TimeReportApprovals"));
 const StaffTimeReports = lazyWithRecovery(() => import("./pages/StaffTimeReports"));
+const StaffGpsSatelliteMapPage = lazyWithRecovery(() => import("./pages/StaffGpsSatelliteMap"));
 const StaffDayReportsAdmin = lazyWithRecovery(() => import("./pages/StaffDayReportsAdmin"));
 const StaffPayrollPeriods = lazyWithRecovery(() => import("./pages/StaffPayrollPeriods"));
 const StaffTimeReportDay = lazyWithRecovery(() => import("./pages/StaffTimeReportDay"));
@@ -312,6 +313,7 @@ const WebRoutes: React.FC = () => {
               <Route path="/ops-control" element={<OpsControlCenter />} />
               <Route path="/staff-management/time-approvals" element={<TimeReportApprovals />} />
               <Route path="/staff-management/time-reports" element={<StaffTimeReports />} />
+              <Route path="/staff-management/gps-satellite-map" element={<StaffGpsSatelliteMapPage />} />
               <Route path="/staff-management/day-reports" element={<StaffDayReportsAdmin />} />
               <Route path="/staff-management/payroll-periods" element={<StaffPayrollPeriods />} />
               <Route path="/staff-management/time-reports/month" element={<StaffTimeReportMonth />} />
