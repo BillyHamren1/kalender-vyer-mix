@@ -27,11 +27,10 @@ describe('downsamplePingsByBucket', () => {
     }
     const out = downsamplePingsByBucket(input);
     expect(out).toHaveLength(6);
-    // every bucket should contain a ping with accuracy <= 15 (the better one)
-    for (const p of out) {
-      expect(p.accuracy ?? 999).toBeLessThanOrEqual(15);
-    }
-  });
+    // every bucket should contain the BEST (lowest) accuracy among its pings
+    // pattern repeats every 4 (5,15,25,35), 2 pings per 5-min bucket →
+    // bucket mins are 5, 25, 5, 25, 5, 25
+    expect(out.map((p) => p.accuracy)).toEqual([5, 25, 5, 25, 5, 25]);
 
   it('5-min boundary: 09:05:00 belongs to the 09:05 bucket', () => {
     const input = [mk('2026-05-20T09:04:59.000Z', 30), mk('2026-05-20T09:05:00.000Z', 10)];
