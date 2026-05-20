@@ -141,8 +141,11 @@ export function segmentPingsForDisplay<T extends SegInputPing>(
     }
   }
 
-  // Steg 3: bygg PingSegment med color index.
+  // Steg 3: bygg PingSegment med color index. moves får en EGEN räknare
+  // (trip-ordinal) så "resa 1" alltid är grön, "resa 2" röd, osv — oberoende
+  // av hur många stays som ligger emellan.
   const out: PingSegment<T>[] = [];
+  let moveCounter = 0;
   raw.forEach((r, i) => {
     const startIso = r.pings[0].recorded_at;
     const endIso = r.pings[r.pings.length - 1].recorded_at;
@@ -165,7 +168,7 @@ export function segmentPingsForDisplay<T extends SegInputPing>(
       out.push({
         kind: 'move',
         index: i,
-        colorIndex: i,
+        colorIndex: moveCounter++,
         startIso,
         endIso,
         durationMs,
@@ -179,17 +182,18 @@ export function segmentPingsForDisplay<T extends SegInputPing>(
 
 /**
  * Färgpalett för segment. Cyklar om vid behov. Skild från staff-färger;
- * detta är per-segment per dag.
+ * detta är per-segment per dag. Ordningen styr resa-färgerna:
+ * resa 1 = grön, resa 2 = röd, resa 3 = lila, resa 4 = blå, osv.
  */
 export const SEGMENT_PALETTE: ReadonlyArray<{ move: string; stay: string }> = [
-  { move: '#38bdf8', stay: '#0ea5e9' }, // sky
-  { move: '#a78bfa', stay: '#7c3aed' }, // violet
-  { move: '#f472b6', stay: '#db2777' }, // pink
-  { move: '#facc15', stay: '#ca8a04' }, // amber
-  { move: '#4ade80', stay: '#16a34a' }, // green
-  { move: '#fb923c', stay: '#ea580c' }, // orange
-  { move: '#22d3ee', stay: '#0891b2' }, // cyan
-  { move: '#f87171', stay: '#dc2626' }, // red
+  { move: '#22c55e', stay: '#16a34a' }, // grön — resa 1
+  { move: '#ef4444', stay: '#dc2626' }, // röd — resa 2
+  { move: '#a855f7', stay: '#7c3aed' }, // lila — resa 3
+  { move: '#3b82f6', stay: '#2563eb' }, // blå — resa 4
+  { move: '#f97316', stay: '#ea580c' }, // orange — resa 5
+  { move: '#06b6d4', stay: '#0891b2' }, // cyan — resa 6
+  { move: '#ec4899', stay: '#db2777' }, // rosa — resa 7
+  { move: '#eab308', stay: '#ca8a04' }, // gul — resa 8
 ];
 
 export function colorForSegment(colorIndex: number, kind: 'move' | 'stay'): string {
