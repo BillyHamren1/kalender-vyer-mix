@@ -32,6 +32,7 @@ import {
   type CacheRow,
   type SubmissionRow,
 } from "../_shared/mobile/buildMobileSnapshot.ts";
+import { buildNeedsReviewFallbackBlocks } from "../_shared/mobile/buildNeedsReviewFallbackBlocks.ts";
 
 interface RequestBody {
   staffId?: string;
