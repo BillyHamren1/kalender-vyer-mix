@@ -13,6 +13,7 @@ import {
   type GeofenceSite,
 } from '@/lib/staff/geofencesToFeatures';
 import type { PlaceVisit } from '@/lib/staff/pingPlaceSegments';
+import { haversineMeters } from '@/lib/staff/movementDetection';
 
 interface Props {
   pings: RawStaffGpsPing[];
