@@ -10,10 +10,13 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { fetchStaffMembers } from '@/services/staffService';
 import { supabase } from '@/integrations/supabase/client';
 import { useStaffGpsPingsForDay, type RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
+import { useDayKnownSites } from '@/hooks/useDayKnownSites';
 import RawGpsSatelliteMap from './RawGpsSatelliteMap';
+import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
 import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
 
 function dash(v: unknown): string {
