@@ -1,52 +1,78 @@
-## Vad loggarna visar
+## Vad jag faktiskt ser i loggarna och databasen
 
-**Mobile-app-api (mobilens enda backend) är konsekvent långsam:**
-- Varje POST tar 2.4–3.0 s, även enkla `upload_location_batch`-anrop
-- Till och med `OPTIONS`-preflighten tog 2.0 s (cold boot)
-- Funktionsfilen är **13 432 rader** i en enda `index.ts` → väldigt lång parse/boot-tid på varje cold start
-- Backgrund-GPS skickar `upload_location_batch` var ~30 s från varje inloggad mobil, så funktionen "byter ägare" konstant och blir cold för login-anropet
+Billys cache-rad för 2026-05-20 (`staff_day_report_cache`, byggd 13:31, engine_version `large-project-target-fix-v1`):
 
-Det betyder att själva mobil-loginet (som går samma väg) ofta får ärva en cold start på ~2 s + DB-arbete = upplevs som "snurrar länge".
+- `display_blocks_json` = **[]** (tom — men fältet finns → V2 "explicit tomt")
+- `report_candidate_blocks_json` = **5 block** (alla `signal_gap` / `transport` / `unknown_place` — inget `work` / `timer_marker`)
+- `diagnostics_json.locationTruthV2.counts.segmentsByType`:
+  - `unresolved_location: 110`
+  - `private_residence: 2`
+  - `movement: 4`
+  - `known_address: 3`
+  - **`known_target: 0`** ← inget GPS-kluster har matchat ett känt projekt/lager
+- `dayEndDecision`: `dayEnded=true endReason=no_fresh_evidence_after_last_work endedAt=13:30:44 confidence=medium` (gren 5 i `computeDayEndDecision`)
+- `gpsEvidence` i `get-mobile-staff-day-report`-loggen: 370 råpings 01:34 → 13:38, men `hasGpsEvidenceButNoRenderedWork=true`, `reasonNoWorkRendered=v2_present_but_empty`
 
-**Webb-loginet:**
-- Själva `signInWithPassword` är snabbt (auth-loggen visar ~135 ms)
-- Direkt efter SIGNED_IN avfyras en burst på **32 parallella requests** mot REST API innan UI:t blir interaktivt:
-  - 8 × `sync_state`
-  - 7 × `profiles` (samma user_id)
-  - 5 × `bookings`
-  - 4 × `auth/v1/user`
-  - 2 × `import-bookings` (samma incremental sync triggas parallellt två gånger — syns även i konsolen: "Incremental sync: fetching bookings updated since 2026-05-20" loggas 2 gånger)
-- Det är primärt dubbelarbetet + att `import-bookings` (1.2–2.1 s) körs två gånger som gör att "Laddar…"-spinnern står kvar märkbart längre än nödvändigt
+Edge-funktionen tar då rätt beslut enligt sin nuvarande kontrakt: `cacheHasV2Field=true` ⇒ ingen live-fallback ⇒ snapshot blir tom ⇒ "rapporten försvinner". Samtidigt fortsätter mobilen pinga (det är `useBackgroundLocationReporter` som matar `staff_location_history` — helt frikopplat från rapporten). Därför: **pings kommer, men rapporten är tom**.
 
-**Inget databas-fel** — postgres-loggen är ren, ingen `ERROR`/`FATAL`/`WARNING` senaste timmarna. Det är ren overhead, inte trasig kod.
+## Grundorsak
 
-## Förslag (tre lager, från enkelt till större)
+Dagsmotorn klassar Billys hela arbetsdag som `unresolved_location` (110 av 119 segment). Eftersom inget segment blir `known_target`/`work`/`timer_marker` filtrerar `enrichReportBlocksForCache` bort allt från `display_blocks_json`. Det tomma V2-fältet är en *legitim* signal att Time Engine kört, men för Billy ger den noll information — fast vi har en hel dag med vistelser som **borde** synas som "oklar plats — bekräfta" i tidslinjen.
 
-### 1. Stoppa dubbel-syncen vid login (snabb vinst, låg risk)
-- `useBackgroundImport` kör 1 s efter mount, och något annat triggar en andra `import-bookings` samtidigt. Lägg en in-flight-lås per organisation i `importService.ts` så att samtidiga `incremental`-anrop coalescas till ett.
-- Bonuseffekt: även framtida dubbel-renders/realtime-events kan inte längre fyrdubbla last på edge-funktionen.
+Två separata fel ligger bakom:
 
-### 2. Dedupa REST-bursten vid SIGNED_IN
-- `profiles?user_id=...` hämtas 7 gånger på en sekund. Lägg den i React Query med en lång `staleTime` (5–10 min) och dela query-key, så att alla hooks som behöver `organization_id` återanvänder samma cache.
-- Samma för `sync_state` (8 anrop). Hämtas i flera hooks som inte vet om varandra.
-- `auth.getUser()` anropas 4 gånger — använd `useAuth()` istället för direkta `supabase.auth.getUser()` i `useBackgroundImport` m.fl.
+1. **Renderings-bug (det användaren ser):** `enrichReportBlocksForCache` släpper bara igenom "work"-liknande block till `display_blocks_json`. Block av typen `unknown_place` / `signal_gap` / `transport` försvinner helt — trots att de finns i `report_candidate_blocks_json`. Det är därför rapporten visuellt blir tom.
+2. **Klassningsbug (orsaken till varför det är så många unknown):** Av 25 kända targets med koordinater matchade noll mot Billys 119 kluster. Antingen är targets fel geokodade, för snäv radie, eller så filtreras stora projekt bort i target-resolvern. Det här är en separat utredning.
 
-### 3. Boot-tiden på `mobile-app-api` (största vinsten för mobilen)
-- `supabase/functions/mobile-app-api/index.ts` är 13k rader. På varje cold start parsar Deno hela filen innan något händer — det är därför även `OPTIONS` tar 2 s.
-- Bryt ut handlers per action (`login`, `me`, `upload_location_batch`, `get_bookings`, …) till separata filer i `supabase/functions/mobile-app-api/handlers/` och lazy-importera med dynamic `import()` inuti respektive `case`-block. `login`-pathen ska bara behöva ladda auth-modulen, inte hela kodbasen.
-- Förväntad effekt: `login`-cold-start från ~2.5 s → ~400–600 ms.
+## Plan — två steg, ultra-säkert / additivt
 
-### Inte med i denna omgång
-- Strukturell separation av `upload_location_batch` till en egen edge-funktion (`mobile-location-ingest`) skulle ta bort cold-start-konflikten helt, men det är ett större ingrepp. Vill du, så lägger jag till det som steg 4 i en senare runda.
+### Steg 1 (denna runda — fixar "rapporten försvinner")
 
-### Filer som troligen rörs
-- `src/services/importService.ts` (in-flight lock)
-- `src/hooks/useBackgroundImport.ts` (använd `useAuth`, hoppa över egen `getUser`/`profiles`-fetch)
-- En ny `src/hooks/useOrganizationId.ts` som blir den enda profil-läsaren
-- Hooks som idag läser `profiles` eller `sync_state` direkt → konsumerar den nya hooken
-- `supabase/functions/mobile-app-api/index.ts` + ny `handlers/`-mapp
-- Vitest-kontrakt: `src/test/loginBurst.contract.test.ts` (mätlar antal samtidiga REST-anrop) och `supabase/functions/mobile-app-api/handlers/__tests__/login_test.ts`
+**Mål:** När Time Engine producerat candidate-block men inget hamnar i `display_blocks_json`, ska mobilen ändå rendera dem som "oklara segment att bekräfta" istället för en tom skärm.
 
-### Verifiering
-- Före/efter: räkna requests vid login i nätverksloggen, mäta P95 på `mobile-app-api` via `function_edge_logs`
-- Vitest + Deno-tester för edge-funktionen, samt rökhopp i preview för web-login
+Två additiva ändringar — ingen befintlig logik byts ut:
+
+1. `supabase/functions/_shared/time-engine/enrichReportBlocksForCache.ts`
+   - Lägg till en *fallback*-pass: om resultat-arrayen för `display_blocks_json` är tom **och** `report_candidate_blocks_json.length > 0`, mappa candidate-blocken till display-format med `kind='needs_review'` (eller motsvarande befintligt fält som redan visas i mobilens "oklara"-rad). Markera dem `provisional=true` så de inte räknas som lönegrundande.
+   - Lägg en flagga i `diagnostics_json.displayFallback = { reason: 'no_work_blocks_only_unknown', sourceCandidateCount: N }`.
+
+2. `supabase/functions/get-mobile-staff-day-report/index.ts`
+   - Logga ut den nya `displayFallback`-anledningen i mirror-loggen så vi kan följa upp.
+   - Inget annat ändras i mirror-kontraktet — `cacheHasV2Field` förblir true och vi anropar fortfarande inte live-motorn.
+
+3. Mobilrendering — **ingen kodändring**. `mapReportBlocksToSegments` hanterar redan `needs_review`/`unknown` som "Oklart — bekräfta", så samma block visas automatiskt.
+
+4. Tester (Deno + vitest, additivt):
+   - `supabase/functions/_shared/time-engine/__tests__/enrichReportBlocksForCache.fallback.test.ts` — verifierar att en candidate-bunt utan work fortfarande producerar minst 1 display-block med `provisional=true`.
+   - `src/test/mobileDayReportFallback.contract.test.ts` — kontraktstest att `mapReportBlocksToSegments` renderar `needs_review` som synlig "oklar" rad.
+
+5. Verifiering:
+   - Deploya `enrichReportBlocksForCache`-användarna (`backfill-staff-day-report-cache`, `sync-staff-day-report-cache`, `get-staff-presence-day`, `submit-staff-day-v3`).
+   - Tvinga refresh av Billys cache via `backfill-staff-day-report-cache` med `staffIds=[365f4d55…]`, `dateFrom/dateTo=2026-05-20`, `skipExisting:false`.
+   - Läs tillbaka raden och bekräfta `display_blocks_json.length > 0` + `diagnostics_json.displayFallback`.
+   - Curl `get-mobile-staff-day-report` som Billy och verifiera att `blockCount > 0`.
+
+### Steg 2 (nästa runda — separat ärende)
+
+Utred varför 110/119 segment blev `unresolved_location` trots 25 kända targets med koordinater. Troliga kandidater (utreds, inga ändringar nu):
+
+- `resolveWorkTargets` filtrerar bort stora projekt eller targets utan giltig polygon.
+- Klusterradien (`MIN_VISIT_MIN` / cluster-centroid) faller utanför target-radien för Billys faktiska arbetsplats den dagen.
+- Booking-koordinater saknas/är fel — kontrollera mot `organization_locations` och `large_projects.coordinates`.
+
+Det här är ett *klassnings*-fel som påverkar lönedata och kräver mer försiktighet — körs separat.
+
+## Vad jag INTE gör i steg 1
+
+- Rör inte `computeDayEndDecision` (dagsslutsbeslutet är korrekt).
+- Rör inte `buildReportCandidateBlocks` eller någon klassning.
+- Rör inte mobil-frontends ping-takt eller `useBackgroundLocationReporter` — pingsen är inte buggen.
+- Rör inte mirror-kontraktets V2-policy (cache-hasV2 → ingen live-fallback).
+- Inga DB-migrationer.
+
+## Filer som ändras (steg 1)
+
+- `supabase/functions/_shared/time-engine/enrichReportBlocksForCache.ts` (additivt fallback-block)
+- `supabase/functions/get-mobile-staff-day-report/index.ts` (utökad logg)
+- `supabase/functions/_shared/time-engine/__tests__/enrichReportBlocksForCache.fallback.test.ts` (ny)
+- `src/test/mobileDayReportFallback.contract.test.ts` (ny)
