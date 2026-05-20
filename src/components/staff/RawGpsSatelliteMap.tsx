@@ -4,12 +4,17 @@ import MapboxMap from '@/components/maps/MapboxMap';
 import type { RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
 import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
 import { downsamplePingsByBucket } from '@/lib/staff/downsamplePingsByBucket';
+import { groupPingsByStay, type StayMarker } from '@/lib/staff/groupPingsByStay';
 
 interface Props {
   pings: RawStaffGpsPing[];
   className?: string;
   /** Bucket window in minutes (default 5). */
   bucketMinutes?: number;
+  /** Min span before a same-location group collapses into a stay marker. Default 20 min. */
+  stayMinMinutes?: number;
+  /** Radius for considering consecutive pings as same stay. Default 60 m. */
+  stayRadiusMeters?: number;
 }
 
 function formatHm(iso: string): string {
@@ -43,7 +48,13 @@ function popupHtml(p: RawStaffGpsPing): string {
     .join('')}</div>`;
 }
 
-export default function RawGpsSatelliteMap({ pings, className, bucketMinutes = 5 }: Props) {
+export default function RawGpsSatelliteMap({
+  pings,
+  className,
+  bucketMinutes = 5,
+  stayMinMinutes = 20,
+  stayRadiusMeters = 60,
+}: Props) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
 
@@ -52,17 +63,30 @@ export default function RawGpsSatelliteMap({ pings, className, bucketMinutes = 5
     [pings, bucketMinutes],
   );
 
+  const markers = useMemo(
+    () =>
+      groupPingsByStay(sampled, {
+        minStayMs: stayMinMinutes * 60 * 1000,
+        radiusMeters: stayRadiusMeters,
+      }),
+    [sampled, stayMinMinutes, stayRadiusMeters],
+  );
+
   const handleReady = (map: mapboxgl.Map) => {
     mapRef.current = map;
-    renderLayers(map, sampled);
+    renderLayers(map, sampled, markers);
   };
 
   useEffect(() => {
-    if (mapRef.current) renderLayers(mapRef.current, sampled);
+    if (mapRef.current) renderLayers(mapRef.current, sampled, markers);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sampled]);
+  }, [sampled, markers]);
 
-  function renderLayers(map: mapboxgl.Map, data: RawStaffGpsPing[]) {
+  function renderLayers(
+    map: mapboxgl.Map,
+    data: RawStaffGpsPing[],
+    markers: StayMarker<RawStaffGpsPing>[],
+  ) {
     const apply = () => {
       // remove previous (including legacy cluster layers/sources)
       for (const id of [
@@ -71,6 +95,8 @@ export default function RawGpsSatelliteMap({ pings, className, bucketMinutes = 5
         'gps-raw-first',
         'gps-raw-last',
         'gps-raw-time-labels',
+        'gps-raw-stays',
+        'gps-raw-stay-labels',
         'gps-raw-clusters',
         'gps-raw-cluster-count',
         'gps-raw-cluster-span',
@@ -79,6 +105,7 @@ export default function RawGpsSatelliteMap({ pings, className, bucketMinutes = 5
       }
       for (const id of [
         'gps-raw-points-src',
+        'gps-raw-stays-src',
         'gps-raw-line-src',
         'gps-raw-endpoints-src',
         'gps-raw-clusters-src',
@@ -87,20 +114,48 @@ export default function RawGpsSatelliteMap({ pings, className, bucketMinutes = 5
       }
       if (!data.length) return;
 
-      const features = data.map((p, i) => ({
-        type: 'Feature' as const,
-        geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] },
-        properties: {
-          id: p.id,
-          idx: i,
-          t: p.recorded_at,
-          label: formatHm(p.recorded_at),
-        },
-      }));
+      // Separate markers into individual point pings vs collapsed stays
+      const pointFeatures: any[] = [];
+      const stayFeatures: any[] = [];
+      let stayIdx = 0;
+      const stayList: Array<Extract<StayMarker<RawStaffGpsPing>, { kind: 'stay' }>> = [];
+      for (const m of markers) {
+        if (m.kind === 'point') {
+          const p = m.ping;
+          pointFeatures.push({
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
+            properties: {
+              id: p.id,
+              t: p.recorded_at,
+              label: formatHm(p.recorded_at),
+            },
+          });
+        } else {
+          const i = stayIdx++;
+          stayList.push(m);
+          const durMin = Math.round(m.durationMs / 60000);
+          stayFeatures.push({
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [m.lng, m.lat] },
+            properties: {
+              idx: i,
+              label: `${formatHm(m.startIso)}–${formatHm(m.endIso)}`,
+              sub: `${durMin} min · ${m.pings.length} pings`,
+              count: m.pings.length,
+            },
+          });
+        }
+      }
+
 
       map.addSource('gps-raw-points-src', {
         type: 'geojson',
-        data: { type: 'FeatureCollection', features },
+        data: { type: 'FeatureCollection', features: pointFeatures },
+      });
+      map.addSource('gps-raw-stays-src', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: stayFeatures },
       });
       map.addSource('gps-raw-line-src', {
         type: 'geojson',
@@ -140,37 +195,19 @@ export default function RawGpsSatelliteMap({ pings, className, bucketMinutes = 5
         source: 'gps-raw-line-src',
         paint: { 'line-color': '#22d3ee', 'line-width': 2, 'line-opacity': 0.7 },
       });
+
+      // Individual point markers (non-stay) with HH:MM label
       map.addLayer({
         id: 'gps-raw-points',
         type: 'circle',
         source: 'gps-raw-points-src',
         paint: {
           'circle-radius': 5,
-          'circle-color': [
-            'interpolate', ['linear'], ['get', 'idx'],
-            0, '#22c55e',
-            Math.max(1, data.length - 1), '#ef4444',
-          ],
+          'circle-color': '#38bdf8',
           'circle-stroke-color': '#0f172a',
           'circle-stroke-width': 1,
         },
       });
-      map.addLayer({
-        id: 'gps-raw-first',
-        type: 'circle',
-        source: 'gps-raw-endpoints-src',
-        filter: ['==', ['get', 'kind'], 'first'],
-        paint: { 'circle-radius': 9, 'circle-color': '#16a34a', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 },
-      });
-      map.addLayer({
-        id: 'gps-raw-last',
-        type: 'circle',
-        source: 'gps-raw-endpoints-src',
-        filter: ['==', ['get', 'kind'], 'last'],
-        paint: { 'circle-radius': 9, 'circle-color': '#dc2626', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 },
-      });
-
-      // One HH:MM label per point — always visible
       map.addLayer({
         id: 'gps-raw-time-labels',
         type: 'symbol',
@@ -190,11 +227,59 @@ export default function RawGpsSatelliteMap({ pings, className, bucketMinutes = 5
         },
       });
 
+      // Stay markers: bigger circle scaled by ping count, with HH:MM–HH:MM label
+      map.addLayer({
+        id: 'gps-raw-stays',
+        type: 'circle',
+        source: 'gps-raw-stays-src',
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['get', 'count'], 2, 10, 50, 22],
+          'circle-color': 'rgba(250, 204, 21, 0.35)',
+          'circle-stroke-color': '#facc15',
+          'circle-stroke-width': 2,
+        },
+      });
+      map.addLayer({
+        id: 'gps-raw-stay-labels',
+        type: 'symbol',
+        source: 'gps-raw-stays-src',
+        layout: {
+          'text-field': ['format', ['get', 'label'], {}, '\n', {}, ['get', 'sub'], { 'font-scale': 0.85 }],
+          'text-size': 12,
+          'text-offset': [0, -1.6],
+          'text-anchor': 'bottom',
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+        },
+        paint: {
+          'text-color': '#fff',
+          'text-halo-color': '#0f172a',
+          'text-halo-width': 1.8,
+        },
+      });
+
+      map.addLayer({
+        id: 'gps-raw-first',
+        type: 'circle',
+        source: 'gps-raw-endpoints-src',
+        filter: ['==', ['get', 'kind'], 'first'],
+        paint: { 'circle-radius': 9, 'circle-color': '#16a34a', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 },
+      });
+      map.addLayer({
+        id: 'gps-raw-last',
+        type: 'circle',
+        source: 'gps-raw-endpoints-src',
+        filter: ['==', ['get', 'kind'], 'last'],
+        paint: { 'circle-radius': 9, 'circle-color': '#dc2626', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 },
+      });
+
+      // Point popup: look up by id
+      const pingById = new Map(data.map((p) => [p.id, p]));
       map.on('click', 'gps-raw-points', (e) => {
         const f = e.features?.[0];
         if (!f) return;
-        const idx = (f.properties as any)?.idx as number;
-        const p = data[idx];
+        const id = String((f.properties as any)?.id ?? '');
+        const p = pingById.get(id);
         if (!p) return;
         popupRef.current?.remove();
         popupRef.current = new mapboxgl.Popup({ closeButton: true })
@@ -204,6 +289,32 @@ export default function RawGpsSatelliteMap({ pings, className, bucketMinutes = 5
       });
       map.on('mouseenter', 'gps-raw-points', () => (map.getCanvas().style.cursor = 'pointer'));
       map.on('mouseleave', 'gps-raw-points', () => (map.getCanvas().style.cursor = ''));
+
+      // Stay popup with full timespan + min/max accuracy
+      map.on('click', 'gps-raw-stays', (e) => {
+        const f = e.features?.[0];
+        if (!f) return;
+        const i = Number((f.properties as any)?.idx);
+        const s = stayList[i];
+        if (!s) return;
+        const durMin = Math.round(s.durationMs / 60000);
+        popupRef.current?.remove();
+        popupRef.current = new mapboxgl.Popup({ closeButton: true })
+          .setLngLat([s.lng, s.lat])
+          .setHTML(
+            `<div style="font:12px/1.4 system-ui;min-width:200px">
+              <div><b>Vistelse</b></div>
+              <div>${formatStockholmHms(s.startIso)} – ${formatStockholmHms(s.endIso)}</div>
+              <div style="color:#64748b">${durMin} min · ${s.pings.length} pings</div>
+              <div>Lat: ${s.lat.toFixed(6)}</div>
+              <div>Lng: ${s.lng.toFixed(6)}</div>
+            </div>`,
+          )
+          .addTo(map);
+      });
+      map.on('mouseenter', 'gps-raw-stays', () => (map.getCanvas().style.cursor = 'pointer'));
+      map.on('mouseleave', 'gps-raw-stays', () => (map.getCanvas().style.cursor = ''));
+
 
       // fit
       const bounds = new mapboxgl.LngLatBounds();
