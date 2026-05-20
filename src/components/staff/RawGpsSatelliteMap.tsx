@@ -8,9 +8,14 @@ import {
   colorForSegment,
   type PingSegment,
 } from '@/lib/staff/segmentPingsForDisplay';
+import {
+  geofencesToFeatures,
+  type GeofenceSite,
+} from '@/lib/staff/geofencesToFeatures';
 
 interface Props {
   pings: RawStaffGpsPing[];
+  geofences?: GeofenceSite[];
   className?: string;
 }
 
@@ -64,6 +69,9 @@ function stayPopupHtml(seg: Extract<PingSegment<RawStaffGpsPing>, { kind: 'stay'
 }
 
 const LAYER_IDS = [
+  'geofence-fill',
+  'geofence-outline',
+  'geofence-label',
   'gps-line-segments',
   'gps-move-points',
   'gps-move-labels',
@@ -73,31 +81,100 @@ const LAYER_IDS = [
   'gps-last',
 ];
 const SOURCE_IDS = [
+  'geofence-fill-src',
+  'geofence-outline-src',
+  'geofence-label-src',
   'gps-line-src',
   'gps-move-points-src',
   'gps-stay-points-src',
   'gps-endpoints-src',
 ];
 
-export default function RawGpsSatelliteMap({ pings, className }: Props) {
+export default function RawGpsSatelliteMap({ pings, geofences = [], className }: Props) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
 
   const handleReady = (map: mapboxgl.Map) => {
     mapRef.current = map;
-    renderLayers(map, pings);
+    renderLayers(map, pings, geofences);
   };
 
   useEffect(() => {
-    if (mapRef.current) renderLayers(mapRef.current, pings);
+    if (mapRef.current) renderLayers(mapRef.current, pings, geofences);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pings]);
+  }, [pings, geofences]);
 
-  function renderLayers(map: mapboxgl.Map, data: RawStaffGpsPing[]) {
+  function renderLayers(map: mapboxgl.Map, data: RawStaffGpsPing[], fences: GeofenceSite[]) {
     const apply = () => {
       for (const id of LAYER_IDS) if (map.getLayer(id)) map.removeLayer(id);
       for (const id of SOURCE_IDS) if (map.getSource(id)) map.removeSource(id);
-      if (!data.length) return;
+
+      // ── Geofences (ritas FÖRST så pings hamnar ovanpå) ─────────────
+      if (fences.length) {
+        const { fill, outline, labels } = geofencesToFeatures(fences);
+        map.addSource('geofence-fill-src', { type: 'geojson', data: fill });
+        map.addSource('geofence-outline-src', { type: 'geojson', data: outline });
+        map.addSource('geofence-label-src', { type: 'geojson', data: labels });
+        map.addLayer({
+          id: 'geofence-fill',
+          type: 'fill',
+          source: 'geofence-fill-src',
+          paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.12 },
+        });
+        map.addLayer({
+          id: 'geofence-outline',
+          type: 'line',
+          source: 'geofence-outline-src',
+          paint: { 'line-color': ['get', 'color'], 'line-width': 1.5, 'line-opacity': 0.9 },
+        });
+        map.addLayer({
+          id: 'geofence-label',
+          type: 'symbol',
+          source: 'geofence-label-src',
+          layout: {
+            'text-field': ['get', 'label'],
+            'text-size': 11,
+            'text-anchor': 'center',
+            'text-allow-overlap': false,
+            'text-optional': true,
+          },
+          paint: {
+            'text-color': '#fff',
+            'text-halo-color': '#0f172a',
+            'text-halo-width': 1.5,
+          },
+        });
+        map.on('click', 'geofence-fill', (e) => {
+          const f = e.features?.[0];
+          if (!f) return;
+          const p = f.properties as any;
+          popupRef.current?.remove();
+          popupRef.current = new mapboxgl.Popup({ closeButton: true })
+            .setLngLat([Number(p.lng), Number(p.lat)])
+            .setHTML(
+              `<div style="font:12px/1.4 system-ui;min-width:200px">
+                <div><b>${p.name}</b></div>
+                <div>${p.kindLabel}</div>
+                <div><b>Radie:</b> ${Math.round(Number(p.radius))} m</div>
+                <div><b>Lat:</b> ${Number(p.lat).toFixed(6)}</div>
+                <div><b>Lng:</b> ${Number(p.lng).toFixed(6)}</div>
+              </div>`,
+            )
+            .addTo(map);
+        });
+        map.on('mouseenter', 'geofence-fill', () => (map.getCanvas().style.cursor = 'pointer'));
+        map.on('mouseleave', 'geofence-fill', () => (map.getCanvas().style.cursor = ''));
+      }
+
+      if (!data.length) {
+        if (fences.length) {
+          const b = new mapboxgl.LngLatBounds();
+          fences.forEach((f) => b.extend([f.lng, f.lat]));
+          try { map.fitBounds(b, { padding: 60, duration: 400, maxZoom: 15 }); } catch {/* ignore */}
+        }
+        return;
+      }
+
 
       const segments = segmentPingsForDisplay(data);
 
