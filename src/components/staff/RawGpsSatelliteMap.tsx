@@ -81,6 +81,9 @@ const LAYER_IDS = [
   'gps-stay-labels',
   'gps-first',
   'gps-last',
+  'crossing-ring',
+  'crossing-dot',
+  'crossing-label',
 ];
 const SOURCE_IDS = [
   'geofence-fill-src',
@@ -90,6 +93,7 @@ const SOURCE_IDS = [
   'gps-move-points-src',
   'gps-stay-points-src',
   'gps-endpoints-src',
+  'crossing-src',
 ];
 
 export default function RawGpsSatelliteMap({ pings, geofences = [], className }: Props) {
