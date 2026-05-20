@@ -9,14 +9,11 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { fetchStaffMembers } from '@/services/staffService';
 import { supabase } from '@/integrations/supabase/client';
 import { useStaffGpsPingsForDay, type RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
 import RawGpsSatelliteMap from './RawGpsSatelliteMap';
 import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
-import { downsamplePingsByBucket } from '@/lib/staff/downsamplePingsByBucket';
-import { groupPingsByStay } from '@/lib/staff/groupPingsByStay';
 
 function dash(v: unknown): string {
   if (v === null || v === undefined || v === '') return '—';
