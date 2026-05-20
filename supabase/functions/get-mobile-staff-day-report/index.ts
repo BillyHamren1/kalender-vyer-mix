@@ -441,6 +441,7 @@ Deno.serve(async (req: Request) => {
     liveEngineError,
     timerOwnership,
     gpsEvidence,
+    mirrorFallback,
   };
 
   console.info("[get-mobile-staff-day-report] mirror", {
