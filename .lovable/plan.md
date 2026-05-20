@@ -1,78 +1,80 @@
-## Vad jag faktiskt ser i loggarna och databasen
+# GPS Satellitkarta — separat rådata-vy
 
-Billys cache-rad för 2026-05-20 (`staff_day_report_cache`, byggd 13:31, engine_version `large-project-target-fix-v1`):
+## Mål
+En helt isolerad adminvy som ritar **alla** GPS-pings från `staff_location_history` för en vald person + dag på en Mapbox-satellitkarta. Ingen tolkning, ingen filtrering, inget Time Engine.
 
-- `display_blocks_json` = **[]** (tom — men fältet finns → V2 "explicit tomt")
-- `report_candidate_blocks_json` = **5 block** (alla `signal_gap` / `transport` / `unknown_place` — inget `work` / `timer_marker`)
-- `diagnostics_json.locationTruthV2.counts.segmentsByType`:
-  - `unresolved_location: 110`
-  - `private_residence: 2`
-  - `movement: 4`
-  - `known_address: 3`
-  - **`known_target: 0`** ← inget GPS-kluster har matchat ett känt projekt/lager
-- `dayEndDecision`: `dayEnded=true endReason=no_fresh_evidence_after_last_work endedAt=13:30:44 confidence=medium` (gren 5 i `computeDayEndDecision`)
-- `gpsEvidence` i `get-mobile-staff-day-report`-loggen: 370 råpings 01:34 → 13:38, men `hasGpsEvidenceButNoRenderedWork=true`, `reasonNoWorkRendered=v2_present_but_empty`
+## Route
+- `GET /staff-management/gps-satellite-map?staffId=...&date=YYYY-MM-DD`
+- Registreras i `src/App.tsx` bredvid övriga `/staff-management/*` routes (lazy import).
 
-Edge-funktionen tar då rätt beslut enligt sin nuvarande kontrakt: `cacheHasV2Field=true` ⇒ ingen live-fallback ⇒ snapshot blir tom ⇒ "rapporten försvinner". Samtidigt fortsätter mobilen pinga (det är `useBackgroundLocationReporter` som matar `staff_location_history` — helt frikopplat från rapporten). Därför: **pings kommer, men rapporten är tom**.
+## Datakälla
+Direkt query mot `staff_location_history` via Supabase-klienten (RLS sköter org-isolering — samma mönster som befintliga `useDayPings`):
 
-## Grundorsak
+```ts
+supabase.from('staff_location_history')
+  .select('id, recorded_at, lat, lng, accuracy, speed, source, battery_percent, is_charging, app_version, app_build, platform, os_version, device_model, app_id')
+  .eq('staff_id', staffId)
+  .gte('recorded_at', `${date}T00:00:00.000Z`)
+  .lte('recorded_at', `${date}T23:59:59.999Z`)
+  .order('recorded_at', { ascending: true })
+  .limit(50000);
+```
 
-Dagsmotorn klassar Billys hela arbetsdag som `unresolved_location` (110 av 119 segment). Eftersom inget segment blir `known_target`/`work`/`timer_marker` filtrerar `enrichReportBlocksForCache` bort allt från `display_blocks_json`. Det tomma V2-fältet är en *legitim* signal att Time Engine kört, men för Billy ger den noll information — fast vi har en hel dag med vistelser som **borde** synas som "oklar plats — bekräfta" i tidslinjen.
+Ingen edge function behövs (RLS + direct select räcker, hindrar att vyn smyger sig in i Time Engine-stacken). Lägger jag till en edge function tar jag den i en uppföljning om RLS visar sig blockera.
 
-Två separata fel ligger bakom:
+## Filer
 
-1. **Renderings-bug (det användaren ser):** `enrichReportBlocksForCache` släpper bara igenom "work"-liknande block till `display_blocks_json`. Block av typen `unknown_place` / `signal_gap` / `transport` försvinner helt — trots att de finns i `report_candidate_blocks_json`. Det är därför rapporten visuellt blir tom.
-2. **Klassningsbug (orsaken till varför det är så många unknown):** Av 25 kända targets med koordinater matchade noll mot Billys 119 kluster. Antingen är targets fel geokodade, för snäv radie, eller så filtreras stora projekt bort i target-resolvern. Det här är en separat utredning.
+**Nya**
+- `src/hooks/staff/useStaffGpsPingsForDay.ts` — React Query-hook (key `['staff-gps-raw', staffId, date]`, staleTime 30s). Returnerar rådata 1:1 utan transformation utöver `Number()` på lat/lng/accuracy/speed/battery.
+- `src/components/staff/RawGpsSatelliteMap.tsx` — Mapbox-karta via befintlig `MapboxMap` (style=`satellite`). Ritar:
+  - GeoJSON-linje mellan alla pings i tidsordning (tunn neon-linje).
+  - Circle-layer för varje ping (liten prick, färgad efter tid via interpolate — bara visuellt, ingen klassning).
+  - Två markers: första (grön) + sista (röd) ping.
+  - Klick på ping öppnar Mapbox `Popup` med alla fält (tid, lat, lng, accuracy, speed, source, battery, charging, app_version, app_build, platform, os_version, device_model, app_id). Saknat fält → `—`.
+  - `fitBounds` på alla pings vid load.
+- `src/components/staff/StaffGpsSatelliteMap.tsx` — composer: topbar (rubrik, personväljare, datumväljare, summary chips: count / första / sista / senaste build+device), karta i övre delen, tabell under.
+- `src/pages/StaffGpsSatelliteMap.tsx` — page wrapper, läser `staffId`/`date` ur query params, default = idag + första personen i listan.
 
-## Plan — två steg, ultra-säkert / additivt
+**Justerade**
+- `src/App.tsx` — registrera ny route.
+- `src/pages/StaffTimeReports.tsx` (och `StaffTimeReportDay.tsx`) — liten knapp "Öppna GPS-karta" som länkar med `staffId` + aktuellt datum.
 
-### Steg 1 (denna runda — fixar "rapporten försvinner")
+**Inget** rörs i: `src/lib/time-engine/*`, `src/lib/staff/*`, `supabase/functions/_shared/time-engine/*`, `report_candidate_blocks`, `display_blocks`, `staff_day_report_cache`, `staff_day_submissions`, `workdays`, `time_reports`, `assistant_events`. Vyn importerar inget från dessa moduler.
 
-**Mål:** När Time Engine producerat candidate-block men inget hamnar i `display_blocks_json`, ska mobilen ändå rendera dem som "oklara segment att bekräfta" istället för en tom skärm.
+## UI
 
-Två additiva ändringar — ingen befintlig logik byts ut:
+**Topbar**
+- Rubrik "GPS satellitkarta"
+- Personväljare (återanvänd `StaffSelect`/listan från `StaffTimeReports`)
+- Datumväljare (shadcn DatePicker, `pointer-events-auto`)
+- Chips: `N pings`, `Första HH:MM:SS`, `Sista HH:MM:SS`, `Senaste build: X (device)`
 
-1. `supabase/functions/_shared/time-engine/enrichReportBlocksForCache.ts`
-   - Lägg till en *fallback*-pass: om resultat-arrayen för `display_blocks_json` är tom **och** `report_candidate_blocks_json.length > 0`, mappa candidate-blocken till display-format med `kind='needs_review'` (eller motsvarande befintligt fält som redan visas i mobilens "oklara"-rad). Markera dem `provisional=true` så de inte räknas som lönegrundande.
-   - Lägg en flagga i `diagnostics_json.displayFallback = { reason: 'no_work_blocks_only_unknown', sourceCandidateCount: N }`.
+**Karta**
+- `MapboxMap style="satellite"` (style-URL `mapbox://styles/mapbox/satellite-streets-v12` finns redan i `STYLE_URL.satellite`).
+- Alla pings ritas — ingen decimering, ingen min-distans, ingen tidsfilter.
 
-2. `supabase/functions/get-mobile-staff-day-report/index.ts`
-   - Logga ut den nya `displayFallback`-anledningen i mirror-loggen så vi kan följa upp.
-   - Inget annat ändras i mirror-kontraktet — `cacheHasV2Field` förblir true och vi anropar fortfarande inte live-motorn.
+**Tabell**
+- Under kartan, scrollbar. Kolumner: Tid, Lat, Lng, Accuracy, Speed, Source, Battery, Build, Device. Samma `data.length` som markers på kartan.
 
-3. Mobilrendering — **ingen kodändring**. `mapReportBlocksToSegments` hanterar redan `needs_review`/`unknown` som "Oklart — bekräfta", så samma block visas automatiskt.
+**Tomt läge**
+- "Inga GPS-pings hittades för vald person och dag."
 
-4. Tester (Deno + vitest, additivt):
-   - `supabase/functions/_shared/time-engine/__tests__/enrichReportBlocksForCache.fallback.test.ts` — verifierar att en candidate-bunt utan work fortfarande producerar minst 1 display-block med `provisional=true`.
-   - `src/test/mobileDayReportFallback.contract.test.ts` — kontraktstest att `mapReportBlocksToSegments` renderar `needs_review` som synlig "oklar" rad.
+## Tester
+- `src/test/staffGpsSatelliteMap.contract.test.ts` — kontraktstest:
+  1. `useStaffGpsPingsForDay` returnerar exakt det `supabase.from(...).select(...)` returnerar (ingen filtrering/dedup/klustring).
+  2. Hooken importerar **inte** från `@/lib/time-engine`, `@/lib/staff/dayEventTimeline`, `@/lib/staff/displayTimelineV2`, `time-engine/*`, `reportCandidate*`, `workday*` (grep i kompilerad källa).
+  3. `RawGpsSatelliteMap` ritar `data.length` features.
+- Manuell QA: Billy 2026-05-20 — count i summary = count i tabell = antal circles.
 
-5. Verifiering:
-   - Deploya `enrichReportBlocksForCache`-användarna (`backfill-staff-day-report-cache`, `sync-staff-day-report-cache`, `get-staff-presence-day`, `submit-staff-day-v3`).
-   - Tvinga refresh av Billys cache via `backfill-staff-day-report-cache` med `staffIds=[365f4d55…]`, `dateFrom/dateTo=2026-05-20`, `skipExisting:false`.
-   - Läs tillbaka raden och bekräfta `display_blocks_json.length > 0` + `diagnostics_json.displayFallback`.
-   - Curl `get-mobile-staff-day-report` som Billy och verifiera att `blockCount > 0`.
+## Rapport efter implementation
+- Route: `/staff-management/gps-satellite-map`
+- Datakälla: `staff_location_history` direkt via supabase-js
+- Satellitvy: `mapbox/satellite-streets-v12`
+- Ingen filtrering/klustring/tolkning (verifierat via import-grep-test)
+- Alla pings i karta + tabell (samma `data.length`)
 
-### Steg 2 (nästa runda — separat ärende)
-
-Utred varför 110/119 segment blev `unresolved_location` trots 25 kända targets med koordinater. Troliga kandidater (utreds, inga ändringar nu):
-
-- `resolveWorkTargets` filtrerar bort stora projekt eller targets utan giltig polygon.
-- Klusterradien (`MIN_VISIT_MIN` / cluster-centroid) faller utanför target-radien för Billys faktiska arbetsplats den dagen.
-- Booking-koordinater saknas/är fel — kontrollera mot `organization_locations` och `large_projects.coordinates`.
-
-Det här är ett *klassnings*-fel som påverkar lönedata och kräver mer försiktighet — körs separat.
-
-## Vad jag INTE gör i steg 1
-
-- Rör inte `computeDayEndDecision` (dagsslutsbeslutet är korrekt).
-- Rör inte `buildReportCandidateBlocks` eller någon klassning.
-- Rör inte mobil-frontends ping-takt eller `useBackgroundLocationReporter` — pingsen är inte buggen.
-- Rör inte mirror-kontraktets V2-policy (cache-hasV2 → ingen live-fallback).
-- Inga DB-migrationer.
-
-## Filer som ändras (steg 1)
-
-- `supabase/functions/_shared/time-engine/enrichReportBlocksForCache.ts` (additivt fallback-block)
-- `supabase/functions/get-mobile-staff-day-report/index.ts` (utökad logg)
-- `supabase/functions/_shared/time-engine/__tests__/enrichReportBlocksForCache.fallback.test.ts` (ny)
-- `src/test/mobileDayReportFallback.contract.test.ts` (ny)
+## Tekniska detaljer
+- Mapbox-token via befintlig `useMapboxToken` / `MapboxMap`.
+- Layer-ids prefixas `gps-raw-*` så de inte krockar med ev. annan karta.
+- Re-render vid byte av staff/date → ta bort gamla source/layer innan ny läggs till.
+- `recorded_at` formateras i lokal tid (Europe/Stockholm) i tabell/popup, men sorteras på ISO-värdet från DB.
