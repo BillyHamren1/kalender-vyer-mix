@@ -373,6 +373,104 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], className }:
         paint: { 'circle-radius': 9, 'circle-color': '#dc2626', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 },
       });
 
+      // ── Geofence-korsningar: exakt punkt där staketet passerades ───
+      if (fences.length) {
+        const crossings = computeGeofenceCrossings(
+          data.map(p => ({ lat: p.lat, lng: p.lng, recorded_at: p.recorded_at })),
+          fences.map(f => ({
+            id: f.id, name: f.name, lat: f.lat, lng: f.lng,
+            radiusMeters: f.radiusMeters, polygon: f.polygon,
+          })),
+        );
+        const crossingFeatures = crossings.map((c, i) => ({
+          type: 'Feature' as const,
+          geometry: { type: 'Point' as const, coordinates: [c.lng, c.lat] },
+          properties: {
+            idx: i,
+            kind: c.kind,
+            // ▸ för IN, ◂ för UT — tunna chevrons istället för fula emoji.
+            label: `${c.kind === 'enter' ? '▸' : '◂'}  ${formatStockholmHms(c.tsIso).slice(0, 5)}`,
+            tsIso: c.tsIso,
+            geofenceName: c.geofenceName,
+          },
+        }));
+        map.addSource('crossing-src', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: crossingFeatures },
+        });
+        // Yttre vit ring (halo) för att punkten ska läsas mot satellitbild.
+        map.addLayer({
+          id: 'crossing-ring',
+          type: 'circle',
+          source: 'crossing-src',
+          paint: {
+            'circle-radius': 8,
+            'circle-color': 'rgba(255,255,255,0)',
+            'circle-stroke-color': '#f8fafc',
+            'circle-stroke-width': 2,
+            'circle-stroke-opacity': 0.9,
+          },
+        });
+        // Inre prick — grön IN, röd UT.
+        map.addLayer({
+          id: 'crossing-dot',
+          type: 'circle',
+          source: 'crossing-src',
+          paint: {
+            'circle-radius': 4,
+            'circle-color': [
+              'match', ['get', 'kind'],
+              'enter', '#22c55e',
+              'exit', '#ef4444',
+              '#f59e0b',
+            ],
+            'circle-stroke-color': '#0f172a',
+            'circle-stroke-width': 1,
+          },
+        });
+        map.addLayer({
+          id: 'crossing-label',
+          type: 'symbol',
+          source: 'crossing-src',
+          layout: {
+            'text-field': ['get', 'label'],
+            'text-font': ['Inter Medium', 'Open Sans Semibold', 'Arial Unicode MS Bold'],
+            'text-size': 10,
+            'text-letter-spacing': 0.04,
+            'text-offset': [0.9, 0],
+            'text-anchor': 'left',
+            'text-allow-overlap': true,
+            'text-ignore-placement': false,
+            'text-padding': 4,
+          },
+          paint: {
+            'text-color': '#f8fafc',
+            'text-halo-color': 'rgba(15,23,42,0.92)',
+            'text-halo-width': 1.4,
+            'text-halo-blur': 0.4,
+          },
+        });
+        map.on('click', 'crossing-dot', (e) => {
+          const f = e.features?.[0];
+          if (!f) return;
+          const props = f.properties as any;
+          popupRef.current?.remove();
+          popupRef.current = new mapboxgl.Popup({ closeButton: true })
+            .setLngLat((f.geometry as any).coordinates)
+            .setHTML(
+              `<div style="font:12px/1.4 system-ui;min-width:200px">
+                <div><b>${props.kind === 'enter' ? 'IN' : 'UT'}</b> · ${props.geofenceName}</div>
+                <div><b>Tid:</b> ${formatStockholmHms(props.tsIso)}</div>
+                <div style="color:#94a3b8;margin-top:4px">Interpolerad mellan pingen innan och pingen efter korsningen.</div>
+              </div>`,
+            )
+            .addTo(map);
+        });
+        map.on('mouseenter', 'crossing-dot', () => (map.getCanvas().style.cursor = 'pointer'));
+        map.on('mouseleave', 'crossing-dot', () => (map.getCanvas().style.cursor = ''));
+      }
+
+
       // ── Klick: visa popup ──────────────────────────────────────────
       const pingById = new Map(data.map((p) => [p.id, p]));
       const stayByIndex = new Map(
