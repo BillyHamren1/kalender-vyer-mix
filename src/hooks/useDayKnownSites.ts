@@ -105,6 +105,9 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
         if (b.large_project_id) extraLargeIds.add(String(b.large_project_id));
         if (b.assigned_project_id) projectIds.add(String(b.assigned_project_id));
         if (b.delivery_latitude == null || b.delivery_longitude == null) continue;
+        // Dedupe: om bokningen tillhör ett projekt eller stort projekt så representeras
+        // platsen redan av project:/large: geofencen — undvik dubbla cirklar på samma punkt.
+        if (b.assigned_project_id || b.large_project_id) continue;
         const label = b.booking_number
           ? `${b.booking_number} · ${b.client ?? 'Bokning'}`
           : (b.client ?? b.deliveryaddress ?? 'Bokning');
