@@ -319,7 +319,6 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         </div>
       `;
 
-      `;
       const panelMarker = new mapboxgl.Marker({ element: panel, anchor: 'bottom' })
         .setLngLat([head.centre.lng, head.centre.lat])
         .addTo(map);
