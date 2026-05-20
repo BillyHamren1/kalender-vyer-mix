@@ -9,8 +9,6 @@
 export interface PingLike {
   recorded_at: string;
   accuracy: number | null;
-  // anything else is preserved verbatim
-  [k: string]: unknown;
 }
 
 export function downsamplePingsByBucket<T extends PingLike>(
