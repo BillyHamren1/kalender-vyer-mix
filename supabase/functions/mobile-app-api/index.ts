@@ -5460,7 +5460,7 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
   try {
     const { data: lastHist } = await supabase
       .from('staff_location_history')
-      .select('recorded_at')
+      .select('recorded_at, lat, lng, accuracy, speed')
       .eq('staff_id', staffId)
       .order('recorded_at', { ascending: false })
       .limit(1)
@@ -5468,7 +5468,19 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
 
     const nowMs = Date.now()
     const lastMs = lastHist?.recorded_at ? new Date(lastHist.recorded_at).getTime() : 0
-    if (nowMs - lastMs >= 15_000) {
+    // Exakt-dubblett-spärr: en buggig klient (iOS cached location) kan skicka
+    // identisk lat/lng/accuracy/speed i 100+ rader. Riktig GPS varierar alltid
+    // på minst en decimal. Om värdena är byte-identiska med senaste raden:
+    // skippa insert helt (oavsett tid). Detta hindrar att kartan/tidslinjen
+    // fylls av falska "vistelser" på en cachad position.
+    const isExactDuplicate =
+      lastHist &&
+      Number(lastHist.lat) === Number(latitude) &&
+      Number(lastHist.lng) === Number(longitude) &&
+      Number(lastHist.accuracy ?? -1) === Number(accuracy ?? -1) &&
+      Number(lastHist.speed ?? -1) === Number(speed ?? -1)
+
+    if (!isExactDuplicate && nowMs - lastMs >= 15_000) {
       await supabase.from('staff_location_history').insert({
         organization_id: organizationId,
         staff_id: staffId,
@@ -5484,11 +5496,14 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
         device_model: typeof device_model === 'string' ? device_model : null,
         app_id: typeof app_id === 'string' ? app_id : null,
       })
+    } else if (isExactDuplicate) {
+      console.log('[mobile-app-api] skipping exact-duplicate ping for staff', staffId)
     }
   } catch (histErr) {
     // Never fail the request if history insert fails
     console.warn('[mobile-app-api] history insert failed:', histErr)
   }
+
 
   // ── GEOFENCE CHECK for organization_locations (polygon-aware) ──
   //
