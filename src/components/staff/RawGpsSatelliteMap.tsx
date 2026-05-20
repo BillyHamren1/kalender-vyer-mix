@@ -159,8 +159,8 @@ export default function RawGpsSatelliteMap({ pings, className }: Props) {
       map.addLayer({
         id: 'gps-raw-time-labels',
         type: 'symbol',
-        source: 'gps-raw-points-src',
-        filter: ['!=', ['get', 'label'], ''],
+        source: 'gps-raw-clusters-src',
+        filter: ['all', ['!', ['has', 'point_count']], ['!=', ['get', 'label'], '']],
         layout: {
           'text-field': ['get', 'label'],
           'text-size': 11,
