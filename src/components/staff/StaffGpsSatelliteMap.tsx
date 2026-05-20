@@ -155,6 +155,21 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     };
   }, [pings]);
 
+  // Geofence-besök: räkna ut IN/UT-tid per ping ↔ känd plats (inkl. ALLA targets).
+  const visitsKnownSites = useMemo<KnownSite[]>(() => {
+    const byId = new Map<string, KnownSite>();
+    for (const s of knownSites) byId.set(s.id, s);
+    for (const s of allTargets) if (!byId.has(s.id)) byId.set(s.id, s);
+    return [...byId.values()];
+  }, [knownSites, allTargets]);
+  const geofenceVisits = useMemo<PlaceVisit[]>(() => {
+    if (!pings.length || !visitsKnownSites.length) return [];
+    const asPings = pings.map(p => ({
+      lat: p.lat, lng: p.lng, recorded_at: p.recorded_at, accuracy: p.accuracy ?? null,
+    }));
+    return buildPlaceVisits(asPings, visitsKnownSites).filter(v => v.knownSite);
+  }, [pings, visitsKnownSites]);
+
   return (
     <div className="flex flex-col h-full gap-4">
       {/* Topbar */}
