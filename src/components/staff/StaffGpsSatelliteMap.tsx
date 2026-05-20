@@ -15,6 +15,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useStaffGpsPingsForDay, type RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
 import RawGpsSatelliteMap from './RawGpsSatelliteMap';
 import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
+import { downsamplePingsByBucket } from '@/lib/staff/downsamplePingsByBucket';
+import { groupPingsByStay } from '@/lib/staff/groupPingsByStay';
 
 function dash(v: unknown): string {
   if (v === null || v === undefined || v === '') return '—';
