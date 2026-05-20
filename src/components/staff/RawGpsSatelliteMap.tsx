@@ -12,6 +12,7 @@ import {
   geofencesToFeatures,
   type GeofenceSite,
 } from '@/lib/staff/geofencesToFeatures';
+import { computeGeofenceCrossings } from '@/lib/staff/geofenceCrossings';
 
 interface Props {
   pings: RawStaffGpsPing[];
