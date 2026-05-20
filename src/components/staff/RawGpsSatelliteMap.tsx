@@ -477,14 +477,23 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       // ── Line features per segment (alla pings ritas) ──────────────
       const lineFeatures = segments
         .filter((s) => s.kind === 'move' && s.pings.length >= 2)
-        .map((s) => ({
-          type: 'Feature' as const,
-          geometry: {
-            type: 'LineString' as const,
-            coordinates: s.pings.map((p) => [p.lng, p.lat]),
-          },
-          properties: { color: colorForSegment(s.colorIndex, 'move') },
-        }));
+        .map((s) => {
+          const firstP = s.pings[0];
+          const lastP = s.pings[s.pings.length - 1];
+          // En "rörelse" räknas som intra-fence om både start och slut är
+          // inom samma typ av geofence — då är det jitter, inte en resa.
+          const insideFence =
+            pingInsideAnyFence(firstP, fences) && pingInsideAnyFence(lastP, fences);
+          return {
+            type: 'Feature' as const,
+            geometry: {
+              type: 'LineString' as const,
+              coordinates: s.pings.map((p) => [p.lng, p.lat]),
+            },
+            properties: { color: colorForSegment(s.colorIndex, 'move'), insideFence },
+          };
+        });
+
 
       map.addSource('gps-line-src', {
         type: 'geojson',
