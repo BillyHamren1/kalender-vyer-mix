@@ -94,15 +94,18 @@ const SOURCE_IDS = [
   'gps-endpoints-src',
 ];
 
+const ZOOM_DETAIL_THRESHOLD = 14;
+
 export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [], className }: Props) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
-  const visitMarkersRef = useRef<mapboxgl.Marker[]>([]);
+  const visitMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; el: HTMLElement; kind: 'compact' | 'detail' }>>([]);
 
   const handleReady = (map: mapboxgl.Map) => {
     mapRef.current = map;
     renderLayers(map, pings, geofences);
     renderVisitMarkers(map, visits);
+    map.on('zoom', applyZoomVisibility);
   };
 
   useEffect(() => {
@@ -116,8 +119,18 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
   }, [visits]);
 
   function clearVisitMarkers() {
-    for (const m of visitMarkersRef.current) m.remove();
+    for (const m of visitMarkersRef.current) m.marker.remove();
     visitMarkersRef.current = [];
+  }
+
+  function applyZoomVisibility() {
+    const map = mapRef.current;
+    if (!map) return;
+    const detailed = map.getZoom() >= ZOOM_DETAIL_THRESHOLD;
+    for (const { el, kind } of visitMarkersRef.current) {
+      const shouldShow = kind === 'detail' ? detailed : !detailed;
+      el.style.display = shouldShow ? '' : 'none';
+    }
   }
 
   function renderVisitMarkers(map: mapboxgl.Map, vs: PlaceVisit[]) {
@@ -131,35 +144,43 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       const dur = hh > 0 ? `${hh}h ${mm}m` : `${mm}m`;
       const inHm = formatHm(v.start);
       const outHm = formatHm(v.end);
+      const midLng = (first.lng + last.lng) / 2;
+      const midLat = (first.lat + last.lat) / 2;
 
-      // IN — grön prick
+      // ── Kompakt pin (utzoomat läge) ──────────────────────────────
+      const pin = document.createElement('div');
+      pin.style.cssText =
+        'width:12px;height:12px;border-radius:9999px;background:#22c55e;box-shadow:0 0 0 2px #fff,0 1px 4px rgba(0,0,0,.5);cursor:pointer;';
+      pin.title = `${v.knownSite?.name ?? ''} · ${inHm}–${outHm} · ${dur}`;
+      const pinMarker = new mapboxgl.Marker({ element: pin, anchor: 'center' })
+        .setLngLat([midLng, midLat])
+        .addTo(map);
+      visitMarkersRef.current.push({ marker: pinMarker, el: pin, kind: 'compact' });
+
+      // ── Detalj: IN-prick (grön) ──────────────────────────────────
       const inEl = document.createElement('div');
       inEl.style.cssText =
         'width:14px;height:14px;border-radius:9999px;background:#22c55e;box-shadow:0 0 0 2px #fff,0 1px 4px rgba(0,0,0,.5);cursor:pointer;';
       inEl.title = `IN ${inHm}`;
-      visitMarkersRef.current.push(
-        new mapboxgl.Marker({ element: inEl, anchor: 'center' })
-          .setLngLat([first.lng, first.lat])
-          .addTo(map),
-      );
+      const inMarker = new mapboxgl.Marker({ element: inEl, anchor: 'center' })
+        .setLngLat([first.lng, first.lat])
+        .addTo(map);
+      visitMarkersRef.current.push({ marker: inMarker, el: inEl, kind: 'detail' });
 
-      // UT — blå prick (om olika position)
+      // ── Detalj: UT-prick (blå) — bara om olika position ──────────
       const sameSpot = first.lat === last.lat && first.lng === last.lng;
       if (!sameSpot) {
         const outEl = document.createElement('div');
         outEl.style.cssText =
           'width:14px;height:14px;border-radius:9999px;background:#3b82f6;box-shadow:0 0 0 2px #fff,0 1px 4px rgba(0,0,0,.5);cursor:pointer;';
         outEl.title = `UT ${outHm}`;
-        visitMarkersRef.current.push(
-          new mapboxgl.Marker({ element: outEl, anchor: 'center' })
-            .setLngLat([last.lng, last.lat])
-            .addTo(map),
-        );
+        const outMarker = new mapboxgl.Marker({ element: outEl, anchor: 'center' })
+          .setLngLat([last.lng, last.lat])
+          .addTo(map);
+        visitMarkersRef.current.push({ marker: outMarker, el: outEl, kind: 'detail' });
       }
 
-      // Mini-container (pill) i mitten
-      const midLng = (first.lng + last.lng) / 2;
-      const midLat = (first.lat + last.lat) / 2;
+      // ── Detalj: mini-container (pill) ────────────────────────────
       const pill = document.createElement('div');
       pill.style.cssText = [
         'display:inline-flex','align-items:center','gap:8px',
@@ -182,13 +203,14 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         <span style="display:inline-block;width:8px;height:8px;border-radius:9999px;background:#3b82f6;box-shadow:0 0 0 1.5px #fff"></span>
       `;
       pill.title = v.knownSite?.name ?? '';
-      visitMarkersRef.current.push(
-        new mapboxgl.Marker({ element: pill, anchor: 'bottom' })
-          .setLngLat([midLng, midLat])
-          .addTo(map),
-      );
+      const pillMarker = new mapboxgl.Marker({ element: pill, anchor: 'bottom' })
+        .setLngLat([midLng, midLat])
+        .addTo(map);
+      visitMarkersRef.current.push({ marker: pillMarker, el: pill, kind: 'detail' });
     }
+    applyZoomVisibility();
   }
+
 
 
   function renderLayers(map: mapboxgl.Map, data: RawStaffGpsPing[], fences: GeofenceSite[]) {
