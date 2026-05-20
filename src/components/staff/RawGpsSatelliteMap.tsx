@@ -204,14 +204,22 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
           const hh = Math.floor(v.durationMin / 60);
           const mm = v.durationMin % 60;
           const dur = hh > 0 ? `${hh}h ${mm}m` : `${mm}m`;
+          const isOutside = v.subKind === 'outside_geo';
+          const labelColor = isOutside ? 'hsl(38 92% 60%)' : 'hsl(215 16% 65%)';
+          const timeColor = isOutside ? 'hsl(215 16% 70%)' : 'hsl(0 0% 98%)';
+          const durColor = isOutside ? 'hsl(38 92% 65%)' : 'hsl(199 89% 70%)';
+          const suffix = isOutside
+            ? ` <span style="color:hsl(38 92% 60%);font-size:9.5px;letter-spacing:.04em;text-transform:uppercase">· Utanför geo</span>`
+            : '';
           return `
             <div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:1px 0;font-variant-numeric:tabular-nums">
-              <span style="color:hsl(215 16% 65%);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase">B${i + 1}</span>
-              <span style="font-family:${mono};font-size:10.5px;color:hsl(0 0% 98%)">${formatHm(v.start)} <span style="color:hsl(215 16% 50%)">→</span> ${formatHm(v.end)}</span>
-              <span style="font-family:${mono};font-size:10.5px;color:hsl(199 89% 70%)">${dur}</span>
+              <span style="color:${labelColor};font-size:9.5px;letter-spacing:.08em;text-transform:uppercase">B${i + 1}</span>
+              <span style="font-family:${mono};font-size:10.5px;color:${timeColor}">${formatHm(v.start)} <span style="color:hsl(215 16% 50%)">→</span> ${formatHm(v.end)}${suffix}</span>
+              <span style="font-family:${mono};font-size:10.5px;color:${durColor}">${dur}</span>
             </div>`;
         })
         .join('');
+
 
       const panel = document.createElement('div');
       panel.style.cssText = [

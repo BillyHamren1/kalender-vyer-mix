@@ -348,9 +348,15 @@ function GeofenceVisitsTable({ visits }: { visits: PlaceVisit[] }) {
               const hh = Math.floor(v.durationMin / 60);
               const mm = v.durationMin % 60;
               const dur = hh > 0 ? `${hh}h ${mm}m` : `${mm}m`;
+              const isOutside = v.subKind === 'outside_geo';
               return (
                 <tr key={`gv-${v.placeKey}-${v.start}`} className="border-t hover:bg-muted/20">
-                  <td className="px-2 py-1">{v.knownSite!.name}</td>
+                  <td className="px-2 py-1">
+                    {v.knownSite!.name}
+                    {isOutside && (
+                      <span className="ml-2 text-[10px] uppercase tracking-wide text-amber-600">· Utanför geo</span>
+                    )}
+                  </td>
                   <td className="px-2 py-1 text-muted-foreground">{kind}</td>
                   <td className="px-2 py-1 font-mono">{formatStockholmHms(v.start)}</td>
                   <td className="px-2 py-1 font-mono">{formatStockholmHms(v.end)}</td>

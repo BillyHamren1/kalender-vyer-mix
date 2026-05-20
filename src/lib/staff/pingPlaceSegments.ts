@@ -46,6 +46,13 @@ export interface PlaceVisit {
    * mem://constraints/gps-visit-exact-ping-membership-v1.
    */
   pings: Ping[];
+  /**
+   * Sätts endast av `buildExactGeofenceVisits`. När en person lämnar geofencen
+   * men ännu inte gått in i ett annat projekts geofence skapas ett
+   * `outside_geo`-delblock under samma projekt. UI etiketterar då raden som
+   * "(Utanför geo)". Huvudbyggaren `buildPlaceVisits` sätter aldrig fältet.
+   */
+  subKind?: 'inside' | 'outside_geo';
 }
 
 export interface BuildOptions {

@@ -1,41 +1,56 @@
-## Problem
+# Mål
+När en person lämnar ett projekt och sedan kommer tillbaka till samma projekt ska tiden utanför inte försvinna. Den ska visas som ett eget block under samma projektpanel.
 
-Default-vyn ("Visa rörelser mellan") döljer för mycket:
+Exempel:
+- B1: 08:51 → 12:30
+- B2: 12:30 → 12:46 (Utanför geo)
+- B3: 12:46 → 20:18
 
-1. **Linjer som går in/ut ur geofence försvinner.** `insideFence` sätts till `true` så fort ≥50 % av segmentets pings ligger inne i en fence. En linje som börjar utanför och åker in (eller tvärtom) får ofta majoritet inne och filtreras bort i sin helhet.
-2. **Röda stay-markers (lång vistelse) inne i fence är borta.** `gps-stay-points` / `gps-stay-labels` ingår i `FENCE_HIDEABLE_LAYERS` och taggas `insideFence` när stay-centrum ligger i fence, så de döljs helt.
-3. **Move-label-punkterna (klockslag var ~5 min) som ligger inne är borta** av samma skäl.
+Det som ensam får flytta bort fortsättningen från projektet är att personen korsar in i ett annat projekts geofence. Då avslutas nuvarande projekt, och nästa block visas under det andra projektet.
 
-Användaren vill: alla pings/linjer/stay-markers ska synas, men räkningen av "block 1 in→ut, block 2 …" ska börja UTANFÖR fence (dvs vid övergångarna). Endast linjer som är HELT inuti fence (jitter) får döljas.
+# Plan
 
-## Plan
+## 1. Ändra blocklogiken i `buildExactGeofenceVisits`
+Gör om state-maskinen så att den arbetar med tre lägen inom ett aktivt projektblock:
+- inne i aktivt projekts geofence
+- utanför alla geofences men fortfarande knuten till samma aktiva projekt
+- inne i ett annat projekts geofence
 
-Allt i `src/components/staff/RawGpsSatelliteMap.tsx` — ingen dataändring.
+Regler:
+- Första inträdet i ett geofence öppnar ett projektblock.
+- Om personen går ut ur geofence men ännu inte gått in i ett annat projekt, skapa ett separat delblock `Utanför geo` under samma aktiva projekt.
+- Om personen går tillbaka in i samma projekt, starta nästa delblock under samma projekt.
+- Om personen i stället går in i ett annat projekts geofence, stäng det gamla projektet och starta ett nytt projektblock där.
+- Tid får aldrig "försvinna" mellan två block så länge den tillhör samma aktiva projektkedja.
 
-### 1. Linje-segment: strict "helt inne"
-Räkningen av `insideFence` per linje ändras från "≥50 % av pings inne" till "ALLA pings inne i samma fence". Då döljs endast jitter som aldrig lämnar området; varje linje som korsar fence-gränsen ritas ut i sin helhet (default-vy = mellan-rörelser inkl. in/ut).
+## 2. Utöka datamodellen för visning
+Behåll dagens `PlaceVisit` som projektblock, men lägg till delblock för visning under samma projekt, t.ex.:
+- `inside`
+- `outside_geo`
 
-### 2. Stay-markers och move-labels döljs aldrig av fence-filtret
-Tas bort ur `FENCE_HIDEABLE_LAYERS`:
-- `gps-stay-points`
-- `gps-stay-labels`
-- `gps-move-points`
-- `gps-move-labels`
+Varje projektbesök ska alltså kunna innehålla flera renderbara rader i ordning, i stället för att allt pressas till en enda start/slut-rad.
 
-Kvar i listan blir bara `gps-line-segments` och `gps-line-arrows`. Röda långvistelse-markörer kommer alltid att synas, oavsett toggle. Tidsklockslag på rörelse-pingsen likaså.
+## 3. Uppdatera popup-panelen i `RawGpsSatelliteMap.tsx`
+Ändra panelen så att varje projekt visar sina delblock rad för rad:
+- `B1 08:51 → 12:30`
+- `B2 12:30 → 12:46 (Utanför geo)`
+- `B3 12:46 → 20:18`
 
-### 3. "Visa rörelser innanför geo"-läget
-Toggle:on visar inversen — bara linjesegment som ligger helt inom fence (jitter inne). Övriga lager (stay + move labels) påverkas inte, så hela kontexten finns kvar.
+Totalen för projektet ska fortsatt summera alla delblock som hör till projektkedjan, inklusive utanför-blocket så länge inget annat projekt har tagit över.
 
-### 4. Block-panel (in→ut-räkning)
-Bekräfta att block-panelen bygger på fence-vistelser, inte på `insideFence`-taggen. Räkningen ska börja vid första pingen som korsar IN i fence och avslutas vid första pingen som korsar UT, så block 1 in→ut osv. blir tydliga övergångar. (Logiken är redan visit-baserad — verifieras, justeras vid behov utan databorttagning.)
+## 4. Uppdatera tabellen i `StaffGpsSatelliteMap.tsx`
+Samma uppdelning ska visas i geofence-tabellen, så att popup och tabell följer exakt samma blocklogik.
 
-### 5. Test
-- Uppdatera `src/test/staffGpsSatelliteMap.contract.test.ts`:
-  - Linje med blandade pings (några ute, några inne) → `insideFence=false` (visas i default).
-  - Linje med alla pings inne → `insideFence=true` (döljs i default, visas i innanför-läge).
-  - `FENCE_HIDEABLE_LAYERS` innehåller inte stay/move-label-lager.
-- Kör `bun vitest run src/test/staffGpsSatelliteMap.contract.test.ts` + `segmentPingsForDisplay.test.ts`.
+## 5. Tester
+Uppdatera och lägg till tester för följande fall:
+- Inne A → utanför → inne A igen = tre delblock under samma projekt.
+- Inne A → utanför → inne B = A avslutas, B startar som nytt projekt.
+- Inne A → utanför och dagen slutar utan nytt projekt = utanför-blocket ligger kvar under A och försvinner inte.
+- Nuvarande exempel från skärmdumpen ska ge två projekt-inneblock med ett eget mellanblock `Utanför geo`.
 
-## Inget tas bort från datan
-Bara Mapbox `setFilter` styr synlighet. Pings, linjer och visits hämtas och renderas precis som idag.
+# Tekniska detaljer
+- Berörd logik: `src/lib/staff/buildExactGeofenceVisits.ts`
+- Berörd presentation: `src/components/staff/RawGpsSatelliteMap.tsx`, `src/components/staff/StaffGpsSatelliteMap.tsx`
+- Berörda tester: `src/test/buildExactGeofenceVisits.test.ts`
+- Ingen databasändring.
+- Ingen ändring i linje-/prickfiltreringen mer än att blockvisningen ska använda den nya modellens resultat konsekvent.
