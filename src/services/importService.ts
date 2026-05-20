@@ -91,6 +91,20 @@ const resolveImportOrganizationId = async (): Promise<string | null> => {
 };
 
 /**
+ * In-flight coalescing map. Multiple callers triggering the same (org, mode)
+ * import within the same tick reuse the in-flight promise instead of firing
+ * a duplicate edge-function invocation. This stops the "two simultaneous
+ * incremental syncs at login" pattern observed in the network logs.
+ */
+const inFlightImports = new Map<string, Promise<ImportResults>>();
+
+const inFlightKey = (organizationId: string | null, filters: ImportFilters): string => {
+  const mode = filters.syncMode ?? 'auto';
+  const historical = filters.forceHistoricalImport || filters.includeHistorical || mode === 'historical' ? 'H' : 'N';
+  return `${organizationId ?? 'noorg'}::${mode}::${historical}`;
+};
+
+/**
  * Enhanced import bookings with historical support and duplicate cleanup
  * @param filters - Import filter options
  * @param silent - If true, suppresses all toast notifications (for background imports)
@@ -100,6 +114,29 @@ export const importBookings = async (filters: ImportFilters = {}, silent: boolea
   if (isScannerApp) {
     return { success: true, results: { total: 0, imported: 0, failed: 0, calendar_events_created: 0 } };
   }
+
+  // Coalesce concurrent identical imports (org + sync mode). We resolve the
+  // organization_id eagerly so the key is stable across simultaneous callers.
+  const earlyOrgId = await resolveImportOrganizationId();
+  const key = inFlightKey(earlyOrgId, filters);
+  const existing = inFlightImports.get(key);
+  if (existing) {
+    if (!silent) {
+      console.info(`[importBookings] coalescing duplicate ${key}`);
+    }
+    return existing;
+  }
+
+  const promise = runImportBookings(filters, silent, earlyOrgId);
+  inFlightImports.set(key, promise);
+  try {
+    return await promise;
+  } finally {
+    inFlightImports.delete(key);
+  }
+};
+
+const runImportBookings = async (filters: ImportFilters, silent: boolean, preResolvedOrgId: string | null): Promise<ImportResults> => {
 
   const syncType = 'booking_import';
   const startTime = Date.now();
