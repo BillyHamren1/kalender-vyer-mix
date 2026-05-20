@@ -93,19 +93,102 @@ const SOURCE_IDS = [
   'gps-endpoints-src',
 ];
 
-export default function RawGpsSatelliteMap({ pings, geofences = [], className }: Props) {
+export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [], className }: Props) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
+  const visitMarkersRef = useRef<mapboxgl.Marker[]>([]);
 
   const handleReady = (map: mapboxgl.Map) => {
     mapRef.current = map;
     renderLayers(map, pings, geofences);
+    renderVisitMarkers(map, visits);
   };
 
   useEffect(() => {
     if (mapRef.current) renderLayers(mapRef.current, pings, geofences);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pings, geofences]);
+
+  useEffect(() => {
+    if (mapRef.current) renderVisitMarkers(mapRef.current, visits);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visits]);
+
+  function clearVisitMarkers() {
+    for (const m of visitMarkersRef.current) m.remove();
+    visitMarkersRef.current = [];
+  }
+
+  function renderVisitMarkers(map: mapboxgl.Map, vs: PlaceVisit[]) {
+    clearVisitMarkers();
+    for (const v of vs) {
+      if (!v.pings.length) continue;
+      const first = v.pings[0];
+      const last = v.pings[v.pings.length - 1];
+      const hh = Math.floor(v.durationMin / 60);
+      const mm = v.durationMin % 60;
+      const dur = hh > 0 ? `${hh}h ${mm}m` : `${mm}m`;
+      const inHm = formatHm(v.start);
+      const outHm = formatHm(v.end);
+
+      // IN — grön prick
+      const inEl = document.createElement('div');
+      inEl.style.cssText =
+        'width:14px;height:14px;border-radius:9999px;background:#22c55e;box-shadow:0 0 0 2px #fff,0 1px 4px rgba(0,0,0,.5);cursor:pointer;';
+      inEl.title = `IN ${inHm}`;
+      visitMarkersRef.current.push(
+        new mapboxgl.Marker({ element: inEl, anchor: 'center' })
+          .setLngLat([first.lng, first.lat])
+          .addTo(map),
+      );
+
+      // UT — blå prick (om olika position)
+      const sameSpot = first.lat === last.lat && first.lng === last.lng;
+      if (!sameSpot) {
+        const outEl = document.createElement('div');
+        outEl.style.cssText =
+          'width:14px;height:14px;border-radius:9999px;background:#3b82f6;box-shadow:0 0 0 2px #fff,0 1px 4px rgba(0,0,0,.5);cursor:pointer;';
+        outEl.title = `UT ${outHm}`;
+        visitMarkersRef.current.push(
+          new mapboxgl.Marker({ element: outEl, anchor: 'center' })
+            .setLngLat([last.lng, last.lat])
+            .addTo(map),
+        );
+      }
+
+      // Mini-container (pill) i mitten
+      const midLng = (first.lng + last.lng) / 2;
+      const midLat = (first.lat + last.lat) / 2;
+      const pill = document.createElement('div');
+      pill.style.cssText = [
+        'display:inline-flex','align-items:center','gap:8px',
+        'padding:4px 10px','border-radius:9999px',
+        'background:rgba(15,23,42,.88)','color:#fff',
+        'font:600 11px/1.2 system-ui,-apple-system,Segoe UI,sans-serif',
+        'letter-spacing:.2px','white-space:nowrap',
+        'border:1px solid rgba(255,255,255,.18)',
+        'box-shadow:0 4px 14px rgba(0,0,0,.45)',
+        'backdrop-filter:blur(6px)','-webkit-backdrop-filter:blur(6px)',
+        'pointer-events:auto','transform:translateY(-22px)',
+      ].join(';');
+      pill.innerHTML = `
+        <span style="display:inline-block;width:8px;height:8px;border-radius:9999px;background:#22c55e;box-shadow:0 0 0 1.5px #fff"></span>
+        <span style="font-variant-numeric:tabular-nums">${inHm}</span>
+        <span style="opacity:.55">→</span>
+        <span style="font-variant-numeric:tabular-nums">${outHm}</span>
+        <span style="opacity:.55">·</span>
+        <span style="font-variant-numeric:tabular-nums;color:#7dd3fc">${dur}</span>
+        <span style="display:inline-block;width:8px;height:8px;border-radius:9999px;background:#3b82f6;box-shadow:0 0 0 1.5px #fff"></span>
+      `;
+      pill.title = v.knownSite?.name ?? '';
+      visitMarkersRef.current.push(
+        new mapboxgl.Marker({ element: pill, anchor: 'bottom' })
+          .setLngLat([midLng, midLat])
+          .addTo(map),
+      );
+    }
+  }
+
 
   function renderLayers(map: mapboxgl.Map, data: RawStaffGpsPing[], fences: GeofenceSite[]) {
     const apply = () => {
