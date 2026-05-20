@@ -154,6 +154,90 @@ export default function RawGpsSatelliteMap({ pings, className }: Props) {
         paint: { 'circle-radius': 9, 'circle-color': '#dc2626', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 },
       });
 
+      // Time label every 5th ping
+      map.addLayer({
+        id: 'gps-raw-time-labels',
+        type: 'symbol',
+        source: 'gps-raw-points-src',
+        filter: ['!=', ['get', 'label'], ''],
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-size': 11,
+          'text-offset': [0, -1.2],
+          'text-anchor': 'bottom',
+          'text-allow-overlap': false,
+        },
+        paint: {
+          'text-color': '#fff',
+          'text-halo-color': '#0f172a',
+          'text-halo-width': 1.5,
+        },
+      });
+
+      // Clusters – count + time span
+      map.addLayer({
+        id: 'gps-raw-clusters',
+        type: 'circle',
+        source: 'gps-raw-clusters-src',
+        filter: ['has', 'point_count'],
+        paint: {
+          'circle-color': 'rgba(34,211,238,0.35)',
+          'circle-stroke-color': '#22d3ee',
+          'circle-stroke-width': 2,
+          'circle-radius': ['step', ['get', 'point_count'], 14, 10, 18, 50, 24],
+        },
+      });
+      map.addLayer({
+        id: 'gps-raw-cluster-count',
+        type: 'symbol',
+        source: 'gps-raw-clusters-src',
+        filter: ['has', 'point_count'],
+        layout: {
+          'text-field': ['concat', ['to-string', ['get', 'point_count']], ' pings'],
+          'text-size': 11,
+          'text-offset': [0, -0.6],
+          'text-anchor': 'center',
+        },
+        paint: { 'text-color': '#fff', 'text-halo-color': '#0f172a', 'text-halo-width': 1.5 },
+      });
+
+      // Cluster popup with time span on click (Mapbox style expressions can't
+      // format epoch ms to HH:MM:SS, so we compute it in JS).
+      map.on('click', 'gps-raw-clusters', (e) => {
+        const f = e.features?.[0];
+        if (!f) return;
+        const props = f.properties as any;
+        const clusterId = props?.cluster_id;
+        const tsMin = Number(props?.ts_min);
+        const tsMax = Number(props?.ts_max);
+        const count = Number(props?.point_count);
+        const coords = (f.geometry as any).coordinates as [number, number];
+        const spanMin = Number.isFinite(tsMin) ? formatStockholmHms(new Date(tsMin).toISOString()) : '—';
+        const spanMax = Number.isFinite(tsMax) ? formatStockholmHms(new Date(tsMax).toISOString()) : '—';
+        const durMs = Number.isFinite(tsMin) && Number.isFinite(tsMax) ? tsMax - tsMin : 0;
+        const durMin = Math.round(durMs / 60000);
+        popupRef.current?.remove();
+        popupRef.current = new mapboxgl.Popup({ closeButton: true })
+          .setLngLat(coords)
+          .setHTML(
+            `<div style="font:12px/1.4 system-ui;min-width:180px">
+              <div><b>${count} pings</b></div>
+              <div>${spanMin} – ${spanMax}</div>
+              <div style="color:#64748b">${durMin} min</div>
+            </div>`
+          )
+          .addTo(map);
+        const src = map.getSource('gps-raw-clusters-src') as mapboxgl.GeoJSONSource;
+        src.getClusterExpansionZoom(clusterId, (err, zoom) => {
+          if (err) return;
+          // Don't auto-zoom; let user choose. Comment out next line to keep popup-only.
+          // map.easeTo({ center: coords, zoom });
+        });
+      });
+      map.on('mouseenter', 'gps-raw-clusters', () => (map.getCanvas().style.cursor = 'pointer'));
+      map.on('mouseleave', 'gps-raw-clusters', () => (map.getCanvas().style.cursor = ''));
+
+
       map.on('click', 'gps-raw-points', (e) => {
         const f = e.features?.[0];
         if (!f) return;
