@@ -98,6 +98,17 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
   const pingsQuery = useStaffGpsPingsForDay(effectiveStaffId, dateStr);
   const pings: RawStaffGpsPing[] = pingsQuery.data ?? [];
 
+  // Geofences: alla org-platser + dagens targets (samma källa som GPS-motorn matchar mot).
+  const { knownSites } = useDayKnownSites(effectiveStaffId ?? '', dateStr, !!effectiveStaffId);
+  const geofences = useMemo<GeofenceSite[]>(() => {
+    return knownSites
+      .filter((s) => {
+        const isLoc = s.id.startsWith('loc:');
+        if (isLoc) return showLocations;
+        return showTargets;
+      })
+      .map((s) => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng, radiusMeters: s.radiusMeters }));
+  }, [knownSites, showLocations, showTargets]);
 
   const summary = useMemo(() => {
     if (!pings.length) return null;
