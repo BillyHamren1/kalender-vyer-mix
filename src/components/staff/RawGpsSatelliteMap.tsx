@@ -510,19 +510,20 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       const lineFeatures = segments
         .filter((s) => s.kind === 'move' && s.pings.length >= 2)
         .map((s) => {
-          // En linje räknas som intra-fence så fort en MAJORITET av dess
-          // pings ligger inom någon geofence. Då är det jitter/förflyttningar
-          // inuti området och ska aldrig synas i "rörelse mellan platser"-vyn.
-          let inside = 0;
-          for (const p of s.pings) if (pingInsideAnyFence(p, fences)) inside++;
-          const insideFence = inside * 2 >= s.pings.length; // ≥ 50 %
+          // Endast linjer där ALLA pings ligger inom någon geofence räknas som
+          // intra-fence (jitter inne). Allt som korsar gränsen ritas alltid i
+          // default-vyn så in/ut-rörelser syns.
+          let allInside = true;
+          for (const p of s.pings) {
+            if (!pingInsideAnyFence(p, fences)) { allInside = false; break; }
+          }
           return {
             type: 'Feature' as const,
             geometry: {
               type: 'LineString' as const,
               coordinates: s.pings.map((p) => [p.lng, p.lat]),
             },
-            properties: { color: colorForSegment(s.colorIndex, 'move'), insideFence },
+            properties: { color: colorForSegment(s.colorIndex, 'move'), insideFence: allInside },
           };
         });
 
