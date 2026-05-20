@@ -143,7 +143,7 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
   let syncMode: SyncMode;
   
   try {
-    const organizationId = await resolveImportOrganizationId();
+    const organizationId = preResolvedOrgId ?? await resolveImportOrganizationId();
     if (!organizationId) {
       const message = 'Import skipped: authenticated user with organization_id is required.';
       if (!silent) {
