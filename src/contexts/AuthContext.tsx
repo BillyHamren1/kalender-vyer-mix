@@ -142,6 +142,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     sessionStorage.removeItem('skipRoleCheck');
     sessionStorage.removeItem('sso_last_processed_fingerprint');
     setIsSsoUser(false);
+    // Clear shared org-id cache so the next user doesn't inherit it
+    const { clearOrganizationIdCache } = await import('@/hooks/useOrganizationId');
+    clearOrganizationIdCache();
     await supabase.auth.signOut();
   };
 

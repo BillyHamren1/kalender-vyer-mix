@@ -69,25 +69,28 @@ export interface ImportFilters {
 
 const resolveImportOrganizationId = async (): Promise<string | null> => {
   try {
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) return null;
-
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('organization_id')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    if (profileError) {
-      console.warn('Could not resolve organization_id for import:', profileError);
-      return null;
-    }
-
-    return profile?.organization_id ?? null;
+    // Dynamic import keeps this service free of React import cycle, but reuses
+    // the shared in-memory cache used by hooks/components.
+    const { getOrganizationId } = await import('@/hooks/useOrganizationId');
+    return await getOrganizationId();
   } catch (error) {
     console.warn('Could not resolve organization_id for import:', error);
     return null;
   }
+};
+
+/**
+ * In-flight coalescing map. Multiple callers triggering the same (org, mode)
+ * import within the same tick reuse the in-flight promise instead of firing
+ * a duplicate edge-function invocation. This stops the "two simultaneous
+ * incremental syncs at login" pattern observed in the network logs.
+ */
+const inFlightImports = new Map<string, Promise<ImportResults>>();
+
+const inFlightKey = (organizationId: string | null, filters: ImportFilters): string => {
+  const mode = filters.syncMode ?? 'auto';
+  const historical = filters.forceHistoricalImport || filters.includeHistorical || mode === 'historical' ? 'H' : 'N';
+  return `${organizationId ?? 'noorg'}::${mode}::${historical}`;
 };
 
 /**
@@ -101,12 +104,35 @@ export const importBookings = async (filters: ImportFilters = {}, silent: boolea
     return { success: true, results: { total: 0, imported: 0, failed: 0, calendar_events_created: 0 } };
   }
 
+  // Coalesce concurrent identical imports (org + sync mode). We resolve the
+  // organization_id eagerly so the key is stable across simultaneous callers.
+  const earlyOrgId = await resolveImportOrganizationId();
+  const key = inFlightKey(earlyOrgId, filters);
+  const existing = inFlightImports.get(key);
+  if (existing) {
+    if (!silent) {
+      console.info(`[importBookings] coalescing duplicate ${key}`);
+    }
+    return existing;
+  }
+
+  const promise = runImportBookings(filters, silent, earlyOrgId);
+  inFlightImports.set(key, promise);
+  try {
+    return await promise;
+  } finally {
+    inFlightImports.delete(key);
+  }
+};
+
+const runImportBookings = async (filters: ImportFilters, silent: boolean, preResolvedOrgId: string | null): Promise<ImportResults> => {
+
   const syncType = 'booking_import';
   const startTime = Date.now();
   let syncMode: SyncMode;
   
   try {
-    const organizationId = await resolveImportOrganizationId();
+    const organizationId = preResolvedOrgId ?? await resolveImportOrganizationId();
     if (!organizationId) {
       const message = 'Import skipped: authenticated user with organization_id is required.';
       if (!silent) {

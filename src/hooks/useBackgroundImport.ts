@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { importBookings } from '@/services/importService';
 import { isScannerApp } from '@/config/appMode';
-import { supabase } from '@/integrations/supabase/client';
+import { getOrganizationId } from '@/hooks/useOrganizationId';
 
 interface BackgroundImportState {
   isRunning: boolean;
@@ -69,17 +69,10 @@ export const useBackgroundImport = () => {
     if (s.lastImport && Date.now() - s.lastImport.getTime() < MIN_IMPORT_GAP) return;
     if (!isBackgroundImportRoute()) return;
 
-    // Gate on verified auth + org context to prevent cross-tenant import attempts
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) return;
-
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('organization_id')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    if (profileError || !profile?.organization_id) return;
+    // Gate on verified auth + org context to prevent cross-tenant import attempts.
+    // Uses shared cache (10 min) — no per-tick /auth/user + profiles roundtrip.
+    const orgId = await getOrganizationId();
+    if (!orgId) return;
 
     setState(prev => ({ ...prev, isRunning: true }));
 
