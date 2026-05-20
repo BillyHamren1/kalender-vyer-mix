@@ -42,7 +42,7 @@ export function useStaffGpsPingsForDay(staffId: string | null, date: string | nu
       const { data, error } = await supabase
         .from('staff_location_history')
         .select(
-          'id, recorded_at, lat, lng, accuracy, speed, source, battery_percent, is_charging, app_version, app_build, platform, os_version, device_model, app_id'
+          'id, recorded_at, lat, lng, accuracy, speed, battery_percent, is_charging, battery_source, app_version, app_build, platform, os_version, device_model, app_id'
         )
         .eq('staff_id', staffId)
         .gte('recorded_at', startIso)
@@ -57,7 +57,7 @@ export function useStaffGpsPingsForDay(staffId: string | null, date: string | nu
         lng: Number(r.lng),
         accuracy: r.accuracy != null ? Number(r.accuracy) : null,
         speed: r.speed != null ? Number(r.speed) : null,
-        source: (r.source as string | null) ?? null,
+        source: (r.battery_source as string | null) ?? null,
         battery_percent: r.battery_percent != null ? Number(r.battery_percent) : null,
         is_charging: typeof r.is_charging === 'boolean' ? r.is_charging : null,
         app_version: (r.app_version as string | null) ?? null,
