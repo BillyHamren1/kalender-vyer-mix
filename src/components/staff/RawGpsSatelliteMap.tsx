@@ -252,32 +252,38 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], className }:
         type: 'circle',
         source: 'gps-move-points-src',
         paint: {
-          'circle-radius': 5,
+          'circle-radius': 4,
           'circle-color': ['get', 'color'],
-          'circle-stroke-color': '#0f172a',
-          'circle-stroke-width': 1,
+          'circle-stroke-color': 'rgba(15,23,42,0.9)',
+          'circle-stroke-width': 1.25,
         },
       });
       map.addLayer({
         id: 'gps-move-labels',
         type: 'symbol',
         source: 'gps-move-points-src',
+        minzoom: 14,
         layout: {
           'text-field': ['get', 'label'],
-          'text-size': 11,
-          'text-offset': [0, -1.2],
+          'text-font': ['Inter Regular', 'Open Sans Regular', 'Arial Unicode MS Regular'],
+          'text-size': 10,
+          'text-offset': [0, -1.1],
           'text-anchor': 'bottom',
-          'text-allow-overlap': true,
-          'text-ignore-placement': true,
+          'text-allow-overlap': false,
+          'text-padding': 4,
+          'text-optional': true,
         },
         paint: {
-          'text-color': '#fff',
-          'text-halo-color': '#0f172a',
-          'text-halo-width': 1.5,
+          'text-color': '#e5e7eb',
+          'text-halo-color': 'rgba(15,23,42,0.85)',
+          'text-halo-width': 1,
+          'text-halo-blur': 0.4,
         },
       });
 
       // ── Stay markers ───────────────────────────────────────────────
+      // Minimal pill: bara starttid. Varaktighet visas i popup för att
+      // hålla kartan ren. (Tidigare "07:00–16:29 · 9h 25m" var för bullrig.)
       const stayFeatures: any[] = [];
       for (const s of segments) {
         if (s.kind !== 'stay') continue;
@@ -287,7 +293,8 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], className }:
           properties: {
             index: s.index,
             color: colorForSegment(s.colorIndex, 'stay'),
-            label: `${formatHm(s.startIso)}–${formatHm(s.endIso)} · ${formatDuration(s.durationMs)}`,
+            label: formatHm(s.startIso),
+            duration: formatDuration(s.durationMs),
           },
         });
       }
@@ -300,11 +307,11 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], className }:
         type: 'circle',
         source: 'gps-stay-points-src',
         paint: {
-          'circle-radius': 10,
+          'circle-radius': 7,
           'circle-color': ['get', 'color'],
-          'circle-stroke-color': '#fff',
-          'circle-stroke-width': 2,
-          'circle-opacity': 0.9,
+          'circle-stroke-color': '#f8fafc',
+          'circle-stroke-width': 1.5,
+          'circle-opacity': 0.95,
         },
       });
       map.addLayer({
@@ -313,16 +320,20 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], className }:
         source: 'gps-stay-points-src',
         layout: {
           'text-field': ['get', 'label'],
-          'text-size': 12,
-          'text-offset': [0, -1.6],
+          'text-font': ['Inter Medium', 'Open Sans Semibold', 'Arial Unicode MS Bold'],
+          'text-size': 11,
+          'text-letter-spacing': 0.02,
+          'text-offset': [0, -1.4],
           'text-anchor': 'bottom',
-          'text-allow-overlap': true,
-          'text-ignore-placement': true,
+          'text-allow-overlap': false,
+          'text-padding': 6,
+          'text-optional': true,
         },
         paint: {
-          'text-color': '#fff',
-          'text-halo-color': '#0f172a',
-          'text-halo-width': 2,
+          'text-color': '#f8fafc',
+          'text-halo-color': 'rgba(15,23,42,0.9)',
+          'text-halo-width': 1.2,
+          'text-halo-blur': 0.4,
         },
       });
 
