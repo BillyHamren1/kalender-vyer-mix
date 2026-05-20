@@ -127,7 +127,8 @@ export default function RawGpsSatelliteMap({ pings, className }: Props) {
       map.addLayer({
         id: 'gps-raw-points',
         type: 'circle',
-        source: 'gps-raw-points-src',
+        source: 'gps-raw-clusters-src',
+        filter: ['!', ['has', 'point_count']],
         paint: {
           'circle-radius': 4,
           'circle-color': [
