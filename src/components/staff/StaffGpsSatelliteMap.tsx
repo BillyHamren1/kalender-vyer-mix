@@ -281,8 +281,66 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
       </div>
 
 
+      {/* Geofence-besök — exakt IN/UT per stängsel */}
+      <GeofenceVisitsTable visits={geofenceVisits} />
+
       {/* Tabell — samma gruppering som kartan: stay-block (≥20 min på samma plats) slås ihop */}
       <PingTimelineTable pings={pings} />
+    </div>
+  );
+}
+
+function GeofenceVisitsTable({ visits }: { visits: PlaceVisit[] }) {
+  const sorted = useMemo(
+    () => [...visits].sort((a, b) => a.start.localeCompare(b.start)),
+    [visits],
+  );
+  return (
+    <div className="border rounded-md overflow-hidden">
+      <div className="px-3 py-2 text-sm font-medium bg-muted/40 border-b flex items-center justify-between">
+        <span>Geofence-besök ({sorted.length})</span>
+        <span className="text-xs text-muted-foreground">Exakt IN/UT per stängsel</span>
+      </div>
+      <div className="max-h-[40vh] overflow-auto">
+        <table className="w-full text-xs">
+          <thead className="bg-muted/30 sticky top-0">
+            <tr className="text-left">
+              <th className="px-2 py-1">Plats</th>
+              <th className="px-2 py-1">Typ</th>
+              <th className="px-2 py-1">IN</th>
+              <th className="px-2 py-1">UT</th>
+              <th className="px-2 py-1">Varaktighet</th>
+              <th className="px-2 py-1">Pings</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((v) => {
+              const id = v.knownSite!.id;
+              const kind = id.startsWith('loc:') ? 'Plats'
+                : id.startsWith('large:') ? 'Stort projekt'
+                : id.startsWith('project:') ? 'Projekt'
+                : id.startsWith('booking:') ? 'Bokning'
+                : '—';
+              const hh = Math.floor(v.durationMin / 60);
+              const mm = v.durationMin % 60;
+              const dur = hh > 0 ? `${hh}h ${mm}m` : `${mm}m`;
+              return (
+                <tr key={`gv-${v.placeKey}-${v.start}`} className="border-t hover:bg-muted/20">
+                  <td className="px-2 py-1">{v.knownSite!.name}</td>
+                  <td className="px-2 py-1 text-muted-foreground">{kind}</td>
+                  <td className="px-2 py-1 font-mono">{formatStockholmHms(v.start)}</td>
+                  <td className="px-2 py-1 font-mono">{formatStockholmHms(v.end)}</td>
+                  <td className="px-2 py-1">{dur}</td>
+                  <td className="px-2 py-1">{v.pingCount}</td>
+                </tr>
+              );
+            })}
+            {!sorted.length && (
+              <tr><td colSpan={6} className="px-2 py-6 text-center text-muted-foreground">Inga geofence-besök för vald person och dag.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
