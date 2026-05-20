@@ -16,11 +16,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useStaffGpsPingsForDay, type RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
 import { useDayKnownSites } from '@/hooks/useDayKnownSites';
 import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
-import { useAllTargetGeofences } from '@/hooks/useAllTargetGeofences';
 import RawGpsSatelliteMap from './RawGpsSatelliteMap';
 import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
 import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
-import { buildPlaceVisits, type KnownSite, type PlaceVisit } from '@/lib/staff/pingPlaceSegments';
+import { buildPlaceVisits, type PlaceVisit } from '@/lib/staff/pingPlaceSegments';
 
 function dash(v: unknown): string {
   if (v === null || v === undefined || v === '') return '—';
