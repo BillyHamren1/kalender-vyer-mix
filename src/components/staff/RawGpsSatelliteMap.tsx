@@ -280,44 +280,45 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       const tMm = totalMin % 60;
       const totalLabel = tHh > 0 ? `${tHh}h ${tMm}m` : `${tMm}m`;
 
+      const mono = 'ui-monospace,SFMono-Regular,Menlo,monospace';
       const blockRows = sorted
         .map((v, i) => {
           const hh = Math.floor(v.durationMin / 60);
           const mm = v.durationMin % 60;
           const dur = hh > 0 ? `${hh}h ${mm}m` : `${mm}m`;
           return `
-            <div style="display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums">
-              <span style="opacity:.6;min-width:54px">Block ${i + 1}</span>
-              <span>${formatHm(v.start)}</span>
-              <span style="opacity:.55">→</span>
-              <span>${formatHm(v.end)}</span>
-              <span style="opacity:.55">·</span>
-              <span style="color:#7dd3fc">${dur}</span>
+            <div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:1px 0;font-variant-numeric:tabular-nums">
+              <span style="color:hsl(215 16% 65%);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase">B${i + 1}</span>
+              <span style="font-family:${mono};font-size:10.5px;color:hsl(0 0% 98%)">${formatHm(v.start)} <span style="color:hsl(215 16% 50%)">→</span> ${formatHm(v.end)}</span>
+              <span style="font-family:${mono};font-size:10.5px;color:hsl(199 89% 70%)">${dur}</span>
             </div>`;
         })
         .join('');
 
       const panel = document.createElement('div');
       panel.style.cssText = [
-        'display:inline-flex','flex-direction:column','gap:4px',
-        'padding:8px 12px','border-radius:10px',
-        'background:rgba(15,23,42,.92)','color:#fff',
-        'font:600 11px/1.3 system-ui,-apple-system,Segoe UI,sans-serif',
-        'letter-spacing:.2px','white-space:nowrap',
-        'border:1px solid rgba(255,255,255,.18)',
-        'box-shadow:0 6px 18px rgba(0,0,0,.5)',
-        'backdrop-filter:blur(6px)','-webkit-backdrop-filter:blur(6px)',
-        'pointer-events:auto','transform:translateY(-8px)',
+        'display:inline-flex','flex-direction:column','gap:2px',
+        'padding:8px 10px','border-radius:8px',
+        'background:hsl(222 47% 8% / .92)','color:hsl(0 0% 98%)',
+        'font:500 10.5px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif',
+        'white-space:nowrap','min-width:180px',
+        'border:1px solid hsl(215 16% 28% / .6)',
+        'box-shadow:0 8px 24px -8px hsl(222 47% 4% / .8),0 0 0 1px hsl(0 0% 100% / .04)',
+        'backdrop-filter:blur(10px) saturate(140%)','-webkit-backdrop-filter:blur(10px) saturate(140%)',
+        'pointer-events:auto','transform:translateY(-10px)',
       ].join(';');
       panel.innerHTML = `
-        <div style="font-weight:700;opacity:.95;max-width:260px;overflow:hidden;text-overflow:ellipsis">
-          ${head.knownSite?.name ?? ''}
+        <div style="display:flex;align-items:center;gap:6px;padding-bottom:5px;margin-bottom:3px;border-bottom:1px solid hsl(215 16% 28% / .4);max-width:240px">
+          <span style="width:5px;height:5px;border-radius:9999px;background:hsl(142 71% 55%);box-shadow:0 0 0 2px hsl(142 71% 55% / .2)"></span>
+          <span style="font-weight:600;font-size:11px;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis">${head.knownSite?.name ?? ''}</span>
         </div>
         ${blockRows}
-        <div style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,.18);display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums">
-          <span style="opacity:.7">Totalt innanför</span>
-          <span style="margin-left:auto;color:#34d399">${totalLabel}</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:4px;padding-top:5px;border-top:1px solid hsl(215 16% 28% / .4);font-variant-numeric:tabular-nums">
+          <span style="font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:hsl(215 16% 65%)">Totalt</span>
+          <span style="font-family:${mono};font-size:11px;color:hsl(142 71% 60%);font-weight:600">${totalLabel}</span>
         </div>
+      `;
+
       `;
       const panelMarker = new mapboxgl.Marker({ element: panel, anchor: 'bottom' })
         .setLngLat([head.centre.lng, head.centre.lat])
