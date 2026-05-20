@@ -16,11 +16,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useStaffGpsPingsForDay, type RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
 import { useDayKnownSites } from '@/hooks/useDayKnownSites';
 import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
-import { useAllTargetGeofences } from '@/hooks/useAllTargetGeofences';
 import RawGpsSatelliteMap from './RawGpsSatelliteMap';
 import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
 import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
-import { buildPlaceVisits, type KnownSite, type PlaceVisit } from '@/lib/staff/pingPlaceSegments';
+import { buildPlaceVisits, type PlaceVisit } from '@/lib/staff/pingPlaceSegments';
 
 function dash(v: unknown): string {
   if (v === null || v === undefined || v === '') return '—';
@@ -101,11 +100,11 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
   const pingsQuery = useStaffGpsPingsForDay(effectiveStaffId, dateStr);
   const pings: RawStaffGpsPing[] = pingsQuery.data ?? [];
 
-  // Geofences: alla org-platser + ALLA targets (projekt + stora projekt) med koordinater.
-  // Vi visar hela stängselparken oavsett vald person/dag.
+  // Geofences: alla org-platser + DAGENS targets (projekt + bokningar + LP)
+  // för vald person. Vi visar INTE alla aktiva projekt — bara det som är
+  // relevant för den valda dagen, så kartan inte dränks i prickar.
   const { knownSites } = useDayKnownSites(effectiveStaffId ?? '', dateStr, !!effectiveStaffId);
   const { data: orgLocations = [] } = useOrganizationLocations();
-  const { data: allTargets = [] } = useAllTargetGeofences(showTargets);
   // Polygoner finns ENDAST på organization_locations. Mappa id → polygon
   // så vi kan attacha den till `loc:<id>`-sites utan att röra KnownSite-typen.
   const polygonByLocId = useMemo(() => {
@@ -116,30 +115,19 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     return m;
   }, [orgLocations]);
   const geofences = useMemo<GeofenceSite[]>(() => {
-    const byId = new Map<string, GeofenceSite>();
-    // Lager 1: dagens kända platser (org + dagens targets) — fyller på namn/radie först
+    const out: GeofenceSite[] = [];
     for (const s of knownSites) {
       const isLoc = s.id.startsWith('loc:');
       if (isLoc && !showLocations) continue;
       if (!isLoc && !showTargets) continue;
-      byId.set(s.id, {
+      out.push({
         id: s.id, name: s.name, lat: s.lat, lng: s.lng,
         radiusMeters: s.radiusMeters,
         polygon: polygonByLocId.get(s.id),
       });
     }
-    // Lager 2: alla targets (projekt + large_projects) — visa hela parken
-    if (showTargets) {
-      for (const s of allTargets) {
-        if (byId.has(s.id)) continue;
-        byId.set(s.id, {
-          id: s.id, name: s.name, lat: s.lat, lng: s.lng,
-          radiusMeters: s.radiusMeters,
-        });
-      }
-    }
-    return [...byId.values()];
-  }, [knownSites, allTargets, polygonByLocId, showLocations, showTargets]);
+    return out;
+  }, [knownSites, polygonByLocId, showLocations, showTargets]);
 
   const summary = useMemo(() => {
     if (!pings.length) return null;
@@ -155,20 +143,14 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     };
   }, [pings]);
 
-  // Geofence-besök: räkna ut IN/UT-tid per ping ↔ känd plats (inkl. ALLA targets).
-  const visitsKnownSites = useMemo<KnownSite[]>(() => {
-    const byId = new Map<string, KnownSite>();
-    for (const s of knownSites) byId.set(s.id, s);
-    for (const s of allTargets) if (!byId.has(s.id)) byId.set(s.id, s);
-    return [...byId.values()];
-  }, [knownSites, allTargets]);
+  // Geofence-besök: räkna ut IN/UT-tid per ping ↔ känd plats (DAGENS sites).
   const geofenceVisits = useMemo<PlaceVisit[]>(() => {
-    if (!pings.length || !visitsKnownSites.length) return [];
+    if (!pings.length || !knownSites.length) return [];
     const asPings = pings.map(p => ({
       lat: p.lat, lng: p.lng, recorded_at: p.recorded_at, accuracy: p.accuracy ?? null,
     }));
-    return buildPlaceVisits(asPings, visitsKnownSites).filter(v => v.knownSite);
-  }, [pings, visitsKnownSites]);
+    return buildPlaceVisits(asPings, knownSites).filter(v => v.knownSite);
+  }, [pings, knownSites]);
 
   return (
     <div className="flex flex-col h-full gap-4">
@@ -247,7 +229,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
             </label>
             <label className="flex items-center gap-2 text-xs cursor-pointer">
               <Checkbox checked={showTargets} onCheckedChange={(v) => setShowTargets(v === true)} />
-              <span>Targets (alla projekt)</span>
+              <span>Targets (dagen)</span>
             </label>
           </div>
         </div>

@@ -55,7 +55,9 @@ describe('segmentPingsForDisplay', () => {
     for (let i = 0; i < 5; i++) pings.push(mk(`m2-${i}`, 13 + i, 59.05 + i * 0.01, 18.05 + i * 0.01));
     const segs = segmentPingsForDisplay(pings);
     expect(segs.map((s) => s.kind)).toEqual(['move', 'stay', 'move']);
-    expect(new Set(segs.map((s) => s.colorIndex)).size).toBe(3);
+    // move-segment har egen trip-räknare: resa 1 = colorIndex 0, resa 2 = 1.
+    const moves = segs.filter((s) => s.kind === 'move');
+    expect(moves.map((s) => s.colorIndex)).toEqual([0, 1]);
     const total = segs.reduce((n, s) => n + s.pings.length, 0);
     expect(total).toBe(pings.length); // ingen ping försvinner
   });
