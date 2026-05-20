@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import type { User } from '@supabase/supabase-js';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -6,25 +7,56 @@ import { supabase } from '@/integrations/supabase/client';
 export type AppRole = 'admin' | 'forsaljning' | 'projekt' | 'lager';
 
 const ROLES_QUERY_KEY = 'user-roles';
+const APP_ROLES: AppRole[] = ['admin', 'forsaljning', 'projekt', 'lager'];
+const ROLE_FETCH_TIMEOUT_MS = 4_000;
+
+export function getFallbackRolesFromUser(user: Pick<User, 'user_metadata'> | null | undefined): AppRole[] {
+  const rawRoles = Array.isArray(user?.user_metadata?.roles)
+    ? user.user_metadata.roles
+    : typeof user?.user_metadata?.role === 'string'
+      ? [user.user_metadata.role]
+      : [];
+
+  return [...new Set(rawRoles.filter((role): role is AppRole => APP_ROLES.includes(role as AppRole)))];
+}
 
 export const useUserRoles = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const fallbackRoles = getFallbackRolesFromUser(user);
 
   const query = useQuery<AppRole[]>({
     queryKey: [ROLES_QUERY_KEY, user?.id ?? null],
     queryFn: async () => {
       if (!user?.id) return [];
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id);
 
-      if (error) {
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+      try {
+        const result = await Promise.race([
+          supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', user.id),
+          new Promise<never>((_, reject) => {
+            timeoutId = setTimeout(() => reject(new Error('Timed out fetching user roles')), ROLE_FETCH_TIMEOUT_MS);
+          }),
+        ]);
+
+        const { data, error } = result;
+
+        if (error) {
+          console.error('Error fetching user roles:', error);
+          return fallbackRoles;
+        }
+
+        return (data || []).map((r: { role: AppRole }) => r.role as AppRole);
+      } catch (error) {
         console.error('Error fetching user roles:', error);
-        throw error;
+        return fallbackRoles;
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
       }
-      return (data || []).map((r: { role: AppRole }) => r.role as AppRole);
     },
     enabled: !!user?.id,
     // Keep roles warm so navigation between pages doesn't refetch / re-blank
@@ -32,15 +64,15 @@ export const useUserRoles = () => {
     gcTime: 30 * 60 * 1000,    // 30 min
     refetchOnWindowFocus: false,
     refetchOnMount: false,
-    retry: 1,
+    retry: 0,
   });
 
-  const roles: AppRole[] = query.data ?? [];
+  const roles: AppRole[] = query.data ?? fallbackRoles;
 
   // Treat as "loading" only if we have no cached roles yet AND a user exists.
   // Once roles are cached for this user, isLoading is false on every navigation.
-  const hasCachedRoles = query.data !== undefined;
-  const isLoading = !!user?.id && !hasCachedRoles && query.isLoading;
+  const hasResolvedRoles = query.data !== undefined || fallbackRoles.length > 0 || query.isError;
+  const isLoading = !!user?.id && !hasResolvedRoles && query.isLoading;
 
   const hasRole = useCallback(
     (role: AppRole): boolean => roles.includes(role),
