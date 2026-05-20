@@ -273,17 +273,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
           </div>
         </div>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground">Rörelser</label>
-          <Button
-            variant={showInsideFenceMoves ? 'default' : 'outline'}
-            size="sm"
-            className="h-10"
-            onClick={() => setShowInsideFenceMoves((v) => !v)}
-          >
-            {showInsideFenceMoves ? 'Visa rörelser mellan' : 'Visa rörelser innanför'}
-          </Button>
-        </div>
+        {/* Linjer inuti geofence döljs alltid visuellt (logiken är orörd). */}
 
 
         <div className="flex flex-wrap items-center gap-2 ml-auto">
