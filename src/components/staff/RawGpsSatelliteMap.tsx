@@ -430,23 +430,14 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       // ── Line features per segment (alla pings ritas) ──────────────
       const lineFeatures = segments
         .filter((s) => s.kind === 'move' && s.pings.length >= 2)
-        .map((s) => {
-          // Endast linjer där ALLA pings ligger inom någon geofence räknas som
-          // intra-fence (jitter inne). Allt som korsar gränsen ritas alltid i
-          // default-vyn så in/ut-rörelser syns.
-          let allInside = true;
-          for (const p of s.pings) {
-            if (!pingInsideAnyFence(p, fences)) { allInside = false; break; }
-          }
-          return {
-            type: 'Feature' as const,
-            geometry: {
-              type: 'LineString' as const,
-              coordinates: s.pings.map((p) => [p.lng, p.lat]),
-            },
-            properties: { color: colorForSegment(s.colorIndex, 'move'), insideFence: allInside },
-          };
-        });
+        .flatMap((s) => clipLineOutsideGeofences(s.pings, fences).map((coordinates) => ({
+          type: 'Feature' as const,
+          geometry: {
+            type: 'LineString' as const,
+            coordinates,
+          },
+          properties: { color: colorForSegment(s.colorIndex, 'move') },
+        })));
 
 
 
@@ -666,7 +657,6 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       try {
         map.fitBounds(bounds, { padding: 40, duration: 400, maxZoom: 16 });
       } catch {/* ignore */}
-      applyFenceFilter();
       applyZoomVisibility();
 
     };
