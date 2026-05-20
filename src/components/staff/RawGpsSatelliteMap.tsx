@@ -103,9 +103,11 @@ const SOURCE_IDS = [
 
 const ZOOM_DETAIL_THRESHOLD = 14;
 
-export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [], className }: Props) {
+export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [], className, onSaveRadius }: Props) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
+  const onSaveRadiusRef = useRef<Props['onSaveRadius']>(onSaveRadius);
+  onSaveRadiusRef.current = onSaveRadius;
   const visitMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; el: HTMLElement; kind: 'compact' | 'detail' }>>([]);
 
   const handleReady = (map: mapboxgl.Map) => {
