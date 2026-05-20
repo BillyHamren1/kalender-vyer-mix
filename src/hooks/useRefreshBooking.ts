@@ -2,6 +2,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { getOrganizationId } from "@/hooks/useOrganizationId";
 
 export const useRefreshBooking = (bookingId: string | null, projectId: string) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -15,17 +16,8 @@ export const useRefreshBooking = (bookingId: string | null, projectId: string) =
 
     setIsRefreshing(true);
     try {
-      // Get user's organization_id to avoid fallback resolution in edge function
-      const { data: { user } } = await supabase.auth.getUser();
-      let orgId: string | undefined;
-      if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('organization_id')
-          .eq('user_id', user.id)
-          .single();
-        orgId = profile?.organization_id ?? undefined;
-      }
+      // Get user's organization_id via shared cache (no parallel /auth/user + profiles call per click)
+      const orgId = (await getOrganizationId()) ?? undefined;
 
       const { data, error } = await supabase.functions.invoke("import-bookings", {
         body: { booking_id: bookingId, syncMode: "single", organization_id: orgId, skip_review: true },
