@@ -20,6 +20,25 @@ export interface JwtAuthResult {
 export type AuthResult = MobileAuthResult | JwtAuthResult;
 export interface AuthError { status: number; error: string }
 
+async function resolveJwtUserId(
+  userClient: SupabaseClient,
+  token: string,
+): Promise<{ userId: string | null; error: string | null }> {
+  const authApi = userClient.auth as SupabaseClient["auth"] & {
+    getClaims?: (jwt?: string) => Promise<{ data: { claims?: { sub?: string } } | null; error: { message?: string } | null }>;
+  };
+
+  if (typeof authApi.getClaims === "function") {
+    const { data: claimsData, error: claimsErr } = await authApi.getClaims(token);
+    if (claimsErr) return { userId: null, error: claimsErr.message ?? "Unauthorized" };
+    return { userId: claimsData?.claims?.sub ?? null, error: null };
+  }
+
+  const { data: userData, error: userErr } = await userClient.auth.getUser(token);
+  if (userErr) return { userId: null, error: userErr.message ?? "Unauthorized" };
+  return { userId: userData.user?.id ?? null, error: null };
+}
+
 function tryParseMobileToken(token: string): { staffId?: string; expiresAt?: number } | null {
   try {
     if (token.includes(".")) return null; // JWTs contain dots
@@ -90,9 +109,8 @@ export async function authenticateStaffRequest(
   const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     global: { headers: { Authorization: authHeader } },
   });
-  const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(token);
-  if (claimsErr || !claimsData?.claims?.sub) return { ok: false, err: { status: 401, error: "Unauthorized" } };
-  const userId = claimsData.claims.sub as string;
+  const { userId } = await resolveJwtUserId(userClient, token);
+  if (!userId) return { ok: false, err: { status: 401, error: "Unauthorized" } };
 
   const { data: profile } = await admin
     .from("profiles").select("organization_id").eq("user_id", userId).maybeSingle();
