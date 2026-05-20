@@ -275,26 +275,54 @@ export function clearAuth() {
   localStorage.removeItem(STAFF_KEY);
 }
 
-// Core API caller
-async function callApi<T = any>(action: string, data?: any): Promise<T> {
-  const token = getToken();
+// ── Retry policy (additive, ultra-safe) ───────────────────────────────────
+// Whitelist av actions som är säkra att försöka igen vid transient
+// nätverksfel ("Failed to fetch"). Endast pure reads + login (idempotent
+// på serversidan). Mutationer retryas ALDRIG automatiskt — det skulle
+// kunna skapa dubbletter.
+const RETRYABLE_ACTIONS: ReadonlySet<string> = new Set([
+  'login',
+  'me',
+  'get_bookings',
+  'get_inbox_jobs',
+  'get_inbox_all',
+  'get_booking_details',
+  'get_time_reports',
+  'get_project_comments',
+  'get_project_files',
+  'get_project_purchases',
+  'get_direct_messages',
+  'get_job_messages',
+]);
+
+/** Exporterad för tester — säg om action är på retry-whitelistan. */
+export function __isRetryableAction(action: string): boolean {
+  return RETRYABLE_ACTIONS.has(action);
+}
+
+/** Exporterad för tester — klassar fel som transient nätverksfel. */
+export function __isTransientNetworkError(err: unknown): boolean {
+  if (err instanceof TypeError) return true;
+  const anyErr = err as { name?: string; message?: string } | null;
+  if (!anyErr) return false;
+  if (typeof anyErr.message === 'string' && /Failed to fetch|NetworkError|Load failed/i.test(anyErr.message)) {
+    return true;
+  }
+  return false;
+}
+
+async function performApiAttempt<T>(action: string, data: any, token: string | null): Promise<T> {
   const controller = new AbortController();
-  // Login / me can take longer due to edge-function cold starts
   const timeoutMs = (action === 'login' || action === 'me') ? 30000 : 15000;
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 
   const isNative = typeof (window as any)?.Capacitor !== 'undefined';
-  // Routa login till den lilla mobile-app-auth-funktionen (snabb cold start).
-  // Alla andra actions går till mobile-app-api som vanligt.
   const url = action === 'login' ? LOGIN_FUNCTION_URL : FUNCTION_URL;
   console.log(`[mobileApi] → ${action} (timeout: ${timeoutMs}ms, native: ${isNative}, url: ${url})`);
 
-  // Build headers. When there is no mobile token (web/admin caller), forward
-  // the Supabase web JWT so the edge function can verify the user via getClaims().
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (!token) {
     try {
-      // Lazy import to avoid bundling supabase client into the mobile path twice.
       const { supabase } = await import('@/integrations/supabase/client');
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token;
@@ -316,8 +344,6 @@ async function callApi<T = any>(action: string, data?: any): Promise<T> {
 
     console.log(`[mobileApi] ← ${action} status=${res.status}`);
 
-    // Sliding session: if the server rotated our token, update localStorage
-    // transparently. UI never sees this — user stays logged in seamlessly.
     try {
       const newToken = res.headers.get('X-New-Token');
       if (newToken && newToken !== token) {
@@ -329,15 +355,10 @@ async function callApi<T = any>(action: string, data?: any): Promise<T> {
     }
 
     if (res.status === 401) {
-      // Only clear mobile auth if we were using the mobile token.
       if (token) {
         clearAuth();
-        // Notify app so any active mobile session can redirect to login
         window.dispatchEvent(new CustomEvent('mobile-session-expired'));
       }
-      // Use AbortError so React Query / global error overlays ignore it silently.
-      // A stale mobile token in a web session is expected and must not surface
-      // as a runtime error.
       const err: any = new DOMException('Session expired', 'AbortError');
       err.code = 'SESSION_EXPIRED';
       err.silent = true;
@@ -357,11 +378,12 @@ async function callApi<T = any>(action: string, data?: any): Promise<T> {
 
     return json as T;
   } catch (error: any) {
-    console.error(`[mobileApi] ✗ ${action}:`, error?.name, error?.message, error?.cause, 'constructor:', error?.constructor?.name, 'stack:', error?.stack?.substring?.(0, 300));
+    console.error(`[mobileApi] ✗ ${action}:`, error?.name, error?.message, error?.cause, 'constructor:', error?.constructor?.name);
     if (error?.name === 'AbortError') {
+      // SESSION_EXPIRED ska behålla AbortError-formen (silent för React Query).
+      if ((error as any).code === 'SESSION_EXPIRED') throw error;
       throw new Error('Anropet tog för lång tid – kontrollera din anslutning och försök igen.');
     }
-    // Catch all network-level errors (TypeError in browsers, other errors in WebView)
     if (error instanceof TypeError) {
       throw new Error(`Kunde inte nå servern: ${error.message}`);
     }
@@ -369,6 +391,34 @@ async function callApi<T = any>(action: string, data?: any): Promise<T> {
   } finally {
     window.clearTimeout(timeoutId);
   }
+}
+
+// Core API caller med additiv retry vid transient nätverksfel för
+// idempotenta läs-actions. Mutationer ärver oförändrat beteende (1 försök).
+async function callApi<T = any>(action: string, data?: any): Promise<T> {
+  const token = getToken();
+  const retryable = RETRYABLE_ACTIONS.has(action);
+  const maxAttempts = retryable ? 2 : 1;
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await performApiAttempt<T>(action, data, token);
+    } catch (err) {
+      lastError = err;
+      // Endast retry på transient nät-fel OCH whitelistad action.
+      // Timeouts (AbortError) retryas INTE — då är servern redan långsam.
+      // performApiAttempt har redan översatt TypeError → Error med
+      // "Kunde inte nå servern" — vi matchar på message.
+      if (attempt < maxAttempts && retryable && __isTransientNetworkError(err)) {
+        const backoffMs = 400 * attempt;
+        console.warn(`[mobileApi] ⟳ retry ${attempt + 1}/${maxAttempts} for ${action} after ${backoffMs}ms (transient network)`);
+        await new Promise((r) => setTimeout(r, backoffMs));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastError;
 }
 
 // ── assistant-events caller ────────────────────────────────────────────────
