@@ -19,7 +19,8 @@ import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
 import RawGpsSatelliteMap from './RawGpsSatelliteMap';
 import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
 import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
-import { buildPlaceVisits, type PlaceVisit } from '@/lib/staff/pingPlaceSegments';
+import { type PlaceVisit } from '@/lib/staff/pingPlaceSegments';
+import { buildExactGeofenceVisits } from '@/lib/staff/buildExactGeofenceVisits';
 
 function dash(v: unknown): string {
   if (v === null || v === undefined || v === '') return '—';
@@ -182,13 +183,12 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
 
   // Geofence-besök: räkna ut IN/UT-tid per ping ↔ känd plats (DAGENS sites).
   const geofenceVisits = useMemo<PlaceVisit[]>(() => {
-    if (!pings.length || !knownSites.length) return [];
+    if (!pings.length || !geofences.length) return [];
     const asPings = pings.map(p => ({
       lat: p.lat, lng: p.lng, recorded_at: p.recorded_at, accuracy: p.accuracy ?? null,
     }));
-    // Vistelse = minst 20 minuter på samma kända plats. Kortare stopp visas inte som vistelse.
-    return buildPlaceVisits(asPings, knownSites).filter(v => v.knownSite && v.durationMin >= 20);
-  }, [pings, knownSites]);
+    return buildExactGeofenceVisits(asPings, geofences);
+  }, [pings, geofences]);
 
   return (
     <div className="flex flex-col h-full gap-4">
