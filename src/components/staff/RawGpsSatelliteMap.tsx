@@ -21,6 +21,13 @@ interface Props {
   visits?: PlaceVisit[];
   className?: string;
   /**
+   * När true: dölj rörelser UTANFÖR geofences och fokusera kartan på fence-
+   * området så bara INNANFÖR-rörelser syns. När false (default): tvärtom —
+   * dölj alla rörelser som ligger inom någon geofence; visa endast vägen
+   * mellan platserna.
+   */
+  showInsideFenceMoves?: boolean;
+  /**
    * Anropas när användaren sparar ny radie för en geofence från kartans popup.
    * id-prefix bestämmer mål: `loc:` → organization_locations,
    * `project:` → projects, `large:` → large_projects.
@@ -28,6 +35,7 @@ interface Props {
    */
   onSaveRadius?: (id: string, radiusMeters: number) => Promise<void>;
 }
+
 
 function formatHm(iso: string): string {
   const hms = formatStockholmHms(iso);
@@ -133,12 +141,14 @@ const SOURCE_IDS = [
 
 const ZOOM_DETAIL_THRESHOLD = 14;
 
-export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [], className, onSaveRadius }: Props) {
+export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [], className, onSaveRadius, showInsideFenceMoves = false }: Props) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
   const onSaveRadiusRef = useRef<Props['onSaveRadius']>(onSaveRadius);
   onSaveRadiusRef.current = onSaveRadius;
   const visitMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; el: HTMLElement; kind: 'compact' | 'detail' }>>([]);
+  const showInsideRef = useRef<boolean>(showInsideFenceMoves);
+  showInsideRef.current = showInsideFenceMoves;
 
   const handleReady = (map: mapboxgl.Map) => {
     mapRef.current = map;
@@ -157,12 +167,28 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visits]);
 
+  // När toggeln byts: applicera nytt filter direkt och fokusera om kartan.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    applyFenceFilter();
+    applyZoomVisibility();
+    if (showInsideFenceMoves && geofences.length) {
+      try {
+        const b = new mapboxgl.LngLatBounds();
+        geofences.forEach((f) => b.extend([f.lng, f.lat]));
+        map.fitBounds(b, { padding: 80, duration: 500, maxZoom: 17 });
+      } catch { /* ignore */ }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showInsideFenceMoves]);
+
   function clearVisitMarkers() {
     for (const m of visitMarkersRef.current) m.marker.remove();
     visitMarkersRef.current = [];
   }
 
-  // Layers vars rörelse-features kan vara "inside fence" — döljs i inzoomat läge.
+  // Layers vars rörelse-features taggas med `insideFence` och kan filtreras.
   const FENCE_HIDEABLE_LAYERS = [
     'gps-line-segments',
     'gps-line-arrows',
@@ -172,6 +198,24 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     'gps-stay-labels',
   ];
 
+  function applyFenceFilter() {
+    const map = mapRef.current;
+    if (!map) return;
+    const showInside = showInsideRef.current;
+    for (const lid of FENCE_HIDEABLE_LAYERS) {
+      if (!map.getLayer(lid)) continue;
+      try {
+        if (showInside) {
+          // Inside-läge: visa BARA features inom någon geofence.
+          map.setFilter(lid, ['==', ['get', 'insideFence'], true] as any);
+        } else {
+          // Standard: visa BARA features utanför geofences.
+          map.setFilter(lid, ['!=', ['get', 'insideFence'], true] as any);
+        }
+      } catch { /* ignore */ }
+    }
+  }
+
   function applyZoomVisibility() {
     const map = mapRef.current;
     if (!map) return;
@@ -180,18 +224,9 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       const shouldShow = kind === 'detail' ? detailed : !detailed;
       el.style.display = shouldShow ? '' : 'none';
     }
-    // Dölj rörelse-features som ligger inuti någon geofence när vi är inzoomade.
-    for (const lid of FENCE_HIDEABLE_LAYERS) {
-      if (!map.getLayer(lid)) continue;
-      try {
-        if (detailed) {
-          map.setFilter(lid, ['!=', ['get', 'insideFence'], true] as any);
-        } else {
-          map.setFilter(lid, null as any);
-        }
-      } catch { /* ignore */ }
-    }
   }
+
+
 
 
   function renderVisitMarkers(map: mapboxgl.Map, vs: PlaceVisit[]) {
@@ -245,45 +280,45 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       const tMm = totalMin % 60;
       const totalLabel = tHh > 0 ? `${tHh}h ${tMm}m` : `${tMm}m`;
 
+      const mono = 'ui-monospace,SFMono-Regular,Menlo,monospace';
       const blockRows = sorted
         .map((v, i) => {
           const hh = Math.floor(v.durationMin / 60);
           const mm = v.durationMin % 60;
           const dur = hh > 0 ? `${hh}h ${mm}m` : `${mm}m`;
           return `
-            <div style="display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums">
-              <span style="opacity:.6;min-width:54px">Block ${i + 1}</span>
-              <span>${formatHm(v.start)}</span>
-              <span style="opacity:.55">→</span>
-              <span>${formatHm(v.end)}</span>
-              <span style="opacity:.55">·</span>
-              <span style="color:#7dd3fc">${dur}</span>
+            <div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:1px 0;font-variant-numeric:tabular-nums">
+              <span style="color:hsl(215 16% 65%);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase">B${i + 1}</span>
+              <span style="font-family:${mono};font-size:10.5px;color:hsl(0 0% 98%)">${formatHm(v.start)} <span style="color:hsl(215 16% 50%)">→</span> ${formatHm(v.end)}</span>
+              <span style="font-family:${mono};font-size:10.5px;color:hsl(199 89% 70%)">${dur}</span>
             </div>`;
         })
         .join('');
 
       const panel = document.createElement('div');
       panel.style.cssText = [
-        'display:inline-flex','flex-direction:column','gap:4px',
-        'padding:8px 12px','border-radius:10px',
-        'background:rgba(15,23,42,.92)','color:#fff',
-        'font:600 11px/1.3 system-ui,-apple-system,Segoe UI,sans-serif',
-        'letter-spacing:.2px','white-space:nowrap',
-        'border:1px solid rgba(255,255,255,.18)',
-        'box-shadow:0 6px 18px rgba(0,0,0,.5)',
-        'backdrop-filter:blur(6px)','-webkit-backdrop-filter:blur(6px)',
-        'pointer-events:auto','transform:translateY(-8px)',
+        'display:inline-flex','flex-direction:column','gap:2px',
+        'padding:8px 10px','border-radius:8px',
+        'background:hsl(222 47% 8% / .92)','color:hsl(0 0% 98%)',
+        'font:500 10.5px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif',
+        'white-space:nowrap','min-width:180px',
+        'border:1px solid hsl(215 16% 28% / .6)',
+        'box-shadow:0 8px 24px -8px hsl(222 47% 4% / .8),0 0 0 1px hsl(0 0% 100% / .04)',
+        'backdrop-filter:blur(10px) saturate(140%)','-webkit-backdrop-filter:blur(10px) saturate(140%)',
+        'pointer-events:auto','transform:translateY(-10px)',
       ].join(';');
       panel.innerHTML = `
-        <div style="font-weight:700;opacity:.95;max-width:260px;overflow:hidden;text-overflow:ellipsis">
-          ${head.knownSite?.name ?? ''}
+        <div style="display:flex;align-items:center;gap:6px;padding-bottom:5px;margin-bottom:3px;border-bottom:1px solid hsl(215 16% 28% / .4);max-width:240px">
+          <span style="width:5px;height:5px;border-radius:9999px;background:hsl(142 71% 55%);box-shadow:0 0 0 2px hsl(142 71% 55% / .2)"></span>
+          <span style="font-weight:600;font-size:11px;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis">${head.knownSite?.name ?? ''}</span>
         </div>
         ${blockRows}
-        <div style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,.18);display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums">
-          <span style="opacity:.7">Totalt innanför</span>
-          <span style="margin-left:auto;color:#34d399">${totalLabel}</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:4px;padding-top:5px;border-top:1px solid hsl(215 16% 28% / .4);font-variant-numeric:tabular-nums">
+          <span style="font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:hsl(215 16% 65%)">Totalt</span>
+          <span style="font-family:${mono};font-size:11px;color:hsl(142 71% 60%);font-weight:600">${totalLabel}</span>
         </div>
       `;
+
       const panelMarker = new mapboxgl.Marker({ element: panel, anchor: 'bottom' })
         .setLngLat([head.centre.lng, head.centre.lat])
         .addTo(map);
@@ -478,12 +513,12 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       const lineFeatures = segments
         .filter((s) => s.kind === 'move' && s.pings.length >= 2)
         .map((s) => {
-          const firstP = s.pings[0];
-          const lastP = s.pings[s.pings.length - 1];
-          // En "rörelse" räknas som intra-fence om både start och slut är
-          // inom samma typ av geofence — då är det jitter, inte en resa.
-          const insideFence =
-            pingInsideAnyFence(firstP, fences) && pingInsideAnyFence(lastP, fences);
+          // En linje räknas som intra-fence så fort en MAJORITET av dess
+          // pings ligger inom någon geofence. Då är det jitter/förflyttningar
+          // inuti området och ska aldrig synas i "rörelse mellan platser"-vyn.
+          let inside = 0;
+          for (const p of s.pings) if (pingInsideAnyFence(p, fences)) inside++;
+          const insideFence = inside * 2 >= s.pings.length; // ≥ 50 %
           return {
             type: 'Feature' as const,
             geometry: {
@@ -493,6 +528,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
             properties: { color: colorForSegment(s.colorIndex, 'move'), insideFence },
           };
         });
+
 
 
       map.addSource('gps-line-src', {
@@ -711,7 +747,9 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       try {
         map.fitBounds(bounds, { padding: 40, duration: 400, maxZoom: 16 });
       } catch {/* ignore */}
+      applyFenceFilter();
       applyZoomVisibility();
+
     };
     if (map.isStyleLoaded()) apply();
     else map.once('load', apply);
