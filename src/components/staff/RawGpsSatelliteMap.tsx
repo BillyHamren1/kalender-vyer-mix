@@ -483,6 +483,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         if (s.kind !== 'move') continue;
         const color = colorForSegment(s.colorIndex, 'move');
         for (const p of s.labelPings) {
+          if (pingInsideAnyFence(p, fences)) continue;
           moveLabelFeatures.push({
             type: 'Feature',
             geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
@@ -490,7 +491,6 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
               id: p.id,
               color,
               label: formatHm(p.recorded_at),
-              insideFence: pingInsideAnyFence(p, fences),
             },
           });
         }
@@ -534,6 +534,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       const stayFeatures: any[] = [];
       for (const s of segments) {
         if (s.kind !== 'stay') continue;
+        if (pingInsideAnyFence({ lat: s.lat, lng: s.lng }, fences)) continue;
         stayFeatures.push({
           type: 'Feature',
           geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
@@ -541,7 +542,6 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
             index: s.index,
             color: colorForSegment(s.colorIndex, 'stay'),
             label: `${formatHm(s.startIso)}–${formatHm(s.endIso)} · ${formatDuration(s.durationMs)}`,
-            insideFence: pingInsideAnyFence({ lat: s.lat, lng: s.lng }, fences),
           },
         });
       }
@@ -584,22 +584,26 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       // ── Start/slut-markörer ────────────────────────────────────────
       const first = data[0];
       const last = data[data.length - 1];
+      const endpointFeatures = [];
+      if (!pingInsideAnyFence(first, fences)) {
+        endpointFeatures.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [first.lng, first.lat] },
+          properties: { kind: 'first' },
+        });
+      }
+      if (!pingInsideAnyFence(last, fences)) {
+        endpointFeatures.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [last.lng, last.lat] },
+          properties: { kind: 'last' },
+        });
+      }
       map.addSource('gps-endpoints-src', {
         type: 'geojson',
         data: {
           type: 'FeatureCollection',
-          features: [
-            {
-              type: 'Feature',
-              geometry: { type: 'Point', coordinates: [first.lng, first.lat] },
-              properties: { kind: 'first' },
-            },
-            {
-              type: 'Feature',
-              geometry: { type: 'Point', coordinates: [last.lng, last.lat] },
-              properties: { kind: 'last' },
-            },
-          ],
+          features: endpointFeatures,
         },
       });
       map.addLayer({
