@@ -48,6 +48,35 @@ function dash(v: unknown): string {
   return String(v);
 }
 
+function pointInPolygon(lng: number, lat: number, polygon: GeoJSON.Polygon): boolean {
+  const ring = polygon.coordinates[0];
+  if (!ring || ring.length < 3) return false;
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1];
+    const xj = ring[j][0], yj = ring[j][1];
+    const intersect =
+      ((yi > lat) !== (yj > lat)) &&
+      (lng < ((xj - xi) * (lat - yi)) / ((yj - yi) || 1e-12) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function pingInsideAnyFence(p: { lat: number; lng: number }, fences: GeofenceSite[]): boolean {
+  for (const f of fences) {
+    if (f.polygon) {
+      if (pointInPolygon(p.lng, p.lat, f.polygon)) return true;
+    } else if (Number.isFinite(f.lat) && Number.isFinite(f.lng)) {
+      const r = Math.max(10, Number(f.radiusMeters) || 200);
+      const d = haversineMeters({ lat: f.lat, lng: f.lng }, { lat: p.lat, lng: p.lng });
+      if (d <= r) return true;
+    }
+  }
+  return false;
+}
+
+
 function popupHtml(p: RawStaffGpsPing): string {
   const rows: Array<[string, string]> = [
     ['Tid', formatStockholmHms(p.recorded_at)],
