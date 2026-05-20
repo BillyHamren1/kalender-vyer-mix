@@ -1,54 +1,68 @@
-## Mål
-Visa alla `organization_locations` (lager/kontor/boenden) och dagens "targets" (bokningar/projekt/large_projects) som geofence-cirklar ovanpå satellitkartan på `/staff-management/gps-satellite-map`.
 
-## Datakällor (återanvänds, inga nya queries skapas)
-- `useOrganizationLocations()` → alla lokationer för organisationen (alltid på kartan).
-- `useDayKnownSites(staffId, date)` → leveranskoordinater för dagens TR/LTE-bokningar, dagens lokala projekt och large_projects. Använder samma `staffId` + `date` som pings-hooken redan har. Detta är samma "kända platser" som GPS-tolkningen använder — så kartan visar exakt vad systemet matchar mot.
+## Problem
 
-Resultatet = en `KnownSite[]` med `{id, name, lat, lng, radiusMeters}`.
+På `/staff-management/gps-satellite-map` visas `Boende - Vällsta` som en stor 200 m-cirkel runt en centrumpunkt (bild 2), trots att platsen i `organization_locations` har en exakt polygon (bild 1).
 
-## UI-tillägg i `RawGpsSatelliteMap.tsx`
-Tre nya Mapbox-lager (under befintliga ping-lager):
+## Rotorsak
 
-1. `geofence-fill` — polygonfyllning per cirkel, mycket låg opacity (~0.10).
-2. `geofence-outline` — linje längs cirkelranden, 1,5 px.
-3. `geofence-label` — symbol med plats-/projektnamn + radie.
+`organization_locations` har två ömsesidigt uteslutande geofence-format styrda av kolumnen `geofence_mode`:
+- `'circle'` → använd `latitude/longitude` + `radius_meters`
+- `'polygon'` → använd `geofence_polygon` (GeoJSON Polygon)
 
-Färgkodning per typ (avläst från `id`-prefix):
-- `loc:` (organization_locations) → blå
-- `booking:` → grön
-- `project:` → orange
-- `large:` → lila
+Det är ett av/eller — användarens senaste val gäller. Aldrig båda samtidigt.
 
-Cirkel → polygon görs med befintlig `src/lib/maps/circleToPolygon.ts` (64 segment räcker).
+`useOrganizationLocations` selectar bara cirkel-fälten. `geofencesToFeatures` ritar därför alltid en cirkel — även för polygon-platser. Boende-Vällsta får 200 m-defaulten.
 
-Klick på en geofence öppnar popup med `Namn · Radie m · Typ · Lat/Lng`.
+Bookings/projects/large_projects har ingen polygon-kolumn → de är alltid cirkel.
 
-## Toggle i topbar (`StaffGpsSatelliteMap.tsx`)
-Två kompakta checkboxes till höger om datumväljaren:
-- ☑ Visa platser (organization_locations)
-- ☑ Visa targets (dagens bokningar/projekt)
+## Regel som ska gälla efter fix
 
-Default: båda på. State lyfts från komponenten och skickas som props till `RawGpsSatelliteMap` (`showLocations`, `showTargets`, `knownSites`). Kartan känner inte till var datan kommer från, bara `geofences: KnownSite[]`.
+För varje target/location finns **exakt en** geofence-form:
+- `geofence_mode === 'polygon'` med giltig `geofence_polygon` → rita ENDAST polygonen. Ignorera lat/lng/radius helt för visualisering.
+- Annars → rita ENDAST cirkeln (lat/lng + radius).
 
-## Pure helpers / tester
-Ny pure helper `src/lib/staff/geofencesToFeatures.ts`:
-- `geofencesToFeatures(sites: KnownSite[]): { fill: FeatureCollection; outline: FeatureCollection; labels: FeatureCollection }`
-- Använder `circleToPolygon` för geometrin och prefix-baserad färg/typ-mappning.
+Ingen plats får visas både som polygon och cirkel.
 
-Vitest-test som verifierar:
-- Tom input → tre tomma feature collections.
-- En cirkel → 65 koordinater (polygon stängd).
-- Prefix → korrekt `type`/`color`-property.
-- Radie reflekteras i `labels`-feature-properties.
+## Åtgärd (endast UI/läsning — ingen DB-ändring)
 
-## Vad detta INTE gör
-- Inga DB-skrivningar, inga edge functions, inga migrationer.
-- Ingen "alla projekt någonsin" — bara dagens targets (annars blir kartan oläslig). Vill du även se historiska/framtida projekt lägger vi en tredje toggle senare.
-- Pings-filtreringen (5-min labels, stays, segmentfärger) lämnas orörd.
+### 1. `src/hooks/useOrganizationLocations.ts`
+- Selecta `geofence_mode, geofence_polygon`.
+- Utöka `KnownLocation` med `polygon?: GeoJSON.Polygon`.
+- Mappning: om `geofence_mode === 'polygon'` OCH `geofence_polygon` är en giltig Polygon → sätt `polygon`. Annars `polygon = undefined`.
 
-## Filer som ändras / skapas
-- `src/lib/staff/geofencesToFeatures.ts` (ny)
-- `src/lib/staff/__tests__/geofencesToFeatures.test.ts` (ny)
-- `src/components/staff/RawGpsSatelliteMap.tsx` (lägger till 3 lager + props)
-- `src/components/staff/StaffGpsSatelliteMap.tsx` (hämtar `useDayKnownSites` + toggles + skickar `geofences`)
+### 2. `src/hooks/useDayKnownSites.ts`
+- Skicka vidare `polygon` på org-platser till `KnownSite`. Bookings/projekt/LP oförändrade.
+
+### 3. `src/lib/staff/geofencesToFeatures.ts`
+- Lägg till `polygon?: GeoJSON.Polygon` på `GeofenceSite`.
+- I `geofencesToFeatures()`:
+  - **Om `polygon` finns** → använd den geometrin för både fill och outline. Skapa INGEN cirkel.
+  - **Annars** → bygg cirkel via `circleToPolygon(lat,lng,radius)` (som idag).
+- Etikett:
+  - Polygon: label-point i polygonens bbox-centroid; bara namnet (utan "· N m").
+  - Cirkel: lat/lng + "· N m" (som idag).
+
+### 4. `src/components/staff/StaffGpsSatelliteMap.tsx`
+- Mappa med `polygon` från `knownSites` till `GeofenceSite`.
+
+### 5. `src/components/staff/RawGpsSatelliteMap.tsx`
+- Ingen logikändring — fill/outline-layers tar polygon-geometri direkt.
+
+### 6. Tester (`src/lib/staff/__tests__/geofencesToFeatures.test.ts`)
+- Polygon-site → fill/outline använder polygonens exakta koordinater, INGEN circle-approx.
+- Cirkel-site (utan polygon) → cirkel som idag.
+- `geofence_mode='polygon'` men polygon saknas/ogiltig → faller tillbaka på cirkel (defensivt).
+- Aldrig båda geometrierna i samma feature collection för samma id.
+
+## Filer som ändras
+- `src/hooks/useOrganizationLocations.ts`
+- `src/hooks/useDayKnownSites.ts`
+- `src/lib/staff/geofencesToFeatures.ts`
+- `src/components/staff/StaffGpsSatelliteMap.tsx`
+- `src/lib/staff/__tests__/geofencesToFeatures.test.ts`
+
+## Vad som INTE ändras
+- Inga DB-migrations.
+- GPS-pings, vistelser och övriga layers oförändrade.
+- Bookings/projects/large_projects förblir cirklar (har ingen polygon-kolumn).
+- Time engine / matchningslogik oförändrad — `polygon` läggs bara till på UI-objektet.
