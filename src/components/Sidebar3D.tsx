@@ -20,6 +20,7 @@ import {
   Activity,
   Wallet,
   ExternalLink,
+  Satellite,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -75,6 +76,7 @@ const baseNavigationItems: NavItem[] = [
       { title: "Personalplanering", url: "/calendar", icon: Calendar },
       { title: "Personalkalendern (publik)", url: "/personalkalendern", icon: ExternalLink },
       { title: "Tidrapporter", url: "/staff-management/time-reports", icon: Clock },
+      { title: "GPS satellitkarta", url: "/staff-management/gps-satellite-map", icon: Satellite },
     ],
   },
   {
