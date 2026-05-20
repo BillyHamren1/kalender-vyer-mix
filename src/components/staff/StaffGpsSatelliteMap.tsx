@@ -43,7 +43,6 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
   const [filterMode, setFilterMode] = useState<FilterMode>('both');
   const [showLocations, setShowLocations] = useState(true);
   const [showTargets, setShowTargets] = useState(true);
-  const [showInsideFenceMoves, setShowInsideFenceMoves] = useState(false);
 
 
   const dateStr = format(date, 'yyyy-MM-dd');
