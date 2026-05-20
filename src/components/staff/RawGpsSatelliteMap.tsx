@@ -12,6 +12,7 @@ import {
   geofencesToFeatures,
   type GeofenceSite,
 } from '@/lib/staff/geofencesToFeatures';
+import { computeGeofenceCrossings } from '@/lib/staff/geofenceCrossings';
 
 interface Props {
   pings: RawStaffGpsPing[];
@@ -80,6 +81,9 @@ const LAYER_IDS = [
   'gps-stay-labels',
   'gps-first',
   'gps-last',
+  'crossing-ring',
+  'crossing-dot',
+  'crossing-label',
 ];
 const SOURCE_IDS = [
   'geofence-fill-src',
@@ -89,6 +93,7 @@ const SOURCE_IDS = [
   'gps-move-points-src',
   'gps-stay-points-src',
   'gps-endpoints-src',
+  'crossing-src',
 ];
 
 export default function RawGpsSatelliteMap({ pings, geofences = [], className }: Props) {
@@ -143,16 +148,20 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], className }:
           source: 'geofence-label-src',
           layout: {
             'text-field': ['get', 'label'],
+            'text-font': ['Inter Medium', 'Open Sans Semibold', 'Arial Unicode MS Bold'],
             'text-size': 11,
+            'text-letter-spacing': 0.04,
             'text-anchor': 'top',
-            'text-offset': [0, 0.6],
+            'text-offset': [0, 0.8],
             'text-allow-overlap': false,
             'text-optional': true,
+            'text-padding': 6,
           },
           paint: {
-            'text-color': '#fff',
-            'text-halo-color': '#0f172a',
-            'text-halo-width': 1.5,
+            'text-color': '#f8fafc',
+            'text-halo-color': 'rgba(15,23,42,0.85)',
+            'text-halo-width': 1.2,
+            'text-halo-blur': 0.4,
           },
         });
         map.on('click', 'geofence-fill', (e) => {
@@ -243,32 +252,38 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], className }:
         type: 'circle',
         source: 'gps-move-points-src',
         paint: {
-          'circle-radius': 5,
+          'circle-radius': 4,
           'circle-color': ['get', 'color'],
-          'circle-stroke-color': '#0f172a',
-          'circle-stroke-width': 1,
+          'circle-stroke-color': 'rgba(15,23,42,0.9)',
+          'circle-stroke-width': 1.25,
         },
       });
       map.addLayer({
         id: 'gps-move-labels',
         type: 'symbol',
         source: 'gps-move-points-src',
+        minzoom: 14,
         layout: {
           'text-field': ['get', 'label'],
-          'text-size': 11,
-          'text-offset': [0, -1.2],
+          'text-font': ['Inter Regular', 'Open Sans Regular', 'Arial Unicode MS Regular'],
+          'text-size': 10,
+          'text-offset': [0, -1.1],
           'text-anchor': 'bottom',
-          'text-allow-overlap': true,
-          'text-ignore-placement': true,
+          'text-allow-overlap': false,
+          'text-padding': 4,
+          'text-optional': true,
         },
         paint: {
-          'text-color': '#fff',
-          'text-halo-color': '#0f172a',
-          'text-halo-width': 1.5,
+          'text-color': '#e5e7eb',
+          'text-halo-color': 'rgba(15,23,42,0.85)',
+          'text-halo-width': 1,
+          'text-halo-blur': 0.4,
         },
       });
 
       // ── Stay markers ───────────────────────────────────────────────
+      // Minimal pill: bara starttid. Varaktighet visas i popup för att
+      // hålla kartan ren. (Tidigare "07:00–16:29 · 9h 25m" var för bullrig.)
       const stayFeatures: any[] = [];
       for (const s of segments) {
         if (s.kind !== 'stay') continue;
@@ -278,7 +293,8 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], className }:
           properties: {
             index: s.index,
             color: colorForSegment(s.colorIndex, 'stay'),
-            label: `${formatHm(s.startIso)}–${formatHm(s.endIso)} · ${formatDuration(s.durationMs)}`,
+            label: formatHm(s.startIso),
+            duration: formatDuration(s.durationMs),
           },
         });
       }
@@ -291,11 +307,11 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], className }:
         type: 'circle',
         source: 'gps-stay-points-src',
         paint: {
-          'circle-radius': 10,
+          'circle-radius': 7,
           'circle-color': ['get', 'color'],
-          'circle-stroke-color': '#fff',
-          'circle-stroke-width': 2,
-          'circle-opacity': 0.9,
+          'circle-stroke-color': '#f8fafc',
+          'circle-stroke-width': 1.5,
+          'circle-opacity': 0.95,
         },
       });
       map.addLayer({
@@ -304,16 +320,20 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], className }:
         source: 'gps-stay-points-src',
         layout: {
           'text-field': ['get', 'label'],
-          'text-size': 12,
-          'text-offset': [0, -1.6],
+          'text-font': ['Inter Medium', 'Open Sans Semibold', 'Arial Unicode MS Bold'],
+          'text-size': 11,
+          'text-letter-spacing': 0.02,
+          'text-offset': [0, -1.4],
           'text-anchor': 'bottom',
-          'text-allow-overlap': true,
-          'text-ignore-placement': true,
+          'text-allow-overlap': false,
+          'text-padding': 6,
+          'text-optional': true,
         },
         paint: {
-          'text-color': '#fff',
-          'text-halo-color': '#0f172a',
-          'text-halo-width': 2,
+          'text-color': '#f8fafc',
+          'text-halo-color': 'rgba(15,23,42,0.9)',
+          'text-halo-width': 1.2,
+          'text-halo-blur': 0.4,
         },
       });
 
@@ -352,6 +372,104 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], className }:
         filter: ['==', ['get', 'kind'], 'last'],
         paint: { 'circle-radius': 9, 'circle-color': '#dc2626', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 },
       });
+
+      // ── Geofence-korsningar: exakt punkt där staketet passerades ───
+      if (fences.length) {
+        const crossings = computeGeofenceCrossings(
+          data.map(p => ({ lat: p.lat, lng: p.lng, recorded_at: p.recorded_at })),
+          fences.map(f => ({
+            id: f.id, name: f.name, lat: f.lat, lng: f.lng,
+            radiusMeters: f.radiusMeters, polygon: f.polygon,
+          })),
+        );
+        const crossingFeatures = crossings.map((c, i) => ({
+          type: 'Feature' as const,
+          geometry: { type: 'Point' as const, coordinates: [c.lng, c.lat] },
+          properties: {
+            idx: i,
+            kind: c.kind,
+            // ▸ för IN, ◂ för UT — tunna chevrons istället för fula emoji.
+            label: `${c.kind === 'enter' ? '▸' : '◂'}  ${formatStockholmHms(c.tsIso).slice(0, 5)}`,
+            tsIso: c.tsIso,
+            geofenceName: c.geofenceName,
+          },
+        }));
+        map.addSource('crossing-src', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: crossingFeatures },
+        });
+        // Yttre vit ring (halo) för att punkten ska läsas mot satellitbild.
+        map.addLayer({
+          id: 'crossing-ring',
+          type: 'circle',
+          source: 'crossing-src',
+          paint: {
+            'circle-radius': 8,
+            'circle-color': 'rgba(255,255,255,0)',
+            'circle-stroke-color': '#f8fafc',
+            'circle-stroke-width': 2,
+            'circle-stroke-opacity': 0.9,
+          },
+        });
+        // Inre prick — grön IN, röd UT.
+        map.addLayer({
+          id: 'crossing-dot',
+          type: 'circle',
+          source: 'crossing-src',
+          paint: {
+            'circle-radius': 4,
+            'circle-color': [
+              'match', ['get', 'kind'],
+              'enter', '#22c55e',
+              'exit', '#ef4444',
+              '#f59e0b',
+            ],
+            'circle-stroke-color': '#0f172a',
+            'circle-stroke-width': 1,
+          },
+        });
+        map.addLayer({
+          id: 'crossing-label',
+          type: 'symbol',
+          source: 'crossing-src',
+          layout: {
+            'text-field': ['get', 'label'],
+            'text-font': ['Inter Medium', 'Open Sans Semibold', 'Arial Unicode MS Bold'],
+            'text-size': 10,
+            'text-letter-spacing': 0.04,
+            'text-offset': [0.9, 0],
+            'text-anchor': 'left',
+            'text-allow-overlap': true,
+            'text-ignore-placement': false,
+            'text-padding': 4,
+          },
+          paint: {
+            'text-color': '#f8fafc',
+            'text-halo-color': 'rgba(15,23,42,0.92)',
+            'text-halo-width': 1.4,
+            'text-halo-blur': 0.4,
+          },
+        });
+        map.on('click', 'crossing-dot', (e) => {
+          const f = e.features?.[0];
+          if (!f) return;
+          const props = f.properties as any;
+          popupRef.current?.remove();
+          popupRef.current = new mapboxgl.Popup({ closeButton: true })
+            .setLngLat((f.geometry as any).coordinates)
+            .setHTML(
+              `<div style="font:12px/1.4 system-ui;min-width:200px">
+                <div><b>${props.kind === 'enter' ? 'IN' : 'UT'}</b> · ${props.geofenceName}</div>
+                <div><b>Tid:</b> ${formatStockholmHms(props.tsIso)}</div>
+                <div style="color:#94a3b8;margin-top:4px">Interpolerad mellan pingen innan och pingen efter korsningen.</div>
+              </div>`,
+            )
+            .addTo(map);
+        });
+        map.on('mouseenter', 'crossing-dot', () => (map.getCanvas().style.cursor = 'pointer'));
+        map.on('mouseleave', 'crossing-dot', () => (map.getCanvas().style.cursor = ''));
+      }
+
 
       // ── Klick: visa popup ──────────────────────────────────────────
       const pingById = new Map(data.map((p) => [p.id, p]));
