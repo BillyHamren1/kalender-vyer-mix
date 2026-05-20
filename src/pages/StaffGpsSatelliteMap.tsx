@@ -12,8 +12,8 @@ export default function StaffGpsSatelliteMapPage() {
     <PageContainer>
       <PageHeader
         title="GPS satellitkarta"
-        description="Rådata från staff_location_history. Ingen filtrering, ingen tolkning."
-        icon={<Satellite className="h-5 w-5" />}
+        subtitle="Rådata från staff_location_history. Ingen filtrering, ingen tolkning."
+        icon={Satellite}
       />
       <StaffGpsSatelliteMap initialStaffId={staffId} initialDate={date} />
     </PageContainer>
