@@ -1,0 +1,2 @@
+ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS hired_from_supplier_id uuid REFERENCES public.suppliers(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_staff_members_hired_from_supplier ON public.staff_members(hired_from_supplier_id) WHERE hired_from_supplier_id IS NOT NULL;

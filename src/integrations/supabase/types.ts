@@ -6233,6 +6233,7 @@ export type Database = {
           emergency_contact_phone: string | null
           employment_type: string
           hire_date: string | null
+          hired_from_supplier_id: string | null
           hourly_rate: number | null
           id: string
           is_active: boolean
@@ -6264,6 +6265,7 @@ export type Database = {
           emergency_contact_phone?: string | null
           employment_type?: string
           hire_date?: string | null
+          hired_from_supplier_id?: string | null
           hourly_rate?: number | null
           id: string
           is_active?: boolean
@@ -6295,6 +6297,7 @@ export type Database = {
           emergency_contact_phone?: string | null
           employment_type?: string
           hire_date?: string | null
+          hired_from_supplier_id?: string | null
           hourly_rate?: number | null
           id?: string
           is_active?: boolean
@@ -6315,6 +6318,13 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "staff_members_hired_from_supplier_id_fkey"
+            columns: ["hired_from_supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "staff_members_organization_id_fkey"
             columns: ["organization_id"]
