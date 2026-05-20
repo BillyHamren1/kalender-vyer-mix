@@ -1,12 +1,21 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
 import MapboxMap from '@/components/maps/MapboxMap';
 import type { RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
 import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
+import { downsamplePingsByBucket } from '@/lib/staff/downsamplePingsByBucket';
 
 interface Props {
   pings: RawStaffGpsPing[];
   className?: string;
+  /** Bucket window in minutes (default 5). */
+  bucketMinutes?: number;
+}
+
+function formatHm(iso: string): string {
+  const hms = formatStockholmHms(iso);
+  // formatStockholmHms returns HH:MM:SS; trim to HH:MM for label
+  return hms.length >= 5 ? hms.slice(0, 5) : hms;
 }
 
 function dash(v: unknown): string {
