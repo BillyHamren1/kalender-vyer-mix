@@ -1,3 +1,25 @@
+/**
+ * buildExactGeofenceVisits — räknar projektblock från råpings + geofences.
+ *
+ * Regler (se mem://):
+ *  - Första pingen inom ett geofence öppnar ett aktivt projektblock.
+ *  - Pings inom samma projekt → ligger kvar i ett `inside`-delblock.
+ *  - Pings utanför ALLA geofences medan projektet är aktivt → bildar
+ *    ett `outside_geo`-delblock UNDER samma projekt. Tiden får ALDRIG
+ *    försvinna bara för att personen lämnat staketet kort.
+ *  - Pings inom ett ANNAT projekts geofence → enda sättet att avsluta
+ *    nuvarande projektkedja. Då startar ett nytt projektblock där.
+ *  - Slut på dagen utan återinträde → eventuellt `outside_geo`-delblock
+ *    ligger kvar under aktivt projekt.
+ *
+ * Returvärdet är en flat lista av PlaceVisit där varje sub-block är
+ * en egen rad. Alla sub-blocks som hör till samma projektkedja delar
+ * `knownSite.id` och `centre` så att UI:s gruppering per projekt
+ * (Map<knownSite.id, ...>) sätter dem i samma panel i rätt ordning.
+ *
+ * `subKind: 'inside' | 'outside_geo'` används av UI för att etikettera
+ * raden ("B2 (Utanför geo)").
+ */
 import type { Ping } from '@/lib/staff/movementDetection';
 import { haversineMeters } from '@/lib/staff/movementDetection';
 import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
@@ -35,6 +57,13 @@ function resolveFence(ping: Ping, sites: GeofenceSite[]): GeofenceSite | null {
   return best?.site ?? null;
 }
 
+type SubKind = 'inside' | 'outside_geo';
+
+interface OpenSub {
+  kind: SubKind;
+  pings: Ping[];
+}
+
 export function buildExactGeofenceVisits(rawPings: Ping[], sites: GeofenceSite[]): PlaceVisit[] {
   if (!rawPings.length || !sites.length) return [];
 
@@ -44,48 +73,80 @@ export function buildExactGeofenceVisits(rawPings: Ping[], sites: GeofenceSite[]
 
   const visits: PlaceVisit[] = [];
   let activeSite: GeofenceSite | null = null;
-  let activePings: Ping[] = [];
+  let openSubs: OpenSub[] = [];
+  let current: OpenSub | null = null;
 
-  const closeActive = () => {
-    if (!activeSite || !activePings.length) return;
-    const start = activePings[0].recorded_at;
-    const end = activePings[activePings.length - 1].recorded_at;
-    visits.push({
-      placeKey: `site:${activeSite.id}:${start}`,
-      knownSite: { id: activeSite.id, name: activeSite.name },
-      centre: { lat: activeSite.lat, lng: activeSite.lng },
-      start,
-      end,
-      durationMin: Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60_000)),
-      pingCount: activePings.length,
-      pings: [...activePings],
-    });
+  const flushSubsForActive = () => {
+    if (!activeSite) return;
+    for (const sub of openSubs) {
+      if (!sub.pings.length) continue;
+      const start = sub.pings[0].recorded_at;
+      const end = sub.pings[sub.pings.length - 1].recorded_at;
+      const durationMin = Math.max(
+        0,
+        Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60_000),
+      );
+      visits.push({
+        placeKey: `site:${activeSite.id}:${sub.kind}:${start}`,
+        knownSite: { id: activeSite.id, name: activeSite.name },
+        centre: { lat: activeSite.lat, lng: activeSite.lng },
+        start,
+        end,
+        durationMin,
+        pingCount: sub.pings.length,
+        pings: [...sub.pings],
+        subKind: sub.kind,
+      });
+    }
+    openSubs = [];
+    current = null;
     activeSite = null;
-    activePings = [];
+  };
+
+  const startSub = (kind: SubKind, ping: Ping) => {
+    current = { kind, pings: [ping] };
+    openSubs.push(current);
   };
 
   for (const ping of sorted) {
-    const nextSite = resolveFence(ping, sites);
+    const fence = resolveFence(ping, sites);
+
+    // Inget aktivt projekt — vänta tills vi går in i en geofence.
     if (!activeSite) {
-      if (nextSite) {
-        activeSite = nextSite;
-        activePings = [ping];
+      if (fence) {
+        activeSite = fence;
+        startSub('inside', ping);
       }
       continue;
     }
 
-    if (nextSite && nextSite.id === activeSite.id) {
-      activePings.push(ping);
+    // Aktivt projekt finns.
+    if (fence && fence.id === activeSite.id) {
+      // Tillbaka inne i samma projekt.
+      if (current && current.kind === 'inside') {
+        current.pings.push(ping);
+      } else {
+        startSub('inside', ping);
+      }
       continue;
     }
 
-    closeActive();
-    if (nextSite) {
-      activeSite = nextSite;
-      activePings = [ping];
+    if (fence && fence.id !== activeSite.id) {
+      // Bytt projekt → enda läget som avslutar aktivt projekt.
+      flushSubsForActive();
+      activeSite = fence;
+      startSub('inside', ping);
+      continue;
+    }
+
+    // Utanför alla geofences medan projektet är aktivt.
+    if (current && current.kind === 'outside_geo') {
+      current.pings.push(ping);
+    } else {
+      startSub('outside_geo', ping);
     }
   }
 
-  closeActive();
+  flushSubsForActive();
   return visits;
 }
