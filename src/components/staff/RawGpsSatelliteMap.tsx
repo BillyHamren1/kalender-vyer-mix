@@ -19,6 +19,13 @@ interface Props {
   geofences?: GeofenceSite[];
   visits?: PlaceVisit[];
   className?: string;
+  /**
+   * Anropas när användaren sparar ny radie för en geofence från kartans popup.
+   * id-prefix bestämmer mål: `loc:` → organization_locations,
+   * `project:` → projects, `large:` → large_projects.
+   * Förälder ansvarar för persistens + query-invalidation.
+   */
+  onSaveRadius?: (id: string, radiusMeters: number) => Promise<void>;
 }
 
 function formatHm(iso: string): string {
