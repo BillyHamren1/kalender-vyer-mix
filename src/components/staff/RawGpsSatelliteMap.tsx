@@ -162,6 +162,16 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     visitMarkersRef.current = [];
   }
 
+  // Layers vars rörelse-features kan vara "inside fence" — döljs i inzoomat läge.
+  const FENCE_HIDEABLE_LAYERS = [
+    'gps-line-segments',
+    'gps-line-arrows',
+    'gps-move-points',
+    'gps-move-labels',
+    'gps-stay-points',
+    'gps-stay-labels',
+  ];
+
   function applyZoomVisibility() {
     const map = mapRef.current;
     if (!map) return;
@@ -170,7 +180,19 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       const shouldShow = kind === 'detail' ? detailed : !detailed;
       el.style.display = shouldShow ? '' : 'none';
     }
+    // Dölj rörelse-features som ligger inuti någon geofence när vi är inzoomade.
+    for (const lid of FENCE_HIDEABLE_LAYERS) {
+      if (!map.getLayer(lid)) continue;
+      try {
+        if (detailed) {
+          map.setFilter(lid, ['!=', ['get', 'insideFence'], true] as any);
+        } else {
+          map.setFilter(lid, null as any);
+        }
+      } catch { /* ignore */ }
+    }
   }
+
 
   function renderVisitMarkers(map: mapboxgl.Map, vs: PlaceVisit[]) {
     clearVisitMarkers();
