@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { importBookings } from '@/services/importService';
 import { isScannerApp } from '@/config/appMode';
-import { supabase } from '@/integrations/supabase/client';
+import { getOrganizationId } from '@/hooks/useOrganizationId';
 
 interface BackgroundImportState {
   isRunning: boolean;
