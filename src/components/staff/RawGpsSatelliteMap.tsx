@@ -174,8 +174,102 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
 
   function renderVisitMarkers(map: mapboxgl.Map, vs: PlaceVisit[]) {
     clearVisitMarkers();
+
+    // ── Gruppera vistelser per känd plats (geofence) ────────────────
+    // Inom samma geofence visar vi ETT block-paneldetaljläge:
+    //   Block 1: in–ut · dur
+    //   Block 2: in–ut · dur
+    //   …
+    //   Totalt: …
+    // Vistelser UTAN known site (okända platser) får sin egen pill som förr.
+    const grouped = new Map<string, PlaceVisit[]>();
+    const unknownVisits: PlaceVisit[] = [];
     for (const v of vs) {
       if (!v.pings.length) continue;
+      if (v.knownSite) {
+        const arr = grouped.get(v.knownSite.id) ?? [];
+        arr.push(v);
+        grouped.set(v.knownSite.id, arr);
+      } else {
+        unknownVisits.push(v);
+      }
+    }
+
+    const addCompactPin = (lng: number, lat: number, title: string) => {
+      const pin = document.createElement('div');
+      pin.style.cssText =
+        'width:12px;height:12px;border-radius:9999px;background:#22c55e;box-shadow:0 0 0 2px #fff,0 1px 4px rgba(0,0,0,.5);cursor:pointer;';
+      pin.title = title;
+      const marker = new mapboxgl.Marker({ element: pin, anchor: 'center' })
+        .setLngLat([lng, lat])
+        .addTo(map);
+      visitMarkersRef.current.push({ marker, el: pin, kind: 'compact' });
+    };
+
+    // ── Per geofence: kompakt pin + detalj block-panel ───────────────
+    for (const [, list] of grouped) {
+      const sorted = [...list].sort((a, b) => a.start.localeCompare(b.start));
+      // Pin-position: använd första vistelsens centre (mitten på geofencen
+      // när knownSite finns).
+      const head = sorted[0];
+      addCompactPin(
+        head.centre.lng,
+        head.centre.lat,
+        `${head.knownSite?.name ?? ''} · ${sorted.length} block`,
+      );
+
+      const totalMin = sorted.reduce((sum, v) => sum + v.durationMin, 0);
+      const tHh = Math.floor(totalMin / 60);
+      const tMm = totalMin % 60;
+      const totalLabel = tHh > 0 ? `${tHh}h ${tMm}m` : `${tMm}m`;
+
+      const blockRows = sorted
+        .map((v, i) => {
+          const hh = Math.floor(v.durationMin / 60);
+          const mm = v.durationMin % 60;
+          const dur = hh > 0 ? `${hh}h ${mm}m` : `${mm}m`;
+          return `
+            <div style="display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums">
+              <span style="opacity:.6;min-width:54px">Block ${i + 1}</span>
+              <span>${formatHm(v.start)}</span>
+              <span style="opacity:.55">→</span>
+              <span>${formatHm(v.end)}</span>
+              <span style="opacity:.55">·</span>
+              <span style="color:#7dd3fc">${dur}</span>
+            </div>`;
+        })
+        .join('');
+
+      const panel = document.createElement('div');
+      panel.style.cssText = [
+        'display:inline-flex','flex-direction:column','gap:4px',
+        'padding:8px 12px','border-radius:10px',
+        'background:rgba(15,23,42,.92)','color:#fff',
+        'font:600 11px/1.3 system-ui,-apple-system,Segoe UI,sans-serif',
+        'letter-spacing:.2px','white-space:nowrap',
+        'border:1px solid rgba(255,255,255,.18)',
+        'box-shadow:0 6px 18px rgba(0,0,0,.5)',
+        'backdrop-filter:blur(6px)','-webkit-backdrop-filter:blur(6px)',
+        'pointer-events:auto','transform:translateY(-8px)',
+      ].join(';');
+      panel.innerHTML = `
+        <div style="font-weight:700;opacity:.95;max-width:260px;overflow:hidden;text-overflow:ellipsis">
+          ${head.knownSite?.name ?? ''}
+        </div>
+        ${blockRows}
+        <div style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,.18);display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums">
+          <span style="opacity:.7">Totalt innanför</span>
+          <span style="margin-left:auto;color:#34d399">${totalLabel}</span>
+        </div>
+      `;
+      const panelMarker = new mapboxgl.Marker({ element: panel, anchor: 'bottom' })
+        .setLngLat([head.centre.lng, head.centre.lat])
+        .addTo(map);
+      visitMarkersRef.current.push({ marker: panelMarker, el: panel, kind: 'detail' });
+    }
+
+    // ── Okända vistelser: enkel pill som förr ────────────────────────
+    for (const v of unknownVisits) {
       const first = v.pings[0];
       const last = v.pings[v.pings.length - 1];
       const hh = Math.floor(v.durationMin / 60);
@@ -186,40 +280,8 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       const midLng = (first.lng + last.lng) / 2;
       const midLat = (first.lat + last.lat) / 2;
 
-      // ── Kompakt pin (utzoomat läge) ──────────────────────────────
-      const pin = document.createElement('div');
-      pin.style.cssText =
-        'width:12px;height:12px;border-radius:9999px;background:#22c55e;box-shadow:0 0 0 2px #fff,0 1px 4px rgba(0,0,0,.5);cursor:pointer;';
-      pin.title = `${v.knownSite?.name ?? ''} · ${inHm}–${outHm} · ${dur}`;
-      const pinMarker = new mapboxgl.Marker({ element: pin, anchor: 'center' })
-        .setLngLat([midLng, midLat])
-        .addTo(map);
-      visitMarkersRef.current.push({ marker: pinMarker, el: pin, kind: 'compact' });
+      addCompactPin(midLng, midLat, `Okänd plats · ${inHm}–${outHm} · ${dur}`);
 
-      // ── Detalj: IN-prick (grön) ──────────────────────────────────
-      const inEl = document.createElement('div');
-      inEl.style.cssText =
-        'width:14px;height:14px;border-radius:9999px;background:#22c55e;box-shadow:0 0 0 2px #fff,0 1px 4px rgba(0,0,0,.5);cursor:pointer;';
-      inEl.title = `IN ${inHm}`;
-      const inMarker = new mapboxgl.Marker({ element: inEl, anchor: 'center' })
-        .setLngLat([first.lng, first.lat])
-        .addTo(map);
-      visitMarkersRef.current.push({ marker: inMarker, el: inEl, kind: 'detail' });
-
-      // ── Detalj: UT-prick (blå) — bara om olika position ──────────
-      const sameSpot = first.lat === last.lat && first.lng === last.lng;
-      if (!sameSpot) {
-        const outEl = document.createElement('div');
-        outEl.style.cssText =
-          'width:14px;height:14px;border-radius:9999px;background:#3b82f6;box-shadow:0 0 0 2px #fff,0 1px 4px rgba(0,0,0,.5);cursor:pointer;';
-        outEl.title = `UT ${outHm}`;
-        const outMarker = new mapboxgl.Marker({ element: outEl, anchor: 'center' })
-          .setLngLat([last.lng, last.lat])
-          .addTo(map);
-        visitMarkersRef.current.push({ marker: outMarker, el: outEl, kind: 'detail' });
-      }
-
-      // ── Detalj: mini-container (pill) ────────────────────────────
       const pill = document.createElement('div');
       pill.style.cssText = [
         'display:inline-flex','align-items:center','gap:8px',
@@ -233,22 +295,21 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         'pointer-events:auto','transform:translateY(-22px)',
       ].join(';');
       pill.innerHTML = `
-        <span style="display:inline-block;width:8px;height:8px;border-radius:9999px;background:#22c55e;box-shadow:0 0 0 1.5px #fff"></span>
         <span style="font-variant-numeric:tabular-nums">${inHm}</span>
         <span style="opacity:.55">→</span>
         <span style="font-variant-numeric:tabular-nums">${outHm}</span>
         <span style="opacity:.55">·</span>
         <span style="font-variant-numeric:tabular-nums;color:#7dd3fc">${dur}</span>
-        <span style="display:inline-block;width:8px;height:8px;border-radius:9999px;background:#3b82f6;box-shadow:0 0 0 1.5px #fff"></span>
       `;
-      pill.title = v.knownSite?.name ?? '';
       const pillMarker = new mapboxgl.Marker({ element: pill, anchor: 'bottom' })
         .setLngLat([midLng, midLat])
         .addTo(map);
       visitMarkersRef.current.push({ marker: pillMarker, el: pill, kind: 'detail' });
     }
+
     applyZoomVisibility();
   }
+
 
 
 
