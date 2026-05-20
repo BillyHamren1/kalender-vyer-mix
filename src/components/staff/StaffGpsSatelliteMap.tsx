@@ -115,16 +115,45 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">Person</label>
           <Select value={effectiveStaffId ?? ''} onValueChange={(v) => setStaffId(v)}>
-            <SelectTrigger className="w-[240px]">
+            <SelectTrigger className="w-[260px]">
               <SelectValue placeholder="Välj person" />
             </SelectTrigger>
             <SelectContent>
-              {staff.map((s) => (
-                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-              ))}
+              {staff.length === 0 && (
+                <div className="px-2 py-2 text-xs text-muted-foreground">Ingen matchar filtret.</div>
+              )}
+              {staff.map((s) => {
+                const a = assignedSet.has(s.id);
+                const p = pingedSet.has(s.id);
+                return (
+                  <SelectItem key={s.id} value={s.id}>
+                    <span className="flex items-center gap-2">
+                      <span>{s.name}</span>
+                      {a && <Badge variant="secondary" className="h-4 px-1 text-[10px]">Ass</Badge>}
+                      {p && <Badge variant="outline" className="h-4 px-1 text-[10px]">GPS</Badge>}
+                    </span>
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-muted-foreground">Visa</label>
+          <Select value={filterMode} onValueChange={(v) => setFilterMode(v as FilterMode)}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="both">Assignade el. pingade</SelectItem>
+              <SelectItem value="assigned">Endast assignade</SelectItem>
+              <SelectItem value="pinged">Endast pingade</SelectItem>
+              <SelectItem value="all">Alla</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
 
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">Datum</label>
