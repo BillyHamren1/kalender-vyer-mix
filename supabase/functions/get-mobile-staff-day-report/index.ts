@@ -32,6 +32,7 @@ import {
   type CacheRow,
   type SubmissionRow,
 } from "../_shared/mobile/buildMobileSnapshot.ts";
+import { buildNeedsReviewFallbackBlocks } from "../_shared/mobile/buildNeedsReviewFallbackBlocks.ts";
 
 interface RequestBody {
   staffId?: string;
@@ -277,6 +278,70 @@ Deno.serve(async (req: Request) => {
 
   const displaySourceUsed = describeDisplaySource(effectiveCache);
 
+  // ── Mirror fallback (Time Engine cache fallback v1) ─────────────────────
+  // När display_blocks_json är en tom Array (V2 explicit "ingen tid") men
+  // report_candidate_blocks_json har innehåll (t.ex. signal_gap/transport/
+  // unknown_place), bygg en syntetisk needs_review-array så mobilen kan visa
+  // segmenten som "Behöver granskas" i stället för en tom tidslinje.
+  //
+  // Detta är RENDER-fallback: ingen klassningsändring, ingen DB-mutation och
+  // ingen ändring av V2-policyn i selectCacheBlockSource. Endast mirror-svaret
+  // påverkas. Blocken är markerade `_provisionalFromCandidates: true`.
+  let mirrorFallback: {
+    applied: boolean;
+    reason: string;
+    candidateCount: number;
+    fallbackBlockCount: number;
+    droppedCount: number;
+  } = {
+    applied: false,
+    reason: "not_needed",
+    candidateCount: 0,
+    fallbackBlockCount: 0,
+    droppedCount: 0,
+  };
+  if (
+    effectiveCache &&
+    Array.isArray(effectiveCache.display_blocks_json) &&
+    (effectiveCache.display_blocks_json as unknown[]).length === 0 &&
+    Array.isArray(effectiveCache.report_candidate_blocks_json) &&
+    (effectiveCache.report_candidate_blocks_json as unknown[]).length > 0
+  ) {
+    const fb = buildNeedsReviewFallbackBlocks(
+      effectiveCache.report_candidate_blocks_json,
+    );
+    if (fb.blocks.length > 0) {
+      effectiveCache = {
+        ...effectiveCache,
+        display_blocks_json: fb.blocks,
+        diagnostics_json: {
+          ...(effectiveCache.diagnostics_json ?? {}),
+          mirrorFallback: {
+            reason: "v2_empty_with_candidates",
+            candidateCount: fb.candidateCount,
+            fallbackBlockCount: fb.blocks.length,
+            droppedCount: fb.droppedCount,
+          },
+        },
+      };
+      mirrorFallback = {
+        applied: true,
+        reason: "v2_empty_with_candidates",
+        candidateCount: fb.candidateCount,
+        fallbackBlockCount: fb.blocks.length,
+        droppedCount: fb.droppedCount,
+      };
+    } else {
+      mirrorFallback = {
+        applied: false,
+        reason: "v2_empty_with_candidates_but_all_dropped",
+        candidateCount: fb.candidateCount,
+        fallbackBlockCount: 0,
+        droppedCount: fb.droppedCount,
+      };
+    }
+  }
+
   // NOTE: workdays / active_time_registrations are intentionally NOT read here.
   const snapshot = buildMobileSnapshot({
     date,
@@ -376,6 +441,7 @@ Deno.serve(async (req: Request) => {
     liveEngineError,
     timerOwnership,
     gpsEvidence,
+    mirrorFallback,
   };
 
   console.info("[get-mobile-staff-day-report] mirror", {
