@@ -20,6 +20,7 @@ import { useAllTargetGeofences } from '@/hooks/useAllTargetGeofences';
 import RawGpsSatelliteMap from './RawGpsSatelliteMap';
 import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
 import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
+import { buildPlaceVisits, type KnownSite, type PlaceVisit } from '@/lib/staff/pingPlaceSegments';
 
 function dash(v: unknown): string {
   if (v === null || v === undefined || v === '') return '—';
