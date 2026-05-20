@@ -162,4 +162,14 @@ export interface MobileDayReport {
   lastUpdatedAt: string | null;
   /** Time Legacy Purge 4 — info-rad, ALDRIG arbetstid. */
   gpsEvidence?: MobileGpsEvidence | null;
+  /**
+   * Read-only mirror payload for mobile Gantt parity.
+   * Exponeras från get-mobile-staff-day-report så mobilen slipper ett extra
+   * skört live-anrop till get-staff-presence-day.
+   */
+  reportCandidateBlocks?: unknown[] | null;
+  displayTimelineBlocksV2?: unknown[] | null;
+  workdayAllocationSegments?: unknown[] | null;
+  presenceBlocks?: unknown[] | null;
+  targets?: unknown[] | null;
 }
