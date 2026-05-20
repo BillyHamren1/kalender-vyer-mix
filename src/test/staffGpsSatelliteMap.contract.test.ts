@@ -22,6 +22,7 @@ const FORBIDDEN = [
 
 const FILES = [
   'src/hooks/staff/useStaffGpsPingsForDay.ts',
+  'src/hooks/useDayKnownSites.ts',
   'src/components/staff/RawGpsSatelliteMap.tsx',
   'src/components/staff/StaffGpsSatelliteMap.tsx',
   'src/pages/StaffGpsSatelliteMap.tsx',
@@ -46,5 +47,13 @@ describe('GPS satellitkarta — isolation contract', () => {
   it('kartan använder satellit-style', () => {
     const src = readFileSync(resolve(process.cwd(), 'src/components/staff/RawGpsSatelliteMap.tsx'), 'utf8');
     expect(src).toContain('style="satellite"');
+  });
+
+  it('dagens known-sites hämtar targets via booking assignments + projektkopplingar', () => {
+    const src = readFileSync(resolve(process.cwd(), 'src/hooks/useDayKnownSites.ts'), 'utf8');
+    expect(src).toContain("from('booking_staff_assignments')");
+    expect(src).toContain('assigned_project_id');
+    expect(src).toContain("from('large_project_bookings')");
+    expect(src).toContain("select('team_id')");
   });
 });
