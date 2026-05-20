@@ -100,9 +100,11 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
   const pingsQuery = useStaffGpsPingsForDay(effectiveStaffId, dateStr);
   const pings: RawStaffGpsPing[] = pingsQuery.data ?? [];
 
-  // Geofences: alla org-platser + dagens targets (samma källa som GPS-motorn matchar mot).
+  // Geofences: alla org-platser + ALLA targets (projekt + stora projekt) med koordinater.
+  // Vi visar hela stängselparken oavsett vald person/dag.
   const { knownSites } = useDayKnownSites(effectiveStaffId ?? '', dateStr, !!effectiveStaffId);
   const { data: orgLocations = [] } = useOrganizationLocations();
+  const { data: allTargets = [] } = useAllTargetGeofences(showTargets);
   // Polygoner finns ENDAST på organization_locations. Mappa id → polygon
   // så vi kan attacha den till `loc:<id>`-sites utan att röra KnownSite-typen.
   const polygonByLocId = useMemo(() => {
@@ -113,21 +115,30 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     return m;
   }, [orgLocations]);
   const geofences = useMemo<GeofenceSite[]>(() => {
-    return knownSites
-      .filter((s) => {
-        const isLoc = s.id.startsWith('loc:');
-        if (isLoc) return showLocations;
-        return showTargets;
-      })
-      .map((s) => ({
-        id: s.id,
-        name: s.name,
-        lat: s.lat,
-        lng: s.lng,
+    const byId = new Map<string, GeofenceSite>();
+    // Lager 1: dagens kända platser (org + dagens targets) — fyller på namn/radie först
+    for (const s of knownSites) {
+      const isLoc = s.id.startsWith('loc:');
+      if (isLoc && !showLocations) continue;
+      if (!isLoc && !showTargets) continue;
+      byId.set(s.id, {
+        id: s.id, name: s.name, lat: s.lat, lng: s.lng,
         radiusMeters: s.radiusMeters,
         polygon: polygonByLocId.get(s.id),
-      }));
-  }, [knownSites, polygonByLocId, showLocations, showTargets]);
+      });
+    }
+    // Lager 2: alla targets (projekt + large_projects) — visa hela parken
+    if (showTargets) {
+      for (const s of allTargets) {
+        if (byId.has(s.id)) continue;
+        byId.set(s.id, {
+          id: s.id, name: s.name, lat: s.lat, lng: s.lng,
+          radiusMeters: s.radiusMeters,
+        });
+      }
+    }
+    return [...byId.values()];
+  }, [knownSites, allTargets, polygonByLocId, showLocations, showTargets]);
 
   const summary = useMemo(() => {
     if (!pings.length) return null;
