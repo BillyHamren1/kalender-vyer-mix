@@ -21,6 +21,13 @@ interface Props {
   visits?: PlaceVisit[];
   className?: string;
   /**
+   * När true: dölj rörelser UTANFÖR geofences och fokusera kartan på fence-
+   * området så bara INNANFÖR-rörelser syns. När false (default): tvärtom —
+   * dölj alla rörelser som ligger inom någon geofence; visa endast vägen
+   * mellan platserna.
+   */
+  showInsideFenceMoves?: boolean;
+  /**
    * Anropas när användaren sparar ny radie för en geofence från kartans popup.
    * id-prefix bestämmer mål: `loc:` → organization_locations,
    * `project:` → projects, `large:` → large_projects.
@@ -28,6 +35,7 @@ interface Props {
    */
   onSaveRadius?: (id: string, radiusMeters: number) => Promise<void>;
 }
+
 
 function formatHm(iso: string): string {
   const hms = formatStockholmHms(iso);
