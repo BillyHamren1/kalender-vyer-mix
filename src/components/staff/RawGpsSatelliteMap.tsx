@@ -3,6 +3,11 @@ import mapboxgl from 'mapbox-gl';
 import MapboxMap from '@/components/maps/MapboxMap';
 import type { RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
 import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
+import {
+  segmentPingsForDisplay,
+  colorForSegment,
+  type PingSegment,
+} from '@/lib/staff/segmentPingsForDisplay';
 
 interface Props {
   pings: RawStaffGpsPing[];
@@ -12,6 +17,14 @@ interface Props {
 function formatHm(iso: string): string {
   const hms = formatStockholmHms(iso);
   return hms.length >= 5 ? hms.slice(0, 5) : hms;
+}
+
+function formatDuration(ms: number): string {
+  const totalMin = Math.round(ms / 60_000);
+  if (totalMin < 60) return `${totalMin} min`;
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return m ? `${h}h ${m}m` : `${h}h`;
 }
 
 function dash(v: unknown): string {
@@ -39,6 +52,33 @@ function popupHtml(p: RawStaffGpsPing): string {
     .join('')}</div>`;
 }
 
+function stayPopupHtml(seg: Extract<PingSegment<RawStaffGpsPing>, { kind: 'stay' }>): string {
+  return `<div style="font:12px/1.4 system-ui;min-width:200px">
+    <div><b>Vistelse</b></div>
+    <div>${formatStockholmHms(seg.startIso)} – ${formatStockholmHms(seg.endIso)}</div>
+    <div><b>Längd:</b> ${formatDuration(seg.durationMs)}</div>
+    <div><b>Pings:</b> ${seg.pings.length}</div>
+    <div><b>Lat:</b> ${seg.lat.toFixed(6)}</div>
+    <div><b>Lng:</b> ${seg.lng.toFixed(6)}</div>
+  </div>`;
+}
+
+const LAYER_IDS = [
+  'gps-line-segments',
+  'gps-move-points',
+  'gps-move-labels',
+  'gps-stay-points',
+  'gps-stay-labels',
+  'gps-first',
+  'gps-last',
+];
+const SOURCE_IDS = [
+  'gps-line-src',
+  'gps-move-points-src',
+  'gps-stay-points-src',
+  'gps-endpoints-src',
+];
+
 export default function RawGpsSatelliteMap({ pings, className }: Props) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
@@ -55,59 +95,144 @@ export default function RawGpsSatelliteMap({ pings, className }: Props) {
 
   function renderLayers(map: mapboxgl.Map, data: RawStaffGpsPing[]) {
     const apply = () => {
-      for (const id of [
-        'gps-raw-points',
-        'gps-raw-line',
-        'gps-raw-first',
-        'gps-raw-last',
-        'gps-raw-time-labels',
-        'gps-raw-stays',
-        'gps-raw-stay-labels',
-        'gps-raw-clusters',
-        'gps-raw-cluster-count',
-        'gps-raw-cluster-span',
-      ]) {
-        if (map.getLayer(id)) map.removeLayer(id);
-      }
-      for (const id of [
-        'gps-raw-points-src',
-        'gps-raw-stays-src',
-        'gps-raw-line-src',
-        'gps-raw-endpoints-src',
-        'gps-raw-clusters-src',
-      ]) {
-        if (map.getSource(id)) map.removeSource(id);
-      }
+      for (const id of LAYER_IDS) if (map.getLayer(id)) map.removeLayer(id);
+      for (const id of SOURCE_IDS) if (map.getSource(id)) map.removeSource(id);
       if (!data.length) return;
 
-      const pointFeatures = data.map((p) => ({
-        type: 'Feature' as const,
-        geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] },
-        properties: {
-          id: p.id,
-          t: p.recorded_at,
-          label: formatHm(p.recorded_at),
-        },
-      }));
+      const segments = segmentPingsForDisplay(data);
 
-      map.addSource('gps-raw-points-src', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: pointFeatures },
-      });
-      map.addSource('gps-raw-line-src', {
-        type: 'geojson',
-        data: {
-          type: 'Feature',
+      // ── Line features per segment (alla pings ritas) ──────────────
+      const lineFeatures = segments
+        .filter((s) => s.kind === 'move' && s.pings.length >= 2)
+        .map((s) => ({
+          type: 'Feature' as const,
           geometry: {
-            type: 'LineString',
-            coordinates: data.map((p) => [p.lng, p.lat]),
+            type: 'LineString' as const,
+            coordinates: s.pings.map((p) => [p.lng, p.lat]),
           },
-          properties: {},
+          properties: { color: colorForSegment(s.colorIndex, 'move') },
+        }));
+
+      map.addSource('gps-line-src', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: lineFeatures },
+      });
+      map.addLayer({
+        id: 'gps-line-segments',
+        type: 'line',
+        source: 'gps-line-src',
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': 3,
+          'line-opacity': 0.85,
+        },
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+      });
+
+      // ── Move-label points (var ~5 min) ────────────────────────────
+      const moveLabelFeatures: any[] = [];
+      for (const s of segments) {
+        if (s.kind !== 'move') continue;
+        const color = colorForSegment(s.colorIndex, 'move');
+        for (const p of s.labelPings) {
+          moveLabelFeatures.push({
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
+            properties: {
+              id: p.id,
+              color,
+              label: formatHm(p.recorded_at),
+            },
+          });
+        }
+      }
+      map.addSource('gps-move-points-src', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: moveLabelFeatures },
+      });
+      map.addLayer({
+        id: 'gps-move-points',
+        type: 'circle',
+        source: 'gps-move-points-src',
+        paint: {
+          'circle-radius': 5,
+          'circle-color': ['get', 'color'],
+          'circle-stroke-color': '#0f172a',
+          'circle-stroke-width': 1,
         },
       });
+      map.addLayer({
+        id: 'gps-move-labels',
+        type: 'symbol',
+        source: 'gps-move-points-src',
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-size': 11,
+          'text-offset': [0, -1.2],
+          'text-anchor': 'bottom',
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+        },
+        paint: {
+          'text-color': '#fff',
+          'text-halo-color': '#0f172a',
+          'text-halo-width': 1.5,
+        },
+      });
+
+      // ── Stay markers ───────────────────────────────────────────────
+      const stayFeatures: any[] = [];
+      for (const s of segments) {
+        if (s.kind !== 'stay') continue;
+        stayFeatures.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
+          properties: {
+            index: s.index,
+            color: colorForSegment(s.colorIndex, 'stay'),
+            label: `${formatHm(s.startIso)}–${formatHm(s.endIso)} · ${formatDuration(s.durationMs)}`,
+          },
+        });
+      }
+      map.addSource('gps-stay-points-src', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: stayFeatures },
+      });
+      map.addLayer({
+        id: 'gps-stay-points',
+        type: 'circle',
+        source: 'gps-stay-points-src',
+        paint: {
+          'circle-radius': 10,
+          'circle-color': ['get', 'color'],
+          'circle-stroke-color': '#fff',
+          'circle-stroke-width': 2,
+          'circle-opacity': 0.9,
+        },
+      });
+      map.addLayer({
+        id: 'gps-stay-labels',
+        type: 'symbol',
+        source: 'gps-stay-points-src',
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-size': 12,
+          'text-offset': [0, -1.6],
+          'text-anchor': 'bottom',
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+        },
+        paint: {
+          'text-color': '#fff',
+          'text-halo-color': '#0f172a',
+          'text-halo-width': 2,
+        },
+      });
+
+      // ── Start/slut-markörer ────────────────────────────────────────
       const first = data[0];
       const last = data[data.length - 1];
-      map.addSource('gps-raw-endpoints-src', {
+      map.addSource('gps-endpoints-src', {
         type: 'geojson',
         data: {
           type: 'FeatureCollection',
@@ -125,61 +250,28 @@ export default function RawGpsSatelliteMap({ pings, className }: Props) {
           ],
         },
       });
-
       map.addLayer({
-        id: 'gps-raw-line',
-        type: 'line',
-        source: 'gps-raw-line-src',
-        paint: { 'line-color': '#22d3ee', 'line-width': 2, 'line-opacity': 0.7 },
-      });
-
-      map.addLayer({
-        id: 'gps-raw-points',
+        id: 'gps-first',
         type: 'circle',
-        source: 'gps-raw-points-src',
-        paint: {
-          'circle-radius': 5,
-          'circle-color': '#38bdf8',
-          'circle-stroke-color': '#0f172a',
-          'circle-stroke-width': 1,
-        },
-      });
-      map.addLayer({
-        id: 'gps-raw-time-labels',
-        type: 'symbol',
-        source: 'gps-raw-points-src',
-        layout: {
-          'text-field': ['get', 'label'],
-          'text-size': 11,
-          'text-offset': [0, -1.2],
-          'text-anchor': 'bottom',
-          'text-allow-overlap': true,
-          'text-ignore-placement': true,
-        },
-        paint: {
-          'text-color': '#fff',
-          'text-halo-color': '#0f172a',
-          'text-halo-width': 1.5,
-        },
-      });
-
-      map.addLayer({
-        id: 'gps-raw-first',
-        type: 'circle',
-        source: 'gps-raw-endpoints-src',
+        source: 'gps-endpoints-src',
         filter: ['==', ['get', 'kind'], 'first'],
         paint: { 'circle-radius': 9, 'circle-color': '#16a34a', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 },
       });
       map.addLayer({
-        id: 'gps-raw-last',
+        id: 'gps-last',
         type: 'circle',
-        source: 'gps-raw-endpoints-src',
+        source: 'gps-endpoints-src',
         filter: ['==', ['get', 'kind'], 'last'],
         paint: { 'circle-radius': 9, 'circle-color': '#dc2626', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 },
       });
 
+      // ── Klick: visa popup ──────────────────────────────────────────
       const pingById = new Map(data.map((p) => [p.id, p]));
-      map.on('click', 'gps-raw-points', (e) => {
+      const stayByIndex = new Map(
+        segments.filter((s) => s.kind === 'stay').map((s) => [s.index, s as Extract<PingSegment<RawStaffGpsPing>, { kind: 'stay' }>]),
+      );
+
+      map.on('click', 'gps-move-points', (e) => {
         const f = e.features?.[0];
         if (!f) return;
         const id = String((f.properties as any)?.id ?? '');
@@ -191,8 +283,22 @@ export default function RawGpsSatelliteMap({ pings, className }: Props) {
           .setHTML(popupHtml(p))
           .addTo(map);
       });
-      map.on('mouseenter', 'gps-raw-points', () => (map.getCanvas().style.cursor = 'pointer'));
-      map.on('mouseleave', 'gps-raw-points', () => (map.getCanvas().style.cursor = ''));
+      map.on('click', 'gps-stay-points', (e) => {
+        const f = e.features?.[0];
+        if (!f) return;
+        const idx = Number((f.properties as any)?.index);
+        const seg = stayByIndex.get(idx);
+        if (!seg) return;
+        popupRef.current?.remove();
+        popupRef.current = new mapboxgl.Popup({ closeButton: true })
+          .setLngLat([seg.lng, seg.lat])
+          .setHTML(stayPopupHtml(seg))
+          .addTo(map);
+      });
+      for (const layer of ['gps-move-points', 'gps-stay-points']) {
+        map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
+        map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
+      }
 
       const bounds = new mapboxgl.LngLatBounds();
       data.forEach((p) => bounds.extend([p.lng, p.lat]));
