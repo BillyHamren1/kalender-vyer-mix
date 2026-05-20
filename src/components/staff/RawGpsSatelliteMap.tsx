@@ -76,6 +76,7 @@ const LAYER_IDS = [
   'geofence-outline',
   'geofence-label',
   'gps-line-segments',
+  'gps-line-arrows',
   'gps-move-points',
   'gps-move-labels',
   'gps-stay-points',
