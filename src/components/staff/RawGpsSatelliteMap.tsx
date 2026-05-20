@@ -4,12 +4,17 @@ import MapboxMap from '@/components/maps/MapboxMap';
 import type { RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
 import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
 import { downsamplePingsByBucket } from '@/lib/staff/downsamplePingsByBucket';
+import { groupPingsByStay, type StayMarker } from '@/lib/staff/groupPingsByStay';
 
 interface Props {
   pings: RawStaffGpsPing[];
   className?: string;
   /** Bucket window in minutes (default 5). */
   bucketMinutes?: number;
+  /** Min span before a same-location group collapses into a stay marker. Default 20 min. */
+  stayMinMinutes?: number;
+  /** Radius for considering consecutive pings as same stay. Default 60 m. */
+  stayRadiusMeters?: number;
 }
 
 function formatHm(iso: string): string {
@@ -43,7 +48,13 @@ function popupHtml(p: RawStaffGpsPing): string {
     .join('')}</div>`;
 }
 
-export default function RawGpsSatelliteMap({ pings, className, bucketMinutes = 5 }: Props) {
+export default function RawGpsSatelliteMap({
+  pings,
+  className,
+  bucketMinutes = 5,
+  stayMinMinutes = 20,
+  stayRadiusMeters = 60,
+}: Props) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
 
@@ -52,15 +63,24 @@ export default function RawGpsSatelliteMap({ pings, className, bucketMinutes = 5
     [pings, bucketMinutes],
   );
 
+  const markers = useMemo(
+    () =>
+      groupPingsByStay(sampled, {
+        minStayMs: stayMinMinutes * 60 * 1000,
+        radiusMeters: stayRadiusMeters,
+      }),
+    [sampled, stayMinMinutes, stayRadiusMeters],
+  );
+
   const handleReady = (map: mapboxgl.Map) => {
     mapRef.current = map;
-    renderLayers(map, sampled);
+    renderLayers(map, sampled, markers);
   };
 
   useEffect(() => {
-    if (mapRef.current) renderLayers(mapRef.current, sampled);
+    if (mapRef.current) renderLayers(mapRef.current, sampled, markers);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sampled]);
+  }, [sampled, markers]);
 
   function renderLayers(map: mapboxgl.Map, data: RawStaffGpsPing[]) {
     const apply = () => {
