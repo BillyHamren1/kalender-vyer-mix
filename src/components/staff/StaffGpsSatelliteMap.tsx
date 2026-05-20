@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { fetchStaffMembers } from '@/services/staffService';
+import { supabase } from '@/integrations/supabase/client';
 import { useStaffGpsPingsForDay, type RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
 import RawGpsSatelliteMap from './RawGpsSatelliteMap';
 import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
@@ -20,6 +21,8 @@ function dash(v: unknown): string {
   return String(v);
 }
 
+type FilterMode = 'both' | 'assigned' | 'pinged' | 'all';
+
 interface Props {
   initialStaffId?: string | null;
   initialDate?: string | null;
@@ -28,6 +31,7 @@ interface Props {
 export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Props) {
   const [staffId, setStaffId] = useState<string | null>(initialStaffId ?? null);
   const [date, setDate] = useState<Date>(initialDate ? new Date(initialDate) : new Date());
+  const [filterMode, setFilterMode] = useState<FilterMode>('both');
 
   const dateStr = format(date, 'yyyy-MM-dd');
 
@@ -37,11 +41,58 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     staleTime: 5 * 60_000,
   });
 
-  const staff = staffQuery.data ?? [];
-  const effectiveStaffId = staffId ?? staff[0]?.id ?? null;
+  // Vilka är assignade den valda dagen?
+  const assignedQuery = useQuery({
+    queryKey: ['gps-map-assigned-ids', dateStr],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('staff_assignments')
+        .select('staff_id')
+        .eq('assignment_date', dateStr);
+      if (error) throw error;
+      return new Set((data ?? []).map((r: any) => String(r.staff_id)));
+    },
+  });
+
+  // Vilka har pingat den valda dagen?
+  const pingedQuery = useQuery({
+    queryKey: ['gps-map-pinged-ids', dateStr],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const startIso = `${dateStr}T00:00:00.000Z`;
+      const endIso = `${dateStr}T23:59:59.999Z`;
+      const { data, error } = await supabase
+        .from('staff_location_history')
+        .select('staff_id')
+        .gte('recorded_at', startIso)
+        .lte('recorded_at', endIso)
+        .limit(50000);
+      if (error) throw error;
+      return new Set((data ?? []).map((r: any) => String(r.staff_id)));
+    },
+  });
+
+  const allStaff = staffQuery.data ?? [];
+  const assignedSet = assignedQuery.data ?? new Set<string>();
+  const pingedSet = pingedQuery.data ?? new Set<string>();
+
+  const staff = useMemo(() => {
+    if (filterMode === 'all') return allStaff;
+    return allStaff.filter((s) => {
+      const a = assignedSet.has(s.id);
+      const p = pingedSet.has(s.id);
+      if (filterMode === 'assigned') return a;
+      if (filterMode === 'pinged') return p;
+      return a || p; // both
+    });
+  }, [allStaff, assignedSet, pingedSet, filterMode]);
+
+  const effectiveStaffId = staff.some((s) => s.id === staffId) ? staffId : (staff[0]?.id ?? null);
 
   const pingsQuery = useStaffGpsPingsForDay(effectiveStaffId, dateStr);
   const pings: RawStaffGpsPing[] = pingsQuery.data ?? [];
+
 
   const summary = useMemo(() => {
     if (!pings.length) return null;
@@ -64,16 +115,45 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">Person</label>
           <Select value={effectiveStaffId ?? ''} onValueChange={(v) => setStaffId(v)}>
-            <SelectTrigger className="w-[240px]">
+            <SelectTrigger className="w-[260px]">
               <SelectValue placeholder="Välj person" />
             </SelectTrigger>
             <SelectContent>
-              {staff.map((s) => (
-                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-              ))}
+              {staff.length === 0 && (
+                <div className="px-2 py-2 text-xs text-muted-foreground">Ingen matchar filtret.</div>
+              )}
+              {staff.map((s) => {
+                const a = assignedSet.has(s.id);
+                const p = pingedSet.has(s.id);
+                return (
+                  <SelectItem key={s.id} value={s.id}>
+                    <span className="flex items-center gap-2">
+                      <span>{s.name}</span>
+                      {a && <Badge variant="secondary" className="h-4 px-1 text-[10px]">Ass</Badge>}
+                      {p && <Badge variant="outline" className="h-4 px-1 text-[10px]">GPS</Badge>}
+                    </span>
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-muted-foreground">Visa</label>
+          <Select value={filterMode} onValueChange={(v) => setFilterMode(v as FilterMode)}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="both">Assignade el. pingade</SelectItem>
+              <SelectItem value="assigned">Endast assignade</SelectItem>
+              <SelectItem value="pinged">Endast pingade</SelectItem>
+              <SelectItem value="all">Alla</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
 
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">Datum</label>
