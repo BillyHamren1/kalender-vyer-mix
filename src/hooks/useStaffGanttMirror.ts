@@ -9,6 +9,7 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { callStaffSnapshotFunction } from '@/services/staffSnapshotApi';
 import { normalizeCalendarPhase } from '@/lib/staff/ganttPhaseColor';
 import {
   buildStaffGanttMirrorBlocks,
