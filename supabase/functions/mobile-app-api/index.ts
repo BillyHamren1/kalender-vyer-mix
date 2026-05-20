@@ -48,6 +48,25 @@ function verifyToken(token: string): { valid: boolean; staffId?: string; issuedA
   }
 }
 
+async function resolveJwtUserId(
+  verifier: ReturnType<typeof createClient>,
+  jwt: string,
+): Promise<string | null> {
+  const authApi = verifier.auth as typeof verifier.auth & {
+    getClaims?: (token?: string) => Promise<{ data: { claims?: { sub?: string } } | null; error: { message?: string } | null }>;
+  };
+
+  if (typeof authApi.getClaims === 'function') {
+    const { data: claimsData, error: claimsErr } = await authApi.getClaims(jwt)
+    if (claimsErr) return null
+    return claimsData?.claims?.sub ?? null
+  }
+
+  const { data: userData, error: userErr } = await verifier.auth.getUser(jwt)
+  if (userErr) return null
+  return userData.user?.id ?? null
+}
+
 /**
  * Decide whether a verified token should be rotated. We rotate when:
  *  - the token is older than REFRESH_THRESHOLD_HOURS since issuance, OR
@@ -458,14 +477,13 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
       const verifier = createClient(supabaseUrl, anonKey, {
         global: { headers: { Authorization: authHeader } },
       })
-      const { data: claimsData, error: claimsErr } = await verifier.auth.getClaims(jwt)
-      if (claimsErr || !claimsData?.claims?.sub) {
+      const webUserId = await resolveJwtUserId(verifier, jwt)
+      if (!webUserId) {
         return new Response(
           JSON.stringify({ error: 'Invalid web session' }),
           { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
-      const webUserId: string = claimsData.claims.sub
       // Try to map to a staff_member row; if none, use user_id as the staffId-equivalent
       const { data: sm } = await supabase
         .from('staff_members')
