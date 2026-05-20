@@ -595,9 +595,11 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
             index: s.index,
             color: colorForSegment(s.colorIndex, 'stay'),
             label: `${formatHm(s.startIso)}–${formatHm(s.endIso)} · ${formatDuration(s.durationMs)}`,
+            insideFence: pingInsideAnyFence({ lat: s.lat, lng: s.lng }, fences),
           },
         });
       }
+
       map.addSource('gps-stay-points-src', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: stayFeatures },
