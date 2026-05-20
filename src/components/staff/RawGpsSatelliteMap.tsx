@@ -297,10 +297,30 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         source: 'gps-line-src',
         paint: {
           'line-color': ['get', 'color'],
-          'line-width': 3,
-          'line-opacity': 0.85,
+          'line-width': 3.5,
+          'line-opacity': 0.9,
         },
         layout: { 'line-cap': 'round', 'line-join': 'round' },
+      });
+      // Riktningspilar längs varje resa (▶ följer linjeriktningen).
+      map.addLayer({
+        id: 'gps-line-arrows',
+        type: 'symbol',
+        source: 'gps-line-src',
+        layout: {
+          'symbol-placement': 'line',
+          'symbol-spacing': 80,
+          'text-field': '▶',
+          'text-size': 14,
+          'text-keep-upright': false,
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+        },
+        paint: {
+          'text-color': ['get', 'color'],
+          'text-halo-color': '#0f172a',
+          'text-halo-width': 1.5,
+        },
       });
 
       // ── Move-label points (var ~5 min) ────────────────────────────
