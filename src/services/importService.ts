@@ -69,21 +69,10 @@ export interface ImportFilters {
 
 const resolveImportOrganizationId = async (): Promise<string | null> => {
   try {
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) return null;
-
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('organization_id')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    if (profileError) {
-      console.warn('Could not resolve organization_id for import:', profileError);
-      return null;
-    }
-
-    return profile?.organization_id ?? null;
+    // Dynamic import keeps this service free of React import cycle, but reuses
+    // the shared in-memory cache used by hooks/components.
+    const { getOrganizationId } = await import('@/hooks/useOrganizationId');
+    return await getOrganizationId();
   } catch (error) {
     console.warn('Could not resolve organization_id for import:', error);
     return null;
