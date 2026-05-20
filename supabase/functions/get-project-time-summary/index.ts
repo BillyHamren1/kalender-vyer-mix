@@ -12,6 +12,25 @@ import {
   type PtmTravelLog,
 } from '../_shared/projectTimeModel.ts';
 
+async function resolveJwtUserId(
+  supabase: ReturnType<typeof createClient>,
+  token: string,
+): Promise<string | null> {
+  const authApi = supabase.auth as typeof supabase.auth & {
+    getClaims?: (jwt?: string) => Promise<{ data: { claims?: { sub?: string } } | null; error: { message?: string } | null }>;
+  };
+
+  if (typeof authApi.getClaims === 'function') {
+    const { data: claims, error: cErr } = await authApi.getClaims(token);
+    if (cErr) return null;
+    return claims?.claims?.sub ?? null;
+  }
+
+  const { data: userData, error: userErr } = await supabase.auth.getUser(token);
+  if (userErr) return null;
+  return userData.user?.id ?? null;
+}
+
 interface Body {
   project_type: 'booking' | 'large_project' | 'location';
   project_id: string;
@@ -39,8 +58,8 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } },
     );
 
-    const { data: claims, error: cErr } = await supabase.auth.getClaims(authHeader.replace('Bearer ', ''));
-    if (cErr || !claims?.claims) return json({ error: 'Unauthorized' }, 401);
+    const userId = await resolveJwtUserId(supabase, authHeader.replace('Bearer ', ''));
+    if (!userId) return json({ error: 'Unauthorized' }, 401);
 
     const body = (await req.json()) as Body;
     if (!body?.project_type || !body?.project_id) {
