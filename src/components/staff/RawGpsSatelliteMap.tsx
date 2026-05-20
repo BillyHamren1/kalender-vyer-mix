@@ -141,12 +141,14 @@ const SOURCE_IDS = [
 
 const ZOOM_DETAIL_THRESHOLD = 14;
 
-export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [], className, onSaveRadius }: Props) {
+export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [], className, onSaveRadius, showInsideFenceMoves = false }: Props) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
   const onSaveRadiusRef = useRef<Props['onSaveRadius']>(onSaveRadius);
   onSaveRadiusRef.current = onSaveRadius;
   const visitMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; el: HTMLElement; kind: 'compact' | 'detail' }>>([]);
+  const showInsideRef = useRef<boolean>(showInsideFenceMoves);
+  showInsideRef.current = showInsideFenceMoves;
 
   const handleReady = (map: mapboxgl.Map) => {
     mapRef.current = map;
@@ -165,12 +167,28 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visits]);
 
+  // När toggeln byts: applicera nytt filter direkt och fokusera om kartan.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    applyFenceFilter();
+    applyZoomVisibility();
+    if (showInsideFenceMoves && geofences.length) {
+      try {
+        const b = new mapboxgl.LngLatBounds();
+        geofences.forEach((f) => b.extend([f.lng, f.lat]));
+        map.fitBounds(b, { padding: 80, duration: 500, maxZoom: 17 });
+      } catch { /* ignore */ }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showInsideFenceMoves]);
+
   function clearVisitMarkers() {
     for (const m of visitMarkersRef.current) m.marker.remove();
     visitMarkersRef.current = [];
   }
 
-  // Layers vars rörelse-features kan vara "inside fence" — döljs i inzoomat läge.
+  // Layers vars rörelse-features taggas med `insideFence` och kan filtreras.
   const FENCE_HIDEABLE_LAYERS = [
     'gps-line-segments',
     'gps-line-arrows',
@@ -180,6 +198,24 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     'gps-stay-labels',
   ];
 
+  function applyFenceFilter() {
+    const map = mapRef.current;
+    if (!map) return;
+    const showInside = showInsideRef.current;
+    for (const lid of FENCE_HIDEABLE_LAYERS) {
+      if (!map.getLayer(lid)) continue;
+      try {
+        if (showInside) {
+          // Inside-läge: visa BARA features inom någon geofence.
+          map.setFilter(lid, ['==', ['get', 'insideFence'], true] as any);
+        } else {
+          // Standard: visa BARA features utanför geofences.
+          map.setFilter(lid, ['!=', ['get', 'insideFence'], true] as any);
+        }
+      } catch { /* ignore */ }
+    }
+  }
+
   function applyZoomVisibility() {
     const map = mapRef.current;
     if (!map) return;
@@ -188,18 +224,9 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       const shouldShow = kind === 'detail' ? detailed : !detailed;
       el.style.display = shouldShow ? '' : 'none';
     }
-    // Dölj rörelse-features som ligger inuti någon geofence när vi är inzoomade.
-    for (const lid of FENCE_HIDEABLE_LAYERS) {
-      if (!map.getLayer(lid)) continue;
-      try {
-        if (detailed) {
-          map.setFilter(lid, ['!=', ['get', 'insideFence'], true] as any);
-        } else {
-          map.setFilter(lid, null as any);
-        }
-      } catch { /* ignore */ }
-    }
   }
+
+
 
 
   function renderVisitMarkers(map: mapboxgl.Map, vs: PlaceVisit[]) {
