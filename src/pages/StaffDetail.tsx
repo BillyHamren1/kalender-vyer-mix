@@ -239,6 +239,39 @@ const StaffDetail: React.FC = () => {
                   </label>
                 </div>
               </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center space-x-2 px-3 py-1.5 rounded-lg border border-border bg-muted/30">
+                    <Checkbox
+                      id="employment-type-header"
+                      checked={staffMember.employment_type === 'contracted'}
+                      onCheckedChange={(checked) => handleFieldSave('employment_type', checked ? 'contracted' : 'employed')}
+                      className="h-5 w-5 border-2"
+                    />
+                    <label htmlFor="employment-type-header" className="text-sm font-medium cursor-pointer select-none">
+                      Inhyrd personal
+                    </label>
+                  </div>
+                  {staffMember.employment_type === 'contracted' && (
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-muted/30">
+                      <Building className="h-4 w-4 text-muted-foreground" />
+                      <Select
+                        value={(staffMember as any).hired_from_supplier_id ?? 'none'}
+                        onValueChange={(val) => handleFieldSave('hired_from_supplier_id', val === 'none' ? '' : val)}
+                      >
+                        <SelectTrigger className="h-8 min-w-[200px] border-0 bg-transparent px-1 text-sm font-medium focus:ring-0">
+                          <SelectValue placeholder="Välj företag..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Inget företag valt</SelectItem>
+                          {suppliers.map((s: any) => (
+                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              </div>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 {(staffMember as any).tags?.map((tag: string) => (
                   <Badge key={tag} variant="default" className="text-xs">{tag}</Badge>
@@ -249,10 +282,13 @@ const StaffDetail: React.FC = () => {
                 {staffMember.department && (
                   <Badge variant="outline">{staffMember.department}</Badge>
                 )}
+                {staffMember.employment_type === 'contracted' && (staffMember as any).hired_from_supplier_id && (
+                  <Badge variant="outline" className="gap-1">
+                    <Building className="h-3 w-3" />
+                    Inhyrd från {suppliers.find((s: any) => s.id === (staffMember as any).hired_from_supplier_id)?.name ?? '...'}
+                  </Badge>
+                )}
               </div>
-            </div>
-          </div>
-        </div>
       </div>
 
       <Tabs defaultValue="info" className="flex-1 flex flex-col overflow-hidden">
