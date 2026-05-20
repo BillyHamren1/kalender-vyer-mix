@@ -41,6 +41,38 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
   const [showTargets, setShowTargets] = useState(true);
 
   const dateStr = format(date, 'yyyy-MM-dd');
+  const queryClient = useQueryClient();
+
+  const saveRadius = useCallback(async (id: string, radiusMeters: number) => {
+    const [prefix, rawId] = id.split(':');
+    if (!rawId) throw new Error('Ogiltigt geofence-id');
+    if (prefix === 'loc') {
+      const { error } = await supabase
+        .from('organization_locations')
+        .update({ radius_meters: radiusMeters })
+        .eq('id', rawId);
+      if (error) throw error;
+    } else if (prefix === 'project') {
+      const { error } = await supabase
+        .from('projects')
+        .update({ address_radius_meters: radiusMeters })
+        .eq('id', rawId);
+      if (error) throw error;
+    } else if (prefix === 'large') {
+      const { error } = await supabase
+        .from('large_projects')
+        .update({ address_radius_meters: radiusMeters })
+        .eq('id', rawId);
+      if (error) throw error;
+    } else {
+      throw new Error(`Radie kan inte sparas för ${prefix}`);
+    }
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['day-known-sites'] }),
+      queryClient.invalidateQueries({ queryKey: ['organization-locations'] }),
+    ]);
+  }, [queryClient]);
+
 
   const staffQuery = useQuery({
     queryKey: ['staff-members-all-gps-map'],
