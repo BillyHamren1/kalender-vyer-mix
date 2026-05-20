@@ -2087,6 +2087,14 @@ const StaffTimeReports: React.FC = () => {
         </button>
         <button
           type="button"
+          onClick={() => navigate(`/staff-management/gps-satellite-map?date=${dateStr}`)}
+          className="flex items-center gap-1 rounded-full bg-secondary text-secondary-foreground px-3 py-1.5 text-xs shadow-lg hover:opacity-90"
+          title="Öppna rå GPS-satellitkarta"
+        >
+          🛰 GPS-karta
+        </button>
+        <button
+          type="button"
           onClick={handleExportTrace}
           disabled={exportingTrace || !canExportTrace}
           className="flex items-center gap-1 rounded-full bg-secondary text-secondary-foreground px-3 py-1.5 text-xs shadow-lg hover:opacity-90 disabled:opacity-60"
