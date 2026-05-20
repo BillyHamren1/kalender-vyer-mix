@@ -15,6 +15,7 @@ import {
   buildStaffGanttMirrorBlocks,
   type BuildStaffGanttMirrorResult,
 } from '@/lib/staff/buildStaffGanttMirrorBlocks';
+import type { MobileDayReport } from '@/types/mobileDayReport';
 
 interface PhaseMaps {
   bookingPhaseByDate: Record<string, 'rig' | 'event' | 'rigdown'>;
@@ -81,13 +82,10 @@ export function useStaffGanttMirror(opts: UseStaffGanttMirrorOptions) {
     queryKey: ['mobile-staff-gantt-mirror', 'presence', staffId, date],
     enabled: enabled && !!staffId && !!date,
     queryFn: async () => {
-      const data = await callStaffSnapshotFunction<any>('get-staff-presence-day', {
+      const data = await callStaffSnapshotFunction<MobileDayReport>('get-mobile-staff-day-report', {
         staffId,
         date,
       });
-      if (data && data.ok === false) {
-        throw new Error(data.error ?? 'presence_day_failed');
-      }
       return data;
     },
     staleTime: 30_000,
@@ -115,11 +113,11 @@ export function useStaffGanttMirror(opts: UseStaffGanttMirrorOptions) {
       staffName: staffName ?? '',
       dateStr: date,
       presenceDay: {
-        reportCandidateBlocks: presenceQuery.data.reportCandidateBlocks,
-        displayTimelineBlocksV2: presenceQuery.data.displayTimelineBlocksV2,
-        workdayAllocationSegments: presenceQuery.data.workdayAllocationSegments,
-        presenceBlocks: presenceQuery.data.presenceBlocks,
-        targets: presenceQuery.data.targets,
+        reportCandidateBlocks: (presenceQuery.data as any).reportCandidateBlocks,
+        displayTimelineBlocksV2: (presenceQuery.data as any).displayTimelineBlocksV2,
+        workdayAllocationSegments: (presenceQuery.data as any).workdayAllocationSegments,
+        presenceBlocks: (presenceQuery.data as any).presenceBlocks,
+        targets: (presenceQuery.data as any).targets,
       },
       bookingPhaseByDate: phaseQuery.data?.bookingPhaseByDate,
       largeProjectPhaseByDate: phaseQuery.data?.largeProjectPhaseByDate,

@@ -84,4 +84,16 @@ export interface MobileDayReport {
   submission: MobileSubmission | null;
   trackingPolicy: MobileTrackingPolicy | null;
   lastUpdatedAt: string | null;
+  gpsEvidence?: {
+    hasGpsEvidenceButNoRenderedWork: boolean;
+    gpsEvidenceStartAt: string | null;
+    gpsEvidenceEndAt: string | null;
+    rawPingCount: number;
+    reasonNoWorkRendered: string | null;
+  } | null;
+  reportCandidateBlocks?: unknown[] | null;
+  displayTimelineBlocksV2?: unknown[] | null;
+  workdayAllocationSegments?: unknown[] | null;
+  presenceBlocks?: unknown[] | null;
+  targets?: unknown[] | null;
 }

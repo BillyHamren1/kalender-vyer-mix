@@ -255,6 +255,7 @@ Deno.serve(async (req: Request) => {
   let debugSource: DebugSource = cache ? "cache" : "missing";
   let liveEngineError: string | null = null;
   let effectiveCache: CacheRow | null = cache;
+  let livePresenceRaw: any = null;
 
   if (cacheUnusable) {
     const live = await fetchLiveEngineAsCacheRow(staffId, orgId, date);
@@ -264,6 +265,7 @@ Deno.serve(async (req: Request) => {
       effectiveCache = live.row;
       debugSource = "live_engine";
       liveEngineError = live.error;
+      livePresenceRaw = live.raw;
     } else if (!cache) {
       debugSource = live.error ? "missing_engine_result" : "missing";
       liveEngineError = live.error;
@@ -380,5 +382,26 @@ Deno.serve(async (req: Request) => {
     staffId, date, ...debug,
   });
 
-  return jsonResponse({ ...snapshot, gpsEvidence, debug });
+  return jsonResponse({
+    ...snapshot,
+    gpsEvidence,
+    reportCandidateBlocks: Array.isArray(livePresenceRaw?.reportCandidateBlocks)
+      ? livePresenceRaw.reportCandidateBlocks
+      : (effectiveCache?.report_candidate_blocks_json ?? null),
+    displayTimelineBlocksV2: Array.isArray(livePresenceRaw?.displayTimelineBlocksV2)
+      ? livePresenceRaw.displayTimelineBlocksV2
+      : (Array.isArray(effectiveCache?.display_blocks_json) ? effectiveCache?.display_blocks_json : null),
+    workdayAllocationSegments: Array.isArray(livePresenceRaw?.workdayAllocationSegments)
+      ? livePresenceRaw.workdayAllocationSegments
+      : (Array.isArray(effectiveCache?.workday_allocation_segments_json)
+        ? effectiveCache?.workday_allocation_segments_json
+        : null),
+    presenceBlocks: Array.isArray(livePresenceRaw?.presenceBlocks)
+      ? livePresenceRaw.presenceBlocks
+      : null,
+    targets: Array.isArray(livePresenceRaw?.targets)
+      ? livePresenceRaw.targets
+      : null,
+    debug,
+  });
 });
