@@ -149,7 +149,8 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     const asPings = pings.map(p => ({
       lat: p.lat, lng: p.lng, recorded_at: p.recorded_at, accuracy: p.accuracy ?? null,
     }));
-    return buildPlaceVisits(asPings, knownSites).filter(v => v.knownSite);
+    // Vistelse = minst 20 minuter på samma kända plats. Kortare stopp visas inte som vistelse.
+    return buildPlaceVisits(asPings, knownSites).filter(v => v.knownSite && v.durationMin >= 20);
   }, [pings, knownSites]);
 
   return (
