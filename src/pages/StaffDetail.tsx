@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ArrowLeft, Calendar, Clock, Banknote, Coins, User, Plus, Mail, Phone, MapPin, Briefcase, AlertTriangle, FileText, Building, CalendarCheck, Key, Copy, Eye, EyeOff, Shirt, Upload, Trash2, Car } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import StaffAccountCard from '@/components/staff/StaffAccountCard';
 import StaffAvailabilityDialog from '@/components/staff/StaffAvailabilityDialog';
 import { supabase } from '@/integrations/supabase/client';
@@ -41,6 +42,20 @@ const StaffDetail: React.FC = () => {
       return data;
     },
     enabled: !!staffId
+  });
+
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ['suppliers-for-staff', staffMember?.organization_id],
+    enabled: !!staffMember?.organization_id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('suppliers')
+        .select('id, name')
+        .eq('organization_id', staffMember!.organization_id)
+        .order('name', { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   const handleTimeReportSubmit = () => {
@@ -210,7 +225,7 @@ const StaffDetail: React.FC = () => {
               {staffMember.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
             </div>
             <div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-3xl font-bold">{staffMember.name}</h1>
                 <div className="flex items-center space-x-2 px-3 py-1.5 rounded-lg border border-border bg-muted/30">
                   <Checkbox
@@ -223,6 +238,25 @@ const StaffDetail: React.FC = () => {
                     Inhyrd personal
                   </label>
                 </div>
+                {staffMember.employment_type === 'contracted' && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-muted/30">
+                    <Building className="h-4 w-4 text-muted-foreground" />
+                    <Select
+                      value={(staffMember as any).hired_from_supplier_id ?? 'none'}
+                      onValueChange={(val) => handleFieldSave('hired_from_supplier_id', val === 'none' ? '' : val)}
+                    >
+                      <SelectTrigger className="h-8 min-w-[200px] border-0 bg-transparent px-1 text-sm font-medium focus:ring-0">
+                        <SelectValue placeholder="Välj företag..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Inget företag valt</SelectItem>
+                        {suppliers.map((s: any) => (
+                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 {(staffMember as any).tags?.map((tag: string) => (
@@ -233,6 +267,12 @@ const StaffDetail: React.FC = () => {
                 )}
                 {staffMember.department && (
                   <Badge variant="outline">{staffMember.department}</Badge>
+                )}
+                {staffMember.employment_type === 'contracted' && (staffMember as any).hired_from_supplier_id && (
+                  <Badge variant="outline" className="gap-1">
+                    <Building className="h-3 w-3" />
+                    Inhyrd från {suppliers.find((s: any) => s.id === (staffMember as any).hired_from_supplier_id)?.name ?? '...'}
+                  </Badge>
                 )}
               </div>
             </div>
