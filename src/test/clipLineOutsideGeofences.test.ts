@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clipLineOutsideGeofences } from '@/lib/staff/clipLineOutsideGeofences';
+import { clipLineOutsideGeofences, pingInsideAnyFence } from '@/lib/staff/clipLineOutsideGeofences';
 import type { RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
 import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
 
@@ -22,6 +22,19 @@ const ping = (id: string, lat: number, lng: number): RawStaffGpsPing => ({
 });
 
 describe('clipLineOutsideGeofences', () => {
+  it('klassar pingar innanför fence som innanför så de kan döljas visuellt', () => {
+    const fence: GeofenceSite = {
+      id: 'project:test',
+      name: 'Test',
+      lat: 59,
+      lng: 18,
+      radiusMeters: 120,
+    };
+
+    expect(pingInsideAnyFence({ lat: 59.0002, lng: 18 }, [fence])).toBe(true);
+    expect(pingInsideAnyFence({ lat: 59.0016, lng: 18 }, [fence])).toBe(false);
+  });
+
   it('döljer bara koordinater som ligger innanför fence och lämnar yttre delar kvar', () => {
     const fence: GeofenceSite = {
       id: 'project:test',
