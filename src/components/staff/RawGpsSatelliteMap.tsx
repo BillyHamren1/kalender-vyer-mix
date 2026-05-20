@@ -491,6 +491,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       onDestroy={() => {
         popupRef.current?.remove();
         popupRef.current = null;
+        clearVisitMarkers();
         mapRef.current = null;
       }}
     />
