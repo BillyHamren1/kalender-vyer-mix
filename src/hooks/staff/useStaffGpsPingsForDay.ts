@@ -39,18 +39,29 @@ export function useStaffGpsPingsForDay(staffId: string | null, date: string | nu
       if (!staffId || !date) return [];
       const startIso = `${date}T00:00:00.000Z`;
       const endIso = `${date}T23:59:59.999Z`;
-      const { data, error } = await supabase
-        .from('staff_location_history')
-        .select(
-          'id, recorded_at, lat, lng, accuracy, speed, battery_percent, is_charging, battery_source, app_version, app_build, platform, os_version, device_model, app_id'
-        )
-        .eq('staff_id', staffId)
-        .gte('recorded_at', startIso)
-        .lte('recorded_at', endIso)
-        .order('recorded_at', { ascending: true })
-        .limit(50000);
-      if (error) throw error;
-      return (data ?? []).map((r: any) => ({
+      // Supabase PostgREST cap är 1000 rader per request → paginera via range()
+      // tills vi får tom/kort sida. Annars tappar vi pings sent på dagen.
+      const PAGE = 1000;
+      const all: any[] = [];
+      let from = 0;
+      for (let i = 0; i < 60; i++) {
+        const { data, error } = await supabase
+          .from('staff_location_history')
+          .select(
+            'id, recorded_at, lat, lng, accuracy, speed, battery_percent, is_charging, battery_source, app_version, app_build, platform, os_version, device_model, app_id'
+          )
+          .eq('staff_id', staffId)
+          .gte('recorded_at', startIso)
+          .lte('recorded_at', endIso)
+          .order('recorded_at', { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        const rows = data ?? [];
+        all.push(...rows);
+        if (rows.length < PAGE) break;
+        from += PAGE;
+      }
+      return all.map((r: any) => ({
         id: String(r.id),
         recorded_at: String(r.recorded_at),
         lat: Number(r.lat),
