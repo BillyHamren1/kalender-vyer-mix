@@ -747,7 +747,9 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       try {
         map.fitBounds(bounds, { padding: 40, duration: 400, maxZoom: 16 });
       } catch {/* ignore */}
+      applyFenceFilter();
       applyZoomVisibility();
+
     };
     if (map.isStyleLoaded()) apply();
     else map.once('load', apply);
