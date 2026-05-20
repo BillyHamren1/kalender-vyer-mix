@@ -35,6 +35,8 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
   const [staffId, setStaffId] = useState<string | null>(initialStaffId ?? null);
   const [date, setDate] = useState<Date>(initialDate ? new Date(initialDate) : new Date());
   const [filterMode, setFilterMode] = useState<FilterMode>('both');
+  const [showLocations, setShowLocations] = useState(true);
+  const [showTargets, setShowTargets] = useState(true);
 
   const dateStr = format(date, 'yyyy-MM-dd');
 
