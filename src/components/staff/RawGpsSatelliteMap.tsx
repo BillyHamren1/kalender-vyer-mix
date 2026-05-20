@@ -276,18 +276,73 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
           const f = e.features?.[0];
           if (!f) return;
           const p = f.properties as any;
+          const id = String(p.id ?? '');
+          const editable = id.startsWith('loc:') || id.startsWith('project:') || id.startsWith('large:');
+          const isPolygon = String(p.shape) === 'polygon';
+          const currentRadius = Math.round(Number(p.radius) || 0);
           popupRef.current?.remove();
-          popupRef.current = new mapboxgl.Popup({ closeButton: true })
+
+          const root = document.createElement('div');
+          root.style.cssText = 'font:12px/1.4 system-ui;min-width:240px';
+          root.innerHTML = `
+            <div style="font-weight:600;margin-bottom:2px">${p.name}</div>
+            <div style="color:#475569;margin-bottom:6px">${p.kindLabel}</div>
+            <div><b>Lat:</b> ${Number(p.lat).toFixed(6)}</div>
+            <div style="margin-bottom:8px"><b>Lng:</b> ${Number(p.lng).toFixed(6)}</div>
+          `;
+
+          if (editable && !isPolygon && onSaveRadiusRef.current) {
+            const editor = document.createElement('div');
+            editor.style.cssText = 'display:flex;flex-direction:column;gap:6px;border-top:1px solid #e2e8f0;padding-top:8px';
+            editor.innerHTML = `
+              <label style="font-weight:600">Radie (m)</label>
+              <div style="display:flex;gap:6px;align-items:center">
+                <input type="number" min="10" max="5000" step="10" value="${currentRadius}"
+                  style="flex:1;padding:4px 6px;border:1px solid #cbd5e1;border-radius:4px;font:12px system-ui" />
+                <button type="button"
+                  style="padding:4px 10px;background:#0f172a;color:#fff;border:0;border-radius:4px;cursor:pointer;font:600 12px system-ui">
+                  Spara
+                </button>
+              </div>
+              <div data-status style="min-height:14px;color:#475569;font-size:11px"></div>
+            `;
+            const input = editor.querySelector('input') as HTMLInputElement;
+            const btn = editor.querySelector('button') as HTMLButtonElement;
+            const status = editor.querySelector('[data-status]') as HTMLDivElement;
+            btn.addEventListener('click', async () => {
+              const next = Math.round(Number(input.value));
+              if (!Number.isFinite(next) || next < 10 || next > 5000) {
+                status.textContent = 'Ange 10–5000 m';
+                status.style.color = '#dc2626';
+                return;
+              }
+              btn.disabled = true;
+              input.disabled = true;
+              status.style.color = '#475569';
+              status.textContent = 'Sparar…';
+              try {
+                await onSaveRadiusRef.current!(id, next);
+                status.style.color = '#16a34a';
+                status.textContent = `Sparat: ${next} m`;
+              } catch (err: any) {
+                status.style.color = '#dc2626';
+                status.textContent = `Fel: ${err?.message ?? 'kunde inte spara'}`;
+                btn.disabled = false;
+                input.disabled = false;
+              }
+            });
+            root.appendChild(editor);
+          } else {
+            const radiusInfo = document.createElement('div');
+            radiusInfo.innerHTML = isPolygon
+              ? `<div><b>Form:</b> polygon</div>`
+              : `<div><b>Radie:</b> ${currentRadius} m</div>`;
+            root.appendChild(radiusInfo);
+          }
+
+          popupRef.current = new mapboxgl.Popup({ closeButton: true, maxWidth: '320px' })
             .setLngLat([Number(p.lng), Number(p.lat)])
-            .setHTML(
-              `<div style="font:12px/1.4 system-ui;min-width:200px">
-                <div><b>${p.name}</b></div>
-                <div>${p.kindLabel}</div>
-                <div><b>Radie:</b> ${Math.round(Number(p.radius))} m</div>
-                <div><b>Lat:</b> ${Number(p.lat).toFixed(6)}</div>
-                <div><b>Lng:</b> ${Number(p.lng).toFixed(6)}</div>
-              </div>`,
-            )
+            .setDOMContent(root)
             .addTo(map);
         });
         map.on('mouseenter', 'geofence-fill', () => (map.getCanvas().style.cursor = 'pointer'));
