@@ -5454,55 +5454,35 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
     )
   }
 
-  // ── APPEND TO LOCATION HISTORY (throttled to ≥15s between rows) ──
-  // Used for movement maps and looking up position at a given time.
-  // Cleaned up by cron after time reports are approved.
+  // ── APPEND TO LOCATION HISTORY (RAW LAYER) ──
+  // PRINCIP (LÅST): staff_location_history är "kartans" råalager och MÅSTE
+  // ta emot ALLT som telefonen skickar. Ingen backend-dedupe, ingen
+  // tidsfönster-spärr, ingen värdebaserad filtrering. Klienten bestämmer
+  // takten; servern lagrar rått. Visningslogik (karta/tidslinje) får
+  // dölja/aggregera i UI-lagret, men datan bakom måste vara komplett.
+  // Se mem: "Mobile Time App is Mirror-Only" + tidigare bugg där dedupe
+  // gjorde att Billys dag tappade ~5h pings. ÅTERINFÖR INTE.
   try {
-    const { data: lastHist } = await supabase
-      .from('staff_location_history')
-      .select('recorded_at, lat, lng, accuracy, speed')
-      .eq('staff_id', staffId)
-      .order('recorded_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    const nowMs = Date.now()
-    const lastMs = lastHist?.recorded_at ? new Date(lastHist.recorded_at).getTime() : 0
-    // Exakt-dubblett-spärr: en buggig klient (iOS cached location) kan skicka
-    // identisk lat/lng/accuracy/speed i 100+ rader. Riktig GPS varierar alltid
-    // på minst en decimal. Om värdena är byte-identiska med senaste raden:
-    // skippa insert helt (oavsett tid). Detta hindrar att kartan/tidslinjen
-    // fylls av falska "vistelser" på en cachad position.
-    const isExactDuplicate =
-      lastHist &&
-      Number(lastHist.lat) === Number(latitude) &&
-      Number(lastHist.lng) === Number(longitude) &&
-      Number(lastHist.accuracy ?? -1) === Number(accuracy ?? -1) &&
-      Number(lastHist.speed ?? -1) === Number(speed ?? -1)
-
-    if (!isExactDuplicate && nowMs - lastMs >= 15_000) {
-      await supabase.from('staff_location_history').insert({
-        organization_id: organizationId,
-        staff_id: staffId,
-        lat: latitude,
-        lng: longitude,
-        accuracy: accuracy ?? null,
-        speed: speed ?? null,
-        recorded_at: new Date().toISOString(),
-        app_version: typeof app_version === 'string' ? app_version : null,
-        app_build: typeof app_build === 'string' ? app_build : null,
-        platform: typeof app_platform === 'string' ? app_platform : null,
-        os_version: typeof os_version === 'string' ? os_version : null,
-        device_model: typeof device_model === 'string' ? device_model : null,
-        app_id: typeof app_id === 'string' ? app_id : null,
-      })
-    } else if (isExactDuplicate) {
-      console.log('[mobile-app-api] skipping exact-duplicate ping for staff', staffId)
-    }
+    await supabase.from('staff_location_history').insert({
+      organization_id: organizationId,
+      staff_id: staffId,
+      lat: latitude,
+      lng: longitude,
+      accuracy: accuracy ?? null,
+      speed: speed ?? null,
+      recorded_at: new Date().toISOString(),
+      app_version: typeof app_version === 'string' ? app_version : null,
+      app_build: typeof app_build === 'string' ? app_build : null,
+      platform: typeof app_platform === 'string' ? app_platform : null,
+      os_version: typeof os_version === 'string' ? os_version : null,
+      device_model: typeof device_model === 'string' ? device_model : null,
+      app_id: typeof app_id === 'string' ? app_id : null,
+    })
   } catch (histErr) {
     // Never fail the request if history insert fails
     console.warn('[mobile-app-api] history insert failed:', histErr)
   }
+
 
 
   // ── GEOFENCE CHECK for organization_locations (polygon-aware) ──
