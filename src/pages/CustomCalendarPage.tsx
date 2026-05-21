@@ -126,16 +126,8 @@ const CustomCalendarPage = () => {
 
   // Lager-kolumnen (legacy id 'transport') är reserverad för det interna Lagerprojektet.
   // Inga andra events (transportbokningar, vanliga calendar_events osv.) får placeras där.
-  const { internalLagerEvents } = useInternalLagerCalendarEvents(hookCurrentDate, viewMode);
-
-  // Merge calendar events + task overlay + internal lager.
-  // Filtrera bort allt övrigt som råkar peka på 'transport'-resursen.
-  const mergedEvents = useMemo(() => {
-    const filteredEvents = events.filter((e: any) => e.resourceId !== 'transport');
-    const base = [...filteredEvents, ...internalLagerEvents];
-    if (!showTasks || taskEvents.length === 0) return base;
-    return [...base, ...taskEvents];
-  }, [events, taskEvents, internalLagerEvents, showTasks]);
+  // OBS: använd det faktiskt RENDERADE datumet (currentWeekStart / monthlyDate), inte
+  // hookens egna `currentDate` — annars slutar Lager-korten följa med vid navigering.
 
   // Handle task overlay click → navigate to project execution context
   const handleEventClick = async (event: any) => {
@@ -206,6 +198,20 @@ const CustomCalendarPage = () => {
   useEffect(() => {
     syncToStore({ selectedDate: currentWeekStart, viewMode });
   }, [currentWeekStart, viewMode, syncToStore]);
+
+  // Virtuella interna Lager-event för Lager-kolumnen (transport).
+  // Använd det FAKTISKT renderade datumet (vecka/månad), inte hookens currentDate.
+  const lagerAnchorDate = viewMode === 'monthly' ? monthlyDate : currentWeekStart;
+  const { internalLagerEvents } = useInternalLagerCalendarEvents(lagerAnchorDate, viewMode);
+
+  // Merge calendar events + task overlay + internal lager.
+  // Filtrera bort allt övrigt som råkar peka på 'transport'-resursen.
+  const mergedEvents = useMemo(() => {
+    const filteredEvents = events.filter((e: any) => e.resourceId !== 'transport');
+    const base = [...filteredEvents, ...internalLagerEvents];
+    if (!showTasks || taskEvents.length === 0) return base;
+    return [...base, ...taskEvents];
+  }, [events, taskEvents, internalLagerEvents, showTasks]);
 
   // Visible teams state - per day { [dateString]: teamIds[] }
   // Default = ALLA aktuella team + Lager (transport). Tidigare hårdkodades

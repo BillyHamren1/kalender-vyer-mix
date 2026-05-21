@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
-import { addDays, format, startOfWeek } from 'date-fns';
+import { addDays, format, startOfWeek, startOfMonth, endOfMonth, differenceInCalendarDays } from 'date-fns';
 
 /**
  * Genererar virtuella heldagsevent (07:00–16:00) för det interna Lagerprojektet
@@ -36,12 +36,22 @@ export function useInternalLagerCalendarEvents(
   const internalLagerEvents = useMemo<CalendarEvent[]>(() => {
     if (lagerProjects.length === 0) return [];
 
-    // Bestäm intervall (dag = 1 dag, vecka/månad = visad vecka)
+    // Bestäm intervall per vy.
+    // - day: 1 dag
+    // - weekly: 7 dagar från måndagen i veckan
+    // - monthly/list: hela månaden + lite padding så veckor som spänner över
+    //   månadsskiftet också täcks.
     let start: Date;
     let dayCount: number;
     if (view === 'day') {
       start = currentDate;
       dayCount = 1;
+    } else if (view === 'monthly' || view === 'list') {
+      const monthStart = startOfMonth(currentDate);
+      const monthEnd = endOfMonth(currentDate);
+      start = startOfWeek(monthStart, { weekStartsOn: 1 });
+      const end = addDays(monthEnd, 7); // padda 1 vecka framåt för månadsskiften
+      dayCount = differenceInCalendarDays(end, start) + 1;
     } else {
       start = startOfWeek(currentDate, { weekStartsOn: 1 });
       dayCount = 7;
@@ -61,8 +71,8 @@ export function useInternalLagerCalendarEvents(
         end: `${dateStr}T16:00:00`,
         resourceId: 'transport',
         eventType: 'internal_task',
-        bookingId: project.bookingId || undefined,
-        // bookingNumber medvetet utelämnad — kopplingen finns via bookingId, men numret ska inte visas i UI
+        // INGEN bookingId — annars använder CustomEvent fallback (sista 8 tecken
+        // av booking_id) som "#d0179463". Lager-kortet ska aldrig visa nummer.
         viewed: true,
         editable: false,
         startEditable: false,
@@ -72,7 +82,6 @@ export function useInternalLagerCalendarEvents(
         extendedProps: {
           isInternalLager: true,
           projectId: project.id,
-          booking_id: project.bookingId || undefined,
           hideBookingNumber: true,
           readOnly: true,
         },
