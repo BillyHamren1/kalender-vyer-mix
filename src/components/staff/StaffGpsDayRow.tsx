@@ -1,10 +1,8 @@
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
 import type { StaffGpsDaySummary } from '@/hooks/staff/useStaffGpsWeekSummary';
-import { useStaffGpsDayNarrative } from '@/hooks/staff/useStaffGpsDayNarrative';
 
 interface Props {
   day: Date;
