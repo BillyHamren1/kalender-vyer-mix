@@ -239,6 +239,69 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_time_review_runs: {
+        Row: {
+          auto_applied_count: number
+          confidence: number | null
+          created_at: string
+          duration_ms: number | null
+          error: string | null
+          id: string
+          input_signature: string | null
+          model: string | null
+          organization_id: string
+          reasoning: string | null
+          report_date: string
+          rules_learned: string[]
+          rules_used: string[]
+          staff_id: string
+          suggestions_created: number
+          trigger_source: string
+          triggered_by: string | null
+          verdict: string
+        }
+        Insert: {
+          auto_applied_count?: number
+          confidence?: number | null
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          id?: string
+          input_signature?: string | null
+          model?: string | null
+          organization_id: string
+          reasoning?: string | null
+          report_date: string
+          rules_learned?: string[]
+          rules_used?: string[]
+          staff_id: string
+          suggestions_created?: number
+          trigger_source: string
+          triggered_by?: string | null
+          verdict: string
+        }
+        Update: {
+          auto_applied_count?: number
+          confidence?: number | null
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          id?: string
+          input_signature?: string | null
+          model?: string | null
+          organization_id?: string
+          reasoning?: string | null
+          report_date?: string
+          rules_learned?: string[]
+          rules_used?: string[]
+          staff_id?: string
+          suggestions_created?: number
+          trigger_source?: string
+          triggered_by?: string | null
+          verdict?: string
+        }
+        Relationships: []
+      }
       arrival_context_suggestions: {
         Row: {
           confidence: number
@@ -6565,6 +6628,80 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_time_learning_rules: {
+        Row: {
+          active: boolean
+          booking_id: string | null
+          confidence: number
+          created_by: string
+          human_readable: string
+          id: string
+          large_project_id: string | null
+          last_used_at: string | null
+          learned_at: string
+          notes: string | null
+          organization_id: string
+          pattern_data: Json
+          pattern_type: string
+          project_id: string | null
+          rejected_count: number
+          scope: string
+          staff_id: string | null
+          superseded_by: string | null
+          verified_count: number
+        }
+        Insert: {
+          active?: boolean
+          booking_id?: string | null
+          confidence?: number
+          created_by?: string
+          human_readable: string
+          id?: string
+          large_project_id?: string | null
+          last_used_at?: string | null
+          learned_at?: string
+          notes?: string | null
+          organization_id: string
+          pattern_data?: Json
+          pattern_type: string
+          project_id?: string | null
+          rejected_count?: number
+          scope: string
+          staff_id?: string | null
+          superseded_by?: string | null
+          verified_count?: number
+        }
+        Update: {
+          active?: boolean
+          booking_id?: string | null
+          confidence?: number
+          created_by?: string
+          human_readable?: string
+          id?: string
+          large_project_id?: string | null
+          last_used_at?: string | null
+          learned_at?: string
+          notes?: string | null
+          organization_id?: string
+          pattern_data?: Json
+          pattern_type?: string
+          project_id?: string | null
+          rejected_count?: number
+          scope?: string
+          staff_id?: string | null
+          superseded_by?: string | null
+          verified_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_time_learning_rules_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "staff_time_learning_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_wake_requests: {
         Row: {
           context: Json | null
@@ -7195,12 +7332,19 @@ export type Database = {
       }
       time_report_correction_suggestions: {
         Row: {
+          ai_model: string | null
+          ai_reasoning: string | null
+          ai_verdict: string | null
+          applied_at: string | null
+          applied_by_ai: boolean
+          apply_rule: string | null
           computed_at: string
           confidence: number
           difference_min: number | null
           engine_version: string
           human_readable_text: string
           id: string
+          learning_rule_ids: string[]
           organization_id: string
           original_end_time: string | null
           original_start_time: string | null
@@ -7220,14 +7364,22 @@ export type Database = {
           target_location_id: string | null
           target_project_id: string | null
           time_report_id: string
+          undo_payload: Json | null
         }
         Insert: {
+          ai_model?: string | null
+          ai_reasoning?: string | null
+          ai_verdict?: string | null
+          applied_at?: string | null
+          applied_by_ai?: boolean
+          apply_rule?: string | null
           computed_at?: string
           confidence?: number
           difference_min?: number | null
           engine_version?: string
           human_readable_text: string
           id?: string
+          learning_rule_ids?: string[]
           organization_id: string
           original_end_time?: string | null
           original_start_time?: string | null
@@ -7247,14 +7399,22 @@ export type Database = {
           target_location_id?: string | null
           target_project_id?: string | null
           time_report_id: string
+          undo_payload?: Json | null
         }
         Update: {
+          ai_model?: string | null
+          ai_reasoning?: string | null
+          ai_verdict?: string | null
+          applied_at?: string | null
+          applied_by_ai?: boolean
+          apply_rule?: string | null
           computed_at?: string
           confidence?: number
           difference_min?: number | null
           engine_version?: string
           human_readable_text?: string
           id?: string
+          learning_rule_ids?: string[]
           organization_id?: string
           original_end_time?: string | null
           original_start_time?: string | null
@@ -7274,6 +7434,7 @@ export type Database = {
           target_location_id?: string | null
           target_project_id?: string | null
           time_report_id?: string
+          undo_payload?: Json | null
         }
         Relationships: []
       }
