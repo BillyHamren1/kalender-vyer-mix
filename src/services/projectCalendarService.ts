@@ -28,7 +28,9 @@ export const syncStandaloneProjectToCalendar = async (
     rigdown_end_time?: string | null;
     deliveryaddress?: string | null;
     delivery_city?: string | null;
+    customer_pickup?: boolean | null;
   }
+
 ): Promise<{ success: boolean; eventsCreated: number }> => {
   console.log(`[projectCalendarService] Syncing standalone project ${projectId} to calendar`);
 
