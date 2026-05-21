@@ -1,11 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
 import { fetchStaffMembers } from '@/services/staffService';
 import { supabase } from '@/integrations/supabase/client';
 import { useStaffGpsPingsForDay, type RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
@@ -18,13 +13,6 @@ import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
 import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
 import { type PlaceVisit } from '@/lib/staff/pingPlaceSegments';
 import { buildExactGeofenceVisits } from '@/lib/staff/buildExactGeofenceVisits';
-
-function dash(v: unknown): string {
-  if (v === null || v === undefined || v === '') return '—';
-  return String(v);
-}
-
-type FilterMode = 'both' | 'assigned' | 'pinged' | 'all';
 
 interface Props {
   initialStaffId?: string | null;
