@@ -293,5 +293,5 @@ export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]
         isLoading: !!q?.isLoading,
       };
     });
-  }, [dateStrs, results, geofences, privateIds]);
+  }, [dateStrs, results, geofencesByDate, privateIds]);
 }
