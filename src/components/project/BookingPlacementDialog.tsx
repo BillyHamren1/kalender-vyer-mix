@@ -75,18 +75,31 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
   const { data: booking, isLoading, error: bookingError, refetch: refetchBooking } = useQuery({
     queryKey: ['placement-booking', bookingId],
     enabled: !!bookingId && open,
-    retry: 1,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
+    staleTime: 0,
+    gcTime: 0,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('bookings')
         .select(BOOKING_FIELDS)
         .eq('id', bookingId!)
         .maybeSingle();
-      if (error) throw error;
-      if (!data) throw new Error('Bokningen kunde inte hittas.');
+      if (error) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const e = error as any;
+        console.error('[BookingPlacementDialog] fetch booking error', {
+          code: e?.code, message: e?.message, details: e?.details, hint: e?.hint,
+        });
+        const msg = e?.message || 'Okänt databasfel';
+        const code = e?.code ? ` (${e.code})` : '';
+        throw new Error(`Kunde inte hämta bokningen: ${msg}${code}`);
+      }
+      if (!data) throw new Error('Bokningen kunde inte hittas (saknas eller saknad behörighet).');
       return data;
     },
   });
+
 
   const { data: largeProjects = [] } = useQuery({
     queryKey: ['large-projects'],
