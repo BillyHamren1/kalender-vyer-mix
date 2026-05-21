@@ -96,6 +96,7 @@ export function StaffGpsWeekPanel({
       <div className="divide-y divide-border/40">
         {weekDays.map((day, i) => {
           const dateStr = format(day, 'yyyy-MM-dd');
+          const staffName = staff.find(s => s.id === staffId)?.name ?? null;
           return (
             <StaffGpsDayRow
               key={dateStr}
@@ -103,6 +104,8 @@ export function StaffGpsWeekPanel({
               dateStr={dateStr}
               selected={dateStr === selectedStr}
               summary={summaries[i]}
+              staffId={staffId}
+              staffName={staffName}
               onClick={() => onDateChange(day)}
             />
           );
