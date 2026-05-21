@@ -16,6 +16,7 @@ interface RealCalendarEventRow {
   source_date: string | null;
   times_locked?: boolean | null;
   todo_id?: string | null;
+  customer_pickup?: boolean | null;
 }
 
 interface BookingRow {
