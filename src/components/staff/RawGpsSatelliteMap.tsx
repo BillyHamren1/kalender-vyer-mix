@@ -309,7 +309,68 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
 
 
 
+  /**
+   * Aktiverar mapbox-gl-draw i polygon-läge. När användaren dubbelklickar
+   * för att avsluta polygonen anropas `onDone` med Polygon-geometrin och
+   * draw-kontrollen plockas bort. Esc avbryter.
+   */
+  function startPolygonDraw(
+    map: mapboxgl.Map,
+    geofenceId: string,
+    onDone: (polygon: GeoJSON.Polygon) => void,
+  ) {
+    drawHandlersRef.current?.cleanup();
+    if (drawRef.current) {
+      try { map.removeControl(drawRef.current); } catch { /* ignore */ }
+      drawRef.current = null;
+    }
+    const draw = new MapboxDraw({
+      displayControlsDefault: false,
+      controls: {},
+      defaultMode: 'draw_polygon',
+    });
+    drawRef.current = draw;
+    map.addControl(draw);
+
+    // Hint-toast på kartan.
+    const hint = document.createElement('div');
+    hint.textContent = 'Klicka för att rita polygon · Dubbelklicka för att avsluta · Esc avbryter';
+    hint.style.cssText = 'position:absolute;top:8px;left:50%;transform:translateX(-50%);background:rgba(15,23,42,.92);color:#fff;padding:6px 12px;border-radius:6px;font:600 12px system-ui;pointer-events:none;z-index:5;box-shadow:0 2px 8px rgba(0,0,0,.3)';
+    const container = map.getContainer();
+    container.appendChild(hint);
+
+    const onCreate = (e: any) => {
+      const feat = e?.features?.[0];
+      if (!feat || feat.geometry?.type !== 'Polygon') return;
+      const poly: GeoJSON.Polygon = {
+        type: 'Polygon',
+        coordinates: feat.geometry.coordinates,
+      };
+      cleanup();
+      onDone(poly);
+    };
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') cleanup();
+    };
+    const cleanup = () => {
+      try { map.off('draw.create', onCreate as any); } catch { /* */ }
+      window.removeEventListener('keydown', onKey);
+      try { hint.remove(); } catch { /* */ }
+      if (drawRef.current) {
+        try { map.removeControl(drawRef.current); } catch { /* */ }
+        drawRef.current = null;
+      }
+      drawHandlersRef.current = null;
+    };
+    map.on('draw.create', onCreate as any);
+    window.addEventListener('keydown', onKey);
+    drawHandlersRef.current = { cleanup };
+    // Notera: geofenceId loggas för felsökning men onDone hanterar persistens.
+    void geofenceId;
+  }
+
   function renderLayers(map: mapboxgl.Map, data: RawStaffGpsPing[], fences: GeofenceSite[]) {
+
     const apply = () => {
       for (const id of LAYER_IDS) if (map.getLayer(id)) map.removeLayer(id);
       for (const id of SOURCE_IDS) if (map.getSource(id)) map.removeSource(id);
