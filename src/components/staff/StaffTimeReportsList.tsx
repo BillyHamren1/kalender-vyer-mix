@@ -11,7 +11,7 @@ import { formatHoursMinutes } from '@/utils/formatHours';
 import { TimeReportReviewTable } from './TimeReportReviewTable';
 import { StaffDayTimelineCard } from './StaffDayTimelineCard';
 import type { ReviewWorkInput, ReviewTravelInput } from '@/lib/staff/timeReportReviewEntry';
-import type { DaySegment, LatestPing, PlanningStatus, PresenceDebug } from '@/pages/StaffTimeReports';
+import type { DaySegment, LatestPing, PlanningStatus, PresenceDebug } from '@/pages/StaffTimeReports.types';
 import type { StaffDayJournal, ProjectSession } from '@/lib/staff/dayJournal';
 import type { DayMetrics } from '@/lib/staff/dayMetrics';
 import type { CanonicalStaffDayModel } from '@/lib/staff/canonicalDayModel';
