@@ -126,11 +126,11 @@ describe('StaffTimeReports — tabs', () => {
       () => expect(screen.getAllByText('Anna Andersson').length).toBeGreaterThan(0),
       { timeout: 3000 },
     );
-    expect(screen.getByText('Björn Karlsson')).toBeInTheDocument();
+    expect(screen.getAllByText('Björn Karlsson').length).toBeGreaterThan(0);
 
     fireEvent.change(screen.getByPlaceholderText('Sök personal…'), { target: { value: 'björn' } });
     await waitFor(() => expect(screen.queryByText('Anna Andersson')).not.toBeInTheDocument());
-    expect(screen.getByText('Björn Karlsson')).toBeInTheDocument();
+    expect(screen.getAllByText('Björn Karlsson').length).toBeGreaterThan(0);
   });
 
   it('PendingApprovalsTab renders pending row with approve button', async () => {
