@@ -91,7 +91,8 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
         booking_number,
         source_date,
         times_locked,
-        todo_id
+        todo_id,
+        customer_pickup
       `)
       .neq('event_type', 'event')
       .gte('start_time', windowFrom)
