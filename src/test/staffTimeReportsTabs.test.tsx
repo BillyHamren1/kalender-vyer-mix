@@ -141,11 +141,3 @@ describe('StaffTimeReports — tabs', () => {
   });
 });
 
-import { fetchAllStaffWithPresence } from '@/components/staff-time-reports/presenceUtils';
-describe('debug fetch', () => {
-  it('fetchAllStaffWithPresence', async () => {
-    const r = await fetchAllStaffWithPresence();
-    console.log('staff result', r.length, JSON.stringify(r));
-    expect(r.length).toBe(2);
-  });
-});
