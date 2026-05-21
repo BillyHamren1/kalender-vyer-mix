@@ -1,109 +1,85 @@
+# AI-driven tidsgranskning i realtid
 
-# Tidrapporter — premium-tabbad vy
+## Vad det gör
+Varje gång ett tidsblock avslutas (time_report skapas/uppdateras, eller en timer stoppas) startar en AI-pipeline som:
 
-Vi behåller all befintlig logik och routing (attest, månadsvy, dag-drilldown, payroll, GPS-karta) helt orörd. Endast `src/pages/StaffTimeReports.tsx` byggs om till en tabbad shell. Inga edge functions, ingen DB-ändring.
+1. Läser hela dagens kontext för personen (time_reports, LTE, travel, GPS-pings, place_visits, planerade bokningar via BSA, projektets geofence, plannedDay).
+2. Avgör om blocket är **klart**, **behöver vänta på nästa block** (t.ex. om personen precis lämnat geofence — då pausas analysen), eller **skevt**.
+3. Vid skevt block: skapar `time_report_correction_suggestions` med förklaring + förslag (justera start/slut, byt target, splitta, slå ihop, klassa som travel/private).
+4. **Hög confidence + säker regel** → auto-applicerar förslaget direkt på `time_reports` (audit-loggat, kan rullas tillbaka). Låg confidence → läggs som förslag.
+5. Sparar mönster i en **regelbok** (`staff_time_learning_rules`) — t.ex. "Anna jobbar alltid 22–06 på Projekt X", "Erik kör alltid hem via lagret" — som framtida AI-anrop får som primer.
 
-## Designreferens (premium)
+## Säkerhetsspärrar (från projekt-memory, oförhandelbart)
+- AI får ALDRIG dra av tid (mem: ai-only-on-unclear-segments-v1).
+- AI rör ALDRIG godkända rapporter (approved-lock).
+- AI rör ALDRIG nattliga GPS-only-block utan TR/LTE/manuell workday bakom (night-gps-only-guard).
+- Inuti projekt-geofence = tid på projektet (geofence-inside-time-authority).
+- Time Data Authority oförändrad: time_report är fortfarande sanningen, AI föreslår/justerar inom sina ramar.
+- AI ändrar **inte källkoden** (det jag inte kan/bör bygga). "Självlärande" = växande regelbok i DB som AI:n läser inför varje analys.
 
-Snabb research på hur ledande tidrapporteringssystem visar samma data:
+## Auto-apply-policy (vad som får ändras utan godkännande)
+Endast dessa fall, allt annat blir förslag:
+- Trim ≤10 min mot exakt geofence-exit (GPS bevisar att personen lämnade då).
+- Slå ihop två konsekutiva block på samma target med <5 min mellanrum.
+- Flytta blockets target från "okänt" → projektets ID när blocket helt ligger inuti projektets geofence.
+- Allt annat → suggestion + banner i dag-vyn.
 
-- **Harvest / Toggl Track / Clockify "Team"-vyer**: vänsterlista med personer (avatar, namn, roll, status-dot), högerpanel med dagens timmar staplade per projekt, veckosumma + utilization-ring, "needs approval"-badge. Vi tar avatar+status-dot, projektstaplar och utilization-ring.
-- **Hubstaff "Activity"**: per person en horisontell mini-timeline (24h) med färgade block per projekt + last-seen + battery + version. Vi tar mini-timelinen.
-- **Deputy / When I Work "Approvals"**: kort-baserad kö med "Approve" / "Approve & next" + diff (planerat vs faktiskt). Vi tar kort-kön och en-klicks-attest.
-- **Linear / Vercel-känsla**: tät typografi, mono för tider, mjuka separators, hover reveals actions, ingen "tabell-i-tabell". Vi följer den visuella tonen (Card, Badge, semantiska tokens, ingen tabell-zebrastil).
+## Arkitektur
 
-Allt byggs med befintliga shadcn-komponenter (`Tabs`, `Card`, `Badge`, `Avatar`, `Button`, `ScrollArea`) och semantiska tokens — inga hårdkodade färger.
+### Ny edge function: `ai-time-block-reviewer`
+- Actions: `review_block` (efter stop), `review_day` (manuell on-demand), `apply_suggestion`, `dismiss_suggestion`.
+- Använder Lovable AI Gateway (`google/gemini-3-flash-preview` default, fallback till `gemini-2.5-pro` för svåra dagar).
+- Structured output via AI SDK `Output.object` med Zod-schema: `{verdict, confidence, action, reasoning, ruleLearned?}`.
+- Prompt får: dagens timeline, BSA-planering, geofence-status, plannedDay, **alla matchande regler från `staff_time_learning_rules`**, samt en lång SYSTEM-prompt med allt vi diskuterat (Time Data Authority, geofence-regeln, night-guard, transport-regeln, single-timer-policy, work-confirmed-bypass, m.fl. — listade ordagrant så AI:n förstår ramverket).
 
-## Tabb-struktur
+### Ny tabell: `staff_time_learning_rules`
+- `staff_id`, `organization_id`, `scope` (staff|project|org), `pattern_type` (night_shift_ok | travel_home_via_warehouse | short_visit_counts | …), `pattern_data` (jsonb), `confidence`, `learned_at`, `verified_count`, `superseded_by`.
+- RLS: org-isolerad.
+- AI skapar dem; admin kan inaktivera dem från en ny "Lärda regler"-sida.
 
-```text
-PageHeader: Tidrapporter
-┌─────────────────────────────────────────────┐
-│ [ Översikt ]  [ Personal ]  [ Att attestera ]│
-└─────────────────────────────────────────────┘
-```
+### Trigger: realtidsanrop efter stop
+- DB-trigger på `time_reports` (AFTER INSERT/UPDATE där end_time blev satt och status != 'approved') → `pg_net.http_post` till `ai-time-block-reviewer`.
+- Debounce 30s per (staff, date) så att vi inte spammar när 5 block stoppas samtidigt.
+- "Vänta på nästa block"-logik: om GPS visar att personen fortfarande är i rörelse / inte stabiliserat sig → pipeline returnerar `wait_for_next`, ingen suggestion skapas än.
 
-### Tabb 1 — Översikt (dagens dashboard)
+### UI: integrerat i dag-vyn (inte egen tabb)
+- `StaffTimeReportDetail` (admin) och dag-rader i `StaffWeekPanel`:
+  - Liten AI-badge per block: ✅ granskad / 💡 förslag / ⚠️ behöver kolla / ⏳ analyserar.
+  - Klick på badge → popover med AI:ns resonemang + Godkänn/Avvisa/Öppna full vy.
+  - Auto-applicerade ändringar visas med en "Justerad av AI"-tag + ångra-knapp i 24h.
+- Banner högst upp i dag-vyn om dagen har öppna förslag.
 
-Nuvarande layout (karta + "Planerade idag" + snabblänkar) flyttas oförändrad hit. Inget logikbyte.
+### Lärande-loopen
+- När admin godkänner ett AI-förslag → `verified_count++` på relaterade regler.
+- När admin avvisar → regeln markeras `superseded` om den orsakade förslaget.
+- Inför nästa AI-anrop laddas alla aktiva regler för (staff, projekt, org) in i prompten.
 
-### Tabb 2 — Personal
+## Filer som skapas
+- `supabase/migrations/…_ai_time_reviewer.sql` — `staff_time_learning_rules`, ny kolumn `applied_by_ai`/`ai_reasoning` på `time_report_correction_suggestions`, trigger + cron-debouncer.
+- `supabase/functions/ai-time-block-reviewer/index.ts`
+- `supabase/functions/ai-time-block-reviewer/prompts.ts` — SYSTEM-prompt (lång, ordagrann från projekt-memory).
+- `supabase/functions/ai-time-block-reviewer/schema.ts` — Zod-output.
+- `supabase/functions/ai-time-block-reviewer/applySuggestion.ts` — auto-apply-policy.
+- `supabase/functions/ai-time-block-reviewer/loadRules.ts`.
+- `src/hooks/useAiBlockReview.ts` — realtidsprenumeration på suggestions.
+- `src/components/staff-time-reports/AiBlockBadge.tsx`
+- `src/components/staff-time-reports/AiSuggestionPopover.tsx`
+- `src/components/staff-time-reports/AiDayBanner.tsx`
+- `src/pages/AiLearnedRules.tsx` + route — admin ser/inaktiverar regler.
+- `src/test/aiBlockReviewer.test.tsx` — enhetstest för apply-policy + UI-badge.
+- Edge-tester: `supabase/functions/ai-time-block-reviewer/index_test.ts`.
 
-Master/detail i samma vy, ingen sidnavigering.
+## Filer som ändras
+- `src/components/staff-time-reports/StaffWeekPanel.tsx` — visa AI-badge per block.
+- `src/components/staff/StaffTimeReportsList.tsx` (eller motsv. dag-detalj) — banner + popover.
+- Mem-index: ny constraint `mem://features/admin/ai-time-reviewer-v1`.
 
-```text
-┌──────────────────────┬────────────────────────────────────────┐
-│ Sök personal…        │  Anna Andersson · Tekniker             │
-│ ─────────────────    │  ● online · 2 min sedan · 87% · v1.4.2 │
-│ ● Anna A.   2 min ●  │  ─────────────────────────────────────  │
-│   87% v1.4.2         │  [ Vecka 21 ‹ › ]  total 38h 12m       │
-│ ● Björn K.  14 min   │                                         │
-│   42% v1.4.0 ⚠       │  Mån 19/5   8h 04m   ▓▓▓▓▓▓▓░          │
-│ ○ Cecilia   3 tim    │     Projekt Alpha   5h 30m              │
-│   — v1.4.2           │     Projekt Beta    2h 34m              │
-│ …                    │  Tis 20/5   7h 58m   ▓▓▓▓▓▓▓           │
-│                      │  Ons 21/5   pågående ▓▓▓▓▓░ (öppen)    │
-│                      │  …                                      │
-│                      │  [ Öppna dagsvy → ]  (deep link)        │
-└──────────────────────┴────────────────────────────────────────┘
-```
-
-Varje person i listan (vänster):
-- Avatar/färgprick + status-dot (online/offline från `staff_locations.updated_at`, 10 min-tröskel)
-- Senaste ping (relativ tid)
-- Batteri-% + laddningsikon, varning om <20% och inte laddar
-- App-version, ⚠-badge om < senaste kända version idag
-- Söktfält + sortering (online först, sedan namn)
-
-Detaljpanelen (höger):
-- Veckonavigation (prev/next, default innevarande vecka)
-- En rad per dag: datum, total tid, mini-stapel (sektioner per projekt-färg), expanderbar lista per projekt med h/m via `formatHoursMinutes`
-- "Öppna dagsvy →" länkar till befintliga `/staff-management/time-reports/:staffId/:date` (logik orörd)
-- Källa: `time_reports` (filter staff_id + date range), join på `bookings` för label/färg. Ingen ny tabell, ingen mutation.
-
-### Tabb 3 — Att attestera (snabbattest)
-
-Kort-kö med senast inskickade ej-attesterade rapporter.
-
-```text
-┌──────────────────────────────────────────────────────────────┐
-│ Anna Andersson · Tis 20/5 · 7h 58m · Projekt Alpha           │
-│ 07:32 → 16:30  (rast 30m)   ”Riggning + scen-check”          │
-│ planerat 08–16  · diff +0h 28m                               │
-│ [ Godkänn ]  [ Godkänn + nästa ]  [ Öppna ]  [ Avvisa ]      │
-├──────────────────────────────────────────────────────────────┤
-│ Björn Karlsson · Tis 20/5 · 5h 12m · Projekt Beta            │
-│ …                                                            │
-└──────────────────────────────────────────────────────────────┘
-```
-
-- Källa: samma query som `TimeReportApprovals` redan använder (`time_reports` där `approved = false`, sortera `created_at desc`, limit 50).
-- "Godkänn" / "Godkänn + nästa" återanvänder befintlig attest-mutation från `TimeReportApprovals` (lyfts till en delad hook `useApproveTimeReport` om den inte redan finns). Ingen ny edge function.
-- "Öppna" deep-länkar till `/staff-management/time-approvals` (full vy) eller `/time-reports/:staff/:date` — vi rör inte den sidan.
-- Realtime via `useRealtimeInvalidation` på `time_reports`.
-
-## Filer som ändras / skapas
-
-- ✏️ `src/pages/StaffTimeReports.tsx` — wrappa nuvarande innehåll i `<Tabs>`; tab 1 = nuvarande innehåll utbrutet till `TimeReportsOverviewTab`.
-- ➕ `src/components/staff-time-reports/TimeReportsOverviewTab.tsx` — innehållet som ligger i StaffTimeReports.tsx idag (karta + presence-lista).
-- ➕ `src/components/staff-time-reports/StaffPresenceCard.tsx` — befintliga `StaffPresenceCard` (utbruten, oförändrad).
-- ➕ `src/components/staff-time-reports/StaffListTab.tsx` — vänsterlista + detaljpanel-shell.
-- ➕ `src/components/staff-time-reports/StaffWeekPanel.tsx` — veckovy per person (hämtar `time_reports` för vald staff + vecka).
-- ➕ `src/components/staff-time-reports/PendingApprovalsTab.tsx` — kort-kö + snabbattest.
-- ➕ `src/hooks/useStaffWeekReports.ts` — `time_reports` per staff_id + vecka, grupperat per dag/projekt.
-- ➕ `src/hooks/useApproveTimeReport.ts` — om inte redan finns; återanvänd logiken från `TimeReportApprovals` (annars importera den).
-- ➕ `src/test/staffTimeReportsTabs.test.tsx` — smoke-tester: tabbar renderar, listan filtreras på sök, attest-knapp triggar mutation (mockad).
-
-Filstorleksregel: varje fil < ~200 rader (memory: file-size-and-modularity).
-
-## Constraints som respekteras
-
-- **No Workday Logic / Single Timer Policy / Time Data Authority** — vi läser bara `time_reports` (sanning för rapporterad tid) och `staff_locations` (signal). Vi summerar inte workday som projektkostnad och visar inte GPS som rapporterad tid.
-- **Project Status Vocabulary** — inga statusord utöver det som redan visas.
-- Inga DELETE/migrationer, ingen ny edge function.
+## Det jag INTE bygger (och varför)
+- **AI som ändrar TS/React-koden själv** — omöjligt i runtime, säkerhetshål, bryter mot deploy-modellen. Ersätts av regelboken som ger samma effekt: systemet blir skarpare för varje granskning utan kodändring.
+- **Auto-apply på godkända rapporter** — bryter approved-lock.
+- **AI som drar av tid** — bryter ai-only-on-unclear-segments.
 
 ## Verifiering
-
-1. `bash scripts/test-time-reporting.sh` — fortsatt grön (vi ändrar inte write-path).
-2. Ny vitest: `bunx vitest run src/test/staffTimeReportsTabs.test.tsx`.
-3. Manuell preview-check: tabbar växlar, personal-listan visar status, vecka för en testperson laddar, snabbattest-knappen markerar raden attesterad och tar bort den ur listan.
+- Vitest: apply-policy (10-min-trim, merge, geofence-target-flytt) + att approved/night-GPS-only ALDRIG modifieras.
+- Deno-test: ai-time-block-reviewer returnerar `wait_for_next` när GPS pågår, returnerar suggestion på syntetiskt skevt block.
+- E2E i preview efter deploy.
