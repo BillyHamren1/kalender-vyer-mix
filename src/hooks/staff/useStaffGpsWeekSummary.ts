@@ -18,6 +18,10 @@ import type { PlaceVisit } from '@/lib/staff/pingPlaceSegments';
  *
  * Ingen ny tolkning. start/slut = första/sista ping. duration = span.
  */
+export interface StaffGpsPlaceTime {
+  name: string;
+  minutes: number;
+}
 export interface StaffGpsDaySummary {
   date: string; // yyyy-MM-dd
   pingsCount: number;
@@ -27,6 +31,8 @@ export interface StaffGpsDaySummary {
   visits: PlaceVisit[];
   /** Distinkta platsnamn i kronologisk ordning. */
   placeNames: string[];
+  /** Tid per plats (minuter), sorterad desc. */
+  places: StaffGpsPlaceTime[];
   isLoading: boolean;
 }
 
