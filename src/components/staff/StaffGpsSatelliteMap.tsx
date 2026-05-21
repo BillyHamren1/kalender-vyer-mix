@@ -60,19 +60,19 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     if (prefix === 'loc') {
       const { error } = await supabase
         .from('organization_locations')
-        .update({ radius_meters: radiusMeters })
+        .update({ radius_meters: radiusMeters, geofence_mode: 'circle', geofence_polygon: null })
         .eq('id', rawId);
       if (error) throw error;
     } else if (prefix === 'project') {
       const { error } = await supabase
         .from('projects')
-        .update({ address_radius_meters: radiusMeters })
+        .update({ address_radius_meters: radiusMeters, address_geofence_mode: 'circle', address_geofence_polygon: null })
         .eq('id', rawId);
       if (error) throw error;
     } else if (prefix === 'large') {
       const { error } = await supabase
         .from('large_projects')
-        .update({ address_radius_meters: radiusMeters })
+        .update({ address_radius_meters: radiusMeters, address_geofence_mode: 'circle', address_geofence_polygon: null })
         .eq('id', rawId);
       if (error) throw error;
     } else {
@@ -81,8 +81,55 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['day-known-sites'] }),
       queryClient.invalidateQueries({ queryKey: ['organization-locations-known'] }),
+      queryClient.invalidateQueries({ queryKey: ['all-active-project-geofences'] }),
     ]);
   }, [queryClient]);
+
+  /**
+   * Sparar polygon för en geofence. polygon=null tar bort polygonen och
+   * återgår till cirkel.
+   */
+  const savePolygon = useCallback(async (id: string, polygon: GeoJSON.Polygon | null) => {
+    const [prefix, rawId] = id.split(':');
+    if (!rawId) throw new Error('Ogiltigt geofence-id');
+    const usePoly = polygon !== null;
+    if (prefix === 'loc') {
+      const { error } = await supabase
+        .from('organization_locations')
+        .update({
+          geofence_mode: usePoly ? 'polygon' : 'circle',
+          geofence_polygon: usePoly ? (polygon as any) : null,
+        })
+        .eq('id', rawId);
+      if (error) throw error;
+    } else if (prefix === 'project') {
+      const { error } = await supabase
+        .from('projects')
+        .update({
+          address_geofence_mode: usePoly ? 'polygon' : 'circle',
+          address_geofence_polygon: usePoly ? (polygon as any) : null,
+        })
+        .eq('id', rawId);
+      if (error) throw error;
+    } else if (prefix === 'large') {
+      const { error } = await supabase
+        .from('large_projects')
+        .update({
+          address_geofence_mode: usePoly ? 'polygon' : 'circle',
+          address_geofence_polygon: usePoly ? (polygon as any) : null,
+        })
+        .eq('id', rawId);
+      if (error) throw error;
+    } else {
+      throw new Error(`Polygon kan inte sparas för ${prefix}`);
+    }
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['day-known-sites'] }),
+      queryClient.invalidateQueries({ queryKey: ['organization-locations-known'] }),
+      queryClient.invalidateQueries({ queryKey: ['all-active-project-geofences'] }),
+    ]);
+  }, [queryClient]);
+
 
 
   const staffQuery = useQuery({
