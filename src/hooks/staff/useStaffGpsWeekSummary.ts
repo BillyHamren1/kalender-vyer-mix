@@ -229,9 +229,49 @@ export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]
         .sort((a, b) => b.minutes - a.minutes);
 
       // Build full timeline (stays + interleaved moves + gaps).
-      // En "lucka" = mellantid där ingen ping fanns på > 20 min OCH avståndet
-      // mellan stays inte rättfärdigar restid (dvs vi har inte täckning).
-      const stays = [...allPlaceVisits].sort((a, b) => a.start.localeCompare(b.start));
+      // Stays = union(allPlaceVisits, knownGeofenceVisits). Den exakta
+      // geofence-besöks-detektorn är auktoritativ för "personen var på X" —
+      // utan denna union missar vi dagar där klusterheuristiken inte hittade
+      // ett stopp men personen ändå var inom ett känt projekt-/lager-stängsel.
+      type Stay = {
+        start: string;
+        end: string;
+        durationMin: number;
+        centre: { lat: number; lng: number };
+        knownSite: { id: string; name: string } | null;
+      };
+      const toStay = (v: PlaceVisit): Stay => ({
+        start: v.start,
+        end: v.end,
+        durationMin: v.durationMin,
+        centre: v.centre,
+        knownSite: v.knownSite,
+      });
+      const overlaps = (a: Stay, b: Stay) =>
+        new Date(a.start).getTime() < new Date(b.end).getTime() &&
+        new Date(b.start).getTime() < new Date(a.end).getTime();
+      const merged: Stay[] = allPlaceVisits.map(toStay);
+      for (const gv of knownGeofenceVisits) {
+        const gStay = toStay(gv);
+        const hitIdx = merged.findIndex(
+          s => s.knownSite && gStay.knownSite && s.knownSite.id === gStay.knownSite.id && overlaps(s, gStay),
+        );
+        if (hitIdx >= 0) {
+          const existing = merged[hitIdx];
+          const start = existing.start < gStay.start ? existing.start : gStay.start;
+          const end = existing.end > gStay.end ? existing.end : gStay.end;
+          merged[hitIdx] = {
+            start,
+            end,
+            durationMin: Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60_000)),
+            centre: gStay.centre,
+            knownSite: gStay.knownSite,
+          };
+        } else {
+          merged.push(gStay);
+        }
+      }
+      const stays = merged.sort((a, b) => a.start.localeCompare(b.start));
       const timeline: GpsTimelineEntry[] = [];
       for (let k = 0; k < stays.length; k++) {
         const v = stays[k];
@@ -255,14 +295,10 @@ export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]
             { lat: v.centre.lat, lng: v.centre.lng },
             { lat: next.centre.lat, lng: next.centre.lng },
           );
-          // Avgör om mellantiden är rörelse eller gap genom att titta på
-          // verkliga pings i mellanrummet.
           const gapPings = pings.filter(p =>
             p.recorded_at > v.end && p.recorded_at < next.start,
           );
           const expectedKmh = distM > 0 && moveMin > 0 ? (distM / 1000) / (moveMin / 60) : 0;
-          // Heuristik: < 3 pings i intervallet OCH > 20 min mellanrum = GPS-lucka.
-          // Annars: behandla som rörelse om det finns mätbart avstånd.
           if (moveMin >= 2 && gapPings.length < 3 && moveMin > 20 && expectedKmh < 5) {
             timeline.push({ kind: 'gap', start: v.end, end: next.start, minutes: moveMin });
           } else if (moveMin >= 2 && distM > 50) {
@@ -274,7 +310,6 @@ export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]
               distanceKm: Math.round(distM / 100) / 10,
             });
           } else if (moveMin >= 30) {
-            // Lång mellantid utan distans = stillastående utan känd plats → gap
             timeline.push({ kind: 'gap', start: v.end, end: next.start, minutes: moveMin });
           }
         }
