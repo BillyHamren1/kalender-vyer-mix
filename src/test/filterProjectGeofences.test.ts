@@ -126,4 +126,75 @@ describe('filterProjectGeofences', () => {
     ]);
     expect(result).toHaveLength(2);
   });
+
+  describe('datumfönster (rigg → sista nedrigg)', () => {
+    const base = {
+      id: 'wen',
+      name: 'Wenngarn',
+      delivery_latitude: 59.69,
+      delivery_longitude: 17.69,
+      address_radius_meters: 150,
+      status: 'planning',
+      planning_status: 'planned',
+      rigdaydate: '2026-06-05',
+      rigdowndate: '2026-06-07',
+      eventdate: '2026-06-06',
+    } as const;
+
+    it('visar projektet på riggdagen', () => {
+      const r = filterProjectGeofences([{ ...base }], [], '2026-06-05');
+      expect(r).toHaveLength(1);
+    });
+
+    it('visar projektet på sista nedriggdag', () => {
+      const r = filterProjectGeofences([{ ...base }], [], '2026-06-07');
+      expect(r).toHaveLength(1);
+    });
+
+    it('döljer projektet dagen innan rigg', () => {
+      const r = filterProjectGeofences([{ ...base }], [], '2026-06-04');
+      expect(r).toHaveLength(0);
+    });
+
+    it('döljer projektet dagen efter sista nedrigg', () => {
+      const r = filterProjectGeofences([{ ...base }], [], '2026-06-08');
+      expect(r).toHaveLength(0);
+    });
+
+    it('utan rigg/nedrigg — endast eventdate avgör', () => {
+      const r1 = filterProjectGeofences(
+        [{ ...base, rigdaydate: null, rigdowndate: null }], [], '2026-06-06');
+      expect(r1).toHaveLength(1);
+      const r2 = filterProjectGeofences(
+        [{ ...base, rigdaydate: null, rigdowndate: null }], [], '2026-06-05');
+      expect(r2).toHaveLength(0);
+    });
+
+    it('projekt utan några datum alls filtreras bort', () => {
+      const r = filterProjectGeofences(
+        [{ ...base, rigdaydate: null, rigdowndate: null, eventdate: null }],
+        [], '2026-06-06');
+      expect(r).toHaveLength(0);
+    });
+
+    it('stort projekt: start_date/end_date avgör', () => {
+      const lp = {
+        id: 'lp1',
+        name: 'Stort',
+        address_latitude: 59.69,
+        address_longitude: 17.69,
+        address_radius_meters: 200,
+        start_date: '2026-06-01',
+        end_date: '2026-06-10',
+      };
+      expect(filterProjectGeofences([], [lp], '2026-06-05')).toHaveLength(1);
+      expect(filterProjectGeofences([], [lp], '2026-05-31')).toHaveLength(0);
+      expect(filterProjectGeofences([], [lp], '2026-06-11')).toHaveLength(0);
+    });
+
+    it('utan dateStr → datumfilter hoppas över (bakåtkompatibelt)', () => {
+      const r = filterProjectGeofences([{ ...base }]);
+      expect(r).toHaveLength(1);
+    });
+  });
 });
