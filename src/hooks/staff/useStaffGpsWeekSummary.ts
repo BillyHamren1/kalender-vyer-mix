@@ -1,13 +1,13 @@
-import { useQueries } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { staffGpsRawQueryKey, type RawStaffGpsPing } from './useStaffGpsPingsForDay';
-import { useAllActiveProjectGeofences } from '@/hooks/useAllActiveProjectGeofences';
 import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
 import { buildExactGeofenceVisits } from '@/lib/staff/buildExactGeofenceVisits';
 import { buildPlaceVisits, type PlaceVisit } from '@/lib/staff/pingPlaceSegments';
 import { haversineMeters } from '@/lib/staff/movementDetection';
+import { filterProjectGeofences, type RawProjectRow, type RawLargeProjectRow } from '@/lib/staff/filterProjectGeofences';
 import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
 
 export interface StaffGpsPlaceTime {
@@ -97,10 +97,37 @@ async function fetchPingsForDay(staffId: string, date: string): Promise<RawStaff
 
 export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]) {
   const dateStrs = useMemo(() => weekDates.map(d => format(d, 'yyyy-MM-dd')), [weekDates]);
-  const middleDate = dateStrs[Math.floor(dateStrs.length / 2)] ?? dateStrs[0] ?? '';
 
   const { data: orgLocations = [] } = useOrganizationLocations();
-  const { data: projectSites = [] } = useAllActiveProjectGeofences(middleDate, !!middleDate);
+
+  // Hämta råa projekt-rader ENBART en gång och filtrera sedan per dag — så
+  // att en bokning vars aktiva fönster bara täcker t.ex. fredagen ändå räknas
+  // som geofence på just den dagen (inte bara veckans mittendag).
+  const { data: rawProjects } = useQuery({
+    queryKey: ['week-summary-raw-projects', 'v1'],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const [projectsRes, largeRes] = await Promise.all([
+        supabase
+          .from('projects')
+          .select('id, name, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon, status, planning_status, deleted_at, created_at, booking_id, rigdaydate, rigdowndate, eventdate')
+          .is('deleted_at', null)
+          .not('delivery_latitude', 'is', null)
+          .not('delivery_longitude', 'is', null)
+          .limit(5000),
+        supabase
+          .from('large_projects')
+          .select('id, name, address_latitude, address_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon, created_at, start_date, end_date, event_date')
+          .not('address_latitude', 'is', null)
+          .not('address_longitude', 'is', null)
+          .limit(5000),
+      ]);
+      return {
+        projects: ((projectsRes as any).data || []) as RawProjectRow[],
+        large: ((largeRes as any).data || []) as RawLargeProjectRow[],
+      };
+    },
+  });
 
   const privateIds = useMemo(() => {
     const s = new Set<string>();
@@ -110,16 +137,22 @@ export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]
     return s;
   }, [orgLocations]);
 
-  const geofences = useMemo<GeofenceSite[]>(() => {
-    const out: GeofenceSite[] = [];
-    for (const l of orgLocations) {
-      out.push({ id: `loc:${l.id}`, name: l.name, lat: l.lat, lng: l.lng, radiusMeters: l.radiusMeters, polygon: l.polygon });
+  const geofencesByDate = useMemo<Record<string, GeofenceSite[]>>(() => {
+    const map: Record<string, GeofenceSite[]> = {};
+    const projects = rawProjects?.projects ?? [];
+    const large = rawProjects?.large ?? [];
+    for (const date of dateStrs) {
+      const out: GeofenceSite[] = [];
+      for (const l of orgLocations) {
+        out.push({ id: `loc:${l.id}`, name: l.name, lat: l.lat, lng: l.lng, radiusMeters: l.radiusMeters, polygon: l.polygon });
+      }
+      for (const s of filterProjectGeofences(projects, large, date)) {
+        out.push({ id: s.id, name: s.name, lat: s.lat, lng: s.lng, radiusMeters: s.radiusMeters, polygon: s.polygon });
+      }
+      map[date] = out;
     }
-    for (const s of projectSites) {
-      out.push({ id: s.id, name: s.name, lat: s.lat, lng: s.lng, radiusMeters: s.radiusMeters, polygon: s.polygon });
-    }
-    return out;
-  }, [orgLocations, projectSites]);
+    return map;
+  }, [orgLocations, rawProjects, dateStrs]);
 
   const results = useQueries({
     queries: dateStrs.map((date) => ({
@@ -149,6 +182,7 @@ export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]
         };
       }
       const pingsLite = pings.map(p => ({ lat: p.lat, lng: p.lng, recorded_at: p.recorded_at, accuracy: p.accuracy ?? null }));
+      const geofences = geofencesByDate[date] ?? [];
       const knownGeofenceVisits = geofences.length ? buildExactGeofenceVisits(pingsLite, geofences) : [];
       // Full timeline incl. unknown stops between geofences.
       const allPlaceVisits = buildPlaceVisits(
@@ -259,5 +293,5 @@ export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]
         isLoading: !!q?.isLoading,
       };
     });
-  }, [dateStrs, results, geofences, privateIds]);
+  }, [dateStrs, results, geofencesByDate, privateIds]);
 }
