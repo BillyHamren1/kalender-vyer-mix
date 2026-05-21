@@ -22,9 +22,12 @@ const FORBIDDEN = [
 
 const FILES = [
   'src/hooks/staff/useStaffGpsPingsForDay.ts',
+  'src/hooks/staff/useStaffGpsWeekSummary.ts',
   'src/hooks/useDayKnownSites.ts',
   'src/components/staff/RawGpsSatelliteMap.tsx',
   'src/components/staff/StaffGpsSatelliteMap.tsx',
+  'src/components/staff/StaffGpsWeekPanel.tsx',
+  'src/components/staff/StaffGpsDayRow.tsx',
   'src/pages/StaffGpsSatelliteMap.tsx',
 ];
 

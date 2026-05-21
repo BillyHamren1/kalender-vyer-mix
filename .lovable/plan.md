@@ -1,85 +1,76 @@
-# AI-driven tidsgranskning i realtid
+## Mål
 
-## Vad det gör
-Varje gång ett tidsblock avslutas (time_report skapas/uppdateras, eller en timer stoppas) startar en AI-pipeline som:
+Bygg om `/staff-management/gps-satellite-map` till en två-kolumns-vy:
+- **Vänster**: person-väljare + veckonavigering + lista över veckans 7 dagar med starttid, besökta platser, sluttid och arbetade timmar.
+- **Höger**: nuvarande satellitkarta som visar vald dags rörelser (oförändrad logik).
 
-1. Läser hela dagens kontext för personen (time_reports, LTE, travel, GPS-pings, place_visits, planerade bokningar via BSA, projektets geofence, plannedDay).
-2. Avgör om blocket är **klart**, **behöver vänta på nästa block** (t.ex. om personen precis lämnat geofence — då pausas analysen), eller **skevt**.
-3. Vid skevt block: skapar `time_report_correction_suggestions` med förklaring + förslag (justera start/slut, byt target, splitta, slå ihop, klassa som travel/private).
-4. **Hög confidence + säker regel** → auto-applicerar förslaget direkt på `time_reports` (audit-loggat, kan rullas tillbaka). Låg confidence → läggs som förslag.
-5. Sparar mönster i en **regelbok** (`staff_time_learning_rules`) — t.ex. "Anna jobbar alltid 22–06 på Projekt X", "Erik kör alltid hem via lagret" — som framtida AI-anrop får som primer.
+Datakällan är **densamma som kartan idag** — `useStaffGpsPingsForDay` + `buildExactGeofenceVisits` (samma `geofenceVisits` som redan visas i `GeofenceVisitsTable`). Ingen ny tolkning, inga `time_reports`, inget Time Engine. Kartan visar fortfarande exakt det den visar nu.
 
-## Säkerhetsspärrar (från projekt-memory, oförhandelbart)
-- AI får ALDRIG dra av tid (mem: ai-only-on-unclear-segments-v1).
-- AI rör ALDRIG godkända rapporter (approved-lock).
-- AI rör ALDRIG nattliga GPS-only-block utan TR/LTE/manuell workday bakom (night-gps-only-guard).
-- Inuti projekt-geofence = tid på projektet (geofence-inside-time-authority).
-- Time Data Authority oförändrad: time_report är fortfarande sanningen, AI föreslår/justerar inom sina ramar.
-- AI ändrar **inte källkoden** (det jag inte kan/bör bygga). "Självlärande" = växande regelbok i DB som AI:n läser inför varje analys.
+## Layout
 
-## Auto-apply-policy (vad som får ändras utan godkännande)
-Endast dessa fall, allt annat blir förslag:
-- Trim ≤10 min mot exakt geofence-exit (GPS bevisar att personen lämnade då).
-- Slå ihop två konsekutiva block på samma target med <5 min mellanrum.
-- Flytta blockets target från "okänt" → projektets ID när blocket helt ligger inuti projektets geofence.
-- Allt annat → suggestion + banner i dag-vyn.
+```text
+┌───────────────────────────────────────────────────────────────────┐
+│ PageHeader: GPS satellitkarta                                     │
+├──────────────────┬────────────────────────────────────────────────┤
+│ Person ▼         │  [Lager-checkboxar] [pings/geofences-badges]   │
+│ Markuss Minalto  │  ┌──────────────────────────────────────────┐ │
+│                  │  │                                          │ │
+│ ◀ V.20 2026 ▶    │  │           Satellitkarta                  │ │
+│ ─────────────    │  │       (vald dags pings + visits)         │ │
+│ ● Mån 18/5       │  │                                          │ │
+│   08:15 → 21:13  │  └──────────────────────────────────────────┘ │
+│   Westmark, FA   │  Geofence-besök (tabell) — för vald dag       │
+│   Warehouse      │  Pings-tidslinje (tabell) — för vald dag      │
+│   12h 58m        │                                                │
+│ ─────────────    │                                                │
+│   Tis 19/5  —    │                                                │
+│ ─────────────    │                                                │
+│   Ons 20/5  —    │                                                │
+│ ...              │                                                │
+└──────────────────┴────────────────────────────────────────────────┘
+```
 
-## Arkitektur
+Vänsterpanelen är ~320 px bred, scrollbar; kartan tar resten.
 
-### Ny edge function: `ai-time-block-reviewer`
-- Actions: `review_block` (efter stop), `review_day` (manuell on-demand), `apply_suggestion`, `dismiss_suggestion`.
-- Använder Lovable AI Gateway (`google/gemini-3-flash-preview` default, fallback till `gemini-2.5-pro` för svåra dagar).
-- Structured output via AI SDK `Output.object` med Zod-schema: `{verdict, confidence, action, reasoning, ruleLearned?}`.
-- Prompt får: dagens timeline, BSA-planering, geofence-status, plannedDay, **alla matchande regler från `staff_time_learning_rules`**, samt en lång SYSTEM-prompt med allt vi diskuterat (Time Data Authority, geofence-regeln, night-guard, transport-regeln, single-timer-policy, work-confirmed-bypass, m.fl. — listade ordagrant så AI:n förstår ramverket).
+## Filer
 
-### Ny tabell: `staff_time_learning_rules`
-- `staff_id`, `organization_id`, `scope` (staff|project|org), `pattern_type` (night_shift_ok | travel_home_via_warehouse | short_visit_counts | …), `pattern_data` (jsonb), `confidence`, `learned_at`, `verified_count`, `superseded_by`.
-- RLS: org-isolerad.
-- AI skapar dem; admin kan inaktivera dem från en ny "Lärda regler"-sida.
+**Nya:**
+- `src/hooks/staff/useStaffGpsWeekSummary.ts` — hämtar pings för 7 dagar parallellt (React Query, en query per dag återanvänder befintlig `useStaffGpsPingsForDay`-cache via `useQueries`) + dagens `knownSites`. Returnerar per dag: `{ date, pingsCount, firstIso, lastIso, durationMin, visits: PlaceVisit[] }` där `visits` byggs med samma `buildExactGeofenceVisits` som kartan.
+- `src/components/staff/StaffGpsWeekPanel.tsx` — vänsterpanelen: person-select (återanvänder samma `staffQuery` + filter), vecknavigering (◀ V.NN ÅÅÅÅ ▶, "Idag"-knapp), 7 dagsrader. Aktiv dag highlightad. Klick sätter `date`.
+- `src/components/staff/StaffGpsDayRow.tsx` — en dagsrad: veckodag + datum, start `HH:MM`, slut `HH:MM`, total `Xh Ym`, lista av distinkta platsnamn från `visits` (komma-separerad, trunkerad). Tom dag visar bara "—".
 
-### Trigger: realtidsanrop efter stop
-- DB-trigger på `time_reports` (AFTER INSERT/UPDATE där end_time blev satt och status != 'approved') → `pg_net.http_post` till `ai-time-block-reviewer`.
-- Debounce 30s per (staff, date) så att vi inte spammar när 5 block stoppas samtidigt.
-- "Vänta på nästa block"-logik: om GPS visar att personen fortfarande är i rörelse / inte stabiliserat sig → pipeline returnerar `wait_for_next`, ingen suggestion skapas än.
+**Ändras:**
+- `src/components/staff/StaffGpsSatelliteMap.tsx`:
+  - Bryt ut nuvarande topbar-filter (Person/Visa/Datum/Lager) — Person+Datum flyttas in i vänsterpanelen, Lager-checkboxar + badge-rad stannar ovanför kartan.
+  - Wrappa i `flex` med `<StaffGpsWeekPanel>` till vänster och kart-kolumnen till höger. Vänsterpanelen får `staffId`, `date`, `onStaffChange`, `onDateChange`, samt `filterMode`/`onFilterChange` (flyttas dit).
+  - Kart-kolumnen behåller exakt nuvarande `RawGpsSatelliteMap` + `GeofenceVisitsTable` + `PingTimelineTable` — ingen ändring av karta eller tolkning.
 
-### UI: integrerat i dag-vyn (inte egen tabb)
-- `StaffTimeReportDetail` (admin) och dag-rader i `StaffWeekPanel`:
-  - Liten AI-badge per block: ✅ granskad / 💡 förslag / ⚠️ behöver kolla / ⏳ analyserar.
-  - Klick på badge → popover med AI:ns resonemang + Godkänn/Avvisa/Öppna full vy.
-  - Auto-applicerade ändringar visas med en "Justerad av AI"-tag + ångra-knapp i 24h.
-- Banner högst upp i dag-vyn om dagen har öppna förslag.
+**Tester (nya):**
+- `src/test/staffGpsWeekSummary.test.ts` — verifierar att summary räknar `firstIso`/`lastIso` från första/sista ping och `visits` från `buildExactGeofenceVisits`, samt att tom dag ger `null`/`0`.
+- Utöka `src/test/staffGpsSatelliteMap.contract.test.ts` med kontroll att `StaffGpsWeekPanel.tsx` inte importerar något Time Engine / dayJournal-lager (samma FORBIDDEN-lista).
 
-### Lärande-loopen
-- När admin godkänner ett AI-förslag → `verified_count++` på relaterade regler.
-- När admin avvisar → regeln markeras `superseded` om den orsakade förslaget.
-- Inför nästa AI-anrop laddas alla aktiva regler för (staff, projekt, org) in i prompten.
+## Tekniska detaljer
 
-## Filer som skapas
-- `supabase/migrations/…_ai_time_reviewer.sql` — `staff_time_learning_rules`, ny kolumn `applied_by_ai`/`ai_reasoning` på `time_report_correction_suggestions`, trigger + cron-debouncer.
-- `supabase/functions/ai-time-block-reviewer/index.ts`
-- `supabase/functions/ai-time-block-reviewer/prompts.ts` — SYSTEM-prompt (lång, ordagrann från projekt-memory).
-- `supabase/functions/ai-time-block-reviewer/schema.ts` — Zod-output.
-- `supabase/functions/ai-time-block-reviewer/applySuggestion.ts` — auto-apply-policy.
-- `supabase/functions/ai-time-block-reviewer/loadRules.ts`.
-- `src/hooks/useAiBlockReview.ts` — realtidsprenumeration på suggestions.
-- `src/components/staff-time-reports/AiBlockBadge.tsx`
-- `src/components/staff-time-reports/AiSuggestionPopover.tsx`
-- `src/components/staff-time-reports/AiDayBanner.tsx`
-- `src/pages/AiLearnedRules.tsx` + route — admin ser/inaktiverar regler.
-- `src/test/aiBlockReviewer.test.tsx` — enhetstest för apply-policy + UI-badge.
-- Edge-tester: `supabase/functions/ai-time-block-reviewer/index_test.ts`.
+**Veckoberäkning:** måndag-start (sv-SE), `useWeekDays(weekStart)` finns redan.
 
-## Filer som ändras
-- `src/components/staff-time-reports/StaffWeekPanel.tsx` — visa AI-badge per block.
-- `src/components/staff/StaffTimeReportsList.tsx` (eller motsv. dag-detalj) — banner + popover.
-- Mem-index: ny constraint `mem://features/admin/ai-time-reviewer-v1`.
+**Start/slut per dag:**
+- `firstIso` = `min(pings.recorded_at)` (samma som `summary.first` i nuvarande topbar).
+- `lastIso` = `max(pings.recorded_at)`.
+- `durationMin` = `(lastTs - firstTs) / 60_000`, avrundat. Inga rastavdrag, ingen tolkning — bara span mellan första och sista ping för dagen. Visas som `Xh Ym`.
 
-## Det jag INTE bygger (och varför)
-- **AI som ändrar TS/React-koden själv** — omöjligt i runtime, säkerhetshål, bryter mot deploy-modellen. Ersätts av regelboken som ger samma effekt: systemet blir skarpare för varje granskning utan kodändring.
-- **Auto-apply på godkända rapporter** — bryter approved-lock.
-- **AI som drar av tid** — bryter ai-only-on-unclear-segments.
+**Platser per dag:** unika `visit.placeName` från `geofenceVisits`, i kronologisk ordning, max 3 visas + `+N` om fler.
+
+**Prestanda:** 7 parallella `useQuery`-anrop via `useQueries`. Återanvänder `staffPingsForDay`-cache så den valda dagen redan är varm när användaren klickar runt. `knownSites` hämtas en gång för aktiv dag (kartan), och separat per dag för panelens visits-beräkning (samma hook, billig på cache).
+
+**Default:** Initial vecka = veckan som innehåller `DEFAULT_DATE_ISO` (`2026-05-16`) tills användaren navigerar.
+
+## Vad som INTE ändras
+
+- Karta, `RawGpsSatelliteMap`, `buildExactGeofenceVisits`, `useStaffGpsPingsForDay`, `useDayKnownSites` — orörda.
+- Ingen ny edge function, ingen migration, inga DB-skrivningar.
+- Sidans isolation-kontrakt (`staffGpsSatelliteMap.contract.test.ts`) hålls — vi importerar fortfarande inget från Time Engine / dayJournal.
 
 ## Verifiering
-- Vitest: apply-policy (10-min-trim, merge, geofence-target-flytt) + att approved/night-GPS-only ALDRIG modifieras.
-- Deno-test: ai-time-block-reviewer returnerar `wait_for_next` när GPS pågår, returnerar suggestion på syntetiskt skevt block.
-- E2E i preview efter deploy.
+
+1. `bunx vitest run src/test/staffGpsWeekSummary.test.ts src/test/staffGpsSatelliteMap.contract.test.ts`
+2. Navigera till `/staff-management/gps-satellite-map`, verifiera att vänsterpanelen visar Markuss vecka 20 2026, att 18/5 är markerad (om det är dagen med data), och att klick på en annan dag uppdaterar kartan.

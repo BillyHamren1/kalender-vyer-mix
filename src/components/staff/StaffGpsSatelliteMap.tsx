@@ -1,11 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { CalendarIcon } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -14,11 +9,11 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { fetchStaffMembers } from '@/services/staffService';
 import { supabase } from '@/integrations/supabase/client';
 import { useStaffGpsPingsForDay, type RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
-import { useStaffPingDaysForMonth } from '@/hooks/staff/useStaffPingDaysForMonth';
 import { useDayKnownSites } from '@/hooks/useDayKnownSites';
 import { useAllActiveProjectGeofences } from '@/hooks/useAllActiveProjectGeofences';
 import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
 import RawGpsSatelliteMap from './RawGpsSatelliteMap';
+import { StaffGpsWeekPanel } from './StaffGpsWeekPanel';
 import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
 import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
 import { type PlaceVisit } from '@/lib/staff/pingPlaceSegments';
@@ -190,16 +185,9 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
   const pingsQuery = useStaffGpsPingsForDay(effectiveStaffId, dateStr);
   const pings: RawStaffGpsPing[] = pingsQuery.data ?? [];
 
-  // Färgmarkera dagar i månadskalendern som har pings för vald person.
-  const pingDaysQuery = useStaffPingDaysForMonth(effectiveStaffId, calendarMonth);
-  const pingDayDates = useMemo<Date[]>(() => {
-    const counts = pingDaysQuery.data;
-    if (!counts) return [];
-    return Array.from(counts.keys()).map((iso) => {
-      const [y, m, d] = iso.split('-').map(Number);
-      return new Date(y, (m ?? 1) - 1, d ?? 1);
-    });
-  }, [pingDaysQuery.data]);
+  // (Månadsprickar borttagna — vecknavigeringen ersätter månadskalendern.)
+  void calendarMonth;
+
 
   // Geofences: alla org-platser + DAGENS targets för vald person +
   // ALLA aktiva projekt/stora projekt (oavsett person/dag) så kartan alltid
@@ -267,144 +255,92 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     return buildExactGeofenceVisits(asPings, geofences);
   }, [pings, geofences]);
 
+  const handleDateChange = useCallback((d: Date) => {
+    setDate(d);
+    setCalendarMonth(d);
+  }, []);
+
   return (
-    <div className="flex flex-col h-full gap-4">
-      {/* Topbar */}
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground">Person</label>
-          <Select value={effectiveStaffId ?? ''} onValueChange={(v) => setStaffId(v)}>
-            <SelectTrigger className="w-[260px]">
-              <SelectValue placeholder="Välj person" />
-            </SelectTrigger>
-            <SelectContent>
-              {staff.length === 0 && (
-                <div className="px-2 py-2 text-xs text-muted-foreground">Ingen matchar filtret.</div>
-              )}
-              {staff.map((s) => {
-                const a = assignedSet.has(s.id);
-                const p = pingedSet.has(s.id);
-                return (
-                  <SelectItem key={s.id} value={s.id}>
-                    <span className="flex items-center gap-2">
-                      <span>{s.name}</span>
-                      {a && <Badge variant="secondary" className="h-4 px-1 text-[10px]">Ass</Badge>}
-                      {p && <Badge variant="outline" className="h-4 px-1 text-[10px]">GPS</Badge>}
-                    </span>
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
-        </div>
+    <div className="flex flex-col md:flex-row gap-4 h-full">
+      <StaffGpsWeekPanel
+        staff={staff}
+        staffId={effectiveStaffId}
+        onStaffChange={(id) => setStaffId(id)}
+        assignedSet={assignedSet}
+        pingedSet={pingedSet}
+        date={date}
+        onDateChange={handleDateChange}
+      />
 
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground">Visa</label>
-          <Select value={filterMode} onValueChange={(v) => setFilterMode(v as FilterMode)}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="both">Assignade el. pingade</SelectItem>
-              <SelectItem value="assigned">Endast assignade</SelectItem>
-              <SelectItem value="pinged">Endast pingade</SelectItem>
-              <SelectItem value="all">Alla</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      <div className="flex-1 min-w-0 flex flex-col gap-3">
+        {/* Sekundär filterrad: lager + visa-filter + summary-badges */}
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted-foreground">Visa personer</label>
+            <Select value={filterMode} onValueChange={(v) => setFilterMode(v as FilterMode)}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="both">Assignade el. pingade</SelectItem>
+                <SelectItem value="assigned">Endast assignade</SelectItem>
+                <SelectItem value="pinged">Endast pingade</SelectItem>
+                <SelectItem value="all">Alla</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted-foreground">Lager på kartan</label>
+            <div className="flex items-center gap-3 h-10 px-3 border rounded-md">
+              <label className="flex items-center gap-2 text-xs cursor-pointer">
+                <Checkbox checked={showLocations} onCheckedChange={(v) => setShowLocations(v === true)} />
+                <span>Platser</span>
+              </label>
+              <label className="flex items-center gap-2 text-xs cursor-pointer">
+                <Checkbox checked={showTargets} onCheckedChange={(v) => setShowTargets(v === true)} />
+                <span>Targets (dagen)</span>
+              </label>
+            </div>
+          </div>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground">Datum</label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="w-[200px] justify-start text-left font-normal">
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {format(date, 'yyyy-MM-dd')}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={date}
-                onSelect={(d) => d && setDate(d)}
-                month={calendarMonth}
-                onMonthChange={setCalendarMonth}
-                initialFocus
-                modifiers={{ hasPings: pingDayDates }}
-                modifiersClassNames={{
-                  hasPings:
-                    'relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:h-1.5 after:w-1.5 after:rounded-full after:bg-primary',
-                }}
-                className={cn('p-3 pointer-events-auto')}
-              />
-              <div className="px-3 pb-3 pt-1 flex items-center gap-2 text-[11px] text-muted-foreground border-t">
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
-                <span>
-                  {pingDaysQuery.isLoading
-                    ? 'Laddar dagar med GPS…'
-                    : `${pingDayDates.length} dag(ar) med GPS denna månad`}
-                </span>
-              </div>
-            </PopoverContent>
-          </Popover>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground">Lager på kartan</label>
-          <div className="flex items-center gap-3 h-10 px-3 border rounded-md">
-            <label className="flex items-center gap-2 text-xs cursor-pointer">
-              <Checkbox checked={showLocations} onCheckedChange={(v) => setShowLocations(v === true)} />
-              <span>Platser</span>
-            </label>
-            <label className="flex items-center gap-2 text-xs cursor-pointer">
-              <Checkbox checked={showTargets} onCheckedChange={(v) => setShowTargets(v === true)} />
-              <span>Targets (dagen)</span>
-            </label>
+          <div className="flex flex-wrap items-center gap-2 ml-auto">
+            <Badge variant="outline">{format(date, 'yyyy-MM-dd')}</Badge>
+            {pingsQuery.isLoading && <Badge variant="outline">Laddar…</Badge>}
+            {geofences.length > 0 && (
+              <Badge variant="outline">{geofences.length} geofences</Badge>
+            )}
+            {summary && (
+              <>
+                <Badge variant="secondary">{summary.count} pings</Badge>
+                <Badge variant="outline">Första {summary.first}</Badge>
+                <Badge variant="outline">Sista {summary.last}</Badge>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Linjer inuti geofence döljs alltid visuellt (logiken är orörd). */}
-
-
-        <div className="flex flex-wrap items-center gap-2 ml-auto">
-          {pingsQuery.isLoading && <Badge variant="outline">Laddar…</Badge>}
-          {geofences.length > 0 && (
-            <Badge variant="outline">{geofences.length} geofences</Badge>
-          )}
-          {summary && (
-            <>
-              <Badge variant="secondary">{summary.count} pings</Badge>
-              <Badge variant="outline">Första {summary.first}</Badge>
-              <Badge variant="outline">Sista {summary.last}</Badge>
-              <Badge variant="outline">Build {summary.build}</Badge>
-              <Badge variant="outline">{summary.device}</Badge>
-            </>
+        {/* Karta */}
+        <div className="relative h-[55vh] min-h-[360px] rounded-md overflow-hidden border bg-muted/30">
+          {pings.length > 0 || geofences.length > 0 ? (
+            <RawGpsSatelliteMap pings={pings} geofences={geofences} visits={geofenceVisits} onSaveRadius={saveRadius} onSavePolygon={savePolygon} className="h-full w-full" />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+              {pingsQuery.isLoading ? 'Laddar pings…' : 'Inga GPS-pings eller geofences för vald person och dag.'}
+            </div>
           )}
         </div>
+
+        {/* Geofence-besök — exakt IN/UT per stängsel */}
+        <GeofenceVisitsTable visits={geofenceVisits} />
+
+        {/* Tabell — samma gruppering som kartan: stay-block (≥20 min på samma plats) slås ihop */}
+        <PingTimelineTable pings={pings} />
       </div>
-
-      {/* Karta */}
-      <div className="relative h-[55vh] min-h-[360px] rounded-md overflow-hidden border bg-muted/30">
-        {pings.length > 0 || geofences.length > 0 ? (
-          <RawGpsSatelliteMap pings={pings} geofences={geofences} visits={geofenceVisits} onSaveRadius={saveRadius} onSavePolygon={savePolygon} className="h-full w-full" />
-
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-            {pingsQuery.isLoading ? 'Laddar pings…' : 'Inga GPS-pings eller geofences för vald person och dag.'}
-          </div>
-        )}
-      </div>
-
-
-      {/* Geofence-besök — exakt IN/UT per stängsel */}
-      <GeofenceVisitsTable visits={geofenceVisits} />
-
-      {/* Tabell — samma gruppering som kartan: stay-block (≥20 min på samma plats) slås ihop */}
-      <PingTimelineTable pings={pings} />
     </div>
   );
 }
+
 
 function GeofenceVisitsTable({ visits }: { visits: PlaceVisit[] }) {
   const sorted = useMemo(
