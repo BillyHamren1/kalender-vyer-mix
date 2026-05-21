@@ -7,6 +7,10 @@
  *    cancelled kan ligga på vilken som helst).
  *  - Soft-deleted (`deleted_at`) kastas.
  *  - Saknar koordinater → kastas.
+ *  - Om `dateStr` är satt: projektet visas ENDAST om dateStr ligger inom
+ *    projektets aktiva fönster (rigg → sista nedrigg, inkl. båda ändarna).
+ *    Saknar projektet både start och slut → kastas (annars är vi tillbaka
+ *    till "alla projekt alla dagar"-buggen).
  *  - Dedup på närliggande punkter (~25 m): behåll den giltiga, prioritera den
  *    med explicit `address_radius_meters` satt, annars senast skapad.
  */
@@ -23,6 +27,9 @@ export interface RawProjectRow {
   deleted_at?: string | null;
   created_at?: string | null;
   booking_id?: string | null;
+  rigdaydate?: string | null;
+  rigdowndate?: string | null;
+  eventdate?: string | null;
 }
 
 export interface RawLargeProjectRow {
@@ -33,6 +40,9 @@ export interface RawLargeProjectRow {
   address_radius_meters: number | string | null;
   deleted_at?: string | null;
   created_at?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  event_date?: string | null;
 }
 
 export interface ProjectGeofence {
@@ -57,6 +67,42 @@ function num(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** Normaliserar 'YYYY-MM-DD' eller ISO-datum → 'YYYY-MM-DD'. Tomt → null. */
+function toDayStr(v: unknown): string | null {
+  if (v === null || v === undefined || v === '') return null;
+  const s = String(v);
+  // Plocka första 10 tecken om det ser ut som datum/ISO.
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : null;
+}
+
+/**
+ * Returnerar true om `dateStr` ligger inom [start, end] (inkl.).
+ * `starts`/`ends` är prioriterade kandidatlistor — första non-null vinner.
+ * Saknas både start och end → false (vi vill inte ha "alltid synlig"-rader).
+ */
+function isDateInWindow(
+  dateStr: string,
+  starts: Array<string | null | undefined>,
+  ends: Array<string | null | undefined>,
+): boolean {
+  let start: string | null = null;
+  for (const s of starts) {
+    const d = toDayStr(s);
+    if (d) { start = d; break; }
+  }
+  let end: string | null = null;
+  for (const e of ends) {
+    const d = toDayStr(e);
+    if (d) { end = d; break; }
+  }
+  if (!start && !end) return false;
+  // Fallback: om bara ena änden saknas, använd den andra för båda.
+  if (!start && end) start = end;
+  if (!end && start) end = start;
+  return dateStr >= (start as string) && dateStr <= (end as string);
+}
+
 /**
  * Två punkter inom ~25 m räknas som samma plats (samma adress, ev. olika
  * GPS-noise eller olika tidpunkter på samma kund).
@@ -65,15 +111,14 @@ const SAME_PLACE_M = 25;
 
 function pickBetter(a: ProjectGeofence & { _radiusExplicit: boolean; _created: number },
                     b: ProjectGeofence & { _radiusExplicit: boolean; _created: number }): typeof a {
-  // Explicit radius vinner alltid.
   if (a._radiusExplicit !== b._radiusExplicit) return a._radiusExplicit ? a : b;
-  // Annars senast skapad.
   return a._created >= b._created ? a : b;
 }
 
 export function filterProjectGeofences(
   projects: RawProjectRow[],
   largeProjects: RawLargeProjectRow[] = [],
+  dateStr?: string,
 ): ProjectGeofence[] {
   type Internal = ProjectGeofence & { _radiusExplicit: boolean; _created: number };
   const kept: Internal[] = [];
@@ -84,6 +129,11 @@ export function filterProjectGeofences(
     const lat = num(p.delivery_latitude);
     const lng = num(p.delivery_longitude);
     if (lat === null || lng === null) continue;
+    if (dateStr && !isDateInWindow(
+      dateStr,
+      [p.rigdaydate, p.eventdate],
+      [p.rigdowndate, p.eventdate],
+    )) continue;
     const explicit = p.address_radius_meters !== null && p.address_radius_meters !== undefined && p.address_radius_meters !== '';
     const radius = num(p.address_radius_meters) ?? 150;
     kept.push({
@@ -102,6 +152,11 @@ export function filterProjectGeofences(
     const lat = num(lp.address_latitude);
     const lng = num(lp.address_longitude);
     if (lat === null || lng === null) continue;
+    if (dateStr && !isDateInWindow(
+      dateStr,
+      [lp.start_date, lp.event_date],
+      [lp.end_date, lp.event_date],
+    )) continue;
     const explicit = lp.address_radius_meters !== null && lp.address_radius_meters !== undefined && lp.address_radius_meters !== '';
     const radius = num(lp.address_radius_meters) ?? 200;
     kept.push({
