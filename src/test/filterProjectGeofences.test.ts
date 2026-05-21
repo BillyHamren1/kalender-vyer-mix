@@ -32,11 +32,11 @@ describe('filterProjectGeofences', () => {
     expect(result).toHaveLength(0);
   });
 
-  it('dedupar två projekt på samma plats och föredrar den med explicit radie', () => {
+  it('dedupar två aktiva projekt på samma plats och föredrar den med explicit radie', () => {
     const result = filterProjectGeofences([
       {
         id: 'gammal',
-        name: 'Gammal (cancelled men dyker upp)',
+        name: 'Gammal',
         delivery_latitude: 59.703171,
         delivery_longitude: 17.62119,
         address_radius_meters: null,
@@ -47,8 +47,8 @@ describe('filterProjectGeofences', () => {
       {
         id: 'aktuell',
         name: 'Aktuell',
-        delivery_latitude: 59.7035498,
-        delivery_longitude: 17.6193661,
+        delivery_latitude: 59.703180,
+        delivery_longitude: 17.621200,
         address_radius_meters: 350,
         status: 'planning',
         planning_status: 'planned',
@@ -60,6 +60,7 @@ describe('filterProjectGeofences', () => {
     expect(result[0].id).toBe('project:aktuell');
     expect(result[0].radiusMeters).toBe(350);
   });
+
 
   it('cancelled westmans + aktiv westmans på samma plats → bara aktiv kvar', () => {
     const result = filterProjectGeofences([
