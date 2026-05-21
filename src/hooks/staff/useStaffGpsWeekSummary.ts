@@ -1,13 +1,13 @@
-import { useQueries } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { staffGpsRawQueryKey, type RawStaffGpsPing } from './useStaffGpsPingsForDay';
-import { useAllActiveProjectGeofences } from '@/hooks/useAllActiveProjectGeofences';
 import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
 import { buildExactGeofenceVisits } from '@/lib/staff/buildExactGeofenceVisits';
 import { buildPlaceVisits, type PlaceVisit } from '@/lib/staff/pingPlaceSegments';
 import { haversineMeters } from '@/lib/staff/movementDetection';
+import { filterProjectGeofences, type RawProjectRow, type RawLargeProjectRow } from '@/lib/staff/filterProjectGeofences';
 import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
 
 export interface StaffGpsPlaceTime {
