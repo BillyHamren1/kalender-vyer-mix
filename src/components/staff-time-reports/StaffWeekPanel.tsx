@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { useStaffWeekReports, type WeekDayEntry } from '@/hooks/useStaffWeekReports';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import type { PresenceRow } from './presenceUtils';
+import { AiDayBanner } from './AiDayBanner';
 
 interface Props {
   person: PresenceRow;
@@ -160,7 +161,8 @@ const DayRow = ({ day, staffId, maxHours, expanded, onToggle }: DayRowProps) => 
         )}
       </button>
       {expanded && hasReports && (
-        <div className="px-3 pb-3 pl-12 space-y-1">
+        <div className="px-3 pb-3 pl-12 space-y-2">
+          <AiDayBanner staffId={staffId} date={day.date} />
           {day.projects.map((p, idx) => (
             <div
               key={(p.booking_id || p.large_project_id || p.location_id || p.label) + idx}
