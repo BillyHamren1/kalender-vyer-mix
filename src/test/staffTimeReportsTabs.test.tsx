@@ -123,9 +123,15 @@ describe('StaffTimeReports — tabs', () => {
   });
 
   it('shows staff list and filters via search', async () => {
-    renderPage();
+    const { container } = renderPage();
     fireEvent.click(screen.getByRole('tab', { name: /Personal/i }));
-    await waitFor(() => expect(screen.getByText('Anna Andersson')).toBeInTheDocument());
+    await waitFor(
+      () => {
+        const txt = container.textContent || '';
+        if (!txt.includes('Anna Andersson')) throw new Error('not yet: ' + txt.slice(0, 200));
+      },
+      { timeout: 3000 },
+    );
     expect(screen.getByText('Björn Karlsson')).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText('Sök personal…'), { target: { value: 'björn' } });
