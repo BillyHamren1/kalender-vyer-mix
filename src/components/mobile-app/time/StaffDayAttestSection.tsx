@@ -217,15 +217,8 @@ const StaffDayAttestSection: React.FC<Props> = ({
     if (date === todayLocal && endMs > Date.now()) {
       return 'Sluttid kan inte ligga i framtiden.';
     }
-    if (!Number.isFinite(breakMinutes) || breakMinutes < 0 || breakMinutes > 600) {
-      return 'Rast måste vara 0–600 min.';
-    }
-    const grossMin = Math.round((endMs - startMs) / 60000);
-    if (grossMin > 16 * 60) {
-      return 'Brutto överstiger 16 timmar — kontrollera tiderna.';
-    }
-    if (grossMin - breakMinutes <= 0) {
-      return 'Arbetstid efter rast måste vara större än 0.';
+    if (!Number.isFinite(breakMinutes) || breakMinutes < 0) {
+      return 'Rast måste vara 0 min eller mer.';
     }
     return null;
   };
