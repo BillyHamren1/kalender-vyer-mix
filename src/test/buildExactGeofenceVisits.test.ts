@@ -72,7 +72,7 @@ describe('buildExactGeofenceVisits', () => {
     expect(visits[2].subKind).toBe('inside');
   });
 
-  it('behåller hängande outside_geo-block under aktivt projekt om dagen slutar utanför', () => {
+  it('släpper trailing outside_geo om personen lämnar projektet och aldrig kommer tillbaka', () => {
     const visits = buildExactGeofenceVisits(
       [
         ping('2026-05-23T08:00:00.000Z', 59, 18),
@@ -83,11 +83,11 @@ describe('buildExactGeofenceVisits', () => {
       [siteA, siteB],
     );
 
-    expect(visits).toHaveLength(2);
+    expect(visits).toHaveLength(1);
     expect(visits[0].subKind).toBe('inside');
-    expect(visits[1].subKind).toBe('outside_geo');
-    expect(visits[1].end).toBe('2026-05-23T17:00:00.000Z');
+    expect(visits[0].end).toBe('2026-05-23T09:00:00.000Z');
   });
+
 
   it('ignorerar pings innan personen någonsin gått in i ett geofence', () => {
     const visits = buildExactGeofenceVisits(
