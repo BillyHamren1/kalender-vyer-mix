@@ -14,6 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { fetchStaffMembers } from '@/services/staffService';
 import { supabase } from '@/integrations/supabase/client';
 import { useStaffGpsPingsForDay, type RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
+import { useStaffPingDaysForMonth } from '@/hooks/staff/useStaffPingDaysForMonth';
 import { useDayKnownSites } from '@/hooks/useDayKnownSites';
 import { useAllActiveProjectGeofences } from '@/hooks/useAllActiveProjectGeofences';
 import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
@@ -42,6 +43,9 @@ const DEFAULT_DATE_ISO = '2026-05-16';
 export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Props) {
   const [staffId, setStaffId] = useState<string | null>(initialStaffId ?? DEFAULT_STAFF_ID);
   const [date, setDate] = useState<Date>(initialDate ? new Date(initialDate) : new Date(DEFAULT_DATE_ISO));
+  const [calendarMonth, setCalendarMonth] = useState<Date>(
+    initialDate ? new Date(initialDate) : new Date(DEFAULT_DATE_ISO),
+  );
   const [filterMode, setFilterMode] = useState<FilterMode>('both');
   const [showLocations, setShowLocations] = useState(true);
   const [showTargets, setShowTargets] = useState(true);
@@ -138,6 +142,17 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
 
   const pingsQuery = useStaffGpsPingsForDay(effectiveStaffId, dateStr);
   const pings: RawStaffGpsPing[] = pingsQuery.data ?? [];
+
+  // Färgmarkera dagar i månadskalendern som har pings för vald person.
+  const pingDaysQuery = useStaffPingDaysForMonth(effectiveStaffId, calendarMonth);
+  const pingDayDates = useMemo<Date[]>(() => {
+    const counts = pingDaysQuery.data;
+    if (!counts) return [];
+    return Array.from(counts.keys()).map((iso) => {
+      const [y, m, d] = iso.split('-').map(Number);
+      return new Date(y, (m ?? 1) - 1, d ?? 1);
+    });
+  }, [pingDaysQuery.data]);
 
   // Geofences: alla org-platser + DAGENS targets för vald person +
   // ALLA aktiva projekt/stora projekt (oavsett person/dag) så kartan alltid
@@ -258,9 +273,24 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
                 mode="single"
                 selected={date}
                 onSelect={(d) => d && setDate(d)}
+                month={calendarMonth}
+                onMonthChange={setCalendarMonth}
                 initialFocus
+                modifiers={{ hasPings: pingDayDates }}
+                modifiersClassNames={{
+                  hasPings:
+                    'relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:h-1.5 after:w-1.5 after:rounded-full after:bg-primary',
+                }}
                 className={cn('p-3 pointer-events-auto')}
               />
+              <div className="px-3 pb-3 pt-1 flex items-center gap-2 text-[11px] text-muted-foreground border-t">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
+                <span>
+                  {pingDaysQuery.isLoading
+                    ? 'Laddar dagar med GPS…'
+                    : `${pingDayDates.length} dag(ar) med GPS denna månad`}
+                </span>
+              </div>
             </PopoverContent>
           </Popover>
         </div>
