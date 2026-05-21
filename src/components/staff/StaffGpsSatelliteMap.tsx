@@ -1,11 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { CalendarIcon } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -14,11 +9,11 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { fetchStaffMembers } from '@/services/staffService';
 import { supabase } from '@/integrations/supabase/client';
 import { useStaffGpsPingsForDay, type RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
-import { useStaffPingDaysForMonth } from '@/hooks/staff/useStaffPingDaysForMonth';
 import { useDayKnownSites } from '@/hooks/useDayKnownSites';
 import { useAllActiveProjectGeofences } from '@/hooks/useAllActiveProjectGeofences';
 import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
 import RawGpsSatelliteMap from './RawGpsSatelliteMap';
+import { StaffGpsWeekPanel } from './StaffGpsWeekPanel';
 import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
 import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
 import { type PlaceVisit } from '@/lib/staff/pingPlaceSegments';
