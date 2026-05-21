@@ -94,7 +94,8 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     [isWarehouseEvent, warehouseTeamResources]
   );
 
-  const eventColor = getEventColor(event.eventType);
+  const customerPickup = Boolean((event.extendedProps as any)?.customerPickup);
+  const eventColor = getEventColor(event.eventType, customerPickup);
 
   // Check if booking is cancelled
   const isCancelled = event.bookingStatus === 'CANCELLED' || event.extendedProps?.bookingStatus === 'CANCELLED';
