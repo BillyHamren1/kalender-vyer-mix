@@ -15,7 +15,8 @@ const MAPBOX_TOKEN = Deno.env.get("MAPBOX_PUBLIC_TOKEN") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const MODEL = "google/gemini-2.5-pro";
+const MODEL = "google/gemini-2.5-flash";
+const AI_TIMEOUT_MS = 60_000;
 
 const NEAR_JOB_RADIUS_M = 500;
 
@@ -313,14 +314,17 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Reverse-geocode kvarvarande okända stopp utan jobb-match
+    // Reverse-geocode kvarvarande okända stopp utan jobb-match (parallellt)
     const geocodeCache = new Map<string, { poi: string | null; address: string | null }>();
-    for (const e of filtered) {
-      if (e.kind !== "stay") continue;
-      if (e.known || e.isPrivate || e.nearJob) continue;
-      const { poi, address } = await reverseGeocode(e.lat, e.lng, geocodeCache);
-      e.poi = poi; e.address = address;
-    }
+    const toGeocode = filtered.filter(
+      (e): e is Stay => e.kind === "stay" && !e.known && !e.isPrivate && !e.nearJob,
+    );
+    await Promise.all(
+      toGeocode.map(async (e) => {
+        const { poi, address } = await reverseGeocode(e.lat, e.lng, geocodeCache);
+        e.poi = poi; e.address = address;
+      }),
+    );
 
     if (!LOVABLE_API_KEY) {
       const top = places[0];
@@ -404,17 +408,28 @@ ${lines.join("\n")}
 
 Skriv en sammanfattning av dagen utifrån instruktionerna.`;
 
-    const resp = await fetch(AI_GATEWAY, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-      }),
-    });
+    const aiAbort = new AbortController();
+    const aiTimer = setTimeout(() => aiAbort.abort(), AI_TIMEOUT_MS);
+    let resp: Response;
+    try {
+      resp = await fetch(AI_GATEWAY, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: MODEL,
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: user },
+          ],
+        }),
+        signal: aiAbort.signal,
+      });
+    } catch (e) {
+      clearTimeout(aiTimer);
+      console.error("[gps-day-narrative] gateway fetch failed/timeout", String(e));
+      return json({ error: "ai_timeout", narrative: "AI svarade inte i tid – försök igen." }, 504);
+    }
+    clearTimeout(aiTimer);
     if (resp.status === 429) return json({ error: "rate_limited", narrative: "AI är upptagen – försök igen om en stund." }, 429);
     if (resp.status === 402) return json({ error: "credits_exhausted", narrative: "AI-krediter slut." }, 402);
     if (!resp.ok) {
