@@ -60,19 +60,19 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     if (prefix === 'loc') {
       const { error } = await supabase
         .from('organization_locations')
-        .update({ radius_meters: radiusMeters })
+        .update({ radius_meters: radiusMeters, geofence_mode: 'circle', geofence_polygon: null })
         .eq('id', rawId);
       if (error) throw error;
     } else if (prefix === 'project') {
       const { error } = await supabase
         .from('projects')
-        .update({ address_radius_meters: radiusMeters })
+        .update({ address_radius_meters: radiusMeters, address_geofence_mode: 'circle', address_geofence_polygon: null })
         .eq('id', rawId);
       if (error) throw error;
     } else if (prefix === 'large') {
       const { error } = await supabase
         .from('large_projects')
-        .update({ address_radius_meters: radiusMeters })
+        .update({ address_radius_meters: radiusMeters, address_geofence_mode: 'circle', address_geofence_polygon: null })
         .eq('id', rawId);
       if (error) throw error;
     } else {
@@ -81,8 +81,55 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['day-known-sites'] }),
       queryClient.invalidateQueries({ queryKey: ['organization-locations-known'] }),
+      queryClient.invalidateQueries({ queryKey: ['all-active-project-geofences'] }),
     ]);
   }, [queryClient]);
+
+  /**
+   * Sparar polygon för en geofence. polygon=null tar bort polygonen och
+   * återgår till cirkel.
+   */
+  const savePolygon = useCallback(async (id: string, polygon: GeoJSON.Polygon | null) => {
+    const [prefix, rawId] = id.split(':');
+    if (!rawId) throw new Error('Ogiltigt geofence-id');
+    const usePoly = polygon !== null;
+    if (prefix === 'loc') {
+      const { error } = await supabase
+        .from('organization_locations')
+        .update({
+          geofence_mode: usePoly ? 'polygon' : 'circle',
+          geofence_polygon: usePoly ? (polygon as any) : null,
+        })
+        .eq('id', rawId);
+      if (error) throw error;
+    } else if (prefix === 'project') {
+      const { error } = await supabase
+        .from('projects')
+        .update({
+          address_geofence_mode: usePoly ? 'polygon' : 'circle',
+          address_geofence_polygon: usePoly ? (polygon as any) : null,
+        })
+        .eq('id', rawId);
+      if (error) throw error;
+    } else if (prefix === 'large') {
+      const { error } = await supabase
+        .from('large_projects')
+        .update({
+          address_geofence_mode: usePoly ? 'polygon' : 'circle',
+          address_geofence_polygon: usePoly ? (polygon as any) : null,
+        })
+        .eq('id', rawId);
+      if (error) throw error;
+    } else {
+      throw new Error(`Polygon kan inte sparas för ${prefix}`);
+    }
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['day-known-sites'] }),
+      queryClient.invalidateQueries({ queryKey: ['organization-locations-known'] }),
+      queryClient.invalidateQueries({ queryKey: ['all-active-project-geofences'] }),
+    ]);
+  }, [queryClient]);
+
 
 
   const staffQuery = useQuery({
@@ -169,6 +216,13 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     }
     return m;
   }, [orgLocations]);
+  const polygonByProjectId = useMemo(() => {
+    const m = new Map<string, GeoJSON.Polygon>();
+    for (const s of allProjectSites) {
+      if (s.polygon) m.set(s.id, s.polygon);
+    }
+    return m;
+  }, [allProjectSites]);
   const geofences = useMemo<GeofenceSite[]>(() => {
     const out: GeofenceSite[] = [];
     const seen = new Set<string>();
@@ -181,13 +235,14 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
       out.push({
         id: s.id, name: s.name, lat: s.lat, lng: s.lng,
         radiusMeters: s.radiusMeters,
-        polygon: polygonByLocId.get(s.id),
+        polygon: polygonByLocId.get(s.id) ?? polygonByProjectId.get(s.id),
       });
     };
     for (const s of knownSites) push(s);
     for (const s of allProjectSites) push(s);
     return out;
-  }, [knownSites, allProjectSites, polygonByLocId, showLocations, showTargets]);
+  }, [knownSites, allProjectSites, polygonByLocId, polygonByProjectId, showLocations, showTargets]);
+
 
   const summary = useMemo(() => {
     if (!pings.length) return null;
@@ -332,7 +387,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
       {/* Karta */}
       <div className="relative h-[55vh] min-h-[360px] rounded-md overflow-hidden border bg-muted/30">
         {pings.length > 0 || geofences.length > 0 ? (
-          <RawGpsSatelliteMap pings={pings} geofences={geofences} visits={geofenceVisits} onSaveRadius={saveRadius} className="h-full w-full" />
+          <RawGpsSatelliteMap pings={pings} geofences={geofences} visits={geofenceVisits} onSaveRadius={saveRadius} onSavePolygon={savePolygon} className="h-full w-full" />
 
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">

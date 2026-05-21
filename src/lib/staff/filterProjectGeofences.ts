@@ -22,6 +22,8 @@ export interface RawProjectRow {
   delivery_latitude: number | string | null;
   delivery_longitude: number | string | null;
   address_radius_meters: number | string | null;
+  address_geofence_mode?: string | null;
+  address_geofence_polygon?: unknown;
   status?: string | null;
   planning_status?: string | null;
   deleted_at?: string | null;
@@ -38,6 +40,8 @@ export interface RawLargeProjectRow {
   address_latitude: number | string | null;
   address_longitude: number | string | null;
   address_radius_meters: number | string | null;
+  address_geofence_mode?: string | null;
+  address_geofence_polygon?: unknown;
   deleted_at?: string | null;
   created_at?: string | null;
   start_date?: string | null;
@@ -51,7 +55,10 @@ export interface ProjectGeofence {
   lat: number;
   lng: number;
   radiusMeters: number;
+  /** Om satt: rita polygon istället för cirkel. */
+  polygon?: GeoJSON.Polygon;
 }
+
 
 const CANCELLED = new Set(['cancelled', 'avbokat', 'avbokad', 'canceled']);
 
@@ -115,6 +122,15 @@ function pickBetter(a: ProjectGeofence & { _radiusExplicit: boolean; _created: n
   return a._created >= b._created ? a : b;
 }
 
+function pickPolygon(raw: unknown): GeoJSON.Polygon | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const p = raw as any;
+  if (p.type !== 'Polygon' || !Array.isArray(p.coordinates) || !Array.isArray(p.coordinates[0]) || p.coordinates[0].length < 4) {
+    return undefined;
+  }
+  return p as GeoJSON.Polygon;
+}
+
 export function filterProjectGeofences(
   projects: RawProjectRow[],
   largeProjects: RawLargeProjectRow[] = [],
@@ -136,12 +152,15 @@ export function filterProjectGeofences(
     )) continue;
     const explicit = p.address_radius_meters !== null && p.address_radius_meters !== undefined && p.address_radius_meters !== '';
     const radius = num(p.address_radius_meters) ?? 150;
+    const usePolygon = String(p.address_geofence_mode ?? '').toLowerCase() === 'polygon';
+    const polygon = usePolygon ? pickPolygon(p.address_geofence_polygon) : undefined;
     kept.push({
       id: `project:${p.id}`,
       name: p.name || 'Projekt',
       lat,
       lng,
       radiusMeters: radius > 0 ? radius : 150,
+      polygon,
       _radiusExplicit: explicit,
       _created: p.created_at ? new Date(p.created_at).getTime() : 0,
     });
@@ -159,12 +178,15 @@ export function filterProjectGeofences(
     )) continue;
     const explicit = lp.address_radius_meters !== null && lp.address_radius_meters !== undefined && lp.address_radius_meters !== '';
     const radius = num(lp.address_radius_meters) ?? 200;
+    const usePolygon = String(lp.address_geofence_mode ?? '').toLowerCase() === 'polygon';
+    const polygon = usePolygon ? pickPolygon(lp.address_geofence_polygon) : undefined;
     kept.push({
       id: `large:${lp.id}`,
       name: lp.name || 'Stort projekt',
       lat,
       lng,
       radiusMeters: radius > 0 ? radius : 200,
+      polygon,
       _radiusExplicit: explicit,
       _created: lp.created_at ? new Date(lp.created_at).getTime() : 0,
     });
@@ -189,3 +211,4 @@ export function filterProjectGeofences(
 
   return finalList.map(({ _radiusExplicit, _created, ...rest }) => rest);
 }
+
