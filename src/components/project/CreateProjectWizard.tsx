@@ -61,6 +61,7 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
   const [eventdate, setEventdate] = useState("");
   const [rigdowndate, setRigdowndate] = useState("");
   const [internalnotes, setInternalnotes] = useState("");
+  const [customerPickup, setCustomerPickup] = useState(false);
 
   const isStandalone = !selectedBookingId || selectedBookingId === "none";
 
@@ -276,6 +277,7 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
       const projectData: Record<string, any> = {
         name: name.trim(),
         booking_id: bookingId,
+        customer_pickup: customerPickup,
         project_leader: selectedLeaderId && selectedLeaderId !== "none" ? (staffMembers.find(s => s.id === selectedLeaderId)?.name || selectedLeaderId) : null
       };
 
@@ -312,7 +314,8 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
           .update({ 
             assigned_to_project: true,
             assigned_project_id: project.id,
-            assigned_project_name: name.trim()
+            assigned_project_name: name.trim(),
+            customer_pickup: customerPickup,
           })
           .eq('id', bookingId);
 
@@ -320,6 +323,9 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
           console.error('[CreateProjectWizard] Booking assignment failed:', bookingError);
           // Don't throw — project is already created, just warn
           toast.error('Projektet skapades men bokningen kunde inte kopplas. Kontrollera manuellt.', { duration: 10000 });
+        } else if (customerPickup) {
+          // Spegla pickup-flaggan till befintliga calendar_events för bokningen
+          await supabase.from('calendar_events').update({ customer_pickup: true }).eq('booking_id', bookingId);
         }
       }
 
@@ -469,6 +475,17 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
                 placeholder="T.ex. Bröllop Skansen 23 juli"
               />
             </div>
+
+            <label className="flex items-center gap-2 text-sm cursor-pointer select-none rounded-md border border-dashed border-pink-300 bg-pink-50/40 px-3 py-2 hover:bg-pink-50">
+              <input
+                type="checkbox"
+                checked={customerPickup}
+                onChange={(e) => setCustomerPickup(e.target.checked)}
+                className="h-4 w-4 accent-pink-500"
+              />
+              <span className="font-medium">Kund hämtar själv på lagret</span>
+              <span className="text-xs text-muted-foreground">— rig/rivning visas rosa/lila i kalendern</span>
+            </label>
           </div>
 
           {/* Standalone project fields - only shown when no booking selected */}

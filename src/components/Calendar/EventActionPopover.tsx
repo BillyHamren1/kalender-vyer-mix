@@ -12,6 +12,7 @@ import {
 import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { updateCalendarEvent, setCalendarEventTimesLocked } from '@/services/eventService';
+import { setCustomerPickupForBooking } from '@/services/customerPickupService';
 import { moveLargeProjectDay, type LargeProjectPhase } from '@/services/largeProjectPlannerService';
 import { deleteCalendarEvent } from '@/services/eventService';
 import { useMoveEventToTeam } from '@/hooks/useMoveEventToTeam';
@@ -76,6 +77,32 @@ const EventActionPopover: React.FC<Props> = ({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [applyToAll, setApplyToAll] = useState(false);
   const [togglingLock, setTogglingLock] = useState(false);
+  const initialPickup = Boolean((event.extendedProps as any)?.customerPickup);
+  const [customerPickup, setCustomerPickup] = useState(initialPickup);
+  const [pickupSaving, setPickupSaving] = useState(false);
+
+  useEffect(() => {
+    setCustomerPickup(Boolean((event.extendedProps as any)?.customerPickup));
+  }, [event.id, event.extendedProps]);
+
+  const handleTogglePickup = async (next: boolean) => {
+    if (!event.bookingId) {
+      toast.error('Saknar bokning för denna händelse');
+      return;
+    }
+    setPickupSaving(true);
+    setCustomerPickup(next); // optimistic
+    try {
+      await setCustomerPickupForBooking({ bookingId: event.bookingId, value: next });
+      toast.success(next ? 'Kund hämtar själv aktiverat' : 'Kund hämtar själv avstängt');
+      if (onUpdate) await onUpdate();
+    } catch (e: any) {
+      setCustomerPickup(!next);
+      toast.error(e?.message || 'Kunde inte uppdatera');
+    } finally {
+      setPickupSaving(false);
+    }
+  };
 
   const { teams, busy: teamBusy, moveOneDay, currentTeamId } =
     useMoveEventToTeam(event, setEvents, async () => {
@@ -247,6 +274,25 @@ const EventActionPopover: React.FC<Props> = ({
             <div className="text-xs font-semibold text-muted-foreground truncate">
               {event.title}
             </div>
+
+            {/* CUSTOMER PICKUP TOGGLE */}
+            <label
+              className={`flex items-center gap-2 text-xs cursor-pointer select-none rounded-md border px-2 py-1.5 transition-colors ${
+                customerPickup
+                  ? 'border-pink-400 bg-pink-50 text-pink-900'
+                  : 'border-dashed border-border hover:bg-muted/50 text-muted-foreground'
+              } ${pickupSaving ? 'opacity-60' : ''}`}
+            >
+              <input
+                type="checkbox"
+                checked={customerPickup}
+                disabled={pickupSaving}
+                onChange={(e) => handleTogglePickup(e.target.checked)}
+                className="h-3.5 w-3.5 accent-pink-500"
+              />
+              <span className="font-medium">Kund hämtar själv</span>
+              <span className="text-[10px] opacity-70 ml-auto">rosa/lila</span>
+            </label>
 
             {/* TEAM ROW */}
             <div className="space-y-1.5">

@@ -16,6 +16,7 @@ interface RealCalendarEventRow {
   source_date: string | null;
   times_locked?: boolean | null;
   todo_id?: string | null;
+  customer_pickup?: boolean | null;
 }
 
 interface BookingRow {
@@ -38,6 +39,7 @@ interface BookingRow {
   event_time_locked?: boolean | null;
   rigdown_time_locked?: boolean | null;
   status: string | null;
+  customer_pickup?: boolean | null;
 }
 
 interface LargeProjectRow {
@@ -176,6 +178,7 @@ const mapRealRowToCalendarEvent = (
       timesLocked: row.times_locked === true,
       isTodo,
       todoId: row.todo_id || undefined,
+      customerPickup: row.customer_pickup === true || booking?.customer_pickup === true,
     },
   };
 };

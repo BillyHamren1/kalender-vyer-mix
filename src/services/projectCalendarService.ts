@@ -28,7 +28,9 @@ export const syncStandaloneProjectToCalendar = async (
     rigdown_end_time?: string | null;
     deliveryaddress?: string | null;
     delivery_city?: string | null;
+    customer_pickup?: boolean | null;
   }
+
 ): Promise<{ success: boolean; eventsCreated: number }> => {
   console.log(`[projectCalendarService] Syncing standalone project ${projectId} to calendar`);
 
@@ -66,7 +68,8 @@ export const syncStandaloneProjectToCalendar = async (
       booking_number: `P-${projectId.slice(0, 6)}`,
       delivery_address: address || 'Ingen adress',
       organization_id: projectData.organization_id,
-      source_date: sourceDate
+      source_date: sourceDate,
+      customer_pickup: projectData.customer_pickup === true,
     });
   };
 

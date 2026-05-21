@@ -952,6 +952,7 @@ export type Database = {
           contact_name: string | null
           contact_phone: string | null
           created_at: string
+          customer_pickup: boolean
           delivery_city: string | null
           delivery_latitude: number | null
           delivery_longitude: number | null
@@ -1006,6 +1007,7 @@ export type Database = {
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string
+          customer_pickup?: boolean
           delivery_city?: string | null
           delivery_latitude?: number | null
           delivery_longitude?: number | null
@@ -1060,6 +1062,7 @@ export type Database = {
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string
+          customer_pickup?: boolean
           delivery_city?: string | null
           delivery_latitude?: number | null
           delivery_longitude?: number | null
@@ -1167,6 +1170,7 @@ export type Database = {
           booking_id: string | null
           booking_number: string | null
           created_at: string
+          customer_pickup: boolean
           delivery_address: string | null
           end_time: string
           event_type: string | null
@@ -1184,6 +1188,7 @@ export type Database = {
           booking_id?: string | null
           booking_number?: string | null
           created_at?: string
+          customer_pickup?: boolean
           delivery_address?: string | null
           end_time: string
           event_type?: string | null
@@ -1201,6 +1206,7 @@ export type Database = {
           booking_id?: string | null
           booking_number?: string | null
           created_at?: string
+          customer_pickup?: boolean
           delivery_address?: string | null
           end_time?: string
           event_type?: string | null
@@ -3112,6 +3118,7 @@ export type Database = {
           address_postal_code: string | null
           address_radius_meters: number
           created_at: string
+          customer_pickup: boolean
           deleted_at: string | null
           description: string | null
           end_date: string[] | null
@@ -3138,6 +3145,7 @@ export type Database = {
           address_postal_code?: string | null
           address_radius_meters?: number
           created_at?: string
+          customer_pickup?: boolean
           deleted_at?: string | null
           description?: string | null
           end_date?: string[] | null
@@ -3164,6 +3172,7 @@ export type Database = {
           address_postal_code?: string | null
           address_radius_meters?: number
           created_at?: string
+          customer_pickup?: boolean
           deleted_at?: string | null
           description?: string | null
           end_date?: string[] | null
@@ -5385,6 +5394,7 @@ export type Database = {
           contact_name: string | null
           contact_phone: string | null
           created_at: string
+          customer_pickup: boolean
           deleted_at: string | null
           delivery_city: string | null
           delivery_latitude: number | null
@@ -5422,6 +5432,7 @@ export type Database = {
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string
+          customer_pickup?: boolean
           deleted_at?: string | null
           delivery_city?: string | null
           delivery_latitude?: number | null
@@ -5459,6 +5470,7 @@ export type Database = {
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string
+          customer_pickup?: boolean
           deleted_at?: string | null
           delivery_city?: string | null
           delivery_latitude?: number | null
