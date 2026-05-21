@@ -314,14 +314,17 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Reverse-geocode kvarvarande okända stopp utan jobb-match
+    // Reverse-geocode kvarvarande okända stopp utan jobb-match (parallellt)
     const geocodeCache = new Map<string, { poi: string | null; address: string | null }>();
-    for (const e of filtered) {
-      if (e.kind !== "stay") continue;
-      if (e.known || e.isPrivate || e.nearJob) continue;
-      const { poi, address } = await reverseGeocode(e.lat, e.lng, geocodeCache);
-      e.poi = poi; e.address = address;
-    }
+    const toGeocode = filtered.filter(
+      (e): e is Stay => e.kind === "stay" && !e.known && !e.isPrivate && !e.nearJob,
+    );
+    await Promise.all(
+      toGeocode.map(async (e) => {
+        const { poi, address } = await reverseGeocode(e.lat, e.lng, geocodeCache);
+        e.poi = poi; e.address = address;
+      }),
+    );
 
     if (!LOVABLE_API_KEY) {
       const top = places[0];
