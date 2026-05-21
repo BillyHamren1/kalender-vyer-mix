@@ -1,56 +1,68 @@
-# Varför "Placera bokning" inte funkar
+# Nyfiken AI-dagssammanfattning i GPS-vyn
 
-Dialogen hänger på "Laddar bokning…" och slutar i "Kunde inte hämta bokningen."
+Idag får AI:n bara en lista över kända geofence-besök (projekt/lager/boende). Allt däremellan — bilturer, lunchstopp på Bauhaus, tankning, snabb sväng hem — är osynligt. Resultatet blir trist och säger inget mer än siffrorna ovanför.
 
-Postgres-loggarna visar att alla anrop mot `public.bookings` just nu kraschar med:
+Vi byter ut hela inputen och hela prompten så att AI:n får ett komplett dygnsspår, inklusive *okända* stopp med riktiga adresser/POI, och uppmuntras att resonera som en arbetsledare som faktiskt är nyfiken på dagen.
+
+## Vad som ändras
+
+### 1. Bygg en komplett dagstidslinje (inte bara geofence-träffar)
+
+I `useStaffGpsWeekSummary` (eller en ny `useStaffGpsDayTimeline`) bygger vi förutom dagens kända besök även:
+
+- **Okända stopp** — kluster av pings ≥ ~8 min utanför alla geofences (vi använder befintliga `buildPlaceVisits` istället för `buildExactGeofenceVisits`, eller kompletterar).
+- **Förflyttningar mellan stopp** — start/slut, varaktighet, ungefärlig sträcka (haversine mellan stoppens medelpunkter).
+- Markera privat/boende-stopp separat så AI:n inte spekulerar om hemmet.
+
+Payloaden som skickas till edge-funktionen blir en kronologisk lista:
 
 ```
-ERROR: column bookings.project_id does not exist
-ERROR: column bookings.event_type does not exist
+[
+  { kind: "stay", name: "FA Warehouse", start, end, min, known: true },
+  { kind: "move", start, end, min, distance_km: 12.4 },
+  { kind: "stay", lat, lng, start, end, min, known: false }, // okänt — ska geokodas
+  { kind: "stay", name: "Swedish game fair", ... },
+  ...
+]
 ```
 
-Det innebär att en RLS-policy, vy, trigger eller funktion på `bookings` refererar till kolumner som inte längre finns. Så fort `BookingPlacementDialog` gör sin `select(...).eq('id', ...).maybeSingle()` mot `bookings` får den ett PostgrestError istället för en rad → dialogen visar fel-läget. Detta påverkar troligen även andra läs/skriv-flöden mot `bookings`.
+### 2. Reverse-geocoda okända stopp i edge-funktionen
 
-Listan med bokningar i `IncomingBookingsList` råkar lyckas eftersom dess policy-väg inte triggar samma referens (eller cachas), men single-row med fler kolumner triggar uttrycket.
+`gps-day-narrative` får en ny förprocess: för varje `stay` utan namn anropas Mapbox (`MAPBOX_PUBLIC_TOKEN`, samma som `reverse-geocode-staff`) med `types=poi,address` för att få närmaste POI eller adress. Resultatet bakas in som `nearby: "Bauhaus Sickla"` eller `address: "Värmdövägen 84"` i payloaden innan AI:n kallas.
 
-# Plan
+Cache: vi memoiserar per (rundad lat/lng till ~4 decimaler) i en in-memory Map i edge-funktionen så samma stopp inte slås upp flera gånger inom samma request.
 
-1. **Identifiera vad som refererar till `bookings.project_id` / `bookings.event_type`**
-   - Köra (via migration eller read_query när DB svarar igen):
-     ```sql
-     select n.nspname, p.proname, pg_get_functiondef(p.oid)
-     from pg_proc p join pg_namespace n on n.oid=p.pronamespace
-     where pg_get_functiondef(p.oid) ilike '%bookings.project_id%'
-        or pg_get_functiondef(p.oid) ilike '%bookings.event_type%';
+### 3. Ny prompt — nyfiken arbetsledar-ton
 
-     select schemaname, tablename, policyname, qual, with_check
-     from pg_policies
-     where (qual ilike '%bookings.project_id%' or with_check ilike '%bookings.project_id%'
-            or qual ilike '%bookings.event_type%' or with_check ilike '%bookings.event_type%');
+System-prompten byts ut helt. Ny instruktion (kort sammanfattat):
 
-     select n.nspname, c.relname, pg_get_viewdef(c.oid)
-     from pg_class c join pg_namespace n on n.oid=c.relnamespace
-     where c.relkind in ('v','m') and pg_get_viewdef(c.oid) ilike '%bookings.project_id%';
-     ```
+> Du är en erfaren arbetsledare som läser en persons GPS-dag. Var nyfiken. Resonera om vad rörelserna betyder. Använd POI-namn och adresser när du beskriver okända stopp ("ett 35 min stopp vid Bauhaus Sickla — troligen materialinköp"). Spekulera försiktigt om syfte (lunch, tankning, materialhämtning, hem) när längd + plats + tidpunkt gör det rimligt — men säg "troligen" eller "ser ut som". Markera tydligt om något ser avvikande ut (oväntad lång lucka, sent slut, mycket körning). Avsluta med "Inga avvikelser." bara när allt verkligen ser normalt ut. 3–5 meningar, svensk löpande text, ingen punktlista.
 
-2. **Skapa migration som lagar referensen**
-   - Beroende på vad som hittas:
-     - Om det är en RLS-policy → ersätt `bookings.project_id` med rätt fält (`assigned_project_id`) och `bookings.event_type` med rätt logik (event_type finns på `calendar_events`, inte `bookings`).
-     - Om det är en vy → uppdatera vyns SELECT.
-     - Om det är en trigger-funktion → uppdatera funktionen.
-   - Migrationen ska inte ändra data, endast definitionerna.
+Modellbyte: `google/gemini-2.5-pro` istället för flash (vi behöver resonemanget). Cache:n i `useStaffGpsDayNarrative` gör att vi bara betalar en gång per dag tills datan ändras.
 
-3. **Verifiera**
-   - Köra samma single-select som `BookingPlacementDialog` använder (`select id, client, … from bookings where id = '<någon id>'`) och bekräfta 200.
-   - Öppna "Placera bokning"-dialogen i preview och verifiera att bokningen laddas.
-   - Köra befintliga vitest-suiter relaterade till bookings/planning.
+### 4. Bumpad cache-nyckel
 
-# Tekniska detaljer
+Cache-nyckeln i `useStaffGpsDayNarrative` utökas med antalet timeline-event så vi inte serverar gamla "tunna" sammanfattningar.
 
-- Frontendkoden i `src/components/project/BookingPlacementDialog.tsx` är OK – ingen kodändring där behövs. Felmeddelandet ("Kunde inte hämta bokningen.") beror på att `bookingError` är en `PostgrestError` (inte `Error`), så fallback-texten visas. Vi kan i samma svep förbättra felvisningen så att den faktiska Postgres-koden syns för admin, men huvudfixen är DB-sidan.
-- DB svarar just nu sporadiskt med timeouts (vi fick 544 från read_query). Migrationen ska köras när DB är stabil; loggarna räcker som bevis för rotorsaken.
+## Filer som rörs
 
-# Inte i scope
+- `supabase/functions/gps-day-narrative/index.ts` — ny payload-form, reverse-geocode-loop, ny prompt, byt modell till `gemini-2.5-pro`.
+- `src/hooks/staff/useStaffGpsWeekSummary.ts` — bygg och exponera även `timeline` (stops + moves, inkl. okända) per dag.
+- `src/hooks/staff/useStaffGpsDayNarrative.ts` — skicka `timeline` istället för bara `visits`, bumpa cache-nyckel.
+- `src/components/staff/StaffGpsDayRow.tsx` — orört utseendemässigt, fortsätter rendera `narrative` (men texten blir nu rikare).
 
-- Ingen omdesign av dialogen.
-- Inga ändringar av RLS-policyer utöver att laga de trasiga referenserna.
+## Förväntad effekt
+
+Dagstexten går från:
+
+> "Markuss arbetade 06:46–07:36 på FA Warehouse och 08:21–14:11 på Swedish game fair. Inga avvikelser."
+
+till t.ex.:
+
+> "Markuss startade 06:46 vid FA Warehouse (50 min — verkar ha lastat). Körde sedan ~14 km till Swedish game fair där han var 08:21–14:11. Kring 12:10 ett 35 min stopp vid Bauhaus Sickla på vägen tillbaka — troligen materialinköp. Lämnade arbetsplatsen 17:32 och åkte via lagret (10 min) hem. Inga avvikelser."
+
+## Kostnad / risker
+
+- Mapbox reverse-geocode körs nu en gång per okänt stopp per dag (typiskt 0–3 per dag). Token finns redan.
+- Gemini 2.5 Pro ~5–10× dyrare än flash, men cachen + att vi bara genererar när dagen faktiskt ändrats gör det hanterbart. Vi surface:ar 429/402 som vi redan gör.
+- Om Mapbox-token saknas faller vi tillbaka på lat/lng-text — AI:n får i alla fall säga "okänt stopp nära X,Y".

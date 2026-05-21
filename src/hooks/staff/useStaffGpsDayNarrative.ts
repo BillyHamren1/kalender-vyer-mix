@@ -10,13 +10,21 @@ interface Args {
 }
 
 /**
- * Genererar en kort AI-sammanfattning av en GPS-dag.
- * Cache:as per (staffId, date, pingsCount, durationMin) så att vi bara kallar
- * AI när dagens data faktiskt ändrats.
+ * Genererar en nyfiken AI-sammanfattning av en GPS-dag. Skickar hela
+ * dygnstidslinjen (stays + moves, inkl. okända stopp) så edge-funktionen
+ * kan reverse-geocoda och låta modellen resonera om syfte.
  */
 export function useStaffGpsDayNarrative({ staffId, staffName, summary, enabled = true }: Args) {
   const key = summary
-    ? ['gps-day-narrative', staffId, summary.date, summary.pingsCount, summary.durationMin, summary.places.length]
+    ? [
+        'gps-day-narrative',
+        'v2',
+        staffId,
+        summary.date,
+        summary.pingsCount,
+        summary.durationMin,
+        summary.timeline.length,
+      ]
     : ['gps-day-narrative', 'noop'];
 
   const isEnabled =
@@ -36,13 +44,6 @@ export function useStaffGpsDayNarrative({ staffId, staffName, summary, enabled =
     retry: 1,
     queryFn: async () => {
       if (!summary || !staffId) return { narrative: '' };
-      const visits = summary.visits.slice(0, 30).map(v => ({
-        name: v.knownSite?.name ?? 'Okänd plats',
-        start: v.start,
-        end: v.end,
-        minutes: Math.max(0, Math.round((new Date(v.end).getTime() - new Date(v.start).getTime()) / 60_000)),
-        is_private: false,
-      }));
       const { data, error } = await supabase.functions.invoke('gps-day-narrative', {
         body: {
           staff_name: staffName ?? 'Personen',
@@ -51,7 +52,7 @@ export function useStaffGpsDayNarrative({ staffId, staffName, summary, enabled =
           last_iso: summary.lastIso,
           duration_min: summary.durationMin,
           places: summary.places,
-          visits,
+          timeline: summary.timeline,
         },
       });
       if (error) throw error;
