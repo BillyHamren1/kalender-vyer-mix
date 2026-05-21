@@ -437,14 +437,19 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
             </div>
           ) : bookingError || !booking ? (
             <div className="flex flex-col items-center gap-3 py-12 text-center">
-              <p className="text-sm text-destructive">
-                {bookingError instanceof Error ? bookingError.message : 'Kunde inte hämta bokningen.'}
+              <p className="text-sm text-destructive max-w-md break-words">
+                {bookingError instanceof Error
+                  ? bookingError.message
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  : (bookingError as any)?.message || 'Kunde inte hämta bokningen.'}
               </p>
+              <p className="text-xs text-muted-foreground">Boknings-ID: {bookingId ?? '–'}</p>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={() => refetchBooking()}>Försök igen</Button>
                 <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>Stäng</Button>
               </div>
             </div>
+
           ) : (
             <div className="space-y-4">
               <BookingInfoHeader booking={booking} hideTimes />
