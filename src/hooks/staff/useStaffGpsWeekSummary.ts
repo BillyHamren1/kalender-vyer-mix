@@ -182,6 +182,7 @@ export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]
         };
       }
       const pingsLite = pings.map(p => ({ lat: p.lat, lng: p.lng, recorded_at: p.recorded_at, accuracy: p.accuracy ?? null }));
+      const geofences = geofencesByDate[date] ?? [];
       const knownGeofenceVisits = geofences.length ? buildExactGeofenceVisits(pingsLite, geofences) : [];
       // Full timeline incl. unknown stops between geofences.
       const allPlaceVisits = buildPlaceVisits(
