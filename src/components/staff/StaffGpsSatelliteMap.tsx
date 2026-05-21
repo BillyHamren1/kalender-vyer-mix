@@ -143,7 +143,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
   // ALLA aktiva projekt/stora projekt (oavsett person/dag) så kartan alltid
   // visar varje projekts geofence. Matchar regeln "inside geo = tid där".
   const { knownSites } = useDayKnownSites(effectiveStaffId ?? '', dateStr, !!effectiveStaffId);
-  const { data: allProjectSites = [] } = useAllActiveProjectGeofences(true);
+  const { data: allProjectSites = [] } = useAllActiveProjectGeofences(dateStr, true);
   const { data: orgLocations = [] } = useOrganizationLocations();
   // Polygoner finns ENDAST på organization_locations. Mappa id → polygon
   // så vi kan attacha den till `loc:<id>`-sites utan att röra KnownSite-typen.
