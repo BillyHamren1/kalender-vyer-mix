@@ -33,6 +33,12 @@ export type GpsTimelineEntry =
       end: string;
       minutes: number;
       distanceKm: number;
+    }
+  | {
+      kind: 'gap';
+      start: string;
+      end: string;
+      minutes: number;
     };
 
 export interface StaffGpsDaySummary {
@@ -188,7 +194,9 @@ export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]
         .map(([name, minutes]) => ({ name, minutes }))
         .sort((a, b) => b.minutes - a.minutes);
 
-      // Build full timeline (stays + interleaved moves).
+      // Build full timeline (stays + interleaved moves + gaps).
+      // En "lucka" = mellantid där ingen ping fanns på > 20 min OCH avståndet
+      // mellan stays inte rättfärdigar restid (dvs vi har inte täckning).
       const stays = [...allPlaceVisits].sort((a, b) => a.start.localeCompare(b.start));
       const timeline: GpsTimelineEntry[] = [];
       for (let k = 0; k < stays.length; k++) {
@@ -209,11 +217,21 @@ export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]
         const next = stays[k + 1];
         if (next) {
           const moveMin = Math.max(0, Math.round((new Date(next.start).getTime() - new Date(v.end).getTime()) / 60_000));
-          if (moveMin >= 2) {
-            const distM = haversineMeters(
-              { lat: v.centre.lat, lng: v.centre.lng },
-              { lat: next.centre.lat, lng: next.centre.lng },
-            );
+          const distM = haversineMeters(
+            { lat: v.centre.lat, lng: v.centre.lng },
+            { lat: next.centre.lat, lng: next.centre.lng },
+          );
+          // Avgör om mellantiden är rörelse eller gap genom att titta på
+          // verkliga pings i mellanrummet.
+          const gapPings = pings.filter(p =>
+            p.recorded_at > v.end && p.recorded_at < next.start,
+          );
+          const expectedKmh = distM > 0 && moveMin > 0 ? (distM / 1000) / (moveMin / 60) : 0;
+          // Heuristik: < 3 pings i intervallet OCH > 20 min mellanrum = GPS-lucka.
+          // Annars: behandla som rörelse om det finns mätbart avstånd.
+          if (moveMin >= 2 && gapPings.length < 3 && moveMin > 20 && expectedKmh < 5) {
+            timeline.push({ kind: 'gap', start: v.end, end: next.start, minutes: moveMin });
+          } else if (moveMin >= 2 && distM > 50) {
             timeline.push({
               kind: 'move',
               start: v.end,
@@ -221,6 +239,9 @@ export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]
               minutes: moveMin,
               distanceKm: Math.round(distM / 100) / 10,
             });
+          } else if (moveMin >= 30) {
+            // Lång mellantid utan distans = stillastående utan känd plats → gap
+            timeline.push({ kind: 'gap', start: v.end, end: next.start, minutes: moveMin });
           }
         }
       }

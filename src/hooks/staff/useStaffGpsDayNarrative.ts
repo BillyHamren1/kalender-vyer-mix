@@ -18,7 +18,7 @@ export function useStaffGpsDayNarrative({ staffId, staffName, summary, enabled =
   const key = summary
     ? [
         'gps-day-narrative',
-        'v2',
+        'v3',
         staffId,
         summary.date,
         summary.pingsCount,
@@ -46,6 +46,7 @@ export function useStaffGpsDayNarrative({ staffId, staffName, summary, enabled =
       if (!summary || !staffId) return { narrative: '' };
       const { data, error } = await supabase.functions.invoke('gps-day-narrative', {
         body: {
+          staff_id: staffId,
           staff_name: staffName ?? 'Personen',
           date: summary.date,
           first_iso: summary.firstIso,
