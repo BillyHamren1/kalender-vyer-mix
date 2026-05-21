@@ -124,7 +124,7 @@ async function reverseGeocode(
 }
 
 async function fetchOrgIdForStaff(admin: any, staffId: string): Promise<string | null> {
-  const { data } = await admin.from("staff").select("organization_id").eq("id", staffId).maybeSingle();
+  const { data } = await admin.from("staff_members").select("organization_id").eq("id", staffId).maybeSingle();
   return data?.organization_id ?? null;
 }
 
@@ -377,7 +377,7 @@ Deno.serve(async (req) => {
 HÅRDA REGLER:
 - MAX 2 meningar. Helst 1. Kort, neutral svenska. Ingen markdown, ingen punktlista.
 - Upprepa ALDRIG det användaren redan ser (start/slut, total tid, namnen på arbetsplatser, timmar per plats). De står ovanför dig.
-- Säg ALDRIG "inga planerade jobb" om du inte är 100% säker. Om PLANERADE JOBB är tom kan det bero på att schemat inte är komplett — säg då ingenting om planen.
+- Du HAR full tillgång till organisationens planerade jobb (staff_assignments × calendar_events). Om PLANERADE JOBB är tom betyder det att personen INTE var inplanerad — det är OK att säga "ingen planering idag" om det är relevant. Bekräfta plan/avvikelse bara om det tillför något.
 - Säg ALDRIG "personen sov/vilade/stod stilla". GPS-luckor = telefonen pingade inte, inget annat. Nämn luckor bara om de bryter ett pågående pass.
 - Hoppa över boende/privata zoner helt.
 - Spekulera försiktigt ("troligen", "ser ut som") om okänt stopp har POI/adress (Bauhaus, ICA, McDonald's → materialinköp/lunch/tankning). Korta okända stopp utan kontext: nämn inte.
