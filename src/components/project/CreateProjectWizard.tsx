@@ -314,7 +314,8 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
           .update({ 
             assigned_to_project: true,
             assigned_project_id: project.id,
-            assigned_project_name: name.trim()
+            assigned_project_name: name.trim(),
+            customer_pickup: customerPickup,
           })
           .eq('id', bookingId);
 
@@ -322,6 +323,9 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
           console.error('[CreateProjectWizard] Booking assignment failed:', bookingError);
           // Don't throw — project is already created, just warn
           toast.error('Projektet skapades men bokningen kunde inte kopplas. Kontrollera manuellt.', { duration: 10000 });
+        } else if (customerPickup) {
+          // Spegla pickup-flaggan till befintliga calendar_events för bokningen
+          await supabase.from('calendar_events').update({ customer_pickup: true }).eq('booking_id', bookingId);
         }
       }
 
