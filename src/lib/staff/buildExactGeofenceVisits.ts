@@ -1,24 +1,19 @@
 /**
  * buildExactGeofenceVisits — räknar projektblock från råpings + geofences.
  *
- * Regler (se mem://):
- *  - Första pingen inom ett geofence öppnar ett aktivt projektblock.
- *  - Pings inom samma projekt → ligger kvar i ett `inside`-delblock.
- *  - Pings utanför ALLA geofences medan projektet är aktivt → bildar
- *    ett `outside_geo`-delblock UNDER samma projekt. Tiden får ALDRIG
- *    försvinna bara för att personen lämnat staketet kort.
- *  - Pings inom ett ANNAT projekts geofence → enda sättet att avsluta
- *    nuvarande projektkedja. Då startar ett nytt projektblock där.
- *  - Slut på dagen utan återinträde → eventuellt `outside_geo`-delblock
- *    ligger kvar under aktivt projekt.
+ * Regel (förenklad):
+ *  - Första pingen inom ett geofence öppnar ett projektblock.
+ *  - Alla efterföljande pings — innanför ELLER utanför geofencen —
+ *    räknas till samma projektblock så länge personen inte går in i
+ *    ett ANNAT projekts geofence.
+ *  - Pings inne i ett annat projekts geofence avslutar nuvarande
+ *    block och öppnar ett nytt där.
+ *  - När dagen tar slut utan återinträde trimmas trailing-pings som
+ *    ligger utanför geofencen bort — blocket stängs vid sista pingen
+ *    inne i staketet.
  *
- * Returvärdet är en flat lista av PlaceVisit där varje sub-block är
- * en egen rad. Alla sub-blocks som hör till samma projektkedja delar
- * `knownSite.id` och `centre` så att UI:s gruppering per projekt
- * (Map<knownSite.id, ...>) sätter dem i samma panel i rätt ordning.
- *
- * `subKind: 'inside' | 'outside_geo'` används av UI för att etikettera
- * raden ("B2 (Utanför geo)").
+ * Kort sagt: pings utanför geo hanteras EXAKT som om de vore innanför.
+ * Inga "Utanför geo"-delblock, inga separata sub-rader.
  */
 import type { Ping } from '@/lib/staff/movementDetection';
 import { haversineMeters } from '@/lib/staff/movementDetection';
@@ -57,11 +52,11 @@ function resolveFence(ping: Ping, sites: GeofenceSite[]): GeofenceSite | null {
   return best?.site ?? null;
 }
 
-type SubKind = 'inside' | 'outside_geo';
-
-interface OpenSub {
-  kind: SubKind;
+interface OpenVisit {
+  site: GeofenceSite;
   pings: Ping[];
+  /** Index in `pings` of the LAST ping that was inside the fence. */
+  lastInsideIdx: number;
 }
 
 export function buildExactGeofenceVisits(rawPings: Ping[], sites: GeofenceSite[]): PlaceVisit[] {
@@ -72,95 +67,61 @@ export function buildExactGeofenceVisits(rawPings: Ping[], sites: GeofenceSite[]
   );
 
   const visits: PlaceVisit[] = [];
-  let activeSite: GeofenceSite | null = null;
-  let openSubs: OpenSub[] = [];
-  let current: OpenSub | null = null;
+  let open: OpenVisit | null = null;
 
-  const flushSubsForActive = (opts: { dropTrailingOutside: boolean }) => {
-    if (!activeSite) return;
-    let subs = openSubs;
-    if (opts.dropTrailingOutside) {
-      // Personen lämnade projektet och kom ALDRIG tillbaka (eller dagen tog slut).
-      // Då ska efterföljande outside_geo-block INTE visas — projektet stängs
-      // vid sista pingen inne i geofencen.
-      while (subs.length && subs[subs.length - 1].kind === 'outside_geo') {
-        subs = subs.slice(0, -1);
-      }
+  const flush = (opts: { trimTrailingOutside: boolean }) => {
+    if (!open) return;
+    let pings = open.pings;
+    if (opts.trimTrailingOutside && open.lastInsideIdx >= 0) {
+      pings = pings.slice(0, open.lastInsideIdx + 1);
     }
-    for (const sub of subs) {
-      if (!sub.pings.length) continue;
-      const start = sub.pings[0].recorded_at;
-      const end = sub.pings[sub.pings.length - 1].recorded_at;
+    if (pings.length) {
+      const start = pings[0].recorded_at;
+      const end = pings[pings.length - 1].recorded_at;
       const durationMin = Math.max(
         0,
         Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60_000),
       );
       visits.push({
-        placeKey: `site:${activeSite.id}:${sub.kind}:${start}`,
-        knownSite: { id: activeSite.id, name: activeSite.name },
-        centre: { lat: activeSite.lat, lng: activeSite.lng },
+        placeKey: `site:${open.site.id}:${start}`,
+        knownSite: { id: open.site.id, name: open.site.name },
+        centre: { lat: open.site.lat, lng: open.site.lng },
         start,
         end,
         durationMin,
-        pingCount: sub.pings.length,
-        pings: [...sub.pings],
-        subKind: sub.kind,
+        pingCount: pings.length,
+        pings: [...pings],
+        subKind: 'inside',
       });
     }
-    openSubs = [];
-    current = null;
-    activeSite = null;
-  };
-
-
-  const startSub = (kind: SubKind, ping: Ping) => {
-    current = { kind, pings: [ping] };
-    openSubs.push(current);
+    open = null;
   };
 
   for (const ping of sorted) {
     const fence = resolveFence(ping, sites);
 
-    // Inget aktivt projekt — vänta tills vi går in i en geofence.
-    if (!activeSite) {
+    if (!open) {
       if (fence) {
-        activeSite = fence;
-        startSub('inside', ping);
+        open = { site: fence, pings: [ping], lastInsideIdx: 0 };
       }
       continue;
     }
 
-    // Aktivt projekt finns.
-    if (fence && fence.id === activeSite.id) {
-      // Tillbaka inne i samma projekt.
-      if (current && current.kind === 'inside') {
-        current.pings.push(ping);
-      } else {
-        startSub('inside', ping);
-      }
+    if (fence && fence.id !== open.site.id) {
+      // Bytt projekt — stäng nuvarande vid sista inside-pingen och öppna nytt.
+      flush({ trimTrailingOutside: true });
+      open = { site: fence, pings: [ping], lastInsideIdx: 0 };
       continue;
     }
 
-    if (fence && fence.id !== activeSite.id) {
-      // Bytt projekt → enda läget som avslutar aktivt projekt.
-      // Trailing outside_geo bevaras under det gamla projektet (transport
-      // till nya platsen tillhör avresan).
-      flushSubsForActive({ dropTrailingOutside: false });
-      activeSite = fence;
-      startSub('inside', ping);
-      continue;
-    }
-
-    // Utanför alla geofences medan projektet är aktivt.
-    if (current && current.kind === 'outside_geo') {
-      current.pings.push(ping);
-    } else {
-      startSub('outside_geo', ping);
+    // Inne i samma fence ELLER utanför alla — räknas till samma block.
+    open.pings.push(ping);
+    if (fence && fence.id === open.site.id) {
+      open.lastInsideIdx = open.pings.length - 1;
     }
   }
 
-  // Slut på dagen utan återinträde → släng trailing outside_geo.
-  flushSubsForActive({ dropTrailingOutside: true });
+  // Slut på dagen utan återinträde — trimma trailing utanför-pings.
+  flush({ trimTrailingOutside: true });
   return visits;
 }
-
