@@ -273,69 +273,19 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
       />
 
       <div className="flex-1 min-w-0 flex flex-col gap-3">
-        {/* Sekundär filterrad: lager + visa-filter + summary-badges */}
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">Visa personer</label>
-            <Select value={filterMode} onValueChange={(v) => setFilterMode(v as FilterMode)}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="both">Assignade el. pingade</SelectItem>
-                <SelectItem value="assigned">Endast assignade</SelectItem>
-                <SelectItem value="pinged">Endast pingade</SelectItem>
-                <SelectItem value="all">Alla</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">Lager på kartan</label>
-            <div className="flex items-center gap-3 h-10 px-3 border rounded-md">
-              <label className="flex items-center gap-2 text-xs cursor-pointer">
-                <Checkbox checked={showLocations} onCheckedChange={(v) => setShowLocations(v === true)} />
-                <span>Platser</span>
-              </label>
-              <label className="flex items-center gap-2 text-xs cursor-pointer">
-                <Checkbox checked={showTargets} onCheckedChange={(v) => setShowTargets(v === true)} />
-                <span>Targets (dagen)</span>
-              </label>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 ml-auto">
-            <Badge variant="outline">{format(date, 'yyyy-MM-dd')}</Badge>
-            {pingsQuery.isLoading && <Badge variant="outline">Laddar…</Badge>}
-            {geofences.length > 0 && (
-              <Badge variant="outline">{geofences.length} geofences</Badge>
-            )}
-            {summary && (
-              <>
-                <Badge variant="secondary">{summary.count} pings</Badge>
-                <Badge variant="outline">Första {summary.first}</Badge>
-                <Badge variant="outline">Sista {summary.last}</Badge>
-              </>
-            )}
-          </div>
-        </div>
-
         {/* Karta */}
-        <div className="relative h-[55vh] min-h-[360px] rounded-md overflow-hidden border bg-muted/30">
+        <div className="relative h-[60vh] min-h-[420px] rounded-lg overflow-hidden border bg-muted/30">
           {pings.length > 0 || geofences.length > 0 ? (
             <RawGpsSatelliteMap pings={pings} geofences={geofences} visits={geofenceVisits} onSaveRadius={saveRadius} onSavePolygon={savePolygon} className="h-full w-full" />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-              {pingsQuery.isLoading ? 'Laddar pings…' : 'Inga GPS-pings eller geofences för vald person och dag.'}
+              {pingsQuery.isLoading ? 'Laddar…' : 'Inga rörelser registrerade för vald dag.'}
             </div>
           )}
         </div>
 
         {/* Geofence-besök — exakt IN/UT per stängsel */}
         <GeofenceVisitsTable visits={geofenceVisits} />
-
-        {/* Tabell — samma gruppering som kartan: stay-block (≥20 min på samma plats) slås ihop */}
-        <PingTimelineTable pings={pings} />
       </div>
     </div>
   );
