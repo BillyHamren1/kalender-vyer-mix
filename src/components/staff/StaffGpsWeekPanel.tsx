@@ -28,7 +28,6 @@ export function StaffGpsWeekPanel({
   const summaries = useStaffGpsWeekSummary(staffId, weekDays);
   const selectedStr = format(date, 'yyyy-MM-dd');
   const isoWeek = getISOWeek(weekStart);
-  const year = format(weekStart, 'yyyy');
 
   return (
     <aside className="w-full md:w-[320px] shrink-0 border rounded-md bg-card flex flex-col max-h-[calc(100vh-180px)]">
