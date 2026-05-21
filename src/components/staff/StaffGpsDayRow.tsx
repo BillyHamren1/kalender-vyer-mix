@@ -27,6 +27,7 @@ export function StaffGpsDayRow({ day, dateStr, selected, summary, staffId, staff
   const weekday = format(day, 'EEE', { locale: sv });
   const dayMonth = format(day, 'd/M', { locale: sv });
   const hasData = !!summary && summary.pingsCount > 0;
+  const hasRange = hasData && summary!.firstIso && summary!.lastIso;
 
   return (
     <button
