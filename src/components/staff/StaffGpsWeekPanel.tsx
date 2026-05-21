@@ -28,7 +28,6 @@ export function StaffGpsWeekPanel({
   const summaries = useStaffGpsWeekSummary(staffId, weekDays);
   const selectedStr = format(date, 'yyyy-MM-dd');
   const isoWeek = getISOWeek(weekStart);
-  const year = format(weekStart, 'yyyy');
 
   return (
     <aside className="w-full md:w-[320px] shrink-0 border rounded-md bg-card flex flex-col max-h-[calc(100vh-180px)]">
@@ -107,7 +106,7 @@ export function StaffGpsWeekPanel({
       </div>
 
       <div className="px-3 py-2 border-t text-[10px] text-muted-foreground">
-        Bygger på {year}-veckan ovan. Tider = första→sista GPS-ping; platser från geofence-besök.
+        Start = första GPS utanför Boende, Slut = sista. Boende räknas inte som arbetstid.
       </div>
     </aside>
   );

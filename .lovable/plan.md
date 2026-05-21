@@ -1,35 +1,41 @@
-## Problem
+## Mål
 
-Mobil time-app visar felmeddelande och blockerar attest/inskick när brutto > 16h. Det bryter mot Mobile Time App Mirror-Only — appen ska bara spegla det `staff_day_report_cache` / kartan visar, aldrig räkna eller validera själv.
+I vänsterpanelens dagsrader (vecka för vecka) ska:
+1. **Boende** (organization_locations med `isPrivateResidence=true`) inte räknas eller visas.
+2. Varje dag visa **Starttid → Sluttid – Arbetstid**, där:
+   - Starttid = tiden personen anlände till jobbet (första ping som ligger **utanför** ett Boende-geofence).
+   - Sluttid = tiden personen lämnade jobbet (sista ping som ligger **utanför** Boende).
+   - Arbetstid = Sluttid − Starttid.
 
-Två ställen har samma `grossMin > 16 * 60`-spärr plus andra lokala räkningsregler ("Arbetstid efter rast måste vara större än 0", "Brutto överstiger 16 timmar"):
+Inga nya tolkningsregler – fortfarande bara råpings + befintliga geofences via `buildExactGeofenceVisits`. Boende filtreras bara bort.
 
-- `src/components/mobile-app/time/StaffDayAttestSection.tsx` (rad 220–229)
-- `src/components/mobile-app/time/StaffDaySubmitSection.tsx` (rad 191–196)
+## Ändringar
 
-## Ändring
+### `src/hooks/staff/useStaffGpsWeekSummary.ts`
+- Behåll `useOrganizationLocations` men markera Boende-platser: bygg en `Set<string>` med `loc.id` för platser där `isPrivateResidence === true`.
+- I `geofences`-arrayen: tagga eller hoppa över. Vi **behåller** dem i geofence-listan så vi kan identifiera vilka pings som ligger i Boende, men markerar dem som `isPrivate` via en sido-Set på `GeofenceSite.id` (t.ex. `loc:<id>`).
+- Per dag:
+  - Kör `buildExactGeofenceVisits` som idag.
+  - Dela upp visits i `workVisits` (knownSite ej privat) och `privateVisits`.
+  - Bygg `nonPrivatePings`: pings som **inte** ligger inom någon `privateVisit` (filtrera på tid-intervall `[visit.start, visit.end]`).
+  - `firstIso` = första ping i `nonPrivatePings` (fallback: null om endast Boende-pings).
+  - `lastIso` = sista ping i `nonPrivatePings`.
+  - `durationMin` = `(lastIso − firstIso)` i minuter, 0 om saknas.
+  - `placeNames` byggs nu **endast** från `workVisits` (Boende dyker aldrig upp).
+  - `visits`-fältet i summary returneras också utan privata (så ev. framtida UI inte råkar visa Boende).
 
-I båda `validate()`:
+### `src/components/staff/StaffGpsDayRow.tsx`
+- Etiketterna förtydligas:
+  - Översta raden visar fortsatt veckodag + duration som "Arbetstid" (samma plats, samma formattering).
+  - Andra raden: `Start HH:MM → Slut HH:MM` (oförändrad layout).
+  - Tredje raden: platser (utan Boende, redan filtrerat i hooket).
+- När `firstIso/lastIso` är null men det finns pings (bara Boende-pings) visa "Endast hemma" i stället för "Ingen GPS-data".
 
-- Ta bort `grossMin > 16 * 60`-checken helt.
-- Ta bort `grossMin - breakMinutes <= 0`-checken (även den är lokal räkning).
-- Ta bort `breakMinutes > 600`-övre gränsen (behåll bara `>= 0` + finite, så vi inte skickar skräp).
-- Behåll endast strikt syntax-validering som behövs för att kunna POSTA: starttid finns, sluttid finns, parsebart, start < slut, sluttid inte i framtiden för idag.
+### `StaffGpsWeekPanel.tsx`
+- Footer-texten uppdateras: "Start = första GPS utanför Boende, Slut = sista. Boende räknas inte som arbetstid."
 
-Servern (`submit-staff-day-report` / `attest-staff-day`) får fortsätta vara sanningen. Appen speglar, validerar inte längden.
+## Vad ändras inte
 
-## Felkod
-
-För att hitta exakt felkod-strängen behöver jag se skärmen — kan du dela en skärmdump eller skriva exakt vad det står? Om det är just "Brutto överstiger 16 timmar — kontrollera tiderna." försvinner den med ändringen ovan. Om det är en annan toast (server-fel från `submitDayReport` / `attestDay`) behöver jag se texten för att veta om den också ska bort eller bara bytas mot ett rent re-fetch.
-
-## Verifiering
-
-- `bunx vitest run src/components/mobile-app/time` — befintliga dayStatus/segmenttester ska fortsätta vara gröna.
-- Manuell: öppna `/m/report` på dag med >16h GPS-spann, verifiera att Skicka in / Bekräfta inte längre blockeras.
-
-## Filer
-
-- edit `src/components/mobile-app/time/StaffDayAttestSection.tsx`
-- edit `src/components/mobile-app/time/StaffDaySubmitSection.tsx`
-
-Inga DB-ändringar, inga edge functions, inga nya filer.
+- Kartan, `GeofenceVisitsTable`, `PingTimelineTable` i högerkolumnen lämnas helt orörda – Boende får fortsatt visas där (det är kartans rådata).
+- Inga DB-anrop, inga edge functions, ingen ny tolkningslogik utöver "Boende = privat".
+- Ingen 16h-cap eller annan begränsning.
