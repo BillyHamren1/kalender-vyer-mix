@@ -248,6 +248,13 @@ export function useStaffTimeReportPeriod(
             ({
               ...d,
               status: normalizeUserReportStatus((d as { status?: unknown }).status),
+              places: Array.isArray((d as { places?: unknown }).places)
+                ? ((d as { places: unknown[] }).places.map((p: any) => ({
+                    name: String(p?.name ?? ''),
+                    kind: String(p?.kind ?? 'project'),
+                    minutes: Number(p?.minutes ?? 0),
+                  })).filter((p) => p.name && p.minutes > 0))
+                : [],
             }) as StaffPeriodDaySummary,
         ),
         blockers: data?.blockers ?? [],
