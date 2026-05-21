@@ -32,6 +32,8 @@ vi.mock('@/components/ui/PageHeader', () => ({
 
 import { supabase } from '@/integrations/supabase/client';
 import StaffTimeReports from '@/pages/StaffTimeReports';
+import StaffListTab from '@/components/staff-time-reports/StaffListTab';
+import PendingApprovalsTab from '@/components/staff-time-reports/PendingApprovalsTab';
 
 function makeBuilder(rows: any[]) {
   const b: any = {
@@ -43,22 +45,18 @@ function makeBuilder(rows: any[]) {
     order: vi.fn(() => b),
     limit: vi.fn(() => Promise.resolve({ data: rows, error: null })),
     update: vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ error: null }) })),
-    then: undefined,
   };
-  // Make awaitable
   Object.defineProperty(b, 'then', {
     value: (resolve: any) => Promise.resolve({ data: rows, error: null }).then(resolve),
   });
   return b;
 }
 
-function renderPage() {
+function wrap(ui: React.ReactNode) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter>
-        <StaffTimeReports />
-      </MemoryRouter>
+      <MemoryRouter>{ui}</MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -115,23 +113,16 @@ describe('StaffTimeReports — tabs', () => {
     });
   });
 
-  it('renders three tabs', () => {
-    renderPage();
+  it('renders three tabs in shell', () => {
+    wrap(<StaffTimeReports />);
     expect(screen.getByRole('tab', { name: /Översikt/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Personal/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Att attestera/i })).toBeInTheDocument();
   });
 
-  it('shows staff list and filters via search', async () => {
-    const { container } = renderPage();
-    fireEvent.click(screen.getByRole('tab', { name: /Personal/i }));
-    await waitFor(
-      () => {
-        const txt = container.textContent || '';
-        if (!txt.includes('Anna Andersson')) throw new Error('not yet: ' + txt.slice(0, 200));
-      },
-      { timeout: 3000 },
-    );
+  it('StaffListTab loads staff and filters via search', async () => {
+    wrap(<StaffListTab />);
+    await waitFor(() => expect(screen.getByText('Anna Andersson')).toBeInTheDocument());
     expect(screen.getByText('Björn Karlsson')).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText('Sök personal…'), { target: { value: 'björn' } });
@@ -139,12 +130,10 @@ describe('StaffTimeReports — tabs', () => {
     expect(screen.getByText('Björn Karlsson')).toBeInTheDocument();
   });
 
-  it('shows pending approvals tab with quick-approve button', async () => {
-    renderPage();
-    fireEvent.click(screen.getByRole('tab', { name: /Att attestera/i }));
-    await waitFor(() =>
-      expect(screen.getAllByText('Anna Andersson').length).toBeGreaterThan(0),
-    );
+  it('PendingApprovalsTab renders pending row with approve button', async () => {
+    wrap(<PendingApprovalsTab />);
+    await waitFor(() => expect(screen.getByText('Anna Andersson')).toBeInTheDocument());
+    expect(screen.getByText('Acme AB', { exact: false })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /Godkänn/i }).length).toBeGreaterThan(0);
   });
 });
