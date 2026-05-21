@@ -1,68 +1,68 @@
-# Nyfiken AI-dagssammanfattning i GPS-vyn
+## Problem
 
-Idag får AI:n bara en lista över kända geofence-besök (projekt/lager/boende). Allt däremellan — bilturer, lunchstopp på Bauhaus, tankning, snabb sväng hem — är osynligt. Resultatet blir trist och säger inget mer än siffrorna ovanför.
+AI-kommentaren under varje GPS-dag babblar för att den inte vet vad personen *borde* göra (vilka jobb, vilken dags planering, vilka adresser), och den behandlar GPS-luckor som beteenden (sover/står stilla) istället för som datatäckningshål.
 
-Vi byter ut hela inputen och hela prompten så att AI:n får ett komplett dygnsspår, inklusive *okända* stopp med riktiga adresser/POI, och uppmuntras att resonera som en arbetsledare som faktiskt är nyfiken på dagen.
+## Mål
+
+Få kommentaren att låta som en arbetsledare som faktiskt känner organisationen: utgår från personens planerade jobb den dagen, känner igen andra organisations-jobb i närheten, och tystar oviktiga GPS-luckor istället för att spekulera om dem.
 
 ## Vad som ändras
 
-### 1. Bygg en komplett dagstidslinje (inte bara geofence-träffar)
+### 1. Backend: ny kontextberikning i `gps-day-narrative`
 
-I `useStaffGpsWeekSummary` (eller en ny `useStaffGpsDayTimeline`) bygger vi förutom dagens kända besök även:
+Edge-funktionen tar idag emot färdiga "stays + moves" från klienten. Det räcker inte. Vi gör om den till att själv hämta organisationskontext för aktuell person + dag:
 
-- **Okända stopp** — kluster av pings ≥ ~8 min utanför alla geofences (vi använder befintliga `buildPlaceVisits` istället för `buildExactGeofenceVisits`, eller kompletterar).
-- **Förflyttningar mellan stopp** — start/slut, varaktighet, ungefärlig sträcka (haversine mellan stoppens medelpunkter).
-- Markera privat/boende-stopp separat så AI:n inte spekulerar om hemmet.
+- **Planerade jobb idag**: läs `staff_assignments` × `calendar_events` för (staff_id, date) → lista med projekt/booking-namn, planerad start/slut, klient, adress, koordinater. Det är "vad personen *skulle* göra".
+- **Närliggande organisationsjobb**: hämta alla aktiva projekt/large_projects/bookings för organisationen med geo (samma källa som `resolveWorkTargets`). Vi väger in dem som *kandidatförklaring* när ett okänt stopp ligger ≤ ~500 m från en känd jobbadress (även om personen inte var schemalagd där). Mappar t.ex. ett "okänt stopp" till "stannade vid jobbadressen Sveavägen 41 (projekt: Handelsbanken 2026)".
+- **Boende/privata zoner**: samma logik som idag (hoppa över helt).
 
-Payloaden som skickas till edge-funktionen blir en kronologisk lista:
+Detta läggs på serversidan så att vi (a) får org-isolering via RLS-säkert service role, (b) slipper skicka stora datamängder från klient, (c) kan caches per (staff, date) tillsammans med övrig tidslinje.
 
-```
-[
-  { kind: "stay", name: "FA Warehouse", start, end, min, known: true },
-  { kind: "move", start, end, min, distance_km: 12.4 },
-  { kind: "stay", lat, lng, start, end, min, known: false }, // okänt — ska geokodas
-  { kind: "stay", name: "Swedish game fair", ... },
-  ...
-]
-```
+### 2. GPS-luckor: klassificera istället för att gissa
 
-### 2. Reverse-geocoda okända stopp i edge-funktionen
+Klienten skickar redan stays + moves. Vi lägger till en tredje typ: `gap` — perioder mellan två stays där ingen ping fanns på X minuter och vi inte kan se rörelse. Reglerna:
 
-`gps-day-narrative` får en ny förprocess: för varje `stay` utan namn anropas Mapbox (`MAPBOX_PUBLIC_TOKEN`, samma som `reverse-geocode-staff`) med `types=poi,address` för att få närmaste POI eller adress. Resultatet bakas in som `nearby: "Bauhaus Sickla"` eller `address: "Värmdövägen 84"` i payloaden innan AI:n kallas.
+- `gap.minutes < 60` ELLER `gap` ligger mellan två known-site-stays på samma plats → **utelämnas helt** i prompten (oviktig).
+- `gap.minutes ≥ 60` och spänner över byte av plats → markeras `GPS_GAP` i prompten med tydlig instruktion "datatäckning saknas, gissa INTE vad personen gjorde".
+- Natt (00–05 lokal tid) → utelämnas alltid, oavsett längd (matchar `night-auto-start-guard` och `night-gps-only-guard-ui`).
 
-Cache: vi memoiserar per (rundad lat/lng till ~4 decimaler) i en in-memory Map i edge-funktionen så samma stopp inte slås upp flera gånger inom samma request.
+Detta görs i `useStaffGpsWeekSummary` så timeline-payloaden redan är "städad" när den når edge-funktionen, plus en spegelregel på serversidan så vi inte litar blint på klienten.
 
-### 3. Ny prompt — nyfiken arbetsledar-ton
+### 3. Ny prompt
 
-System-prompten byts ut helt. Ny instruktion (kort sammanfattat):
+System-prompten skrivs om från "nyfiken arbetsledare som spekulerar" till "erfaren arbetsledare som känner organisationen och dess jobb". Nyckelregler i prompten:
 
-> Du är en erfaren arbetsledare som läser en persons GPS-dag. Var nyfiken. Resonera om vad rörelserna betyder. Använd POI-namn och adresser när du beskriver okända stopp ("ett 35 min stopp vid Bauhaus Sickla — troligen materialinköp"). Spekulera försiktigt om syfte (lunch, tankning, materialhämtning, hem) när längd + plats + tidpunkt gör det rimligt — men säg "troligen" eller "ser ut som". Markera tydligt om något ser avvikande ut (oväntad lång lucka, sent slut, mycket körning). Avsluta med "Inga avvikelser." bara när allt verkligen ser normalt ut. 3–5 meningar, svensk löpande text, ingen punktlista.
+- Du får en lista över personens **planerade jobb idag** (med planerad tid + adress) — referera dem vid namn.
+- Du får en lista över **andra närliggande organisationsjobb** — använd dem för att förklara okända stopp ("stannade vid Sveavägen 41 — det är vår jobbadress för projekt X").
+- För okända stopp som inte matchar något jobb: använd POI/adress (Bauhaus, McDonald's, …) och spekulera *försiktigt* om syfte (lunch, materialinköp, tankning) — men bara om längd+tidpunkt gör det rimligt.
+- **GPS-luckor**: nämn dem ENDAST när de bryter ett känt arbetsmönster (t.ex. försvinner mitt på dagen från projekt utan att dyka upp igen). Säg "GPS-signal saknas" — aldrig "personen sov/stod stilla". Korta luckor och nattluckor: nämn inte alls.
+- Skriv 3–5 meningar, naturlig svenska, ingen markdown.
+- Avsluta med "Inga avvikelser." enbart när dagen verkligen följer planen.
 
-Modellbyte: `google/gemini-2.5-pro` istället för flash (vi behöver resonemanget). Cache:n i `useStaffGpsDayNarrative` gör att vi bara betalar en gång per dag tills datan ändras.
+Modell: behåll `google/gemini-2.5-pro` (krävs för resonemang över strukturerad kontext).
 
-### 4. Bumpad cache-nyckel
+### 4. Cache-nyckel uppdateras
 
-Cache-nyckeln i `useStaffGpsDayNarrative` utökas med antalet timeline-event så vi inte serverar gamla "tunna" sammanfattningar.
+`useStaffGpsDayNarrative` bumpar query-key till `v3` så befintliga cachade "babbel"-svar inte ligger kvar.
 
-## Filer som rörs
+## Tekniska detaljer
 
-- `supabase/functions/gps-day-narrative/index.ts` — ny payload-form, reverse-geocode-loop, ny prompt, byt modell till `gemini-2.5-pro`.
-- `src/hooks/staff/useStaffGpsWeekSummary.ts` — bygg och exponera även `timeline` (stops + moves, inkl. okända) per dag.
-- `src/hooks/staff/useStaffGpsDayNarrative.ts` — skicka `timeline` istället för bara `visits`, bumpa cache-nyckel.
-- `src/components/staff/StaffGpsDayRow.tsx` — orört utseendemässigt, fortsätter rendera `narrative` (men texten blir nu rikare).
+Filer som ändras:
 
-## Förväntad effekt
+- `supabase/functions/gps-day-narrative/index.ts` — hämtar planerade jobb + närliggande org-jobb via service-role-klient, bygger berikad prompt, klassificerar gaps.
+- `src/hooks/staff/useStaffGpsWeekSummary.ts` — lägger till `gap`-entries i `timeline` och filtrerar trivialer redan här. Skickar även `organization_id` med (om inte redan implicit via RLS).
+- `src/hooks/staff/useStaffGpsDayNarrative.ts` — query-key bumpas till `v3`, payload utökas inte (kontexten hämtas på servern).
+- Ingen DB-migration. Inget nytt UI.
 
-Dagstexten går från:
+## Vad detta inte gör
 
-> "Markuss arbetade 06:46–07:36 på FA Warehouse och 08:21–14:11 på Swedish game fair. Inga avvikelser."
+- Ändrar inte tidslinje-/tidrapport-vyer.
+- Skriver inte tillbaka något till `time_reports` eller `staff_day_report_cache`.
+- Försöker inte ersätta `analyze-unclear-segment` eller `ai-review-time-report-blocks` — det här är fortfarande en ren läs-AI för översiktskommentaren i veckopanelen.
 
-till t.ex.:
+## Test
 
-> "Markuss startade 06:46 vid FA Warehouse (50 min — verkar ha lastat). Körde sedan ~14 km till Swedish game fair där han var 08:21–14:11. Kring 12:10 ett 35 min stopp vid Bauhaus Sickla på vägen tillbaka — troligen materialinköp. Lämnade arbetsplatsen 17:32 och åkte via lagret (10 min) hem. Inga avvikelser."
-
-## Kostnad / risker
-
-- Mapbox reverse-geocode körs nu en gång per okänt stopp per dag (typiskt 0–3 per dag). Token finns redan.
-- Gemini 2.5 Pro ~5–10× dyrare än flash, men cachen + att vi bara genererar när dagen faktiskt ändrats gör det hanterbart. Vi surface:ar 429/402 som vi redan gör.
-- Om Mapbox-token saknas faller vi tillbaka på lat/lng-text — AI:n får i alla fall säga "okänt stopp nära X,Y".
+Efter ändringen:
+1. Deploy `gps-day-narrative`.
+2. Curl-anropa funktionen för en dag där användaren vet vad som hände → verifiera att texten nämner rätt projekt och inte spekulerar om GPS-gap.
+3. Öppna `/staff-management/gps-satellite-map` och granska 3–4 dagar i veckopanelen.
