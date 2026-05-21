@@ -22,6 +22,8 @@ export interface RawProjectRow {
   delivery_latitude: number | string | null;
   delivery_longitude: number | string | null;
   address_radius_meters: number | string | null;
+  address_geofence_mode?: string | null;
+  address_geofence_polygon?: unknown;
   status?: string | null;
   planning_status?: string | null;
   deleted_at?: string | null;
@@ -38,6 +40,8 @@ export interface RawLargeProjectRow {
   address_latitude: number | string | null;
   address_longitude: number | string | null;
   address_radius_meters: number | string | null;
+  address_geofence_mode?: string | null;
+  address_geofence_polygon?: unknown;
   deleted_at?: string | null;
   created_at?: string | null;
   start_date?: string | null;
@@ -51,7 +55,10 @@ export interface ProjectGeofence {
   lat: number;
   lng: number;
   radiusMeters: number;
+  /** Om satt: rita polygon istället för cirkel. */
+  polygon?: GeoJSON.Polygon;
 }
+
 
 const CANCELLED = new Set(['cancelled', 'avbokat', 'avbokad', 'canceled']);
 
