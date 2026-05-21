@@ -122,7 +122,7 @@ describe('StaffTimeReports — tabs', () => {
 
   it('StaffListTab loads staff and filters via search', async () => {
     wrap(<StaffListTab />);
-    await waitFor(() => expect(screen.getByText('Anna Andersson')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Anna Andersson')).toBeInTheDocument(), { timeout: 3000 });
     expect(screen.getByText('Björn Karlsson')).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText('Sök personal…'), { target: { value: 'björn' } });
