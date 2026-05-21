@@ -143,6 +143,17 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
   const pingsQuery = useStaffGpsPingsForDay(effectiveStaffId, dateStr);
   const pings: RawStaffGpsPing[] = pingsQuery.data ?? [];
 
+  // Färgmarkera dagar i månadskalendern som har pings för vald person.
+  const pingDaysQuery = useStaffPingDaysForMonth(effectiveStaffId, calendarMonth);
+  const pingDayDates = useMemo<Date[]>(() => {
+    const counts = pingDaysQuery.data;
+    if (!counts) return [];
+    return Array.from(counts.keys()).map((iso) => {
+      const [y, m, d] = iso.split('-').map(Number);
+      return new Date(y, (m ?? 1) - 1, d ?? 1);
+    });
+  }, [pingDaysQuery.data]);
+
   // Geofences: alla org-platser + DAGENS targets för vald person +
   // ALLA aktiva projekt/stora projekt (oavsett person/dag) så kartan alltid
   // visar varje projekts geofence. Matchar regeln "inside geo = tid där".
