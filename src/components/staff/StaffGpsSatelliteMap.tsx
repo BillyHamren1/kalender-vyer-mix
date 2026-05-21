@@ -216,6 +216,13 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     }
     return m;
   }, [orgLocations]);
+  const polygonByProjectId = useMemo(() => {
+    const m = new Map<string, GeoJSON.Polygon>();
+    for (const s of allProjectSites) {
+      if (s.polygon) m.set(s.id, s.polygon);
+    }
+    return m;
+  }, [allProjectSites]);
   const geofences = useMemo<GeofenceSite[]>(() => {
     const out: GeofenceSite[] = [];
     const seen = new Set<string>();
@@ -228,13 +235,14 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
       out.push({
         id: s.id, name: s.name, lat: s.lat, lng: s.lng,
         radiusMeters: s.radiusMeters,
-        polygon: polygonByLocId.get(s.id),
+        polygon: polygonByLocId.get(s.id) ?? polygonByProjectId.get(s.id),
       });
     };
     for (const s of knownSites) push(s);
     for (const s of allProjectSites) push(s);
     return out;
-  }, [knownSites, allProjectSites, polygonByLocId, showLocations, showTargets]);
+  }, [knownSites, allProjectSites, polygonByLocId, polygonByProjectId, showLocations, showTargets]);
+
 
   const summary = useMemo(() => {
     if (!pings.length) return null;
