@@ -124,7 +124,7 @@ async function reverseGeocode(
 }
 
 async function fetchOrgIdForStaff(admin: any, staffId: string): Promise<string | null> {
-  const { data } = await admin.from("staff").select("organization_id").eq("id", staffId).maybeSingle();
+  const { data } = await admin.from("staff_members").select("organization_id").eq("id", staffId).maybeSingle();
   return data?.organization_id ?? null;
 }
 
