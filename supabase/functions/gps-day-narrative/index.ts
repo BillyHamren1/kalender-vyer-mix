@@ -15,7 +15,8 @@ const MAPBOX_TOKEN = Deno.env.get("MAPBOX_PUBLIC_TOKEN") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const MODEL = "google/gemini-2.5-pro";
+const MODEL = "google/gemini-2.5-flash";
+const AI_TIMEOUT_MS = 60_000;
 
 const NEAR_JOB_RADIUS_M = 500;
 
