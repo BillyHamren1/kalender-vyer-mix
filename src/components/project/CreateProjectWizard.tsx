@@ -475,6 +475,17 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
                 placeholder="T.ex. Bröllop Skansen 23 juli"
               />
             </div>
+
+            <label className="flex items-center gap-2 text-sm cursor-pointer select-none rounded-md border border-dashed border-pink-300 bg-pink-50/40 px-3 py-2 hover:bg-pink-50">
+              <input
+                type="checkbox"
+                checked={customerPickup}
+                onChange={(e) => setCustomerPickup(e.target.checked)}
+                className="h-4 w-4 accent-pink-500"
+              />
+              <span className="font-medium">Kund hämtar själv på lagret</span>
+              <span className="text-xs text-muted-foreground">— rig/rivning visas rosa/lila i kalendern</span>
+            </label>
           </div>
 
           {/* Standalone project fields - only shown when no booking selected */}
