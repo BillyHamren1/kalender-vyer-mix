@@ -386,7 +386,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
               <div style="display:flex;gap:6px;align-items:center">
                 <input type="number" min="10" max="5000" step="10" value="${currentRadius}"
                   style="flex:1;padding:4px 6px;border:1px solid #cbd5e1;border-radius:4px;font:12px system-ui" />
-                <button type="button"
+                <button type="button" data-save
                   style="padding:4px 10px;background:#0f172a;color:#fff;border:0;border-radius:4px;cursor:pointer;font:600 12px system-ui">
                   Spara
                 </button>
@@ -394,7 +394,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
               <div data-status style="min-height:14px;color:#475569;font-size:11px"></div>
             `;
             const input = editor.querySelector('input') as HTMLInputElement;
-            const btn = editor.querySelector('button') as HTMLButtonElement;
+            const btn = editor.querySelector('button[data-save]') as HTMLButtonElement;
             const status = editor.querySelector('[data-status]') as HTMLDivElement;
             btn.addEventListener('click', async () => {
               const next = Math.round(Number(input.value));
@@ -419,13 +419,72 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
               }
             });
             root.appendChild(editor);
+          } else if (isPolygon) {
+            const info = document.createElement('div');
+            info.innerHTML = `<div><b>Form:</b> polygon</div>`;
+            root.appendChild(info);
           } else {
             const radiusInfo = document.createElement('div');
-            radiusInfo.innerHTML = isPolygon
-              ? `<div><b>Form:</b> polygon</div>`
-              : `<div><b>Radie:</b> ${currentRadius} m</div>`;
+            radiusInfo.innerHTML = `<div><b>Radie:</b> ${currentRadius} m</div>`;
             root.appendChild(radiusInfo);
           }
+
+          // ── Polygon-redigering ─────────────────────────────────────
+          if (editable && onSavePolygonRef.current) {
+            const polyBox = document.createElement('div');
+            polyBox.style.cssText = 'display:flex;flex-direction:column;gap:6px;border-top:1px solid #e2e8f0;padding-top:8px;margin-top:8px';
+            polyBox.innerHTML = isPolygon
+              ? `
+                <div style="font-weight:600">Polygon</div>
+                <div style="display:flex;gap:6px">
+                  <button type="button" data-draw
+                    style="flex:1;padding:4px 10px;background:#0f172a;color:#fff;border:0;border-radius:4px;cursor:pointer;font:600 12px system-ui">
+                    Rita om
+                  </button>
+                  <button type="button" data-clear
+                    style="padding:4px 10px;background:#fff;color:#0f172a;border:1px solid #cbd5e1;border-radius:4px;cursor:pointer;font:600 12px system-ui">
+                    Ta bort
+                  </button>
+                </div>
+                <div data-poly-status style="min-height:14px;color:#475569;font-size:11px"></div>
+              `
+              : `
+                <div style="font-weight:600">Polygon (avancerat)</div>
+                <button type="button" data-draw
+                  style="padding:4px 10px;background:#0f172a;color:#fff;border:0;border-radius:4px;cursor:pointer;font:600 12px system-ui">
+                  Rita polygon
+                </button>
+                <div data-poly-status style="min-height:14px;color:#475569;font-size:11px">Klicka för att rita. Dubbelklicka för att avsluta.</div>
+              `;
+            const drawBtn = polyBox.querySelector('button[data-draw]') as HTMLButtonElement;
+            const clearBtn = polyBox.querySelector('button[data-clear]') as HTMLButtonElement | null;
+            const polyStatus = polyBox.querySelector('[data-poly-status]') as HTMLDivElement;
+
+            drawBtn.addEventListener('click', () => {
+              popupRef.current?.remove();
+              startPolygonDraw(map, id, (poly) => {
+                onSavePolygonRef.current?.(id, poly).catch(() => undefined);
+              });
+            });
+            clearBtn?.addEventListener('click', async () => {
+              clearBtn.disabled = true;
+              drawBtn.disabled = true;
+              polyStatus.style.color = '#475569';
+              polyStatus.textContent = 'Tar bort…';
+              try {
+                await onSavePolygonRef.current!(id, null);
+                polyStatus.style.color = '#16a34a';
+                polyStatus.textContent = 'Polygon borttagen.';
+              } catch (err: any) {
+                polyStatus.style.color = '#dc2626';
+                polyStatus.textContent = `Fel: ${err?.message ?? 'kunde inte ta bort'}`;
+                clearBtn.disabled = false;
+                drawBtn.disabled = false;
+              }
+            });
+            root.appendChild(polyBox);
+          }
+
 
           popupRef.current = new mapboxgl.Popup({ closeButton: true, maxWidth: '320px' })
             .setLngLat([Number(p.lng), Number(p.lat)])
