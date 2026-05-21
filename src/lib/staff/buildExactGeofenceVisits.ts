@@ -76,9 +76,18 @@ export function buildExactGeofenceVisits(rawPings: Ping[], sites: GeofenceSite[]
   let openSubs: OpenSub[] = [];
   let current: OpenSub | null = null;
 
-  const flushSubsForActive = () => {
+  const flushSubsForActive = (opts: { dropTrailingOutside: boolean }) => {
     if (!activeSite) return;
-    for (const sub of openSubs) {
+    let subs = openSubs;
+    if (opts.dropTrailingOutside) {
+      // Personen lämnade projektet och kom ALDRIG tillbaka (eller dagen tog slut).
+      // Då ska efterföljande outside_geo-block INTE visas — projektet stängs
+      // vid sista pingen inne i geofencen.
+      while (subs.length && subs[subs.length - 1].kind === 'outside_geo') {
+        subs = subs.slice(0, -1);
+      }
+    }
+    for (const sub of subs) {
       if (!sub.pings.length) continue;
       const start = sub.pings[0].recorded_at;
       const end = sub.pings[sub.pings.length - 1].recorded_at;
@@ -102,6 +111,7 @@ export function buildExactGeofenceVisits(rawPings: Ping[], sites: GeofenceSite[]
     current = null;
     activeSite = null;
   };
+
 
   const startSub = (kind: SubKind, ping: Ping) => {
     current = { kind, pings: [ping] };
@@ -133,7 +143,9 @@ export function buildExactGeofenceVisits(rawPings: Ping[], sites: GeofenceSite[]
 
     if (fence && fence.id !== activeSite.id) {
       // Bytt projekt → enda läget som avslutar aktivt projekt.
-      flushSubsForActive();
+      // Trailing outside_geo bevaras under det gamla projektet (transport
+      // till nya platsen tillhör avresan).
+      flushSubsForActive({ dropTrailingOutside: false });
       activeSite = fence;
       startSub('inside', ping);
       continue;
@@ -147,6 +159,8 @@ export function buildExactGeofenceVisits(rawPings: Ping[], sites: GeofenceSite[]
     }
   }
 
-  flushSubsForActive();
+  // Slut på dagen utan återinträde → släng trailing outside_geo.
+  flushSubsForActive({ dropTrailingOutside: true });
   return visits;
 }
+
