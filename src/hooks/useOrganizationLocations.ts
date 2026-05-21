@@ -15,6 +15,8 @@ export interface KnownLocation {
    * polygon och cirkeln gäller.
    */
   polygon?: GeoJSON.Polygon;
+  /** True om platsen är ett Boende (is_private_residence) — räknas inte som arbetstid. */
+  isPrivate?: boolean;
 }
 
 function isValidPolygon(raw: unknown): raw is GeoJSON.Polygon {
@@ -45,7 +47,7 @@ export function useOrganizationLocations() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('organization_locations')
-        .select('id, name, latitude, longitude, radius_meters, is_active, geofence_mode, geofence_polygon')
+        .select('id, name, latitude, longitude, radius_meters, is_active, geofence_mode, geofence_polygon, is_private_residence, location_type')
         .eq('is_active', true);
       if (error) throw error;
       return (data || [])
@@ -53,6 +55,8 @@ export function useOrganizationLocations() {
         .map((l: any): KnownLocation => {
           const usePolygon =
             l.geofence_mode === 'polygon' && isValidPolygon(l.geofence_polygon);
+          const isPrivate =
+            l.is_private_residence === true || l.location_type === 'private_residence';
           return {
             id: l.id,
             name: l.name,
@@ -60,6 +64,7 @@ export function useOrganizationLocations() {
             lng: Number(l.longitude),
             radiusMeters: Number(l.radius_meters ?? 200) || 200,
             polygon: usePolygon ? (l.geofence_polygon as GeoJSON.Polygon) : undefined,
+            isPrivate,
           };
         });
     },
