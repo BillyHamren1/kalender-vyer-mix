@@ -113,11 +113,15 @@ const SOURCE_IDS = [
 
 const ZOOM_DETAIL_THRESHOLD = 14;
 
-export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [], className, onSaveRadius }: Props) {
+export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [], className, onSaveRadius, onSavePolygon }: Props) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
   const onSaveRadiusRef = useRef<Props['onSaveRadius']>(onSaveRadius);
   onSaveRadiusRef.current = onSaveRadius;
+  const onSavePolygonRef = useRef<Props['onSavePolygon']>(onSavePolygon);
+  onSavePolygonRef.current = onSavePolygon;
+  const drawRef = useRef<MapboxDraw | null>(null);
+  const drawHandlersRef = useRef<{ cleanup: () => void } | null>(null);
   const visitMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; el: HTMLElement; kind: 'compact' | 'detail' }>>([]);
 
   const handleReady = (map: mapboxgl.Map) => {
@@ -126,6 +130,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     renderVisitMarkers(map, visits);
     map.on('zoom', applyZoomVisibility);
   };
+
 
   useEffect(() => {
     if (mapRef.current) renderLayers(mapRef.current, pings, geofences);
