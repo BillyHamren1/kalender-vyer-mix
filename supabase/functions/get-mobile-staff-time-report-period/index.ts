@@ -199,6 +199,7 @@ function dayFromReport(
     status,
     workdayStartedAt,
     workdayEndedAt,
+    places: placesFromSegments(report.segments),
   };
 }
 
