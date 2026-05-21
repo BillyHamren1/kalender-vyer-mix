@@ -14,6 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { fetchStaffMembers } from '@/services/staffService';
 import { supabase } from '@/integrations/supabase/client';
 import { useStaffGpsPingsForDay, type RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
+import { useStaffPingDaysForMonth } from '@/hooks/staff/useStaffPingDaysForMonth';
 import { useDayKnownSites } from '@/hooks/useDayKnownSites';
 import { useAllActiveProjectGeofences } from '@/hooks/useAllActiveProjectGeofences';
 import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
