@@ -49,6 +49,14 @@ function isoWeekday(date: string): number {
   return dow === 0 ? 7 : dow;
 }
 
+interface DayPlaceOut {
+  /** Sammanfattat label från snapshot-segmentet (projektnamn, lager, plats). */
+  name: string;
+  /** project | warehouse | location | travel */
+  kind: string;
+  minutes: number;
+}
+
 interface DaySummaryOut {
   date: string;
   weekday: number;
@@ -71,6 +79,12 @@ interface DaySummaryOut {
   /** Wallclock start/slut — speglar dialogens "Justera dagen"-förslag. */
   workdayStartedAt: string | null;
   workdayEndedAt: string | null;
+  /**
+   * Per-plats-breakdown (samma princip som GPS-karta-veckopanelen):
+   * varje arbetsplats personen var på, med summerad tid.
+   * Sorterat fallande på minutes.
+   */
+  places: DayPlaceOut[];
 }
 
 function categorize(segments: MobileSegment[]) {
