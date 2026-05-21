@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
+import MapboxDraw from '@mapbox/mapbox-gl-draw';
+import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
 import MapboxMap from '@/components/maps/MapboxMap';
 import type { RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
 import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
@@ -27,7 +29,13 @@ interface Props {
    * Förälder ansvarar för persistens + query-invalidation.
    */
   onSaveRadius?: (id: string, radiusMeters: number) => Promise<void>;
+  /**
+   * Anropas när användaren ritat (eller tagit bort) en polygon för en geofence.
+   * polygon=null återställer till cirkel.
+   */
+  onSavePolygon?: (id: string, polygon: GeoJSON.Polygon | null) => Promise<void>;
 }
+
 
 
 function formatHm(iso: string): string {
