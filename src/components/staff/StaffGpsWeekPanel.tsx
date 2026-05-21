@@ -30,12 +30,12 @@ export function StaffGpsWeekPanel({
   const isoWeek = getISOWeek(weekStart);
 
   return (
-    <aside className="w-full md:w-[320px] shrink-0 border rounded-md bg-card flex flex-col max-h-[calc(100vh-180px)]">
+    <aside className="w-full md:w-[320px] shrink-0 border rounded-md bg-card flex flex-col">
       {/* Person */}
-      <div className="p-3 border-b space-y-2">
-        <label className="text-xs text-muted-foreground">Person</label>
+      <div className="p-2.5 border-b space-y-1.5">
+        <label className="text-[11px] text-muted-foreground">Person</label>
         <Select value={staffId ?? ''} onValueChange={onStaffChange}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full h-8 text-sm">
             <SelectValue placeholder="Välj person" />
           </SelectTrigger>
           <SelectContent>
@@ -60,36 +60,34 @@ export function StaffGpsWeekPanel({
       </div>
 
       {/* Vecka */}
-      <div className="p-3 border-b flex items-center justify-between gap-2">
+      <div className="px-2 py-1.5 border-b flex items-center justify-between gap-1">
         <Button
-          variant="ghost" size="sm"
+          variant="ghost" size="sm" className="h-7 w-7 p-0"
           onClick={() => onDateChange(addWeeks(weekStart, -1))}
           aria-label="Föregående vecka"
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1 text-center">
-          <div className="text-sm font-medium">Vecka {isoWeek}</div>
-          <div className="text-xs text-muted-foreground">
+        <div className="flex-1 text-center leading-tight">
+          <div className="text-[12px] font-medium">Vecka {isoWeek}</div>
+          <div className="text-[10px] text-muted-foreground">
             {format(weekStart, 'd MMM', { locale: sv })} – {format(addDays(weekStart, 6), 'd MMM yyyy', { locale: sv })}
           </div>
         </div>
         <Button
-          variant="ghost" size="sm"
+          variant="ghost" size="sm" className="h-7 w-7 p-0"
           onClick={() => onDateChange(addWeeks(weekStart, 1))}
           aria-label="Nästa vecka"
         >
           <ChevronRight className="h-4 w-4" />
         </Button>
-      </div>
-      <div className="px-3 pt-2">
-        <Button variant="outline" size="sm" className="w-full h-7 text-xs" onClick={() => onDateChange(new Date())}>
+        <Button variant="outline" size="sm" className="h-7 px-2 text-[11px] ml-1" onClick={() => onDateChange(new Date())}>
           Idag
         </Button>
       </div>
 
-      {/* Dagar */}
-      <div className="flex-1 overflow-auto py-2">
+      {/* Dagar — alla 7 synliga */}
+      <div className="divide-y">
         {weekDays.map((day, i) => {
           const dateStr = format(day, 'yyyy-MM-dd');
           return (
@@ -105,8 +103,8 @@ export function StaffGpsWeekPanel({
         })}
       </div>
 
-      <div className="px-3 py-2 border-t text-[10px] text-muted-foreground">
-        Start = första GPS utanför Boende, Slut = sista. Boende räknas inte som arbetstid.
+      <div className="px-2.5 py-1.5 border-t text-[10px] text-muted-foreground">
+        Tid per projekt = tid inom geofence. Boende räknas inte.
       </div>
     </aside>
   );

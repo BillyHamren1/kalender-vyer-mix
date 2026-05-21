@@ -12,18 +12,20 @@ interface Props {
   onClick: () => void;
 }
 
-function formatDuration(min: number): string {
+function fmtDur(min: number): string {
   if (!min) return '—';
   const h = Math.floor(min / 60);
   const m = min % 60;
   if (h <= 0) return `${m}m`;
-  return `${h}h ${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h${m}m`;
 }
 
 export function StaffGpsDayRow({ day, dateStr, selected, summary, onClick }: Props) {
   const weekday = format(day, 'EEE', { locale: sv });
   const dayMonth = format(day, 'd/M', { locale: sv });
   const hasData = !!summary && summary.pingsCount > 0;
+  const hasRange = hasData && summary!.firstIso && summary!.lastIso;
 
   return (
     <button
@@ -31,35 +33,35 @@ export function StaffGpsDayRow({ day, dateStr, selected, summary, onClick }: Pro
       onClick={onClick}
       data-date={dateStr}
       className={cn(
-        'w-full text-left px-3 py-2 border-l-2 transition-colors',
+        'w-full text-left px-2.5 py-1.5 border-l-2 transition-colors',
         selected
           ? 'border-primary bg-primary/10'
           : 'border-transparent hover:bg-muted/50',
       )}
     >
-      <div className="flex items-baseline justify-between gap-2">
-        <span className={cn('text-sm font-medium capitalize', !hasData && 'text-muted-foreground')}>
+      <div className="flex items-baseline justify-between gap-2 leading-tight">
+        <span className={cn('text-[12px] font-medium capitalize', !hasData && 'text-muted-foreground')}>
           {weekday} {dayMonth}
         </span>
-        <span className={cn('text-xs font-mono', hasData && summary!.durationMin > 0 ? 'text-foreground' : 'text-muted-foreground')}>
-          {hasData && summary!.durationMin > 0 ? formatDuration(summary!.durationMin) : '—'}
-        </span>
+        {hasRange ? (
+          <span className="text-[11px] font-mono text-muted-foreground">
+            {formatStockholmHm(summary!.firstIso!)}–{formatStockholmHm(summary!.lastIso!)}
+            <span className="ml-1.5 text-foreground">{fmtDur(summary!.durationMin)}</span>
+          </span>
+        ) : (
+          <span className="text-[11px] text-muted-foreground">
+            {summary?.isLoading ? 'Laddar…' : hasData ? 'Endast hemma' : '—'}
+          </span>
+        )}
       </div>
-      {hasData && summary!.firstIso && summary!.lastIso ? (
-        <>
-          <div className="text-xs font-mono text-muted-foreground mt-0.5">
-            {formatStockholmHm(summary!.firstIso)} → {formatStockholmHm(summary!.lastIso)}
-          </div>
-          {summary!.placeNames.length > 0 && (
-            <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
-              {summary!.placeNames.slice(0, 3).join(', ')}
-              {summary!.placeNames.length > 3 && ` +${summary!.placeNames.length - 3}`}
-            </div>
-          )}
-        </>
-      ) : (
-        <div className="text-xs text-muted-foreground mt-0.5">
-          {summary?.isLoading ? 'Laddar…' : hasData ? 'Endast hemma' : 'Ingen GPS-data'}
+      {hasData && summary!.places.length > 0 && (
+        <div className="mt-0.5 text-[11px] text-muted-foreground leading-tight line-clamp-2">
+          {summary!.places.map((p, idx) => (
+            <span key={p.name}>
+              {idx > 0 && <span className="mx-1">·</span>}
+              {p.name} <span className="font-mono text-foreground/80">{fmtDur(p.minutes)}</span>
+            </span>
+          ))}
         </div>
       )}
     </button>
