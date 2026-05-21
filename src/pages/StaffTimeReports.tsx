@@ -59,7 +59,7 @@ async function fetchTodayPresence(dateStr: string): Promise<PresenceRow[]> {
       .from('staff_assignments')
       .select('staff_id, team_id, assignment_date')
       .eq('assignment_date', dateStr),
-    supabase.from('staff').select('id, name, color, role'),
+    supabase.from('staff_members').select('id, name, color, role'),
     supabase
       .from('staff_locations')
       .select(
