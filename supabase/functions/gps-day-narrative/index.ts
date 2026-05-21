@@ -408,17 +408,28 @@ ${lines.join("\n")}
 
 Skriv en sammanfattning av dagen utifrån instruktionerna.`;
 
-    const resp = await fetch(AI_GATEWAY, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-      }),
-    });
+    const aiAbort = new AbortController();
+    const aiTimer = setTimeout(() => aiAbort.abort(), AI_TIMEOUT_MS);
+    let resp: Response;
+    try {
+      resp = await fetch(AI_GATEWAY, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: MODEL,
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: user },
+          ],
+        }),
+        signal: aiAbort.signal,
+      });
+    } catch (e) {
+      clearTimeout(aiTimer);
+      console.error("[gps-day-narrative] gateway fetch failed/timeout", String(e));
+      return json({ error: "ai_timeout", narrative: "AI svarade inte i tid – försök igen." }, 504);
+    }
+    clearTimeout(aiTimer);
     if (resp.status === 429) return json({ error: "rate_limited", narrative: "AI är upptagen – försök igen om en stund." }, 429);
     if (resp.status === 402) return json({ error: "credits_exhausted", narrative: "AI-krediter slut." }, 402);
     if (!resp.ok) {
