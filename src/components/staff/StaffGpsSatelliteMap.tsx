@@ -15,6 +15,7 @@ import { fetchStaffMembers } from '@/services/staffService';
 import { supabase } from '@/integrations/supabase/client';
 import { useStaffGpsPingsForDay, type RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
 import { useDayKnownSites } from '@/hooks/useDayKnownSites';
+import { useAllActiveProjectGeofences } from '@/hooks/useAllActiveProjectGeofences';
 import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
 import RawGpsSatelliteMap from './RawGpsSatelliteMap';
 import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
@@ -138,10 +139,11 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
   const pingsQuery = useStaffGpsPingsForDay(effectiveStaffId, dateStr);
   const pings: RawStaffGpsPing[] = pingsQuery.data ?? [];
 
-  // Geofences: alla org-platser + DAGENS targets (projekt + bokningar + LP)
-  // för vald person. Vi visar INTE alla aktiva projekt — bara det som är
-  // relevant för den valda dagen, så kartan inte dränks i prickar.
+  // Geofences: alla org-platser + DAGENS targets för vald person +
+  // ALLA aktiva projekt/stora projekt (oavsett person/dag) så kartan alltid
+  // visar varje projekts geofence. Matchar regeln "inside geo = tid där".
   const { knownSites } = useDayKnownSites(effectiveStaffId ?? '', dateStr, !!effectiveStaffId);
+  const { data: allProjectSites = [] } = useAllActiveProjectGeofences(true);
   const { data: orgLocations = [] } = useOrganizationLocations();
   // Polygoner finns ENDAST på organization_locations. Mappa id → polygon
   // så vi kan attacha den till `loc:<id>`-sites utan att röra KnownSite-typen.
@@ -154,18 +156,23 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
   }, [orgLocations]);
   const geofences = useMemo<GeofenceSite[]>(() => {
     const out: GeofenceSite[] = [];
-    for (const s of knownSites) {
+    const seen = new Set<string>();
+    const push = (s: { id: string; name: string; lat: number; lng: number; radiusMeters: number }) => {
+      if (seen.has(s.id)) return;
+      seen.add(s.id);
       const isLoc = s.id.startsWith('loc:');
-      if (isLoc && !showLocations) continue;
-      if (!isLoc && !showTargets) continue;
+      if (isLoc && !showLocations) return;
+      if (!isLoc && !showTargets) return;
       out.push({
         id: s.id, name: s.name, lat: s.lat, lng: s.lng,
         radiusMeters: s.radiusMeters,
         polygon: polygonByLocId.get(s.id),
       });
-    }
+    };
+    for (const s of knownSites) push(s);
+    for (const s of allProjectSites) push(s);
     return out;
-  }, [knownSites, polygonByLocId, showLocations, showTargets]);
+  }, [knownSites, allProjectSites, polygonByLocId, showLocations, showTargets]);
 
   const summary = useMemo(() => {
     if (!pings.length) return null;
