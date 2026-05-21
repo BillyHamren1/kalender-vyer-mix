@@ -18,6 +18,10 @@ import type { PlaceVisit } from '@/lib/staff/pingPlaceSegments';
  *
  * Ingen ny tolkning. start/slut = första/sista ping. duration = span.
  */
+export interface StaffGpsPlaceTime {
+  name: string;
+  minutes: number;
+}
 export interface StaffGpsDaySummary {
   date: string; // yyyy-MM-dd
   pingsCount: number;
@@ -27,6 +31,8 @@ export interface StaffGpsDaySummary {
   visits: PlaceVisit[];
   /** Distinkta platsnamn i kronologisk ordning. */
   placeNames: string[];
+  /** Tid per plats (minuter), sorterad desc. */
+  places: StaffGpsPlaceTime[];
   isLoading: boolean;
 }
 
@@ -118,6 +124,7 @@ export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]
           durationMin: 0,
           visits: [],
           placeNames: [],
+          places: [],
           isLoading: !!q?.isLoading,
         };
       }
@@ -153,12 +160,21 @@ export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]
 
       const placeNames: string[] = [];
       const seen = new Set<string>();
+      const minutesByName = new Map<string, number>();
       for (const v of [...workVisits].sort((a, b) => a.start.localeCompare(b.start))) {
         const name = v.knownSite?.name;
-        if (!name || seen.has(name)) continue;
-        seen.add(name);
-        placeNames.push(name);
+        if (!name) continue;
+        if (!seen.has(name)) {
+          seen.add(name);
+          placeNames.push(name);
+        }
+        const mins = Math.max(0, Math.round((new Date(v.end).getTime() - new Date(v.start).getTime()) / 60_000));
+        minutesByName.set(name, (minutesByName.get(name) ?? 0) + mins);
       }
+      const places: StaffGpsPlaceTime[] = Array.from(minutesByName.entries())
+        .map(([name, minutes]) => ({ name, minutes }))
+        .sort((a, b) => b.minutes - a.minutes);
+
       return {
         date,
         pingsCount: pings.length,
@@ -167,6 +183,7 @@ export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]
         durationMin,
         visits: workVisits,
         placeNames,
+        places,
         isLoading: !!q?.isLoading,
       };
     });
