@@ -353,48 +353,4 @@ function GeofenceVisitsTable({ visits }: { visits: PlaceVisit[] }) {
   );
 }
 
-function PingTimelineTable({ pings }: { pings: RawStaffGpsPing[] }) {
-  const sorted = useMemo(
-    () => [...pings].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at)),
-    [pings],
-  );
-
-  return (
-    <div className="border rounded-md overflow-hidden">
-      <div className="px-3 py-2 text-sm font-medium bg-muted/40 border-b flex items-center justify-between">
-        <span>Tidslinje ({sorted.length} pings)</span>
-        <span className="text-xs text-muted-foreground">Råa pings, en rad per ping</span>
-      </div>
-      <div className="max-h-[40vh] overflow-auto">
-        <table className="w-full text-xs">
-          <thead className="bg-muted/30 sticky top-0">
-            <tr className="text-left">
-              <th className="px-2 py-1">Tid</th>
-              <th className="px-2 py-1">Lat</th>
-              <th className="px-2 py-1">Lng</th>
-              <th className="px-2 py-1">Accuracy</th>
-              <th className="px-2 py-1">Source</th>
-              <th className="px-2 py-1">Battery</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((p) => (
-              <tr key={`pt-${p.id}`} className="border-t hover:bg-muted/20">
-                <td className="px-2 py-1 font-mono">{formatStockholmHms(p.recorded_at)}</td>
-                <td className="px-2 py-1 font-mono">{p.lat.toFixed(6)}</td>
-                <td className="px-2 py-1 font-mono">{p.lng.toFixed(6)}</td>
-                <td className="px-2 py-1">{p.accuracy != null ? `${p.accuracy.toFixed(0)} m` : '—'}</td>
-                <td className="px-2 py-1">{dash(p.source)}</td>
-                <td className="px-2 py-1">{p.battery_percent != null ? `${p.battery_percent}%${p.is_charging ? ' ⚡' : ''}` : '—'}</td>
-              </tr>
-            ))}
-            {!sorted.length && (
-              <tr><td colSpan={6} className="px-2 py-6 text-center text-muted-foreground">Inga pings.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
 
