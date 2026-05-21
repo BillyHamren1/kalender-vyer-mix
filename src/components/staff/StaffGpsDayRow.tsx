@@ -18,7 +18,7 @@ function fmtDur(min: number): string {
   const m = min % 60;
   if (h <= 0) return `${m}m`;
   if (m === 0) return `${h}h`;
-  return `${h}h${m}m`;
+  return `${h}h ${m}m`;
 }
 
 export function StaffGpsDayRow({ day, dateStr, selected, summary, onClick }: Props) {
@@ -33,36 +33,60 @@ export function StaffGpsDayRow({ day, dateStr, selected, summary, onClick }: Pro
       onClick={onClick}
       data-date={dateStr}
       className={cn(
-        'w-full text-left px-2.5 py-1.5 border-l-2 transition-colors',
+        'group relative w-full text-left px-3 py-2 transition-all',
+        'border-l-2',
         selected
-          ? 'border-primary bg-primary/10'
-          : 'border-transparent hover:bg-muted/50',
+          ? 'border-primary bg-primary/[0.06]'
+          : 'border-transparent hover:bg-muted/40',
       )}
     >
-      <div className="flex items-baseline justify-between gap-2 leading-tight">
-        <span className={cn('text-[12px] font-medium capitalize', !hasData && 'text-muted-foreground')}>
-          {weekday} {dayMonth}
-        </span>
-        {hasRange ? (
-          <span className="text-[11px] font-mono text-muted-foreground">
-            {formatStockholmHm(summary!.firstIso!)}–{formatStockholmHm(summary!.lastIso!)}
-            <span className="ml-1.5 text-foreground">{fmtDur(summary!.durationMin)}</span>
+      <div className="flex items-baseline justify-between gap-3">
+        <div className="flex items-baseline gap-2 min-w-0">
+          <span className={cn(
+            'text-[13px] font-semibold capitalize tracking-tight',
+            !hasData && 'text-muted-foreground/70',
+          )}>
+            {weekday}
           </span>
+          <span className={cn(
+            'text-[11px] tabular-nums',
+            hasData ? 'text-muted-foreground' : 'text-muted-foreground/50',
+          )}>
+            {dayMonth}
+          </span>
+        </div>
+        {hasRange ? (
+          <div className="flex items-baseline gap-2 shrink-0">
+            <span className="text-[11px] tabular-nums text-muted-foreground/80">
+              {formatStockholmHm(summary!.firstIso!)}<span className="mx-0.5 text-muted-foreground/40">–</span>{formatStockholmHm(summary!.lastIso!)}
+            </span>
+            <span className="text-[12px] font-semibold tabular-nums text-foreground tracking-tight">
+              {fmtDur(summary!.durationMin)}
+            </span>
+          </div>
         ) : (
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-[11px] text-muted-foreground/60">
             {summary?.isLoading ? 'Laddar…' : hasData ? 'Endast hemma' : '—'}
           </span>
         )}
       </div>
       {hasData && summary!.places.length > 0 && (
-        <div className="mt-0.5 text-[11px] text-muted-foreground leading-tight line-clamp-2">
-          {summary!.places.map((p, idx) => (
-            <span key={p.name}>
-              {idx > 0 && <span className="mx-1">·</span>}
-              {p.name} <span className="font-mono text-foreground/80">{fmtDur(p.minutes)}</span>
-            </span>
+        <ul className="mt-1.5 space-y-0.5">
+          {summary!.places.map((p) => (
+            <li
+              key={p.name}
+              className="flex items-baseline justify-between gap-3 text-[11.5px] leading-snug"
+            >
+              <span className="flex items-baseline gap-1.5 min-w-0">
+                <span className="inline-block h-1 w-1 rounded-full bg-primary/60 shrink-0 translate-y-[-2px]" />
+                <span className="truncate text-foreground/80">{p.name}</span>
+              </span>
+              <span className="tabular-nums text-muted-foreground shrink-0">
+                {fmtDur(p.minutes)}
+              </span>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </button>
   );
