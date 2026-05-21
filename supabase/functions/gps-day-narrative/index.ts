@@ -372,41 +372,33 @@ Deno.serve(async (req) => {
       }
     }
 
-    const system = `Du är en erfaren arbetsledare som känner organisationens jobb och personal. Skriv 3–5 meningar löpande svensk text – ingen punktlista, ingen markdown.
+    const system = `Du är en arbetsledar-AI. UI:t visar redan tider, arbetsplatser och timmar. DIN UPPGIFT: berätta BARA sådant som inte syns i UI:t — okända stopp, avvikelser från plan, eller intressanta mönster. Inget babbel.
 
-UTGÅ ALLTID FRÅN VAD PERSONEN BORDE GÖRA:
-- Du får en lista över personens "Planerade jobb idag". Det är facit. Bekräfta att personen var på rätt plats vid rätt tid, eller flagga avvikelse.
-- Du får också okända stopp som är förmatchade mot organisationens närliggande jobb ("vid jobbadress för X"). Använd den informationen direkt — det är inte gissningar.
+HÅRDA REGLER:
+- MAX 2 meningar. Helst 1. Kort, neutral svenska. Ingen markdown, ingen punktlista.
+- Upprepa ALDRIG det användaren redan ser (start/slut, total tid, namnen på arbetsplatser, timmar per plats). De står ovanför dig.
+- Säg ALDRIG "inga planerade jobb" om du inte är 100% säker. Om PLANERADE JOBB är tom kan det bero på att schemat inte är komplett — säg då ingenting om planen.
+- Säg ALDRIG "personen sov/vilade/stod stilla". GPS-luckor = telefonen pingade inte, inget annat. Nämn luckor bara om de bryter ett pågående pass.
+- Hoppa över boende/privata zoner helt.
+- Spekulera försiktigt ("troligen", "ser ut som") om okänt stopp har POI/adress (Bauhaus, ICA, McDonald's → materialinköp/lunch/tankning). Korta okända stopp utan kontext: nämn inte.
 
-OM OKÄNDA STOPP UTAN JOBB-MATCH:
-- Använd POI/adress (Bauhaus, McDonald's, ICA …) om sådan finns. Spekulera försiktigt om syfte (lunch, materialinköp, tankning) — alltid med "troligen" eller "ser ut som". Korta stopp utan kontext: nämn knappt.
-
-OM GPS-LUCKOR:
-- ALDRIG säga "personen sov", "stod stilla", "vilade", "var passiv" eller liknande. En lucka betyder bara att telefonen inte pingade.
-- Nämn en lucka ENDAST om den faktiskt bryter ett känt arbetsmönster (t.ex. försvinner mitt under planerat pass). Säg då neutralt "GPS-signal saknas under X" — inget mer.
-- Ignorera korta luckor helt. Ignorera nattluckor helt.
-
-TON:
-- Konkret, lugn, professionell. Inga flummiga adjektiv ("fundersam start", "mystisk resa"). Inga utfyllnadsord.
-- Klockslag (HH:MM) när relevant. Restid/avstånd bara om det säger något.
-- Avsluta med "Inga avvikelser." ENDAST när dagen följer planen utan anmärkning. Annars beskriv kort vad som avviker.
-
-Hoppa över boende/privata zoner — nämn dem inte vid namn eller alls.`;
+OM DAGEN ÄR HELT NORMAL OCH DU INTE HAR NÅGOT NYTT ATT SÄGA: svara med tom sträng. Bättre tyst än babbel.`;
 
     const user = `Person: ${staffName}
 Datum: ${date}
-Aktiv (GPS-fönster): ${fmtHm(firstIso)} – ${fmtHm(lastIso)} (totalt ${fmtDur(durationMin)})
 
-PLANERADE JOBB IDAG:
+PLANERADE JOBB IDAG (kan vara ofullständigt — säg inte "inga jobb" om listan är tom):
 ${plannedLines}
 
-Tid registrerad per känd arbetsplats (från GPS-stannande inom geofence):
+VAD UI:T REDAN VISAR (upprepa INTE):
+- Aktivt fönster: ${fmtHm(firstIso)}–${fmtHm(lastIso)} (${fmtDur(durationMin)})
+- Tid per arbetsplats:
 ${placeLines}
 
-DAG-TIDSLINJE (städad — triviala luckor borttagna):
+DAG-TIDSLINJE (för din analys — citera inte rakt av):
 ${lines.join("\n")}
 
-Skriv en sammanfattning av dagen utifrån instruktionerna.`;
+Skriv 0–2 meningar med BARA det som tillför värde utöver UI:t ovan.`;
 
     const aiAbort = new AbortController();
     const aiTimer = setTimeout(() => aiAbort.abort(), AI_TIMEOUT_MS);
