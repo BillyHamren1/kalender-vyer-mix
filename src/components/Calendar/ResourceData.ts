@@ -33,7 +33,11 @@ export interface CalendarEvent extends EventInput {
   };
 }
 
-export const getEventColor = (eventType: string | undefined): string => {
+export const getEventColor = (eventType: string | undefined, customerPickup?: boolean): string => {
+  // Customer self-pickup ("Kund hämtar själv") → rosa/lila för rig & rivning
+  if (customerPickup && (eventType === 'rig' || eventType === 'rigDown' || eventType === 'rigdown')) {
+    return eventType === 'rig' ? '#FBCFE8' /* pink-200 */ : '#E9D5FF' /* purple-200 */;
+  }
   switch (eventType) {
     // --- Planning colors (green / yellow / red) ---
     case 'rig':
