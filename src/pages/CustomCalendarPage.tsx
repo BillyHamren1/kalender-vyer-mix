@@ -199,6 +199,20 @@ const CustomCalendarPage = () => {
     syncToStore({ selectedDate: currentWeekStart, viewMode });
   }, [currentWeekStart, viewMode, syncToStore]);
 
+  // Virtuella interna Lager-event för Lager-kolumnen (transport).
+  // Använd det FAKTISKT renderade datumet (vecka/månad), inte hookens currentDate.
+  const lagerAnchorDate = viewMode === 'monthly' ? monthlyDate : currentWeekStart;
+  const { internalLagerEvents } = useInternalLagerCalendarEvents(lagerAnchorDate, viewMode);
+
+  // Merge calendar events + task overlay + internal lager.
+  // Filtrera bort allt övrigt som råkar peka på 'transport'-resursen.
+  const mergedEvents = useMemo(() => {
+    const filteredEvents = events.filter((e: any) => e.resourceId !== 'transport');
+    const base = [...filteredEvents, ...internalLagerEvents];
+    if (!showTasks || taskEvents.length === 0) return base;
+    return [...base, ...taskEvents];
+  }, [events, taskEvents, internalLagerEvents, showTasks]);
+
   // Visible teams state - per day { [dateString]: teamIds[] }
   // Default = ALLA aktuella team + Lager (transport). Tidigare hårdkodades
   // detta till team-1..4 + transport + team-11, vilket dolde Team 5–10 även
