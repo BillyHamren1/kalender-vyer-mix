@@ -1,35 +1,41 @@
+# Plan
+
+## Mål
+Få det blå `Lager`-kortet i personalkalendern att visas konsekvent även efter juni, och sluta visa det interna id:t `#d0179463` som om det vore ett riktigt bokningsnummer.
+
 ## Vad jag har bekräftat
+- Kortet `Lager #d0179463` kommer inte från databasen utan skapas virtuellt i frontend via `useInternalLagerCalendarEvents`.
+- Hooken genererar ett 07:00–16:00-kort i kolumnen `transport` för det interna Lagerprojektet.
+- `#d0179463` är inte ett riktigt bokningsnummer i databasen, utan de sista 8 tecknen av ett internt `booking_id` som fallback-renderas i `CustomEvent.tsx`.
+- I `/calendar` blandas virtuella Lager-event in via `useInternalLagerCalendarEvents(hookCurrentDate, viewMode)`, men kalendern renderas med `currentWeekStart`. Det gör datumkällan splittrad och är sannolikt varför Lager-kortet slutar följa med när man navigerar längre fram i tiden.
 
-Jag har gått in i databasen och hittat följande:
+## Ändringar jag kommer göra
+1. Synka datumkällan för interna Lager-event i `/calendar`
+   - Byta så `useInternalLagerCalendarEvents` använder samma visningsdatum som kalendern faktiskt renderar med (`currentWeekStart`/månadens aktiva datum), inte hookens separata `hookCurrentDate`.
+   - Säkerställa att veckovy och månadsvy båda genererar Lager-kort för rätt intervall.
 
-- **Bokning 2605-69 (Zoran)** finns, `status = CONFIRMED`, kopplad till ett vanligt projekt `Zoran - 10 juni 2026` (inte large project).
-- **Två calendar_events** ligger där:
-  - rig **9 juni 07:00–11:00** på `team-1`
-  - rigDown **11 juni 08:00–12:00** på `team-1`
-- Eventen ligger inom det fönster planeraren hämtar (2026‑03‑24 → 2026‑09‑20), och 374 calendar_events har lästs in i den senaste loggen.
+2. Sluta visa falskt bokningsnummer på interna Lager-kort
+   - Ändra renderingen i `CustomEvent.tsx` så `extendedProps.hideBookingNumber` respekteras.
+   - Då visas bara `Lager`, inte `#d0179463`.
 
-Så raderna **finns** — det är `buildPlannerCalendarEvents`-derivationen eller renderingen som tappar dem. Logiskt borde de släppas igenom (giltig `event_type`, har `resource_id`, inget `large_project_id`), men eftersom du säger att eventet aldrig syntes ens efter Spara, behöver vi spåra exakt varför.
+3. Verifiera att inga filter råkar dölja kortet
+   - Kontrollera att merge/filter-logiken fortfarande tar bort andra `transport`-event men behåller de interna Lager-korten.
 
-## Plan
+4. Test/validering
+   - Lägga till eller uppdatera test för att interna Lager-event inte visar fallback-id som bookingnummer.
+   - Köra relevanta tester.
+   - Verifiera i preview att Lager visas både i maj och efter juni.
 
-### 1. Lägg in målinriktad debug i `plannerCalendarDerivation.ts`
-Logga varje gång en rad **släpps igenom** eller **skippas** för booking_number `2605-69`, så vi ser i konsollen exakt vilken gren den hamnar i (large‑project‑grupp, non‑project‑fallback, missing resource_id, suppressed pga `large_project_id`, eller faktiskt emitterat).
+## Tekniska detaljer
+- Filer som sannolikt ändras:
+  - `src/pages/CustomCalendarPage.tsx`
+  - `src/hooks/useInternalLagerCalendarEvents.ts` (om intervall behöver göras tydligare per vy)
+  - `src/components/Calendar/CustomEvent.tsx`
+  - ev. ett test under kalender-/komponentnivå
 
-### 2. Be dig öppna personalkalendern v.24 i preview
-När du gör det skriver derivationen ut spårningen. Jag läser konsollen själv via debugverktyget direkt efteråt — du behöver inte klistra in något.
+- Ingen DB-migration behövs här, eftersom problemet är frontendgenererat och inte ser ut att vara RLS/databortfall.
 
-### 3. Åtgärda roten
-Beroende på vad loggen visar är det troligen en av:
-- **A.** Standalone-projekt­bokning som av misstag matchas mot `large_project_bookings`-mastern och hamnar i en projektgrupp utan att kunna lösas (osynlig).
-- **B.** Realtime/cache som inte invaliderade efter create — eventet finns men UI:t använder en gammal lista.
-- **C.** En filterregel uppströms (klient/team-toggle) som råkar dölja `team-1` för just dig.
-
-Fix:t skrivs när vi vet vilket. Inga DB‑ändringar förväntas — bara derivation/UI.
-
-### 4. Ta bort debug-loggen
-När roten är åtgärdad och du bekräftat i preview att 2605-69 syns på 9 + 11 juni rensar jag spår-loggen.
-
-### Tekniska detaljer
-- Filen: `src/services/plannerCalendarDerivation.ts` (rad 280–380 är där flöde‑grenarna ligger).
-- Debug skrivs som `console.info('[trace-2605-69]', { branch, reason, … })` så det är enkelt att hitta och ta bort.
-- Ingen migration. Ingen ändring i `customer_pickup`-flödet (helt orelaterat).
+## Förväntat resultat
+- `Lager`-kortet finns kvar även när du bläddrar fram efter juni.
+- Kortet visar inte längre `#d0179463`.
+- Endast det riktiga interna Lager-kortet ligger i Lager-kolumnen; andra transport-relaterade event fortsätter filtreras bort där.
