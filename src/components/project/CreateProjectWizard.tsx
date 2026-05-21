@@ -61,6 +61,7 @@ export default function CreateProjectWizard({ open, onOpenChange, onSuccess, pre
   const [eventdate, setEventdate] = useState("");
   const [rigdowndate, setRigdowndate] = useState("");
   const [internalnotes, setInternalnotes] = useState("");
+  const [customerPickup, setCustomerPickup] = useState(false);
 
   const isStandalone = !selectedBookingId || selectedBookingId === "none";
 
