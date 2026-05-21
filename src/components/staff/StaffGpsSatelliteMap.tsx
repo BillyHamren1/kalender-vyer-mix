@@ -273,9 +273,24 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
                 mode="single"
                 selected={date}
                 onSelect={(d) => d && setDate(d)}
+                month={calendarMonth}
+                onMonthChange={setCalendarMonth}
                 initialFocus
+                modifiers={{ hasPings: pingDayDates }}
+                modifiersClassNames={{
+                  hasPings:
+                    'relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:h-1.5 after:w-1.5 after:rounded-full after:bg-primary',
+                }}
                 className={cn('p-3 pointer-events-auto')}
               />
+              <div className="px-3 pb-3 pt-1 flex items-center gap-2 text-[11px] text-muted-foreground border-t">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
+                <span>
+                  {pingDaysQuery.isLoading
+                    ? 'Laddar dagar med GPS…'
+                    : `${pingDayDates.length} dag(ar) med GPS denna månad`}
+                </span>
+              </div>
             </PopoverContent>
           </Popover>
         </div>
