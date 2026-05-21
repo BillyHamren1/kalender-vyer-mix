@@ -39,6 +39,7 @@ interface BookingRow {
   event_time_locked?: boolean | null;
   rigdown_time_locked?: boolean | null;
   status: string | null;
+  customer_pickup?: boolean | null;
 }
 
 interface LargeProjectRow {
