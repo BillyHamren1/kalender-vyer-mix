@@ -77,6 +77,32 @@ const EventActionPopover: React.FC<Props> = ({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [applyToAll, setApplyToAll] = useState(false);
   const [togglingLock, setTogglingLock] = useState(false);
+  const initialPickup = Boolean((event.extendedProps as any)?.customerPickup);
+  const [customerPickup, setCustomerPickup] = useState(initialPickup);
+  const [pickupSaving, setPickupSaving] = useState(false);
+
+  useEffect(() => {
+    setCustomerPickup(Boolean((event.extendedProps as any)?.customerPickup));
+  }, [event.id, event.extendedProps]);
+
+  const handleTogglePickup = async (next: boolean) => {
+    if (!event.bookingId) {
+      toast.error('Saknar bokning för denna händelse');
+      return;
+    }
+    setPickupSaving(true);
+    setCustomerPickup(next); // optimistic
+    try {
+      await setCustomerPickupForBooking({ bookingId: event.bookingId, value: next });
+      toast.success(next ? 'Kund hämtar själv aktiverat' : 'Kund hämtar själv avstängt');
+      if (onUpdate) await onUpdate();
+    } catch (e: any) {
+      setCustomerPickup(!next);
+      toast.error(e?.message || 'Kunde inte uppdatera');
+    } finally {
+      setPickupSaving(false);
+    }
+  };
 
   const { teams, busy: teamBusy, moveOneDay, currentTeamId } =
     useMoveEventToTeam(event, setEvents, async () => {
