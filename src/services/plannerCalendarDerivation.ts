@@ -277,16 +277,24 @@ export const buildPlannerCalendarEvents = ({
   // finns idag i schemat — opt-in saknas).
   let nonProjectSkippedNonStaffable = 0;
   let todoEventsEmitted = 0;
+  const TRACE_BN = '2605-69';
+  const trace = (branch: string, extra: Record<string, unknown>) => {
+    // eslint-disable-next-line no-console
+    console.info('[trace-2605-69]', { branch, ...extra });
+  };
   for (const row of sortedRealEvents) {
+    const isTraced = (row.booking_number || '') === TRACE_BN;
+
     // To-do passthrough: en to-do är en fristående personalkalender-händelse
     // utan projekt/booking-koppling. Den måste ha resource_id (team).
     if (row.event_type === 'todo') {
-      if (!row.resource_id) continue;
+      if (!row.resource_id) { if (isTraced) trace('skip:todo_no_resource', { id: row.id }); continue; }
       const booking = row.booking_id ? bookingsById.get(row.booking_id) : undefined;
       const guardLpId = (row.booking_id ? bookingToProject.get(row.booking_id) : undefined) || booking?.large_project_id;
-      if (guardLpId) continue;
+      if (guardLpId) { if (isTraced) trace('skip:todo_large_project', { id: row.id, guardLpId }); continue; }
       events.push(mapRealRowToCalendarEvent(row, booking, undefined));
       todoEventsEmitted++;
+      if (isTraced) trace('emit:todo', { id: row.id });
       continue;
     }
 
@@ -295,6 +303,24 @@ export const buildPlannerCalendarEvents = ({
     const projectId = (row.booking_id ? bookingToProject.get(row.booking_id) : undefined) || booking?.large_project_id;
     const phase = normalizePhase(row.event_type);
     const sourceDate = extractDate(row.source_date || row.start_time);
+
+    if (isTraced) {
+      trace('enter', {
+        id: row.id,
+        booking_id: row.booking_id,
+        event_type: row.event_type,
+        phase,
+        resource_id: row.resource_id,
+        source_date: sourceDate,
+        start_time: row.start_time,
+        end_time: row.end_time,
+        bookingFound: !!booking,
+        bookingClient: booking?.client,
+        bookingStatus: booking?.status,
+        bookingLargeProjectId: booking?.large_project_id,
+        resolvedProjectId: projectId,
+      });
+    }
 
     if (import.meta.env?.DEV) {
       const titleHay = `${row.booking_number || ''} ${(booking as any)?.client || ''}`.toLowerCase();
@@ -310,11 +336,12 @@ export const buildPlannerCalendarEvents = ({
 
     if (projectId && phase && sourceDate) {
       // Hide the event-day phase from the planner (legacy rule).
-      if (phase === 'event') { eventDaysHidden++; continue; }
+      if (phase === 'event') { eventDaysHidden++; if (isTraced) trace('skip:event_day_hidden', { id: row.id }); continue; }
       // Project-linked rows REQUIRE a resource_id to be placed in a team
       // column. If missing, skip silently (sync should backfill it).
       if (!row.resource_id) {
         largeProjectMissingAssignment++;
+        if (isTraced) trace('skip:lp_missing_resource', { id: row.id });
         continue;
       }
 
@@ -343,15 +370,17 @@ export const buildPlannerCalendarEvents = ({
         if (row.end_time > existing.latestEnd) existing.latestEnd = row.end_time;
         if (rowLocked) (existing as any).anyLocked = true;
       }
+      if (isTraced) trace('group:project', { id: row.id, key, projectKnown: projectsById.has(projectId) });
       continue;
     }
 
-    if (!row.resource_id) continue;
+    if (!row.resource_id) { if (isTraced) trace('skip:no_resource', { id: row.id }); continue; }
     // Defensiv allowlist för icke-projekt-bokningar: släpp bara igenom
     // kända bemanningsbara faser. Filtrerar bort 'activity' och okända
     // legacy-event_type.
     if (!phase) {
       nonProjectSkippedNonStaffable++;
+      if (isTraced) trace('skip:non_staffable', { id: row.id, event_type: row.event_type });
       continue;
     }
     // GUARD: även om projectId-resolvern missade, dubbelkolla mot master
@@ -360,6 +389,7 @@ export const buildPlannerCalendarEvents = ({
     // ett vanligt booking-kort i personalkalendern.
     const guardLpId = (row.booking_id ? bookingToProject.get(row.booking_id) : undefined) || booking?.large_project_id;
     if (guardLpId) {
+      if (isTraced) trace('skip:lp_guard', { id: row.id, guardLpId });
       if (import.meta.env?.DEV) {
         // eslint-disable-next-line no-console
         console.info('[large-project-booking-event-suppressed]', {
@@ -377,6 +407,7 @@ export const buildPlannerCalendarEvents = ({
       continue;
     }
     events.push(mapRealRowToCalendarEvent(row, booking, undefined));
+    if (isTraced) trace('emit:standalone', { id: row.id, resource_id: row.resource_id });
   }
 
   // Emit one tile per (project, phase, date, team) group.
