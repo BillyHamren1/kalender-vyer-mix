@@ -12,6 +12,7 @@ import {
 import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { updateCalendarEvent, setCalendarEventTimesLocked } from '@/services/eventService';
+import { setCustomerPickupForBooking } from '@/services/customerPickupService';
 import { moveLargeProjectDay, type LargeProjectPhase } from '@/services/largeProjectPlannerService';
 import { deleteCalendarEvent } from '@/services/eventService';
 import { useMoveEventToTeam } from '@/hooks/useMoveEventToTeam';
