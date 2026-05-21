@@ -6164,6 +6164,8 @@ export type Database = {
           app_build: string | null
           app_platform: string | null
           app_version: string | null
+          battery_percent: number | null
+          is_charging: boolean | null
           last_address: string | null
           last_address_at: string | null
           last_address_lat: number | null
@@ -6181,6 +6183,8 @@ export type Database = {
           app_build?: string | null
           app_platform?: string | null
           app_version?: string | null
+          battery_percent?: number | null
+          is_charging?: boolean | null
           last_address?: string | null
           last_address_at?: string | null
           last_address_lat?: number | null
@@ -6198,6 +6202,8 @@ export type Database = {
           app_build?: string | null
           app_platform?: string | null
           app_version?: string | null
+          battery_percent?: number | null
+          is_charging?: boolean | null
           last_address?: string | null
           last_address_at?: string | null
           last_address_lat?: number | null
