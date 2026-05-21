@@ -155,15 +155,9 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
   const pingedSet = pingedQuery.data ?? new Set<string>();
 
   const staff = useMemo(() => {
-    if (filterMode === 'all') return allStaff;
-    return allStaff.filter((s) => {
-      const a = assignedSet.has(s.id);
-      const p = pingedSet.has(s.id);
-      if (filterMode === 'assigned') return a;
-      if (filterMode === 'pinged') return p;
-      return a || p; // both
-    });
-  }, [allStaff, assignedSet, pingedSet, filterMode]);
+    // Visa alltid personer som antingen är assignade ELLER har pingat den valda dagen.
+    return allStaff.filter((s) => assignedSet.has(s.id) || pingedSet.has(s.id));
+  }, [allStaff, assignedSet, pingedSet]);
 
   const effectiveStaffId = staff.some((s) => s.id === staffId) ? staffId : (staff[0]?.id ?? null);
 
@@ -202,9 +196,6 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     const push = (s: { id: string; name: string; lat: number; lng: number; radiusMeters: number }) => {
       if (seen.has(s.id)) return;
       seen.add(s.id);
-      const isLoc = s.id.startsWith('loc:');
-      if (isLoc && !showLocations) return;
-      if (!isLoc && !showTargets) return;
       out.push({
         id: s.id, name: s.name, lat: s.lat, lng: s.lng,
         radiusMeters: s.radiusMeters,
@@ -214,22 +205,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     for (const s of knownSites) push(s);
     for (const s of allProjectSites) push(s);
     return out;
-  }, [knownSites, allProjectSites, polygonByLocId, polygonByProjectId, showLocations, showTargets]);
-
-
-  const summary = useMemo(() => {
-    if (!pings.length) return null;
-    const first = pings[0];
-    const last = pings[pings.length - 1];
-    const newest = pings.reduce((a, b) => (a.recorded_at > b.recorded_at ? a : b));
-    return {
-      count: pings.length,
-      first: formatStockholmHms(first.recorded_at),
-      last: formatStockholmHms(last.recorded_at),
-      build: `${dash(newest.app_version)} (${dash(newest.app_build)})`,
-      device: dash(newest.device_model),
-    };
-  }, [pings]);
+  }, [knownSites, allProjectSites, polygonByLocId, polygonByProjectId]);
 
   // Geofence-besök: räkna ut IN/UT-tid per ping ↔ känd plats (DAGENS sites).
   const geofenceVisits = useMemo<PlaceVisit[]>(() => {
