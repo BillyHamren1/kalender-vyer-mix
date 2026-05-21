@@ -178,6 +178,7 @@ const mapRealRowToCalendarEvent = (
       timesLocked: row.times_locked === true,
       isTodo,
       todoId: row.todo_id || undefined,
+      customerPickup: row.customer_pickup === true || booking?.customer_pickup === true,
     },
   };
 };
