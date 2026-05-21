@@ -68,7 +68,8 @@ export const syncStandaloneProjectToCalendar = async (
       booking_number: `P-${projectId.slice(0, 6)}`,
       delivery_address: address || 'Ingen adress',
       organization_id: projectData.organization_id,
-      source_date: sourceDate
+      source_date: sourceDate,
+      customer_pickup: projectData.customer_pickup === true,
     });
   };
 
