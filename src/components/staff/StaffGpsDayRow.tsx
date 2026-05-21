@@ -1,14 +1,18 @@
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
+import { Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
 import type { StaffGpsDaySummary } from '@/hooks/staff/useStaffGpsWeekSummary';
+import { useStaffGpsDayNarrative } from '@/hooks/staff/useStaffGpsDayNarrative';
 
 interface Props {
   day: Date;
   dateStr: string;
   selected: boolean;
   summary: StaffGpsDaySummary | undefined;
+  staffId: string | null;
+  staffName: string | null;
   onClick: () => void;
 }
 
@@ -21,11 +25,12 @@ function fmtDur(min: number): string {
   return `${h}h ${m}m`;
 }
 
-export function StaffGpsDayRow({ day, dateStr, selected, summary, onClick }: Props) {
+export function StaffGpsDayRow({ day, dateStr, selected, summary, staffId, staffName, onClick }: Props) {
   const weekday = format(day, 'EEE', { locale: sv });
   const dayMonth = format(day, 'd/M', { locale: sv });
   const hasData = !!summary && summary.pingsCount > 0;
   const hasRange = hasData && summary!.firstIso && summary!.lastIso;
+  const narrativeQ = useStaffGpsDayNarrative({ staffId, staffName, summary, enabled: hasData });
 
   return (
     <button
@@ -87,6 +92,20 @@ export function StaffGpsDayRow({ day, dateStr, selected, summary, onClick }: Pro
             </li>
           ))}
         </ul>
+      )}
+      {hasData && (
+        <div className="mt-2 flex items-start gap-1.5 text-[11.5px] leading-snug text-muted-foreground">
+          <Sparkles className="h-3 w-3 mt-0.5 shrink-0 text-primary/70" />
+          <span className="italic">
+            {narrativeQ.isLoading
+              ? 'Sammanfattar dagen…'
+              : narrativeQ.data?.narrative
+                ? narrativeQ.data.narrative
+                : narrativeQ.isError
+                  ? 'Kunde inte sammanfatta.'
+                  : '—'}
+          </span>
+        </div>
       )}
     </button>
   );
