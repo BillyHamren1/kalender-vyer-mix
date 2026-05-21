@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { Check, AlertTriangle, MessageSquare, ExternalLink, Lock } from "lucide-react";
+import { Check, AlertTriangle, MessageSquare, ExternalLink, Lock, Bell } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -107,9 +107,25 @@ export function StaffDayReportRow({ row, staffName }: Props) {
 
   const total = totalMinutes(row);
 
+  const needsAttention =
+    !isLocked && (row.status === "submitted" || row.status === "edited");
+
   return (
-    <TableRow>
-      <TableCell className="font-mono text-xs whitespace-nowrap">{row.date}</TableCell>
+    <TableRow className={needsAttention ? "bg-blue-500/5" : undefined}>
+      <TableCell className="font-mono text-xs whitespace-nowrap">
+        <span className="inline-flex items-center gap-1.5">
+          {needsAttention && (
+            <span className="relative inline-flex w-2.5 h-2.5" aria-label="Väntar på godkännande" title="Väntar på godkännande">
+              <span className="absolute inset-0 rounded-full bg-blue-500 opacity-75 animate-ping" />
+              <span className="relative inline-flex w-2.5 h-2.5 rounded-full bg-blue-500" />
+            </span>
+          )}
+          {row.date}
+          {needsAttention && (
+            <Bell className="h-3 w-3 text-blue-600" aria-hidden="true" />
+          )}
+        </span>
+      </TableCell>
       <TableCell className="font-medium">{staffName}</TableCell>
       <TableCell className="font-mono">{formatTime(row.start_time, row.requested_start_at)}</TableCell>
       <TableCell className="font-mono">{formatTime(row.end_time, row.requested_end_at)}</TableCell>

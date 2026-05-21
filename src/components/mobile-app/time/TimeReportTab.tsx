@@ -29,9 +29,8 @@ import UserDayList from './UserDayList';
 const todayStr = () => format(new Date(), 'yyyy-MM-dd');
 
 export const TimeReportTab = () => {
-  // Default: månadens dagar. PeriodSwitcher är sekundär — användaren kan
-  // växla till vecka/dag, men TIME-vyn öppnar alltid månadsöversikten.
-  const [kind, setKind] = useState<PeriodKind>('month');
+  // Default: veckovy som speglar admin-GPS-veckopanelen.
+  const [kind, setKind] = useState<PeriodKind>('week');
   const [anchor, setAnchor] = useState<Date>(() => new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 

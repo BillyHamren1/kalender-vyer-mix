@@ -58,6 +58,14 @@ export interface StaffTimeReportPeriodTotals {
 
 export type StaffPeriodDayStatus = 'empty' | 'open' | 'draft' | 'submitted';
 
+export interface StaffPeriodDayPlace {
+  /** Plats-/projektnamn (label från snapshot-segment). */
+  name: string;
+  /** project | warehouse | location | travel */
+  kind: string;
+  minutes: number;
+}
+
 /**
  * Per-day summary — TIME-vyn pratar bara om rapporteringsläge.
  * Legacy statusar (needs_attest/needs_action/attested/approved) normaliseras
@@ -87,6 +95,11 @@ export interface StaffPeriodDaySummary {
    */
   workdayStartedAt: string | null;
   workdayEndedAt: string | null;
+  /**
+   * Per-plats-breakdown (samma princip som GPS-karta-veckopanelen).
+   * Tom array om snapshot inte gav några arbetsplatser.
+   */
+  places: StaffPeriodDayPlace[];
 }
 
 /**
@@ -235,6 +248,13 @@ export function useStaffTimeReportPeriod(
             ({
               ...d,
               status: normalizeUserReportStatus((d as { status?: unknown }).status),
+              places: Array.isArray((d as { places?: unknown }).places)
+                ? ((d as { places: unknown[] }).places.map((p: any) => ({
+                    name: String(p?.name ?? ''),
+                    kind: String(p?.kind ?? 'project'),
+                    minutes: Number(p?.minutes ?? 0),
+                  })).filter((p) => p.name && p.minutes > 0))
+                : [],
             }) as StaffPeriodDaySummary,
         ),
         blockers: data?.blockers ?? [],

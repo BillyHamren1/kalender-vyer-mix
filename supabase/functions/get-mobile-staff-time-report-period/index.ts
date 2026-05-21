@@ -49,6 +49,14 @@ function isoWeekday(date: string): number {
   return dow === 0 ? 7 : dow;
 }
 
+interface DayPlaceOut {
+  /** Sammanfattat label från snapshot-segmentet (projektnamn, lager, plats). */
+  name: string;
+  /** project | warehouse | location | travel */
+  kind: string;
+  minutes: number;
+}
+
 interface DaySummaryOut {
   date: string;
   weekday: number;
@@ -71,6 +79,12 @@ interface DaySummaryOut {
   /** Wallclock start/slut — speglar dialogens "Justera dagen"-förslag. */
   workdayStartedAt: string | null;
   workdayEndedAt: string | null;
+  /**
+   * Per-plats-breakdown (samma princip som GPS-karta-veckopanelen):
+   * varje arbetsplats personen var på, med summerad tid.
+   * Sorterat fallande på minutes.
+   */
+  places: DayPlaceOut[];
 }
 
 function categorize(segments: MobileSegment[]) {
@@ -97,6 +111,42 @@ function categorize(segments: MobileSegment[]) {
     }
   }
   return { project, warehouse, transport, other };
+}
+
+function placeKindFor(kind: MobileSegment["kind"]): string | null {
+  switch (kind) {
+    case "project":
+    case "booking":
+    case "large_project":
+      return "project";
+    case "warehouse":
+      return "warehouse";
+    case "location":
+      return "location";
+    case "travel":
+      return "travel";
+    default:
+      return null;
+  }
+}
+
+/** Aggregate segments per label so the mobile week list shows the same
+ *  per-project breakdown as the admin GPS-karta panel. */
+function placesFromSegments(segments: MobileSegment[]): DayPlaceOut[] {
+  const byKey = new Map<string, { name: string; kind: string; minutes: number }>();
+  for (const s of segments) {
+    const kind = placeKindFor(s.kind);
+    if (!kind) continue;
+    const name = (s.label ?? "").trim();
+    if (!name) continue;
+    const m = s.durationMinutes ?? 0;
+    if (m <= 0) continue;
+    const key = `${kind}::${name}`;
+    const cur = byKey.get(key);
+    if (cur) cur.minutes += m;
+    else byKey.set(key, { name, kind, minutes: m });
+  }
+  return Array.from(byKey.values()).sort((a, b) => b.minutes - a.minutes);
 }
 
 function dayFromReport(
@@ -149,6 +199,7 @@ function dayFromReport(
     status,
     workdayStartedAt,
     workdayEndedAt,
+    places: placesFromSegments(report.segments),
   };
 }
 
