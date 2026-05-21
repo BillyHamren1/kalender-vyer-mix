@@ -77,6 +77,14 @@ export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]
   const { data: orgLocations = [] } = useOrganizationLocations();
   const { data: projectSites = [] } = useAllActiveProjectGeofences(middleDate, !!middleDate);
 
+  const privateIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const l of orgLocations) {
+      if (l.isPrivate) s.add(`loc:${l.id}`);
+    }
+    return s;
+  }, [orgLocations]);
+
   const geofences = useMemo<GeofenceSite[]>(() => {
     const out: GeofenceSite[] = [];
     for (const l of orgLocations) {
@@ -113,21 +121,39 @@ export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]
           isLoading: !!q?.isLoading,
         };
       }
-      const first = pings[0];
-      const last = pings[pings.length - 1];
-      const durationMin = Math.max(
-        0,
-        Math.round((new Date(last.recorded_at).getTime() - new Date(first.recorded_at).getTime()) / 60_000),
-      );
-      const visits = geofences.length
+      const allVisits = geofences.length
         ? buildExactGeofenceVisits(
             pings.map(p => ({ lat: p.lat, lng: p.lng, recorded_at: p.recorded_at, accuracy: p.accuracy ?? null })),
             geofences,
           )
         : [];
+      const privateVisits = allVisits.filter(v => v.knownSite && privateIds.has(v.knownSite.id));
+      const workVisits = allVisits.filter(v => !(v.knownSite && privateIds.has(v.knownSite.id)));
+
+      // Hitta första/sista ping som INTE ligger i ett Boende-besök.
+      const inPrivate = (iso: string) => {
+        const t = new Date(iso).getTime();
+        return privateVisits.some(v => {
+          const s = new Date(v.start).getTime();
+          const e = new Date(v.end).getTime();
+          return t >= s && t <= e;
+        });
+      };
+      let firstIso: string | null = null;
+      let lastIso: string | null = null;
+      for (const p of pings) {
+        if (!inPrivate(p.recorded_at)) { firstIso = p.recorded_at; break; }
+      }
+      for (let j = pings.length - 1; j >= 0; j--) {
+        if (!inPrivate(pings[j].recorded_at)) { lastIso = pings[j].recorded_at; break; }
+      }
+      const durationMin = firstIso && lastIso
+        ? Math.max(0, Math.round((new Date(lastIso).getTime() - new Date(firstIso).getTime()) / 60_000))
+        : 0;
+
       const placeNames: string[] = [];
       const seen = new Set<string>();
-      for (const v of [...visits].sort((a, b) => a.start.localeCompare(b.start))) {
+      for (const v of [...workVisits].sort((a, b) => a.start.localeCompare(b.start))) {
         const name = v.knownSite?.name;
         if (!name || seen.has(name)) continue;
         seen.add(name);
@@ -136,13 +162,13 @@ export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]
       return {
         date,
         pingsCount: pings.length,
-        firstIso: first.recorded_at,
-        lastIso: last.recorded_at,
+        firstIso,
+        lastIso,
         durationMin,
-        visits,
+        visits: workVisits,
         placeNames,
         isLoading: !!q?.isLoading,
       };
     });
-  }, [dateStrs, results, geofences]);
+  }, [dateStrs, results, geofences, privateIds]);
 }

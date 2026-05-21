@@ -41,11 +41,11 @@ export function StaffGpsDayRow({ day, dateStr, selected, summary, onClick }: Pro
         <span className={cn('text-sm font-medium capitalize', !hasData && 'text-muted-foreground')}>
           {weekday} {dayMonth}
         </span>
-        <span className={cn('text-xs font-mono', hasData ? 'text-foreground' : 'text-muted-foreground')}>
-          {hasData ? formatDuration(summary!.durationMin) : '—'}
+        <span className={cn('text-xs font-mono', hasData && summary!.durationMin > 0 ? 'text-foreground' : 'text-muted-foreground')}>
+          {hasData && summary!.durationMin > 0 ? formatDuration(summary!.durationMin) : '—'}
         </span>
       </div>
-      {hasData ? (
+      {hasData && summary!.firstIso && summary!.lastIso ? (
         <>
           <div className="text-xs font-mono text-muted-foreground mt-0.5">
             {formatStockholmHm(summary!.firstIso)} → {formatStockholmHm(summary!.lastIso)}
@@ -59,7 +59,7 @@ export function StaffGpsDayRow({ day, dateStr, selected, summary, onClick }: Pro
         </>
       ) : (
         <div className="text-xs text-muted-foreground mt-0.5">
-          {summary?.isLoading ? 'Laddar…' : 'Ingen GPS-data'}
+          {summary?.isLoading ? 'Laddar…' : hasData ? 'Endast hemma' : 'Ingen GPS-data'}
         </div>
       )}
     </button>

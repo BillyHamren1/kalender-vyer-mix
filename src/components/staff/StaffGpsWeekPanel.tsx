@@ -107,7 +107,7 @@ export function StaffGpsWeekPanel({
       </div>
 
       <div className="px-3 py-2 border-t text-[10px] text-muted-foreground">
-        Bygger på {year}-veckan ovan. Tider = första→sista GPS-ping; platser från geofence-besök.
+        Start = första GPS utanför Boende, Slut = sista. Boende räknas inte som arbetstid.
       </div>
     </aside>
   );
