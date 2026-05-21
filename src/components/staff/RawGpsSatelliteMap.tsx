@@ -231,7 +231,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         'border:1px solid hsl(215 16% 28% / .6)',
         'box-shadow:0 8px 24px -8px hsl(222 47% 4% / .8),0 0 0 1px hsl(0 0% 100% / .04)',
         'backdrop-filter:blur(10px) saturate(140%)','-webkit-backdrop-filter:blur(10px) saturate(140%)',
-        'pointer-events:auto','transform:translateY(-10px)',
+        'pointer-events:auto',
       ].join(';');
       panel.innerHTML = `
         <div style="display:flex;align-items:center;gap:6px;padding-bottom:5px;margin-bottom:3px;border-bottom:1px solid hsl(215 16% 28% / .4);max-width:240px">
@@ -245,7 +245,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         </div>
       `;
 
-      const panelMarker = new mapboxgl.Marker({ element: panel, anchor: 'bottom' })
+      const panelMarker = new mapboxgl.Marker({ element: panel, anchor: 'right', offset: [-14, 0] })
         .setLngLat([head.centre.lng, head.centre.lat])
         .addTo(map);
       visitMarkersRef.current.push({ marker: panelMarker, el: panel, kind: 'detail' });
