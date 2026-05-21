@@ -90,20 +90,6 @@ export function StaffGpsDayRow({ day, dateStr, selected, summary, staffId, staff
           ))}
         </ul>
       )}
-      {hasData && (
-        <div className="mt-2 flex items-start gap-1.5 text-[11.5px] leading-snug text-muted-foreground">
-          <Sparkles className="h-3 w-3 mt-0.5 shrink-0 text-primary/70" />
-          <span className="italic">
-            {narrativeQ.isLoading
-              ? 'Sammanfattar dagen…'
-              : narrativeQ.data?.narrative
-                ? narrativeQ.data.narrative
-                : narrativeQ.isError
-                  ? 'Kunde inte sammanfatta.'
-                  : '—'}
-          </span>
-        </div>
-      )}
     </button>
   );
 }
