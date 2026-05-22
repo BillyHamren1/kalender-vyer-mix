@@ -295,12 +295,12 @@ const ProjectLeaderActionBoard: React.FC<ProjectLeaderActionBoardProps> = ({ pro
               key={s.id}
               onClick={() => handleFilterClick(s.id)}
               className={cn(
-                'inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-colors border',
+                'inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10.5px] font-semibold transition-colors border',
                 isActive
-                  ? 'bg-primary/10 text-primary border-primary/30'
+                  ? 'bg-[hsl(270_45%_94%)] text-[hsl(280_55%_30%)] border-[hsl(270_40%_80%)]'
                   : count > 0
-                    ? 'bg-muted/40 text-foreground border-border/40 hover:bg-muted/60'
-                    : 'bg-transparent text-muted-foreground/40 border-transparent hover:bg-muted/30'
+                    ? 'bg-white text-foreground/80 border-[hsl(270_18%_88%)] hover:bg-[hsl(270_35%_97%)] hover:border-[hsl(270_30%_82%)]'
+                    : 'bg-transparent text-muted-foreground/50 border-transparent hover:bg-[hsl(270_35%_97%)]'
               )}
             >
               {s.icon}
@@ -327,7 +327,7 @@ const ProjectLeaderActionBoard: React.FC<ProjectLeaderActionBoardProps> = ({ pro
       {/* Action cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
         {nonEmpty.map(section => (
-          <Card key={section.id} className="border-border/40 hover:border-border/60 transition-colors">
+          <Card key={section.id} className="planning-card border-[hsl(270_20%_88%)]/70 hover:border-[hsl(270_30%_78%)] transition-colors">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-3">
                 <div className={cn('p-1.5 rounded-lg bg-muted/60', section.colorClass)}>
