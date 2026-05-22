@@ -116,6 +116,7 @@ const StaffDaySubmitSection: React.FC<Props> = ({ staffId, date, snapshot }) => 
   );
   const [comment, setComment] = useState<string>(att?.comment ?? '');
   const [success, setSuccess] = useState<boolean>(false);
+  const [breakDialogOpen, setBreakDialogOpen] = useState<boolean>(false);
 
   useEffect(() => {
     setBreakMinutes(initialBreak);
