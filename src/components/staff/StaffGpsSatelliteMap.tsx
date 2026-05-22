@@ -59,7 +59,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
       queryClient.invalidateQueries({ queryKey: ['day-known-sites'] }),
       queryClient.invalidateQueries({ queryKey: ['organization-locations-known'] }),
       queryClient.invalidateQueries({ queryKey: ['all-active-project-geofences'] }),
-      queryClient.invalidateQueries({ queryKey: ['mobile-staff-day-pings', effectiveStaffId, dateStr] }),
+      queryClient.invalidateQueries({ queryKey: ['mobile-staff-day-pings'] }),
     ]);
   }, [queryClient]);
 
@@ -105,9 +105,9 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
       queryClient.invalidateQueries({ queryKey: ['day-known-sites'] }),
       queryClient.invalidateQueries({ queryKey: ['organization-locations-known'] }),
       queryClient.invalidateQueries({ queryKey: ['all-active-project-geofences'] }),
-      queryClient.invalidateQueries({ queryKey: ['mobile-staff-day-pings', effectiveStaffId, dateStr] }),
+      queryClient.invalidateQueries({ queryKey: ['mobile-staff-day-pings'] }),
     ]);
-  }, [dateStr, effectiveStaffId, queryClient]);
+  }, [queryClient]);
 
 
 
