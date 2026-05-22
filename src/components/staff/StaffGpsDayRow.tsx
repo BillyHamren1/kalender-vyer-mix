@@ -35,11 +35,11 @@ export function StaffGpsDayRow({ day, dateStr, selected, summary, staffId, staff
       onClick={onClick}
       data-date={dateStr}
       className={cn(
-        'group relative w-full text-left px-3 py-2 transition-all',
-        'border-l-2',
+        'group relative w-full text-left px-3 py-2.5 transition-all',
+        'border-l-[3px]',
         selected
-          ? 'border-primary bg-primary/[0.06]'
-          : 'border-transparent hover:bg-muted/40',
+          ? 'border-[hsl(270_50%_55%)] bg-[hsl(270_45%_96%)]'
+          : 'border-transparent hover:bg-[hsl(270_35%_97%)]',
       )}
     >
       <div className="flex items-baseline justify-between gap-3">

@@ -233,9 +233,9 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
         onDateChange={handleDateChange}
       />
 
-      <div className="flex-1 min-w-0 flex flex-col gap-3">
+      <div className="flex-1 min-w-0 flex flex-col gap-4">
         {/* Karta */}
-        <div className="relative h-[60vh] min-h-[420px] rounded-lg overflow-hidden border bg-muted/30">
+        <div className="planning-card relative h-[60vh] min-h-[420px] overflow-hidden p-0">
           {pings.length > 0 || geofences.length > 0 ? (
             <RawGpsSatelliteMap pings={pings} geofences={geofences} visits={geofenceVisits} onSaveRadius={saveRadius} onSavePolygon={savePolygon} className="h-full w-full" />
           ) : (
@@ -259,21 +259,24 @@ function GeofenceVisitsTable({ visits }: { visits: PlaceVisit[] }) {
     [visits],
   );
   return (
-    <div className="border rounded-md overflow-hidden">
-      <div className="px-3 py-2 text-sm font-medium bg-muted/40 border-b flex items-center justify-between">
-        <span>Geofence-besök ({sorted.length})</span>
-        <span className="text-xs text-muted-foreground">Exakt IN/UT per stängsel</span>
+    <div className="planning-card overflow-hidden">
+      <div className="px-4 py-3 border-b border-[hsl(270_20%_90%)] flex items-center justify-between bg-[hsl(270_35%_98%)]">
+        <div className="flex items-center gap-2">
+          <span className="planning-section-title">Geofence-besök</span>
+          <span className="planning-badge">{sorted.length}</span>
+        </div>
+        <span className="text-[11px] text-muted-foreground">Exakt IN/UT per stängsel</span>
       </div>
       <div className="max-h-[40vh] overflow-auto">
         <table className="w-full text-xs">
-          <thead className="bg-muted/30 sticky top-0">
-            <tr className="text-left">
-              <th className="px-2 py-1">Plats</th>
-              <th className="px-2 py-1">Typ</th>
-              <th className="px-2 py-1">IN</th>
-              <th className="px-2 py-1">UT</th>
-              <th className="px-2 py-1">Varaktighet</th>
-              <th className="px-2 py-1">Pings</th>
+          <thead className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-[hsl(270_18%_92%)]">
+            <tr className="text-left text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground">
+              <th className="px-3 py-2 font-semibold">Plats</th>
+              <th className="px-3 py-2 font-semibold">Typ</th>
+              <th className="px-3 py-2 font-semibold">IN</th>
+              <th className="px-3 py-2 font-semibold">UT</th>
+              <th className="px-3 py-2 font-semibold">Varaktighet</th>
+              <th className="px-3 py-2 font-semibold text-right">Pings</th>
             </tr>
           </thead>
           <tbody>
@@ -289,23 +292,25 @@ function GeofenceVisitsTable({ visits }: { visits: PlaceVisit[] }) {
               const dur = hh > 0 ? `${hh}h ${mm}m` : `${mm}m`;
               const isOutside = v.subKind === 'outside_geo';
               return (
-                <tr key={`gv-${v.placeKey}-${v.start}`} className="border-t hover:bg-muted/20">
-                  <td className="px-2 py-1">
-                    {v.knownSite!.name}
+                <tr key={`gv-${v.placeKey}-${v.start}`} className="border-t border-[hsl(270_18%_94%)] hover:bg-[hsl(270_35%_98%)] transition-colors">
+                  <td className="px-3 py-2">
+                    <span className="font-medium text-foreground/90">{v.knownSite!.name}</span>
                     {isOutside && (
                       <span className="ml-2 text-[10px] uppercase tracking-wide text-amber-600">· Utanför geo</span>
                     )}
                   </td>
-                  <td className="px-2 py-1 text-muted-foreground">{kind}</td>
-                  <td className="px-2 py-1 font-mono">{formatStockholmHms(v.start)}</td>
-                  <td className="px-2 py-1 font-mono">{formatStockholmHms(v.end)}</td>
-                  <td className="px-2 py-1">{dur}</td>
-                  <td className="px-2 py-1">{v.pingCount}</td>
+                  <td className="px-3 py-2">
+                    <span className="planning-chip">{kind}</span>
+                  </td>
+                  <td className="px-3 py-2 font-mono tabular-nums text-foreground/80">{formatStockholmHms(v.start)}</td>
+                  <td className="px-3 py-2 font-mono tabular-nums text-foreground/80">{formatStockholmHms(v.end)}</td>
+                  <td className="px-3 py-2 font-medium tabular-nums">{dur}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{v.pingCount}</td>
                 </tr>
               );
             })}
             {!sorted.length && (
-              <tr><td colSpan={6} className="px-2 py-6 text-center text-muted-foreground">Inga geofence-besök för vald person och dag.</td></tr>
+              <tr><td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">Inga geofence-besök för vald person och dag.</td></tr>
             )}
           </tbody>
         </table>
