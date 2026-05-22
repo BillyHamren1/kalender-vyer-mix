@@ -9,6 +9,34 @@ import { supabase } from '@/integrations/supabase/client';
 import { getToken } from '@/services/mobileApiService';
 import { getViewAsStaffId } from '@/services/viewAsStorage';
 
+type SnapshotErrorCode = 'snapshot_unauthorized' | 'snapshot_failed';
+
+function getErrorStatus(error: unknown): number | null {
+  const maybeStatus = (error as { context?: { status?: number }; status?: number } | null | undefined)?.context?.status
+    ?? (error as { status?: number } | null | undefined)?.status;
+  return typeof maybeStatus === 'number' ? maybeStatus : null;
+}
+
+function getErrorMessage(error: unknown): string {
+  return (error as { message?: string } | null | undefined)?.message ?? '';
+}
+
+function normalizeSnapshotError(error: unknown): Error {
+  const status = getErrorStatus(error);
+  const message = getErrorMessage(error).toLowerCase();
+
+  if (
+    status === 401 ||
+    status === 403 ||
+    message.includes('unauthorized') ||
+    message.includes('forbidden')
+  ) {
+    return new Error('snapshot_unauthorized');
+  }
+
+  return new Error('snapshot_failed');
+}
+
 /**
  * Snapshot/read endpoints AND user-driven mutations (e.g. attest-staff-day)
  * share the same dual-auth path: prefer mobile token if present, otherwise
@@ -65,7 +93,12 @@ export async function callStaffSnapshotFunction<T>(
     });
     let parsed: any = null;
     try { parsed = await res.json(); } catch { /* noop */ }
-    if (!res.ok) throw new Error(parsed?.error || `${name} failed (HTTP ${res.status})`);
+    if (!res.ok) {
+      throw normalizeSnapshotError({
+        status: res.status,
+        message: parsed?.error || `${name} failed (HTTP ${res.status})`,
+      });
+    }
     if (parsed?.error) throw new Error(parsed.error);
     return parsed as T;
   }
@@ -74,7 +107,7 @@ export async function callStaffSnapshotFunction<T>(
     body,
     headers: viewAs ? { 'x-view-as-staff': viewAs } : undefined,
   });
-  if (error) throw error;
+  if (error) throw normalizeSnapshotError(error);
   if ((data as any)?.error) throw new Error((data as any).error);
   return data as T;
 }

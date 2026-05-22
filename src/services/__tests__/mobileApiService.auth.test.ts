@@ -54,6 +54,7 @@ describe("mobileApiService — auth lifecycle", () => {
     mockFetch.mockResolvedValueOnce({
       status: 401,
       ok: false,
+      headers: { get: () => null },
       json: () => Promise.resolve({ error: "Session expired" }),
     });
 
@@ -68,6 +69,7 @@ describe("mobileApiService — auth lifecycle", () => {
     mockFetch.mockResolvedValueOnce({
       status: 500,
       ok: false,
+      headers: { get: () => null },
       json: () => Promise.resolve({ error: "Internal server error" }),
     });
 
@@ -81,6 +83,7 @@ describe("mobileApiService — auth lifecycle", () => {
     mockFetch.mockResolvedValueOnce({
       status: 200,
       ok: true,
+      headers: { get: () => null },
       json: () => Promise.resolve({ bookings: [] }),
     });
 

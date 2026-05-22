@@ -100,7 +100,9 @@ export function useStaffGanttMirror(opts: UseStaffGanttMirrorOptions) {
   });
 
   const isLoading = presenceQuery.isLoading || phaseQuery.isLoading;
-  const error = presenceQuery.error ?? phaseQuery.error ?? null;
+  const rawError = presenceQuery.error ?? phaseQuery.error ?? null;
+  const rawErrorMessage = rawError instanceof Error ? rawError.message : '';
+  const error = rawErrorMessage === 'snapshot_unauthorized' ? null : rawError;
 
   let result: BuildStaffGanttMirrorResult = {
     blocks: [],

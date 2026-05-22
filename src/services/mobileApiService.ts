@@ -11,6 +11,14 @@ const ASSISTANT_EVENTS_URL = `${SUPABASE_URL}/functions/v1/assistant-events`;
 const TOKEN_KEY = 'eventflow-mobile-token';
 const STAFF_KEY = 'eventflow-mobile-staff';
 
+function createSessionExpiredError(): Error & { code: string; silent: boolean; name: string } {
+  const err = new Error('Session expired') as Error & { code: string; silent: boolean; name: string };
+  err.name = 'AbortError';
+  err.code = 'SESSION_EXPIRED';
+  err.silent = true;
+  return err;
+}
+
 export type MobileAppRole = 'admin' | 'forsaljning' | 'projekt' | 'lager';
 
 export interface MobileStaff {
@@ -359,10 +367,7 @@ async function performApiAttempt<T>(action: string, data: any, token: string | n
         clearAuth();
         window.dispatchEvent(new CustomEvent('mobile-session-expired'));
       }
-      const err: any = new DOMException('Session expired', 'AbortError');
-      err.code = 'SESSION_EXPIRED';
-      err.silent = true;
-      throw err;
+      throw createSessionExpiredError();
     }
 
     let json: any;

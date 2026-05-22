@@ -1,51 +1,44 @@
-## Nästa steg — Rast-gate, bekräftelse vid redigering, admin-godkännande, tester
+## Problem
 
-Bygger vidare på det som redan ligger (vecko-vy i mobilen med per-projekt-rader, mini-karta per dag, notifikations-prick i admin). Nu låser vi inskick + redigering och kopplar admin-godkännande till sparning mot tidrapport.
+På mobil-tidrapporten (StaffDayDetailSheet → StaffGanttMirrorTimeline) syns en röd text:
 
-### 1. Obligatorisk rast vid inskick (mobil)
-- Ny komponent `src/components/mobile-app/time/BreakRequiredDialog.tsx`
-  - Öppnas från `StaffDaySubmitSection` när användaren trycker "Skicka in" och `snapshot.totals.breakMinutes === 0` och dagens brutto > 5h (återanvänd `BREAK_PROMPT_THRESHOLD_HOURS` från `src/utils/breakPolicy.ts`).
-  - Snabbval 15 / 30 / 45 / 60 min + "Annat" (custom number) + "Ingen rast" (kräver fritextkommentar ≥ 10 tecken).
-  - Submit disabled tills giltigt val finns.
-- `StaffDaySubmitSection.tsx`: gate runt befintlig submit-mutation. Skickar `breakMinutes` + ev. `breakComment` med i `submit-staff-day` payload.
-- Edge function `submit-staff-day`: ta emot och persistera `break_minutes` + `break_comment` på `staff_day_submissions` (migration nedan).
+> Kunde inte hämta tidslinjen (Edge Function returned a non-2xx status code).
 
-### 2. Bekräftelse-steg vid blockredigering (mobil)
-- `BlockEditDialog.tsx`: lägg till ett `ConfirmStep` (samma sheet, andra vyn) som visar diff:
-  - Före → Efter (start / slut / projekt-koppling / kommentar)
-  - "Är du säker? Detta skickas till admin för godkännande."
-- Spärr: om start/slut ändras > 60 min från originalet krävs kommentar (≥ 10 tecken) innan "Bekräfta" aktiveras.
-- Original-värden bevaras redan i `UserEditPayload.previousValue` — ingen extra historik behövs.
+Felmeddelandet kommer från `supabase.functions.invoke('get-mobile-staff-day-report', …)` i `callStaffSnapshotFunction`. Den vägen tas när `getToken()` (mobile-tokenen) saknas, t.ex. i preview/web-läge eller innan MobileAuthContext hunnit autentisera. Då anropas edge-funktionen utan en giltig Bearer-token och svarar 401, vilket React Query exponerar som ett "fel" — trots att engine faktiskt har 0 block för dagen (vilket är det vanliga fallet för en helt orapporterad dag, exakt det användaren ser nu: "Total tid 0h", "Ingen registrerad tid").
 
-### 3. Admin-godkännande sparar till tidrapport + projekt
-- `StaffDayReportsList` / `StaffDayReportRow` har redan pulserande klocka. Lägg "Godkänn"-knapp direkt på raden (utöver detaljvyn) som kallar `useUpdateStaffDaySubmissionStatus({ status: 'approved' })`.
-- Edge function `update-staff-day-submission-status`: när status blir `approved`
-  - skriv/uppdatera `time_reports` per projekt utifrån snapshotens `places[]` (allokerade minuter per project/location/warehouse).
-  - markera `staff_day_submissions.approved_at` + `approved_by`.
-  - följer `Time Data Authority` (time_report = sanning) och `Single Timer Policy` (admin fördelar).
-- Idempotent: re-approve uppdaterar samma rader (dedupe-key: staff_id + work_date + target).
+Idag har sidan dessutom redan en korrekt empty-state ("Inga händelser registrerade ännu för dagen.") som aldrig syns eftersom error-grenen tar över.
 
-### 4. Migration
-```sql
-ALTER TABLE staff_day_submissions
-  ADD COLUMN IF NOT EXISTS break_minutes integer,
-  ADD COLUMN IF NOT EXISTS break_comment text,
-  ADD COLUMN IF NOT EXISTS approved_at timestamptz,
-  ADD COLUMN IF NOT EXISTS approved_by uuid;
-```
+## Mål
 
-### 5. Tester
-- `src/components/mobile-app/time/__tests__/BreakRequiredDialog.test.tsx` — submit disabled utan val, "Ingen rast" kräver kommentar.
-- `src/components/mobile-app/time/__tests__/BlockEditDialog.confirm.test.tsx` — > 60 min ändring kräver kommentar; diff visas korrekt.
-- `supabase/functions/update-staff-day-submission-status/index.test.ts` — approval skriver time_reports per place, idempotent vid re-run.
-- Kör automatiskt efter implementation: `bunx vitest run` + `supabase--test_edge_functions`.
+- Visa aldrig den tekniska "non-2xx"-strängen för slutanvändaren.
+- Behandla 401/empty från snapshot-anropet som "inga händelser ännu" (samma UX som dagen utan rapportering).
+- Visa endast ett mjukt, översättbart felmeddelande vid riktiga fel (nätverk nere, 5xx), inte vid auth-läge under uppstart.
 
-### Filer som ändras / skapas
-**Nya:** `BreakRequiredDialog.tsx`, två vitest-filer, en Deno-test.
-**Ändras:** `BlockEditDialog.tsx`, `StaffDaySubmitSection.tsx`, `StaffDayReportRow.tsx`, `submit-staff-day/index.ts`, `update-staff-day-submission-status/index.ts`.
-**Migration:** kolumner på `staff_day_submissions`.
+## Ändringar (UI only, ingen logik/data ändras)
 
-### Vad som INTE ändras
-- Time Engine / GPS-pipelinen.
-- `Single Timer Policy`, `Time Data Authority`, `Geofence Inside Time Authority` — alla respekteras.
-- Ingen ny workday-logik.
+1. **`src/services/staffSnapshotApi.ts`**
+   - I JWT-fallback-grenen (`supabase.functions.invoke`): fånga `FunctionsHttpError` / generiska 401-meddelanden och kasta ett kontrollerat `Error` med kod, t.ex. `new Error('snapshot_unauthorized')` istället för att låta "Edge Function returned a non-2xx status code" bubbla upp.
+   - I mobile-token-grenen: behåll dagens beteende men normalisera meddelandet (`snapshot_unauthorized` på 401, `snapshot_failed` på övriga icke-2xx) så UI kan välja text/empty-state.
+
+2. **`src/hooks/useStaffGanttMirror.ts`**
+   - Filtrera bort `snapshot_unauthorized` och liknande mjuka fel innan de exponeras som `error`. Returnera istället tomma `blocks` så att StaffGanttMirrorTimeline går in i sin existerande empty-state-gren.
+   - `phaseQuery` ändras inte (returnerar redan tomma maps vid fel).
+
+3. **`src/components/mobile-app/time/StaffGanttMirrorTimeline.tsx`**
+   - Byt den råa `error.message`-utskriften mot en användarvänlig svensk text utan parentes med teknisk orsak, t.ex.:
+     > "Tidslinjen kunde inte uppdateras just nu. Försök igen om en stund."
+   - Lägg en tyst console.warn för utvecklare så att vi inte tappar diagnostik.
+
+## Det här ändras inte
+
+- Ingen ändring i edge-funktionen `get-mobile-staff-day-report`, dess auth eller datamodell.
+- Ingen ändring i `staff_day_report_cache`, Time Engine eller fallback-logik.
+- Ingen ändring i submit-flödet ("Skicka in dagen"), workday eller GPS.
+- Ingen ändring i admin-vyn (`/staff-management/time-reports`).
+
+## Verifiering
+
+- Bygg + automatkörning (vitest) — befintliga tester ska gröna.
+- Manuell QA i preview /index: ladda om sidan, tidslinjekortet visar antingen block eller den mjuka empty-state-texten, aldrig "non-2xx".
+- Lägg till ett litet enhets-test för `callStaffSnapshotFunction` JWT-fallback som verifierar att 401-svar mappas till `snapshot_unauthorized`-felet.
+
