@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useStaffTimeReportPeriod } from '@/hooks/useStaffTimeReportPeriod';
 import { useStaffDayStatusViaMobileReport } from '@/hooks/useStaffDayStatusViaMobileReport';
+import { useStaffGpsWeekSuggestion } from '@/hooks/useStaffGpsWeekSuggestion';
 import StaffDayDetailSheet from './StaffDayDetailSheet';
 import PeriodSwitcher, { type PeriodKind } from './PeriodSwitcher';
 import UserTimeSummaryCards from './UserTimeSummaryCards';
