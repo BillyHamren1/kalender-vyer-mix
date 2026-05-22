@@ -4,10 +4,12 @@ import { sv } from 'date-fns/locale';
 import { AlertTriangle, ChevronRight, Map as MapIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { StaffPeriodDaySummary } from '@/hooks/useStaffTimeReportPeriod';
+import type { GpsDaySuggestion } from '@/hooks/useStaffGpsWeekSuggestion';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
 import DayMiniMapDialog from './DayMiniMapDialog';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
+import SuggestionRow from './SuggestionRow';
 
 // TIME-vyn pratar bara om rapporteringsläge — aldrig admin-godkännande.
 const STATUS_LABEL: Record<StaffPeriodDaySummary['status'], string> = {
@@ -47,6 +49,8 @@ interface Props {
   onOpen: (date: string) => void;
   /** Sort newest first by default; set false to keep period chronology. */
   newestFirst?: boolean;
+  /** GPS-baserade förslag per datum — visas för dagar utan inskickad rapport. */
+  suggestionsByDate?: Map<string, GpsDaySuggestion>;
 }
 
 /**
@@ -55,7 +59,7 @@ interface Props {
  * GPS-karta-veckopanelen i admin (StaffGpsDayRow). Data kommer
  * 100% från `get-mobile-staff-time-report-period` (snapshot-only).
  */
-export const UserDayList = ({ days, onOpen, newestFirst = false }: Props) => {
+export const UserDayList = ({ days, onOpen, newestFirst = false, suggestionsByDate }: Props) => {
   const [mapDate, setMapDate] = useState<string | null>(null);
   const { effectiveStaffId } = useMobileAuth();
 
@@ -74,14 +78,30 @@ export const UserDayList = ({ days, onOpen, newestFirst = false }: Props) => {
   return (
     <>
       <div className="rounded-2xl border border-border/60 bg-card overflow-hidden divide-y divide-border/60">
-        {ordered.map((d) => (
-          <DayRow
-            key={d.date}
-            day={d}
-            onOpen={onOpen}
-            onOpenMap={() => setMapDate(d.date)}
-          />
-        ))}
+        {ordered.map((d) => {
+          const suggestion = suggestionsByDate?.get(d.date);
+          // För dagar som ännu inte är inskickade visar vi GPS-förslaget om
+          // det finns; annars befintlig "Rapportera tid"-rad.
+          if (d.status === 'empty' && suggestion?.hasGps) {
+            return (
+              <SuggestionRow
+                key={d.date}
+                date={d.date}
+                suggestion={suggestion}
+                onOpenDetail={onOpen}
+                onOpenMap={(date) => setMapDate(date)}
+              />
+            );
+          }
+          return (
+            <DayRow
+              key={d.date}
+              day={d}
+              onOpen={onOpen}
+              onOpenMap={() => setMapDate(d.date)}
+            />
+          );
+        })}
       </div>
       <DayMiniMapDialog
         date={mapDate}

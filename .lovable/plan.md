@@ -1,44 +1,89 @@
-## Problem
 
-På mobil-tidrapporten (StaffDayDetailSheet → StaffGanttMirrorTimeline) syns en röd text:
+# Spegla GPS-dagens tidslinje i mobilens Time
 
-> Kunde inte hämta tidslinjen (Edge Function returned a non-2xx status code).
+## Problem idag
+Mobilens Time-flik (`TimeReportTab` → `UserDayList`) läser `staff_day_report_cache` via `get-mobile-staff-time-report-period`. Cachen är tom för dagar utan inskickad rapport → alla dagar visas som "Ej rapporterad" trots att GPS-pings finns.
 
-Felmeddelandet kommer från `supabase.functions.invoke('get-mobile-staff-day-report', …)` i `callStaffSnapshotFunction`. Den vägen tas när `getToken()` (mobile-tokenen) saknas, t.ex. i preview/web-läge eller innan MobileAuthContext hunnit autentisera. Då anropas edge-funktionen utan en giltig Bearer-token och svarar 401, vilket React Query exponerar som ett "fel" — trots att engine faktiskt har 0 block för dagen (vilket är det vanliga fallet för en helt orapporterad dag, exakt det användaren ser nu: "Total tid 0h", "Ingen registrerad tid").
+Web-vyn `/staff-management/gps-map` (`StaffGpsWeekPanel` + `useStaffGpsWeekSummary`) bygger däremot en GPS-tidslinje per dag direkt från `staff_location_history` (pings → `buildPlaceVisits` → places + minuter).
 
-Idag har sidan dessutom redan en korrekt empty-state ("Inga händelser registrerade ännu för dagen.") som aldrig syns eftersom error-grenen tar över.
+Användaren vill att **GPS-tidslinjen är förslagsunderlag** för tidrapporten i appen — alltid synlig, alltid grund.
 
 ## Mål
+1. Time-flikens dagslista visar GPS-härledd arbetstid (start–slut, places, minuter) även när ingen rapport är inskickad.
+2. Användaren ser ett **förslag** per dag med 3 åtgärder:
+   - **Godkänn som det är** → skapar `time_reports` 1:1 från GPS-tidslinjen.
+   - **Justera totalen** (start, slut, rast).
+   - **Justera per projekt** — fördela tid mellan föreslagna projekt eller assigna till annat projekt (sökbar lista över aktiva projekt/lager).
+3. Inskickade dagar fortsätter visas via befintlig snapshot (oförändrat).
+4. Inga befintliga affärsregler ändras: GPS = förslag, `time_reports` = sanning (Time Data Authority).
 
-- Visa aldrig den tekniska "non-2xx"-strängen för slutanvändaren.
-- Behandla 401/empty från snapshot-anropet som "inga händelser ännu" (samma UX som dagen utan rapportering).
-- Visa endast ett mjukt, översättbart felmeddelande vid riktiga fel (nätverk nere, 5xx), inte vid auth-läge under uppstart.
+## Arkitektur
 
-## Ändringar (UI only, ingen logik/data ändras)
+Robust väg = **server-driven spegling**. Mobilen får ALDRIG köra tunga `staff_location_history`-queries direkt (skulle bryta Mirror-Only-policyn och slå hårt på batteri).
 
-1. **`src/services/staffSnapshotApi.ts`**
-   - I JWT-fallback-grenen (`supabase.functions.invoke`): fånga `FunctionsHttpError` / generiska 401-meddelanden och kasta ett kontrollerat `Error` med kod, t.ex. `new Error('snapshot_unauthorized')` istället för att låta "Edge Function returned a non-2xx status code" bubbla upp.
-   - I mobile-token-grenen: behåll dagens beteende men normalisera meddelandet (`snapshot_unauthorized` på 401, `snapshot_failed` på övriga icke-2xx) så UI kan välja text/empty-state.
+### Ny edge function: `get-mobile-staff-gps-day-suggestion`
+- Auth: `_shared/staff-auth.ts` (samma dual-auth som övriga snapshot-funktioner).
+- Input: `{ date: 'YYYY-MM-DD' }` eller `{ from, to }` för veckovy.
+- Logik: Återanvänder Deno-porten av `buildGpsDayTimeline` + `resolveWorkTargets` + `interpretDayTimeline` som redan finns i `supabase/functions/_shared/time-engine/`. Läser `staff_location_history`, `projects`, `large_projects`, `organization_locations`, BSA för dagen.
+- Output per dag:
+  ```
+  {
+    date, suggestedStartIso, suggestedEndIso, suggestedBreakMinutes,
+    suggestedWorkMinutes, suggestedTravelMinutes,
+    perTarget: [{ targetKind, targetId, name, minutes, confidence }],
+    timeline: GpsTimelineSegment[],   // för minikartan/preview
+    hasGps: boolean,
+    reportStatus: 'empty'|'open'|'draft'|'submitted',  // joinas in från staff_day_submissions
+  }
+  ```
+- Inga DB-skrivningar.
 
-2. **`src/hooks/useStaffGanttMirror.ts`**
-   - Filtrera bort `snapshot_unauthorized` och liknande mjuka fel innan de exponeras som `error`. Returnera istället tomma `blocks` så att StaffGanttMirrorTimeline går in i sin existerande empty-state-gren.
-   - `phaseQuery` ändras inte (returnerar redan tomma maps vid fel).
+### Veckovy
+- Ny hook `useStaffGpsWeekSuggestion(anchor)` som anropar funktionen för 7 dagar (eller en enda `from/to`-batch).
+- `useStaffTimeReportPeriod` används kvar för inskickade summor (oförändrat). De två merges i UI: GPS-förslag visas alltid, snapshot vinner när `reportStatus === 'submitted'`.
 
-3. **`src/components/mobile-app/time/StaffGanttMirrorTimeline.tsx`**
-   - Byt den råa `error.message`-utskriften mot en användarvänlig svensk text utan parentes med teknisk orsak, t.ex.:
-     > "Tidslinjen kunde inte uppdateras just nu. Försök igen om en stund."
-   - Lägg en tyst console.warn för utvecklare så att vi inte tappar diagnostik.
+### UI (mobil)
+- `UserDayList` får ny rad-variant `SuggestionRow`:
+  - Header: dag + förslagets `HH:MM–HH:MM (Xh Ym)`.
+  - Lista över föreslagna projekt med minuter (samma layout som idag).
+  - Primärknapp: **"Godkänn"** → öppnar `ApproveSuggestionSheet` (bekräfta totalen, rast, fördelning).
+  - Sekundärlänk: **"Justera"** → öppnar befintlig `StaffDayDetailSheet` förinifylld med GPS-förslag istället för tom.
+- `StaffDayDetailSheet` får två nya block:
+  - **Total**: justera start/slut/rast (befintliga fält, förifyllt från förslag).
+  - **Per projekt**: lista med minuter per förslag + `+ Lägg till projekt` (söker i projects/large_projects/locations i samma org, samma reslolver som start-flow).
+  - "Spara" → POST till `mobile-app-api action=submit_day_from_suggestion` med `{ date, totals, allocations: [{targetKind, targetId, minutes}] }`. Funktionen skriver `time_reports` (en per allocation) + `staff_day_submissions` via befintlig submit-pipeline.
 
-## Det här ändras inte
+### Inga ändringar i
+- `buildGpsDayTimeline` / `interpretDayTimeline` / Time Engine-policy (återanvänds).
+- Mapbox-rendering, ruttlogik.
+- Admin /staff-management/time-reports.
+- Workday-system (redan borttaget).
+- `staff_day_report_cache`-spegling för inskickade dagar.
 
-- Ingen ändring i edge-funktionen `get-mobile-staff-day-report`, dess auth eller datamodell.
-- Ingen ändring i `staff_day_report_cache`, Time Engine eller fallback-logik.
-- Ingen ändring i submit-flödet ("Skicka in dagen"), workday eller GPS.
-- Ingen ändring i admin-vyn (`/staff-management/time-reports`).
+## Filer som skapas/ändras
 
-## Verifiering
+### Nya
+- `supabase/functions/get-mobile-staff-gps-day-suggestion/index.ts`
+- `supabase/functions/get-mobile-staff-gps-day-suggestion/index.test.ts`
+- `src/hooks/useStaffGpsDaySuggestion.ts`
+- `src/hooks/useStaffGpsWeekSuggestion.ts`
+- `src/components/mobile-app/time/SuggestionRow.tsx`
+- `src/components/mobile-app/time/ApproveSuggestionSheet.tsx`
+- `src/components/mobile-app/time/PerProjectAllocationEditor.tsx`
+- `src/test/mobileGpsSuggestionMirror.contract.test.ts` — låser att mobilens förslag är 1:1 med admin GPS-vyn för samma dag.
 
-- Bygg + automatkörning (vitest) — befintliga tester ska gröna.
-- Manuell QA i preview /index: ladda om sidan, tidslinjekortet visar antingen block eller den mjuka empty-state-texten, aldrig "non-2xx".
-- Lägg till ett litet enhets-test för `callStaffSnapshotFunction` JWT-fallback som verifierar att 401-svar mappas till `snapshot_unauthorized`-felet.
+### Ändras
+- `src/components/mobile-app/time/TimeReportTab.tsx` — merge förslag + snapshot, default veckovy oförändrad.
+- `src/components/mobile-app/time/UserDayList.tsx` — använd `SuggestionRow` när `reportStatus !== 'submitted'`.
+- `src/components/mobile-app/time/StaffDayDetailSheet.tsx` — förifyll från förslag, lägg till per-projekt-editor.
+- `supabase/functions/mobile-app-api/index.ts` — ny action `submit_day_from_suggestion`.
+- `mem://constraints/mobile-time-app-mirror-only-v1` — uppdateras: mobil får visa GPS-FÖRSLAG (read-only spegling av admin GPS-tidslinje), fortfarande ingen egen tolkning.
 
+## Verifiering (körs efter implementation)
+1. `bunx vitest run src/test/mobileGpsSuggestionMirror.contract.test.ts`
+2. `bash scripts/test-time-reporting.sh` (befintlig kvalitetsgrind — får ej regrediera).
+3. `supabase--test_edge_functions` för nya funktionen.
+4. Manuell preview-check på `/m/report` med ett konto som har GPS-pings → veckans dagar ska visa start–slut + places istället för "Ej rapporterad".
+
+## Svar på frågan "behöver appen byggas om?"
+Nej — appens skal (Capacitor/iOS/Android) behöver inte byggas om. Allt är web-kod + en ny edge function. Den deployas och syns direkt i preview och i den publicerade web-appen som mobilen laddar.
