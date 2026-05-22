@@ -4,10 +4,12 @@ import { sv } from 'date-fns/locale';
 import { AlertTriangle, ChevronRight, Map as MapIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { StaffPeriodDaySummary } from '@/hooks/useStaffTimeReportPeriod';
+import type { GpsDaySuggestion } from '@/hooks/useStaffGpsWeekSuggestion';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
 import DayMiniMapDialog from './DayMiniMapDialog';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
+import SuggestionRow from './SuggestionRow';
 
 // TIME-vyn pratar bara om rapporteringsläge — aldrig admin-godkännande.
 const STATUS_LABEL: Record<StaffPeriodDaySummary['status'], string> = {
