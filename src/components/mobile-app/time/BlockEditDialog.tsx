@@ -134,59 +134,122 @@ export const BlockEditDialog: React.FC<Props> = ({ block, date, onClose, onSave 
     onClose();
   };
 
+  const startDeltaMin = (() => {
+    if (!startHm || startHm === origStartHm) return 0;
+    const iso = localHmToIso(startHm, block.startAt);
+    if (!iso) return 0;
+    return Math.round(Math.abs(Date.parse(iso) - Date.parse(block.startAt)) / 60000);
+  })();
+  const endDeltaMin = (() => {
+    if (!endHm || endHm === origEndHm) return 0;
+    const iso = localHmToIso(endHm, block.endAt);
+    if (!iso) return 0;
+    return Math.round(Math.abs(Date.parse(iso) - Date.parse(block.endAt)) / 60000);
+  })();
+  const maxDelta = Math.max(startDeltaMin, endDeltaMin);
+  const requiresComment = maxDelta > 60;
+  const commentOk = !requiresComment || comment.trim().length >= 10;
+  const hasChange = startHm !== origStartHm || endHm !== origEndHm || projectLabel.trim().length > 0 || comment.trim().length > 0;
+
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <SheetContent side="bottom" className="rounded-t-2xl">
         <SheetHeader>
-          <SheetTitle className="text-left">Redigera block</SheetTitle>
+          <SheetTitle className="text-left">
+            {step === 'edit' ? 'Redigera block' : 'Bekräfta ändring'}
+          </SheetTitle>
           <p className="text-xs text-muted-foreground text-left">{block.title}</p>
         </SheetHeader>
-        <div className="space-y-3 py-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs">Start</Label>
-              <Input
-                type="time"
-                value={startHm}
-                onChange={(e) => setStartHm(e.target.value)}
-                className="tabular-nums"
-              />
+
+        {step === 'edit' ? (
+          <div className="space-y-3 py-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Start</Label>
+                <Input type="time" value={startHm} onChange={(e) => setStartHm(e.target.value)} className="tabular-nums" />
+              </div>
+              <div>
+                <Label className="text-xs">Slut</Label>
+                <Input type="time" value={endHm} onChange={(e) => setEndHm(e.target.value)} className="tabular-nums" />
+              </div>
             </div>
             <div>
-              <Label className="text-xs">Slut</Label>
-              <Input
-                type="time"
-                value={endHm}
-                onChange={(e) => setEndHm(e.target.value)}
-                className="tabular-nums"
+              <Label className="text-xs">Koppla till projekt (valfritt)</Label>
+              <Input type="text" value={projectLabel} onChange={(e) => setProjectLabel(e.target.value)} placeholder="Skriv projektnamn eller identifierare" />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Sparas som förslag — adminsidan kan kvitta kopplingen senare.
+              </p>
+            </div>
+            <div>
+              <Label className="text-xs">
+                Kommentar / förklaring {requiresComment && <span className="text-destructive">* (krävs &gt; 60 min ändring)</span>}
+              </Label>
+              <Textarea
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                rows={3}
+                placeholder="Skriv kort varför du ändrar"
               />
+              {requiresComment && (
+                <p className="text-[10px] text-muted-foreground mt-1">{comment.trim().length}/10 tecken</p>
+              )}
             </div>
           </div>
-          <div>
-            <Label className="text-xs">Koppla till projekt (valfritt)</Label>
-            <Input
-              type="text"
-              value={projectLabel}
-              onChange={(e) => setProjectLabel(e.target.value)}
-              placeholder="Skriv projektnamn eller identifierare"
-            />
-            <p className="text-[10px] text-muted-foreground mt-1">
-              Sparas som förslag — adminsidan kan kvitta kopplingen senare.
+        ) : (
+          <div className="space-y-3 py-3">
+            <p className="text-xs text-muted-foreground">
+              Är du säker? Ändringen skickas till admin för granskning.
             </p>
+            <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs space-y-2">
+              {startHm !== origStartHm && (
+                <div className="flex justify-between tabular-nums">
+                  <span className="text-muted-foreground">Start</span>
+                  <span><span className="line-through opacity-60">{origStartHm}</span> → <span className="font-bold">{startHm}</span></span>
+                </div>
+              )}
+              {endHm !== origEndHm && (
+                <div className="flex justify-between tabular-nums">
+                  <span className="text-muted-foreground">Slut</span>
+                  <span><span className="line-through opacity-60">{origEndHm}</span> → <span className="font-bold">{endHm}</span></span>
+                </div>
+              )}
+              {projectLabel.trim() && (
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Projekt</span>
+                  <span className="font-bold text-right">{projectLabel.trim()}</span>
+                </div>
+              )}
+              {comment.trim() && (
+                <div className="pt-1 border-t border-border">
+                  <span className="text-muted-foreground">Kommentar: </span>
+                  <span>{comment.trim()}</span>
+                </div>
+              )}
+            </div>
           </div>
-          <div>
-            <Label className="text-xs">Kommentar / förklaring</Label>
-            <Textarea
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              rows={3}
-              placeholder="Skriv kort varför du ändrar (krävs vid större avvikelser)"
-            />
-          </div>
-        </div>
+        )}
+
         <SheetFooter className="flex-row gap-2">
-          <Button variant="outline" className="flex-1" onClick={onClose}>Avbryt</Button>
-          <Button className="flex-1" onClick={handleSave}>Spara ändring</Button>
+          {step === 'edit' ? (
+            <>
+              <Button variant="outline" className="flex-1" onClick={onClose}>Avbryt</Button>
+              <Button
+                className="flex-1"
+                disabled={!hasChange || !commentOk}
+                onClick={() => setStep('confirm')}
+                data-testid="block-edit-next"
+              >
+                Fortsätt
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" className="flex-1" onClick={() => setStep('edit')}>Tillbaka</Button>
+              <Button className="flex-1" onClick={handleSave} data-testid="block-edit-confirm">
+                Bekräfta
+              </Button>
+            </>
+          )}
         </SheetFooter>
       </SheetContent>
     </Sheet>
