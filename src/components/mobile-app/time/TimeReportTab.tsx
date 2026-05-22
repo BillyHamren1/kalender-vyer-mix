@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useStaffTimeReportPeriod } from '@/hooks/useStaffTimeReportPeriod';
 import { useStaffDayStatusViaMobileReport } from '@/hooks/useStaffDayStatusViaMobileReport';
+import { useStaffGpsWeekSuggestion } from '@/hooks/useStaffGpsWeekSuggestion';
 import StaffDayDetailSheet from './StaffDayDetailSheet';
 import PeriodSwitcher, { type PeriodKind } from './PeriodSwitcher';
 import UserTimeSummaryCards from './UserTimeSummaryCards';
@@ -184,6 +185,7 @@ const PeriodView = ({
   kind, anchor, onOpen,
 }: { kind: 'week' | 'month'; anchor: Date; onOpen: (d: string) => void }) => {
   const { period, isLoading, error } = useStaffTimeReportPeriod({ kind, anchor });
+  const { suggestionsByDate } = useStaffGpsWeekSuggestion({ kind, anchor });
   const totals = period?.totals;
 
   const figures = {
@@ -233,7 +235,7 @@ const PeriodView = ({
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <UserDayList days={period?.days ?? []} onOpen={onOpen} />
+          <UserDayList days={period?.days ?? []} onOpen={onOpen} suggestionsByDate={suggestionsByDate} />
         )}
       </div>
     </div>
