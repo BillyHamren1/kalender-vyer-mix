@@ -80,7 +80,6 @@ async function loadKnownTargets(
   admin: ReturnType<typeof Object>,
   orgId: string,
 ): Promise<KnownPlace[]> {
-  // deno-lint-ignore no-explicit-any
   const c = admin as any;
   const [locsRes, projRes, largeRes] = await Promise.all([
     c.from("organization_locations")
@@ -105,7 +104,6 @@ async function loadKnownTargets(
   ]);
 
   const out: KnownPlace[] = [];
-  // deno-lint-ignore no-explicit-any
   for (const r of (locsRes.data ?? []) as any[]) {
     out.push({
       id: String(r.id),
@@ -116,7 +114,6 @@ async function loadKnownTargets(
       radiusM: Math.max(20, Number(r.radius_meters ?? 75)),
     });
   }
-  // deno-lint-ignore no-explicit-any
   for (const r of (projRes.data ?? []) as any[]) {
     out.push({
       id: String(r.id),
@@ -127,7 +124,6 @@ async function loadKnownTargets(
       radiusM: Math.max(20, Number(r.address_radius_meters ?? 75)),
     });
   }
-  // deno-lint-ignore no-explicit-any
   for (const r of (largeRes.data ?? []) as any[]) {
     out.push({
       id: String(r.id),
@@ -142,7 +138,6 @@ async function loadKnownTargets(
 }
 
 async function fetchPingsForDay(
-  // deno-lint-ignore no-explicit-any
   admin: any,
   staffId: string,
   date: string,
@@ -150,7 +145,6 @@ async function fetchPingsForDay(
   const startIso = `${date}T00:00:00.000Z`;
   const endIso = `${date}T23:59:59.999Z`;
   const PAGE = 1000;
-  // deno-lint-ignore no-explicit-any
   const all: any[] = [];
   let from = 0;
   for (let i = 0; i < 30; i++) {
@@ -207,9 +201,6 @@ function buildSuggestionFromTimeline(
     knownTargets,
   });
 
-  // Workday-relevanta segment = known_site stays + transport travel.
-  // Home-stays exkluderas (privat). Okänd plats exkluderas från förslagsbasen
-  // men bidrar till intervallet start–slut.
   let workMinutes = 0;
   let travelMinutes = 0;
   const perTargetMap = new Map<
@@ -238,7 +229,6 @@ function buildSuggestionFromTimeline(
     }
   }
 
-  // Föreslagen start = första kända plats; om ingen, första pingen.
   const firstWorkSeg = tl.segments.find(
     (s) => s.kind === "stay" && s.type === "known_site" && s.matchedSiteType !== "home",
   );
@@ -248,7 +238,6 @@ function buildSuggestionFromTimeline(
 
   const suggestedStartIso = firstWorkSeg?.startTs ?? tl.firstPingAt;
   const suggestedEndIso = lastWorkSeg?.endTs ?? tl.lastPingAt;
-
   const gapMinutesTotal = tl.gaps.reduce((acc, g) => acc + g.gapMinutes, 0);
 
   return {
@@ -276,7 +265,6 @@ Deno.serve(async (req: Request) => {
   const staffId = (body.staffId ?? "").trim();
   if (!staffId) return bad(400, "staffId is required");
 
-  // Resolve date range
   let dates: string[] = [];
   if (body.date && ISO_DATE.test(body.date)) {
     dates = [body.date];
@@ -304,8 +292,6 @@ Deno.serve(async (req: Request) => {
     return bad(500, "target load failed");
   }
 
-  // Submissions för status — en query över hela intervallet.
-  // deno-lint-ignore no-explicit-any
   const subRes: any = await admin
     .from("staff_day_submissions")
     .select("date, status")
@@ -314,7 +300,6 @@ Deno.serve(async (req: Request) => {
     .gte("date", dates[0])
     .lte("date", dates[dates.length - 1]);
   const statusByDate = new Map<string, DaySuggestion["reportStatus"]>();
-  // deno-lint-ignore no-explicit-any
   for (const row of (subRes.data ?? []) as any[]) {
     const d = String(row.date);
     const s = String(row.status ?? "");
