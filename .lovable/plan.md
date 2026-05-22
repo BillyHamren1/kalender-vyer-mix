@@ -1,106 +1,51 @@
+## Nästa steg — Rast-gate, bekräftelse vid redigering, admin-godkännande, tester
 
-# Mobil tidrapport = 1:1-spegel av GPS-karta-vyn
+Bygger vidare på det som redan ligger (vecko-vy i mobilen med per-projekt-rader, mini-karta per dag, notifikations-prick i admin). Nu låser vi inskick + redigering och kopplar admin-godkännande till sparning mot tidrapport.
 
-Mål: det användaren ser på `/staff-management/gps-satellite-map` (vecka, dag-för-dag, projekt med exakt geofence-tid) ska visas identiskt i mobilappens TIME-sida. Plus: minikarta per dag, mobilattest, redigering med bekräftelse, obligatorisk rast, och adminnotis när dag är inskickad.
+### 1. Obligatorisk rast vid inskick (mobil)
+- Ny komponent `src/components/mobile-app/time/BreakRequiredDialog.tsx`
+  - Öppnas från `StaffDaySubmitSection` när användaren trycker "Skicka in" och `snapshot.totals.breakMinutes === 0` och dagens brutto > 5h (återanvänd `BREAK_PROMPT_THRESHOLD_HOURS` från `src/utils/breakPolicy.ts`).
+  - Snabbval 15 / 30 / 45 / 60 min + "Annat" (custom number) + "Ingen rast" (kräver fritextkommentar ≥ 10 tecken).
+  - Submit disabled tills giltigt val finns.
+- `StaffDaySubmitSection.tsx`: gate runt befintlig submit-mutation. Skickar `breakMinutes` + ev. `breakComment` med i `submit-staff-day` payload.
+- Edge function `submit-staff-day`: ta emot och persistera `break_minutes` + `break_comment` på `staff_day_submissions` (migration nedan).
 
-Allt följer `time-page-snapshot-only-v1` — UI summerar inte själv, det läser från snapshot-edge functions.
+### 2. Bekräftelse-steg vid blockredigering (mobil)
+- `BlockEditDialog.tsx`: lägg till ett `ConfirmStep` (samma sheet, andra vyn) som visar diff:
+  - Före → Efter (start / slut / projekt-koppling / kommentar)
+  - "Är du säker? Detta skickas till admin för godkännande."
+- Spärr: om start/slut ändras > 60 min från originalet krävs kommentar (≥ 10 tecken) innan "Bekräfta" aktiveras.
+- Original-värden bevaras redan i `UserEditPayload.previousValue` — ingen extra historik behövs.
 
----
+### 3. Admin-godkännande sparar till tidrapport + projekt
+- `StaffDayReportsList` / `StaffDayReportRow` har redan pulserande klocka. Lägg "Godkänn"-knapp direkt på raden (utöver detaljvyn) som kallar `useUpdateStaffDaySubmissionStatus({ status: 'approved' })`.
+- Edge function `update-staff-day-submission-status`: när status blir `approved`
+  - skriv/uppdatera `time_reports` per projekt utifrån snapshotens `places[]` (allokerade minuter per project/location/warehouse).
+  - markera `staff_day_submissions.approved_at` + `approved_by`.
+  - följer `Time Data Authority` (time_report = sanning) och `Single Timer Policy` (admin fördelar).
+- Idempotent: re-approve uppdaterar samma rader (dedupe-key: staff_id + work_date + target).
 
-## 1. Mobil veckovy (ersätter dagens månads-default)
+### 4. Migration
+```sql
+ALTER TABLE staff_day_submissions
+  ADD COLUMN IF NOT EXISTS break_minutes integer,
+  ADD COLUMN IF NOT EXISTS break_comment text,
+  ADD COLUMN IF NOT EXISTS approved_at timestamptz,
+  ADD COLUMN IF NOT EXISTS approved_by uuid;
+```
 
-**Fil:** `src/components/mobile-app/time/TimeReportTab.tsx`
+### 5. Tester
+- `src/components/mobile-app/time/__tests__/BreakRequiredDialog.test.tsx` — submit disabled utan val, "Ingen rast" kräver kommentar.
+- `src/components/mobile-app/time/__tests__/BlockEditDialog.confirm.test.tsx` — > 60 min ändring kräver kommentar; diff visas korrekt.
+- `supabase/functions/update-staff-day-submission-status/index.test.ts` — approval skriver time_reports per place, idempotent vid re-run.
+- Kör automatiskt efter implementation: `bunx vitest run` + `supabase--test_edge_functions`.
 
-- Sätt veckovy som default (`kind = 'week'`).
-- `PeriodView` (vecka) byter ut `UserDayList` mot ny `MobileWeekDayList`-komponent som matchar `StaffGpsDayRow`:
-  - Per dag: veckodag + datum, `firstIso–lastIso`, total `durationMin`.
-  - Per projekt under dagen: punkt + namn + duration (t.ex. `Swedish game fair 6h 49m`).
-  - "—" på dagar utan data, "Endast hemma" om bara hemzon.
+### Filer som ändras / skapas
+**Nya:** `BreakRequiredDialog.tsx`, två vitest-filer, en Deno-test.
+**Ändras:** `BlockEditDialog.tsx`, `StaffDaySubmitSection.tsx`, `StaffDayReportRow.tsx`, `submit-staff-day/index.ts`, `update-staff-day-submission-status/index.ts`.
+**Migration:** kolumner på `staff_day_submissions`.
 
-**Datakälla:** `get-staff-time-report-period` returnerar redan `days[]` med totals. Bygg ut shapet i den edge functionen (`supabase/functions/get-staff-time-report-period/index.ts` + `_shared`) så `days[].places[]` finns med samma fält som GPS-vyn (`name`, `minutes`, `firstIso`, `lastIso`). All summering sker server-side.
-
----
-
-## 2. Minikarta per dag
-
-**Ny:** `src/components/mobile-app/time/DayMiniMapDialog.tsx`
-
-- Liten kartikon (📍 Map-pin) längst till höger i varje dagrad.
-- Klick → bottom-sheet/dialog som renderar `RawGpsSatelliteMap` för (`staffId`, `date`) — samma komponent som adminvyn redan använder.
-- Återanvänd `useStaffGpsPingsForDay`, `useDayKnownSites`, `useAllActiveProjectGeofences`, `buildExactGeofenceVisits` (inga nya hooks). Mobilen blir read-only (ingen geofence-redigering).
-
----
-
-## 3. Inskicknings-knapp + obligatorisk rast
-
-**Filer:** `src/components/mobile-app/time/StaffDayDetailSheet.tsx`, `StaffDaySubmitSection.tsx`
-
-- I dagdetalj-sheet: en tydlig primärknapp **"Skicka in dagen"** längst ned (finns i grunden — vässa CTA, ikon, sticky).
-- **Rast-gate:** innan submit POSTas, kontrollera `snapshot.totals.breakMinutes`. Om 0 och `grossWorkdayMinutes > 5h` → öppna `BreakRequiredDialog` (ny) med input "Hur lång rast tog du?" (15/30/45/60/anpassad). Submit-knappen är disabled tills rast finns eller användaren explicit valt "Ingen rast" (kräver fritextkommentar).
-- Rast sparas via befintliga edit-vägen (`validate-staff-day-edits` → `applyUserEditsToDisplayTimeline`) som ett `break`-segment.
-
----
-
-## 4. Redigera tider med bekräftelse
-
-**Fil:** `src/components/mobile-app/time/BlockEditDialog.tsx`
-
-- Idag finns dialogen — lägg till ett extra `ConfirmStep` innan PATCH skickas:
-  > "Är du säker på att du vill ändra registrerad tid? Originaltiderna sparas i historiken."
-- Visa diff (gammal start/slut → ny start/slut). Bekräfta = `validate-staff-day-edits` med `confirmedByUser: true`.
-
----
-
-## 5. Admin-notis när dag är inskickad
-
-**Filer:**
-- `src/components/staff/StaffDayReportsList.tsx` / `StaffDayReportRow.tsx` (admin-listan)
-- `src/components/staff/StaffDaySubmissionStatusBadge.tsx` (finns)
-
-- I admin-veckovyn (samma struktur som GPS-veckopanelen): visa en pulserande prick/ikon (Bell) bredvid datumet när `staff_day_submissions.status = 'submitted'` och inte ännu attestad.
-- Klick → öppnar dagdetalj med "Godkänn"-knapp (befintlig `StaffDayAttestSection` → `attest-staff-day`).
-
----
-
-## 6. Sparlogik vid attest
-
-Inga schemaändringar — `attest-staff-day` skriver redan:
-- Lås `staff_day_submissions.status = 'approved'`.
-- `time_reports` per projekt-block (lönerapport & projektkostnad — drivs av `buildProjectLaborBasis`/`buildProjectTimeSummary`).
-- Visas direkt på projektets ekonomi/tidssida + personens egen tidrapport.
-
-Verifiera (test) att approval gör att samma timmar dyker upp i:
-- `get-project-time-summary` för respektive projekt.
-- `get-staff-time-report-period` (status `approved`).
-
----
-
-## Filöversikt
-
-**Ändra:**
-- `src/components/mobile-app/time/TimeReportTab.tsx` — default week + ny dagrad-komponent
-- `src/components/mobile-app/time/StaffDayDetailSheet.tsx` — gate för rast, tydlig submit
-- `src/components/mobile-app/time/BlockEditDialog.tsx` — confirm-step
-- `src/components/mobile-app/time/StaffDaySubmitSection.tsx` — rast-validering
-- `src/components/staff/StaffDayReportRow.tsx` (eller motsv. veckovy) — bell-ikon för submitted
-- `supabase/functions/get-staff-time-report-period/index.ts` + shared — lägg till `days[].places[]`
-
-**Nya:**
-- `src/components/mobile-app/time/MobileWeekDayList.tsx` (visuell spegel av `StaffGpsDayRow`)
-- `src/components/mobile-app/time/DayMiniMapDialog.tsx`
-- `src/components/mobile-app/time/BreakRequiredDialog.tsx`
-
-**Tester:**
-- `src/components/mobile-app/time/__tests__/MobileWeekDayList.test.tsx` — renderar samma siffror som GPS-veckopanelen för samma snapshot.
-- `supabase/functions/get-staff-time-report-period/*_test.ts` — verifierar `days[].places[]`.
-- `src/components/mobile-app/time/__tests__/submitGuards.test.tsx` — rast krävs > 5h.
-- Befintlig kvalitetssvit: `bash scripts/test-time-reporting.sh`.
-
----
-
-## Vad som INTE ändras
-
-- Datakontrakt: Time-appen läser bara snapshots (`time-page-snapshot-only-v1`).
-- Inga lokala summeringar i UI.
-- Workday-systemet rörs inte (`no-workday-logic`).
-- `Geofence Inside Time Authority` består — projekt-tid = tid inom geofence, "Boende" räknas inte.
+### Vad som INTE ändras
+- Time Engine / GPS-pipelinen.
+- `Single Timer Policy`, `Time Data Authority`, `Geofence Inside Time Authority` — alla respekteras.
+- Ingen ny workday-logik.
