@@ -199,16 +199,30 @@ const StaffDaySubmitSection: React.FC<Props> = ({ staffId, date, snapshot }) => 
 
   const localError = validate();
 
-  const handleSubmit = async () => {
+  const grossMinutes = useMemo(() => {
+    const s = stockholmHmToIso(date, startHm);
+    const e = stockholmHmToIso(date, endHm);
+    if (!s || !e) return 0;
+    return Math.max(0, Math.round((Date.parse(e) - Date.parse(s)) / 60000));
+  }, [date, startHm, endHm]);
+
+  const needsBreakGate =
+    grossMinutes > BREAK_PROMPT_THRESHOLD_HOURS * 60 && clampBreak(breakMinutes) === 0;
+
+  const doSubmit = async (breakOverride?: number, commentOverride?: string | null) => {
     if (!staffId || localError) return;
     const requestedStartAt = stockholmHmToIso(date, startHm);
     const requestedEndAt = stockholmHmToIso(date, endHm);
+    const finalBreak = clampBreak(breakOverride ?? breakMinutes);
+    const finalComment = commentOverride !== undefined
+      ? commentOverride
+      : (comment.trim() ? comment.trim() : null);
     try {
       await submitDayReport({
         staffId,
         date,
-        breakMinutes: clampBreak(breakMinutes),
-        comment: comment.trim() ? comment.trim() : null,
+        breakMinutes: finalBreak,
+        comment: finalComment,
         requestedStartAt,
         requestedEndAt,
       });
@@ -216,6 +230,15 @@ const StaffDaySubmitSection: React.FC<Props> = ({ staffId, date, snapshot }) => 
     } catch {
       /* fel ytas via hooken */
     }
+  };
+
+  const handleSubmit = async () => {
+    if (!staffId || localError) return;
+    if (needsBreakGate) {
+      setBreakDialogOpen(true);
+      return;
+    }
+    await doSubmit();
   };
 
   if (success) {
