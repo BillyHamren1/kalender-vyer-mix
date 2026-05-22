@@ -19,8 +19,8 @@ export type {
 
 const StaffTimeReports = () => {
   return (
-    <PageContainer>
-      <PageHeader title="Tidrapporter" icon={Clock} />
+    <PageContainer theme="purple">
+      <PageHeader title="Tidrapporter" icon={Clock} variant="purple" />
 
       <Tabs defaultValue="overview" className="mt-4">
         <TabsList>

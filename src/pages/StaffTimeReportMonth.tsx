@@ -152,7 +152,7 @@ const StaffTimeReportMonth: React.FC = () => {
   const reportedDays = rows.filter(r => r.hasAny).length;
 
   return (
-    <PageContainer>
+    <PageContainer theme="purple">
       <div className="flex items-center gap-2 mb-3">
         <Button variant="ghost" size="sm" onClick={() => navigate('/staff-management/time-reports')}>
           <ArrowLeft className="h-4 w-4 mr-1" /> Tillbaka

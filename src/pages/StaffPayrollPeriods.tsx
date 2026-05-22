@@ -9,9 +9,10 @@ export default function StaffPayrollPeriods() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   return (
-    <PageContainer>
+    <PageContainer theme="purple">
       <PageHeader
         icon={CalendarRange}
+        variant="purple"
         title="Löneperioder"
         subtitle="Skapa löneperioder och se all personals inrapporterade tid i perioden. Detta är underlag – inte slutgiltig löneexport."
       />
