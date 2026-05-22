@@ -21,6 +21,8 @@ import { cn } from '@/lib/utils';
 import { useSubmitStaffDayReport } from '@/hooks/useSubmitStaffDayReport';
 import type { StaffDaySnapshot } from '@/hooks/useStaffDaySnapshot';
 import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
+import { BREAK_PROMPT_THRESHOLD_HOURS } from '@/utils/breakPolicy';
+import BreakRequiredDialog from './BreakRequiredDialog';
 
 const PRESETS = [0, 30, 45, 60] as const;
 const TZ = 'Europe/Stockholm';
