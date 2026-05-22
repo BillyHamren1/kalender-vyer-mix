@@ -12,7 +12,7 @@ export default function StaffGpsSatelliteMapPage() {
     <PageContainer theme="purple">
       <PageHeader
         title="GPS-karta"
-        subtitle="Personalens rörelser, vecka för vecka."
+        subtitle="Personalens rörelser, platser och geofence-besök."
         icon={Satellite}
         variant="purple"
       />

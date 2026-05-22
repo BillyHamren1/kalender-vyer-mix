@@ -30,14 +30,12 @@ export function StaffGpsWeekPanel({
   const isoWeek = getISOWeek(weekStart);
 
   return (
-    <aside className="w-full md:w-[320px] shrink-0 rounded-xl border border-border/60 bg-card/80 backdrop-blur-sm shadow-sm flex flex-col overflow-hidden">
+    <aside className="planning-card w-full md:w-[320px] shrink-0 flex flex-col overflow-hidden p-0">
       {/* Person */}
-      <div className="p-3 border-b border-border/60 space-y-1.5">
-        <label className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground/80 font-medium">
-          Person
-        </label>
+      <div className="p-3.5 border-b border-[hsl(270_20%_90%)] space-y-1.5 bg-[hsl(270_35%_98%)]">
+        <label className="planning-section-title">Person</label>
         <Select value={staffId ?? ''} onValueChange={onStaffChange}>
-          <SelectTrigger className="w-full h-9 text-sm border-border/60 bg-background/60">
+          <SelectTrigger className="w-full h-9 text-sm planning-input">
             <SelectValue placeholder="Välj person" />
           </SelectTrigger>
           <SelectContent>
@@ -62,22 +60,22 @@ export function StaffGpsWeekPanel({
       </div>
 
       {/* Vecka */}
-      <div className="px-2 py-2 border-b border-border/60 flex items-center gap-1">
+      <div className="px-2.5 py-2 border-b border-[hsl(270_20%_90%)] flex items-center gap-1">
         <Button
-          variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full hover:bg-muted"
+          variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full hover:bg-[hsl(270_35%_95%)]"
           onClick={() => onDateChange(addWeeks(weekStart, -1))}
           aria-label="Föregående vecka"
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1 text-center leading-tight">
-          <div className="text-[13px] font-semibold tracking-tight">Vecka {isoWeek}</div>
-          <div className="text-[10px] text-muted-foreground tabular-nums">
+          <div className="text-[13px] font-semibold tracking-tight text-[hsl(280_45%_28%)]">Vecka {isoWeek}</div>
+          <div className="text-[10.5px] text-muted-foreground tabular-nums">
             {format(weekStart, 'd MMM', { locale: sv })} – {format(addDays(weekStart, 6), 'd MMM yyyy', { locale: sv })}
           </div>
         </div>
         <Button
-          variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full hover:bg-muted"
+          variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full hover:bg-[hsl(270_35%_95%)]"
           onClick={() => onDateChange(addWeeks(weekStart, 1))}
           aria-label="Nästa vecka"
         >
@@ -85,7 +83,7 @@ export function StaffGpsWeekPanel({
         </Button>
         <Button
           variant="ghost" size="sm"
-          className="h-8 px-2.5 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+          className="h-8 px-2.5 text-[11px] font-semibold text-[hsl(280_45%_38%)] hover:bg-[hsl(270_45%_94%)] hover:text-[hsl(280_55%_28%)] rounded-md"
           onClick={() => onDateChange(new Date())}
         >
           Idag
@@ -93,7 +91,7 @@ export function StaffGpsWeekPanel({
       </div>
 
       {/* Dagar — alla 7 synliga */}
-      <div className="divide-y divide-border/40">
+      <div className="divide-y divide-[hsl(270_18%_94%)]">
         {weekDays.map((day, i) => {
           const dateStr = format(day, 'yyyy-MM-dd');
           const staffName = staff.find(s => s.id === staffId)?.name ?? null;
@@ -112,7 +110,7 @@ export function StaffGpsWeekPanel({
         })}
       </div>
 
-      <div className="px-3 py-2 border-t border-border/60 bg-muted/20 text-[10px] text-muted-foreground/80 tracking-tight">
+      <div className="px-3 py-2 border-t border-[hsl(270_20%_90%)] bg-[hsl(270_35%_97%)] text-[10.5px] text-muted-foreground tracking-tight">
         Tid per projekt = tid inom geofence. Boende räknas inte.
       </div>
     </aside>
