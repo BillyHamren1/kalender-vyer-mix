@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { segmentPingsForDisplay } from '../segmentPingsForDisplay';
+import { pickPingsByGlobalInterval, segmentPingsForDisplay } from '../segmentPingsForDisplay';
 
 interface P {
   id: string;
@@ -72,6 +72,20 @@ describe('segmentPingsForDisplay', () => {
       // 0, 5, 10, 15, 20 → 5 labels
       expect(segs[0].labelPings.length).toBe(5);
     }
+  });
+
+  it('globalt 5-minutersfilter återstartar inte när resan delas i flera segment', () => {
+    const pings: P[] = [
+      mk('p0', 0, 59.0, 18.0),
+      mk('p1', 1, 59.01, 18.01),
+      mk('p2', 5, 59.05, 18.05),
+      mk('p3', 6, 59.051, 18.051),
+      mk('p4', 10, 59.10, 18.10),
+      mk('p5', 11, 59.101, 18.101),
+    ];
+
+    const labels = pickPingsByGlobalInterval(pings, 5 * 60_000);
+    expect(labels.map((p) => p.id)).toEqual(['p0', 'p2', 'p4']);
   });
 
   it('kort stopp <5 min smälter in i move-segmentet', () => {

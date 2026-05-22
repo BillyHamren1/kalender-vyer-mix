@@ -72,14 +72,12 @@ function haversineMeters(
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-function pickMoveLabels<T extends SegInputPing>(pings: T[], everyMs: number): T[] {
+export function pickPingsByGlobalInterval<T extends SegInputPing>(pings: T[], everyMs: number): T[] {
   if (!pings.length) return [];
-  // En label per N-minuters-bucket (default 5 min) på vägg-klockan.
-  // Inga "alltid första/sista" — annars klumpar labels ihop sig vid stays
-  // och korta segment och vi får inflation av tidsstämplar.
+  const sorted = [...pings].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
   const seen = new Set<number>();
   const out: T[] = [];
-  for (const p of pings) {
+  for (const p of sorted) {
     const t = new Date(p.recorded_at).getTime();
     if (!Number.isFinite(t)) continue;
     const bucket = Math.floor(t / everyMs);
@@ -88,6 +86,12 @@ function pickMoveLabels<T extends SegInputPing>(pings: T[], everyMs: number): T[
     out.push(p);
   }
   return out;
+}
+
+function pickMoveLabels<T extends SegInputPing>(pings: T[], everyMs: number): T[] {
+  // En label per N-minuters-bucket inom segmentet. För global dag-/resfiltrering
+  // använder kartan pickPingsByGlobalInterval så labels inte återstartar per segment.
+  return pickPingsByGlobalInterval(pings, everyMs);
 }
 
 export function segmentPingsForDisplay<T extends SegInputPing>(
