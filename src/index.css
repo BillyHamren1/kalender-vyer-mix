@@ -1,5 +1,6 @@
 @import './styles/theme.css';
 @import './styles/calendar.css';
+@import './styles/planning.css';
 
 @tailwind base;
 @tailwind components;
