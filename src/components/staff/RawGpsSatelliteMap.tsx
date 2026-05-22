@@ -7,6 +7,7 @@ import type { RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
 import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
 import {
   segmentPingsForDisplay,
+  pickPingsByGlobalInterval,
   colorForSegment,
   type PingSegment,
 } from '@/lib/staff/segmentPingsForDisplay';
@@ -618,8 +619,13 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         },
       });
 
-      // ── Move-label points (var ~5 min + alltid första ping UTANFÖR geo) ─
+      // ── Move-label points (endast en tidslabel per globalt 5-minutersintervall) ─
       const moveLabelFeatures: any[] = [];
+      const globallyAllowedLabelIds = new Set(
+        pickPingsByGlobalInterval(data, 5 * 60_000)
+          .filter((p) => !pingInsideAnyFence(p, fences))
+          .map((p) => p.id),
+      );
       for (const s of segments) {
         if (s.kind !== 'move') continue;
         const color = colorForSegment(s.colorIndex, 'move');
@@ -628,6 +634,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
 
         for (const p of s.pings) {
           if (!labelIds.has(p.id)) continue;
+          if (!globallyAllowedLabelIds.has(p.id)) continue;
           if (pingInsideAnyFence(p, fences)) continue;
           moveLabelFeatures.push({
             type: 'Feature',
