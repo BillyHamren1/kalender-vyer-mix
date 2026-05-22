@@ -88,6 +88,19 @@ describe('segmentPingsForDisplay', () => {
     expect(labels.map((p) => p.id)).toEqual(['p0', 'p2', 'p4']);
   });
 
+  it('globalt 5-minutersfilter fungerar även när id är tomt men recorded_at skiljer', () => {
+    const pings: P[] = [
+      { ...mk('', 33, 59.0, 18.0), id: '' },
+      { ...mk('', 34, 59.01, 18.01), id: '' },
+      { ...mk('', 39, 59.02, 18.02), id: '' },
+      { ...mk('', 40, 59.03, 18.03), id: '' },
+    ];
+
+    const labels = pickPingsByGlobalInterval(pings, 5 * 60_000);
+    expect(labels).toHaveLength(2);
+    expect(labels.map((p) => p.recorded_at.slice(14, 16))).toEqual(['00', '05']);
+  });
+
   it('kort stopp <5 min smälter in i move-segmentet', () => {
     const pings: P[] = [];
     for (let i = 0; i < 5; i++) pings.push(mk(`a${i}`, i, 59.0 + i * 0.01, 18.0 + i * 0.01));
