@@ -89,7 +89,7 @@ export const MapControls: React.FC<MapControlsProps> = ({
           size="sm"
           variant={isMeasuring ? "default" : "outline"}
           className={`bg-white/90 backdrop-blur-sm shadow-md ${
-            isMeasuring ? 'bg-teal-500 text-white hover:bg-teal-600' : ''
+            isMeasuring ? 'bg-primary text-primary-foreground hover:bg-primary/90' : ''
           }`}
         >
           <Ruler className="h-4 w-4 mr-1" />

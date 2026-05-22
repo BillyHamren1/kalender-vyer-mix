@@ -14,7 +14,7 @@ interface PageHeaderProps {
   };
   children?: React.ReactNode;
   className?: string;
-  /** Visual variant: default (teal), warehouse (amber), purple (soft purple) */
+  /** Visual variant: default (Booking teal), warehouse (amber), purple (Planning lila) */
   variant?: 'default' | 'warehouse' | 'purple';
 }
 
