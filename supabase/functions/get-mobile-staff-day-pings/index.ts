@@ -10,6 +10,7 @@ import {
 } from "../_shared/staff-auth.ts";
 
 interface PingRow {
+  id: string;
   recorded_at: string;
   lat: number;
   lng: number;
@@ -165,7 +166,7 @@ Deno.serve(async (req) => {
   for (let i = 0; i < 30; i++) {
     const { data, error } = await admin
       .from("staff_location_history")
-      .select("recorded_at, lat, lng, accuracy")
+      .select("id, recorded_at, lat, lng, accuracy")
       .eq("staff_id", staffId)
       .gte("recorded_at", startIso)
       .lte("recorded_at", endIso)
@@ -174,6 +175,7 @@ Deno.serve(async (req) => {
     if (error) return bad(500, "pings fetch failed", { details: error.message });
     const rows = (data ?? []) as PingRow[];
     pings.push(...rows.map((r) => ({
+      id: String(r.id),
       recorded_at: String(r.recorded_at),
       lat: Number(r.lat),
       lng: Number(r.lng),

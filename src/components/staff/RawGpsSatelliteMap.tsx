@@ -44,6 +44,12 @@ function formatHm(iso: string): string {
   return hms.length >= 5 ? hms.slice(0, 5) : hms;
 }
 
+function pingKey(p: Pick<RawStaffGpsPing, 'id' | 'recorded_at' | 'lat' | 'lng'>): string {
+  const safeId = typeof p.id === 'string' ? p.id.trim() : '';
+  if (safeId) return safeId;
+  return `${p.recorded_at}|${p.lat}|${p.lng}`;
+}
+
 function formatDuration(ms: number): string {
   const totalMin = Math.round(ms / 60_000);
   if (totalMin < 60) return `${totalMin} min`;
@@ -624,23 +630,24 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       const globallyAllowedLabelIds = new Set(
         pickPingsByGlobalInterval(data, 5 * 60_000)
           .filter((p) => !pingInsideAnyFence(p, fences))
-          .map((p) => p.id),
+          .map((p) => pingKey(p)),
       );
       for (const s of segments) {
         if (s.kind !== 'move') continue;
         const color = colorForSegment(s.colorIndex, 'move');
-        const labelIds = new Set(s.labelPings.map((p) => p.id));
+        const labelIds = new Set(s.labelPings.map((p) => pingKey(p)));
 
 
         for (const p of s.pings) {
-          if (!labelIds.has(p.id)) continue;
-          if (!globallyAllowedLabelIds.has(p.id)) continue;
+          const key = pingKey(p);
+          if (!labelIds.has(key)) continue;
+          if (!globallyAllowedLabelIds.has(key)) continue;
           if (pingInsideAnyFence(p, fences)) continue;
           moveLabelFeatures.push({
             type: 'Feature',
             geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
             properties: {
-              id: p.id,
+              id: key,
               color,
               label: formatHm(p.recorded_at),
             },
