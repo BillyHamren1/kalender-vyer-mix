@@ -13,6 +13,7 @@ import { useLivePackingFeed } from '@/hooks/useLivePackingFeed';
 import { OpsTimelineAssignment } from '@/services/opsControlService';
 import { optimizeStaffRoute, StaffRouteResult } from '@/services/staffRouteService';
 import {
+  type LucideIcon,
   Radio,
   Users,
   Briefcase,
