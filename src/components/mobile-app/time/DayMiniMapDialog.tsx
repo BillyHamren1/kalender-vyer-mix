@@ -12,6 +12,7 @@ import { sv } from 'date-fns/locale';
 import RawGpsSatelliteMap from '@/components/staff/RawGpsSatelliteMap';
 import { useMobileStaffDayPings } from '@/hooks/staff/useMobileStaffDayPings';
 import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
+import type { PlaceVisit } from '@/lib/staff/pingPlaceSegments';
 
 interface Props {
   date: string | null;
@@ -32,8 +33,25 @@ export const DayMiniMapDialog: React.FC<Props> = ({ date, staffId, onClose }) =>
     [data?.geofences],
   );
 
-  // Ingen lokal visits-uträkning — mobilen är en ren spegling av webbens GPS-vy
-  // (pings + geofence-polygoner). Allt "räknande" sker enbart på webben/admin.
+  const visits = useMemo<PlaceVisit[]>(
+    () => (data?.visits ?? []).map((visit) => ({
+      placeKey: visit.placeKey,
+      knownSite: visit.knownSite,
+      centre: visit.centre,
+      start: visit.start,
+      end: visit.end,
+      durationMin: visit.durationMin,
+      pingCount: visit.pingCount,
+      pings: visit.pings.map((ping) => ({
+        recorded_at: ping.recorded_at,
+        lat: ping.lat,
+        lng: ping.lng,
+        accuracy: ping.accuracy,
+      })),
+      subKind: visit.subKind,
+    })),
+    [data?.visits],
+  );
 
   const label = date ? format(parseISO(date), 'EEEE d MMMM yyyy', { locale: sv }) : '';
 
@@ -72,7 +90,7 @@ export const DayMiniMapDialog: React.FC<Props> = ({ date, staffId, onClose }) =>
                 app_id: null,
               }))}
               geofences={geofences}
-              visits={[]}
+              visits={visits}
               className="h-full w-full"
             />
           )}
