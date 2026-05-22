@@ -97,8 +97,8 @@ describe('segmentPingsForDisplay', () => {
     ];
 
     const labels = pickPingsByGlobalInterval(pings, 5 * 60_000);
-    expect(labels).toHaveLength(2);
-    expect(labels.map((p) => p.recorded_at.slice(14, 16))).toEqual(['00', '05']);
+    expect(labels).toHaveLength(3);
+    expect(labels.map((p) => p.recorded_at.slice(14, 16))).toEqual(['33', '39', '40']);
   });
 
   it('kort stopp <5 min smälter in i move-segmentet', () => {
