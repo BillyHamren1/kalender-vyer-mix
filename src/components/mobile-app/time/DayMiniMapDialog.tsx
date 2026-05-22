@@ -72,7 +72,7 @@ export const DayMiniMapDialog: React.FC<Props> = ({ date, staffId, onClose }) =>
                 app_id: null,
               }))}
               geofences={geofences}
-              visits={visits}
+              visits={[]}
               className="h-full w-full"
             />
           )}
