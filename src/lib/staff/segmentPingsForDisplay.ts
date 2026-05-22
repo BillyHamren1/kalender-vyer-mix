@@ -73,18 +73,20 @@ function haversineMeters(
 }
 
 function pickMoveLabels<T extends SegInputPing>(pings: T[], everyMs: number): T[] {
-  if (pings.length <= 2) return pings.slice();
-  const out: T[] = [pings[0]];
-  let lastT = new Date(pings[0].recorded_at).getTime();
-  for (let i = 1; i < pings.length - 1; i++) {
-    const t = new Date(pings[i].recorded_at).getTime();
+  if (!pings.length) return [];
+  // En label per N-minuters-bucket (default 5 min) på vägg-klockan.
+  // Inga "alltid första/sista" — annars klumpar labels ihop sig vid stays
+  // och korta segment och vi får inflation av tidsstämplar.
+  const seen = new Set<number>();
+  const out: T[] = [];
+  for (const p of pings) {
+    const t = new Date(p.recorded_at).getTime();
     if (!Number.isFinite(t)) continue;
-    if (t - lastT >= everyMs) {
-      out.push(pings[i]);
-      lastT = t;
-    }
+    const bucket = Math.floor(t / everyMs);
+    if (seen.has(bucket)) continue;
+    seen.add(bucket);
+    out.push(p);
   }
-  out.push(pings[pings.length - 1]);
   return out;
 }
 
