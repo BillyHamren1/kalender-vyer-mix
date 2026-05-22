@@ -73,7 +73,7 @@ export const MapDrawingControls: React.FC<MapDrawingControlsProps> = ({
             size="sm"
             variant={drawMode === 'simple_select' ? "default" : "outline"}
             className={`bg-white/90 backdrop-blur-sm shadow-md ${
-              drawMode === 'simple_select' ? 'bg-teal-500 text-white hover:bg-teal-600' : ''
+              drawMode === 'simple_select' ? 'bg-primary text-primary-foreground hover:bg-primary/90' : ''
             }`}
           >
             <Edit3 className="h-4 w-4 mr-1" />
@@ -85,7 +85,7 @@ export const MapDrawingControls: React.FC<MapDrawingControlsProps> = ({
             size="sm"
             variant={isFreehandDrawing ? "default" : "outline"}
             className={`bg-white/90 backdrop-blur-sm shadow-md ${
-              isFreehandDrawing ? 'bg-teal-500 text-white hover:bg-teal-600' : ''
+              isFreehandDrawing ? 'bg-primary text-primary-foreground hover:bg-primary/90' : ''
             }`}
           >
             <Pen className="h-4 w-4 mr-1" />
@@ -97,7 +97,7 @@ export const MapDrawingControls: React.FC<MapDrawingControlsProps> = ({
             size="sm"
             variant={drawMode === 'draw_polygon' ? "default" : "outline"}
             className={`bg-white/90 backdrop-blur-sm shadow-md ${
-              drawMode === 'draw_polygon' ? 'bg-teal-500 text-white hover:bg-teal-600' : ''
+              drawMode === 'draw_polygon' ? 'bg-primary text-primary-foreground hover:bg-primary/90' : ''
             }`}
           >
             <Square className="h-4 w-4 mr-1" />
@@ -109,7 +109,7 @@ export const MapDrawingControls: React.FC<MapDrawingControlsProps> = ({
             size="sm"
             variant={drawMode === 'draw_line_string' ? "default" : "outline"}
             className={`bg-white/90 backdrop-blur-sm shadow-md ${
-              drawMode === 'draw_line_string' ? 'bg-teal-500 text-white hover:bg-teal-600' : ''
+              drawMode === 'draw_line_string' ? 'bg-primary text-primary-foreground hover:bg-primary/90' : ''
             }`}
           >
             <Minus className="h-4 w-4 mr-1" />
@@ -121,7 +121,7 @@ export const MapDrawingControls: React.FC<MapDrawingControlsProps> = ({
             size="sm"
             variant={drawMode === 'draw_point' ? "default" : "outline"}
             className={`bg-white/90 backdrop-blur-sm shadow-md ${
-              drawMode === 'draw_point' ? 'bg-teal-500 text-white hover:bg-teal-600' : ''
+              drawMode === 'draw_point' ? 'bg-primary text-primary-foreground hover:bg-primary/90' : ''
             }`}
           >
             <Circle className="h-4 w-4 mr-1" />
