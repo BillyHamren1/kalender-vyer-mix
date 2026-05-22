@@ -5,9 +5,10 @@ import { StaffDayReportsList } from "@/components/staff/StaffDayReportsList";
 
 export default function StaffDayReportsAdmin() {
   return (
-    <PageContainer>
+    <PageContainer theme="purple">
       <PageHeader
         icon={ClipboardCheck}
+        variant="purple"
         title="Inskickade dagrapporter"
         subtitle="Granska personalens inskickade dagrapporter – godkänn för OK eller markera för kontroll."
       />

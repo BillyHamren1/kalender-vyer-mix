@@ -9,11 +9,12 @@ export default function StaffGpsSatelliteMapPage() {
   const staffId = params.get('staffId');
   const date = params.get('date');
   return (
-    <PageContainer>
+    <PageContainer theme="purple">
       <PageHeader
         title="GPS-karta"
         subtitle="Personalens rörelser, vecka för vecka."
         icon={Satellite}
+        variant="purple"
       />
       <StaffGpsSatelliteMap initialStaffId={staffId} initialDate={date} />
     </PageContainer>
