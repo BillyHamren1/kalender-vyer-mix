@@ -62,6 +62,7 @@ export const BlockEditDialog: React.FC<Props> = ({ block, date, onClose, onSave 
     setEndHm(isoToLocalHm(block.endAt));
     setProjectLabel('');
     setComment('');
+    setStep('edit');
   }, [block]);
 
   if (!block) return null;
