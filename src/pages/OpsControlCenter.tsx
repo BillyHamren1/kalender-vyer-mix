@@ -39,7 +39,7 @@ function KpiChip({
   value,
   tone = 'default',
 }: {
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  icon: LucideIcon;
   label: string;
   value: string | number;
   tone?: 'default' | 'live';
