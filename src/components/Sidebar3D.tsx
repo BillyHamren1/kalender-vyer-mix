@@ -2,28 +2,21 @@ import { useState, useEffect } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   type LucideIcon,
-  TrendingUp,
   Calendar,
   Users,
-  Receipt,
-  Sparkles,
-  PenTool,
   ChevronDown,
   ChevronsLeft,
   FolderKanban,
   PieChart,
   Truck,
-  AlertCircle,
   Clock,
-  CalendarDays,
   MapPin,
-  Activity,
   Wallet,
   ExternalLink,
   Satellite,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
 import { useProjectInboxCount } from "@/hooks/useProjectInboxCount";
 import { useUnplannedProjects } from "@/hooks/useUnplannedProjects";
 
@@ -48,14 +41,14 @@ const baseNavigationItems: NavItem[] = [
     url: "/projects",
     icon: FolderKanban,
     children: [
-      { title: "Mina projekt", url: "/my-projects" },
+      { title: "Mina projekt", url: "/my-projects", icon: FolderKanban },
       { title: "Projektöversikt", url: "/economy", icon: Wallet },
     ],
   },
   {
     title: "Logistikplanering",
     url: "/ops-control",
-    icon: Users,
+    icon: MapPin,
   },
   {
     title: "Personalplanering",
@@ -86,29 +79,17 @@ const baseNavigationItems: NavItem[] = [
   },
 ];
 
-// Badge count now comes from shared useProjectInboxCount hook
-
 /* ─── Collapsed Tooltip ─── */
 function CollapsedTooltip({ label, show }: { label: string; show: boolean }) {
   return (
     <div
       className={cn(
-        "absolute left-full ml-3 px-3 py-2 rounded-[8px] pointer-events-none",
-        "bg-foreground text-background text-sm font-medium whitespace-nowrap",
-        "transition-opacity duration-200",
-        show ? "opacity-100" : "opacity-0"
+        "absolute left-full ml-3 px-2.5 py-1.5 rounded-lg pointer-events-none z-50",
+        "bg-foreground text-background text-xs font-medium whitespace-nowrap shadow-lg",
+        "transition-all duration-150",
+        show ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-1"
       )}
     >
-      <div
-        className="absolute top-1/2 -translate-y-1/2 -left-[14px]"
-        style={{
-          width: 0,
-          height: 0,
-          borderWidth: 8,
-          borderStyle: "solid",
-          borderColor: "transparent hsl(var(--foreground)) transparent transparent",
-        }}
-      />
       {label}
     </div>
   );
@@ -118,18 +99,17 @@ export function Sidebar3D() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [hoveredUrl, setHoveredUrl] = useState<string | null>(null);
-  const [pressedUrl, setPressedUrl] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const unviewedCount = useProjectInboxCount();
   const { data: unplannedProjects = [] } = useUnplannedProjects();
   const unplannedCount = unplannedProjects.length;
 
-  const navigationItems = baseNavigationItems.map(item => {
-    if (item.url === '/projects' && unviewedCount > 0) {
+  const navigationItems = baseNavigationItems.map((item) => {
+    if (item.url === "/projects" && unviewedCount > 0) {
       return { ...item, badge: unviewedCount };
     }
-    if (item.url === '/calendar' && unplannedCount > 0) {
+    if (item.url === "/calendar" && unplannedCount > 0) {
       return { ...item, badge: unplannedCount };
     }
     return item;
@@ -144,6 +124,7 @@ export function Sidebar3D() {
         );
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
 
   const toggleExpanded = (url: string) => {
@@ -154,7 +135,6 @@ export function Sidebar3D() {
 
   const isItemActive = (item: NavItem) => {
     if (item.children?.length) {
-      // Only highlight parent if it's the exact route, not when a child is active
       return location.pathname === item.url;
     }
     return (
@@ -170,42 +150,103 @@ export function Sidebar3D() {
       {/* ── Desktop Sidebar ── */}
       <aside
         className={cn(
-          "sticky top-0 z-30 h-screen shrink-0 self-start flex-col transition-all duration-500 ease-out",
-          "hidden lg:flex theme-purple",
-          isCollapsed ? "w-14" : "w-48"
+          "sticky top-0 z-30 h-screen shrink-0 self-start flex-col transition-all duration-300 ease-out",
+          "hidden lg:flex theme-purple relative",
+          isCollapsed ? "w-[60px]" : "w-[224px]"
         )}
-        style={{ background: "hsl(var(--sidebar-background))" }}
+        style={{
+          background:
+            "linear-gradient(180deg, hsl(270 30% 98%) 0%, hsl(275 25% 97%) 100%)",
+          borderRight: "1px solid hsl(270 20% 88% / 0.7)",
+        }}
       >
-        {/* Right edge separator */}
+        {/* ── Premium Header (Brand + Module) ── */}
         <div
-          className="absolute right-0 top-0 bottom-0 w-px"
-          style={{ background: "hsl(200 18% 66%)" }}
-        />
-
-        {/* Collapse/Expand Button */}
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
           className={cn(
-            "absolute -right-4 z-50 flex items-center justify-center",
-            "w-8 h-8 rounded-full bg-card border-2 border-primary text-primary shadow-md",
-            "hover:shadow-lg hover:scale-110 transition-all"
+            "relative shrink-0 transition-all duration-300",
+            isCollapsed ? "px-2 pt-4 pb-3" : "px-3 pt-4 pb-3"
           )}
-          style={{ top: 36 }}
-          title={isCollapsed ? "Expandera sidebar" : "Dölj sidebar"}
+          style={{ borderBottom: "1px solid hsl(270 20% 88% / 0.55)" }}
         >
-          <ChevronsLeft
+          <div
             className={cn(
-              "w-4 h-4 transition-transform duration-300",
-              isCollapsed && "rotate-180"
+              "flex items-center gap-2.5",
+              isCollapsed && "justify-center"
             )}
-          />
-        </button>
+          >
+            {/* Avatar */}
+            <div
+              className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center shadow-sm"
+              style={{
+                background:
+                  "linear-gradient(135deg, hsl(270 55% 60%) 0%, hsl(285 55% 45%) 100%)",
+                boxShadow:
+                  "0 1px 2px hsl(270 40% 25% / 0.18), inset 0 1px 0 hsl(0 0% 100% / 0.25)",
+              }}
+            >
+              <Sparkles className="w-[18px] h-[18px] text-white" strokeWidth={2} />
+            </div>
 
-        {/* Top padding */}
-        <div className="pt-4 pb-1" />
+            {!isCollapsed && (
+              <div className="flex flex-col min-w-0 leading-tight">
+                <span
+                  className="text-[13px] font-semibold tracking-tight truncate"
+                  style={{ color: "hsl(280 40% 18%)" }}
+                >
+                  EventFlow
+                </span>
+                <span
+                  className="text-[10.5px] font-medium uppercase tracking-[0.08em] truncate"
+                  style={{ color: "hsl(var(--primary))" }}
+                >
+                  Operations Hub
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Integrated collapse button */}
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className={cn(
+              "absolute -right-3 top-7 z-50 flex items-center justify-center",
+              "w-6 h-6 rounded-full transition-all duration-200",
+              "shadow-sm hover:shadow-md hover:scale-105"
+            )}
+            style={{
+              background: "hsl(0 0% 100%)",
+              border: "1px solid hsl(270 25% 82%)",
+              color: "hsl(var(--primary))",
+            }}
+            title={isCollapsed ? "Expandera sidebar" : "Dölj sidebar"}
+            aria-label={isCollapsed ? "Expandera sidebar" : "Dölj sidebar"}
+          >
+            <ChevronsLeft
+              className={cn(
+                "w-3.5 h-3.5 transition-transform duration-300",
+                isCollapsed && "rotate-180"
+              )}
+              strokeWidth={2.2}
+            />
+          </button>
+        </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-2 pt-2 pb-4 space-y-px overflow-y-auto">
+        <nav
+          className={cn(
+            "flex-1 pt-3 pb-4 overflow-y-auto space-y-0.5",
+            isCollapsed ? "px-2" : "px-2.5"
+          )}
+        >
+          {!isCollapsed && (
+            <div
+              className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em]"
+              style={{ color: "hsl(270 15% 50%)" }}
+            >
+              Översikt
+            </div>
+          )}
+
           {navigationItems.map((item) => {
             const hasChildren = !!item.children?.length;
             const hasActiveChild =
@@ -218,90 +259,72 @@ export function Sidebar3D() {
             const active = isItemActive(item);
             const expanded = expandedItems.includes(item.url);
             const hovered = hoveredUrl === item.url;
-            const pressed = pressedUrl === item.url;
 
             const sharedMouseProps = {
               onMouseEnter: () => setHoveredUrl(item.url),
-              onMouseLeave: () => {
-                setHoveredUrl(null);
-                setPressedUrl(null);
-              },
-              onMouseDown: () => setPressedUrl(item.url),
-              onMouseUp: () => setPressedUrl(null),
+              onMouseLeave: () => setHoveredUrl(null),
             };
 
-            /* ── Icon ── */
             const iconEl = (
-              <div className="shrink-0 flex items-center justify-center w-4 h-4">
+              <div className="shrink-0 flex items-center justify-center w-[18px] h-[18px]">
                 <item.icon
                   className={cn(
-                    "w-[14px] h-[14px]",
-                    active
-                      ? "text-primary"
-                      : hasActiveChild
-                        ? "text-foreground/55"
-                        : "text-foreground/60"
+                    "w-[16px] h-[16px] transition-colors",
+                    active || hasActiveChild
+                      ? "text-[hsl(var(--primary))]"
+                      : "text-[hsl(270_15%_45%)]"
                   )}
-                  strokeWidth={1.8}
+                  strokeWidth={active ? 2.1 : 1.75}
                 />
               </div>
             );
 
-            /* ── Label ── */
             const labelEl = !isCollapsed && (
               <span
                 className={cn(
-                  "text-[13px] leading-none tracking-[-0.005em] truncate flex-1",
+                  "text-[13px] leading-none tracking-[-0.005em] truncate flex-1 transition-colors",
                   active
-                    ? "font-semibold text-foreground"
+                    ? "font-semibold text-[hsl(280_40%_22%)]"
                     : hasActiveChild
-                      ? "font-medium text-foreground/[0.68]"
-                      : "font-medium text-foreground/[0.72]"
+                      ? "font-medium text-[hsl(280_30%_30%)]"
+                      : "font-medium text-[hsl(270_18%_32%)]"
                 )}
               >
                 {item.title}
               </span>
             );
 
-            /* ── Badge ── */
             const badgeEl = item.badge ? (
               isCollapsed ? (
-                <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-background" />
+                <span
+                  className="absolute top-1 right-1 h-2 w-2 rounded-full ring-2 ring-white"
+                  style={{ background: "hsl(0 75% 58%)" }}
+                />
               ) : (
-                <span className="h-4 min-w-4 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold px-1 flex items-center justify-center">
+                <span
+                  className="h-[18px] min-w-[18px] rounded-full text-[10px] font-bold px-1.5 flex items-center justify-center text-white"
+                  style={{ background: "hsl(0 75% 58%)" }}
+                >
                   {item.badge}
                 </span>
               )
             ) : null;
 
-            /* ── Item classes ── */
             const itemClassName = cn(
-              "relative flex items-center justify-start gap-2.5 rounded-md text-left transition-all duration-150",
+              "relative flex items-center gap-2.5 rounded-lg text-left transition-all duration-150 group",
               isCollapsed
-                ? "justify-center px-2 py-[10px]"
-                : active
-                  ? "py-[9px] pl-[7px] pr-2"
-                  : "py-[9px] pl-[9px] pr-2"
+                ? "justify-center px-2 py-2.5"
+                : "py-[9px] pl-2.5 pr-2 w-full"
             );
 
-            /* ── Active/hover/press styles ── */
             const itemStyle: React.CSSProperties = active
               ? {
-                  background: "hsl(200 14% 93%)",
-                  borderLeft: "2.5px solid hsl(var(--primary))",
+                  background: "hsl(var(--primary) / 0.10)",
+                  boxShadow: "inset 2px 0 0 hsl(var(--primary))",
                 }
-              : hasActiveChild
-                ? {
-                    borderLeft: "2px solid transparent",
-                  }
-                : {
-                    borderLeft: "2px solid transparent",
-                    ...(pressed
-                      ? { background: "hsl(200 14% 50% / 0.13)" }
-                      : hovered
-                        ? { background: "hsl(200 14% 50% / 0.08)" }
-                        : {}),
-                  };
+              : hovered
+                ? { background: "hsl(var(--primary) / 0.06)" }
+                : {};
 
             return (
               <div key={item.url} className="relative">
@@ -311,7 +334,7 @@ export function Sidebar3D() {
                       navigate(item.url);
                       toggleExpanded(item.url);
                     }}
-                    className={cn(itemClassName, "w-full")}
+                    className={itemClassName}
                     style={itemStyle}
                     {...sharedMouseProps}
                   >
@@ -321,9 +344,13 @@ export function Sidebar3D() {
                     {!isCollapsed && (
                       <ChevronDown
                         className={cn(
-                          "w-3.5 h-3.5 text-muted-foreground/50 shrink-0 transition-transform duration-200",
-                          expanded && "rotate-180"
+                          "w-3.5 h-3.5 shrink-0 transition-transform duration-200",
+                          expanded ? "rotate-180" : "",
+                          active || hasActiveChild
+                            ? "text-[hsl(var(--primary))]"
+                            : "text-[hsl(270_15%_55%)]"
                         )}
+                        strokeWidth={2}
                       />
                     )}
                     {isCollapsed && (
@@ -333,7 +360,7 @@ export function Sidebar3D() {
                 ) : (
                   <NavLink
                     to={item.url}
-                    className={cn(itemClassName)}
+                    className={itemClassName}
                     style={itemStyle}
                     {...sharedMouseProps}
                   >
@@ -346,9 +373,12 @@ export function Sidebar3D() {
                   </NavLink>
                 )}
 
-                {/* ── Sub-items ── */}
+                {/* Sub-items */}
                 {hasChildren && !isCollapsed && expanded && (
-                  <div className="ml-5 pl-3 border-l border-border/40 space-y-0.5 mt-0.5">
+                  <div
+                    className="mt-1 mb-1 ml-[18px] pl-3 space-y-0.5"
+                    style={{ borderLeft: "1px solid hsl(270 20% 86%)" }}
+                  >
                     {item.children!.map((child) => {
                       const childActive = isChildActive(child.url);
                       return (
@@ -356,18 +386,42 @@ export function Sidebar3D() {
                           key={child.url}
                           to={child.url}
                           className={cn(
-                            "flex items-center gap-1.5 rounded-[8px] border px-2 py-1.5 text-[12px] transition-colors",
-                            childActive
-                              ? "border-primary/40 bg-primary/15 text-primary font-semibold"
-                              : "border-transparent text-muted-foreground hover:bg-muted/20 hover:text-foreground"
+                            "flex items-center gap-2 rounded-md px-2 py-1.5 text-[12px] transition-all duration-150"
                           )}
-                          onMouseEnter={() => setHoveredUrl(child.url)}
-                          onMouseLeave={() => setHoveredUrl(null)}
+                          style={
+                            childActive
+                              ? {
+                                  background: "hsl(var(--primary) / 0.10)",
+                                  color: "hsl(280 45% 28%)",
+                                  fontWeight: 600,
+                                }
+                              : {
+                                  color: "hsl(270 14% 42%)",
+                                }
+                          }
+                          onMouseEnter={(e) => {
+                            if (!childActive)
+                              (e.currentTarget as HTMLElement).style.background =
+                                "hsl(var(--primary) / 0.05)";
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!childActive)
+                              (e.currentTarget as HTMLElement).style.background =
+                                "transparent";
+                          }}
                         >
                           {child.icon && (
-                            <child.icon className="w-3.5 h-3.5 shrink-0" />
+                            <child.icon
+                              className="w-3.5 h-3.5 shrink-0"
+                              strokeWidth={childActive ? 2.1 : 1.75}
+                              style={{
+                                color: childActive
+                                  ? "hsl(var(--primary))"
+                                  : "hsl(270 12% 52%)",
+                              }}
+                            />
                           )}
-                          <span>{child.title}</span>
+                          <span className="truncate">{child.title}</span>
                         </NavLink>
                       );
                     })}
@@ -378,12 +432,24 @@ export function Sidebar3D() {
           })}
         </nav>
 
-        {/* ── Divider + Bottom Section ── */}
+        {/* ── Bottom subtle footer ── */}
         <div
-          className="mx-0"
-          style={{ borderTop: "1px solid hsl(var(--sidebar-border))" }}
+          className="shrink-0 px-3 py-2.5"
+          style={{ borderTop: "1px solid hsl(270 20% 88% / 0.55)" }}
         >
-          <div className="p-4" />
+          {!isCollapsed ? (
+            <div
+              className="text-[10px] font-medium tracking-wide"
+              style={{ color: "hsl(270 12% 55%)" }}
+            >
+              v2 · Planning
+            </div>
+          ) : (
+            <div
+              className="h-1.5 w-1.5 rounded-full mx-auto"
+              style={{ background: "hsl(var(--primary) / 0.4)" }}
+            />
+          )}
         </div>
       </aside>
 
@@ -391,59 +457,69 @@ export function Sidebar3D() {
       <nav
         className="fixed bottom-0 left-0 right-0 z-50 lg:hidden theme-purple"
         style={{
-          background: "hsl(var(--sidebar-background) / 0.90)",
+          background: "hsl(270 30% 98% / 0.92)",
           backdropFilter: "blur(24px)",
           WebkitBackdropFilter: "blur(24px)",
-          borderTop: "1px solid hsl(var(--border) / 0.50)",
-          boxShadow:
-            "0 -1px 0 hsl(200 14% 82%), 0 -4px 12px hsl(200 20% 15% / 0.08)",
+          borderTop: "1px solid hsl(270 20% 86% / 0.6)",
+          boxShadow: "0 -4px 12px hsl(270 30% 25% / 0.06)",
         }}
       >
         <div className="flex items-center justify-around py-2 px-4">
-          {navigationItems.filter((_, i) => i <= 4).map((item) => {
-            const hasChildren = !!item.children?.length;
-            const active = hasChildren
-              ? item.children!.some(
-                  (child) => location.pathname === child.url
-                )
-              : location.pathname === item.url ||
-                location.pathname.startsWith(item.url + "/");
-            const targetUrl = hasChildren ? item.children![0].url : item.url;
+          {navigationItems
+            .filter((_, i) => i <= 4)
+            .map((item) => {
+              const hasChildren = !!item.children?.length;
+              const active = hasChildren
+                ? item.children!.some(
+                    (child) => location.pathname === child.url
+                  )
+                : location.pathname === item.url ||
+                  location.pathname.startsWith(item.url + "/");
+              const targetUrl = hasChildren ? item.children![0].url : item.url;
 
-            return (
-              <NavLink
-                key={item.url}
-                to={targetUrl}
-                className="relative flex flex-col items-center gap-1 py-2 px-3 rounded-xl transition-all duration-150"
-              >
-                {active && (
-                  <div
-                    className="absolute inset-0 rounded-xl"
-                    style={{ background: "hsl(var(--primary) / 0.08)" }}
-                  />
-                )}
-                {item.badge && (
-                  <span className="absolute top-1.5 right-2 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-background z-20" />
-                )}
-                <item.icon
-                  size={20}
-                  className="relative z-10"
-                  color={active ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))"}
-                />
-                <span
-                  className="relative z-10 truncate max-w-[4rem] font-medium"
-                  style={{
-                    fontSize: 10,
-                    color: active
-                      ? "hsl(var(--primary))"
-                      : "hsl(var(--muted-foreground))",
-                  }}
+              return (
+                <NavLink
+                  key={item.url}
+                  to={targetUrl}
+                  className="relative flex flex-col items-center gap-1 py-2 px-3 rounded-xl transition-all duration-150"
                 >
-                  {item.title}
-                </span>
-              </NavLink>
-            );
-          })}
+                  {active && (
+                    <div
+                      className="absolute inset-0 rounded-xl"
+                      style={{ background: "hsl(var(--primary) / 0.10)" }}
+                    />
+                  )}
+                  {item.badge && (
+                    <span
+                      className="absolute top-1.5 right-2 h-2 w-2 rounded-full ring-2 ring-white z-20"
+                      style={{ background: "hsl(0 75% 58%)" }}
+                    />
+                  )}
+                  <item.icon
+                    size={20}
+                    className="relative z-10"
+                    color={
+                      active
+                        ? "hsl(var(--primary))"
+                        : "hsl(270 14% 45%)"
+                    }
+                    strokeWidth={active ? 2.1 : 1.8}
+                  />
+                  <span
+                    className="relative z-10 truncate max-w-[4rem]"
+                    style={{
+                      fontSize: 10,
+                      fontWeight: active ? 600 : 500,
+                      color: active
+                        ? "hsl(var(--primary))"
+                        : "hsl(270 14% 45%)",
+                    }}
+                  >
+                    {item.title}
+                  </span>
+                </NavLink>
+              );
+            })}
         </div>
       </nav>
     </>
