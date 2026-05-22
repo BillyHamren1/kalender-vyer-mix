@@ -102,6 +102,10 @@ export const StaffGanttMirrorTimeline: React.FC<Props> = ({ date }) => {
     staffName: staff?.name ?? null,
   });
 
+  if (error) {
+    console.warn('[StaffGanttMirrorTimeline] timeline fetch failed', error.message);
+  }
+
   return (
     <section className="rounded-2xl border border-border bg-card p-3 shadow-sm space-y-2">
       <div className="flex items-center justify-between">
@@ -113,7 +117,7 @@ export const StaffGanttMirrorTimeline: React.FC<Props> = ({ date }) => {
 
       {error && (
         <div className="text-xs text-destructive italic">
-          Kunde inte hämta tidslinjen ({error.message}).
+          Tidslinjen kunde inte uppdateras just nu. Försök igen om en stund.
         </div>
       )}
 
