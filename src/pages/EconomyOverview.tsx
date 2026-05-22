@@ -3,7 +3,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,6 +15,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Banknote, ChevronDown, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PageContainer } from '@/components/ui/PageContainer';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { useEconomyDashboard } from '@/hooks/useEconomyDashboard';
 import type { EconomyProjectInsight } from '@/types/economyOverview';
 import { StaffEconomyView } from '@/components/economy/StaffEconomyView';
@@ -90,44 +91,44 @@ const ProjectEconomyDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* A. Quick summary counters — compact */}
+      {/* A. Quick summary counters — Planning premium KPI cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="border-border/40">
-          <CardContent className="p-3">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Aktiva projekt</p>
-            <p className="text-2xl font-bold text-foreground mt-1">{s.ongoingCount + s.upcomingCount}</p>
-            <p className="text-[10px] text-muted-foreground">{s.ongoingCount} pågående · {s.upcomingCount} kommande</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border/40">
-          <CardContent className="p-3">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Snittmarginal</p>
-            <p className={cn(
-              'text-2xl font-bold mt-1',
-              s.projectedMarginPercent >= 15 ? 'text-green-600' :
-              s.projectedMarginPercent >= 5 ? 'text-amber-600' : 'text-red-600'
-            )}>
-              {s.projectedMarginPercent.toFixed(0)}%
-            </p>
-            <p className="text-[10px] text-muted-foreground">över alla projekt</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border/40">
-          <CardContent className="p-3">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Redo att fakturera</p>
-            <p className="text-2xl font-bold text-foreground mt-1">{formatCurrency(s.readyToInvoiceAmount)}</p>
-            <p className="text-[10px] text-muted-foreground">{s.readyForInvoicingCount} projekt</p>
-          </CardContent>
-        </Card>
-        <Card className={cn('border-border/40', s.riskProjectCount > 0 && 'border-destructive/30')}>
-          <CardContent className="p-3">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Riskprojekt</p>
-            <p className={cn('text-2xl font-bold mt-1', s.riskProjectCount > 0 ? 'text-destructive' : 'text-foreground')}>
-              {s.riskProjectCount}
-            </p>
-            <p className="text-[10px] text-muted-foreground">{s.completedNotFullyInvoicedCount} avslutade ej stängda</p>
-          </CardContent>
-        </Card>
+        <div className="planning-stat-card">
+          <p className="text-[10px] font-bold text-[hsl(280_45%_38%)] uppercase tracking-[0.08em]">Aktiva projekt</p>
+          <p className="text-2xl font-bold text-foreground mt-1 tabular-nums">{s.ongoingCount + s.upcomingCount}</p>
+          <p className="text-[10.5px] text-muted-foreground mt-0.5">{s.ongoingCount} pågående · {s.upcomingCount} kommande</p>
+        </div>
+        <div className="planning-stat-card">
+          <p className="text-[10px] font-bold text-[hsl(280_45%_38%)] uppercase tracking-[0.08em]">Snittmarginal</p>
+          <p className={cn(
+            'text-2xl font-bold mt-1 tabular-nums',
+            s.projectedMarginPercent >= 15 ? 'text-emerald-600' :
+            s.projectedMarginPercent >= 5 ? 'text-amber-600' : 'text-red-600'
+          )}>
+            {s.projectedMarginPercent.toFixed(0)}%
+          </p>
+          <p className="text-[10.5px] text-muted-foreground mt-0.5">över alla projekt</p>
+        </div>
+        <div className="planning-stat-card">
+          <p className="text-[10px] font-bold text-[hsl(280_45%_38%)] uppercase tracking-[0.08em]">Redo att fakturera</p>
+          <p className="text-2xl font-bold text-foreground mt-1 tabular-nums">{formatCurrency(s.readyToInvoiceAmount)}</p>
+          <p className="text-[10.5px] text-muted-foreground mt-0.5">{s.readyForInvoicingCount} projekt</p>
+        </div>
+        <div
+          className={cn(
+            'planning-stat-card',
+            s.riskProjectCount > 0 && 'border-destructive/40 bg-gradient-to-b from-white to-red-50/40',
+          )}
+        >
+          <p className={cn(
+            'text-[10px] font-bold uppercase tracking-[0.08em]',
+            s.riskProjectCount > 0 ? 'text-destructive' : 'text-[hsl(280_45%_38%)]',
+          )}>Riskprojekt</p>
+          <p className={cn('text-2xl font-bold mt-1 tabular-nums', s.riskProjectCount > 0 ? 'text-destructive' : 'text-foreground')}>
+            {s.riskProjectCount}
+          </p>
+          <p className="text-[10.5px] text-muted-foreground mt-0.5">{s.completedNotFullyInvoicedCount} avslutade ej stängda</p>
+        </div>
       </div>
 
       {/* B. Slutförda projekt — kräver utvärdering, äldsta överst */}
@@ -178,78 +179,59 @@ const ProjectEconomyDashboard: React.FC = () => {
 };
 
 const tabTriggerClass =
-  "relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground";
+  "relative px-4 py-3 rounded-none border-b-2 border-transparent " +
+  "data-[state=active]:border-[hsl(270_50%_55%)] data-[state=active]:bg-transparent data-[state=active]:shadow-none " +
+  "bg-transparent text-muted-foreground data-[state=active]:text-[hsl(280_55%_30%)] " +
+  "font-semibold text-[13px] tracking-tight transition-colors hover:text-[hsl(280_45%_35%)]";
 
 const EconomyOverview: React.FC = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 theme-purple">
-      <div className="container mx-auto px-4 py-8 max-w-[1600px]">
-        {/* Header */}
-        <div className="relative mb-8">
-          <div className="absolute inset-0 -z-10 overflow-hidden rounded-3xl">
-            <div className="absolute -top-20 -right-20 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
-            <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-primary/3 rounded-full blur-2xl" />
-          </div>
-          
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 p-6 rounded-2xl bg-gradient-to-r from-card/80 via-card to-card/80 backdrop-blur-sm border border-border/50 shadow-lg">
-            <div className="flex items-center gap-4">
-              <div 
-                className="relative p-3.5 rounded-2xl shadow-lg"
-                style={{ background: 'var(--gradient-icon)', boxShadow: '0 8px 32px hsl(var(--primary) / 0.3)' }}
-              >
-                <Banknote className="h-7 w-7 text-primary-foreground" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-                  Projektöversikt
-                </h1>
-                <p className="text-muted-foreground mt-0.5">
-                  Kontrolltorn · Kostnader · Attest · Överlämning
-                </p>
-              </div>
-            </div>
-          </div>
+    <PageContainer theme="purple">
+      <PageHeader
+        icon={Banknote}
+        variant="purple"
+        title="Projektöversikt"
+        subtitle="Kontrolltorn · Kostnader · Attest · Överlämning"
+      />
+
+      {/* Tabbed content */}
+      <Tabs defaultValue="projects" className="space-y-6 mt-4">
+        <div className="planning-card px-2 py-1">
+          <TabsList className="h-auto p-0 bg-transparent gap-0 w-full grid grid-cols-4">
+            <TabsTrigger value="projects" className={tabTriggerClass}>
+              Kontrollcenter
+            </TabsTrigger>
+            <TabsTrigger value="billing" className={tabTriggerClass}>
+              Överlämning & status
+            </TabsTrigger>
+            <TabsTrigger value="staff" className={tabTriggerClass}>
+              Personal
+            </TabsTrigger>
+            <TabsTrigger value="time-reports" className={tabTriggerClass}>
+              Utlägg
+            </TabsTrigger>
+          </TabsList>
         </div>
 
-        {/* Tabbed content */}
-        <Tabs defaultValue="projects" className="space-y-6">
-          <div className="rounded-xl border border-border/40 bg-card px-2 py-1" style={{ boxShadow: '0 1px 3px hsl(200 15% 15% / 0.04)' }}>
-            <TabsList className="h-auto p-0 bg-transparent gap-0 w-full grid grid-cols-4">
-              <TabsTrigger value="projects" className={tabTriggerClass}>
-                Kontrollcenter
-              </TabsTrigger>
-              <TabsTrigger value="billing" className={tabTriggerClass}>
-                Överlämning & status
-              </TabsTrigger>
-              <TabsTrigger value="staff" className={tabTriggerClass}>
-                Personal
-              </TabsTrigger>
-              <TabsTrigger value="time-reports" className={tabTriggerClass}>
-                Utlägg
-              </TabsTrigger>
-            </TabsList>
-          </div>
+        <TabsContent value="projects">
+          <ProjectEconomyDashboard />
+        </TabsContent>
 
-          <TabsContent value="projects">
-            <ProjectEconomyDashboard />
-          </TabsContent>
+        <TabsContent value="billing">
+          <BillingSection />
+        </TabsContent>
 
-          <TabsContent value="billing">
-            <BillingSection />
-          </TabsContent>
+        <TabsContent value="staff">
+          <StaffEconomyView />
+        </TabsContent>
 
-          <TabsContent value="staff">
-            <StaffEconomyView />
-          </TabsContent>
-
-          <TabsContent value="time-reports">
-            <React.Suspense fallback={<Skeleton className="h-96" />}>
-              <EconomyTimeReportsContent />
-            </React.Suspense>
-          </TabsContent>
-        </Tabs>
-      </div>
-    </div>
+        <TabsContent value="time-reports">
+          <React.Suspense fallback={<Skeleton className="h-96" />}>
+            <EconomyTimeReportsContent />
+          </React.Suspense>
+        </TabsContent>
+      </Tabs>
+    </PageContainer>
   );
 };
 
