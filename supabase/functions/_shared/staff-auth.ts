@@ -100,7 +100,24 @@ export async function authenticateStaffRequest(
     }
 
     if (opts.requestedStaffId && opts.requestedStaffId !== mobile.staffId) {
-      return { ok: false, err: { status: 403, error: "Staff may only read self" } };
+      // Tillåt privilegierade roller (admin/projekt/lager) att läsa andra staff i samma org
+      // — samma policy som JWT-vägen. Annars bryts admin-vyer när mobile-token
+      // ligger kvar i localStorage på webben.
+      let isPrivileged = false;
+      if (staffRow.user_id) {
+        const { data: roles } = await admin
+          .from("user_roles").select("role").eq("user_id", staffRow.user_id);
+        isPrivileged = (roles ?? []).some((r) => PRIVILEGED_ROLES.has(r.role as string));
+      }
+      if (!isPrivileged) {
+        return { ok: false, err: { status: 403, error: "Staff may only read self" } };
+      }
+      const { data: targetStaff } = await admin
+        .from("staff_members").select("id, organization_id").eq("id", opts.requestedStaffId).maybeSingle();
+      if (!targetStaff || targetStaff.organization_id !== staffRow.organization_id) {
+        return { ok: false, err: { status: 404, error: "Staff not found in your organization" } };
+      }
+      return { ok: true, auth: { mode: "mobile", staffId: opts.requestedStaffId, organizationId: staffRow.organization_id as string, admin } };
     }
     return { ok: true, auth: { mode: "mobile", staffId: mobile.staffId, organizationId: staffRow.organization_id as string, admin } };
   }
