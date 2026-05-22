@@ -185,6 +185,7 @@ const PeriodView = ({
   kind, anchor, onOpen,
 }: { kind: 'week' | 'month'; anchor: Date; onOpen: (d: string) => void }) => {
   const { period, isLoading, error } = useStaffTimeReportPeriod({ kind, anchor });
+  const { suggestionsByDate } = useStaffGpsWeekSuggestion({ kind, anchor });
   const totals = period?.totals;
 
   const figures = {
