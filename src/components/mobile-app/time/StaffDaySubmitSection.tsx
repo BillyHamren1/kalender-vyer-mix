@@ -389,6 +389,20 @@ const StaffDaySubmitSection: React.FC<Props> = ({ staffId, date, snapshot }) => 
           </>
         )}
       </button>
+
+      <BreakRequiredDialog
+        open={breakDialogOpen}
+        passHours={grossMinutes / 60}
+        initialComment={comment}
+        onCancel={() => setBreakDialogOpen(false)}
+        onConfirm={async ({ breakMinutes: bm, comment: cm }) => {
+          setBreakDialogOpen(false);
+          setBreakMinutes(bm);
+          setCustomMode(!PRESETS.includes(bm as typeof PRESETS[number]));
+          if (cm) setComment(cm);
+          await doSubmit(bm, cm ?? (comment.trim() ? comment.trim() : null));
+        }}
+      />
     </section>
   );
 };
