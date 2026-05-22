@@ -54,6 +54,7 @@ export const BlockEditDialog: React.FC<Props> = ({ block, date, onClose, onSave 
   const [endHm, setEndHm] = useState('');
   const [projectLabel, setProjectLabel] = useState('');
   const [comment, setComment] = useState('');
+  const [step, setStep] = useState<'edit' | 'confirm'>('edit');
 
   useEffect(() => {
     if (!block) return;
