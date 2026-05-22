@@ -625,18 +625,6 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         const color = colorForSegment(s.colorIndex, 'move');
         const labelIds = new Set(s.labelPings.map((p) => p.id));
 
-        // Säkerställ att första pingen UTANFÖR geo alltid visas: när
-        // en resa påbörjas (ping innanför → ping utanför) markeras
-        // avgångspunkten, även om den inte träffar 5-minuters-rastret.
-        if (fences.length) {
-          for (let i = 1; i < s.pings.length; i++) {
-            const prev = s.pings[i - 1];
-            const curr = s.pings[i];
-            if (pingInsideAnyFence(prev, fences) && !pingInsideAnyFence(curr, fences)) {
-              labelIds.add(curr.id);
-            }
-          }
-        }
 
         for (const p of s.pings) {
           if (!labelIds.has(p.id)) continue;
