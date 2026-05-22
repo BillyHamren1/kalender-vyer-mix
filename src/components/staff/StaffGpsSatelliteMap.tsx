@@ -3,16 +3,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { fetchStaffMembers } from '@/services/staffService';
 import { supabase } from '@/integrations/supabase/client';
-import { useStaffGpsPingsForDay, type RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
-import { useDayKnownSites } from '@/hooks/useDayKnownSites';
-import { useAllActiveProjectGeofences } from '@/hooks/useAllActiveProjectGeofences';
-import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
+import type { RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
+import { useMobileStaffDayPings } from '@/hooks/staff/useMobileStaffDayPings';
 import RawGpsSatelliteMap from './RawGpsSatelliteMap';
 import { StaffGpsWeekPanel } from './StaffGpsWeekPanel';
 import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
 import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
 import { type PlaceVisit } from '@/lib/staff/pingPlaceSegments';
-import { buildExactGeofenceVisits } from '@/lib/staff/buildExactGeofenceVisits';
 
 interface Props {
   initialStaffId?: string | null;
@@ -62,6 +59,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
       queryClient.invalidateQueries({ queryKey: ['day-known-sites'] }),
       queryClient.invalidateQueries({ queryKey: ['organization-locations-known'] }),
       queryClient.invalidateQueries({ queryKey: ['all-active-project-geofences'] }),
+      queryClient.invalidateQueries({ queryKey: ['mobile-staff-day-pings', effectiveStaffId, dateStr] }),
     ]);
   }, [queryClient]);
 
@@ -107,8 +105,9 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
       queryClient.invalidateQueries({ queryKey: ['day-known-sites'] }),
       queryClient.invalidateQueries({ queryKey: ['organization-locations-known'] }),
       queryClient.invalidateQueries({ queryKey: ['all-active-project-geofences'] }),
+      queryClient.invalidateQueries({ queryKey: ['mobile-staff-day-pings', effectiveStaffId, dateStr] }),
     ]);
-  }, [queryClient]);
+  }, [dateStr, effectiveStaffId, queryClient]);
 
 
 
@@ -161,8 +160,24 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
 
   const effectiveStaffId = staff.some((s) => s.id === staffId) ? staffId : (staff[0]?.id ?? null);
 
-  const pingsQuery = useStaffGpsPingsForDay(effectiveStaffId, dateStr);
-  const pings: RawStaffGpsPing[] = pingsQuery.data ?? [];
+  const snapshotQuery = useMobileStaffDayPings(effectiveStaffId, dateStr, !!effectiveStaffId);
+  const pings: RawStaffGpsPing[] = useMemo(() => (snapshotQuery.data?.pings ?? []).map((p) => ({
+    id: p.id,
+    recorded_at: p.recorded_at,
+    lat: p.lat,
+    lng: p.lng,
+    accuracy: p.accuracy,
+    speed: null,
+    source: null,
+    battery_percent: null,
+    is_charging: null,
+    app_version: null,
+    app_build: null,
+    platform: null,
+    os_version: null,
+    device_model: null,
+    app_id: null,
+  })), [snapshotQuery.data?.pings]);
 
   // (Månadsprickar borttagna — vecknavigeringen ersätter månadskalendern.)
   void calendarMonth;
@@ -171,50 +186,33 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
   // Geofences: alla org-platser + DAGENS targets för vald person +
   // ALLA aktiva projekt/stora projekt (oavsett person/dag) så kartan alltid
   // visar varje projekts geofence. Matchar regeln "inside geo = tid där".
-  const { knownSites } = useDayKnownSites(effectiveStaffId ?? '', dateStr, !!effectiveStaffId);
-  const { data: allProjectSites = [] } = useAllActiveProjectGeofences(dateStr, true);
-  const { data: orgLocations = [] } = useOrganizationLocations();
-  // Polygoner finns ENDAST på organization_locations. Mappa id → polygon
-  // så vi kan attacha den till `loc:<id>`-sites utan att röra KnownSite-typen.
-  const polygonByLocId = useMemo(() => {
-    const m = new Map<string, GeoJSON.Polygon>();
-    for (const l of orgLocations) {
-      if (l.polygon) m.set(`loc:${l.id}`, l.polygon);
-    }
-    return m;
-  }, [orgLocations]);
-  const polygonByProjectId = useMemo(() => {
-    const m = new Map<string, GeoJSON.Polygon>();
-    for (const s of allProjectSites) {
-      if (s.polygon) m.set(s.id, s.polygon);
-    }
-    return m;
-  }, [allProjectSites]);
   const geofences = useMemo<GeofenceSite[]>(() => {
-    const out: GeofenceSite[] = [];
-    const seen = new Set<string>();
-    const push = (s: { id: string; name: string; lat: number; lng: number; radiusMeters: number }) => {
-      if (seen.has(s.id)) return;
-      seen.add(s.id);
-      out.push({
-        id: s.id, name: s.name, lat: s.lat, lng: s.lng,
-        radiusMeters: s.radiusMeters,
-        polygon: polygonByLocId.get(s.id) ?? polygonByProjectId.get(s.id),
-      });
-    };
-    for (const s of knownSites) push(s);
-    for (const s of allProjectSites) push(s);
-    return out;
-  }, [knownSites, allProjectSites, polygonByLocId, polygonByProjectId]);
-
-  // Geofence-besök: räkna ut IN/UT-tid per ping ↔ känd plats (DAGENS sites).
-  const geofenceVisits = useMemo<PlaceVisit[]>(() => {
-    if (!pings.length || !geofences.length) return [];
-    const asPings = pings.map(p => ({
-      lat: p.lat, lng: p.lng, recorded_at: p.recorded_at, accuracy: p.accuracy ?? null,
+    return (snapshotQuery.data?.geofences ?? []).map((site) => ({
+      id: site.id,
+      name: site.name,
+      lat: site.lat,
+      lng: site.lng,
+      radiusMeters: site.radiusMeters,
+      polygon: site.polygon ?? undefined,
     }));
-    return buildExactGeofenceVisits(asPings, geofences);
-  }, [pings, geofences]);
+  }, [snapshotQuery.data?.geofences]);
+
+  const geofenceVisits = useMemo<PlaceVisit[]>(() => (snapshotQuery.data?.visits ?? []).map((visit) => ({
+    placeKey: visit.placeKey,
+    knownSite: visit.knownSite,
+    centre: visit.centre,
+    start: visit.start,
+    end: visit.end,
+    durationMin: visit.durationMin,
+    pingCount: visit.pingCount,
+    pings: visit.pings.map((ping) => ({
+      recorded_at: ping.recorded_at,
+      lat: ping.lat,
+      lng: ping.lng,
+      accuracy: ping.accuracy,
+    })),
+    subKind: visit.subKind,
+  })), [snapshotQuery.data?.visits]);
 
   const handleDateChange = useCallback((d: Date) => {
     setDate(d);
@@ -240,7 +238,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
             <RawGpsSatelliteMap pings={pings} geofences={geofences} visits={geofenceVisits} onSaveRadius={saveRadius} onSavePolygon={savePolygon} className="h-full w-full" />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-              {pingsQuery.isLoading ? 'Laddar…' : 'Inga rörelser registrerade för vald dag.'}
+               {snapshotQuery.isLoading ? 'Laddar…' : 'Inga rörelser registrerade för vald dag.'}
             </div>
           )}
         </div>
