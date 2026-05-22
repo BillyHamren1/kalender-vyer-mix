@@ -42,9 +42,13 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
     return 'shadow-primary/15';
   };
 
+  const wrapperClass = isPurple
+    ? 'flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 px-5 py-3.5 rounded-xl border border-[hsl(270_30%_86%)]/60 shadow-sm planning-hero'
+    : 'flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 px-5 py-3.5 rounded-xl bg-card border border-border/40 shadow-sm';
+
   return (
     <div className={cn("mb-4", className)}>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 px-5 py-3.5 rounded-xl bg-card border border-border/40 shadow-sm">
+      <div className={wrapperClass}>
         <div className="flex items-center gap-3">
           <div
             className={cn(
@@ -78,7 +82,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
                 isWarehouse
                   ? "bg-warehouse hover:bg-warehouse-hover shadow-sm shadow-warehouse/20"
                   : isPurple
-                    ? "bg-[hsl(270_45%_55%)] hover:bg-[hsl(270_45%_48%)] shadow-sm shadow-[hsl(270_45%_55%)]/20"
+                    ? "planning-btn-primary px-4 h-8"
                     : "bg-primary hover:bg-[hsl(var(--primary-hover))] shadow-sm shadow-primary/20"
               )}
             >
