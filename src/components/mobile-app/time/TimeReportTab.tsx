@@ -235,7 +235,7 @@ const PeriodView = ({
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <UserDayList days={period?.days ?? []} onOpen={onOpen} />
+          <UserDayList days={period?.days ?? []} onOpen={onOpen} suggestionsByDate={suggestionsByDate} />
         )}
       </div>
     </div>
