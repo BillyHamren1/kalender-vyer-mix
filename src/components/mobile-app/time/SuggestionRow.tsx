@@ -77,9 +77,9 @@ export default function SuggestionRow({ date, suggestion, onOpenDetail, onOpenMa
         <button
           type="button"
           onClick={() => onOpenDetail(date)}
-          className="flex-1 min-w-0 text-left flex items-start gap-3 px-3 py-3 active:bg-muted/40 transition-colors"
+          className="flex-1 min-w-0 text-left flex items-start gap-2.5 px-3 py-3 active:bg-muted/40 transition-colors"
         >
-          <div className="w-12 shrink-0 text-center pt-0.5">
+          <div className="w-10 shrink-0 text-center pt-0.5">
             <p className="text-[10px] uppercase font-bold text-muted-foreground leading-none">
               {format(dateObj, 'EEE', { locale: sv })}
             </p>
@@ -110,19 +110,19 @@ export default function SuggestionRow({ date, suggestion, onOpenDetail, onOpenMa
                       {formatStockholmHm(start)}–{formatStockholmHm(end)}
                     </p>
                   )}
-                  <span className="text-[10px] font-semibold text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded">
-                    FÖRSLAG
-                  </span>
                 </div>
+                <span className="mt-1 inline-block text-[10px] font-semibold text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded">
+                  GPS-FÖRSLAG
+                </span>
 
                 {places.length > 0 ? (
                   <ul className="mt-1.5 space-y-0.5">
                     {places.slice(0, 4).map((p) => (
                       <li
                         key={`${p.kind}::${p.id}`}
-                        className="flex items-baseline justify-between gap-3 text-[12px] leading-snug"
+                        className="flex items-baseline justify-between gap-2 text-[12px] leading-snug"
                       >
-                        <span className="flex items-baseline gap-1.5 min-w-0">
+                        <span className="flex items-baseline gap-1 min-w-0">
                           <MapPin className="w-2.5 h-2.5 text-primary/60 shrink-0 translate-y-[1px]" />
                           <span className="truncate text-foreground/85">{p.name}</span>
                         </span>
@@ -145,17 +145,6 @@ export default function SuggestionRow({ date, suggestion, onOpenDetail, onOpenMa
               </>
             )}
           </div>
-
-          {hasGps && (
-            <span
-              className={cn(
-                'self-start inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold border whitespace-nowrap mt-0.5',
-                'bg-primary/10 text-primary border-primary/20',
-              )}
-            >
-              GPS
-            </span>
-          )}
         </button>
 
         {hasGps && start && end && (
@@ -166,7 +155,7 @@ export default function SuggestionRow({ date, suggestion, onOpenDetail, onOpenMa
             aria-label="Godkänn GPS-förslag"
             title="Godkänn GPS-förslag"
             className={cn(
-              'shrink-0 w-12 flex items-center justify-center border-l border-border/60 transition-colors',
+              'shrink-0 w-10 flex items-center justify-center border-l border-border/60 transition-colors',
               justApproved
                 ? 'text-emerald-600 bg-emerald-500/10'
                 : 'text-primary hover:bg-primary/10 active:bg-primary/20',
@@ -175,8 +164,6 @@ export default function SuggestionRow({ date, suggestion, onOpenDetail, onOpenMa
           >
             {isSaving ? (
               <Loader2 className="w-4 h-4 animate-spin" />
-            ) : justApproved ? (
-              <Check className="w-4 h-4" />
             ) : (
               <Check className="w-4 h-4" />
             )}
@@ -192,7 +179,7 @@ export default function SuggestionRow({ date, suggestion, onOpenDetail, onOpenMa
             }}
             aria-label="Visa karta"
             title="Visa karta"
-            className="shrink-0 w-11 flex items-center justify-center border-l border-border/60 text-muted-foreground hover:text-primary active:bg-muted/40 transition-colors"
+            className="shrink-0 w-10 flex items-center justify-center border-l border-border/60 text-muted-foreground hover:text-primary active:bg-muted/40 transition-colors"
           >
             <MapIcon className="w-4 h-4" />
           </button>
