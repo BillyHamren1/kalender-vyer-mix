@@ -49,6 +49,8 @@ interface Props {
   onOpen: (date: string) => void;
   /** Sort newest first by default; set false to keep period chronology. */
   newestFirst?: boolean;
+  /** GPS-baserade förslag per datum — visas för dagar utan inskickad rapport. */
+  suggestionsByDate?: Map<string, GpsDaySuggestion>;
 }
 
 /**
