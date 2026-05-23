@@ -378,10 +378,14 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         <span style="opacity:.55">·</span>
         <span style="font-variant-numeric:tabular-nums;color:#7dd3fc">${dur}</span>
       `;
-      const pillMarker = new mapboxgl.Marker({ element: pill, anchor: 'bottom' })
+      // rootEl ägs av Mapbox (transform = lat/lng). Pill (med translateY) ligger i contentEl.
+      const pillRoot = document.createElement('div');
+      pillRoot.style.cssText = 'pointer-events:auto;';
+      pillRoot.appendChild(pill);
+      const pillMarker = new mapboxgl.Marker({ element: pillRoot, anchor: 'bottom' })
         .setLngLat([midLng, midLat])
         .addTo(map);
-      visitMarkersRef.current.push({ marker: pillMarker, el: pill, kind: 'detail' });
+      visitMarkersRef.current.push({ marker: pillMarker, rootEl: pillRoot, contentEl: pill, kind: 'detail' });
     }
 
     applyZoomVisibility();
