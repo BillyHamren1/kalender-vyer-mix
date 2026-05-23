@@ -32,6 +32,10 @@ export interface RawProjectRow {
   rigdaydate?: string | null;
   rigdowndate?: string | null;
   eventdate?: string | null;
+  /** Fallback från kopplad bokning när projektets egna datum är NULL. */
+  booking_rigdaydate?: string | null;
+  booking_rigdowndate?: string | null;
+  booking_eventdate?: string | null;
 }
 
 export interface RawLargeProjectRow {
@@ -44,9 +48,10 @@ export interface RawLargeProjectRow {
   address_geofence_polygon?: unknown;
   deleted_at?: string | null;
   created_at?: string | null;
-  start_date?: string | null;
-  end_date?: string | null;
-  event_date?: string | null;
+  /** Kan vara enskilt datum eller array av datum (multi-day storprojekt). */
+  start_date?: string | string[] | null;
+  end_date?: string | string[] | null;
+  event_date?: string | string[] | null;
 }
 
 export interface ProjectGeofence {
