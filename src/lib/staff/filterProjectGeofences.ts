@@ -157,8 +157,8 @@ export function filterProjectGeofences(
     if (lat === null || lng === null) continue;
     if (dateStr && !isDateInWindow(
       dateStr,
-      [p.rigdaydate, p.eventdate],
-      [p.rigdowndate, p.eventdate],
+      [p.rigdaydate, p.eventdate, p.booking_rigdaydate, p.booking_eventdate],
+      [p.rigdowndate, p.eventdate, p.booking_rigdowndate, p.booking_eventdate],
     )) continue;
     const explicit = p.address_radius_meters !== null && p.address_radius_meters !== undefined && p.address_radius_meters !== '';
     const radius = num(p.address_radius_meters) ?? 150;
