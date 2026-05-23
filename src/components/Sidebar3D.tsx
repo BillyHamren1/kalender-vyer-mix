@@ -217,9 +217,10 @@ export function Sidebar3D() {
             )}
             style={{
               background: "hsl(0 0% 100%)",
-              border: "1px solid hsl(270 25% 82%)",
+              border: "1px solid hsl(240 8% 84%)",
               color: "hsl(var(--primary))",
             }}
+
             title={isCollapsed ? "Expandera sidebar" : "Dölj sidebar"}
             aria-label={isCollapsed ? "Expandera sidebar" : "Dölj sidebar"}
           >
