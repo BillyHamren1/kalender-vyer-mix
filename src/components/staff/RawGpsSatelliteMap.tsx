@@ -521,6 +521,8 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
             .addTo(map);
           geofenceMarkersRef.current.push({ marker, el: wrap });
         }
+        // Stapla badges efter att de monterats (offsetWidth tillgängligt).
+        requestAnimationFrame(() => layoutGeofenceBadges());
         map.on('click', 'geofence-fill', (e) => {
           const f = e.features?.[0];
           if (!f) return;
