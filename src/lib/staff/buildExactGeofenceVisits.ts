@@ -57,6 +57,12 @@ interface OpenVisit {
   pings: Ping[];
 }
 
+interface ClosedVisit {
+  site: GeofenceSite;
+  pings: Ping[];
+  endOverride?: string;
+}
+
 export function buildExactGeofenceVisits(rawPings: Ping[], sites: GeofenceSite[]): PlaceVisit[] {
   if (!rawPings.length || !sites.length) return [];
 
@@ -67,20 +73,25 @@ export function buildExactGeofenceVisits(rawPings: Ping[], sites: GeofenceSite[]
   const visits: PlaceVisit[] = [];
   let open: OpenVisit | null = null;
 
-  const flush = () => {
+  const flush = (opts: { endOverride?: string } = {}) => {
     if (!open) return;
-    const pings = open.pings;
+    const closed: ClosedVisit = {
+      site: open.site,
+      pings: open.pings,
+      endOverride: opts.endOverride,
+    };
+    const pings = closed.pings;
     if (pings.length) {
       const start = pings[0].recorded_at;
-      const end = pings[pings.length - 1].recorded_at;
+      const end = closed.endOverride ?? pings[pings.length - 1].recorded_at;
       const durationMin = Math.max(
         0,
         Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60_000),
       );
       visits.push({
-        placeKey: `site:${open.site.id}:${start}`,
-        knownSite: { id: open.site.id, name: open.site.name },
-        centre: { lat: open.site.lat, lng: open.site.lng },
+        placeKey: `site:${closed.site.id}:${start}`,
+        knownSite: { id: closed.site.id, name: closed.site.name },
+        centre: { lat: closed.site.lat, lng: closed.site.lng },
         start,
         end,
         durationMin,
@@ -104,7 +115,7 @@ export function buildExactGeofenceVisits(rawPings: Ping[], sites: GeofenceSite[]
 
     if (fence && fence.id !== open.site.id) {
       // Bytt projekt — stäng nuvarande exakt där nästa block tar vid.
-      flush();
+      flush({ endOverride: ping.recorded_at });
       open = { site: fence, pings: [ping] };
       continue;
     }
