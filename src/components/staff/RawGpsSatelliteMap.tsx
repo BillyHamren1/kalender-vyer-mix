@@ -130,6 +130,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
   const drawRef = useRef<MapboxDraw | null>(null);
   const drawHandlersRef = useRef<{ cleanup: () => void } | null>(null);
   const visitMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; el: HTMLElement; kind: 'compact' | 'detail' }>>([]);
+  const geofenceMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; el: HTMLElement }>>([]);
 
   const handleReady = (map: mapboxgl.Map) => {
     mapRef.current = map;
@@ -154,6 +155,11 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     visitMarkersRef.current = [];
   }
 
+  function clearGeofenceMarkers() {
+    for (const m of geofenceMarkersRef.current) m.marker.remove();
+    geofenceMarkersRef.current = [];
+  }
+
   function applyZoomVisibility() {
     const map = mapRef.current;
     if (!map) return;
@@ -171,6 +177,12 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         // Behåll ev. befintlig translateY (-22px) genom att lägga scale efter
         el.style.transform = `translateY(-22px) scale(${scale.toFixed(2)})`;
       }
+    }
+    // Geofence-badges: skala upp vid inzoomning så texten blir läsbar
+    const badgeScale = Math.max(0.85, Math.min(2.6, 0.85 + (z - 11) * 0.22));
+    for (const { el } of geofenceMarkersRef.current) {
+      el.style.transformOrigin = 'bottom center';
+      el.style.transform = `translateY(-6px) scale(${badgeScale.toFixed(2)})`;
     }
   }
 
@@ -392,6 +404,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     const apply = () => {
       for (const id of LAYER_IDS) if (map.getLayer(id)) map.removeLayer(id);
       for (const id of SOURCE_IDS) if (map.getSource(id)) map.removeSource(id);
+      clearGeofenceMarkers();
 
       // ── Geofences (ritas FÖRST så pings hamnar ovanpå) ─────────────
       if (fences.length) {
@@ -420,34 +433,65 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
           paint: { 'line-color': ['get', 'color'], 'line-width': 2.5, 'line-opacity': 1 },
           layout: { 'line-cap': 'round', 'line-join': 'round' },
         });
-        map.addLayer({
-          id: 'geofence-label',
-          type: 'symbol',
-          source: 'geofence-label-src',
-          layout: {
-            'text-field': ['get', 'label'],
-            // Skala labeln med zoomnivå så namn/datum/radie blir läsbara när man zoomar in
-            'text-size': [
-              'interpolate', ['exponential', 2], ['zoom'],
-              10, 11,
-              14, 16,
-              17, 28,
-              19, 44,
-              21, 72,
-              22, 96,
-            ],
-            'text-anchor': 'top',
-            'text-offset': [0, 0.6],
-            'text-allow-overlap': false,
-            'text-optional': true,
-            'text-padding': 2,
-          },
-          paint: {
-            'text-color': '#fff',
-            'text-halo-color': '#0f172a',
-            'text-halo-width': 1.5,
-          },
-        });
+        // Premium HTML-badges per geofence (pin + label) — ersätter satellitens text-symbol-look
+        clearGeofenceMarkers();
+        for (const f of labels.features) {
+          const p = f.properties as any;
+          const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates;
+          const color: string = p.color || '#a855f7';
+          const kindLabel: string = p.kindLabel || 'Plats';
+          const name: string = p.name || '';
+          const radius: number = Number(p.radius) || 0;
+
+          const wrap = document.createElement('div');
+          wrap.style.cssText = [
+            'pointer-events:auto','cursor:pointer',
+            'display:flex','flex-direction:column','align-items:center','gap:4px',
+            'transform:translateY(-6px)','transform-origin:bottom center',
+            'transition:transform .15s ease',
+          ].join(';');
+
+          const badge = document.createElement('div');
+          badge.style.cssText = [
+            'display:inline-flex','align-items:center','gap:6px',
+            'padding:4px 9px 4px 6px','border-radius:9999px',
+            'background:rgba(15,23,42,.92)','color:#fff',
+            'font:600 11px/1.15 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif',
+            'letter-spacing:.01em','white-space:nowrap','max-width:260px',
+            `border:1px solid ${color}`,
+            `box-shadow:0 6px 16px -6px rgba(0,0,0,.6),0 0 0 2px rgba(255,255,255,.08),0 0 0 4px ${color}22`,
+            'backdrop-filter:blur(8px) saturate(140%)','-webkit-backdrop-filter:blur(8px) saturate(140%)',
+          ].join(';');
+          const kindChip = `
+            <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 6px;border-radius:9999px;background:${color}22;color:${color};font-size:9px;letter-spacing:.08em;text-transform:uppercase;font-weight:700">
+              <span style="width:5px;height:5px;border-radius:9999px;background:${color};box-shadow:0 0 6px ${color}"></span>
+              ${kindLabel}
+            </span>`;
+          const radiusChip = radius
+            ? `<span style="opacity:.55;font-variant-numeric:tabular-nums;font-size:10px">·&nbsp;${Math.round(radius)} m</span>`
+            : '';
+          badge.innerHTML = `
+            ${kindChip}
+            <span style="overflow:hidden;text-overflow:ellipsis;max-width:180px">${name}</span>
+            ${radiusChip}
+          `;
+
+          const pin = document.createElement('div');
+          pin.style.cssText = [
+            'width:14px','height:14px','border-radius:9999px',
+            `background:${color}`,
+            'border:2px solid #fff',
+            `box-shadow:0 2px 6px rgba(0,0,0,.5),0 0 0 4px ${color}33`,
+          ].join(';');
+
+          wrap.appendChild(badge);
+          wrap.appendChild(pin);
+
+          const marker = new mapboxgl.Marker({ element: wrap, anchor: 'bottom' })
+            .setLngLat([lng, lat])
+            .addTo(map);
+          geofenceMarkersRef.current.push({ marker, el: wrap });
+        }
         map.on('click', 'geofence-fill', (e) => {
           const f = e.features?.[0];
           if (!f) return;
