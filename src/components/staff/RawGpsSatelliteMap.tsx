@@ -157,12 +157,23 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
   function applyZoomVisibility() {
     const map = mapRef.current;
     if (!map) return;
-    const detailed = map.getZoom() >= ZOOM_DETAIL_THRESHOLD;
+    const z = map.getZoom();
+    const detailed = z >= ZOOM_DETAIL_THRESHOLD;
+    // Skala HTML-marker-pillar/paneler med zoom så texten blir läsbar när man zoomar in.
+    // 1.0x vid zoom 14, växer till ~3.5x vid max zoom (22).
+    const scale = Math.max(1, Math.min(3.5, 1 + (z - 14) * 0.35));
     for (const { el, kind } of visitMarkersRef.current) {
       const shouldShow = kind === 'detail' ? detailed : !detailed;
       el.style.display = shouldShow ? '' : 'none';
+      if (kind === 'detail' && shouldShow) {
+        // transform-origin bottom så pillen växer uppåt från sin ankarpunkt
+        el.style.transformOrigin = 'bottom center';
+        // Behåll ev. befintlig translateY (-22px) genom att lägga scale efter
+        el.style.transform = `translateY(-22px) scale(${scale.toFixed(2)})`;
+      }
     }
   }
+
 
 
 
