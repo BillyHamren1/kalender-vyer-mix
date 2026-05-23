@@ -22,7 +22,7 @@ export function useAllActiveProjectGeofences(dateStr: string, enabled = true) {
       const [projectsRes, largeRes] = await Promise.all([
         supabase
           .from('projects')
-          .select('id, name, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon, status, planning_status, deleted_at, created_at, booking_id, rigdaydate, rigdowndate, eventdate')
+          .select('id, name, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon, status, planning_status, deleted_at, created_at, booking_id, rigdaydate, rigdowndate, eventdate, bookings:booking_id(rigdaydate, rigdowndate, eventdate)')
           .is('deleted_at', null)
           .not('delivery_latitude', 'is', null)
           .not('delivery_longitude', 'is', null)
@@ -35,8 +35,17 @@ export function useAllActiveProjectGeofences(dateStr: string, enabled = true) {
           .limit(5000),
       ]);
 
+      // Platta ut bokningens datum som booking_*-fält → filtret faller tillbaka
+      // när projektets egna rig/event-datum är NULL.
+      const projectRows = (((projectsRes as any).data || []) as any[]).map((row) => ({
+        ...row,
+        booking_rigdaydate: row?.bookings?.rigdaydate ?? null,
+        booking_rigdowndate: row?.bookings?.rigdowndate ?? null,
+        booking_eventdate: row?.bookings?.eventdate ?? null,
+      }));
+
       const filtered = filterProjectGeofences(
-        ((projectsRes as any).data || []) as any[],
+        projectRows,
         ((largeRes as any).data || []) as any[],
         dateStr,
       );
