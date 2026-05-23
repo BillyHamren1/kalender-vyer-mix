@@ -335,10 +335,14 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         </div>
       `;
 
-      const panelMarker = new mapboxgl.Marker({ element: panel, anchor: 'right', offset: [-14, 0] })
+      // rootEl ägs av Mapbox (transform = lat/lng). Panelen är contentEl.
+      const panelRoot = document.createElement('div');
+      panelRoot.style.cssText = 'pointer-events:auto;';
+      panelRoot.appendChild(panel);
+      const panelMarker = new mapboxgl.Marker({ element: panelRoot, anchor: 'right', offset: [-14, 0] })
         .setLngLat([head.centre.lng, head.centre.lat])
         .addTo(map);
-      visitMarkersRef.current.push({ marker: panelMarker, el: panel, kind: 'detail' });
+      visitMarkersRef.current.push({ marker: panelMarker, rootEl: panelRoot, contentEl: panel, kind: 'detail' });
     }
 
     // ── Okända vistelser: enkel pill som förr ────────────────────────
