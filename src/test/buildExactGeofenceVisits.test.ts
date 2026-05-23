@@ -46,7 +46,7 @@ describe('buildExactGeofenceVisits', () => {
     expect(visits[0].end).toBe('2026-05-23T20:18:00.000Z');
   });
 
-  it('avslutar projekt A vid sista inside-pingen när personen går in i projekt B', () => {
+  it('avslutar projekt A exakt när nästa projektblock börjar', () => {
     const visits = buildExactGeofenceVisits(
       [
         ping('2026-05-23T08:00:00.000Z', 59, 18),
@@ -60,12 +60,12 @@ describe('buildExactGeofenceVisits', () => {
 
     expect(visits).toHaveLength(2);
     expect(visits[0].knownSite?.id).toBe('project:westmans');
-    expect(visits[0].end).toBe('2026-05-23T09:00:00.000Z');
+    expect(visits[0].end).toBe('2026-05-23T09:30:00.000Z');
     expect(visits[1].knownSite?.id).toBe('project:other');
     expect(visits[1].start).toBe('2026-05-23T10:00:00.000Z');
   });
 
-  it('trimmar trailing outside om personen lämnar projektet och aldrig kommer tillbaka', () => {
+  it('låter sista blocket ta hela vägen till sista pingen så dagen inte får glapp', () => {
     const visits = buildExactGeofenceVisits(
       [
         ping('2026-05-23T08:00:00.000Z', 59, 18),
@@ -77,7 +77,27 @@ describe('buildExactGeofenceVisits', () => {
     );
 
     expect(visits).toHaveLength(1);
-    expect(visits[0].end).toBe('2026-05-23T09:00:00.000Z');
+    expect(visits[0].end).toBe('2026-05-23T17:00:00.000Z');
+  });
+
+  it('behåller ett kontinuerligt block genom flera outside-pings före nästa projekt', () => {
+    const visits = buildExactGeofenceVisits(
+      [
+        ping('2026-05-23T07:50:48.000Z', 59, 18),
+        ping('2026-05-23T17:40:44.000Z', 59, 18),
+        ping('2026-05-23T18:10:00.000Z', 59.5, 18.5),
+        ping('2026-05-23T18:20:00.000Z', 59.5, 18.5),
+        ping('2026-05-23T18:30:07.000Z', 60, 19),
+      ],
+      [siteA, siteB],
+    );
+
+    expect(visits).toHaveLength(2);
+    expect(visits[0].knownSite?.id).toBe('project:westmans');
+    expect(visits[0].start).toBe('2026-05-23T07:50:48.000Z');
+    expect(visits[0].end).toBe('2026-05-23T18:20:00.000Z');
+    expect(visits[1].knownSite?.id).toBe('project:other');
+    expect(visits[1].start).toBe('2026-05-23T18:30:07.000Z');
   });
 
   it('ignorerar pings innan personen någonsin gått in i ett geofence', () => {
