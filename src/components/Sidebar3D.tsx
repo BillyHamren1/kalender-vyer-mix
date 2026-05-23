@@ -192,7 +192,7 @@ export function Sidebar3D() {
               <div className="flex flex-col min-w-0 leading-tight">
                 <span
                   className="text-[13px] font-semibold tracking-tight truncate"
-                  style={{ color: "hsl(280 40% 18%)" }}
+                  style={{ color: "hsl(240 10% 18%)" }}
                 >
                   EventFlow
                 </span>
@@ -204,6 +204,7 @@ export function Sidebar3D() {
                 </span>
               </div>
             )}
+
           </div>
 
           {/* Integrated collapse button */}
