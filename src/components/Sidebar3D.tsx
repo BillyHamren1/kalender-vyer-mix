@@ -155,9 +155,9 @@ export function Sidebar3D() {
           isCollapsed ? "w-[60px]" : "w-[224px]"
         )}
         style={{
-          background:
-            "linear-gradient(180deg, hsl(270 30% 98%) 0%, hsl(275 25% 97%) 100%)",
-          borderRight: "1px solid hsl(270 20% 88% / 0.7)",
+          background: "hsl(0 0% 99.5%)",
+          borderRight: "1px solid hsl(240 8% 88%)",
+          boxShadow: "1px 0 0 hsl(240 8% 94%), 2px 0 8px hsl(240 10% 20% / 0.04)",
         }}
       >
         {/* ── Premium Header (Brand + Module) ── */}
@@ -166,8 +166,9 @@ export function Sidebar3D() {
             "relative shrink-0 transition-all duration-300",
             isCollapsed ? "px-2 pt-4 pb-3" : "px-3 pt-4 pb-3"
           )}
-          style={{ borderBottom: "1px solid hsl(270 20% 88% / 0.55)" }}
+          style={{ borderBottom: "1px solid hsl(240 8% 92%)" }}
         >
+
           <div
             className={cn(
               "flex items-center gap-2.5",
@@ -191,7 +192,7 @@ export function Sidebar3D() {
               <div className="flex flex-col min-w-0 leading-tight">
                 <span
                   className="text-[13px] font-semibold tracking-tight truncate"
-                  style={{ color: "hsl(280 40% 18%)" }}
+                  style={{ color: "hsl(240 10% 18%)" }}
                 >
                   EventFlow
                 </span>
@@ -203,6 +204,7 @@ export function Sidebar3D() {
                 </span>
               </div>
             )}
+
           </div>
 
           {/* Integrated collapse button */}
@@ -215,9 +217,10 @@ export function Sidebar3D() {
             )}
             style={{
               background: "hsl(0 0% 100%)",
-              border: "1px solid hsl(270 25% 82%)",
+              border: "1px solid hsl(240 8% 84%)",
               color: "hsl(var(--primary))",
             }}
+
             title={isCollapsed ? "Expandera sidebar" : "Dölj sidebar"}
             aria-label={isCollapsed ? "Expandera sidebar" : "Dölj sidebar"}
           >
@@ -241,11 +244,12 @@ export function Sidebar3D() {
           {!isCollapsed && (
             <div
               className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em]"
-              style={{ color: "hsl(270 15% 50%)" }}
+              style={{ color: "hsl(240 6% 50%)" }}
             >
               Översikt
             </div>
           )}
+
 
           {navigationItems.map((item) => {
             const hasChildren = !!item.children?.length;
@@ -272,7 +276,7 @@ export function Sidebar3D() {
                     "w-[16px] h-[16px] transition-colors",
                     active || hasActiveChild
                       ? "text-[hsl(var(--primary))]"
-                      : "text-[hsl(270_15%_45%)]"
+                      : "text-[hsl(240_6%_46%)]"
                   )}
                   strokeWidth={active ? 2.1 : 1.75}
                 />
@@ -284,15 +288,16 @@ export function Sidebar3D() {
                 className={cn(
                   "text-[13px] leading-none tracking-[-0.005em] truncate flex-1 transition-colors",
                   active
-                    ? "font-semibold text-[hsl(280_40%_22%)]"
+                    ? "font-semibold text-[hsl(280_45%_28%)]"
                     : hasActiveChild
-                      ? "font-medium text-[hsl(280_30%_30%)]"
-                      : "font-medium text-[hsl(270_18%_32%)]"
+                      ? "font-medium text-[hsl(240_8%_25%)]"
+                      : "font-medium text-[hsl(240_8%_28%)]"
                 )}
               >
                 {item.title}
               </span>
             );
+
 
             const badgeEl = item.badge ? (
               isCollapsed ? (
@@ -319,12 +324,14 @@ export function Sidebar3D() {
 
             const itemStyle: React.CSSProperties = active
               ? {
-                  background: "hsl(var(--primary) / 0.10)",
-                  boxShadow: "inset 2px 0 0 hsl(var(--primary))",
+                  background: "hsl(270 55% 96%)",
+                  boxShadow:
+                    "inset 0 0 0 1px hsl(270 40% 88%), 0 1px 2px hsl(270 30% 25% / 0.04)",
                 }
               : hovered
-                ? { background: "hsl(var(--primary) / 0.06)" }
+                ? { background: "hsl(240 8% 95%)" }
                 : {};
+
 
             return (
               <div key={item.url} className="relative">
@@ -348,10 +355,11 @@ export function Sidebar3D() {
                           expanded ? "rotate-180" : "",
                           active || hasActiveChild
                             ? "text-[hsl(var(--primary))]"
-                            : "text-[hsl(270_15%_55%)]"
+                            : "text-[hsl(240_6%_55%)]"
                         )}
                         strokeWidth={2}
                       />
+
                     )}
                     {isCollapsed && (
                       <CollapsedTooltip label={item.title} show={hovered} />
@@ -377,7 +385,7 @@ export function Sidebar3D() {
                 {hasChildren && !isCollapsed && expanded && (
                   <div
                     className="mt-1 mb-1 ml-[18px] pl-3 space-y-0.5"
-                    style={{ borderLeft: "1px solid hsl(270 20% 86%)" }}
+                    style={{ borderLeft: "1px solid hsl(240 8% 90%)" }}
                   >
                     {item.children!.map((child) => {
                       const childActive = isChildActive(child.url);
@@ -391,18 +399,18 @@ export function Sidebar3D() {
                           style={
                             childActive
                               ? {
-                                  background: "hsl(var(--primary) / 0.10)",
-                                  color: "hsl(280 45% 28%)",
+                                  background: "hsl(270 55% 96%)",
+                                  color: "hsl(280 50% 28%)",
                                   fontWeight: 600,
                                 }
                               : {
-                                  color: "hsl(270 14% 42%)",
+                                  color: "hsl(240 8% 38%)",
                                 }
                           }
                           onMouseEnter={(e) => {
                             if (!childActive)
                               (e.currentTarget as HTMLElement).style.background =
-                                "hsl(var(--primary) / 0.05)";
+                                "hsl(240 8% 95%)";
                           }}
                           onMouseLeave={(e) => {
                             if (!childActive)
@@ -417,7 +425,7 @@ export function Sidebar3D() {
                               style={{
                                 color: childActive
                                   ? "hsl(var(--primary))"
-                                  : "hsl(270 12% 52%)",
+                                  : "hsl(240 6% 52%)",
                               }}
                             />
                           )}
@@ -427,6 +435,7 @@ export function Sidebar3D() {
                     })}
                   </div>
                 )}
+
               </div>
             );
           })}
@@ -435,12 +444,12 @@ export function Sidebar3D() {
         {/* ── Bottom subtle footer ── */}
         <div
           className="shrink-0 px-3 py-2.5"
-          style={{ borderTop: "1px solid hsl(270 20% 88% / 0.55)" }}
+          style={{ borderTop: "1px solid hsl(240 8% 92%)" }}
         >
           {!isCollapsed ? (
             <div
               className="text-[10px] font-medium tracking-wide"
-              style={{ color: "hsl(270 12% 55%)" }}
+              style={{ color: "hsl(240 6% 55%)" }}
             >
               v2 · Planning
             </div>
@@ -457,13 +466,14 @@ export function Sidebar3D() {
       <nav
         className="fixed bottom-0 left-0 right-0 z-50 lg:hidden theme-purple"
         style={{
-          background: "hsl(270 30% 98% / 0.92)",
+          background: "hsl(0 0% 99.5% / 0.94)",
           backdropFilter: "blur(24px)",
           WebkitBackdropFilter: "blur(24px)",
-          borderTop: "1px solid hsl(270 20% 86% / 0.6)",
-          boxShadow: "0 -4px 12px hsl(270 30% 25% / 0.06)",
+          borderTop: "1px solid hsl(240 8% 90%)",
+          boxShadow: "0 -4px 12px hsl(240 10% 20% / 0.05)",
         }}
       >
+
         <div className="flex items-center justify-around py-2 px-4">
           {navigationItems
             .filter((_, i) => i <= 4)
