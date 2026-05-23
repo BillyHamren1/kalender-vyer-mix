@@ -178,11 +178,11 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         el.style.transform = `translateY(-22px) scale(${scale.toFixed(2)})`;
       }
     }
-    // Geofence-badges: skala upp vid inzoomning så texten blir läsbar
-    const badgeScale = Math.max(0.85, Math.min(2.6, 0.85 + (z - 11) * 0.22));
+    // Geofence-pins: liten subtil uppskalning – aldrig stora
+    const badgeScale = Math.max(0.7, Math.min(1.3, 0.7 + (z - 11) * 0.06));
     for (const { el } of geofenceMarkersRef.current) {
-      el.style.transformOrigin = 'bottom center';
-      el.style.transform = `translateY(-6px) scale(${badgeScale.toFixed(2)})`;
+      el.style.transformOrigin = 'left bottom';
+      el.style.transform = `translate(-5px,-100%) scale(${badgeScale.toFixed(2)})`;
     }
   }
 
