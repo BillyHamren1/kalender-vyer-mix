@@ -16,6 +16,7 @@ import {
   type LocationMode,
   type LocationModeDecision,
 } from '@/lib/geofence/locationMode';
+import { resolveAppliedTrackingDistanceFilter } from '@/lib/geofence/nativeTrackingPolicy';
 import { isInDismissCooldown } from '@/lib/geofence/dismissCooldown';
 import { isWorkdayActive } from '@/lib/workday/workdayActiveSignal';
 import { recordAppHealthEvent } from '@/lib/mobile/recordAppHealthEvent';
@@ -705,16 +706,20 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
      *   - never run two parallel start() calls
      */
     const maybeRestartNative = (nextFilter: number) => {
+      const appliedNextFilter = resolveAppliedTrackingDistanceFilter({
+        desiredDistanceFilter: nextFilter,
+        isNativePlatform: Capacitor.isNativePlatform(),
+      });
       if (restartingNative) return;
       if (appliedDistanceFilter < 0) return; // first start() not yet finished
       const now = Date.now();
-      if (Math.abs(nextFilter - appliedDistanceFilter) < RESTART_DISTANCE_DELTA) return;
+      if (Math.abs(appliedNextFilter - appliedDistanceFilter) < RESTART_DISTANCE_DELTA) return;
       if (now - lastNativeRestartRef.current < RESTART_MIN_INTERVAL_MS) return;
       restartingNative = true;
       lastNativeRestartRef.current = now;
       // eslint-disable-next-line no-console
       console.info('[BGLocation] restart for distanceFilter change', {
-        from: appliedDistanceFilter, to: nextFilter,
+        from: appliedDistanceFilter, to: appliedNextFilter, desiredDistanceFilter: nextFilter,
       });
       BackgroundGeolocation.stop()
         .catch(() => { /* ignore */ })
@@ -723,14 +728,18 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
     };
 
     const startNative = (distanceFilter: number) => {
-      appliedDistanceFilter = distanceFilter;
+      const appliedFilter = resolveAppliedTrackingDistanceFilter({
+        desiredDistanceFilter: distanceFilter,
+        isNativePlatform: Capacitor.isNativePlatform(),
+      });
+      appliedDistanceFilter = appliedFilter;
       return BackgroundGeolocation.start(
         {
           backgroundMessage: 'EventFlow Time spårar din position',
           backgroundTitle: 'EventFlow Time',
           requestPermissions: true,
           stale: false,
-          distanceFilter,
+          distanceFilter: appliedFilter,
         },
         (location, error) => {
           if (stopped) return;
@@ -751,7 +760,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
         },
       ).then(() => {
         // eslint-disable-next-line no-console
-        console.log(`[BGLocation] native tracking active (distanceFilter=${distanceFilter}m)`);
+        console.log(`[BGLocation] native tracking active (distanceFilter=${appliedFilter}m, desired=${distanceFilter}m)`);
       }).catch((err) => {
         console.warn('[BGLocation] Failed to start:', err?.message || err);
       });
