@@ -99,9 +99,12 @@ export default function LiveStaffPositionsMap() {
     }
   }, []);
 
+  const [styleLoaded, setStyleLoaded] = useState(false);
+
   // Init map
   useEffect(() => {
     let cancelled = false;
+    let ro: ResizeObserver | null = null;
     (async () => {
       if (!mapContainer.current || mapRef.current) return;
       try {
@@ -109,23 +112,35 @@ export default function LiveStaffPositionsMap() {
         if (cancelled || !data?.token || !mapContainer.current) return;
         tokenRef.current = data.token;
         mapboxgl.accessToken = data.token;
-        mapRef.current = new mapboxgl.Map({
+        const map = new mapboxgl.Map({
           container: mapContainer.current,
           style: 'mapbox://styles/mapbox/satellite-streets-v12',
           center: [18.0686, 59.3293], // Stockholm
           zoom: 9,
         });
-        mapRef.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+        mapRef.current = map;
+        map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+        map.on('load', () => {
+          requestAnimationFrame(() => map.resize());
+          setStyleLoaded(true);
+        });
+        // Håll canvas i synk med container-storlek (fix för "grå/vit karta" i tabs)
+        ro = new ResizeObserver(() => {
+          try { map.resize(); } catch { /* removed */ }
+        });
+        ro.observe(mapContainer.current);
       } catch (e) {
         console.error('[LiveStaffPositionsMap] map init failed', e);
       }
     })();
     return () => {
       cancelled = true;
+      ro?.disconnect();
       markersRef.current.forEach((m) => m.remove());
       markersRef.current.clear();
       mapRef.current?.remove();
       mapRef.current = null;
+      setStyleLoaded(false);
     };
   }, []);
 
@@ -151,10 +166,10 @@ export default function LiveStaffPositionsMap() {
     };
   }, [loadPositions]);
 
-  // Render markers
+  // Render markers (vänta tills style laddat)
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !styleLoaded) return;
 
     const seen = new Set<string>();
     for (const p of positions) {
@@ -182,7 +197,6 @@ export default function LiveStaffPositionsMap() {
         el.title = p.name;
       }
     }
-    // Remove markers for staff no longer in list
     for (const [id, m] of markersRef.current.entries()) {
       if (!seen.has(id)) {
         m.remove();
@@ -190,15 +204,15 @@ export default function LiveStaffPositionsMap() {
       }
     }
 
-    // Auto-fit on first load
-    if (positions.length > 0 && map.isStyleLoaded()) {
+    // Auto-fit första gången vi har positioner
+    if (positions.length > 0) {
       const bounds = new mapboxgl.LngLatBounds();
       positions.forEach((p) => bounds.extend([p.lng, p.lat]));
-      if (!map.getZoom() || map.getZoom() < 5) {
-        map.fitBounds(bounds, { padding: 60, maxZoom: 12, duration: 0 });
+      if (map.getZoom() < 10) {
+        map.fitBounds(bounds, { padding: 80, maxZoom: 13, duration: 600 });
       }
     }
-  }, [positions]);
+  }, [positions, styleLoaded]);
 
   // Pan to selected
   useEffect(() => {
