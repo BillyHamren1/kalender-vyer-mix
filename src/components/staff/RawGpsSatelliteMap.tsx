@@ -130,6 +130,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
   const drawRef = useRef<MapboxDraw | null>(null);
   const drawHandlersRef = useRef<{ cleanup: () => void } | null>(null);
   const visitMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; el: HTMLElement; kind: 'compact' | 'detail' }>>([]);
+  const geofenceMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; el: HTMLElement }>>([]);
 
   const handleReady = (map: mapboxgl.Map) => {
     mapRef.current = map;
