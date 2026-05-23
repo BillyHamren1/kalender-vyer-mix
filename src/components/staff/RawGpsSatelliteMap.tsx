@@ -157,12 +157,23 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
   function applyZoomVisibility() {
     const map = mapRef.current;
     if (!map) return;
-    const detailed = map.getZoom() >= ZOOM_DETAIL_THRESHOLD;
+    const z = map.getZoom();
+    const detailed = z >= ZOOM_DETAIL_THRESHOLD;
+    // Skala HTML-marker-pillar/paneler med zoom så texten blir läsbar när man zoomar in.
+    // 1.0x vid zoom 14, växer till ~3.5x vid max zoom (22).
+    const scale = Math.max(1, Math.min(3.5, 1 + (z - 14) * 0.35));
     for (const { el, kind } of visitMarkersRef.current) {
       const shouldShow = kind === 'detail' ? detailed : !detailed;
       el.style.display = shouldShow ? '' : 'none';
+      if (kind === 'detail' && shouldShow) {
+        // transform-origin bottom så pillen växer uppåt från sin ankarpunkt
+        el.style.transformOrigin = 'bottom center';
+        // Behåll ev. befintlig translateY (-22px) genom att lägga scale efter
+        el.style.transform = `translateY(-22px) scale(${scale.toFixed(2)})`;
+      }
     }
   }
+
 
 
 
@@ -417,11 +428,13 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
             'text-field': ['get', 'label'],
             // Skala labeln med zoomnivå så namn/datum/radie blir läsbara när man zoomar in
             'text-size': [
-              'interpolate', ['linear'], ['zoom'],
+              'interpolate', ['exponential', 2], ['zoom'],
               10, 11,
-              14, 14,
-              17, 20,
-              20, 28,
+              14, 16,
+              17, 28,
+              19, 44,
+              21, 72,
+              22, 96,
             ],
             'text-anchor': 'top',
             'text-offset': [0, 0.6],
@@ -685,11 +698,13 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         layout: {
           'text-field': ['get', 'label'],
           'text-size': [
-            'interpolate', ['linear'], ['zoom'],
+            'interpolate', ['exponential', 2], ['zoom'],
             10, 11,
-            14, 13,
-            17, 18,
-            20, 24,
+            14, 15,
+            17, 26,
+            19, 40,
+            21, 64,
+            22, 88,
           ],
           'text-offset': [0, -1.2],
           'text-anchor': 'bottom',
