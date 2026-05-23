@@ -444,12 +444,12 @@ export function Sidebar3D() {
         {/* ── Bottom subtle footer ── */}
         <div
           className="shrink-0 px-3 py-2.5"
-          style={{ borderTop: "1px solid hsl(270 20% 88% / 0.55)" }}
+          style={{ borderTop: "1px solid hsl(240 8% 92%)" }}
         >
           {!isCollapsed ? (
             <div
               className="text-[10px] font-medium tracking-wide"
-              style={{ color: "hsl(270 12% 55%)" }}
+              style={{ color: "hsl(240 6% 55%)" }}
             >
               v2 · Planning
             </div>
@@ -466,13 +466,14 @@ export function Sidebar3D() {
       <nav
         className="fixed bottom-0 left-0 right-0 z-50 lg:hidden theme-purple"
         style={{
-          background: "hsl(270 30% 98% / 0.92)",
+          background: "hsl(0 0% 99.5% / 0.94)",
           backdropFilter: "blur(24px)",
           WebkitBackdropFilter: "blur(24px)",
-          borderTop: "1px solid hsl(270 20% 86% / 0.6)",
-          boxShadow: "0 -4px 12px hsl(270 30% 25% / 0.06)",
+          borderTop: "1px solid hsl(240 8% 90%)",
+          boxShadow: "0 -4px 12px hsl(240 10% 20% / 0.05)",
         }}
       >
+
         <div className="flex items-center justify-around py-2 px-4">
           {navigationItems
             .filter((_, i) => i <= 4)
