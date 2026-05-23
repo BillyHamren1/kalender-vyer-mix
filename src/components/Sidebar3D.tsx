@@ -155,9 +155,9 @@ export function Sidebar3D() {
           isCollapsed ? "w-[60px]" : "w-[224px]"
         )}
         style={{
-          background:
-            "linear-gradient(180deg, hsl(270 30% 98%) 0%, hsl(275 25% 97%) 100%)",
-          borderRight: "1px solid hsl(270 20% 88% / 0.7)",
+          background: "hsl(0 0% 99.5%)",
+          borderRight: "1px solid hsl(240 8% 88%)",
+          boxShadow: "1px 0 0 hsl(240 8% 94%), 2px 0 8px hsl(240 10% 20% / 0.04)",
         }}
       >
         {/* ── Premium Header (Brand + Module) ── */}
@@ -166,8 +166,9 @@ export function Sidebar3D() {
             "relative shrink-0 transition-all duration-300",
             isCollapsed ? "px-2 pt-4 pb-3" : "px-3 pt-4 pb-3"
           )}
-          style={{ borderBottom: "1px solid hsl(270 20% 88% / 0.55)" }}
+          style={{ borderBottom: "1px solid hsl(240 8% 92%)" }}
         >
+
           <div
             className={cn(
               "flex items-center gap-2.5",
