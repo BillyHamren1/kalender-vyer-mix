@@ -17,15 +17,11 @@ interface Props {
   initialDate?: string | null;
 }
 
-// DEV DEFAULT: öppna alltid Markuss Minalto den 16 maj 2026 tills användaren säger annat.
-const DEFAULT_STAFF_ID = 'staff_1775736478460_k1q8idrvv';
-const DEFAULT_DATE_ISO = '2026-05-16';
-
 export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Props) {
-  const [staffId, setStaffId] = useState<string | null>(initialStaffId ?? DEFAULT_STAFF_ID);
-  const [date, setDate] = useState<Date>(initialDate ? new Date(initialDate) : new Date(DEFAULT_DATE_ISO));
+  const [staffId, setStaffId] = useState<string | null>(initialStaffId ?? null);
+  const [date, setDate] = useState<Date>(initialDate ? new Date(initialDate) : new Date());
   const [calendarMonth, setCalendarMonth] = useState<Date>(
-    initialDate ? new Date(initialDate) : new Date(DEFAULT_DATE_ISO),
+    initialDate ? new Date(initialDate) : new Date(),
   );
 
 
