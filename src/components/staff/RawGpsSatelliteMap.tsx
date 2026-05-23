@@ -155,6 +155,11 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     visitMarkersRef.current = [];
   }
 
+  function clearGeofenceMarkers() {
+    for (const m of geofenceMarkersRef.current) m.marker.remove();
+    geofenceMarkersRef.current = [];
+  }
+
   function applyZoomVisibility() {
     const map = mapRef.current;
     if (!map) return;
@@ -172,6 +177,12 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         // Behåll ev. befintlig translateY (-22px) genom att lägga scale efter
         el.style.transform = `translateY(-22px) scale(${scale.toFixed(2)})`;
       }
+    }
+    // Geofence-badges: skala upp vid inzoomning så texten blir läsbar
+    const badgeScale = Math.max(0.85, Math.min(2.6, 0.85 + (z - 11) * 0.22));
+    for (const { el } of geofenceMarkersRef.current) {
+      el.style.transformOrigin = 'bottom center';
+      el.style.transform = `translateY(-6px) scale(${badgeScale.toFixed(2)})`;
     }
   }
 
