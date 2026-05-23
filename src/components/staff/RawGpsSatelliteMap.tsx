@@ -404,6 +404,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     const apply = () => {
       for (const id of LAYER_IDS) if (map.getLayer(id)) map.removeLayer(id);
       for (const id of SOURCE_IDS) if (map.getSource(id)) map.removeSource(id);
+      clearGeofenceMarkers();
 
       // ── Geofences (ritas FÖRST så pings hamnar ovanpå) ─────────────
       if (fences.length) {
