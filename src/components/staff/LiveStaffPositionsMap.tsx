@@ -99,9 +99,12 @@ export default function LiveStaffPositionsMap() {
     }
   }, []);
 
+  const [styleLoaded, setStyleLoaded] = useState(false);
+
   // Init map
   useEffect(() => {
     let cancelled = false;
+    let ro: ResizeObserver | null = null;
     (async () => {
       if (!mapContainer.current || mapRef.current) return;
       try {
@@ -109,23 +112,35 @@ export default function LiveStaffPositionsMap() {
         if (cancelled || !data?.token || !mapContainer.current) return;
         tokenRef.current = data.token;
         mapboxgl.accessToken = data.token;
-        mapRef.current = new mapboxgl.Map({
+        const map = new mapboxgl.Map({
           container: mapContainer.current,
           style: 'mapbox://styles/mapbox/satellite-streets-v12',
           center: [18.0686, 59.3293], // Stockholm
           zoom: 9,
         });
-        mapRef.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+        mapRef.current = map;
+        map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+        map.on('load', () => {
+          requestAnimationFrame(() => map.resize());
+          setStyleLoaded(true);
+        });
+        // Håll canvas i synk med container-storlek (fix för "grå/vit karta" i tabs)
+        ro = new ResizeObserver(() => {
+          try { map.resize(); } catch { /* removed */ }
+        });
+        ro.observe(mapContainer.current);
       } catch (e) {
         console.error('[LiveStaffPositionsMap] map init failed', e);
       }
     })();
     return () => {
       cancelled = true;
+      ro?.disconnect();
       markersRef.current.forEach((m) => m.remove());
       markersRef.current.clear();
       mapRef.current?.remove();
       mapRef.current = null;
+      setStyleLoaded(false);
     };
   }, []);
 
