@@ -244,11 +244,12 @@ export function Sidebar3D() {
           {!isCollapsed && (
             <div
               className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em]"
-              style={{ color: "hsl(270 15% 50%)" }}
+              style={{ color: "hsl(240 6% 50%)" }}
             >
               Översikt
             </div>
           )}
+
 
           {navigationItems.map((item) => {
             const hasChildren = !!item.children?.length;
