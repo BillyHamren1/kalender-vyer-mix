@@ -1,40 +1,27 @@
+
 ## Mål
-Se till att privata boenden som `Boende - Vällsta` aldrig visas i geofence-/platslistan på `/staff-management/gps-satellite-map`.
+Ersätt de stora "Plats/Projekt · namn · radie"-badgesen på `/staff-management/gps-satellite-map` med en liten röd nålpin (som referensbilden) och endast projektnamnet i en clean text-badge bredvid.
 
-## Det som faktiskt är fel
-- Veckosammanfattningen har redan en privatfilter-logik (`privateIds`) och texten säger uttryckligen att boende inte räknas.
-- Den stora dagslistan i `StaffGpsSatelliteMap` använder däremot snapshotens `visits` direkt utan att filtrera bort privata boenden.
-- Därför läcker hem/plats av typen `private_residence` in i tabellen trots att de inte ska visas.
+## Ändringar (endast `src/components/staff/RawGpsSatelliteMap.tsx`)
 
-## Plan
-### 1. Identifiera privata geofences i dagsvyn
-- Läsa in samma signal som redan används i veckosammanfattningen:
-  - `organization_locations.is_private_residence`
-  - `location_type === 'private_residence'`
-- Mappa dessa till ett set av privata `loc:<id>` för aktuell vy.
+1. **Filtrera bort boende/locations**
+   - I HTML-marker-loopen: rendera badge ENDAST för geofences där `kind === 'project'` (eller motsvarande projekt-typ). Hoppa över `location`/boende/organization_locations helt — de syns redan som cirkel på kartan om de finns, men får ingen text-pin.
 
-### 2. Filtrera bort privata besök innan tabellen renderas
-- Stoppa `Boende - Vällsta` och andra privata boenden från att nå `GeofenceVisitsTable`.
-- Låta övriga arbetsplatser/projekt/lager ligga kvar oförändrat.
+2. **Ny markup per pin**
+   ```
+   [🔴 pin 12px]  ProjektnamnXYZ
+   ```
+   - Pin: liten röd SVG/CSS-cirkel med tunn stjälk, ~12–14px hög, vit `1px` ring, mjuk skugga. Inspirerad av uppladdad referensbild (röd boll + grå nål).
+   - Label: bara `name`. Ingen "Projekt"-chip, ingen "· 150 m"-chip, ingen kind-prefix.
+   - Stil: vit/blurred pill bakom texten, `padding: 2px 8px`, `font-size: 11px`, `font-weight: 600`, `color: hsl(var(--foreground))`, `border-radius: 999px`, subtil skugga. Max-width 160px, ellipsis.
+   - Pin och label sitter på samma rad (`display:flex; gap:6px; align-items:center`), ankrat med pin-spetsen i geofence-centrum (`translate(-6px, -100%)` så spetsen pekar på punkten).
 
-### 3. Hålla admin och mobil konsekventa
-- Säkerställa att samma privata filter används även där snapshotdata återanvänds för mini-map/listliknande visningar, så att hem inte kan dyka upp i en vy men inte i en annan.
+3. **Zoomskalning**
+   - Behåll `applyZoomVisibility` men sänk skalan: 0.7x vid zoom 11 → 1.3x vid zoom 22 (mindre aggressiv än nuvarande 0.85–2.6x) så de aldrig blir "JÄTTESTORA".
 
-### 4. Lägga regressionstester
-- Test som verifierar att `loc:<id>` med privat boende filtreras bort från dagslistan.
-- Test som verifierar att vanliga platser/lager/projekt fortfarande visas.
+4. **Cleanup**
+   - `clearGeofenceMarkers()` oförändrad.
+   - Ta bort kind-chip-koden och radie-chip-koden helt.
 
-### 5. Verifiera direkt efter ändring
-- Köra riktade vitest-tester.
-- Kontrollera i preview att `Boende - Vällsta` inte längre syns i listan.
-
-## Tekniska detaljer
-Berörda filer blir sannolikt:
-- `src/components/staff/StaffGpsSatelliteMap.tsx`
-- ev. gemensam filter/helper om logiken ska återanvändas
-- relevanta testfiler för GPS-listan
-
-## Förväntat resultat
-- `Boende - Vällsta` försvinner helt från listan.
-- Arbetsplatser/projekt/lager visas fortsatt normalt.
-- Regeln "Boende räknas inte" blir sann även i dagsvyn.
+## Inget annat rörs
+Filter-logik för "aktuella projekt", källdata och layers påverkas inte — bara visuell rendering av badge/pin.
