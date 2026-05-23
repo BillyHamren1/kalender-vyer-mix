@@ -25,27 +25,29 @@
   --secondary-foreground: 280 50% 22%;
   --secondary-hover: 270 35% 72%;
 
-  /* Sidebakgrunder — kall ljus lila istället för teal-tonad grå */
-  --gradient-page: linear-gradient(180deg, hsl(270 30% 98%) 0%, hsl(280 25% 96%) 100%);
-  --gradient-teal-bg: hsl(270 30% 97%);
+  /* Sidbakgrund — NEUTRAL premium-grå (matchar Booking-familjen).
+     Lila används enbart som accent, inte som basbakgrund. */
+  --background: 240 10% 97%;
+  --gradient-page: hsl(240 10% 97%);
+  --gradient-teal-bg: hsl(240 10% 97%);
 
-  /* Accent / hover / focus-ring */
+  /* Accent / hover / focus-ring — lila */
   --accent: 270 30% 94%;
   --accent-foreground: 280 50% 22%;
   --ring: 270 45% 55%;
-  --muted-foreground: 270 12% 42%;
+  --muted-foreground: 240 6% 42%;
 
-  /* Gradienter */
+  /* Gradienter (för ikoner/CTA-ytor, inte page-bg) */
   --gradient-icon: linear-gradient(135deg, hsl(270 50% 62%) 0%, hsl(280 55% 45%) 100%);
   --gradient-teal: linear-gradient(135deg, hsl(270 50% 58%) 0%, hsl(282 55% 42%) 100%);
 
-  /* Skuggor — lila-tonade istället för teal */
+  /* Skuggor — neutral grå, inte lila-tintad */
   --shadow-soft:
-    0 1px 2px hsl(270 30% 25% / 0.07),
-    0 1px 4px hsl(270 30% 25% / 0.04);
+    0 1px 2px hsl(240 10% 20% / 0.06),
+    0 1px 4px hsl(240 10% 20% / 0.04);
   --shadow-raised:
-    0 1px 3px hsl(270 30% 25% / 0.06),
-    0 3px 0 hsl(270 18% 86%);
+    0 1px 3px hsl(240 10% 20% / 0.06),
+    0 3px 0 hsl(240 8% 88%);
   --shadow-btn-primary: 0 3px 0 hsl(280 50% 35%);
 
   /* Sidebar (när Planning-rot innehåller sidan) */
@@ -54,6 +56,7 @@
   --sidebar-accent-foreground: 280 50% 22%;
   --sidebar-ring: 270 45% 55%;
 }
+
 
 /* ── 2. Återanvändbara premium-klasser ─────────────────────────── */
 
