@@ -415,11 +415,19 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
           source: 'geofence-label-src',
           layout: {
             'text-field': ['get', 'label'],
-            'text-size': 11,
+            // Skala labeln med zoomnivå så namn/datum/radie blir läsbara när man zoomar in
+            'text-size': [
+              'interpolate', ['linear'], ['zoom'],
+              10, 11,
+              14, 14,
+              17, 20,
+              20, 28,
+            ],
             'text-anchor': 'top',
             'text-offset': [0, 0.6],
             'text-allow-overlap': false,
             'text-optional': true,
+            'text-padding': 2,
           },
           paint: {
             'text-color': '#fff',
