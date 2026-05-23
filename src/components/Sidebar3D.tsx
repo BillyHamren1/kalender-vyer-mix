@@ -276,7 +276,7 @@ export function Sidebar3D() {
                     "w-[16px] h-[16px] transition-colors",
                     active || hasActiveChild
                       ? "text-[hsl(var(--primary))]"
-                      : "text-[hsl(270_15%_45%)]"
+                      : "text-[hsl(240_6%_46%)]"
                   )}
                   strokeWidth={active ? 2.1 : 1.75}
                 />
@@ -288,15 +288,16 @@ export function Sidebar3D() {
                 className={cn(
                   "text-[13px] leading-none tracking-[-0.005em] truncate flex-1 transition-colors",
                   active
-                    ? "font-semibold text-[hsl(280_40%_22%)]"
+                    ? "font-semibold text-[hsl(280_45%_28%)]"
                     : hasActiveChild
-                      ? "font-medium text-[hsl(280_30%_30%)]"
-                      : "font-medium text-[hsl(270_18%_32%)]"
+                      ? "font-medium text-[hsl(240_8%_25%)]"
+                      : "font-medium text-[hsl(240_8%_28%)]"
                 )}
               >
                 {item.title}
               </span>
             );
+
 
             const badgeEl = item.badge ? (
               isCollapsed ? (
