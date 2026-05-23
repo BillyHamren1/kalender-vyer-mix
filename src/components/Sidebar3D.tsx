@@ -355,10 +355,11 @@ export function Sidebar3D() {
                           expanded ? "rotate-180" : "",
                           active || hasActiveChild
                             ? "text-[hsl(var(--primary))]"
-                            : "text-[hsl(270_15%_55%)]"
+                            : "text-[hsl(240_6%_55%)]"
                         )}
                         strokeWidth={2}
                       />
+
                     )}
                     {isCollapsed && (
                       <CollapsedTooltip label={item.title} show={hovered} />
