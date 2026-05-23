@@ -10,6 +10,7 @@ import { StaffGpsWeekPanel } from './StaffGpsWeekPanel';
 import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
 import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
 import { type PlaceVisit } from '@/lib/staff/pingPlaceSegments';
+import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
 
 interface Props {
   initialStaffId?: string | null;
