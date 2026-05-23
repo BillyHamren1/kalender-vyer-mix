@@ -82,12 +82,12 @@ function buildExactGeofenceVisits(rawPings: PingRow[], sites: GeofenceRow[]) {
   }> = [];
   let open: { site: GeofenceRow; pings: PingRow[] } | null = null;
 
-  const flush = () => {
+  const flush = (opts: { endOverride?: string } = {}) => {
     if (!open) return;
     const visitPings = open.pings;
     if (visitPings.length > 0) {
       const start = visitPings[0].recorded_at;
-      const end = visitPings[visitPings.length - 1].recorded_at;
+      const end = opts.endOverride ?? visitPings[visitPings.length - 1].recorded_at;
       visits.push({
         placeKey: `site:${open.site.id}:${start}`,
         knownSite: { id: open.site.id, name: open.site.name },
@@ -110,7 +110,7 @@ function buildExactGeofenceVisits(rawPings: PingRow[], sites: GeofenceRow[]) {
       continue;
     }
     if (fence && fence.id !== open.site.id) {
-      flush();
+      flush({ endOverride: ping.recorded_at });
       open = { site: fence, pings: [ping] };
       continue;
     }
