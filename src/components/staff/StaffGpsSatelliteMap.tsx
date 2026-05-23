@@ -11,6 +11,7 @@ import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
 import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
 import { type PlaceVisit } from '@/lib/staff/pingPlaceSegments';
 import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
+import { useAllActiveProjectGeofences } from '@/hooks/useAllActiveProjectGeofences';
 
 interface Props {
   initialStaffId?: string | null;
@@ -180,11 +181,20 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
   void calendarMonth;
 
 
-  // Geofences: alla org-platser + DAGENS targets för vald person +
-  // ALLA aktiva projekt/stora projekt (oavsett person/dag) så kartan alltid
-  // visar varje projekts geofence. Matchar regeln "inside geo = tid där".
+  // Geofences:
+  //   - Projekt + stora projekt → ENDAST de som är aktiva på vald dag
+  //     (rigg → sista nedrigg). Filtrering sker i useAllActiveProjectGeofences.
+  //   - Övriga geofences från snapshot (org_locations: lager, boenden m.m.)
+  //     visas alltid — de är inte projektbundna och kan inte "vara avbokade".
+  const activeProjectGeofencesQuery = useAllActiveProjectGeofences(dateStr);
   const geofences = useMemo<GeofenceSite[]>(() => {
-    return (snapshotQuery.data?.geofences ?? []).map((site) => ({
+    const nonProject = (snapshotQuery.data?.geofences ?? []).filter((site) => {
+      const id = String(site.id ?? '');
+      return !id.startsWith('project:') && !id.startsWith('large:');
+    });
+    const projectsForDay = activeProjectGeofencesQuery.data ?? [];
+    const merged = [...nonProject, ...projectsForDay];
+    return merged.map((site) => ({
       id: site.id,
       name: site.name,
       lat: site.lat,
@@ -192,7 +202,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
       radiusMeters: site.radiusMeters,
       polygon: site.polygon ?? undefined,
     }));
-  }, [snapshotQuery.data?.geofences]);
+  }, [snapshotQuery.data?.geofences, activeProjectGeofencesQuery.data]);
 
   const geofenceVisits = useMemo<PlaceVisit[]>(() => (snapshotQuery.data?.visits ?? []).map((visit) => ({
     placeKey: visit.placeKey,
