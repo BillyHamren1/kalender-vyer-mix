@@ -32,6 +32,10 @@ export interface RawProjectRow {
   rigdaydate?: string | null;
   rigdowndate?: string | null;
   eventdate?: string | null;
+  /** Fallback från kopplad bokning när projektets egna datum är NULL. */
+  booking_rigdaydate?: string | null;
+  booking_rigdowndate?: string | null;
+  booking_eventdate?: string | null;
 }
 
 export interface RawLargeProjectRow {
@@ -44,9 +48,10 @@ export interface RawLargeProjectRow {
   address_geofence_polygon?: unknown;
   deleted_at?: string | null;
   created_at?: string | null;
-  start_date?: string | null;
-  end_date?: string | null;
-  event_date?: string | null;
+  /** Kan vara enskilt datum eller array av datum (multi-day storprojekt). */
+  start_date?: string | string[] | null;
+  end_date?: string | string[] | null;
+  event_date?: string | string[] | null;
 }
 
 export interface ProjectGeofence {
@@ -74,37 +79,42 @@ function num(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Normaliserar 'YYYY-MM-DD' eller ISO-datum → 'YYYY-MM-DD'. Tomt → null. */
-function toDayStr(v: unknown): string | null {
-  if (v === null || v === undefined || v === '') return null;
-  const s = String(v);
-  // Plocka första 10 tecken om det ser ut som datum/ISO.
-  const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
-  return m ? m[1] : null;
+/**
+ * Normaliserar till en lista av 'YYYY-MM-DD'. Accepterar:
+ *  - sträng ('2026-05-14' eller ISO)
+ *  - array av strängar (multi-day storprojekt: start_date = ['2026-05-14', ...])
+ *  - null/undef/'' → tom lista
+ */
+function toDayStrs(v: unknown): string[] {
+  if (v === null || v === undefined || v === '') return [];
+  if (Array.isArray(v)) {
+    const out: string[] = [];
+    for (const item of v) {
+      const m = String(item ?? '').match(/^(\d{4}-\d{2}-\d{2})/);
+      if (m) out.push(m[1]);
+    }
+    return out;
+  }
+  const m = String(v).match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? [m[1]] : [];
 }
 
 /**
  * Returnerar true om `dateStr` ligger inom [start, end] (inkl.).
- * `starts`/`ends` är prioriterade kandidatlistor — första non-null vinner.
+ * `starts`/`ends` är kandidatlistor — vi tar MIN av alla starts och MAX av alla ends
+ * (så multi-day arrayer och flera fallback-källor täcks).
  * Saknas både start och end → false (vi vill inte ha "alltid synlig"-rader).
  */
 function isDateInWindow(
   dateStr: string,
-  starts: Array<string | null | undefined>,
-  ends: Array<string | null | undefined>,
+  starts: Array<unknown>,
+  ends: Array<unknown>,
 ): boolean {
-  let start: string | null = null;
-  for (const s of starts) {
-    const d = toDayStr(s);
-    if (d) { start = d; break; }
-  }
-  let end: string | null = null;
-  for (const e of ends) {
-    const d = toDayStr(e);
-    if (d) { end = d; break; }
-  }
+  const allStarts = starts.flatMap(toDayStrs);
+  const allEnds = ends.flatMap(toDayStrs);
+  let start: string | null = allStarts.length ? allStarts.slice().sort()[0] : null;
+  let end: string | null = allEnds.length ? allEnds.slice().sort().reverse()[0] : null;
   if (!start && !end) return false;
-  // Fallback: om bara ena änden saknas, använd den andra för båda.
   if (!start && end) start = end;
   if (!end && start) end = start;
   return dateStr >= (start as string) && dateStr <= (end as string);
@@ -147,8 +157,8 @@ export function filterProjectGeofences(
     if (lat === null || lng === null) continue;
     if (dateStr && !isDateInWindow(
       dateStr,
-      [p.rigdaydate, p.eventdate],
-      [p.rigdowndate, p.eventdate],
+      [p.rigdaydate, p.eventdate, p.booking_rigdaydate, p.booking_eventdate],
+      [p.rigdowndate, p.eventdate, p.booking_rigdowndate, p.booking_eventdate],
     )) continue;
     const explicit = p.address_radius_meters !== null && p.address_radius_meters !== undefined && p.address_radius_meters !== '';
     const radius = num(p.address_radius_meters) ?? 150;
