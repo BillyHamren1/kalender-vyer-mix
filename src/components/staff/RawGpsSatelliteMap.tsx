@@ -174,14 +174,14 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     // Skala HTML-marker-pillar/paneler med zoom så texten blir läsbar när man zoomar in.
     // 1.0x vid zoom 14, växer till ~3.5x vid max zoom (22).
     const scale = Math.max(1, Math.min(3.5, 1 + (z - 14) * 0.35));
-    for (const { el, kind } of visitMarkersRef.current) {
+    for (const { rootEl, contentEl, kind } of visitMarkersRef.current) {
       const shouldShow = kind === 'detail' ? detailed : !detailed;
-      el.style.display = shouldShow ? '' : 'none';
+      rootEl.style.display = shouldShow ? '' : 'none';
       if (kind === 'detail' && shouldShow) {
-        // transform-origin bottom så pillen växer uppåt från sin ankarpunkt
-        el.style.transformOrigin = 'bottom center';
-        // Behåll ev. befintlig translateY (-22px) genom att lägga scale efter
-        el.style.transform = `translateY(-22px) scale(${scale.toFixed(2)})`;
+        // transform-origin bottom så pillen växer uppåt från sin ankarpunkt.
+        // Skriv ALDRIG transform på rootEl — Mapbox äger den för lat/lng-positionering.
+        contentEl.style.transformOrigin = 'bottom center';
+        contentEl.style.transform = `translateY(-22px) scale(${scale.toFixed(2)})`;
       }
     }
     // Geofence-badges: KONSTANT storlek + collision-avoidance (stapla uppåt).
