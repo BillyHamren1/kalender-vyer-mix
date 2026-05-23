@@ -385,7 +385,7 @@ export function Sidebar3D() {
                 {hasChildren && !isCollapsed && expanded && (
                   <div
                     className="mt-1 mb-1 ml-[18px] pl-3 space-y-0.5"
-                    style={{ borderLeft: "1px solid hsl(270 20% 86%)" }}
+                    style={{ borderLeft: "1px solid hsl(240 8% 90%)" }}
                   >
                     {item.children!.map((child) => {
                       const childActive = isChildActive(child.url);
@@ -399,18 +399,18 @@ export function Sidebar3D() {
                           style={
                             childActive
                               ? {
-                                  background: "hsl(var(--primary) / 0.10)",
-                                  color: "hsl(280 45% 28%)",
+                                  background: "hsl(270 55% 96%)",
+                                  color: "hsl(280 50% 28%)",
                                   fontWeight: 600,
                                 }
                               : {
-                                  color: "hsl(270 14% 42%)",
+                                  color: "hsl(240 8% 38%)",
                                 }
                           }
                           onMouseEnter={(e) => {
                             if (!childActive)
                               (e.currentTarget as HTMLElement).style.background =
-                                "hsl(var(--primary) / 0.05)";
+                                "hsl(240 8% 95%)";
                           }}
                           onMouseLeave={(e) => {
                             if (!childActive)
@@ -425,7 +425,7 @@ export function Sidebar3D() {
                               style={{
                                 color: childActive
                                   ? "hsl(var(--primary))"
-                                  : "hsl(270 12% 52%)",
+                                  : "hsl(240 6% 52%)",
                               }}
                             />
                           )}
@@ -435,6 +435,7 @@ export function Sidebar3D() {
                     })}
                   </div>
                 )}
+
               </div>
             );
           })}
