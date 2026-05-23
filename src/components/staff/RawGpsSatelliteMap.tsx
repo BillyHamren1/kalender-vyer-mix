@@ -133,7 +133,8 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
   onSavePolygonRef.current = onSavePolygon;
   const drawRef = useRef<MapboxDraw | null>(null);
   const drawHandlersRef = useRef<{ cleanup: () => void } | null>(null);
-  const visitMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; el: HTMLElement; kind: 'compact' | 'detail' }>>([]);
+  // Do not set transform on marker root. Mapbox owns root transform for lng/lat positioning.
+  const visitMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; rootEl: HTMLElement; contentEl: HTMLElement; kind: 'compact' | 'detail' }>>([]);
   const geofenceMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; rootEl: HTMLElement; contentEl: HTMLElement }>>([]);
 
   const handleReady = (map: mapboxgl.Map) => {
@@ -173,14 +174,14 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     // Skala HTML-marker-pillar/paneler med zoom så texten blir läsbar när man zoomar in.
     // 1.0x vid zoom 14, växer till ~3.5x vid max zoom (22).
     const scale = Math.max(1, Math.min(3.5, 1 + (z - 14) * 0.35));
-    for (const { el, kind } of visitMarkersRef.current) {
+    for (const { rootEl, contentEl, kind } of visitMarkersRef.current) {
       const shouldShow = kind === 'detail' ? detailed : !detailed;
-      el.style.display = shouldShow ? '' : 'none';
+      rootEl.style.display = shouldShow ? '' : 'none';
       if (kind === 'detail' && shouldShow) {
-        // transform-origin bottom så pillen växer uppåt från sin ankarpunkt
-        el.style.transformOrigin = 'bottom center';
-        // Behåll ev. befintlig translateY (-22px) genom att lägga scale efter
-        el.style.transform = `translateY(-22px) scale(${scale.toFixed(2)})`;
+        // transform-origin bottom så pillen växer uppåt från sin ankarpunkt.
+        // Skriv ALDRIG transform på rootEl — Mapbox äger den för lat/lng-positionering.
+        contentEl.style.transformOrigin = 'bottom center';
+        contentEl.style.transform = `translateY(-22px) scale(${scale.toFixed(2)})`;
       }
     }
     // Geofence-badges: KONSTANT storlek + collision-avoidance (stapla uppåt).
@@ -256,14 +257,18 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     }
 
     const addCompactPin = (lng: number, lat: number, title: string) => {
+      // rootEl ägs av Mapbox (transform = lat/lng). Visuell pin ligger i contentEl.
+      const rootEl = document.createElement('div');
+      rootEl.style.cssText = 'pointer-events:auto;';
       const pin = document.createElement('div');
       pin.style.cssText =
         'width:12px;height:12px;border-radius:9999px;background:#22c55e;box-shadow:0 0 0 2px #fff,0 1px 4px rgba(0,0,0,.5);cursor:pointer;';
       pin.title = title;
-      const marker = new mapboxgl.Marker({ element: pin, anchor: 'center' })
+      rootEl.appendChild(pin);
+      const marker = new mapboxgl.Marker({ element: rootEl, anchor: 'center' })
         .setLngLat([lng, lat])
         .addTo(map);
-      visitMarkersRef.current.push({ marker, el: pin, kind: 'compact' });
+      visitMarkersRef.current.push({ marker, rootEl, contentEl: pin, kind: 'compact' });
     };
 
     // ── Per geofence: kompakt pin + detalj block-panel ───────────────
@@ -330,10 +335,14 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         </div>
       `;
 
-      const panelMarker = new mapboxgl.Marker({ element: panel, anchor: 'right', offset: [-14, 0] })
+      // rootEl ägs av Mapbox (transform = lat/lng). Panelen är contentEl.
+      const panelRoot = document.createElement('div');
+      panelRoot.style.cssText = 'pointer-events:auto;';
+      panelRoot.appendChild(panel);
+      const panelMarker = new mapboxgl.Marker({ element: panelRoot, anchor: 'right', offset: [-14, 0] })
         .setLngLat([head.centre.lng, head.centre.lat])
         .addTo(map);
-      visitMarkersRef.current.push({ marker: panelMarker, el: panel, kind: 'detail' });
+      visitMarkersRef.current.push({ marker: panelMarker, rootEl: panelRoot, contentEl: panel, kind: 'detail' });
     }
 
     // ── Okända vistelser: enkel pill som förr ────────────────────────
@@ -369,10 +378,14 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         <span style="opacity:.55">·</span>
         <span style="font-variant-numeric:tabular-nums;color:#7dd3fc">${dur}</span>
       `;
-      const pillMarker = new mapboxgl.Marker({ element: pill, anchor: 'bottom' })
+      // rootEl ägs av Mapbox (transform = lat/lng). Pill (med translateY) ligger i contentEl.
+      const pillRoot = document.createElement('div');
+      pillRoot.style.cssText = 'pointer-events:auto;';
+      pillRoot.appendChild(pill);
+      const pillMarker = new mapboxgl.Marker({ element: pillRoot, anchor: 'bottom' })
         .setLngLat([midLng, midLat])
         .addTo(map);
-      visitMarkersRef.current.push({ marker: pillMarker, el: pill, kind: 'detail' });
+      visitMarkersRef.current.push({ marker: pillMarker, rootEl: pillRoot, contentEl: pill, kind: 'detail' });
     }
 
     applyZoomVisibility();
