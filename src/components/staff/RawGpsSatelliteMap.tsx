@@ -178,11 +178,48 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         el.style.transform = `translateY(-22px) scale(${scale.toFixed(2)})`;
       }
     }
-    // Geofence-pins: liten subtil uppskalning – aldrig stora
-    const badgeScale = Math.max(0.7, Math.min(1.3, 0.7 + (z - 11) * 0.06));
-    for (const { el } of geofenceMarkersRef.current) {
-      el.style.transformOrigin = 'left bottom';
-      el.style.transform = `translate(-5px,-100%) scale(${badgeScale.toFixed(2)})`;
+    // Geofence-badges: KONSTANT storlek + collision-avoidance (stapla uppåt).
+    layoutGeofenceBadges();
+  }
+
+  /**
+   * Pixel-baserad collision-avoidance så projekt-badges aldrig gömmer varandra.
+   * Behåller konstant storlek vid alla zoomnivåer.
+   */
+  function layoutGeofenceBadges() {
+    const map = mapRef.current;
+    if (!map) return;
+    type Rect = { left: number; right: number; top: number; bottom: number };
+    const placed: Rect[] = [];
+    const items = [...geofenceMarkersRef.current]
+      .map(({ marker, el }) => ({ el, pt: map.project(marker.getLngLat()) }))
+      // Nordligast (lägst y) först – top-down stack
+      .sort((a, b) => a.pt.y - b.pt.y);
+
+    for (const { el, pt } of items) {
+      const w = el.offsetWidth || 140;
+      const h = el.offsetHeight || 22;
+      // Badge sitter (anchor bottom-left) vid pt; translate(-5,-100%) lägger den ovanför.
+      // Extra bumpY skjuter den högre upp för att undvika kollision.
+      let bumpY = 0;
+      const left = pt.x - 5;
+      const right = left + w;
+      let attempts = 0;
+      while (attempts < 40) {
+        const bottom = pt.y - bumpY;
+        const top = bottom - h;
+        const collides = placed.some(
+          (r) => !(right < r.left || left > r.right || bottom < r.top || top > r.bottom),
+        );
+        if (!collides) {
+          placed.push({ left, right, top, bottom });
+          el.style.transformOrigin = 'left bottom';
+          el.style.transform = `translate(-5px, calc(-100% - ${bumpY}px))`;
+          break;
+        }
+        bumpY += h + 4;
+        attempts++;
+      }
     }
   }
 
