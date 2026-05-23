@@ -324,12 +324,14 @@ export function Sidebar3D() {
 
             const itemStyle: React.CSSProperties = active
               ? {
-                  background: "hsl(var(--primary) / 0.10)",
-                  boxShadow: "inset 2px 0 0 hsl(var(--primary))",
+                  background: "hsl(270 55% 96%)",
+                  boxShadow:
+                    "inset 0 0 0 1px hsl(270 40% 88%), 0 1px 2px hsl(270 30% 25% / 0.04)",
                 }
               : hovered
-                ? { background: "hsl(var(--primary) / 0.06)" }
+                ? { background: "hsl(240 8% 95%)" }
                 : {};
+
 
             return (
               <div key={item.url} className="relative">
