@@ -137,6 +137,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     renderLayers(map, pings, geofences);
     renderVisitMarkers(map, visits);
     map.on('zoom', applyZoomVisibility);
+    map.on('move', layoutGeofenceBadges);
   };
 
 
