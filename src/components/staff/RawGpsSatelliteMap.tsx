@@ -433,61 +433,52 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
           paint: { 'line-color': ['get', 'color'], 'line-width': 2.5, 'line-opacity': 1 },
           layout: { 'line-cap': 'round', 'line-join': 'round' },
         });
-        // Premium HTML-badges per geofence (pin + label) — ersätter satellitens text-symbol-look
+        // Liten röd pin + ren text-badge med projektnamn. Boende/locations renderas inte.
         clearGeofenceMarkers();
         for (const f of labels.features) {
           const p = f.properties as any;
+          const kind: string = p.kind || '';
+          // Visa ENDAST projekt (inkl. stora projekt). Boende/lager/bokningar = ingen badge.
+          if (kind !== 'project' && kind !== 'large') continue;
+
           const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates;
-          const color: string = p.color || '#a855f7';
-          const kindLabel: string = p.kindLabel || 'Plats';
           const name: string = p.name || '';
-          const radius: number = Number(p.radius) || 0;
+          if (!name) continue;
 
           const wrap = document.createElement('div');
           wrap.style.cssText = [
             'pointer-events:auto','cursor:pointer',
-            'display:flex','flex-direction:column','align-items:center','gap:4px',
-            'transform:translateY(-6px)','transform-origin:bottom center',
+            'display:flex','align-items:center','gap:6px',
+            'transform:translate(-5px,-100%)','transform-origin:left bottom',
             'transition:transform .15s ease',
           ].join(';');
 
-          const badge = document.createElement('div');
-          badge.style.cssText = [
-            'display:inline-flex','align-items:center','gap:6px',
-            'padding:4px 9px 4px 6px','border-radius:9999px',
-            'background:rgba(15,23,42,.92)','color:#fff',
-            'font:600 11px/1.15 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif',
-            'letter-spacing:.01em','white-space:nowrap','max-width:260px',
-            `border:1px solid ${color}`,
-            `box-shadow:0 6px 16px -6px rgba(0,0,0,.6),0 0 0 2px rgba(255,255,255,.08),0 0 0 4px ${color}22`,
-            'backdrop-filter:blur(8px) saturate(140%)','-webkit-backdrop-filter:blur(8px) saturate(140%)',
-          ].join(';');
-          const kindChip = `
-            <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 6px;border-radius:9999px;background:${color}22;color:${color};font-size:9px;letter-spacing:.08em;text-transform:uppercase;font-weight:700">
-              <span style="width:5px;height:5px;border-radius:9999px;background:${color};box-shadow:0 0 6px ${color}"></span>
-              ${kindLabel}
-            </span>`;
-          const radiusChip = radius
-            ? `<span style="opacity:.55;font-variant-numeric:tabular-nums;font-size:10px">·&nbsp;${Math.round(radius)} m</span>`
-            : '';
-          badge.innerHTML = `
-            ${kindChip}
-            <span style="overflow:hidden;text-overflow:ellipsis;max-width:180px">${name}</span>
-            ${radiusChip}
-          `;
-
+          // Röd nålpin (boll + stjälk) – som referensbilden
           const pin = document.createElement('div');
           pin.style.cssText = [
-            'width:14px','height:14px','border-radius:9999px',
-            `background:${color}`,
-            'border:2px solid #fff',
-            `box-shadow:0 2px 6px rgba(0,0,0,.5),0 0 0 4px ${color}33`,
+            'position:relative','width:12px','height:18px','flex:none',
           ].join(';');
+          pin.innerHTML = `
+            <div style="position:absolute;left:5px;top:6px;width:2px;height:12px;background:linear-gradient(180deg,#c8ccd1,#7a7f86);border-radius:1px;box-shadow:0 1px 1px rgba(0,0,0,.35)"></div>
+            <div style="position:absolute;left:0;top:0;width:12px;height:12px;border-radius:9999px;background:radial-gradient(circle at 35% 30%,#ff7a7a 0%,#e11d2c 55%,#9b0e1a 100%);border:1px solid rgba(255,255,255,.85);box-shadow:0 2px 4px rgba(0,0,0,.45)"></div>
+          `;
 
-          wrap.appendChild(badge);
+          const label = document.createElement('div');
+          label.style.cssText = [
+            'padding:2px 8px','border-radius:9999px',
+            'background:rgba(255,255,255,.94)','color:#0f172a',
+            'font:600 11px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif',
+            'white-space:nowrap','overflow:hidden','text-overflow:ellipsis','max-width:160px',
+            'border:1px solid rgba(15,23,42,.08)',
+            'box-shadow:0 2px 6px rgba(0,0,0,.25)',
+            'backdrop-filter:blur(6px)','-webkit-backdrop-filter:blur(6px)',
+          ].join(';');
+          label.textContent = name;
+
           wrap.appendChild(pin);
+          wrap.appendChild(label);
 
-          const marker = new mapboxgl.Marker({ element: wrap, anchor: 'bottom' })
+          const marker = new mapboxgl.Marker({ element: wrap, anchor: 'bottom-left' })
             .setLngLat([lng, lat])
             .addTo(map);
           geofenceMarkersRef.current.push({ marker, el: wrap });
