@@ -120,6 +120,10 @@ const SOURCE_IDS = [
 
 const ZOOM_DETAIL_THRESHOLD = 14;
 
+export function buildBadgeStackTransform(bumpY: number): string {
+  return `translate(-5px, calc(-100% - ${bumpY}px))`;
+}
+
 export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [], className, onSaveRadius, onSavePolygon }: Props) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
@@ -130,7 +134,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
   const drawRef = useRef<MapboxDraw | null>(null);
   const drawHandlersRef = useRef<{ cleanup: () => void } | null>(null);
   const visitMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; el: HTMLElement; kind: 'compact' | 'detail' }>>([]);
-  const geofenceMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; el: HTMLElement }>>([]);
+  const geofenceMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; rootEl: HTMLElement; contentEl: HTMLElement }>>([]);
 
   const handleReady = (map: mapboxgl.Map) => {
     mapRef.current = map;
@@ -193,13 +197,13 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     type Rect = { left: number; right: number; top: number; bottom: number };
     const placed: Rect[] = [];
     const items = [...geofenceMarkersRef.current]
-      .map(({ marker, el }) => ({ el, pt: map.project(marker.getLngLat()) }))
+      .map(({ marker, contentEl }) => ({ contentEl, pt: map.project(marker.getLngLat()) }))
       // Nordligast (lägst y) först – top-down stack
       .sort((a, b) => a.pt.y - b.pt.y);
 
-    for (const { el, pt } of items) {
-      const w = el.offsetWidth || 140;
-      const h = el.offsetHeight || 22;
+    for (const { contentEl, pt } of items) {
+      const w = contentEl.offsetWidth || 140;
+      const h = contentEl.offsetHeight || 22;
       // Badge sitter (anchor bottom-left) vid pt; translate(-5,-100%) lägger den ovanför.
       // Extra bumpY skjuter den högre upp för att undvika kollision.
       let bumpY = 0;
@@ -214,8 +218,8 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         );
         if (!collides) {
           placed.push({ left, right, top, bottom });
-          el.style.transformOrigin = 'left bottom';
-          el.style.transform = `translate(-5px, calc(-100% - ${bumpY}px))`;
+          contentEl.style.transformOrigin = 'left bottom';
+          contentEl.style.transform = buildBadgeStackTransform(bumpY);
           break;
         }
         bumpY += h + 4;
@@ -483,11 +487,16 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
           const name: string = p.name || '';
           if (!name) continue;
 
+          const root = document.createElement('div');
+          root.style.cssText = [
+            'pointer-events:auto','cursor:pointer',
+          ].join(';');
+
           const wrap = document.createElement('div');
           wrap.style.cssText = [
             'pointer-events:auto','cursor:pointer',
             'display:flex','align-items:center','gap:6px',
-            'transform:translate(-5px,-100%)','transform-origin:left bottom',
+            `transform:${buildBadgeStackTransform(0)}`,'transform-origin:left bottom',
             'transition:transform .15s ease',
           ].join(';');
 
@@ -516,10 +525,12 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
           wrap.appendChild(pin);
           wrap.appendChild(label);
 
-          const marker = new mapboxgl.Marker({ element: wrap, anchor: 'bottom-left' })
+          root.appendChild(wrap);
+
+          const marker = new mapboxgl.Marker({ element: root, anchor: 'bottom-left' })
             .setLngLat([lng, lat])
             .addTo(map);
-          geofenceMarkersRef.current.push({ marker, el: wrap });
+          geofenceMarkersRef.current.push({ marker, rootEl: root, contentEl: wrap });
         }
         // Stapla badges efter att de monterats (offsetWidth tillgängligt).
         requestAnimationFrame(() => layoutGeofenceBadges());
