@@ -60,7 +60,7 @@ describe('buildExactGeofenceVisits', () => {
 
     expect(visits).toHaveLength(2);
     expect(visits[0].knownSite?.id).toBe('project:westmans');
-    expect(visits[0].end).toBe('2026-05-23T09:30:00.000Z');
+    expect(visits[0].end).toBe('2026-05-23T10:00:00.000Z');
     expect(visits[1].knownSite?.id).toBe('project:other');
     expect(visits[1].start).toBe('2026-05-23T10:00:00.000Z');
   });
@@ -95,7 +95,7 @@ describe('buildExactGeofenceVisits', () => {
     expect(visits).toHaveLength(2);
     expect(visits[0].knownSite?.id).toBe('project:westmans');
     expect(visits[0].start).toBe('2026-05-23T07:50:48.000Z');
-    expect(visits[0].end).toBe('2026-05-23T18:20:00.000Z');
+    expect(visits[0].end).toBe('2026-05-23T18:30:07.000Z');
     expect(visits[1].knownSite?.id).toBe('project:other');
     expect(visits[1].start).toBe('2026-05-23T18:30:07.000Z');
   });
