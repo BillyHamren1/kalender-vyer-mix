@@ -257,14 +257,18 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     }
 
     const addCompactPin = (lng: number, lat: number, title: string) => {
+      // rootEl ägs av Mapbox (transform = lat/lng). Visuell pin ligger i contentEl.
+      const rootEl = document.createElement('div');
+      rootEl.style.cssText = 'pointer-events:auto;';
       const pin = document.createElement('div');
       pin.style.cssText =
         'width:12px;height:12px;border-radius:9999px;background:#22c55e;box-shadow:0 0 0 2px #fff,0 1px 4px rgba(0,0,0,.5);cursor:pointer;';
       pin.title = title;
-      const marker = new mapboxgl.Marker({ element: pin, anchor: 'center' })
+      rootEl.appendChild(pin);
+      const marker = new mapboxgl.Marker({ element: rootEl, anchor: 'center' })
         .setLngLat([lng, lat])
         .addTo(map);
-      visitMarkersRef.current.push({ marker, el: pin, kind: 'compact' });
+      visitMarkersRef.current.push({ marker, rootEl, contentEl: pin, kind: 'compact' });
     };
 
     // ── Per geofence: kompakt pin + detalj block-panel ───────────────
