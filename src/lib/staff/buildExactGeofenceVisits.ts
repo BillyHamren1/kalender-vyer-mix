@@ -55,8 +55,12 @@ function resolveFence(ping: Ping, sites: GeofenceSite[]): GeofenceSite | null {
 interface OpenVisit {
   site: GeofenceSite;
   pings: Ping[];
-  /** Index in `pings` of the LAST ping that was inside the fence. */
-  lastInsideIdx: number;
+}
+
+interface ClosedVisit {
+  site: GeofenceSite;
+  pings: Ping[];
+  endOverride?: string;
 }
 
 export function buildExactGeofenceVisits(rawPings: Ping[], sites: GeofenceSite[]): PlaceVisit[] {
@@ -69,23 +73,25 @@ export function buildExactGeofenceVisits(rawPings: Ping[], sites: GeofenceSite[]
   const visits: PlaceVisit[] = [];
   let open: OpenVisit | null = null;
 
-  const flush = (opts: { trimTrailingOutside: boolean }) => {
+  const flush = (opts: { endOverride?: string } = {}) => {
     if (!open) return;
-    let pings = open.pings;
-    if (opts.trimTrailingOutside && open.lastInsideIdx >= 0) {
-      pings = pings.slice(0, open.lastInsideIdx + 1);
-    }
+    const closed: ClosedVisit = {
+      site: open.site,
+      pings: open.pings,
+      endOverride: opts.endOverride,
+    };
+    const pings = closed.pings;
     if (pings.length) {
       const start = pings[0].recorded_at;
-      const end = pings[pings.length - 1].recorded_at;
+      const end = closed.endOverride ?? pings[pings.length - 1].recorded_at;
       const durationMin = Math.max(
         0,
         Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60_000),
       );
       visits.push({
-        placeKey: `site:${open.site.id}:${start}`,
-        knownSite: { id: open.site.id, name: open.site.name },
-        centre: { lat: open.site.lat, lng: open.site.lng },
+        placeKey: `site:${closed.site.id}:${start}`,
+        knownSite: { id: closed.site.id, name: closed.site.name },
+        centre: { lat: closed.site.lat, lng: closed.site.lng },
         start,
         end,
         durationMin,
@@ -102,26 +108,23 @@ export function buildExactGeofenceVisits(rawPings: Ping[], sites: GeofenceSite[]
 
     if (!open) {
       if (fence) {
-        open = { site: fence, pings: [ping], lastInsideIdx: 0 };
+        open = { site: fence, pings: [ping] };
       }
       continue;
     }
 
     if (fence && fence.id !== open.site.id) {
-      // Bytt projekt — stäng nuvarande vid sista inside-pingen och öppna nytt.
-      flush({ trimTrailingOutside: true });
-      open = { site: fence, pings: [ping], lastInsideIdx: 0 };
+      // Bytt projekt — stäng nuvarande exakt där nästa block tar vid.
+      flush({ endOverride: ping.recorded_at });
+      open = { site: fence, pings: [ping] };
       continue;
     }
 
     // Inne i samma fence ELLER utanför alla — räknas till samma block.
     open.pings.push(ping);
-    if (fence && fence.id === open.site.id) {
-      open.lastInsideIdx = open.pings.length - 1;
-    }
   }
 
-  // Slut på dagen utan återinträde — trimma trailing utanför-pings.
-  flush({ trimTrailingOutside: true });
+  // Slut på dagen — sista öppna blocket tar hela vägen till dagens sista ping.
+  flush();
   return visits;
 }

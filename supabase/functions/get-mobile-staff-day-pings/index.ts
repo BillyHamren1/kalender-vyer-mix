@@ -80,17 +80,14 @@ function buildExactGeofenceVisits(rawPings: PingRow[], sites: GeofenceRow[]) {
     pings: PingRow[];
     subKind: "inside";
   }> = [];
-  let open: { site: GeofenceRow; pings: PingRow[]; lastInsideIdx: number } | null = null;
+  let open: { site: GeofenceRow; pings: PingRow[] } | null = null;
 
-  const flush = (trimTrailingOutside: boolean) => {
+  const flush = (opts: { endOverride?: string } = {}) => {
     if (!open) return;
-    let visitPings = open.pings;
-    if (trimTrailingOutside && open.lastInsideIdx >= 0) {
-      visitPings = visitPings.slice(0, open.lastInsideIdx + 1);
-    }
+    const visitPings = open.pings;
     if (visitPings.length > 0) {
       const start = visitPings[0].recorded_at;
-      const end = visitPings[visitPings.length - 1].recorded_at;
+      const end = opts.endOverride ?? visitPings[visitPings.length - 1].recorded_at;
       visits.push({
         placeKey: `site:${open.site.id}:${start}`,
         knownSite: { id: open.site.id, name: open.site.name },
@@ -109,19 +106,18 @@ function buildExactGeofenceVisits(rawPings: PingRow[], sites: GeofenceRow[]) {
   for (const ping of sorted) {
     const fence = resolveFence(ping, sites);
     if (!open) {
-      if (fence) open = { site: fence, pings: [ping], lastInsideIdx: 0 };
+      if (fence) open = { site: fence, pings: [ping] };
       continue;
     }
     if (fence && fence.id !== open.site.id) {
-      flush(true);
-      open = { site: fence, pings: [ping], lastInsideIdx: 0 };
+      flush({ endOverride: ping.recorded_at });
+      open = { site: fence, pings: [ping] };
       continue;
     }
     open.pings.push(ping);
-    if (fence && fence.id === open.site.id) open.lastInsideIdx = open.pings.length - 1;
   }
 
-  flush(true);
+  flush();
   return visits;
 }
 
