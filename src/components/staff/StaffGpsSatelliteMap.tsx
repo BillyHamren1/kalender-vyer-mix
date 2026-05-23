@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { Fragment, useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { fetchStaffMembers } from '@/services/staffService';
@@ -280,6 +280,7 @@ function GeofenceVisitsTable({ visits }: { visits: PlaceVisit[] }) {
     () => [...visits].sort((a, b) => a.start.localeCompare(b.start)),
     [visits],
   );
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
   return (
     <div className="planning-card overflow-hidden">
       <div className="px-4 py-3 border-b border-[hsl(270_20%_90%)] flex items-center justify-between bg-[hsl(270_35%_98%)]">
@@ -287,12 +288,13 @@ function GeofenceVisitsTable({ visits }: { visits: PlaceVisit[] }) {
           <span className="planning-section-title">Geofence-besök</span>
           <span className="planning-badge">{sorted.length}</span>
         </div>
-        <span className="text-[11px] text-muted-foreground">Exakt IN/UT per stängsel</span>
+        <span className="text-[11px] text-muted-foreground">Klicka på en rad för att se alla pings</span>
       </div>
-      <div className="max-h-[40vh] overflow-auto">
+      <div className="max-h-[60vh] overflow-auto">
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-[hsl(270_18%_92%)]">
             <tr className="text-left text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground">
+              <th className="px-3 py-2 font-semibold w-6"></th>
               <th className="px-3 py-2 font-semibold">Plats</th>
               <th className="px-3 py-2 font-semibold">Typ</th>
               <th className="px-3 py-2 font-semibold">IN</th>
@@ -313,26 +315,41 @@ function GeofenceVisitsTable({ visits }: { visits: PlaceVisit[] }) {
               const mm = v.durationMin % 60;
               const dur = hh > 0 ? `${hh}h ${mm}m` : `${mm}m`;
               const isOutside = v.subKind === 'outside_geo';
+              const rowKey = `gv-${v.placeKey}-${v.start}`;
+              const isOpen = expandedKey === rowKey;
               return (
-                <tr key={`gv-${v.placeKey}-${v.start}`} className="border-t border-[hsl(270_18%_94%)] hover:bg-[hsl(270_35%_98%)] transition-colors">
-                  <td className="px-3 py-2">
-                    <span className="font-medium text-foreground/90">{v.knownSite!.name}</span>
-                    {isOutside && (
-                      <span className="ml-2 text-[10px] uppercase tracking-wide text-amber-600">· Utanför geo</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    <span className="planning-chip">{kind}</span>
-                  </td>
-                  <td className="px-3 py-2 font-mono tabular-nums text-foreground/80">{formatStockholmHms(v.start)}</td>
-                  <td className="px-3 py-2 font-mono tabular-nums text-foreground/80">{formatStockholmHms(v.end)}</td>
-                  <td className="px-3 py-2 font-medium tabular-nums">{dur}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{v.pingCount}</td>
-                </tr>
+                <Fragment key={rowKey}>
+                  <tr
+                    onClick={() => setExpandedKey(isOpen ? null : rowKey)}
+                    className={`border-t border-[hsl(270_18%_94%)] cursor-pointer transition-colors ${isOpen ? 'bg-[hsl(270_45%_96%)]' : 'hover:bg-[hsl(270_35%_98%)]'}`}
+                  >
+                    <td className="px-3 py-2 text-muted-foreground tabular-nums select-none">
+                      {isOpen ? '▾' : '▸'}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className="font-medium text-foreground/90">{v.knownSite!.name}</span>
+                      {isOutside && (
+                        <span className="ml-2 text-[10px] uppercase tracking-wide text-amber-600">· Utanför geo</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2"><span className="planning-chip">{kind}</span></td>
+                    <td className="px-3 py-2 font-mono tabular-nums text-foreground/80">{formatStockholmHms(v.start)}</td>
+                    <td className="px-3 py-2 font-mono tabular-nums text-foreground/80">{formatStockholmHms(v.end)}</td>
+                    <td className="px-3 py-2 font-medium tabular-nums">{dur}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{v.pingCount}</td>
+                  </tr>
+                  {isOpen && (
+                    <tr className="bg-[hsl(270_45%_98%)]">
+                      <td colSpan={7} className="px-0 py-0">
+                        <VisitPingsDetail visit={v} />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               );
             })}
             {!sorted.length && (
-              <tr><td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">Inga geofence-besök för vald person och dag.</td></tr>
+              <tr><td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">Inga geofence-besök för vald person och dag.</td></tr>
             )}
           </tbody>
         </table>
@@ -340,5 +357,58 @@ function GeofenceVisitsTable({ visits }: { visits: PlaceVisit[] }) {
     </div>
   );
 }
+
+function VisitPingsDetail({ visit }: { visit: PlaceVisit }) {
+  const pings = visit.pings ?? [];
+  return (
+    <div className="px-6 py-3 border-t border-[hsl(270_25%_90%)]">
+      <div className="text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground mb-2 flex items-center gap-2">
+        <span>Alla pings för detta besök</span>
+        <span className="planning-badge">{pings.length}</span>
+      </div>
+      <div className="max-h-[40vh] overflow-auto rounded border border-[hsl(270_20%_92%)] bg-white">
+        <table className="w-full text-[11px]">
+          <thead className="sticky top-0 bg-[hsl(270_35%_97%)] text-left text-[10px] uppercase tracking-[0.05em] text-muted-foreground">
+            <tr>
+              <th className="px-3 py-1.5 font-semibold w-10">#</th>
+              <th className="px-3 py-1.5 font-semibold">Tid</th>
+              <th className="px-3 py-1.5 font-semibold">Lat</th>
+              <th className="px-3 py-1.5 font-semibold">Lng</th>
+              <th className="px-3 py-1.5 font-semibold text-right">Acc (m)</th>
+              <th className="px-3 py-1.5 font-semibold">Karta</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pings.map((p, idx) => (
+              <tr key={`${p.recorded_at}-${idx}`} className="border-t border-[hsl(270_18%_95%)] hover:bg-[hsl(270_35%_98%)]">
+                <td className="px-3 py-1.5 tabular-nums text-muted-foreground">{idx + 1}</td>
+                <td className="px-3 py-1.5 font-mono tabular-nums">{formatStockholmHms(p.recorded_at)}</td>
+                <td className="px-3 py-1.5 font-mono tabular-nums">{p.lat.toFixed(6)}</td>
+                <td className="px-3 py-1.5 font-mono tabular-nums">{p.lng.toFixed(6)}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums">
+                  {p.accuracy != null ? Math.round(p.accuracy) : '—'}
+                </td>
+                <td className="px-3 py-1.5">
+                  <a
+                    href={`https://www.google.com/maps?q=${p.lat},${p.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    Öppna
+                  </a>
+                </td>
+              </tr>
+            ))}
+            {!pings.length && (
+              <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">Inga pings registrerade.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 
 
