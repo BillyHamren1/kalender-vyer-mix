@@ -133,9 +133,11 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
   onSavePolygonRef.current = onSavePolygon;
   const drawRef = useRef<MapboxDraw | null>(null);
   const drawHandlersRef = useRef<{ cleanup: () => void } | null>(null);
+  const lastBoundsRef = useRef<mapboxgl.LngLatBounds | null>(null);
   // Do not set transform on marker root. Mapbox owns root transform for lng/lat positioning.
   const visitMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; rootEl: HTMLElement; contentEl: HTMLElement; kind: 'compact' | 'detail' }>>([]);
   const geofenceMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; rootEl: HTMLElement; pinEl: HTMLElement; labelEl: HTMLElement }>>([]);
+
 
   const handleReady = (map: mapboxgl.Map) => {
     mapRef.current = map;
@@ -143,7 +145,15 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     renderVisitMarkers(map, visits);
     map.on('zoom', applyZoomVisibility);
     map.on('move', layoutGeofenceBadges);
+    // Refit till sparad bounds när containern ändrar storlek så vi inte
+    // får massa tom satellit-yta runt en smal rutt.
+    map.on('resize', () => {
+      const b = lastBoundsRef.current;
+      if (!b) return;
+      try { map.fitBounds(b, { padding: 24, duration: 0, maxZoom: 17 }); } catch {/* ignore */}
+    });
   };
+
 
 
   useEffect(() => {
@@ -951,10 +961,14 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
 
       const bounds = new mapboxgl.LngLatBounds();
       data.forEach((p) => bounds.extend([p.lng, p.lat]));
+      lastBoundsRef.current = bounds;
       try {
-        map.fitBounds(bounds, { padding: 40, duration: 400, maxZoom: 16 });
+        // Liten padding + hög maxZoom så vi alltid zoomar in så långt det
+        // går utan att klippa bort någon ping.
+        map.fitBounds(bounds, { padding: 24, duration: 400, maxZoom: 17 });
       } catch {/* ignore */}
       applyZoomVisibility();
+
 
     };
     if (map.isStyleLoaded()) apply();
