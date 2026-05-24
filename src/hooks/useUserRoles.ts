@@ -104,6 +104,17 @@ export const useUserRoles = () => {
     await queryClient.invalidateQueries({ queryKey: [ROLES_QUERY_KEY, user?.id ?? null] });
   }, [queryClient, user?.id]);
 
+  // If the last fetch timed out / errored, quietly retry in the background
+  // after ROLE_BACKGROUND_RETRY_MS so the user picks up real roles once the
+  // DB recovers — without ever blocking the UI again.
+  useEffect(() => {
+    if (!user?.id) return;
+    if (!query.isFetched) return;
+    if (!lastFetchFailedRef.current) return;
+    const t = setTimeout(() => { void refetch(); }, ROLE_BACKGROUND_RETRY_MS);
+    return () => clearTimeout(t);
+  }, [user?.id, query.isFetched, query.dataUpdatedAt, refetch]);
+
   return {
     roles,
     isLoading,
