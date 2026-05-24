@@ -795,9 +795,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       // ── Move-label points (endast en tidslabel per globalt 5-minutersintervall) ─
       const moveLabelFeatures: any[] = [];
       const globallyAllowedLabelIds = new Set(
-        pickPingsByGlobalInterval(data, 5 * 60_000)
-          .filter((p) => !pingInsideAnyFence(p, clipFences))
-          .map((p) => pingKey(p)),
+        pickPingsByGlobalInterval(data, 5 * 60_000).map((p) => pingKey(p)),
       );
       for (const s of segments) {
         if (s.kind !== 'move') continue;
@@ -809,7 +807,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
           const key = pingKey(p);
           if (!labelIds.has(key)) continue;
           if (!globallyAllowedLabelIds.has(key)) continue;
-          if (pingInsideAnyFence(p, clipFences)) continue;
+          const insideFence = pingInsideAnyFence(p, clipFences);
           moveLabelFeatures.push({
             type: 'Feature',
             geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
@@ -817,11 +815,13 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
               id: key,
               color,
               label: formatHm(p.recorded_at),
+              insideFence: insideFence ? 1 : 0,
             },
           });
         }
 
       }
+
       map.addSource('gps-move-points-src', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: moveLabelFeatures },
