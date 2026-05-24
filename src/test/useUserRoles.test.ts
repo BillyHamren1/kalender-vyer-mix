@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { getFallbackRolesFromUser } from '@/hooks/useUserRoles';
+import { getFallbackRolesFromUser, ROLE_FETCH_TIMEOUT_MS } from '@/hooks/useUserRoles';
+
+describe('ROLE_FETCH_TIMEOUT_MS', () => {
+  it('stays at or below 2000 ms so ProtectedRoute never hangs', () => {
+    expect(ROLE_FETCH_TIMEOUT_MS).toBeLessThanOrEqual(2000);
+  });
+});
 
 describe('getFallbackRolesFromUser', () => {
   it('reads valid roles from user metadata', () => {
