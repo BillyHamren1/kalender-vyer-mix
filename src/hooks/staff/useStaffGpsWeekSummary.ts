@@ -127,6 +127,14 @@ export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]
         .map(([name, minutes]) => ({ name, minutes }))
         .sort((a, b) => b.minutes - a.minutes);
 
+      const rawPings = (snap?.pings ?? []).map((p) => ({
+        lat: p.lat,
+        lng: p.lng,
+        recorded_at: p.recorded_at,
+        accuracy: p.accuracy,
+      }));
+      const travels = buildDayTimeline(rawPings, sortedVisits).travels;
+
       return {
         date,
         pingsCount,
@@ -134,6 +142,7 @@ export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]
         lastIso,
         durationMin,
         visits: sortedVisits,
+        travels,
         placeNames,
         places,
         isLoading: !!q?.isLoading,
