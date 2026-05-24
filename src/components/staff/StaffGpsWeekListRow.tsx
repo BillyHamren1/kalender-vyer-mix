@@ -39,12 +39,6 @@ export function StaffGpsWeekListRow({ staff, weekDays, isAssigned, isPinged, onS
         className="w-full flex items-center gap-2 px-3 py-2 bg-[hsl(270_35%_98%)] border-b border-[hsl(270_20%_92%)] hover:bg-[hsl(270_45%_96%)] transition text-left"
       >
         <span className="text-[13px] font-semibold text-[hsl(280_45%_22%)] truncate">{staff.name}</span>
-        {isAssigned && (
-          <Badge variant="secondary" className="h-4 px-1 text-[10px]">Ass</Badge>
-        )}
-        {isPinged && (
-          <Badge variant="outline" className="h-4 px-1 text-[10px]">GPS</Badge>
-        )}
         <span className="ml-auto text-[10.5px] text-muted-foreground">Klicka för karta</span>
       </button>
 
