@@ -12,9 +12,11 @@ import type { KnownSite } from '@/lib/staff/pingPlaceSegments';
  *   - bookings.delivery_latitude/longitude för dagens time_reports + LTE
  *   - large_projects.address_latitude/longitude för dagens TR/LTE
  *
- * Det här är vad som tidigare saknades: utan bokningarnas leveranskoordinater
- * blev t.ex. Westers/Craft "okänd plats" och resolveAt rapporterade `travel`
- * fastän personalen var på rätt jobbadress.
+ * VIKTIGT: Projekt får BARA bli känd plats om projektets eget datum
+ * (eventdate/rigdaydate/rigdowndate) matchar `date`, eller projektet är
+ * is_internal (t.ex. Lager). Annars riskerar gamla testprojekt knutna till
+ * en booking som råkar vara aktiv idag att matcha pings och "regga tid"
+ * på fel datum.
  */
 export function useDayKnownSites(staffId: string, date: string, enabled = true) {
   const { data: orgLocations = [], isLoading: orgLoading } = useOrganizationLocations();
@@ -24,7 +26,6 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
     enabled: enabled && !!staffId && !!date,
     staleTime: 60_000,
     queryFn: async () => {
-      // 1) Dagens team + direkta bokningstilldelningar för personen.
       const [teamAssignmentsRes, bookingAssignmentsRes, reportsRes, ltesRes] = await Promise.all([
         supabase
           .from('staff_assignments')
@@ -52,7 +53,6 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
         new Set(((teamAssignmentsRes.data || []) as any[]).map(r => String(r.team_id)).filter(Boolean)),
       );
 
-      // 2) calendar_events för personens team den dagen → booking_ids.
       const dayStartIso = `${date}T00:00:00.000Z`;
       const dayEndIso = `${date}T23:59:59.999Z`;
       const eventsRes = teamIds.length
@@ -95,29 +95,15 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
           : Promise.resolve({ data: [] as any[] }),
       ]);
 
-      const sites: KnownSite[] = [];
       const extraLargeIds = new Set<string>();
       const projectIds = new Set<string>();
+      const bookingRows = ((bookingsRes as any).data || []) as any[];
       for (const row of ((largeProjectBookingsRes as any).data || []) as any[]) {
         if (row.large_project_id) largeIds.add(String(row.large_project_id));
       }
-      for (const b of ((bookingsRes as any).data || [])) {
+      for (const b of bookingRows) {
         if (b.large_project_id) extraLargeIds.add(String(b.large_project_id));
         if (b.assigned_project_id) projectIds.add(String(b.assigned_project_id));
-        if (b.delivery_latitude == null || b.delivery_longitude == null) continue;
-        // Dedupe: om bokningen tillhör ett projekt eller stort projekt så representeras
-        // platsen redan av project:/large: geofencen — undvik dubbla cirklar på samma punkt.
-        if (b.assigned_project_id || b.large_project_id) continue;
-        const label = b.booking_number
-          ? `${b.booking_number} · ${b.client ?? 'Bokning'}`
-          : (b.client ?? b.deliveryaddress ?? 'Bokning');
-        sites.push({
-          id: `booking:${b.id}`,
-          name: label,
-          lat: Number(b.delivery_latitude),
-          lng: Number(b.delivery_longitude),
-          radiusMeters: 200,
-        });
       }
 
       const [largeRes, projectsByBookingRes, projectsByIdRes] = await Promise.all([
@@ -130,18 +116,77 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
         bookingIds.size
           ? supabase
               .from('projects')
-              .select('id, name, delivery_latitude, delivery_longitude, address_radius_meters, status, planning_status, deleted_at, booking_id')
+              .select('id, name, delivery_latitude, delivery_longitude, address_radius_meters, status, planning_status, deleted_at, booking_id, eventdate, rigdaydate, rigdowndate, is_internal')
               .in('booking_id', [...bookingIds])
               .is('deleted_at', null)
           : Promise.resolve({ data: [] as any[] }),
         projectIds.size
           ? supabase
               .from('projects')
-              .select('id, name, delivery_latitude, delivery_longitude, address_radius_meters, status, planning_status, deleted_at')
+              .select('id, name, delivery_latitude, delivery_longitude, address_radius_meters, status, planning_status, deleted_at, booking_id, eventdate, rigdaydate, rigdowndate, is_internal')
               .in('id', [...projectIds])
               .is('deleted_at', null)
           : Promise.resolve({ data: [] as any[] }),
       ]);
+
+      // Datumfilter: ett projekt får bara fungera som "känd plats" idag om
+      // det är ett internt projekt (Lager etc.) eller om dess egna datum
+      // matchar `date`. Annars använder vi bokningens egen pin istället.
+      const projectMatchesDate = (p: any): boolean => {
+        if (p?.is_internal === true) return true;
+        return p?.eventdate === date || p?.rigdaydate === date || p?.rigdowndate === date;
+      };
+
+      const sites: KnownSite[] = [];
+
+      // Bygg projekt-sites och håll reda på vilka booking_ids som faktiskt
+      // får sin pin via ett *datumvalidt* projekt (för dedup nedan).
+      const projectBackedBookingIds = new Set<string>();
+      const projectBackedProjectIds = new Set<string>();
+      const seenProjects = new Set<string>();
+      const projectRows = [
+        ...(((projectsByBookingRes as any).data || []) as any[]),
+        ...(((projectsByIdRes as any).data || []) as any[]),
+      ];
+      for (const p of projectRows) {
+        if (seenProjects.has(p.id)) continue;
+        seenProjects.add(p.id);
+        if (p.delivery_latitude == null || p.delivery_longitude == null) continue;
+        const status = (p.planning_status ?? p.status ?? '').toString().toLowerCase();
+        if (status === 'cancelled' || status === 'avbokat') continue;
+        if (!projectMatchesDate(p)) continue;
+        if (p.booking_id) projectBackedBookingIds.add(String(p.booking_id));
+        projectBackedProjectIds.add(String(p.id));
+        sites.push({
+          id: `project:${p.id}`,
+          name: p.name || 'Projekt',
+          lat: Number(p.delivery_latitude),
+          lng: Number(p.delivery_longitude),
+          radiusMeters: Number(p.address_radius_meters ?? 150) || 150,
+        });
+      }
+
+      // Bokningens egen pin: skippa BARA om bokningen redan representeras
+      // av ett datumvalidt project- eller large-project-site (annars hamnar
+      // pings i ingenmansland och matchar oavsiktligt gamla projekt).
+      for (const b of bookingRows) {
+        if (b.delivery_latitude == null || b.delivery_longitude == null) continue;
+        const backedByProject =
+          projectBackedBookingIds.has(String(b.id)) ||
+          (b.assigned_project_id && projectBackedProjectIds.has(String(b.assigned_project_id)));
+        const backedByLarge = !!b.large_project_id;
+        if (backedByProject || backedByLarge) continue;
+        const label = b.booking_number
+          ? `${b.booking_number} · ${b.client ?? 'Bokning'}`
+          : (b.client ?? b.deliveryaddress ?? 'Bokning');
+        sites.push({
+          id: `booking:${b.id}`,
+          name: label,
+          lat: Number(b.delivery_latitude),
+          lng: Number(b.delivery_longitude),
+          radiusMeters: 200,
+        });
+      }
 
       // Slå upp ev. stora projekt som bokningarna hör till (utöver TR/LTE-källor).
       const missingLarge = [...extraLargeIds].filter(id => !largeIds.has(id));
@@ -165,25 +210,7 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
           radiusMeters: Number(lp.address_radius_meters ?? 200) || 200,
         });
       }
-      const seenProjects = new Set<string>();
-      const projectRows = [
-        ...(((projectsByBookingRes as any).data || []) as any[]),
-        ...(((projectsByIdRes as any).data || []) as any[]),
-      ];
-      for (const p of projectRows) {
-        if (seenProjects.has(p.id)) continue;
-        seenProjects.add(p.id);
-        if (p.delivery_latitude == null || p.delivery_longitude == null) continue;
-        const status = (p.planning_status ?? p.status ?? '').toString().toLowerCase();
-        if (status === 'cancelled' || status === 'avbokat') continue;
-        sites.push({
-          id: `project:${p.id}`,
-          name: p.name || 'Projekt',
-          lat: Number(p.delivery_latitude),
-          lng: Number(p.delivery_longitude),
-          radiusMeters: Number(p.address_radius_meters ?? 150) || 150,
-        });
-      }
+
       return sites;
     },
   });
