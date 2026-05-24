@@ -506,23 +506,22 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
           const name: string = p.name || '';
           if (!name) continue;
 
+          // root = Mapbox-marker root (Mapbox äger transform = lat/lng). Vi
+          // skriver ALDRIG transform på rootEl. Pinnen ligger absolut-
+          // positionerad så att dess spets sitter exakt på ankaret (anchor:
+          // 'center'). Labeln är ett eget syskon-element och är det enda som
+          // bumpas av collision-avoidance — pin-nålen rör sig aldrig.
           const root = document.createElement('div');
           root.style.cssText = [
+            'position:relative','width:0','height:0',
             'pointer-events:auto','cursor:pointer',
           ].join(';');
 
-          const wrap = document.createElement('div');
-          wrap.style.cssText = [
-            'pointer-events:auto','cursor:pointer',
-            'display:flex','align-items:center','gap:6px',
-            `transform:${buildBadgeStackTransform(0)}`,'transform-origin:left bottom',
-            'transition:transform .15s ease',
-          ].join(';');
-
-          // Röd nålpin (boll + stjälk) – som referensbilden
+          // Röd nålpin (boll + stjälk) – ankarpunkt = pin-spetsens nederkant.
           const pin = document.createElement('div');
           pin.style.cssText = [
-            'position:relative','width:12px','height:18px','flex:none',
+            'position:absolute','left:-6px','top:-18px',
+            'width:12px','height:18px','pointer-events:auto',
           ].join(';');
           pin.innerHTML = `
             <div style="position:absolute;left:5px;top:6px;width:2px;height:12px;background:linear-gradient(180deg,#c8ccd1,#7a7f86);border-radius:1px;box-shadow:0 1px 1px rgba(0,0,0,.35)"></div>
@@ -531,6 +530,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
 
           const label = document.createElement('div');
           label.style.cssText = [
+            'position:absolute','left:0','top:0',
             'padding:2px 8px','border-radius:9999px',
             'background:rgba(255,255,255,.94)','color:#0f172a',
             'font:600 11px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif',
@@ -538,18 +538,18 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
             'border:1px solid rgba(15,23,42,.08)',
             'box-shadow:0 2px 6px rgba(0,0,0,.25)',
             'backdrop-filter:blur(6px)','-webkit-backdrop-filter:blur(6px)',
+            'transform:translate(10px, calc(-100% - 20px))','transform-origin:left bottom',
+            'transition:transform .15s ease','pointer-events:auto','cursor:pointer',
           ].join(';');
           label.textContent = name;
 
-          wrap.appendChild(pin);
-          wrap.appendChild(label);
+          root.appendChild(pin);
+          root.appendChild(label);
 
-          root.appendChild(wrap);
-
-          const marker = new mapboxgl.Marker({ element: root, anchor: 'bottom-left' })
+          const marker = new mapboxgl.Marker({ element: root, anchor: 'center' })
             .setLngLat([lng, lat])
             .addTo(map);
-          geofenceMarkersRef.current.push({ marker, rootEl: root, contentEl: wrap });
+          geofenceMarkersRef.current.push({ marker, rootEl: root, pinEl: pin, labelEl: label });
         }
         // Stapla badges efter att de monterats (offsetWidth tillgängligt).
         requestAnimationFrame(() => layoutGeofenceBadges());
