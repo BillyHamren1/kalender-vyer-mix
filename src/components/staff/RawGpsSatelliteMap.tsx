@@ -830,6 +830,11 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         id: 'gps-move-points',
         type: 'circle',
         source: 'gps-move-points-src',
+        filter: [
+          'any',
+          ['==', ['get', 'insideFence'], 0],
+          ['>=', ['zoom'], ZOOM_SHOW_INSIDE_FENCE],
+        ],
         paint: {
           'circle-radius': 5,
           'circle-color': ['get', 'color'],
@@ -841,6 +846,11 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         id: 'gps-move-labels',
         type: 'symbol',
         source: 'gps-move-points-src',
+        filter: [
+          'any',
+          ['==', ['get', 'insideFence'], 0],
+          ['>=', ['zoom'], ZOOM_SHOW_INSIDE_FENCE],
+        ],
         layout: {
           'text-field': ['get', 'label'],
           'text-size': [
@@ -863,6 +873,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
           'text-halo-width': 1.5,
         },
       });
+
 
       // ── Stay markers ───────────────────────────────────────────────
       const stayFeatures: any[] = [];
