@@ -493,7 +493,12 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     void geofenceId;
   }
 
-  function renderLayers(map: mapboxgl.Map, data: RawStaffGpsPing[], fences: GeofenceSite[]) {
+  function renderLayers(map: mapboxgl.Map, data: RawStaffGpsPing[], fences: GeofenceSite[], vs: PlaceVisit[] = []) {
+    // Klipp-fences = riktiga geofences + pseudo-fences runt detekterade
+    // vistelser. Pings/linjer/labels innanför något av dessa döljs så att
+    // bara ankomst/avgång syns. Visuella cirklar ritas bara för `fences`.
+    const clipFences: GeofenceSite[] = fences.concat(visitPseudoFences(vs));
+
 
     const apply = () => {
       for (const id of LAYER_IDS) if (map.getLayer(id)) map.removeLayer(id);
