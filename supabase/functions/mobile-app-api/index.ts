@@ -6082,7 +6082,7 @@ async function handleUploadLocationBatch(
       const [{ data: lteRows }, { data: homes }] = await Promise.all([
         supabase
           .from('location_time_entries')
-          .select(`entered_at, exited_at, location_id, booking_id, project_id, large_project_id,
+          .select(`entered_at, exited_at, location_id, booking_id, large_project_id,
                    organization_locations(name, latitude, longitude)`)
           .eq('organization_id', organizationId)
           .eq('staff_id', reg.staff_id)
@@ -6103,7 +6103,6 @@ async function handleUploadLocationBatch(
         let kind: 'project' | 'large_project' | 'location' | 'booking' | 'warehouse' = 'location'
         let targetId: string | null = r.location_id ?? null
         if (r.large_project_id) { kind = 'large_project'; targetId = r.large_project_id }
-        else if (r.project_id) { kind = 'project'; targetId = r.project_id }
         else if (r.booking_id) { kind = 'booking'; targetId = r.booking_id }
         return {
           enteredAtIso: r.entered_at,

@@ -62,7 +62,7 @@ async function loadHomeZones(
   try {
     const { data: priv } = await supabase
       .from('staff_private_zones')
-      .select('lat, lng, radius_m, zone_kind')
+      .select('lat, lng, radius_m, kind')
       .eq('organization_id', organizationId)
       .eq('staff_id', staffId);
     for (const p of priv || []) {
@@ -73,7 +73,7 @@ async function loadHomeZones(
         lat,
         lng,
         radiusM: Number.isFinite(p.radius_m) ? Number(p.radius_m) : 150,
-        kind: p.zone_kind ?? 'private_residence',
+        kind: (p as any).kind ?? 'private_residence',
       });
     }
   } catch (_) {
@@ -92,7 +92,7 @@ async function loadWorkAnchors(
   const { data: lte } = await supabase
     .from('location_time_entries')
     .select(`
-      entered_at, exited_at, location_id, booking_id, project_id, large_project_id,
+      entered_at, exited_at, location_id, booking_id, large_project_id,
       organization_locations(name, latitude, longitude)
     `)
     .eq('organization_id', organizationId)
@@ -107,7 +107,7 @@ async function loadWorkAnchors(
     let kind: AutoStopWorkAnchor['kind'] = 'location';
     let targetId: string | null = r.location_id ?? null;
     if (r.large_project_id) { kind = 'large_project'; targetId = r.large_project_id; }
-    else if (r.project_id) { kind = 'project'; targetId = r.project_id; }
+    else if (r.booking_id) { kind = 'project'; targetId = r.booking_id; }
     else if (r.booking_id) { kind = 'booking'; targetId = r.booking_id; }
     anchors.push({
       enteredAtIso: r.entered_at,
