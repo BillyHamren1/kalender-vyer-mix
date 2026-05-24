@@ -118,7 +118,10 @@ const SOURCE_IDS = [
   'gps-endpoints-src',
 ];
 
-const ZOOM_DETAIL_THRESHOLD = 14;
+const ZOOM_DETAIL_THRESHOLD = 13;
+// Vid denna zoom börjar vi även visa stay-points/labels INUTI geofences.
+// Vid lägre zoom skulle de bara skapa visuellt brus.
+const ZOOM_SHOW_INSIDE_FENCE = 15;
 
 export function buildBadgeStackTransform(bumpY: number): string {
   return `translate(-5px, calc(-100% - ${bumpY}px))`;
