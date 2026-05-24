@@ -1,55 +1,86 @@
-# Fix: "Laddar..."-skärmen fastnar på /projects
+## Vad användaren ser idag
 
-## Vad jag ser
+På `/staff-management/gps-satellite-map`, Tors 21/5 för Raivis:
+- **Geofence-besök-tabellen** (under kartan): 3 rader — `FA Warehouse 1h17m`, `FA Warehouse 1h0m`, `Westmans Uthyrning – 23 maj 2026 14h23m`. Korrekt.
+- **Veckopanelen** (vänster): "Tors 21/5 · FA Warehouse 16h 40m". Fel — Westmans-projektet saknas och hela dagen klumpas på FA Warehouse.
 
-- `AuthContext` loggar `SIGNED_IN` + `INITIAL_SESSION` korrekt — auth slår om till `isLoading=false`.
-- `ProtectedRoute` blockerar ändå på `user && rolesLoading` och visar full-screen Loader + "Laddar...".
-- `useUserRoles` har redan en 4 s `Promise.race`-timeout, men:
-  - Supabase DB är degraderad just nu (systemmetadata-fetch failade med "Connection terminated due to connection timeout").
-  - Om `Promise.race` av någon anledning inte hinner trigga (t.ex. fetch ligger pending i Service Worker / preview-proxy), står hela appen still — det finns ingen vägg-klocka högre upp som släpper igenom användaren.
-- Console visar inget "Error fetching user roles", så queryFn har inte ens resolverat under hela observationsfönstret.
+## Varför skiljer det sig
 
-Detta är ett klassiskt single-point-of-failure: hela appens upplåsning hänger på en enda DB-fråga utan hård övre tidsgräns.
+De två vyerna körs på två olika motorer mot olika geofence-uppsättningar:
 
-## Mål
+| Vy | Datakälla | Geofence-set |
+|---|---|---|
+| Geofence-besök-tabell | `useMobileStaffDayPings` → edge `get-mobile-staff-day-pings` (snapshot på servern) | Inkluderar Westmans-projektets pin för dagen (via `useDayKnownSites` + booking-fallback) |
+| Veckopanel | `useStaffGpsWeekSummary` → råpings + lokal `buildExactGeofenceVisits` / `buildPlaceVisits` med `filterProjectGeofences` | Westmans-projektet filtreras bort den 21/5 (matchar inte rigday/event/rigdown direkt), så enda kvarvarande stängsel i området är FA Warehouse → klusterheuristiken lägger HELA dagen där |
 
-Aldrig fastna på "Laddar..." pga. user_roles. Användaren ska antingen:
-1. komma in om de har cachade/metadata-roller, eller
-2. snabbt se en åtgärdbar skärm (Inga roller / Logga ut), eller
-3. komma in via SSO-bypassen.
+Två oberoende motorer = två sanningar. Vecka måste gå genom samma snapshot som tabellen.
 
-Ingen logikändring av roller, RLS eller behörighetsregler.
+## Vad som ska byggas
 
-## Plan
+### 1. Vecka använder snapshot per dag (en sanning)
 
-### 1. `src/hooks/useUserRoles.ts`
-- Sänk `ROLE_FETCH_TIMEOUT_MS` från 4000 → **2000 ms**.
-- I `catch`-grenen: efter att vi returnerar `fallbackRoles`, schemalägg en mjuk bakgrundsrefetch (`setTimeout(refetch, 30_000)`) så att riktiga roller plockas upp så fort DB svarar igen. (Implementeras enklast via en `meta.onTimeout`-flagga + `useEffect` i hooken som lyssnar på `query.isError`/timeout-flagga.)
-- Behåll övriga semantik (staleTime, retry: 0, cache).
+Byt ut `useStaffGpsWeekSummary`-motorn så att den för varje dag i veckan hämtar samma snapshot (`get-mobile-staff-day-pings`) som dag-vyn använder. För varje dag exponera:
+- `visits: PlaceVisit[]` — exakt samma lista som tabellen visar (privata boenden bortfiltrerade).
+- `totalMin` — summan av `durationMin` över alla synliga visits.
+- `firstIso` / `lastIso` — första/sista visit-start/-slut.
 
-### 2. `src/components/auth/ProtectedRoute.tsx` — hård säkerhetstimer
-- Lägg till en lokal `safetyElapsed`-state (mönster identiskt med `ScannerProtectedRoute.tsx` som redan finns i kodbasen).
-- När `user && rolesLoading` startas en `setTimeout` på **1500 ms**. När den löper ut sätts `safetyElapsed = true`.
-- Render-villkoret blir: `if (user && rolesLoading && !safetyElapsed)` → visa Laddar; annars fortsätt ned i komponenten med vad vi har (tomma roller → den befintliga "Inga roller tilldelade"-skärmen med Logga ut-knapp, eller hasPlanningAccess via metadata-fallback om sådan finns).
-- Lägg `console.warn('[ProtectedRoute] roles loading safety timeout — proceeding with cached/fallback roles')` när timern löper ut, så vi ser det i loggen.
-- Rensa timern vid unmount / när `rolesLoading` blir false.
+Ingen lokal `buildExactGeofenceVisits` / `filterProjectGeofences` kvar i veckosummeringen. Råpings-fetchen tas bort (snapshot innehåller redan visits).
 
-### 3. Test
-- Utöka `src/test/useUserRoles.test.ts` med ett test som verifierar att timeout-konstanten är ≤ 2000 ms (skydd mot regression).
-- Lägg `src/components/auth/__tests__/ProtectedRoute.safety.test.tsx`:
-  - Mocka `useAuth` → user satt, `useUserRoles` → `{ isLoading: true, roles: [] }`.
-  - Rendera ProtectedRoute, vänta 1600 ms (vitest fake timers), assert att "Laddar..." inte längre är i DOM och att "Inga roller tilldelade" syns.
+### 2. Slå ihop vecka och Geofence-besök till EN container
 
-## Vad jag INTE rör
+Den befintliga `GeofenceVisitsTable` under kartan tas bort. Veckopanelen blir bredare och blir det enda stället där dagar och deras geofence-besök listas:
 
-- Ingen ändring av RLS-policies, user_roles-tabellen, Supabase-konfig eller AuthContext.
-- Inget skip av role-check för icke-SSO-användare.
-- Ingen ändring av `MobileProtectedRoute` (mobile path är inte i scope här).
-- Ingen ändring av GPS-kartan eller Planning-styling från tidigare turer.
+```text
+┌─ Vecka 21 ────────────────────────────────────┐
+│ Mån 18/5         09:43–23:01     13h 18m  ▸  │
+│ Tis 19/5         06:59–20:35     13h 35m  ▸  │
+│ Ons 20/5                       Endast hemma   │
+│ Tors 21/5 ▾      06:28–23:13     16h 45m     │  ← vald, expanderad
+│   ┌─────────────────────────────────────────┐ │
+│   │ PLATS              IN      UT     TID   │ │
+│   │ FA Warehouse    06:29  07:46   1h 17m   │ │
+│   │ FA Warehouse    07:50  08:50   1h 0m    │ │
+│   │ Westmans …      08:50  23:13  14h 23m   │ │
+│   └─────────────────────────────────────────┘ │
+│ Fre 22/5  …                                   │
+└───────────────────────────────────────────────┘
+```
 
-## Filer som ändras
+- Vald dag är auto-expanderad och visar samma tabell som dagens "Geofence-besök".
+- Övriga dagar visar bara rubrikraden (veckodag, datum, intervall, total) och kan expanderas vid klick.
+- Totalsumman per dag = summa av besökens varaktighet (inte first→last-spannet), så "Tors 21/5" visar `16h 40m` (1h17 + 1h0 + 14h23).
+- Den lilla legenden "Tid per projekt = tid inom geofence. Boende räknas inte." flyttas in i samma container.
 
-- `src/hooks/useUserRoles.ts` (timeout 4000→2000, background re-fetch vid timeout)
-- `src/components/auth/ProtectedRoute.tsx` (1.5 s safety timer)
-- `src/test/useUserRoles.test.ts` (regression-guard)
-- `src/components/auth/__tests__/ProtectedRoute.safety.test.tsx` (ny)
+Kartan + ingen separat tabell under den. Sidan blir två kolumner: vänster = veckolistan (bredare), höger = kartan.
+
+### 3. Klick-flöde
+
+- Klick på dagrubrik = välj dagen (uppdaterar kartan) + toggla expansion.
+- Klick på besöksrad inuti expansionen = pan/zoom kartan till det besöket (återanvänder befintlig "klicka på rad för pings"-detalj utan att bryta upp containern).
+
+## Tekniska detaljer
+
+**Filer som ändras**
+- `src/hooks/staff/useStaffGpsWeekSummary.ts` — skrivs om till `useQueries` × 7 mot `callStaffSnapshotFunction('get-mobile-staff-day-pings', …)`. Returvärdet behåller samma form (`StaffGpsDaySummary[]`) men `places` blir härlett ur `visits` och `durationMin` blir summan av visit-min.
+- `src/components/staff/StaffGpsWeekPanel.tsx` — bredare layout, ny "expanderad dag"-sektion, totalrad per dag baserad på besökssumma.
+- `src/components/staff/StaffGpsDayRow.tsx` — får `expanded`-prop och rendrar besökstabellen när true; annars bara rubrikraden.
+- `src/components/staff/StaffGpsSatelliteMap.tsx` — tar bort `<GeofenceVisitsTable>` och `useOrganizationLocations`-filterringen som dubblerades (snapshot redan filtrerar). Layouten blir `[Veckopanel | Karta]`.
+- Den interna `GeofenceVisitsTable`/`VisitPingsDetail` flyttas till en egen liten fil (`src/components/staff/GeofenceVisitRows.tsx`) så att både dagvyn (gammalt fall) och nya expanderade dagraden återanvänder samma JSX.
+
+**Datakontrakt**
+- `StaffGpsDaySummary.visits` blir den auktoritativa listan; `places` härleds som `name → summa min` enbart för bakåtkompatibla användningar (gridsökning via testet `staffGpsSatelliteMap.contract.test.ts` ska fortsätta passera — uppdateras vid behov).
+- Inget i Time Engine eller staff_day_report rörs — det här är ren visualisering.
+
+**Caching**
+- Snapshot-hooken har redan `staleTime: 30s`. Veckans 7 queries använder samma query-key som dagvyn (`['mobile-staff-day-pings', staffId, date]`), så vald dag delar cache mellan vecka och karta → ingen dubbelfetch.
+
+## Test
+
+- Uppdaterar `src/test/staffGpsSatelliteMap.contract.test.ts` så att vecksumman härleds från snapshot-visits, inte från `buildExactGeofenceVisits`.
+- Lägger till `src/components/staff/__tests__/StaffGpsWeekPanel.totals.test.tsx` som verifierar att en dag med 3 visits (1h17 + 1h0 + 14h23) visar `16h 40m` totalt och listar alla tre platser i den expanderade vyn.
+
+## Vad som INTE ändras
+
+- Time Engine, time_reports, workday, lönelogik — inget av detta påverkas.
+- Backend-snapshot (`get-mobile-staff-day-pings`) — oförändrad. Bara klienten konsolideras.
+- Listan av personer, veckonavigationen, kartan, polygon/radie-redigering — oförändrade.
