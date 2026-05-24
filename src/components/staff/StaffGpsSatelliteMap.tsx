@@ -230,7 +230,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
   }, []);
 
   return (
-    <div className="flex flex-col md:flex-row gap-4 h-full">
+    <div className="flex flex-col gap-4 h-full">
       <StaffGpsWeekPanel
         staff={staff}
         staffId={effectiveStaffId}
@@ -241,17 +241,15 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
         onDateChange={handleDateChange}
       />
 
-      <div className="flex-1 min-w-0 flex flex-col gap-4">
-        {/* Karta */}
-        <div className="planning-card relative h-[calc(100vh-180px)] min-h-[520px] overflow-hidden p-0">
-          {pings.length > 0 || geofences.length > 0 ? (
-            <RawGpsSatelliteMap pings={pings} geofences={geofences} visits={geofenceVisits} onSaveRadius={saveRadius} onSavePolygon={savePolygon} className="h-full w-full" />
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-               {snapshotQuery.isLoading ? 'Laddar…' : 'Inga rörelser registrerade för vald dag.'}
-            </div>
-          )}
-        </div>
+      {/* Karta */}
+      <div className="planning-card relative flex-1 min-h-[520px] overflow-hidden p-0">
+        {pings.length > 0 || geofences.length > 0 ? (
+          <RawGpsSatelliteMap pings={pings} geofences={geofences} visits={geofenceVisits} onSaveRadius={saveRadius} onSavePolygon={savePolygon} className="h-full w-full" />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+             {snapshotQuery.isLoading ? 'Laddar…' : 'Inga rörelser registrerade för vald dag.'}
+          </div>
+        )}
       </div>
     </div>
   );
