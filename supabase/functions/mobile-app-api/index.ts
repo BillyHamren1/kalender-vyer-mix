@@ -6103,7 +6103,6 @@ async function handleUploadLocationBatch(
         let kind: 'project' | 'large_project' | 'location' | 'booking' | 'warehouse' = 'location'
         let targetId: string | null = r.location_id ?? null
         if (r.large_project_id) { kind = 'large_project'; targetId = r.large_project_id }
-        else if (r.project_id) { kind = 'project'; targetId = r.project_id }
         else if (r.booking_id) { kind = 'booking'; targetId = r.booking_id }
         return {
           enteredAtIso: r.entered_at,
