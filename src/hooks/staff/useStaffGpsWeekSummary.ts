@@ -11,7 +11,7 @@ import { useQueries } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { callStaffSnapshotFunction } from '@/services/staffSnapshotApi';
 import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
-import type { PlaceVisit } from '@/lib/staff/pingPlaceSegments';
+import { buildDayTimeline, type PlaceVisit, type TravelGap } from '@/lib/staff/pingPlaceSegments';
 import type {
   StaffGpsDaySnapshot,
   StaffGpsSnapshotVisit,
@@ -31,6 +31,8 @@ export interface StaffGpsDaySummary {
   durationMin: number;
   /** Geofence-besök för dagen (privata boenden bortfiltrerade). Samma lista som dag-tabellen. */
   visits: PlaceVisit[];
+  /** Förflyttningar mellan synliga besök. */
+  travels: TravelGap[];
   placeNames: string[];
   places: StaffGpsPlaceTime[];
   isLoading: boolean;
@@ -125,6 +127,14 @@ export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]
         .map(([name, minutes]) => ({ name, minutes }))
         .sort((a, b) => b.minutes - a.minutes);
 
+      const rawPings = (snap?.pings ?? []).map((p) => ({
+        lat: p.lat,
+        lng: p.lng,
+        recorded_at: p.recorded_at,
+        accuracy: p.accuracy,
+      }));
+      const travels = buildDayTimeline(rawPings, sortedVisits).travels;
+
       return {
         date,
         pingsCount,
@@ -132,6 +142,7 @@ export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]
         lastIso,
         durationMin,
         visits: sortedVisits,
+        travels,
         placeNames,
         places,
         isLoading: !!q?.isLoading,

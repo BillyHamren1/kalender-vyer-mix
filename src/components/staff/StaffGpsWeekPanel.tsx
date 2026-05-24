@@ -10,6 +10,7 @@ import { useStaffGpsWeekSummary } from '@/hooks/staff/useStaffGpsWeekSummary';
 import { useWeekDays } from '@/hooks/useWeekDays';
 import { StaffGpsDayCell } from './StaffGpsDayCell';
 import { GeofenceVisitRows } from './GeofenceVisitRows';
+import { GeofenceTravelRows } from './GeofenceTravelRows';
 
 interface Props {
   staff: StaffMember[];
@@ -125,6 +126,17 @@ export function StaffGpsWeekPanel({
       {selectedSummary && !hasVisits && !selectedSummary.isLoading && (
         <div className="border-t border-[hsl(270_20%_90%)] px-3 py-2 text-[11px] text-muted-foreground/70">
           Inga geofence-besök för vald dag.
+        </div>
+      )}
+
+      {/* Vald dags resor (separat lista) */}
+      {selectedSummary && (selectedSummary.travels?.length ?? 0) > 0 && (
+        <div className="border-t border-[hsl(35_60%_85%)] bg-white">
+          <div className="px-3 py-2 text-[11px] font-semibold tracking-tight text-[hsl(28_70%_32%)] capitalize flex items-center gap-2">
+            <span>{format(date, 'EEEE d MMM', { locale: sv })} — resor</span>
+            <span className="planning-badge">{selectedSummary.travels.length}</span>
+          </div>
+          <GeofenceTravelRows travels={selectedSummary.travels} compact />
         </div>
       )}
 
