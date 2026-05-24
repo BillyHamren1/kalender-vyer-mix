@@ -9,7 +9,6 @@ import RawGpsSatelliteMap from './RawGpsSatelliteMap';
 import { StaffGpsWeekPanel } from './StaffGpsWeekPanel';
 import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
 import { type PlaceVisit } from '@/lib/staff/pingPlaceSegments';
-import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
 import { useAllActiveProjectGeofences } from '@/hooks/useAllActiveProjectGeofences';
 
 interface Props {
