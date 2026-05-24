@@ -25,11 +25,18 @@ export const useUserRoles = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const fallbackRoles = getFallbackRolesFromUser(user);
+  // Tracks whether the last queryFn run hit the timeout / error path so we
+  // can schedule a quiet background retry once the DB recovers, without
+  // blocking the UI in the meantime.
+  const lastFetchFailedRef = useRef(false);
 
   const query = useQuery<AppRole[]>({
     queryKey: [ROLES_QUERY_KEY, user?.id ?? null],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!user?.id) {
+        lastFetchFailedRef.current = false;
+        return [];
+      }
 
       let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
@@ -48,12 +55,15 @@ export const useUserRoles = () => {
 
         if (error) {
           console.error('Error fetching user roles:', error);
+          lastFetchFailedRef.current = true;
           return fallbackRoles;
         }
 
+        lastFetchFailedRef.current = false;
         return (data || []).map((r: { role: AppRole }) => r.role as AppRole);
       } catch (error) {
         console.error('Error fetching user roles:', error);
+        lastFetchFailedRef.current = true;
         return fallbackRoles;
       } finally {
         if (timeoutId) clearTimeout(timeoutId);
