@@ -1,27 +1,37 @@
+# Fix: Geofence-pinnar flyttas vid zoom
 
-## Mål
-Ersätt de stora "Plats/Projekt · namn · radie"-badgesen på `/staff-management/gps-satellite-map` med en liten röd nålpin (som referensbilden) och endast projektnamnet i en clean text-badge bredvid.
+## Orsak
+I `src/components/staff/RawGpsSatelliteMap.tsx` (rad ~503-546) skapas ett `wrap`-element som innehåller **både** den röda nål-pinnen och text-pillen. `layoutGeofenceBadges()` skriver sedan `transform: translate(-5px, calc(-100% - bumpY))` på hela `wrap` för att undvika att etiketter krockar.
 
-## Ändringar (endast `src/components/staff/RawGpsSatelliteMap.tsx`)
+Konsekvens: när `bumpY` växer (många krockar vid utzoomning) flyttas hela elementet — inklusive nålen — uppåt på skärmen, så pinnen visas långt ifrån sin egentliga lat/lng. Det är därför "Kaggeholms slott" hamnar uppe vid Tierp vid utzoomning, men på rätt plats nära Stockholm vid inzoomning.
 
-1. **Filtrera bort boende/locations**
-   - I HTML-marker-loopen: rendera badge ENDAST för geofences där `kind === 'project'` (eller motsvarande projekt-typ). Hoppa över `location`/boende/organization_locations helt — de syns redan som cirkel på kartan om de finns, men får ingen text-pin.
+## Åtgärd
+Endast presentation, ingen datalogik ändras.
 
-2. **Ny markup per pin**
+1. **Dela upp DOM-strukturen per geofence-marker:**
    ```
-   [🔴 pin 12px]  ProjektnamnXYZ
+   root (Mapbox äger transform = lat/lng, anchor 'bottom')
+     └─ pin   (röd nål, position:absolute centrerad på ankaret — RÖRS ALDRIG)
+     └─ label (text-pillen — denna är det enda som bumpas)
    ```
-   - Pin: liten röd SVG/CSS-cirkel med tunn stjälk, ~12–14px hög, vit `1px` ring, mjuk skugga. Inspirerad av uppladdad referensbild (röd boll + grå nål).
-   - Label: bara `name`. Ingen "Projekt"-chip, ingen "· 150 m"-chip, ingen kind-prefix.
-   - Stil: vit/blurred pill bakom texten, `padding: 2px 8px`, `font-size: 11px`, `font-weight: 600`, `color: hsl(var(--foreground))`, `border-radius: 999px`, subtil skugga. Max-width 160px, ellipsis.
-   - Pin och label sitter på samma rad (`display:flex; gap:6px; align-items:center`), ankrat med pin-spetsen i geofence-centrum (`translate(-6px, -100%)` så spetsen pekar på punkten).
+   - `root` får `anchor: 'bottom'` (eller `'center'`) så Mapbox sätter pinnens spets exakt på lat/lng.
+   - Pinnen renderas absolut-positionerad relativt root, utan transform.
+   - Labeln är ett eget element som ligger ovanför pinnen och får sin egen transform för stack-bumpY.
 
-3. **Zoomskalning**
-   - Behåll `applyZoomVisibility` men sänk skalan: 0.7x vid zoom 11 → 1.3x vid zoom 22 (mindre aggressiv än nuvarande 0.85–2.6x) så de aldrig blir "JÄTTESTORA".
+2. **Uppdatera `geofenceMarkersRef`:** spara `{ marker, rootEl, pinEl, labelEl }`. `contentEl` ersätts av `labelEl` i layout-loopen.
 
-4. **Cleanup**
-   - `clearGeofenceMarkers()` oförändrad.
-   - Ta bort kind-chip-koden och radie-chip-koden helt.
+3. **Uppdatera `layoutGeofenceBadges`:**
+   - Mät `labelEl.offsetWidth/Height` istället för wrap.
+   - Skriv `transform: translate(<offsetX>, calc(-100% - <pinHeight + bumpY>px))` enbart på `labelEl`.
+   - `transformOrigin: 'left bottom'` ligger kvar på labelEl.
+   - Sortera fortfarande nordligast först (`pt.y` stigande) så stacken växer uppåt deterministiskt.
 
-## Inget annat rörs
-Filter-logik för "aktuella projekt", källdata och layers påverkas inte — bara visuell rendering av badge/pin.
+4. **Behåll regeln:** ingen transform skrivs någonsin på `rootEl` (Mapbox-marker root). Lägg till kommentar vid pin/label-skapandet som påminner om detta.
+
+5. **Test:** uppdatera `src/components/staff/__tests__/RawGpsSatelliteMap.test.ts` så `buildBadgeStackTransform` fortfarande täcks; den är fortfarande den helper som används av label-bumpen.
+
+## Förväntat resultat
+- Röda nålarna ligger kvar exakt på sin lat/lng vid alla zoomnivåer.
+- Endast text-pillarna bumpas uppåt för att undvika varandra.
+- Kaggeholms slott syns alltid nära Ekerö/Stockholm, oavsett zoom.
+- Ingen ändring i pings, visits, geofence-data, Time Engine eller Supabase-queries.

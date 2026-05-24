@@ -135,7 +135,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
   const drawHandlersRef = useRef<{ cleanup: () => void } | null>(null);
   // Do not set transform on marker root. Mapbox owns root transform for lng/lat positioning.
   const visitMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; rootEl: HTMLElement; contentEl: HTMLElement; kind: 'compact' | 'detail' }>>([]);
-  const geofenceMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; rootEl: HTMLElement; contentEl: HTMLElement }>>([]);
+  const geofenceMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; rootEl: HTMLElement; pinEl: HTMLElement; labelEl: HTMLElement }>>([]);
 
   const handleReady = (map: mapboxgl.Map) => {
     mapRef.current = map;
