@@ -139,14 +139,38 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
   const geofenceMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; rootEl: HTMLElement; pinEl: HTMLElement; labelEl: HTMLElement }>>([]);
 
 
+  // Bygger pseudo-fences kring detekterade vistelser så att linje/labels/
+  // stay-points INNANFÖR en visit också klipps bort. Då ritas bara
+  // in/ut runt en plats, inte alla små studs inuti den. Pseudo-fences
+  // används ENDAST för klippning — de ritas aldrig som cirklar.
+  function visitPseudoFences(vs: PlaceVisit[]): GeofenceSite[] {
+    const out: GeofenceSite[] = [];
+    for (const v of vs) {
+      if (!v.pings.length) continue;
+      let maxDist = 0;
+      for (const p of v.pings) {
+        const dLat = (p.lat - v.centre.lat) * 111_320;
+        const dLng = (p.lng - v.centre.lng) * 111_320 * Math.cos((v.centre.lat * Math.PI) / 180);
+        const d = Math.sqrt(dLat * dLat + dLng * dLng);
+        if (d > maxDist) maxDist = d;
+      }
+      out.push({
+        id: `visit:${v.placeKey}`,
+        name: v.knownSite?.name ?? 'visit',
+        lat: v.centre.lat,
+        lng: v.centre.lng,
+        radiusMeters: Math.max(80, Math.round(maxDist + 15)),
+      });
+    }
+    return out;
+  }
+
   const handleReady = (map: mapboxgl.Map) => {
     mapRef.current = map;
-    renderLayers(map, pings, geofences);
+    renderLayers(map, pings, geofences, visits);
     renderVisitMarkers(map, visits);
     map.on('zoom', applyZoomVisibility);
     map.on('move', layoutGeofenceBadges);
-    // Refit till sparad bounds när containern ändrar storlek så vi inte
-    // får massa tom satellit-yta runt en smal rutt.
     map.on('resize', () => {
       const b = lastBoundsRef.current;
       if (!b) return;
@@ -154,17 +178,16 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     });
   };
 
-
-
   useEffect(() => {
-    if (mapRef.current) renderLayers(mapRef.current, pings, geofences);
+    if (mapRef.current) renderLayers(mapRef.current, pings, geofences, visits);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pings, geofences]);
+  }, [pings, geofences, visits]);
 
   useEffect(() => {
     if (mapRef.current) renderVisitMarkers(mapRef.current, visits);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visits]);
+
 
   function clearVisitMarkers() {
     for (const m of visitMarkersRef.current) m.marker.remove();
@@ -470,7 +493,12 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     void geofenceId;
   }
 
-  function renderLayers(map: mapboxgl.Map, data: RawStaffGpsPing[], fences: GeofenceSite[]) {
+  function renderLayers(map: mapboxgl.Map, data: RawStaffGpsPing[], fences: GeofenceSite[], vs: PlaceVisit[] = []) {
+    // Klipp-fences = riktiga geofences + pseudo-fences runt detekterade
+    // vistelser. Pings/linjer/labels innanför något av dessa döljs så att
+    // bara ankomst/avgång syns. Visuella cirklar ritas bara för `fences`.
+    const clipFences: GeofenceSite[] = fences.concat(visitPseudoFences(vs));
+
 
     const apply = () => {
       for (const id of LAYER_IDS) if (map.getLayer(id)) map.removeLayer(id);
@@ -714,7 +742,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       // ── Line features per segment (alla pings ritas) ──────────────
       const lineFeatures = segments
         .filter((s) => s.kind === 'move' && s.pings.length >= 2)
-        .flatMap((s) => clipLineOutsideGeofences(s.pings, fences).map((coordinates) => ({
+        .flatMap((s) => clipLineOutsideGeofences(s.pings, clipFences).map((coordinates) => ({
           type: 'Feature' as const,
           geometry: {
             type: 'LineString' as const,
@@ -765,7 +793,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       const moveLabelFeatures: any[] = [];
       const globallyAllowedLabelIds = new Set(
         pickPingsByGlobalInterval(data, 5 * 60_000)
-          .filter((p) => !pingInsideAnyFence(p, fences))
+          .filter((p) => !pingInsideAnyFence(p, clipFences))
           .map((p) => pingKey(p)),
       );
       for (const s of segments) {
@@ -778,7 +806,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
           const key = pingKey(p);
           if (!labelIds.has(key)) continue;
           if (!globallyAllowedLabelIds.has(key)) continue;
-          if (pingInsideAnyFence(p, fences)) continue;
+          if (pingInsideAnyFence(p, clipFences)) continue;
           moveLabelFeatures.push({
             type: 'Feature',
             geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
@@ -837,7 +865,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       const stayFeatures: any[] = [];
       for (const s of segments) {
         if (s.kind !== 'stay') continue;
-        if (pingInsideAnyFence({ lat: s.lat, lng: s.lng }, fences)) continue;
+        if (pingInsideAnyFence({ lat: s.lat, lng: s.lng }, clipFences)) continue;
         stayFeatures.push({
           type: 'Feature',
           geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
@@ -888,14 +916,14 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       const first = data[0];
       const last = data[data.length - 1];
       const endpointFeatures = [];
-      if (!pingInsideAnyFence(first, fences)) {
+      if (!pingInsideAnyFence(first, clipFences)) {
         endpointFeatures.push({
           type: 'Feature',
           geometry: { type: 'Point', coordinates: [first.lng, first.lat] },
           properties: { kind: 'first' },
         });
       }
-      if (!pingInsideAnyFence(last, fences)) {
+      if (!pingInsideAnyFence(last, clipFences)) {
         endpointFeatures.push({
           type: 'Feature',
           geometry: { type: 'Point', coordinates: [last.lng, last.lat] },
