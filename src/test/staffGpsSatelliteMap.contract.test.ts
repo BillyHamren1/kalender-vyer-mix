@@ -28,6 +28,7 @@ const FILES = [
   'src/components/staff/StaffGpsSatelliteMap.tsx',
   'src/components/staff/StaffGpsWeekPanel.tsx',
   'src/components/staff/StaffGpsDayRow.tsx',
+  'src/components/staff/StaffGpsDayCell.tsx',
   'src/pages/StaffGpsSatelliteMap.tsx',
 ];
 
