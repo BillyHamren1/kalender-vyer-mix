@@ -150,7 +150,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     map.on('resize', () => {
       const b = lastBoundsRef.current;
       if (!b) return;
-      try { map.fitBounds(b, { padding: 24, duration: 0, maxZoom: 17 }); } catch {/* ignore */}
+      try { map.fitBounds(b, { padding: 40, duration: 0, maxZoom: 14 }); } catch {/* ignore */}
     });
   };
 
