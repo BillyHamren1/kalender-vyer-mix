@@ -4,12 +4,9 @@ import MapboxDraw from '@mapbox/mapbox-gl-draw';
 import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
 import MapboxMap from '@/components/maps/MapboxMap';
 import type { RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
-import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
 import {
   segmentPingsForDisplay,
-  pickPingsByGlobalInterval,
   colorForSegment,
-  type PingSegment,
 } from '@/lib/staff/segmentPingsForDisplay';
 import {
   geofencesToFeatures,
@@ -36,62 +33,10 @@ interface Props {
    */
   onSavePolygon?: (id: string, polygon: GeoJSON.Polygon | null) => Promise<void>;
 }
-
-
-
-function formatHm(iso: string): string {
-  const hms = formatStockholmHms(iso);
-  return hms.length >= 5 ? hms.slice(0, 5) : hms;
-}
-
 function pingKey(p: Pick<RawStaffGpsPing, 'recorded_at' | 'lat' | 'lng'> & { id?: string | null }): string {
   const safeId = typeof p.id === 'string' ? p.id.trim() : '';
   if (safeId) return safeId;
   return `${p.recorded_at}|${p.lat}|${p.lng}`;
-}
-
-function formatDuration(ms: number): string {
-  const totalMin = Math.round(ms / 60_000);
-  if (totalMin < 60) return `${totalMin} min`;
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  return m ? `${h}h ${m}m` : `${h}h`;
-}
-
-function dash(v: unknown): string {
-  if (v === null || v === undefined || v === '') return '—';
-  if (typeof v === 'number' && !Number.isFinite(v)) return '—';
-  return String(v);
-}
-
-function popupHtml(p: RawStaffGpsPing): string {
-  const rows: Array<[string, string]> = [
-    ['Tid', formatStockholmHms(p.recorded_at)],
-    ['Lat', p.lat.toFixed(6)],
-    ['Lng', p.lng.toFixed(6)],
-    ['Accuracy', p.accuracy != null ? `${p.accuracy.toFixed(0)} m` : '—'],
-    ['Speed', p.speed != null ? `${p.speed.toFixed(1)} m/s` : '—'],
-    ['Source', dash(p.source)],
-    ['Battery', p.battery_percent != null ? `${p.battery_percent}%${p.is_charging ? ' ⚡' : ''}` : '—'],
-    ['App', `${dash(p.app_version)} (${dash(p.app_build)})`],
-    ['Platform', `${dash(p.platform)} ${dash(p.os_version)}`],
-    ['Device', dash(p.device_model)],
-    ['App-id', dash(p.app_id)],
-  ];
-  return `<div style="font:12px/1.4 system-ui;min-width:200px">${rows
-    .map(([k, v]) => `<div><b>${k}:</b> ${v}</div>`)
-    .join('')}</div>`;
-}
-
-function stayPopupHtml(seg: Extract<PingSegment<RawStaffGpsPing>, { kind: 'stay' }>): string {
-  return `<div style="font:12px/1.4 system-ui;min-width:200px">
-    <div><b>Vistelse</b></div>
-    <div>${formatStockholmHms(seg.startIso)} – ${formatStockholmHms(seg.endIso)}</div>
-    <div><b>Längd:</b> ${formatDuration(seg.durationMs)}</div>
-    <div><b>Pings:</b> ${seg.pings.length}</div>
-    <div><b>Lat:</b> ${seg.lat.toFixed(6)}</div>
-    <div><b>Lng:</b> ${seg.lng.toFixed(6)}</div>
-  </div>`;
 }
 
 function pointInPolygon(lng: number, lat: number, polygon: GeoJSON.Polygon): boolean {
@@ -154,10 +99,6 @@ const LAYER_IDS = [
   'geofence-label',
   'gps-line-segments',
   'gps-line-arrows',
-  'gps-move-points',
-  'gps-move-labels',
-  'gps-stay-points',
-  'gps-stay-labels',
   'gps-first',
   'gps-last',
 ];
@@ -166,12 +107,8 @@ const SOURCE_IDS = [
   'geofence-outline-src',
   'geofence-label-src',
   'gps-line-src',
-  'gps-move-points-src',
-  'gps-stay-points-src',
   'gps-endpoints-src',
 ];
-
-const ZOOM_SHOW_INSIDE_FENCE = 15;
 
 export function buildBadgeStackTransform(bumpY: number): string {
   return `translate(-5px, calc(-100% - ${bumpY}px))`;
@@ -190,34 +127,6 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
   // Do not set transform on marker root. Mapbox owns root transform for lng/lat positioning.
   const visitMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; rootEl: HTMLElement; contentEl: HTMLElement; kind: 'compact' | 'detail' }>>([]);
   const geofenceMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; rootEl: HTMLElement; pinEl: HTMLElement; labelEl: HTMLElement }>>([]);
-
-
-  // Bygger pseudo-fences kring detekterade vistelser så att linje/labels/
-  // stay-points INNANFÖR en visit också klipps bort. Då ritas bara
-  // in/ut runt en plats, inte alla små studs inuti den. Pseudo-fences
-  // används ENDAST för klippning — de ritas aldrig som cirklar.
-  function visitPseudoFences(vs: PlaceVisit[]): GeofenceSite[] {
-    const out: GeofenceSite[] = [];
-    for (const v of vs) {
-      if (!v.pings.length) continue;
-      let maxDist = 0;
-      for (const p of v.pings) {
-        const dLat = (p.lat - v.centre.lat) * 111_320;
-        const dLng = (p.lng - v.centre.lng) * 111_320 * Math.cos((v.centre.lat * Math.PI) / 180);
-        const d = Math.sqrt(dLat * dLat + dLng * dLng);
-        if (d > maxDist) maxDist = d;
-      }
-      out.push({
-        id: `visit:${v.placeKey}`,
-        name: v.knownSite?.name ?? 'visit',
-        lat: v.centre.lat,
-        lng: v.centre.lng,
-        radiusMeters: Math.max(80, Math.round(maxDist + 15)),
-      });
-    }
-    return out;
-  }
-
   const handleReady = (map: mapboxgl.Map) => {
     mapRef.current = map;
     renderLayers(map, pings, geofences, visits);
