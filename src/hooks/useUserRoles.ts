@@ -25,6 +25,7 @@ export const useUserRoles = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const fallbackRoles = getFallbackRolesFromUser(user);
+  const hasFallbackRoles = fallbackRoles.length > 0;
   // Tracks whether the last queryFn run hit the timeout / error path so we
   // can schedule a quiet background retry once the DB recovers, without
   // blocking the UI in the meantime.
@@ -36,6 +37,13 @@ export const useUserRoles = () => {
       if (!user?.id) {
         lastFetchFailedRef.current = false;
         return [];
+      }
+
+      // If the active session already carries app roles, use them immediately
+      // and let the DB-backed user_roles table refresh in the background later.
+      if (hasFallbackRoles) {
+        lastFetchFailedRef.current = false;
+        return fallbackRoles;
       }
 
       let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -82,7 +90,7 @@ export const useUserRoles = () => {
 
   // Treat as "loading" only if we have no cached roles yet AND a user exists.
   // Once roles are cached for this user, isLoading is false on every navigation.
-  const hasResolvedRoles = query.data !== undefined || fallbackRoles.length > 0 || query.isError;
+  const hasResolvedRoles = query.data !== undefined || hasFallbackRoles || query.isError;
   const isLoading = !!user?.id && !hasResolvedRoles && query.isLoading;
 
   const hasRole = useCallback(
