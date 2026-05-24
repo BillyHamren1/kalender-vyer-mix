@@ -145,7 +145,15 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     renderVisitMarkers(map, visits);
     map.on('zoom', applyZoomVisibility);
     map.on('move', layoutGeofenceBadges);
+    // Refit till sparad bounds när containern ändrar storlek så vi inte
+    // får massa tom satellit-yta runt en smal rutt.
+    map.on('resize', () => {
+      const b = lastBoundsRef.current;
+      if (!b) return;
+      try { map.fitBounds(b, { padding: 24, duration: 0, maxZoom: 17 }); } catch {/* ignore */}
+    });
   };
+
 
 
   useEffect(() => {
