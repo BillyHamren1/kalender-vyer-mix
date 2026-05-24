@@ -39,13 +39,6 @@ export const useUserRoles = () => {
         return [];
       }
 
-      // If the active session already carries app roles, use them immediately
-      // and let the DB-backed user_roles table refresh in the background later.
-      if (hasFallbackRoles) {
-        lastFetchFailedRef.current = false;
-        return fallbackRoles;
-      }
-
       let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
       try {
@@ -81,6 +74,7 @@ export const useUserRoles = () => {
     // Keep roles warm so navigation between pages doesn't refetch / re-blank
     staleTime: 10 * 60 * 1000, // 10 min
     gcTime: 30 * 60 * 1000,    // 30 min
+    placeholderData: hasFallbackRoles ? fallbackRoles : undefined,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
     retry: 0,
