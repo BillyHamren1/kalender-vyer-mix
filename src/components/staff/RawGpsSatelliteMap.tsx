@@ -742,7 +742,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       // ── Line features per segment (alla pings ritas) ──────────────
       const lineFeatures = segments
         .filter((s) => s.kind === 'move' && s.pings.length >= 2)
-        .flatMap((s) => clipLineOutsideGeofences(s.pings, fences).map((coordinates) => ({
+        .flatMap((s) => clipLineOutsideGeofences(s.pings, clipFences).map((coordinates) => ({
           type: 'Feature' as const,
           geometry: {
             type: 'LineString' as const,
@@ -793,7 +793,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       const moveLabelFeatures: any[] = [];
       const globallyAllowedLabelIds = new Set(
         pickPingsByGlobalInterval(data, 5 * 60_000)
-          .filter((p) => !pingInsideAnyFence(p, fences))
+          .filter((p) => !pingInsideAnyFence(p, clipFences))
           .map((p) => pingKey(p)),
       );
       for (const s of segments) {
@@ -806,7 +806,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
           const key = pingKey(p);
           if (!labelIds.has(key)) continue;
           if (!globallyAllowedLabelIds.has(key)) continue;
-          if (pingInsideAnyFence(p, fences)) continue;
+          if (pingInsideAnyFence(p, clipFences)) continue;
           moveLabelFeatures.push({
             type: 'Feature',
             geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
@@ -865,7 +865,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       const stayFeatures: any[] = [];
       for (const s of segments) {
         if (s.kind !== 'stay') continue;
-        if (pingInsideAnyFence({ lat: s.lat, lng: s.lng }, fences)) continue;
+        if (pingInsideAnyFence({ lat: s.lat, lng: s.lng }, clipFences)) continue;
         stayFeatures.push({
           type: 'Feature',
           geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
@@ -916,14 +916,14 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       const first = data[0];
       const last = data[data.length - 1];
       const endpointFeatures = [];
-      if (!pingInsideAnyFence(first, fences)) {
+      if (!pingInsideAnyFence(first, clipFences)) {
         endpointFeatures.push({
           type: 'Feature',
           geometry: { type: 'Point', coordinates: [first.lng, first.lat] },
           properties: { kind: 'first' },
         });
       }
-      if (!pingInsideAnyFence(last, fences)) {
+      if (!pingInsideAnyFence(last, clipFences)) {
         endpointFeatures.push({
           type: 'Feature',
           geometry: { type: 'Point', coordinates: [last.lng, last.lat] },
