@@ -30,7 +30,7 @@ export function StaffGpsWeekPanel({
   const isoWeek = getISOWeek(weekStart);
 
   return (
-    <aside className="planning-card w-full md:w-[320px] shrink-0 flex flex-col overflow-hidden p-0">
+    <aside className="planning-card w-full md:w-[400px] shrink-0 flex flex-col overflow-hidden p-0">
       {/* Person */}
       <div className="p-3.5 border-b border-[hsl(270_20%_90%)] space-y-1.5 bg-[hsl(270_35%_98%)]">
         <label className="planning-section-title">Person</label>
@@ -90,17 +90,19 @@ export function StaffGpsWeekPanel({
         </Button>
       </div>
 
-      {/* Dagar — alla 7 synliga */}
-      <div className="divide-y divide-[hsl(270_18%_94%)]">
+      {/* Dagar — alla 7 synliga; vald dag är auto-expanderad och visar besöken */}
+      <div className="divide-y divide-[hsl(270_18%_94%)] overflow-y-auto">
         {weekDays.map((day, i) => {
           const dateStr = format(day, 'yyyy-MM-dd');
           const staffName = staff.find(s => s.id === staffId)?.name ?? null;
+          const isSelected = dateStr === selectedStr;
           return (
             <StaffGpsDayRow
               key={dateStr}
               day={day}
               dateStr={dateStr}
-              selected={dateStr === selectedStr}
+              selected={isSelected}
+              expanded={isSelected}
               summary={summaries[i]}
               staffId={staffId}
               staffName={staffName}
@@ -111,7 +113,7 @@ export function StaffGpsWeekPanel({
       </div>
 
       <div className="px-3 py-2 border-t border-[hsl(270_20%_90%)] bg-[hsl(270_35%_97%)] text-[10.5px] text-muted-foreground tracking-tight">
-        Tid per projekt = tid inom geofence. Boende räknas inte.
+        Tid per dag = summan av geofence-besöken (boende exkluderat).
       </div>
     </aside>
   );
