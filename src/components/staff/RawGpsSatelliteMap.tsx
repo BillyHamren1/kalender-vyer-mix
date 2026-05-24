@@ -171,9 +171,6 @@ const SOURCE_IDS = [
   'gps-endpoints-src',
 ];
 
-const ZOOM_DETAIL_THRESHOLD = 13;
-// Vid denna zoom börjar vi även visa stay-points/labels INUTI geofences.
-// Vid lägre zoom skulle de bara skapa visuellt brus.
 const ZOOM_SHOW_INSIDE_FENCE = 15;
 
 export function buildBadgeStackTransform(bumpY: number): string {
@@ -509,7 +506,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
             'padding:2px 8px','border-radius:9999px',
             'background:rgba(255,255,255,.94)','color:#0f172a',
             'font:600 11px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif',
-            'white-space:nowrap','overflow:hidden','text-overflow:ellipsis','max-width:160px',
+            'white-space:normal','max-width:320px','line-height:1.25',
             'border:1px solid rgba(15,23,42,.08)',
             'box-shadow:0 2px 6px rgba(0,0,0,.25)',
             'backdrop-filter:blur(6px)','-webkit-backdrop-filter:blur(6px)',
@@ -726,153 +723,6 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         },
       });
 
-      // ── Move-label points (endast en tidslabel per globalt 5-minutersintervall) ─
-      const moveLabelFeatures: any[] = [];
-      const globallyAllowedLabelIds = new Set(
-        pickPingsByGlobalInterval(data, 5 * 60_000).map((p) => pingKey(p)),
-      );
-      for (const s of segments) {
-        if (s.kind !== 'move') continue;
-        const color = colorForSegment(s.colorIndex, 'move');
-        const labelIds = new Set(s.labelPings.map((p) => pingKey(p)));
-
-
-        for (const p of s.pings) {
-          const key = pingKey(p);
-          if (!labelIds.has(key)) continue;
-          if (!globallyAllowedLabelIds.has(key)) continue;
-          const insideFence = pingInsideAnyFence(p, clipFences);
-          moveLabelFeatures.push({
-            type: 'Feature',
-            geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
-            properties: {
-              id: key,
-              color,
-              label: formatHm(p.recorded_at),
-              insideFence: insideFence ? 1 : 0,
-            },
-          });
-        }
-
-      }
-
-      map.addSource('gps-move-points-src', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: moveLabelFeatures },
-      });
-      map.addLayer({
-        id: 'gps-move-points',
-        type: 'circle',
-        source: 'gps-move-points-src',
-        filter: [
-          'any',
-          ['==', ['get', 'insideFence'], 0],
-          ['>=', ['zoom'], ZOOM_SHOW_INSIDE_FENCE],
-        ],
-        paint: {
-          'circle-radius': 5,
-          'circle-color': ['get', 'color'],
-          'circle-stroke-color': '#0f172a',
-          'circle-stroke-width': 1,
-        },
-      });
-      map.addLayer({
-        id: 'gps-move-labels',
-        type: 'symbol',
-        source: 'gps-move-points-src',
-        filter: [
-          'any',
-          ['==', ['get', 'insideFence'], 0],
-          ['>=', ['zoom'], ZOOM_SHOW_INSIDE_FENCE],
-        ],
-        layout: {
-          'text-field': ['get', 'label'],
-          'text-size': [
-            'interpolate', ['exponential', 2], ['zoom'],
-            10, 11,
-            14, 15,
-            17, 26,
-            19, 40,
-            21, 64,
-            22, 88,
-          ],
-          'text-offset': [0, -1.2],
-          'text-anchor': 'bottom',
-          'text-allow-overlap': true,
-          'text-ignore-placement': true,
-        },
-        paint: {
-          'text-color': '#fff',
-          'text-halo-color': '#0f172a',
-          'text-halo-width': 1.5,
-        },
-      });
-
-
-      // ── Stay markers ───────────────────────────────────────────────
-      const stayFeatures: any[] = [];
-      for (const s of segments) {
-        if (s.kind !== 'stay') continue;
-        const insideFence = pingInsideAnyFence({ lat: s.lat, lng: s.lng }, clipFences);
-        stayFeatures.push({
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
-          properties: {
-            index: s.index,
-            color: colorForSegment(s.colorIndex, 'stay'),
-            label: `${formatHm(s.startIso)}–${formatHm(s.endIso)} · ${formatDuration(s.durationMs)}`,
-            insideFence: insideFence ? 1 : 0,
-          },
-        });
-      }
-
-
-      map.addSource('gps-stay-points-src', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: stayFeatures },
-      });
-      map.addLayer({
-        id: 'gps-stay-points',
-        type: 'circle',
-        source: 'gps-stay-points-src',
-        filter: [
-          'any',
-          ['==', ['get', 'insideFence'], 0],
-          ['>=', ['zoom'], ZOOM_SHOW_INSIDE_FENCE],
-        ],
-        paint: {
-          'circle-radius': 10,
-          'circle-color': ['get', 'color'],
-          'circle-stroke-color': '#fff',
-          'circle-stroke-width': 2,
-          'circle-opacity': 0.9,
-        },
-      });
-      map.addLayer({
-        id: 'gps-stay-labels',
-        type: 'symbol',
-        source: 'gps-stay-points-src',
-        filter: [
-          'any',
-          ['==', ['get', 'insideFence'], 0],
-          ['>=', ['zoom'], ZOOM_SHOW_INSIDE_FENCE],
-        ],
-        layout: {
-          'text-field': ['get', 'label'],
-          'text-size': 12,
-          'text-offset': [0, -1.6],
-          'text-anchor': 'bottom',
-          'text-allow-overlap': true,
-          'text-ignore-placement': true,
-        },
-        paint: {
-          'text-color': '#fff',
-          'text-halo-color': '#0f172a',
-          'text-halo-width': 2,
-        },
-      });
-
-
       // ── Start/slut-markörer ────────────────────────────────────────
       const first = data[0];
       const last = data[data.length - 1];
@@ -912,41 +762,6 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         filter: ['==', ['get', 'kind'], 'last'],
         paint: { 'circle-radius': 9, 'circle-color': '#dc2626', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 },
       });
-
-      // ── Klick: visa popup ──────────────────────────────────────────
-      const pingById = new Map(data.map((p) => [p.id, p]));
-      const stayByIndex = new Map(
-        segments.filter((s) => s.kind === 'stay').map((s) => [s.index, s as Extract<PingSegment<RawStaffGpsPing>, { kind: 'stay' }>]),
-      );
-
-      map.on('click', 'gps-move-points', (e) => {
-        const f = e.features?.[0];
-        if (!f) return;
-        const id = String((f.properties as any)?.id ?? '');
-        const p = pingById.get(id);
-        if (!p) return;
-        popupRef.current?.remove();
-        popupRef.current = new mapboxgl.Popup({ closeButton: true })
-          .setLngLat([p.lng, p.lat])
-          .setHTML(popupHtml(p))
-          .addTo(map);
-      });
-      map.on('click', 'gps-stay-points', (e) => {
-        const f = e.features?.[0];
-        if (!f) return;
-        const idx = Number((f.properties as any)?.index);
-        const seg = stayByIndex.get(idx);
-        if (!seg) return;
-        popupRef.current?.remove();
-        popupRef.current = new mapboxgl.Popup({ closeButton: true })
-          .setLngLat([seg.lng, seg.lat])
-          .setHTML(stayPopupHtml(seg))
-          .addTo(map);
-      });
-      for (const layer of ['gps-move-points', 'gps-stay-points']) {
-        map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
-        map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
-      }
 
       const bounds = new mapboxgl.LngLatBounds();
       data.forEach((p) => bounds.extend([p.lng, p.lat]));
