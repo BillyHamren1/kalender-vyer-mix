@@ -11,7 +11,7 @@ import { useQueries } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { callStaffSnapshotFunction } from '@/services/staffSnapshotApi';
 import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
-import type { PlaceVisit } from '@/lib/staff/pingPlaceSegments';
+import { buildDayTimeline, type PlaceVisit, type TravelGap } from '@/lib/staff/pingPlaceSegments';
 import type {
   StaffGpsDaySnapshot,
   StaffGpsSnapshotVisit,
@@ -31,6 +31,8 @@ export interface StaffGpsDaySummary {
   durationMin: number;
   /** Geofence-besök för dagen (privata boenden bortfiltrerade). Samma lista som dag-tabellen. */
   visits: PlaceVisit[];
+  /** Förflyttningar mellan synliga besök. */
+  travels: TravelGap[];
   placeNames: string[];
   places: StaffGpsPlaceTime[];
   isLoading: boolean;
