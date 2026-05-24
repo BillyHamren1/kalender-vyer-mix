@@ -1,12 +1,15 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { format } from 'date-fns';
+import { format, startOfWeek, addDays } from 'date-fns';
+import { ArrowLeft } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { fetchStaffMembers } from '@/services/staffService';
 import { supabase } from '@/integrations/supabase/client';
 import type { RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
 import { useMobileStaffDayPings } from '@/hooks/staff/useMobileStaffDayPings';
 import RawGpsSatelliteMap from './RawGpsSatelliteMap';
 import { StaffGpsWeekPanel } from './StaffGpsWeekPanel';
+import { StaffGpsWeekList } from './StaffGpsWeekList';
 import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
 import { type PlaceVisit } from '@/lib/staff/pingPlaceSegments';
 import { useAllActiveProjectGeofences } from '@/hooks/useAllActiveProjectGeofences';
@@ -22,7 +25,6 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
   const [calendarMonth, setCalendarMonth] = useState<Date>(
     initialDate ? new Date(initialDate) : new Date(),
   );
-
 
   const dateStr = format(date, 'yyyy-MM-dd');
   const queryClient = useQueryClient();
@@ -59,10 +61,6 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     ]);
   }, [queryClient]);
 
-  /**
-   * Sparar polygon för en geofence. polygon=null tar bort polygonen och
-   * återgår till cirkel.
-   */
   const savePolygon = useCallback(async (id: string, polygon: GeoJSON.Polygon | null) => {
     const [prefix, rawId] = id.split(':');
     if (!rawId) throw new Error('Ogiltigt geofence-id');
@@ -105,16 +103,50 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     ]);
   }, [queryClient]);
 
-
-
   const staffQuery = useQuery({
     queryKey: ['staff-members-all-gps-map'],
     queryFn: () => fetchStaffMembers({ includeInactive: true }),
     staleTime: 5 * 60_000,
   });
 
-  // Vilka är assignade den valda dagen?
-  const assignedQuery = useQuery({
+  // Bemanning för hela veckan (för lista) + utvald dag (för day-vy).
+  const weekStart = useMemo(() => startOfWeek(date, { weekStartsOn: 1 }), [date]);
+  const weekStartStr = format(weekStart, 'yyyy-MM-dd');
+  const weekEndStr = format(addDays(weekStart, 6), 'yyyy-MM-dd');
+
+  const assignedWeekQuery = useQuery({
+    queryKey: ['gps-map-assigned-ids-week', weekStartStr],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('staff_assignments')
+        .select('staff_id')
+        .gte('assignment_date', weekStartStr)
+        .lte('assignment_date', weekEndStr);
+      if (error) throw error;
+      return new Set((data ?? []).map((r: any) => String(r.staff_id)));
+    },
+  });
+
+  const pingedWeekQuery = useQuery({
+    queryKey: ['gps-map-pinged-ids-week', weekStartStr],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const startIso = `${weekStartStr}T00:00:00.000Z`;
+      const endIso = `${weekEndStr}T23:59:59.999Z`;
+      const { data, error } = await supabase
+        .from('staff_location_history')
+        .select('staff_id')
+        .gte('recorded_at', startIso)
+        .lte('recorded_at', endIso)
+        .limit(50000);
+      if (error) throw error;
+      return new Set((data ?? []).map((r: any) => String(r.staff_id)));
+    },
+  });
+
+  // Bemanning + pingade för EXAKT vald dag (används av StaffGpsWeekPanel-badges).
+  const assignedDayQuery = useQuery({
     queryKey: ['gps-map-assigned-ids', dateStr],
     staleTime: 60_000,
     queryFn: async () => {
@@ -127,8 +159,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     },
   });
 
-  // Vilka har pingat den valda dagen?
-  const pingedQuery = useQuery({
+  const pingedDayQuery = useQuery({
     queryKey: ['gps-map-pinged-ids', dateStr],
     staleTime: 60_000,
     queryFn: async () => {
@@ -146,17 +177,16 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
   });
 
   const allStaff = staffQuery.data ?? [];
-  const assignedSet = assignedQuery.data ?? new Set<string>();
-  const pingedSet = pingedQuery.data ?? new Set<string>();
+  const assignedWeekSet = assignedWeekQuery.data ?? new Set<string>();
+  const pingedWeekSet = pingedWeekQuery.data ?? new Set<string>();
+  const assignedDaySet = assignedDayQuery.data ?? new Set<string>();
+  const pingedDaySet = pingedDayQuery.data ?? new Set<string>();
 
-  const staff = useMemo(() => {
-    // Visa alltid personer som antingen är assignade ELLER har pingat den valda dagen.
-    return allStaff.filter((s) => assignedSet.has(s.id) || pingedSet.has(s.id));
-  }, [allStaff, assignedSet, pingedSet]);
+  const staffForDay = useMemo(() => {
+    return allStaff.filter((s) => assignedDaySet.has(s.id) || pingedDaySet.has(s.id));
+  }, [allStaff, assignedDaySet, pingedDaySet]);
 
-  const effectiveStaffId = staff.some((s) => s.id === staffId) ? staffId : (staff[0]?.id ?? null);
-
-  const snapshotQuery = useMobileStaffDayPings(effectiveStaffId, dateStr, !!effectiveStaffId);
+  const snapshotQuery = useMobileStaffDayPings(staffId, dateStr, !!staffId);
   const pings: RawStaffGpsPing[] = useMemo(() => (snapshotQuery.data?.pings ?? []).map((p) => ({
     id: p.id,
     recorded_at: p.recorded_at,
@@ -175,15 +205,8 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     app_id: null,
   })), [snapshotQuery.data?.pings]);
 
-  // (Månadsprickar borttagna — vecknavigeringen ersätter månadskalendern.)
   void calendarMonth;
 
-
-  // Geofences:
-  //   - Projekt + stora projekt → ENDAST de som är aktiva på vald dag
-  //     (rigg → sista nedrigg). Filtrering sker i useAllActiveProjectGeofences.
-  //   - Övriga geofences från snapshot (org_locations: lager, boenden m.m.)
-  //     visas alltid — de är inte projektbundna och kan inte "vara avbokade".
   const activeProjectGeofencesQuery = useAllActiveProjectGeofences(dateStr);
   const geofences = useMemo<GeofenceSite[]>(() => {
     const nonProject = (snapshotQuery.data?.geofences ?? []).filter((site) => {
@@ -219,29 +242,55 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     subKind: visit.subKind,
   })), [snapshotQuery.data?.visits]);
 
-  // Privata boenden filtreras bort i veckopanelens GeofenceVisitRows via
-  // useStaffGpsWeekSummary → ingen separat filtrering här längre.
-
-
-
   const handleDateChange = useCallback((d: Date) => {
     setDate(d);
     setCalendarMonth(d);
   }, []);
 
+  const handleSelect = useCallback((id: string, d: Date) => {
+    setStaffId(id);
+    setDate(d);
+    setCalendarMonth(d);
+  }, []);
+
+  // LIST-VY (default): visa alla personer med veckosammanfattning, ingen karta.
+  if (!staffId) {
+    return (
+      <StaffGpsWeekList
+        staff={allStaff}
+        assignedSet={assignedWeekSet}
+        pingedSet={pingedWeekSet}
+        date={date}
+        onDateChange={handleDateChange}
+        onSelect={handleSelect}
+      />
+    );
+  }
+
+  // DETALJ-VY: vald person → veckopanel + karta.
   return (
     <div className="flex flex-col gap-4 h-full">
+      <div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setStaffId(null)}
+          className="h-8 px-2 text-[12px] font-semibold text-[hsl(280_45%_38%)] hover:bg-[hsl(270_45%_94%)] rounded-md"
+        >
+          <ArrowLeft className="h-4 w-4 mr-1" /> Tillbaka till lista
+        </Button>
+      </div>
+
       <StaffGpsWeekPanel
-        staff={staff}
-        staffId={effectiveStaffId}
+        staff={staffForDay}
+        staffId={staffId}
         onStaffChange={(id) => setStaffId(id)}
-        assignedSet={assignedSet}
-        pingedSet={pingedSet}
+        assignedSet={assignedDaySet}
+        pingedSet={pingedDaySet}
         date={date}
         onDateChange={handleDateChange}
       />
 
-      {/* Karta */}
       <div className="planning-card relative h-[calc(100vh-360px)] min-h-[520px] overflow-hidden p-0">
         {pings.length > 0 || geofences.length > 0 ? (
           <RawGpsSatelliteMap pings={pings} geofences={geofences} visits={geofenceVisits} onSaveRadius={saveRadius} onSavePolygon={savePolygon} className="h-full w-full" />
@@ -254,7 +303,3 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     </div>
   );
 }
-
-
-
-
