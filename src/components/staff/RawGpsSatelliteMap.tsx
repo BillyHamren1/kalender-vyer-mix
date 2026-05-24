@@ -139,14 +139,38 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
   const geofenceMarkersRef = useRef<Array<{ marker: mapboxgl.Marker; rootEl: HTMLElement; pinEl: HTMLElement; labelEl: HTMLElement }>>([]);
 
 
+  // Bygger pseudo-fences kring detekterade vistelser så att linje/labels/
+  // stay-points INNANFÖR en visit också klipps bort. Då ritas bara
+  // in/ut runt en plats, inte alla små studs inuti den. Pseudo-fences
+  // används ENDAST för klippning — de ritas aldrig som cirklar.
+  function visitPseudoFences(vs: PlaceVisit[]): GeofenceSite[] {
+    const out: GeofenceSite[] = [];
+    for (const v of vs) {
+      if (!v.pings.length) continue;
+      let maxDist = 0;
+      for (const p of v.pings) {
+        const dLat = (p.lat - v.centre.lat) * 111_320;
+        const dLng = (p.lng - v.centre.lng) * 111_320 * Math.cos((v.centre.lat * Math.PI) / 180);
+        const d = Math.sqrt(dLat * dLat + dLng * dLng);
+        if (d > maxDist) maxDist = d;
+      }
+      out.push({
+        id: `visit:${v.placeKey}`,
+        name: v.knownSite?.name ?? 'visit',
+        lat: v.centre.lat,
+        lng: v.centre.lng,
+        radiusMeters: Math.max(80, Math.round(maxDist + 15)),
+      });
+    }
+    return out;
+  }
+
   const handleReady = (map: mapboxgl.Map) => {
     mapRef.current = map;
-    renderLayers(map, pings, geofences);
+    renderLayers(map, pings, geofences, visits);
     renderVisitMarkers(map, visits);
     map.on('zoom', applyZoomVisibility);
     map.on('move', layoutGeofenceBadges);
-    // Refit till sparad bounds när containern ändrar storlek så vi inte
-    // får massa tom satellit-yta runt en smal rutt.
     map.on('resize', () => {
       const b = lastBoundsRef.current;
       if (!b) return;
@@ -154,17 +178,16 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     });
   };
 
-
-
   useEffect(() => {
-    if (mapRef.current) renderLayers(mapRef.current, pings, geofences);
+    if (mapRef.current) renderLayers(mapRef.current, pings, geofences, visits);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pings, geofences]);
+  }, [pings, geofences, visits]);
 
   useEffect(() => {
     if (mapRef.current) renderVisitMarkers(mapRef.current, visits);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visits]);
+
 
   function clearVisitMarkers() {
     for (const m of visitMarkersRef.current) m.marker.remove();
