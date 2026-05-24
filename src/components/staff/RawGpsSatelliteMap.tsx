@@ -14,6 +14,7 @@ import {
 } from '@/lib/staff/geofencesToFeatures';
 import { clipLineOutsideGeofences, pingInsideAnyFence } from '@/lib/staff/clipLineOutsideGeofences';
 import type { PlaceVisit } from '@/lib/staff/pingPlaceSegments';
+import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
 
 interface Props {
   pings: RawStaffGpsPing[];
