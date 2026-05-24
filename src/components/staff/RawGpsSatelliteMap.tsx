@@ -234,12 +234,14 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       lat: number,
       variant: 'entry' | 'exit',
       siteName: string,
+      timeIso: string,
     ) => {
       const rootEl = document.createElement('div');
       rootEl.style.cssText = 'pointer-events:auto;';
       const pill = document.createElement('div');
       const accent = variant === 'entry' ? 'hsl(142 71% 45%)' : 'hsl(0 72% 50%)';
       const label = variant === 'entry' ? 'IN' : 'UT';
+      const timeText = formatStockholmHm(timeIso);
       pill.style.cssText = [
         'display:inline-flex','align-items:center','gap:6px',
         'padding:4px 8px','border-radius:9999px',
@@ -254,8 +256,9 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       pill.innerHTML = `
         <span style="display:inline-block;width:8px;height:8px;border-radius:9999px;background:${accent};box-shadow:0 0 0 2px hsl(0 0% 100% / .12)"></span>
         <span>${label}</span>
+        <span style="font-weight:600;letter-spacing:.04em;text-transform:none;opacity:.95;font-variant-numeric:tabular-nums">${timeText}</span>
       `;
-      pill.title = `${siteName} · ${label}`;
+      pill.title = `${siteName} · ${label} ${timeText}`;
       rootEl.appendChild(pill);
       const marker = new mapboxgl.Marker({ element: rootEl, anchor: 'bottom' })
         .setLngLat([lng, lat])
@@ -264,9 +267,9 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     };
 
     for (const passage of buildVisitPassages(vs, fences)) {
-      addPassageMarker(passage.entry.lng, passage.entry.lat, 'entry', passage.siteName);
+      addPassageMarker(passage.entry.lng, passage.entry.lat, 'entry', passage.siteName, passage.entry.recorded_at);
       if (passage.exit) {
-        addPassageMarker(passage.exit.lng, passage.exit.lat, 'exit', passage.siteName);
+        addPassageMarker(passage.exit.lng, passage.exit.lat, 'exit', passage.siteName, passage.exit.recorded_at);
       }
     }
 
