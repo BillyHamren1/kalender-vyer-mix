@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useWeekDays } from '@/hooks/useWeekDays';
 import type { StaffMember } from '@/services/staffService';
 import { StaffGpsWeekListRow } from './StaffGpsWeekListRow';
+import { useStaffGpsWeekSummaryBatch } from '@/hooks/staff/useStaffGpsWeekSummaryBatch';
 
 interface Props {
   staff: StaffMember[];
@@ -89,6 +90,8 @@ export function StaffGpsWeekList({
               weekDays={weekDays}
               isAssigned={assignedSet.has(s.id)}
               isPinged={pingedSet.has(s.id)}
+              summariesByDate={batch.summaries[s.id] ?? {}}
+              isLoading={batch.isLoading}
               onSelect={onSelect}
             />
           ))}
