@@ -868,7 +868,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       const stayFeatures: any[] = [];
       for (const s of segments) {
         if (s.kind !== 'stay') continue;
-        if (pingInsideAnyFence({ lat: s.lat, lng: s.lng }, clipFences)) continue;
+        const insideFence = pingInsideAnyFence({ lat: s.lat, lng: s.lng }, clipFences);
         stayFeatures.push({
           type: 'Feature',
           geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
@@ -876,9 +876,11 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
             index: s.index,
             color: colorForSegment(s.colorIndex, 'stay'),
             label: `${formatHm(s.startIso)}–${formatHm(s.endIso)} · ${formatDuration(s.durationMs)}`,
+            insideFence: insideFence ? 1 : 0,
           },
         });
       }
+
 
       map.addSource('gps-stay-points-src', {
         type: 'geojson',
