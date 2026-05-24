@@ -963,9 +963,11 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       data.forEach((p) => bounds.extend([p.lng, p.lat]));
       lastBoundsRef.current = bounds;
       try {
-        // Liten padding + hög maxZoom så vi alltid zoomar in så långt det
-        // går utan att klippa bort någon ping.
-        map.fitBounds(bounds, { padding: 24, duration: 400, maxZoom: 17 });
+        // Padding ger luft åt etiketter; maxZoom 14 hindrar att en liten
+        // klunga med många stay-points zoomas så hårt att tidsstämplarna
+        // staplas ovanpå varandra.
+        map.fitBounds(bounds, { padding: 40, duration: 400, maxZoom: 14 });
+
       } catch {/* ignore */}
       applyZoomVisibility();
 
