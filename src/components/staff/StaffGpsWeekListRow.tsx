@@ -1,9 +1,8 @@
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
 import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
-import { useStaffGpsWeekSummary } from '@/hooks/staff/useStaffGpsWeekSummary';
+import type { StaffGpsWeekDaySummary } from '@/hooks/staff/useStaffGpsWeekSummaryBatch';
 import type { StaffMember } from '@/services/staffService';
 
 interface Props {
@@ -11,6 +10,9 @@ interface Props {
   weekDays: Date[];
   isAssigned: boolean;
   isPinged: boolean;
+  /** Per-dag summary (dateKey 'yyyy-MM-dd' → summary). Saknad nyckel = ingen data. */
+  summariesByDate: Record<string, StaffGpsWeekDaySummary>;
+  isLoading: boolean;
   onSelect: (staffId: string, date: Date) => void;
 }
 
@@ -23,11 +25,14 @@ function fmtDur(min: number): string {
   return `${h}h ${m}m`;
 }
 
-export function StaffGpsWeekListRow({ staff, weekDays, isAssigned, isPinged, onSelect }: Props) {
-  const summaries = useStaffGpsWeekSummary(staff.id, weekDays);
-
+export function StaffGpsWeekListRow({
+  staff, weekDays, summariesByDate, isLoading, onSelect,
+}: Props) {
   // Hitta första dagen med aktivitet (för klick på namnet).
-  const firstActiveIdx = summaries.findIndex((s) => s && s.firstIso);
+  const firstActiveIdx = weekDays.findIndex((d) => {
+    const s = summariesByDate[format(d, 'yyyy-MM-dd')];
+    return !!s && !!s.firstIso;
+  });
   const defaultDate = firstActiveIdx >= 0 ? weekDays[firstActiveIdx] : weekDays[0];
 
   return (
@@ -44,16 +49,17 @@ export function StaffGpsWeekListRow({ staff, weekDays, isAssigned, isPinged, onS
 
       {/* 7-dagars rad */}
       <div className="grid grid-cols-7 divide-x divide-[hsl(270_18%_94%)]">
-        {weekDays.map((day, i) => {
-          const summary = summaries[i];
+        {weekDays.map((day) => {
+          const key = format(day, 'yyyy-MM-dd');
+          const summary = summariesByDate[key];
           const hasData = !!summary && summary.pingsCount > 0;
-          const hasRange = hasData && summary!.firstIso && summary!.lastIso;
+          const hasRange = hasData && !!summary!.firstIso && !!summary!.lastIso;
           const weekday = format(day, 'EEE', { locale: sv });
           const dayMonth = format(day, 'd/M', { locale: sv });
 
           return (
             <button
-              key={format(day, 'yyyy-MM-dd')}
+              key={key}
               type="button"
               onClick={() => onSelect(staff.id, day)}
               className={cn(
@@ -92,7 +98,7 @@ export function StaffGpsWeekListRow({ staff, weekDays, isAssigned, isPinged, onS
                 </>
               ) : (
                 <span className="text-[10.5px] text-muted-foreground/60 leading-tight">
-                  {summary?.isLoading ? 'Laddar…' : hasData ? 'Endast hemma' : '—'}
+                  {isLoading && !summary ? 'Laddar…' : hasData ? 'Endast hemma' : '—'}
                 </span>
               )}
             </button>
