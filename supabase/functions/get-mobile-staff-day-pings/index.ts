@@ -28,6 +28,22 @@ function bad(status: number, error: string, extra: Record<string, unknown> = {})
   });
 }
 
+async function resolveRequestedStaff(
+  admin: ReturnType<typeof authenticateStaffRequest> extends Promise<{ ok: true; auth: infer A } | { ok: false; err: unknown }>
+    ? A extends { admin: infer C } ? C : never
+    : never,
+  staffId: string,
+  orgId: string,
+) {
+  const { data, error } = await admin
+    .from("staff_members")
+    .select("id, organization_id")
+    .eq("id", staffId)
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  return { data, error };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return bad(405, "Method not allowed");
@@ -46,6 +62,10 @@ Deno.serve(async (req) => {
   if (!access.ok) return bad(access.err.status, access.err.error);
   const orgId = access.orgId;
   const admin = authResult.auth.admin;
+
+  const { data: staffRow, error: staffErr } = await resolveRequestedStaff(admin, staffId, orgId);
+  if (staffErr) return bad(500, "Staff lookup failed", { details: staffErr.message ?? "unknown error" });
+  if (!staffRow) return bad(404, "Staff not found in your organization");
 
   const startIso = `${date}T00:00:00.000Z`;
   const endIso = `${date}T23:59:59.999Z`;
