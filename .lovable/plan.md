@@ -1,50 +1,36 @@
-## Mål
+# Fix: GPS-veckovyn hämtar inte längre allt om och om igen
 
-Veckopanelen ska ligga **ovanför kartan** och visa de 7 dagarna **horisontellt** (mån–sön i en rad), inte som en vertikal lista i en sidopanel. Vald dag expanderar nedåt och visar geofence-besöken — fortfarande ovanför kartan.
+## Problem
+`StaffGpsWeekList` triggar idag `get-mobile-staff-day-pings` **per person × per dag** (upp till 50+ parallella anrop). Varje anrop laddar dessutom om alla org-geofences, projekt och locations från scratch. Historiska pings (som aldrig ändras) hämtas om varje gång. Det är detta som ger BOOT_ERROR / IDLE_TIMEOUT / schema cache-fel — inte badge-borttagningen.
 
-## Layout (ny)
+## Lösning
+1. **Ny batch-endpoint** som returnerar hela veckans summary för alla synliga personer i **ett** anrop.
+2. **Aggressiv React Query-cache**: historiska dagar = `staleTime: Infinity`, bara idag refetchas.
+3. **Detaljvyn vid klick** fortsätter använda `get-mobile-staff-day-pings` oförändrat (en person × en dag = OK).
 
-```text
-┌─────────────────────────────────────────────────────────┐
-│ Person ▾   ◀ Vecka 21 (18–24 maj 2026) ▶   Idag        │
-├─────────────────────────────────────────────────────────┤
-│ Mån 18/5 │ Tis 19/5 │ Ons 20/5 │ Tors 21/5 │ Fre 22/5 │ Lör │ Sön │
-│ 13h 20m  │ 11h 54m  │ Endast   │ 16h 40m   │ 14h 6m ● │ ... │ —   │
-│          │          │ hemma    │           │ (vald)   │     │     │
-├─────────────────────────────────────────────────────────┤
-│ ▼ Fre 22/5 — geofence-besök (FA Warehouse, projekt …)  │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│                       KARTA                             │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
-```
+## Filer
 
-## Ändringar
+**Nya:**
+- `supabase/functions/get-staff-gps-week-summary/index.ts` — batch-endpoint. Body: `{ staffIds: string[], fromDate, toDate }`. Returnerar `{ summaries: Record<staffId, Record<dateKey, DaySummary>> }` med `pingsCount`, `firstIso`, `lastIso`, `durationMin`, `placeNames[]`. Geofences/projekt/locations laddas EN gång per request. En query mot `staff_location_history` med `.in('staff_id', staffIds)` + tidsrange.
+- `supabase/functions/_shared/staff-gps/buildVisits.ts` — extraherad gemensam helper (visit-grupperingslogik från befintliga day-endpointen).
+- `src/hooks/staff/useStaffGpsWeekSummaryBatch.ts` — ett batch-anrop, per-dag cache-policy (idag: 60s staleTime; tidigare dagar: Infinity, gcTime 24h).
+- `supabase/functions/get-staff-gps-week-summary/index.test.ts` — Deno-test: auth, org-isolering, batch-respons-shape, tom input.
+- `src/hooks/staff/__tests__/useStaffGpsWeekSummaryBatch.test.ts` — vitest: cachenycklar, staleTime-policy per dag.
 
-### 1) `StaffGpsWeekPanel.tsx` — bygg om som horisontell topbar
-- Byt ytter-`<aside>` från `w-[400px]` sidopanel → full bredd-kort `w-full`.
-- Person-select + vecknavigation läggs på **en rad** högst upp (person till vänster, veckopil/Idag till höger).
-- Dagrutorna renderas i ett **7-koloners grid** (`grid grid-cols-7`) istället för vertikal lista. Varje cell visar veckodag, datum, total ("13h 20m" / "Endast hemma" / "—"), och markeras när vald.
-- Ny komponent `StaffGpsDayCell` (eller variant via prop på `StaffGpsDayRow`) för det kompakta horisontella formatet.
-- Vald dags besökslista (samma `GeofenceVisitRows`) renderas **under** grid:et, full bredd — inte inuti cellen.
+**Editeras:**
+- `supabase/functions/get-mobile-staff-day-pings/index.ts` — importerar shared `buildVisits`-helper. Beteende oförändrat.
+- `src/components/staff/StaffGpsWeekList.tsx` — ett `useStaffGpsWeekSummaryBatch`-anrop för alla synliga staffIds + veckorange. Skickar `summariesByStaff` som prop till varje rad.
+- `src/components/staff/StaffGpsWeekListRow.tsx` — tar emot `summaries` som prop istället för att hämta själv. Ingen egen fetch.
 
-### 2) `StaffGpsSatelliteMap.tsx` — vertikal stack
-- Byt ytter-layouten från `flex md:flex-row` → `flex flex-col gap-4`.
-- Ordning: `<StaffGpsWeekPanel … />` först, sedan kart-kolumnen (`flex-1`).
-- Ta bort `w-[400px]`-bredd; kartan får full bredd.
+## UI
+Ingen visuell ändring. Listan ser likadan ut. Detaljpanel öppnas fortfarande on-demand vid klick.
 
-### 3) Inga ändringar i datakällor
-- `useStaffGpsWeekSummary`, `useMobileStaffDayPings`, `GeofenceVisitRows` återanvänds oförändrat.
-- Tidsdata, geofence-logik och known-sites berörs inte.
+## Verifiering (körs automatiskt efter implementation)
+1. `supabase--test_edge_functions` för nya batch-endpointen.
+2. `bunx vitest run` på nya hook-testet.
+3. `supabase--curl_edge_functions` mot `get-staff-gps-week-summary` med en liten staffId-lista för att verifiera respons-shape live.
+4. Öppna preview `/staff-management/gps-satellite-map`, kontrollera nätverksfliken: **ett** batch-anrop istället för 50+.
 
-## Responsivt
-- ≥ md: 7 kolumner horisontellt.
-- < md (mobil): faller tillbaka till 2 rader á 4/3 kolumner (`grid-cols-4 md:grid-cols-7`) eller horisontell scroll. Default: `grid-cols-7` med `text-[11px]` så det får plats i 1245px-vyn användaren är på nu.
-
-## Filer som ändras
-- `src/components/staff/StaffGpsWeekPanel.tsx` (omstrukturerad)
-- `src/components/staff/StaffGpsSatelliteMap.tsx` (vertikal stack)
-- `src/components/staff/StaffGpsDayRow.tsx` (lägg till `variant="horizontal"` eller ny `StaffGpsDayCell.tsx`)
-
-Inga DB-, hook- eller affärslogikändringar.
+## Risker
+- Edge function returnerar stor payload vid många personer × 7 dagar. Lindras genom att bara skicka summary-fält (inga raw pings, inga polygoner).
+- Multi-tenancy: batch-endpointen verifierar att alla `staffIds` tillhör samma org som callern innan query (RESTRICTIVE-style guard).
