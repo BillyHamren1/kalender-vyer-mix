@@ -198,29 +198,35 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     type Rect = { left: number; right: number; top: number; bottom: number };
     const placed: Rect[] = [];
     const items = [...geofenceMarkersRef.current]
-      .map(({ marker, contentEl }) => ({ contentEl, pt: map.project(marker.getLngLat()) }))
+      .map(({ marker, pinEl, labelEl }) => ({ pinEl, labelEl, pt: map.project(marker.getLngLat()) }))
       // Nordligast (lägst y) först – top-down stack
       .sort((a, b) => a.pt.y - b.pt.y);
 
-    for (const { contentEl, pt } of items) {
-      const w = contentEl.offsetWidth || 140;
-      const h = contentEl.offsetHeight || 22;
-      // Badge sitter (anchor bottom-left) vid pt; translate(-5,-100%) lägger den ovanför.
-      // Extra bumpY skjuter den högre upp för att undvika kollision.
+    // Höjden på pin-grafiken (12x18 px). Labeln läggs alltid ovanför pinnen.
+    const PIN_HEIGHT = 20;
+
+    for (const { labelEl, pt } of items) {
+      const w = labelEl.offsetWidth || 140;
+      const h = labelEl.offsetHeight || 22;
+      // Labeln placeras till höger om pin-stjälken (offsetX +10) och ovanför
+      // pin-spetsen (PIN_HEIGHT + bumpY). Endast labelEl bumpas — pin-nålen
+      // står still på lat/lng eftersom Mapbox äger rootEl-transform och
+      // pin-elementet inte rörs.
+      const offsetX = 10;
       let bumpY = 0;
-      const left = pt.x - 5;
+      const left = pt.x + offsetX;
       const right = left + w;
       let attempts = 0;
       while (attempts < 40) {
-        const bottom = pt.y - bumpY;
+        const bottom = pt.y - PIN_HEIGHT - bumpY;
         const top = bottom - h;
         const collides = placed.some(
           (r) => !(right < r.left || left > r.right || bottom < r.top || top > r.bottom),
         );
         if (!collides) {
           placed.push({ left, right, top, bottom });
-          contentEl.style.transformOrigin = 'left bottom';
-          contentEl.style.transform = buildBadgeStackTransform(bumpY);
+          labelEl.style.transformOrigin = 'left bottom';
+          labelEl.style.transform = `translate(${offsetX}px, calc(-100% - ${PIN_HEIGHT + bumpY}px))`;
           break;
         }
         bumpY += h + 4;
