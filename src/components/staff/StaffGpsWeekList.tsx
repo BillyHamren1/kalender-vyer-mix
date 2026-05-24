@@ -35,6 +35,18 @@ export function StaffGpsWeekList({
   const visibleIds = useMemo(() => visible.map((s) => s.id), [visible]);
   const batch = useStaffGpsWeekSummaryBatch(visibleIds, weekDays);
 
+  const { withTime, withoutTime } = useMemo(() => {
+    const withT: typeof visible = [];
+    const withoutT: typeof visible = [];
+    for (const s of visible) {
+      const byDate = batch.summaries[s.id] ?? {};
+      const hasAny = Object.values(byDate).some((d) => d && d.pingsCount > 0 && d.firstIso && d.lastIso);
+      if (hasAny) withT.push(s);
+      else withoutT.push(s);
+    }
+    return { withTime: withT, withoutTime: withoutT };
+  }, [visible, batch.summaries]);
+
 
   return (
     <div className="flex flex-col gap-3">
