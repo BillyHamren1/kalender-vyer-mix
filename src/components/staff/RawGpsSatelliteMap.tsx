@@ -961,10 +961,14 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
 
       const bounds = new mapboxgl.LngLatBounds();
       data.forEach((p) => bounds.extend([p.lng, p.lat]));
+      lastBoundsRef.current = bounds;
       try {
-        map.fitBounds(bounds, { padding: 40, duration: 400, maxZoom: 16 });
+        // Liten padding + hög maxZoom så vi alltid zoomar in så långt det
+        // går utan att klippa bort någon ping.
+        map.fitBounds(bounds, { padding: 24, duration: 400, maxZoom: 17 });
       } catch {/* ignore */}
       applyZoomVisibility();
+
 
     };
     if (map.isStyleLoaded()) apply();
