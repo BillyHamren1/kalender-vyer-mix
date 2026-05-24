@@ -242,7 +242,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
       />
 
       {/* Karta */}
-      <div className="planning-card relative flex-1 min-h-[520px] overflow-hidden p-0">
+      <div className="planning-card relative h-[calc(100vh-360px)] min-h-[520px] overflow-hidden p-0">
         {pings.length > 0 || geofences.length > 0 ? (
           <RawGpsSatelliteMap pings={pings} geofences={geofences} visits={geofenceVisits} onSaveRadius={saveRadius} onSavePolygon={savePolygon} className="h-full w-full" />
         ) : (
