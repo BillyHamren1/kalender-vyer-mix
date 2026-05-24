@@ -8,7 +8,8 @@ export type AppRole = 'admin' | 'forsaljning' | 'projekt' | 'lager';
 
 const ROLES_QUERY_KEY = 'user-roles';
 const APP_ROLES: AppRole[] = ['admin', 'forsaljning', 'projekt', 'lager'];
-const ROLE_FETCH_TIMEOUT_MS = 4_000;
+export const ROLE_FETCH_TIMEOUT_MS = 2_000;
+const ROLE_BACKGROUND_RETRY_MS = 30_000;
 
 export function getFallbackRolesFromUser(user: Pick<User, 'user_metadata'> | null | undefined): AppRole[] {
   const rawRoles = Array.isArray(user?.user_metadata?.roles)
