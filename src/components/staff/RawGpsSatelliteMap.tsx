@@ -94,6 +94,59 @@ function stayPopupHtml(seg: Extract<PingSegment<RawStaffGpsPing>, { kind: 'stay'
   </div>`;
 }
 
+function pointInPolygon(lng: number, lat: number, polygon: GeoJSON.Polygon): boolean {
+  const ring = polygon.coordinates[0];
+  if (!ring || ring.length < 3) return false;
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1];
+    const xj = ring[j][0], yj = ring[j][1];
+    const intersect =
+      ((yi > lat) !== (yj > lat)) &&
+      (lng < ((xj - xi) * (lat - yi)) / ((yj - yi) || 1e-12) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function pingInsideFenceBySite(
+  fence: GeofenceSite,
+  ping: Pick<RawStaffGpsPing, 'lat' | 'lng'>,
+): boolean {
+  if (fence.polygon) return pointInPolygon(ping.lng, ping.lat, fence.polygon);
+  const radius = Math.max(10, Number(fence.radiusMeters) || 200);
+  const dLat = (ping.lat - fence.lat) * 111_320;
+  const dLng = (ping.lng - fence.lng) * 111_320 * Math.cos((fence.lat * Math.PI) / 180);
+  return Math.sqrt(dLat * dLat + dLng * dLng) <= radius;
+}
+
+export interface VisitPassageMarker {
+  placeKey: string;
+  siteName: string;
+  entry: Pick<RawStaffGpsPing, 'lat' | 'lng' | 'recorded_at'>;
+  exit: Pick<RawStaffGpsPing, 'lat' | 'lng' | 'recorded_at'> | null;
+}
+
+export function buildVisitPassages(vs: PlaceVisit[], fences: GeofenceSite[]): VisitPassageMarker[] {
+  const fenceById = new Map(fences.map((f) => [f.id, f]));
+  return vs.flatMap((visit) => {
+    if (!visit.knownSite || !visit.pings.length) return [];
+    const fence = fenceById.get(visit.knownSite.id);
+    if (!fence) return [];
+    const insidePings = visit.pings.filter((ping) => pingInsideFenceBySite(fence, ping));
+    if (!insidePings.length) return [];
+    const entry = insidePings[0];
+    const exit = insidePings[insidePings.length - 1];
+    const samePassage = pingKey(entry) === pingKey(exit);
+    return [{
+      placeKey: visit.placeKey,
+      siteName: visit.knownSite.name,
+      entry,
+      exit: samePassage ? null : exit,
+    }];
+  });
+}
+
 const LAYER_IDS = [
   'geofence-fill',
   'geofence-outline-casing',
@@ -171,7 +224,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
   const handleReady = (map: mapboxgl.Map) => {
     mapRef.current = map;
     renderLayers(map, pings, geofences, visits);
-    renderVisitMarkers(map, visits);
+    renderVisitMarkers(map, visits, geofences);
     map.on('zoom', applyZoomVisibility);
     map.on('move', layoutGeofenceBadges);
     map.on('resize', () => {
@@ -187,9 +240,9 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
   }, [pings, geofences, visits]);
 
   useEffect(() => {
-    if (mapRef.current) renderVisitMarkers(mapRef.current, visits);
+    if (mapRef.current) renderVisitMarkers(mapRef.current, visits, geofences);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visits]);
+  }, [visits, geofences]);
 
 
   function clearVisitMarkers() {
