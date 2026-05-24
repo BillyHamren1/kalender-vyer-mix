@@ -10,6 +10,7 @@ import { useStaffGpsWeekSummary } from '@/hooks/staff/useStaffGpsWeekSummary';
 import { useWeekDays } from '@/hooks/useWeekDays';
 import { StaffGpsDayCell } from './StaffGpsDayCell';
 import { GeofenceVisitRows } from './GeofenceVisitRows';
+import { GeofenceTravelRows } from './GeofenceTravelRows';
 
 interface Props {
   staff: StaffMember[];
