@@ -420,7 +420,7 @@ async function loadStaffPrivateZones(
   try {
     const { data: priv } = await supabaseAdmin
       .from('staff_private_zones')
-      .select('lat, lng, radius_m, zone_kind')
+      .select('lat, lng, radius_m, kind')
       .eq('organization_id', organizationId)
       .eq('staff_id', staffId);
     for (const p of priv || []) {
@@ -431,7 +431,7 @@ async function loadStaffPrivateZones(
         lat,
         lng,
         radiusM: Number.isFinite((p as any).radius_m) ? Number((p as any).radius_m) : 150,
-        zoneKind: ((p as any).zone_kind as string | null) ?? 'private_residence',
+        zoneKind: ((p as any).kind as string | null) ?? 'private_residence',
       });
     }
   } catch (_) { /* table optional */ }
