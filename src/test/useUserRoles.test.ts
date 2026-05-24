@@ -69,7 +69,7 @@ describe('useUserRoles', () => {
     fromMock.mockReturnValue({ select: selectMock });
   });
 
-  it('uses session fallback roles immediately without waiting for user_roles query', async () => {
+  it('uses session fallback roles immediately without blocking UI while user_roles still loads', async () => {
     const { useUserRoles } = await import('@/hooks/useUserRoles');
 
     const { result } = renderHook(() => useUserRoles(), {
@@ -81,7 +81,7 @@ describe('useUserRoles', () => {
     });
 
     expect(result.current.roles).toEqual(['admin', 'projekt']);
-    expect(fromMock).not.toHaveBeenCalled();
+    expect(fromMock).toHaveBeenCalledWith('user_roles');
     expect(result.current.hasPlanningAccess).toBe(true);
   });
 });
