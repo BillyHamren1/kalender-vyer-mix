@@ -32,6 +32,10 @@ export function StaffGpsWeekList({
     return base.filter((s) => s.name.toLowerCase().includes(q));
   }, [staff, assignedSet, pingedSet, filter]);
 
+  const visibleIds = useMemo(() => visible.map((s) => s.id), [visible]);
+  const batch = useStaffGpsWeekSummaryBatch(visibleIds, weekDays);
+
+
   return (
     <div className="flex flex-col gap-3">
       {/* Veckonavigation */}
