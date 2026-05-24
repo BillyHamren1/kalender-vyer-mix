@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { fetchStaffMembers } from '@/services/staffService';
@@ -8,7 +8,6 @@ import { useMobileStaffDayPings } from '@/hooks/staff/useMobileStaffDayPings';
 import RawGpsSatelliteMap from './RawGpsSatelliteMap';
 import { StaffGpsWeekPanel } from './StaffGpsWeekPanel';
 import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
-import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
 import { type PlaceVisit } from '@/lib/staff/pingPlaceSegments';
 import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
 import { useAllActiveProjectGeofences } from '@/hooks/useAllActiveProjectGeofences';
