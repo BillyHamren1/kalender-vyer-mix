@@ -220,22 +220,10 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     subKind: visit.subKind,
   })), [snapshotQuery.data?.visits]);
 
-  // Privata boenden (organization_locations.is_private_residence) ska aldrig
-  // visas i geofence-listan. De räknas som hem och hör inte hemma i
-  // arbets-/projektvyn.
-  const { data: orgLocations = [] } = useOrganizationLocations();
-  const privateLocationIds = useMemo(() => {
-    const s = new Set<string>();
-    for (const l of orgLocations) {
-      if (l.isPrivate) s.add(`loc:${l.id}`);
-    }
-    return s;
-  }, [orgLocations]);
+  // Privata boenden filtreras bort i veckopanelens GeofenceVisitRows via
+  // useStaffGpsWeekSummary → ingen separat filtrering här längre.
 
-  const visibleGeofenceVisits = useMemo<PlaceVisit[]>(
-    () => geofenceVisits.filter((v) => !(v.knownSite && privateLocationIds.has(v.knownSite.id))),
-    [geofenceVisits, privateLocationIds],
-  );
+
 
   const handleDateChange = useCallback((d: Date) => {
     setDate(d);
