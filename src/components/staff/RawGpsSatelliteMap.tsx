@@ -890,6 +890,11 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         id: 'gps-stay-points',
         type: 'circle',
         source: 'gps-stay-points-src',
+        filter: [
+          'any',
+          ['==', ['get', 'insideFence'], 0],
+          ['>=', ['zoom'], ZOOM_SHOW_INSIDE_FENCE],
+        ],
         paint: {
           'circle-radius': 10,
           'circle-color': ['get', 'color'],
@@ -902,6 +907,11 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         id: 'gps-stay-labels',
         type: 'symbol',
         source: 'gps-stay-points-src',
+        filter: [
+          'any',
+          ['==', ['get', 'insideFence'], 0],
+          ['>=', ['zoom'], ZOOM_SHOW_INSIDE_FENCE],
+        ],
         layout: {
           'text-field': ['get', 'label'],
           'text-size': 12,
@@ -916,6 +926,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
           'text-halo-width': 2,
         },
       });
+
 
       // ── Start/slut-markörer ────────────────────────────────────────
       const first = data[0];
