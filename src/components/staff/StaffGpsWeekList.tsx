@@ -99,7 +99,7 @@ export function StaffGpsWeekList({
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          {visible.map((s) => (
+          {withTime.map((s) => (
             <StaffGpsWeekListRow
               key={s.id}
               staff={s}
@@ -111,6 +111,31 @@ export function StaffGpsWeekList({
               onSelect={onSelect}
             />
           ))}
+          {withoutTime.length > 0 && (
+            <>
+              {withTime.length > 0 && (
+                <div className="flex items-center gap-2 pt-3 pb-1 px-1">
+                  <div className="h-px flex-1 bg-[hsl(270_20%_88%)]" />
+                  <span className="text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Ingen tid loggad
+                  </span>
+                  <div className="h-px flex-1 bg-[hsl(270_20%_88%)]" />
+                </div>
+              )}
+              {withoutTime.map((s) => (
+                <StaffGpsWeekListRow
+                  key={s.id}
+                  staff={s}
+                  weekDays={weekDays}
+                  isAssigned={assignedSet.has(s.id)}
+                  isPinged={pingedSet.has(s.id)}
+                  summariesByDate={batch.summaries[s.id] ?? {}}
+                  isLoading={batch.isLoading}
+                  onSelect={onSelect}
+                />
+              ))}
+            </>
+          )}
         </div>
       )}
 
