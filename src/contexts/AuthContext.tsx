@@ -129,11 +129,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error };
+    // Timeout-skydd: om Supabase Auth hänger (degraderad backend) ska
+    // användaren få ett tydligt fel istället för en evig "Loggar in..."
+    const SIGN_IN_TIMEOUT_MS = 10_000;
+    try {
+      const result = await Promise.race([
+        supabase.auth.signInWithPassword({ email, password }),
+        new Promise<{ error: Error }>((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                error: new Error(
+                  'Inloggningen tog för lång tid. Kontrollera nätverket och försök igen.',
+                ),
+              }),
+            SIGN_IN_TIMEOUT_MS,
+          ),
+        ),
+      ]);
+      return { error: (result as any).error ?? null };
+    } catch (err: any) {
+      return { error: err instanceof Error ? err : new Error(String(err)) };
+    }
   };
 
   const signOut = async () => {
