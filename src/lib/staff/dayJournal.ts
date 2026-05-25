@@ -139,6 +139,7 @@ export interface RawTravelLog {
   to_latitude?: number | null;
   to_longitude?: number | null;
   destination_booking_id?: string | null;
+  description?: string | null;
 }
 
 export interface RawWorkday {
