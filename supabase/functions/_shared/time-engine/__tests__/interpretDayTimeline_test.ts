@@ -24,6 +24,7 @@ interface SegOpts {
   targetId?: string | null;
   targetType?: GpsTimelineSegment["matchedTargetType"];
   label?: string | null;
+  distanceMeters?: number;
 }
 
 function seg(o: SegOpts): GpsTimelineSegment {
@@ -42,12 +43,13 @@ function seg(o: SegOpts): GpsTimelineSegment {
     matchedTargetName: o.label ?? null,
     centerLat: null, centerLng: null, startLat: null, startLng: null, endLat: null, endLng: null,
     pingCount: 5,
-    distanceMeters: 0,
+    distanceMeters: o.distanceMeters ?? 0,
     avgKmh: 0,
     confidence: 0.9,
     reason: "matched_valid_target",
   };
 }
+
 
 Deno.test("merges contiguous same-project segments with small gap", () => {
   _id = 0;
