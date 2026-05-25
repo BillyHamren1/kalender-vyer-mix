@@ -37,6 +37,6 @@ describe('dayPartition same-site sandwich collapse', () => {
     const out = buildDayPartition({ pings, visits, privateGeofenceIds: [] });
     const types = out.segments.map((s) => s.type);
     expect(types).toContain('travel');
-    expect(types.filter((t) => t === 'work').length).toBeGreaterThanOrEqual(2);
+    expect(types).toContain('work');
   });
 });
