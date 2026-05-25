@@ -1,17 +1,19 @@
 /**
- * useStaffGpsWeekSummaryBatch — ett enda anrop hämtar dag-summary för
+ * useStaffGpsWeekSummaryBatch — ett enda anrop hämtar FULLA dagssnapshots för
  * N personer × hela veckan via edge function get-staff-gps-week-summary.
  *
- * Ersätter N × 7 individuella anrop till get-mobile-staff-day-pings när
- * admin tittar på vecko-listan i /staff-management/gps-satellite-map.
+ * Batchen returnerar exakt samma snapshot-form som get-mobile-staff-day-pings
+ * (pings + geofences + visits). Vi summerar lokalt med EN delad funktion
+ * (`summarizeSnapshot`) — samma kod som detaljvyns inline-karta och
+ * fallback-vägen använder. Det gör lista och detaljvy byte-identiska:
+ * samma platsnamn, samma tider, samma matchning.
  *
- * Aggressiv cache: queryKey inkluderar sorterade staffIds + fromDate/toDate
- * så React Query återanvänder mellan komponenter. staleTime 5 min eftersom
- * historiska pings aldrig ändras och dagens pings inte är tidskritiska i
- * vecko-listan.
+ * Som bonus pumpar vi in varje snapshot i React Query-cachen under nyckeln
+ * `['mobile-staff-day-pings', staffId, date]` så inline-kartan i listan
+ * öppnas utan extra nätanrop och med exakt samma data.
  */
-import { useMemo } from 'react';
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo } from 'react';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { callStaffSnapshotFunction } from '@/services/staffSnapshotApi';
 import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
@@ -36,8 +38,8 @@ export interface StaffGpsWeekDaySummary {
   visits?: StaffGpsWeekDayVisit[];
 }
 
-export interface StaffGpsWeekSummaryBatch {
-  summaries: Record<string, Record<string, StaffGpsWeekDaySummary>>;
+interface StaffGpsWeekSnapshotBatch {
+  snapshots: Record<string, Record<string, StaffGpsDaySnapshot>>;
   generatedAt: string;
 }
 
@@ -56,6 +58,10 @@ function visitTypeFromId(id: string | null | undefined): string {
   return 'unknown';
 }
 
+/**
+ * ENDA stället där snapshots → summary översätts. Identisk logik körs i båda
+ * batch- och fallback-vägen, så list-rader och inline-karta får samma siffror.
+ */
 function summarizeSnapshot(
   snapshot: StaffGpsDaySnapshot | undefined,
   privateIds: Set<string>,
@@ -98,10 +104,8 @@ export function useStaffGpsWeekSummaryBatch(
 ): UseBatchResult {
   const sortedIds = useMemo(() => [...staffIds].sort(), [staffIds]);
   const dateKeys = useMemo(() => weekDays.map((day) => format(day, 'yyyy-MM-dd')), [weekDays]);
-  const fromDate = weekDays[0] ? format(weekDays[0], 'yyyy-MM-dd') : '';
-  const toDate = weekDays[weekDays.length - 1]
-    ? format(weekDays[weekDays.length - 1], 'yyyy-MM-dd')
-    : '';
+  const fromDate = dateKeys[0] ?? '';
+  const toDate = dateKeys[dateKeys.length - 1] ?? '';
 
   const enabled = sortedIds.length > 0 && !!fromDate && !!toDate;
   const { data: orgLocations = [] } = useOrganizationLocations();
@@ -113,21 +117,34 @@ export function useStaffGpsWeekSummaryBatch(
     return ids;
   }, [orgLocations]);
 
+  const queryClient = useQueryClient();
+
   const query = useQuery({
-    queryKey: ['staff-gps-week-summary-batch', sortedIds, fromDate, toDate] as const,
+    queryKey: ['staff-gps-week-snapshot-batch', sortedIds, fromDate, toDate] as const,
     enabled,
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
-    queryFn: async (): Promise<StaffGpsWeekSummaryBatch> => {
-      // Cast: ny endpoint som inte finns i StaffSnapshotFunctionName-typen ännu.
-      return await callStaffSnapshotFunction<StaffGpsWeekSummaryBatch>(
+    queryFn: async (): Promise<StaffGpsWeekSnapshotBatch> => {
+      return await callStaffSnapshotFunction<StaffGpsWeekSnapshotBatch>(
         'get-staff-gps-week-summary' as any,
         { staffIds: sortedIds, fromDate, toDate },
       );
     },
   });
+
+  // Hydrate inline-mapens cache så detaljvyn återanvänder EXAKT samma snapshot.
+  useEffect(() => {
+    const snapshots = query.data?.snapshots;
+    if (!snapshots) return;
+    for (const staffId of Object.keys(snapshots)) {
+      const byDate = snapshots[staffId] ?? {};
+      for (const date of Object.keys(byDate)) {
+        queryClient.setQueryData(['mobile-staff-day-pings', staffId, date], byDate[date]);
+      }
+    }
+  }, [query.data, queryClient]);
 
   const shouldFallback = enabled && !!query.isError;
   const fallbackQueries = useQueries({
@@ -142,26 +159,37 @@ export function useStaffGpsWeekSummaryBatch(
       : [],
   });
 
-  const fallbackSummaries = useMemo<Record<string, Record<string, StaffGpsWeekDaySummary>>>(() => {
-    if (!shouldFallback) return {};
+  const summaries = useMemo<Record<string, Record<string, StaffGpsWeekDaySummary>>>(() => {
     const mapped: Record<string, Record<string, StaffGpsWeekDaySummary>> = {};
-    let index = 0;
+    if (shouldFallback) {
+      let idx = 0;
+      for (const staffId of sortedIds) {
+        if (!mapped[staffId]) mapped[staffId] = {};
+        for (const date of dateKeys) {
+          const snap = fallbackQueries[idx]?.data as StaffGpsDaySnapshot | undefined;
+          mapped[staffId][date] = summarizeSnapshot(snap, privateIds);
+          idx += 1;
+        }
+      }
+      return mapped;
+    }
+    const snapshots = query.data?.snapshots;
+    if (!snapshots) return mapped;
     for (const staffId of sortedIds) {
-      if (!mapped[staffId]) mapped[staffId] = {};
+      mapped[staffId] = {};
+      const byDate = snapshots[staffId] ?? {};
       for (const date of dateKeys) {
-        const snapshot = fallbackQueries[index]?.data as StaffGpsDaySnapshot | undefined;
-        mapped[staffId][date] = summarizeSnapshot(snapshot, privateIds);
-        index += 1;
+        mapped[staffId][date] = summarizeSnapshot(byDate[date], privateIds);
       }
     }
     return mapped;
-  }, [dateKeys, fallbackQueries, privateIds, shouldFallback, sortedIds]);
+  }, [shouldFallback, sortedIds, dateKeys, fallbackQueries, privateIds, query.data]);
 
   const fallbackLoading = shouldFallback && fallbackQueries.some((q) => q.isLoading);
   const fallbackFailed = shouldFallback && fallbackQueries.some((q) => q.isError);
 
   return {
-    summaries: query.data?.summaries ?? fallbackSummaries,
+    summaries,
     isLoading: (query.isLoading || fallbackLoading) && enabled,
     isError: shouldFallback ? fallbackFailed : !!query.isError,
   };
