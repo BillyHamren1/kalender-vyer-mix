@@ -1,8 +1,11 @@
 // get-staff-gps-week-summary
 // ==========================
-// Batch summary for the admin GPS week panel. Returns per-(staff,date) summary
-// derived from the EXACT same snapshot the detail map renders. Backed by
-// staff_gps_day_snapshots cache so repeat opens cost zero pings.
+// Batch summary för admin GPS week panel. Per (staff, dag) bygger vi en
+// PARTITION av [firstPing, lastPing]: varje minut tillhör exakt ETT segment
+// (work/private/travel/unknown_place/gps_gap/idle). Garanterar att summan av
+// segmenten == windowMin. Användare ska aldrig se "försvunna minuter".
+//
+// Se mem://constraints/gps-day-partition-v1
 import { corsHeaders } from "../_shared/cors.ts";
 import {
   authenticateStaffRequest,
@@ -12,6 +15,10 @@ import {
   getOrBuildDaySnapshot,
   type DaySnapshot,
 } from "../_shared/staff-gps/snapshotCache.ts";
+import {
+  buildDayPartition,
+  type DaySegment,
+} from "../_shared/staff-gps/dayPartition.ts";
 
 interface RequestBody {
   staffId?: string;
@@ -23,10 +30,19 @@ interface DaySummary {
   pingsCount: number;
   firstIso: string | null;
   lastIso: string | null;
+  /** Bakåtkompatibelt = workMin (tid på kända arbetsplatser). */
   durationMin: number;
+  windowMin: number;
+  workMin: number;
+  privateMin: number;
+  travelMin: number;
+  unknownMin: number;
+  gapMin: number;
+  idleMin: number;
   places: Array<{ name: string; minutes: number }>;
   placeNames: string[];
   visitsCount: number;
+  segments: DaySegment[];
 }
 
 function bad(status: number, error: string, extra: Record<string, unknown> = {}) {
@@ -37,62 +53,61 @@ function bad(status: number, error: string, extra: Record<string, unknown> = {})
 }
 
 function summarize(date: string, snapshot: DaySnapshot): DaySummary {
+  const partition = buildDayPartition({
+    pings: snapshot.pings,
+    visits: snapshot.visits.map((v) => ({
+      start: v.start,
+      end: v.end,
+      knownSite: v.knownSite,
+    })),
+    privateGeofenceIds: snapshot.privateGeofenceIds,
+  });
+
+  // LOCKED: start/sluttid är första respektive sista pingen UTANFÖR privata
+  // geofences (hem). Privata visits ska aldrig flytta dagens fönster — då
+  // räknas hemmavistelser av misstag in som arbetsdag.
+  // Se mem://constraints/gps-day-partition-v1 + chat #9967.
   const privateIds = new Set(snapshot.privateGeofenceIds);
-  const pings = snapshot.pings;
-  const visits = snapshot.visits;
-
-  const privateVisits = visits.filter(v => v.knownSite && privateIds.has(v.knownSite.id));
-  const workVisits = visits.filter(v => !(v.knownSite && privateIds.has(v.knownSite.id)));
-
-  const inPrivate = (iso: string) => {
-    const t = new Date(iso).getTime();
-    return privateVisits.some(v => {
-      const s = new Date(v.start).getTime();
-      const e = new Date(v.end).getTime();
-      return t >= s && t <= e;
-    });
-  };
-
-  let firstIso: string | null = null;
-  let lastIso: string | null = null;
-  for (const p of pings) {
-    if (!inPrivate(p.recorded_at)) { firstIso = p.recorded_at; break; }
+  const privatePingIds = new Set<string>();
+  for (const v of snapshot.visits) {
+    if (v.knownSite && privateIds.has(v.knownSite.id)) {
+      for (const p of v.pings) privatePingIds.add(p.id);
+    }
   }
-  for (let j = pings.length - 1; j >= 0; j--) {
-    if (!inPrivate(pings[j].recorded_at)) { lastIso = pings[j].recorded_at; break; }
-  }
-  const durationMin = firstIso && lastIso
+  const nonPrivate = snapshot.pings.filter((p) => !privatePingIds.has(p.id));
+  const firstIso = nonPrivate.length ? nonPrivate[0].recorded_at : null;
+  const lastIso = nonPrivate.length ? nonPrivate[nonPrivate.length - 1].recorded_at : null;
+  const windowMin = firstIso && lastIso
     ? Math.max(0, Math.round((new Date(lastIso).getTime() - new Date(firstIso).getTime()) / 60_000))
     : 0;
 
   const placeNames: string[] = [];
   const seen = new Set<string>();
-  const minutesByName = new Map<string, number>();
-  for (const v of [...workVisits].sort((a, b) => a.start.localeCompare(b.start))) {
-    const name = v.knownSite?.name;
-    if (!name) continue;
-    if (!seen.has(name)) { seen.add(name); placeNames.push(name); }
-    const mins = Math.max(
-      0,
-      Math.round((new Date(v.end).getTime() - new Date(v.start).getTime()) / 60_000),
-    );
-    minutesByName.set(name, (minutesByName.get(name) ?? 0) + mins);
+  for (const s of partition.segments) {
+    if (s.type !== "work" || !s.knownSiteId) continue;
+    if (!seen.has(s.label)) { seen.add(s.label); placeNames.push(s.label); }
   }
-  const places = Array.from(minutesByName.entries())
-    .map(([name, minutes]) => ({ name, minutes }))
-    .sort((a, b) => b.minutes - a.minutes);
 
   return {
     date,
-    pingsCount: pings.length,
+    pingsCount: snapshot.pings.length,
     firstIso,
     lastIso,
-    durationMin,
-    places,
+    durationMin: partition.workMin,
+    windowMin,
+    workMin: partition.workMin,
+    privateMin: partition.privateMin,
+    travelMin: partition.travelMin,
+    unknownMin: partition.unknownMin,
+    gapMin: partition.gapMin,
+    idleMin: partition.idleMin,
+    places: partition.placeMinutes.map((p) => ({ name: p.name, minutes: p.minutes })),
     placeNames,
-    visitsCount: workVisits.length,
+    visitsCount: partition.segments.filter((s) => s.type === "work").length,
+    segments: partition.segments,
   };
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });

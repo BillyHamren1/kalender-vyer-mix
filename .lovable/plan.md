@@ -1,24 +1,29 @@
-# Plan
+# Plan: återställ bara start/slut
 
 ## Mål
-Se till att projekt/bokningar som inte är aktiva för dagen, särskilt `OFFER`/avbokade som TAVET, aldrig dyker upp i GPS-dags- eller veckosummeringen.
+Återställa den tidigare korrekta beräkningen av dagens starttid och sluttid i GPS-vyn, utan att ändra någon logik för hem/private eller hur övriga segment klassificeras.
 
-## Vad jag kommer att ändra
-1. Skärpa serverns urval i `loadDayKnownSites` så att bokningar med icke-aktiva statusar inte får bidra med geofence/pin eller härleda projekt för GPS-snapshoten.
-2. Säkerställa att bokningsstatus tolkas konsekvent med befintlig statusnormalisering (`OFFER`, `CANCELLED`, avbokad-varianter), inte bara projektets egen status.
-3. Lägga till/uppdatera kontraktstest som låser att en bokning med status `OFFER` eller avbokad inte kan bli en känd plats eller synas i summeringen.
-4. Validera i preview/test att TAVET inte längre visas i dagens sammanställning men att riktiga aktiva projekt fortfarande syns.
+## Vad som ändras
+1. Identifiera exakt var `firstIso` och `lastIso` började styras av den nya partition-logiken.
+2. Ändra week summary så start/slut åter kommer från samma källa som tidigare, medan övrig nuvarande logik lämnas orörd.
+3. Säkerställa att UI-raden visar de återställda start/sluttiderna men i övrigt inte får någon beteendeförändring.
+4. Lägga till ett regressions-test som låser att start/slut inte påverkas av partitionering eller klassificering.
 
-## Varför detta behövs
-Just nu filtreras projektstatus i serverkoden, men bokningsspåret som bygger upp dagens kända platser släpper igenom bokningar som fortfarande finns länkade men inte är bekräftade. Det gör att en offert/avbokad bokning kan smyga in i GPS-snapshoten trots att den inte ska vara arbetsplats för dagen.
+## Tekniska ändringar
+- `supabase/functions/get-staff-gps-week-summary/index.ts`
+  - Återställ `firstIso` och `lastIso` till den tidigare datakällan för dagsfönstret i stället för att låta partitioneringen definiera dem.
+- Eventuellt berörd shared helper i staff GPS-kedjan
+  - Endast om det behövs för att exponera den ursprungliga start/slut-källan tydligt.
+- `src/hooks/staff/useStaffGpsWeekSummary.ts`
+  - Behåll kontraktet, men säkerställ att hooken tar de återställda värdena utan extra tolkning.
+- Test
+  - Lägg till/uppdatera test som uttryckligen verifierar att start/slut är återställda och inte ändras av segmentlogiken.
 
-## Teknisk detalj
-- Berörda filer:
-  - `supabase/functions/_shared/staff-gps/dayKnownSites.ts`
-  - relevant testfil för kontraktet kring known sites / GPS-summering
-- Jag håller mig till befintlig policy: datumkänsliga kända platser, inga org-breda projektsvep, och tydlig spärr mot icke-aktiva bokningar.
-- Ingen DB-migration behövs.
+## Oförändrat
+- Ingen ändring av hem/private.
+- Ingen ändring av arbets-/warehouse-prioritering.
+- Ingen ändring av segmenttyper eller hur tiden mellan start/slut visas.
 
 ## Validering
-- Köra riktade tester för known-sites/GPS-kontrakt.
-- Kontrollera preview-/snapshotflödet så att TAVET försvinner ur summeringen utan att dagspings-funktionen påverkas.
+1. Köra riktade tester för GPS day summary/partition.
+2. Verifiera i preview att dagen visar samma start/slut som före partition-ändringen.
