@@ -73,6 +73,9 @@ export interface DayTimelineBlock {
     | 'night_no_heuristic';
   /** Max own GPS displacement (meters) across underlying segments. */
   maxDisplacementM: number;
+}
+
+
 
 
 export interface DayTimeline {
