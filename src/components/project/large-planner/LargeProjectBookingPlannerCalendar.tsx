@@ -84,6 +84,8 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     error,
     bookings,
     staff,
+    staffByDay,
+    isStaffAllowedForDate,
     items,
     days,
     refetch,
