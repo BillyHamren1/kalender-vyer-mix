@@ -138,20 +138,24 @@ const StaffStatusCard: React.FC<{ row: StaffRow; onOpen?: () => void }> = ({ row
   const urgent = row.needsAttention > 0;
   const hasPending = row.pending > 0;
   const isNew = row.newLast24h > 0;
+  const isIdle = !urgent && !hasPending && !isNew && row.approved === 0;
 
   const accent = urgent
-    ? "from-rose-500/15 to-transparent border-rose-500/30"
+    ? "from-rose-500/15 to-transparent border-rose-500/30 ring-1 ring-rose-500/10"
     : hasPending
-      ? "from-amber-500/15 to-transparent border-amber-500/30"
-      : "from-emerald-500/10 to-transparent border-border/60";
+      ? "from-amber-500/15 to-transparent border-amber-500/30 ring-1 ring-amber-500/10"
+      : row.approved > 0
+        ? "from-emerald-500/10 to-transparent border-emerald-500/20"
+        : "from-muted/20 to-transparent border-border/50";
 
   const dotColor = row.staff_color || "hsl(var(--primary))";
 
   return (
     <div
       className={cn(
-        "group relative w-[260px] shrink-0 overflow-hidden rounded-2xl border bg-card/90 backdrop-blur-sm",
+        "group relative overflow-hidden rounded-2xl border bg-card/90 backdrop-blur-sm",
         "transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer",
+        isIdle && "opacity-70 hover:opacity-100",
         accent,
       )}
       onClick={onOpen}
