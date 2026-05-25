@@ -317,39 +317,53 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
                         return (
                           <div
                             key={s.id}
-                            className="min-h-[80px] space-y-1 border-l border-border/60 p-1.5"
+                            className="group relative min-h-[80px] cursor-pointer space-y-1 border-l border-border/60 p-1.5 transition-colors hover:bg-primary/5"
+                            onClick={(e) => {
+                              if ((e.target as HTMLElement).closest('[data-task-card]')) return;
+                              handleCreateManual({ date: day.date, staffId: s.id });
+                            }}
+                            title="Klicka för att skapa manuell task"
                           >
                             {cellItems.map((it) => (
-                              <LargeProjectPlannerTaskCard
-                                key={it.id}
-                                item={it}
-                                booking={
-                                  it.booking_id
-                                    ? bookingById.get(it.booking_id) ?? null
-                                    : null
-                                }
-                                staff={staffById.get(s.id) ?? null}
-                                onClick={handleItemClick}
-                                onDelete={handleItemDelete}
-                              />
+                              <div data-task-card key={it.id}>
+                                <LargeProjectPlannerTaskCard
+                                  item={it}
+                                  booking={
+                                    it.booking_id
+                                      ? bookingById.get(it.booking_id) ?? null
+                                      : null
+                                  }
+                                  staff={staffById.get(s.id) ?? null}
+                                  onClick={handleItemClick}
+                                  onDelete={handleItemDelete}
+                                />
+                              </div>
                             ))}
                           </div>
                         );
                       })}
                       {/* Ej tilldelat */}
-                      <div className="min-h-[80px] space-y-1 border-l border-dashed border-border/60 bg-muted/20 p-1.5">
+                      <div
+                        className="group min-h-[80px] cursor-pointer space-y-1 border-l border-dashed border-border/60 bg-muted/20 p-1.5 transition-colors hover:bg-muted/40"
+                        onClick={(e) => {
+                          if ((e.target as HTMLElement).closest('[data-task-card]')) return;
+                          handleCreateManual({ date: day.date, staffId: null });
+                        }}
+                        title="Klicka för att skapa manuell task"
+                      >
                         {(grid.get(`${day.date}|${UNASSIGNED_KEY}`) ?? []).map((it) => (
-                          <LargeProjectPlannerTaskCard
-                            key={it.id}
-                            item={it}
-                            booking={
-                              it.booking_id
-                                ? bookingById.get(it.booking_id) ?? null
-                                : null
-                            }
-                            onClick={handleItemClick}
-                            onDelete={handleItemDelete}
-                          />
+                          <div data-task-card key={it.id}>
+                            <LargeProjectPlannerTaskCard
+                              item={it}
+                              booking={
+                                it.booking_id
+                                  ? bookingById.get(it.booking_id) ?? null
+                                  : null
+                              }
+                              onClick={handleItemClick}
+                              onDelete={handleItemDelete}
+                            />
+                          </div>
                         ))}
                       </div>
                     </div>
