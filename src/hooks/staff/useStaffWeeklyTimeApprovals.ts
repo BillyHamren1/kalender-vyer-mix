@@ -125,7 +125,7 @@ export function useStaffWeeklyTimeApprovals(params: UseStaffWeeklyTimeApprovalsP
       }));
 
       return {
-        submissions: (submissionsData ?? []) as StaffWeeklySubmissionRow[],
+        submissions: (submissionsData ?? []) as unknown as StaffWeeklySubmissionRow[],
         staff,
       };
     },
