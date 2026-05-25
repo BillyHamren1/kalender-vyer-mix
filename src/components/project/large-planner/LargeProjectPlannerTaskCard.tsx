@@ -7,18 +7,20 @@
  */
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Hash, Clock, User, Trash2 } from 'lucide-react';
+import { Hash, Clock, User, Trash2, GripVertical } from 'lucide-react';
 import type {
   LargeProjectBookingPlanItem,
   LargeProjectPlannerBooking,
   LargeProjectPlannerStaffMember,
 } from './largeProjectPlannerTypes';
+import { PLANNER_DND_MIME, type PlannerDragPayload } from './plannerDnd';
 
 interface Props {
   item: LargeProjectBookingPlanItem;
   booking?: LargeProjectPlannerBooking | null;
   staff?: LargeProjectPlannerStaffMember | null;
   compact?: boolean;
+  draggable?: boolean;
   onClick?: (item: LargeProjectBookingPlanItem) => void;
   onDelete?: (item: LargeProjectBookingPlanItem) => void;
 }
