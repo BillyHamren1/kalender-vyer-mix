@@ -19,6 +19,7 @@ interface CustomerInfoBlockProps {
   groundNailsAllowed?: boolean | null;
   exactTimeNeeded?: boolean | null;
   exactTimeInfo?: string | null;
+  rentalOnly?: boolean | null;
   projectLeader?: string | null;
 }
 
