@@ -173,15 +173,15 @@ Deno.serve(async (req) => {
   for (const [key, pings] of buckets.entries()) {
     const [staffId, dateKey] = key.split("|");
     const dayFences = geofencesByDate.get(dateKey) ?? unionGeofences;
-    const visits = buildExactGeofenceVisits(pings, dayFences);
-    const visible = visits.filter((v) => !(v.knownSite && privateIds.has(v.knownSite.id)));
+    const builtVisits = buildExactGeofenceVisits(pings, dayFences);
+    const visible = builtVisits.filter((v) => !(v.knownSite && privateIds.has(v.knownSite.id)));
     const sorted = visible.sort((a, b) => a.start.localeCompare(b.start));
     const firstIso = sorted[0]?.start ?? null;
     const lastIso = sorted.length ? sorted[sorted.length - 1].end : null;
     const durationMin = sorted.reduce((acc, v) => acc + Math.max(0, v.durationMin || 0), 0);
     const seen = new Set<string>();
     const placeNames: string[] = [];
-    const visits: DayVisit[] = [];
+    const dayVisits: DayVisit[] = [];
     for (const v of sorted) {
       const n = v.knownSite?.name ?? null;
       const sid = v.knownSite?.id ?? null;
@@ -192,7 +192,7 @@ Deno.serve(async (req) => {
         else if (sid.startsWith("project:")) type = "project";
         else if (sid.startsWith("large:")) type = "large_project";
       }
-      visits.push({
+      dayVisits.push({
         knownSiteId: sid,
         name: n ?? "Okänd plats",
         type,
@@ -208,7 +208,7 @@ Deno.serve(async (req) => {
       lastIso,
       durationMin,
       placeNames,
-      visits,
+      visits: dayVisits,
     };
   }
 
