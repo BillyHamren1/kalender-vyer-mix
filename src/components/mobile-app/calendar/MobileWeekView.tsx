@@ -68,7 +68,7 @@ const MobileWeekView = ({
   activeBookingIds,
   onOpenDayView,
 }: Props) => {
-  const { locale, t } = useLanguage();
+  const { locale } = useLanguage();
   const dfLocale = locale === 'en' ? enUS : sv;
   const today = startOfDay(new Date());
 
