@@ -99,9 +99,32 @@ const LargeProjectPlannerQuickEditDialog = ({
     }
   }, [open, item]);
 
+  // Allowed personal för aktuellt planDate.
+  const allowedForDate = (() => {
+    if (getAllowedStaffForDate) return getAllowedStaffForDate(planDate);
+    return staff;
+  })();
+
+  // Om planDate ändras och vald personal inte längre är bemannad → rensa.
+  useEffect(() => {
+    if (!open) return;
+    if (assignedStaffId === UNASSIGNED) return;
+    if (isStaffAllowedForDate && planDate && !isStaffAllowedForDate(assignedStaffId, planDate)) {
+      setAssignedStaffId(UNASSIGNED);
+    }
+  }, [open, planDate, assignedStaffId, isStaffAllowedForDate]);
+
   if (!item) return null;
 
   const handleSave = async () => {
+    if (
+      assignedStaffId !== UNASSIGNED &&
+      isStaffAllowedForDate &&
+      !isStaffAllowedForDate(assignedStaffId, planDate)
+    ) {
+      toast.error('Personen är inte bemannad på stora projektet detta datum.');
+      return;
+    }
     setSubmitting(true);
     try {
       await updateItem(item.id, {
@@ -121,6 +144,7 @@ const LargeProjectPlannerQuickEditDialog = ({
       setSubmitting(false);
     }
   };
+
 
   const handleDelete = async () => {
     if (!deleteItem) return;
