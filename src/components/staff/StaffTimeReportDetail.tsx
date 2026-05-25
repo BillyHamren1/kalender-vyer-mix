@@ -61,6 +61,7 @@ interface RawTravelLog {
   from_longitude: number | null;
   to_latitude: number | null;
   to_longitude: number | null;
+  description: string | null;
 }
 
 export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
