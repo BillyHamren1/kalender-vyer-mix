@@ -7,7 +7,8 @@ import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/ui/PageHeader";
-import { FileText } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { FileText, AlertCircle } from "lucide-react";
 import {
   usePayrollMonthReport,
   formatMinutes,
@@ -26,22 +27,24 @@ const PayrollMonthReportPageContent: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<PayrollStatusFilter>("all_approved");
   const [openStaffId, setOpenStaffId] = useState<string | null>(null);
 
+  const monthStr = format(month, "yyyy-MM");
+
   const { data, isLoading, error } = usePayrollMonthReport({
-    month,
+    month: monthStr,
     staffId: staffFilter !== "all" ? staffFilter : null,
-    statusFilter,
+    status: statusFilter,
   });
 
   const staffOptions = useMemo(
     () =>
-      (data?.staffSummaries ?? [])
-        .map((s) => ({ id: s.staffId, name: s.staffName }))
+      (data?.groups ?? [])
+        .map((g) => ({ id: g.staff_id, name: g.staff_name }))
         .sort((a, b) => a.name.localeCompare(b.name, "sv")),
     [data],
   );
 
-  const openSummary = useMemo(
-    () => data?.staffSummaries.find((s) => s.staffId === openStaffId) ?? null,
+  const openGroup = useMemo(
+    () => data?.groups.find((g) => g.staff_id === openStaffId) ?? null,
     [data, openStaffId],
   );
 
@@ -52,33 +55,38 @@ const PayrollMonthReportPageContent: React.FC = () => {
     if (!data) return;
     const wb = XLSX.utils.book_new();
 
-    // Sammanställning
-    const summaryRows = data.staffSummaries.map((s) => ({
-      Personal: s.staffName,
-      "Godkända dagar": s.approvedDayCount,
-      "Första dag": s.firstWorkedDate ?? "",
-      "Sista dag": s.lastWorkedDate ?? "",
-      "Arbetstid (h:m)": formatMinutes(s.totalWorkMinutes),
-      "Arbetstid (decimal)": formatHoursDecimal(s.totalWorkMinutes),
-      "Rast (h:m)": formatMinutes(s.totalBreakMinutes),
-      Status: s.state === "klar" ? "Klar" : s.state === "partial" ? "Delvis klar" : "Saknar",
+    const summaryRows = data.groups.map((g) => ({
+      Personal: g.staff_name,
+      "Godkända dagar": g.days_count,
+      "Första dag": g.first_date ?? "",
+      "Sista dag": g.last_date ?? "",
+      "Arbetstid (h:m)": formatMinutes(g.total_minutes),
+      "Arbetstid (decimal)": formatHoursDecimal(g.total_minutes),
+      "Rast (h:m)": formatMinutes(g.total_break_minutes),
+      "Godkänd för utbetalning": g.payroll_approved_days_count,
+      "Endast godkänd": g.approved_days_count,
     }));
     const ws1 = XLSX.utils.json_to_sheet(summaryRows);
     XLSX.utils.book_append_sheet(wb, ws1, "Sammanställning");
 
-    // Per dag
     const dayRows: Record<string, unknown>[] = [];
-    for (const s of data.staffSummaries) {
-      for (const r of s.rows) {
+    for (const g of data.groups) {
+      for (const r of g.rows) {
         dayRows.push({
-          Personal: s.staffName,
+          Personal: g.staff_name,
           Datum: r.date,
-          Start: r.computedStartIso ? r.computedStartIso.slice(11, 16) : "",
-          Slut: r.computedEndIso ? r.computedEndIso.slice(11, 16) : "",
+          Dag: r.weekday,
+          Start: r.requested_start_at
+            ? r.requested_start_at.slice(11, 16)
+            : (r.start_time?.slice(0, 5) ?? ""),
+          Slut: r.requested_end_at
+            ? r.requested_end_at.slice(11, 16)
+            : (r.end_time?.slice(0, 5) ?? ""),
           "Rast (min)": r.break_minutes,
-          "Arbetstid (h:m)": formatMinutes(r.workMinutes),
-          "Arbetstid (decimal)": formatHoursDecimal(r.workMinutes),
-          Status: r.status === "payroll_approved" ? "Utbetalning godkänd" : "Godkänd",
+          "Arbetstid (h:m)": formatMinutes(r.total_minutes),
+          "Arbetstid (decimal)": formatHoursDecimal(r.total_minutes),
+          Status:
+            r.status === "payroll_approved" ? "Utbetalning godkänd" : "Godkänd",
           "Kommentar personal": r.comment ?? "",
           "Kommentar admin": r.review_comment ?? "",
         });
@@ -87,7 +95,7 @@ const PayrollMonthReportPageContent: React.FC = () => {
     const ws2 = XLSX.utils.json_to_sheet(dayRows);
     XLSX.utils.book_append_sheet(wb, ws2, "Per dag");
 
-    XLSX.writeFile(wb, `lonerapport-${format(month, "yyyy-MM")}.xlsx`);
+    XLSX.writeFile(wb, `lonerapport-${monthStr}.xlsx`);
     toast.success("Excel exporterad");
   };
 
@@ -100,8 +108,9 @@ const PayrollMonthReportPageContent: React.FC = () => {
     doc.setFontSize(10);
     doc.text(
       `Period: ${data.monthStart} – ${data.monthEnd}    Personal: ${data.totals.staffCount}    ` +
-        `Godkända dagar: ${data.totals.approvedDayCount}    ` +
-        `Totalt: ${formatMinutes(data.totals.totalWorkMinutes)}`,
+        `Godkända dagar: ${data.totals.approvedDaysCount}    ` +
+        `Klar för lön: ${data.totals.payrollApprovedDaysCount}    ` +
+        `Totalt: ${formatMinutes(data.totals.totalMinutes)}`,
       40,
       58,
     );
@@ -109,24 +118,30 @@ const PayrollMonthReportPageContent: React.FC = () => {
     autoTable(doc, {
       startY: 80,
       head: [[
-        "Personal", "Dagar", "Första", "Sista",
-        "Arbetstid", "Decimal", "Rast", "Status",
+        "Personal",
+        "Dagar",
+        "Första",
+        "Sista",
+        "Arbetstid",
+        "Decimal",
+        "Rast",
+        "Klar/Godkänd",
       ]],
-      body: data.staffSummaries.map((s) => [
-        s.staffName,
-        s.approvedDayCount,
-        s.firstWorkedDate ?? "—",
-        s.lastWorkedDate ?? "—",
-        formatMinutes(s.totalWorkMinutes),
-        formatHoursDecimal(s.totalWorkMinutes),
-        formatMinutes(s.totalBreakMinutes),
-        s.state === "klar" ? "Klar" : s.state === "partial" ? "Delvis" : "Saknar",
+      body: data.groups.map((g) => [
+        g.staff_name,
+        g.days_count,
+        g.first_date ?? "—",
+        g.last_date ?? "—",
+        formatMinutes(g.total_minutes),
+        formatHoursDecimal(g.total_minutes),
+        formatMinutes(g.total_break_minutes),
+        `${g.payroll_approved_days_count} / ${g.approved_days_count}`,
       ]),
       styles: { fontSize: 9 },
-      headStyles: { fillColor: [60, 90, 160] },
+      headStyles: { fillColor: [124, 90, 200] },
     });
 
-    doc.save(`lonerapport-${format(month, "yyyy-MM")}.pdf`);
+    doc.save(`lonerapport-${monthStr}.pdf`);
     toast.success("PDF exporterad");
   };
 
@@ -138,14 +153,15 @@ const PayrollMonthReportPageContent: React.FC = () => {
       `Månadsrapport lön — ${monthLabel}`,
       `Period: ${data.monthStart} – ${data.monthEnd}`,
       `Personal: ${data.totals.staffCount}`,
-      `Godkända dagar: ${data.totals.approvedDayCount}`,
-      `Total tid: ${formatMinutes(data.totals.totalWorkMinutes)}`,
+      `Godkända dagar: ${data.totals.approvedDaysCount}`,
+      `Klar för utbetalning: ${data.totals.payrollApprovedDaysCount}`,
+      `Total tid: ${formatMinutes(data.totals.totalMinutes)}`,
       "",
-      ...data.staffSummaries.map(
-        (s) =>
-          `${s.staffName} — ${s.approvedDayCount} dagar — ${formatMinutes(s.totalWorkMinutes)} (${formatHoursDecimal(
-            s.totalWorkMinutes,
-          )} h)`,
+      ...data.groups.map(
+        (g) =>
+          `${g.staff_name} — ${g.days_count} dagar — ${formatMinutes(
+            g.total_minutes,
+          )} (${formatHoursDecimal(g.total_minutes)} h)`,
       ),
     ];
     const body = encodeURIComponent(lines.join("\n"));
@@ -153,7 +169,7 @@ const PayrollMonthReportPageContent: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-full bg-background">
+    <div className="flex flex-col min-h-full">
       <div className="px-4 pt-4">
         <PageHeader
           icon={FileText}
@@ -179,23 +195,34 @@ const PayrollMonthReportPageContent: React.FC = () => {
         isBusy={isLoading}
       />
 
-      <PayrollMonthSummaryCards data={data} month={month} />
+      <PayrollMonthSummaryCards data={data} />
 
       {error ? (
-        <div className="px-4 py-6 text-sm text-destructive">
-          Kunde inte ladda månaden: {(error as Error).message}
+        <div className="px-4 pb-6">
+          <Card className="border-destructive/40 bg-destructive/5 p-5 flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-semibold text-destructive">
+                Kunde inte ladda månaden
+              </h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {(error as Error).message}
+              </p>
+            </div>
+          </Card>
         </div>
       ) : (
         <PayrollMonthStaffTable
-          summaries={data?.staffSummaries ?? []}
-          onOpen={setOpenStaffId}
+          groups={data?.groups ?? []}
+          onOpen={(id) => setOpenStaffId(id)}
           isLoading={isLoading}
         />
       )}
 
       <PayrollMonthStaffDetailDrawer
-        summary={openSummary}
-        open={!!openSummary}
+        group={openGroup}
+        month={monthStr}
+        open={!!openGroup}
         onClose={() => setOpenStaffId(null)}
       />
     </div>
