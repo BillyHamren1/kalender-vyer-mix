@@ -18,6 +18,7 @@ import {
 import {
   fetchPingsForDayV2,
   loadKnownTargetsV2,
+  loadManualReportTargetsForDay,
   loadMessages,
   loadSubmission,
   readManualOverridesFromSubmission,
