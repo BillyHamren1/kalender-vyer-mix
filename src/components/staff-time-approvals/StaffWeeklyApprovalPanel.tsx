@@ -106,7 +106,7 @@ export const StaffWeeklyApprovalPanel: React.FC<Props> = ({
   const canApproveWeek = isWeekFullyApprovable(bundle);
 
   return (
-    <div className="h-full flex flex-col border border-border/60 rounded-xl bg-card shadow-sm overflow-hidden">
+    <div className="h-full flex flex-col bg-card overflow-hidden">
       <header className="px-4 py-3 border-b border-border/60 flex items-center gap-2">
         <div className="min-w-0 flex-1">
           <h2 className="text-base font-semibold tracking-tight truncate">{bundle.staff.name}</h2>
