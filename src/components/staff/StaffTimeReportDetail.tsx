@@ -131,7 +131,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
           .order('report_date', { ascending: false }),
         supabase
           .from('travel_time_logs')
-          .select('id, report_date, start_time, end_time, hours_worked, destination_booking_id, from_address, to_address, from_latitude, from_longitude, to_latitude, to_longitude, classification')
+          .select('id, report_date, start_time, end_time, hours_worked, destination_booking_id, from_address, to_address, from_latitude, from_longitude, to_latitude, to_longitude, classification, description')
           .eq('staff_id', staffId)
           .gte('report_date', monthStart)
           .lte('report_date', monthEnd)
@@ -154,6 +154,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
         from_longitude: t.from_longitude,
         to_latitude: t.to_latitude,
         to_longitude: t.to_longitude,
+        description: t.description ?? null,
       }));
 
       // Fetch destination booking names + large project names
