@@ -75,26 +75,26 @@ async function fetchStaffStatus(): Promise<{ rows: StaffRow[]; totalNew24h: numb
   const grouped = new Map<string, StaffRow>();
   let totalNew24h = 0;
 
+  // Seed med alla aktiva personer så att kort alltid finns att visa
+  for (const [id, staff] of staffById.entries()) {
+    grouped.set(id, {
+      staff_id: id,
+      staff_name: staff.name,
+      staff_color: staff.color,
+      pending: 0,
+      newLast24h: 0,
+      needsAttention: 0,
+      approved: 0,
+      totalWeek: 0,
+      latestSubmittedAt: null,
+      latestStatus: null,
+      urgency: 0,
+    });
+  }
+
   for (const s of (subsRes.data || []) as any[]) {
-    const staff = staffById.get(s.staff_id);
-    if (!staff) continue;
-    let row = grouped.get(s.staff_id);
-    if (!row) {
-      row = {
-        staff_id: s.staff_id,
-        staff_name: staff.name,
-        staff_color: staff.color,
-        pending: 0,
-        newLast24h: 0,
-        needsAttention: 0,
-        approved: 0,
-        totalWeek: 0,
-        latestSubmittedAt: null,
-        latestStatus: null,
-        urgency: 0,
-      };
-      grouped.set(s.staff_id, row);
-    }
+    const row = grouped.get(s.staff_id);
+    if (!row) continue;
     row.totalWeek += 1;
     if (PENDING_STATUSES.includes(s.status)) row.pending += 1;
     if (ATTENTION_STATUSES.includes(s.status)) row.needsAttention += 1;
@@ -111,18 +111,18 @@ async function fetchStaffStatus(): Promise<{ rows: StaffRow[]; totalNew24h: numb
   }
 
   for (const r of grouped.values()) {
-    r.urgency = r.needsAttention * 100 + r.pending * 10 + r.newLast24h;
+    r.urgency = r.needsAttention * 100 + r.pending * 10 + r.newLast24h + (r.approved > 0 ? 1 : 0);
   }
 
-  const rows = Array.from(grouped.values())
-    .filter((r) => r.pending > 0 || r.needsAttention > 0 || r.newLast24h > 0)
-    .sort((a, b) => {
-      if (b.urgency !== a.urgency) return b.urgency - a.urgency;
-      return (b.latestSubmittedAt ?? "").localeCompare(a.latestSubmittedAt ?? "");
-    });
+  const rows = Array.from(grouped.values()).sort((a, b) => {
+    if (b.urgency !== a.urgency) return b.urgency - a.urgency;
+    if (a.urgency === 0) return a.staff_name.localeCompare(b.staff_name, "sv");
+    return (b.latestSubmittedAt ?? "").localeCompare(a.latestSubmittedAt ?? "");
+  });
 
   return { rows, totalNew24h };
 }
+
 
 function initials(name: string) {
   return name
@@ -138,20 +138,24 @@ const StaffStatusCard: React.FC<{ row: StaffRow; onOpen?: () => void }> = ({ row
   const urgent = row.needsAttention > 0;
   const hasPending = row.pending > 0;
   const isNew = row.newLast24h > 0;
+  const isIdle = !urgent && !hasPending && !isNew && row.approved === 0;
 
   const accent = urgent
-    ? "from-rose-500/15 to-transparent border-rose-500/30"
+    ? "from-rose-500/15 to-transparent border-rose-500/30 ring-1 ring-rose-500/10"
     : hasPending
-      ? "from-amber-500/15 to-transparent border-amber-500/30"
-      : "from-emerald-500/10 to-transparent border-border/60";
+      ? "from-amber-500/15 to-transparent border-amber-500/30 ring-1 ring-amber-500/10"
+      : row.approved > 0
+        ? "from-emerald-500/10 to-transparent border-emerald-500/20"
+        : "from-muted/20 to-transparent border-border/50";
 
   const dotColor = row.staff_color || "hsl(var(--primary))";
 
   return (
     <div
       className={cn(
-        "group relative w-[260px] shrink-0 overflow-hidden rounded-2xl border bg-card/90 backdrop-blur-sm",
+        "group relative overflow-hidden rounded-2xl border bg-card/90 backdrop-blur-sm",
         "transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer",
+        isIdle && "opacity-70 hover:opacity-100",
         accent,
       )}
       onClick={onOpen}
@@ -267,14 +271,19 @@ export const ApprovalDashboardStrip: React.FC<Props> = ({ onOpenStaff }) => {
     return { totalPending, totalAttention, totalNew: data?.totalNew24h ?? 0 };
   }, [rows, data]);
 
+  const activeCount = rows.filter((r) => r.urgency > 0).length;
+  const idleCount = rows.length - activeCount;
+
   return (
-    <section className="px-5 pt-4 pb-2">
-      <div className="flex items-center justify-between mb-2.5">
+    <section className="px-5 pt-4 pb-3">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          <Users className="h-4 w-4 text-primary" />
+          <div className="h-7 w-7 rounded-lg bg-primary/10 ring-1 ring-primary/20 flex items-center justify-center">
+            <Users className="h-3.5 w-3.5 text-primary" />
+          </div>
           <h3 className="text-sm font-semibold text-foreground">Personalstatus</h3>
           <span className="text-xs text-muted-foreground">
-            ({rows.length} med aktivitet)
+            {activeCount} aktiva · {idleCount} klara
           </span>
         </div>
         <div className="flex items-center gap-2 text-[11px]">
@@ -300,33 +309,49 @@ export const ApprovalDashboardStrip: React.FC<Props> = ({ onOpenStaff }) => {
       </div>
 
       {isLoading ? (
-        <div className="flex gap-3 overflow-hidden">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
+          {Array.from({ length: 8 }).map((_, i) => (
             <div
               key={i}
-              className="w-[260px] h-[156px] shrink-0 rounded-2xl bg-muted/30 animate-pulse"
-            />
+              className="h-[164px] rounded-2xl border border-border/60 bg-gradient-to-br from-card via-card to-muted/30 overflow-hidden relative animate-pulse"
+            >
+              <div className="p-3.5 flex items-start gap-2.5">
+                <div className="h-10 w-10 rounded-full bg-muted/70" />
+                <div className="flex-1 space-y-2 pt-1">
+                  <div className="h-3 w-2/3 rounded bg-muted/70" />
+                  <div className="h-2.5 w-1/2 rounded bg-muted/50" />
+                </div>
+              </div>
+              <div className="px-3.5 mt-1 grid grid-cols-3 gap-1.5">
+                <div className="h-10 rounded-lg bg-muted/50" />
+                <div className="h-10 rounded-lg bg-muted/50" />
+                <div className="h-10 rounded-lg bg-muted/50" />
+              </div>
+              <div className="px-3.5 mt-2.5">
+                <div className="h-7 rounded-md bg-muted/40" />
+              </div>
+            </div>
           ))}
         </div>
+
       ) : rows.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border/60 bg-card/40 px-5 py-8 text-center">
-          <CheckCircle2 className="h-8 w-8 mx-auto text-emerald-500/70 mb-2" />
-          <div className="text-sm font-medium text-foreground">Allt är hanterat</div>
+        <div className="rounded-2xl border border-dashed border-border/60 bg-card/40 px-5 py-10 text-center">
+          <CheckCircle2 className="h-10 w-10 mx-auto text-emerald-500/70 mb-2" />
+          <div className="text-sm font-semibold text-foreground">Inga aktiva personer</div>
           <div className="text-xs text-muted-foreground mt-1">
-            Inga rapporter väntar attest just nu.
+            Lägg till personal för att se status här.
           </div>
         </div>
       ) : (
-        <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-border">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
           {rows.map((r) => (
-            <div key={r.staff_id} className="snap-start">
-              <StaffStatusCard row={r} onOpen={() => onOpenStaff?.(r.staff_id)} />
-            </div>
+            <StaffStatusCard key={r.staff_id} row={r} onOpen={() => onOpenStaff?.(r.staff_id)} />
           ))}
         </div>
       )}
     </section>
   );
 };
+
 
 export default ApprovalDashboardStrip;
