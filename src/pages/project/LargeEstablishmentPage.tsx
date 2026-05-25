@@ -208,17 +208,7 @@ const LargeEstablishmentPage = () => {
       </div>
 
       {pageMode === "calendar" ? (
-        <Card className="border-border/50 shadow-sm overflow-hidden">
-          <div className="border-b border-border/40 bg-primary/5 px-3 py-2">
-            <div className="text-sm font-semibold text-primary">
-              Bokningsplanering i projektet
-            </div>
-            <div className="text-[11px] text-muted-foreground">
-              Intern planering av bokningar och tasks — påverkar inte personalkalendern.
-            </div>
-          </div>
-          <LargeProjectBookingPlannerCalendar largeProjectId={project.id} />
-        </Card>
+        <ProjectCalendarView projectId={project.id} isLargeProject />
       ) : pageMode === "excel" ? (
         <LargeProjectExcelView bookings={(project as any)?.bookings || []} />
       ) : (
