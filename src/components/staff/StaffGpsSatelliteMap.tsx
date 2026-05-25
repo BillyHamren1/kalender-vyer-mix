@@ -262,7 +262,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
         pingedSet={pingedWeekSet}
         date={date}
         onDateChange={handleDateChange}
-        onSelect={handleSelect}
+        onShowMap={handleSelect}
       />
     );
   }
