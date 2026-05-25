@@ -1,5 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders } from "../_shared/cors.ts";
+import {
+  deleteProjectStaffTimeCostLinesForSubmission,
+  rebuildProjectStaffTimeCostLinesForSubmission,
+} from "../_shared/staff-day-cost-lines.ts";
 
 type AllowedStatus = "approved" | "needs_control" | "correction_requested";
 const ALLOWED: AllowedStatus[] = ["approved", "needs_control", "correction_requested"];
@@ -104,5 +108,22 @@ Deno.serve(async (req) => {
     .eq("organization_id", orgId);
   if (updErr) return json({ error: "update_failed", detail: updErr.message }, 500);
 
-  return json({ ok: true, id: submission_id, status });
+  // Sync project_staff_time_cost_lines:
+  //  - approved  -> rebuild from submission snapshot
+  //  - needs_control / correction_requested -> delete old rows (not approved anymore)
+  // Vi rör ALDRIG time_reports / workdays / location_time_entries /
+  // travel_time_logs / day_attestations här.
+  let costLinesResult: unknown = null;
+  try {
+    if (status === "approved") {
+      costLinesResult = await rebuildProjectStaffTimeCostLinesForSubmission(admin, submission_id);
+    } else if (status === "needs_control" || status === "correction_requested") {
+      costLinesResult = await deleteProjectStaffTimeCostLinesForSubmission(admin, submission_id);
+    }
+  } catch (e) {
+    console.error("[update-staff-day-submission-status] cost-lines sync failed:", e);
+    costLinesResult = { error: String((e as Error)?.message ?? e) };
+  }
+
+  return json({ ok: true, id: submission_id, status, cost_lines: costLinesResult });
 });
