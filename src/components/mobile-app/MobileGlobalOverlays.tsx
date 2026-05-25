@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useBackgroundLocationReporter } from '@/hooks/useBackgroundLocationReporter';
+import { useGpsPulseHandler } from '@/hooks/useGpsPulseHandler';
 import { initLocationPingHandler } from '@/services/locationPingHandler';
 import GpsHealthDebugPanel from '@/components/mobile-app/GpsHealthDebugPanel';
 
@@ -36,6 +37,10 @@ const MobileGlobalOverlays: React.FC = () => {
   // Frontend overlays never start/stop timers directly. GPS auto-start is
   // handled only by backend Time Engine via active_time_registrations.
   const { debug: gpsDebug } = useBackgroundLocationReporter(staff?.id);
+
+  // Silent push från gps-heartbeat-pulse → tvinga fix + upload.
+  // Löser stationära luckor (Capgo skickar inget när telefonen är still).
+  useGpsPulseHandler();
 
   // Server-triggered "ping the phone" — listen for FCM data-pushes with
   // notification_type=location_ping and respond with a fresh GPS sample.

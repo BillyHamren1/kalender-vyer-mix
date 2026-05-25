@@ -2276,6 +2276,45 @@ export type Database = {
         }
         Relationships: []
       }
+      gps_pulse_log: {
+        Row: {
+          delivered_at: string | null
+          delivered_ping_id: string | null
+          device_token_id: string | null
+          fcm_error: string | null
+          id: string
+          lag_ms: number | null
+          organization_id: string
+          sent_at: string
+          staff_id: string
+          success: boolean
+        }
+        Insert: {
+          delivered_at?: string | null
+          delivered_ping_id?: string | null
+          device_token_id?: string | null
+          fcm_error?: string | null
+          id?: string
+          lag_ms?: number | null
+          organization_id: string
+          sent_at?: string
+          staff_id: string
+          success?: boolean
+        }
+        Update: {
+          delivered_at?: string | null
+          delivered_ping_id?: string | null
+          device_token_id?: string | null
+          fcm_error?: string | null
+          id?: string
+          lag_ms?: number | null
+          organization_id?: string
+          sent_at?: string
+          staff_id?: string
+          success?: boolean
+        }
+        Relationships: []
+      }
       job_completion_analytics: {
         Row: {
           booking_id: string
