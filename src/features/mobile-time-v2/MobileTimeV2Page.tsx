@@ -5,11 +5,15 @@
  *   1) Rapportkö (default) — översikt över de senaste 14 dagarna
  *   2) Dagvy — när användaren öppnar en specifik dag
  *
+ * Dagvyn använder den unified ManualWorkSegmentsEditor — användaren fyller
+ * först i hela dagen (start/slut/rast) och fördelar sedan tid på block.
+ * GPS-förslag blir initiala block (med sourceSegmentId) som kan ändras
+ * eller tas bort med papperskorgen.
+ *
  * Använder ENBART:
  *   - get-mobile-time-report-queue
  *   - get-mobile-gps-day-view
  *   - submit-mobile-gps-day-v2
- * Inga legacy mobile-time-komponenter, inga legacy tidtabeller.
  */
 import React, { useCallback, useMemo, useState } from 'react';
 import { format } from 'date-fns';
@@ -25,19 +29,12 @@ import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileGpsDayView } from './useMobileGpsDayView';
 import { submitMobileGpsDayV2 } from './mobileTimeV2Api';
 import type {
-  MobileGpsDaySegment,
-  MobileGpsManualOverride,
   MobileGpsSubmissionStatus,
-  ManualWorkSegmentInput,
+  ManualDayPayload,
 } from './types';
-import MobileGpsSegmentCard from './MobileGpsSegmentCard';
-import EditSegmentTimeSheet from './EditSegmentTimeSheet';
-import SubmitGpsDayCard from './SubmitGpsDayCard';
 import MobileGpsDayMap from './MobileGpsDayMap';
 import MobileTimeReportQueue from './MobileTimeReportQueue';
 import ManualWorkSegmentsEditor from './ManualWorkSegmentsEditor';
-
-type OverrideMap = Record<string, MobileGpsManualOverride>;
 
 interface StatusVisual {
   label: string;
@@ -45,12 +42,10 @@ interface StatusVisual {
   icon: React.ReactNode;
 }
 
-function statusVisual(status: MobileGpsSubmissionStatus, hasSegments: boolean): StatusVisual {
+function statusVisual(status: MobileGpsSubmissionStatus): StatusVisual {
   switch (status) {
     case 'not_submitted':
-      return hasSegments
-        ? { label: 'Väntar på dig', variant: 'outline', icon: <AlertCircle className="h-3.5 w-3.5" /> }
-        : { label: 'Rapportera manuellt', variant: 'outline', icon: <AlertCircle className="h-3.5 w-3.5" /> };
+      return { label: 'Väntar på dig', variant: 'outline', icon: <AlertCircle className="h-3.5 w-3.5" /> };
     case 'submitted':
       return { label: 'Väntar attest', variant: 'secondary', icon: <CheckCircle2 className="h-3.5 w-3.5" /> };
     case 'edited':
@@ -76,7 +71,7 @@ function statusVisual(status: MobileGpsSubmissionStatus, hasSegments: boolean): 
 }
 
 // ============================================================================
-// Dagvy — visas när en dag valts från kön
+// Dagvy
 // ============================================================================
 interface DayViewProps {
   date: string;
@@ -86,14 +81,10 @@ interface DayViewProps {
 const DayView: React.FC<DayViewProps> = ({ date, onBack }) => {
   const { data, staffId, isLoading, error, refresh } = useMobileGpsDayView(date);
 
-  const [overrides, setOverrides] = useState<OverrideMap>({});
   const [userComment, setUserComment] = useState<string>('');
-  const [editingSegment, setEditingSegment] = useState<MobileGpsDaySegment | null>(null);
-  const [editSheetOpen, setEditSheetOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   React.useEffect(() => {
-    setOverrides({});
     setUserComment('');
   }, [date, staffId]);
 
@@ -102,12 +93,10 @@ const DayView: React.FC<DayViewProps> = ({ date, onBack }) => {
     (submission?.status ?? 'not_submitted') as MobileGpsSubmissionStatus;
   const isLocked = status === 'approved' || status === 'payroll_approved';
   const isCorrection = status === 'correction_requested';
-  const hasSegments = (data?.segments?.length ?? 0) > 0;
-  const hasSubmission = !!submission?.hasSubmission;
-  const showManualReport = !!data && !isLoading && !hasSegments && !hasSubmission && !isLocked;
   const manualTargets = data?.manualTargets ?? {
     assignedTargets: [], locationTargets: [], searchableTargets: [],
   };
+  const suggestedSegments = data?.segments ?? [];
 
   const niceDate = useMemo(() => {
     const [y, m, d] = date.split('-').map(Number);
@@ -115,47 +104,8 @@ const DayView: React.FC<DayViewProps> = ({ date, onBack }) => {
     return format(dt, 'EEEE d MMMM yyyy');
   }, [date]);
 
-  const handleEdit = useCallback((seg: MobileGpsDaySegment) => {
-    setEditingSegment(seg);
-    setEditSheetOpen(true);
-  }, []);
-
-  const handleSaveOverride = useCallback((override: MobileGpsManualOverride) => {
-    setOverrides((prev) => ({ ...prev, [override.segmentKey]: override }));
-  }, []);
-
-  const handleClearOverride = useCallback((segmentKey: string) => {
-    setOverrides((prev) => {
-      const next = { ...prev };
-      delete next[segmentKey];
-      return next;
-    });
-  }, []);
-
-  const handleSubmit = useCallback(async () => {
-    if (!staffId || !data) return;
-    setIsSubmitting(true);
-    try {
-      const manualOverrides = Object.values(overrides);
-      await submitMobileGpsDayV2({
-        staffId, date,
-        userComment: userComment.trim() || null,
-        manualOverrides,
-        expectedSourceSnapshotId: data.sourceSnapshotId,
-      });
-      toast.success('Tidrapporten är inskickad');
-      setOverrides({});
-      setUserComment('');
-      await refresh();
-    } catch (err: any) {
-      toast.error(err?.message || 'Kunde inte skicka in tidrapporten');
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [staffId, data, date, overrides, userComment, refresh]);
-
-  const handleSubmitManual = useCallback(
-    async (input: { segments: ManualWorkSegmentInput[]; comment: string | null }) => {
+  const handleSubmit = useCallback(
+    async (input: ManualDayPayload) => {
       if (!staffId || !data) return;
       setIsSubmitting(true);
       try {
@@ -164,7 +114,7 @@ const DayView: React.FC<DayViewProps> = ({ date, onBack }) => {
           userComment: input.comment ?? (userComment.trim() || null),
           manualOverrides: [],
           expectedSourceSnapshotId: data.sourceSnapshotId,
-          manualDay: { segments: input.segments, comment: input.comment },
+          manualDay: input,
         });
         toast.success('Tidrapporten är inskickad');
         setUserComment('');
@@ -178,7 +128,7 @@ const DayView: React.FC<DayViewProps> = ({ date, onBack }) => {
     [staffId, data, date, userComment, refresh],
   );
 
-  const visual = statusVisual(status, hasSegments);
+  const visual = statusVisual(status);
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-28">
@@ -238,81 +188,24 @@ const DayView: React.FC<DayViewProps> = ({ date, onBack }) => {
           </Card>
         )}
 
-        {/* GPS-förslag */}
-        {data && hasSegments && (
-          <>
-            <Card className="p-4">
-              <div className="text-center">
-                <p className="text-3xl font-semibold">{data.totals.totalDurationLabel}</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Föreslaget</p>
-              </div>
-              <div className="mt-3 pt-3 border-t flex items-center justify-between text-[11px] text-muted-foreground">
-                <span>{data.segments.length} segment</span>
-                {data.debug?.rawPingCount > 0 && (
-                  <span>{data.debug.rawPingCount} GPS-pings</span>
-                )}
-              </div>
-              {Object.keys(overrides).length > 0 && (
-                <p className="mt-2 text-[11px] text-amber-600">
-                  Osparade ändringar. Totalen uppdateras efter inskick.
-                </p>
-              )}
-            </Card>
-
-            <div className="space-y-2">
-              {data.segments.map((seg) => {
-                const buffered = overrides[seg.segmentKey];
-                const displaySegment: MobileGpsDaySegment = buffered
-                  ? {
-                      ...seg,
-                      currentStartTime: buffered.startIso ?? seg.currentStartTime,
-                      currentEndTime: buffered.endIso ?? seg.currentEndTime,
-                      manualOverride: { hasOverride: true, reason: buffered.reason ?? null },
-                    }
-                  : seg;
-                return (
-                  <MobileGpsSegmentCard
-                    key={seg.segmentKey}
-                    segment={displaySegment}
-                    hasUnsavedOverride={!!buffered}
-                    onEdit={handleEdit}
-                    disabled={isLocked}
-                  />
-                );
-              })}
-            </div>
-
-            <SubmitGpsDayCard
-              segmentCount={data.segments.length}
-              totalLabel={data.totals.totalDurationLabel}
-              overrideCount={Object.keys(overrides).length}
-              userComment={userComment}
-              onUserCommentChange={setUserComment}
-              onSubmit={handleSubmit}
-              isSubmitting={isSubmitting}
-              disabled={isLocked}
-              disabledReason={
-                isLocked
-                  ? status === 'payroll_approved'
-                    ? 'Tidrapporten är godkänd för utbetalning och kan inte ändras.'
-                    : 'Tidrapporten är godkänd och kan inte ändras.'
-                  : null
-              }
-            />
-          </>
-        )}
-
-        {/* Manuell rapport (inga GPS-förslag och ingen submission) */}
-        {showManualReport && (
+        {/* Unified day editor — alltid (när data finns och inte låst) */}
+        {data && !isLoading && (
           <ManualWorkSegmentsEditor
             date={date}
             targets={manualTargets}
+            suggestedSegments={suggestedSegments}
             userComment={userComment}
             onUserCommentChange={setUserComment}
-            onSubmit={handleSubmitManual}
+            onSubmit={handleSubmit}
             isSubmitting={isSubmitting}
             disabled={isLocked}
-            disabledReason={null}
+            disabledReason={
+              isLocked
+                ? status === 'payroll_approved'
+                  ? 'Tidrapporten är godkänd för utbetalning och kan inte ändras.'
+                  : 'Tidrapporten är godkänd och kan inte ändras.'
+                : null
+            }
           />
         )}
 
@@ -321,16 +214,6 @@ const DayView: React.FC<DayViewProps> = ({ date, onBack }) => {
           <MobileGpsDayMap map={data.map} />
         )}
       </div>
-
-      <EditSegmentTimeSheet
-        segment={editingSegment}
-        date={date}
-        open={editSheetOpen}
-        onOpenChange={setEditSheetOpen}
-        onSave={handleSaveOverride}
-        onClear={handleClearOverride}
-        existingOverride={editingSegment ? overrides[editingSegment.segmentKey] ?? null : null}
-      />
     </div>
   );
 };

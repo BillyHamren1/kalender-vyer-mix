@@ -1,302 +1,548 @@
 /**
- * ManualWorkSegmentsEditor — användaren bygger sin manuella tidrapport som
- * en eller flera rader. Varje rad har start, slut, rast och en valbar target
- * (booking/project/large_project/location/other). Systemet auto-väljer aldrig.
+ * ManualWorkSegmentsEditor — den unified dagvyn för /m/report.
+ *
+ * Modell:
+ *   1) Hela dagen: dayStartTime / dayEndTime / breakMinutes
+ *   2) Fördelning: ett eller flera block (start, slut, target, kommentar)
+ *   3) Skicka in
+ *
+ * Block kan vara manuella eller komma från ett GPS-/Time Engine-förslag
+ * (då har de sourceSegmentId). Användaren kan ta bort vilket som helst med
+ * papperskorgen — borttagna sourceSegmentId rapporteras som deletedSegmentIds
+ * i submit-payload så admin ser att förslag avvisats.
+ *
+ * Systemet auto-kopplar aldrig manuell tid. Target väljs alltid av användaren.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import {
-  Plus, Trash2, Send, Loader2, ClipboardEdit, AlertTriangle, ChevronRight,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  Plus, Trash2, Send, Loader2, ChevronRight, AlertTriangle, CalendarClock,
 } from 'lucide-react';
 import ManualWorkTargetPicker from './ManualWorkTargetPicker';
 import type {
   ManualWorkSegmentInput,
   ManualWorkTarget,
   ManualWorkTargets,
+  ManualDayPayload,
+  MobileGpsDaySegment,
 } from './types';
 
 interface Props {
   date: string;
   targets: ManualWorkTargets;
+  /** Förslagna block från GPS / Time Engine. Tomt = ren manuell dag. */
+  suggestedSegments?: MobileGpsDaySegment[];
   userComment: string;
   onUserCommentChange: (v: string) => void;
-  onSubmit: (input: { segments: ManualWorkSegmentInput[]; comment: string | null }) => void | Promise<void>;
+  onSubmit: (input: ManualDayPayload) => void | Promise<void>;
   isSubmitting: boolean;
   disabled?: boolean;
   disabledReason?: string | null;
 }
 
-interface RowDraft {
+interface BlockDraft {
   id: string;
   startTime: string;
   endTime: string;
-  breakStr: string;
   target: ManualWorkTarget | null;
+  comment: string;
+  sourceSegmentId: string | null;
 }
 
+// ----- helpers --------------------------------------------------------------
+
+const HHMM_RE = /^\d{2}:\d{2}$/;
+
 function diffMinutes(start: string, end: string): number {
-  if (!/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end)) return 0;
+  if (!HHMM_RE.test(start) || !HHMM_RE.test(end)) return 0;
   const [sh, sm] = start.split(':').map(Number);
   const [eh, em] = end.split(':').map(Number);
   let mins = eh * 60 + em - (sh * 60 + sm);
-  if (mins <= 0) mins += 24 * 60; // nattpass
+  if (mins < 0) mins += 24 * 60;
   return mins;
 }
 
 function fmtDuration(mins: number): string {
-  if (mins <= 0) return '0h';
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  if (h === 0) return `${m}m`;
-  if (m === 0) return `${h}h`;
-  return `${h}h ${m}m`;
+  if (mins <= 0) return '0m';
+  const sign = mins < 0 ? '-' : '';
+  const abs = Math.abs(mins);
+  const h = Math.floor(abs / 60);
+  const m = abs % 60;
+  if (h === 0) return `${sign}${m}m`;
+  if (m === 0) return `${sign}${h}h`;
+  return `${sign}${h}h ${m}m`;
 }
 
-function newRowId() {
-  return `row-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+function newId() {
+  return `b-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
+
+function isoToStockholmHHmm(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Stockholm',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(d);
+}
+
+function targetFromMatched(seg: MobileGpsDaySegment): ManualWorkTarget | null {
+  const m = seg.matched;
+  if (!m || !m.kind || !m.id) return null;
+  if (m.kind === 'home') return null;
+  const label = m.name ?? seg.label ?? 'Förslag';
+  switch (m.kind) {
+    case 'project':       return { targetType: 'project',       targetId: m.id, label, subtitle: null, project_id: m.id };
+    case 'large_project': return { targetType: 'large_project', targetId: m.id, label, subtitle: null, large_project_id: m.id };
+    case 'location':      return { targetType: 'location',      targetId: m.id, label, subtitle: null, location_id: m.id };
+    case 'booking':       return { targetType: 'booking',       targetId: m.id, label, subtitle: null, booking_id: m.id };
+    default:              return null;
+  }
+}
+
+/** Bygg initiala block + dagstider från GPS-förslag. */
+function buildInitialFromSuggested(suggested: MobileGpsDaySegment[]): {
+  dayStartTime: string;
+  dayEndTime: string;
+  blocks: BlockDraft[];
+} {
+  const workish = suggested.filter((s) => s.kind === 'stay');
+  if (workish.length === 0) {
+    return { dayStartTime: '08:00', dayEndTime: '16:00', blocks: [] };
+  }
+  const first = workish[0];
+  const last = workish[workish.length - 1];
+  const dayStart = isoToStockholmHHmm(first.currentStartTime) ?? '08:00';
+  const dayEnd = isoToStockholmHHmm(last.currentEndTime) ?? '16:00';
+  const blocks: BlockDraft[] = workish.map((s) => ({
+    id: s.segmentKey,
+    startTime: isoToStockholmHHmm(s.currentStartTime) ?? '08:00',
+    endTime: isoToStockholmHHmm(s.currentEndTime) ?? '16:00',
+    target: targetFromMatched(s),
+    comment: '',
+    sourceSegmentId: s.segmentKey,
+  }));
+  return { dayStartTime: dayStart, dayEndTime: dayEnd, blocks };
+}
+
+// ----- component ------------------------------------------------------------
 
 const ManualWorkSegmentsEditor: React.FC<Props> = ({
-  targets, userComment, onUserCommentChange, onSubmit, isSubmitting, disabled, disabledReason,
+  date,
+  targets,
+  suggestedSegments,
+  userComment,
+  onUserCommentChange,
+  onSubmit,
+  isSubmitting,
+  disabled,
+  disabledReason,
 }) => {
-  const [rows, setRows] = useState<RowDraft[]>([
-    { id: newRowId(), startTime: '08:00', endTime: '16:00', breakStr: '30', target: null },
-  ]);
-  const [pickerRowId, setPickerRowId] = useState<string | null>(null);
-
-  const totals = useMemo(() => {
-    let net = 0, brk = 0;
-    for (const r of rows) {
-      const gross = diffMinutes(r.startTime, r.endTime);
-      const b = Math.max(0, Math.round(Number(r.breakStr) || 0));
-      net += Math.max(0, gross - b);
-      brk += b;
+  // Initial state — bygg från GPS-förslag om de finns, annars ren dag.
+  const initial = useMemo(() => {
+    if (suggestedSegments && suggestedSegments.length > 0) {
+      return buildInitialFromSuggested(suggestedSegments);
     }
-    return { net, brk };
-  }, [rows]);
+    return { dayStartTime: '08:00', dayEndTime: '16:00', blocks: [] as BlockDraft[] };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date]);
 
-  const canSubmit = !disabled && !isSubmitting && rows.length > 0 && rows.every((r) => {
-    const valid = /^\d{2}:\d{2}$/.test(r.startTime) && /^\d{2}:\d{2}$/.test(r.endTime);
-    const gross = diffMinutes(r.startTime, r.endTime);
-    const b = Math.max(0, Math.round(Number(r.breakStr) || 0));
-    return valid && gross > 0 && b < gross && r.target !== null;
-  });
+  const [dayStartTime, setDayStartTime] = useState<string>(initial.dayStartTime);
+  const [dayEndTime, setDayEndTime] = useState<string>(initial.dayEndTime);
+  const [breakStr, setBreakStr] = useState<string>('30');
+  const [blocks, setBlocks] = useState<BlockDraft[]>(initial.blocks);
+  const [deletedSourceIds, setDeletedSourceIds] = useState<string[]>([]);
+  const [pickerId, setPickerId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<BlockDraft | null>(null);
 
-  const updateRow = (id: string, patch: Partial<RowDraft>) => {
-    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  // Reset när datum/förslag ändras
+  useEffect(() => {
+    setDayStartTime(initial.dayStartTime);
+    setDayEndTime(initial.dayEndTime);
+    setBlocks(initial.blocks);
+    setDeletedSourceIds([]);
+    setBreakStr('30');
+  }, [initial]);
+
+  const dayBreak = Math.max(0, Math.round(Number(breakStr) || 0));
+  const dayGross = diffMinutes(dayStartTime, dayEndTime);
+  const dayNet = Math.max(0, dayGross - dayBreak);
+
+  const allocated = useMemo(() => {
+    let sum = 0;
+    for (const b of blocks) {
+      const d = diffMinutes(b.startTime, b.endTime);
+      if (d > 0) sum += d;
+    }
+    return sum;
+  }, [blocks]);
+
+  const remaining = dayNet - allocated;
+  const matchesDay = Math.abs(remaining) <= 5; // tolerans 5 min
+
+  const zeroBlocks = blocks.filter((b) => diffMinutes(b.startTime, b.endTime) <= 0);
+  const missingTargetBlocks = blocks.filter(
+    (b) => diffMinutes(b.startTime, b.endTime) > 0 && !b.target,
+  );
+
+  const canSubmit =
+    !disabled &&
+    !isSubmitting &&
+    HHMM_RE.test(dayStartTime) &&
+    HHMM_RE.test(dayEndTime) &&
+    dayGross > 0 &&
+    dayBreak < dayGross &&
+    blocks.length > 0 &&
+    zeroBlocks.length === 0 &&
+    missingTargetBlocks.length === 0 &&
+    allocated > 0 &&
+    matchesDay;
+
+  // ----- mutators
+  const updateBlock = (id: string, patch: Partial<BlockDraft>) =>
+    setBlocks((bs) => bs.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+
+  const removeBlockImmediate = (b: BlockDraft) => {
+    setBlocks((bs) => bs.filter((x) => x.id !== b.id));
+    if (b.sourceSegmentId) {
+      setDeletedSourceIds((ids) =>
+        ids.includes(b.sourceSegmentId!) ? ids : [...ids, b.sourceSegmentId!],
+      );
+    }
   };
-  const removeRow = (id: string) => setRows((rs) => rs.filter((r) => r.id !== id));
-  const addRow = () => {
-    const last = rows[rows.length - 1];
-    setRows((rs) => [
-      ...rs,
-      {
-        id: newRowId(),
-        startTime: last?.endTime ?? '13:00',
-        endTime: '17:00',
-        breakStr: '0',
-        target: null,
-      },
+
+  const requestRemove = (b: BlockDraft) => {
+    const minutes = diffMinutes(b.startTime, b.endTime);
+    if (minutes <= 0) {
+      removeBlockImmediate(b);
+      return;
+    }
+    setConfirmDelete(b);
+  };
+
+  const addBlock = () => {
+    const last = blocks[blocks.length - 1];
+    const start = last?.endTime ?? dayStartTime;
+    const end = dayEndTime;
+    setBlocks((bs) => [
+      ...bs,
+      { id: newId(), startTime: start, endTime: end, target: null, comment: '', sourceSegmentId: null },
+    ]);
+  };
+
+  const fillFromWholeDay = () => {
+    setBlocks([
+      { id: newId(), startTime: dayStartTime, endTime: dayEndTime, target: null, comment: '', sourceSegmentId: null },
     ]);
   };
 
   const handleSubmit = () => {
-    const segments: ManualWorkSegmentInput[] = rows.map((r) => ({
-      startTime: r.startTime,
-      endTime: r.endTime,
-      breakMinutes: Math.max(0, Math.round(Number(r.breakStr) || 0)),
-      target: r.target,
-    }));
-    void onSubmit({ segments, comment: userComment.trim() || null });
+    const segments: ManualWorkSegmentInput[] = blocks
+      .filter((b) => diffMinutes(b.startTime, b.endTime) > 0)
+      .map((b) => ({
+        id: b.id,
+        startTime: b.startTime,
+        endTime: b.endTime,
+        target: b.target,
+        comment: b.comment.trim() || null,
+        sourceSegmentId: b.sourceSegmentId,
+      }));
+    void onSubmit({
+      dayStartTime,
+      dayEndTime,
+      breakMinutes: dayBreak,
+      segments,
+      deletedSegmentIds: deletedSourceIds,
+      comment: userComment.trim() || null,
+    });
   };
 
-  const activePickerRow = pickerRowId ? rows.find((r) => r.id === pickerRowId) ?? null : null;
+  const pickerActive = pickerId ? blocks.find((b) => b.id === pickerId) ?? null : null;
 
   return (
-    <Card className="p-4 space-y-4">
-      <div className="flex items-center gap-2">
-        <ClipboardEdit className="h-4 w-4 text-primary" />
-        <h3 className="font-semibold">Manuell tidrapport</h3>
-      </div>
-      <p className="text-xs text-muted-foreground -mt-2">
-        Lägg till en eller flera rader och välj själv var varje rad hör hemma.
-      </p>
+    <div className="space-y-3">
+      {/* Kort 1: Hela dagen */}
+      <Card className="p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <CalendarClock className="h-4 w-4 text-primary" />
+          <h3 className="font-semibold">Hela dagen</h3>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="space-y-1">
+            <Label className="text-[11px]">Start</Label>
+            <Input
+              type="time"
+              value={dayStartTime}
+              onChange={(e) => setDayStartTime(e.target.value)}
+              disabled={disabled || isSubmitting}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[11px]">Slut</Label>
+            <Input
+              type="time"
+              value={dayEndTime}
+              onChange={(e) => setDayEndTime(e.target.value)}
+              disabled={disabled || isSubmitting}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[11px]">Rast (min)</Label>
+            <Input
+              type="number"
+              min={0}
+              inputMode="numeric"
+              value={breakStr}
+              onChange={(e) => setBreakStr(e.target.value)}
+              disabled={disabled || isSubmitting}
+            />
+          </div>
+        </div>
+        <div className="rounded-md bg-muted/40 px-3 py-2 text-sm flex items-center justify-between">
+          <span className="text-muted-foreground">Dagens tid (efter rast)</span>
+          <span className="font-semibold">{fmtDuration(dayNet)}</span>
+        </div>
+      </Card>
 
-      <div className="space-y-3">
-        {rows.map((r, idx) => {
-          const gross = diffMinutes(r.startTime, r.endTime);
-          const b = Math.max(0, Math.round(Number(r.breakStr) || 0));
-          const net = Math.max(0, gross - b);
-          const targetMissing = r.target === null;
-          const isOther = r.target?.targetType === 'other';
-          return (
-            <div
-              key={r.id}
-              className="rounded-lg border bg-card p-3 space-y-3"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground">
-                  Rad {idx + 1}
-                </span>
-                {rows.length > 1 && (
+      {/* Kort 2: Fördelning */}
+      <Card className="p-4 space-y-3">
+        <div>
+          <h3 className="font-semibold">Fördelning</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Dela upp dagen på projekt, lager eller annan plats.
+          </p>
+        </div>
+
+        {blocks.length === 0 && (
+          <div className="rounded-md border border-dashed bg-muted/20 p-4 text-center space-y-2">
+            <p className="text-sm text-muted-foreground">Inga block än.</p>
+            <div className="flex gap-2 justify-center">
+              <Button size="sm" variant="outline" onClick={fillFromWholeDay} disabled={disabled || isSubmitting}>
+                Fyll block från hela dagen
+              </Button>
+              <Button size="sm" variant="outline" onClick={addBlock} disabled={disabled || isSubmitting}>
+                <Plus className="h-3.5 w-3.5 mr-1" />Lägg till block
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          {blocks.map((b, idx) => {
+            const minutes = diffMinutes(b.startTime, b.endTime);
+            const isZero = minutes <= 0;
+            const targetMissing = !b.target;
+            const isOther = b.target?.targetType === 'other';
+            return (
+              <div
+                key={b.id}
+                className={`rounded-lg border bg-card p-3 space-y-2.5 ${
+                  isZero ? 'border-destructive/50 bg-destructive/5' : ''
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-muted-foreground">Block {idx + 1}</span>
+                    {b.sourceSegmentId && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                        GPS-förslag
+                      </span>
+                    )}
+                    {isZero && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/15 text-destructive">
+                        0 min – ta bort eller justera
+                      </span>
+                    )}
+                  </div>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7 text-muted-foreground"
-                    onClick={() => removeRow(r.id)}
+                    className={`h-8 w-8 ${isZero ? 'text-destructive' : 'text-muted-foreground hover:text-destructive'}`}
+                    onClick={() => requestRemove(b)}
                     disabled={disabled || isSubmitting}
+                    aria-label="Ta bort block"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="h-4 w-4" />
                   </Button>
-                )}
-              </div>
+                </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <div className="space-y-1">
-                  <Label className="text-[11px]">Start</Label>
-                  <Input
-                    type="time"
-                    value={r.startTime}
-                    onChange={(e) => updateRow(r.id, { startTime: e.target.value })}
-                    disabled={disabled || isSubmitting}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[11px]">Slut</Label>
-                  <Input
-                    type="time"
-                    value={r.endTime}
-                    onChange={(e) => updateRow(r.id, { endTime: e.target.value })}
-                    disabled={disabled || isSubmitting}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[11px]">Rast (min)</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    inputMode="numeric"
-                    value={r.breakStr}
-                    onChange={(e) => updateRow(r.id, { breakStr: e.target.value })}
-                    disabled={disabled || isSubmitting}
-                  />
-                </div>
-              </div>
-
-              {/* Target picker trigger */}
-              <button
-                onClick={() => setPickerRowId(r.id)}
-                disabled={disabled || isSubmitting}
-                className={`w-full flex items-center justify-between text-left px-3 py-2.5 rounded-md border transition ${
-                  targetMissing
-                    ? 'border-dashed border-primary/40 bg-primary/5 hover:bg-primary/10'
-                    : 'border-border bg-muted/30 hover:bg-muted/50'
-                }`}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  {isOther && <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />}
-                  <div className="min-w-0">
-                    {targetMissing ? (
-                      <div className="text-sm font-medium text-primary">
-                        Välj plats / projekt
-                      </div>
-                    ) : (
-                      <>
-                        <div className="text-sm font-medium truncate">{r.target!.label}</div>
-                        {r.target!.subtitle && (
-                          <div className="text-[11px] text-muted-foreground truncate">
-                            {r.target!.subtitle}
-                          </div>
-                        )}
-                      </>
-                    )}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-[11px]">Start</Label>
+                    <Input
+                      type="time"
+                      value={b.startTime}
+                      onChange={(e) => updateBlock(b.id, { startTime: e.target.value })}
+                      disabled={disabled || isSubmitting}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px]">Slut</Label>
+                    <Input
+                      type="time"
+                      value={b.endTime}
+                      onChange={(e) => updateBlock(b.id, { endTime: e.target.value })}
+                      disabled={disabled || isSubmitting}
+                    />
                   </div>
                 </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-              </button>
 
-              {isOther && (
-                <p className="text-[11px] text-amber-700">
-                  Denna tid hamnar inte på projektkostnad förrän den kopplas.
-                </p>
-              )}
+                <button
+                  onClick={() => setPickerId(b.id)}
+                  disabled={disabled || isSubmitting}
+                  className={`w-full flex items-center justify-between text-left px-3 py-2 rounded-md border transition ${
+                    targetMissing
+                      ? 'border-dashed border-primary/40 bg-primary/5 hover:bg-primary/10'
+                      : 'border-border bg-muted/30 hover:bg-muted/50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    {isOther && <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />}
+                    <div className="min-w-0">
+                      {targetMissing ? (
+                        <div className="text-sm font-medium text-primary">Välj projekt / plats</div>
+                      ) : (
+                        <>
+                          <div className="text-sm font-medium truncate">{b.target!.label}</div>
+                          {b.target!.subtitle && (
+                            <div className="text-[11px] text-muted-foreground truncate">{b.target!.subtitle}</div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs text-muted-foreground">{fmtDuration(minutes)}</span>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </button>
 
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Netto</span>
-                <span className="font-semibold">{fmtDuration(net)}</span>
+                {isOther && (
+                  <p className="text-[11px] text-amber-700">Ej kopplat till projektkostnad.</p>
+                )}
               </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={addRow}
-        disabled={disabled || isSubmitting}
-        className="w-full"
-      >
-        <Plus className="h-4 w-4 mr-1.5" />
-        Lägg till rad
-      </Button>
-
-      <div className="rounded-md bg-muted/40 p-3 text-sm">
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">Total rast</span>
-          <span className="font-medium">{fmtDuration(totals.brk)}</span>
+            );
+          })}
         </div>
-        <div className="flex items-center justify-between mt-1 pt-1 border-t">
-          <span className="text-muted-foreground">Total arbetstid</span>
-          <span className="font-semibold">{fmtDuration(totals.net)}</span>
-        </div>
-      </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="manual-comment" className="text-xs">Kommentar till admin (valfri)</Label>
-        <Textarea
-          id="manual-comment"
-          rows={2}
-          value={userComment}
-          onChange={(e) => onUserCommentChange(e.target.value)}
-          disabled={disabled || isSubmitting}
-          placeholder="t.ex. glömde slå på telefonen, jobbade på lager …"
-        />
-      </div>
-
-      {disabled && disabledReason && (
-        <p className="text-xs text-muted-foreground">{disabledReason}</p>
-      )}
-
-      {!canSubmit && !disabled && rows.some((r) => r.target === null) && (
-        <Badge variant="outline" className="w-full justify-center py-1.5 text-[11px]">
-          Välj plats/projekt för alla rader innan du skickar in
-        </Badge>
-      )}
-
-      <Button onClick={handleSubmit} disabled={!canSubmit} className="w-full" size="lg">
-        {isSubmitting ? (
-          <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Skickar…</>
-        ) : (
-          <><Send className="h-4 w-4 mr-2" />Skicka in tidrapport</>
+        {blocks.length > 0 && (
+          <Button variant="outline" size="sm" onClick={addBlock} disabled={disabled || isSubmitting} className="w-full">
+            <Plus className="h-4 w-4 mr-1.5" />
+            Lägg till block
+          </Button>
         )}
-      </Button>
+      </Card>
+
+      {/* Kort 3: Skicka in */}
+      <Card className="p-4 space-y-3">
+        <h3 className="font-semibold">Skicka in</h3>
+        <div className="rounded-md bg-muted/40 p-3 text-sm space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Dagens tid</span>
+            <span className="font-medium">{fmtDuration(dayNet)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Rast</span>
+            <span className="font-medium">{dayBreak} min</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Fördelat på block</span>
+            <span className="font-medium">{fmtDuration(allocated)}</span>
+          </div>
+          <div className="flex items-center justify-between pt-1 border-t">
+            <span className="text-muted-foreground">
+              {remaining >= 0 ? 'Kvar att fördela' : 'Överstiger dagen med'}
+            </span>
+            <span className={`font-semibold ${matchesDay ? '' : 'text-amber-700'}`}>
+              {fmtDuration(Math.abs(remaining))}
+            </span>
+          </div>
+        </div>
+
+        {!matchesDay && allocated > 0 && (
+          <p className="text-xs text-amber-700">
+            {remaining > 0
+              ? `Du har ${remaining} min kvar att fördela på block.`
+              : `Blocken överstiger dagens arbetstid med ${Math.abs(remaining)} min.`}
+          </p>
+        )}
+        {missingTargetBlocks.length > 0 && (
+          <p className="text-xs text-amber-700">
+            {missingTargetBlocks.length} block saknar valt projekt/plats.
+          </p>
+        )}
+        {zeroBlocks.length > 0 && (
+          <p className="text-xs text-destructive">
+            {zeroBlocks.length} block har 0 min – ta bort eller justera.
+          </p>
+        )}
+
+        <div className="space-y-1.5">
+          <Label htmlFor="day-comment" className="text-xs">Kommentar till admin (valfri)</Label>
+          <Textarea
+            id="day-comment"
+            rows={2}
+            value={userComment}
+            onChange={(e) => onUserCommentChange(e.target.value)}
+            disabled={disabled || isSubmitting}
+            placeholder="t.ex. omplanering, glömde slå på telefonen …"
+          />
+        </div>
+
+        {disabled && disabledReason && (
+          <p className="text-xs text-muted-foreground">{disabledReason}</p>
+        )}
+
+        <Button onClick={handleSubmit} disabled={!canSubmit} className="w-full" size="lg">
+          {isSubmitting ? (
+            <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Skickar…</>
+          ) : (
+            <><Send className="h-4 w-4 mr-2" />Skicka in tidrapport</>
+          )}
+        </Button>
+      </Card>
 
       <ManualWorkTargetPicker
-        open={!!pickerRowId}
-        onOpenChange={(o) => { if (!o) setPickerRowId(null); }}
+        open={!!pickerId}
+        onOpenChange={(o) => { if (!o) setPickerId(null); }}
         targets={targets}
-        currentTarget={activePickerRow?.target ?? null}
-        onSelect={(t) => {
-          if (pickerRowId) updateRow(pickerRowId, { target: t });
-        }}
+        currentTarget={pickerActive?.target ?? null}
+        onSelect={(t) => { if (pickerId) updateBlock(pickerId, { target: t }); }}
       />
-    </Card>
+
+      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => { if (!o) setConfirmDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ta bort detta block från tidrapporten?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDelete?.sourceSegmentId
+                ? 'Detta är ett GPS-förslag. Borttaget block markeras som avvisat och syns för admin.'
+                : 'Blocket tas bort från dagen.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Avbryt</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirmDelete) removeBlockImmediate(confirmDelete);
+                setConfirmDelete(null);
+              }}
+            >
+              Ta bort
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 };
 
