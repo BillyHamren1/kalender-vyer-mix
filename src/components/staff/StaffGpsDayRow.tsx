@@ -111,7 +111,7 @@ export function StaffGpsDayRow({ day, dateStr, selected, summary, onClick }: Pro
 
       {segments.length > 0 && (
         <ul className="mt-1.5 space-y-0.5">
-          {segments.map((s, idx) => {
+          {segments.filter((s) => s.type !== 'idle').map((s, idx) => {
             const isTravelish =
               s.type === 'travel' || s.type === 'gps_gap' || s.type === 'unknown_place';
             const from = s.fromLabel?.trim();
