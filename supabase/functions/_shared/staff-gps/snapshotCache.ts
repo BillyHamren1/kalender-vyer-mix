@@ -180,6 +180,7 @@ async function computeInputSignature(
   startIso: string,
   endIso: string,
   geofenceCount: number,
+  fenceSetHash: string,
 ): Promise<string> {
   // Cheap aggregate: count + max(recorded_at). PostgREST supports HEAD/count
   // and we can grab max via a tiny order+limit query.
@@ -205,7 +206,7 @@ async function computeInputSignature(
     if (maxErr) throw new Error(`signature max failed: ${maxErr.message}`);
     maxIso = data?.recorded_at ? String(data.recorded_at) : "";
   }
-  return `${count ?? 0}|${maxIso}|gf:${geofenceCount}`;
+  return `${count ?? 0}|${maxIso}|gf:${geofenceCount}|fh:${fenceSetHash}`;
 }
 
 /**
