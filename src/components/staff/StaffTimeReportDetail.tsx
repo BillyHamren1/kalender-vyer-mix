@@ -212,6 +212,11 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
         const destClient = t.destination_booking_id
           ? destBookingMap.get(t.destination_booking_id)
           : null;
+        const labels = resolveTravelLabels({
+          from_address: t.from_address,
+          to_address: t.to_address,
+          description: (t as any).description ?? null,
+        });
         const clientLabel = destClient ? `Resa → ${destClient}` : 'Resa';
         return {
           id: t.id,
@@ -220,7 +225,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
           end_time: t.end_time,
           hours_worked: t.hours_worked,
           overtime_hours: null,
-          description: [t.from_address, t.to_address].filter(Boolean).join(' → ') || null,
+          description: [labels.fromLabel, labels.toLabel].filter(Boolean).join(' → ') || null,
           approved: null,
           booking_client: clientLabel,
           booking_number: null,
