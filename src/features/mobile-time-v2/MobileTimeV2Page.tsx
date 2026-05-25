@@ -224,19 +224,10 @@ const MobileTimeV2Page: React.FC = () => {
         {/* Summary — totaler räknas ALDRIG om i appen, kommer alltid från backend */}
         {data && !isLoading && data.segments.length > 0 && (
           <Card className="p-4">
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <div>
-                <p className="text-2xl font-semibold">{data.totals.totalDurationLabel}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Totalt</p>
-              </div>
-              <div>
-                <p className="text-2xl font-semibold">{data.subtitle.includes('Arbete') ? extractPart(data.subtitle, 'Arbete') : '—'}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Arbete</p>
-              </div>
-              <div>
-                <p className="text-2xl font-semibold">{data.subtitle.includes('Resa') ? extractPart(data.subtitle, 'Resa') : '—'}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Resa</p>
-              </div>
+            <div className="text-center">
+              <p className="text-3xl font-semibold">{data.totals.totalDurationLabel}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Total tid (från backend)</p>
+              <p className="text-xs text-muted-foreground mt-2">{data.subtitle}</p>
             </div>
             <div className="mt-3 pt-3 border-t flex items-center justify-between text-xs text-muted-foreground">
               <span>{data.segments.length} segment</span>
