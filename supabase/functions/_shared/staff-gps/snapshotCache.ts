@@ -170,71 +170,9 @@ async function loadAllPings(
   return out;
 }
 
-async function loadGeofences(admin: SupabaseClient, orgId: string): Promise<{
-  geofences: GeofenceRow[];
-  privateGeofenceIds: string[];
-}> {
-  const [locsRes, projRes, largeRes] = await Promise.all([
-    admin
-      .from("organization_locations")
-      .select("id, name, latitude, longitude, radius_meters, geofence_mode, geofence_polygon, is_private_residence")
-      .eq("organization_id", orgId)
-      .not("latitude", "is", null)
-      .not("longitude", "is", null)
-      .limit(2000),
-    admin
-      .from("projects")
-      .select("id, name, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon, deleted_at")
-      .eq("organization_id", orgId)
-      .is("deleted_at", null)
-      .not("delivery_latitude", "is", null)
-      .not("delivery_longitude", "is", null)
-      .limit(5000),
-    admin
-      .from("large_projects")
-      .select("id, name, address_latitude, address_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon")
-      .eq("organization_id", orgId)
-      .not("address_latitude", "is", null)
-      .not("address_longitude", "is", null)
-      .limit(2000),
-  ]);
-
-  const geofences: GeofenceRow[] = [];
-  const privateIds: string[] = [];
-  for (const r of (locsRes.data ?? []) as any[]) {
-    const id = `loc:${r.id}`;
-    geofences.push({
-      id,
-      name: String(r.name ?? "Plats"),
-      lat: Number(r.latitude),
-      lng: Number(r.longitude),
-      radiusMeters: Number(r.radius_meters ?? 75),
-      polygon: r.geofence_mode === "polygon" ? r.geofence_polygon : undefined,
-    });
-    if (r.is_private_residence) privateIds.push(id);
-  }
-  for (const r of (projRes.data ?? []) as any[]) {
-    geofences.push({
-      id: `project:${r.id}`,
-      name: String(r.name ?? "Projekt"),
-      lat: Number(r.delivery_latitude),
-      lng: Number(r.delivery_longitude),
-      radiusMeters: Number(r.address_radius_meters ?? 75),
-      polygon: r.address_geofence_mode === "polygon" ? r.address_geofence_polygon : undefined,
-    });
-  }
-  for (const r of (largeRes.data ?? []) as any[]) {
-    geofences.push({
-      id: `large:${r.id}`,
-      name: String(r.name ?? "Stort projekt"),
-      lat: Number(r.address_latitude),
-      lng: Number(r.address_longitude),
-      radiusMeters: Number(r.address_radius_meters ?? 100),
-      polygon: r.address_geofence_mode === "polygon" ? r.address_geofence_polygon : undefined,
-    });
-  }
-  return { geofences, privateGeofenceIds: privateIds };
-}
+// loadGeofences removed — replaced by date-bound loadDayKnownSites().
+// See mem://constraints/known-sites-date-bound-v1: a server-wide org-wide
+// projects scan caused unrelated/test projects to surface as "visits".
 
 async function computeInputSignature(
   admin: SupabaseClient,
