@@ -396,6 +396,18 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
         onSplit={splitBooking}
         isMutating={isMutating}
       />
+
+      <ManualProjectTaskDialog
+        open={manualOpen}
+        onOpenChange={setManualOpen}
+        largeProjectId={largeProjectId}
+        bookings={bookings}
+        staff={staff}
+        defaultDate={manualDefaults.date ?? null}
+        defaultStaffId={manualDefaults.staffId ?? null}
+        createItem={createItem}
+        isMutating={isMutating}
+      />
     </div>
   );
 };
