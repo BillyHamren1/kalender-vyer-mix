@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useBackgroundLocationReporter } from '@/hooks/useBackgroundLocationReporter';
+import { useGpsPulseHandler } from '@/hooks/useGpsPulseHandler';
 import { initLocationPingHandler } from '@/services/locationPingHandler';
 import GpsHealthDebugPanel from '@/components/mobile-app/GpsHealthDebugPanel';
 
