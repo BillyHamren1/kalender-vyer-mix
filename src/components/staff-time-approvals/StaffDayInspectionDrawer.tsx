@@ -30,13 +30,13 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useApproveStaffDay } from "@/hooks/staff/useApproveStaffDay";
-import TimeApprovalStatusBadge from "../TimeApprovalStatusBadge";
+import TimeApprovalStatusBadge from "./TimeApprovalStatusBadge";
 import {
   formatHm,
   type WeeklyDayCell,
   type WeeklyStaffBundle,
-} from "../weeklyApprovalModel";
-import DayInspectionMap from "./DayInspectionMap";
+} from "./weeklyApprovalModel";
+import DayInspectionMap from "./day-inspection/DayInspectionMap";
 import {
   DiagnosticsCard,
   EngineProposalBanner,
@@ -44,7 +44,8 @@ import {
   SubmissionExtrasCard,
   extractDiagnostics,
   extractSegments,
-} from "./DayInspectionSections";
+} from "./day-inspection/DayInspectionSections";
+
 
 interface Props {
   open: boolean;
