@@ -12,7 +12,9 @@ import { StaffGpsWeekPanel } from './StaffGpsWeekPanel';
 import { StaffGpsWeekList } from './StaffGpsWeekList';
 import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
 import { type PlaceVisit } from '@/lib/staff/pingPlaceSegments';
-import { useAllActiveProjectGeofences } from '@/hooks/useAllActiveProjectGeofences';
+// Detaljkartan får INTE blanda in extra projektgeofences utanför snapshoten.
+// Snapshot från get-mobile-staff-day-pings är enda sanningen — exakt samma
+// källa som vecko-listan (get-staff-gps-week-summary) bygger sin summary på.
 
 interface Props {
   initialStaffId?: string | null;
@@ -207,15 +209,8 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
 
   void calendarMonth;
 
-  const activeProjectGeofencesQuery = useAllActiveProjectGeofences(dateStr);
   const geofences = useMemo<GeofenceSite[]>(() => {
-    const nonProject = (snapshotQuery.data?.geofences ?? []).filter((site) => {
-      const id = String(site.id ?? '');
-      return !id.startsWith('project:') && !id.startsWith('large:');
-    });
-    const projectsForDay = activeProjectGeofencesQuery.data ?? [];
-    const merged = [...nonProject, ...projectsForDay];
-    return merged.map((site) => ({
+    return (snapshotQuery.data?.geofences ?? []).map((site) => ({
       id: site.id,
       name: site.name,
       lat: site.lat,
@@ -223,7 +218,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
       radiusMeters: site.radiusMeters,
       polygon: site.polygon ?? undefined,
     }));
-  }, [snapshotQuery.data?.geofences, activeProjectGeofencesQuery.data]);
+  }, [snapshotQuery.data?.geofences]);
 
   const geofenceVisits = useMemo<PlaceVisit[]>(() => (snapshotQuery.data?.visits ?? []).map((visit) => ({
     placeKey: visit.placeKey,
