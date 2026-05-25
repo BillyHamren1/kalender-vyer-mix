@@ -35,6 +35,7 @@ export const transformBookingData = (dbBooking: any): Booking => {
     groundNailsAllowed: dbBooking.ground_nails_allowed,
     exactTimeNeeded: dbBooking.exact_time_needed,
     exactTimeInfo: dbBooking.exact_time_info,
+    rentalOnly: dbBooking.rental_only,
     internalNotes: dbBooking.internalnotes,
     viewed: dbBooking.viewed,
     status: dbBooking.status,
