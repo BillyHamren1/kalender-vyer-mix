@@ -63,6 +63,24 @@ function summarize(date: string, snapshot: DaySnapshot): DaySummary {
     privateGeofenceIds: snapshot.privateGeofenceIds,
   });
 
+  // LOCKED: start/sluttid är första respektive sista pingen UTANFÖR privata
+  // geofences (hem). Privata visits ska aldrig flytta dagens fönster — då
+  // räknas hemmavistelser av misstag in som arbetsdag.
+  // Se mem://constraints/gps-day-partition-v1 + chat #9967.
+  const privateIds = new Set(snapshot.privateGeofenceIds);
+  const privatePingIds = new Set<string>();
+  for (const v of snapshot.visits) {
+    if (v.knownSite && privateIds.has(v.knownSite.id)) {
+      for (const p of v.pings) privatePingIds.add(p.id);
+    }
+  }
+  const nonPrivate = snapshot.pings.filter((p) => !privatePingIds.has(p.id));
+  const firstIso = nonPrivate.length ? nonPrivate[0].recorded_at : null;
+  const lastIso = nonPrivate.length ? nonPrivate[nonPrivate.length - 1].recorded_at : null;
+  const windowMin = firstIso && lastIso
+    ? Math.max(0, Math.round((new Date(lastIso).getTime() - new Date(firstIso).getTime()) / 60_000))
+    : 0;
+
   const placeNames: string[] = [];
   const seen = new Set<string>();
   for (const s of partition.segments) {
@@ -73,10 +91,10 @@ function summarize(date: string, snapshot: DaySnapshot): DaySummary {
   return {
     date,
     pingsCount: snapshot.pings.length,
-    firstIso: partition.firstIso,
-    lastIso: partition.lastIso,
+    firstIso,
+    lastIso,
     durationMin: partition.workMin,
-    windowMin: partition.windowMin,
+    windowMin,
     workMin: partition.workMin,
     privateMin: partition.privateMin,
     travelMin: partition.travelMin,
@@ -89,6 +107,7 @@ function summarize(date: string, snapshot: DaySnapshot): DaySummary {
     segments: partition.segments,
   };
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
