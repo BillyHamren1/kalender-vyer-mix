@@ -978,6 +978,7 @@ export type Database = {
           needs_review: boolean
           needs_review_reason: string | null
           organization_id: string
+          rental_only: boolean
           rig_end_time: string | null
           rig_end_time_external: string | null
           rig_start_time: string | null
@@ -1033,6 +1034,7 @@ export type Database = {
           needs_review?: boolean
           needs_review_reason?: string | null
           organization_id?: string
+          rental_only?: boolean
           rig_end_time?: string | null
           rig_end_time_external?: string | null
           rig_start_time?: string | null
@@ -1088,6 +1090,7 @@ export type Database = {
           needs_review?: boolean
           needs_review_reason?: string | null
           organization_id?: string
+          rental_only?: boolean
           rig_end_time?: string | null
           rig_end_time_external?: string | null
           rig_start_time?: string | null

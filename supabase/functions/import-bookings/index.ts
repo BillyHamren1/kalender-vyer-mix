@@ -71,6 +71,7 @@ interface BookingData {
   ground_nails_allowed?: boolean;
   exact_time_needed?: boolean;
   exact_time_info?: string;
+  rental_only?: boolean;
   internalnotes?: string;
   status?: string;
   booking_number?: string;
@@ -1079,6 +1080,8 @@ async function reconcileCalendarEvents(
   const clientLabel = bookingData.client || 'Bokning';
   const desiredTitle = bookingTitle ? `${bookingTitle} – ${clientLabel}` : clientLabel;
 
+  const rentalOnly = bookingData.rental_only === true;
+
   for (const date of rigDates) {
     const start = buildDateTimeFromPartsEx(date, bookingData.rig_start_time);
     const end = bookingData.rig_end_time
@@ -1087,9 +1090,11 @@ async function reconcileCalendarEvents(
     console.log(`[Calendar Time] rig ${date}: start=${start.dateTime} (${start.isExplicit ? 'EXPLICIT' : 'DEFAULT'}), end=${end.dateTime} (${end.isExplicit ? 'EXPLICIT' : 'DEFAULT'})`);
     desiredEvents.push({
       event_type: 'rig', start_time: start.dateTime, end_time: end.dateTime,
-      title: desiredTitle, booking_number: bookingData.booking_number || null,
+      title: rentalOnly ? `Leverans UT – ${desiredTitle}` : desiredTitle,
+      booking_number: bookingData.booking_number || null,
       delivery_address: bookingData.deliveryaddress || null, date,
-      isExplicitStart: start.isExplicit
+      isExplicitStart: start.isExplicit,
+      rentalOnly,
     });
   }
 
@@ -1106,9 +1111,11 @@ async function reconcileCalendarEvents(
     console.log(`[Calendar Time] rigDown ${date}: start=${start.dateTime} (${start.isExplicit ? 'EXPLICIT' : 'DEFAULT'}), end=${end.dateTime} (${end.isExplicit ? 'EXPLICIT' : 'DEFAULT'})`);
     desiredEvents.push({
       event_type: 'rigDown', start_time: start.dateTime, end_time: end.dateTime,
-      title: desiredTitle, booking_number: bookingData.booking_number || null,
+      title: rentalOnly ? `Retur IN – ${desiredTitle}` : desiredTitle,
+      booking_number: bookingData.booking_number || null,
       delivery_address: bookingData.deliveryaddress || null, date,
-      isExplicitStart: start.isExplicit
+      isExplicitStart: start.isExplicit,
+      rentalOnly,
     });
   }
 
@@ -1183,23 +1190,27 @@ async function reconcileCalendarEvents(
         console.log(`[Calendar Reconcile] SKIP event ${existing.id} (${desired.event_type} on ${desired.date}): already correct`);
       }
     } else {
-      const placement = await assignTeamAndTime(
-        supabase,
-        desired.event_type,
-        desired.date,
-        bookingData.id,
-        bookingData.organization_id || organizationId,
-        desired.start_time,
-        desired.end_time,
-        desired.isExplicitStart,
-        largeProjectIdForGuard,
-      );
+      // Rental-only: gå direkt till Lager-kolumnen (resource_id='transport'),
+      // hoppa över team-1..5 round-robin helt.
+      const placement = desired.rentalOnly
+        ? { team: 'transport', start_time: desired.start_time, end_time: desired.end_time }
+        : await assignTeamAndTime(
+            supabase,
+            desired.event_type,
+            desired.date,
+            bookingData.id,
+            bookingData.organization_id || organizationId,
+            desired.start_time,
+            desired.end_time,
+            desired.isExplicitStart,
+            largeProjectIdForGuard,
+          );
 
       if (results.team_distribution[placement.team] !== undefined) {
         results.team_distribution[placement.team]++;
       }
 
-      console.log(`[Calendar Reconcile] CREATE ${desired.event_type} on ${desired.date} → ${placement.team} @ ${placement.start_time}`);
+      console.log(`[Calendar Reconcile] CREATE ${desired.event_type} on ${desired.date} → ${placement.team} @ ${placement.start_time}${desired.rentalOnly ? ' (RENTAL_ONLY → Lager)' : ''}`);
 
       const { error: insertErr } = await supabase
         .from('calendar_events')
@@ -2801,6 +2812,7 @@ serve(async (req) => {
           carry_more_than_10m: externalBooking.carry_more_than_10m || false,
           ground_nails_allowed: externalBooking.ground_nails_allowed || false,
           exact_time_needed: externalBooking.exact_time_needed || false,
+          rental_only: externalBooking.rental_only === true,
           exact_time_info: externalBooking.exact_time_info,
           internalnotes: externalBooking.internal_notes,
           status: bookingStatus,

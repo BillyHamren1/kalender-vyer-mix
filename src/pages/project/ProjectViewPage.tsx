@@ -118,6 +118,7 @@ const ProjectViewPage = () => {
     ground_nails_allowed: null,
     exact_time_needed: null,
     exact_time_info: null,
+    rental_only: false,
     internalnotes: project.internalnotes,
   } : null);
 
