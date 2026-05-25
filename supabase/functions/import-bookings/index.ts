@@ -2802,6 +2802,7 @@ serve(async (req) => {
           carry_more_than_10m: externalBooking.carry_more_than_10m || false,
           ground_nails_allowed: externalBooking.ground_nails_allowed || false,
           exact_time_needed: externalBooking.exact_time_needed || false,
+          rental_only: externalBooking.rental_only === true,
           exact_time_info: externalBooking.exact_time_info,
           internalnotes: externalBooking.internal_notes,
           status: bookingStatus,
