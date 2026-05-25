@@ -23,6 +23,7 @@ interface Props {
   items: LargeProjectBookingPlanItem[];
   staff: LargeProjectPlannerStaffMember[];
   onSeedBooking: (booking: LargeProjectPlannerBooking) => void;
+  onSplitBooking?: (booking: LargeProjectPlannerBooking) => void;
   onItemClick?: (item: LargeProjectBookingPlanItem) => void;
   onItemDelete?: (item: LargeProjectBookingPlanItem) => void;
 }
@@ -39,6 +40,7 @@ const LargeProjectPlannerSidebar = ({
   items,
   staff,
   onSeedBooking,
+  onSplitBooking,
   onItemClick,
   onItemDelete,
 }: Props) => {
@@ -140,16 +142,28 @@ const LargeProjectPlannerSidebar = ({
                     {isPlanned ? `${its.length} st` : 'Ej planerad'}
                   </Badge>
                 </div>
-                {!isPlanned && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="mt-2 h-6 w-full text-[10px]"
-                    onClick={() => onSeedBooking(booking)}
-                  >
-                    Lägg in i plan
-                  </Button>
-                )}
+                <div className="mt-2 flex gap-1">
+                  {!isPlanned && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 flex-1 text-[10px]"
+                      onClick={() => onSeedBooking(booking)}
+                    >
+                      Lägg in i plan
+                    </Button>
+                  )}
+                  {onSplitBooking && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 flex-1 text-[10px]"
+                      onClick={() => onSplitBooking(booking)}
+                    >
+                      Dela upp
+                    </Button>
+                  )}
+                </div>
                 {isPlanned && (
                   <div className="mt-2 space-y-1">
                     {its.map((it) => (

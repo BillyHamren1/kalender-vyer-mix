@@ -36,7 +36,9 @@ import { Badge } from '@/components/ui/badge';
 import LargeProjectPlannerToolbar from './LargeProjectPlannerToolbar';
 import LargeProjectPlannerSidebar from './LargeProjectPlannerSidebar';
 import LargeProjectPlannerTaskCard from './LargeProjectPlannerTaskCard';
+import SplitBookingIntoTasksDialog from './SplitBookingIntoTasksDialog';
 import { useLargeProjectPlannerItems } from './useLargeProjectPlannerItems';
+import { useState } from 'react';
 import type {
   LargeProjectBookingPlanItem,
   LargeProjectPlannerBooking,
@@ -85,8 +87,11 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     createItem,
     deleteItem,
     createItemsFromBookings,
+    splitBooking,
     isMutating,
   } = useLargeProjectPlannerItems(largeProjectId);
+
+  const [splitBookingId, setSplitBookingId] = useState<string | null>(null);
 
   const staffById = useMemo(() => {
     const map = new Map<string, LargeProjectPlannerStaffMember>();
@@ -204,6 +209,16 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     }
   };
 
+  const handleItemClick = (item: LargeProjectBookingPlanItem) => {
+    if (item.booking_id && (item.source === 'booking' || item.item_type === 'booking')) {
+      setSplitBookingId(item.booking_id);
+    }
+  };
+
+  const splitTargetBooking = splitBookingId
+    ? bookingById.get(splitBookingId) ?? null
+    : null;
+
   // Kolumner = assignad personal (via personalkalendern) + "Ej tilldelat"
   const staffColumns = useMemo(() => staff, [staff]);
 
@@ -317,6 +332,7 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
                                     : null
                                 }
                                 staff={staffById.get(s.id) ?? null}
+                                onClick={handleItemClick}
                                 onDelete={handleItemDelete}
                               />
                             ))}
@@ -334,6 +350,7 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
                                 ? bookingById.get(it.booking_id) ?? null
                                 : null
                             }
+                            onClick={handleItemClick}
                             onDelete={handleItemDelete}
                           />
                         ))}
@@ -351,9 +368,23 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
           items={items}
           staff={staff}
           onSeedBooking={handleSeedBooking}
+          onSplitBooking={(b) => setSplitBookingId(b.id)}
+          onItemClick={handleItemClick}
           onItemDelete={handleItemDelete}
         />
       </div>
+
+      <SplitBookingIntoTasksDialog
+        open={splitBookingId !== null}
+        onOpenChange={(open) => {
+          if (!open) setSplitBookingId(null);
+        }}
+        largeProjectId={largeProjectId}
+        booking={splitTargetBooking}
+        staff={staff}
+        onSplit={splitBooking}
+        isMutating={isMutating}
+      />
     </div>
   );
 };
