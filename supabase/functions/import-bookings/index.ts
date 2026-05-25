@@ -71,6 +71,7 @@ interface BookingData {
   ground_nails_allowed?: boolean;
   exact_time_needed?: boolean;
   exact_time_info?: string;
+  rental_only?: boolean;
   internalnotes?: string;
   status?: string;
   booking_number?: string;
