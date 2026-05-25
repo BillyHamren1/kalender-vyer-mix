@@ -209,6 +209,16 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     }
   };
 
+  const handleItemClick = (item: LargeProjectBookingPlanItem) => {
+    if (item.booking_id && (item.source === 'booking' || item.item_type === 'booking')) {
+      setSplitBookingId(item.booking_id);
+    }
+  };
+
+  const splitTargetBooking = splitBookingId
+    ? bookingById.get(splitBookingId) ?? null
+    : null;
+
   // Kolumner = assignad personal (via personalkalendern) + "Ej tilldelat"
   const staffColumns = useMemo(() => staff, [staff]);
 
@@ -322,9 +332,28 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
                                     : null
                                 }
                                 staff={staffById.get(s.id) ?? null}
+                                onClick={handleItemClick}
                                 onDelete={handleItemDelete}
                               />
                             ))}
+                          </div>
+                        );
+                      })}
+                      {/* Ej tilldelat */}
+                      <div className="min-h-[80px] space-y-1 border-l border-dashed border-border/60 bg-muted/20 p-1.5">
+                        {(grid.get(`${day.date}|${UNASSIGNED_KEY}`) ?? []).map((it) => (
+                          <LargeProjectPlannerTaskCard
+                            key={it.id}
+                            item={it}
+                            booking={
+                              it.booking_id
+                                ? bookingById.get(it.booking_id) ?? null
+                                : null
+                            }
+                            onClick={handleItemClick}
+                            onDelete={handleItemDelete}
+                          />
+                        ))}
                           </div>
                         );
                       })}
