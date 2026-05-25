@@ -10,6 +10,23 @@
  *
  * All annan logik (team-kolumner, staff per dag, drag/drop, +-knappen,
  * dag-expansion) ärvs oförändrad från CustomCalendar.
+ *
+ * ⚠️ SEPARATIONSVARNING (se .lovable/large-project-calendar-audit.md)
+ * --------------------------------------------------------------------------
+ * Denna komponent ÅTERANVÄNDER personalkalenderns write-handlers och
+ * skriver därför fortfarande till:
+ *   • calendar_events            (via CustomCalendar/useEventDragDrop)
+ *   • staff_assignments          (via useUnifiedStaffOperations.handleStaffDrop)
+ *   • booking_staff_assignments  (via warehouseAssignmentsSync + RPC)
+ *   • large_project_team_assignments (via largeProjectPlannerService)
+ *
+ * Det är OK för det "normala" project-perspektivet i dag, men för intern
+ * bokningsplanering i STORA projekt måste man använda den nya isolerade
+ * komponenten:
+ *     src/components/project/large-planner/LargeProjectBookingPlannerCalendar.tsx
+ *
+ * Lägg INTE till nya intern-plan-features här. Bygg dem i den isolerade
+ * komponenten istället.
  */
 import { useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
@@ -104,6 +121,10 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
 
   // Anchor-datum = första projektdagen (för staff ops + tom-state).
   const anchorDate = projectDays[0] || new Date();
+  // ⚠️ LÄCKAGE: useUnifiedStaffOperations exponerar write-paths mot
+  // staff_assignments + booking_staff_assignments. Får INTE användas i den
+  // nya isolerade LargeProjectBookingPlannerCalendar — där ska personal
+  // bara läsas, aldrig skrivas. Se .lovable/large-project-calendar-audit.md.
   const staffOps = useUnifiedStaffOperations(anchorDate, 'weekly', 'Montage');
 
   // 4. Filtrera events till projektets bookings + lägg på taskEvents.
@@ -212,6 +233,11 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
                 currentDate={anchorDate}
                 onDateSet={handleDatesSet}
                 refreshEvents={handleRefresh}
+                // ⚠️ Dessa två props kopplar in personalkalenderns
+                // skrivvägar (staff_assignments + calendar_events drag).
+                // LargeProjectBookingPlannerCalendar ska ALDRIG skicka in
+                // dessa — där ska personal vara read-only och drag använda
+                // egna lokala handlers mot den interna plan-storen.
                 onStaffDrop={staffOps.handleStaffDrop}
                 onOpenStaffSelection={handleStaffSelectionStub}
                 viewMode="weekly"
