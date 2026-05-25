@@ -198,12 +198,13 @@ export async function loadOrgGeofences(
           .not("delivery_latitude", "is", null)
           .not("delivery_longitude", "is", null)
           .limit(5000)),
-    // Stora projekt: matcha via bookings inom datum-spannet. Saknas datum → ingen filter.
+    // Stora projekt: matcha via BEKRÄFTADE bookings inom datum-spannet.
     hasDateFilter
       ? admin
           .from("bookings")
           .select("large_project_id, eventdate, rigdaydate, rigdowndate")
           .eq("organization_id", orgId)
+          .eq("status", "CONFIRMED")
           .not("large_project_id", "is", null)
           .or(
             [
@@ -215,7 +216,7 @@ export async function loadOrgGeofences(
           .limit(20000)
       : Promise.resolve({ data: [] as any[] }),
     // Bokningens EGNA pin (fallback när projekt saknas/inte datumvalid).
-    // Speglar useDayKnownSites: bokningar inom datumspannet med koordinater.
+    // Endast BEKRÄFTADE bokningar räknas som känd plats.
     hasDateFilter
       ? admin
           .from("bookings")
@@ -223,6 +224,7 @@ export async function loadOrgGeofences(
             "id, client, booking_number, delivery_latitude, delivery_longitude, large_project_id, eventdate, rigdaydate, rigdowndate",
           )
           .eq("organization_id", orgId)
+          .eq("status", "CONFIRMED")
           .not("delivery_latitude", "is", null)
           .not("delivery_longitude", "is", null)
           .or(
@@ -235,6 +237,7 @@ export async function loadOrgGeofences(
           .limit(20000)
       : Promise.resolve({ data: [] as any[] }),
   ]);
+
 
   // Bygg en map över large_project_id → set av datum bokningen "tillhör".
   const largeDatesById = new Map<string, Set<string>>();
@@ -290,10 +293,27 @@ export async function loadOrgGeofences(
     if (r.is_private_residence === true) privateIds.add(id);
   }
 
+  // BEKRÄFTADE bokningar inom datum-spannet (för project-gate och booking-pin).
+  const confirmedBookingIds = new Set<string>();
+  for (const b of ((bookingsRes as any).data ?? []) as any[]) {
+    if (b.id) confirmedBookingIds.add(String(b.id));
+  }
+  for (const b of ((largeBookingsRes as any).data ?? []) as any[]) {
+    // largeBookingsRes saknar id → vi vet bara att large_project_id är CONFIRMED-bundet
+  }
+
   // Per-projekt: bestäm vilka datum det "äger" (intern → alla; annars sina egna).
+  // Projektet räknas som känd plats ENDAST om dess booking är BEKRÄFTAD,
+  // eller om projektet är internt (Lager etc).
   interface ProjFence { row: GeofenceRow; dates: Set<string> | "ALL" }
   const projFences: ProjFence[] = [];
   for (const r of ((projRes as any).data ?? []) as any[]) {
+    const isInternal = r.is_internal === true;
+    const bookingId = r.booking_id ? String(r.booking_id) : null;
+    if (!isInternal && hasDateFilter) {
+      // Booking måste vara bekräftad för att projektet ska räknas.
+      if (!bookingId || !confirmedBookingIds.has(bookingId)) continue;
+    }
     const fence: GeofenceRow = {
       id: `project:${r.id}`,
       name: String(r.name ?? "Projekt"),
@@ -302,7 +322,7 @@ export async function loadOrgGeofences(
       radiusMeters: Number(r.address_radius_meters ?? 75),
       polygon: r.address_geofence_mode === "polygon" ? r.address_geofence_polygon : undefined,
     };
-    if (r.is_internal === true) {
+    if (isInternal) {
       projFences.push({ row: fence, dates: "ALL" });
     } else {
       const own = new Set<string>();
@@ -312,6 +332,7 @@ export async function loadOrgGeofences(
       projFences.push({ row: fence, dates: own });
     }
   }
+
 
   const largeFences: { row: GeofenceRow; dates: Set<string> | "ALL" }[] = [];
   for (const r of largeRows) {
