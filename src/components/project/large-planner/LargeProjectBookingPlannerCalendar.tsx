@@ -354,23 +354,6 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
                             onDelete={handleItemDelete}
                           />
                         ))}
-                          </div>
-                        );
-                      })}
-                      {/* Ej tilldelat */}
-                      <div className="min-h-[80px] space-y-1 border-l border-dashed border-border/60 bg-muted/20 p-1.5">
-                        {(grid.get(`${day.date}|${UNASSIGNED_KEY}`) ?? []).map((it) => (
-                          <LargeProjectPlannerTaskCard
-                            key={it.id}
-                            item={it}
-                            booking={
-                              it.booking_id
-                                ? bookingById.get(it.booking_id) ?? null
-                                : null
-                            }
-                            onDelete={handleItemDelete}
-                          />
-                        ))}
                       </div>
                     </div>
                   );
@@ -385,9 +368,23 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
           items={items}
           staff={staff}
           onSeedBooking={handleSeedBooking}
+          onSplitBooking={(b) => setSplitBookingId(b.id)}
+          onItemClick={handleItemClick}
           onItemDelete={handleItemDelete}
         />
       </div>
+
+      <SplitBookingIntoTasksDialog
+        open={splitBookingId !== null}
+        onOpenChange={(open) => {
+          if (!open) setSplitBookingId(null);
+        }}
+        largeProjectId={largeProjectId}
+        booking={splitTargetBooking}
+        staff={staff}
+        onSplit={splitBooking}
+        isMutating={isMutating}
+      />
     </div>
   );
 };
