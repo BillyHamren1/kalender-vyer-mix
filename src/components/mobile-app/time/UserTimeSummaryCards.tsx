@@ -1,3 +1,4 @@
+// Legacy mobile time UI. Do not use for Time v2.
 import { cn } from '@/lib/utils';
 import { formatHoursMinutes } from '@/utils/formatHours';
 

@@ -1,3 +1,4 @@
+// Legacy mobile time UI. Do not use for Time v2.
 /**
  * TodayTab — IDAG-tabben på Time-sidan.
  *
