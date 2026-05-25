@@ -15,6 +15,7 @@ import {
   ExternalLink,
   Satellite,
   Sparkles,
+  ClipboardCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProjectInboxCount } from "@/hooks/useProjectInboxCount";
