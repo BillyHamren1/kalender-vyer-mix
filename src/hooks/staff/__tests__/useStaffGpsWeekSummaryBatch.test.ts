@@ -57,4 +57,70 @@ describe('useStaffGpsWeekSummaryBatch', () => {
     );
     expect(callStaffSnapshotFunction).not.toHaveBeenCalled();
   });
+
+  it('faller tillbaka till dags-snapshots när batch-anropet misslyckas', async () => {
+    vi.mocked(callStaffSnapshotFunction)
+      .mockRejectedValueOnce(new Error('snapshot_failed'))
+      .mockResolvedValue({
+        staffId: 'a',
+        date: '2026-05-18',
+        pings: [{ id: 'p1', recorded_at: '2026-05-18T08:00:00Z', lat: 1, lng: 2, accuracy: 10 }],
+        geofences: [],
+        visits: [
+          {
+            placeKey: 'project:alpha',
+            knownSite: { id: 'project:alpha', name: 'Alpha' },
+            centre: { lat: 1, lng: 2 },
+            start: '2026-05-18T08:00:00Z',
+            end: '2026-05-18T10:00:00Z',
+            durationMin: 120,
+            pingCount: 5,
+            pings: [],
+          },
+        ],
+        hasGps: true,
+        lastUpdatedAt: '2026-05-18T10:00:00Z',
+        generatedAt: '2026-05-18T10:00:00Z',
+      } as any)
+      .mockResolvedValue({
+        staffId: 'a',
+        date: '2026-05-19',
+        pings: [],
+        geofences: [],
+        visits: [],
+        hasGps: false,
+        lastUpdatedAt: '2026-05-19T10:00:00Z',
+        generatedAt: '2026-05-19T10:00:00Z',
+      } as any)
+      .mockResolvedValue({
+        staffId: 'a',
+        date: '2026-05-20',
+        pings: [],
+        geofences: [],
+        visits: [],
+        hasGps: false,
+        lastUpdatedAt: '2026-05-20T10:00:00Z',
+        generatedAt: '2026-05-20T10:00:00Z',
+      } as any);
+
+    const { result } = renderHook(
+      () => useStaffGpsWeekSummaryBatch(['a'], weekDays),
+      { wrapper: wrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.summaries.a?.['2026-05-18']?.durationMin).toBe(120);
+    });
+
+    expect(callStaffSnapshotFunction).toHaveBeenNthCalledWith(
+      1,
+      'get-staff-gps-week-summary',
+      { staffIds: ['a'], fromDate: '2026-05-18', toDate: '2026-05-20' },
+    );
+    expect(callStaffSnapshotFunction).toHaveBeenNthCalledWith(
+      2,
+      'get-mobile-staff-day-pings',
+      { staffId: 'a', date: '2026-05-18' },
+    );
+  });
 });
