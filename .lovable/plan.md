@@ -1,21 +1,34 @@
-## Mål
-Få previewn att faktiskt visa de återställda start-/sluttiderna, utan att ändra någon hem-/privatlogik.
+# Plan
 
-## Plan
-1. Verifiera vilken källa previewn använder just nu för raden i GPS-vyn.
-   - Jämför edge function-svaret med vad komponenten renderar.
-   - Bekräfta om felet ligger i stale deploy/cache eller i klientens datalager.
+Jag kommer fixa just problemet att **sluttiden missas när personen lämnar platsen**.
 
-2. Säkerställ att rätt version av `get-staff-gps-week-summary` används av previewn.
-   - Om edge-funktionen inte är deployad i den miljö previewn anropar: deploya rätt version.
-   - Om previewn har fastnat i gammal data: tvinga omhämtning/invalidiering på rätt React Query-nyckel eller restarta relevant preview-flöde.
+## Vad jag ändrar
 
-3. Validera exakt på den dag du pekade ut.
-   - Kontrollera att raden visar återställda tider från svaret.
-   - Bekräfta att endast start/slut påverkas och att övrig klassificering lämnas orörd.
+1. **Justerar besöksbyggaren i edge-funktionen**
+   - Går igenom logiken i `buildExactGeofenceVisits` i `snapshotCache.ts`.
+   - Säkerställer att ett geofence-besök stängs på rätt sista tid baserat på pings när personen lämnar platsen, istället för att kunna kapas för tidigt.
+
+2. **Behåller nuvarande regel för hem oförändrad**
+   - Jag rör inte logiken för hem/boende eller dagens synliga start/slut-fönster.
+   - Fokuset blir bara att rätt `UT`-tid visas för platsraden.
+
+3. **Lägger till test som låser beteendet hårt**
+   - Skapar/uppdaterar Deno-test som verifierar att ett besök på t.ex. FA Warehouse får korrekt sluttid när utgående pings finns.
+   - Testet ska fånga regressioner så samma fel inte återkommer.
+
+4. **Validerar i preview efter ändringen**
+   - Kör riktade tester.
+   - Verifierar i preview att raden i tabellen visar korrekt `UT`-tid mot de faktiska pingarna.
 
 ## Tekniska detaljer
-- `StaffGpsDayRow.tsx` renderar redan `summary.firstIso` och `summary.lastIso` direkt.
-- `useStaffGpsWeekSummary.ts` mappar också värdena rakt igenom utan extra tolkning.
-- Nätverkssnapshoten visar att backend-svaret redan innehåller de korrekta tiderna för 2026-05-18 (`06:55–22:29`).
-- Därför ska nästa steg fokusera på miljö/deploy/cache, inte ny affärslogik.
+
+- Trolig felkälla: `GeofenceVisitsTable` visar `visit.end`, och den kommer från serverns snapshot-builder.
+- Den relevanta koden sitter i:
+  - `supabase/functions/_shared/staff-gps/snapshotCache.ts`
+  - eventuellt testfil under `supabase/functions/get-staff-gps-week-summary/`
+- Ingen databasändring behövs.
+- Ingen ändring i UI-regler för hem, privat tid eller dagens headerfönster.
+
+## Resultat
+
+Efter ändringen ska platsraden visa den **verkliga sluttiden enligt pings**, så att `UT` inte stannar för tidigt när personen faktiskt lämnar senare.
