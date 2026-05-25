@@ -131,24 +131,37 @@ function fmtDuration(mins: number): string {
 }
 
 function mapSegmentsForDisplaySnapshot(segments: any[]): any[] {
-  return (segments ?? []).map((s) => ({
-    id: s.segmentKey,
-    segmentKey: s.segmentKey,
-    start: s.currentStartTime,
-    startedAt: s.currentStartTime,
-    end: s.currentEndTime,
-    endedAt: s.currentEndTime,
-    label: s.label,
-    type: s.type,
-    kind: s.kind,
-    minutes: s.durationMinutes,
-    durationMinutes: s.durationMinutes,
-    booking_id: s.matched?.kind === "booking" ? s.matched.id : null,
-    project_id: s.matched?.kind === "project" ? s.matched.id : null,
-    large_project_id: s.matched?.kind === "large_project" ? s.matched.id : null,
-    location_id: s.matched?.kind === "location" ? s.matched.id : null,
-    source: "mobile_gps_day_view_v2",
-  }));
+  return (segments ?? []).map((s) => {
+    const matchedKind = s.matched?.kind ?? null;
+    const matchedId = s.matched?.id ?? null;
+    const targetType: ManualTargetType =
+      matchedKind === "booking" ? "booking" :
+      matchedKind === "project" ? "project" :
+      matchedKind === "large_project" ? "large_project" :
+      matchedKind === "location" ? "location" : "other";
+    return {
+      id: s.segmentKey,
+      segmentKey: s.segmentKey,
+      start: s.currentStartTime,
+      startedAt: s.currentStartTime,
+      end: s.currentEndTime,
+      endedAt: s.currentEndTime,
+      label: s.label,
+      type: s.type,
+      kind: s.kind,
+      minutes: s.durationMinutes,
+      durationMinutes: s.durationMinutes,
+      booking_id: matchedKind === "booking" ? matchedId : null,
+      project_id: matchedKind === "project" ? matchedId : null,
+      large_project_id: matchedKind === "large_project" ? matchedId : null,
+      location_id: matchedKind === "location" ? matchedId : null,
+      assignment_id: null,
+      targetType,
+      targetId: matchedId,
+      warning: matchedKind == null && s.kind === "stay" ? "unmatched_gps_segment" : null,
+      source: "mobile_gps_day_view_v2",
+    };
+  });
 }
 
 Deno.serve(async (req: Request) => {
