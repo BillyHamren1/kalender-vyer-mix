@@ -47,8 +47,11 @@ export function StaffGpsDayRow({ day, dateStr, selected, summary, onClick }: Pro
   const dayMonth = format(day, 'd/M', { locale: sv });
   const hasData = !!summary && summary.pingsCount > 0;
   const hasRange = hasData && summary!.firstIso && summary!.lastIso;
-  // Visa endast segment ≥ 1 minut för att inte spamma raden.
-  const segments = (summary?.segments ?? []).filter((s) => s.minutes >= 1);
+  // Kända platser (work/private) visas alltid, även om de är < 1 min – ett kort
+  // lager-stopp innan direkt resa får aldrig döljas. Övriga segment kräver ≥1 min.
+  const segments = (summary?.segments ?? []).filter(
+    (s) => s.type === 'work' || s.type === 'private' || s.minutes >= 1,
+  );
 
   return (
     <button
@@ -108,23 +111,32 @@ export function StaffGpsDayRow({ day, dateStr, selected, summary, onClick }: Pro
 
       {segments.length > 0 && (
         <ul className="mt-1.5 space-y-0.5">
-          {segments.map((s, idx) => (
-            <li
-              key={`${s.start}-${idx}`}
-              className="flex items-baseline justify-between gap-3 text-[11.5px] leading-snug"
-            >
-              <span className="flex items-baseline gap-1.5 min-w-0">
-                <span className={cn('inline-block h-1.5 w-1.5 rounded-full shrink-0 translate-y-[-1px]', SEGMENT_DOT[s.type])} />
-                <span className={cn('truncate', SEGMENT_LABEL_COLOR[s.type])}>{s.label}</span>
-                <span className="text-[10px] tabular-nums text-muted-foreground/60 shrink-0">
-                  {formatStockholmHm(s.start)}–{formatStockholmHm(s.end)}
+          {segments.map((s, idx) => {
+            const isTravelish =
+              s.type === 'travel' || s.type === 'gps_gap' || s.type === 'unknown_place';
+            const from = s.fromLabel?.trim();
+            const to = s.toLabel?.trim();
+            const routeLabel = isTravelish && (from || to)
+              ? `${s.label} ${from ?? '—'} → ${to ?? '—'}`
+              : s.label;
+            return (
+              <li
+                key={`${s.start}-${idx}`}
+                className="flex items-baseline justify-between gap-3 text-[11.5px] leading-snug"
+              >
+                <span className="flex items-baseline gap-1.5 min-w-0">
+                  <span className={cn('inline-block h-1.5 w-1.5 rounded-full shrink-0 translate-y-[-1px]', SEGMENT_DOT[s.type])} />
+                  <span className={cn('truncate', SEGMENT_LABEL_COLOR[s.type])}>{routeLabel}</span>
+                  <span className="text-[10px] tabular-nums text-muted-foreground/60 shrink-0">
+                    {formatStockholmHm(s.start)}–{formatStockholmHm(s.end)}
+                  </span>
                 </span>
-              </span>
-              <span className="tabular-nums text-muted-foreground shrink-0">
-                {fmtDur(s.minutes)}
-              </span>
-            </li>
-          ))}
+                <span className="tabular-nums text-muted-foreground shrink-0">
+                  {fmtDur(s.minutes)}
+                </span>
+              </li>
+            );
+          })}
         </ul>
       )}
     </button>

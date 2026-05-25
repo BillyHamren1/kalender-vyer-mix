@@ -1,34 +1,47 @@
-# Plan
 
-Jag kommer fixa just problemet att **sluttiden missas när personen lämnar platsen**.
+## Mål
 
-## Vad jag ändrar
+I dagslistan på `/staff-management/gps-satellite-map` (komponenten `StaffGpsDayRow`) visar varje resa idag bara texten "Resa". Den ska istället visa **startplats → slutplats**, t.ex.:
 
-1. **Justerar besöksbyggaren i edge-funktionen**
-   - Går igenom logiken i `buildExactGeofenceVisits` i `snapshotCache.ts`.
-   - Säkerställer att ett geofence-besök stängs på rätt sista tid baserat på pings när personen lämnar platsen, istället för att kunna kapas för tidigt.
+```
+• Resa  FA Warehouse → Swedish game fair   11:20–11:58   38m
+```
 
-2. **Behåller nuvarande regel för hem oförändrad**
-   - Jag rör inte logiken för hem/boende eller dagens synliga start/slut-fönster.
-   - Fokuset blir bara att rätt `UT`-tid visas för platsraden.
+Dessutom: om personen **börjar dagen på lagret och sedan åker direkt** (inget besök innan), ska lagret alltid synas som ett eget segment ovanför resan – inte tappas eller smältas in i resan.
 
-3. **Lägger till test som låser beteendet hårt**
-   - Skapar/uppdaterar Deno-test som verifierar att ett besök på t.ex. FA Warehouse får korrekt sluttid när utgående pings finns.
-   - Testet ska fånga regressioner så samma fel inte återkommer.
+## Vad ändras
 
-4. **Validerar i preview efter ändringen**
-   - Kör riktade tester.
-   - Verifierar i preview att raden i tabellen visar korrekt `UT`-tid mot de faktiska pingarna.
+### 1. `src/lib/staff-gps/dayPartition.ts` + Deno-spegel `supabase/functions/_shared/staff-gps/dayPartition.ts`
 
-## Tekniska detaljer
+- Utöka `DaySegment` med två valfria fält: `fromLabel?: string | null`, `toLabel?: string | null`.
+- I `buildDayPartition`, när vi pushar ett `travel`-segment (via `classifyGap` returnerar `travel`), titta på `visits[i-1]` (besök precis innan gapet) och `visits[i]` (besök precis efter gapet) och sätt:
+  - `fromLabel = previousVisit.knownSite?.name ?? null`
+  - `toLabel   = nextVisit.knownSite?.name ?? null`
+- För travel-segmentet i slutet av dagen (efter sista visit, `cursor < winEnd`): `fromLabel = lastVisit?.knownSite?.name ?? null`, `toLabel = null`.
+- För travel-segmentet i början (om `cursor < firstVisit._s` och blir travel): `fromLabel = null`, `toLabel = firstVisit.knownSite?.name ?? null`.
+- Filerna måste hållas byte-för-byte identiska (utöver typ-importer) enligt befintlig regel.
 
-- Trolig felkälla: `GeofenceVisitsTable` visar `visit.end`, och den kommer från serverns snapshot-builder.
-- Den relevanta koden sitter i:
-  - `supabase/functions/_shared/staff-gps/snapshotCache.ts`
-  - eventuellt testfil under `supabase/functions/get-staff-gps-week-summary/`
-- Ingen databasändring behövs.
-- Ingen ändring i UI-regler för hem, privat tid eller dagens headerfönster.
+### 2. `src/components/staff/StaffGpsDayRow.tsx`
 
-## Resultat
+- För `s.type === 'travel'`: rendera label som `Resa  {fromLabel ?? '—'} → {toLabel ?? '—'}` istället för bara `s.label`.
+- Behåll layout, dot-färg, tider och `fmtDur` oförändrat. Trunkera elegant på smala skärmar (`truncate` finns redan).
 
-Efter ändringen ska platsraden visa den **verkliga sluttiden enligt pings**, så att `UT` inte stannar för tidigt när personen faktiskt lämnar senare.
+### 3. Lagervistelse-garanti (FÖRST på lager → åker direkt)
+
+- I `supabase/functions/_shared/staff-gps/snapshotCache.ts` (`buildExactGeofenceVisits`): säkerställ att en visit som börjar redan på dagens första inside-ping (`firstIso == visit.start`) **alltid** behålls även om längden är kort (>0 min). Inget min-duration-filter i exit-logiken för "första besöket på dagen".
+- I `StaffGpsDayRow.tsx`: ändra filtret `segments.filter((s) => s.minutes >= 1)` så att `work`/`private`-segment (kända platser) ALDRIG filtreras bort – bara `idle`/`gps_gap`/`unknown_place`/`travel` < 1 min får döljas. Då kan ett 30-sekunders lager-stopp innan resa fortfarande visas.
+
+## Tester (vitest + Deno test)
+
+- Nytt test i `src/lib/staff-gps/dayPartition.test.ts` (lägg till om saknas):
+  - "travel-segment får fromLabel och toLabel från angränsande visits"
+  - "första travel-segment utan föregående visit har fromLabel=null, toLabel=nästa plats"
+  - "lager → direkt resa (warehouse-visit slutar exakt där travel-gap börjar) → båda segmenten finns kvar"
+- Kör befintlig svit + snapshot-cache-tester (`supabase--test_edge_functions` på `_shared/staff-gps`).
+- Kör `bash scripts/test-time-reporting.sh` om relevant.
+
+## Vad ändras INTE
+
+- Inga DB-migrationer.
+- Inget annat UI (mobil `MyDayTimeline`, admin `DayBlockTimelineView`, `StaffTimeReportsList`) – endast `StaffGpsDayRow` enligt skärmdumpen.
+- Ingen ny exit-tröskel utöver det vi redan diskuterat.
