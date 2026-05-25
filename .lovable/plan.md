@@ -1,20 +1,24 @@
+# Plan
+
 ## Mål
-Lägg till en knapp i Geofence-besök-panelen på `/staff-management/gps-satellite-map` som visar **alla** pings för hela den valda dagen (inte bara per besök).
+Se till att projekt/bokningar som inte är aktiva för dagen, särskilt `OFFER`/avbokade som TAVET, aldrig dyker upp i GPS-dags- eller veckosummeringen.
 
-## Var
-`src/components/staff/StaffGpsSatelliteMap.tsx` — `GeofenceVisitsTable`-headern (där det idag står "Klicka på en rad för att se alla pings").
+## Vad jag kommer att ändra
+1. Skärpa serverns urval i `loadDayKnownSites` så att bokningar med icke-aktiva statusar inte får bidra med geofence/pin eller härleda projekt för GPS-snapshoten.
+2. Säkerställa att bokningsstatus tolkas konsekvent med befintlig statusnormalisering (`OFFER`, `CANCELLED`, avbokad-varianter), inte bara projektets egen status.
+3. Lägga till/uppdatera kontraktstest som låser att en bokning med status `OFFER` eller avbokad inte kan bli en känd plats eller synas i summeringen.
+4. Validera i preview/test att TAVET inte längre visas i dagens sammanställning men att riktiga aktiva projekt fortfarande syns.
 
-## Vad
-1. Skicka in dagens fullständiga pings (`snapshotQuery.data?.pings`) till `GeofenceVisitsTable` som ny prop `allDayPings`.
-2. Lägg till en knapp "Visa alla pings för dagen ({n})" i panelens header bredvid räknaren.
-3. När den klickas, expanderas en sektion under tabellen (eller överst) som återanvänder samma render-tabell som `VisitPingsDetail` — ren ping-lista (#, Tid, Lat, Lng, Acc, Karta) med max-höjd + scroll.
-4. State `showAllPings` lokalt i `GeofenceVisitsTable`. Toggle visar/döljer.
-5. Refaktorera ping-tabellen i `VisitPingsDetail` till en liten intern komponent `PingsTable` som tar `pings: StaffGpsSnapshotVisitPing[]` (eller motsvarande shape), så både besök-detalj och dag-vyn delar exakt samma rendering.
+## Varför detta behövs
+Just nu filtreras projektstatus i serverkoden, men bokningsspåret som bygger upp dagens kända platser släpper igenom bokningar som fortfarande finns länkade men inte är bekräftade. Det gör att en offert/avbokad bokning kan smyga in i GPS-snapshoten trots att den inte ska vara arbetsplats för dagen.
 
-## Ingen ändring av datalogik
-- Inga nya queries — pings finns redan i `snapshotQuery.data.pings` (samma snapshot som kartan).
-- Påverkar inte Single Source-policyn, snapshot-cachen eller `known-sites-date-bound`-regeln.
-- Inga edge functions, ingen DB-ändring.
+## Teknisk detalj
+- Berörda filer:
+  - `supabase/functions/_shared/staff-gps/dayKnownSites.ts`
+  - relevant testfil för kontraktet kring known sites / GPS-summering
+- Jag håller mig till befintlig policy: datumkänsliga kända platser, inga org-breda projektsvep, och tydlig spärr mot icke-aktiva bokningar.
+- Ingen DB-migration behövs.
 
-## Filer
-- `src/components/staff/StaffGpsSatelliteMap.tsx` (edit)
+## Validering
+- Köra riktade tester för known-sites/GPS-kontrakt.
+- Kontrollera preview-/snapshotflödet så att TAVET försvinner ur summeringen utan att dagspings-funktionen påverkas.
