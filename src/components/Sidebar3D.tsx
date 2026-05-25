@@ -9,7 +9,6 @@ import {
   FolderKanban,
   PieChart,
   Truck,
-  Clock,
   MapPin,
   Wallet,
   ExternalLink,
