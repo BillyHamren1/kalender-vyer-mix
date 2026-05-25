@@ -2,6 +2,7 @@
 // Reuses staff_gps_day_snapshots so admin week view + mobile day view never
 // re-paginate staff_location_history when nothing has changed.
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { loadDayKnownSites } from "./dayKnownSites.ts";
 
 export interface PingRow {
   id: string;
