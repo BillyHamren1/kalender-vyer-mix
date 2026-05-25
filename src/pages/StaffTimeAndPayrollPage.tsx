@@ -1,18 +1,20 @@
 import React, { useMemo } from "react";
-import { useSearchParams, Link } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import {
   CalendarClock,
   LayoutDashboard,
   Clock,
   ClipboardCheck,
   Wallet,
-  ArrowRight,
 } from "lucide-react";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { Card } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { Tabs as SubTabs, TabsList as SubTabsList, TabsTrigger as SubTabsTrigger, TabsContent as SubTabsContent } from "@/components/ui/tabs";
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@/components/ui/tabs";
 
 import StaffTimeApprovalsPageContent from "@/components/staff-time-approvals/StaffTimeApprovalsPageContent";
 import PayrollMonthReportPageContent from "@/components/staff-payroll-month/PayrollMonthReportPageContent";
@@ -103,22 +105,22 @@ const StaffTimeAndPayrollPage: React.FC = () => {
 
 const PayrollSubTabs: React.FC = () => {
   return (
-    <SubTabs defaultValue="month" className="w-full">
-      <SubTabsList>
-        <SubTabsTrigger value="month">Månadsrapport</SubTabsTrigger>
-        <SubTabsTrigger value="periods">Löneperioder</SubTabsTrigger>
-      </SubTabsList>
-      <SubTabsContent value="month" className="mt-3">
+    <Tabs defaultValue="month" className="w-full">
+      <TabsList>
+        <TabsTrigger value="month">Månadsrapport</TabsTrigger>
+        <TabsTrigger value="periods">Löneperioder</TabsTrigger>
+      </TabsList>
+      <TabsContent value="month" className="mt-3">
         <Card className="overflow-hidden">
           <PayrollMonthReportPageContent embedded />
         </Card>
-      </SubTabsContent>
-      <SubTabsContent value="periods" className="mt-3">
+      </TabsContent>
+      <TabsContent value="periods" className="mt-3">
         <Card className="overflow-hidden">
           <StaffPayrollPeriodsContent />
         </Card>
-      </SubTabsContent>
-    </SubTabs>
+      </TabsContent>
+    </Tabs>
   );
 };
 
