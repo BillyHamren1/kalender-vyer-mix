@@ -33,12 +33,23 @@ interface RequestBody {
   toDate?: unknown;
 }
 
+interface DayVisit {
+  knownSiteId: string | null;
+  name: string;
+  /** 'location' | 'project' | 'large_project' | 'unknown' */
+  type: string;
+  inIso: string;
+  outIso: string;
+  durationMin: number;
+}
+
 interface DaySummary {
   pingsCount: number;
   firstIso: string | null;
   lastIso: string | null;
   durationMin: number;
   placeNames: string[];
+  visits: DayVisit[];
 }
 
 function bad(status: number, error: string, extra: Record<string, unknown> = {}) {
@@ -170,9 +181,25 @@ Deno.serve(async (req) => {
     const durationMin = sorted.reduce((acc, v) => acc + Math.max(0, v.durationMin || 0), 0);
     const seen = new Set<string>();
     const placeNames: string[] = [];
+    const visits: DayVisit[] = [];
     for (const v of sorted) {
-      const n = v.knownSite?.name;
+      const n = v.knownSite?.name ?? null;
+      const sid = v.knownSite?.id ?? null;
       if (n && !seen.has(n)) { seen.add(n); placeNames.push(n); }
+      let type = "unknown";
+      if (sid) {
+        if (sid.startsWith("loc:")) type = "location";
+        else if (sid.startsWith("project:")) type = "project";
+        else if (sid.startsWith("large:")) type = "large_project";
+      }
+      visits.push({
+        knownSiteId: sid,
+        name: n ?? "Okänd plats",
+        type,
+        inIso: v.start,
+        outIso: v.end,
+        durationMin: Math.max(0, v.durationMin || 0),
+      });
     }
     if (!summaries[staffId]) summaries[staffId] = {};
     summaries[staffId][dateKey] = {
@@ -181,6 +208,7 @@ Deno.serve(async (req) => {
       lastIso,
       durationMin,
       placeNames,
+      visits,
     };
   }
 
