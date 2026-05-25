@@ -78,6 +78,11 @@ export interface ActualTravelLogInput {
   end_iso: string | null;
   fromAddress: string | null;
   toAddress: string | null;
+  fromLatitude?: number | null;
+  fromLongitude?: number | null;
+  toLatitude?: number | null;
+  toLongitude?: number | null;
+  description?: string | null;
   approved: boolean;
   autoDetected: boolean;
   /** 'gap_derived' / 'gps' / 'manual' / null. */
