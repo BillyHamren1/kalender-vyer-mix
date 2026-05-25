@@ -191,6 +191,7 @@ Deno.serve(async (req) => {
         if (sid.startsWith("loc:")) type = "location";
         else if (sid.startsWith("project:")) type = "project";
         else if (sid.startsWith("large:")) type = "large_project";
+        else if (sid.startsWith("booking:")) type = "project";
       }
       dayVisits.push({
         knownSiteId: sid,

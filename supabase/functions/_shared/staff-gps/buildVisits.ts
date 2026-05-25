@@ -158,7 +158,7 @@ export async function loadOrgGeofences(
   const dates = (opts.dates ?? []).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
   const hasDateFilter = dates.length > 0;
 
-  const [locsRes, projRes, largeBookingsRes] = await Promise.all([
+  const [locsRes, projRes, largeBookingsRes, bookingsRes] = await Promise.all([
     admin
       .from("organization_locations")
       .select(
@@ -173,7 +173,7 @@ export async function loadOrgGeofences(
       ? admin
           .from("projects")
           .select(
-            "id, name, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon, deleted_at, eventdate, rigdaydate, rigdowndate, is_internal",
+            "id, name, booking_id, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon, deleted_at, eventdate, rigdaydate, rigdowndate, is_internal",
           )
           .eq("organization_id", orgId)
           .is("deleted_at", null)
@@ -191,7 +191,7 @@ export async function loadOrgGeofences(
       : admin
           .from("projects")
           .select(
-            "id, name, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon, deleted_at, eventdate, rigdaydate, rigdowndate, is_internal",
+            "id, name, booking_id, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon, deleted_at, eventdate, rigdaydate, rigdowndate, is_internal",
           )
           .eq("organization_id", orgId)
           .is("deleted_at", null)
@@ -205,6 +205,26 @@ export async function loadOrgGeofences(
           .select("large_project_id, eventdate, rigdaydate, rigdowndate")
           .eq("organization_id", orgId)
           .not("large_project_id", "is", null)
+          .or(
+            [
+              `eventdate.in.(${dates.join(",")})`,
+              `rigdaydate.in.(${dates.join(",")})`,
+              `rigdowndate.in.(${dates.join(",")})`,
+            ].join(","),
+          )
+          .limit(20000)
+      : Promise.resolve({ data: [] as any[] }),
+    // Bokningens EGNA pin (fallback när projekt saknas/inte datumvalid).
+    // Speglar useDayKnownSites: bokningar inom datumspannet med koordinater.
+    hasDateFilter
+      ? admin
+          .from("bookings")
+          .select(
+            "id, client, booking_number, delivery_latitude, delivery_longitude, large_project_id, eventdate, rigdaydate, rigdowndate",
+          )
+          .eq("organization_id", orgId)
+          .not("delivery_latitude", "is", null)
+          .not("delivery_longitude", "is", null)
           .or(
             [
               `eventdate.in.(${dates.join(",")})`,
@@ -309,10 +329,45 @@ export async function loadOrgGeofences(
     });
   }
 
+  // Bokningens egen pin: bara där projekt inte redan backar bokningen
+  // (eller bokningen hör till ett large_project — då representeras platsen
+  // av large-fencen). Speglar useDayKnownSites-policy.
+  const projectBackedBookingIds = new Set<string>();
+  for (const r of ((projRes as any).data ?? []) as any[]) {
+    if (r.booking_id) projectBackedBookingIds.add(String(r.booking_id));
+  }
+  interface BookingFence { row: GeofenceRow; dates: Set<string> }
+  const bookingFences: BookingFence[] = [];
+  for (const b of ((bookingsRes as any).data ?? []) as any[]) {
+    const bid = b.id ? String(b.id) : null;
+    if (!bid) continue;
+    if (projectBackedBookingIds.has(bid)) continue;
+    if (b.large_project_id) continue;
+    const own = new Set<string>();
+    for (const d of [b.eventdate, b.rigdaydate, b.rigdowndate]) {
+      if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)) own.add(d);
+    }
+    if (own.size === 0) continue;
+    const label = b.booking_number
+      ? `${b.booking_number} · ${b.client ?? "Bokning"}`
+      : (b.client ?? "Bokning");
+    bookingFences.push({
+      row: {
+        id: `booking:${bid}`,
+        name: label,
+        lat: Number(b.delivery_latitude),
+        lng: Number(b.delivery_longitude),
+        radiusMeters: 200,
+      },
+      dates: own,
+    });
+  }
+
   const unionGeofences: GeofenceRow[] = [
     ...locFences,
     ...projFences.map((p) => p.row),
     ...largeFences.map((p) => p.row),
+    ...bookingFences.map((p) => p.row),
   ];
 
   const geofencesByDate = new Map<string, GeofenceRow[]>();
@@ -324,6 +379,9 @@ export async function loadOrgGeofences(
       }
       for (const p of largeFences) {
         if (p.dates === "ALL" || p.dates.has(d)) arr.push(p.row);
+      }
+      for (const p of bookingFences) {
+        if (p.dates.has(d)) arr.push(p.row);
       }
       geofencesByDate.set(d, arr);
     }
