@@ -101,12 +101,65 @@ export const useLargeProjectEconomy = (
     enabled: bookingIds.length > 0,
   });
 
-  // TOTALSANNING: LP-aggregerade Time Engine-block (samma cache som
-  // /staff-management/time-reports). Block matchas på large_project_id ELLER
-  // booking_id ∈ bookingIds, deduplicerade så inget block räknas dubbelt.
+  // PROGNOS-källa (Time Engine, staff_day_report_cache). Endast förslag.
   const { data: largeProjectHours } = useQuery({
     queryKey: ['large-project-hours', largeProjectId, bookingIds],
     queryFn: () => fetchLargeProjectHoursSummary(largeProjectId!, bookingIds),
+    enabled: !!largeProjectId,
+  });
+
+  // FAKTISK godkänd personalkostnad — project_staff_time_cost_lines för
+  // large_project_id ELLER booking_id ∈ bookingIds. Servicen dedupar på row.id.
+  const { data: approvedLpCostSummaries } = useQuery({
+    queryKey: ['large-project-approved-staff-cost', largeProjectId, bookingIds],
+    queryFn: async () => {
+      const results = await Promise.all([
+        fetchApprovedProjectStaffTimeCostSummary({ large_project_id: largeProjectId ?? null }),
+        ...bookingIds.map((bId) =>
+          fetchApprovedProjectStaffTimeCostSummary({ booking_id: bId }),
+        ),
+      ]);
+      // Dedupera på row.id över alla queries.
+      const seen = new Set<string>();
+      let approvedStaffHours = 0;
+      let approvedStaffCost = 0;
+      const byStaff = new Map<string, { staff_id: string; staff_name: string | null; totalMinutes: number; totalCost: number }>();
+      const byDate = new Map<string, { date: string; totalMinutes: number; totalCost: number; staff: Set<string> }>();
+      for (const sum of results) {
+        for (const r of sum.rows) {
+          if (seen.has(r.id)) continue;
+          seen.add(r.id);
+          approvedStaffHours += r.hours;
+          approvedStaffCost += r.cost;
+          const s = byStaff.get(r.staff_id) ?? { staff_id: r.staff_id, staff_name: r.staff_name, totalMinutes: 0, totalCost: 0 };
+          s.totalMinutes += r.minutes;
+          s.totalCost += r.cost;
+          if (!s.staff_name && r.staff_name) s.staff_name = r.staff_name;
+          byStaff.set(r.staff_id, s);
+          const d = byDate.get(r.date) ?? { date: r.date, totalMinutes: 0, totalCost: 0, staff: new Set<string>() };
+          d.totalMinutes += r.minutes;
+          d.totalCost += r.cost;
+          d.staff.add(r.staff_id);
+          byDate.set(r.date, d);
+        }
+      }
+      return {
+        approvedStaffHours: +approvedStaffHours.toFixed(2),
+        approvedStaffCost,
+        byStaff: Array.from(byStaff.values())
+          .map((s) => ({ ...s, totalHours: +(s.totalMinutes / 60).toFixed(2) }))
+          .sort((a, b) => b.totalMinutes - a.totalMinutes),
+        byDate: Array.from(byDate.values())
+          .map((d) => ({
+            date: d.date,
+            totalMinutes: d.totalMinutes,
+            totalHours: +(d.totalMinutes / 60).toFixed(2),
+            totalCost: d.totalCost,
+            staffCount: d.staff.size,
+          }))
+          .sort((a, b) => a.date.localeCompare(b.date)),
+      };
+    },
     enabled: !!largeProjectId,
   });
   const aggregatedBookingEconomy: AggregatedBookingEconomy = (() => {
