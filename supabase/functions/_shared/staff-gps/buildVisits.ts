@@ -293,10 +293,27 @@ export async function loadOrgGeofences(
     if (r.is_private_residence === true) privateIds.add(id);
   }
 
+  // BEKRÄFTADE bokningar inom datum-spannet (för project-gate och booking-pin).
+  const confirmedBookingIds = new Set<string>();
+  for (const b of ((bookingsRes as any).data ?? []) as any[]) {
+    if (b.id) confirmedBookingIds.add(String(b.id));
+  }
+  for (const b of ((largeBookingsRes as any).data ?? []) as any[]) {
+    // largeBookingsRes saknar id → vi vet bara att large_project_id är CONFIRMED-bundet
+  }
+
   // Per-projekt: bestäm vilka datum det "äger" (intern → alla; annars sina egna).
+  // Projektet räknas som känd plats ENDAST om dess booking är BEKRÄFTAD,
+  // eller om projektet är internt (Lager etc).
   interface ProjFence { row: GeofenceRow; dates: Set<string> | "ALL" }
   const projFences: ProjFence[] = [];
   for (const r of ((projRes as any).data ?? []) as any[]) {
+    const isInternal = r.is_internal === true;
+    const bookingId = r.booking_id ? String(r.booking_id) : null;
+    if (!isInternal && hasDateFilter) {
+      // Booking måste vara bekräftad för att projektet ska räknas.
+      if (!bookingId || !confirmedBookingIds.has(bookingId)) continue;
+    }
     const fence: GeofenceRow = {
       id: `project:${r.id}`,
       name: String(r.name ?? "Projekt"),
@@ -305,7 +322,7 @@ export async function loadOrgGeofences(
       radiusMeters: Number(r.address_radius_meters ?? 75),
       polygon: r.address_geofence_mode === "polygon" ? r.address_geofence_polygon : undefined,
     };
-    if (r.is_internal === true) {
+    if (isInternal) {
       projFences.push({ row: fence, dates: "ALL" });
     } else {
       const own = new Set<string>();
@@ -315,6 +332,7 @@ export async function loadOrgGeofences(
       projFences.push({ row: fence, dates: own });
     }
   }
+
 
   const largeFences: { row: GeofenceRow; dates: Set<string> | "ALL" }[] = [];
   for (const r of largeRows) {
