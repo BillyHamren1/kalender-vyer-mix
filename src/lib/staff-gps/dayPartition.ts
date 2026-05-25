@@ -180,6 +180,7 @@ export function buildDayPartition(input: {
     });
   };
 
+  let prevVisit: typeof visits[number] | null = null;
   for (const v of visits) {
     if (v._s > cursor) {
       const { type, label } = classifyGap(cursor, v._s, pings);
@@ -188,10 +189,13 @@ export function buildDayPartition(input: {
         start: toIso(cursor),
         end: toIso(v._s),
         minutes: 0,
+        fromLabel: prevVisit?.knownSite?.name ?? null,
+        toLabel: v.knownSite?.name ?? null,
       });
     }
     pushVisit(v);
     cursor = Math.max(cursor, v._e);
+    prevVisit = v;
   }
   if (cursor < winEnd) {
     const { type, label } = classifyGap(cursor, winEnd, pings);
@@ -200,6 +204,8 @@ export function buildDayPartition(input: {
       start: toIso(cursor),
       end: toIso(winEnd),
       minutes: 0,
+      fromLabel: prevVisit?.knownSite?.name ?? null,
+      toLabel: null,
     });
   }
 
