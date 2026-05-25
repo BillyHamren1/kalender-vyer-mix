@@ -313,25 +313,27 @@ export const ApprovalDashboardStrip: React.FC<Props> = ({ onOpenStaff }) => {
           {Array.from({ length: 8 }).map((_, i) => (
             <div
               key={i}
-              className="h-[164px] rounded-2xl border border-border/60 bg-card/60 overflow-hidden relative"
+              className="h-[164px] rounded-2xl border border-border/60 bg-gradient-to-br from-card via-card to-muted/30 overflow-hidden relative animate-pulse"
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-muted/40 via-transparent to-muted/20" />
-              <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.8s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent" />
-              <div className="relative p-3.5 flex items-start gap-2.5">
-                <div className="h-10 w-10 rounded-full bg-muted/60" />
+              <div className="p-3.5 flex items-start gap-2.5">
+                <div className="h-10 w-10 rounded-full bg-muted/70" />
                 <div className="flex-1 space-y-2 pt-1">
-                  <div className="h-3 w-2/3 rounded bg-muted/60" />
-                  <div className="h-2.5 w-1/2 rounded bg-muted/40" />
+                  <div className="h-3 w-2/3 rounded bg-muted/70" />
+                  <div className="h-2.5 w-1/2 rounded bg-muted/50" />
                 </div>
               </div>
-              <div className="relative px-3.5 mt-1 grid grid-cols-3 gap-1.5">
-                <div className="h-10 rounded-lg bg-muted/40" />
-                <div className="h-10 rounded-lg bg-muted/40" />
-                <div className="h-10 rounded-lg bg-muted/40" />
+              <div className="px-3.5 mt-1 grid grid-cols-3 gap-1.5">
+                <div className="h-10 rounded-lg bg-muted/50" />
+                <div className="h-10 rounded-lg bg-muted/50" />
+                <div className="h-10 rounded-lg bg-muted/50" />
+              </div>
+              <div className="px-3.5 mt-2.5">
+                <div className="h-7 rounded-md bg-muted/40" />
               </div>
             </div>
           ))}
         </div>
+
       ) : rows.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border/60 bg-card/40 px-5 py-10 text-center">
           <CheckCircle2 className="h-10 w-10 mx-auto text-emerald-500/70 mb-2" />
