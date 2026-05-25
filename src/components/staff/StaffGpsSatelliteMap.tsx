@@ -268,19 +268,26 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
         </div>
 
         {/* Geofence-besök — exakt IN/UT per stängsel (privata boenden döljs) */}
-        <GeofenceVisitsTable visits={visibleGeofenceVisits} />
+        <GeofenceVisitsTable visits={visibleGeofenceVisits} allDayPings={snapshotQuery.data?.pings ?? []} />
       </div>
     </div>
   );
 }
 
 
-function GeofenceVisitsTable({ visits }: { visits: PlaceVisit[] }) {
+type PingRow = { recorded_at: string; lat: number; lng: number; accuracy?: number | null };
+
+function GeofenceVisitsTable({ visits, allDayPings }: { visits: PlaceVisit[]; allDayPings: PingRow[] }) {
   const sorted = useMemo(
     () => [...visits].sort((a, b) => a.start.localeCompare(b.start)),
     [visits],
   );
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [showAllPings, setShowAllPings] = useState(false);
+  const sortedAllPings = useMemo(
+    () => [...allDayPings].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at)),
+    [allDayPings],
+  );
   return (
     <div className="planning-card overflow-hidden">
       <div className="px-4 py-3 border-b border-[hsl(270_20%_90%)] flex items-center justify-between bg-[hsl(270_35%_98%)]">
@@ -288,8 +295,22 @@ function GeofenceVisitsTable({ visits }: { visits: PlaceVisit[] }) {
           <span className="planning-section-title">Geofence-besök</span>
           <span className="planning-badge">{sorted.length}</span>
         </div>
-        <span className="text-[11px] text-muted-foreground">Klicka på en rad för att se alla pings</span>
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] text-muted-foreground hidden sm:inline">Klicka på en rad för att se alla pings</span>
+          <button
+            type="button"
+            onClick={() => setShowAllPings(v => !v)}
+            className="text-[11px] px-2.5 py-1 rounded border border-[hsl(270_25%_85%)] bg-white hover:bg-[hsl(270_45%_96%)] transition-colors font-medium text-foreground/80"
+          >
+            {showAllPings ? 'Dölj' : 'Visa'} alla pings för dagen ({sortedAllPings.length})
+          </button>
+        </div>
       </div>
+      {showAllPings && (
+        <div className="border-b border-[hsl(270_20%_90%)] bg-[hsl(270_45%_98%)]">
+          <PingsTable pings={sortedAllPings} />
+        </div>
+      )}
       <div className="max-h-[60vh] overflow-auto">
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-[hsl(270_18%_92%)]">
@@ -341,7 +362,13 @@ function GeofenceVisitsTable({ visits }: { visits: PlaceVisit[] }) {
                   {isOpen && (
                     <tr className="bg-[hsl(270_45%_98%)]">
                       <td colSpan={7} className="px-0 py-0">
-                        <VisitPingsDetail visit={v} />
+                        <div className="px-6 py-3 border-t border-[hsl(270_25%_90%)]">
+                          <div className="text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground mb-2 flex items-center gap-2">
+                            <span>Alla pings för detta besök</span>
+                            <span className="planning-badge">{v.pings?.length ?? 0}</span>
+                          </div>
+                          <PingsTable pings={v.pings ?? []} />
+                        </div>
                       </td>
                     </tr>
                   )}
@@ -358,14 +385,9 @@ function GeofenceVisitsTable({ visits }: { visits: PlaceVisit[] }) {
   );
 }
 
-function VisitPingsDetail({ visit }: { visit: PlaceVisit }) {
-  const pings = visit.pings ?? [];
+function PingsTable({ pings }: { pings: PingRow[] }) {
   return (
-    <div className="px-6 py-3 border-t border-[hsl(270_25%_90%)]">
-      <div className="text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground mb-2 flex items-center gap-2">
-        <span>Alla pings för detta besök</span>
-        <span className="planning-badge">{pings.length}</span>
-      </div>
+    <div className="px-6 py-3">
       <div className="max-h-[40vh] overflow-auto rounded border border-[hsl(270_20%_92%)] bg-white">
         <table className="w-full text-[11px]">
           <thead className="sticky top-0 bg-[hsl(270_35%_97%)] text-left text-[10px] uppercase tracking-[0.05em] text-muted-foreground">
