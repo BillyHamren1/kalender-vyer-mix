@@ -185,7 +185,7 @@ const MobileWeekView = ({
                       </span>
                       {items.length > 0 && (
                         <span className="text-[11px] font-mono text-muted-foreground">
-                          {formatHm(totalMinutes)} · {items.length} {items.length === 1 ? (t('calendar.job') || 'jobb') : (t('calendar.jobs') || 'jobb')}
+                          {formatHm(totalMinutes)} · {items.length} {items.length === 1 ? 'jobb' : 'jobb'}
                         </span>
                       )}
                       {firstStart && (
