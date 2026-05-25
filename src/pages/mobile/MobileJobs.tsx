@@ -57,10 +57,9 @@ const MobileJobs = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
   useEffect(() => { localStorage.setItem(VIEW_MODE_KEY, viewMode); }, [viewMode]);
 
-  const { orgLocations } = useGeofencingContext();
-
-  // Fixed locations that should appear as job cards (read-only)
-  const locationJobs = orgLocations.filter(loc => loc.show_as_project === true);
+  // Fixed locations är inte längre en egen huvudsektion i Jobs-vyn.
+  // De dyker upp kontextuellt i vald dags segmentlista (Time v2) och
+  // i tidrapporten — inte som statisk lista här.
 
   // Time Legacy Purge 6 — geofenceEvent renderas inte längre som popup. GPS
   // pings/evidence skickas fortfarande via useBackgroundLocationReporter +
