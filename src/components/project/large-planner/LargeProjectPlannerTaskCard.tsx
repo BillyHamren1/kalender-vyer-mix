@@ -13,7 +13,7 @@ import type {
   LargeProjectPlannerBooking,
   LargeProjectPlannerStaffMember,
 } from './largeProjectPlannerTypes';
-import { PLANNER_DND_MIME, writeDragPayload, type PlannerDragPayload } from './plannerDnd';
+import { writeDragPayload, type PlannerDragPayload } from './plannerDnd';
 
 interface Props {
   item: LargeProjectBookingPlanItem;
