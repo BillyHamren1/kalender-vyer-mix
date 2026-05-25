@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { List, Users, CalendarDays, ClipboardList, Table as TableIcon } from "lucide-react";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
 import LargeProjectBookingPlannerCalendar from "@/components/project/large-planner/LargeProjectBookingPlannerCalendar";
+import ProjectCalendarView from "@/components/project/ProjectCalendarView";
 import LargeProjectExcelView from "@/components/project/LargeProjectExcelView";
 import ProjectControlPanel from "@/components/project/planning/ProjectControlPanel";
 import type { OverviewFilter } from "@/components/project/planning/ProjectControlPanel";
