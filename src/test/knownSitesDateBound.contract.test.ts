@@ -46,11 +46,17 @@ describe('Known Sites Date Bound — contract', () => {
     expect(src).toMatch(/cancelled|avbokat/);
     // Must NOT pull projects org-wide without booking/project id filter.
     expect(src).not.toMatch(/from\(["']projects["']\)[\s\S]{0,200}\.eq\(["']organization_id["']/);
+    // LOCKED: bokningar i status OFFER/CANCELLED får inte bli känd plats.
+    expect(src).toMatch(/INACTIVE_BOOKING_STATUSES/);
+    expect(src).toMatch(/OFFER/);
+    expect(src).toMatch(/CANCELLED/);
   });
 
-  it('frontend useDayKnownSites still excludes cancelled projects', () => {
+  it('frontend useDayKnownSites still excludes cancelled projects and inactive bookings', () => {
     const src = fs.readFileSync(useDayKnownSitesPath, 'utf8');
     expect(src).toMatch(/cancelled/);
     expect(src).toMatch(/avbokat/);
+    expect(src).toMatch(/INACTIVE_BOOKING_STATUSES/);
+    expect(src).toMatch(/OFFER/);
   });
 });

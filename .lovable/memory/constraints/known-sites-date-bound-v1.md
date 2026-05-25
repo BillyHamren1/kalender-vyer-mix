@@ -28,6 +28,10 @@ ingen dagsfiltrering.
 - Att låta gamla, slutförda eller test-projekt få bli en "visit" i
   veckopanelen eller på kartan idag bara för att de ligger geografiskt
   nära en ping.
+- Att låta en bokning i status `OFFER`/`OFFERT`/`DRAFT`/`UTKAST`/
+  `CANCELLED`/`AVBOKAD`/`AVBOKAT` bli känd plats — varken via egen pin
+  eller genom att dra in sitt `assigned_project_id`/`large_project_id`.
+  Endast bekräftade/aktiva bokningar är arbete för dagen.
 
 ## Implementering (locked)
 
