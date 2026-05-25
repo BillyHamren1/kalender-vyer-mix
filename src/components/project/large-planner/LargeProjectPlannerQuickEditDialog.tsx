@@ -70,6 +70,8 @@ const LargeProjectPlannerQuickEditDialog = ({
   onOpenChange,
   item,
   staff,
+  getAllowedStaffForDate,
+  isStaffAllowedForDate,
   booking,
   updateItem,
   deleteItem,
