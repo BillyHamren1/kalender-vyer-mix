@@ -68,9 +68,12 @@ export interface DayTimelineBlock {
     | 'raw_private_residence'
     | 'merged_contiguous_same_target'
     | 'short_detour_attached_to_project'
+    | 'absorbed_same_target_sandwich'
     | 'manual_override'
     | 'night_no_heuristic';
-}
+  /** Max own GPS displacement (meters) across underlying segments. */
+  maxDisplacementM: number;
+
 
 export interface DayTimeline {
   staffId: UUID;
