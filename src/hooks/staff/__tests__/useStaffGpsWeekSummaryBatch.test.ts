@@ -26,15 +26,41 @@ const weekDays = [
   new Date('2026-05-20T00:00:00Z'),
 ];
 
+function snap(staffId: string, date: string, visits: any[], pings: any[] = []) {
+  return {
+    staffId,
+    date,
+    pings,
+    geofences: [],
+    visits,
+    hasGps: pings.length > 0,
+    lastUpdatedAt: `${date}T10:00:00Z`,
+    generatedAt: `${date}T10:00:00Z`,
+  };
+}
+
 describe('useStaffGpsWeekSummaryBatch', () => {
   beforeEach(() => {
     vi.mocked(callStaffSnapshotFunction).mockReset();
   });
 
-  it('gör ETT batch-anrop med sorterade staffIds och week range', async () => {
+  it('summerar från snapshot-batchen via samma logik som detaljvyn', async () => {
     vi.mocked(callStaffSnapshotFunction).mockResolvedValue({
-      summaries: {
-        'a': { '2026-05-18': { pingsCount: 5, firstIso: '2026-05-18T08:00:00Z', lastIso: '2026-05-18T16:00:00Z', durationMin: 300, placeNames: ['X'] } },
+      snapshots: {
+        a: {
+          '2026-05-18': snap('a', '2026-05-18', [
+            {
+              placeKey: 'project:alpha',
+              knownSite: { id: 'project:alpha', name: 'Handelsbanken · Tavet' },
+              centre: { lat: 1, lng: 2 },
+              start: '2026-05-18T08:00:00Z',
+              end: '2026-05-18T13:00:00Z',
+              durationMin: 300,
+              pingCount: 5,
+              pings: [],
+            },
+          ], [{ id: 'p', recorded_at: '2026-05-18T08:00:00Z', lat: 1, lng: 2, accuracy: 5 }]),
+        },
       },
       generatedAt: '2026-05-24T00:00:00Z',
     });
@@ -51,7 +77,13 @@ describe('useStaffGpsWeekSummaryBatch', () => {
       'get-staff-gps-week-summary',
       { staffIds: ['a', 'b', 'c'], fromDate: '2026-05-18', toDate: '2026-05-20' },
     );
-    expect(result.current.summaries.a['2026-05-18'].pingsCount).toBe(5);
+    const dayA = result.current.summaries.a['2026-05-18'];
+    expect(dayA.pingsCount).toBe(1);
+    expect(dayA.durationMin).toBe(300);
+    expect(dayA.placeNames).toEqual(['Handelsbanken · Tavet']);
+    expect(dayA.visits?.[0]?.name).toBe('Handelsbanken · Tavet');
+    // tomma dagar i intervallet finns med, utan visits
+    expect(result.current.summaries.a['2026-05-19'].visits).toEqual([]);
   });
 
   it('skippar anrop när staffIds är tom', () => {
@@ -65,47 +97,20 @@ describe('useStaffGpsWeekSummaryBatch', () => {
   it('faller tillbaka till dags-snapshots när batch-anropet misslyckas', async () => {
     vi.mocked(callStaffSnapshotFunction)
       .mockRejectedValueOnce(new Error('snapshot_failed'))
-      .mockResolvedValueOnce({
-        staffId: 'a',
-        date: '2026-05-18',
-        pings: [{ id: 'p1', recorded_at: '2026-05-18T08:00:00Z', lat: 1, lng: 2, accuracy: 10 }],
-        geofences: [],
-        visits: [
-          {
-            placeKey: 'project:alpha',
-            knownSite: { id: 'project:alpha', name: 'Alpha' },
-            centre: { lat: 1, lng: 2 },
-            start: '2026-05-18T08:00:00Z',
-            end: '2026-05-18T10:00:00Z',
-            durationMin: 120,
-            pingCount: 5,
-            pings: [],
-          },
-        ],
-        hasGps: true,
-        lastUpdatedAt: '2026-05-18T10:00:00Z',
-        generatedAt: '2026-05-18T10:00:00Z',
-      } as any)
-      .mockResolvedValueOnce({
-        staffId: 'a',
-        date: '2026-05-19',
-        pings: [],
-        geofences: [],
-        visits: [],
-        hasGps: false,
-        lastUpdatedAt: '2026-05-19T10:00:00Z',
-        generatedAt: '2026-05-19T10:00:00Z',
-      } as any)
-      .mockResolvedValueOnce({
-        staffId: 'a',
-        date: '2026-05-20',
-        pings: [],
-        geofences: [],
-        visits: [],
-        hasGps: false,
-        lastUpdatedAt: '2026-05-20T10:00:00Z',
-        generatedAt: '2026-05-20T10:00:00Z',
-      } as any);
+      .mockResolvedValueOnce(snap('a', '2026-05-18', [
+        {
+          placeKey: 'project:alpha',
+          knownSite: { id: 'project:alpha', name: 'Alpha' },
+          centre: { lat: 1, lng: 2 },
+          start: '2026-05-18T08:00:00Z',
+          end: '2026-05-18T10:00:00Z',
+          durationMin: 120,
+          pingCount: 5,
+          pings: [],
+        },
+      ]) as any)
+      .mockResolvedValueOnce(snap('a', '2026-05-19', []) as any)
+      .mockResolvedValueOnce(snap('a', '2026-05-20', []) as any);
 
     const { result } = renderHook(
       () => useStaffGpsWeekSummaryBatch(['a'], weekDays),

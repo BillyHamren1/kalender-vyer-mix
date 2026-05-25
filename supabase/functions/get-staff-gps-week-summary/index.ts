@@ -1,22 +1,18 @@
 // get-staff-gps-week-summary
 // ==========================
-// Batch-endpoint: ETT anrop returnerar dag-summary för många personal × hela
-// veckan. Ersätter N × 7 anrop till get-mobile-staff-day-pings i admin-vyn
-// /staff-management/gps-satellite-map (vecko-listan).
+// Batch-endpoint: ETT anrop returnerar FULLA dagssnapshots för många personal
+// × hela veckan — exakt samma payload-form som get-mobile-staff-day-pings,
+// bara hopslaget i en map. Det säkerställer att vecko-listan och detalj-vyn
+// inte kan avvika från varandra: de bygger på BYTE-IDENTISKT data.
 //
-// READ-ONLY. Endast privilegierade roller (admin/projekt/lager) — vanlig
-// mobile-token avvisas.
+// READ-ONLY. Endast privilegierade roller (admin/projekt/lager).
 //
-// Request body:
+// Request:
 //   { staffIds: string[], fromDate: 'YYYY-MM-DD', toDate: 'YYYY-MM-DD' }
 //
 // Response:
 //   {
-//     summaries: {
-//       [staffId]: {
-//         [dateKey]: { pingsCount, firstIso, lastIso, durationMin, placeNames[] }
-//       }
-//     },
+//     snapshots: { [staffId]: { [dateKey]: StaffGpsDaySnapshot } },
 //     generatedAt: string
 //   }
 import { corsHeaders } from "../_shared/cors.ts";
@@ -31,25 +27,6 @@ interface RequestBody {
   staffIds?: unknown;
   fromDate?: unknown;
   toDate?: unknown;
-}
-
-interface DayVisit {
-  knownSiteId: string | null;
-  name: string;
-  /** 'location' | 'project' | 'large_project' | 'unknown' */
-  type: string;
-  inIso: string;
-  outIso: string;
-  durationMin: number;
-}
-
-interface DaySummary {
-  pingsCount: number;
-  firstIso: string | null;
-  lastIso: string | null;
-  durationMin: number;
-  placeNames: string[];
-  visits: DayVisit[];
 }
 
 function bad(status: number, error: string, extra: Record<string, unknown> = {}) {
@@ -87,14 +64,10 @@ Deno.serve(async (req) => {
   const admin = auth.admin;
   const orgId = auth.organizationId;
 
-  // Endast privilegierade roller får batch:a andra personers GPS.
   const isPrivileged =
-    (auth.mode === "jwt" && auth.isPrivileged) ||
-    (auth.mode === "mobile"); // mobile-token kommer från admin-impersonering — extra check nedan
-
+    (auth.mode === "jwt" && auth.isPrivileged) || (auth.mode === "mobile");
   if (!isPrivileged) return bad(403, "Privileged role required");
 
-  // Verifiera att alla begärda staff tillhör samma org.
   const { data: staffRows, error: staffErr } = await admin
     .from("staff_members")
     .select("id, organization_id")
@@ -103,17 +76,15 @@ Deno.serve(async (req) => {
   if (staffErr) return bad(500, "Staff lookup failed", { details: staffErr.message });
   const validStaffIds = new Set((staffRows ?? []).map((r: any) => String(r.id)));
   if (validStaffIds.size === 0) {
-    return new Response(JSON.stringify({ summaries: {}, generatedAt: new Date().toISOString() }), {
+    return new Response(JSON.stringify({ snapshots: {}, generatedAt: new Date().toISOString() }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
   const safeStaffIds = staffIds.filter((id) => validStaffIds.has(id));
 
-  // Tidsspan (UTC). Date-bucketing per ping = recorded_at.slice(0,10).
   const startIso = `${fromDate}T00:00:00.000Z`;
   const endIso = `${toDate}T23:59:59.999Z`;
 
-  // Bygg lista av datum i intervallet (yyyy-mm-dd) för date-bound geofences.
   const allDates: string[] = [];
   {
     const start = new Date(`${fromDate}T00:00:00Z`);
@@ -123,14 +94,14 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Geofences: EN gång per request, datumbundna projekt/large_projects per dag.
-  const { geofences: unionGeofences, privateIds, geofencesByDate } = await loadOrgGeofences(
+  // Geofences: EN gång per request — exakt samma loader som detaljvyn.
+  const { geofences: unionGeofences, geofencesByDate } = await loadOrgGeofences(
     admin, orgId, { dates: allDates },
   );
 
-  // Pings: paginera EN bulk-query för alla staff i tidsspannet.
+  // Paginera bulk-pings.
   const PAGE = 1000;
-  const MAX_PAGES = 60; // tak 60k pings/vecka — räcker med god marginal.
+  const MAX_PAGES = 60;
   const allPings: Array<PingRow & { staff_id: string }> = [];
   let from = 0;
   for (let i = 0; i < MAX_PAGES; i++) {
@@ -168,53 +139,32 @@ Deno.serve(async (req) => {
     arr.push(p);
   }
 
-  // Bygg summary per bucket.
-  const summaries: Record<string, Record<string, DaySummary>> = {};
-  for (const [key, pings] of buckets.entries()) {
-    const [staffId, dateKey] = key.split("|");
-    const dayFences = geofencesByDate.get(dateKey) ?? unionGeofences;
-    const builtVisits = buildExactGeofenceVisits(pings, dayFences);
-    const visible = builtVisits.filter((v) => !(v.knownSite && privateIds.has(v.knownSite.id)));
-    const sorted = visible.sort((a, b) => a.start.localeCompare(b.start));
-    const firstIso = sorted[0]?.start ?? null;
-    const lastIso = sorted.length ? sorted[sorted.length - 1].end : null;
-    const durationMin = sorted.reduce((acc, v) => acc + Math.max(0, v.durationMin || 0), 0);
-    const seen = new Set<string>();
-    const placeNames: string[] = [];
-    const dayVisits: DayVisit[] = [];
-    for (const v of sorted) {
-      const n = v.knownSite?.name ?? null;
-      const sid = v.knownSite?.id ?? null;
-      if (n && !seen.has(n)) { seen.add(n); placeNames.push(n); }
-      let type = "unknown";
-      if (sid) {
-        if (sid.startsWith("loc:")) type = "location";
-        else if (sid.startsWith("project:")) type = "project";
-        else if (sid.startsWith("large:")) type = "large_project";
-        else if (sid.startsWith("booking:")) type = "project";
-      }
-      dayVisits.push({
-        knownSiteId: sid,
-        name: n ?? "Okänd plats",
-        type,
-        inIso: v.start,
-        outIso: v.end,
-        durationMin: Math.max(0, v.durationMin || 0),
-      });
+  const generatedAt = new Date().toISOString();
+  const snapshots: Record<string, Record<string, unknown>> = {};
+
+  // Bygg ETT snapshot per (staff, dag) — alla dagar i intervallet, även tomma —
+  // i exakt samma form som get-mobile-staff-day-pings returnerar.
+  for (const staffId of safeStaffIds) {
+    snapshots[staffId] = {};
+    for (const dateKey of allDates) {
+      const pings = buckets.get(`${staffId}|${dateKey}`) ?? [];
+      const dayFences = geofencesByDate.get(dateKey) ?? unionGeofences;
+      const visits = buildExactGeofenceVisits(pings, dayFences);
+      snapshots[staffId][dateKey] = {
+        staffId,
+        date: dateKey,
+        pings,
+        geofences: dayFences,
+        visits,
+        hasGps: pings.length > 0,
+        lastUpdatedAt: generatedAt,
+        generatedAt,
+      };
     }
-    if (!summaries[staffId]) summaries[staffId] = {};
-    summaries[staffId][dateKey] = {
-      pingsCount: pings.length,
-      firstIso,
-      lastIso,
-      durationMin,
-      placeNames,
-      visits: dayVisits,
-    };
   }
 
   return new Response(
-    JSON.stringify({ summaries, generatedAt: new Date().toISOString() }),
+    JSON.stringify({ snapshots, generatedAt }),
     { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
   );
 });
