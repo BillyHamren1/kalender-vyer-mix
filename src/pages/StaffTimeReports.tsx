@@ -2,7 +2,6 @@ import { Clock } from 'lucide-react';
 import { PageContainer } from '@/components/ui/PageContainer';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import TimeReportsOverviewTab from '@/components/staff-time-reports/TimeReportsOverviewTab';
 import StaffListTab from '@/components/staff-time-reports/StaffListTab';
 import PendingApprovalsTab from '@/components/staff-time-reports/PendingApprovalsTab';
 
@@ -22,16 +21,11 @@ const StaffTimeReports = () => {
     <PageContainer theme="purple">
       <PageHeader title="Tidrapporter" icon={Clock} variant="purple" />
 
-      <Tabs defaultValue="overview" className="mt-4">
+      <Tabs defaultValue="staff" className="mt-4">
         <TabsList>
-          <TabsTrigger value="overview">Översikt</TabsTrigger>
           <TabsTrigger value="staff">Personal</TabsTrigger>
           <TabsTrigger value="pending">Att attestera</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="overview" className="mt-4">
-          <TimeReportsOverviewTab />
-        </TabsContent>
 
         <TabsContent value="staff" className="mt-4">
           <StaffListTab />
