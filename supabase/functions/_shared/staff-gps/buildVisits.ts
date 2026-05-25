@@ -11,6 +11,8 @@ export interface PingRow {
   accuracy: number | null;
 }
 
+type PolygonGeo = { type: "Polygon"; coordinates: number[][][] };
+
 export interface GeofenceRow {
   id: string;
   name: string;
@@ -46,7 +48,7 @@ export function haversineMeters(
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(sa)));
 }
 
-function pointInPolygon(lng: number, lat: number, polygon: GeoJSON.Polygon): boolean {
+function pointInPolygon(lng: number, lat: number, polygon: PolygonGeo): boolean {
   const ring = polygon.coordinates[0];
   if (!ring || ring.length < 3) return false;
   let inside = false;
@@ -62,7 +64,7 @@ function pointInPolygon(lng: number, lat: number, polygon: GeoJSON.Polygon): boo
 }
 
 export function containsPing(site: GeofenceRow, ping: PingRow): boolean {
-  const polygon = site.polygon as GeoJSON.Polygon | undefined;
+  const polygon = site.polygon as PolygonGeo | undefined;
   if (polygon?.type === "Polygon") return pointInPolygon(ping.lng, ping.lat, polygon);
   return (
     haversineMeters(
