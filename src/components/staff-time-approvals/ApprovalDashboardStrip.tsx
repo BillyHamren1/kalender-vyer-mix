@@ -267,14 +267,19 @@ export const ApprovalDashboardStrip: React.FC<Props> = ({ onOpenStaff }) => {
     return { totalPending, totalAttention, totalNew: data?.totalNew24h ?? 0 };
   }, [rows, data]);
 
+  const activeCount = rows.filter((r) => r.urgency > 0).length;
+  const idleCount = rows.length - activeCount;
+
   return (
-    <section className="px-5 pt-4 pb-2">
-      <div className="flex items-center justify-between mb-2.5">
+    <section className="px-5 pt-4 pb-3">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          <Users className="h-4 w-4 text-primary" />
+          <div className="h-7 w-7 rounded-lg bg-primary/10 ring-1 ring-primary/20 flex items-center justify-center">
+            <Users className="h-3.5 w-3.5 text-primary" />
+          </div>
           <h3 className="text-sm font-semibold text-foreground">Personalstatus</h3>
           <span className="text-xs text-muted-foreground">
-            ({rows.length} med aktivitet)
+            {activeCount} aktiva · {idleCount} klara
           </span>
         </div>
         <div className="flex items-center gap-2 text-[11px]">
@@ -300,33 +305,47 @@ export const ApprovalDashboardStrip: React.FC<Props> = ({ onOpenStaff }) => {
       </div>
 
       {isLoading ? (
-        <div className="flex gap-3 overflow-hidden">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
+          {Array.from({ length: 8 }).map((_, i) => (
             <div
               key={i}
-              className="w-[260px] h-[156px] shrink-0 rounded-2xl bg-muted/30 animate-pulse"
-            />
+              className="h-[164px] rounded-2xl border border-border/60 bg-card/60 overflow-hidden relative"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-muted/40 via-transparent to-muted/20" />
+              <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.8s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent" />
+              <div className="relative p-3.5 flex items-start gap-2.5">
+                <div className="h-10 w-10 rounded-full bg-muted/60" />
+                <div className="flex-1 space-y-2 pt-1">
+                  <div className="h-3 w-2/3 rounded bg-muted/60" />
+                  <div className="h-2.5 w-1/2 rounded bg-muted/40" />
+                </div>
+              </div>
+              <div className="relative px-3.5 mt-1 grid grid-cols-3 gap-1.5">
+                <div className="h-10 rounded-lg bg-muted/40" />
+                <div className="h-10 rounded-lg bg-muted/40" />
+                <div className="h-10 rounded-lg bg-muted/40" />
+              </div>
+            </div>
           ))}
         </div>
       ) : rows.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border/60 bg-card/40 px-5 py-8 text-center">
-          <CheckCircle2 className="h-8 w-8 mx-auto text-emerald-500/70 mb-2" />
-          <div className="text-sm font-medium text-foreground">Allt är hanterat</div>
+        <div className="rounded-2xl border border-dashed border-border/60 bg-card/40 px-5 py-10 text-center">
+          <CheckCircle2 className="h-10 w-10 mx-auto text-emerald-500/70 mb-2" />
+          <div className="text-sm font-semibold text-foreground">Inga aktiva personer</div>
           <div className="text-xs text-muted-foreground mt-1">
-            Inga rapporter väntar attest just nu.
+            Lägg till personal för att se status här.
           </div>
         </div>
       ) : (
-        <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-border">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
           {rows.map((r) => (
-            <div key={r.staff_id} className="snap-start">
-              <StaffStatusCard row={r} onOpen={() => onOpenStaff?.(r.staff_id)} />
-            </div>
+            <StaffStatusCard key={r.staff_id} row={r} onOpen={() => onOpenStaff?.(r.staff_id)} />
           ))}
         </div>
       )}
     </section>
   );
 };
+
 
 export default ApprovalDashboardStrip;
