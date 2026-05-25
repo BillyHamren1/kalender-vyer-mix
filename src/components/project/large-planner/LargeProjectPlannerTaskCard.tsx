@@ -33,6 +33,14 @@ const STATUS_TONE: Record<LargeProjectBookingPlanItem['status'], string> = {
   blocked: 'bg-destructive/15 text-destructive',
 };
 
+const STATUS_RING: Record<LargeProjectBookingPlanItem['status'], string> = {
+  unplanned: 'border-dashed border-border/60',
+  planned: 'border-border/60',
+  in_progress: 'border-amber-500/50 ring-1 ring-amber-500/30',
+  done: 'border-emerald-500/40 opacity-70',
+  blocked: 'border-destructive/50 ring-1 ring-destructive/30 bg-destructive/5',
+};
+
 const STATUS_LABEL: Record<LargeProjectBookingPlanItem['status'], string> = {
   unplanned: 'Ej planerad',
   planned: 'Planerad',
