@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { addDays, endOfWeek, format, getISOWeek, startOfWeek } from "date-fns";
 import { sv } from "date-fns/locale";
+import { ClipboardCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   useStaffWeeklyTimeApprovals,
