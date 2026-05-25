@@ -551,11 +551,21 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     costOverrides,
     supplierInvoices,
     bookingEconomics,
-    // ── Time Engine staff hours (single source: staff_day_report_cache) ──
+    // ── Staff hours/costs ──
+    // PROGNOS (Time Engine, staff_day_report_cache) — endast förslag.
     projectHours,
-    reportedStaffHoursFromTimeEngine,
+    proposedStaffHoursFromTimeEngine,
+    proposedStaffCostFromTimeEngine,
     staffHoursByPerson,
     staffHoursByDay,
+    // FAKTISK godkänd (project_staff_time_cost_lines).
+    approvedStaffHours,
+    approvedStaffCost,
+    approvedStaffByPerson,
+    approvedStaffByDate,
+    staffHoursDiffMinutes,
+    // Bakåtkompatibel namn — pekar nu på godkänd kostnad/timmar.
+    reportedStaffHoursFromTimeEngine: approvedStaffHours,
     hoursSource,
     // ── Manuell extra labor (project_labor_costs) — separat ──
     manualExtraLaborRows,
