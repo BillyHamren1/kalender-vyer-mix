@@ -126,7 +126,14 @@ function buildExactGeofenceVisits(rawPings: PingRow[], sites: GeofenceRow[]): Vi
       if (fence) open = { site: fence, pings: [ping] };
       continue;
     }
-    if (fence && fence.id !== open.site.id) {
+    if (!fence) {
+      // Personen har lämnat geofencen. Stäng besöket på SISTA ping inne i
+      // fencen — annars skulle vi felaktigt absorbera utomhus-pings och
+      // skjuta UT-tiden framåt till nästa kända plats eller dagens slut.
+      flush();
+      continue;
+    }
+    if (fence.id !== open.site.id) {
       flush(ping.recorded_at);
       open = { site: fence, pings: [ping] };
       continue;
