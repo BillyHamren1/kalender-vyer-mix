@@ -33,12 +33,23 @@ interface RequestBody {
   toDate?: unknown;
 }
 
+interface DayVisit {
+  knownSiteId: string | null;
+  name: string;
+  /** 'location' | 'project' | 'large_project' | 'unknown' */
+  type: string;
+  inIso: string;
+  outIso: string;
+  durationMin: number;
+}
+
 interface DaySummary {
   pingsCount: number;
   firstIso: string | null;
   lastIso: string | null;
   durationMin: number;
   placeNames: string[];
+  visits: DayVisit[];
 }
 
 function bad(status: number, error: string, extra: Record<string, unknown> = {}) {
