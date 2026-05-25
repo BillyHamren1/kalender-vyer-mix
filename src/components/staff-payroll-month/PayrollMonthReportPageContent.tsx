@@ -8,8 +8,6 @@ import { Card } from "@/components/ui/card";
 import { FileText, AlertCircle } from "lucide-react";
 import {
   usePayrollMonthReport,
-  formatMinutes,
-  formatHoursDecimal,
   type PayrollStatusFilter,
 } from "@/hooks/staff/usePayrollMonthReport";
 import {
@@ -21,6 +19,7 @@ import PayrollMonthToolbar from "./PayrollMonthToolbar";
 import PayrollMonthSummaryCards from "./PayrollMonthSummaryCards";
 import PayrollMonthStaffTable from "./PayrollMonthStaffTable";
 import PayrollMonthStaffDetailDrawer from "./PayrollMonthStaffDetailDrawer";
+import PayrollMonthEmailDialog from "./PayrollMonthEmailDialog";
 
 const PayrollMonthReportPageContent: React.FC = () => {
   const [month, setMonth] = useState<Date>(() => new Date());
@@ -72,26 +71,13 @@ const PayrollMonthReportPageContent: React.FC = () => {
   };
 
   // ── Mejla rapport ────────────────────────────────────────────
+  const [mailOpen, setMailOpen] = useState(false);
   const handleMail = () => {
-    if (!data) return;
-    const subject = `Månadsrapport lön ${monthLabel}`;
-    const lines: string[] = [
-      `Månadsrapport lön — ${monthLabel}`,
-      `Period: ${data.monthStart} – ${data.monthEnd}`,
-      `Personal: ${data.totals.staffCount}`,
-      `Godkända dagar: ${data.totals.approvedDaysCount}`,
-      `Klar för utbetalning: ${data.totals.payrollApprovedDaysCount}`,
-      `Total tid: ${formatMinutes(data.totals.totalMinutes)}`,
-      "",
-      ...data.groups.map(
-        (g) =>
-          `${g.staff_name} — ${g.days_count} dagar — ${formatMinutes(
-            g.total_minutes,
-          )} (${formatHoursDecimal(g.total_minutes)} h)`,
-      ),
-    ];
-    const body = encodeURIComponent(lines.join("\n"));
-    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${body}`;
+    if (!data || data.groups.length === 0) {
+      toast.error("Det finns ingen godkänd tid att mejla.");
+      return;
+    }
+    setMailOpen(true);
   };
 
   return (
@@ -150,6 +136,12 @@ const PayrollMonthReportPageContent: React.FC = () => {
         month={monthStr}
         open={!!openGroup}
         onClose={() => setOpenStaffId(null)}
+      />
+
+      <PayrollMonthEmailDialog
+        open={mailOpen}
+        onClose={() => setMailOpen(false)}
+        report={data}
       />
     </div>
   );
