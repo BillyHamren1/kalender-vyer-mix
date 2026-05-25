@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { MapPin, ChevronDown } from 'lucide-react';
+import { MapPin, ChevronDown, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
-import type { StaffGpsWeekDaySummary } from '@/hooks/staff/useStaffGpsWeekSummaryBatch';
+import type { StaffGpsWeekDaySummary, StaffGpsWeekDayVisit } from '@/hooks/staff/useStaffGpsWeekSummaryBatch';
 import type { StaffMember } from '@/services/staffService';
+import StaffGpsDayInlineMap from './StaffGpsDayInlineMap';
 
 interface Props {
   staff: StaffMember;
@@ -15,7 +16,7 @@ interface Props {
   /** Per-dag summary (dateKey 'yyyy-MM-dd' → summary). Saknad nyckel = ingen data. */
   summariesByDate: Record<string, StaffGpsWeekDaySummary>;
   isLoading: boolean;
-  /** Öppnar karta inline på samma sida — anropas endast från "Visa karta"-knappen. */
+  /** Legacy: tar oss till detalj-sidan. Inline-kartan föredras. */
   onShowMap: (staffId: string, date: Date) => void;
 }
 
@@ -28,15 +29,58 @@ function fmtDur(min: number): string {
   return `${h}h ${m}m`;
 }
 
+function typeLabel(t: string): { text: string; tone: string } {
+  switch (t) {
+    case 'location':       return { text: 'Plats',         tone: 'bg-[hsl(270_45%_94%)] text-[hsl(280_45%_30%)] border-[hsl(270_30%_80%)]' };
+    case 'project':        return { text: 'Projekt',       tone: 'bg-[hsl(210_60%_94%)] text-[hsl(220_55%_30%)] border-[hsl(210_40%_78%)]' };
+    case 'large_project':  return { text: 'Stort projekt', tone: 'bg-[hsl(40_85%_92%)]  text-[hsl(30_70%_30%)]  border-[hsl(40_55%_78%)]'  };
+    default:               return { text: 'Okänt',         tone: 'bg-muted text-muted-foreground border-border' };
+  }
+}
+
+const VisitsTable: React.FC<{ visits: StaffGpsWeekDayVisit[] }> = ({ visits }) => (
+  <div className="overflow-x-auto">
+    <table className="w-full text-[11.5px]">
+      <thead>
+        <tr className="text-left text-[10px] uppercase tracking-wider text-muted-foreground">
+          <th className="font-semibold px-2 py-1">Plats</th>
+          <th className="font-semibold px-2 py-1">Typ</th>
+          <th className="font-semibold px-2 py-1 tabular-nums">In</th>
+          <th className="font-semibold px-2 py-1 tabular-nums">Ut</th>
+          <th className="font-semibold px-2 py-1 tabular-nums text-right">Tid</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-[hsl(270_18%_94%)]">
+        {visits.map((v, i) => {
+          const tl = typeLabel(v.type);
+          return (
+            <tr key={`${v.knownSiteId ?? 'unknown'}-${v.inIso}-${i}`} className="hover:bg-[hsl(270_45%_98%)]">
+              <td className="px-2 py-1.5 text-foreground truncate max-w-[260px]" title={v.name}>{v.name}</td>
+              <td className="px-2 py-1.5">
+                <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-[10.5px] font-semibold', tl.tone)}>
+                  {tl.text}
+                </span>
+              </td>
+              <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{formatStockholmHm(v.inIso)}</td>
+              <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{formatStockholmHm(v.outIso)}</td>
+              <td className="px-2 py-1.5 tabular-nums text-right font-semibold text-foreground">{fmtDur(v.durationMin)}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+);
+
 export function StaffGpsWeekListRow({
-  staff, weekDays, summariesByDate, isLoading, onShowMap,
+  staff, weekDays, summariesByDate, isLoading,
 }: Props) {
   const [collapsed, setCollapsed] = useState(false);
-  const [expandedDay, setExpandedDay] = useState<string | null>(null);
+  const [mapKey, setMapKey] = useState<string | null>(null);
 
   return (
     <div className="rounded-xl border border-[hsl(270_20%_90%)] bg-white overflow-hidden shadow-sm">
-      {/* Person-header — togglar hela personens vecka */}
+      {/* Person-header */}
       <button
         type="button"
         onClick={() => setCollapsed((v) => !v)}
@@ -52,7 +96,6 @@ export function StaffGpsWeekListRow({
         <span className="text-[13px] font-semibold text-[hsl(280_45%_22%)] truncate">{staff.name}</span>
       </button>
 
-      {/* Vertikala dagsrader: Mån–Sön */}
       {!collapsed && (
         <div className="divide-y divide-[hsl(270_18%_94%)]">
           {weekDays.map((day) => {
@@ -62,44 +105,27 @@ export function StaffGpsWeekListRow({
             const hasRange = hasData && !!summary!.firstIso && !!summary!.lastIso;
             const weekday = format(day, 'EEE', { locale: sv });
             const dayMonth = format(day, 'd/M', { locale: sv });
-            const places = summary?.placeNames ?? [];
-            const isOpen = expandedDay === key;
+            const visits = summary?.visits ?? [];
+            const isMapOpen = mapKey === key;
 
             return (
-              <div key={key}>
-                <button
-                  type="button"
-                  onClick={() => setExpandedDay((cur) => (cur === key ? null : key))}
-                  className={cn(
-                    'w-full grid grid-cols-[88px_minmax(96px,140px)_1fr] items-center gap-3 px-3 py-2 text-left transition',
-                    'hover:bg-[hsl(270_35%_97%)]',
-                    !hasData && 'opacity-80',
-                    isOpen && 'bg-[hsl(270_45%_97%)]',
-                  )}
-                  aria-expanded={isOpen}
-                >
-                  {/* Dag-kolumn */}
-                  <div className="flex flex-col leading-tight min-w-0">
-                    <span
-                      className={cn(
-                        'text-[12.5px] font-semibold capitalize tracking-tight',
-                        !hasData && 'text-muted-foreground/70',
-                      )}
-                    >
-                      {weekday}
-                    </span>
-                    <span
-                      className={cn(
-                        'text-[10.5px] tabular-nums',
-                        hasData ? 'text-muted-foreground' : 'text-muted-foreground/50',
-                      )}
-                    >
-                      {dayMonth}
-                    </span>
+              <div key={key} className={cn(isMapOpen && 'bg-[hsl(270_45%_98%)]')}>
+                {/* Dagshuvud */}
+                <div className="grid grid-cols-[88px_minmax(120px,160px)_1fr_auto] items-start gap-3 px-3 py-2">
+                  {/* Dag */}
+                  <div className="flex flex-col leading-tight min-w-0 pt-0.5">
+                    <span className={cn(
+                      'text-[12.5px] font-semibold capitalize tracking-tight',
+                      !hasData && 'text-muted-foreground/70',
+                    )}>{weekday}</span>
+                    <span className={cn(
+                      'text-[10.5px] tabular-nums',
+                      hasData ? 'text-muted-foreground' : 'text-muted-foreground/50',
+                    )}>{dayMonth}</span>
                   </div>
 
-                  {/* Tid-kolumn */}
-                  <div className="flex flex-col leading-tight min-w-0">
+                  {/* Tid-summa */}
+                  <div className="flex flex-col leading-tight min-w-0 pt-0.5">
                     {hasRange ? (
                       <>
                         <span className="text-[12.5px] font-semibold tabular-nums text-foreground tracking-tight">
@@ -118,83 +144,41 @@ export function StaffGpsWeekListRow({
                     )}
                   </div>
 
-                  {/* Platser-kolumn (höger) */}
-                  <div className="flex items-center gap-1 justify-end min-w-0">
-                    <div className="flex flex-wrap gap-1 justify-end min-w-0">
-                      {places.length > 0 ? (
-                        places.slice(0, isOpen ? places.length : 4).map((name) => (
-                          <span
-                            key={name}
-                            className="inline-flex items-center max-w-[220px] truncate rounded-full bg-[hsl(270_35%_96%)] border border-[hsl(270_20%_88%)] px-2 py-0.5 text-[10.5px] text-[hsl(280_45%_28%)]"
-                            title={name}
-                          >
-                            {name}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-[10.5px] text-muted-foreground/50">
-                          {hasData ? 'Okänd plats' : ''}
-                        </span>
-                      )}
-                      {!isOpen && places.length > 4 && (
-                        <span className="text-[10.5px] text-muted-foreground/60">
-                          +{places.length - 4}
-                        </span>
-                      )}
-                    </div>
-                    <ChevronDown
-                      className={cn(
-                        'h-3.5 w-3.5 ml-1 text-muted-foreground/60 transition-transform shrink-0',
-                        isOpen && 'rotate-180',
-                      )}
-                    />
-                  </div>
-                </button>
-
-                {/* Inline-detalj — visas bara när dagen är expanderad */}
-                {isOpen && (
-                  <div className="bg-[hsl(270_45%_98%)] border-t border-[hsl(270_20%_92%)] px-3 py-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground mb-1">
-                          Platser
-                        </div>
-                        {places.length > 0 ? (
-                          <ul className="flex flex-col gap-1">
-                            {places.map((name) => (
-                              <li
-                                key={name}
-                                className="text-[12px] text-[hsl(280_45%_22%)] flex items-center gap-1.5"
-                              >
-                                <span className="h-1.5 w-1.5 rounded-full bg-[hsl(280_45%_55%)] shrink-0" />
-                                <span className="truncate">{name}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <div className="text-[12px] text-muted-foreground">
-                            {hasData ? 'Ingen känd plats matchad för dagen.' : 'Ingen GPS-data registrerad.'}
-                          </div>
-                        )}
-                        {hasRange && (
-                          <div className="text-[11px] text-muted-foreground mt-2 tabular-nums">
-                            Total tid: <span className="font-semibold text-foreground">{fmtDur(summary!.durationMin)}</span>
-                            <span className="mx-1.5 text-muted-foreground/40">·</span>
-                            {formatStockholmHm(summary!.firstIso!)} – {formatStockholmHm(summary!.lastIso!)}
-                          </div>
-                        )}
+                  {/* Besöks-tabell direkt */}
+                  <div className="min-w-0">
+                    {visits.length > 0 ? (
+                      <VisitsTable visits={visits} />
+                    ) : (
+                      <div className="text-[11px] text-muted-foreground/60 px-2 py-1.5">
+                        {hasData ? 'Ingen känd plats matchad.' : isLoading ? 'Laddar…' : 'Ingen GPS-data.'}
                       </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onShowMap(staff.id, day);
-                        }}
-                        className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-[hsl(280_45%_55%)] bg-white px-2.5 py-1.5 text-[11.5px] font-semibold text-[hsl(280_45%_30%)] hover:bg-[hsl(270_45%_94%)] transition"
-                      >
-                        <MapPin className="h-3.5 w-3.5" /> Visa karta
-                      </button>
-                    </div>
+                    )}
+                  </div>
+
+                  {/* Karta-knapp */}
+                  <div className="pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setMapKey((cur) => (cur === key ? null : key))}
+                      className={cn(
+                        'shrink-0 inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11.5px] font-semibold transition',
+                        isMapOpen
+                          ? 'border-[hsl(280_45%_38%)] bg-[hsl(280_45%_38%)] text-white hover:bg-[hsl(280_45%_32%)]'
+                          : 'border-[hsl(280_45%_55%)] bg-white text-[hsl(280_45%_30%)] hover:bg-[hsl(270_45%_94%)]',
+                        !hasData && 'opacity-50 pointer-events-none',
+                      )}
+                      aria-pressed={isMapOpen}
+                    >
+                      {isMapOpen ? <X className="h-3.5 w-3.5" /> : <MapPin className="h-3.5 w-3.5" />}
+                      {isMapOpen ? 'Stäng karta' : 'Visa karta'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Inline-karta */}
+                {isMapOpen && (
+                  <div className="px-3 pb-3">
+                    <StaffGpsDayInlineMap staffId={staff.id} dateStr={key} />
                   </div>
                 )}
               </div>
