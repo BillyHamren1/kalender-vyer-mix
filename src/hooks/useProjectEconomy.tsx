@@ -38,17 +38,22 @@ import {
 import { calculateEconomySummary, fetchProjectTimeReports } from '@/services/projectEconomyService';
 import { fetchProjectHoursSummary } from '@/services/projectHoursService';
 import type { ProjectHoursSummary } from '@/lib/projects/projectHoursFromTimeEngine';
+import { fetchApprovedProjectStaffTimeCostSummary } from '@/services/projectStaffTimeCostLinesService';
 import { fetchLaborCosts } from '@/services/projectStaffService';
 import type { ProductCostSummary, ProductCostData } from '@/services/productCostService';
 import type { ProjectPurchase, ProjectQuote, ProjectInvoice, LinkedCostType } from '@/types/projectEconomy';
 import { createOptimisticCallbacks } from './useOptimisticMutation';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Ekonomin använder samma Time Engine-cache (`staff_day_report_cache`) som
-// /staff-management/time-reports och projektvyn. Inga projekttimmar hämtas
-// från `time_reports`. `project_labor_costs` exponeras separat som
-// "manualExtraLabor*" — manuell extra kostnad — och blandas ALDRIG ihop med
-// rapporterade timmar.
+// PROJECT ECONOMY (post tidrapport-attest):
+//   - FAKTISK personalkostnad = `project_staff_time_cost_lines`
+//     (byggs av admin-attesten från godkända staff_day_submissions).
+//   - `staff_day_report_cache` (Time Engine) används ENDAST som
+//     prognos/förslag — aldrig som faktisk kanonisk sanning.
+//   - `project_labor_costs` exponeras separat som "manualExtraLabor*" —
+//     manuell extra kostnad — och blandas ALDRIG ihop med rapporterade timmar.
+//   - Vi läser ALDRIG time_reports / workdays / location_time_entries /
+//     travel_time_logs / day_attestations som timkälla här.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const useProjectEconomy = (projectId: string | undefined, bookingId: string | null | undefined) => {
@@ -63,13 +68,23 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     enabled: hasBooking,
   });
 
-  // Raw ProjectHoursSummary från Time Engine-cachen (samma data som
-  // /staff-management/time-reports). Detta är SANNINGEN för rapporterade
-  // personaltimmar i ekonomin.
+  // Time Engine-cache: FÖRSLAG/PROGNOS för projektets timmar. Får INTE
+  // användas som faktisk kostnad — bara visas som "föreslaget".
   const { data: projectHours } = useQuery<ProjectHoursSummary>({
     queryKey: ['project-hours-summary', bookingId],
     queryFn: () => fetchProjectHoursSummary(bookingId!),
     enabled: hasBooking,
+  });
+
+  // FAKTISK godkänd personalkostnad — byggs av admin-attesten från
+  // staff_day_submissions och lagras i project_staff_time_cost_lines.
+  const { data: approvedStaffCostSummary } = useQuery({
+    queryKey: ['project-approved-staff-cost', bookingId, projectId],
+    queryFn: () => fetchApprovedProjectStaffTimeCostSummary({
+      booking_id: bookingId ?? null,
+      project_id: projectId ?? null,
+    }),
+    enabled: hasBooking || !!projectId,
   });
 
   // Manuell extra labor (project_labor_costs). EJ rapporterade timmar — bara
