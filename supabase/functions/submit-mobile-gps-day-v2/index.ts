@@ -368,9 +368,10 @@ Deno.serve(async (req: Request) => {
   }
 
   // ── Status ──────────────────────────────────────────────────
-  const userChanged = manualOverrides.length > 0 || !!manualDay;
+  const hasManualDay = !!(manualDay && manualDay.length > 0);
+  const userChanged = manualOverrides.length > 0 || hasManualDay;
   const nextStatus = userChanged ? "edited" : "submitted";
-  const sourceTag = manualDay ? "mobile_time_v2_manual" : "mobile_gps_day_view_v2";
+  const sourceTag = hasManualDay ? "mobile_time_v2_manual" : "mobile_gps_day_view_v2";
 
   // ── Payloads ────────────────────────────────────────────────
   const submittedPayload = {
@@ -387,14 +388,14 @@ Deno.serve(async (req: Request) => {
     requestedEndAt,
     breakMinutes,
     displayTimelineSnapshot: displaySnapshot,
-    manualDay,
+    manualDay: hasManualDay ? { segments: manualDay, comment: manualDayComment } : null,
     submittedAt: new Date().toISOString(),
     submittedBy: authResult.auth.userId ?? null,
   };
 
   const userEditsJson = {
     manualOverrides,
-    manualDay,
+    manualDay: hasManualDay ? { segments: manualDay, comment: manualDayComment } : null,
     userChanged,
   };
 
@@ -402,14 +403,14 @@ Deno.serve(async (req: Request) => {
     source: sourceTag,
     sourceSnapshotId,
     rawPingCount: view.rawPingCount,
-    segmentCount: view.segments?.length ?? 0,
+    segmentCount: hasManualDay ? (manualDay?.length ?? 0) : (view.segments?.length ?? 0),
     totalDurationMinutes: totalMinutes,
-    totalDurationLabel: manualDay ? fmtDuration(totalMinutes) : (view.totals?.totalDurationLabel ?? null),
+    totalDurationLabel: hasManualDay ? fmtDuration(totalMinutes) : (view.totals?.totalDurationLabel ?? null),
     workMinutes: view.totals?.workMinutes ?? null,
     travelMinutes: view.totals?.travelMinutes ?? null,
     gapMinutes: view.totals?.gapMinutes ?? null,
     overrideCount: manualOverrides.length,
-    hasManualDay: !!manualDay,
+    hasManualDay,
   };
 
   const upsertPayload: Record<string, unknown> = {
