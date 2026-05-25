@@ -121,6 +121,12 @@ export interface InterpretRules {
   nightStartHour: number;
   /** Local hour where night ends. */
   nightEndHour: number;
+  /** Max own GPS displacement (meters) allowed in an unknown/gps_gap/travel
+   *  block sandwiched between two SAME-target blocks before we collapse it
+   *  into that target. Matches the `transport-requires-own-movement` rule:
+   *  if the person never actually moved ≥ this far, the "Okänd plats / Resa"
+   *  is GPS drift, not a real detour. Default 500m. */
+  sandwichMaxDisplacementM: number;
 }
 
 const DEFAULT_RULES: InterpretRules = {
@@ -128,7 +134,9 @@ const DEFAULT_RULES: InterpretRules = {
   shortDetourMaxMinutes: 30,
   nightStartHour: 0,
   nightEndHour: 5,
+  sandwichMaxDisplacementM: 500,
 };
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
