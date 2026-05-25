@@ -111,6 +111,7 @@ export const useRealTimeCalendarEvents = () => {
               internalNotes: booking?.internalnotes || event.extendedProps?.internalNotes,
               carryMoreThan10m: booking?.carry_more_than_10m ?? event.extendedProps?.carryMoreThan10m,
               groundNailsAllowed: booking?.ground_nails_allowed ?? event.extendedProps?.groundNailsAllowed,
+              rentalOnly: booking?.rental_only ?? event.extendedProps?.rentalOnly,
               products: booking?.booking_products || event.extendedProps?.products || [],
               bookingNumber: booking?.booking_number || event.extendedProps?.bookingNumber,
               booking_id: booking?.id || event.extendedProps?.booking_id,
