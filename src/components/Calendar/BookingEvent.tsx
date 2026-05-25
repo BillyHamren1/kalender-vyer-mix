@@ -17,9 +17,15 @@ const BookingEvent: React.FC<BookingEventProps> = ({
 }) => {
   const isCancelled = event.bookingStatus === 'CANCELLED' || event.extendedProps?.bookingStatus === 'CANCELLED';
   const isLocked = event.extendedProps?.timeLocked === true;
+  const isRentalOnly = event.extendedProps?.rentalOnly === true;
 
   const getEventTypeColor = (eventType: string) => {
     if (isCancelled) return '#FEE2E2';
+    if (isRentalOnly) {
+      // Klargrön för leverans UT (rig), klarröd för retur IN (rigDown)
+      if (eventType === 'rig') return '#22C55E';
+      if (eventType === 'rigDown') return '#EF4444';
+    }
     switch(eventType) {
       case 'rig':
         return '#F2FCE2';
