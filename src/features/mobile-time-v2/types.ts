@@ -167,8 +167,7 @@ export interface MobileGpsMap {
 }
 
 // =========================================================================
-// Manual work targets — picked by the user when there is no GPS suggestion
-// or when they edit a manual segment. Never auto-selected by the system.
+// Manual work targets — picked by the user. The system never auto-selects.
 // =========================================================================
 export type ManualWorkTargetType =
   | 'booking'
@@ -195,15 +194,21 @@ export interface ManualWorkTargets {
 }
 
 export interface ManualWorkSegmentInput {
+  id: string;
   startTime: string; // "HH:mm"
   endTime: string;   // "HH:mm"
   breakMinutes?: number;
   target: ManualWorkTarget | null;
   comment?: string | null;
+  sourceSegmentId?: string | null;
 }
 
 export interface ManualDayPayload {
+  dayStartTime: string;            // "HH:mm" — whole day start
+  dayEndTime: string;              // "HH:mm" — whole day end
+  breakMinutes: number;            // total break for the day
   segments: ManualWorkSegmentInput[];
+  deletedSegmentIds?: string[];    // sourceSegmentIds removed by the user
   comment?: string | null;
 }
 
@@ -257,7 +262,6 @@ export interface SubmitMobileGpsDayV2Result {
 
 // =========================================================================
 // Report queue — overview of recent days that need action or are submitted.
-// Source: `get-mobile-time-report-queue`.
 // =========================================================================
 export type TimeReportQueueStatus =
   | 'correction_requested'
@@ -274,12 +278,12 @@ export type TimeReportQueueStatus =
   | 'withdrawn';
 
 export interface TimeReportQueueDay {
-  date: string;            // YYYY-MM-DD
-  weekdayLabel: string;    // "Mån"
-  dayLabel: string;        // "25 maj"
+  date: string;
+  weekdayLabel: string;
+  dayLabel: string;
   status: TimeReportQueueStatus;
   statusLabel: string;
-  priority: number;        // lower = higher priority
+  priority: number;
   hasSubmission: boolean;
   hasEngineSuggestion: boolean;
   hasGps: boolean;
