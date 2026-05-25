@@ -100,20 +100,22 @@ Deno.test("travel between two DIFFERENT projects stays as travel", () => {
   assertEquals(out.blocks[2].targetRefId, PROJ_B);
 });
 
-Deno.test("warehouse never absorbs short detour", () => {
+Deno.test("warehouse with REAL travel displacement between same warehouse → stays travel", () => {
   _id = 0;
   const out = interpretDayTimeline({
     staffId: STAFF, organizationId: ORG, date: DATE,
     segments: [
       seg({ start: "2026-05-13T08:00:00Z", end: "2026-05-13T09:00:00Z", type: "known_site", targetId: WH, targetType: "warehouse", label: "Lager" }),
-      seg({ start: "2026-05-13T09:00:00Z", end: "2026-05-13T09:10:00Z", type: "transport", label: "Resa" }),
+      // 1500m real movement → not drift, must NOT be absorbed even between same warehouse
+      seg({ start: "2026-05-13T09:00:00Z", end: "2026-05-13T09:10:00Z", type: "transport", label: "Resa", distanceMeters: 1500 }),
       seg({ start: "2026-05-13T09:10:00Z", end: "2026-05-13T10:00:00Z", type: "known_site", targetId: WH, targetType: "warehouse", label: "Lager" }),
     ],
   });
-  // No detour-rule for warehouse → stays as 3 blocks (gap > 5min so no merge either)
+  // shortDetourMaxMinutes only applies to projects, and sandwich requires <500m displacement → stays 3 blocks
   assertEquals(out.blocks.length, 3);
   assertEquals(out.blocks[1].kind, "travel");
 });
+
 
 Deno.test("unknown_place stays unknown — no guessing", () => {
   _id = 0;
