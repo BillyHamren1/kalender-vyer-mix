@@ -37,6 +37,7 @@ import LargeProjectPlannerToolbar from './LargeProjectPlannerToolbar';
 import LargeProjectPlannerSidebar from './LargeProjectPlannerSidebar';
 import LargeProjectPlannerTaskCard from './LargeProjectPlannerTaskCard';
 import SplitBookingIntoTasksDialog from './SplitBookingIntoTasksDialog';
+import ManualProjectTaskDialog from './ManualProjectTaskDialog';
 import { useLargeProjectPlannerItems } from './useLargeProjectPlannerItems';
 import { useState } from 'react';
 import type {
@@ -92,6 +93,11 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
   } = useLargeProjectPlannerItems(largeProjectId);
 
   const [splitBookingId, setSplitBookingId] = useState<string | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualDefaults, setManualDefaults] = useState<{
+    date?: string | null;
+    staffId?: string | null;
+  }>({});
 
   const staffById = useMemo(() => {
     const map = new Map<string, LargeProjectPlannerStaffMember>();
@@ -180,23 +186,14 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     }
   };
 
-  const handleCreateManual = async () => {
-    const planDate = days[0]?.date ?? format(new Date(), 'yyyy-MM-dd');
-    const title = window.prompt('Titel för manuell task?');
-    if (!title) return;
-    try {
-      await createItem({
-        large_project_id: largeProjectId,
-        title,
-        plan_date: planDate,
-        item_type: 'manual',
-        source: 'manual',
-        status: 'planned',
-      });
-      toast.success('Manuell task skapad.');
-    } catch (e) {
-      toast.error((e as Error).message || 'Kunde inte skapa task.');
-    }
+  const handleCreateManual = (
+    opts: { date?: string | null; staffId?: string | null } = {},
+  ) => {
+    setManualDefaults({
+      date: opts.date ?? days[0]?.date ?? null,
+      staffId: opts.staffId ?? null,
+    });
+    setManualOpen(true);
   };
 
   const handleItemDelete = async (item: LargeProjectBookingPlanItem) => {
@@ -231,7 +228,7 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
         isMutating={isMutating}
         onRefresh={handleRefresh}
         onSeedFromBookings={handleSeedFromBookings}
-        onCreateManual={handleCreateManual}
+        onCreateManual={() => handleCreateManual()}
       />
 
       <div className="flex flex-1 overflow-hidden">
@@ -320,39 +317,53 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
                         return (
                           <div
                             key={s.id}
-                            className="min-h-[80px] space-y-1 border-l border-border/60 p-1.5"
+                            className="group relative min-h-[80px] cursor-pointer space-y-1 border-l border-border/60 p-1.5 transition-colors hover:bg-primary/5"
+                            onClick={(e) => {
+                              if ((e.target as HTMLElement).closest('[data-task-card]')) return;
+                              handleCreateManual({ date: day.date, staffId: s.id });
+                            }}
+                            title="Klicka för att skapa manuell task"
                           >
                             {cellItems.map((it) => (
-                              <LargeProjectPlannerTaskCard
-                                key={it.id}
-                                item={it}
-                                booking={
-                                  it.booking_id
-                                    ? bookingById.get(it.booking_id) ?? null
-                                    : null
-                                }
-                                staff={staffById.get(s.id) ?? null}
-                                onClick={handleItemClick}
-                                onDelete={handleItemDelete}
-                              />
+                              <div data-task-card key={it.id}>
+                                <LargeProjectPlannerTaskCard
+                                  item={it}
+                                  booking={
+                                    it.booking_id
+                                      ? bookingById.get(it.booking_id) ?? null
+                                      : null
+                                  }
+                                  staff={staffById.get(s.id) ?? null}
+                                  onClick={handleItemClick}
+                                  onDelete={handleItemDelete}
+                                />
+                              </div>
                             ))}
                           </div>
                         );
                       })}
                       {/* Ej tilldelat */}
-                      <div className="min-h-[80px] space-y-1 border-l border-dashed border-border/60 bg-muted/20 p-1.5">
+                      <div
+                        className="group min-h-[80px] cursor-pointer space-y-1 border-l border-dashed border-border/60 bg-muted/20 p-1.5 transition-colors hover:bg-muted/40"
+                        onClick={(e) => {
+                          if ((e.target as HTMLElement).closest('[data-task-card]')) return;
+                          handleCreateManual({ date: day.date, staffId: null });
+                        }}
+                        title="Klicka för att skapa manuell task"
+                      >
                         {(grid.get(`${day.date}|${UNASSIGNED_KEY}`) ?? []).map((it) => (
-                          <LargeProjectPlannerTaskCard
-                            key={it.id}
-                            item={it}
-                            booking={
-                              it.booking_id
-                                ? bookingById.get(it.booking_id) ?? null
-                                : null
-                            }
-                            onClick={handleItemClick}
-                            onDelete={handleItemDelete}
-                          />
+                          <div data-task-card key={it.id}>
+                            <LargeProjectPlannerTaskCard
+                              item={it}
+                              booking={
+                                it.booking_id
+                                  ? bookingById.get(it.booking_id) ?? null
+                                  : null
+                              }
+                              onClick={handleItemClick}
+                              onDelete={handleItemDelete}
+                            />
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -371,6 +382,7 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
           onSplitBooking={(b) => setSplitBookingId(b.id)}
           onItemClick={handleItemClick}
           onItemDelete={handleItemDelete}
+          onCreateManual={() => handleCreateManual()}
         />
       </div>
 
@@ -383,6 +395,18 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
         booking={splitTargetBooking}
         staff={staff}
         onSplit={splitBooking}
+        isMutating={isMutating}
+      />
+
+      <ManualProjectTaskDialog
+        open={manualOpen}
+        onOpenChange={setManualOpen}
+        largeProjectId={largeProjectId}
+        bookings={bookings}
+        staff={staff}
+        defaultDate={manualDefaults.date ?? null}
+        defaultStaffId={manualDefaults.staffId ?? null}
+        createItem={createItem}
         isMutating={isMutating}
       />
     </div>

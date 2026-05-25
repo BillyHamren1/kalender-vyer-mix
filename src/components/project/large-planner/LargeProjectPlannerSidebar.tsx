@@ -26,6 +26,7 @@ interface Props {
   onSplitBooking?: (booking: LargeProjectPlannerBooking) => void;
   onItemClick?: (item: LargeProjectBookingPlanItem) => void;
   onItemDelete?: (item: LargeProjectBookingPlanItem) => void;
+  onCreateManual?: () => void;
 }
 
 const FILTERS: { key: Filter; label: string }[] = [
@@ -43,6 +44,7 @@ const LargeProjectPlannerSidebar = ({
   onSplitBooking,
   onItemClick,
   onItemDelete,
+  onCreateManual,
 }: Props) => {
   const [filter, setFilter] = useState<Filter>('all');
 
@@ -188,9 +190,21 @@ const LargeProjectPlannerSidebar = ({
           })}
 
           <div className="pt-2">
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
-              <Pencil className="h-3 w-3" />
-              Manuella tasks
+            <div className="flex items-center justify-between gap-1.5">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
+                <Pencil className="h-3 w-3" />
+                Manuella tasks
+              </div>
+              {onCreateManual && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-5 px-1 text-[10px]"
+                  onClick={onCreateManual}
+                >
+                  + Ny
+                </Button>
+              )}
             </div>
             {manualItems.length === 0 ? (
               <div className="mt-1 rounded-md border border-dashed border-border/60 p-2 text-center text-[10px] text-muted-foreground">
