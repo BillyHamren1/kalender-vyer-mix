@@ -38,6 +38,10 @@ const MobileGlobalOverlays: React.FC = () => {
   // handled only by backend Time Engine via active_time_registrations.
   const { debug: gpsDebug } = useBackgroundLocationReporter(staff?.id);
 
+  // Silent push från gps-heartbeat-pulse → tvinga fix + upload.
+  // Löser stationära luckor (Capgo skickar inget när telefonen är still).
+  useGpsPulseHandler();
+
   // Server-triggered "ping the phone" — listen for FCM data-pushes with
   // notification_type=location_ping and respond with a fresh GPS sample.
   useEffect(() => {
