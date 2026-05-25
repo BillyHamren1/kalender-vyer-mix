@@ -297,3 +297,8 @@ export async function getOrBuildDaySnapshot(
 
   return snapshot;
 }
+
+// Test-only exports. Inte avsedda för produktion — används av
+// snapshotCache.visit.test.ts för att låsa besöksbyggarens beteende.
+export const _testing = { buildExactGeofenceVisits };
+
