@@ -271,7 +271,17 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       visitMarkersRef.current.push({ marker, rootEl, contentEl: pin, kind: 'compact' });
     };
 
+    // Hjälp: ge varje panel en unik vertikal offset så panelerna inte
+    // renderas ovanpå varandra när två geofences ligger nära varandra på kartan.
+    // Mönster: 0, +44, -44, +88, -88, …
+    const stackOffsetY = (idx: number) => {
+      if (idx === 0) return 0;
+      const step = Math.ceil(idx / 2) * 44;
+      return idx % 2 === 1 ? step : -step;
+    };
+
     // ── Per geofence: kompakt pin + detalj block-panel ───────────────
+    let groupIdx = 0;
     for (const [, list] of grouped) {
       const sorted = [...list].sort((a, b) => a.start.localeCompare(b.start));
       // Pin-position: använd första vistelsens centre (mitten på geofencen
@@ -299,13 +309,13 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
           const timeColor = isOutside ? 'hsl(215 16% 70%)' : 'hsl(0 0% 98%)';
           const durColor = isOutside ? 'hsl(38 92% 65%)' : 'hsl(199 89% 70%)';
           const suffix = isOutside
-            ? ` <span style="color:hsl(38 92% 60%);font-size:9.5px;letter-spacing:.04em;text-transform:uppercase">· Utanför geo</span>`
+            ? ` <span style="color:hsl(38 92% 60%);font-size:8px;letter-spacing:.04em;text-transform:uppercase">·Utg</span>`
             : '';
           return `
-            <div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:1px 0;font-variant-numeric:tabular-nums">
-              <span style="color:${labelColor};font-size:9.5px;letter-spacing:.08em;text-transform:uppercase">B${i + 1}</span>
-              <span style="font-family:${mono};font-size:10.5px;color:${timeColor}">${formatHm(v.start)} <span style="color:hsl(215 16% 50%)">→</span> ${formatHm(v.end)}${suffix}</span>
-              <span style="font-family:${mono};font-size:10.5px;color:${durColor}">${dur}</span>
+            <div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:6px;font-variant-numeric:tabular-nums;line-height:1.15">
+              <span style="color:${labelColor};font-size:8px;letter-spacing:.06em;text-transform:uppercase">B${i + 1}</span>
+              <span style="font-family:${mono};font-size:9px;color:${timeColor}">${formatHm(v.start)}<span style="color:hsl(215 16% 50%)">→</span>${formatHm(v.end)}${suffix}</span>
+              <span style="font-family:${mono};font-size:9px;color:${durColor}">${dur}</span>
             </div>`;
         })
         .join('');
@@ -313,25 +323,25 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
 
       const panel = document.createElement('div');
       panel.style.cssText = [
-        'display:inline-flex','flex-direction:column','gap:2px',
-        'padding:8px 10px','border-radius:8px',
+        'display:inline-flex','flex-direction:column','gap:1px',
+        'padding:4px 6px','border-radius:6px',
         'background:hsl(222 47% 8% / .92)','color:hsl(0 0% 98%)',
-        'font:500 10.5px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif',
-        'white-space:nowrap','min-width:180px',
+        'font:500 9px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif',
+        'white-space:nowrap',
         'border:1px solid hsl(215 16% 28% / .6)',
-        'box-shadow:0 8px 24px -8px hsl(222 47% 4% / .8),0 0 0 1px hsl(0 0% 100% / .04)',
-        'backdrop-filter:blur(10px) saturate(140%)','-webkit-backdrop-filter:blur(10px) saturate(140%)',
+        'box-shadow:0 4px 12px -4px hsl(222 47% 4% / .8)',
+        'backdrop-filter:blur(8px) saturate(140%)','-webkit-backdrop-filter:blur(8px) saturate(140%)',
         'pointer-events:auto',
       ].join(';');
       panel.innerHTML = `
-        <div style="display:flex;align-items:center;gap:6px;padding-bottom:5px;margin-bottom:3px;border-bottom:1px solid hsl(215 16% 28% / .4);max-width:240px">
-          <span style="width:5px;height:5px;border-radius:9999px;background:hsl(142 71% 55%);box-shadow:0 0 0 2px hsl(142 71% 55% / .2)"></span>
-          <span style="font-weight:600;font-size:11px;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis">${head.knownSite?.name ?? ''}</span>
+        <div style="display:flex;align-items:center;gap:4px;padding-bottom:2px;margin-bottom:1px;border-bottom:1px solid hsl(215 16% 28% / .4);max-width:180px">
+          <span style="width:4px;height:4px;border-radius:9999px;background:hsl(142 71% 55%);flex-shrink:0"></span>
+          <span style="font-weight:600;font-size:9.5px;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis">${head.knownSite?.name ?? ''}</span>
         </div>
         ${blockRows}
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:4px;padding-top:5px;border-top:1px solid hsl(215 16% 28% / .4);font-variant-numeric:tabular-nums">
-          <span style="font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:hsl(215 16% 65%)">Totalt</span>
-          <span style="font-family:${mono};font-size:11px;color:hsl(142 71% 60%);font-weight:600">${totalLabel}</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:2px;padding-top:2px;border-top:1px solid hsl(215 16% 28% / .4);font-variant-numeric:tabular-nums">
+          <span style="font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:hsl(215 16% 65%)">Σ</span>
+          <span style="font-family:${mono};font-size:9.5px;color:hsl(142 71% 60%);font-weight:600">${totalLabel}</span>
         </div>
       `;
 
@@ -339,10 +349,15 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       const panelRoot = document.createElement('div');
       panelRoot.style.cssText = 'pointer-events:auto;';
       panelRoot.appendChild(panel);
-      const panelMarker = new mapboxgl.Marker({ element: panelRoot, anchor: 'right', offset: [-14, 0] })
+      const panelMarker = new mapboxgl.Marker({
+        element: panelRoot,
+        anchor: 'right',
+        offset: [-10, stackOffsetY(groupIdx)],
+      })
         .setLngLat([head.centre.lng, head.centre.lat])
         .addTo(map);
       visitMarkersRef.current.push({ marker: panelMarker, rootEl: panelRoot, contentEl: panel, kind: 'detail' });
+      groupIdx += 1;
     }
 
     // ── Okända vistelser: enkel pill som förr ────────────────────────
