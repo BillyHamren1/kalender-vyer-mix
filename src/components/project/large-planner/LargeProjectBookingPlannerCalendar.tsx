@@ -88,6 +88,7 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     days,
     refetch,
     createItem,
+    updateItem,
     deleteItem,
     createItemsFromBookings,
     splitBooking,
@@ -100,6 +101,8 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     date?: string | null;
     staffId?: string | null;
   }>({});
+  const [quickEditId, setQuickEditId] = useState<string | null>(null);
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
 
   const staffById = useMemo(() => {
     const map = new Map<string, LargeProjectPlannerStaffMember>();
