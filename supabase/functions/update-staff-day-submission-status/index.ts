@@ -1,8 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders } from "../_shared/cors.ts";
 
-type AllowedStatus = "approved" | "needs_control";
-const ALLOWED: AllowedStatus[] = ["approved", "needs_control"];
+type AllowedStatus = "approved" | "needs_control" | "correction_requested";
+const ALLOWED: AllowedStatus[] = ["approved", "needs_control", "correction_requested"];
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
