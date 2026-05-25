@@ -84,7 +84,7 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
         bookingIds.size
           ? supabase
               .from('bookings')
-              .select('id, client, booking_number, deliveryaddress, delivery_latitude, delivery_longitude, large_project_id, assigned_project_id')
+              .select('id, client, booking_number, deliveryaddress, delivery_latitude, delivery_longitude, large_project_id, assigned_project_id, status')
               .in('id', [...bookingIds])
           : Promise.resolve({ data: [] as any[] }),
         bookingIds.size
@@ -98,10 +98,26 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
       const sites: KnownSite[] = [];
       const extraLargeIds = new Set<string>();
       const projectIds = new Set<string>();
+      // LOCKED: bokningar i status OFFER/CANCELLED/UTKAST/AVBOKAD är inte
+      // arbete för dagen och får inte bli känd plats. Se
+      // mem://constraints/known-sites-date-bound-v1.
+      const INACTIVE_BOOKING_STATUSES = new Set([
+        'OFFER', 'OFFERT', 'DRAFT', 'UTKAST',
+        'CANCELLED', 'AVBOKAD', 'AVBOKAT',
+      ]);
+      const activeBookingIds = new Set<string>();
+      for (const b of ((bookingsRes as any).data || []) as any[]) {
+        const status = String(b.status ?? '').trim().toUpperCase().replace(/[!.,:;]+$/g, '');
+        if (INACTIVE_BOOKING_STATUSES.has(status)) continue;
+        activeBookingIds.add(String(b.id));
+      }
       for (const row of ((largeProjectBookingsRes as any).data || []) as any[]) {
-        if (row.large_project_id) largeIds.add(String(row.large_project_id));
+        if (!row.large_project_id) continue;
+        if (row.booking_id && !activeBookingIds.has(String(row.booking_id))) continue;
+        largeIds.add(String(row.large_project_id));
       }
       for (const b of ((bookingsRes as any).data || [])) {
+        if (!activeBookingIds.has(String(b.id))) continue;
         if (b.large_project_id) extraLargeIds.add(String(b.large_project_id));
         if (b.assigned_project_id) projectIds.add(String(b.assigned_project_id));
         if (b.delivery_latitude == null || b.delivery_longitude == null) continue;
@@ -119,6 +135,8 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
           radiusMeters: 200,
         });
       }
+      // Smalna ner: bara aktiva bokningar får dra in projekt via booking_id nedan.
+      const activeBookingIdArr = [...activeBookingIds];
 
       const [largeRes, projectsByBookingRes, projectsByIdRes] = await Promise.all([
         largeIds.size || extraLargeIds.size

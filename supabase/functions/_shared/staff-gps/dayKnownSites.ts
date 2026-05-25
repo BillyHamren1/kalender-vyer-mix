@@ -101,23 +101,40 @@ export async function loadDayKnownSites(
   }
 
   // 4) Resolve bookings → project / large_project memberships + pin fallback.
+  //    LOCKED: bokningar i status OFFER/CANCELLED/UTKAST/AVBOKAD räknas
+  //    INTE som arbete för dagen. De får varken bidra med egen pin eller
+  //    dra in sina assigned_project_id/large_project_id som geofence.
+  //    Se mem://constraints/known-sites-date-bound-v1.
+  const INACTIVE_BOOKING_STATUSES = new Set([
+    "OFFER", "OFFERT", "DRAFT", "UTKAST",
+    "CANCELLED", "AVBOKAD", "AVBOKAT",
+  ]);
   const projectIds = new Set<string>();
   const extraLargeIds = new Set<string>();
   if (bookingIds.size) {
     const [bookingsRes, lpbRes] = await Promise.all([
       admin.from("bookings")
         .select(
-          "id, client, booking_number, deliveryaddress, delivery_latitude, delivery_longitude, large_project_id, assigned_project_id",
+          "id, client, booking_number, deliveryaddress, delivery_latitude, delivery_longitude, large_project_id, assigned_project_id, status",
         )
         .in("id", [...bookingIds]),
       admin.from("large_project_bookings")
         .select("large_project_id, booking_id")
         .in("booking_id", [...bookingIds]),
     ]);
+    const activeBookingIds = new Set<string>();
+    for (const b of (bookingsRes.data ?? []) as any[]) {
+      const status = String(b.status ?? "").trim().toUpperCase().replace(/[!.,:;]+$/g, "");
+      if (INACTIVE_BOOKING_STATUSES.has(status)) continue;
+      activeBookingIds.add(String(b.id));
+    }
     for (const row of (lpbRes.data ?? []) as any[]) {
-      if (row.large_project_id) largeIds.add(String(row.large_project_id));
+      if (!row.large_project_id) continue;
+      if (row.booking_id && !activeBookingIds.has(String(row.booking_id))) continue;
+      largeIds.add(String(row.large_project_id));
     }
     for (const b of (bookingsRes.data ?? []) as any[]) {
+      if (!activeBookingIds.has(String(b.id))) continue;
       if (b.large_project_id) extraLargeIds.add(String(b.large_project_id));
       if (b.assigned_project_id) projectIds.add(String(b.assigned_project_id));
       if (b.delivery_latitude == null || b.delivery_longitude == null) continue;
@@ -134,6 +151,9 @@ export async function loadDayKnownSites(
         radiusMeters: 200,
       });
     }
+    // Smalna ner: downstream booking-baserade projekt-uppslag använder bara aktiva.
+    bookingIds.clear();
+    for (const id of activeBookingIds) bookingIds.add(id);
   }
 
   // 5) Large projects (only those discovered above).
