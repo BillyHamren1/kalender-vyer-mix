@@ -139,9 +139,10 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
   const handleSeedFromBookings = async () => {
     try {
       const created = await createItemsFromBookings();
+      const count = Array.isArray(created) ? created.length : 0;
       toast.success(
-        created > 0
-          ? `Skapade ${created} planer från bokningar.`
+        count > 0
+          ? `Skapade ${count} planer från bokningar.`
           : 'Alla bokningar var redan planerade.',
       );
     } catch (e) {
