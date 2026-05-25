@@ -50,6 +50,8 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   item: LargeProjectBookingPlanItem | null;
   staff: LargeProjectPlannerStaffMember[];
+  getAllowedStaffForDate?: (date: string | null | undefined) => LargeProjectPlannerStaffMember[];
+  isStaffAllowedForDate?: (staffId: string | null | undefined, date: string | null | undefined) => boolean;
   booking?: LargeProjectPlannerBooking | null;
   updateItem: (id: string, updates: UpdatePlannerItemInput) => Promise<unknown>;
   deleteItem?: (id: string) => Promise<unknown>;
@@ -68,6 +70,8 @@ const LargeProjectPlannerQuickEditDialog = ({
   onOpenChange,
   item,
   staff,
+  getAllowedStaffForDate,
+  isStaffAllowedForDate,
   booking,
   updateItem,
   deleteItem,
@@ -95,9 +99,32 @@ const LargeProjectPlannerQuickEditDialog = ({
     }
   }, [open, item]);
 
+  // Allowed personal för aktuellt planDate.
+  const allowedForDate = (() => {
+    if (getAllowedStaffForDate) return getAllowedStaffForDate(planDate);
+    return staff;
+  })();
+
+  // Om planDate ändras och vald personal inte längre är bemannad → rensa.
+  useEffect(() => {
+    if (!open) return;
+    if (assignedStaffId === UNASSIGNED) return;
+    if (isStaffAllowedForDate && planDate && !isStaffAllowedForDate(assignedStaffId, planDate)) {
+      setAssignedStaffId(UNASSIGNED);
+    }
+  }, [open, planDate, assignedStaffId, isStaffAllowedForDate]);
+
   if (!item) return null;
 
   const handleSave = async () => {
+    if (
+      assignedStaffId !== UNASSIGNED &&
+      isStaffAllowedForDate &&
+      !isStaffAllowedForDate(assignedStaffId, planDate)
+    ) {
+      toast.error('Personen är inte bemannad på stora projektet detta datum.');
+      return;
+    }
     setSubmitting(true);
     try {
       await updateItem(item.id, {
@@ -117,6 +144,7 @@ const LargeProjectPlannerQuickEditDialog = ({
       setSubmitting(false);
     }
   };
+
 
   const handleDelete = async () => {
     if (!deleteItem) return;
@@ -213,11 +241,16 @@ const LargeProjectPlannerQuickEditDialog = ({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={UNASSIGNED}>Ej tilldelat</SelectItem>
-                {staff.map((s) => (
+                {allowedForDate.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
                     {s.name}
                   </SelectItem>
                 ))}
+                {allowedForDate.length === 0 && (
+                  <div className="px-2 py-1 text-[11px] italic text-muted-foreground">
+                    Ingen bemannad personal detta datum
+                  </div>
+                )}
               </SelectContent>
             </Select>
           </div>
