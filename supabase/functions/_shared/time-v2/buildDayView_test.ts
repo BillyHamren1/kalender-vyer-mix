@@ -158,23 +158,30 @@ Deno.test("Inga 9h fantomresor: glesa pings långt från allt blir gps_gap/unkno
 });
 
 Deno.test("Hela eftermiddagen i boendet: visas som Boende-stay, INTE som Resa", () => {
+  // Använd separata targets där boendet INTE överlappar något lager.
+  const HOME_ONLY_LAT = 59.60;
+  const HOME_ONLY_LNG = 18.20;
+  const isolatedTargets: KnownPlace[] = [
+    { id: "proj-1", type: "project", name: "Projekt Alfa", lat: PROJ_LAT, lng: PROJ_LNG, radiusM: 100 },
+    { id: "boende-iso", type: "home", name: "Boende Isolerad", lat: HOME_ONLY_LAT, lng: HOME_ONLY_LNG, radiusM: 15 },
+  ];
   const projectPings = pingsAtMin("2026-05-25", PROJ_LAT, PROJ_LNG, 60, 8 * 60, 5);
-  const homePings = pingsAtMin("2026-05-25", HOME_LAT, HOME_LNG, 60, 14 * 60, 8);
+  const homePings = pingsAtMin("2026-05-25", HOME_ONLY_LAT, HOME_ONLY_LNG, 60, 14 * 60, 8);
   const v = buildDayView({
     staffId: "s1", organizationId: "org1", date: "2026-05-25",
-    pings: [...projectPings, ...homePings], knownTargets: dualTargets, manualOverrides: [],
+    pings: [...projectPings, ...homePings], knownTargets: isolatedTargets, manualOverrides: [],
   });
   const homeStay = v.segments.find(
-    (s) => s.kind === "stay" && s.matched.kind === "home" && s.matched.id === "boende-1",
+    (s) => s.kind === "stay" && s.matched.kind === "home" && s.matched.id === "boende-iso",
   );
   if (!homeStay) {
     throw new Error(
       `Förväntade Boende-stay. Segments: ${JSON.stringify(v.segments.map((s) => ({ k: s.kind, t: s.type, m: s.matched.kind, lbl: s.label, dur: s.durationMinutes })))}`,
     );
   }
-  // Subtitle ska ha "Boende" separat, inte räknas som Arbete
   if (!v.subtitle.includes("Boende")) {
     throw new Error(`Subtitle saknar Boende: ${v.subtitle}`);
   }
+  // Hem räknas inte som Arbete
   assertEquals(v.totals.workMinutes < homeStay.durationMinutes + 60, true);
 });
