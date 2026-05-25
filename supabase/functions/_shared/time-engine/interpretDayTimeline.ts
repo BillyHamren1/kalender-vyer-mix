@@ -224,10 +224,12 @@ function mergeBlocks(
     durationMin: a.durationMin + b.durationMin,
     sourceSegmentIds: [...a.sourceSegmentIds, ...b.sourceSegmentIds],
     confidence: Math.min(a.confidence, b.confidence),
+    maxDisplacementM: Math.max(a.maxDisplacementM, b.maxDisplacementM),
     reinterpreted: true,
     reason,
   };
 }
+
 
 function isNight(
   block: DayTimelineBlock,
