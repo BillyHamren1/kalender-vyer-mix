@@ -289,14 +289,14 @@ const WebRoutes: React.FC = () => {
       <Route path="/m/project/:projectId" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileProjectDetail /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
       <Route path="/m/location/:id" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileLocationDetail /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
       <Route path="/m/report" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileTimeReport /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
-      <Route path="/m/report/:id/edit" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileEditTimeReport /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
+      <Route path="/m/report/:id/edit" element={<Navigate to="/m/report" replace />} />
       <Route path="/m/expenses" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileExpenses /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
       <Route path="/m/profile" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileProfile /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
-      <Route path="/m/time-history" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileTimeHistory /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
+      <Route path="/m/time-history" element={<Navigate to="/m/report" replace />} />
       <Route path="/m/inbox" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileInbox /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
       <Route path="/m/overview" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><PlannerOnlyRoute><MobileAppLayout><MobileOverview /></MobileAppLayout></PlannerOnlyRoute></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
       <Route path="/m/my-flags" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileMyFlags /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
-      <Route path="/m/day-review" element={<LanguageProvider><MobileAuthProvider><MobileProtectedRoute><MobileAppLayout><MobileDayReview /></MobileAppLayout></MobileProtectedRoute></MobileAuthProvider></LanguageProvider>} />
+      <Route path="/m/day-review" element={<Navigate to="/m/report" replace />} />
 
       {/* Main System Routes - Protected (wrapped in AuthProvider) */}
       <Route path="/*" element={

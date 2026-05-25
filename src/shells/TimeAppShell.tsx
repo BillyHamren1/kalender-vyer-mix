@@ -48,10 +48,11 @@ const TimeAppShell: React.FC = () => {
           <Route path="/m/location/:id" element={<MobileProtectedRoute><TimeAppLayout><MobileLocationDetail /></TimeAppLayout></MobileProtectedRoute>} />
           <Route path="/m/lager" element={<MobileProtectedRoute><TimeAppLayout><MobileLagerPage /></TimeAppLayout></MobileProtectedRoute>} />
           <Route path="/m/report" element={<MobileProtectedRoute><TimeAppLayout><MobileTimeReport /></TimeAppLayout></MobileProtectedRoute>} />
-          <Route path="/m/report/:id/edit" element={<MobileProtectedRoute><TimeAppLayout><MobileEditTimeReport /></TimeAppLayout></MobileProtectedRoute>} />
+          <Route path="/m/report/:id/edit" element={<Navigate to="/m/report" replace />} />
           <Route path="/m/expenses" element={<MobileProtectedRoute><TimeAppLayout><MobileExpenses /></TimeAppLayout></MobileProtectedRoute>} />
           <Route path="/m/profile" element={<MobileProtectedRoute><TimeAppLayout><MobileProfile /></TimeAppLayout></MobileProtectedRoute>} />
-          <Route path="/m/time-history" element={<MobileProtectedRoute><TimeAppLayout><MobileTimeHistory /></TimeAppLayout></MobileProtectedRoute>} />
+          <Route path="/m/time-history" element={<Navigate to="/m/report" replace />} />
+          <Route path="/m/day-review" element={<Navigate to="/m/report" replace />} />
           <Route path="/m/inbox" element={<MobileProtectedRoute><TimeAppLayout><MobileInbox /></TimeAppLayout></MobileProtectedRoute>} />
           <Route path="/m/overview" element={<MobileProtectedRoute><PlannerOnlyRoute><TimeAppLayout><MobileOverview /></TimeAppLayout></PlannerOnlyRoute></MobileProtectedRoute>} />
           {/* Tools hub: Camera, Scanner, Measure */}
