@@ -9,6 +9,17 @@ describe('parseGapDescription', () => {
     });
   });
 
+  it('parsar "Auto-switch X → Y" utan (N min)-suffix', () => {
+    expect(parseGapDescription('Auto-switch Tiomila 2026 → FA Warehouse')).toEqual({
+      from: 'Tiomila 2026',
+      to: 'FA Warehouse',
+    });
+  });
+
+  it('parsar "Switch: X → Y"', () => {
+    expect(parseGapDescription('Switch: A → B')).toEqual({ from: 'A', to: 'B' });
+  });
+
   it('tål extra mellanslag', () => {
     expect(parseGapDescription('  Gap:  A  →  B (10 min)  ')).toEqual({ from: 'A', to: 'B' });
   });
@@ -44,7 +55,23 @@ describe('resolveTravelLabels', () => {
     expect(r.toFromDescription).toBe(false);
   });
 
-  it('returnerar null när varken adress eller description ger något', () => {
+  it('faller tillbaka på koordinater när varken adress eller description ger något', () => {
+    const r = resolveTravelLabels({
+      from_address: null,
+      to_address: null,
+      description: null,
+      from_latitude: 59.2620653,
+      from_longitude: 17.8915914,
+      to_latitude: 59.3255677,
+      to_longitude: 18.0711248,
+    });
+    expect(r.fromLabel).toBe('Pos 59.262, 17.892');
+    expect(r.toLabel).toBe('Pos 59.326, 18.071');
+    expect(r.fromFromDescription).toBe(true);
+    expect(r.toFromDescription).toBe(true);
+  });
+
+  it('returnerar null när varken adress, description eller koordinater finns', () => {
     const r = resolveTravelLabels({ from_address: null, to_address: null, description: null });
     expect(r.fromLabel).toBeNull();
     expect(r.toLabel).toBeNull();
