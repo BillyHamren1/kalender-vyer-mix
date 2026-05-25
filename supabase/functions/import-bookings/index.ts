@@ -1080,6 +1080,8 @@ async function reconcileCalendarEvents(
   const clientLabel = bookingData.client || 'Bokning';
   const desiredTitle = bookingTitle ? `${bookingTitle} – ${clientLabel}` : clientLabel;
 
+  const rentalOnly = bookingData.rental_only === true;
+
   for (const date of rigDates) {
     const start = buildDateTimeFromPartsEx(date, bookingData.rig_start_time);
     const end = bookingData.rig_end_time
@@ -1088,9 +1090,11 @@ async function reconcileCalendarEvents(
     console.log(`[Calendar Time] rig ${date}: start=${start.dateTime} (${start.isExplicit ? 'EXPLICIT' : 'DEFAULT'}), end=${end.dateTime} (${end.isExplicit ? 'EXPLICIT' : 'DEFAULT'})`);
     desiredEvents.push({
       event_type: 'rig', start_time: start.dateTime, end_time: end.dateTime,
-      title: desiredTitle, booking_number: bookingData.booking_number || null,
+      title: rentalOnly ? `Leverans UT – ${desiredTitle}` : desiredTitle,
+      booking_number: bookingData.booking_number || null,
       delivery_address: bookingData.deliveryaddress || null, date,
-      isExplicitStart: start.isExplicit
+      isExplicitStart: start.isExplicit,
+      rentalOnly,
     });
   }
 
@@ -1107,9 +1111,11 @@ async function reconcileCalendarEvents(
     console.log(`[Calendar Time] rigDown ${date}: start=${start.dateTime} (${start.isExplicit ? 'EXPLICIT' : 'DEFAULT'}), end=${end.dateTime} (${end.isExplicit ? 'EXPLICIT' : 'DEFAULT'})`);
     desiredEvents.push({
       event_type: 'rigDown', start_time: start.dateTime, end_time: end.dateTime,
-      title: desiredTitle, booking_number: bookingData.booking_number || null,
+      title: rentalOnly ? `Retur IN – ${desiredTitle}` : desiredTitle,
+      booking_number: bookingData.booking_number || null,
       delivery_address: bookingData.deliveryaddress || null, date,
-      isExplicitStart: start.isExplicit
+      isExplicitStart: start.isExplicit,
+      rentalOnly,
     });
   }
 
