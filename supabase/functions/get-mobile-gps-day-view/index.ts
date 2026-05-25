@@ -23,6 +23,8 @@ import {
   readManualOverridesFromSubmission,
 } from "../_shared/time-v2/loaders.ts";
 import { buildDayView } from "../_shared/time-v2/buildDayView.ts";
+import { buildDayMap } from "../_shared/time-v2/buildDayMap.ts";
+import { buildGpsDayTimelineOnly } from "../_shared/timeline/buildGpsDayTimelineOnly.ts";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
