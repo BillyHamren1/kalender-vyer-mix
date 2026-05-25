@@ -50,17 +50,17 @@ const TimePayrollOverview: React.FC<Props> = ({ onNavigateTab }) => {
     status: null,
   });
 
-  const rows = (data?.rows ?? []) as any[];
+  const submissions = data?.submissions ?? [];
 
   let pendingStaff = 0;
   let pendingAdmin = 0;
   let needsFix = 0;
   let approved = 0;
 
-  for (const r of rows) {
-    const s = r?.status ?? r?.day_status ?? "";
-    if (s === "pending_staff_attest" || s === "submitted") pendingStaff++;
-    else if (s === "pending_admin_attest" || s === "submitted_pending_admin") pendingAdmin++;
+  for (const r of submissions) {
+    const s = String(r?.status ?? "");
+    if (s === "submitted" || s === "edited") pendingAdmin++;
+    else if (s === "needs_user_attention" || s === "ai_flagged") pendingStaff++;
     else if (s === "correction_requested") needsFix++;
     else if (s === "approved" || s === "payroll_approved") approved++;
   }
