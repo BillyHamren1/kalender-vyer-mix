@@ -326,22 +326,7 @@ const MobileTimeV2Page: React.FC = () => {
   );
 };
 
-function diffMinutes(startIso: string, endIso: string): number {
-  try {
-    const a = new Date(startIso).getTime();
-    const b = new Date(endIso).getTime();
-    if (!Number.isFinite(a) || !Number.isFinite(b)) return 0;
-    return Math.max(0, Math.round((b - a) / 60000));
-  } catch {
-    return 0;
-  }
-}
-
-function minutesToLabel(m: number): string {
-  const safe = Math.max(0, Math.round(m));
-  const h = Math.floor(safe / 60);
-  const mm = safe % 60;
-  return h > 0 ? `${h}h ${mm}m` : `${mm}m`;
-}
+// Inga lokala duration- eller totalberäkningar i denna fil.
+// Backend (`get-mobile-gps-day-view`) äger all tidsräkning.
 
 export default MobileTimeV2Page;
