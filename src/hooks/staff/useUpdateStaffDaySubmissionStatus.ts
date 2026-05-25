@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-export type AdminDayStatusUpdate = "approved" | "needs_control";
+export type AdminDayStatusUpdate = "approved" | "needs_control" | "correction_requested";
 
 export interface UpdateDaySubmissionInput {
   submission_id: string;
