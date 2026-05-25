@@ -202,7 +202,7 @@ const MobileWeekView = ({
                     )}
                     {!summaryText && (
                       <div className="mt-1 text-xs text-muted-foreground/70 italic">
-                        {t('calendar.noJobs') || 'Inga planerade jobb'}
+                        {'Inga planerade jobb'}
                       </div>
                     )}
                   </div>
