@@ -97,6 +97,63 @@ export interface MobileGpsDayDebug {
   lastPingAt: string | null;
 }
 
+export interface MobileGpsMapBounds {
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
+}
+
+export type MobileGpsMapMarkerKind =
+  | 'project'
+  | 'large_project'
+  | 'location'
+  | 'booking'
+  | 'home'
+  | 'unknown'
+  | 'travel_start'
+  | 'travel_end';
+
+export interface MobileGpsMapMarker {
+  id: string;
+  label: string;
+  lat: number;
+  lng: number;
+  kind: MobileGpsMapMarkerKind;
+  segmentKey: string | null;
+}
+
+export type MobileGpsMapAreaKind =
+  | 'project'
+  | 'large_project'
+  | 'location'
+  | 'booking'
+  | 'home';
+
+export interface MobileGpsMapArea {
+  id: string;
+  label: string;
+  kind: MobileGpsMapAreaKind;
+  centerLat: number;
+  centerLng: number;
+  radiusMeters: number;
+}
+
+export interface MobileGpsRouteGeoJson {
+  type: 'Feature';
+  geometry: { type: 'LineString'; coordinates: [number, number][] };
+  properties: Record<string, unknown>;
+}
+
+export interface MobileGpsMap {
+  type: 'empty' | 'geojson';
+  hasPings: boolean;
+  routeGeoJson: MobileGpsRouteGeoJson | null;
+  bounds: MobileGpsMapBounds | null;
+  markers: MobileGpsMapMarker[];
+  areas: MobileGpsMapArea[];
+}
+
 export interface MobileGpsDayView {
   source: 'mobile_gps_day_view_v2';
   staffId: string;
@@ -104,6 +161,7 @@ export interface MobileGpsDayView {
   sourceSnapshotId: string;
   title: string;
   subtitle: string;
+  map: MobileGpsMap;
   segments: MobileGpsDaySegment[];
   rows: MobileGpsDayRow[];
   totals: MobileGpsDayTotals;
