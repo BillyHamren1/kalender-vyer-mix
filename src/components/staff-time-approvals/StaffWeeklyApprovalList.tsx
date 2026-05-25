@@ -84,8 +84,10 @@ export const StaffWeeklyApprovalList: React.FC<Props> = ({
                 isApproving={approvingStaffId === b.staff.id}
                 onOpen={() => onOpen(b.staff.id)}
                 onApproveWeek={() => onApproveWeek(b.staff.id)}
+                onOpenDay={onOpenDay}
               />
             ))}
+
           </div>
           {hiddenApproved > 0 && (
             <div className="flex justify-center pt-1">
