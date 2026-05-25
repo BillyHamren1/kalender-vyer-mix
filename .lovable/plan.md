@@ -1,29 +1,21 @@
-# Plan: återställ bara start/slut
-
 ## Mål
-Återställa den tidigare korrekta beräkningen av dagens starttid och sluttid i GPS-vyn, utan att ändra någon logik för hem/private eller hur övriga segment klassificeras.
+Få previewn att faktiskt visa de återställda start-/sluttiderna, utan att ändra någon hem-/privatlogik.
 
-## Vad som ändras
-1. Identifiera exakt var `firstIso` och `lastIso` började styras av den nya partition-logiken.
-2. Ändra week summary så start/slut åter kommer från samma källa som tidigare, medan övrig nuvarande logik lämnas orörd.
-3. Säkerställa att UI-raden visar de återställda start/sluttiderna men i övrigt inte får någon beteendeförändring.
-4. Lägga till ett regressions-test som låser att start/slut inte påverkas av partitionering eller klassificering.
+## Plan
+1. Verifiera vilken källa previewn använder just nu för raden i GPS-vyn.
+   - Jämför edge function-svaret med vad komponenten renderar.
+   - Bekräfta om felet ligger i stale deploy/cache eller i klientens datalager.
 
-## Tekniska ändringar
-- `supabase/functions/get-staff-gps-week-summary/index.ts`
-  - Återställ `firstIso` och `lastIso` till den tidigare datakällan för dagsfönstret i stället för att låta partitioneringen definiera dem.
-- Eventuellt berörd shared helper i staff GPS-kedjan
-  - Endast om det behövs för att exponera den ursprungliga start/slut-källan tydligt.
-- `src/hooks/staff/useStaffGpsWeekSummary.ts`
-  - Behåll kontraktet, men säkerställ att hooken tar de återställda värdena utan extra tolkning.
-- Test
-  - Lägg till/uppdatera test som uttryckligen verifierar att start/slut är återställda och inte ändras av segmentlogiken.
+2. Säkerställ att rätt version av `get-staff-gps-week-summary` används av previewn.
+   - Om edge-funktionen inte är deployad i den miljö previewn anropar: deploya rätt version.
+   - Om previewn har fastnat i gammal data: tvinga omhämtning/invalidiering på rätt React Query-nyckel eller restarta relevant preview-flöde.
 
-## Oförändrat
-- Ingen ändring av hem/private.
-- Ingen ändring av arbets-/warehouse-prioritering.
-- Ingen ändring av segmenttyper eller hur tiden mellan start/slut visas.
+3. Validera exakt på den dag du pekade ut.
+   - Kontrollera att raden visar återställda tider från svaret.
+   - Bekräfta att endast start/slut påverkas och att övrig klassificering lämnas orörd.
 
-## Validering
-1. Köra riktade tester för GPS day summary/partition.
-2. Verifiera i preview att dagen visar samma start/slut som före partition-ändringen.
+## Tekniska detaljer
+- `StaffGpsDayRow.tsx` renderar redan `summary.firstIso` och `summary.lastIso` direkt.
+- `useStaffGpsWeekSummary.ts` mappar också värdena rakt igenom utan extra tolkning.
+- Nätverkssnapshoten visar att backend-svaret redan innehåller de korrekta tiderna för 2026-05-18 (`06:55–22:29`).
+- Därför ska nästa steg fokusera på miljö/deploy/cache, inte ny affärslogik.
