@@ -7,7 +7,7 @@
  * mobile-time-komponenter eller hooks.
  */
 import React, { useCallback, useMemo, useState } from 'react';
-import { format, addDays, subDays, isSameDay, parseISO } from 'date-fns';
+import { format, addDays, subDays, isSameDay } from 'date-fns';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
