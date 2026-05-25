@@ -227,11 +227,16 @@ function travelLogToSegment(
   if (durationMin <= 0 && !ongoing) return null;
   const missingDestination = !tl.destinationBookingId && !tl.toAddress;
   const reviewRequired = missingDestination || !tl.approved;
-  // Fyll i saknad from/to genom att parsa "Gap: X → Y (N min)" ur description.
+  // Fyll i saknad from/to via description ("Gap:" / "Auto-switch") och som
+  // sista utväg koordinater (`Pos lat,lng`) så vi aldrig fastnar på "—".
   const labels = resolveTravelLabels({
     from_address: tl.fromAddress ?? null,
     to_address: tl.toAddress ?? null,
-    description: (tl as any).description ?? null,
+    description: tl.description ?? null,
+    from_latitude: tl.fromLatitude ?? null,
+    from_longitude: tl.fromLongitude ?? null,
+    to_latitude: tl.toLatitude ?? null,
+    to_longitude: tl.toLongitude ?? null,
   });
   const subtitle = labels.fromLabel || labels.toLabel
     ? `${labels.fromLabel ?? '—'} → ${labels.toLabel ?? '—'}`
