@@ -307,7 +307,7 @@ const SplitBookingIntoTasksDialog = ({
                           className="h-8 text-xs"
                         />
                       </div>
-                      <div className="col-span-6 md:col-span-3">
+                      <div className="col-span-6 md:col-span-2">
                         <Label className="text-[10px] text-muted-foreground">Datum</Label>
                         <Select
                           value={row.plan_date}
@@ -328,7 +328,7 @@ const SplitBookingIntoTasksDialog = ({
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="col-span-3 md:col-span-1.5">
+                      <div className="col-span-3 md:col-span-2">
                         <Label className="text-[10px] text-muted-foreground">Start</Label>
                         <Input
                           type="time"
@@ -339,7 +339,7 @@ const SplitBookingIntoTasksDialog = ({
                           className="h-8 text-xs"
                         />
                       </div>
-                      <div className="col-span-3 md:col-span-1.5">
+                      <div className="col-span-3 md:col-span-2">
                         <Label className="text-[10px] text-muted-foreground">Slut</Label>
                         <Input
                           type="time"
