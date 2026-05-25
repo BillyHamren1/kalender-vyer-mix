@@ -28,6 +28,7 @@ interface Props {
   weekNumber: number;
   weekRangeLabel: string;
   onClose: () => void;
+  onOpenDay?: (day: import("./weeklyApprovalModel").WeeklyDayCell) => void;
 }
 
 export const StaffWeeklyApprovalPanel: React.FC<Props> = ({
@@ -35,6 +36,7 @@ export const StaffWeeklyApprovalPanel: React.FC<Props> = ({
   weekNumber,
   weekRangeLabel,
   onClose,
+  onOpenDay,
 }) => {
   const navigate = useNavigate();
   const { toast } = useToast();
