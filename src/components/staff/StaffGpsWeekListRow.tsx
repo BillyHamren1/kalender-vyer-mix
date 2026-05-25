@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
+import { MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
 import type { StaffGpsWeekDaySummary } from '@/hooks/staff/useStaffGpsWeekSummaryBatch';
@@ -28,7 +29,6 @@ function fmtDur(min: number): string {
 export function StaffGpsWeekListRow({
   staff, weekDays, summariesByDate, isLoading, onSelect,
 }: Props) {
-  // Hitta första dagen med aktivitet (för klick på namnet).
   const firstActiveIdx = weekDays.findIndex((d) => {
     const s = summariesByDate[format(d, 'yyyy-MM-dd')];
     return !!s && !!s.firstIso;
@@ -44,11 +44,13 @@ export function StaffGpsWeekListRow({
         className="w-full flex items-center gap-2 px-3 py-2 bg-[hsl(270_35%_98%)] border-b border-[hsl(270_20%_92%)] hover:bg-[hsl(270_45%_96%)] transition text-left"
       >
         <span className="text-[13px] font-semibold text-[hsl(280_45%_22%)] truncate">{staff.name}</span>
-        <span className="ml-auto text-[10.5px] text-muted-foreground">Klicka för karta</span>
+        <span className="ml-auto inline-flex items-center gap-1 text-[10.5px] text-[hsl(280_45%_38%)]">
+          <MapPin className="h-3 w-3" /> Visa karta
+        </span>
       </button>
 
-      {/* 7-dagars rad */}
-      <div className="grid grid-cols-7 divide-x divide-[hsl(270_18%_94%)]">
+      {/* Vertikala dagsrader: Mån–Sön */}
+      <div className="divide-y divide-[hsl(270_18%_94%)]">
         {weekDays.map((day) => {
           const key = format(day, 'yyyy-MM-dd');
           const summary = summariesByDate[key];
@@ -56,6 +58,7 @@ export function StaffGpsWeekListRow({
           const hasRange = hasData && !!summary!.firstIso && !!summary!.lastIso;
           const weekday = format(day, 'EEE', { locale: sv });
           const dayMonth = format(day, 'd/M', { locale: sv });
+          const places = summary?.placeNames ?? [];
 
           return (
             <button
@@ -63,14 +66,16 @@ export function StaffGpsWeekListRow({
               type="button"
               onClick={() => onSelect(staff.id, day)}
               className={cn(
-                'flex flex-col items-center gap-0.5 px-1.5 py-2 text-center transition-all min-w-0',
+                'w-full grid grid-cols-[88px_minmax(96px,140px)_1fr] items-center gap-3 px-3 py-2 text-left transition',
                 'hover:bg-[hsl(270_35%_97%)]',
+                !hasData && 'opacity-80',
               )}
             >
-              <div className="flex items-baseline gap-1 leading-tight">
+              {/* Dag-kolumn */}
+              <div className="flex flex-col leading-tight min-w-0">
                 <span
                   className={cn(
-                    'text-[12px] font-semibold capitalize tracking-tight',
+                    'text-[12.5px] font-semibold capitalize tracking-tight',
                     !hasData && 'text-muted-foreground/70',
                   )}
                 >
@@ -85,22 +90,45 @@ export function StaffGpsWeekListRow({
                   {dayMonth}
                 </span>
               </div>
-              {hasRange ? (
-                <>
-                  <span className="text-[12.5px] font-semibold tabular-nums text-foreground tracking-tight leading-tight">
-                    {fmtDur(summary!.durationMin)}
+
+              {/* Tid-kolumn */}
+              <div className="flex flex-col leading-tight min-w-0">
+                {hasRange ? (
+                  <>
+                    <span className="text-[12.5px] font-semibold tabular-nums text-foreground tracking-tight">
+                      {fmtDur(summary!.durationMin)}
+                    </span>
+                    <span className="text-[10px] tabular-nums text-muted-foreground/70">
+                      {formatStockholmHm(summary!.firstIso!)}
+                      <span className="mx-0.5 text-muted-foreground/40">–</span>
+                      {formatStockholmHm(summary!.lastIso!)}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-[10.5px] text-muted-foreground/60">
+                    {isLoading && !summary ? 'Laddar…' : hasData ? 'Endast hemma' : '—'}
                   </span>
-                  <span className="text-[10px] tabular-nums text-muted-foreground/70 leading-tight">
-                    {formatStockholmHm(summary!.firstIso!)}
-                    <span className="mx-0.5 text-muted-foreground/40">–</span>
-                    {formatStockholmHm(summary!.lastIso!)}
+                )}
+              </div>
+
+              {/* Platser-kolumn (höger) */}
+              <div className="flex flex-wrap gap-1 justify-end min-w-0">
+                {places.length > 0 ? (
+                  places.map((name) => (
+                    <span
+                      key={name}
+                      className="inline-flex items-center max-w-[220px] truncate rounded-full bg-[hsl(270_35%_96%)] border border-[hsl(270_20%_88%)] px-2 py-0.5 text-[10.5px] text-[hsl(280_45%_28%)]"
+                      title={name}
+                    >
+                      {name}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-[10.5px] text-muted-foreground/50">
+                    {hasData ? 'Okänd plats' : ''}
                   </span>
-                </>
-              ) : (
-                <span className="text-[10.5px] text-muted-foreground/60 leading-tight">
-                  {isLoading && !summary ? 'Laddar…' : hasData ? 'Endast hemma' : '—'}
-                </span>
-              )}
+                )}
+              </div>
             </button>
           );
         })}
