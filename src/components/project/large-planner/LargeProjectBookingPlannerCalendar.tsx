@@ -4,33 +4,25 @@
  * Mål: planera BOKNINGAR/TASKS inuti ett stort projekt utan att röra
  * personalkalenderns dataskrivning.
  *
- * HÅRDA REGLER (locked by .lovable/large-project-calendar-audit.md):
- *  - Får ALDRIG skriva till:
- *      • calendar_events
- *      • staff_assignments
- *      • booking_staff_assignments
- *      • large_project_team_assignments
- *  - Får ALDRIG importera/anropa:
- *      • useUnifiedStaffOperations
- *      • useRealTimeCalendarEvents (för skrivning)
- *      • useEventDragDrop
- *      • personalkalenderns staff drop/write handlers
- *      • services/calendarService.* (write)
- *      • services/eventService write-funktioner
- *      • services/largeProjectPlannerService.{moveLargeProjectDay,setLargeProjectDayTeam}
- *      • services/warehouseAssignmentsSync.*
- *
+ * HÅRDA REGLER:
+ *  - Får ALDRIG skriva till calendar_events / staff_assignments /
+ *    booking_staff_assignments / large_project_team_assignments.
  *  - All write går via useLargeProjectPlannerItems → largeProjectPlannerService
  *    → enbart tabellen `large_project_booking_plan_items`.
  *
- * UI återanvänder visuell stil från CustomCalendar (kort, kolumner, tidsgrid,
- * dagskolumner, lila projektkänsla) men ALDRIG dess write-handlers.
+ * BEMANNING PER DAG (project-team-stickiness):
+ *  - Personalkolumner renderas PER dag från staffByDay[day.date].
+ *  - En person som inte är bemannad en viss dag visas inte den dagen.
+ *  - Items vars assigned_staff_id inte är bemannad den dagen hamnar i
+ *    "Ej tilldelat" med badge "Bemanning saknas".
+ *  - Drag/drop till obemannad person stoppas.
+ *  - Drag/drop till ny dag där personen inte är bemannad rensar personen.
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { CalendarOff, Loader2 } from 'lucide-react';
+import { AlertTriangle, CalendarOff, Loader2 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import LargeProjectPlannerToolbar from './LargeProjectPlannerToolbar';
@@ -39,11 +31,9 @@ import LargeProjectPlannerTaskCard from './LargeProjectPlannerTaskCard';
 import SplitBookingIntoTasksDialog from './SplitBookingIntoTasksDialog';
 import ManualProjectTaskDialog from './ManualProjectTaskDialog';
 import LargeProjectPlannerQuickEditDialog from './LargeProjectPlannerQuickEditDialog';
-import { useLargeProjectPlannerItems } from './useLargeProjectPlannerItems';
-import { useState } from 'react';
+import { useLargeProjectPlannerItems, type PlannerItemWithValidity } from './useLargeProjectPlannerItems';
 import { readDragPayload, hasPlannerPayload } from './plannerDnd';
 import type {
-  LargeProjectBookingPlanItem,
   LargeProjectPlannerBooking,
   LargeProjectPlannerStaffMember,
 } from './largeProjectPlannerTypes';
@@ -85,8 +75,10 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     bookings,
     staff,
     staffByDay,
+    getAllowedStaffForDate,
     isStaffAllowedForDate,
     items,
+    itemsWithAssignmentValidity,
     days,
     refetch,
     createItem,
@@ -131,16 +123,23 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     }
   }, [days]);
 
-  /** items per (date|staffId|UNASSIGNED) */
+  /**
+   * grid: items per (date|staffId|UNASSIGNED)
+   * Använder itemsWithAssignmentValidity — items med isAssignedStaffAllowed=false
+   * tvångsroutas till UNASSIGNED-kolumnen för sin plan_date.
+   */
   const grid = useMemo(() => {
-    const map = new Map<string, LargeProjectBookingPlanItem[]>();
-    items.forEach((it) => {
-      const key = `${it.plan_date}|${it.assigned_staff_id ?? UNASSIGNED_KEY}`;
+    const map = new Map<string, PlannerItemWithValidity[]>();
+    itemsWithAssignmentValidity.forEach((it) => {
+      const effectiveStaffId =
+        it.assigned_staff_id && it.isAssignedStaffAllowed
+          ? it.assigned_staff_id
+          : null;
+      const key = `${it.plan_date}|${effectiveStaffId ?? UNASSIGNED_KEY}`;
       const arr = map.get(key) ?? [];
       arr.push(it);
       map.set(key, arr);
     });
-    // sort each cell by sort_order then start_time
     map.forEach((arr) =>
       arr.sort((a, b) => {
         if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;
@@ -148,7 +147,7 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
       }),
     );
     return map;
-  }, [items]);
+  }, [itemsWithAssignmentValidity]);
 
   const handleRefresh = () => {
     void refetch();
@@ -191,7 +190,6 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     }
   };
 
-
   const handleSeedBooking = async (booking: LargeProjectPlannerBooking) => {
     const planDate =
       booking.rigdaydate ?? booking.eventdate ?? booking.rigdowndate ?? days[0]?.date;
@@ -227,7 +225,7 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     setManualOpen(true);
   };
 
-  const handleItemDelete = async (item: LargeProjectBookingPlanItem) => {
+  const handleItemDelete = async (item: PlannerItemWithValidity) => {
     if (!window.confirm(`Ta bort "${item.title}"?`)) return;
     try {
       await deleteItem(item.id);
@@ -237,7 +235,7 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     }
   };
 
-  const handleItemClick = (item: LargeProjectBookingPlanItem) => {
+  const handleItemClick = (item: PlannerItemWithValidity) => {
     setQuickEditId(item.id);
   };
 
@@ -269,22 +267,52 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     ) {
       return; // no-op
     }
+
+    // Drop på en person-kolumn: personen måste vara bemannad den dagen.
+    if (staffId && !isStaffAllowedForDate(staffId, date)) {
+      toast.error('Personen är inte bemannad på stora projektet den här dagen.');
+      return;
+    }
+
+    // Drop på en ny dag i samma persons kolumn (eller utan staff angiven) —
+    // om itemet ÄGS av någon som inte är bemannad nya dagen, rensa staff.
+    const sourceItem = items.find((it) => it.id === payload.itemId);
+    let nextStaffId: string | null = staffId;
+    let movedToUnassignedDueToStaff = false;
+    if (
+      staffId === null &&
+      sourceItem?.assigned_staff_id &&
+      payload.fromDate !== date
+    ) {
+      // Behåller personen om den fortfarande är bemannad nya dagen,
+      // annars hamnar tasken i Ej tilldelat.
+      if (isStaffAllowedForDate(sourceItem.assigned_staff_id, date)) {
+        nextStaffId = sourceItem.assigned_staff_id;
+      } else {
+        nextStaffId = null;
+        movedToUnassignedDueToStaff = true;
+      }
+    }
+
     try {
       await updateItem(payload.itemId, {
         plan_date: date,
-        assigned_staff_id: staffId,
-        // assigned_team_id följer personens kolumn (vi har inte teamID i kolumnen → null)
+        assigned_staff_id: nextStaffId,
         assigned_team_id: null,
-        // status: ett unplanned-item som dras in i griden blir planerat
-        status: staffId ? 'planned' : undefined,
+        status: nextStaffId ? 'planned' : undefined,
       });
+      if (movedToUnassignedDueToStaff) {
+        toast.warning(
+          'Personen är inte bemannad på projektet den nya dagen. Tasken flyttades till Ej tilldelat.',
+        );
+      }
     } catch (err) {
       toast.error((err as Error).message || 'Kunde inte flytta task.');
     }
   };
 
   const quickEditItem = quickEditId
-    ? items.find((it) => it.id === quickEditId) ?? null
+    ? itemsWithAssignmentValidity.find((it) => it.id === quickEditId) ?? null
     : null;
   const quickEditBooking =
     quickEditItem?.booking_id ? bookingById.get(quickEditItem.booking_id) ?? null : null;
@@ -292,9 +320,6 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
   const splitTargetBooking = splitBookingId
     ? bookingById.get(splitBookingId) ?? null
     : null;
-
-  // Kolumner = assignad personal (via personalkalendern) + "Ej tilldelat"
-  const staffColumns = useMemo(() => staff, [staff]);
 
   return (
     <div className="flex h-full min-h-[600px] flex-col overflow-hidden rounded-md border border-border/60 bg-background">
@@ -330,143 +355,170 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
           {!isLoading && !error && days.length > 0 && (
             <ScrollArea className="flex-1">
               <div className="min-w-max">
-                {/* Header row: staff columns + Unassigned */}
-                <div
-                  className="sticky top-0 z-10 grid border-b border-border/60 bg-primary/5"
-                  style={{
-                    gridTemplateColumns: `120px repeat(${staffColumns.length}, minmax(160px, 1fr)) 200px`,
-                  }}
-                >
-                  <div className="px-2 py-2 text-[11px] font-semibold text-muted-foreground">
-                    Dag
-                  </div>
-                  {staffColumns.map((s) => (
-                    <div
-                      key={s.id}
-                      className="border-l border-border/60 px-2 py-2 text-[11px] font-semibold text-foreground"
-                      title={s.name}
-                    >
-                      <div className="flex items-center gap-1">
-                        <span
-                          className="inline-block h-2 w-2 rounded-full"
-                          style={{ background: s.color ?? 'hsl(var(--primary))' }}
-                        />
-                        <span className="truncate">{s.name}</span>
-                      </div>
-                    </div>
-                  ))}
-                  <div className="border-l border-dashed border-border/60 bg-muted/30 px-2 py-2 text-[11px] font-semibold text-muted-foreground">
-                    Ej tilldelat
-                  </div>
-                </div>
-
-                {/* Day rows */}
                 {days.map((day) => {
                   const header = formatDayHeader(day.date);
+                  const dayStaff = staffByDay[day.date] ?? [];
+                  const gridTemplate = `120px repeat(${Math.max(dayStaff.length, 1)}, minmax(160px, 1fr)) 200px`;
                   return (
                     <div
                       key={day.date}
-                      className="grid border-b border-border/60"
-                      style={{
-                        gridTemplateColumns: `120px repeat(${staffColumns.length}, minmax(160px, 1fr)) 200px`,
-                      }}
+                      className="border-b border-border/60"
                     >
-                      <div className="bg-primary/5 px-2 py-2">
-                        <div className="text-[11px] font-semibold uppercase text-muted-foreground">
-                          {header.weekday}
+                      {/* Per-dag staff-header */}
+                      <div
+                        className="grid border-b border-border/40 bg-primary/5"
+                        style={{ gridTemplateColumns: gridTemplate }}
+                      >
+                        <div className="px-2 py-1.5">
+                          <div className="text-[10px] font-semibold uppercase text-muted-foreground">
+                            {header.weekday}
+                          </div>
+                          <div className="text-xs font-medium text-foreground">
+                            {header.day}
+                          </div>
+                          {day.phase && (
+                            <Badge
+                              variant="outline"
+                              className={`mt-1 px-1 py-0 text-[9px] ${PHASE_TONE[day.phase] ?? ''}`}
+                            >
+                              {PHASE_LABEL[day.phase] ?? day.phase}
+                            </Badge>
+                          )}
                         </div>
-                        <div className="text-xs font-medium text-foreground">
-                          {header.day}
-                        </div>
-                        {day.phase && (
-                          <Badge
-                            variant="outline"
-                            className={`mt-1 px-1 py-0 text-[9px] ${
-                              PHASE_TONE[day.phase] ?? ''
-                            }`}
-                          >
-                            {PHASE_LABEL[day.phase] ?? day.phase}
-                          </Badge>
+                        {dayStaff.length === 0 ? (
+                          <div className="border-l border-border/60 px-2 py-1.5 text-[11px] italic text-muted-foreground">
+                            Ingen bemannad personal denna dag
+                          </div>
+                        ) : (
+                          dayStaff.map((s) => (
+                            <div
+                              key={s.id}
+                              className="border-l border-border/60 px-2 py-1.5 text-[11px] font-semibold text-foreground"
+                              title={s.name}
+                            >
+                              <div className="flex items-center gap-1">
+                                <span
+                                  className="inline-block h-2 w-2 rounded-full"
+                                  style={{ background: s.color ?? 'hsl(var(--primary))' }}
+                                />
+                                <span className="truncate">{s.name}</span>
+                              </div>
+                            </div>
+                          ))
                         )}
+                        <div className="border-l border-dashed border-border/60 bg-muted/30 px-2 py-1.5 text-[11px] font-semibold text-muted-foreground">
+                          Ej tilldelat
+                        </div>
                       </div>
-                      {staffColumns.map((s) => {
-                        const key = dropKey(day.date, s.id);
-                        const cellItems = grid.get(key) ?? [];
-                        const isOver = dragOverKey === key;
-                        return (
-                          <div
-                            key={s.id}
-                            className={`group relative min-h-[80px] cursor-pointer space-y-1 border-l border-border/60 p-1.5 transition-colors hover:bg-primary/5 ${
-                              isOver ? 'bg-primary/15 ring-2 ring-primary/50' : ''
-                            }`}
-                            onClick={(e) => {
-                              if ((e.target as HTMLElement).closest('[data-task-card]')) return;
-                              handleCreateManual({ date: day.date, staffId: s.id });
-                            }}
-                            onDragOver={(e) => handleCellDragOver(e, key)}
-                            onDragLeave={() => {
-                              if (dragOverKey === key) setDragOverKey(null);
-                            }}
-                            onDrop={(e) => handleCellDrop(e, day.date, s.id)}
-                            title="Klicka för att skapa manuell task — eller släpp en task här"
-                          >
-                            {cellItems.map((it) => (
-                              <div data-task-card key={it.id}>
-                                <LargeProjectPlannerTaskCard
-                                  item={it}
-                                  booking={
-                                    it.booking_id
-                                      ? bookingById.get(it.booking_id) ?? null
-                                      : null
-                                  }
-                                  staff={staffById.get(s.id) ?? null}
-                                  draggable
-                                  onClick={handleItemClick}
-                                  onDelete={handleItemDelete}
-                                />
+
+                      {/* Cells row */}
+                      <div
+                        className="grid"
+                        style={{ gridTemplateColumns: gridTemplate }}
+                      >
+                        <div className="bg-primary/5" />
+                        {dayStaff.length === 0 ? (
+                          <div className="min-h-[80px] border-l border-border/60 bg-muted/10" />
+                        ) : (
+                          dayStaff.map((s) => {
+                            const key = dropKey(day.date, s.id);
+                            const cellItems = grid.get(key) ?? [];
+                            const isOver = dragOverKey === key;
+                            return (
+                              <div
+                                key={s.id}
+                                className={`group relative min-h-[80px] cursor-pointer space-y-1 border-l border-border/60 p-1.5 transition-colors hover:bg-primary/5 ${
+                                  isOver ? 'bg-primary/15 ring-2 ring-primary/50' : ''
+                                }`}
+                                onClick={(e) => {
+                                  if ((e.target as HTMLElement).closest('[data-task-card]')) return;
+                                  handleCreateManual({ date: day.date, staffId: s.id });
+                                }}
+                                onDragOver={(e) => handleCellDragOver(e, key)}
+                                onDragLeave={() => {
+                                  if (dragOverKey === key) setDragOverKey(null);
+                                }}
+                                onDrop={(e) => handleCellDrop(e, day.date, s.id)}
+                                title="Klicka för att skapa manuell task — eller släpp en task här"
+                              >
+                                {cellItems.map((it) => (
+                                  <div data-task-card key={it.id}>
+                                    <LargeProjectPlannerTaskCard
+                                      item={it}
+                                      booking={
+                                        it.booking_id
+                                          ? bookingById.get(it.booking_id) ?? null
+                                          : null
+                                      }
+                                      staff={staffById.get(s.id) ?? null}
+                                      draggable
+                                      onClick={handleItemClick}
+                                      onDelete={handleItemDelete}
+                                    />
+                                  </div>
+                                ))}
                               </div>
-                            ))}
-                          </div>
-                        );
-                      })}
-                      {/* Ej tilldelat */}
-                      {(() => {
-                        const key = dropKey(day.date, null);
-                        const isOver = dragOverKey === key;
-                        return (
-                          <div
-                            className={`group min-h-[80px] cursor-pointer space-y-1 border-l border-dashed border-border/60 bg-muted/20 p-1.5 transition-colors hover:bg-muted/40 ${
-                              isOver ? 'bg-muted/60 ring-2 ring-primary/40' : ''
-                            }`}
-                            onClick={(e) => {
-                              if ((e.target as HTMLElement).closest('[data-task-card]')) return;
-                              handleCreateManual({ date: day.date, staffId: null });
-                            }}
-                            onDragOver={(e) => handleCellDragOver(e, key)}
-                            onDragLeave={() => {
-                              if (dragOverKey === key) setDragOverKey(null);
-                            }}
-                            onDrop={(e) => handleCellDrop(e, day.date, null)}
-                            title="Släpp här för att avtilldela"
-                          >
-                            {(grid.get(key) ?? []).map((it) => (
-                              <div data-task-card key={it.id}>
-                                <LargeProjectPlannerTaskCard
-                                  item={it}
-                                  booking={
-                                    it.booking_id
-                                      ? bookingById.get(it.booking_id) ?? null
-                                      : null
-                                  }
-                                  draggable
-                                  onClick={handleItemClick}
-                                  onDelete={handleItemDelete}
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })()}
+                            );
+                          })
+                        )}
+                        {/* Ej tilldelat */}
+                        {(() => {
+                          const key = dropKey(day.date, null);
+                          const cellItems = grid.get(key) ?? [];
+                          const isOver = dragOverKey === key;
+                          return (
+                            <div
+                              className={`group min-h-[80px] cursor-pointer space-y-1 border-l border-dashed border-border/60 bg-muted/20 p-1.5 transition-colors hover:bg-muted/40 ${
+                                isOver ? 'bg-muted/60 ring-2 ring-primary/40' : ''
+                              }`}
+                              onClick={(e) => {
+                                if ((e.target as HTMLElement).closest('[data-task-card]')) return;
+                                handleCreateManual({ date: day.date, staffId: null });
+                              }}
+                              onDragOver={(e) => handleCellDragOver(e, key)}
+                              onDragLeave={() => {
+                                if (dragOverKey === key) setDragOverKey(null);
+                              }}
+                              onDrop={(e) => handleCellDrop(e, day.date, null)}
+                              title="Släpp här för att avtilldela"
+                            >
+                              {cellItems.map((it) => {
+                                const orphan =
+                                  !!it.assigned_staff_id && !it.isAssignedStaffAllowed;
+                                return (
+                                  <div data-task-card key={it.id} className="space-y-1">
+                                    {orphan && (
+                                      <Badge
+                                        variant="outline"
+                                        className="gap-1 border-amber-500/50 bg-amber-500/10 px-1.5 py-0 text-[9px] font-semibold text-amber-700 dark:text-amber-300"
+                                      >
+                                        <AlertTriangle className="h-2.5 w-2.5" />
+                                        Bemanning saknas
+                                      </Badge>
+                                    )}
+                                    <LargeProjectPlannerTaskCard
+                                      item={it}
+                                      booking={
+                                        it.booking_id
+                                          ? bookingById.get(it.booking_id) ?? null
+                                          : null
+                                      }
+                                      staff={
+                                        it.assigned_staff_id
+                                          ? staffById.get(it.assigned_staff_id) ?? null
+                                          : null
+                                      }
+                                      draggable
+                                      onClick={handleItemClick}
+                                      onDelete={handleItemDelete}
+                                    />
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
+                      </div>
                     </div>
                   );
                 })}
@@ -495,6 +547,8 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
         largeProjectId={largeProjectId}
         booking={splitTargetBooking}
         staff={staff}
+        getAllowedStaffForDate={getAllowedStaffForDate}
+        isStaffAllowedForDate={isStaffAllowedForDate}
         onSplit={splitBooking}
         isMutating={isMutating}
       />
@@ -505,6 +559,8 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
         largeProjectId={largeProjectId}
         bookings={bookings}
         staff={staff}
+        getAllowedStaffForDate={getAllowedStaffForDate}
+        isStaffAllowedForDate={isStaffAllowedForDate}
         defaultDate={manualDefaults.date ?? null}
         defaultStaffId={manualDefaults.staffId ?? null}
         createItem={createItem}
@@ -519,6 +575,8 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
         item={quickEditItem}
         booking={quickEditBooking}
         staff={staff}
+        getAllowedStaffForDate={getAllowedStaffForDate}
+        isStaffAllowedForDate={isStaffAllowedForDate}
         updateItem={updateItem}
         deleteItem={deleteItem}
         onSplit={(it) => it.booking_id && setSplitBookingId(it.booking_id)}
