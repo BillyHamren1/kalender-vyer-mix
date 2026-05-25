@@ -9,6 +9,7 @@ import {
   formatHm,
   isCleanWeekApproval,
   isWeekFullyApprovable,
+  type WeeklyDayCell,
   type WeeklyStaffBundle,
 } from "./weeklyApprovalModel";
 
@@ -18,7 +19,9 @@ interface Props {
   isApproving: boolean;
   onOpen: () => void;
   onApproveWeek: () => void;
+  onOpenDay?: (bundle: WeeklyStaffBundle, day: WeeklyDayCell) => void;
 }
+
 
 function dayChipColor(uiStatus: string): string {
   if (uiStatus === "no_report") return "bg-muted/60 text-muted-foreground/70 border-transparent";
