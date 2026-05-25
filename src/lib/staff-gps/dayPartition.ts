@@ -114,6 +114,92 @@ function classifyGap(
   if (strictInGap.length === 0) return { type: "gps_gap", label: "GPS-glapp" };
   return { type: "unknown_place", label: "Okänd plats" };
 }
+/**
+ * Absorbera GPS-brus:
+ *  1. `unknown_place` < 15 min → slukas av föregående work/private
+ *     (annars av nästa work/private).
+ *  2. `travel` < 10 min utan riktig destination → slukas av föregående
+ *     work/private. "Riktig destination" = nästa work/private med
+ *     ANNAN knownSiteId OCH ≥ 5 min vistelse.
+ *  3. Två angränsande work/private med samma knownSiteId slås ihop.
+ * Bevarar tidsbudget: tid flyttas alltid till absorberande block.
+ */
+function absorbShortNoise(input: DaySegment[]): DaySegment[] {
+  const UNKNOWN_MAX_MS = 15 * 60_000;
+  const TRAVEL_MAX_MS = 10 * 60_000;
+  const NEW_ADDR_MIN_MS = 5 * 60_000;
+  const dur = (s: DaySegment) => toMs(s.end) - toMs(s.start);
+  const isStay = (s: DaySegment | undefined) =>
+    !!s && (s.type === "work" || s.type === "private");
+
+  const segs = input.map((s) => ({ ...s }));
+
+  // Pass 1: korta unknown_place
+  for (let pass = 0; pass < 50; pass++) {
+    let didChange = false;
+    for (let i = 0; i < segs.length; i++) {
+      const s = segs[i];
+      if (s.type !== "unknown_place") continue;
+      if (dur(s) >= UNKNOWN_MAX_MS) continue;
+      const prev = segs[i - 1];
+      const next = segs[i + 1];
+      if (isStay(prev)) {
+        prev.end = s.end;
+        segs.splice(i, 1);
+        didChange = true;
+        break;
+      }
+      if (isStay(next)) {
+        next.start = s.start;
+        segs.splice(i, 1);
+        didChange = true;
+        break;
+      }
+    }
+    if (!didChange) break;
+  }
+
+  // Pass 2: korta travel utan ny adress
+  for (let pass = 0; pass < 50; pass++) {
+    let didChange = false;
+    for (let i = 0; i < segs.length; i++) {
+      const s = segs[i];
+      if (s.type !== "travel") continue;
+      if (dur(s) >= TRAVEL_MAX_MS) continue;
+      const prev = segs[i - 1];
+      if (!isStay(prev)) continue;
+      const next = segs[i + 1];
+      const leadsToNewAddr =
+        !!next &&
+        isStay(next) &&
+        (next.knownSiteId ?? null) !== (prev.knownSiteId ?? null) &&
+        dur(next) >= NEW_ADDR_MIN_MS;
+      if (leadsToNewAddr) continue;
+      prev.end = s.end;
+      segs.splice(i, 1);
+      didChange = true;
+      break;
+    }
+    if (!didChange) break;
+  }
+
+  // Pass 3: slå ihop angränsande work/private på samma site
+  for (let i = segs.length - 1; i > 0; i--) {
+    const a = segs[i - 1];
+    const b = segs[i];
+    if (
+      a.type === b.type &&
+      isStay(a) &&
+      (a.knownSiteId ?? null) === (b.knownSiteId ?? null)
+    ) {
+      a.end = b.end;
+      segs.splice(i, 1);
+    }
+  }
+
+  return segs;
+}
+
 
 
 export function buildDayPartition(input: {
