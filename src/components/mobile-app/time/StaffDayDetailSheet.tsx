@@ -42,6 +42,7 @@ import StaffDaySubmitSection from './StaffDaySubmitSection';
 // EndDayButton borttagen — TIME-vyn är ren rapportering (se MobileTimeReport).
 import SegmentDetailSheet from './SegmentDetailSheet';
 import StaffGanttMirrorTimeline from './StaffGanttMirrorTimeline';
+import DayBlocksEditor from './DayBlocksEditor';
 
 const TZ_TODAY = 'Europe/Stockholm';
 function useTick(intervalMs = 1000) {
