@@ -61,6 +61,9 @@ interface Props {
   largeProjectId: string;
   bookings: LargeProjectPlannerBooking[];
   staff: LargeProjectPlannerStaffMember[];
+  /** Allowed staff per datum (från useLargeProjectPlannerItems). */
+  getAllowedStaffForDate?: (date: string | null | undefined) => LargeProjectPlannerStaffMember[];
+  isStaffAllowedForDate?: (staffId: string | null | undefined, date: string | null | undefined) => boolean;
   /** Förifylld dag (yyyy-MM-dd). Faller tillbaka till idag. */
   defaultDate?: string | null;
   /** Förifylld personal. */
@@ -78,6 +81,8 @@ const ManualProjectTaskDialog = ({
   largeProjectId,
   bookings,
   staff,
+  getAllowedStaffForDate,
+  isStaffAllowedForDate,
   defaultDate,
   defaultStaffId,
   defaultBookingId,
@@ -115,6 +120,21 @@ const ManualProjectTaskDialog = ({
       setNotes('');
     }
   }, [open, defaultDate, defaultStaffId, defaultBookingId, today]);
+
+  // Visa bara personal som är bemannad på valt datum.
+  const allowedForDate = useMemo(() => {
+    if (getAllowedStaffForDate) return getAllowedStaffForDate(planDate);
+    return staff;
+  }, [getAllowedStaffForDate, planDate, staff]);
+
+  // Om planDate ändras och vald personal inte längre är bemannad → rensa.
+  useEffect(() => {
+    if (assignedStaffId === UNASSIGNED) return;
+    if (isStaffAllowedForDate && !isStaffAllowedForDate(assignedStaffId, planDate)) {
+      setAssignedStaffId(UNASSIGNED);
+    }
+  }, [planDate, assignedStaffId, isStaffAllowedForDate]);
+
 
   const canSubmit = title.trim().length > 0 && !!planDate && !submitting && !isMutating;
 
