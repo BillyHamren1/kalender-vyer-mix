@@ -169,16 +169,68 @@ Deno.serve(async (req: Request) => {
     : [];
 
   // ── Manuell dagrapport (när GPS/förslag saknas) ─────────────
-  let manualDay: { startTime: string; endTime: string; breakMinutes: number } | null = null;
-  if (body.manualDay && typeof body.manualDay === "object") {
-    const s = String(body.manualDay.startTime ?? "").trim();
-    const e = String(body.manualDay.endTime ?? "").trim();
-    const br = Math.max(0, Math.round(Number(body.manualDay.breakMinutes ?? 0)));
-    if (!HHMM.test(s) || !HHMM.test(e)) {
-      return json({ error: "manualDay.startTime/endTime krävs som HH:mm" }, 400);
-    }
-    manualDay = { startTime: s, endTime: e, breakMinutes: br };
+  // Stöd både legacy-form (start/end/break) och ny segmentform
+  // (en eller flera rader med valt target per rad).
+  interface NormalizedSegment {
+    startTime: string;
+    endTime: string;
+    breakMinutes: number;
+    target: ManualWorkTargetInput | null;
+    comment: string | null;
   }
+  let manualDaySegments: NormalizedSegment[] | null = null;
+  let manualDayComment: string | null = null;
+
+  if (body.manualDay && typeof body.manualDay === "object") {
+    const md = body.manualDay;
+    manualDayComment = md.comment ? String(md.comment).slice(0, 4000) : null;
+
+    if (Array.isArray(md.segments) && md.segments.length > 0) {
+      const segs: NormalizedSegment[] = [];
+      for (const raw of md.segments) {
+        if (!raw || typeof raw !== "object") continue;
+        const s = String(raw.startTime ?? "").trim();
+        const e = String(raw.endTime ?? "").trim();
+        const br = Math.max(0, Math.round(Number(raw.breakMinutes ?? 0)));
+        if (!HHMM.test(s) || !HHMM.test(e)) {
+          return json({ error: "manualDay.segments: startTime/endTime krävs som HH:mm" }, 400);
+        }
+        const target = (raw.target && typeof raw.target === "object")
+          ? raw.target as ManualWorkTargetInput
+          : null;
+        if (!target) {
+          return json({ error: "manualDay.segments: target krävs för varje rad (välj plats/projekt eller 'Övrigt arbete')" }, 400);
+        }
+        segs.push({
+          startTime: s,
+          endTime: e,
+          breakMinutes: br,
+          target,
+          comment: raw.comment ? String(raw.comment).slice(0, 2000) : null,
+        });
+      }
+      if (segs.length === 0) {
+        return json({ error: "manualDay.segments: minst en giltig rad krävs" }, 400);
+      }
+      manualDaySegments = segs;
+    } else if (md.startTime && md.endTime) {
+      const s = String(md.startTime).trim();
+      const e = String(md.endTime).trim();
+      const br = Math.max(0, Math.round(Number(md.breakMinutes ?? 0)));
+      if (!HHMM.test(s) || !HHMM.test(e)) {
+        return json({ error: "manualDay.startTime/endTime krävs som HH:mm" }, 400);
+      }
+      // Översätt legacy → 1 segment med 'other'-target (ej kopplat).
+      manualDaySegments = [{
+        startTime: s,
+        endTime: e,
+        breakMinutes: br,
+        target: { targetType: "other", targetId: null, label: "Övrigt arbete" },
+        comment: null,
+      }];
+    }
+  }
+  const manualDay = manualDaySegments; // alias för läsbarhet nedan
 
   const authResult = await authenticateStaffRequest(req, { requestedStaffId: staffId });
   if (!authResult.ok) return json({ error: authResult.err.error }, authResult.err.status);
