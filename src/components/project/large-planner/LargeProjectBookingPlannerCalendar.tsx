@@ -37,6 +37,7 @@ import LargeProjectPlannerToolbar from './LargeProjectPlannerToolbar';
 import LargeProjectPlannerSidebar from './LargeProjectPlannerSidebar';
 import LargeProjectPlannerTaskCard from './LargeProjectPlannerTaskCard';
 import SplitBookingIntoTasksDialog from './SplitBookingIntoTasksDialog';
+import ManualProjectTaskDialog from './ManualProjectTaskDialog';
 import { useLargeProjectPlannerItems } from './useLargeProjectPlannerItems';
 import { useState } from 'react';
 import type {
