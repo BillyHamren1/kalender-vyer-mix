@@ -81,24 +81,36 @@ function classifyGap(
   if (span <= 0) return { type: "idle", label: "Övergång" };
   if (span < IDLE_MAX_MS) return { type: "idle", label: "Övergång" };
 
+  // Inkludera kant-pings (≥start, ≤end) så rörelse mellan visits hittas
+  // även när displacement-pingarna ligger exakt på visitgränserna.
   const inGap = pings.filter((p) => {
+    const t = toMs(p.recorded_at);
+    return t >= startMs && t <= endMs;
+  });
+
+  // Räkna pings som STRIKT ligger inne i gapet för glapp-detektion.
+  const strictInGap = inGap.filter((p) => {
     const t = toMs(p.recorded_at);
     return t > startMs && t < endMs;
   });
 
-  if (inGap.length === 0 || span > GPS_GAP_MIN_MS && inGap.length < 2) {
+  if (strictInGap.length === 0 && span > GPS_GAP_MIN_MS) {
     return { type: "gps_gap", label: "GPS-glapp" };
   }
 
-  // Compute max displacement from first to last in-gap ping
+  // Compute max displacement över alla par
   let maxDist = 0;
-  for (let i = 1; i < inGap.length; i++) {
-    const d = haversineMeters(inGap[0], inGap[i]);
-    if (d > maxDist) maxDist = d;
+  for (let i = 0; i < inGap.length; i++) {
+    for (let j = i + 1; j < inGap.length; j++) {
+      const d = haversineMeters(inGap[i], inGap[j]);
+      if (d > maxDist) maxDist = d;
+    }
   }
   if (maxDist >= TRAVEL_DISPLACEMENT_M) return { type: "travel", label: "Resa" };
+  if (strictInGap.length === 0) return { type: "gps_gap", label: "GPS-glapp" };
   return { type: "unknown_place", label: "Okänd plats" };
 }
+
 
 export function buildDayPartition(input: {
   pings: PartitionPing[];
