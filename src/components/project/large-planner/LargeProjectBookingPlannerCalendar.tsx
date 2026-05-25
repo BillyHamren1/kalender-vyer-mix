@@ -442,7 +442,6 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
                         );
                       })()}
                     </div>
-                    </div>
                   );
                 })}
               </div>
