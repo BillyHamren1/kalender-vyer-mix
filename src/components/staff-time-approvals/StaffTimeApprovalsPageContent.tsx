@@ -102,7 +102,7 @@ export const StaffTimeApprovalsPageContent: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full bg-gradient-to-b from-background via-background to-muted/20">
-      <ApprovalDashboardStrip />
+      <ApprovalDashboardStrip onOpenStaff={setOpenStaffId} />
 
       <WeekApprovalToolbar
         weekStart={weekStart}
