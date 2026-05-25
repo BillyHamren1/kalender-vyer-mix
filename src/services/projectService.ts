@@ -53,6 +53,7 @@ export const fetchProject = async (id: string): Promise<ProjectWithBooking | nul
         ground_nails_allowed,
         exact_time_needed,
         exact_time_info,
+        rental_only,
         internalnotes
       )
     `)
