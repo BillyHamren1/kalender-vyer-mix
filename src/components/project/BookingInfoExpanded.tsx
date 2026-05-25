@@ -28,6 +28,7 @@ interface BookingData {
   ground_nails_allowed?: boolean | null;
   exact_time_needed?: boolean | null;
   exact_time_info?: string | null;
+  rental_only?: boolean | null;
   internalnotes?: string | null;
   rig_start_time?: string | null;
   rig_end_time?: string | null;
