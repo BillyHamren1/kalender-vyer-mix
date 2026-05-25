@@ -11,19 +11,19 @@ import {
 import { fetchAllEconomyDataMulti } from '@/services/planningApiService';
 import { fetchProjectTimeReports } from '@/services/projectEconomyService';
 import { fetchLargeProjectHoursSummary } from '@/services/projectHoursService';
+import { fetchApprovedProjectStaffTimeCostSummary } from '@/services/projectStaffTimeCostLinesService';
 import type { StaffTimeReport } from '@/types/projectEconomy';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PROJECT HOURS 6:
-// Sanningen för stora projektets personaltimmar = staff_day_report_cache
-// (samma Time Engine-cache som /staff-management/time-reports). Vi summerar
-// på LARGE PROJECT-nivå via fetchLargeProjectHoursSummary, där ett block
-// matchas på large_project_id ELLER booking_id ∈ linkedBookingIds, och
-// dedupas så samma block aldrig räknas dubbelt.
-//
-// `timeReportsByBooking` lever kvar enbart som DETALJ-breakdown per booking
-// — den är ingen totalsanning längre och får aldrig användas för LP-totaler.
-// time_reports används INTE som källa.
+// LARGE PROJECT ECONOMY (post tidrapport-attest):
+//   - FAKTISK personalkostnad för LP = `project_staff_time_cost_lines`
+//     filtrerade på large_project_id ELLER booking_id ∈ linkedBookings.
+//     Dedup på row.id.
+//   - `staff_day_report_cache` (Time Engine) används endast som
+//     prognos/förslag — aldrig som faktisk kanonisk sanning.
+//   - `time_reports` används INTE som källa.
+//   - `timeReportsByBooking` lever kvar som DETALJ-breakdown per booking,
+//     aldrig som total.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { LargeProjectBudget, LargeProjectPurchase } from '@/types/largeProject';
 import { supabase } from '@/integrations/supabase/client';
