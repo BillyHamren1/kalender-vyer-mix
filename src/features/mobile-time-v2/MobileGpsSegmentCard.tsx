@@ -23,6 +23,8 @@ interface Props {
   segment: MobileGpsDaySegment;
   onEdit: (segment: MobileGpsDaySegment) => void;
   disabled?: boolean;
+  /** True när användaren har gjort en lokal, ej inskickad tidsändring. */
+  hasUnsavedOverride?: boolean;
 }
 
 function fmtTime(iso: string): string {
@@ -98,7 +100,7 @@ function visualFor(seg: MobileGpsDaySegment): VisualSpec {
   };
 }
 
-const MobileGpsSegmentCard: React.FC<Props> = ({ segment, onEdit, disabled }) => {
+const MobileGpsSegmentCard: React.FC<Props> = ({ segment, onEdit, disabled, hasUnsavedOverride }) => {
   const overridden = segment.manualOverride.hasOverride;
   const v = visualFor(segment);
 
@@ -116,14 +118,22 @@ const MobileGpsSegmentCard: React.FC<Props> = ({ segment, onEdit, disabled }) =>
                 {v.typeLabel}
               </Badge>
               <h3 className="font-medium truncate">{segment.label}</h3>
-              {overridden && (
+              {hasUnsavedOverride ? (
+                <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                  Osparad ändring
+                </Badge>
+              ) : overridden ? (
                 <Badge variant="secondary" className="text-xs">Ändrad</Badge>
-              )}
+              ) : null}
             </div>
             <p className="text-sm text-muted-foreground mt-0.5">
               {fmtTime(segment.currentStartTime)} – {fmtTime(segment.currentEndTime)}
-              <span className="mx-1.5">·</span>
-              <span className="font-medium text-foreground">{segment.durationLabel}</span>
+              {!hasUnsavedOverride && (
+                <>
+                  <span className="mx-1.5">·</span>
+                  <span className="font-medium text-foreground">{segment.durationLabel}</span>
+                </>
+              )}
             </p>
             {overridden && segment.manualOverride.reason && (
               <p className="text-xs text-muted-foreground mt-1 italic">

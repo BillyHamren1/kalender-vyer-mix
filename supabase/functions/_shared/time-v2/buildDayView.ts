@@ -101,8 +101,8 @@ function segmentKeyFor(seg: GpsTimelineSegment): string {
   return `${seg.startTs}|${seg.matchedSiteId ?? "unknown"}`;
 }
 
-export function buildDayView(input: BuildDayViewInput): BuildDayViewOutput {
-  const tl = buildGpsDayTimelineOnly({
+export function buildDayView(input: BuildDayViewInput & { prebuiltTimeline?: ReturnType<typeof buildGpsDayTimelineOnly> }): BuildDayViewOutput {
+  const tl = input.prebuiltTimeline ?? buildGpsDayTimelineOnly({
     staffId: input.staffId,
     organizationId: input.organizationId,
     date: input.date,
