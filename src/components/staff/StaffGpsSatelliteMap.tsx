@@ -385,14 +385,9 @@ function GeofenceVisitsTable({ visits, allDayPings }: { visits: PlaceVisit[]; al
   );
 }
 
-function VisitPingsDetail({ visit }: { visit: PlaceVisit }) {
-  const pings = visit.pings ?? [];
+function PingsTable({ pings }: { pings: PingRow[] }) {
   return (
-    <div className="px-6 py-3 border-t border-[hsl(270_25%_90%)]">
-      <div className="text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground mb-2 flex items-center gap-2">
-        <span>Alla pings för detta besök</span>
-        <span className="planning-badge">{pings.length}</span>
-      </div>
+    <div className="px-6 py-3">
       <div className="max-h-[40vh] overflow-auto rounded border border-[hsl(270_20%_92%)] bg-white">
         <table className="w-full text-[11px]">
           <thead className="sticky top-0 bg-[hsl(270_35%_97%)] text-left text-[10px] uppercase tracking-[0.05em] text-muted-foreground">
