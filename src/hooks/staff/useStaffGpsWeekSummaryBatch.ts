@@ -15,12 +15,23 @@ import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { callStaffSnapshotFunction } from '@/services/staffSnapshotApi';
 
+export interface StaffGpsWeekDayVisit {
+  knownSiteId: string | null;
+  name: string;
+  /** 'location' | 'project' | 'large_project' | 'unknown' */
+  type: string;
+  inIso: string;
+  outIso: string;
+  durationMin: number;
+}
+
 export interface StaffGpsWeekDaySummary {
   pingsCount: number;
   firstIso: string | null;
   lastIso: string | null;
   durationMin: number;
   placeNames: string[];
+  visits?: StaffGpsWeekDayVisit[];
 }
 
 export interface StaffGpsWeekSummaryBatch {
