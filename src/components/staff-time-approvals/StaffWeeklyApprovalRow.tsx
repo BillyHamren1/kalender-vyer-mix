@@ -20,27 +20,31 @@ interface Props {
   onApproveWeek: () => void;
 }
 
-function dayChipColor(status: string): string {
-  if (status === "no_report") return "bg-muted/60 text-muted-foreground/70 border-transparent";
-  if (status === "approved")
+function dayChipColor(uiStatus: string): string {
+  if (uiStatus === "no_report") return "bg-muted/60 text-muted-foreground/70 border-transparent";
+  if (uiStatus === "approved")
     return "bg-emerald-500/15 text-emerald-700 border-emerald-500/40 dark:text-emerald-300";
-  if (status === "payroll_approved")
+  if (uiStatus === "payroll_approved")
     return "bg-emerald-600/20 text-emerald-800 border-emerald-600/50 dark:text-emerald-200";
-  if (status === "correction_requested")
+  if (uiStatus === "correction_requested")
     return "bg-rose-500/15 text-rose-700 border-rose-500/40 dark:text-rose-300";
-  if (status === "needs_user_attention")
+  if (uiStatus === "engine_error")
+    return "bg-rose-500/20 text-rose-700 border-rose-500/50 dark:text-rose-300";
+  if (uiStatus === "needs_user_attention")
     return "bg-rose-400/15 text-rose-700 border-rose-400/40 dark:text-rose-300";
-  if (status === "needs_control" || status === "ai_flagged")
+  if (uiStatus === "needs_control" || uiStatus === "ai_flagged")
     return "bg-orange-500/15 text-orange-800 border-orange-500/40 dark:text-orange-300";
-  if (status === "submitted" || status === "edited")
+  if (uiStatus === "pending_admin_attest" || uiStatus === "edited_pending_admin_attest" || uiStatus === "submitted" || uiStatus === "edited")
     return "bg-amber-400/20 text-amber-800 border-amber-500/40 dark:text-amber-300";
-  if (status === "missing_report")
+  if (uiStatus === "pending_staff_attest")
+    return "bg-indigo-500/15 text-indigo-700 border-indigo-500/40 dark:text-indigo-300";
+  if (uiStatus === "missing_report")
     return "bg-zinc-300/40 text-zinc-700 border-zinc-400/50 dark:text-zinc-300";
   return "bg-muted/60 text-muted-foreground border-transparent";
 }
 
-function statusLabel(status: string): string {
-  switch (status) {
+function statusLabel(uiStatus: string): string {
+  switch (uiStatus) {
     case "no_report":
       return "Ingen rapport";
     case "approved":
@@ -56,13 +60,19 @@ function statusLabel(status: string): string {
     case "ai_flagged":
       return "AI-flaggad";
     case "submitted":
-      return "Väntar attest";
+    case "pending_admin_attest":
+      return "Väntar adminattest";
     case "edited":
-      return "Redigerad";
+    case "edited_pending_admin_attest":
+      return "Väntar adminattest · ändrad";
+    case "pending_staff_attest":
+      return "Väntar personalattest";
+    case "engine_error":
+      return "Beräkningsfel";
     case "missing_report":
       return "Saknar rapport";
     default:
-      return status;
+      return uiStatus;
   }
 }
 
@@ -87,16 +97,16 @@ export const StaffWeeklyApprovalRow: React.FC<Props> = ({
   const canApproveWeek = isWeekFullyApprovable(bundle);
   const cleanWeek = isCleanWeekApproval(bundle);
   const hasCorrection = bundle.correctionRequestedCount > 0;
-  const isApprovedAll = bundle.allDone && bundle.submittedCount > 0;
+  const isApprovedAll = bundle.allDone;
 
-  // Vänsterkant: röd om komplettering, grön om allt klart, annars neutral
   const leftAccent = hasCorrection
     ? "border-l-4 border-l-rose-500/70"
     : isApprovedAll
       ? "border-l-4 border-l-emerald-500/60"
-      : "border-l-4 border-l-transparent";
+      : bundle.pendingStaffAttestCount > 0 && bundle.adminApprovableCount === 0
+        ? "border-l-4 border-l-indigo-500/60"
+        : "border-l-4 border-l-transparent";
 
-  // Statusfärg (text)
   const statusTone = hasCorrection
     ? "text-rose-700 dark:text-rose-300"
     : isApprovedAll
@@ -104,9 +114,12 @@ export const StaffWeeklyApprovalRow: React.FC<Props> = ({
       : bundle.priorityRank <= 3
         ? "text-orange-700 dark:text-orange-300"
         : bundle.priorityRank === 4
-          ? "text-amber-700 dark:text-amber-300"
-          : "text-muted-foreground";
+          ? "text-indigo-700 dark:text-indigo-300"
+          : bundle.priorityRank === 5
+            ? "text-rose-700 dark:text-rose-300"
+            : "text-muted-foreground";
 
+  // Knappen visas BARA om det finns riktiga submissions att godkänna.
   const approveLabel = canApproveWeek
     ? cleanWeek
       ? "Godkänn vecka"
@@ -161,15 +174,20 @@ export const StaffWeeklyApprovalRow: React.FC<Props> = ({
               <Tooltip key={d.date}>
                 <TooltipTrigger asChild>
                   <div
-                    className={`flex flex-col items-center justify-center rounded border text-[9px] font-semibold leading-none ${dayChipColor(d.status)}`}
+                    className={`flex flex-col items-center justify-center rounded border text-[9px] font-semibold leading-none ${dayChipColor(d.uiStatus)}`}
                     style={{ width: 22, height: 22 }}
                   >
                     <span>{WEEKDAY_SHORT[i]}</span>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="text-xs">
-                  {format(date, "EEEE d MMM", { locale: sv })} — {statusLabel(d.status)}
+                  {format(date, "EEEE d MMM", { locale: sv })} — {statusLabel(d.uiStatus)}
                   {d.minutes > 0 ? ` · ${formatHm(d.minutes)}` : ""}
+                  {d.source === "engine_cache" && d.uiStatus === "pending_staff_attest" ? (
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                      Förslag från Time Engine
+                    </div>
+                  ) : null}
                 </TooltipContent>
               </Tooltip>
             );
