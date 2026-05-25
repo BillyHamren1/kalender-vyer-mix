@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useScheduledShifts } from '@/hooks/useScheduledShifts';
-import { useGeofencingContext } from '@/contexts/GeofencingContext';
+
 // Time Legacy Purge 6 — GeofencePrompt borttagen som UI-källa. GPS/geofence
 // är passiv evidence; ingen popup får längre fråga om att starta tid.
 import { HeaderShell } from '@/components/mobile-app/MobileHeader';
@@ -15,7 +15,7 @@ import MobileWeekView from '@/components/mobile-app/calendar/MobileWeekView';
 import MobileMonthView from '@/components/mobile-app/calendar/MobileMonthView';
 import MobileJobListView from '@/components/mobile-app/calendar/MobileJobListView';
 import LagerDayCard from '@/components/mobile-app/LagerDayCard';
-import { Loader2, RefreshCw, Building2, MapPin, UserCircle2 } from 'lucide-react';
+import { Loader2, RefreshCw, UserCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 // toast import removed — no popup confirmations on geofence events.
 import { useLanguage } from '@/i18n/LanguageContext';
@@ -57,10 +57,9 @@ const MobileJobs = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
   useEffect(() => { localStorage.setItem(VIEW_MODE_KEY, viewMode); }, [viewMode]);
 
-  const { orgLocations } = useGeofencingContext();
-
-  // Fixed locations that should appear as job cards (read-only)
-  const locationJobs = orgLocations.filter(loc => loc.show_as_project === true);
+  // Fixed locations är inte längre en egen huvudsektion i Jobs-vyn.
+  // De dyker upp kontextuellt i vald dags segmentlista (Time v2) och
+  // i tidrapporten — inte som statisk lista här.
 
   // Time Legacy Purge 6 — geofenceEvent renderas inte längre som popup. GPS
   // pings/evidence skickas fortfarande via useBackgroundLocationReporter +
@@ -158,7 +157,6 @@ const MobileJobs = () => {
             {viewMode === 'list' && (
               <MobileJobListView
                 shifts={shifts}
-                fixedLocations={locationJobs.map(l => ({ id: l.id, name: l.name, address: l.address ?? null }))}
               />
             )}
           </div>
@@ -166,42 +164,9 @@ const MobileJobs = () => {
           {/* Lager day card — internal warehouse hub for the selected day */}
           <LagerDayCard date={selectedDate} />
 
-          {/* Fixed location jobs (e.g. Lager) — read-only, opens detail. */}
-          {locationJobs.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-2.5">
-                <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
-                <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-                  Fixed locations
-                </h2>
-              </div>
-              <div className="space-y-2">
-                {locationJobs.map(loc => (
-                  <button
-                    key={loc.id}
-                    onClick={() => navigate(`/m/location/${loc.id}`)}
-                    className="w-full text-left rounded-2xl border border-primary/20 bg-card p-3.5 shadow-md active:opacity-80 transition-all"
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <Building2 className="w-3.5 h-3.5 text-primary/70" />
-                      <span className="px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border bg-accent/50 text-accent-foreground border-accent/30">
-                        LOCATION
-                      </span>
-                    </div>
-                    <h3 className="font-bold text-foreground text-[15px] leading-snug mb-0.5">
-                      {loc.name}
-                    </h3>
-                    {loc.address && (
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <MapPin className="w-3 h-3 shrink-0 text-muted-foreground/40" />
-                        <span className="truncate">{loc.address}</span>
-                      </div>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Fixed locations renderas INTE som egen huvudsektion längre.
+              Kända platser dyker upp kontextuellt i vald dags segmentlista
+              (Time-vyn / get-mobile-gps-day-view) och i tidrapporten. */}
           </>
         )}
       </div>
