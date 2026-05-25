@@ -96,8 +96,9 @@ Deno.serve(async (req) => {
     from += PAGE;
   }
 
-  const { geofences } = await loadOrgGeofences(admin, orgId);
-  const visits = buildExactGeofenceVisits(pings, geofences);
+  const { geofences, geofencesByDate } = await loadOrgGeofences(admin, orgId, { dates: [date] });
+  const dayFences = geofencesByDate.get(date) ?? geofences;
+  const visits = buildExactGeofenceVisits(pings, dayFences);
 
   return new Response(
     JSON.stringify({
