@@ -295,12 +295,32 @@ export async function loadOrgGeofences(
 
   // BEKRÄFTADE bokningar inom datum-spannet (för project-gate och booking-pin).
   const confirmedBookingIds = new Set<string>();
+  const bookingInfoById = new Map<string, { address: string | null; client: string | null; number: string | null }>();
   for (const b of ((bookingsRes as any).data ?? []) as any[]) {
-    if (b.id) confirmedBookingIds.add(String(b.id));
+    if (!b.id) continue;
+    const id = String(b.id);
+    confirmedBookingIds.add(id);
+    const rawAddr = typeof b.deliveryaddress === "string" ? b.deliveryaddress.trim() : "";
+    bookingInfoById.set(id, {
+      address: rawAddr.length > 0 ? rawAddr : null,
+      client: b.client ? String(b.client) : null,
+      number: b.booking_number ? String(b.booking_number) : null,
+    });
   }
-  for (const b of ((largeBookingsRes as any).data ?? []) as any[]) {
-    // largeBookingsRes saknar id → vi vet bara att large_project_id är CONFIRMED-bundet
-  }
+
+  // Bygg label: prioritera faktisk adress, falla tillbaka på projekt/kundnamn.
+  // Det är detta som visas i kartan och i veckolistans "Plats"-kolumn — det
+  // måste reflektera VAR personen var, inte vad projektet råkar heta internt.
+  const buildPlaceLabel = (projectName: string, bookingId: string | null): string => {
+    const info = bookingId ? bookingInfoById.get(bookingId) : null;
+    const addr = info?.address ?? null;
+    const cleanName = (projectName ?? "").trim();
+    if (addr && cleanName && addr.toLowerCase() !== cleanName.toLowerCase()) {
+      return `${addr} · ${cleanName}`;
+    }
+    if (addr) return addr;
+    return cleanName || "Projekt";
+  };
 
   // Per-projekt: bestäm vilka datum det "äger" (intern → alla; annars sina egna).
   // Projektet räknas som känd plats ENDAST om dess booking är BEKRÄFTAD,
@@ -314,9 +334,10 @@ export async function loadOrgGeofences(
       // Booking måste vara bekräftad för att projektet ska räknas.
       if (!bookingId || !confirmedBookingIds.has(bookingId)) continue;
     }
+    const projectName = String(r.name ?? "Projekt");
     const fence: GeofenceRow = {
       id: `project:${r.id}`,
-      name: String(r.name ?? "Projekt"),
+      name: isInternal ? projectName : buildPlaceLabel(projectName, bookingId),
       lat: Number(r.delivery_latitude),
       lng: Number(r.delivery_longitude),
       radiusMeters: Number(r.address_radius_meters ?? 75),
