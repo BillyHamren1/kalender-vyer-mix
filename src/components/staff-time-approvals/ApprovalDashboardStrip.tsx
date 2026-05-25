@@ -75,26 +75,26 @@ async function fetchStaffStatus(): Promise<{ rows: StaffRow[]; totalNew24h: numb
   const grouped = new Map<string, StaffRow>();
   let totalNew24h = 0;
 
+  // Seed med alla aktiva personer så att kort alltid finns att visa
+  for (const [id, staff] of staffById.entries()) {
+    grouped.set(id, {
+      staff_id: id,
+      staff_name: staff.name,
+      staff_color: staff.color,
+      pending: 0,
+      newLast24h: 0,
+      needsAttention: 0,
+      approved: 0,
+      totalWeek: 0,
+      latestSubmittedAt: null,
+      latestStatus: null,
+      urgency: 0,
+    });
+  }
+
   for (const s of (subsRes.data || []) as any[]) {
-    const staff = staffById.get(s.staff_id);
-    if (!staff) continue;
-    let row = grouped.get(s.staff_id);
-    if (!row) {
-      row = {
-        staff_id: s.staff_id,
-        staff_name: staff.name,
-        staff_color: staff.color,
-        pending: 0,
-        newLast24h: 0,
-        needsAttention: 0,
-        approved: 0,
-        totalWeek: 0,
-        latestSubmittedAt: null,
-        latestStatus: null,
-        urgency: 0,
-      };
-      grouped.set(s.staff_id, row);
-    }
+    const row = grouped.get(s.staff_id);
+    if (!row) continue;
     row.totalWeek += 1;
     if (PENDING_STATUSES.includes(s.status)) row.pending += 1;
     if (ATTENTION_STATUSES.includes(s.status)) row.needsAttention += 1;
@@ -111,18 +111,18 @@ async function fetchStaffStatus(): Promise<{ rows: StaffRow[]; totalNew24h: numb
   }
 
   for (const r of grouped.values()) {
-    r.urgency = r.needsAttention * 100 + r.pending * 10 + r.newLast24h;
+    r.urgency = r.needsAttention * 100 + r.pending * 10 + r.newLast24h + (r.approved > 0 ? 1 : 0);
   }
 
-  const rows = Array.from(grouped.values())
-    .filter((r) => r.pending > 0 || r.needsAttention > 0 || r.newLast24h > 0)
-    .sort((a, b) => {
-      if (b.urgency !== a.urgency) return b.urgency - a.urgency;
-      return (b.latestSubmittedAt ?? "").localeCompare(a.latestSubmittedAt ?? "");
-    });
+  const rows = Array.from(grouped.values()).sort((a, b) => {
+    if (b.urgency !== a.urgency) return b.urgency - a.urgency;
+    if (a.urgency === 0) return a.staff_name.localeCompare(b.staff_name, "sv");
+    return (b.latestSubmittedAt ?? "").localeCompare(a.latestSubmittedAt ?? "");
+  });
 
   return { rows, totalNew24h };
 }
+
 
 function initials(name: string) {
   return name
