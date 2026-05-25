@@ -158,7 +158,7 @@ export async function loadOrgGeofences(
   const dates = (opts.dates ?? []).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
   const hasDateFilter = dates.length > 0;
 
-  const [locsRes, projRes, largeBookingsRes] = await Promise.all([
+  const [locsRes, projRes, largeBookingsRes, bookingsRes] = await Promise.all([
     admin
       .from("organization_locations")
       .select(
@@ -173,7 +173,7 @@ export async function loadOrgGeofences(
       ? admin
           .from("projects")
           .select(
-            "id, name, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon, deleted_at, eventdate, rigdaydate, rigdowndate, is_internal",
+            "id, name, booking_id, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon, deleted_at, eventdate, rigdaydate, rigdowndate, is_internal",
           )
           .eq("organization_id", orgId)
           .is("deleted_at", null)
@@ -191,7 +191,7 @@ export async function loadOrgGeofences(
       : admin
           .from("projects")
           .select(
-            "id, name, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon, deleted_at, eventdate, rigdaydate, rigdowndate, is_internal",
+            "id, name, booking_id, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon, deleted_at, eventdate, rigdaydate, rigdowndate, is_internal",
           )
           .eq("organization_id", orgId)
           .is("deleted_at", null)
@@ -205,6 +205,26 @@ export async function loadOrgGeofences(
           .select("large_project_id, eventdate, rigdaydate, rigdowndate")
           .eq("organization_id", orgId)
           .not("large_project_id", "is", null)
+          .or(
+            [
+              `eventdate.in.(${dates.join(",")})`,
+              `rigdaydate.in.(${dates.join(",")})`,
+              `rigdowndate.in.(${dates.join(",")})`,
+            ].join(","),
+          )
+          .limit(20000)
+      : Promise.resolve({ data: [] as any[] }),
+    // Bokningens EGNA pin (fallback när projekt saknas/inte datumvalid).
+    // Speglar useDayKnownSites: bokningar inom datumspannet med koordinater.
+    hasDateFilter
+      ? admin
+          .from("bookings")
+          .select(
+            "id, client, booking_number, delivery_latitude, delivery_longitude, large_project_id, eventdate, rigdaydate, rigdowndate",
+          )
+          .eq("organization_id", orgId)
+          .not("delivery_latitude", "is", null)
+          .not("delivery_longitude", "is", null)
           .or(
             [
               `eventdate.in.(${dates.join(",")})`,
