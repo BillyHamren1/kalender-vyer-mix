@@ -140,15 +140,15 @@ const MobileWeekView = ({
 
           let status: { label: string; tone: string };
           if (items.length === 0) {
-            status = { label: t('calendar.status.free') || 'Ledig', tone: 'bg-muted text-muted-foreground' };
+            status = { label: 'Ledig', tone: 'bg-muted text-muted-foreground' };
           } else if (hasActive) {
-            status = { label: t('calendar.status.ongoing') || 'Pågår', tone: 'bg-primary/15 text-primary' };
+            status = { label: 'Pågår', tone: 'bg-primary/15 text-primary' };
           } else if (isFuture) {
-            status = { label: t('calendar.status.notStarted') || 'Ej startad', tone: 'bg-muted text-foreground/70' };
+            status = { label: 'Ej startad', tone: 'bg-muted text-foreground/70' };
           } else if (isPast) {
-            status = { label: t('calendar.status.done') || 'Klar', tone: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' };
+            status = { label: 'Klar', tone: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' };
           } else {
-            status = { label: t('calendar.status.today') || 'Idag', tone: 'bg-primary/15 text-primary' };
+            status = { label: 'Idag', tone: 'bg-primary/15 text-primary' };
           }
 
           const titles = items.map(itemTitle).filter(Boolean);
