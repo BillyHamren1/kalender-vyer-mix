@@ -199,13 +199,31 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
 
   const summary = calculateEconomySummary(budget || null, timeReports, purchases, quotes, invoices, mergedProductCosts || null, supplierInvoices);
 
-  // ===== Time Engine-derived staff hours (single source) =====
-  // Rapporterade timmar = staff_day_report_cache (Time Engine).
-  // Manuell extra labor = project_labor_costs (separat, blandas ej in).
-  const reportedStaffHoursFromTimeEngine = projectHours?.totalHours ?? 0;
+  // ===== Staff hours: PROGNOS vs FAKTISK =====
+  // PROGNOS (Time Engine, staff_day_report_cache) — ej attesterat.
+  const proposedStaffHoursFromTimeEngine = projectHours?.totalHours ?? 0;
   const staffHoursByPerson = projectHours?.staffSummaries ?? [];
   const staffHoursByDay = projectHours?.daySummaries ?? [];
-  const hoursSource: 'staff_day_report_cache' = 'staff_day_report_cache';
+
+  // FAKTISK (project_staff_time_cost_lines) — godkända staff_day_submissions.
+  const approvedStaffHours = approvedStaffCostSummary?.approvedStaffHours ?? 0;
+  const approvedStaffCost = approvedStaffCostSummary?.approvedStaffCost ?? 0;
+  const approvedStaffByPerson = approvedStaffCostSummary?.byStaff ?? [];
+  const approvedStaffByDate = approvedStaffCostSummary?.byDate ?? [];
+
+  // Diff (förslag vs godkänt) i minuter — för UI-jämförelse.
+  const staffHoursDiffMinutes = Math.round(
+    (proposedStaffHoursFromTimeEngine - approvedStaffHours) * 60,
+  );
+
+  // Prognos-kostnad (Time Engine × current hourly_rate) — endast prognos.
+  const proposedStaffCostFromTimeEngine = staffHoursByPerson.reduce((sum, s) => {
+    // Vi har ingen rate i ProjectHoursSummary; visa 0 som default — UI:t kan
+    // välja att räkna ut förslagskostnad själv om timpriset behövs.
+    return sum + 0;
+  }, 0);
+
+  const hoursSource: 'project_staff_time_cost_lines' = 'project_staff_time_cost_lines';
 
   const manualExtraLaborHours = (manualExtraLaborRows ?? []).reduce(
     (s, r) => s + (Number(r.hours) || 0), 0,
@@ -214,10 +232,10 @@ export const useProjectEconomy = (projectId: string | undefined, bookingId: stri
     (s, r) => s + (Number(r.hours) || 0) * (Number(r.hourly_rate) || 0), 0,
   );
 
-  // Bakåtkompatibla aliaser:
-  const actualStaffHours = reportedStaffHoursFromTimeEngine;
+  // Bakåtkompatibla aliaser — pekar nu på FAKTISK godkänd tid (inte prognos).
+  const actualStaffHours = approvedStaffHours;
   const manualLaborHours = manualExtraLaborHours;
-  const totalLaborHours = reportedStaffHoursFromTimeEngine + manualExtraLaborHours;
+  const totalLaborHours = approvedStaffHours + manualExtraLaborHours;
 
   useEffect(() => {
     const tag = `[Economy:${projectId?.slice(0, 8)}]`;
