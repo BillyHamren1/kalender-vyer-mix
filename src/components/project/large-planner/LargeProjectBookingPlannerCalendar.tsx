@@ -382,6 +382,7 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
           onSplitBooking={(b) => setSplitBookingId(b.id)}
           onItemClick={handleItemClick}
           onItemDelete={handleItemDelete}
+          onCreateManual={() => handleCreateManual()}
         />
       </div>
 
