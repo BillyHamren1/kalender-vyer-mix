@@ -87,8 +87,11 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     createItem,
     deleteItem,
     createItemsFromBookings,
+    splitBooking,
     isMutating,
   } = useLargeProjectPlannerItems(largeProjectId);
+
+  const [splitBookingId, setSplitBookingId] = useState<string | null>(null);
 
   const staffById = useMemo(() => {
     const map = new Map<string, LargeProjectPlannerStaffMember>();
