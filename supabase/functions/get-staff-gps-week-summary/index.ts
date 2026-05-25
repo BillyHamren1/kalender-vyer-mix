@@ -19,6 +19,7 @@ import {
   buildDayPartition,
   type DaySegment,
 } from "../_shared/staff-gps/dayPartition.ts";
+import { summarizeVisibleWindow } from "../_shared/staff-gps/visibleWindow.ts";
 
 interface RequestBody {
   staffId?: string;
@@ -77,34 +78,25 @@ function summarize(date: string, snapshot: DaySnapshot): DaySummary {
   const nonPrivate = snapshot.pings.filter((p) => !privatePingIds.has(p.id));
   const firstIso = nonPrivate.length ? nonPrivate[0].recorded_at : null;
   const lastIso = nonPrivate.length ? nonPrivate[nonPrivate.length - 1].recorded_at : null;
-  const windowMin = firstIso && lastIso
-    ? Math.max(0, Math.round((new Date(lastIso).getTime() - new Date(firstIso).getTime()) / 60_000))
-    : 0;
-
-  const placeNames: string[] = [];
-  const seen = new Set<string>();
-  for (const s of partition.segments) {
-    if (s.type !== "work" || !s.knownSiteId) continue;
-    if (!seen.has(s.label)) { seen.add(s.label); placeNames.push(s.label); }
-  }
+  const visible = summarizeVisibleWindow(partition.segments, firstIso, lastIso);
 
   return {
     date,
     pingsCount: snapshot.pings.length,
     firstIso,
     lastIso,
-    durationMin: partition.workMin,
-    windowMin,
-    workMin: partition.workMin,
-    privateMin: partition.privateMin,
-    travelMin: partition.travelMin,
-    unknownMin: partition.unknownMin,
-    gapMin: partition.gapMin,
-    idleMin: partition.idleMin,
-    places: partition.placeMinutes.map((p) => ({ name: p.name, minutes: p.minutes })),
-    placeNames,
-    visitsCount: partition.segments.filter((s) => s.type === "work").length,
-    segments: partition.segments,
+    durationMin: visible.workMin,
+    windowMin: visible.windowMin,
+    workMin: visible.workMin,
+    privateMin: visible.privateMin,
+    travelMin: visible.travelMin,
+    unknownMin: visible.unknownMin,
+    gapMin: visible.gapMin,
+    idleMin: visible.idleMin,
+    places: visible.placeMinutes.map((p) => ({ name: p.name, minutes: p.minutes })),
+    placeNames: visible.placeNames,
+    visitsCount: visible.visitsCount,
+    segments: visible.segments,
   };
 }
 
