@@ -7,6 +7,10 @@ vi.mock('@/services/staffSnapshotApi', () => ({
   callStaffSnapshotFunction: vi.fn(),
 }));
 
+vi.mock('@/hooks/useOrganizationLocations', () => ({
+  useOrganizationLocations: () => ({ data: [] }),
+}));
+
 import { callStaffSnapshotFunction } from '@/services/staffSnapshotApi';
 import { useStaffGpsWeekSummaryBatch } from '@/hooks/staff/useStaffGpsWeekSummaryBatch';
 
@@ -61,7 +65,7 @@ describe('useStaffGpsWeekSummaryBatch', () => {
   it('faller tillbaka till dags-snapshots när batch-anropet misslyckas', async () => {
     vi.mocked(callStaffSnapshotFunction)
       .mockRejectedValueOnce(new Error('snapshot_failed'))
-      .mockResolvedValue({
+      .mockResolvedValueOnce({
         staffId: 'a',
         date: '2026-05-18',
         pings: [{ id: 'p1', recorded_at: '2026-05-18T08:00:00Z', lat: 1, lng: 2, accuracy: 10 }],
@@ -82,7 +86,7 @@ describe('useStaffGpsWeekSummaryBatch', () => {
         lastUpdatedAt: '2026-05-18T10:00:00Z',
         generatedAt: '2026-05-18T10:00:00Z',
       } as any)
-      .mockResolvedValue({
+      .mockResolvedValueOnce({
         staffId: 'a',
         date: '2026-05-19',
         pings: [],
@@ -92,7 +96,7 @@ describe('useStaffGpsWeekSummaryBatch', () => {
         lastUpdatedAt: '2026-05-19T10:00:00Z',
         generatedAt: '2026-05-19T10:00:00Z',
       } as any)
-      .mockResolvedValue({
+      .mockResolvedValueOnce({
         staffId: 'a',
         date: '2026-05-20',
         pings: [],
