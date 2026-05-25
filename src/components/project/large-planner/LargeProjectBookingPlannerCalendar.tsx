@@ -212,10 +212,56 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
   };
 
   const handleItemClick = (item: LargeProjectBookingPlanItem) => {
-    if (item.booking_id && (item.source === 'booking' || item.item_type === 'booking')) {
-      setSplitBookingId(item.booking_id);
+    setQuickEditId(item.id);
+  };
+
+  const dropKey = (date: string, staffId: string | null) =>
+    `${date}|${staffId ?? UNASSIGNED_KEY}`;
+
+  const handleCellDragOver = (
+    e: React.DragEvent<HTMLDivElement>,
+    key: string,
+  ) => {
+    if (!hasPlannerPayload(e.dataTransfer)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverKey !== key) setDragOverKey(key);
+  };
+
+  const handleCellDrop = async (
+    e: React.DragEvent<HTMLDivElement>,
+    date: string,
+    staffId: string | null,
+  ) => {
+    const payload = readDragPayload(e.dataTransfer);
+    setDragOverKey(null);
+    if (!payload) return;
+    e.preventDefault();
+    if (
+      payload.fromDate === date &&
+      (payload.fromStaffId ?? null) === (staffId ?? null)
+    ) {
+      return; // no-op
+    }
+    try {
+      await updateItem(payload.itemId, {
+        plan_date: date,
+        assigned_staff_id: staffId,
+        // assigned_team_id följer personens kolumn (vi har inte teamID i kolumnen → null)
+        assigned_team_id: null,
+        // status: ett unplanned-item som dras in i griden blir planerat
+        status: staffId ? 'planned' : undefined,
+      });
+    } catch (err) {
+      toast.error((err as Error).message || 'Kunde inte flytta task.');
     }
   };
+
+  const quickEditItem = quickEditId
+    ? items.find((it) => it.id === quickEditId) ?? null
+    : null;
+  const quickEditBooking =
+    quickEditItem?.booking_id ? bookingById.get(quickEditItem.booking_id) ?? null : null;
 
   const splitTargetBooking = splitBookingId
     ? bookingById.get(splitBookingId) ?? null
