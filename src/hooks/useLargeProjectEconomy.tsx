@@ -351,13 +351,22 @@ export const useLargeProjectEconomy = (
     localProducts,
     // Detalj-breakdown per booking — får ej användas som total.
     timeReportsByBooking,
-    // Totalsanning: LP-aggregerad Time Engine-cache.
+    // PROGNOS (Time Engine-cache) — endast förslag.
     largeProjectHours,
-    reportedStaffHoursFromTimeEngine,
-    reportedStaffCostFromTimeEngine,
+    proposedStaffHoursFromTimeEngine,
+    proposedStaffCostFromTimeEngine,
     staffHoursByPerson,
     staffHoursByDay,
-    staffCostsByPerson,
+    // FAKTISK godkänd kostnad.
+    approvedStaffHours,
+    approvedStaffCost,
+    approvedStaffByPerson,
+    approvedStaffByDate,
+    staffHoursDiffMinutes,
+    // Bakåtkompatibla namn — pekar nu på godkänd kostnad/timmar.
+    reportedStaffHoursFromTimeEngine: approvedStaffHours,
+    reportedStaffCostFromTimeEngine: approvedStaffCost,
+    staffCostsByPerson: approvedStaffByPerson,
     hoursSource,
     isLoading: budgetLoading || purchasesLoading || bookingEconomyLoading,
     saveBudget: saveBudgetMutation.mutate,
