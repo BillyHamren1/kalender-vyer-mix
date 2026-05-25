@@ -197,6 +197,40 @@ function absorbShortNoise(input: DaySegment[]): DaySegment[] {
     }
   }
 
+  // Pass 4: SAME-SITE SANDWICH — stay(A) → [unknown_place|gps_gap|idle]+ → stay(A)
+  // med SAMMA knownSiteId omgärdande ska kollapsas oavsett mellanblockens längd.
+  // Personen lämnade aldrig geofencen (annars hade vi fått en travel-segment).
+  // Enforcar mem://constraints/geofence-inside-time-authority-v1 och
+  // mem://constraints/same-target-sandwich-collapse-v1.
+  for (let pass = 0; pass < 50; pass++) {
+    let didChange = false;
+    for (let i = 0; i < segs.length; i++) {
+      const a = segs[i];
+      if (!isStay(a) || !a.knownSiteId) continue;
+      let j = i + 1;
+      let onlyAbsorbable = true;
+      while (j < segs.length) {
+        const mid = segs[j];
+        if (isStay(mid)) break;
+        if (mid.type !== "unknown_place" && mid.type !== "gps_gap" && mid.type !== "idle") {
+          onlyAbsorbable = false;
+          break;
+        }
+        j++;
+      }
+      if (!onlyAbsorbable) continue;
+      if (j >= segs.length) continue;
+      const b = segs[j];
+      if (!isStay(b) || b.knownSiteId !== a.knownSiteId) continue;
+      if (j === i + 1) continue;
+      a.end = b.end;
+      segs.splice(i + 1, j - i);
+      didChange = true;
+      break;
+    }
+    if (!didChange) break;
+  }
+
   return segs;
 }
 
