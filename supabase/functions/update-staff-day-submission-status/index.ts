@@ -49,6 +49,12 @@ Deno.serve(async (req) => {
   if (!status || !ALLOWED.includes(status)) {
     return json({ error: "invalid_status", allowed: ALLOWED }, 400);
   }
+  if (status === "correction_requested" && (!review_comment || !review_comment.trim())) {
+    return json(
+      { error: "comment_required", message: "Kommentar krävs när rapporten skickas tillbaka till användaren." },
+      400,
+    );
+  }
 
   // Caller org
   const { data: prof } = await admin
