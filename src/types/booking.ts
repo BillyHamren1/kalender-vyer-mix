@@ -76,6 +76,7 @@ export interface Booking {
   groundNailsAllowed?: boolean;
   exactTimeNeeded?: boolean;
   exactTimeInfo?: string;
+  rentalOnly?: boolean;
   products?: BookingProduct[];
   internalNotes?: string;
   attachments?: BookingAttachment[];
