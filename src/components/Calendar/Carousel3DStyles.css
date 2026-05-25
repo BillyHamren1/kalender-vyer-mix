@@ -472,3 +472,23 @@
     min-width: 260px;
   }
 }
+
+/* ============================================================
+   Calendar zoom-out wrapper (-20%)
+   Tillämpas via wrapper-klassen .calendar-zoom-out i personal-
+   och projektkalendern (inte i lagerkalendern). Skalar bara
+   själva veckogriddet — sidans header/chrome påverkas inte.
+   ============================================================ */
+.calendar-zoom-out {
+  /* Ge den skalade ytan plats: 1 / 0.8 = 1.25 */
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.calendar-zoom-out > .weekly-horizontal-grid,
+.calendar-zoom-out .weekly-horizontal-grid {
+  transform: scale(0.8);
+  transform-origin: top left;
+  width: 125%;
+  height: 125%;
+}

@@ -106,19 +106,21 @@ const PersonalkalendernInner: React.FC = () => {
 
         {/* Kalender */}
         <main className="flex-1 overflow-hidden">
-          <CustomCalendar
-            events={mergedEvents}
-            resources={teamResources}
-            isLoading={isLoading}
-            isMounted={isMounted}
-            currentDate={weekStart}
-            onDateSet={handleDateSet}
-            refreshEvents={refreshEvents}
-            viewMode="weekly"
-            isEventReadOnly={isEventReadOnly}
-            timeGridFullWidth={false}
-            // Inga callbacks → alla edit-paths inaktiverade
-          />
+          <div className="calendar-zoom-out h-full w-full">
+            <CustomCalendar
+              events={mergedEvents}
+              resources={teamResources}
+              isLoading={isLoading}
+              isMounted={isMounted}
+              currentDate={weekStart}
+              onDateSet={handleDateSet}
+              refreshEvents={refreshEvents}
+              viewMode="weekly"
+              isEventReadOnly={isEventReadOnly}
+              timeGridFullWidth={false}
+              // Inga callbacks → alla edit-paths inaktiverade
+            />
+          </div>
         </main>
       </div>
     </TooltipProvider>
