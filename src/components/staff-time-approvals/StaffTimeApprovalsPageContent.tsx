@@ -10,6 +10,7 @@ import { useApproveStaffWeek } from "@/hooks/staff/useApproveStaffWeek";
 import WeekApprovalToolbar from "./WeekApprovalToolbar";
 import StaffWeeklyApprovalList from "./StaffWeeklyApprovalList";
 import StaffWeeklyApprovalPanel from "./StaffWeeklyApprovalPanel";
+import ApprovalDashboardStrip from "./ApprovalDashboardStrip";
 import {
   APPROVED_STATUSES,
   buildWeeklyBundles,
