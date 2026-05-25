@@ -268,7 +268,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
         </div>
 
         {/* Geofence-besök — exakt IN/UT per stängsel (privata boenden döljs) */}
-        <GeofenceVisitsTable visits={visibleGeofenceVisits} />
+        <GeofenceVisitsTable visits={visibleGeofenceVisits} allDayPings={snapshotQuery.data?.pings ?? []} />
       </div>
     </div>
   );
