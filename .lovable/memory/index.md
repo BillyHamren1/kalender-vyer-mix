@@ -5,6 +5,7 @@
 - "Arbetsdag" heter **arbetspass** i UI:n. Knappen i mobilheadern är "Starta arbetspass" / "Avsluta arbetspass". Personalen får köra flera pass per kalenderdag (verkstad/event-kvällar). Tabellnamnet `workdays` behålls i DB.
 - Starta arbetspass: snabb GPS auto-start vid träff; annars obligatorisk dialog.
 - Personalkalendern: samma person kan läggas i flera team samma dag. Drag/Add ⇒ lägger till; "remove from team" tar bara bort den teamraden.
+- **Known Sites Date Bound**: GPS-snapshots och kartans "kända platser" filtreras ALLTID per (staff, datum). Server går via `_shared/staff-gps/dayKnownSites.ts` (Deno-port av `useDayKnownSites`). Ingen org-bred scan av projects/large_projects/bookings i `snapshotCache.ts`. Locked av `src/test/knownSitesDateBound.contract.test.ts`. Se [Known Sites Date Bound](.lovable/memory/constraints/known-sites-date-bound-v1.md).
 
 ## Memories
 - [Tracking Policy Backend-Driven](.lovable/memory/features/field-staff/tracking-policy-backend-driven-v1.md) — `get-staff-day-status` returnerar `trackingPolicy { mode, heartbeatMs, distanceFilter, expiresAt?, reason?, targetId?, targetType? }`; boosts via `tracking_policy_boosts` (DB-trigger 5 min cap) + `request-tracking-boost`; appen FÅR INTE skapa egen boost.

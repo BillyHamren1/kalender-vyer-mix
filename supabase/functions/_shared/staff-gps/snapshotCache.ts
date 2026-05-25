@@ -2,6 +2,7 @@
 // Reuses staff_gps_day_snapshots so admin week view + mobile day view never
 // re-paginate staff_location_history when nothing has changed.
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { loadDayKnownSites } from "./dayKnownSites.ts";
 
 export interface PingRow {
   id: string;
@@ -169,71 +170,9 @@ async function loadAllPings(
   return out;
 }
 
-async function loadGeofences(admin: SupabaseClient, orgId: string): Promise<{
-  geofences: GeofenceRow[];
-  privateGeofenceIds: string[];
-}> {
-  const [locsRes, projRes, largeRes] = await Promise.all([
-    admin
-      .from("organization_locations")
-      .select("id, name, latitude, longitude, radius_meters, geofence_mode, geofence_polygon, is_private_residence")
-      .eq("organization_id", orgId)
-      .not("latitude", "is", null)
-      .not("longitude", "is", null)
-      .limit(2000),
-    admin
-      .from("projects")
-      .select("id, name, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon, deleted_at")
-      .eq("organization_id", orgId)
-      .is("deleted_at", null)
-      .not("delivery_latitude", "is", null)
-      .not("delivery_longitude", "is", null)
-      .limit(5000),
-    admin
-      .from("large_projects")
-      .select("id, name, address_latitude, address_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon")
-      .eq("organization_id", orgId)
-      .not("address_latitude", "is", null)
-      .not("address_longitude", "is", null)
-      .limit(2000),
-  ]);
-
-  const geofences: GeofenceRow[] = [];
-  const privateIds: string[] = [];
-  for (const r of (locsRes.data ?? []) as any[]) {
-    const id = `loc:${r.id}`;
-    geofences.push({
-      id,
-      name: String(r.name ?? "Plats"),
-      lat: Number(r.latitude),
-      lng: Number(r.longitude),
-      radiusMeters: Number(r.radius_meters ?? 75),
-      polygon: r.geofence_mode === "polygon" ? r.geofence_polygon : undefined,
-    });
-    if (r.is_private_residence) privateIds.push(id);
-  }
-  for (const r of (projRes.data ?? []) as any[]) {
-    geofences.push({
-      id: `project:${r.id}`,
-      name: String(r.name ?? "Projekt"),
-      lat: Number(r.delivery_latitude),
-      lng: Number(r.delivery_longitude),
-      radiusMeters: Number(r.address_radius_meters ?? 75),
-      polygon: r.address_geofence_mode === "polygon" ? r.address_geofence_polygon : undefined,
-    });
-  }
-  for (const r of (largeRes.data ?? []) as any[]) {
-    geofences.push({
-      id: `large:${r.id}`,
-      name: String(r.name ?? "Stort projekt"),
-      lat: Number(r.address_latitude),
-      lng: Number(r.address_longitude),
-      radiusMeters: Number(r.address_radius_meters ?? 100),
-      polygon: r.address_geofence_mode === "polygon" ? r.address_geofence_polygon : undefined,
-    });
-  }
-  return { geofences, privateGeofenceIds: privateIds };
-}
+// loadGeofences removed — replaced by date-bound loadDayKnownSites().
+// See mem://constraints/known-sites-date-bound-v1: a server-wide org-wide
+// projects scan caused unrelated/test projects to surface as "visits".
 
 async function computeInputSignature(
   admin: SupabaseClient,
@@ -241,6 +180,7 @@ async function computeInputSignature(
   startIso: string,
   endIso: string,
   geofenceCount: number,
+  fenceSetHash: string,
 ): Promise<string> {
   // Cheap aggregate: count + max(recorded_at). PostgREST supports HEAD/count
   // and we can grab max via a tiny order+limit query.
@@ -266,7 +206,7 @@ async function computeInputSignature(
     if (maxErr) throw new Error(`signature max failed: ${maxErr.message}`);
     maxIso = data?.recorded_at ? String(data.recorded_at) : "";
   }
-  return `${count ?? 0}|${maxIso}|gf:${geofenceCount}`;
+  return `${count ?? 0}|${maxIso}|gf:${geofenceCount}|fh:${fenceSetHash}`;
 }
 
 /**
@@ -283,9 +223,24 @@ export async function getOrBuildDaySnapshot(
   const startIso = `${date}T00:00:00.000Z`;
   const endIso = `${date}T23:59:59.999Z`;
 
-  const { geofences, privateGeofenceIds } = await loadGeofences(admin, organizationId);
+  const { geofences, privateGeofenceIds } = await loadDayKnownSites(admin, {
+    staffId,
+    date,
+    organizationId,
+  });
 
-  const signature = await computeInputSignature(admin, staffId, startIso, endIso, geofences.length);
+  // Signature includes a stable hash of the geofence-id set so any change in
+  // dagens "kända platser" (project added/removed/cancelled, BSA edit, TR
+  // mutation) forces a rebuild — not just count differences.
+  const fenceSetHash = geofences.map((g) => g.id).sort().join(",");
+  const signature = await computeInputSignature(
+    admin,
+    staffId,
+    startIso,
+    endIso,
+    geofences.length,
+    fenceSetHash,
+  );
 
   const { data: cached, error: cacheErr } = await admin
     .from("staff_gps_day_snapshots")
@@ -298,8 +253,7 @@ export async function getOrBuildDaySnapshot(
   }
   if (cached && cached.input_signature === signature && cached.snapshot) {
     const snap = cached.snapshot as DaySnapshot;
-    // Geofences/privateIds may have changed even when ping signature matches
-    // (e.g. new project today). Override with fresh values so summaries align.
+    // Cache hit: pings + geofence-set unchanged, so visits are still valid.
     return {
       pings: snap.pings ?? [],
       geofences,
