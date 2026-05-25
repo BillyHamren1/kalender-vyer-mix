@@ -37,6 +37,7 @@ import {
 } from '@/lib/staff/timeReportReviewEntry';
 import { countsInDistributedMinutes } from '@/lib/staff/reviewRowKind';
 import { buildCanonicalStaffDayModel, type CanonicalStaffDayModel } from '@/lib/staff/canonicalDayModel';
+import { resolveTravelLabels } from '@/lib/staff/travelLabel';
 
 interface TimeReportReviewTableProps {
   date: string;
