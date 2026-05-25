@@ -2,22 +2,27 @@
  * projectHoursService.ts
  * ======================
  *
- * SINGLE SOURCE för projektets rapporterade personaltimmar.
+ * TIME ENGINE PROPOSAL/PROGNOS-service.
  *
- * Projektets rapporterade personaltimmar kommer från `staff_day_report_cache`,
- * SAMMA källa som `/staff-management/time-reports`. Projektvyn återskapar inte
- * GPS-logik och läser INTE `time_reports` eller `project_labor_costs` som
- * timkälla.
+ * Läser `staff_day_report_cache` (Time Engine/GPS-förslag) och returnerar
+ * en `ProjectHoursSummary` för ett projekt/large project.
  *
- * - `time_reports`         → INTE källa här (legacy attest-tabell).
- * - `project_labor_costs`  → INTE källa här (manuell extra kostnad i annan
- *                            vy, ej rapporterad projekttid).
- * - Time Engine-cachens `report_candidate_blocks_json` är primär; faller
- *   tillbaka på `display_blocks_json` om den saknas.
+ * VIKTIGT — vad detta INTE är:
+ *   - Detta är INTE källan för faktisk godkänd projektkostnad.
+ *   - Faktisk godkänd personalkostnad kommer från
+ *     `project_staff_time_cost_lines` (byggs av admin-attesten från
+ *     godkända `staff_day_submissions`). Se
+ *     `src/services/projectStaffTimeCostLinesService.ts`.
  *
- * Bygger inget attestflöde — `approved` sätts till `true` på de syntetiska
- * raderna som returneras (cachens summering är kanonisk sanning för
- * projektet).
+ * Vad detta är:
+ *   - En prognos-/förslagsservice som visar vad Time Engine tror att
+ *     personalen jobbat på projektet, INNAN personalen skickat in och
+ *     INNAN admin attesterat.
+ *   - Används för "Föreslaget" i UI, för diff mot godkänd tid, och som
+ *     fallback-segmentstruktur när submission saknar snapshot.
+ *
+ * - `time_reports`        → INTE källa här.
+ * - `project_labor_costs` → INTE källa här (manuell extra kostnad).
  */
 import { supabase } from '@/integrations/supabase/client';
 import {
