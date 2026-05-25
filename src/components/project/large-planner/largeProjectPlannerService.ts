@@ -5,12 +5,13 @@
  *
  * HÅRDA REGLER:
  *  - Skriver ENDAST till `large_project_booking_plan_items`.
- *  - LÄSER `bookings`, `large_projects`, `staff_members`, `staff_assignments`,
- *    `booking_staff_assignments` för att visa kontext — aldrig skriver.
- *  - Får INTE anropas av personalkalendern, time-appen eller staff
- *    assignment-logiken.
- *
- * Se .lovable/large-project-calendar-audit.md.
+ *  - LÄSER read-only:
+ *      • bookings, large_project_bookings, large_projects
+ *      • calendar_events (för att veta vilket team som har projektets fas/dag)
+ *      • staff_assignments (för att veta vilka personer som är i teamet den dagen)
+ *      • staff_members (namn/färg)
+ *  - Får ALDRIG skriva till calendar_events / staff_assignments /
+ *    booking_staff_assignments / large_project_team_assignments.
  */
 import { supabase } from '@/integrations/supabase/client';
 import type {
@@ -31,21 +32,29 @@ const planTable = () => (supabase.from as any)(PLAN_TABLE);
 
 // ── Reads ──────────────────────────────────────────────────────────────────
 
+/**
+ * Hämta projektets bokningar. Primärkälla: large_project_bookings.
+ * Fallback: bookings.large_project_id (för stora projekt som inte syncats
+ * till kopplingstabellen ännu).
+ */
 async function fetchProjectBookings(
   largeProjectId: string,
 ): Promise<LargeProjectPlannerBooking[]> {
-  const { data, error } = await supabase
-    .from('bookings')
-    .select(
-      'id, booking_number, client, rigdaydate, eventdate, rigdowndate, ' +
-        'rig_start_time, rig_end_time, event_start_time, event_end_time, ' +
-        'rigdown_start_time, rigdown_end_time, deliveryaddress, delivery_city',
-    )
+  // Steg 1: bookingIds via large_project_bookings
+  const { data: lpbRows, error: lpbErr } = await supabase
+    .from('large_project_bookings')
+    .select('booking_id')
     .eq('large_project_id', largeProjectId);
+  if (lpbErr) throw lpbErr;
+  const bookingIdsFromJoin = (lpbRows ?? [])
+    .map((r) => (r as { booking_id: string | null }).booking_id)
+    .filter((id): id is string => !!id);
 
-  if (error) throw error;
-  // Tabellen kan returneras med smala typer beroende på Supabase-typgenerering;
-  // mappa via en lös typ för att hålla servicen tålig.
+  const cols =
+    'id, booking_number, client, large_project_id, rigdaydate, eventdate, rigdowndate, ' +
+    'rig_start_time, rig_end_time, event_start_time, event_end_time, ' +
+    'rigdown_start_time, rigdown_end_time, deliveryaddress, delivery_city';
+
   type RawBooking = {
     id: string;
     booking_number?: string | null;
@@ -62,7 +71,25 @@ async function fetchProjectBookings(
     deliveryaddress?: string | null;
     delivery_city?: string | null;
   };
-  const rows = ((data ?? []) as unknown as RawBooking[]);
+
+  let rows: RawBooking[] = [];
+  if (bookingIdsFromJoin.length > 0) {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select(cols)
+      .in('id', bookingIdsFromJoin);
+    if (error) throw error;
+    rows = (data ?? []) as unknown as RawBooking[];
+  } else {
+    // Fallback: hämta via bookings.large_project_id
+    const { data, error } = await supabase
+      .from('bookings')
+      .select(cols)
+      .eq('large_project_id', largeProjectId);
+    if (error) throw error;
+    rows = (data ?? []) as unknown as RawBooking[];
+  }
+
   return rows.map((b) => ({
     id: b.id,
     booking_number: b.booking_number ?? null,
@@ -82,41 +109,243 @@ async function fetchProjectBookings(
   }));
 }
 
-async function fetchProjectStaff(
-  bookingIds: string[],
-): Promise<LargeProjectPlannerStaffMember[]> {
-  if (bookingIds.length === 0) return [];
-
-  // Spegla personalkalenderns assignment-källa: BSA per bokning.
-  const { data: bsa, error: bsaErr } = await supabase
-    .from('booking_staff_assignments')
-    .select('staff_id, booking_id, assignment_date')
-    .in('booking_id', bookingIds);
-  if (bsaErr) throw bsaErr;
-
-  const datesByStaff = new Map<string, Set<string>>();
-  (bsa ?? []).forEach((row: { staff_id: string; assignment_date: string | null }) => {
-    if (!row.staff_id || !row.assignment_date) return;
-    const set = datesByStaff.get(row.staff_id) ?? new Set<string>();
-    set.add(row.assignment_date);
-    datesByStaff.set(row.staff_id, set);
+/**
+ * Bygger en dedupad sorterad lista av datum för projektet:
+ *  - bokningarnas rig/event/rigdown-datum
+ *  - befintliga plan_items.plan_date
+ *
+ * Faser tilldelas i prioritetsordning event > rig > rigDown om datumet
+ * matchar flera bokningar (samma som personalkalenderns visning).
+ */
+export function buildProjectDays(
+  bookings: LargeProjectPlannerBooking[],
+  items: LargeProjectBookingPlanItem[],
+): LargeProjectPlannerDay[] {
+  const dateSet = new Set<string>();
+  const phaseByDate = new Map<string, 'rig' | 'event' | 'rigDown'>();
+  const tag = (date: string | null, phase: 'rig' | 'event' | 'rigDown') => {
+    if (!date) return;
+    dateSet.add(date);
+    // event > rig > rigDown — sätt bara om svagare/saknad
+    const cur = phaseByDate.get(date);
+    if (!cur) {
+      phaseByDate.set(date, phase);
+    } else if (cur === 'rigDown' && phase !== 'rigDown') {
+      phaseByDate.set(date, phase);
+    } else if (cur === 'rig' && phase === 'event') {
+      phaseByDate.set(date, phase);
+    }
+  };
+  bookings.forEach((b) => {
+    tag(b.rigdaydate, 'rig');
+    tag(b.eventdate, 'event');
+    tag(b.rigdowndate, 'rigDown');
   });
 
-  const staffIds = Array.from(datesByStaff.keys());
-  if (staffIds.length === 0) return [];
+  const itemsByDate = new Map<string, LargeProjectBookingPlanItem[]>();
+  items.forEach((it) => {
+    dateSet.add(it.plan_date);
+    const list = itemsByDate.get(it.plan_date) ?? [];
+    list.push(it);
+    itemsByDate.set(it.plan_date, list);
+  });
 
-  const { data: staff, error: sErr } = await supabase
+  return Array.from(dateSet)
+    .sort((a, b) => a.localeCompare(b))
+    .map((date) => ({
+      date,
+      phase: phaseByDate.get(date) ?? null,
+      items: (itemsByDate.get(date) ?? []).slice().sort((a, b) => {
+        if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;
+        return (a.start_time ?? '').localeCompare(b.start_time ?? '');
+      }),
+    }));
+}
+
+/**
+ * Bygg staffByDay från calendar_events × staff_assignments. Pure helper —
+ * isoleras för enhetstest.
+ *
+ * @param events  calendar_events rows för projektets bokningar (rig/event/rigDown)
+ * @param assignments  staff_assignments rows
+ * @param staffMembers Karta från staff_id → namn/färg
+ */
+export function buildStaffByDay(
+  events: Array<{
+    booking_id: string | null;
+    event_type: string | null;
+    source_date: string | null;
+    resource_id: string | null;
+  }>,
+  assignments: Array<{
+    staff_id: string | null;
+    team_id: string | null;
+    assignment_date: string | null;
+  }>,
+  staffMembers: Array<{ id: string; name: string; color: string | null }>,
+): Record<string, LargeProjectPlannerStaffMember[]> {
+  // (date, team_id) som projektet "äger"
+  const teamsByDate = new Map<string, Set<string>>();
+  events.forEach((ev) => {
+    const date = ev.source_date;
+    const team = ev.resource_id;
+    const phase = ev.event_type;
+    if (!date || !team) return;
+    if (phase !== 'rig' && phase !== 'event' && phase !== 'rigDown') return;
+    const set = teamsByDate.get(date) ?? new Set<string>();
+    set.add(team);
+    teamsByDate.set(date, set);
+  });
+
+  // (date, team) → Set<staff_id>
+  const staffByDateTeam = new Map<string, Set<string>>();
+  assignments.forEach((a) => {
+    if (!a.staff_id || !a.team_id || !a.assignment_date) return;
+    const key = `${a.assignment_date}|${a.team_id}`;
+    const set = staffByDateTeam.get(key) ?? new Set<string>();
+    set.add(a.staff_id);
+    staffByDateTeam.set(key, set);
+  });
+
+  const memberById = new Map<string, { id: string; name: string; color: string | null }>();
+  staffMembers.forEach((m) => memberById.set(m.id, m));
+
+  const result: Record<string, LargeProjectPlannerStaffMember[]> = {};
+  teamsByDate.forEach((teams, date) => {
+    const seen = new Set<string>();
+    const list: LargeProjectPlannerStaffMember[] = [];
+    teams.forEach((teamId) => {
+      const staffSet = staffByDateTeam.get(`${date}|${teamId}`);
+      if (!staffSet) return;
+      staffSet.forEach((sid) => {
+        if (seen.has(sid)) return;
+        const m = memberById.get(sid);
+        if (!m) return;
+        seen.add(sid);
+        list.push({ id: m.id, name: m.name, color: m.color, assignedDates: [date] });
+      });
+    });
+    list.sort((a, b) => a.name.localeCompare(b.name, 'sv'));
+    result[date] = list;
+  });
+  return result;
+}
+
+/**
+ * Hämta personal per dag på det stora projektet (read-only).
+ * Speglar personalkalenderns derivering:
+ *   calendar_events(booking IN project, event_type rig/event/rigDown)
+ *   × staff_assignments(team_id, assignment_date)
+ *   × staff_members.
+ */
+async function fetchProjectStaffPerDay(
+  bookingIds: string[],
+): Promise<{
+  staffByDay: Record<string, LargeProjectPlannerStaffMember[]>;
+  allStaff: LargeProjectPlannerStaffMember[];
+}> {
+  if (bookingIds.length === 0) {
+    return { staffByDay: {}, allStaff: [] };
+  }
+
+  const { data: events, error: evErr } = await supabase
+    .from('calendar_events')
+    .select('booking_id, event_type, source_date, resource_id')
+    .in('booking_id', bookingIds)
+    .in('event_type', ['rig', 'event', 'rigDown']);
+  if (evErr) throw evErr;
+
+  type EvRow = {
+    booking_id: string | null;
+    event_type: string | null;
+    source_date: string | null;
+    resource_id: string | null;
+  };
+  const evRows = (events ?? []) as unknown as EvRow[];
+
+  const dateTeamPairs = new Set<string>();
+  const teamIds = new Set<string>();
+  const dates = new Set<string>();
+  evRows.forEach((e) => {
+    if (!e.source_date || !e.resource_id) return;
+    dateTeamPairs.add(`${e.source_date}|${e.resource_id}`);
+    teamIds.add(e.resource_id);
+    dates.add(e.source_date);
+  });
+
+  if (dateTeamPairs.size === 0) {
+    return { staffByDay: {}, allStaff: [] };
+  }
+
+  const { data: assignments, error: aErr } = await supabase
+    .from('staff_assignments')
+    .select('staff_id, team_id, assignment_date')
+    .in('team_id', Array.from(teamIds))
+    .in('assignment_date', Array.from(dates));
+  if (aErr) throw aErr;
+
+  type AssignRow = {
+    staff_id: string | null;
+    team_id: string | null;
+    assignment_date: string | null;
+  };
+  const assignRows = (assignments ?? []) as unknown as AssignRow[];
+
+  const relevantStaffIds = Array.from(
+    new Set(
+      assignRows
+        .filter(
+          (a) =>
+            a.team_id &&
+            a.assignment_date &&
+            dateTeamPairs.has(`${a.assignment_date}|${a.team_id}`),
+        )
+        .map((a) => a.staff_id)
+        .filter((id): id is string => !!id),
+    ),
+  );
+
+  if (relevantStaffIds.length === 0) {
+    return { staffByDay: {}, allStaff: [] };
+  }
+
+  const { data: members, error: mErr } = await supabase
     .from('staff_members')
     .select('id, name, color')
-    .in('id', staffIds);
-  if (sErr) throw sErr;
+    .in('id', relevantStaffIds);
+  if (mErr) throw mErr;
 
-  return (staff ?? []).map((s) => ({
-    id: s.id,
-    name: s.name,
-    color: (s as { color?: string | null }).color ?? null,
-    assignedDates: Array.from(datesByStaff.get(s.id) ?? new Set<string>()).sort(),
+  type MemberRow = { id: string; name: string; color?: string | null };
+  const memberRows = (members ?? []) as unknown as MemberRow[];
+  const memberList = memberRows.map((m) => ({
+    id: m.id,
+    name: m.name,
+    color: m.color ?? null,
   }));
+
+  const staffByDay = buildStaffByDay(evRows, assignRows, memberList);
+
+  // Bygg en de-dupad union för "all staff" + samla assignedDates per person
+  const datesByStaff = new Map<string, Set<string>>();
+  Object.entries(staffByDay).forEach(([date, list]) => {
+    list.forEach((s) => {
+      const set = datesByStaff.get(s.id) ?? new Set<string>();
+      set.add(date);
+      datesByStaff.set(s.id, set);
+    });
+  });
+
+  const allStaff: LargeProjectPlannerStaffMember[] = memberList
+    .filter((m) => datesByStaff.has(m.id))
+    .map((m) => ({
+      id: m.id,
+      name: m.name,
+      color: m.color,
+      assignedDates: Array.from(datesByStaff.get(m.id) ?? new Set<string>()).sort(),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'sv'));
+
+  return { staffByDay, allStaff };
 }
 
 export async function fetchLargeProjectPlannerItems(
@@ -131,22 +360,6 @@ export async function fetchLargeProjectPlannerItems(
   return (data ?? []) as LargeProjectBookingPlanItem[];
 }
 
-function buildDays(items: LargeProjectBookingPlanItem[]): LargeProjectPlannerDay[] {
-  const byDate = new Map<string, LargeProjectBookingPlanItem[]>();
-  items.forEach((it) => {
-    const list = byDate.get(it.plan_date) ?? [];
-    list.push(it);
-    byDate.set(it.plan_date, list);
-  });
-  return Array.from(byDate.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, list]) => ({
-      date,
-      phase: (list.find((i) => i.phase)?.phase as LargeProjectPlannerDay['phase']) ?? null,
-      items: list,
-    }));
-}
-
 export async function fetchLargeProjectPlannerContext(
   largeProjectId: string,
 ): Promise<LargeProjectPlannerContext> {
@@ -154,13 +367,16 @@ export async function fetchLargeProjectPlannerContext(
     fetchProjectBookings(largeProjectId),
     fetchLargeProjectPlannerItems(largeProjectId),
   ]);
-  const staff = await fetchProjectStaff(bookings.map((b) => b.id));
+  const { staffByDay, allStaff } = await fetchProjectStaffPerDay(
+    bookings.map((b) => b.id),
+  );
   return {
     projectId: largeProjectId,
     bookings,
-    staff,
+    staff: allStaff,
     items,
-    days: buildDays(items),
+    days: buildProjectDays(bookings, items),
+    staffByDay,
   };
 }
 
@@ -341,6 +557,5 @@ export async function createPlannerItemsFromProjectBookings(
   return { created, createdCount: created.length, skippedCount, errors };
 }
 
-// Re-export för test/extern användning
-export { buildDays as __buildPlannerDays };
-
+// Re-export legacy alias för bakåtkompat-test (gamla __buildPlannerDays).
+export { buildProjectDays as __buildPlannerDays };
