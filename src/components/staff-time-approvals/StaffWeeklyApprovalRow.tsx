@@ -175,22 +175,45 @@ export const StaffWeeklyApprovalRow: React.FC<Props> = ({
         <div className="hidden md:flex items-center gap-1 shrink-0">
           {bundle.days.map((d, i) => {
             const date = parseISO(d.date);
+            const clickable = !!onOpenDay && d.uiStatus !== "no_report";
+            const chip = (
+              <div
+                className={`flex flex-col items-center justify-center rounded border text-[9px] font-semibold leading-none transition-transform ${dayChipColor(d.uiStatus)} ${
+                  clickable ? "cursor-pointer hover:scale-110 hover:ring-1 hover:ring-primary/40" : ""
+                }`}
+                style={{ width: 22, height: 22 }}
+                role={clickable ? "button" : undefined}
+                tabIndex={clickable ? 0 : undefined}
+                onClick={(e) => {
+                  if (!clickable) return;
+                  e.stopPropagation();
+                  onOpenDay!(bundle, d);
+                }}
+                onKeyDown={(e) => {
+                  if (!clickable) return;
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onOpenDay!(bundle, d);
+                  }
+                }}
+              >
+                <span>{WEEKDAY_SHORT[i]}</span>
+              </div>
+            );
             return (
               <Tooltip key={d.date}>
-                <TooltipTrigger asChild>
-                  <div
-                    className={`flex flex-col items-center justify-center rounded border text-[9px] font-semibold leading-none ${dayChipColor(d.uiStatus)}`}
-                    style={{ width: 22, height: 22 }}
-                  >
-                    <span>{WEEKDAY_SHORT[i]}</span>
-                  </div>
-                </TooltipTrigger>
+                <TooltipTrigger asChild>{chip}</TooltipTrigger>
                 <TooltipContent side="top" className="text-xs">
                   {format(date, "EEEE d MMM", { locale: sv })} — {statusLabel(d.uiStatus)}
                   {d.minutes > 0 ? ` · ${formatHm(d.minutes)}` : ""}
                   {d.source === "engine_cache" && d.uiStatus === "pending_staff_attest" ? (
                     <div className="text-[10px] text-muted-foreground mt-0.5">
-                      Förslag från Time Engine
+                      Förslag från Time Engine · klicka för granskning
+                    </div>
+                  ) : clickable ? (
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                      Klicka för daggranskning
                     </div>
                   ) : null}
                 </TooltipContent>
@@ -198,6 +221,7 @@ export const StaffWeeklyApprovalRow: React.FC<Props> = ({
             );
           })}
         </div>
+
 
         {/* Åtgärder */}
         <div className="flex items-center gap-1 shrink-0">
