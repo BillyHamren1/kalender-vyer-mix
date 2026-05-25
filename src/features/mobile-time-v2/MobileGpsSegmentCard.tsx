@@ -23,6 +23,8 @@ interface Props {
   segment: MobileGpsDaySegment;
   onEdit: (segment: MobileGpsDaySegment) => void;
   disabled?: boolean;
+  /** True när användaren har gjort en lokal, ej inskickad tidsändring. */
+  hasUnsavedOverride?: boolean;
 }
 
 function fmtTime(iso: string): string {
