@@ -38,8 +38,10 @@ import LargeProjectPlannerSidebar from './LargeProjectPlannerSidebar';
 import LargeProjectPlannerTaskCard from './LargeProjectPlannerTaskCard';
 import SplitBookingIntoTasksDialog from './SplitBookingIntoTasksDialog';
 import ManualProjectTaskDialog from './ManualProjectTaskDialog';
+import LargeProjectPlannerQuickEditDialog from './LargeProjectPlannerQuickEditDialog';
 import { useLargeProjectPlannerItems } from './useLargeProjectPlannerItems';
 import { useState } from 'react';
+import { readDragPayload, hasPlannerPayload } from './plannerDnd';
 import type {
   LargeProjectBookingPlanItem,
   LargeProjectPlannerBooking,
