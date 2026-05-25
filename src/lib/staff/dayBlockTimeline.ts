@@ -1034,5 +1034,70 @@ export function buildDayBlockTimeline(input: BuildBlockTimelineInput): DayBlock[
   }
 
   consolidated.sort((a, b) => a.startIso.localeCompare(b.startIso));
-  return consolidated;
+
+  // 8) Same-target sandwich collapse (GPS-drift)
+  //    Mönster: presence(A) → [journey|gap|unknown-presence]* → presence(A)
+  //    där båda ytter-presence pekar på samma plats (placeKey eller title).
+  //    Mittensegmenten = GPS-drift/signaltapp och får inte visas som egna
+  //    rader ("Okänd plats" / "Förflyttning"). Vi droppar mittensegmenten,
+  //    sväljer deras innerEvents in i första blocket, och förlänger första
+  //    blockets endIso till sista blockets endIso.
+  const sameTargetKey = (a: PresenceBlock, b: PresenceBlock): string | null => {
+    if (a.placeKey && b.placeKey && a.placeKey === b.placeKey) return a.placeKey;
+    const at = (a.title ?? '').trim().toLowerCase();
+    const bt = (b.title ?? '').trim().toLowerCase();
+    if (at && bt && at === bt && a.presenceKind !== 'unknown' && b.presenceKind !== 'unknown') return `title:${at}`;
+    return null;
+  };
+  const collapsed: DayBlock[] = [];
+  let ci = 0;
+  while (ci < consolidated.length) {
+    const cur = consolidated[ci];
+    if (cur.kind !== 'presence' || cur.presenceKind === 'unknown') {
+      collapsed.push(cur);
+      ci++;
+      continue;
+    }
+    let cj = ci + 1;
+    let matchIdx = -1;
+    while (cj < consolidated.length) {
+      const nb = consolidated[cj];
+      if (nb.kind === 'presence') {
+        if (nb.presenceKind !== 'unknown' && sameTargetKey(cur, nb)) {
+          matchIdx = cj;
+          break;
+        }
+        if (nb.presenceKind !== 'unknown') break; // annan känd plats bryter sandwich
+      }
+      cj++;
+    }
+    if (matchIdx === -1) {
+      collapsed.push(cur);
+      ci++;
+      continue;
+    }
+    const next = consolidated[matchIdx] as PresenceBlock;
+    const swallowed = consolidated.slice(ci + 1, matchIdx + 1);
+    for (const sb of swallowed) {
+      if (sb.kind === 'presence' || sb.kind === 'journey') {
+        cur.innerEvents = [...cur.innerEvents, ...sb.innerEvents];
+      } else if (sb.kind === 'gap') {
+        cur.innerEvents = [...cur.innerEvents, ...sb.innerEvents];
+      }
+    }
+    cur.endIso = next.endIso ?? cur.endIso;
+    if (cur.endIso) {
+      const ms = new Date(cur.endIso).getTime() - new Date(cur.startIso).getTime();
+      cur.durationMin = Math.max(cur.durationMin, Math.round(ms / 60_000));
+    }
+    if (next.timer.active) cur.timer.active = true;
+    if (next.timer.stoppedIso) cur.timer.stoppedIso = next.timer.stoppedIso;
+    if (next.timeReport.closedIso) cur.timeReport.closedIso = next.timeReport.closedIso;
+    cur.ongoing = cur.ongoing || next.ongoing;
+    cur.sourceEventIds = [...cur.sourceEventIds, ...next.sourceEventIds];
+    collapsed.push(cur);
+    ci = matchIdx + 1;
+  }
+
+  return collapsed;
 }
