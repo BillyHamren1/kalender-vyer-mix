@@ -51,10 +51,11 @@ interface Props {
 }
 
 const TASK_RESOURCE: Resource = { id: 'team-tasks', title: 'Aktiviteter', eventColor: '#A78BFA' };
-// Projektkalendern visar projektets relevanta team. Default = ALLA aktuella
-// team + Lager + Aktiviteter-kolumnen. Tidigare hårdkodades till bara
-// team-1..4 + transport + team-tasks vilket dolde Team 5–10.
-const PROJECT_REQUIRED_TEAMS = ['team-1', 'team-2', 'team-3', 'team-4', 'transport', 'team-tasks'];
+// Projektkalendern visar default 5 team + Aktiviteter. Övriga team läggs till
+// via "+"-knappen i dagheadern (TeamVisibilityControl). Endast team-tasks är
+// "required" så Aktiviteter-kolumnen alltid finns för task-dragg.
+const PROJECT_REQUIRED_TEAMS = ['team-tasks'];
+const DEFAULT_VISIBLE_TEAM_COUNT = 5;
 
 const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) => {
   // 1. Hämta projektets events.
@@ -158,14 +159,23 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
     return Array.from(merged).sort().map((s) => parseISO(s));
   }, [projectDays, taskDayKeys]);
 
-  // 5. Synliga team per dag — default = ALLA aktuella team + Lager + Aktiviteter.
+  // 5. Synliga team per dag — default = första 5 vanliga team + Aktiviteter.
+  // Användaren lägger till fler via "+" i dagheadern (TeamVisibilityControl).
   const defaultVisibleTeams = useMemo(() => {
-    const ids = new Set<string>(PROJECT_REQUIRED_TEAMS);
-    for (const r of teamResourcesWithTasks) {
-      if (!r?.id || r.id === 'team-11') continue;
-      ids.add(r.id);
+    const ordered = teamResourcesWithTasks
+      .filter((r) => r?.id && r.id !== 'team-11' && r.id !== TASK_RESOURCE.id)
+      .map((r) => r.id);
+    // Föredra team-1..team-5 om de finns, annars första fem i listan.
+    const preferred = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5'];
+    const picked: string[] = [];
+    for (const id of preferred) {
+      if (ordered.includes(id) && picked.length < DEFAULT_VISIBLE_TEAM_COUNT) picked.push(id);
     }
-    return Array.from(ids);
+    for (const id of ordered) {
+      if (picked.length >= DEFAULT_VISIBLE_TEAM_COUNT) break;
+      if (!picked.includes(id)) picked.push(id);
+    }
+    return [...picked, ...PROJECT_REQUIRED_TEAMS];
   }, [teamResourcesWithTasks]);
 
   const [visibleTeamsByDay, setVisibleTeamsByDay] = useState<{ [key: string]: string[] }>({});
@@ -173,8 +183,9 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
     const dateKey = format(date, 'yyyy-MM-dd');
     const stored = visibleTeamsByDay[dateKey];
     if (!stored) return defaultVisibleTeams;
+    // Användarens val styr. Endast required-listan (team-tasks) tvingas alltid in.
     const merged = new Set<string>(stored.filter((id) => id !== 'team-11'));
-    for (const id of defaultVisibleTeams) merged.add(id);
+    for (const id of PROJECT_REQUIRED_TEAMS) merged.add(id);
     return Array.from(merged);
   };
   const handleToggleTeamForDay = (teamId: string, date: Date) => {

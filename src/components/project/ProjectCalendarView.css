@@ -73,3 +73,15 @@
   display: none !important;
 }
 
+
+/* Garanti: ingen intern horisontell scroll i en projektdag.
+   Alla valda team-kolumner ska alltid synas hela tiden. Om användaren
+   lägger till många team via "+" så växer dagkortet i bredd och hela
+   weekly-horizontal-grid får sin yttre scroll i stället. */
+.project-weekly-day-card .day-card,
+.project-weekly-day-card .day-card * {
+  overflow-x: visible !important;
+}
+.project-weekly-day-card {
+  min-width: 520px !important;
+}
