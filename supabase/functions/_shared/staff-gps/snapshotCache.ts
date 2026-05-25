@@ -222,9 +222,24 @@ export async function getOrBuildDaySnapshot(
   const startIso = `${date}T00:00:00.000Z`;
   const endIso = `${date}T23:59:59.999Z`;
 
-  const { geofences, privateGeofenceIds } = await loadGeofences(admin, organizationId);
+  const { geofences, privateGeofenceIds } = await loadDayKnownSites(admin, {
+    staffId,
+    date,
+    organizationId,
+  });
 
-  const signature = await computeInputSignature(admin, staffId, startIso, endIso, geofences.length);
+  // Signature includes a stable hash of the geofence-id set so any change in
+  // dagens "kända platser" (project added/removed/cancelled, BSA edit, TR
+  // mutation) forces a rebuild — not just count differences.
+  const fenceSetHash = geofences.map((g) => g.id).sort().join(",");
+  const signature = await computeInputSignature(
+    admin,
+    staffId,
+    startIso,
+    endIso,
+    geofences.length,
+    fenceSetHash,
+  );
 
   const { data: cached, error: cacheErr } = await admin
     .from("staff_gps_day_snapshots")
@@ -237,8 +252,7 @@ export async function getOrBuildDaySnapshot(
   }
   if (cached && cached.input_signature === signature && cached.snapshot) {
     const snap = cached.snapshot as DaySnapshot;
-    // Geofences/privateIds may have changed even when ping signature matches
-    // (e.g. new project today). Override with fresh values so summaries align.
+    // Cache hit: pings + geofence-set unchanged, so visits are still valid.
     return {
       pings: snap.pings ?? [],
       geofences,
