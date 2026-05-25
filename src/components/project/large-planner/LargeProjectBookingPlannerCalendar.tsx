@@ -93,6 +93,11 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
   } = useLargeProjectPlannerItems(largeProjectId);
 
   const [splitBookingId, setSplitBookingId] = useState<string | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualDefaults, setManualDefaults] = useState<{
+    date?: string | null;
+    staffId?: string | null;
+  }>({});
 
   const staffById = useMemo(() => {
     const map = new Map<string, LargeProjectPlannerStaffMember>();
