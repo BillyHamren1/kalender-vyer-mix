@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { useScheduledShifts } from '@/hooks/useScheduledShifts';
-import { useGeofencingContext } from '@/contexts/GeofencingContext';
+
 // Time Legacy Purge 6 — GeofencePrompt borttagen som UI-källa. GPS/geofence
 // är passiv evidence; ingen popup får längre fråga om att starta tid.
 import { HeaderShell } from '@/components/mobile-app/MobileHeader';
