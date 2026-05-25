@@ -1,8 +1,9 @@
 /**
- * Time v2 — frontend types for the Day Report view.
- * Mirrors the shape returned by `get-mobile-gps-day-view` /
- * `submit-mobile-gps-day-v2`. The app is a dumb renderer of these objects;
- * it never computes time, reads pings or talks to legacy tables.
+ * Time v2 — frontend types for the Day Report view & report queue.
+ * Mirrors the shape returned by `get-mobile-gps-day-view`,
+ * `submit-mobile-gps-day-v2` and `get-mobile-time-report-queue`.
+ * The app is a dumb renderer — never computes time, reads pings or
+ * talks to legacy tables.
  */
 
 export type MobileGpsSegmentKind = 'stay' | 'travel' | 'gps_gap';
@@ -15,7 +16,6 @@ export type MobileGpsMatchedKind =
   | null;
 
 export interface MobileGpsManualOverride {
-  /** Stable segment key — comes from backend (`${startTs}|${siteId|"unknown"}`). */
   segmentKey: string;
   startIso?: string | null;
   endIso?: string | null;
@@ -166,6 +166,47 @@ export interface MobileGpsMap {
   areas: MobileGpsMapArea[];
 }
 
+// =========================================================================
+// Manual work targets — picked by the user when there is no GPS suggestion
+// or when they edit a manual segment. Never auto-selected by the system.
+// =========================================================================
+export type ManualWorkTargetType =
+  | 'booking'
+  | 'project'
+  | 'large_project'
+  | 'location'
+  | 'other';
+
+export interface ManualWorkTarget {
+  targetType: ManualWorkTargetType;
+  targetId: string | null;
+  label: string;
+  subtitle: string | null;
+  booking_id?: string | null;
+  project_id?: string | null;
+  large_project_id?: string | null;
+  location_id?: string | null;
+}
+
+export interface ManualWorkTargets {
+  assignedTargets: ManualWorkTarget[];
+  locationTargets: ManualWorkTarget[];
+  searchableTargets: ManualWorkTarget[];
+}
+
+export interface ManualWorkSegmentInput {
+  startTime: string; // "HH:mm"
+  endTime: string;   // "HH:mm"
+  breakMinutes?: number;
+  target: ManualWorkTarget | null;
+  comment?: string | null;
+}
+
+export interface ManualDayPayload {
+  segments: ManualWorkSegmentInput[];
+  comment?: string | null;
+}
+
 export interface MobileGpsDayView {
   source: 'mobile_gps_day_view_v2';
   staffId: string;
@@ -186,13 +227,8 @@ export interface MobileGpsDayView {
   submission: MobileGpsDaySubmission;
   messages: MobileGpsDayMessage[];
   debug: MobileGpsDayDebug;
+  manualTargets: ManualWorkTargets;
   generatedAt: string;
-}
-
-export interface ManualDayInput {
-  startTime: string; // "HH:mm"
-  endTime: string;   // "HH:mm"
-  breakMinutes: number;
 }
 
 export interface SubmitMobileGpsDayV2Input {
@@ -201,7 +237,7 @@ export interface SubmitMobileGpsDayV2Input {
   userComment?: string | null;
   manualOverrides: MobileGpsManualOverride[];
   expectedSourceSnapshotId?: string | null;
-  manualDay?: ManualDayInput | null;
+  manualDay?: ManualDayPayload | null;
 }
 
 export interface SubmitMobileGpsDayV2Result {
@@ -217,4 +253,52 @@ export interface SubmitMobileGpsDayV2Result {
     userComment: string | null;
   };
   priorStatus: string | null;
+}
+
+// =========================================================================
+// Report queue — overview of recent days that need action or are submitted.
+// Source: `get-mobile-time-report-queue`.
+// =========================================================================
+export type TimeReportQueueStatus =
+  | 'correction_requested'
+  | 'needs_submit'
+  | 'manual_needed'
+  | 'submitted'
+  | 'edited'
+  | 'needs_user_attention'
+  | 'needs_control'
+  | 'ai_flagged'
+  | 'approved'
+  | 'payroll_approved'
+  | 'rejected'
+  | 'withdrawn';
+
+export interface TimeReportQueueDay {
+  date: string;            // YYYY-MM-DD
+  weekdayLabel: string;    // "Mån"
+  dayLabel: string;        // "25 maj"
+  status: TimeReportQueueStatus;
+  statusLabel: string;
+  priority: number;        // lower = higher priority
+  hasSubmission: boolean;
+  hasEngineSuggestion: boolean;
+  hasGps: boolean;
+  needsAction: boolean;
+  totalMinutes: number;
+  totalLabel: string;
+  startLabel: string | null;
+  endLabel: string | null;
+  source: string | null;
+  submissionId: string | null;
+  reviewComment: string | null;
+  canSubmit: boolean;
+  canEdit: boolean;
+  canOpen: boolean;
+}
+
+export interface TimeReportQueue {
+  staffId: string;
+  from: string;
+  to: string;
+  days: TimeReportQueueDay[];
 }
