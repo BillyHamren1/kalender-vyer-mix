@@ -24,7 +24,9 @@ export const StaffWeeklyApprovalList: React.FC<Props> = ({
   onOpen,
   approvingStaffId,
   onApproveWeek,
+  onOpenDay,
 }) => {
+
   const [showAllApproved, setShowAllApproved] = useState(false);
   const approvedToRender = showAllApproved
     ? approved
