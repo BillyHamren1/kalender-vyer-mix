@@ -297,35 +297,66 @@ Deno.serve(async (req: Request) => {
   let displaySnapshot: any[] = [];
   let totalMinutes = 0;
 
-  if (manualDay) {
-    requestedStartAt = stockholmLocalToUtcIso(date, manualDay.startTime);
-    const startMs = Date.parse(requestedStartAt);
-    let endIso = stockholmLocalToUtcIso(date, manualDay.endTime);
-    if (Date.parse(endIso) <= startMs) {
-      // nattpass: slutet är nästa kalenderdag
-      const nextDay = new Date(`${date}T00:00:00Z`);
-      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
-      const nextDateStr = nextDay.toISOString().slice(0, 10);
-      endIso = stockholmLocalToUtcIso(nextDateStr, manualDay.endTime);
+  if (manualDay && manualDay.length > 0) {
+    // Bygg per-segment displaySnapshot, varje rad sparas exakt på vald target.
+    const dayStartOfDate = stockholmLocalToUtcIso(date, "00:00");
+    const dayStartMs = Date.parse(dayStartOfDate);
+    const rows: any[] = [];
+    let i = 0;
+    for (const seg of manualDay) {
+      let startIso = stockholmLocalToUtcIso(date, seg.startTime);
+      let endIso = stockholmLocalToUtcIso(date, seg.endTime);
+      if (Date.parse(endIso) <= Date.parse(startIso)) {
+        // nattpass: slutet är nästa kalenderdag
+        const nextDay = new Date(`${date}T00:00:00Z`);
+        nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+        const nextDateStr = nextDay.toISOString().slice(0, 10);
+        endIso = stockholmLocalToUtcIso(nextDateStr, seg.endTime);
+      }
+      const gross = Math.max(0, Math.round((Date.parse(endIso) - Date.parse(startIso)) / 60000));
+      const net = Math.max(0, gross - seg.breakMinutes);
+      totalMinutes += net;
+      breakMinutes += seg.breakMinutes;
+
+      // requested_start/end = min/max över alla rader
+      if (!requestedStartAt || Date.parse(startIso) < Date.parse(requestedStartAt)) {
+        requestedStartAt = startIso;
+      }
+      if (!requestedEndAt || Date.parse(endIso) > Date.parse(requestedEndAt)) {
+        requestedEndAt = endIso;
+      }
+
+      const t = seg.target ?? { targetType: "other", targetId: null, label: "Övrigt arbete" };
+      const tt = (t.targetType ?? "other") as ManualTargetType;
+      rows.push({
+        id: `manual-${i}-${Date.parse(startIso)}`,
+        segmentKey: `manual-${i}-${Date.parse(startIso)}`,
+        source: "mobile_time_v2_manual",
+        kind: "manual_work",
+        type: "manual_work",
+        label: t.label ?? "Övrigt arbete",
+        startedAt: startIso,
+        endedAt: endIso,
+        start: startIso,
+        end: endIso,
+        durationMinutes: net,
+        minutes: net,
+        breakMinutes: seg.breakMinutes,
+        booking_id: t.booking_id ?? (tt === "booking" ? t.targetId : null),
+        project_id: t.project_id ?? (tt === "project" ? t.targetId : null),
+        large_project_id: t.large_project_id ?? (tt === "large_project" ? t.targetId : null),
+        location_id: t.location_id ?? (tt === "location" ? t.targetId : null),
+        assignment_id: null,
+        targetType: tt,
+        targetId: t.targetId ?? null,
+        warning: tt === "other" ? "unassigned_manual_time" : null,
+        comment: seg.comment ?? null,
+      });
+      i++;
+      // silence unused warning
+      void dayStartMs;
     }
-    requestedEndAt = endIso;
-    breakMinutes = manualDay.breakMinutes;
-    const gross = Math.max(0, Math.round((Date.parse(requestedEndAt) - startMs) / 60000));
-    totalMinutes = Math.max(0, gross - breakMinutes);
-    displaySnapshot = [{
-      id: "manual-day",
-      segmentKey: "manual-day",
-      start: requestedStartAt,
-      startedAt: requestedStartAt,
-      end: requestedEndAt,
-      endedAt: requestedEndAt,
-      label: "Manuell tidrapport",
-      type: "manual",
-      kind: "manual_work",
-      minutes: totalMinutes,
-      durationMinutes: totalMinutes,
-      source: "mobile_time_v2_manual",
-    }];
+    displaySnapshot = rows;
   } else if (view.segments && view.segments.length > 0) {
     const first = view.segments[0];
     const last = view.segments[view.segments.length - 1];
