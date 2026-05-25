@@ -37,6 +37,7 @@ import {
 } from '@/lib/staff/timeReportReviewEntry';
 import { countsInDistributedMinutes } from '@/lib/staff/reviewRowKind';
 import { buildCanonicalStaffDayModel, type CanonicalStaffDayModel } from '@/lib/staff/canonicalDayModel';
+import { resolveTravelLabels } from '@/lib/staff/travelLabel';
 
 interface TimeReportReviewTableProps {
   date: string;
@@ -385,12 +386,19 @@ export const TimeReportReviewTable: React.FC<TimeReportReviewTableProps> = ({
                 : t.autoDetected
                   ? 'Auto-detekterad via GPS'
                   : 'Förslag';
+              const labels = resolveTravelLabels({
+                from_address: (t as any).fromAddress ?? null,
+                to_address: (t as any).toAddress ?? null,
+                description: (t as any).description ?? null,
+              });
+              const fromTxt = labels.fromLabel?.split(',')[0] ?? '—';
+              const toTxt = labels.toLabel?.split(',')[0] ?? '—';
               return (
                 <li key={t.id} className="flex items-center justify-between gap-2 text-xs">
                   <div className="flex items-center gap-2 min-w-0">
                     <Car className="h-3.5 w-3.5 text-primary shrink-0" />
                     <span className="truncate">
-                      {t.fromAddress?.split(',')[0] ?? '—'} → {t.toAddress?.split(',')[0] ?? '—'}
+                      {fromTxt} → {toTxt}
                     </span>
                     <span className="text-muted-foreground tabular-nums">
                       · {toHHMM(t.start)}–{toHHMM(t.end)} · {formatHoursMinutes(t.hours)}

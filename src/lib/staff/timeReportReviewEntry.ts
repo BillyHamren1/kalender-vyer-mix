@@ -27,6 +27,7 @@
  */
 
 import { classifyReviewRow, type ReviewRowKind } from './reviewRowKind';
+import { resolveTravelLabels } from './travelLabel';
 
 export type ReviewEntryKind = 'work' | 'travel' | 'gap';
 export type ReviewEntryStatus = 'ok' | 'needs_review' | 'ongoing' | 'approved';
@@ -59,6 +60,8 @@ export interface ReviewTravelInput {
   to_latitude: number | null;
   to_longitude: number | null;
   destination_booking_id: string | null;
+  /** Beskrivning från travel_time_logs (används för "Gap: X → Y"-fallback). */
+  description?: string | null;
 }
 
 export interface TimeReportReviewEntry {
@@ -197,8 +200,13 @@ export function buildReviewEntries(input: BuildReviewEntriesInput): {
   }
 
   for (const t of input.travel) {
+    const labels = resolveTravelLabels({
+      from_address: t.from_address,
+      to_address: t.to_address,
+      description: t.description ?? null,
+    });
     const warnings: string[] = [];
-    if (!t.from_address && !t.to_address) warnings.push('Ingen adress på resan');
+    if (!labels.fromLabel && !labels.toLabel) warnings.push('Ingen adress på resan');
     if (!t.destination_booking_id) warnings.push('Saknar destination');
     const dur = minutesBetween(t.start_time, t.end_time);
 
@@ -221,7 +229,7 @@ export function buildReviewEntries(input: BuildReviewEntriesInput): {
         approved: false,
         travelAutoDetected: false,
       }),
-      label: `Resa: ${t.from_address ?? '?'} → ${t.to_address ?? '?'}`,
+      label: `Resa: ${labels.fromLabel ?? '?'} → ${labels.toLabel ?? '?'}`,
       sublabel: undefined,
       startIso: t.start_time,
       endIso: t.end_time,

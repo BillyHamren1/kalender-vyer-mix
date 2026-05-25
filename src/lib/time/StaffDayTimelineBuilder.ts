@@ -41,6 +41,7 @@ import type {
   StaffDayEvidence,
 } from '@/lib/staff/staffDayTimeline';
 import { formatStockholmHm, formatStockholmHms } from '../staff/formatStockholmTime';
+import { resolveTravelLabels } from '../staff/travelLabel';
 
 // ── Råa input-typer ──────────────────────────────────────────────────
 
@@ -221,8 +222,14 @@ function travelLogToSegment(
   if (durationMin <= 0 && !ongoing) return null;
   const missingDestination = !tl.destinationBookingId && !tl.toAddress;
   const reviewRequired = missingDestination || !tl.approved;
-  const subtitle = tl.fromAddress || tl.toAddress
-    ? `${tl.fromAddress ?? '—'} → ${tl.toAddress ?? '—'}`
+  // Fyll i saknad from/to genom att parsa "Gap: X → Y (N min)" ur description.
+  const labels = resolveTravelLabels({
+    from_address: tl.fromAddress ?? null,
+    to_address: tl.toAddress ?? null,
+    description: (tl as any).description ?? null,
+  });
+  const subtitle = labels.fromLabel || labels.toLabel
+    ? `${labels.fromLabel ?? '—'} → ${labels.toLabel ?? '—'}`
     : null;
   return {
     id: `travel:${tl.id}`,

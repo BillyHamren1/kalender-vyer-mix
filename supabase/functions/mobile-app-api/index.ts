@@ -10517,8 +10517,8 @@ async function handleCreateTravelFromGap(
     from_longitude: fromLng,
     to_latitude: toLat,
     to_longitude: toLng,
-    from_address: fromAddress,
-    to_address: toAddress,
+    from_address: fromAddress || previous_target_label || null,
+    to_address: toAddress || next_target_label || null,
   }
 
   const { data: inserted, error: insertErr } = await supabase

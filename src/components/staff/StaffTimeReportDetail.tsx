@@ -12,6 +12,7 @@ import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, eachDayOf
 import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { detectAnomalies, getAnomaliesForDate, type Anomaly, type TimeEntry, type TravelEntry, type TeamMemberReport, type AssignmentDate } from '@/lib/timeReportAnomalies';
+import { resolveTravelLabels } from '@/lib/staff/travelLabel';
 import { AnomalyDialog } from './AnomalyDialog';
 import { WorkdayFlagsAdminSection } from './WorkdayFlagsAdminSection';
 import { DailyOverviewDialog } from './DailyOverviewDialog';
@@ -60,6 +61,7 @@ interface RawTravelLog {
   from_longitude: number | null;
   to_latitude: number | null;
   to_longitude: number | null;
+  description: string | null;
 }
 
 export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
@@ -129,7 +131,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
           .order('report_date', { ascending: false }),
         supabase
           .from('travel_time_logs')
-          .select('id, report_date, start_time, end_time, hours_worked, destination_booking_id, from_address, to_address, from_latitude, from_longitude, to_latitude, to_longitude, classification')
+          .select('id, report_date, start_time, end_time, hours_worked, destination_booking_id, from_address, to_address, from_latitude, from_longitude, to_latitude, to_longitude, classification, description')
           .eq('staff_id', staffId)
           .gte('report_date', monthStart)
           .lte('report_date', monthEnd)
@@ -152,6 +154,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
         from_longitude: t.from_longitude,
         to_latitude: t.to_latitude,
         to_longitude: t.to_longitude,
+        description: t.description ?? null,
       }));
 
       // Fetch destination booking names + large project names
@@ -212,6 +215,11 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
         const destClient = t.destination_booking_id
           ? destBookingMap.get(t.destination_booking_id)
           : null;
+        const labels = resolveTravelLabels({
+          from_address: t.from_address,
+          to_address: t.to_address,
+          description: (t as any).description ?? null,
+        });
         const clientLabel = destClient ? `Resa → ${destClient}` : 'Resa';
         return {
           id: t.id,
@@ -220,7 +228,7 @@ export const StaffTimeReportDetail: React.FC<StaffTimeReportDetailProps> = ({
           end_time: t.end_time,
           hours_worked: t.hours_worked,
           overtime_hours: null,
-          description: [t.from_address, t.to_address].filter(Boolean).join(' → ') || null,
+          description: [labels.fromLabel, labels.toLabel].filter(Boolean).join(' → ') || null,
           approved: null,
           booking_client: clientLabel,
           booking_number: null,
