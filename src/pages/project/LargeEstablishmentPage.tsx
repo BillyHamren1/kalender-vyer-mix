@@ -207,7 +207,7 @@ const LargeEstablishmentPage = () => {
       </div>
 
       {pageMode === "calendar" ? (
-        <ProjectCalendarView projectId={project.id} isLargeProject />
+        <LargeProjectBookingPlannerCalendar largeProjectId={project.id} />
       ) : pageMode === "excel" ? (
         <LargeProjectExcelView bookings={(project as any)?.bookings || []} />
       ) : (
