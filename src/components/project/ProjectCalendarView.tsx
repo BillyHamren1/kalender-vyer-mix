@@ -159,14 +159,23 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
     return Array.from(merged).sort().map((s) => parseISO(s));
   }, [projectDays, taskDayKeys]);
 
-  // 5. Synliga team per dag — default = ALLA aktuella team + Lager + Aktiviteter.
+  // 5. Synliga team per dag — default = första 5 vanliga team + Aktiviteter.
+  // Användaren lägger till fler via "+" i dagheadern (TeamVisibilityControl).
   const defaultVisibleTeams = useMemo(() => {
-    const ids = new Set<string>(PROJECT_REQUIRED_TEAMS);
-    for (const r of teamResourcesWithTasks) {
-      if (!r?.id || r.id === 'team-11') continue;
-      ids.add(r.id);
+    const ordered = teamResourcesWithTasks
+      .filter((r) => r?.id && r.id !== 'team-11' && r.id !== TASK_RESOURCE.id)
+      .map((r) => r.id);
+    // Föredra team-1..team-5 om de finns, annars första fem i listan.
+    const preferred = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5'];
+    const picked: string[] = [];
+    for (const id of preferred) {
+      if (ordered.includes(id) && picked.length < DEFAULT_VISIBLE_TEAM_COUNT) picked.push(id);
     }
-    return Array.from(ids);
+    for (const id of ordered) {
+      if (picked.length >= DEFAULT_VISIBLE_TEAM_COUNT) break;
+      if (!picked.includes(id)) picked.push(id);
+    }
+    return [...picked, ...PROJECT_REQUIRED_TEAMS];
   }, [teamResourcesWithTasks]);
 
   const [visibleTeamsByDay, setVisibleTeamsByDay] = useState<{ [key: string]: string[] }>({});
