@@ -255,66 +255,92 @@ export async function splitBookingIntoPlannerTasks(
   return [parent, ...((data ?? []) as LargeProjectBookingPlanItem[])];
 }
 
+export interface SeedPlannerItemsResult {
+  created: LargeProjectBookingPlanItem[];
+  createdCount: number;
+  skippedCount: number;
+  errors: string[];
+}
+
 /**
- * Skapa planner-items (en per bokning + fas-datum) som speglar projektets
- * bokningar. Idempotent: hoppar över kombinationer som redan finns.
+ * Skapa planner-items (EN per bokning) som speglar projektets bokningar.
+ * Idempotent: hoppar över bokningar som redan har minst ett booking-source-item.
+ * Skriver ENDAST till `large_project_booking_plan_items`.
  */
 export async function createPlannerItemsFromProjectBookings(
   largeProjectId: string,
-): Promise<LargeProjectBookingPlanItem[]> {
-  const [bookings, existing] = await Promise.all([
-    fetchProjectBookings(largeProjectId),
-    fetchLargeProjectPlannerItems(largeProjectId),
-  ]);
+): Promise<SeedPlannerItemsResult> {
+  const errors: string[] = [];
+  let bookings: LargeProjectPlannerBooking[] = [];
+  let existing: LargeProjectBookingPlanItem[] = [];
+  try {
+    [bookings, existing] = await Promise.all([
+      fetchProjectBookings(largeProjectId),
+      fetchLargeProjectPlannerItems(largeProjectId),
+    ]);
+  } catch (e) {
+    throw e instanceof Error ? e : new Error(String(e));
+  }
 
-  const seen = new Set(
+  const existingBookingIds = new Set(
     existing
       .filter((i) => i.source === 'booking' && i.booking_id)
-      .map((i) => `${i.booking_id}|${i.plan_date}|${i.source_booking_phase ?? ''}`),
+      .map((i) => i.booking_id as string),
   );
 
-  type Phase = 'rig' | 'event' | 'rigDown';
-  const phases: Array<{
-    key: Phase;
-    dateOf: (b: LargeProjectPlannerBooking) => string | null;
-    startOf: (b: LargeProjectPlannerBooking) => string | null;
-    endOf: (b: LargeProjectPlannerBooking) => string | null;
-    label: string;
-  }> = [
-    { key: 'rig', dateOf: (b) => b.rigdaydate, startOf: (b) => b.rig_start_time, endOf: (b) => b.rig_end_time, label: 'Rigg' },
-    { key: 'event', dateOf: (b) => b.eventdate, startOf: (b) => b.event_start_time, endOf: (b) => b.event_end_time, label: 'Event' },
-    { key: 'rigDown', dateOf: (b) => b.rigdowndate, startOf: (b) => b.rigdown_start_time, endOf: (b) => b.rigdown_end_time, label: 'Rigg ner' },
-  ];
+  const projectFallbackDate = bookings
+    .map((b) => b.rigdaydate ?? b.eventdate ?? b.rigdowndate)
+    .find((d): d is string => !!d) ?? null;
 
   const rows: CreatePlannerItemInput[] = [];
+  let skippedCount = 0;
+
   bookings.forEach((b) => {
-    phases.forEach((p) => {
-      const d = p.dateOf(b);
-      if (!d) return;
-      const key = `${b.id}|${d}|${p.key}`;
-      if (seen.has(key)) return;
-      rows.push({
-        large_project_id: largeProjectId,
-        booking_id: b.id,
-        title: `${p.label} – ${b.display_name}`,
-        plan_date: d,
-        item_type: 'booking',
-        source: 'booking',
-        status: 'planned',
-        phase: p.key,
-        source_booking_phase: p.key,
-        start_time: p.startOf(b),
-        end_time: p.endOf(b),
-      });
+    if (existingBookingIds.has(b.id)) {
+      skippedCount += 1;
+      return;
+    }
+    const planDate =
+      b.rigdaydate ?? b.eventdate ?? b.rigdowndate ?? projectFallbackDate;
+    if (!planDate) {
+      errors.push(`${b.display_name}: saknar datum`);
+      return;
+    }
+    const startTime =
+      b.rig_start_time ?? b.event_start_time ?? b.rigdown_start_time ?? null;
+    const endTime =
+      b.rig_end_time ?? b.event_end_time ?? b.rigdown_end_time ?? null;
+    const titleParts = [b.booking_number, b.client].filter(Boolean) as string[];
+    const title = titleParts.length ? titleParts.join(' – ') : b.display_name;
+
+    rows.push({
+      large_project_id: largeProjectId,
+      booking_id: b.id,
+      title,
+      plan_date: planDate,
+      item_type: 'booking',
+      source: 'booking',
+      status: 'unplanned',
+      start_time: startTime,
+      end_time: endTime,
+      assigned_staff_id: null,
+      assigned_team_id: null,
     });
   });
 
-  if (rows.length === 0) return [];
+  if (rows.length === 0) {
+    return { created: [], createdCount: 0, skippedCount, errors };
+  }
 
   const { data, error } = await planTable().insert(rows).select('*');
-  if (error) throw error;
-  return (data ?? []) as LargeProjectBookingPlanItem[];
+  if (error) {
+    errors.push(error.message);
+    return { created: [], createdCount: 0, skippedCount, errors };
+  }
+  const created = (data ?? []) as LargeProjectBookingPlanItem[];
+  return { created, createdCount: created.length, skippedCount, errors };
 }
 
 // Re-export för test/extern användning
 export { buildDays as __buildPlannerDays };
+
