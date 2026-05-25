@@ -27,6 +27,7 @@
  */
 
 import { classifyReviewRow, type ReviewRowKind } from './reviewRowKind';
+import { resolveTravelLabels } from './travelLabel';
 
 export type ReviewEntryKind = 'work' | 'travel' | 'gap';
 export type ReviewEntryStatus = 'ok' | 'needs_review' | 'ongoing' | 'approved';
