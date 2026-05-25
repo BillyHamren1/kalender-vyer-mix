@@ -1,95 +1,66 @@
-## Problem
+# Plan: GPS-pulse via silent push för alla aktiva appar
 
-På `/staff-management/gps-satellite-map` visas just nu en 5-minuters rad
-"Okänd plats FA Warehouse → — 11:31–11:36" efter att personen lämnat FA
-Warehouse, samt korta 2-minuters resor "Resa FA Warehouse → FA Warehouse"
-som i praktiken är GPS-brus runt samma adress.
+## Mål
+Garantera ≥1 GPS-ping var ~10:e minut för **alla inloggade enheter** som har platsbehörighet — oavsett om personen "jobbar" eller inte. Vi vill se var alla är, alltid. Löser stationära luckor (lunch, möte, paus) som annars blir 4+ timmars tomrum i kartan.
 
-Vi har redan en projektpolicy (`short-visit-no-auto-workpass-v1`,
-`MIN_VISIT_MIN = 15` i `timelineVisibility.ts`) som säger att vistelser
-1–15 min på okänd plats inte ska bli ett eget block — men
-`dayPartition.ts` (som driver StaffGpsDayRow / vyn på den här sidan)
-saknar samma regel, och saknar dessutom motsvarande absorbering av
-korta travel-rader.
+Detta överensstämmer med **No Workday Logic** — ingen workday-gating, ingen aktivitetsgating. GPS = ren signal.
 
-## Fix
+## Princip
+- iOS/Android väcker appen kort när FCM/APNs skickar `content-available: 1` (silent push).
+- Appen tar EN `getCurrentPosition()` och postar till `mobile-app-api` precis som vanliga pings.
+- Pulsen är på så länge enheten har:
+  - giltig device-token registrerad (= inloggad i mobilappen)
+  - location permission given (klienten skickar tysk error om nekat → backend kan markera token vilande)
+- Återanvänder befintlig FCM/APNs-pipeline (`ios-push-notifications-v1`). Ingen pluginändring.
 
-Lägg till en ny `absorbShortNoise()`-pass i `buildDayPartition`
-(och dess Deno-spegel). Två regler:
+## Komponenter
 
-### 1. Korta unknown_place (< 15 min)
+### 1. Edge function: `gps-heartbeat-pulse` (ny)
+- Körs av pg_cron varje minut.
+- SQL:
+  - Hämta alla `device_push_tokens` (eller motsvarande FCM-token-tabell) som är `active=true`.
+  - Vänster-joina senaste `staff_location_history.recorded_at` per staff.
+  - Filtrera: `last_ping IS NULL OR now() - last_ping > interval '9 minutes'`.
+  - **Ingen** workday-koll. **Ingen** aktivitets-koll.
+  - Night Auto-Start Guard rör INTE GPS-insamling — bara auto-start av tid. Vi pulserar dygnet runt (justerbart per org senare om någon klagar på batteri).
+- För varje träff: skicka silent push:
+  ```json
+  { "aps": { "content-available": 1 }, "type": "gps_pulse", "issued_at": "..." }
+  ```
+- Logga i ny tabell `gps_pulse_log` (staff_id, device_token_id, sent_at, delivered_ping_id, lag_ms) för observability.
+- Sätt `device_push_tokens.last_pulse_failed_count++` om push returnerar invalid → vid 5 misslyckanden markera token inactive.
 
-- Ett `unknown_place`-segment med `minutes < 15` får inte renderas
-  som eget block.
-- Absorberas i föregående `work`/`private`-visit om sådant finns
-  (work-blockets `end` flyttas fram till segmentets `end`).
-- Om inget föregående finns: absorberas i nästa block (nästa blocks
-  `start` backas).
-- Finns varken före eller efter → segmentet behålls (annars ramlar
-  tid bort).
+### 2. Cron-schemaläggning
+- `pg_cron`: `* * * * *` → POST till `gps-heartbeat-pulse`.
+- SQL körs via supabase insert (anon-key + URL).
 
-### 2. Korta travel (< 10 min) utan ny verklig destination
+### 3. Klient: silent push-handler
+- Ny `src/hooks/useGpsPulseHandler.ts`, monteras i `TimeAppLayout` (gäller bara time-appen, scanner-appen exkluderas).
+- Lyssnar på FCM `notificationReceived` med `data.type === 'gps_pulse'`.
+- Anropar `Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 8000 })`.
+- POST till samma endpoint som vanliga pings med `battery_source: 'gps_pulse'`.
+- Om permission denied: posta tom statushändelse så backend kan stänga ner pulsen för token.
 
-- Ett `travel`-segment med `minutes < 10` absorberas i föregående
-  `work`/`private`-block om det INTE leder till minst 5 min vistelse
-  på en annan adress.
-- "Annan adress" = nästa `work`/`private`-segment vars `knownSiteId`
-  skiljer sig från föregående blocks `knownSiteId` OCH har
-  `minutes >= 5`.
-- Praktiskt fall: "Resa FA Warehouse → FA Warehouse 2m" (samma site
-  på båda sidor) → absorberas i FA Warehouse-blocket.
-- "Resa FA Warehouse → Okänd plats 5m" (om okänd-platsen redan
-  absorberats i steg 1) → travel-raden räknas också som internt
-  brus och absorberas.
-- Travel som leder till ny känd plats med ≥5 min vistelse → behålls
-  som idag (visas med from/to-adresser).
+### 4. iOS-konfig (verifiering)
+- `aps-environment` finns (dev). `UIBackgroundModes` innehåller `remote-notification` + `location`. Båda redan satta enligt befintligt push-flöde.
 
-### Ordning
+### 5. Observability
+- Enkel admin-vy eller SQL: senaste 24h `gps_pulse_log` per staff → medellag (push→ping) + success rate.
+- Larma vid <70% delivery på 24h.
 
-1. Bygg segments som idag.
-2. Kör absorb-passet på `unknown_place` (regel 1).
-3. Kör absorb-passet på `travel` (regel 2) — efter steg 1 så att
-   travel-rader som leder till en absorberad unknown också kollapsar.
-4. Eventuellt slå ihop två angränsande `work`-segment med samma
-   `knownSiteId` som uppstår efter absorberingen.
-5. Kör largest-remainder-minutfördelningen som idag, så att
-   `sum(segments.minutes) === windowMin` bevaras.
+## Tester
+- Edge function unit test: rätt tokens väljs, throttle på 9 min, inaktiva tokens hoppas över.
+- Klient: mocka FCM-event, verifiera att `getCurrentPosition` + ingest-anrop sker.
+- Manuellt i preview: lämna telefonen still i 30 min, se att pings kommer ~var 10:e min.
 
-### Vad rörs INTE
+## Tekniska detaljer
+- **Nya filer:** `supabase/functions/gps-heartbeat-pulse/index.ts`, `src/hooks/useGpsPulseHandler.ts`, migration för `gps_pulse_log`.
+- **Ändrade filer:** `src/shells/time/TimeAppLayout.tsx` (montera handler), `mobile-app-api` ingest (acceptera `battery_source='gps_pulse'`).
+- **Pulse-frekvens:** 10 min standard. iOS rate-limitar silent push i värsta fall till ~2-3/tim när systemet tycker appen "missbrukar" → 10 min är säker zon.
+- **Android:** FCM data-only med `priority: high` → väcker app omedelbart. Samma handler.
+- **Inget rör:** Capgo-plugin, distanceFilter, adaptive location mode, hemzonslogik, time engine.
 
-- `gps_gap`, `idle`, `work`, `private` får inga nya regler.
-- Travel-rader ≥ 10 min, eller travel < 10 min som faktiskt leder
-  till en ny adress med ≥ 5 min vistelse, visas oförändrat med
-  from→to-adresser.
-- `timelineVisibility.ts`, `pingPlaceSegments.ts` och geofence-logik
-  är redan korrekta — ingen ändring där.
-
-## Filer som ändras
-
-- `src/lib/staff-gps/dayPartition.ts` — ny `absorbShortNoise()`
-  som körs på segments-arrayen innan minut-fördelningen.
-- `supabase/functions/_shared/staff-gps/dayPartition.ts` — identisk
-  spegling (filerna måste hållas synkade).
-- `src/lib/staff-gps/dayPartition.test.ts` — nya testfall:
-  1. work → unknown_place 5 min (slut på dagen) → unknown försvinner,
-     work-blocket förlängs till windowEnd.
-  2. work(A) → unknown_place 5 min → work(A) → mellanliggande unknown
-     absorberas in i föregående work; resultatet blir ETT work-block.
-  3. work(A) → travel 2 min → work(A) → travel absorberas, blir ETT
-     sammanhängande work-block.
-  4. work(A) → travel 8 min → work(B) 3 min (kort) → travel absorberas
-     (destinationen håller inte 5-min-tröskeln).
-  5. work(A) → travel 8 min → work(B) 30 min → travel BEHÅLLS
-     (riktig förflyttning till ny adress).
-  6. work(A) → travel 25 min → work(B) → travel BEHÅLLS (≥ 10 min).
-  7. unknown_place 30 min → behålls oförändrat (över tröskel).
-  8. gps_gap och idle korta segment påverkas inte.
-
-## Vad ändras INTE
-
-- Ingen ändring i `timelineVisibility.ts`, `pingPlaceSegments.ts`
-  eller geofence-logik.
-- Ingen ändring i lagring/edge functions utöver den speglade
-  pure-helpern.
-- Ingen UI-ändring i `StaffGpsDayRow.tsx` — den renderar bara det
-  partitioneraren ger.
+## Begränsningar (transparent)
+- iOS kan ändå throttla en enhet om appen mest stänger sig direkt (vi tar en fix + postar, så normalfallet är OK).
+- Telefon avstängd / no-network → ingen ping (förväntat). Markeras i observability.
+- Batteripåverkan: ~1 fix var 10:e min = försumbart jämfört med aktiv GPS-tracking.
