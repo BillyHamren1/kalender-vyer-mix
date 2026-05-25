@@ -338,14 +338,15 @@ export function buildGpsDayTimelineOnly(
   // instead of "transport". Fixes the case where a person walks/moves around
   // inside a large project/warehouse footprint (>80m wiggle) and gets falsely
   // labelled as "Resa" + "Osäker period".
+  //
+  // Prioritetsregel: icke-home-target vinner alltid över home. Endast om INGEN
+  // icke-home matchar används home. Boende får aldrig "äta upp" lager/projekt.
   const TARGET_CONTAINMENT_RATIO = 0.8;
   const findContainingTarget = (chain: Ping[]): KnownPlace | null => {
     if (chain.length === 0 || knownTargets.length === 0) return null;
-    let best: { place: KnownPlace; count: number } | null = null;
+    let bestNonHome: { place: KnownPlace; count: number } | null = null;
+    let bestHome: { place: KnownPlace; count: number } | null = null;
     for (const place of knownTargets) {
-      // NEVER reclassify movement as a "stay" at a home target. Hem är inte
-      // arbete — pings nära/på hemmet får aldrig bli ett arbetsblock i appen.
-      if (place.type === "home") continue;
       let inside = 0;
       for (const p of chain) {
         if (distanceMeters(p.lat, p.lng, place.lat, place.lng) <= place.radiusM) {
@@ -354,10 +355,14 @@ export function buildGpsDayTimelineOnly(
       }
       const ratio = inside / chain.length;
       if (ratio >= TARGET_CONTAINMENT_RATIO) {
-        if (!best || inside > best.count) best = { place, count: inside };
+        if (place.type === "home") {
+          if (!bestHome || inside > bestHome.count) bestHome = { place, count: inside };
+        } else {
+          if (!bestNonHome || inside > bestNonHome.count) bestNonHome = { place, count: inside };
+        }
       }
     }
-    return best?.place ?? null;
+    return (bestNonHome ?? bestHome)?.place ?? null;
   };
 
   // Movement pings = pings outside any stay window
