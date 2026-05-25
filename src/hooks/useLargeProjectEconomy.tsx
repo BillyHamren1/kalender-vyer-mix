@@ -255,22 +255,31 @@ export const useLargeProjectEconomy = (
   // Budget cost
   const budgetedCost = (budget?.budgeted_hours || 0) * (budget?.hourly_rate || 0);
 
-  // ── LP-aggregerade Time Engine-timmar (totalsanning) ──
-  const reportedStaffHoursFromTimeEngine = largeProjectHours?.summary.totalHours ?? 0;
-  const reportedStaffCostFromTimeEngine = largeProjectHours?.totalCost ?? 0;
+  // ── PROGNOS (Time Engine-cache) — endast förslag, ej kanonisk sanning ──
+  const proposedStaffHoursFromTimeEngine = largeProjectHours?.summary.totalHours ?? 0;
+  const proposedStaffCostFromTimeEngine = largeProjectHours?.totalCost ?? 0;
   const staffHoursByPerson = largeProjectHours?.summary.staffSummaries ?? [];
   const staffHoursByDay = largeProjectHours?.summary.daySummaries ?? [];
-  const staffCostsByPerson = largeProjectHours?.staffCosts ?? [];
-  const hoursSource: 'staff_day_report_cache' = 'staff_day_report_cache';
+
+  // ── FAKTISK godkänd personalkostnad (project_staff_time_cost_lines) ──
+  const approvedStaffHours = approvedLpCostSummaries?.approvedStaffHours ?? 0;
+  const approvedStaffCost = approvedLpCostSummaries?.approvedStaffCost ?? 0;
+  const approvedStaffByPerson = approvedLpCostSummaries?.byStaff ?? [];
+  const approvedStaffByDate = approvedLpCostSummaries?.byDate ?? [];
+  const staffHoursDiffMinutes = Math.round(
+    (proposedStaffHoursFromTimeEngine - approvedStaffHours) * 60,
+  );
+
+  const hoursSource: 'project_staff_time_cost_lines' = 'project_staff_time_cost_lines';
 
   // Combined summary
-  // Staff-totalen kommer NU från LP-aggregerade Time Engine-block (inte
-  // booking-summan), eftersom samma block annars skulle räknas dubbelt.
+  // Staff-totalen är NU faktisk godkänd kostnad (project_staff_time_cost_lines),
+  // inte Time Engine-prognos.
   const agg = aggregatedBookingEconomy;
   const grandTotalCost =
     localPurchasesTotal +
     agg.totalCost +
-    reportedStaffCostFromTimeEngine +
+    approvedStaffCost +
     agg.totalPurchases +
     agg.totalInvoices +
     agg.totalSupplierInvoices;
@@ -282,11 +291,11 @@ export const useLargeProjectEconomy = (
     budgetedCost,
     // Local purchases
     localPurchasesTotal,
-    // Aggregated from bookings (utan staff — den kommer från LP-Time Engine)
+    // Aggregated from bookings (utan staff)
     ...aggregatedBookingEconomy,
-    // Override staff totals med LP-aggregerade Time Engine-värden
-    totalStaffCost: reportedStaffCostFromTimeEngine,
-    totalActualHours: reportedStaffHoursFromTimeEngine,
+    // Override staff totals med faktisk godkänd kostnad
+    totalStaffCost: approvedStaffCost,
+    totalActualHours: approvedStaffHours,
     // Grand totals
     grandTotalCost,
     grandTotalRevenue: agg.totalRevenue,
