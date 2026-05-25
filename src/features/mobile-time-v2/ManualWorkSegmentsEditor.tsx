@@ -3,7 +3,9 @@
  *
  * Modell:
  *   1) Hela dagen: dayStartTime / dayEndTime / breakMinutes
- *   2) Fördelning: ett eller flera block (start, slut, target, kommentar)
+ *   2) Fördelning: ett eller flera "projekt" med VARAKTIGHET (h + min)
+ *      — start/slut härleds vid submit genom att kedja dagens block från
+ *      dayStartTime. Användaren behöver alltså inte mecka med tider per block.
  *   3) Skicka in
  *
  * Block kan vara manuella eller komma från ett GPS-/Time Engine-förslag
@@ -50,8 +52,8 @@ interface Props {
 
 interface BlockDraft {
   id: string;
-  startTime: string;
-  endTime: string;
+  /** Varaktighet i minuter. */
+  durationMin: number;
   target: ManualWorkTarget | null;
   comment: string;
   sourceSegmentId: string | null;
@@ -68,6 +70,15 @@ function diffMinutes(start: string, end: string): number {
   let mins = eh * 60 + em - (sh * 60 + sm);
   if (mins < 0) mins += 24 * 60;
   return mins;
+}
+
+function addMinutesHHmm(start: string, minutes: number): string {
+  if (!HHMM_RE.test(start)) return start;
+  const [sh, sm] = start.split(':').map(Number);
+  const total = (sh * 60 + sm + Math.max(0, Math.round(minutes))) % (24 * 60);
+  const h = Math.floor(total / 60).toString().padStart(2, '0');
+  const m = (total % 60).toString().padStart(2, '0');
+  return `${h}:${m}`;
 }
 
 function fmtDuration(mins: number): string {
@@ -123,14 +134,17 @@ function buildInitialFromSuggested(suggested: MobileGpsDaySegment[]): {
   const last = workish[workish.length - 1];
   const dayStart = isoToStockholmHHmm(first.currentStartTime) ?? '08:00';
   const dayEnd = isoToStockholmHHmm(last.currentEndTime) ?? '16:00';
-  const blocks: BlockDraft[] = workish.map((s) => ({
-    id: s.segmentKey,
-    startTime: isoToStockholmHHmm(s.currentStartTime) ?? '08:00',
-    endTime: isoToStockholmHHmm(s.currentEndTime) ?? '16:00',
-    target: targetFromMatched(s),
-    comment: '',
-    sourceSegmentId: s.segmentKey,
-  }));
+  const blocks: BlockDraft[] = workish.map((s) => {
+    const start = isoToStockholmHHmm(s.currentStartTime) ?? '08:00';
+    const end = isoToStockholmHHmm(s.currentEndTime) ?? start;
+    return {
+      id: s.segmentKey,
+      durationMin: diffMinutes(start, end),
+      target: targetFromMatched(s),
+      comment: '',
+      sourceSegmentId: s.segmentKey,
+    };
+  });
   return { dayStartTime: dayStart, dayEndTime: dayEnd, blocks };
 }
 
@@ -177,22 +191,16 @@ const ManualWorkSegmentsEditor: React.FC<Props> = ({
   const dayGross = diffMinutes(dayStartTime, dayEndTime);
   const dayNet = Math.max(0, dayGross - dayBreak);
 
-  const allocated = useMemo(() => {
-    let sum = 0;
-    for (const b of blocks) {
-      const d = diffMinutes(b.startTime, b.endTime);
-      if (d > 0) sum += d;
-    }
-    return sum;
-  }, [blocks]);
+  const allocated = useMemo(
+    () => blocks.reduce((sum, b) => sum + Math.max(0, b.durationMin), 0),
+    [blocks],
+  );
 
   const remaining = dayNet - allocated;
   const matchesDay = Math.abs(remaining) <= 5; // tolerans 5 min
 
-  const zeroBlocks = blocks.filter((b) => diffMinutes(b.startTime, b.endTime) <= 0);
-  const missingTargetBlocks = blocks.filter(
-    (b) => diffMinutes(b.startTime, b.endTime) > 0 && !b.target,
-  );
+  const zeroBlocks = blocks.filter((b) => b.durationMin <= 0);
+  const missingTargetBlocks = blocks.filter((b) => b.durationMin > 0 && !b.target);
 
   const canSubmit =
     !disabled &&
@@ -211,6 +219,11 @@ const ManualWorkSegmentsEditor: React.FC<Props> = ({
   const updateBlock = (id: string, patch: Partial<BlockDraft>) =>
     setBlocks((bs) => bs.map((b) => (b.id === id ? { ...b, ...patch } : b)));
 
+  const updateDuration = (id: string, hours: number, minutes: number) => {
+    const total = Math.max(0, Math.round(hours * 60 + minutes));
+    updateBlock(id, { durationMin: total });
+  };
+
   const removeBlockImmediate = (b: BlockDraft) => {
     setBlocks((bs) => bs.filter((x) => x.id !== b.id));
     if (b.sourceSegmentId) {
@@ -221,8 +234,7 @@ const ManualWorkSegmentsEditor: React.FC<Props> = ({
   };
 
   const requestRemove = (b: BlockDraft) => {
-    const minutes = diffMinutes(b.startTime, b.endTime);
-    if (minutes <= 0) {
+    if (b.durationMin <= 0) {
       removeBlockImmediate(b);
       return;
     }
@@ -230,32 +242,37 @@ const ManualWorkSegmentsEditor: React.FC<Props> = ({
   };
 
   const addBlock = () => {
-    const last = blocks[blocks.length - 1];
-    const start = last?.endTime ?? dayStartTime;
-    const end = dayEndTime;
+    const rem = Math.max(0, dayNet - allocated);
     setBlocks((bs) => [
       ...bs,
-      { id: newId(), startTime: start, endTime: end, target: null, comment: '', sourceSegmentId: null },
+      { id: newId(), durationMin: rem, target: null, comment: '', sourceSegmentId: null },
     ]);
   };
 
   const fillFromWholeDay = () => {
     setBlocks([
-      { id: newId(), startTime: dayStartTime, endTime: dayEndTime, target: null, comment: '', sourceSegmentId: null },
+      { id: newId(), durationMin: dayNet, target: null, comment: '', sourceSegmentId: null },
     ]);
   };
 
   const handleSubmit = () => {
-    const segments: ManualWorkSegmentInput[] = blocks
-      .filter((b) => diffMinutes(b.startTime, b.endTime) > 0)
-      .map((b) => ({
+    // Kedja blocken sekventiellt från dayStartTime → derivera start/slut per block.
+    let cursor = dayStartTime;
+    const segments: ManualWorkSegmentInput[] = [];
+    for (const b of blocks) {
+      if (b.durationMin <= 0) continue;
+      const startTime = cursor;
+      const endTime = addMinutesHHmm(cursor, b.durationMin);
+      segments.push({
         id: b.id,
-        startTime: b.startTime,
-        endTime: b.endTime,
+        startTime,
+        endTime,
         target: b.target,
         comment: b.comment.trim() || null,
         sourceSegmentId: b.sourceSegmentId,
-      }));
+      });
+      cursor = endTime;
+    }
     void onSubmit({
       dayStartTime,
       dayEndTime,
@@ -318,19 +335,19 @@ const ManualWorkSegmentsEditor: React.FC<Props> = ({
         <div>
           <h3 className="font-semibold">Fördelning</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Dela upp dagen på projekt, lager eller annan plats.
+            Hur länge jobbade du på varje projekt eller plats? Ange varaktighet – tiderna räknas ut automatiskt.
           </p>
         </div>
 
         {blocks.length === 0 && (
           <div className="rounded-md border border-dashed bg-muted/20 p-4 text-center space-y-2">
-            <p className="text-sm text-muted-foreground">Inga block än.</p>
-            <div className="flex gap-2 justify-center">
+            <p className="text-sm text-muted-foreground">Inga projekt än.</p>
+            <div className="flex gap-2 justify-center flex-wrap">
               <Button size="sm" variant="outline" onClick={fillFromWholeDay} disabled={disabled || isSubmitting}>
-                Fyll block från hela dagen
+                Hela dagen på ett projekt
               </Button>
               <Button size="sm" variant="outline" onClick={addBlock} disabled={disabled || isSubmitting}>
-                <Plus className="h-3.5 w-3.5 mr-1" />Lägg till block
+                <Plus className="h-3.5 w-3.5 mr-1" />Lägg till projekt
               </Button>
             </div>
           </div>
@@ -338,10 +355,12 @@ const ManualWorkSegmentsEditor: React.FC<Props> = ({
 
         <div className="space-y-2">
           {blocks.map((b, idx) => {
-            const minutes = diffMinutes(b.startTime, b.endTime);
+            const minutes = b.durationMin;
             const isZero = minutes <= 0;
             const targetMissing = !b.target;
             const isOther = b.target?.targetType === 'other';
+            const hours = Math.floor(Math.max(0, minutes) / 60);
+            const mins = Math.max(0, minutes) % 60;
             return (
               <div
                 key={b.id}
@@ -351,7 +370,7 @@ const ManualWorkSegmentsEditor: React.FC<Props> = ({
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-muted-foreground">Block {idx + 1}</span>
+                    <span className="text-xs font-medium text-muted-foreground">Projekt {idx + 1}</span>
                     {b.sourceSegmentId && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">
                         GPS-förslag
@@ -369,30 +388,39 @@ const ManualWorkSegmentsEditor: React.FC<Props> = ({
                     className={`h-8 w-8 ${isZero ? 'text-destructive' : 'text-muted-foreground hover:text-destructive'}`}
                     onClick={() => requestRemove(b)}
                     disabled={disabled || isSubmitting}
-                    aria-label="Ta bort block"
+                    aria-label="Ta bort projekt"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-[1fr_1fr_auto] items-end gap-2">
                   <div className="space-y-1">
-                    <Label className="text-[11px]">Start</Label>
+                    <Label className="text-[11px]">Timmar</Label>
                     <Input
-                      type="time"
-                      value={b.startTime}
-                      onChange={(e) => updateBlock(b.id, { startTime: e.target.value })}
+                      type="number"
+                      min={0}
+                      max={24}
+                      inputMode="numeric"
+                      value={hours}
+                      onChange={(e) => updateDuration(b.id, Number(e.target.value) || 0, mins)}
                       disabled={disabled || isSubmitting}
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[11px]">Slut</Label>
+                    <Label className="text-[11px]">Minuter</Label>
                     <Input
-                      type="time"
-                      value={b.endTime}
-                      onChange={(e) => updateBlock(b.id, { endTime: e.target.value })}
+                      type="number"
+                      min={0}
+                      max={59}
+                      inputMode="numeric"
+                      value={mins}
+                      onChange={(e) => updateDuration(b.id, hours, Number(e.target.value) || 0)}
                       disabled={disabled || isSubmitting}
                     />
+                  </div>
+                  <div className="pb-1.5 text-xs text-muted-foreground tabular-nums">
+                    = {fmtDuration(minutes)}
                   </div>
                 </div>
 
@@ -420,10 +448,7 @@ const ManualWorkSegmentsEditor: React.FC<Props> = ({
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-xs text-muted-foreground">{fmtDuration(minutes)}</span>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                 </button>
 
                 {isOther && (
@@ -437,7 +462,7 @@ const ManualWorkSegmentsEditor: React.FC<Props> = ({
         {blocks.length > 0 && (
           <Button variant="outline" size="sm" onClick={addBlock} disabled={disabled || isSubmitting} className="w-full">
             <Plus className="h-4 w-4 mr-1.5" />
-            Lägg till block
+            Lägg till projekt
           </Button>
         )}
       </Card>
@@ -455,7 +480,7 @@ const ManualWorkSegmentsEditor: React.FC<Props> = ({
             <span className="font-medium">{dayBreak} min</span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Fördelat på block</span>
+            <span className="text-muted-foreground">Fördelat på projekt</span>
             <span className="font-medium">{fmtDuration(allocated)}</span>
           </div>
           <div className="flex items-center justify-between pt-1 border-t">
@@ -471,18 +496,18 @@ const ManualWorkSegmentsEditor: React.FC<Props> = ({
         {!matchesDay && allocated > 0 && (
           <p className="text-xs text-amber-700">
             {remaining > 0
-              ? `Du har ${remaining} min kvar att fördela på block.`
-              : `Blocken överstiger dagens arbetstid med ${Math.abs(remaining)} min.`}
+              ? `Du har ${remaining} min kvar att fördela på projekt.`
+              : `Projekten överstiger dagens arbetstid med ${Math.abs(remaining)} min.`}
           </p>
         )}
         {missingTargetBlocks.length > 0 && (
           <p className="text-xs text-amber-700">
-            {missingTargetBlocks.length} block saknar valt projekt/plats.
+            {missingTargetBlocks.length} projekt saknar valt projekt/plats.
           </p>
         )}
         {zeroBlocks.length > 0 && (
           <p className="text-xs text-destructive">
-            {zeroBlocks.length} block har 0 min – ta bort eller justera.
+            {zeroBlocks.length} projekt har 0 min – ta bort eller justera.
           </p>
         )}
 
@@ -522,11 +547,11 @@ const ManualWorkSegmentsEditor: React.FC<Props> = ({
       <AlertDialog open={!!confirmDelete} onOpenChange={(o) => { if (!o) setConfirmDelete(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Ta bort detta block från tidrapporten?</AlertDialogTitle>
+            <AlertDialogTitle>Ta bort detta projekt från tidrapporten?</AlertDialogTitle>
             <AlertDialogDescription>
               {confirmDelete?.sourceSegmentId
-                ? 'Detta är ett GPS-förslag. Borttaget block markeras som avvisat och syns för admin.'
-                : 'Blocket tas bort från dagen.'}
+                ? 'Detta är ett GPS-förslag. Borttaget projekt markeras som avvisat och syns för admin.'
+                : 'Projektet tas bort från dagen.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
