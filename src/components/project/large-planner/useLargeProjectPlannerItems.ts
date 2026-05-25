@@ -17,13 +17,20 @@ import {
 } from './largeProjectPlannerService';
 import type {
   CreatePlannerItemInput,
+  LargeProjectBookingPlanItem,
   LargeProjectPlannerContext,
+  LargeProjectPlannerStaffMember,
   SplitBookingInput,
   UpdatePlannerItemInput,
 } from './largeProjectPlannerTypes';
 
 const queryKeyFor = (largeProjectId: string | null | undefined) =>
   ['large-project-planner', largeProjectId ?? 'none'] as const;
+
+export interface PlannerItemWithValidity extends LargeProjectBookingPlanItem {
+  isAssignedStaffAllowed: boolean;
+  assignmentWarning: string | null;
+}
 
 export function useLargeProjectPlannerItems(largeProjectId: string | null | undefined) {
   const qc = useQueryClient();
@@ -69,6 +76,44 @@ export function useLargeProjectPlannerItems(largeProjectId: string | null | unde
   });
 
   const context = query.data;
+  const staffByDay = context?.staffByDay ?? {};
+  const items = context?.items ?? [];
+
+  const allowedStaffByDate = staffByDay;
+
+  const getAllowedStaffForDate = useCallback(
+    (date: string | null | undefined): LargeProjectPlannerStaffMember[] => {
+      if (!date) return [];
+      return allowedStaffByDate[date] ?? [];
+    },
+    [allowedStaffByDate],
+  );
+
+  const isStaffAllowedForDate = useCallback(
+    (staffId: string | null | undefined, date: string | null | undefined): boolean => {
+      if (!staffId || !date) return false;
+      const list = allowedStaffByDate[date];
+      if (!list) return false;
+      return list.some((s) => s.id === staffId);
+    },
+    [allowedStaffByDate],
+  );
+
+  const itemsWithAssignmentValidity = useMemo<PlannerItemWithValidity[]>(() => {
+    return items.map((it) => {
+      if (!it.assigned_staff_id) {
+        return { ...it, isAssignedStaffAllowed: true, assignmentWarning: null };
+      }
+      const allowed = isStaffAllowedForDate(it.assigned_staff_id, it.plan_date);
+      return {
+        ...it,
+        isAssignedStaffAllowed: allowed,
+        assignmentWarning: allowed
+          ? null
+          : 'Personen är inte bemannad på projektet den här dagen.',
+      };
+    });
+  }, [items, isStaffAllowedForDate]);
 
   return useMemo(
     () => ({
@@ -77,7 +122,12 @@ export function useLargeProjectPlannerItems(largeProjectId: string | null | unde
       project: context ? { id: context.projectId } : null,
       bookings: context?.bookings ?? [],
       staff: context?.staff ?? [],
-      items: context?.items ?? [],
+      staffByDay,
+      allowedStaffByDate,
+      getAllowedStaffForDate,
+      isStaffAllowedForDate,
+      items,
+      itemsWithAssignmentValidity,
       days: context?.days ?? [],
       refetch: query.refetch,
       createItem: createMutation.mutateAsync,
@@ -98,6 +148,12 @@ export function useLargeProjectPlannerItems(largeProjectId: string | null | unde
       query.error,
       query.refetch,
       context,
+      staffByDay,
+      allowedStaffByDate,
+      getAllowedStaffForDate,
+      isStaffAllowedForDate,
+      items,
+      itemsWithAssignmentValidity,
       createMutation.mutateAsync,
       createMutation.isPending,
       updateMutation.mutateAsync,

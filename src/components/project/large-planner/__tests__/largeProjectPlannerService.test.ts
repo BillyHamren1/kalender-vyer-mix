@@ -27,9 +27,9 @@ const baseItem = (overrides: Partial<LargeProjectBookingPlanItem>): LargeProject
   ...overrides,
 });
 
-describe('buildPlannerDays', () => {
+describe('buildPlannerDays (legacy, items-only)', () => {
   it('grupperar items per datum och sorterar stigande', () => {
-    const days = __buildPlannerDays([
+    const days = __buildPlannerDays([], [
       baseItem({ plan_date: '2026-06-03' }),
       baseItem({ plan_date: '2026-06-01' }),
       baseItem({ plan_date: '2026-06-01' }),
@@ -38,15 +38,7 @@ describe('buildPlannerDays', () => {
     expect(days[0].items.length).toBe(2);
   });
 
-  it('plockar första item med phase som dagens fas', () => {
-    const days = __buildPlannerDays([
-      baseItem({ plan_date: '2026-06-01', phase: null }),
-      baseItem({ plan_date: '2026-06-01', phase: 'event' }),
-    ]);
-    expect(days[0].phase).toBe('event');
-  });
-
   it('returnerar tom array för tom input', () => {
-    expect(__buildPlannerDays([])).toEqual([]);
+    expect(__buildPlannerDays([], [])).toEqual([]);
   });
 });

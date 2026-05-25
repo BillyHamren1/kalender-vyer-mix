@@ -64,7 +64,7 @@ export interface LargeProjectPlannerStaffMember {
   id: string;
   name: string;
   color: string | null;
-  /** Datum (yyyy-MM-dd) där personen är planerad i personalkalendern. */
+  /** Datum (yyyy-MM-dd) där personen är bemannad på stora projektet i personalkalendern. */
   assignedDates: string[];
 }
 
@@ -81,6 +81,8 @@ export interface LargeProjectPlannerContext {
   staff: LargeProjectPlannerStaffMember[];
   items: LargeProjectBookingPlanItem[];
   days: LargeProjectPlannerDay[];
+  /** Bemanning per datum (yyyy-MM-dd) — speglar personalkalenderns storprojektbemanning. */
+  staffByDay: Record<string, LargeProjectPlannerStaffMember[]>;
 }
 
 // ── Write inputs ────────────────────────────────────────────────────────────

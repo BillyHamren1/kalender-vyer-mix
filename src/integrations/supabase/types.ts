@@ -2633,6 +2633,120 @@ export type Database = {
           },
         ]
       }
+      large_project_booking_plan_items: {
+        Row: {
+          assigned_staff_id: string | null
+          assigned_team_id: string | null
+          booking_id: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          end_time: string | null
+          id: string
+          item_type: string
+          large_project_id: string
+          metadata: Json
+          notes: string | null
+          organization_id: string
+          parent_item_id: string | null
+          phase: string | null
+          plan_date: string
+          sort_order: number
+          source: string
+          source_booking_phase: string | null
+          start_time: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_staff_id?: string | null
+          assigned_team_id?: string | null
+          booking_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          end_time?: string | null
+          id?: string
+          item_type?: string
+          large_project_id: string
+          metadata?: Json
+          notes?: string | null
+          organization_id: string
+          parent_item_id?: string | null
+          phase?: string | null
+          plan_date: string
+          sort_order?: number
+          source?: string
+          source_booking_phase?: string | null
+          start_time?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_staff_id?: string | null
+          assigned_team_id?: string | null
+          booking_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          end_time?: string | null
+          id?: string
+          item_type?: string
+          large_project_id?: string
+          metadata?: Json
+          notes?: string | null
+          organization_id?: string
+          parent_item_id?: string | null
+          phase?: string | null
+          plan_date?: string
+          sort_order?: number
+          source?: string
+          source_booking_phase?: string | null
+          start_time?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "large_project_booking_plan_items_assigned_staff_id_fkey"
+            columns: ["assigned_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "large_project_booking_plan_items_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "large_project_booking_plan_items_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "confirmed_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "large_project_booking_plan_items_large_project_id_fkey"
+            columns: ["large_project_id"]
+            isOneToOne: false
+            referencedRelation: "large_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "large_project_booking_plan_items_parent_item_id_fkey"
+            columns: ["parent_item_id"]
+            isOneToOne: false
+            referencedRelation: "large_project_booking_plan_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       large_project_bookings: {
         Row: {
           booking_id: string
