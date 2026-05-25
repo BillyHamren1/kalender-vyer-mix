@@ -182,7 +182,22 @@ const SplitBookingIntoTasksDialog = ({
   const addEmpty = () => setRows((prev) => [...prev, blankRow(defaultDate)]);
 
   const updateRow = (uid: string, patch: Partial<DraftRow>) =>
-    setRows((prev) => prev.map((r) => (r.uid === uid ? { ...r, ...patch } : r)));
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.uid !== uid) return r;
+        const next = { ...r, ...patch };
+        // Om plan_date ändras och tilldelad personal inte längre är bemannad → rensa.
+        if (
+          patch.plan_date &&
+          next.assigned_staff_id &&
+          isStaffAllowedForDate &&
+          !isStaffAllowedForDate(next.assigned_staff_id, next.plan_date)
+        ) {
+          next.assigned_staff_id = '';
+        }
+        return next;
+      }),
+    );
 
   const removeRow = (uid: string) =>
     setRows((prev) => (prev.length === 1 ? prev : prev.filter((r) => r.uid !== uid)));
@@ -195,6 +210,16 @@ const SplitBookingIntoTasksDialog = ({
     if (cleaned.length === 0) {
       toast.error('Lägg till minst en rad med titel och datum.');
       return;
+    }
+    // Guard: ingen rad får skicka assigned_staff_id som inte är bemannad på det datumet.
+    if (isStaffAllowedForDate) {
+      const bad = cleaned.find(
+        (r) => r.assigned_staff_id && !isStaffAllowedForDate(r.assigned_staff_id, r.plan_date),
+      );
+      if (bad) {
+        toast.error(`Raden "${bad.title}" har en person som inte är bemannad på ${bad.plan_date}.`);
+        return;
+      }
     }
     const toHms = (t: string) => (t ? `${t}:00` : null);
     const input: SplitBookingInput = {
