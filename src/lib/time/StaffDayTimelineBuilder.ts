@@ -41,6 +41,7 @@ import type {
   StaffDayEvidence,
 } from '@/lib/staff/staffDayTimeline';
 import { formatStockholmHm, formatStockholmHms } from '../staff/formatStockholmTime';
+import { resolveTravelLabels } from '../staff/travelLabel';
 
 // ── Råa input-typer ──────────────────────────────────────────────────
 
