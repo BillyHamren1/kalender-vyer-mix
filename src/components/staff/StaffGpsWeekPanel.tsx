@@ -30,7 +30,7 @@ export function StaffGpsWeekPanel({
   const isoWeek = getISOWeek(weekStart);
 
   return (
-    <aside className="planning-card w-full md:w-[320px] shrink-0 flex flex-col overflow-hidden p-0">
+    <aside className="planning-card w-full md:w-[460px] lg:w-[520px] shrink-0 flex flex-col overflow-hidden p-0">
       {/* Person */}
       <div className="p-3.5 border-b border-[hsl(270_20%_90%)] space-y-1.5 bg-[hsl(270_35%_98%)]">
         <label className="planning-section-title">Person</label>
