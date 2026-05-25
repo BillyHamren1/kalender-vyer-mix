@@ -8,8 +8,6 @@ import { Card } from "@/components/ui/card";
 import { FileText, AlertCircle } from "lucide-react";
 import {
   usePayrollMonthReport,
-  formatMinutes,
-  formatHoursDecimal,
   type PayrollStatusFilter,
 } from "@/hooks/staff/usePayrollMonthReport";
 import {
@@ -138,6 +136,12 @@ const PayrollMonthReportPageContent: React.FC = () => {
         month={monthStr}
         open={!!openGroup}
         onClose={() => setOpenStaffId(null)}
+      />
+
+      <PayrollMonthEmailDialog
+        open={mailOpen}
+        onClose={() => setMailOpen(false)}
+        report={data}
       />
     </div>
   );
