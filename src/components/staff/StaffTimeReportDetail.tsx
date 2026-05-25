@@ -12,6 +12,7 @@ import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, eachDayOf
 import { sv } from 'date-fns/locale';
 import { formatHoursMinutes } from '@/utils/formatHours';
 import { detectAnomalies, getAnomaliesForDate, type Anomaly, type TimeEntry, type TravelEntry, type TeamMemberReport, type AssignmentDate } from '@/lib/timeReportAnomalies';
+import { resolveTravelLabels } from '@/lib/staff/travelLabel';
 import { AnomalyDialog } from './AnomalyDialog';
 import { WorkdayFlagsAdminSection } from './WorkdayFlagsAdminSection';
 import { DailyOverviewDialog } from './DailyOverviewDialog';
