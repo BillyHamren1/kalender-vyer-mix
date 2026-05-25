@@ -5300,6 +5300,95 @@ export type Database = {
           },
         ]
       }
+      project_staff_time_cost_lines: {
+        Row: {
+          assignment_id: string | null
+          booking_id: string | null
+          cost: number
+          created_at: string
+          date: string
+          end_at: string
+          hourly_rate: number
+          hours: number
+          id: string
+          large_project_id: string | null
+          location_id: string | null
+          minutes: number
+          organization_id: string
+          project_id: string | null
+          rate_source: string | null
+          source_block_id: string | null
+          source_block_kind: string | null
+          source_label: string | null
+          staff_day_submission_id: string
+          staff_id: string
+          staff_name: string | null
+          start_at: string
+          submission_status: string
+          updated_at: string
+        }
+        Insert: {
+          assignment_id?: string | null
+          booking_id?: string | null
+          cost?: number
+          created_at?: string
+          date: string
+          end_at: string
+          hourly_rate?: number
+          hours: number
+          id?: string
+          large_project_id?: string | null
+          location_id?: string | null
+          minutes: number
+          organization_id: string
+          project_id?: string | null
+          rate_source?: string | null
+          source_block_id?: string | null
+          source_block_kind?: string | null
+          source_label?: string | null
+          staff_day_submission_id: string
+          staff_id: string
+          staff_name?: string | null
+          start_at: string
+          submission_status: string
+          updated_at?: string
+        }
+        Update: {
+          assignment_id?: string | null
+          booking_id?: string | null
+          cost?: number
+          created_at?: string
+          date?: string
+          end_at?: string
+          hourly_rate?: number
+          hours?: number
+          id?: string
+          large_project_id?: string | null
+          location_id?: string | null
+          minutes?: number
+          organization_id?: string
+          project_id?: string | null
+          rate_source?: string | null
+          source_block_id?: string | null
+          source_block_kind?: string | null
+          source_label?: string | null
+          staff_day_submission_id?: string
+          staff_id?: string
+          staff_name?: string | null
+          start_at?: string
+          submission_status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_staff_time_cost_lines_staff_day_submission_id_fkey"
+            columns: ["staff_day_submission_id"]
+            isOneToOne: false
+            referencedRelation: "staff_day_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_supplier_links: {
         Row: {
           confirmed_price: number | null

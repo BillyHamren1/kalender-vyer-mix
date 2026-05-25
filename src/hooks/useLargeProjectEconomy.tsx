@@ -11,19 +11,19 @@ import {
 import { fetchAllEconomyDataMulti } from '@/services/planningApiService';
 import { fetchProjectTimeReports } from '@/services/projectEconomyService';
 import { fetchLargeProjectHoursSummary } from '@/services/projectHoursService';
+import { fetchApprovedProjectStaffTimeCostSummary } from '@/services/projectStaffTimeCostLinesService';
 import type { StaffTimeReport } from '@/types/projectEconomy';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PROJECT HOURS 6:
-// Sanningen för stora projektets personaltimmar = staff_day_report_cache
-// (samma Time Engine-cache som /staff-management/time-reports). Vi summerar
-// på LARGE PROJECT-nivå via fetchLargeProjectHoursSummary, där ett block
-// matchas på large_project_id ELLER booking_id ∈ linkedBookingIds, och
-// dedupas så samma block aldrig räknas dubbelt.
-//
-// `timeReportsByBooking` lever kvar enbart som DETALJ-breakdown per booking
-// — den är ingen totalsanning längre och får aldrig användas för LP-totaler.
-// time_reports används INTE som källa.
+// LARGE PROJECT ECONOMY (post tidrapport-attest):
+//   - FAKTISK personalkostnad för LP = `project_staff_time_cost_lines`
+//     filtrerade på large_project_id ELLER booking_id ∈ linkedBookings.
+//     Dedup på row.id.
+//   - `staff_day_report_cache` (Time Engine) används endast som
+//     prognos/förslag — aldrig som faktisk kanonisk sanning.
+//   - `time_reports` används INTE som källa.
+//   - `timeReportsByBooking` lever kvar som DETALJ-breakdown per booking,
+//     aldrig som total.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { LargeProjectBudget, LargeProjectPurchase } from '@/types/largeProject';
 import { supabase } from '@/integrations/supabase/client';
@@ -101,12 +101,65 @@ export const useLargeProjectEconomy = (
     enabled: bookingIds.length > 0,
   });
 
-  // TOTALSANNING: LP-aggregerade Time Engine-block (samma cache som
-  // /staff-management/time-reports). Block matchas på large_project_id ELLER
-  // booking_id ∈ bookingIds, deduplicerade så inget block räknas dubbelt.
+  // PROGNOS-källa (Time Engine, staff_day_report_cache). Endast förslag.
   const { data: largeProjectHours } = useQuery({
     queryKey: ['large-project-hours', largeProjectId, bookingIds],
     queryFn: () => fetchLargeProjectHoursSummary(largeProjectId!, bookingIds),
+    enabled: !!largeProjectId,
+  });
+
+  // FAKTISK godkänd personalkostnad — project_staff_time_cost_lines för
+  // large_project_id ELLER booking_id ∈ bookingIds. Servicen dedupar på row.id.
+  const { data: approvedLpCostSummaries } = useQuery({
+    queryKey: ['large-project-approved-staff-cost', largeProjectId, bookingIds],
+    queryFn: async () => {
+      const results = await Promise.all([
+        fetchApprovedProjectStaffTimeCostSummary({ large_project_id: largeProjectId ?? null }),
+        ...bookingIds.map((bId) =>
+          fetchApprovedProjectStaffTimeCostSummary({ booking_id: bId }),
+        ),
+      ]);
+      // Dedupera på row.id över alla queries.
+      const seen = new Set<string>();
+      let approvedStaffHours = 0;
+      let approvedStaffCost = 0;
+      const byStaff = new Map<string, { staff_id: string; staff_name: string | null; totalMinutes: number; totalCost: number }>();
+      const byDate = new Map<string, { date: string; totalMinutes: number; totalCost: number; staff: Set<string> }>();
+      for (const sum of results) {
+        for (const r of sum.rows) {
+          if (seen.has(r.id)) continue;
+          seen.add(r.id);
+          approvedStaffHours += r.hours;
+          approvedStaffCost += r.cost;
+          const s = byStaff.get(r.staff_id) ?? { staff_id: r.staff_id, staff_name: r.staff_name, totalMinutes: 0, totalCost: 0 };
+          s.totalMinutes += r.minutes;
+          s.totalCost += r.cost;
+          if (!s.staff_name && r.staff_name) s.staff_name = r.staff_name;
+          byStaff.set(r.staff_id, s);
+          const d = byDate.get(r.date) ?? { date: r.date, totalMinutes: 0, totalCost: 0, staff: new Set<string>() };
+          d.totalMinutes += r.minutes;
+          d.totalCost += r.cost;
+          d.staff.add(r.staff_id);
+          byDate.set(r.date, d);
+        }
+      }
+      return {
+        approvedStaffHours: +approvedStaffHours.toFixed(2),
+        approvedStaffCost,
+        byStaff: Array.from(byStaff.values())
+          .map((s) => ({ ...s, totalHours: +(s.totalMinutes / 60).toFixed(2) }))
+          .sort((a, b) => b.totalMinutes - a.totalMinutes),
+        byDate: Array.from(byDate.values())
+          .map((d) => ({
+            date: d.date,
+            totalMinutes: d.totalMinutes,
+            totalHours: +(d.totalMinutes / 60).toFixed(2),
+            totalCost: d.totalCost,
+            staffCount: d.staff.size,
+          }))
+          .sort((a, b) => a.date.localeCompare(b.date)),
+      };
+    },
     enabled: !!largeProjectId,
   });
   const aggregatedBookingEconomy: AggregatedBookingEconomy = (() => {
@@ -202,22 +255,31 @@ export const useLargeProjectEconomy = (
   // Budget cost
   const budgetedCost = (budget?.budgeted_hours || 0) * (budget?.hourly_rate || 0);
 
-  // ── LP-aggregerade Time Engine-timmar (totalsanning) ──
-  const reportedStaffHoursFromTimeEngine = largeProjectHours?.summary.totalHours ?? 0;
-  const reportedStaffCostFromTimeEngine = largeProjectHours?.totalCost ?? 0;
+  // ── PROGNOS (Time Engine-cache) — endast förslag, ej kanonisk sanning ──
+  const proposedStaffHoursFromTimeEngine = largeProjectHours?.summary.totalHours ?? 0;
+  const proposedStaffCostFromTimeEngine = largeProjectHours?.totalCost ?? 0;
   const staffHoursByPerson = largeProjectHours?.summary.staffSummaries ?? [];
   const staffHoursByDay = largeProjectHours?.summary.daySummaries ?? [];
-  const staffCostsByPerson = largeProjectHours?.staffCosts ?? [];
-  const hoursSource: 'staff_day_report_cache' = 'staff_day_report_cache';
+
+  // ── FAKTISK godkänd personalkostnad (project_staff_time_cost_lines) ──
+  const approvedStaffHours = approvedLpCostSummaries?.approvedStaffHours ?? 0;
+  const approvedStaffCost = approvedLpCostSummaries?.approvedStaffCost ?? 0;
+  const approvedStaffByPerson = approvedLpCostSummaries?.byStaff ?? [];
+  const approvedStaffByDate = approvedLpCostSummaries?.byDate ?? [];
+  const staffHoursDiffMinutes = Math.round(
+    (proposedStaffHoursFromTimeEngine - approvedStaffHours) * 60,
+  );
+
+  const hoursSource: 'project_staff_time_cost_lines' = 'project_staff_time_cost_lines';
 
   // Combined summary
-  // Staff-totalen kommer NU från LP-aggregerade Time Engine-block (inte
-  // booking-summan), eftersom samma block annars skulle räknas dubbelt.
+  // Staff-totalen är NU faktisk godkänd kostnad (project_staff_time_cost_lines),
+  // inte Time Engine-prognos.
   const agg = aggregatedBookingEconomy;
   const grandTotalCost =
     localPurchasesTotal +
     agg.totalCost +
-    reportedStaffCostFromTimeEngine +
+    approvedStaffCost +
     agg.totalPurchases +
     agg.totalInvoices +
     agg.totalSupplierInvoices;
@@ -229,11 +291,11 @@ export const useLargeProjectEconomy = (
     budgetedCost,
     // Local purchases
     localPurchasesTotal,
-    // Aggregated from bookings (utan staff — den kommer från LP-Time Engine)
+    // Aggregated from bookings (utan staff)
     ...aggregatedBookingEconomy,
-    // Override staff totals med LP-aggregerade Time Engine-värden
-    totalStaffCost: reportedStaffCostFromTimeEngine,
-    totalActualHours: reportedStaffHoursFromTimeEngine,
+    // Override staff totals med faktisk godkänd kostnad
+    totalStaffCost: approvedStaffCost,
+    totalActualHours: approvedStaffHours,
     // Grand totals
     grandTotalCost,
     grandTotalRevenue: agg.totalRevenue,
@@ -289,13 +351,22 @@ export const useLargeProjectEconomy = (
     localProducts,
     // Detalj-breakdown per booking — får ej användas som total.
     timeReportsByBooking,
-    // Totalsanning: LP-aggregerad Time Engine-cache.
+    // PROGNOS (Time Engine-cache) — endast förslag.
     largeProjectHours,
-    reportedStaffHoursFromTimeEngine,
-    reportedStaffCostFromTimeEngine,
+    proposedStaffHoursFromTimeEngine,
+    proposedStaffCostFromTimeEngine,
     staffHoursByPerson,
     staffHoursByDay,
-    staffCostsByPerson,
+    // FAKTISK godkänd kostnad.
+    approvedStaffHours,
+    approvedStaffCost,
+    approvedStaffByPerson,
+    approvedStaffByDate,
+    staffHoursDiffMinutes,
+    // Bakåtkompatibla namn — pekar nu på godkänd kostnad/timmar.
+    reportedStaffHoursFromTimeEngine: approvedStaffHours,
+    reportedStaffCostFromTimeEngine: approvedStaffCost,
+    staffCostsByPerson: approvedStaffByPerson,
     hoursSource,
     isLoading: budgetLoading || purchasesLoading || bookingEconomyLoading,
     saveBudget: saveBudgetMutation.mutate,
