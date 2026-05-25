@@ -17,6 +17,8 @@
  * (the "Närvaro: FA Warehouse · 0h" spam from the screenshot).
  */
 
+import { resolveTravelLabels } from './travelLabel';
+
 export type ProjectSessionKind = 'booking' | 'large_project' | 'location' | 'travel';
 
 export interface ProjectSession {
