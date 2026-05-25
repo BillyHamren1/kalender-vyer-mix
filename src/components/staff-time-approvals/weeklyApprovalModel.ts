@@ -20,6 +20,15 @@ export const APPROVED_STATUSES: ReadonlySet<StaffDaySubmissionStatus> = new Set(
   "payroll_approved",
 ]);
 
+/** Status som går att godkänna direkt via "Godkänn dag/vecka". */
+export const APPROVABLE_STATUSES: ReadonlySet<StaffDaySubmissionStatus> = new Set([
+  "submitted",
+  "edited",
+  "ai_flagged",
+  "needs_control",
+  "needs_user_attention",
+]);
+
 export interface WeeklyDayCell {
   date: string; // YYYY-MM-DD
   submission: StaffWeeklySubmissionRow | null;
@@ -40,8 +49,22 @@ export interface WeeklyStaffBundle {
   awaitingCount: number;
   needsFixCount: number;
   missingCount: number;
+  /** Antal dagar med correction_requested. */
+  correctionRequestedCount: number;
+  /** Antal dagar med needs_user_attention. */
+  needsUserAttentionCount: number;
+  /** Antal dagar med needs_control. */
+  needsControlCount: number;
+  /** Antal dagar med ai_flagged. */
+  aiFlaggedCount: number;
+  /** Antal dagar som är direkt godkännbara (submitted/edited/ai_flagged/needs_control/needs_user_attention). */
+  approvableCount: number;
   allDone: boolean;
   hasTodo: boolean;
+  /** Sorteringsprio: 1 = högst (correction), 6 = lägst (godkända). */
+  priorityRank: number;
+  /** Centralt formulerad åtgärdsetikett admin kan lita på. */
+  actionLabel: string;
 }
 
 export function computeSubmissionMinutes(s: StaffWeeklySubmissionRow): number {
@@ -85,6 +108,50 @@ function deriveBooleans(s: StaffWeeklySubmissionRow) {
   return { hasUserEdits, hasAiWarning };
 }
 
+function deriveActionLabel(b: Omit<WeeklyStaffBundle, "actionLabel" | "priorityRank">): {
+  label: string;
+  rank: number;
+} {
+  if (b.correctionRequestedCount > 0) {
+    return {
+      label: `Behöver komplettering · ${b.correctionRequestedCount} dag${b.correctionRequestedCount === 1 ? "" : "ar"}`,
+      rank: 1,
+    };
+  }
+  if (b.needsUserAttentionCount > 0) {
+    return {
+      label: `Behöver svar · ${b.needsUserAttentionCount} dag${b.needsUserAttentionCount === 1 ? "" : "ar"}`,
+      rank: 2,
+    };
+  }
+  const controlCount = b.needsControlCount + b.aiFlaggedCount;
+  if (controlCount > 0) {
+    return {
+      label: `Kontrollera · ${controlCount} dag${controlCount === 1 ? "" : "ar"}`,
+      rank: 3,
+    };
+  }
+  if (b.awaitingCount > 0) {
+    return {
+      label: `Väntar attest · ${b.awaitingCount} dag${b.awaitingCount === 1 ? "" : "ar"}`,
+      rank: 4,
+    };
+  }
+  if (b.missingCount > 0) {
+    return {
+      label: `Saknar rapport · ${b.missingCount} dag${b.missingCount === 1 ? "" : "ar"}`,
+      rank: 5,
+    };
+  }
+  if (b.allDone && b.submittedCount > 0) {
+    return { label: "Godkänd vecka", rank: 6 };
+  }
+  if (b.approvedCount > 0) {
+    return { label: `${b.approvedCount} godkända dagar`, rank: 6 };
+  }
+  return { label: "Inget att göra", rank: 6 };
+}
+
 export function buildWeeklyBundles(
   staff: StaffWeeklyStaffMember[],
   submissions: StaffWeeklySubmissionRow[],
@@ -100,7 +167,6 @@ export function buildWeeklyBundles(
     byStaff.set(s.staff_id, list);
   }
 
-  // Inkludera även personer som inte finns i staff-listan (fallback)
   const staffMap = new Map(staff.map((s) => [s.id, s]));
   for (const sid of byStaff.keys()) {
     if (!staffMap.has(sid)) {
@@ -113,7 +179,6 @@ export function buildWeeklyBundles(
     const subs = (byStaff.get(member.id) ?? []).slice().sort((a, b) =>
       a.date.localeCompare(b.date) || b.submitted_at.localeCompare(a.submitted_at),
     );
-    // Senaste per datum
     const latestPerDate = new Map<string, StaffWeeklySubmissionRow>();
     for (const s of subs) if (!latestPerDate.has(s.date)) latestPerDate.set(s.date, s);
 
@@ -148,20 +213,26 @@ export function buildWeeklyBundles(
     let awaitingCount = 0;
     let needsFixCount = 0;
     let missingCount = 0;
+    let correctionRequestedCount = 0;
+    let needsUserAttentionCount = 0;
+    let needsControlCount = 0;
+    let aiFlaggedCount = 0;
+    let approvableCount = 0;
     for (const d of days) {
       totalMinutes += d.minutes;
-      if (d.submission) {
-        submittedCount++;
-        if (APPROVED_STATUSES.has(d.status as StaffDaySubmissionStatus)) approvedCount++;
-        if (d.status === "submitted" || d.status === "edited" || d.status === "ai_flagged") awaitingCount++;
-        if (
-          d.status === "needs_control" ||
-          d.status === "needs_user_attention" ||
-          d.status === "correction_requested"
-        ) needsFixCount++;
-        if (d.status === "missing_report") missingCount++;
-      }
-      // Dagar utan submission ("no_report") räknas INTE som missing.
+      if (!d.submission) continue;
+      submittedCount++;
+      const st = d.status as StaffDaySubmissionStatus;
+      if (APPROVED_STATUSES.has(st)) approvedCount++;
+      if (st === "submitted" || st === "edited" || st === "ai_flagged") awaitingCount++;
+      if (st === "needs_control" || st === "needs_user_attention" || st === "correction_requested")
+        needsFixCount++;
+      if (st === "missing_report") missingCount++;
+      if (st === "correction_requested") correctionRequestedCount++;
+      if (st === "needs_user_attention") needsUserAttentionCount++;
+      if (st === "needs_control") needsControlCount++;
+      if (st === "ai_flagged") aiFlaggedCount++;
+      if (APPROVABLE_STATUSES.has(st)) approvableCount++;
     }
 
     const hasTodo = days.some(
@@ -175,7 +246,7 @@ export function buildWeeklyBundles(
           APPROVED_STATUSES.has(d.status as StaffDaySubmissionStatus),
       );
 
-    bundles.push({
+    const base = {
       staff: member,
       days,
       submissions: subs,
@@ -185,16 +256,23 @@ export function buildWeeklyBundles(
       awaitingCount,
       needsFixCount,
       missingCount,
+      correctionRequestedCount,
+      needsUserAttentionCount,
+      needsControlCount,
+      aiFlaggedCount,
+      approvableCount,
       allDone,
       hasTodo,
-    });
+    };
+
+    const { label, rank } = deriveActionLabel(base);
+
+    bundles.push({ ...base, priorityRank: rank, actionLabel: label });
   }
 
-  // Sortera: hasTodo först (mest att göra), sedan namn
+  // Sortera på prioritet (lägre = högre upp), sedan namn A–Ö.
   bundles.sort((a, b) => {
-    if (a.hasTodo !== b.hasTodo) return a.hasTodo ? -1 : 1;
-    if (a.needsFixCount !== b.needsFixCount) return b.needsFixCount - a.needsFixCount;
-    if (a.awaitingCount !== b.awaitingCount) return b.awaitingCount - a.awaitingCount;
+    if (a.priorityRank !== b.priorityRank) return a.priorityRank - b.priorityRank;
     return a.staff.name.localeCompare(b.staff.name, "sv");
   });
 
@@ -202,17 +280,16 @@ export function buildWeeklyBundles(
 }
 
 export function isWeekFullyApprovable(bundle: WeeklyStaffBundle): boolean {
-  // Knappen är aktiv om det finns minst en godkännbar dag.
-  // payroll_approved, correction_requested, missing_report och no_report
-  // blockerar INTE — de hoppas bara över.
-  return bundle.days.some(
-    (d) =>
-      d.submission &&
-      (d.status === "submitted" ||
-        d.status === "edited" ||
-        d.status === "ai_flagged" ||
-        d.status === "needs_control" ||
-        d.status === "needs_user_attention"),
+  return bundle.approvableCount > 0;
+}
+
+/** True om hela veckans kvarvarande arbete kan godkännas i ett svep. */
+export function isCleanWeekApproval(bundle: WeeklyStaffBundle): boolean {
+  return (
+    bundle.approvableCount > 0 &&
+    bundle.correctionRequestedCount === 0 &&
+    bundle.missingCount === 0 &&
+    bundle.needsUserAttentionCount === 0
   );
 }
 

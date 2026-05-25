@@ -1,8 +1,8 @@
-import React from "react";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import React, { useState } from "react";
+import { Button } from "@/components/ui/button";
 import StaffWeeklyApprovalRow from "./StaffWeeklyApprovalRow";
 import type { WeeklyStaffBundle } from "./weeklyApprovalModel";
-import { Inbox, CheckCircle2 } from "lucide-react";
+import { Inbox, CheckCircle2, ChevronDown } from "lucide-react";
 
 interface Props {
   todo: WeeklyStaffBundle[];
@@ -13,6 +13,8 @@ interface Props {
   onApproveWeek: (staffId: string) => void;
 }
 
+const APPROVED_COLLAPSED_LIMIT = 8;
+
 export const StaffWeeklyApprovalList: React.FC<Props> = ({
   todo,
   approved,
@@ -21,21 +23,29 @@ export const StaffWeeklyApprovalList: React.FC<Props> = ({
   approvingStaffId,
   onApproveWeek,
 }) => {
+  const [showAllApproved, setShowAllApproved] = useState(false);
+  const approvedToRender = showAllApproved
+    ? approved
+    : approved.slice(0, APPROVED_COLLAPSED_LIMIT);
+  const hiddenApproved = approved.length - approvedToRender.length;
+
   return (
-    <ScrollArea className="h-[calc(100vh-220px)] pr-2">
-      <section className="space-y-2 pb-4">
-        <header className="flex items-center gap-2 px-1 pt-2">
+    <div className="space-y-5">
+      <section className="space-y-2">
+        <header className="flex items-center gap-2 px-1">
           <Inbox className="h-3.5 w-3.5 text-amber-600" />
           <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Att göra ({todo.length})
+            Att göra
+            <span className="ml-1 text-foreground">({todo.length})</span>
           </h2>
         </header>
         {todo.length === 0 ? (
-          <div className="text-xs text-muted-foreground italic px-2 py-3 border border-dashed border-border/50 rounded-lg">
-            Inga rapporter väntar attest den här veckan.
+          <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-md px-3 py-2">
+            <CheckCircle2 className="h-4 w-4" />
+            Alla rapporter för veckan är hanterade.
           </div>
         ) : (
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             {todo.map((b) => (
               <StaffWeeklyApprovalRow
                 key={b.staff.id}
@@ -50,20 +60,17 @@ export const StaffWeeklyApprovalList: React.FC<Props> = ({
         )}
       </section>
 
-      <section className="space-y-2 pb-6">
-        <header className="flex items-center gap-2 px-1 pt-2">
-          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-          <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Godkända ({approved.length})
-          </h2>
-        </header>
-        {approved.length === 0 ? (
-          <div className="text-xs text-muted-foreground italic px-2 py-3 border border-dashed border-border/50 rounded-lg">
-            Ingen vecka är helt godkänd ännu.
-          </div>
-        ) : (
-          <div className="space-y-1.5">
-            {approved.map((b) => (
+      {approved.length > 0 && (
+        <section className="space-y-2">
+          <header className="flex items-center gap-2 px-1">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+            <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Godkända
+              <span className="ml-1 text-foreground">({approved.length})</span>
+            </h2>
+          </header>
+          <div className="space-y-1">
+            {approvedToRender.map((b) => (
               <StaffWeeklyApprovalRow
                 key={b.staff.id}
                 bundle={b}
@@ -74,9 +81,34 @@ export const StaffWeeklyApprovalList: React.FC<Props> = ({
               />
             ))}
           </div>
-        )}
-      </section>
-    </ScrollArea>
+          {hiddenApproved > 0 && (
+            <div className="flex justify-center pt-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 text-xs text-muted-foreground"
+                onClick={() => setShowAllApproved(true)}
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+                Visa alla godkända ({hiddenApproved} till)
+              </Button>
+            </div>
+          )}
+          {showAllApproved && approved.length > APPROVED_COLLAPSED_LIMIT && (
+            <div className="flex justify-center pt-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-muted-foreground"
+                onClick={() => setShowAllApproved(false)}
+              >
+                Visa färre
+              </Button>
+            </div>
+          )}
+        </section>
+      )}
+    </div>
   );
 };
 

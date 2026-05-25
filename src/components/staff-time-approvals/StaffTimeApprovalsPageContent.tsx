@@ -1,22 +1,42 @@
 import React, { useMemo, useState } from "react";
 import { addDays, endOfWeek, format, getISOWeek, startOfWeek } from "date-fns";
 import { sv } from "date-fns/locale";
-import { ClipboardCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
+  Sheet,
+  SheetContent,
+} from "@/components/ui/sheet";
+import {
   useStaffWeeklyTimeApprovals,
-  type StaffDaySubmissionStatus,
 } from "@/hooks/staff/useStaffWeeklyTimeApprovals";
 import { useApproveStaffWeek } from "@/hooks/staff/useApproveStaffWeek";
 import WeekApprovalToolbar from "./WeekApprovalToolbar";
 import StaffWeeklyApprovalList from "./StaffWeeklyApprovalList";
 import StaffWeeklyApprovalPanel from "./StaffWeeklyApprovalPanel";
-import ApprovalDashboardStrip from "./ApprovalDashboardStrip";
-import {
-  APPROVED_STATUSES,
-  buildWeeklyBundles,
-  TODO_STATUSES,
-} from "./weeklyApprovalModel";
+import { buildWeeklyBundles } from "./weeklyApprovalModel";
+
+interface SummaryChipProps {
+  label: string;
+  value: number;
+  tone?: "default" | "amber" | "rose" | "emerald" | "sky";
+}
+
+const TONE_CLASS: Record<NonNullable<SummaryChipProps["tone"]>, string> = {
+  default: "bg-muted text-foreground border-border",
+  amber: "bg-amber-500/10 text-amber-800 border-amber-500/30 dark:text-amber-300",
+  rose: "bg-rose-500/10 text-rose-700 border-rose-500/30 dark:text-rose-300",
+  emerald: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300",
+  sky: "bg-sky-500/10 text-sky-700 border-sky-500/30 dark:text-sky-300",
+};
+
+const SummaryChip: React.FC<SummaryChipProps> = ({ label, value, tone = "default" }) => (
+  <div
+    className={`inline-flex items-center gap-1.5 px-2.5 h-7 rounded-md border text-xs font-medium ${TONE_CLASS[tone]}`}
+  >
+    <span className="tabular-nums">{value}</span>
+    <span className="text-[11px] opacity-80 font-normal">{label}</span>
+  </div>
+);
 
 export const StaffTimeApprovalsPageContent: React.FC = () => {
   const { toast } = useToast();
@@ -56,7 +76,6 @@ export const StaffTimeApprovalsPageContent: React.FC = () => {
     if (statusFilter === "todo") all = all.filter((b) => b.hasTodo);
     else if (statusFilter === "approved")
       all = all.filter((b) => b.allDone && b.submittedCount > 0);
-    // Annars: visa bundles där minst en dag har submission ELLER har todo
     all = all.filter((b) => b.submittedCount > 0 || b.hasTodo);
     return all;
   }, [data, weekStart, search, statusFilter]);
@@ -66,6 +85,30 @@ export const StaffTimeApprovalsPageContent: React.FC = () => {
     () => bundles.filter((b) => !b.hasTodo && b.allDone && b.submittedCount > 0),
     [bundles],
   );
+
+  // Kompakt weekly summary (dagar, inte personer för waiting/correction/godkända)
+  const summary = useMemo(() => {
+    let waitingDays = 0;
+    let correctionDays = 0;
+    let approvableDays = 0;
+    let approvedDays = 0;
+    for (const b of bundles) {
+      waitingDays +=
+        b.awaitingCount + b.needsControlCount + b.needsUserAttentionCount + b.aiFlaggedCount;
+      correctionDays += b.correctionRequestedCount;
+      approvableDays += b.approvableCount;
+      approvedDays += b.approvedCount;
+    }
+    return {
+      persons: bundles.length,
+      todoPersons: todo.length,
+      approvedPersons: approved.length,
+      waitingDays,
+      correctionDays,
+      approvableDays,
+      approvedDays,
+    };
+  }, [bundles, todo, approved]);
 
   const openBundle = useMemo(
     () => bundles.find((b) => b.staff.id === openStaffId) ?? null,
@@ -101,9 +144,7 @@ export const StaffTimeApprovalsPageContent: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-b from-background via-background to-muted/20">
-      <ApprovalDashboardStrip onOpenStaff={setOpenStaffId} />
-
+    <div className="flex flex-col min-h-full bg-background">
       <WeekApprovalToolbar
         weekStart={weekStart}
         weekEnd={weekEnd}
@@ -118,49 +159,54 @@ export const StaffTimeApprovalsPageContent: React.FC = () => {
         onStatusFilterChange={setStatusFilter}
         search={search}
         onSearchChange={setSearch}
-        counts={{ todo: todo.length, approved: approved.length }}
       />
 
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-4 p-4 min-h-0">
-        <div className="min-w-0 rounded-2xl border border-border/60 bg-card/60 backdrop-blur-sm shadow-sm p-3">
-          {isLoading ? (
-            <div className="text-sm text-muted-foreground p-4">Laddar veckan…</div>
-          ) : error ? (
-            <div className="text-sm text-destructive p-4">
-              Kunde inte ladda: {(error as Error).message}
-            </div>
-          ) : (
-            <StaffWeeklyApprovalList
-              todo={todo}
-              approved={approved}
-              openStaffId={openStaffId}
-              onOpen={setOpenStaffId}
-              approvingStaffId={approvingStaffId}
-              onApproveWeek={handleApproveWeek}
-            />
-          )}
-        </div>
-        <div className="min-w-0 min-h-0">
-          {openBundle ? (
+      {/* Kompakt summary-rad */}
+      <div className="px-4 py-2 border-b border-border/40 flex flex-wrap items-center gap-2">
+        <SummaryChip label="personer" value={summary.persons} />
+        <SummaryChip label="att göra" value={summary.todoPersons} tone="amber" />
+        <SummaryChip label="dagar väntar" value={summary.waitingDays} tone="amber" />
+        {summary.correctionDays > 0 && (
+          <SummaryChip label="behöver komplettering" value={summary.correctionDays} tone="rose" />
+        )}
+        <SummaryChip label="godkännbara dagar" value={summary.approvableDays} tone="sky" />
+        <SummaryChip label="godkända dagar" value={summary.approvedDays} tone="emerald" />
+      </div>
+
+      <div className="flex-1 px-4 py-3 min-w-0">
+        {isLoading ? (
+          <div className="text-sm text-muted-foreground p-4">Laddar veckan…</div>
+        ) : error ? (
+          <div className="text-sm text-destructive p-4">
+            Kunde inte ladda: {(error as Error).message}
+          </div>
+        ) : (
+          <StaffWeeklyApprovalList
+            todo={todo}
+            approved={approved}
+            openStaffId={openStaffId}
+            onOpen={setOpenStaffId}
+            approvingStaffId={approvingStaffId}
+            onApproveWeek={handleApproveWeek}
+          />
+        )}
+      </div>
+
+      <Sheet open={!!openBundle} onOpenChange={(o) => !o && setOpenStaffId(null)}>
+        <SheetContent
+          side="right"
+          className="w-full sm:max-w-[900px] p-0 flex flex-col"
+        >
+          {openBundle && (
             <StaffWeeklyApprovalPanel
               bundle={openBundle}
               weekNumber={weekNumber}
               weekRangeLabel={weekRangeLabel}
               onClose={() => setOpenStaffId(null)}
             />
-          ) : (
-            <div className="h-full flex flex-col items-center justify-center gap-3 border border-dashed border-border/50 rounded-2xl bg-gradient-to-br from-muted/20 via-card/40 to-muted/10 text-sm text-muted-foreground p-8 text-center">
-              <div className="h-12 w-12 rounded-full bg-primary/10 ring-1 ring-primary/20 flex items-center justify-center">
-                <ClipboardCheck className="h-6 w-6 text-primary" />
-              </div>
-              <div className="font-medium text-foreground">Inget öppet</div>
-              <div className="max-w-[280px]">
-                Välj en person till vänster för att se veckans dagar och godkänna.
-              </div>
-            </div>
           )}
-        </div>
-      </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };
