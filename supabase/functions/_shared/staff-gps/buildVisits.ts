@@ -221,7 +221,7 @@ export async function loadOrgGeofences(
       ? admin
           .from("bookings")
           .select(
-            "id, client, booking_number, delivery_latitude, delivery_longitude, large_project_id, eventdate, rigdaydate, rigdowndate",
+            "id, client, booking_number, deliveryaddress, delivery_latitude, delivery_longitude, large_project_id, eventdate, rigdaydate, rigdowndate",
           )
           .eq("organization_id", orgId)
           .eq("status", "CONFIRMED")
