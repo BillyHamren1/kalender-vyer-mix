@@ -3,6 +3,7 @@ import { sv } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
 import type { StaffGpsDaySummary } from '@/hooks/staff/useStaffGpsWeekSummary';
+import type { SegmentType } from '@/lib/staff-gps/dayPartition';
 
 interface Props {
   day: Date;
@@ -15,7 +16,7 @@ interface Props {
 }
 
 function fmtDur(min: number): string {
-  if (!min) return '—';
+  if (!min) return '0m';
   const h = Math.floor(min / 60);
   const m = min % 60;
   if (h <= 0) return `${m}m`;
@@ -23,11 +24,31 @@ function fmtDur(min: number): string {
   return `${h}h ${m}m`;
 }
 
-export function StaffGpsDayRow({ day, dateStr, selected, summary, staffId, staffName, onClick }: Props) {
+const SEGMENT_DOT: Record<SegmentType, string> = {
+  work: 'bg-emerald-500',
+  private: 'bg-violet-500',
+  travel: 'bg-sky-500',
+  unknown_place: 'bg-amber-500',
+  gps_gap: 'bg-zinc-400',
+  idle: 'bg-zinc-300',
+};
+
+const SEGMENT_LABEL_COLOR: Record<SegmentType, string> = {
+  work: 'text-foreground/85',
+  private: 'text-violet-700/80',
+  travel: 'text-sky-700/80',
+  unknown_place: 'text-amber-700/85',
+  gps_gap: 'text-zinc-500',
+  idle: 'text-zinc-500',
+};
+
+export function StaffGpsDayRow({ day, dateStr, selected, summary, onClick }: Props) {
   const weekday = format(day, 'EEE', { locale: sv });
   const dayMonth = format(day, 'd/M', { locale: sv });
   const hasData = !!summary && summary.pingsCount > 0;
   const hasRange = hasData && summary!.firstIso && summary!.lastIso;
+  // Visa endast segment ≥ 1 minut för att inte spamma raden.
+  const segments = (summary?.segments ?? []).filter((s) => s.minutes >= 1);
 
   return (
     <button
@@ -60,10 +81,12 @@ export function StaffGpsDayRow({ day, dateStr, selected, summary, staffId, staff
         {hasRange ? (
           <div className="flex items-baseline gap-2 shrink-0">
             <span className="text-[11px] tabular-nums text-muted-foreground/80">
-              {formatStockholmHm(summary!.firstIso!)}<span className="mx-0.5 text-muted-foreground/40">–</span>{formatStockholmHm(summary!.lastIso!)}
+              {formatStockholmHm(summary!.firstIso!)}
+              <span className="mx-0.5 text-muted-foreground/40">–</span>
+              {formatStockholmHm(summary!.lastIso!)}
             </span>
             <span className="text-[12px] font-semibold tabular-nums text-foreground tracking-tight">
-              {fmtDur(summary!.durationMin)}
+              {fmtDur(summary!.windowMin)}
             </span>
           </div>
         ) : (
@@ -72,19 +95,33 @@ export function StaffGpsDayRow({ day, dateStr, selected, summary, staffId, staff
           </span>
         )}
       </div>
-      {hasData && summary!.places.length > 0 && (
+
+      {hasData && (
+        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10.5px] tabular-nums text-muted-foreground/85">
+          <span><span className="font-semibold text-foreground/80">Arbete</span> {fmtDur(summary!.workMin)}</span>
+          {summary!.travelMin > 0 && <span>Resa {fmtDur(summary!.travelMin)}</span>}
+          {summary!.unknownMin > 0 && <span>Okänt {fmtDur(summary!.unknownMin)}</span>}
+          {summary!.gapMin > 0 && <span>GPS-glapp {fmtDur(summary!.gapMin)}</span>}
+          {summary!.privateMin > 0 && <span>Privat {fmtDur(summary!.privateMin)}</span>}
+        </div>
+      )}
+
+      {segments.length > 0 && (
         <ul className="mt-1.5 space-y-0.5">
-          {summary!.places.map((p) => (
+          {segments.map((s, idx) => (
             <li
-              key={p.name}
+              key={`${s.start}-${idx}`}
               className="flex items-baseline justify-between gap-3 text-[11.5px] leading-snug"
             >
               <span className="flex items-baseline gap-1.5 min-w-0">
-                <span className="inline-block h-1 w-1 rounded-full bg-primary/60 shrink-0 translate-y-[-2px]" />
-                <span className="truncate text-foreground/80">{p.name}</span>
+                <span className={cn('inline-block h-1.5 w-1.5 rounded-full shrink-0 translate-y-[-1px]', SEGMENT_DOT[s.type])} />
+                <span className={cn('truncate', SEGMENT_LABEL_COLOR[s.type])}>{s.label}</span>
+                <span className="text-[10px] tabular-nums text-muted-foreground/60 shrink-0">
+                  {formatStockholmHm(s.start)}–{formatStockholmHm(s.end)}
+                </span>
               </span>
               <span className="tabular-nums text-muted-foreground shrink-0">
-                {fmtDur(p.minutes)}
+                {fmtDur(s.minutes)}
               </span>
             </li>
           ))}
