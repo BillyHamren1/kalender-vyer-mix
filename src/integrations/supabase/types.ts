@@ -6003,6 +6003,33 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_gps_day_snapshots: {
+        Row: {
+          built_at: string
+          date: string
+          input_signature: string
+          organization_id: string
+          snapshot: Json
+          staff_id: string
+        }
+        Insert: {
+          built_at?: string
+          date: string
+          input_signature: string
+          organization_id: string
+          snapshot: Json
+          staff_id: string
+        }
+        Update: {
+          built_at?: string
+          date?: string
+          input_signature?: string
+          organization_id?: string
+          snapshot?: Json
+          staff_id?: string
+        }
+        Relationships: []
+      }
       staff_home_observations: {
         Row: {
           cluster_key: string
