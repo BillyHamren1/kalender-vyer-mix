@@ -397,7 +397,10 @@ const SplitBookingIntoTasksDialog = ({
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value={NONE}>Ej tilldelat</SelectItem>
-                            {staff.map((s) => (
+                            {(getAllowedStaffForDate
+                              ? getAllowedStaffForDate(row.plan_date)
+                              : staff
+                            ).map((s) => (
                               <SelectItem key={s.id} value={s.id}>
                                 {s.name}
                               </SelectItem>
