@@ -21,7 +21,12 @@ import PayrollMonthStaffTable from "./PayrollMonthStaffTable";
 import PayrollMonthStaffDetailDrawer from "./PayrollMonthStaffDetailDrawer";
 import PayrollMonthEmailDialog from "./PayrollMonthEmailDialog";
 
-const PayrollMonthReportPageContent: React.FC = () => {
+interface PayrollMonthReportPageContentProps {
+  /** När true: rendera utan inre PageHeader (för embed i Tid & Lön). */
+  embedded?: boolean;
+}
+
+const PayrollMonthReportPageContent: React.FC<PayrollMonthReportPageContentProps> = ({ embedded = false }) => {
   const [month, setMonth] = useState<Date>(() => new Date());
   const [staffFilter, setStaffFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<PayrollStatusFilter>("all_approved");
@@ -82,14 +87,16 @@ const PayrollMonthReportPageContent: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-full">
-      <div className="px-4 pt-4">
-        <PageHeader
-          icon={FileText}
-          title="Månadsrapport lön"
-          subtitle="Godkänd tid per personal – färdigt underlag för löneutbetalning."
-          variant="purple"
-        />
-      </div>
+      {!embedded && (
+        <div className="px-4 pt-4">
+          <PageHeader
+            icon={FileText}
+            title="Månadsrapport lön"
+            subtitle="Godkänd tid per personal – färdigt underlag för löneutbetalning."
+            variant="purple"
+          />
+        </div>
+      )}
 
       <PayrollMonthToolbar
         month={month}
