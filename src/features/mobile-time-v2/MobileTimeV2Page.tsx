@@ -1,10 +1,11 @@
 /**
- * MobileTimeV2Page — mobilens nya "Dagens GPS" tidrapportvy.
+ * MobileTimeV2Page — mobilens "Dagens tidrapport".
  *
- * Renderar färdig GPS Day View från `get-mobile-gps-day-view`. Buffrar
- * manuella tidsändringar lokalt (per segmentKey) tills användaren skickar
- * in dagen via `submit-mobile-gps-day-v2`. Använder INGA legacy
- * mobile-time-komponenter eller hooks.
+ * Renderar färdig Day View från `get-mobile-gps-day-view`. Buffrar manuella
+ * tidsändringar lokalt (per segmentKey) tills användaren skickar in dagen
+ * via `submit-mobile-gps-day-v2`. Kan även skicka in en manuell tidrapport
+ * när GPS-underlag saknas. Använder INGA legacy mobile-time-komponenter eller
+ * hooks och INGA legacy tidtabeller.
  */
 import React, { useCallback, useMemo, useState } from 'react';
 import { format, addDays, subDays, isSameDay } from 'date-fns';
@@ -17,7 +18,7 @@ import {
   ChevronRight,
   Calendar as CalendarIcon,
   Loader2,
-  Satellite,
+  ClipboardList,
   RefreshCw,
   CheckCircle2,
   Lock,
@@ -35,6 +36,7 @@ import MobileGpsSegmentCard from './MobileGpsSegmentCard';
 import EditSegmentTimeSheet from './EditSegmentTimeSheet';
 import SubmitGpsDayCard from './SubmitGpsDayCard';
 import MobileGpsDayMap from './MobileGpsDayMap';
+import ManualDayReportCard from './ManualDayReportCard';
 
 type OverrideMap = Record<string, MobileGpsManualOverride>;
 
@@ -44,18 +46,35 @@ interface StatusVisual {
   icon: React.ReactNode;
 }
 
-function statusVisual(status: MobileGpsSubmissionStatus): StatusVisual {
+function statusVisual(
+  status: MobileGpsSubmissionStatus,
+  hasSegments: boolean,
+): StatusVisual {
   switch (status) {
     case 'not_submitted':
-      return { label: 'Ej inskickad', variant: 'outline', icon: <AlertCircle className="h-3.5 w-3.5" /> };
+      return hasSegments
+        ? { label: 'Väntar på att du skickar in', variant: 'outline', icon: <AlertCircle className="h-3.5 w-3.5" /> }
+        : { label: 'Ingen föreslagen tid', variant: 'outline', icon: <AlertCircle className="h-3.5 w-3.5" /> };
     case 'submitted':
-      return { label: 'Inskickad', variant: 'secondary', icon: <CheckCircle2 className="h-3.5 w-3.5" /> };
+      return { label: 'Väntar attest', variant: 'secondary', icon: <CheckCircle2 className="h-3.5 w-3.5" /> };
+    case 'edited':
+      return { label: 'Väntar attest · ändrad', variant: 'secondary', icon: <CheckCircle2 className="h-3.5 w-3.5" /> };
+    case 'ai_flagged':
+      return { label: 'Väntar attest · kontroll', variant: 'secondary', icon: <AlertCircle className="h-3.5 w-3.5" /> };
+    case 'needs_user_attention':
+      return { label: 'Behöver din uppmärksamhet', variant: 'destructive', icon: <AlertCircle className="h-3.5 w-3.5" /> };
+    case 'needs_control':
+      return { label: 'Väntar kontroll', variant: 'secondary', icon: <AlertCircle className="h-3.5 w-3.5" /> };
     case 'correction_requested':
-      return { label: 'Komplettering begärd', variant: 'destructive', icon: <AlertCircle className="h-3.5 w-3.5" /> };
+      return { label: 'Behöver kompletteras', variant: 'destructive', icon: <AlertCircle className="h-3.5 w-3.5" /> };
     case 'approved':
       return { label: 'Godkänd', variant: 'default', icon: <CheckCircle2 className="h-3.5 w-3.5" /> };
     case 'payroll_approved':
-      return { label: 'Låst för lön', variant: 'default', icon: <Lock className="h-3.5 w-3.5" /> };
+      return { label: 'Godkänd för utbetalning', variant: 'default', icon: <Lock className="h-3.5 w-3.5" /> };
+    case 'rejected':
+      return { label: 'Avvisad', variant: 'destructive', icon: <AlertCircle className="h-3.5 w-3.5" /> };
+    case 'withdrawn':
+      return { label: 'Återkallad', variant: 'outline', icon: <AlertCircle className="h-3.5 w-3.5" /> };
     default:
       return { label: status, variant: 'outline', icon: null };
   }
@@ -73,16 +92,26 @@ const MobileTimeV2Page: React.FC = () => {
   const [editSheetOpen, setEditSheetOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Reset local buffer when the day or staff changes.
   React.useEffect(() => {
     setOverrides({});
     setUserComment('');
   }, [dateStr, staffId]);
 
   const submission = data?.submission ?? null;
-  const status: MobileGpsSubmissionStatus = (submission?.status ?? 'not_submitted') as MobileGpsSubmissionStatus;
+  const status: MobileGpsSubmissionStatus =
+    (submission?.status ?? 'not_submitted') as MobileGpsSubmissionStatus;
   const isLocked = status === 'approved' || status === 'payroll_approved';
   const isCorrection = status === 'correction_requested';
+  const hasSegments = (data?.segments?.length ?? 0) > 0;
+  const hasSubmission = !!submission?.hasSubmission;
+  const showManualReport = !!data && !isLoading && !hasSegments && !hasSubmission && !isLocked;
+
+  const subtitle = useMemo(() => {
+    if (!data) return '';
+    if (hasSubmission) return data.subtitle || '';
+    if (hasSegments) return 'Granska förslaget, justera vid behov och skicka in.';
+    return 'Ingen föreslagen tid hittades. Fyll i tiden manuellt.';
+  }, [data, hasSegments, hasSubmission]);
 
   const handleEdit = useCallback((seg: MobileGpsDaySegment) => {
     setEditingSegment(seg);
@@ -113,30 +142,56 @@ const MobileTimeV2Page: React.FC = () => {
         manualOverrides,
         expectedSourceSnapshotId: data.sourceSnapshotId,
       });
-      toast.success('Dagen är inskickad');
+      toast.success('Tidrapporten är inskickad');
       setOverrides({});
       setUserComment('');
       await refresh();
     } catch (err: any) {
-      toast.error(err?.message || 'Kunde inte skicka in dagen');
+      toast.error(err?.message || 'Kunde inte skicka in tidrapporten');
     } finally {
       setIsSubmitting(false);
     }
   }, [staffId, data, dateStr, overrides, userComment, refresh]);
 
+  const handleSubmitManual = useCallback(
+    async (input: { startTime: string; endTime: string; breakMinutes: number }) => {
+      if (!staffId || !data) return;
+      setIsSubmitting(true);
+      try {
+        await submitMobileGpsDayV2({
+          staffId,
+          date: dateStr,
+          userComment: userComment.trim() || null,
+          manualOverrides: [],
+          expectedSourceSnapshotId: data.sourceSnapshotId,
+          manualDay: input,
+        });
+        toast.success('Tidrapporten är inskickad');
+        setUserComment('');
+        await refresh();
+      } catch (err: any) {
+        toast.error(err?.message || 'Kunde inte skicka in tidrapporten');
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [staffId, data, dateStr, userComment, refresh],
+  );
+
   const isToday = isSameDay(date, new Date());
+  const visual = statusVisual(status, hasSegments);
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-28">
       {/* Header */}
       <div className="px-5 pt-6 pb-4 bg-card border-b">
         <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide">
-          <Satellite className="h-3.5 w-3.5" />
+          <ClipboardList className="h-3.5 w-3.5" />
           Tidrapport
         </div>
-        <h1 className="text-2xl font-semibold mt-1">Dagens GPS</h1>
-        {data?.subtitle && (
-          <p className="text-sm text-muted-foreground mt-1">{data.subtitle}</p>
+        <h1 className="text-2xl font-semibold mt-1">Dagens tidrapport</h1>
+        {subtitle && (
+          <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
         )}
 
         {/* Date picker */}
@@ -175,12 +230,12 @@ const MobileTimeV2Page: React.FC = () => {
       </div>
 
       <div className="flex-1 px-5 pt-4 space-y-4 w-full min-w-0 max-w-full box-border">
-        {/* Status banner */}
-        {data && submission && (
+        {/* Status banner — visa alltid för tydlighet */}
+        {data && (
           <div className="flex items-center justify-between gap-2">
-            <Badge variant={statusVisual(status).variant} className="gap-1.5 px-2.5 py-1">
-              {statusVisual(status).icon}
-              {statusVisual(status).label}
+            <Badge variant={visual.variant} className="gap-1.5 px-2.5 py-1">
+              {visual.icon}
+              {visual.label}
             </Badge>
             <Button variant="ghost" size="sm" onClick={() => void refresh()} disabled={isLoading}>
               <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -193,7 +248,7 @@ const MobileTimeV2Page: React.FC = () => {
             <div className="flex items-start gap-2">
               <AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
               <div>
-                <p className="text-sm font-medium text-destructive">Komplettering begärd</p>
+                <p className="text-sm font-medium text-destructive">Behöver kompletteras</p>
                 <p className="text-sm text-foreground/80 mt-1 whitespace-pre-wrap">
                   {submission.reviewComment}
                 </p>
@@ -206,7 +261,7 @@ const MobileTimeV2Page: React.FC = () => {
         {isLoading && !data && (
           <Card className="p-6 flex items-center justify-center gap-2 text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Laddar dagens GPS…
+            Laddar dagens tidrapport…
           </Card>
         )}
 
@@ -221,13 +276,12 @@ const MobileTimeV2Page: React.FC = () => {
           </Card>
         )}
 
-        {/* Summary — totaler räknas ALDRIG om i appen, kommer alltid från backend */}
-        {data && !isLoading && data.segments.length > 0 && (
+        {/* Summary — totaler från backend */}
+        {data && !isLoading && hasSegments && (
           <Card className="p-4">
             <div className="text-center">
               <p className="text-3xl font-semibold">{data.totals.totalDurationLabel}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Total tid (från backend)</p>
-              <p className="text-xs text-muted-foreground mt-2">{data.subtitle}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Total tid</p>
             </div>
             <div className="mt-3 pt-3 border-t flex items-center justify-between text-xs text-muted-foreground">
               <span>{data.segments.length} segment</span>
@@ -243,30 +297,11 @@ const MobileTimeV2Page: React.FC = () => {
           </Card>
         )}
 
-        {/* Map — backend bygger map-data, appen renderar bara */}
-        {data && !isLoading && (
-          <MobileGpsDayMap map={data.map} />
-        )}
-
-        {/* Empty */}
-        {data && !isLoading && data.segments.length === 0 && (
-          <Card className="p-8 text-center">
-            <Satellite className="h-8 w-8 text-muted-foreground/60 mx-auto mb-3" />
-            <p className="text-sm font-medium">Ingen GPS registrerad för denna dag.</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Här visas dagens GPS-segment när telefonen rapporterat positioner.
-            </p>
-          </Card>
-        )}
-
         {/* Segments */}
-        {data && data.segments.length > 0 && (
+        {data && hasSegments && (
           <div className="space-y-2.5">
             {data.segments.map((seg) => {
               const buffered = overrides[seg.segmentKey];
-              // VIKTIGT: appen räknar ALDRIG om duration eller durationLabel.
-              // Vi visar bara nya start/sluttider och en "Osparad ändring"-flagga.
-              // durationLabel/Minutes lämnas orörda — backend räknar om vid submit/refresh.
               const displaySegment: MobileGpsDaySegment = buffered
                 ? {
                     ...seg,
@@ -291,8 +326,8 @@ const MobileTimeV2Page: React.FC = () => {
           </div>
         )}
 
-        {/* Submit */}
-        {data && data.segments.length > 0 && (
+        {/* Submit — GPS-förslag finns */}
+        {data && hasSegments && (
           <SubmitGpsDayCard
             segmentCount={data.segments.length}
             totalLabel={data.totals.totalDurationLabel}
@@ -305,11 +340,37 @@ const MobileTimeV2Page: React.FC = () => {
             disabledReason={
               isLocked
                 ? status === 'payroll_approved'
-                  ? 'Dagen är låst för lön och kan inte ändras.'
-                  : 'Dagen är godkänd och kan inte ändras.'
+                  ? 'Tidrapporten är godkänd för utbetalning och kan inte ändras.'
+                  : 'Tidrapporten är godkänd och kan inte ändras.'
                 : null
             }
           />
+        )}
+
+        {/* Manuell rapport när GPS/förslag saknas */}
+        {showManualReport && (
+          <>
+            <Card className="p-4">
+              <p className="text-sm font-medium">Ingen föreslagen tid hittades</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Du kan ändå fylla i dagens arbetstid manuellt och skicka in.
+              </p>
+            </Card>
+            <ManualDayReportCard
+              date={dateStr}
+              userComment={userComment}
+              onUserCommentChange={setUserComment}
+              onSubmitManual={handleSubmitManual}
+              isSubmitting={isSubmitting}
+              disabled={isLocked}
+              disabledReason={null}
+            />
+          </>
+        )}
+
+        {/* GPS-underlag (kompakt, kan fällas ut) */}
+        {data && !isLoading && (
+          <MobileGpsDayMap map={data.map} />
         )}
       </div>
 
@@ -327,6 +388,6 @@ const MobileTimeV2Page: React.FC = () => {
 };
 
 // Inga lokala duration- eller totalberäkningar i denna fil.
-// Backend (`get-mobile-gps-day-view`) äger all tidsräkning.
+// Backend (`get-mobile-gps-day-view` / `submit-mobile-gps-day-v2`) äger all tidsräkning.
 
 export default MobileTimeV2Page;
