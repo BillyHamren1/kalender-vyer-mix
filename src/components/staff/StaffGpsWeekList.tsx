@@ -14,11 +14,11 @@ interface Props {
   pingedSet: Set<string>;
   date: Date;
   onDateChange: (d: Date) => void;
-  onSelect: (staffId: string, date: Date) => void;
+  onShowMap: (staffId: string, date: Date) => void;
 }
 
 export function StaffGpsWeekList({
-  staff, assignedSet, pingedSet, date, onDateChange, onSelect,
+  staff, assignedSet, pingedSet, date, onDateChange, onShowMap,
 }: Props) {
   const weekStart = useMemo(() => startOfWeek(date, { weekStartsOn: 1 }), [date]);
   const weekDays = useWeekDays(weekStart);
@@ -108,7 +108,7 @@ export function StaffGpsWeekList({
               isPinged={pingedSet.has(s.id)}
               summariesByDate={batch.summaries[s.id] ?? {}}
               isLoading={batch.isLoading}
-              onSelect={onSelect}
+              onShowMap={onShowMap}
             />
           ))}
           {withoutTime.length > 0 && (
@@ -131,7 +131,7 @@ export function StaffGpsWeekList({
                   isPinged={pingedSet.has(s.id)}
                   summariesByDate={batch.summaries[s.id] ?? {}}
                   isLoading={batch.isLoading}
-                  onSelect={onSelect}
+                  onShowMap={onShowMap}
                 />
               ))}
             </>
@@ -140,7 +140,7 @@ export function StaffGpsWeekList({
       )}
 
       <div className="text-[10.5px] text-muted-foreground tracking-tight px-1">
-        Tid per dag = summan av geofence-besöken (boende exkluderat). Klicka på en person eller dag för att öppna kartan.
+        Tid per dag = summan av geofence-besöken (boende exkluderat). Klicka en dag för detaljer — kartan visas först när du trycker "Visa karta".
       </div>
     </div>
   );
