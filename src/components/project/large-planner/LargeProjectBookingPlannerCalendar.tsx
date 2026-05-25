@@ -484,6 +484,20 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
         createItem={createItem}
         isMutating={isMutating}
       />
+
+      <LargeProjectPlannerQuickEditDialog
+        open={quickEditId !== null}
+        onOpenChange={(open) => {
+          if (!open) setQuickEditId(null);
+        }}
+        item={quickEditItem}
+        booking={quickEditBooking}
+        staff={staff}
+        updateItem={updateItem}
+        deleteItem={deleteItem}
+        onSplit={(it) => it.booking_id && setSplitBookingId(it.booking_id)}
+        isMutating={isMutating}
+      />
     </div>
   );
 };
