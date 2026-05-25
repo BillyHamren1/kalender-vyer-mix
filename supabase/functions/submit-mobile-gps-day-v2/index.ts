@@ -41,20 +41,25 @@ interface ManualWorkTargetInput {
 }
 
 interface ManualWorkSegmentInput {
+  id?: string;
   startTime?: string;
   endTime?: string;
   breakMinutes?: number;
   target?: ManualWorkTargetInput | null;
   comment?: string | null;
+  sourceSegmentId?: string | null;
 }
 
 interface ManualDayInput {
-  // Legacy enkel-form (start/end/break för hela dagen)
+  // Ny form: hela dagen + fördelning på block
+  dayStartTime?: string;
+  dayEndTime?: string;
+  breakMinutes?: number;
+  segments?: ManualWorkSegmentInput[];
+  deletedSegmentIds?: string[];
+  // Legacy fält (back-compat)
   startTime?: string;
   endTime?: string;
-  breakMinutes?: number;
-  // Ny segmentform (en eller flera rader med target per rad)
-  segments?: ManualWorkSegmentInput[];
   comment?: string | null;
 }
 
@@ -181,69 +186,88 @@ Deno.serve(async (req: Request) => {
     ? body.manualOverrides.filter((o) => o && typeof o.segmentKey === "string")
     : [];
 
-  // ── Manuell dagrapport (när GPS/förslag saknas) ─────────────
-  // Stöd både legacy-form (start/end/break) och ny segmentform
-  // (en eller flera rader med valt target per rad).
+  // ── Manuell dagrapport ──────────────────────────────────────
+  // Modell: hela dagen (start/slut/rast) + en eller flera block (segments).
+  // Varje block: id, startTime, endTime, target (krävs), comment, sourceSegmentId.
+  // deletedSegmentIds = sourceSegmentId på GPS-förslag som användaren avvisat.
   interface NormalizedSegment {
+    id: string;
     startTime: string;
     endTime: string;
+    target: ManualWorkTargetInput;
+    comment: string | null;
+    sourceSegmentId: string | null;
+  }
+  interface NormalizedManualDay {
+    dayStartTime: string;
+    dayEndTime: string;
     breakMinutes: number;
-    target: ManualWorkTargetInput | null;
+    segments: NormalizedSegment[];
+    deletedSegmentIds: string[];
     comment: string | null;
   }
-  let manualDaySegments: NormalizedSegment[] | null = null;
-  let manualDayComment: string | null = null;
+  let manualDay: NormalizedManualDay | null = null;
 
   if (body.manualDay && typeof body.manualDay === "object") {
     const md = body.manualDay;
-    manualDayComment = md.comment ? String(md.comment).slice(0, 4000) : null;
+    const dayStart = String(md.dayStartTime ?? md.startTime ?? "").trim();
+    const dayEnd = String(md.dayEndTime ?? md.endTime ?? "").trim();
+    if (!HHMM.test(dayStart) || !HHMM.test(dayEnd)) {
+      return json({ error: "manualDay.dayStartTime/dayEndTime krävs som HH:mm" }, 400);
+    }
+    const dayBreak = Math.max(0, Math.round(Number(md.breakMinutes ?? 0)));
+    const deletedSegmentIds = Array.isArray(md.deletedSegmentIds)
+      ? md.deletedSegmentIds.filter((x): x is string => typeof x === "string")
+      : [];
+    const comment = md.comment ? String(md.comment).slice(0, 4000) : null;
 
-    if (Array.isArray(md.segments) && md.segments.length > 0) {
-      const segs: NormalizedSegment[] = [];
-      for (const raw of md.segments) {
-        if (!raw || typeof raw !== "object") continue;
-        const s = String(raw.startTime ?? "").trim();
-        const e = String(raw.endTime ?? "").trim();
-        const br = Math.max(0, Math.round(Number(raw.breakMinutes ?? 0)));
-        if (!HHMM.test(s) || !HHMM.test(e)) {
-          return json({ error: "manualDay.segments: startTime/endTime krävs som HH:mm" }, 400);
-        }
-        const target = (raw.target && typeof raw.target === "object")
-          ? raw.target as ManualWorkTargetInput
-          : null;
-        if (!target) {
-          return json({ error: "manualDay.segments: target krävs för varje rad (välj plats/projekt eller 'Övrigt arbete')" }, 400);
-        }
-        segs.push({
-          startTime: s,
-          endTime: e,
-          breakMinutes: br,
-          target,
-          comment: raw.comment ? String(raw.comment).slice(0, 2000) : null,
-        });
-      }
-      if (segs.length === 0) {
-        return json({ error: "manualDay.segments: minst en giltig rad krävs" }, 400);
-      }
-      manualDaySegments = segs;
-    } else if (md.startTime && md.endTime) {
-      const s = String(md.startTime).trim();
-      const e = String(md.endTime).trim();
-      const br = Math.max(0, Math.round(Number(md.breakMinutes ?? 0)));
+    const rawSegs = Array.isArray(md.segments) ? md.segments : [];
+    const segs: NormalizedSegment[] = [];
+    let idx = 0;
+    for (const raw of rawSegs) {
+      if (!raw || typeof raw !== "object") continue;
+      const s = String(raw.startTime ?? "").trim();
+      const e = String(raw.endTime ?? "").trim();
       if (!HHMM.test(s) || !HHMM.test(e)) {
-        return json({ error: "manualDay.startTime/endTime krävs som HH:mm" }, 400);
+        return json({ error: "manualDay.segments: startTime/endTime krävs som HH:mm" }, 400);
       }
-      // Översätt legacy → 1 segment med 'other'-target (ej kopplat).
-      manualDaySegments = [{
+      // filtrera 0-minutersblock — sparas aldrig som arbetstid
+      const [sh, sm] = s.split(":").map(Number);
+      const [eh, em] = e.split(":").map(Number);
+      let mins = eh * 60 + em - (sh * 60 + sm);
+      if (mins < 0) mins += 24 * 60;
+      if (mins <= 0) continue;
+
+      const target = (raw.target && typeof raw.target === "object")
+        ? raw.target as ManualWorkTargetInput
+        : null;
+      if (!target) {
+        return json({ error: "manualDay.segments: target krävs för varje block (välj plats/projekt eller 'Övrigt arbete')" }, 400);
+      }
+      segs.push({
+        id: String(raw.id ?? `manual-${idx}`),
         startTime: s,
         endTime: e,
-        breakMinutes: br,
-        target: { targetType: "other", targetId: null, label: "Övrigt arbete" },
-        comment: null,
-      }];
+        target,
+        comment: raw.comment ? String(raw.comment).slice(0, 2000) : null,
+        sourceSegmentId: typeof raw.sourceSegmentId === "string" ? raw.sourceSegmentId : null,
+      });
+      idx++;
     }
+    if (segs.length === 0) {
+      return json({ error: "manualDay.segments: minst ett giltigt block krävs" }, 400);
+    }
+
+    manualDay = {
+      dayStartTime: dayStart,
+      dayEndTime: dayEnd,
+      breakMinutes: dayBreak,
+      segments: segs,
+      deletedSegmentIds,
+      comment,
+    };
   }
-  const manualDay = manualDaySegments; // alias för läsbarhet nedan
+  const manualDayComment = manualDay?.comment ?? null;
 
   const authResult = await authenticateStaffRequest(req, { requestedStaffId: staffId });
   if (!authResult.ok) return json({ error: authResult.err.error }, authResult.err.status);
