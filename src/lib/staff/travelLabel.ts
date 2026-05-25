@@ -16,7 +16,7 @@
  *   - src/lib/staff/dayJournal.ts (journal-block label)
  */
 
-const GAP_DESC_RE = /^(?:Gap|Auto[-\s]?switch|Switch):\s*(.+?)\s*→\s*(.+?)(?:\s*\(\d+\s*min\))?\s*$/i;
+const GAP_DESC_RE = /^(?:Gap|Auto[-\s]?switch|Switch)\s*:?\s+(.+?)\s*→\s*(.+?)(?:\s*\(\d+\s*min\))?\s*$/i;
 
 export interface TravelLabelInput {
   from_address?: string | null;
