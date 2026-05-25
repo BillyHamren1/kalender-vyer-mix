@@ -1,21 +1,38 @@
 ## Mål
-Återställa veckolistan så att den visar samma plats-/projektdata som tidigare för varje person och dag, och endast behåller de UI-ändringar du bad om (direkt visning i listan + inline-karta).
+Återställa så att veckolistan, inline-kartan och detaljkartan visar samma underlag för samma person/dag — utan extra "smart" omtolkning — och att platsnamnet speglar faktisk matchad plats i stället för fel projektnamn.
 
-## Plan
-1. Byta tillbaka veckolistans datakälla till den kanoniska dagsnapshoten som tidigare visade rätt platser per person och dag.
-2. Behålla den nya layouten i listan, men låta den rendera data från samma källa som dagvyn redan använder.
-3. Ta bort den felaktiga batch-logiken ur det här flödet, eller begränsa den så att den inte längre får ändra platsmatchningen.
-4. Säkerställa att platsnamn, projekt och warehouse/lager visas exakt enligt tidigare logik för respektive datum, utan att gamla/felaktiga jobb tar över.
-5. Verifiera Markus-fallet och minst ett par andra personer i preview så att innehållet nu matchar tidigare beteende.
-6. Köra riktade tester för GPS-veckoöversikten så att samma regression inte händer igen.
+## Jag kommer att göra
+1. Göra detaljkartan och veckolistan helt datamässigt identiska
+   - Ta bort den extra sammanslagningen med `useAllActiveProjectGeofences` i detaljkartan.
+   - Låta detaljkartan visa exakt samma snapshot-geofences och visits som `get-mobile-staff-day-pings` returnerar.
+   - Säkerställa att batch-endpointen fortsätter bygga sin summary från samma delade `buildVisits`-logik som dags-snapshoten.
+
+2. Rätta platsetiketten så den visar faktisk matchad plats
+   - Gå igenom hur `loadOrgGeofences` sätter `name` för project/booking/large-project fences.
+   - Justera prioriteten så visad label blir den verkliga platsen/venue-adressen när sådan finns, i stället för att bara visa projektnamn som t.ex. "Tavet" när GPS-spåret matchar Handelsbanken.
+   - Behålla statusregeln: endast bekräftade bokningar får vara datumstyrda kända platser.
+
+3. Låsa datum- och matchningsregeln så inget annat smyger in igen
+   - Säkerställa att per-dag-matchning bara använder dagens giltiga confirmed targets + fasta platser.
+   - Ingen separat "alla aktiva projekt"-källa får påverka vad användaren ser i GPS-satellitvyn.
+
+4. Verifiera med tester
+   - Uppdatera/lägga till tester för att fånga:
+     - samma dagdata i batch vs dags-snapshot
+     - att fel extra project-geofences inte kan läcka in i detaljkartan
+     - att etiketten blir plats/venue och inte fel projektnamn när bokningens plats skiljer sig från projektets namn
+
+## Resultat efter ändringen
+- Om Markus GPS visar att han varit vid en annan plats än warehouse, ska lista och karta visa samma sak.
+- Om matchningen gäller Handelsbanken ska raden inte stå som Tavet bara för att projektet heter så internt.
+- UI och layout kan skilja sig, men inte själva innehållet.
 
 ## Tekniska detaljer
-- Problemet verkar vara att veckolistan nu använder `get-staff-gps-week-summary`, medan den tidigare korrekta logiken byggde på `get-mobile-staff-day-pings` / `useStaffGpsWeekSummary`.
-- Den nya batch-källan använder en annan geofence-/platsmatchning än den tidigare dagskällan, vilket gör att innehållet ändras trots att bara layouten skulle ändras.
-- Jag kommer därför att återkoppla listvyn till den tidigare sanningskällan för dagsdata och bara mappa om presentationen.
-- Om batch-flödet får vara kvar görs det endast om det kan garanteras ge exakt samma resultat som dagsnapshoten; annars används det inte i den här vyn.
-
-## Validering
-- Kontroll i preview att veckolistan visar samma platser/projekt som tidigare, men i den nya layouten.
-- Kontroll att inline-kartan fortfarande öppnas under raden och inte på ny sida.
-- Riktade tester för att fånga att veckovyn inte får avvika från dagsnapshoten igen.
+- Filer som sannolikt ändras:
+  - `src/components/staff/StaffGpsSatelliteMap.tsx`
+  - `supabase/functions/_shared/staff-gps/buildVisits.ts`
+  - eventuellt `supabase/functions/get-staff-gps-week-summary/index.ts`
+  - relevanta tester under `src/hooks/staff/__tests__/...` och/eller `src/test/...`
+- Validering:
+  - köra riktade tester för GPS-vecko/batch
+  - kontrollera i preview att lista, inline-karta och detaljkarta för samma dag matchar visuellt och datamässigt
