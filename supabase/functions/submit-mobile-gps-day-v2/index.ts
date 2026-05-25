@@ -27,10 +27,35 @@ import {
 
 const TZ = "Europe/Stockholm";
 
-interface ManualDayInput {
-  startTime?: string; // "HH:mm"
-  endTime?: string;   // "HH:mm"
+type ManualTargetType = "booking" | "project" | "large_project" | "location" | "other";
+
+interface ManualWorkTargetInput {
+  targetType?: ManualTargetType;
+  targetId?: string | null;
+  label?: string | null;
+  subtitle?: string | null;
+  booking_id?: string | null;
+  project_id?: string | null;
+  large_project_id?: string | null;
+  location_id?: string | null;
+}
+
+interface ManualWorkSegmentInput {
+  startTime?: string;
+  endTime?: string;
   breakMinutes?: number;
+  target?: ManualWorkTargetInput | null;
+  comment?: string | null;
+}
+
+interface ManualDayInput {
+  // Legacy enkel-form (start/end/break för hela dagen)
+  startTime?: string;
+  endTime?: string;
+  breakMinutes?: number;
+  // Ny segmentform (en eller flera rader med target per rad)
+  segments?: ManualWorkSegmentInput[];
+  comment?: string | null;
 }
 
 interface SubmitBody {
