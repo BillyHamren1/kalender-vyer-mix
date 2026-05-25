@@ -183,8 +183,9 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
     const dateKey = format(date, 'yyyy-MM-dd');
     const stored = visibleTeamsByDay[dateKey];
     if (!stored) return defaultVisibleTeams;
+    // Användarens val styr. Endast required-listan (team-tasks) tvingas alltid in.
     const merged = new Set<string>(stored.filter((id) => id !== 'team-11'));
-    for (const id of defaultVisibleTeams) merged.add(id);
+    for (const id of PROJECT_REQUIRED_TEAMS) merged.add(id);
     return Array.from(merged);
   };
   const handleToggleTeamForDay = (teamId: string, date: Date) => {
