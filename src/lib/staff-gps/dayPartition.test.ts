@@ -61,3 +61,76 @@ describe('buildDayPartition – from/to-labels på travel-segment', () => {
     expect(travel?.fromLabel).toBe('FA Warehouse');
   });
 });
+
+describe('buildDayPartition – absorbera kort GPS-brus', () => {
+  it('kort unknown_place (<15m) i slutet av dagen slukas av föregående work', () => {
+    const pings = [
+      { recorded_at: iso(7, 10), lat: 59.3, lng: 18.0 },
+      { recorded_at: iso(11, 17), lat: 59.3, lng: 18.0 },
+      // 5 min utanför geofence
+      { recorded_at: iso(11, 33), lat: 59.301, lng: 18.001 },
+      { recorded_at: iso(11, 36), lat: 59.301, lng: 18.001 },
+    ];
+    const visits = [
+      { start: iso(7, 10), end: iso(11, 17), knownSite: { id: 'wh', name: 'FA Warehouse' } },
+    ];
+    const out = buildDayPartition({ pings, visits, privateGeofenceIds: [] });
+    expect(out.segments.find((s) => s.type === 'unknown_place')).toBeUndefined();
+    const work = out.segments.find((s) => s.type === 'work');
+    expect(work?.end).toBe(iso(11, 36));
+  });
+
+  it('kort travel mellan samma site (FA → FA) absorberas i föregående work', () => {
+    const pings = [
+      { recorded_at: iso(7, 10), lat: 59.3, lng: 18.0 },
+      { recorded_at: iso(11, 17), lat: 59.3, lng: 18.0 },
+      // 2 min "travel" — ingen riktig displacement, men säg att vi har det
+      { recorded_at: iso(11, 18), lat: 59.31, lng: 18.02 },
+      { recorded_at: iso(11, 19), lat: 59.31, lng: 18.02 },
+      { recorded_at: iso(11, 31), lat: 59.3, lng: 18.0 },
+    ];
+    const visits = [
+      { start: iso(7, 10), end: iso(11, 17), knownSite: { id: 'wh', name: 'FA Warehouse' } },
+      { start: iso(11, 19), end: iso(11, 31), knownSite: { id: 'wh', name: 'FA Warehouse' } },
+    ];
+    const out = buildDayPartition({ pings, visits, privateGeofenceIds: [] });
+    expect(out.segments.find((s) => s.type === 'travel')).toBeUndefined();
+    const work = out.segments.filter((s) => s.type === 'work');
+    expect(work.length).toBe(1);
+    expect(work[0].knownSiteId).toBe('wh');
+  });
+
+  it('travel ≥10 min till ny adress behålls', () => {
+    const pings = [
+      { recorded_at: iso(8, 0), lat: 59.3, lng: 18.0 },
+      { recorded_at: iso(9, 0), lat: 59.3, lng: 18.0 },
+      { recorded_at: iso(9, 20), lat: 59.35, lng: 18.1 },
+      { recorded_at: iso(9, 40), lat: 59.4, lng: 18.2 },
+      { recorded_at: iso(11, 0), lat: 59.4, lng: 18.2 },
+    ];
+    const visits = [
+      { start: iso(8, 0), end: iso(9, 0), knownSite: { id: 'a', name: 'A' } },
+      { start: iso(9, 40), end: iso(11, 0), knownSite: { id: 'b', name: 'B' } },
+    ];
+    const out = buildDayPartition({ pings, visits, privateGeofenceIds: [] });
+    expect(out.segments.find((s) => s.type === 'travel')).toBeTruthy();
+  });
+
+  it('kort travel <10m till ny adress med <5 min vistelse absorberas', () => {
+    const pings = [
+      { recorded_at: iso(8, 0), lat: 59.3, lng: 18.0 },
+      { recorded_at: iso(9, 0), lat: 59.3, lng: 18.0 },
+      { recorded_at: iso(9, 4), lat: 59.35, lng: 18.1 },
+      { recorded_at: iso(9, 8), lat: 59.4, lng: 18.2 },
+      { recorded_at: iso(9, 10), lat: 59.4, lng: 18.2 },
+    ];
+    const visits = [
+      { start: iso(8, 0), end: iso(9, 0), knownSite: { id: 'a', name: 'A' } },
+      { start: iso(9, 8), end: iso(9, 10), knownSite: { id: 'b', name: 'B' } },
+    ];
+    const out = buildDayPartition({ pings, visits, privateGeofenceIds: [] });
+    // travel <10m, destination B är <5m → ska absorberas (B kan vara kvar som unknown/work; key är att travel försvinner)
+    expect(out.segments.find((s) => s.type === 'travel')).toBeUndefined();
+  });
+});
+
