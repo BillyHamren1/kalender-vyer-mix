@@ -11,6 +11,8 @@ export interface PingRow {
   accuracy: number | null;
 }
 
+type PolygonGeo = { type: "Polygon"; coordinates: number[][][] };
+
 export interface GeofenceRow {
   id: string;
   name: string;
@@ -46,7 +48,7 @@ export function haversineMeters(
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(sa)));
 }
 
-function pointInPolygon(lng: number, lat: number, polygon: GeoJSON.Polygon): boolean {
+function pointInPolygon(lng: number, lat: number, polygon: PolygonGeo): boolean {
   const ring = polygon.coordinates[0];
   if (!ring || ring.length < 3) return false;
   let inside = false;
@@ -62,7 +64,7 @@ function pointInPolygon(lng: number, lat: number, polygon: GeoJSON.Polygon): boo
 }
 
 export function containsPing(site: GeofenceRow, ping: PingRow): boolean {
-  const polygon = site.polygon as GeoJSON.Polygon | undefined;
+  const polygon = site.polygon as PolygonGeo | undefined;
   if (polygon?.type === "Polygon") return pointInPolygon(ping.lng, ping.lat, polygon);
   return (
     haversineMeters(
@@ -145,8 +147,18 @@ export function buildExactGeofenceVisits(
 export async function loadOrgGeofences(
   admin: any,
   orgId: string,
-): Promise<{ geofences: GeofenceRow[]; privateIds: Set<string> }> {
-  const [locsRes, projRes, largeRes] = await Promise.all([
+  opts: { dates?: string[] } = {},
+): Promise<{
+  /** Union av alla geofences över dates (för debug/karta). */
+  geofences: GeofenceRow[];
+  privateIds: Set<string>;
+  /** Per-dag-uppsättning. Tom map om `dates` saknas. Använd i visit-matchning per dag. */
+  geofencesByDate: Map<string, GeofenceRow[]>;
+}> {
+  const dates = (opts.dates ?? []).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
+  const hasDateFilter = dates.length > 0;
+
+  const [locsRes, projRes, largeBookingsRes] = await Promise.all([
     admin
       .from("organization_locations")
       .select(
@@ -156,17 +168,82 @@ export async function loadOrgGeofences(
       .not("latitude", "is", null)
       .not("longitude", "is", null)
       .limit(2000),
-    admin
-      .from("projects")
+    // Projekt: datumbundna (eventdate/rigdaydate/rigdowndate) ELLER interna projekt.
+    (hasDateFilter
+      ? admin
+          .from("projects")
+          .select(
+            "id, name, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon, deleted_at, eventdate, rigdaydate, rigdowndate, is_internal",
+          )
+          .eq("organization_id", orgId)
+          .is("deleted_at", null)
+          .not("delivery_latitude", "is", null)
+          .not("delivery_longitude", "is", null)
+          .or(
+            [
+              `is_internal.eq.true`,
+              `eventdate.in.(${dates.join(",")})`,
+              `rigdaydate.in.(${dates.join(",")})`,
+              `rigdowndate.in.(${dates.join(",")})`,
+            ].join(","),
+          )
+          .limit(5000)
+      : admin
+          .from("projects")
+          .select(
+            "id, name, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon, deleted_at, eventdate, rigdaydate, rigdowndate, is_internal",
+          )
+          .eq("organization_id", orgId)
+          .is("deleted_at", null)
+          .not("delivery_latitude", "is", null)
+          .not("delivery_longitude", "is", null)
+          .limit(5000)),
+    // Stora projekt: matcha via bookings inom datum-spannet. Saknas datum → ingen filter.
+    hasDateFilter
+      ? admin
+          .from("bookings")
+          .select("large_project_id, eventdate, rigdaydate, rigdowndate")
+          .eq("organization_id", orgId)
+          .not("large_project_id", "is", null)
+          .or(
+            [
+              `eventdate.in.(${dates.join(",")})`,
+              `rigdaydate.in.(${dates.join(",")})`,
+              `rigdowndate.in.(${dates.join(",")})`,
+            ].join(","),
+          )
+          .limit(20000)
+      : Promise.resolve({ data: [] as any[] }),
+  ]);
+
+  // Bygg en map över large_project_id → set av datum bokningen "tillhör".
+  const largeDatesById = new Map<string, Set<string>>();
+  for (const b of ((largeBookingsRes as any).data ?? []) as any[]) {
+    const id = b.large_project_id ? String(b.large_project_id) : null;
+    if (!id) continue;
+    let set = largeDatesById.get(id);
+    if (!set) { set = new Set(); largeDatesById.set(id, set); }
+    for (const d of [b.eventdate, b.rigdaydate, b.rigdowndate]) {
+      if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)) set.add(d);
+    }
+  }
+
+  // Ladda matchande large_projects.
+  const largeIds = [...largeDatesById.keys()];
+  let largeRows: any[] = [];
+  if (hasDateFilter && largeIds.length > 0) {
+    const { data } = await admin
+      .from("large_projects")
       .select(
-        "id, name, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon, deleted_at",
+        "id, name, address_latitude, address_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon",
       )
       .eq("organization_id", orgId)
-      .is("deleted_at", null)
-      .not("delivery_latitude", "is", null)
-      .not("delivery_longitude", "is", null)
-      .limit(5000),
-    admin
+      .in("id", largeIds)
+      .not("address_latitude", "is", null)
+      .not("address_longitude", "is", null);
+    largeRows = (data ?? []) as any[];
+  } else if (!hasDateFilter) {
+    const { data } = await admin
       .from("large_projects")
       .select(
         "id, name, address_latitude, address_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon",
@@ -174,14 +251,15 @@ export async function loadOrgGeofences(
       .eq("organization_id", orgId)
       .not("address_latitude", "is", null)
       .not("address_longitude", "is", null)
-      .limit(2000),
-  ]);
+      .limit(2000);
+    largeRows = (data ?? []) as any[];
+  }
 
-  const geofences: GeofenceRow[] = [];
   const privateIds = new Set<string>();
+  const locFences: GeofenceRow[] = [];
   for (const r of (locsRes.data ?? []) as any[]) {
     const id = `loc:${r.id}`;
-    geofences.push({
+    locFences.push({
       id,
       name: String(r.name ?? "Plats"),
       lat: Number(r.latitude),
@@ -191,25 +269,66 @@ export async function loadOrgGeofences(
     });
     if (r.is_private_residence === true) privateIds.add(id);
   }
-  for (const r of (projRes.data ?? []) as any[]) {
-    geofences.push({
+
+  // Per-projekt: bestäm vilka datum det "äger" (intern → alla; annars sina egna).
+  interface ProjFence { row: GeofenceRow; dates: Set<string> | "ALL" }
+  const projFences: ProjFence[] = [];
+  for (const r of ((projRes as any).data ?? []) as any[]) {
+    const fence: GeofenceRow = {
       id: `project:${r.id}`,
       name: String(r.name ?? "Projekt"),
       lat: Number(r.delivery_latitude),
       lng: Number(r.delivery_longitude),
       radiusMeters: Number(r.address_radius_meters ?? 75),
       polygon: r.address_geofence_mode === "polygon" ? r.address_geofence_polygon : undefined,
+    };
+    if (r.is_internal === true) {
+      projFences.push({ row: fence, dates: "ALL" });
+    } else {
+      const own = new Set<string>();
+      for (const d of [r.eventdate, r.rigdaydate, r.rigdowndate]) {
+        if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)) own.add(d);
+      }
+      projFences.push({ row: fence, dates: own });
+    }
+  }
+
+  const largeFences: { row: GeofenceRow; dates: Set<string> | "ALL" }[] = [];
+  for (const r of largeRows) {
+    const own = hasDateFilter ? (largeDatesById.get(String(r.id)) ?? new Set()) : ("ALL" as const);
+    largeFences.push({
+      row: {
+        id: `large:${r.id}`,
+        name: String(r.name ?? "Stort projekt"),
+        lat: Number(r.address_latitude),
+        lng: Number(r.address_longitude),
+        radiusMeters: Number(r.address_radius_meters ?? 100),
+        polygon: r.address_geofence_mode === "polygon" ? r.address_geofence_polygon : undefined,
+      },
+      dates: own,
     });
   }
-  for (const r of (largeRes.data ?? []) as any[]) {
-    geofences.push({
-      id: `large:${r.id}`,
-      name: String(r.name ?? "Stort projekt"),
-      lat: Number(r.address_latitude),
-      lng: Number(r.address_longitude),
-      radiusMeters: Number(r.address_radius_meters ?? 100),
-      polygon: r.address_geofence_mode === "polygon" ? r.address_geofence_polygon : undefined,
-    });
+
+  const unionGeofences: GeofenceRow[] = [
+    ...locFences,
+    ...projFences.map((p) => p.row),
+    ...largeFences.map((p) => p.row),
+  ];
+
+  const geofencesByDate = new Map<string, GeofenceRow[]>();
+  if (hasDateFilter) {
+    for (const d of dates) {
+      const arr: GeofenceRow[] = [...locFences];
+      for (const p of projFences) {
+        if (p.dates === "ALL" || p.dates.has(d)) arr.push(p.row);
+      }
+      for (const p of largeFences) {
+        if (p.dates === "ALL" || p.dates.has(d)) arr.push(p.row);
+      }
+      geofencesByDate.set(d, arr);
+    }
   }
-  return { geofences, privateIds };
+
+  return { geofences: unionGeofences, privateIds, geofencesByDate };
 }
+

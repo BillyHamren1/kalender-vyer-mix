@@ -102,8 +102,20 @@ Deno.serve(async (req) => {
   const startIso = `${fromDate}T00:00:00.000Z`;
   const endIso = `${toDate}T23:59:59.999Z`;
 
-  // Geofences: EN gång per request, oavsett antal staff/dagar.
-  const { geofences, privateIds } = await loadOrgGeofences(admin, orgId);
+  // Bygg lista av datum i intervallet (yyyy-mm-dd) för date-bound geofences.
+  const allDates: string[] = [];
+  {
+    const start = new Date(`${fromDate}T00:00:00Z`);
+    const end = new Date(`${toDate}T00:00:00Z`);
+    for (let t = start.getTime(); t <= end.getTime(); t += 86400000) {
+      allDates.push(new Date(t).toISOString().slice(0, 10));
+    }
+  }
+
+  // Geofences: EN gång per request, datumbundna projekt/large_projects per dag.
+  const { geofences: unionGeofences, privateIds, geofencesByDate } = await loadOrgGeofences(
+    admin, orgId, { dates: allDates },
+  );
 
   // Pings: paginera EN bulk-query för alla staff i tidsspannet.
   const PAGE = 1000;
@@ -149,7 +161,8 @@ Deno.serve(async (req) => {
   const summaries: Record<string, Record<string, DaySummary>> = {};
   for (const [key, pings] of buckets.entries()) {
     const [staffId, dateKey] = key.split("|");
-    const visits = buildExactGeofenceVisits(pings, geofences);
+    const dayFences = geofencesByDate.get(dateKey) ?? unionGeofences;
+    const visits = buildExactGeofenceVisits(pings, dayFences);
     const visible = visits.filter((v) => !(v.knownSite && privateIds.has(v.knownSite.id)));
     const sorted = visible.sort((a, b) => a.start.localeCompare(b.start));
     const firstIso = sorted[0]?.start ?? null;
