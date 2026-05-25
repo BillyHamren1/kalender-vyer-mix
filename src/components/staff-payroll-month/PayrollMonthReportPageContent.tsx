@@ -1,9 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { addMonths, format } from "date-fns";
 import { sv } from "date-fns/locale";
-import * as XLSX from "xlsx";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -15,6 +12,10 @@ import {
   formatHoursDecimal,
   type PayrollStatusFilter,
 } from "@/hooks/staff/usePayrollMonthReport";
+import {
+  exportPayrollMonthPdf,
+  exportPayrollMonthExcel,
+} from "@/services/payrollMonthExportService";
 
 import PayrollMonthToolbar from "./PayrollMonthToolbar";
 import PayrollMonthSummaryCards from "./PayrollMonthSummaryCards";
@@ -52,96 +53,21 @@ const PayrollMonthReportPageContent: React.FC = () => {
 
   // ── Export: Excel ────────────────────────────────────────────
   const handleExportExcel = () => {
-    if (!data) return;
-    const wb = XLSX.utils.book_new();
-
-    const summaryRows = data.groups.map((g) => ({
-      Personal: g.staff_name,
-      "Godkända dagar": g.days_count,
-      "Första dag": g.first_date ?? "",
-      "Sista dag": g.last_date ?? "",
-      "Arbetstid (h:m)": formatMinutes(g.total_minutes),
-      "Arbetstid (decimal)": formatHoursDecimal(g.total_minutes),
-      "Rast (h:m)": formatMinutes(g.total_break_minutes),
-      "Godkänd för utbetalning": g.payroll_approved_days_count,
-      "Endast godkänd": g.approved_days_count,
-    }));
-    const ws1 = XLSX.utils.json_to_sheet(summaryRows);
-    XLSX.utils.book_append_sheet(wb, ws1, "Sammanställning");
-
-    const dayRows: Record<string, unknown>[] = [];
-    for (const g of data.groups) {
-      for (const r of g.rows) {
-        dayRows.push({
-          Personal: g.staff_name,
-          Datum: r.date,
-          Dag: r.weekday,
-          Start: r.requested_start_at
-            ? r.requested_start_at.slice(11, 16)
-            : (r.start_time?.slice(0, 5) ?? ""),
-          Slut: r.requested_end_at
-            ? r.requested_end_at.slice(11, 16)
-            : (r.end_time?.slice(0, 5) ?? ""),
-          "Rast (min)": r.break_minutes,
-          "Arbetstid (h:m)": formatMinutes(r.total_minutes),
-          "Arbetstid (decimal)": formatHoursDecimal(r.total_minutes),
-          Status:
-            r.status === "payroll_approved" ? "Utbetalning godkänd" : "Godkänd",
-          "Kommentar personal": r.comment ?? "",
-          "Kommentar admin": r.review_comment ?? "",
-        });
-      }
+    if (!data || data.groups.length === 0) {
+      toast.error("Det finns ingen godkänd tid att exportera.");
+      return;
     }
-    const ws2 = XLSX.utils.json_to_sheet(dayRows);
-    XLSX.utils.book_append_sheet(wb, ws2, "Per dag");
-
-    XLSX.writeFile(wb, `lonerapport-${monthStr}.xlsx`);
+    exportPayrollMonthExcel(data);
     toast.success("Excel exporterad");
   };
 
   // ── Export: PDF ──────────────────────────────────────────────
   const handleExportPdf = () => {
-    if (!data) return;
-    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
-    doc.setFontSize(16);
-    doc.text(`Månadsrapport lön — ${monthLabel}`, 40, 40);
-    doc.setFontSize(10);
-    doc.text(
-      `Period: ${data.monthStart} – ${data.monthEnd}    Personal: ${data.totals.staffCount}    ` +
-        `Godkända dagar: ${data.totals.approvedDaysCount}    ` +
-        `Klar för lön: ${data.totals.payrollApprovedDaysCount}    ` +
-        `Totalt: ${formatMinutes(data.totals.totalMinutes)}`,
-      40,
-      58,
-    );
-
-    autoTable(doc, {
-      startY: 80,
-      head: [[
-        "Personal",
-        "Dagar",
-        "Första",
-        "Sista",
-        "Arbetstid",
-        "Decimal",
-        "Rast",
-        "Klar/Godkänd",
-      ]],
-      body: data.groups.map((g) => [
-        g.staff_name,
-        g.days_count,
-        g.first_date ?? "—",
-        g.last_date ?? "—",
-        formatMinutes(g.total_minutes),
-        formatHoursDecimal(g.total_minutes),
-        formatMinutes(g.total_break_minutes),
-        `${g.payroll_approved_days_count} / ${g.approved_days_count}`,
-      ]),
-      styles: { fontSize: 9 },
-      headStyles: { fillColor: [124, 90, 200] },
-    });
-
-    doc.save(`lonerapport-${monthStr}.pdf`);
+    if (!data || data.groups.length === 0) {
+      toast.error("Det finns ingen godkänd tid att exportera.");
+      return;
+    }
+    exportPayrollMonthPdf(data);
     toast.success("PDF exporterad");
   };
 
