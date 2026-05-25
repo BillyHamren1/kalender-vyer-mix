@@ -328,46 +328,48 @@ Deno.serve(async (req: Request) => {
     `${date}:${staffId}:${view.rawPingCount}:${view.firstPingAt ?? "-"}:${view.lastPingAt ?? "-"}`;
 
   // ── Bestäm requested_start_at / requested_end_at / break ────
+  // Manuell dag: dagens start/slut/rast styr requested_*; varje block sparas
+  // exakt på sin valda target i display_timeline_snapshot_json.
   let requestedStartAt: string | null = null;
   let requestedEndAt: string | null = null;
   let breakMinutes = 0;
   let displaySnapshot: any[] = [];
   let totalMinutes = 0;
 
-  if (manualDay && manualDay.length > 0) {
-    // Bygg per-segment displaySnapshot, varje rad sparas exakt på vald target.
-    const dayStartOfDate = stockholmLocalToUtcIso(date, "00:00");
-    const dayStartMs = Date.parse(dayStartOfDate);
+  if (manualDay) {
+    // Dagens start/slut (Stockholm-lokal) → UTC ISO. Hanterar nattpass.
+    let dayStartIso = stockholmLocalToUtcIso(date, manualDay.dayStartTime);
+    let dayEndIso = stockholmLocalToUtcIso(date, manualDay.dayEndTime);
+    if (Date.parse(dayEndIso) <= Date.parse(dayStartIso)) {
+      const nextDay = new Date(`${date}T00:00:00Z`);
+      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+      const nextDateStr = nextDay.toISOString().slice(0, 10);
+      dayEndIso = stockholmLocalToUtcIso(nextDateStr, manualDay.dayEndTime);
+    }
+    requestedStartAt = dayStartIso;
+    requestedEndAt = dayEndIso;
+    breakMinutes = manualDay.breakMinutes;
+
     const rows: any[] = [];
-    let i = 0;
-    for (const seg of manualDay) {
+    for (const seg of manualDay.segments) {
       let startIso = stockholmLocalToUtcIso(date, seg.startTime);
       let endIso = stockholmLocalToUtcIso(date, seg.endTime);
       if (Date.parse(endIso) <= Date.parse(startIso)) {
-        // nattpass: slutet är nästa kalenderdag
         const nextDay = new Date(`${date}T00:00:00Z`);
         nextDay.setUTCDate(nextDay.getUTCDate() + 1);
         const nextDateStr = nextDay.toISOString().slice(0, 10);
         endIso = stockholmLocalToUtcIso(nextDateStr, seg.endTime);
       }
-      const gross = Math.max(0, Math.round((Date.parse(endIso) - Date.parse(startIso)) / 60000));
-      const net = Math.max(0, gross - seg.breakMinutes);
-      totalMinutes += net;
-      breakMinutes += seg.breakMinutes;
+      const mins = Math.max(0, Math.round((Date.parse(endIso) - Date.parse(startIso)) / 60000));
+      if (mins <= 0) continue; // dubbel-säkerhet — 0m sparas aldrig
+      totalMinutes += mins;
 
-      // requested_start/end = min/max över alla rader
-      if (!requestedStartAt || Date.parse(startIso) < Date.parse(requestedStartAt)) {
-        requestedStartAt = startIso;
-      }
-      if (!requestedEndAt || Date.parse(endIso) > Date.parse(requestedEndAt)) {
-        requestedEndAt = endIso;
-      }
-
-      const t = seg.target ?? { targetType: "other", targetId: null, label: "Övrigt arbete" };
+      const t = seg.target;
       const tt = (t.targetType ?? "other") as ManualTargetType;
       rows.push({
-        id: `manual-${i}-${Date.parse(startIso)}`,
-        segmentKey: `manual-${i}-${Date.parse(startIso)}`,
+        id: seg.id,
+        segmentKey: seg.id,
+        sourceSegmentId: seg.sourceSegmentId,
         source: "mobile_time_v2_manual",
         kind: "manual_work",
         type: "manual_work",
@@ -376,9 +378,8 @@ Deno.serve(async (req: Request) => {
         endedAt: endIso,
         start: startIso,
         end: endIso,
-        durationMinutes: net,
-        minutes: net,
-        breakMinutes: seg.breakMinutes,
+        durationMinutes: mins,
+        minutes: mins,
         booking_id: t.booking_id ?? (tt === "booking" ? t.targetId : null),
         project_id: t.project_id ?? (tt === "project" ? t.targetId : null),
         large_project_id: t.large_project_id ?? (tt === "large_project" ? t.targetId : null),
@@ -389,9 +390,6 @@ Deno.serve(async (req: Request) => {
         warning: tt === "other" ? "unassigned_manual_time" : null,
         comment: seg.comment ?? null,
       });
-      i++;
-      // silence unused warning
-      void dayStartMs;
     }
     displaySnapshot = rows;
   } else if (view.segments && view.segments.length > 0) {
@@ -399,16 +397,25 @@ Deno.serve(async (req: Request) => {
     const last = view.segments[view.segments.length - 1];
     requestedStartAt = first?.currentStartTime ?? null;
     requestedEndAt = last?.currentEndTime ?? null;
-    breakMinutes = 0; // GPS Day View hanterar inte rast separat ännu
+    breakMinutes = 0;
     totalMinutes = view.totals?.totalDurationMinutes ?? 0;
     displaySnapshot = mapSegmentsForDisplaySnapshot(view.segments);
   }
 
   // ── Status ──────────────────────────────────────────────────
-  const hasManualDay = !!(manualDay && manualDay.length > 0);
+  const hasManualDay = !!manualDay;
   const userChanged = manualOverrides.length > 0 || hasManualDay;
   const nextStatus = userChanged ? "edited" : "submitted";
   const sourceTag = hasManualDay ? "mobile_time_v2_manual" : "mobile_gps_day_view_v2";
+
+  const manualDayJson = manualDay ? {
+    dayStartTime: manualDay.dayStartTime,
+    dayEndTime: manualDay.dayEndTime,
+    breakMinutes: manualDay.breakMinutes,
+    segments: manualDay.segments,
+    deletedSegmentIds: manualDay.deletedSegmentIds,
+    comment: manualDayComment,
+  } : null;
 
   // ── Payloads ────────────────────────────────────────────────
   const submittedPayload = {
@@ -425,14 +432,15 @@ Deno.serve(async (req: Request) => {
     requestedEndAt,
     breakMinutes,
     displayTimelineSnapshot: displaySnapshot,
-    manualDay: hasManualDay ? { segments: manualDay, comment: manualDayComment } : null,
+    manualDay: manualDayJson,
     submittedAt: new Date().toISOString(),
     submittedBy: authResult.auth.userId ?? null,
   };
 
   const userEditsJson = {
     manualOverrides,
-    manualDay: hasManualDay ? { segments: manualDay, comment: manualDayComment } : null,
+    manualDay: manualDayJson,
+    deletedSegmentIds: manualDay?.deletedSegmentIds ?? [],
     userChanged,
   };
 
@@ -440,13 +448,14 @@ Deno.serve(async (req: Request) => {
     source: sourceTag,
     sourceSnapshotId,
     rawPingCount: view.rawPingCount,
-    segmentCount: hasManualDay ? (manualDay?.length ?? 0) : (view.segments?.length ?? 0),
+    segmentCount: hasManualDay ? (manualDay?.segments.length ?? 0) : (view.segments?.length ?? 0),
     totalDurationMinutes: totalMinutes,
     totalDurationLabel: hasManualDay ? fmtDuration(totalMinutes) : (view.totals?.totalDurationLabel ?? null),
     workMinutes: view.totals?.workMinutes ?? null,
     travelMinutes: view.totals?.travelMinutes ?? null,
     gapMinutes: view.totals?.gapMinutes ?? null,
     overrideCount: manualOverrides.length,
+    deletedSegmentCount: manualDay?.deletedSegmentIds.length ?? 0,
     hasManualDay,
   };
 
