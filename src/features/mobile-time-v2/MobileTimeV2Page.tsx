@@ -34,6 +34,7 @@ import type {
 import MobileGpsSegmentCard from './MobileGpsSegmentCard';
 import EditSegmentTimeSheet from './EditSegmentTimeSheet';
 import SubmitGpsDayCard from './SubmitGpsDayCard';
+import MobileGpsDayMap from './MobileGpsDayMap';
 
 type OverrideMap = Record<string, MobileGpsManualOverride>;
 
