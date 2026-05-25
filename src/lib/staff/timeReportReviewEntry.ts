@@ -59,6 +59,8 @@ export interface ReviewTravelInput {
   to_latitude: number | null;
   to_longitude: number | null;
   destination_booking_id: string | null;
+  /** Beskrivning från travel_time_logs (används för "Gap: X → Y"-fallback). */
+  description?: string | null;
 }
 
 export interface TimeReportReviewEntry {
