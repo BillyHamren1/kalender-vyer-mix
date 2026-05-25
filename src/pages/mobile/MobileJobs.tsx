@@ -166,42 +166,9 @@ const MobileJobs = () => {
           {/* Lager day card — internal warehouse hub for the selected day */}
           <LagerDayCard date={selectedDate} />
 
-          {/* Fixed location jobs (e.g. Lager) — read-only, opens detail. */}
-          {locationJobs.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-2.5">
-                <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
-                <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-                  Fixed locations
-                </h2>
-              </div>
-              <div className="space-y-2">
-                {locationJobs.map(loc => (
-                  <button
-                    key={loc.id}
-                    onClick={() => navigate(`/m/location/${loc.id}`)}
-                    className="w-full text-left rounded-2xl border border-primary/20 bg-card p-3.5 shadow-md active:opacity-80 transition-all"
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <Building2 className="w-3.5 h-3.5 text-primary/70" />
-                      <span className="px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border bg-accent/50 text-accent-foreground border-accent/30">
-                        LOCATION
-                      </span>
-                    </div>
-                    <h3 className="font-bold text-foreground text-[15px] leading-snug mb-0.5">
-                      {loc.name}
-                    </h3>
-                    {loc.address && (
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <MapPin className="w-3 h-3 shrink-0 text-muted-foreground/40" />
-                        <span className="truncate">{loc.address}</span>
-                      </div>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Fixed locations renderas INTE som egen huvudsektion längre.
+              Kända platser dyker upp kontextuellt i vald dags segmentlista
+              (Time-vyn / get-mobile-gps-day-view) och i tidrapporten. */}
           </>
         )}
       </div>
