@@ -6084,11 +6084,57 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_day_submission_messages: {
+        Row: {
+          author_id: string | null
+          author_role: string
+          body: string
+          created_at: string
+          date: string
+          id: string
+          organization_id: string
+          staff_id: string
+          submission_id: string
+        }
+        Insert: {
+          author_id?: string | null
+          author_role: string
+          body: string
+          created_at?: string
+          date: string
+          id?: string
+          organization_id: string
+          staff_id: string
+          submission_id: string
+        }
+        Update: {
+          author_id?: string | null
+          author_role?: string
+          body?: string
+          created_at?: string
+          date?: string
+          id?: string
+          organization_id?: string
+          staff_id?: string
+          submission_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_day_submission_messages_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "staff_day_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_day_submissions: {
         Row: {
           ai_validation_json: Json | null
           break_minutes: number
           comment: string | null
+          correction_requested_at: string | null
+          correction_requested_by: string | null
           created_at: string
           date: string
           display_timeline_snapshot_json: Json | null
@@ -6101,11 +6147,15 @@ export type Database = {
           review_comment: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          source: string | null
+          source_snapshot_id: string | null
           source_summary_json: Json | null
           staff_id: string
           start_time: string | null
           status: string
           submitted_at: string
+          submitted_by: string | null
+          submitted_payload_json: Json | null
           updated_at: string
           user_edits_json: Json | null
         }
@@ -6113,6 +6163,8 @@ export type Database = {
           ai_validation_json?: Json | null
           break_minutes?: number
           comment?: string | null
+          correction_requested_at?: string | null
+          correction_requested_by?: string | null
           created_at?: string
           date: string
           display_timeline_snapshot_json?: Json | null
@@ -6125,11 +6177,15 @@ export type Database = {
           review_comment?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          source?: string | null
+          source_snapshot_id?: string | null
           source_summary_json?: Json | null
           staff_id: string
           start_time?: string | null
           status?: string
           submitted_at?: string
+          submitted_by?: string | null
+          submitted_payload_json?: Json | null
           updated_at?: string
           user_edits_json?: Json | null
         }
@@ -6137,6 +6193,8 @@ export type Database = {
           ai_validation_json?: Json | null
           break_minutes?: number
           comment?: string | null
+          correction_requested_at?: string | null
+          correction_requested_by?: string | null
           created_at?: string
           date?: string
           display_timeline_snapshot_json?: Json | null
@@ -6149,11 +6207,15 @@ export type Database = {
           review_comment?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          source?: string | null
+          source_snapshot_id?: string | null
           source_summary_json?: Json | null
           staff_id?: string
           start_time?: string | null
           status?: string
           submitted_at?: string
+          submitted_by?: string | null
+          submitted_payload_json?: Json | null
           updated_at?: string
           user_edits_json?: Json | null
         }
