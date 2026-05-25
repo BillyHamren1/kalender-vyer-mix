@@ -1190,23 +1190,27 @@ async function reconcileCalendarEvents(
         console.log(`[Calendar Reconcile] SKIP event ${existing.id} (${desired.event_type} on ${desired.date}): already correct`);
       }
     } else {
-      const placement = await assignTeamAndTime(
-        supabase,
-        desired.event_type,
-        desired.date,
-        bookingData.id,
-        bookingData.organization_id || organizationId,
-        desired.start_time,
-        desired.end_time,
-        desired.isExplicitStart,
-        largeProjectIdForGuard,
-      );
+      // Rental-only: gå direkt till Lager-kolumnen (resource_id='transport'),
+      // hoppa över team-1..5 round-robin helt.
+      const placement = desired.rentalOnly
+        ? { team: 'transport', start_time: desired.start_time, end_time: desired.end_time }
+        : await assignTeamAndTime(
+            supabase,
+            desired.event_type,
+            desired.date,
+            bookingData.id,
+            bookingData.organization_id || organizationId,
+            desired.start_time,
+            desired.end_time,
+            desired.isExplicitStart,
+            largeProjectIdForGuard,
+          );
 
       if (results.team_distribution[placement.team] !== undefined) {
         results.team_distribution[placement.team]++;
       }
 
-      console.log(`[Calendar Reconcile] CREATE ${desired.event_type} on ${desired.date} → ${placement.team} @ ${placement.start_time}`);
+      console.log(`[Calendar Reconcile] CREATE ${desired.event_type} on ${desired.date} → ${placement.team} @ ${placement.start_time}${desired.rentalOnly ? ' (RENTAL_ONLY → Lager)' : ''}`);
 
       const { error: insertErr } = await supabase
         .from('calendar_events')
