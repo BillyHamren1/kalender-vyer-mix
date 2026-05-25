@@ -66,19 +66,20 @@ describe('buildDayPartition – absorbera kort GPS-brus', () => {
   it('kort unknown_place (<15m) i slutet av dagen slukas av föregående work', () => {
     const pings = [
       { recorded_at: iso(7, 10), lat: 59.3, lng: 18.0 },
-      { recorded_at: iso(11, 17), lat: 59.3, lng: 18.0 },
+      { recorded_at: iso(11, 31), lat: 59.3, lng: 18.0 },
       // 5 min utanför geofence
       { recorded_at: iso(11, 33), lat: 59.301, lng: 18.001 },
       { recorded_at: iso(11, 36), lat: 59.301, lng: 18.001 },
     ];
     const visits = [
-      { start: iso(7, 10), end: iso(11, 17), knownSite: { id: 'wh', name: 'FA Warehouse' } },
+      { start: iso(7, 10), end: iso(11, 31), knownSite: { id: 'wh', name: 'FA Warehouse' } },
     ];
     const out = buildDayPartition({ pings, visits, privateGeofenceIds: [] });
     expect(out.segments.find((s) => s.type === 'unknown_place')).toBeUndefined();
     const work = out.segments.find((s) => s.type === 'work');
     expect(work?.end).toBe(iso(11, 36));
   });
+
 
   it('kort travel mellan samma site (FA → FA) absorberas i föregående work', () => {
     const pings = [
