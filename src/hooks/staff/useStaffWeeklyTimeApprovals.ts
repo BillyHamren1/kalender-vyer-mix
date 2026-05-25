@@ -38,6 +38,25 @@ export interface StaffWeeklySubmissionRow {
   ai_validation_json: unknown | null;
 }
 
+/**
+ * Time Engine / GPS-satellitens cache-rad per staff/date.
+ * Källa för "Väntar personalattest" — finns innan personalen själv skickat in.
+ */
+export interface StaffWeeklyCacheRow {
+  id: string;
+  organization_id: string;
+  staff_id: string;
+  date: string;
+  engine_version: string | null;
+  summary_json: unknown | null;
+  report_candidate_blocks_json: unknown | null;
+  display_blocks_json: unknown | null;
+  diagnostics_json: unknown | null;
+  built_at: string | null;
+  stale: boolean | null;
+  error: string | null;
+}
+
 export interface StaffWeeklyStaffMember {
   id: string;
   name: string;
@@ -54,8 +73,27 @@ export interface UseStaffWeeklyTimeApprovalsParams {
 
 export interface StaffWeeklyTimeApprovalsResult {
   submissions: StaffWeeklySubmissionRow[];
+  cacheRows: StaffWeeklyCacheRow[];
   staff: StaffWeeklyStaffMember[];
 }
+
+/**
+ * Bara riktiga submission-statusar får filtreras via Supabase-queryn.
+ * UI-statusar (pending_staff_attest, no_report, engine_error etc.) filtreras i modellen.
+ */
+const REAL_SUBMISSION_STATUSES: ReadonlySet<string> = new Set([
+  "submitted",
+  "edited",
+  "ai_flagged",
+  "needs_user_attention",
+  "needs_control",
+  "correction_requested",
+  "approved",
+  "payroll_approved",
+  "missing_report",
+  "rejected",
+  "withdrawn",
+]);
 
 export function useStaffWeeklyTimeApprovals(params: UseStaffWeeklyTimeApprovalsParams) {
   const { organizationId } = useCurrentOrg();
@@ -73,9 +111,10 @@ export function useStaffWeeklyTimeApprovals(params: UseStaffWeeklyTimeApprovalsP
     enabled: !!organizationId,
     staleTime: 15_000,
     queryFn: async (): Promise<StaffWeeklyTimeApprovalsResult> => {
-      if (!organizationId) return { submissions: [], staff: [] };
+      if (!organizationId) return { submissions: [], cacheRows: [], staff: [] };
 
-      let q = supabase
+      // --- Submissions ---
+      let subQ = supabase
         .from("staff_day_submissions")
         .select(
           [
@@ -108,14 +147,48 @@ export function useStaffWeeklyTimeApprovals(params: UseStaffWeeklyTimeApprovalsP
         .order("submitted_at", { ascending: false })
         .limit(2000);
 
-      if (staffId) q = q.eq("staff_id", staffId);
-      if (status) q = q.eq("status", status);
+      if (staffId) subQ = subQ.eq("staff_id", staffId);
+      // Endast riktiga submission-statusar skickas till Postgres; UI-statusar filtreras i modellen.
+      if (status && REAL_SUBMISSION_STATUSES.has(status)) {
+        subQ = subQ.eq("status", status);
+      }
 
-      const [{ data: submissionsData, error: subErr }, allStaff] = await Promise.all([
-        q,
-        fetchStaffMembers({ includeInactive: true }).catch(() => []),
-      ]);
+      // --- Engine cache (förslag innan personalen attesterat) ---
+      let cacheQ = supabase
+        .from("staff_day_report_cache")
+        .select(
+          [
+            "id",
+            "organization_id",
+            "staff_id",
+            "date",
+            "engine_version",
+            "summary_json",
+            "report_candidate_blocks_json",
+            "display_blocks_json",
+            "diagnostics_json",
+            "built_at",
+            "stale",
+            "error",
+          ].join(", "),
+        )
+        .eq("organization_id", organizationId)
+        .gte("date", weekStart)
+        .lte("date", weekEnd)
+        .order("date", { ascending: true })
+        .order("built_at", { ascending: false })
+        .limit(5000);
+
+      if (staffId) cacheQ = cacheQ.eq("staff_id", staffId);
+
+      const [{ data: submissionsData, error: subErr }, { data: cacheData, error: cacheErr }, allStaff] =
+        await Promise.all([
+          subQ,
+          cacheQ,
+          fetchStaffMembers({ includeInactive: true }).catch(() => []),
+        ]);
       if (subErr) throw subErr;
+      if (cacheErr) throw cacheErr;
 
       const staff: StaffWeeklyStaffMember[] = (allStaff ?? []).map((s: any) => ({
         id: String(s.id),
@@ -126,6 +199,7 @@ export function useStaffWeeklyTimeApprovals(params: UseStaffWeeklyTimeApprovalsP
 
       return {
         submissions: (submissionsData ?? []) as unknown as StaffWeeklySubmissionRow[],
+        cacheRows: (cacheData ?? []) as unknown as StaffWeeklyCacheRow[],
         staff,
       };
     },
