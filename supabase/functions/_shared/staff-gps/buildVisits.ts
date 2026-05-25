@@ -390,9 +390,11 @@ export async function loadOrgGeofences(
       if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)) own.add(d);
     }
     if (own.size === 0) continue;
-    const label = b.booking_number
-      ? `${b.booking_number} · ${b.client ?? "Bokning"}`
-      : (b.client ?? "Bokning");
+    const rawAddr = typeof b.deliveryaddress === "string" ? b.deliveryaddress.trim() : "";
+    const clientName = b.client ? String(b.client) : "Bokning";
+    const label = rawAddr.length > 0
+      ? (clientName && clientName !== rawAddr ? `${rawAddr} · ${clientName}` : rawAddr)
+      : (b.booking_number ? `${b.booking_number} · ${clientName}` : clientName);
     bookingFences.push({
       row: {
         id: `booking:${bid}`,
