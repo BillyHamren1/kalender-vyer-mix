@@ -51,10 +51,11 @@ interface Props {
 }
 
 const TASK_RESOURCE: Resource = { id: 'team-tasks', title: 'Aktiviteter', eventColor: '#A78BFA' };
-// Projektkalendern visar projektets relevanta team. Default = ALLA aktuella
-// team + Lager + Aktiviteter-kolumnen. Tidigare hårdkodades till bara
-// team-1..4 + transport + team-tasks vilket dolde Team 5–10.
-const PROJECT_REQUIRED_TEAMS = ['team-1', 'team-2', 'team-3', 'team-4', 'transport', 'team-tasks'];
+// Projektkalendern visar default 5 team + Aktiviteter. Övriga team läggs till
+// via "+"-knappen i dagheadern (TeamVisibilityControl). Endast team-tasks är
+// "required" så Aktiviteter-kolumnen alltid finns för task-dragg.
+const PROJECT_REQUIRED_TEAMS = ['team-tasks'];
+const DEFAULT_VISIBLE_TEAM_COUNT = 5;
 
 const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) => {
   // 1. Hämta projektets events.
