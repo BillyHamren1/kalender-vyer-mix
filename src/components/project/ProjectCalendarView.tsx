@@ -229,7 +229,7 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
 
       <CardContent className="p-0">
         <div className="project-calendar-shell calendar-zoom-out">
-          <div style={{ minHeight: '1020px', height: 'calc(100vh - 260px)' }}>
+          <div style={{ minHeight: '1275px', height: 'calc((100vh - 180px) * 1.25)' }}>
             {effectiveDays.length === 0 ? (
               <div className="flex items-center justify-center h-full text-sm text-muted-foreground italic">
                 Projektet saknar planerade dagar
