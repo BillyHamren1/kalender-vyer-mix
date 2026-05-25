@@ -69,19 +69,49 @@ export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]
     return s;
   }, [orgLocations]);
 
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
   const results = useQueries({
-    queries: dateStrs.map((date) => ({
-      queryKey: ['mobile-staff-day-pings', staffId, date] as const,
-      enabled: !!staffId,
-      staleTime: 60_000,
-      queryFn: async () => {
-        if (!staffId) throw new Error('no staff');
-        return await callStaffSnapshotFunction<StaffGpsDaySnapshot>(
-          'get-mobile-staff-day-pings',
-          { staffId, date },
-        );
-      },
-    })),
+    queries: dateStrs.map((date) => {
+      const isPast = date < todayStr;
+      const cacheKey = `gps-day-snap:${staffId}:${date}`;
+      const readCache = (): StaffGpsDaySnapshot | undefined => {
+        if (!staffId || typeof sessionStorage === 'undefined') return undefined;
+        try {
+          const raw = sessionStorage.getItem(cacheKey);
+          if (!raw) return undefined;
+          return JSON.parse(raw) as StaffGpsDaySnapshot;
+        } catch {
+          return undefined;
+        }
+      };
+      return {
+        queryKey: ['mobile-staff-day-pings', staffId, date] as const,
+        enabled: !!staffId,
+        // Past days are immutable — cache aggressively. Today refetches every 2 min.
+        staleTime: isPast ? 24 * 60 * 60_000 : 2 * 60_000,
+        gcTime: 24 * 60 * 60_000,
+        initialData: readCache,
+        initialDataUpdatedAt: () => {
+          if (!staffId || typeof sessionStorage === 'undefined') return undefined;
+          const t = sessionStorage.getItem(`${cacheKey}:t`);
+          return t ? Number(t) : undefined;
+        },
+        queryFn: async () => {
+          if (!staffId) throw new Error('no staff');
+          const snap = await callStaffSnapshotFunction<StaffGpsDaySnapshot>(
+            'get-mobile-staff-day-pings',
+            { staffId, date },
+          );
+          try {
+            sessionStorage.setItem(cacheKey, JSON.stringify(snap));
+            sessionStorage.setItem(`${cacheKey}:t`, String(Date.now()));
+          } catch {
+            /* quota — ignorera */
+          }
+          return snap;
+        },
+      };
+    }),
   });
 
   return useMemo<StaffGpsDaySummary[]>(() => {
