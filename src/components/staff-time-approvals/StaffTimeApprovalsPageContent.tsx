@@ -8,7 +8,9 @@ import { useApproveStaffWeek, NoApprovableError } from "@/hooks/staff/useApprove
 import WeekApprovalToolbar from "./WeekApprovalToolbar";
 import StaffWeeklyApprovalList from "./StaffWeeklyApprovalList";
 import StaffWeeklyApprovalPanel from "./StaffWeeklyApprovalPanel";
-import { buildWeeklyBundles } from "./weeklyApprovalModel";
+import StaffDayInspectionDrawer from "./StaffDayInspectionDrawer";
+import { buildWeeklyBundles, type WeeklyDayCell, type WeeklyStaffBundle } from "./weeklyApprovalModel";
+
 
 interface SummaryChipProps {
   label: string;
