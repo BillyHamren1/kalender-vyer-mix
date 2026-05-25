@@ -159,9 +159,9 @@ export function buildWeeklyBundles(
           d.status === "needs_user_attention" ||
           d.status === "correction_requested"
         ) needsFixCount++;
-      } else {
-        missingCount++;
+        if (d.status === "missing_report") missingCount++;
       }
+      // Dagar utan submission ("no_report") räknas INTE som missing.
     }
 
     const hasTodo = days.some(
@@ -202,14 +202,10 @@ export function buildWeeklyBundles(
 }
 
 export function isWeekFullyApprovable(bundle: WeeklyStaffBundle): boolean {
-  // Vi godkänner endast bundlen via knappen om det finns minst en approvable dag
-  // OCH inga correction_requested / missing_report blockar.
-  const blocking = bundle.days.some(
-    (d) =>
-      (d.submission && (d.status === "correction_requested" || d.status === "payroll_approved")) ||
-      d.status === "missing_report",
-  );
-  const anyApprovable = bundle.days.some(
+  // Knappen är aktiv om det finns minst en godkännbar dag.
+  // payroll_approved, correction_requested, missing_report och no_report
+  // blockerar INTE — de hoppas bara över.
+  return bundle.days.some(
     (d) =>
       d.submission &&
       (d.status === "submitted" ||
@@ -218,7 +214,6 @@ export function isWeekFullyApprovable(bundle: WeeklyStaffBundle): boolean {
         d.status === "needs_control" ||
         d.status === "needs_user_attention"),
   );
-  return !blocking && anyApprovable;
 }
 
 export function parseDate(d: string): Date {
