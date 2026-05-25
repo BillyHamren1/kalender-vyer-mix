@@ -44,7 +44,26 @@ async function fetchProjectBookings(
     .eq('large_project_id', largeProjectId);
 
   if (error) throw error;
-  return (data ?? []).map((b) => ({
+  // Tabellen kan returneras med smala typer beroende på Supabase-typgenerering;
+  // mappa via en lös typ för att hålla servicen tålig.
+  type RawBooking = {
+    id: string;
+    booking_number?: string | null;
+    client?: string | null;
+    rigdaydate?: string | null;
+    eventdate?: string | null;
+    rigdowndate?: string | null;
+    rig_start_time?: string | null;
+    rig_end_time?: string | null;
+    event_start_time?: string | null;
+    event_end_time?: string | null;
+    rigdown_start_time?: string | null;
+    rigdown_end_time?: string | null;
+    deliveryaddress?: string | null;
+    delivery_city?: string | null;
+  };
+  const rows = ((data ?? []) as unknown as RawBooking[]);
+  return rows.map((b) => ({
     id: b.id,
     booking_number: b.booking_number ?? null,
     client: b.client ?? null,
