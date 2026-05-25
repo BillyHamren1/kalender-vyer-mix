@@ -48,20 +48,23 @@ const BookingEvent: React.FC<BookingEventProps> = ({
       ? '2px solid #DC2626'
       : undefined;
 
+  const rentalSolid = isRentalOnly && (event.eventType === 'rig' || event.eventType === 'rigDown') && !isCancelled;
+  const textColor = isCancelled ? '#991B1B' : rentalSolid ? '#FFFFFF' : '#333';
+
   return (
     <div
       className="booking-event"
       style={{
         ...style,
         backgroundColor: getEventTypeColor(event.eventType || 'event'),
-        color: isCancelled ? '#991B1B' : '#333',
+        color: textColor,
         pointerEvents: 'auto',
         opacity: isCancelled ? 0.75 : 1,
         border: borderStyle,
         position: 'relative',
       }}
       onClick={onClick}
-      title={isLocked ? 'Fast tid – bocka ur "Fast tid" för att flytta' : undefined}
+      title={isLocked ? 'Fast tid – bocka ur "Fast tid" för att flytta' : isRentalOnly ? 'Endast uthyrning' : undefined}
     >
       {isLocked && !isCancelled && (
         <Lock
@@ -69,15 +72,20 @@ const BookingEvent: React.FC<BookingEventProps> = ({
           aria-label="Fast tid"
         />
       )}
-      <div className={`font-medium truncate ${isCancelled ? 'line-through text-red-800' : 'text-gray-800'}`}>
+      {rentalSolid && (
+        <div className="text-[8px] font-bold uppercase tracking-wide opacity-90">
+          {event.eventType === 'rig' ? 'Leverans UT' : 'Retur IN'}
+        </div>
+      )}
+      <div className={`font-medium truncate ${isCancelled ? 'line-through text-red-800' : ''}`} style={!isCancelled && !rentalSolid ? { color: '#333' } : undefined}>
         {isCancelled && <span className="text-[8px] font-bold text-red-600 mr-1">AVBOKAD</span>}
         {event.title}
       </div>
-      <div className={`text-xs ${isCancelled ? 'line-through text-red-600' : 'text-gray-600'}`}>
+      <div className="text-xs" style={{ color: isCancelled ? '#DC2626' : rentalSolid ? 'rgba(255,255,255,0.9)' : '#666' }}>
         {startTime} - {endTime}
       </div>
       {event.bookingNumber && !event.extendedProps?.isLargeProject && (
-        <div className={`text-xs ${isCancelled ? 'line-through text-red-500' : 'text-gray-500'}`}>
+        <div className="text-xs" style={{ color: isCancelled ? '#EF4444' : rentalSolid ? 'rgba(255,255,255,0.85)' : '#888' }}>
           #{event.bookingNumber}
         </div>
       )}
