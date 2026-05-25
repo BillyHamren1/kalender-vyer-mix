@@ -16,6 +16,7 @@ import {
   Satellite,
   Sparkles,
   ClipboardCheck,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProjectInboxCount } from "@/hooks/useProjectInboxCount";
@@ -71,6 +72,7 @@ const baseNavigationItems: NavItem[] = [
       { title: "Personalkalendern (publik)", url: "/personalkalendern", icon: ExternalLink },
       { title: "Tidrapporter", url: "/staff-management/time-reports", icon: Clock },
       { title: "Tidrapport-attest", url: "/staff-management/time-approvals", icon: ClipboardCheck },
+      { title: "Månadsrapport lön", url: "/staff-management/payroll-month-report", icon: FileText },
       { title: "GPS satellitkarta", url: "/staff-management/gps-satellite-map", icon: Satellite },
     ],
   },
