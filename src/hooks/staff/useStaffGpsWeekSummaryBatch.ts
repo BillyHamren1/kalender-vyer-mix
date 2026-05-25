@@ -52,6 +52,7 @@ function visitTypeFromId(id: string | null | undefined): string {
   if (id.startsWith('loc:')) return 'location';
   if (id.startsWith('project:')) return 'project';
   if (id.startsWith('large:')) return 'large_project';
+  if (id.startsWith('booking:')) return 'project';
   return 'unknown';
 }
 
