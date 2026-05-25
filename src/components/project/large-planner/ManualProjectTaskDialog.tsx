@@ -145,6 +145,14 @@ const ManualProjectTaskDialog = ({
 
   const handleSave = async () => {
     if (!canSubmit) return;
+    if (
+      assignedStaffId !== UNASSIGNED &&
+      isStaffAllowedForDate &&
+      !isStaffAllowedForDate(assignedStaffId, planDate)
+    ) {
+      toast.error('Personen är inte bemannad på stora projektet detta datum.');
+      return;
+    }
     setSubmitting(true);
     try {
       await createItem({
