@@ -1,66 +1,134 @@
-/**
- * useStaffGpsWeekSummary — bygger en veckas dag-sammanfattningar baserat på
- * EXAKT samma snapshot som dag-vyn använder (`get-mobile-staff-day-pings`).
- *
- * Tidigare räknade veckan på egen hand med lokala builders + ett separat
- * geofence-set, vilket gav en annan sanning än "Geofence-besök"-tabellen
- * under kartan. Det är borttaget — veckan och tabellen läser nu samma källa.
- */
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { useQueries } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { callStaffSnapshotFunction } from '@/services/staffSnapshotApi';
+import { supabase } from '@/integrations/supabase/client';
+import { staffGpsRawQueryKey, type RawStaffGpsPing } from './useStaffGpsPingsForDay';
 import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
-import { buildDayTimeline, type PlaceVisit, type TravelGap } from '@/lib/staff/pingPlaceSegments';
-import type {
-  StaffGpsDaySnapshot,
-  StaffGpsSnapshotVisit,
-} from '@/types/staffGpsSnapshot';
+import { buildExactGeofenceVisits } from '@/lib/staff/buildExactGeofenceVisits';
+import { buildPlaceVisits, type PlaceVisit } from '@/lib/staff/pingPlaceSegments';
+import { haversineMeters } from '@/lib/staff/movementDetection';
+import { filterProjectGeofences, type RawProjectRow, type RawLargeProjectRow } from '@/lib/staff/filterProjectGeofences';
+import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
 
 export interface StaffGpsPlaceTime {
   name: string;
   minutes: number;
 }
 
+export type GpsTimelineEntry =
+  | {
+      kind: 'stay';
+      name: string | null;
+      known: boolean;
+      isPrivate: boolean;
+      lat: number;
+      lng: number;
+      start: string;
+      end: string;
+      minutes: number;
+    }
+  | {
+      kind: 'move';
+      start: string;
+      end: string;
+      minutes: number;
+      distanceKm: number;
+    }
+  | {
+      kind: 'gap';
+      start: string;
+      end: string;
+      minutes: number;
+    };
+
 export interface StaffGpsDaySummary {
   date: string;
   pingsCount: number;
   firstIso: string | null;
   lastIso: string | null;
-  /** Summa av besökens varaktighet (minuter) — INTE first→last-spannet. */
   durationMin: number;
-  /** Geofence-besök för dagen (privata boenden bortfiltrerade). Samma lista som dag-tabellen. */
   visits: PlaceVisit[];
-  /** Förflyttningar mellan synliga besök. */
-  travels: TravelGap[];
   placeNames: string[];
   places: StaffGpsPlaceTime[];
+  /** Komplett kronologisk dag-tidslinje (stays + moves, inkl. okända stopp). */
+  timeline: GpsTimelineEntry[];
   isLoading: boolean;
 }
 
-function snapshotVisitToPlaceVisit(v: StaffGpsSnapshotVisit): PlaceVisit {
-  return {
-    placeKey: v.placeKey,
-    knownSite: v.knownSite,
-    centre: v.centre,
-    start: v.start,
-    end: v.end,
-    durationMin: v.durationMin,
-    pingCount: v.pingCount,
-    pings: v.pings.map((p) => ({
-      recorded_at: p.recorded_at,
-      lat: p.lat,
-      lng: p.lng,
-      accuracy: p.accuracy,
-    })),
-    subKind: v.subKind,
-  };
+async function fetchPingsForDay(staffId: string, date: string): Promise<RawStaffGpsPing[]> {
+  const startIso = `${date}T00:00:00.000Z`;
+  const endIso = `${date}T23:59:59.999Z`;
+  const PAGE = 1000;
+  const all: any[] = [];
+  let from = 0;
+  for (let i = 0; i < 60; i++) {
+    const { data, error } = await supabase
+      .from('staff_location_history')
+      .select('id, recorded_at, lat, lng, accuracy')
+      .eq('staff_id', staffId)
+      .gte('recorded_at', startIso)
+      .lte('recorded_at', endIso)
+      .order('recorded_at', { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    const rows = data ?? [];
+    all.push(...rows);
+    if (rows.length < PAGE) break;
+    from += PAGE;
+  }
+  return all.map((r: any) => ({
+    id: String(r.id),
+    recorded_at: String(r.recorded_at),
+    lat: Number(r.lat),
+    lng: Number(r.lng),
+    accuracy: r.accuracy != null ? Number(r.accuracy) : null,
+    speed: null,
+    source: null,
+    battery_percent: null,
+    is_charging: null,
+    app_version: null,
+    app_build: null,
+    platform: null,
+    os_version: null,
+    device_model: null,
+    app_id: null,
+  }));
 }
 
 export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]) {
-  const dateStrs = useMemo(() => weekDates.map((d) => format(d, 'yyyy-MM-dd')), [weekDates]);
+  const dateStrs = useMemo(() => weekDates.map(d => format(d, 'yyyy-MM-dd')), [weekDates]);
 
   const { data: orgLocations = [] } = useOrganizationLocations();
+
+  // Hämta råa projekt-rader ENBART en gång och filtrera sedan per dag — så
+  // att en bokning vars aktiva fönster bara täcker t.ex. fredagen ändå räknas
+  // som geofence på just den dagen (inte bara veckans mittendag).
+  const { data: rawProjects } = useQuery({
+    queryKey: ['week-summary-raw-projects', 'v1'],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const [projectsRes, largeRes] = await Promise.all([
+        supabase
+          .from('projects')
+          .select('id, name, delivery_latitude, delivery_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon, status, planning_status, deleted_at, created_at, booking_id, rigdaydate, rigdowndate, eventdate')
+          .is('deleted_at', null)
+          .not('delivery_latitude', 'is', null)
+          .not('delivery_longitude', 'is', null)
+          .limit(5000),
+        supabase
+          .from('large_projects')
+          .select('id, name, address_latitude, address_longitude, address_radius_meters, address_geofence_mode, address_geofence_polygon, created_at, start_date, end_date, event_date')
+          .not('address_latitude', 'is', null)
+          .not('address_longitude', 'is', null)
+          .limit(5000),
+      ]);
+      return {
+        projects: ((projectsRes as any).data || []) as RawProjectRow[],
+        large: ((largeRes as any).data || []) as RawLargeProjectRow[],
+      };
+    },
+  });
+
   const privateIds = useMemo(() => {
     const s = new Set<string>();
     for (const l of orgLocations) {
@@ -69,115 +137,196 @@ export function useStaffGpsWeekSummary(staffId: string | null, weekDates: Date[]
     return s;
   }, [orgLocations]);
 
-  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const geofencesByDate = useMemo<Record<string, GeofenceSite[]>>(() => {
+    const map: Record<string, GeofenceSite[]> = {};
+    const projects = rawProjects?.projects ?? [];
+    const large = rawProjects?.large ?? [];
+    for (const date of dateStrs) {
+      const out: GeofenceSite[] = [];
+      for (const l of orgLocations) {
+        out.push({ id: `loc:${l.id}`, name: l.name, lat: l.lat, lng: l.lng, radiusMeters: l.radiusMeters, polygon: l.polygon });
+      }
+      for (const s of filterProjectGeofences(projects, large, date)) {
+        out.push({ id: s.id, name: s.name, lat: s.lat, lng: s.lng, radiusMeters: s.radiusMeters, polygon: s.polygon });
+      }
+      map[date] = out;
+    }
+    return map;
+  }, [orgLocations, rawProjects, dateStrs]);
+
   const results = useQueries({
-    queries: dateStrs.map((date) => {
-      const isPast = date < todayStr;
-      const cacheKey = `gps-day-snap:${staffId}:${date}`;
-      const readCache = (): StaffGpsDaySnapshot | undefined => {
-        if (!staffId || typeof sessionStorage === 'undefined') return undefined;
-        try {
-          const raw = sessionStorage.getItem(cacheKey);
-          if (!raw) return undefined;
-          return JSON.parse(raw) as StaffGpsDaySnapshot;
-        } catch {
-          return undefined;
-        }
-      };
-      return {
-        queryKey: ['mobile-staff-day-pings', staffId, date] as const,
-        enabled: !!staffId,
-        // Past days are immutable — cache aggressively. Today refetches every 2 min.
-        staleTime: isPast ? 24 * 60 * 60_000 : 2 * 60_000,
-        gcTime: 24 * 60 * 60_000,
-        initialData: readCache,
-        initialDataUpdatedAt: () => {
-          if (!staffId || typeof sessionStorage === 'undefined') return undefined;
-          const t = sessionStorage.getItem(`${cacheKey}:t`);
-          return t ? Number(t) : undefined;
-        },
-        queryFn: async () => {
-          if (!staffId) throw new Error('no staff');
-          const snap = await callStaffSnapshotFunction<StaffGpsDaySnapshot>(
-            'get-mobile-staff-day-pings',
-            { staffId, date },
-          );
-          try {
-            sessionStorage.setItem(cacheKey, JSON.stringify(snap));
-            sessionStorage.setItem(`${cacheKey}:t`, String(Date.now()));
-          } catch {
-            /* quota — ignorera */
-          }
-          return snap;
-        },
-      };
-    }),
+    queries: dateStrs.map((date) => ({
+      queryKey: staffId ? staffGpsRawQueryKey(staffId, date) : ['staff-gps-raw', 'noop', date],
+      enabled: !!staffId,
+      staleTime: 60_000,
+      queryFn: () => fetchPingsForDay(staffId!, date),
+    })),
   });
 
   return useMemo<StaffGpsDaySummary[]>(() => {
     return dateStrs.map((date, i) => {
       const q = results[i];
-      const snap = q?.data as StaffGpsDaySnapshot | undefined;
-      const allVisits = (snap?.visits ?? []).map(snapshotVisitToPlaceVisit);
-      const visibleVisits = allVisits.filter(
-        (v) => !(v.knownSite && privateIds.has(v.knownSite.id)),
+      const pings = (q?.data ?? []) as RawStaffGpsPing[];
+      if (!pings.length) {
+        return {
+          date,
+          pingsCount: 0,
+          firstIso: null,
+          lastIso: null,
+          durationMin: 0,
+          visits: [],
+          placeNames: [],
+          places: [],
+          timeline: [],
+          isLoading: !!q?.isLoading,
+        };
+      }
+      const pingsLite = pings.map(p => ({ lat: p.lat, lng: p.lng, recorded_at: p.recorded_at, accuracy: p.accuracy ?? null }));
+      const geofences = geofencesByDate[date] ?? [];
+      const knownGeofenceVisits = geofences.length ? buildExactGeofenceVisits(pingsLite, geofences) : [];
+      // Full timeline incl. unknown stops between geofences.
+      const allPlaceVisits = buildPlaceVisits(
+        pingsLite,
+        geofences.map(g => ({ id: g.id, name: g.name, lat: g.lat, lng: g.lng, radiusMeters: g.radiusMeters })),
+        { minDurationMin: 8 },
       );
-      const sortedVisits = [...visibleVisits].sort((a, b) =>
-        a.start.localeCompare(b.start),
-      );
-      const pingsCount = snap?.pings?.length ?? 0;
 
-      // first/last = första visit-start / sista visit-end (synliga besök).
-      const firstIso = sortedVisits[0]?.start ?? null;
-      const lastIso = sortedVisits.length
-        ? sortedVisits[sortedVisits.length - 1].end
-        : null;
+      const privateVisits = knownGeofenceVisits.filter(v => v.knownSite && privateIds.has(v.knownSite.id));
+      const workVisits = knownGeofenceVisits.filter(v => !(v.knownSite && privateIds.has(v.knownSite.id)));
 
-      const durationMin = sortedVisits.reduce(
-        (acc, v) => acc + Math.max(0, v.durationMin || 0),
-        0,
-      );
+      const inPrivate = (iso: string) => {
+        const t = new Date(iso).getTime();
+        return privateVisits.some(v => {
+          const s = new Date(v.start).getTime();
+          const e = new Date(v.end).getTime();
+          return t >= s && t <= e;
+        });
+      };
+      let firstIso: string | null = null;
+      let lastIso: string | null = null;
+      for (const p of pings) {
+        if (!inPrivate(p.recorded_at)) { firstIso = p.recorded_at; break; }
+      }
+      for (let j = pings.length - 1; j >= 0; j--) {
+        if (!inPrivate(pings[j].recorded_at)) { lastIso = pings[j].recorded_at; break; }
+      }
+      const durationMin = firstIso && lastIso
+        ? Math.max(0, Math.round((new Date(lastIso).getTime() - new Date(firstIso).getTime()) / 60_000))
+        : 0;
 
-      const minutesByName = new Map<string, number>();
       const placeNames: string[] = [];
       const seen = new Set<string>();
-      for (const v of sortedVisits) {
+      const minutesByName = new Map<string, number>();
+      for (const v of [...workVisits].sort((a, b) => a.start.localeCompare(b.start))) {
         const name = v.knownSite?.name;
         if (!name) continue;
-        if (!seen.has(name)) {
-          seen.add(name);
-          placeNames.push(name);
-        }
-        minutesByName.set(
-          name,
-          (minutesByName.get(name) ?? 0) + Math.max(0, v.durationMin || 0),
-        );
+        if (!seen.has(name)) { seen.add(name); placeNames.push(name); }
+        const mins = Math.max(0, Math.round((new Date(v.end).getTime() - new Date(v.start).getTime()) / 60_000));
+        minutesByName.set(name, (minutesByName.get(name) ?? 0) + mins);
       }
       const places: StaffGpsPlaceTime[] = Array.from(minutesByName.entries())
         .map(([name, minutes]) => ({ name, minutes }))
         .sort((a, b) => b.minutes - a.minutes);
 
-      const rawPings = (snap?.pings ?? []).map((p) => ({
-        lat: p.lat,
-        lng: p.lng,
-        recorded_at: p.recorded_at,
-        accuracy: p.accuracy,
-      }));
-      const travels = buildDayTimeline(rawPings, sortedVisits).travels;
+      // Build full timeline (stays + interleaved moves + gaps).
+      // Stays = union(allPlaceVisits, knownGeofenceVisits). Den exakta
+      // geofence-besöks-detektorn är auktoritativ för "personen var på X" —
+      // utan denna union missar vi dagar där klusterheuristiken inte hittade
+      // ett stopp men personen ändå var inom ett känt projekt-/lager-stängsel.
+      type Stay = {
+        start: string;
+        end: string;
+        durationMin: number;
+        centre: { lat: number; lng: number };
+        knownSite: { id: string; name: string } | null;
+      };
+      const toStay = (v: PlaceVisit): Stay => ({
+        start: v.start,
+        end: v.end,
+        durationMin: v.durationMin,
+        centre: v.centre,
+        knownSite: v.knownSite,
+      });
+      const overlaps = (a: Stay, b: Stay) =>
+        new Date(a.start).getTime() < new Date(b.end).getTime() &&
+        new Date(b.start).getTime() < new Date(a.end).getTime();
+      const merged: Stay[] = allPlaceVisits.map(toStay);
+      for (const gv of knownGeofenceVisits) {
+        const gStay = toStay(gv);
+        const hitIdx = merged.findIndex(
+          s => s.knownSite && gStay.knownSite && s.knownSite.id === gStay.knownSite.id && overlaps(s, gStay),
+        );
+        if (hitIdx >= 0) {
+          const existing = merged[hitIdx];
+          const start = existing.start < gStay.start ? existing.start : gStay.start;
+          const end = existing.end > gStay.end ? existing.end : gStay.end;
+          merged[hitIdx] = {
+            start,
+            end,
+            durationMin: Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60_000)),
+            centre: gStay.centre,
+            knownSite: gStay.knownSite,
+          };
+        } else {
+          merged.push(gStay);
+        }
+      }
+      const stays = merged.sort((a, b) => a.start.localeCompare(b.start));
+      const timeline: GpsTimelineEntry[] = [];
+      for (let k = 0; k < stays.length; k++) {
+        const v = stays[k];
+        const name = v.knownSite?.name ?? null;
+        const isPrivate = !!(v.knownSite && privateIds.has(v.knownSite.id));
+        timeline.push({
+          kind: 'stay',
+          name,
+          known: !!v.knownSite,
+          isPrivate,
+          lat: v.centre.lat,
+          lng: v.centre.lng,
+          start: v.start,
+          end: v.end,
+          minutes: v.durationMin,
+        });
+        const next = stays[k + 1];
+        if (next) {
+          const moveMin = Math.max(0, Math.round((new Date(next.start).getTime() - new Date(v.end).getTime()) / 60_000));
+          const distM = haversineMeters(
+            { lat: v.centre.lat, lng: v.centre.lng },
+            { lat: next.centre.lat, lng: next.centre.lng },
+          );
+          const gapPings = pings.filter(p =>
+            p.recorded_at > v.end && p.recorded_at < next.start,
+          );
+          const expectedKmh = distM > 0 && moveMin > 0 ? (distM / 1000) / (moveMin / 60) : 0;
+          if (moveMin >= 2 && gapPings.length < 3 && moveMin > 20 && expectedKmh < 5) {
+            timeline.push({ kind: 'gap', start: v.end, end: next.start, minutes: moveMin });
+          } else if (moveMin >= 2 && distM > 50) {
+            timeline.push({
+              kind: 'move',
+              start: v.end,
+              end: next.start,
+              minutes: moveMin,
+              distanceKm: Math.round(distM / 100) / 10,
+            });
+          } else if (moveMin >= 30) {
+            timeline.push({ kind: 'gap', start: v.end, end: next.start, minutes: moveMin });
+          }
+        }
+      }
 
       return {
         date,
-        pingsCount,
+        pingsCount: pings.length,
         firstIso,
         lastIso,
         durationMin,
-        visits: sortedVisits,
-        travels,
+        visits: workVisits,
         placeNames,
         places,
+        timeline,
         isLoading: !!q?.isLoading,
       };
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateStrs, privateIds, results.map((r) => r.dataUpdatedAt).join('|'), results.map((r) => r.isLoading ? 1 : 0).join('')]);
+  }, [dateStrs, results, geofencesByDate, privateIds]);
 }

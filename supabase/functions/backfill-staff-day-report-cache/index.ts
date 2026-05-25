@@ -433,11 +433,11 @@ async function processOne(
         try {
           const { data: bks } = await admin
             .from('bookings')
-            .select('id, assigned_project_id')
+            .select('id, project_id')
             .in('id', ids);
           for (const r of bks ?? []) {
             bookingMap.set(r.id, {
-              projectId: (r as any).assigned_project_id ?? null,
+              projectId: r.project_id ?? null,
               largeProjectId: null,
             });
           }

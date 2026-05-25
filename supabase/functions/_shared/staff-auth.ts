@@ -59,15 +59,9 @@ export async function authenticateStaffRequest(
   const token = authHeader.slice(7).trim();
   if (!token) return { ok: false, err: { status: 401, error: "Missing token" } };
 
-  const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-  const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
-  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
-    return {
-      ok: false,
-      err: { status: 500, error: "Server configuration error: Missing Supabase credentials" },
-    };
-  }
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+  const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   // Mobile token
@@ -77,7 +71,7 @@ export async function authenticateStaffRequest(
     if (!mobile.staffId) return { ok: false, err: { status: 401, error: "Invalid mobile token" } };
     const { data: staffRow, error: staffErr } = await admin
       .from("staff_members").select("id, organization_id, user_id").eq("id", mobile.staffId).maybeSingle();
-    if (staffErr) return { ok: false, err: { status: 500, error: `Staff lookup failed: ${staffErr.message ?? "unknown error"}` } };
+    if (staffErr) return { ok: false, err: { status: 500, error: `Staff lookup failed: ${staffErr.message}` } };
     if (!staffRow?.organization_id) return { ok: false, err: { status: 404, error: "Staff not found" } };
 
     // Optional admin "view-as" — read-only impersonering via x-view-as-staff-header.

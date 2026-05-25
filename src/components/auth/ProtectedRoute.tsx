@@ -11,24 +11,21 @@ interface ProtectedRouteProps {
   requiredRoles?: AppRole[];
 }
 
-const ROLES_LOADING_SAFETY_MS = 1_500;
-
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRoles }) => {
   const { user, isLoading: authLoading, signOut, isSsoUser } = useAuth();
   const { roles, hasPlanningAccess, hasAnyRole, isLoading: rolesLoading } = useUserRoles();
   const location = useLocation();
   const [copied, setCopied] = useState(false);
-  const [rolesSafetyElapsed, setRolesSafetyElapsed] = useState(false);
-
+  
   // Check if user came from /auth login or is an SSO user (skip role check in those cases)
   // Check both location.state and sessionStorage for the flag
   const skipRoleCheckState = (location.state as { skipRoleCheck?: boolean })?.skipRoleCheck === true;
   const skipRoleCheckStorage = sessionStorage.getItem('skipRoleCheck') === 'true';
   const isSsoUserStorage = sessionStorage.getItem('isSsoUser') === 'true';
-
+  
   // SSO users always skip role check - they are pre-authorized from Hub
   const skipRoleCheck = skipRoleCheckState || skipRoleCheckStorage || isSsoUser || isSsoUserStorage;
-
+  
   // Clear the one-time skipRoleCheck flag (but NOT isSsoUser which persists for the session)
   useEffect(() => {
     if (skipRoleCheckStorage && !isSsoUserStorage) {
@@ -36,23 +33,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRoles
     }
   }, [skipRoleCheckStorage, isSsoUserStorage]);
 
-  // Hard safety wall: if the role fetch is still hanging after
-  // ROLES_LOADING_SAFETY_MS, stop showing "Laddar..." and let the user fall
-  // through to the access-denied / no-roles screen (which has Logga ut etc.).
-  // Once roles do arrive, hasResolvedRoles flips and the gate re-evaluates.
-  useEffect(() => {
-    if (!user || !rolesLoading) {
-      setRolesSafetyElapsed(false);
-      return;
-    }
-    const t = setTimeout(() => {
-      console.warn('[ProtectedRoute] roles loading safety timeout — proceeding with fallback roles');
-      setRolesSafetyElapsed(true);
-    }, ROLES_LOADING_SAFETY_MS);
-    return () => clearTimeout(t);
-  }, [user, rolesLoading]);
-
   // Show full-screen loader ONLY during the initial auth bootstrap.
+  // Once we have a user, useUserRoles uses cached roles instantly on subsequent navigations,
+  // so we must NOT blank the previous view while it silently revalidates.
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -64,9 +47,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRoles
     );
   }
 
-  // First-ever role load for this user (no cache yet) — show a soft loader,
-  // but only briefly. After ROLES_LOADING_SAFETY_MS we fall through.
-  if (user && rolesLoading && !rolesSafetyElapsed) {
+  // First-ever role load for this user (no cache yet) — show a soft loader.
+  // After this, useUserRoles.isLoading stays false because roles are cached.
+  if (user && rolesLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">

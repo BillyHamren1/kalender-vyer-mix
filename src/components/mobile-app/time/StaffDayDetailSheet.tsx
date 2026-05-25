@@ -42,7 +42,6 @@ import StaffDaySubmitSection from './StaffDaySubmitSection';
 // EndDayButton borttagen — TIME-vyn är ren rapportering (se MobileTimeReport).
 import SegmentDetailSheet from './SegmentDetailSheet';
 import StaffGanttMirrorTimeline from './StaffGanttMirrorTimeline';
-import DayBlocksEditor from './DayBlocksEditor';
 
 const TZ_TODAY = 'Europe/Stockholm';
 function useTick(intervalMs = 1000) {
@@ -277,11 +276,6 @@ const DayBody: React.FC<{
       </section>
 
       {/* D. (Borttagen) "Behöver åtgärdas" — personal ska bara rapportera tid. */}
-
-      {/* C-bis. Per-block editor — alla projekt/plats-block med start/slut.
-          Skriver via mobile-app-api update_time_report (samma som admin).
-          Approved-block är låsta. */}
-      <DayBlocksEditor snapshot={snapshot} onChanged={onChanged} />
 
       {/* C. Tidslinje — ENDA källa: admin-Gantten via StaffGanttMirrorTimeline.
           Tidigare renderades snapshot.segments här (egen cache-källa) vilket

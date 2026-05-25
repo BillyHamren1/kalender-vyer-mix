@@ -1,20 +1,17 @@
-import { useCallback, useMemo, useState } from 'react';
+import { Fragment, useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { format, startOfWeek, addDays } from 'date-fns';
-import { ArrowLeft } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { format } from 'date-fns';
 import { fetchStaffMembers } from '@/services/staffService';
 import { supabase } from '@/integrations/supabase/client';
 import type { RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
 import { useMobileStaffDayPings } from '@/hooks/staff/useMobileStaffDayPings';
 import RawGpsSatelliteMap from './RawGpsSatelliteMap';
 import { StaffGpsWeekPanel } from './StaffGpsWeekPanel';
-import { StaffGpsWeekList } from './StaffGpsWeekList';
 import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
+import { formatStockholmHms } from '@/lib/staff/formatStockholmTime';
 import { type PlaceVisit } from '@/lib/staff/pingPlaceSegments';
-// Detaljkartan får INTE blanda in extra projektgeofences utanför snapshoten.
-// Snapshot från get-mobile-staff-day-pings är enda sanningen — exakt samma
-// källa som vecko-listan (get-staff-gps-week-summary) bygger sin summary på.
+import { useOrganizationLocations } from '@/hooks/useOrganizationLocations';
+import { useAllActiveProjectGeofences } from '@/hooks/useAllActiveProjectGeofences';
 
 interface Props {
   initialStaffId?: string | null;
@@ -27,6 +24,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
   const [calendarMonth, setCalendarMonth] = useState<Date>(
     initialDate ? new Date(initialDate) : new Date(),
   );
+
 
   const dateStr = format(date, 'yyyy-MM-dd');
   const queryClient = useQueryClient();
@@ -63,6 +61,10 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     ]);
   }, [queryClient]);
 
+  /**
+   * Sparar polygon för en geofence. polygon=null tar bort polygonen och
+   * återgår till cirkel.
+   */
   const savePolygon = useCallback(async (id: string, polygon: GeoJSON.Polygon | null) => {
     const [prefix, rawId] = id.split(':');
     if (!rawId) throw new Error('Ogiltigt geofence-id');
@@ -105,50 +107,16 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     ]);
   }, [queryClient]);
 
+
+
   const staffQuery = useQuery({
     queryKey: ['staff-members-all-gps-map'],
     queryFn: () => fetchStaffMembers({ includeInactive: true }),
     staleTime: 5 * 60_000,
   });
 
-  // Bemanning för hela veckan (för lista) + utvald dag (för day-vy).
-  const weekStart = useMemo(() => startOfWeek(date, { weekStartsOn: 1 }), [date]);
-  const weekStartStr = format(weekStart, 'yyyy-MM-dd');
-  const weekEndStr = format(addDays(weekStart, 6), 'yyyy-MM-dd');
-
-  const assignedWeekQuery = useQuery({
-    queryKey: ['gps-map-assigned-ids-week', weekStartStr],
-    staleTime: 60_000,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('staff_assignments')
-        .select('staff_id')
-        .gte('assignment_date', weekStartStr)
-        .lte('assignment_date', weekEndStr);
-      if (error) throw error;
-      return new Set((data ?? []).map((r: any) => String(r.staff_id)));
-    },
-  });
-
-  const pingedWeekQuery = useQuery({
-    queryKey: ['gps-map-pinged-ids-week', weekStartStr],
-    staleTime: 60_000,
-    queryFn: async () => {
-      const startIso = `${weekStartStr}T00:00:00.000Z`;
-      const endIso = `${weekEndStr}T23:59:59.999Z`;
-      const { data, error } = await supabase
-        .from('staff_location_history')
-        .select('staff_id')
-        .gte('recorded_at', startIso)
-        .lte('recorded_at', endIso)
-        .limit(50000);
-      if (error) throw error;
-      return new Set((data ?? []).map((r: any) => String(r.staff_id)));
-    },
-  });
-
-  // Bemanning + pingade för EXAKT vald dag (används av StaffGpsWeekPanel-badges).
-  const assignedDayQuery = useQuery({
+  // Vilka är assignade den valda dagen?
+  const assignedQuery = useQuery({
     queryKey: ['gps-map-assigned-ids', dateStr],
     staleTime: 60_000,
     queryFn: async () => {
@@ -161,7 +129,8 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     },
   });
 
-  const pingedDayQuery = useQuery({
+  // Vilka har pingat den valda dagen?
+  const pingedQuery = useQuery({
     queryKey: ['gps-map-pinged-ids', dateStr],
     staleTime: 60_000,
     queryFn: async () => {
@@ -179,16 +148,17 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
   });
 
   const allStaff = staffQuery.data ?? [];
-  const assignedWeekSet = assignedWeekQuery.data ?? new Set<string>();
-  const pingedWeekSet = pingedWeekQuery.data ?? new Set<string>();
-  const assignedDaySet = assignedDayQuery.data ?? new Set<string>();
-  const pingedDaySet = pingedDayQuery.data ?? new Set<string>();
+  const assignedSet = assignedQuery.data ?? new Set<string>();
+  const pingedSet = pingedQuery.data ?? new Set<string>();
 
-  const staffForDay = useMemo(() => {
-    return allStaff.filter((s) => assignedDaySet.has(s.id) || pingedDaySet.has(s.id));
-  }, [allStaff, assignedDaySet, pingedDaySet]);
+  const staff = useMemo(() => {
+    // Visa alltid personer som antingen är assignade ELLER har pingat den valda dagen.
+    return allStaff.filter((s) => assignedSet.has(s.id) || pingedSet.has(s.id));
+  }, [allStaff, assignedSet, pingedSet]);
 
-  const snapshotQuery = useMobileStaffDayPings(staffId, dateStr, !!staffId);
+  const effectiveStaffId = staff.some((s) => s.id === staffId) ? staffId : (staff[0]?.id ?? null);
+
+  const snapshotQuery = useMobileStaffDayPings(effectiveStaffId, dateStr, !!effectiveStaffId);
   const pings: RawStaffGpsPing[] = useMemo(() => (snapshotQuery.data?.pings ?? []).map((p) => ({
     id: p.id,
     recorded_at: p.recorded_at,
@@ -207,10 +177,24 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     app_id: null,
   })), [snapshotQuery.data?.pings]);
 
+  // (Månadsprickar borttagna — vecknavigeringen ersätter månadskalendern.)
   void calendarMonth;
 
+
+  // Geofences:
+  //   - Projekt + stora projekt → ENDAST de som är aktiva på vald dag
+  //     (rigg → sista nedrigg). Filtrering sker i useAllActiveProjectGeofences.
+  //   - Övriga geofences från snapshot (org_locations: lager, boenden m.m.)
+  //     visas alltid — de är inte projektbundna och kan inte "vara avbokade".
+  const activeProjectGeofencesQuery = useAllActiveProjectGeofences(dateStr);
   const geofences = useMemo<GeofenceSite[]>(() => {
-    return (snapshotQuery.data?.geofences ?? []).map((site) => ({
+    const nonProject = (snapshotQuery.data?.geofences ?? []).filter((site) => {
+      const id = String(site.id ?? '');
+      return !id.startsWith('project:') && !id.startsWith('large:');
+    });
+    const projectsForDay = activeProjectGeofencesQuery.data ?? [];
+    const merged = [...nonProject, ...projectsForDay];
+    return merged.map((site) => ({
       id: site.id,
       name: site.name,
       lat: site.lat,
@@ -218,7 +202,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
       radiusMeters: site.radiusMeters,
       polygon: site.polygon ?? undefined,
     }));
-  }, [snapshotQuery.data?.geofences]);
+  }, [snapshotQuery.data?.geofences, activeProjectGeofencesQuery.data]);
 
   const geofenceVisits = useMemo<PlaceVisit[]>(() => (snapshotQuery.data?.visits ?? []).map((visit) => ({
     placeKey: visit.placeKey,
@@ -237,64 +221,194 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     subKind: visit.subKind,
   })), [snapshotQuery.data?.visits]);
 
+  // Privata boenden (organization_locations.is_private_residence) ska aldrig
+  // visas i geofence-listan. De räknas som hem och hör inte hemma i
+  // arbets-/projektvyn.
+  const { data: orgLocations = [] } = useOrganizationLocations();
+  const privateLocationIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const l of orgLocations) {
+      if (l.isPrivate) s.add(`loc:${l.id}`);
+    }
+    return s;
+  }, [orgLocations]);
+
+  const visibleGeofenceVisits = useMemo<PlaceVisit[]>(
+    () => geofenceVisits.filter((v) => !(v.knownSite && privateLocationIds.has(v.knownSite.id))),
+    [geofenceVisits, privateLocationIds],
+  );
+
   const handleDateChange = useCallback((d: Date) => {
     setDate(d);
     setCalendarMonth(d);
   }, []);
 
-  const handleSelect = useCallback((id: string, d: Date) => {
-    setStaffId(id);
-    setDate(d);
-    setCalendarMonth(d);
-  }, []);
-
-  // LIST-VY (default): visa alla personer med veckosammanfattning, ingen karta.
-  if (!staffId) {
-    return (
-      <StaffGpsWeekList
-        staff={allStaff}
-        assignedSet={assignedWeekSet}
-        pingedSet={pingedWeekSet}
-        date={date}
-        onDateChange={handleDateChange}
-        onShowMap={handleSelect}
-      />
-    );
-  }
-
-  // DETALJ-VY: vald person → veckopanel + karta.
   return (
-    <div className="flex flex-col gap-4 h-full">
-      <div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setStaffId(null)}
-          className="h-8 px-2 text-[12px] font-semibold text-[hsl(280_45%_38%)] hover:bg-[hsl(270_45%_94%)] rounded-md"
-        >
-          <ArrowLeft className="h-4 w-4 mr-1" /> Tillbaka till lista
-        </Button>
-      </div>
-
+    <div className="flex flex-col md:flex-row gap-4 h-full">
       <StaffGpsWeekPanel
-        staff={staffForDay}
-        staffId={staffId}
+        staff={staff}
+        staffId={effectiveStaffId}
         onStaffChange={(id) => setStaffId(id)}
-        assignedSet={assignedDaySet}
-        pingedSet={pingedDaySet}
+        assignedSet={assignedSet}
+        pingedSet={pingedSet}
         date={date}
         onDateChange={handleDateChange}
       />
 
-      <div className="planning-card relative h-[calc(100vh-360px)] min-h-[520px] overflow-hidden p-0">
-        {pings.length > 0 || geofences.length > 0 ? (
-          <RawGpsSatelliteMap pings={pings} geofences={geofences} visits={geofenceVisits} onSaveRadius={saveRadius} onSavePolygon={savePolygon} className="h-full w-full" />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-             {snapshotQuery.isLoading ? 'Laddar…' : 'Inga rörelser registrerade för vald dag.'}
-          </div>
-        )}
+      <div className="flex-1 min-w-0 flex flex-col gap-4">
+        {/* Karta */}
+        <div className="planning-card relative h-[60vh] min-h-[420px] overflow-hidden p-0">
+          {pings.length > 0 || geofences.length > 0 ? (
+            <RawGpsSatelliteMap pings={pings} geofences={geofences} visits={geofenceVisits} onSaveRadius={saveRadius} onSavePolygon={savePolygon} className="h-full w-full" />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+               {snapshotQuery.isLoading ? 'Laddar…' : 'Inga rörelser registrerade för vald dag.'}
+            </div>
+          )}
+        </div>
+
+        {/* Geofence-besök — exakt IN/UT per stängsel (privata boenden döljs) */}
+        <GeofenceVisitsTable visits={visibleGeofenceVisits} />
       </div>
     </div>
   );
 }
+
+
+function GeofenceVisitsTable({ visits }: { visits: PlaceVisit[] }) {
+  const sorted = useMemo(
+    () => [...visits].sort((a, b) => a.start.localeCompare(b.start)),
+    [visits],
+  );
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  return (
+    <div className="planning-card overflow-hidden">
+      <div className="px-4 py-3 border-b border-[hsl(270_20%_90%)] flex items-center justify-between bg-[hsl(270_35%_98%)]">
+        <div className="flex items-center gap-2">
+          <span className="planning-section-title">Geofence-besök</span>
+          <span className="planning-badge">{sorted.length}</span>
+        </div>
+        <span className="text-[11px] text-muted-foreground">Klicka på en rad för att se alla pings</span>
+      </div>
+      <div className="max-h-[60vh] overflow-auto">
+        <table className="w-full text-xs">
+          <thead className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-[hsl(270_18%_92%)]">
+            <tr className="text-left text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground">
+              <th className="px-3 py-2 font-semibold w-6"></th>
+              <th className="px-3 py-2 font-semibold">Plats</th>
+              <th className="px-3 py-2 font-semibold">Typ</th>
+              <th className="px-3 py-2 font-semibold">IN</th>
+              <th className="px-3 py-2 font-semibold">UT</th>
+              <th className="px-3 py-2 font-semibold">Varaktighet</th>
+              <th className="px-3 py-2 font-semibold text-right">Pings</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((v) => {
+              const id = v.knownSite!.id;
+              const kind = id.startsWith('loc:') ? 'Plats'
+                : id.startsWith('large:') ? 'Stort projekt'
+                : id.startsWith('project:') ? 'Projekt'
+                : id.startsWith('booking:') ? 'Bokning'
+                : '—';
+              const hh = Math.floor(v.durationMin / 60);
+              const mm = v.durationMin % 60;
+              const dur = hh > 0 ? `${hh}h ${mm}m` : `${mm}m`;
+              const isOutside = v.subKind === 'outside_geo';
+              const rowKey = `gv-${v.placeKey}-${v.start}`;
+              const isOpen = expandedKey === rowKey;
+              return (
+                <Fragment key={rowKey}>
+                  <tr
+                    onClick={() => setExpandedKey(isOpen ? null : rowKey)}
+                    className={`border-t border-[hsl(270_18%_94%)] cursor-pointer transition-colors ${isOpen ? 'bg-[hsl(270_45%_96%)]' : 'hover:bg-[hsl(270_35%_98%)]'}`}
+                  >
+                    <td className="px-3 py-2 text-muted-foreground tabular-nums select-none">
+                      {isOpen ? '▾' : '▸'}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className="font-medium text-foreground/90">{v.knownSite!.name}</span>
+                      {isOutside && (
+                        <span className="ml-2 text-[10px] uppercase tracking-wide text-amber-600">· Utanför geo</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2"><span className="planning-chip">{kind}</span></td>
+                    <td className="px-3 py-2 font-mono tabular-nums text-foreground/80">{formatStockholmHms(v.start)}</td>
+                    <td className="px-3 py-2 font-mono tabular-nums text-foreground/80">{formatStockholmHms(v.end)}</td>
+                    <td className="px-3 py-2 font-medium tabular-nums">{dur}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{v.pingCount}</td>
+                  </tr>
+                  {isOpen && (
+                    <tr className="bg-[hsl(270_45%_98%)]">
+                      <td colSpan={7} className="px-0 py-0">
+                        <VisitPingsDetail visit={v} />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+            {!sorted.length && (
+              <tr><td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">Inga geofence-besök för vald person och dag.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function VisitPingsDetail({ visit }: { visit: PlaceVisit }) {
+  const pings = visit.pings ?? [];
+  return (
+    <div className="px-6 py-3 border-t border-[hsl(270_25%_90%)]">
+      <div className="text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground mb-2 flex items-center gap-2">
+        <span>Alla pings för detta besök</span>
+        <span className="planning-badge">{pings.length}</span>
+      </div>
+      <div className="max-h-[40vh] overflow-auto rounded border border-[hsl(270_20%_92%)] bg-white">
+        <table className="w-full text-[11px]">
+          <thead className="sticky top-0 bg-[hsl(270_35%_97%)] text-left text-[10px] uppercase tracking-[0.05em] text-muted-foreground">
+            <tr>
+              <th className="px-3 py-1.5 font-semibold w-10">#</th>
+              <th className="px-3 py-1.5 font-semibold">Tid</th>
+              <th className="px-3 py-1.5 font-semibold">Lat</th>
+              <th className="px-3 py-1.5 font-semibold">Lng</th>
+              <th className="px-3 py-1.5 font-semibold text-right">Acc (m)</th>
+              <th className="px-3 py-1.5 font-semibold">Karta</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pings.map((p, idx) => (
+              <tr key={`${p.recorded_at}-${idx}`} className="border-t border-[hsl(270_18%_95%)] hover:bg-[hsl(270_35%_98%)]">
+                <td className="px-3 py-1.5 tabular-nums text-muted-foreground">{idx + 1}</td>
+                <td className="px-3 py-1.5 font-mono tabular-nums">{formatStockholmHms(p.recorded_at)}</td>
+                <td className="px-3 py-1.5 font-mono tabular-nums">{p.lat.toFixed(6)}</td>
+                <td className="px-3 py-1.5 font-mono tabular-nums">{p.lng.toFixed(6)}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums">
+                  {p.accuracy != null ? Math.round(p.accuracy) : '—'}
+                </td>
+                <td className="px-3 py-1.5">
+                  <a
+                    href={`https://www.google.com/maps?q=${p.lat},${p.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    Öppna
+                  </a>
+                </td>
+              </tr>
+            ))}
+            {!pings.length && (
+              <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">Inga pings registrerade.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+
+

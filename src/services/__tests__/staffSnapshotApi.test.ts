@@ -20,10 +20,6 @@ vi.mock('@/services/viewAsStorage', () => ({
   getViewAsStaffId: mockGetViewAsStaffId,
 }));
 
-vi.mock('@/config/appMode', () => ({
-  isWebApp: true,
-}));
-
 describe('staffSnapshotApi', () => {
   beforeEach(() => {
     mockInvoke.mockReset();
@@ -50,24 +46,5 @@ describe('staffSnapshotApi', () => {
         date: '2026-05-22',
       }),
     ).rejects.toThrow('snapshot_unauthorized');
-  });
-
-  it('prefers Supabase JWT on web even if a mobile token exists', async () => {
-    mockGetToken.mockReturnValue('stale-mobile-token');
-    mockInvoke.mockResolvedValue({
-      data: { ok: true },
-      error: null,
-    });
-
-    const { callStaffSnapshotFunction } = await import('../staffSnapshotApi');
-
-    await expect(
-      callStaffSnapshotFunction('get-mobile-staff-day-pings', {
-        staffId: 'staff-1',
-        date: '2026-05-22',
-      }),
-    ).resolves.toEqual({ ok: true });
-
-    expect(mockInvoke).toHaveBeenCalledTimes(1);
   });
 });

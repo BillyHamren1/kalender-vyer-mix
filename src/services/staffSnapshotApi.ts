@@ -8,7 +8,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { getToken } from '@/services/mobileApiService';
 import { getViewAsStaffId } from '@/services/viewAsStorage';
-import { isWebApp } from '@/config/appMode';
 
 type SnapshotErrorCode = 'snapshot_unauthorized' | 'snapshot_failed';
 
@@ -58,7 +57,6 @@ export type StaffSnapshotFunctionName =
   | 'get-mobile-staff-time-report-period'
   | 'get-mobile-staff-day-pings'
   | 'get-mobile-staff-gps-day-suggestion'
-  | 'get-staff-gps-week-summary'
   | 'submit-staff-day-v3';
 
 export async function callStaffSnapshotFunction<T>(
@@ -66,7 +64,6 @@ export async function callStaffSnapshotFunction<T>(
   body: Record<string, unknown>,
 ): Promise<T> {
   const mobileToken = getToken();
-  const shouldUseMobileToken = !!mobileToken && !isWebApp;
   const storedViewAs = getViewAsStaffId();
   // Only attach the admin "view-as" header when it actually matches the staff
   // we're querying. A stale viewAs value in localStorage (left over from an
@@ -81,7 +78,7 @@ export async function callStaffSnapshotFunction<T>(
   const viewAs = storedViewAs && (!bodyStaffId || bodyStaffId === storedViewAs)
     ? storedViewAs
     : null;
-  if (shouldUseMobileToken) {
+  if (mobileToken) {
     const base = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
     const apikey = (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
     if (!base) throw new Error('VITE_SUPABASE_URL not set');
