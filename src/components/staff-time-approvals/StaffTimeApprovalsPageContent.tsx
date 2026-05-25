@@ -230,6 +230,7 @@ export const StaffTimeApprovalsPageContent: React.FC = () => {
             onOpen={setOpenStaffId}
             approvingStaffId={approvingStaffId}
             onApproveWeek={handleApproveWeek}
+            onOpenDay={(b, d) => setSelectedDayInspection({ bundle: b, day: d })}
           />
         )}
       </div>
@@ -242,10 +243,19 @@ export const StaffTimeApprovalsPageContent: React.FC = () => {
               weekNumber={weekNumber}
               weekRangeLabel={weekRangeLabel}
               onClose={() => setOpenStaffId(null)}
+              onOpenDay={(d) => setSelectedDayInspection({ bundle: openBundle, day: d })}
             />
           )}
         </SheetContent>
       </Sheet>
+
+      <StaffDayInspectionDrawer
+        open={!!selectedDayInspection}
+        bundle={selectedDayInspection?.bundle ?? null}
+        day={selectedDayInspection?.day ?? null}
+        onClose={() => setSelectedDayInspection(null)}
+      />
+
     </div>
   );
 };
