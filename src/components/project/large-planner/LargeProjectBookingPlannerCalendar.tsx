@@ -228,7 +228,7 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
         isMutating={isMutating}
         onRefresh={handleRefresh}
         onSeedFromBookings={handleSeedFromBookings}
-        onCreateManual={handleCreateManual}
+        onCreateManual={() => handleCreateManual()}
       />
 
       <div className="flex flex-1 overflow-hidden">
