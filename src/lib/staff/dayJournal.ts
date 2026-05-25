@@ -342,11 +342,26 @@ export function buildStaffDayJournal(input: BuildJournalInput): StaffDayJournal 
   // Travel logs → one row per leg (don't merge — each is a discrete trip)
   for (const t of input.travel) {
     const key = `tv:${t.id}`;
-    const dest = (t.to_address || '').split(',')[0].trim();
+    // Använd from_address/to_address eller fall tillbaka på "Gap: X → Y"-description
+    // så att labeln aldrig blir bara "Resa → —".
+    const labels = resolveTravelLabels({
+      from_address: t.from_address ?? null,
+      to_address: t.to_address ?? null,
+      description: t.description ?? null,
+    });
+    const dest = (labels.toLabel || '').split(',')[0].trim();
+    const origin = (labels.fromLabel || '').split(',')[0].trim();
+    const label = dest && origin
+      ? `Resa ${origin} → ${dest}`
+      : dest
+        ? `Resa → ${dest}`
+        : origin
+          ? `Resa från ${origin}`
+          : 'Resa';
     upsert(key, {
       key,
       kind: 'travel',
-      label: dest ? `Resa → ${dest}` : 'Resa',
+      label,
       start: t.start_iso,
       end: t.end_iso,
       hours: t.hours,
@@ -355,8 +370,8 @@ export function buildStaffDayJournal(input: BuildJournalInput): StaffDayJournal 
     });
     const created = sessions.get(key);
     if (created) {
-      created.fromAddress = t.from_address ?? null;
-      created.toAddress = t.to_address ?? null;
+      created.fromAddress = labels.fromLabel;
+      created.toAddress = labels.toLabel;
       created.fromLatitude = t.from_latitude ?? null;
       created.fromLongitude = t.from_longitude ?? null;
       created.toLatitude = t.to_latitude ?? null;
