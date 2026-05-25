@@ -133,6 +133,20 @@ Deno.serve(async (req: Request) => {
 
   const messages = await loadMessages(admin, orgId, staffId, date, 20);
 
+  // Härled reportMode för mobilen.
+  const subStatus = String(submission.status ?? "not_submitted");
+  const isLocked = subStatus === "approved" || subStatus === "payroll_approved";
+  const hasSegs = (view.segments?.length ?? 0) > 0;
+  const reportMode: "submitted" | "locked" | "gps_suggestion" | "manual_empty" =
+    isLocked
+      ? "locked"
+      : submission.hasSubmission
+        ? "submitted"
+        : hasSegs
+          ? "gps_suggestion"
+          : "manual_empty";
+  const canSubmitManual = reportMode === "manual_empty";
+
   return json({
     source: "mobile_gps_day_view_v2",
     staffId,
@@ -140,6 +154,8 @@ Deno.serve(async (req: Request) => {
     sourceSnapshotId,
     title: view.title,
     subtitle: view.subtitle,
+    reportMode,
+    canSubmitManual,
     map,
     segments: view.segments,
     rows: view.rows,
