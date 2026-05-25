@@ -134,6 +134,13 @@ Deno.serve(async (req: Request) => {
 
   const messages = await loadMessages(admin, orgId, staffId, date, 20);
 
+  let manualTargets = { assignedTargets: [], locationTargets: [], searchableTargets: [] };
+  try {
+    manualTargets = await loadManualReportTargetsForDay(admin, orgId, staffId, date);
+  } catch (e) {
+    console.error("[get-mobile-gps-day-view] manual targets load failed", e);
+  }
+
   // Härled reportMode för mobilen.
   const subStatus = String(submission.status ?? "not_submitted");
   const isLocked = subStatus === "approved" || subStatus === "payroll_approved";
@@ -176,6 +183,7 @@ Deno.serve(async (req: Request) => {
       needsCorrection: submission.needsCorrection,
     },
     messages,
+    manualTargets,
     debug: {
       rawPingCount: view.rawPingCount,
       firstPingAt: view.firstPingAt,
