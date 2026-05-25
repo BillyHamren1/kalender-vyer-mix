@@ -158,7 +158,6 @@ const MobileJobs = () => {
             {viewMode === 'list' && (
               <MobileJobListView
                 shifts={shifts}
-                fixedLocations={locationJobs.map(l => ({ id: l.id, name: l.name, address: l.address ?? null }))}
               />
             )}
           </div>
