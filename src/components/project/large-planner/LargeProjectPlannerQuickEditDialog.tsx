@@ -50,6 +50,8 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   item: LargeProjectBookingPlanItem | null;
   staff: LargeProjectPlannerStaffMember[];
+  getAllowedStaffForDate?: (date: string | null | undefined) => LargeProjectPlannerStaffMember[];
+  isStaffAllowedForDate?: (staffId: string | null | undefined, date: string | null | undefined) => boolean;
   booking?: LargeProjectPlannerBooking | null;
   updateItem: (id: string, updates: UpdatePlannerItemInput) => Promise<unknown>;
   deleteItem?: (id: string) => Promise<unknown>;
