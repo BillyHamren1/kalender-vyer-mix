@@ -49,6 +49,7 @@ export const useRealTimeCalendarEvents = () => {
               id, client, booking_number, deliveryaddress, delivery_city, 
               delivery_postal_code, exact_time_needed, exact_time_info,
               internalnotes, carry_more_than_10m, ground_nails_allowed,
+              rental_only,
               assigned_project_id, assigned_project_name, assigned_to_project,
               status, large_project_id,
               rig_time_locked, event_time_locked, rigdown_time_locked,
