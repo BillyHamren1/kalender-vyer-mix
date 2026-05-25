@@ -159,9 +159,9 @@ export function buildWeeklyBundles(
           d.status === "needs_user_attention" ||
           d.status === "correction_requested"
         ) needsFixCount++;
-      } else {
-        missingCount++;
+        if (d.status === "missing_report") missingCount++;
       }
+      // Dagar utan submission ("no_report") räknas INTE som missing.
     }
 
     const hasTodo = days.some(
