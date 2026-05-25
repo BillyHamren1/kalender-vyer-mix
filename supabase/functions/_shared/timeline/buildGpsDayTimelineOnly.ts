@@ -196,7 +196,10 @@ export function buildGpsDayTimelineOnly(
     stayWindows.some((w) => tMs >= w.start && tMs <= w.end);
 
   // Helper: build travel segments from a list of consecutive movement pings.
+  // Inre tystnad (> GAP_THRESHOLD_MIN) bryts ALLTID till ett gps_gap-segment
+  // mitt i kedjan — annars äts timmar av tystnad upp av en falsk "Resa".
   const TRAVEL_MAX_GAP_MS = 3 * 60_000;
+  const INNER_GAP_THRESHOLD_MS = GAP_THRESHOLD_MIN * 60_000;
   const buildTravelChains = (chunk: Ping[]): GpsTimelineSegment[] => {
     if (chunk.length === 0) return [];
     const out: GpsTimelineSegment[] = [];
@@ -205,9 +208,8 @@ export function buildGpsDayTimelineOnly(
       if (chain.length === 0) return;
       if (chain.length === 1) {
         const p = chain[0];
-        // Target-aware: even a single ping inside a target's geofence should
-        // count as a (tiny) stay at that target, not an "isolated movement"
-        // floating outside the worksite.
+        // Target-aware: även en enskild ping inne i ett targets geofence räknas
+        // som (tiny) stay där, inte "isolerad rörelse" utanför arbetsplatsen.
         const containingTarget = findContainingTarget(chain);
         if (containingTarget) {
           out.push({
@@ -267,8 +269,8 @@ export function buildGpsDayTimelineOnly(
         const avgKmh = durationMin > 0 ? (dist / 1000) / (durationMin / 60) : null;
         const cLat = chain.reduce((s, p) => s + p.lat, 0) / chain.length;
         const cLng = chain.reduce((s, p) => s + p.lng, 0) / chain.length;
-        // Target-aware override: if the whole chain lies inside one target's
-        // geofence, this is movement WITHIN a worksite, not transport between.
+        // Target-aware override: hela kedjan inne i ETT targets geofence =
+        // rörelse INOM en arbetsplats, inte transport mellan platser.
         const containingTarget = findContainingTarget(chain);
         if (containingTarget) {
           out.push({
@@ -293,6 +295,66 @@ export function buildGpsDayTimelineOnly(
             confidence: 0.75,
             reason: "within_target_geofence_movement",
           });
+        } else if (durationMin >= 30 && avgKmh != null && avgKmh < 3) {
+          // Långsam "resa" utan destination = i praktiken stillastående okänd plats.
+          out.push({
+            startTs,
+            endTs,
+            durationMin: Math.max(1, Math.round(durationMin)),
+            kind: "stay",
+            type: "unknown_place",
+            label: "Okänd stillastående plats",
+            matchedSiteId: null,
+            matchedSiteType: null,
+            matchedSiteName: null,
+            centerLat: cLat,
+            centerLng: cLng,
+            startLat: chain[0].lat,
+            startLng: chain[0].lng,
+            endLat: chain[chain.length - 1].lat,
+            endLng: chain[chain.length - 1].lng,
+            pingCount: chain.length,
+            distanceMeters: Math.round(dist),
+            avgKmh: avgKmh != null ? Math.round(avgKmh * 10) / 10 : null,
+            confidence: 0.45,
+            reason: "low_speed_long_duration_no_destination",
+          });
+        } else if (durationMin > 90) {
+          // Tak: resa utan destination > 90 min splittas i kort resa + gps_gap.
+          // Vi vet ärligt talat inte vart personen tog vägen.
+          const cutMs = new Date(startTs).getTime() + 30 * 60_000;
+          const cutIso = new Date(cutMs).toISOString();
+          const cutIdx = chain.findIndex((p) => new Date(p.ts).getTime() >= cutMs);
+          const head = cutIdx > 0 ? chain.slice(0, cutIdx) : chain.slice(0, Math.max(2, Math.floor(chain.length / 4)));
+          let headDist = 0;
+          for (let i = 1; i < head.length; i++) {
+            headDist += distanceMeters(head[i - 1].lat, head[i - 1].lng, head[i].lat, head[i].lng);
+          }
+          const headDur = (new Date(head[head.length - 1].ts).getTime() - new Date(head[0].ts).getTime()) / 60000;
+          const headAvgKmh = headDur > 0 ? (headDist / 1000) / (headDur / 60) : null;
+          out.push({
+            startTs: head[0].ts,
+            endTs: head[head.length - 1].ts,
+            durationMin: Math.max(1, Math.round(headDur)),
+            kind: "travel",
+            type: "transport",
+            label: "Förflyttning",
+            matchedSiteId: null,
+            matchedSiteType: null,
+            matchedSiteName: null,
+            centerLat: head.reduce((s, p) => s + p.lat, 0) / head.length,
+            centerLng: head.reduce((s, p) => s + p.lng, 0) / head.length,
+            startLat: head[0].lat,
+            startLng: head[0].lng,
+            endLat: head[head.length - 1].lat,
+            endLng: head[head.length - 1].lng,
+            pingCount: head.length,
+            distanceMeters: Math.round(headDist),
+            avgKmh: headAvgKmh != null ? Math.round(headAvgKmh * 10) / 10 : null,
+            confidence: 0.55,
+            reason: "capped_open_ended_travel_head",
+          });
+          out.push(makeGapSegment(head[head.length - 1].ts, endTs, Math.round((new Date(endTs).getTime() - new Date(head[head.length - 1].ts).getTime()) / 60000)));
         } else {
           out.push({
             startTs,
@@ -324,7 +386,11 @@ export function buildGpsDayTimelineOnly(
       const prev = chunk[i - 1];
       const cur = chunk[i];
       const gapMs = new Date(cur.ts).getTime() - new Date(prev.ts).getTime();
-      if (gapMs > TRAVEL_MAX_GAP_MS) {
+      if (gapMs >= INNER_GAP_THRESHOLD_MS) {
+        // Lång tystnad mitt i en rörelse — flush:a chain och emit:a gps_gap.
+        flushChain();
+        out.push(makeGapSegment(prev.ts, cur.ts, Math.round(gapMs / 60000)));
+      } else if (gapMs > TRAVEL_MAX_GAP_MS) {
         flushChain();
       }
       chain.push(cur);
@@ -338,14 +404,15 @@ export function buildGpsDayTimelineOnly(
   // instead of "transport". Fixes the case where a person walks/moves around
   // inside a large project/warehouse footprint (>80m wiggle) and gets falsely
   // labelled as "Resa" + "Osäker period".
+  //
+  // Prioritetsregel: icke-home-target vinner alltid över home. Endast om INGEN
+  // icke-home matchar används home. Boende får aldrig "äta upp" lager/projekt.
   const TARGET_CONTAINMENT_RATIO = 0.8;
   const findContainingTarget = (chain: Ping[]): KnownPlace | null => {
     if (chain.length === 0 || knownTargets.length === 0) return null;
-    let best: { place: KnownPlace; count: number } | null = null;
+    let bestNonHome: { place: KnownPlace; count: number } | null = null;
+    let bestHome: { place: KnownPlace; count: number } | null = null;
     for (const place of knownTargets) {
-      // NEVER reclassify movement as a "stay" at a home target. Hem är inte
-      // arbete — pings nära/på hemmet får aldrig bli ett arbetsblock i appen.
-      if (place.type === "home") continue;
       let inside = 0;
       for (const p of chain) {
         if (distanceMeters(p.lat, p.lng, place.lat, place.lng) <= place.radiusM) {
@@ -354,10 +421,14 @@ export function buildGpsDayTimelineOnly(
       }
       const ratio = inside / chain.length;
       if (ratio >= TARGET_CONTAINMENT_RATIO) {
-        if (!best || inside > best.count) best = { place, count: inside };
+        if (place.type === "home") {
+          if (!bestHome || inside > bestHome.count) bestHome = { place, count: inside };
+        } else {
+          if (!bestNonHome || inside > bestNonHome.count) bestNonHome = { place, count: inside };
+        }
       }
     }
-    return best?.place ?? null;
+    return (bestNonHome ?? bestHome)?.place ?? null;
   };
 
   // Movement pings = pings outside any stay window

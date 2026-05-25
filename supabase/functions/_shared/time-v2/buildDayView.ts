@@ -199,11 +199,17 @@ export function buildDayView(input: BuildDayViewInput): BuildDayViewOutput {
     .sort((a, b) => b.totalMinutes - a.totalMinutes);
 
   let workMinutes = 0;
+  let homeMinutes = 0;
   let travelMinutes = 0;
   let gapMinutes = 0;
+  let unknownMinutes = 0;
   for (const s of segments) {
-    if (s.kind === "stay" && s.type === "known_site" && s.matched.kind !== "home") {
+    if (s.kind === "stay" && s.type === "known_site" && s.matched.kind === "home") {
+      homeMinutes += s.durationMinutes;
+    } else if (s.kind === "stay" && s.type === "known_site") {
       workMinutes += s.durationMinutes;
+    } else if (s.kind === "stay" && s.type === "unknown_place") {
+      unknownMinutes += s.durationMinutes;
     } else if (s.kind === "travel") {
       travelMinutes += s.durationMinutes;
     } else if (s.kind === "gps_gap") {
@@ -215,6 +221,8 @@ export function buildDayView(input: BuildDayViewInput): BuildDayViewOutput {
   const subtitleParts: string[] = [];
   if (workMinutes > 0) subtitleParts.push(`Arbete ${fmtMin(workMinutes)}`);
   if (travelMinutes > 0) subtitleParts.push(`Resa ${fmtMin(travelMinutes)}`);
+  if (homeMinutes > 0) subtitleParts.push(`Boende ${fmtMin(homeMinutes)}`);
+  if (unknownMinutes > 0) subtitleParts.push(`Okänt ${fmtMin(unknownMinutes)}`);
   if (gapMinutes > 0) subtitleParts.push(`Glapp ${fmtMin(gapMinutes)}`);
   const subtitle = subtitleParts.length > 0 ? subtitleParts.join(" · ") : "Ingen GPS-aktivitet";
 

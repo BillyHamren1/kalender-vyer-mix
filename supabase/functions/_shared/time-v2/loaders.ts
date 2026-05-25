@@ -13,7 +13,7 @@ export async function loadKnownTargetsV2(
 ): Promise<KnownPlace[]> {
   const [locsRes, projRes, largeRes] = await Promise.all([
     admin.from("organization_locations")
-      .select("id, name, latitude, longitude, radius_meters")
+      .select("id, name, latitude, longitude, radius_meters, is_private_residence")
       .eq("organization_id", orgId)
       .not("latitude", "is", null)
       .not("longitude", "is", null)
@@ -35,13 +35,18 @@ export async function loadKnownTargetsV2(
 
   const out: KnownPlace[] = [];
   for (const r of (locsRes.data ?? []) as any[]) {
+    const isHome = r.is_private_residence === true;
+    const rawName = String(r.name ?? (isHome ? "Boende" : "Plats"));
+    // Säkerställ "Boende" som tydlig prefix när admin glömt att namnge det.
+    const name = isHome && !/boende/i.test(rawName) ? `Boende ${rawName}` : rawName;
     out.push({
       id: String(r.id),
-      type: "location",
-      name: String(r.name ?? "Plats"),
+      type: isHome ? "home" : "location",
+      name,
       lat: Number(r.latitude),
       lng: Number(r.longitude),
-      radiusM: Math.max(20, Number(r.radius_meters ?? 75)),
+      // Tighta boende-fences ska respekteras — sänk minimum för home från 20 → 15 m.
+      radiusM: Math.max(isHome ? 15 : 20, Number(r.radius_meters ?? (isHome ? 50 : 75))),
     });
   }
   for (const r of (projRes.data ?? []) as any[]) {
