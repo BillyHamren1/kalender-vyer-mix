@@ -103,6 +103,14 @@ Deno.serve(async (req: Request) => {
     return json({ error: "ping fetch failed" }, 500);
   }
 
+  const timeline = buildGpsDayTimelineOnly({
+    staffId,
+    organizationId: orgId,
+    date,
+    pings,
+    knownTargets,
+  });
+
   const view = buildDayView({
     staffId,
     organizationId: orgId,
@@ -111,6 +119,13 @@ Deno.serve(async (req: Request) => {
     knownTargets,
     manualOverrides,
     staffName,
+    prebuiltTimeline: timeline,
+  });
+
+  const map = buildDayMap({
+    pings,
+    segments: timeline.segments,
+    knownTargets,
   });
 
   // sourceSnapshotId = stabil hash av råinput → används av submit för traceability
@@ -125,12 +140,7 @@ Deno.serve(async (req: Request) => {
     sourceSnapshotId,
     title: view.title,
     subtitle: view.subtitle,
-    map: {
-      // Appen håller all maprendering. Vi returnerar bara center-hint.
-      centerLat: view.segments[0]?.matched ? null : null,
-      centerLng: null,
-      hasPings: view.rawPingCount > 0,
-    },
+    map,
     segments: view.segments,
     rows: view.rows,
     totals: view.totals,
