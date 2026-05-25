@@ -209,6 +209,13 @@ export function buildDayPartition(input: {
     });
   }
 
+  // Absorbera kort GPS-brus innan minutfördelningen så summan bevaras.
+  const absorbed = absorbShortNoise(segments);
+  segments.length = 0;
+  segments.push(...absorbed);
+
+
+
   // Single rounding pass (ms → minutes), preserving partition exactness:
   // distribute window minutes with largest-remainder so sum(minutes) === windowMin.
   const windowMs = winEnd - winStart;
