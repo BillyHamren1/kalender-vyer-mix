@@ -13,10 +13,8 @@ import {
   MapPin,
   Wallet,
   ExternalLink,
-  Satellite,
   Sparkles,
-  ClipboardCheck,
-  FileText,
+  CalendarClock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProjectInboxCount } from "@/hooks/useProjectInboxCount";
@@ -70,11 +68,7 @@ const baseNavigationItems: NavItem[] = [
       { title: "Personalöversikt", url: "/staff-management", icon: Users },
       { title: "Personalplanering", url: "/calendar", icon: Calendar },
       { title: "Personalkalendern (publik)", url: "/personalkalendern", icon: ExternalLink },
-      { title: "Tidrapporter", url: "/staff-management/time-reports", icon: Clock },
-      { title: "Tidrapport-attest", url: "/staff-management/time-approvals", icon: ClipboardCheck },
-      { title: "Månadsrapport lön", url: "/staff-management/payroll-month-report", icon: FileText },
-      { title: "Löneperioder", url: "/staff-management/payroll-periods", icon: Wallet },
-      { title: "GPS satellitkarta", url: "/staff-management/gps-satellite-map", icon: Satellite },
+      { title: "Tid & Lön", url: "/staff-management/time", icon: CalendarClock },
     ],
   },
   {
