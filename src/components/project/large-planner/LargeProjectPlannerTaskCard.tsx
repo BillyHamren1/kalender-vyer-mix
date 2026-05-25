@@ -68,6 +68,7 @@ const LargeProjectPlannerTaskCard = ({
   booking,
   staff,
   compact,
+  draggable,
   onClick,
   onDelete,
 }: Props) => {
@@ -79,10 +80,21 @@ const LargeProjectPlannerTaskCard = ({
       : startTime
     : null;
 
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+    const payload: PlannerDragPayload = {
+      itemId: item.id,
+      fromDate: item.plan_date,
+      fromStaffId: item.assigned_staff_id,
+    };
+    writeDragPayload(e.dataTransfer, payload);
+  };
+
   return (
     <div
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : -1}
+      draggable={draggable}
+      onDragStart={draggable ? handleDragStart : undefined}
       onClick={onClick ? () => onClick(item) : undefined}
       onKeyDown={
         onClick
@@ -94,12 +106,21 @@ const LargeProjectPlannerTaskCard = ({
             }
           : undefined
       }
-      className={`group relative rounded-md border border-border/60 bg-card px-2 py-1.5 text-xs shadow-sm transition hover:border-primary/50 hover:bg-primary/5 ${
-        onClick ? 'cursor-pointer' : ''
+      className={`group relative rounded-md border bg-card px-2 py-1.5 text-xs shadow-sm transition hover:border-primary/50 hover:bg-primary/5 ${
+        STATUS_RING[item.status]
+      } ${onClick ? 'cursor-pointer' : ''} ${
+        draggable ? 'active:cursor-grabbing' : ''
       } ${compact ? 'space-y-0.5' : 'space-y-1'}`}
     >
+      {draggable && (
+        <GripVertical className="pointer-events-none absolute left-0 top-1.5 h-3 w-3 -translate-x-0.5 text-muted-foreground opacity-0 transition group-hover:opacity-60" />
+      )}
       <div className="flex items-start justify-between gap-1">
-        <div className="font-medium leading-tight text-foreground line-clamp-2">
+        <div
+          className={`font-medium leading-tight text-foreground line-clamp-2 ${
+            item.status === 'done' ? 'line-through decoration-emerald-500/60' : ''
+          }`}
+        >
           {item.title}
         </div>
         {onDelete && (
