@@ -47,8 +47,11 @@ export function StaffGpsDayRow({ day, dateStr, selected, summary, onClick }: Pro
   const dayMonth = format(day, 'd/M', { locale: sv });
   const hasData = !!summary && summary.pingsCount > 0;
   const hasRange = hasData && summary!.firstIso && summary!.lastIso;
-  // Visa endast segment ≥ 1 minut för att inte spamma raden.
-  const segments = (summary?.segments ?? []).filter((s) => s.minutes >= 1);
+  // Kända platser (work/private) visas alltid, även om de är < 1 min – ett kort
+  // lager-stopp innan direkt resa får aldrig döljas. Övriga segment kräver ≥1 min.
+  const segments = (summary?.segments ?? []).filter(
+    (s) => s.type === 'work' || s.type === 'private' || s.minutes >= 1,
+  );
 
   return (
     <button
