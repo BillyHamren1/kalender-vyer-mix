@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -8,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, CalendarCheck2, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarCheck2, Search, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import type { StaffWeeklyStaffMember } from "@/hooks/staff/useStaffWeeklyTimeApprovals";
@@ -83,6 +84,14 @@ export const WeekApprovalToolbar: React.FC<WeekApprovalToolbarProps> = ({
             <ChevronRight className="h-3.5 w-3.5" />
           </Button>
         </div>
+
+        <Button asChild variant="outline" size="sm" className="h-7 gap-1.5">
+          <Link to="/staff-management/payroll-month-report">
+            <FileText className="h-3.5 w-3.5" />
+            <span className="hidden md:inline">Öppna månadsrapport</span>
+            <span className="md:hidden">Månad</span>
+          </Link>
+        </Button>
 
         <div className="flex items-center gap-2 ml-auto">
           <div className="relative">
