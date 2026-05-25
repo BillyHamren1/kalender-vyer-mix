@@ -103,9 +103,64 @@ export function useProjectCalendarDays(args: UseProjectCalendarDaysArgs) {
         throw error;
       }
 
+      const realEvents = (data || []) as ProjectCalendarEvent[];
+
+      // Fallback: bygg syntetiska faseventer från bookings.rigdaydate/eventdate/
+      // rigdowndate för (booking_id, phase, date)-kombinationer som saknar rad
+      // i calendar_events. Säkerställer att projektkalendern alltid har dagar
+      // även när calendar_events inte hunnit synkas (samma fallback som
+      // useRealTimeCalendarEvents använder för personalkalendern).
+      const realKeys = new Set(
+        realEvents
+          .filter((e) => e.booking_id && e.source_date && e.event_type)
+          .map((e) => `${e.booking_id}|${e.event_type}|${e.source_date}`),
+      );
+
+      let syntheticEvents: ProjectCalendarEvent[] = [];
+      if (scope.bookingIds.length > 0) {
+        const { data: bookingRows, error: bookingErr } = await supabase
+          .from('bookings')
+          .select('id, rigdaydate, eventdate, rigdowndate')
+          .in('id', scope.bookingIds);
+        if (bookingErr) {
+          console.warn('[useProjectCalendarDays] booking fallback failed', bookingErr);
+        } else {
+          const phaseMap: Array<{ phase: ProjectCalendarPhase; col: 'rigdaydate' | 'eventdate' | 'rigdowndate' }> = [
+            { phase: 'rig', col: 'rigdaydate' },
+            { phase: 'event', col: 'eventdate' },
+            { phase: 'rigDown', col: 'rigdowndate' },
+          ];
+          for (const b of bookingRows || []) {
+            for (const { phase, col } of phaseMap) {
+              const raw = (b as any)[col];
+              if (!raw) continue;
+              const dateStr = String(raw).slice(0, 10);
+              const key = `${b.id}|${phase}|${dateStr}`;
+              if (realKeys.has(key)) continue;
+              syntheticEvents.push({
+                id: `synthetic-${b.id}-${phase}-${dateStr}`,
+                booking_id: b.id,
+                event_type: phase,
+                source_date: dateStr,
+                start_time: `${dateStr}T00:00:00Z`,
+                end_time: `${dateStr}T00:00:00Z`,
+                resource_id: null,
+                delivery_address: null,
+                booking_number: null,
+                title: null,
+              });
+            }
+          }
+        }
+      }
+
+      const merged = [...realEvents, ...syntheticEvents].sort((a, b) =>
+        a.source_date.localeCompare(b.source_date),
+      );
+
       return {
         scope,
-        events: (data || []) as ProjectCalendarEvent[],
+        events: merged,
       };
     },
   });
