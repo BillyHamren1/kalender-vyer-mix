@@ -96,6 +96,8 @@ interface Props {
   largeProjectId: string;
   booking: LargeProjectPlannerBooking | null;
   staff: LargeProjectPlannerStaffMember[];
+  getAllowedStaffForDate?: (date: string | null | undefined) => LargeProjectPlannerStaffMember[];
+  isStaffAllowedForDate?: (staffId: string | null | undefined, date: string | null | undefined) => boolean;
   onSplit: (input: SplitBookingInput) => Promise<unknown>;
   isMutating?: boolean;
 }
@@ -106,6 +108,8 @@ const SplitBookingIntoTasksDialog = ({
   largeProjectId,
   booking,
   staff,
+  getAllowedStaffForDate,
+  isStaffAllowedForDate,
   onSplit,
   isMutating,
 }: Props) => {
