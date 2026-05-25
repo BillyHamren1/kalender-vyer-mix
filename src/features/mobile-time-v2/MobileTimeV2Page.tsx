@@ -221,7 +221,7 @@ const MobileTimeV2Page: React.FC = () => {
           </Card>
         )}
 
-        {/* Summary */}
+        {/* Summary — totaler räknas ALDRIG om i appen, kommer alltid från backend */}
         {data && !isLoading && data.segments.length > 0 && (
           <Card className="p-4">
             <div className="grid grid-cols-3 gap-3 text-center">
@@ -230,11 +230,11 @@ const MobileTimeV2Page: React.FC = () => {
                 <p className="text-xs text-muted-foreground mt-0.5">Totalt</p>
               </div>
               <div>
-                <p className="text-2xl font-semibold">{minutesToLabel(data.totals.workMinutes)}</p>
+                <p className="text-2xl font-semibold">{data.subtitle.includes('Arbete') ? extractPart(data.subtitle, 'Arbete') : '—'}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">Arbete</p>
               </div>
               <div>
-                <p className="text-2xl font-semibold">{minutesToLabel(data.totals.travelMinutes)}</p>
+                <p className="text-2xl font-semibold">{data.subtitle.includes('Resa') ? extractPart(data.subtitle, 'Resa') : '—'}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">Resa</p>
               </div>
             </div>
@@ -244,7 +244,17 @@ const MobileTimeV2Page: React.FC = () => {
                 <span>{data.debug.rawPingCount} GPS-pings</span>
               )}
             </div>
+            {Object.keys(overrides).length > 0 && (
+              <p className="mt-2 text-xs text-amber-600">
+                Osparade ändringar finns. Totalen uppdateras efter inskick.
+              </p>
+            )}
           </Card>
+        )}
+
+        {/* Map — backend bygger map-data, appen renderar bara */}
+        {data && !isLoading && (
+          <MobileGpsDayMap map={data.map} />
         )}
 
         {/* Empty */}
@@ -263,21 +273,14 @@ const MobileTimeV2Page: React.FC = () => {
           <div className="space-y-2.5">
             {data.segments.map((seg) => {
               const buffered = overrides[seg.segmentKey];
+              // VIKTIGT: appen räknar ALDRIG om duration eller durationLabel.
+              // Vi visar bara nya start/sluttider och en "Osparad ändring"-flagga.
+              // durationLabel/Minutes lämnas orörda — backend räknar om vid submit/refresh.
               const displaySegment: MobileGpsDaySegment = buffered
                 ? {
                     ...seg,
                     currentStartTime: buffered.startIso ?? seg.currentStartTime,
                     currentEndTime: buffered.endIso ?? seg.currentEndTime,
-                    durationMinutes: diffMinutes(
-                      buffered.startIso ?? seg.currentStartTime,
-                      buffered.endIso ?? seg.currentEndTime,
-                    ),
-                    durationLabel: minutesToLabel(
-                      diffMinutes(
-                        buffered.startIso ?? seg.currentStartTime,
-                        buffered.endIso ?? seg.currentEndTime,
-                      ),
-                    ),
                     manualOverride: {
                       hasOverride: true,
                       reason: buffered.reason ?? null,
@@ -288,6 +291,7 @@ const MobileTimeV2Page: React.FC = () => {
                 <MobileGpsSegmentCard
                   key={seg.segmentKey}
                   segment={displaySegment}
+                  hasUnsavedOverride={!!buffered}
                   onEdit={handleEdit}
                   disabled={isLocked}
                 />
