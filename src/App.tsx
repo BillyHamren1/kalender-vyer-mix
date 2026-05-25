@@ -35,6 +35,7 @@ const InvoicingPage = lazyWithRecovery(() => import("./pages/InvoicingPage"));
 const CustomCalendarPage = lazyWithRecovery(() => import("./pages/CustomCalendarPage"));
 const StaffManagement = lazyWithRecovery(() => import("./pages/StaffManagement"));
 const TimeReportApprovals = lazyWithRecovery(() => import("./pages/TimeReportApprovals"));
+const StaffTimeApprovalsPage = lazyWithRecovery(() => import("./pages/StaffTimeApprovalsPage"));
 const StaffTimeReports = lazyWithRecovery(() => import("./pages/StaffTimeReports"));
 const StaffGpsSatelliteMapPage = lazyWithRecovery(() => import("./pages/StaffGpsSatelliteMap"));
 const StaffDayReportsAdmin = lazyWithRecovery(() => import("./pages/StaffDayReportsAdmin"));
@@ -312,7 +313,8 @@ const WebRoutes: React.FC = () => {
               <Route path="/staff-dashboard" element={<StaffDashboard />} />
               <Route path="/communication" element={<CommunicationPage />} />
               <Route path="/ops-control" element={<OpsControlCenter />} />
-              <Route path="/staff-management/time-approvals" element={<TimeReportApprovals />} />
+              <Route path="/staff-management/time-approvals" element={<StaffTimeApprovalsPage />} />
+              <Route path="/staff-management/time-approvals-legacy" element={<TimeReportApprovals />} />
               <Route path="/staff-management/time-reports" element={<StaffTimeReports />} />
               <Route path="/staff-management/gps-satellite-map" element={<StaffGpsSatelliteMapPage />} />
               <Route path="/staff-management/day-reports" element={<StaffDayReportsAdmin />} />
