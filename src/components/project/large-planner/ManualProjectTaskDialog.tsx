@@ -254,11 +254,16 @@ const ManualProjectTaskDialog = ({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={UNASSIGNED}>Ej tilldelat</SelectItem>
-                  {staff.map((s) => (
+                  {allowedForDate.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name}
                     </SelectItem>
                   ))}
+                  {allowedForDate.length === 0 && (
+                    <div className="px-2 py-1 text-[11px] italic text-muted-foreground">
+                      Ingen bemannad personal detta datum
+                    </div>
+                  )}
                 </SelectContent>
               </Select>
             </div>
