@@ -145,11 +145,11 @@ export function useDayKnownSites(staffId: string, date: string, enabled = true) 
               .select('id, name, address_latitude, address_longitude, address_radius_meters')
               .in('id', [...new Set([...largeIds, ...extraLargeIds])])
           : Promise.resolve({ data: [] as any[] }),
-        bookingIds.size
+        activeBookingIdArr.length
           ? supabase
               .from('projects')
               .select('id, name, delivery_latitude, delivery_longitude, address_radius_meters, status, planning_status, deleted_at, booking_id')
-              .in('booking_id', [...bookingIds])
+              .in('booking_id', activeBookingIdArr)
               .is('deleted_at', null)
           : Promise.resolve({ data: [] as any[] }),
         projectIds.size
