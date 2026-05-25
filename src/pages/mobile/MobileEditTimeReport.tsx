@@ -1,3 +1,4 @@
+// Legacy mobile time UI. Do not use for Time v2.
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { mobileApi, MobileTimeReport } from '@/services/mobileApiService';

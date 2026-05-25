@@ -1,3 +1,4 @@
+// Legacy mobile time UI. Do not use for Time v2.
 /**
  * MobileDayReview — Review-entrypoint för dagavstämning.
  *

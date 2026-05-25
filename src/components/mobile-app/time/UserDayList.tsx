@@ -1,3 +1,4 @@
+// Legacy mobile time UI. Do not use for Time v2.
 import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
