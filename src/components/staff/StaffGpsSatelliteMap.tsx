@@ -209,15 +209,8 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
 
   void calendarMonth;
 
-  const activeProjectGeofencesQuery = useAllActiveProjectGeofences(dateStr);
   const geofences = useMemo<GeofenceSite[]>(() => {
-    const nonProject = (snapshotQuery.data?.geofences ?? []).filter((site) => {
-      const id = String(site.id ?? '');
-      return !id.startsWith('project:') && !id.startsWith('large:');
-    });
-    const projectsForDay = activeProjectGeofencesQuery.data ?? [];
-    const merged = [...nonProject, ...projectsForDay];
-    return merged.map((site) => ({
+    return (snapshotQuery.data?.geofences ?? []).map((site) => ({
       id: site.id,
       name: site.name,
       lat: site.lat,
@@ -225,7 +218,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
       radiusMeters: site.radiusMeters,
       polygon: site.polygon ?? undefined,
     }));
-  }, [snapshotQuery.data?.geofences, activeProjectGeofencesQuery.data]);
+  }, [snapshotQuery.data?.geofences]);
 
   const geofenceVisits = useMemo<PlaceVisit[]>(() => (snapshotQuery.data?.visits ?? []).map((visit) => ({
     placeKey: visit.placeKey,
