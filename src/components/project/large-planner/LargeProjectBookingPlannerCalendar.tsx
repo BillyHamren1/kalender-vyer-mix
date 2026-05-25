@@ -186,23 +186,14 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     }
   };
 
-  const handleCreateManual = async () => {
-    const planDate = days[0]?.date ?? format(new Date(), 'yyyy-MM-dd');
-    const title = window.prompt('Titel för manuell task?');
-    if (!title) return;
-    try {
-      await createItem({
-        large_project_id: largeProjectId,
-        title,
-        plan_date: planDate,
-        item_type: 'manual',
-        source: 'manual',
-        status: 'planned',
-      });
-      toast.success('Manuell task skapad.');
-    } catch (e) {
-      toast.error((e as Error).message || 'Kunde inte skapa task.');
-    }
+  const handleCreateManual = (
+    opts: { date?: string | null; staffId?: string | null } = {},
+  ) => {
+    setManualDefaults({
+      date: opts.date ?? days[0]?.date ?? null,
+      staffId: opts.staffId ?? null,
+    });
+    setManualOpen(true);
   };
 
   const handleItemDelete = async (item: LargeProjectBookingPlanItem) => {
