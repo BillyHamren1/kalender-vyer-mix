@@ -54,6 +54,7 @@ const CustomerInfoBlock = ({
   groundNailsAllowed,
   exactTimeNeeded,
   exactTimeInfo,
+  rentalOnly,
   projectLeader,
 }: CustomerInfoBlockProps) => {
   const fullAddress = [deliveryAddress, [deliveryPostalCode, deliveryCity].filter(Boolean).join(" ")]
@@ -71,6 +72,11 @@ const CustomerInfoBlock = ({
           <div className="flex items-center gap-2">
             <Building2 className="h-5 w-5 text-primary" />
             <h2 className="text-base font-semibold text-foreground tracking-tight">Kundinformation</h2>
+            {rentalOnly && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 text-[11px] font-semibold uppercase tracking-wide border border-emerald-300">
+                Endast uthyrning
+              </span>
+            )}
           </div>
           {bookingNumber && (
             <span className="inline-flex items-center gap-1 text-xs font-mono text-muted-foreground">
