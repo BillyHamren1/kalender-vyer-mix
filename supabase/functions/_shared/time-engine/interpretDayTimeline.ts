@@ -178,8 +178,10 @@ function segmentToInitialBlock(
     reinterpreted: false,
     confidence: seg.confidence ?? 0.5,
     reason: initialReason(kind, seg),
+    maxDisplacementM: Math.max(0, Number(seg.distanceMeters ?? 0) || 0),
   };
 }
+
 
 function mapSegmentKind(seg: GpsTimelineSegment): DayTimelineBlockKind {
   if (seg.kind === 'gps_gap' || seg.type === 'gps_gap') return 'gps_gap';
