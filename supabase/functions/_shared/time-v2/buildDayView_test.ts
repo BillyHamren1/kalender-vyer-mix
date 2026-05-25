@@ -83,3 +83,98 @@ Deno.test("buildDayView groups unknown vs known into separate rows", () => {
   const hasProjectRow = v.rows.some((r) => r.rowKey === "project:proj-1");
   assertEquals(hasProjectRow, true);
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Nya tester: Boende vs Lager + döda fantomresor
+// ─────────────────────────────────────────────────────────────────────────────
+
+const HOME_LAT = 59.40;
+const HOME_LNG = 18.10;
+const LAGER_LAT = 59.4001;
+const LAGER_LNG = 18.1003; // ~25 m bort
+const PROJ_LAT = 59.33;
+const PROJ_LNG = 18.06;
+
+const dualTargets: KnownPlace[] = [
+  { id: "proj-1", type: "project", name: "Projekt Alfa", lat: PROJ_LAT, lng: PROJ_LNG, radiusM: 100 },
+  { id: "lager-1", type: "location", name: "Lager Stockholm", lat: LAGER_LAT, lng: LAGER_LNG, radiusM: 80 },
+  { id: "boende-1", type: "home", name: "Boende Norra", lat: HOME_LAT, lng: HOME_LNG, radiusM: 15 },
+];
+
+function pingsAtMin(date: string, lat: number, lng: number, count: number, startMin: number, stepMin = 1): RawPingInput[] {
+  const out: RawPingInput[] = [];
+  for (let i = 0; i < count; i++) {
+    const t = new Date(`${date}T00:00:00Z`).getTime() + (startMin + i * stepMin) * 60_000;
+    out.push({ recorded_at: new Date(t).toISOString(), lat, lng, accuracy: 10 });
+  }
+  return out;
+}
+
+Deno.test("Boende + lager bredvid varandra: lager vinner över home", () => {
+  // Pings i lager-polygon (men nära boendet)
+  const pings = pingsAtMin("2026-05-25", LAGER_LAT, LAGER_LNG, 30, 8 * 60);
+  const v = buildDayView({
+    staffId: "s1", organizationId: "org1", date: "2026-05-25",
+    pings, knownTargets: dualTargets, manualOverrides: [],
+  });
+  const matched = v.segments.find((s) => s.type === "known_site");
+  if (!matched) throw new Error("expected a known_site segment");
+  assertEquals(matched.matched.kind, "location");
+  assertEquals(matched.matched.id, "lager-1");
+});
+
+Deno.test("Inga 9h fantomresor: glesa pings långt från allt blir gps_gap/unknown_place, inte travel", () => {
+  // Projekt 08–13 (klustrade)
+  const projectPings = pingsAtMin("2026-05-25", PROJ_LAT, PROJ_LNG, 60, 8 * 60, 5);
+  // Sedan glesa pings långt från allt 13–22 (1 ping var 30:e min, ~1 m drift)
+  const farPings: RawPingInput[] = [];
+  for (let i = 0; i < 18; i++) {
+    const t = new Date(`2026-05-25T13:00:00Z`).getTime() + i * 30 * 60_000;
+    farPings.push({
+      recorded_at: new Date(t).toISOString(),
+      lat: 59.80 + i * 0.00001,
+      lng: 18.80 + i * 0.00001,
+      accuracy: 10,
+    });
+  }
+  const v = buildDayView({
+    staffId: "s1", organizationId: "org1", date: "2026-05-25",
+    pings: [...projectPings, ...farPings], knownTargets: dualTargets, manualOverrides: [],
+  });
+  // INGEN travel-segment får vara ≥ 60 min utan destination
+  const longOpenTravel = v.segments.find(
+    (s) => s.kind === "travel" && s.durationMinutes >= 60 && !s.matched.id,
+  );
+  if (longOpenTravel) {
+    throw new Error(
+      `Fantomresa kvar: ${longOpenTravel.durationMinutes} min, reason=${(longOpenTravel as any).type}`,
+    );
+  }
+  // Vi förväntar oss antingen gps_gap eller unknown_place för eftermiddagen
+  const hasGapOrUnknown = v.segments.some(
+    (s) => s.kind === "gps_gap" || (s.kind === "stay" && s.type === "unknown_place"),
+  );
+  assertEquals(hasGapOrUnknown, true);
+});
+
+Deno.test("Hela eftermiddagen i boendet: visas som Boende-stay, INTE som Resa", () => {
+  const projectPings = pingsAtMin("2026-05-25", PROJ_LAT, PROJ_LNG, 60, 8 * 60, 5);
+  const homePings = pingsAtMin("2026-05-25", HOME_LAT, HOME_LNG, 60, 14 * 60, 8);
+  const v = buildDayView({
+    staffId: "s1", organizationId: "org1", date: "2026-05-25",
+    pings: [...projectPings, ...homePings], knownTargets: dualTargets, manualOverrides: [],
+  });
+  const homeStay = v.segments.find(
+    (s) => s.kind === "stay" && s.matched.kind === "home" && s.matched.id === "boende-1",
+  );
+  if (!homeStay) {
+    throw new Error(
+      `Förväntade Boende-stay. Segments: ${JSON.stringify(v.segments.map((s) => ({ k: s.kind, t: s.type, m: s.matched.kind, lbl: s.label, dur: s.durationMinutes })))}`,
+    );
+  }
+  // Subtitle ska ha "Boende" separat, inte räknas som Arbete
+  if (!v.subtitle.includes("Boende")) {
+    throw new Error(`Subtitle saknar Boende: ${v.subtitle}`);
+  }
+  assertEquals(v.totals.workMinutes < homeStay.durationMinutes + 60, true);
+});
