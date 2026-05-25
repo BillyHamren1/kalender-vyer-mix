@@ -28,6 +28,7 @@ interface Props {
   weekNumber: number;
   weekRangeLabel: string;
   onClose: () => void;
+  onOpenDay?: (day: import("./weeklyApprovalModel").WeeklyDayCell) => void;
 }
 
 export const StaffWeeklyApprovalPanel: React.FC<Props> = ({
@@ -35,6 +36,7 @@ export const StaffWeeklyApprovalPanel: React.FC<Props> = ({
   weekNumber,
   weekRangeLabel,
   onClose,
+  onOpenDay,
 }) => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -200,10 +202,25 @@ export const StaffWeeklyApprovalPanel: React.FC<Props> = ({
                 onOpenGps={() => openGps(d.date)}
               />
               {expandedDate === d.date && (
-                <StaffDayApprovalDetails day={d} staffId={bundle.staff.id} />
+                <div className="space-y-2">
+                  {onOpenDay && d.uiStatus !== "no_report" && (
+                    <div className="px-3 pt-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => onOpenDay(d)}
+                      >
+                        Öppna daggranskning
+                      </Button>
+                    </div>
+                  )}
+                  <StaffDayApprovalDetails day={d} staffId={bundle.staff.id} />
+                </div>
               )}
             </div>
           ))}
+
         </div>
       </ScrollArea>
 
