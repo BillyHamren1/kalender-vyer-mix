@@ -57,6 +57,7 @@ export type StaffSnapshotFunctionName =
   | 'get-mobile-staff-time-report-period'
   | 'get-mobile-staff-day-pings'
   | 'get-mobile-staff-gps-day-suggestion'
+  | 'get-staff-gps-week-summary'
   | 'submit-staff-day-v3';
 
 export async function callStaffSnapshotFunction<T>(
