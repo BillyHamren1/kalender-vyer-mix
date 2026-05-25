@@ -44,6 +44,7 @@ const LargeProjectPlannerSidebar = ({
   onSplitBooking,
   onItemClick,
   onItemDelete,
+  onCreateManual,
 }: Props) => {
   const [filter, setFilter] = useState<Filter>('all');
 
