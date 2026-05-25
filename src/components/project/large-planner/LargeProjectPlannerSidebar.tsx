@@ -26,6 +26,7 @@ interface Props {
   onSplitBooking?: (booking: LargeProjectPlannerBooking) => void;
   onItemClick?: (item: LargeProjectBookingPlanItem) => void;
   onItemDelete?: (item: LargeProjectBookingPlanItem) => void;
+  onCreateManual?: () => void;
 }
 
 const FILTERS: { key: Filter; label: string }[] = [
