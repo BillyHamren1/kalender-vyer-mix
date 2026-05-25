@@ -37,6 +37,10 @@ export interface DaySegment {
   end: string;   // ISO
   minutes: number;
   knownSiteId?: string | null;
+  /** För travel/gps_gap/unknown_place/idle: namn på platsen vi lämnade (om känd). */
+  fromLabel?: string | null;
+  /** För travel/gps_gap/unknown_place/idle: namn på platsen vi är på väg till (om känd). */
+  toLabel?: string | null;
 }
 
 export interface DayPartition {
