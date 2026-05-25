@@ -106,21 +106,9 @@ const MobileJobs = () => {
             </div>
           </button>
         </div>
-        {/* Genväg till Time-sidan — start/stopp av dag sker bara där */}
+        {/* Kompakt arbetsdags-widget — ersätter tidigare "Öppna Time"-genväg */}
         <div className="px-5 pb-2">
-          <button
-            type="button"
-            onClick={() => navigate('/m/report')}
-            className="w-full h-11 px-3 flex items-center gap-2 bg-primary-foreground/10 rounded-xl active:scale-[0.99] transition-all"
-          >
-            <Clock className="w-4 h-4 text-primary-foreground/90" />
-            <span className="text-xs font-semibold text-primary-foreground/90 flex-1 text-left">
-              Öppna Time
-            </span>
-            <span className="text-[11px] text-primary-foreground/70">
-              Starta/avsluta arbetsdag
-            </span>
-          </button>
+          <MobileWorkDayWidget />
         </div>
       </HeaderShell>
 
