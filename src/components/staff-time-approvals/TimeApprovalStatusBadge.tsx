@@ -10,11 +10,15 @@ import {
   ShieldAlert,
   MessageSquareWarning,
   Ban,
+  Hourglass,
+  UserCheck,
+  Cpu,
+  CircleDashed,
 } from "lucide-react";
-import type { StaffDaySubmissionStatus } from "@/hooks/staff/useStaffWeeklyTimeApprovals";
 
 interface Props {
-  status: StaffDaySubmissionStatus;
+  /** Accepterar både rå submission-status och syntetisk UI-status. */
+  status: string;
   size?: "xs" | "sm";
   className?: string;
 }
@@ -26,8 +30,9 @@ interface Spec {
 }
 
 const SPEC: Record<string, Spec> = {
-  submitted: { label: "Väntar attest", icon: Clock3, tone: "border-amber-500/40 text-amber-800 bg-amber-500/10 dark:text-amber-300" },
-  edited: { label: "Väntar attest · ändrad", icon: Pencil, tone: "border-amber-500/40 text-amber-800 bg-amber-500/10 dark:text-amber-300" },
+  // Riktiga submission-statusar
+  submitted: { label: "Väntar adminattest", icon: Clock3, tone: "border-amber-500/40 text-amber-800 bg-amber-500/10 dark:text-amber-300" },
+  edited: { label: "Väntar adminattest · ändrad", icon: Pencil, tone: "border-amber-500/40 text-amber-800 bg-amber-500/10 dark:text-amber-300" },
   ai_flagged: { label: "Kontrollera", icon: ShieldAlert, tone: "border-orange-500/40 text-orange-800 bg-orange-500/10 dark:text-orange-300" },
   needs_user_attention: { label: "Behöver svar", icon: HelpCircle, tone: "border-orange-500/40 text-orange-800 bg-orange-500/10 dark:text-orange-300" },
   needs_control: { label: "Intern kontroll", icon: AlertTriangle, tone: "border-orange-500/40 text-orange-800 bg-orange-500/10 dark:text-orange-300" },
@@ -37,6 +42,13 @@ const SPEC: Record<string, Spec> = {
   rejected: { label: "Avvisad", icon: Ban, tone: "border-rose-500/40 text-rose-700 bg-rose-500/10 dark:text-rose-300" },
   withdrawn: { label: "Återtagen", icon: Ban, tone: "border-border text-muted-foreground bg-muted/40" },
   missing_report: { label: "Saknas", icon: Ban, tone: "border-border text-muted-foreground bg-muted/40" },
+
+  // Syntetiska UI-statusar
+  pending_staff_attest: { label: "Väntar personalattest", icon: Hourglass, tone: "border-indigo-500/40 text-indigo-700 bg-indigo-500/10 dark:text-indigo-300" },
+  pending_admin_attest: { label: "Väntar adminattest", icon: UserCheck, tone: "border-amber-500/40 text-amber-800 bg-amber-500/10 dark:text-amber-300" },
+  edited_pending_admin_attest: { label: "Väntar adminattest · ändrad", icon: Pencil, tone: "border-amber-500/40 text-amber-800 bg-amber-500/10 dark:text-amber-300" },
+  engine_error: { label: "Beräkningsfel", icon: Cpu, tone: "border-rose-500/50 text-rose-700 bg-rose-500/10 dark:text-rose-300" },
+  no_report: { label: "Ingen rapport", icon: CircleDashed, tone: "border-border text-muted-foreground bg-muted/40" },
 };
 
 export const TimeApprovalStatusBadge: React.FC<Props> = ({ status, size = "xs", className }) => {

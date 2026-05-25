@@ -2,14 +2,9 @@ import React, { useMemo, useState } from "react";
 import { addDays, endOfWeek, format, getISOWeek, startOfWeek } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
-import {
-  Sheet,
-  SheetContent,
-} from "@/components/ui/sheet";
-import {
-  useStaffWeeklyTimeApprovals,
-} from "@/hooks/staff/useStaffWeeklyTimeApprovals";
-import { useApproveStaffWeek } from "@/hooks/staff/useApproveStaffWeek";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { useStaffWeeklyTimeApprovals } from "@/hooks/staff/useStaffWeeklyTimeApprovals";
+import { useApproveStaffWeek, NoApprovableError } from "@/hooks/staff/useApproveStaffWeek";
 import WeekApprovalToolbar from "./WeekApprovalToolbar";
 import StaffWeeklyApprovalList from "./StaffWeeklyApprovalList";
 import StaffWeeklyApprovalPanel from "./StaffWeeklyApprovalPanel";
@@ -18,7 +13,7 @@ import { buildWeeklyBundles } from "./weeklyApprovalModel";
 interface SummaryChipProps {
   label: string;
   value: number;
-  tone?: "default" | "amber" | "rose" | "emerald" | "sky";
+  tone?: "default" | "amber" | "rose" | "emerald" | "sky" | "indigo";
 }
 
 const TONE_CLASS: Record<NonNullable<SummaryChipProps["tone"]>, string> = {
@@ -27,6 +22,7 @@ const TONE_CLASS: Record<NonNullable<SummaryChipProps["tone"]>, string> = {
   rose: "bg-rose-500/10 text-rose-700 border-rose-500/30 dark:text-rose-300",
   emerald: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300",
   sky: "bg-sky-500/10 text-sky-700 border-sky-500/30 dark:text-sky-300",
+  indigo: "bg-indigo-500/10 text-indigo-700 border-indigo-500/30 dark:text-indigo-300",
 };
 
 const SummaryChip: React.FC<SummaryChipProps> = ({ label, value, tone = "default" }) => (
@@ -54,59 +50,83 @@ export const StaffTimeApprovalsPageContent: React.FC = () => {
   const weekEndIso = format(weekEnd, "yyyy-MM-dd");
   const weekRangeLabel = `${format(weekStart, "d MMM", { locale: sv })} – ${format(weekEnd, "d MMM yyyy", { locale: sv })}`;
 
+  // UI-statusar filtreras i modellen, inte i Supabase-queryn.
+  const UI_ONLY = new Set([
+    "all",
+    "todo",
+    "approved",
+    "pending_staff_attest",
+    "pending_admin_attest",
+  ]);
+
   const { data, isLoading, error } = useStaffWeeklyTimeApprovals({
     weekStart: weekStartIso,
     weekEnd: weekEndIso,
     staffId: staffFilter !== "all" ? staffFilter : null,
-    status:
-      statusFilter !== "all" && statusFilter !== "todo" && statusFilter !== "approved"
-        ? statusFilter
-        : null,
+    status: UI_ONLY.has(statusFilter) ? null : statusFilter,
   });
 
   const approveWeek = useApproveStaffWeek();
 
   const bundles = useMemo(() => {
     if (!data) return [];
-    let all = buildWeeklyBundles(data.staff, data.submissions, weekStart);
+    let all = buildWeeklyBundles(data.staff, data.submissions, data.cacheRows, weekStart);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       all = all.filter((b) => b.staff.name.toLowerCase().includes(q));
     }
     if (statusFilter === "todo") all = all.filter((b) => b.hasTodo);
-    else if (statusFilter === "approved")
-      all = all.filter((b) => b.allDone && b.submittedCount > 0);
-    all = all.filter((b) => b.submittedCount > 0 || b.hasTodo);
+    else if (statusFilter === "approved") all = all.filter((b) => b.allDone);
+    else if (statusFilter === "pending_staff_attest")
+      all = all.filter((b) => b.pendingStaffAttestCount > 0);
+    else if (statusFilter === "pending_admin_attest")
+      all = all.filter((b) => b.pendingAdminAttestCount > 0);
+    else if (statusFilter === "correction_requested")
+      all = all.filter((b) => b.correctionRequestedCount > 0);
+
+    // Visa bundles som faktiskt har något att säga (submission/engine_cache/engine_error).
+    // no_report-only bundles syns inte.
+    all = all.filter(
+      (b) =>
+        b.submittedCount > 0 ||
+        b.pendingStaffAttestCount > 0 ||
+        b.engineProposalCount > 0 ||
+        b.engineErrorCount > 0,
+    );
     return all;
   }, [data, weekStart, search, statusFilter]);
 
   const todo = useMemo(() => bundles.filter((b) => b.hasTodo), [bundles]);
   const approved = useMemo(
-    () => bundles.filter((b) => !b.hasTodo && b.allDone && b.submittedCount > 0),
+    () => bundles.filter((b) => !b.hasTodo && b.allDone),
     [bundles],
   );
 
-  // Kompakt weekly summary (dagar, inte personer för waiting/correction/godkända)
   const summary = useMemo(() => {
-    let waitingDays = 0;
+    let pendingStaffDays = 0;
+    let pendingAdminDays = 0;
     let correctionDays = 0;
     let approvableDays = 0;
     let approvedDays = 0;
+    let engineErrorDays = 0;
     for (const b of bundles) {
-      waitingDays +=
-        b.awaitingCount + b.needsControlCount + b.needsUserAttentionCount + b.aiFlaggedCount;
+      pendingStaffDays += b.pendingStaffAttestCount;
+      pendingAdminDays += b.pendingAdminAttestCount;
       correctionDays += b.correctionRequestedCount;
-      approvableDays += b.approvableCount;
+      approvableDays += b.adminApprovableCount;
       approvedDays += b.approvedCount;
+      engineErrorDays += b.engineErrorCount;
     }
     return {
       persons: bundles.length,
       todoPersons: todo.length,
       approvedPersons: approved.length,
-      waitingDays,
+      pendingStaffDays,
+      pendingAdminDays,
       correctionDays,
       approvableDays,
       approvedDays,
+      engineErrorDays,
     };
   }, [bundles, todo, approved]);
 
@@ -136,8 +156,17 @@ export const StaffTimeApprovalsPageContent: React.FC = () => {
             });
           }
         },
-        onError: (e: any) =>
-          toast({ title: "Kunde inte godkänna vecka", description: e.message, variant: "destructive" }),
+        onError: (e: any) => {
+          if (e instanceof NoApprovableError) {
+            toast({ title: "Inget att godkänna", description: e.message });
+          } else {
+            toast({
+              title: "Kunde inte godkänna vecka",
+              description: e.message,
+              variant: "destructive",
+            });
+          }
+        },
         onSettled: () => setApprovingStaffId(null),
       },
     );
@@ -161,13 +190,20 @@ export const StaffTimeApprovalsPageContent: React.FC = () => {
         onSearchChange={setSearch}
       />
 
-      {/* Kompakt summary-rad */}
       <div className="px-4 py-2 border-b border-border/40 flex flex-wrap items-center gap-2">
         <SummaryChip label="personer" value={summary.persons} />
         <SummaryChip label="att göra" value={summary.todoPersons} tone="amber" />
-        <SummaryChip label="dagar väntar" value={summary.waitingDays} tone="amber" />
+        {summary.pendingStaffDays > 0 && (
+          <SummaryChip label="väntar personalattest" value={summary.pendingStaffDays} tone="indigo" />
+        )}
+        {summary.pendingAdminDays > 0 && (
+          <SummaryChip label="väntar adminattest" value={summary.pendingAdminDays} tone="amber" />
+        )}
         {summary.correctionDays > 0 && (
           <SummaryChip label="behöver komplettering" value={summary.correctionDays} tone="rose" />
+        )}
+        {summary.engineErrorDays > 0 && (
+          <SummaryChip label="beräkningsfel" value={summary.engineErrorDays} tone="rose" />
         )}
         <SummaryChip label="godkännbara dagar" value={summary.approvableDays} tone="sky" />
         <SummaryChip label="godkända dagar" value={summary.approvedDays} tone="emerald" />
@@ -193,10 +229,7 @@ export const StaffTimeApprovalsPageContent: React.FC = () => {
       </div>
 
       <Sheet open={!!openBundle} onOpenChange={(o) => !o && setOpenStaffId(null)}>
-        <SheetContent
-          side="right"
-          className="w-full sm:max-w-[900px] p-0 flex flex-col"
-        >
+        <SheetContent side="right" className="w-full sm:max-w-[900px] p-0 flex flex-col">
           {openBundle && (
             <StaffWeeklyApprovalPanel
               bundle={openBundle}

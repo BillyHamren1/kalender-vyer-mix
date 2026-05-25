@@ -9,11 +9,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { X, CheckCheck, Clock3 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useApproveStaffDay } from "@/hooks/staff/useApproveStaffDay";
-import { useApproveStaffWeek } from "@/hooks/staff/useApproveStaffWeek";
+import { useApproveStaffWeek, NoApprovableError } from "@/hooks/staff/useApproveStaffWeek";
 import StaffDayApprovalRow from "./StaffDayApprovalRow";
 import StaffDayApprovalDetails from "./StaffDayApprovalDetails";
 import {
@@ -49,7 +50,8 @@ export const StaffWeeklyApprovalPanel: React.FC<Props> = ({
       { submission_id: submissionId, action: "approved" },
       {
         onSuccess: () => toast({ title: "Dag godkänd", description: date }),
-        onError: (e: any) => toast({ title: "Kunde inte godkänna", description: e.message, variant: "destructive" }),
+        onError: (e: any) =>
+          toast({ title: "Kunde inte godkänna", description: e.message, variant: "destructive" }),
       },
     );
   };
@@ -93,17 +95,45 @@ export const StaffWeeklyApprovalPanel: React.FC<Props> = ({
             });
           }
         },
-        onError: (e: any) =>
-          toast({ title: "Kunde inte godkänna vecka", description: e.message, variant: "destructive" }),
+        onError: (e: any) => {
+          if (e instanceof NoApprovableError) {
+            toast({
+              title: "Inget att godkänna",
+              description: e.message,
+            });
+          } else {
+            toast({
+              title: "Kunde inte godkänna vecka",
+              description: e.message,
+              variant: "destructive",
+            });
+          }
+        },
       },
     );
   };
 
   const openGps = (date: string) => {
-    navigate(`/staff-management/gps-satellite-map?staffId=${encodeURIComponent(bundle.staff.id)}&date=${encodeURIComponent(date)}`);
+    navigate(
+      `/staff-management/gps-satellite-map?staffId=${encodeURIComponent(bundle.staff.id)}&date=${encodeURIComponent(date)}`,
+    );
   };
 
   const canApproveWeek = isWeekFullyApprovable(bundle);
+  const onlyPendingStaff =
+    bundle.adminApprovableCount === 0 && bundle.pendingStaffAttestCount > 0;
+
+  const approveButton = (
+    <Button
+      size="sm"
+      className="h-8 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60"
+      disabled={!canApproveWeek || approveWeek.isPending}
+      onClick={handleApproveAll}
+    >
+      <CheckCheck className="h-4 w-4" />
+      Godkänn alla godkännbara
+    </Button>
+  );
 
   return (
     <div className="h-full flex flex-col bg-card overflow-hidden">
@@ -116,23 +146,39 @@ export const StaffWeeklyApprovalPanel: React.FC<Props> = ({
               <Clock3 className="h-3 w-3" />
               {formatHm(bundle.totalMinutes)}
             </span>
-            {bundle.allDone && bundle.submittedCount > 0 && (
+            {bundle.allDone && (
               <span className="ml-2 text-emerald-700 dark:text-emerald-300 font-medium">
                 · Godkänd vecka
               </span>
             )}
+            {onlyPendingStaff && (
+              <span className="ml-2 text-indigo-700 dark:text-indigo-300 font-medium">
+                · Väntar personalattest
+              </span>
+            )}
           </p>
         </div>
+        {onlyPendingStaff ? (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>{approveButton}</span>
+              </TooltipTrigger>
+              <TooltipContent>
+                Det finns inget att godkänna ännu. Dagarna väntar på personalattest.
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : (
+          approveButton
+        )}
         <Button
           size="sm"
-          className="h-8 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-          disabled={!canApproveWeek || approveWeek.isPending}
-          onClick={handleApproveAll}
+          variant="ghost"
+          className="h-8 w-8 p-0"
+          onClick={onClose}
+          aria-label="Stäng"
         >
-          <CheckCheck className="h-4 w-4" />
-          Godkänn alla godkännbara
-        </Button>
-        <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={onClose} aria-label="Stäng">
           <X className="h-4 w-4" />
         </Button>
       </header>
