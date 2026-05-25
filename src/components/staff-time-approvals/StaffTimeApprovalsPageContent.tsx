@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { addDays, endOfWeek, format, getISOWeek, startOfWeek } from "date-fns";
 import { sv } from "date-fns/locale";
+import { ClipboardCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   useStaffWeeklyTimeApprovals,
@@ -10,6 +11,7 @@ import { useApproveStaffWeek } from "@/hooks/staff/useApproveStaffWeek";
 import WeekApprovalToolbar from "./WeekApprovalToolbar";
 import StaffWeeklyApprovalList from "./StaffWeeklyApprovalList";
 import StaffWeeklyApprovalPanel from "./StaffWeeklyApprovalPanel";
+import ApprovalDashboardStrip from "./ApprovalDashboardStrip";
 import {
   APPROVED_STATUSES,
   buildWeeklyBundles,
@@ -99,7 +101,9 @@ export const StaffTimeApprovalsPageContent: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-gradient-to-b from-background via-background to-muted/20">
+      <ApprovalDashboardStrip />
+
       <WeekApprovalToolbar
         weekStart={weekStart}
         weekEnd={weekEnd}
@@ -118,7 +122,7 @@ export const StaffTimeApprovalsPageContent: React.FC = () => {
       />
 
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-4 p-4 min-h-0">
-        <div className="min-w-0">
+        <div className="min-w-0 rounded-2xl border border-border/60 bg-card/60 backdrop-blur-sm shadow-sm p-3">
           {isLoading ? (
             <div className="text-sm text-muted-foreground p-4">Laddar veckan…</div>
           ) : error ? (
@@ -145,8 +149,14 @@ export const StaffTimeApprovalsPageContent: React.FC = () => {
               onClose={() => setOpenStaffId(null)}
             />
           ) : (
-            <div className="h-full flex items-center justify-center border border-dashed border-border/50 rounded-xl bg-muted/10 text-sm text-muted-foreground p-6 text-center">
-              Välj en person till vänster för att se veckans dagar och godkänna.
+            <div className="h-full flex flex-col items-center justify-center gap-3 border border-dashed border-border/50 rounded-2xl bg-gradient-to-br from-muted/20 via-card/40 to-muted/10 text-sm text-muted-foreground p-8 text-center">
+              <div className="h-12 w-12 rounded-full bg-primary/10 ring-1 ring-primary/20 flex items-center justify-center">
+                <ClipboardCheck className="h-6 w-6 text-primary" />
+              </div>
+              <div className="font-medium text-foreground">Inget öppet</div>
+              <div className="max-w-[280px]">
+                Välj en person till vänster för att se veckans dagar och godkänna.
+              </div>
             </div>
           )}
         </div>
