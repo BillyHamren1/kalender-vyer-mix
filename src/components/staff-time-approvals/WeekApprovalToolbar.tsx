@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, CalendarCheck2, RotateCcw, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarCheck2, Search } from "lucide-react";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import type { StaffWeeklyStaffMember } from "@/hooks/staff/useStaffWeeklyTimeApprovals";
@@ -27,7 +27,6 @@ export interface WeekApprovalToolbarProps {
   onStatusFilterChange: (v: string) => void;
   search: string;
   onSearchChange: (v: string) => void;
-  counts?: { todo: number; approved: number };
 }
 
 const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
@@ -57,62 +56,46 @@ export const WeekApprovalToolbar: React.FC<WeekApprovalToolbarProps> = ({
   onStatusFilterChange,
   search,
   onSearchChange,
-  counts,
 }) => {
   const range = `${format(weekStart, "d MMM", { locale: sv })} – ${format(weekEnd, "d MMM yyyy", { locale: sv })}`;
 
   return (
     <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border/60">
-      <div className="px-5 py-3 flex flex-wrap items-center gap-3">
+      <div className="px-4 py-2 flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <CalendarCheck2 className="h-5 w-5 text-primary shrink-0" />
-          <div className="min-w-0">
-            <h1 className="text-base font-semibold tracking-tight text-foreground leading-tight">
-              Tidrapport-attest
-            </h1>
-            <div className="text-xs text-muted-foreground leading-tight">
-              Vecka {weekNumber} · {range}
-              {counts && (
-                <>
-                  {" · "}
-                  <span className="text-amber-700 dark:text-amber-300 font-medium">
-                    {counts.todo} att göra
-                  </span>
-                  {" · "}
-                  <span className="text-emerald-700 dark:text-emerald-300 font-medium">
-                    {counts.approved} godkända
-                  </span>
-                </>
-              )}
-            </div>
+          <CalendarCheck2 className="h-4 w-4 text-primary shrink-0" />
+          <div className="text-sm font-semibold tracking-tight whitespace-nowrap">
+            Vecka {weekNumber}
           </div>
+          <div className="text-xs text-muted-foreground whitespace-nowrap">{range}</div>
         </div>
 
-        <div className="flex items-center gap-1 ml-auto">
-          <Button variant="outline" size="sm" className="h-8 px-2" onClick={onPrev} aria-label="Föregående vecka">
-            <ChevronLeft className="h-4 w-4" />
+        <div className="flex items-center gap-1">
+          <Button variant="outline" size="sm" className="h-7 gap-1 px-2" onClick={onPrev}>
+            <ChevronLeft className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Föregående</span>
           </Button>
-          <Button variant="outline" size="sm" className="h-8 gap-1" onClick={onToday}>
-            <RotateCcw className="h-3.5 w-3.5" />
-            Idag
+          <Button variant="outline" size="sm" className="h-7 px-2" onClick={onToday}>
+            Aktuell vecka
           </Button>
-          <Button variant="outline" size="sm" className="h-8 px-2" onClick={onNext} aria-label="Nästa vecka">
-            <ChevronRight className="h-4 w-4" />
+          <Button variant="outline" size="sm" className="h-7 gap-1 px-2" onClick={onNext}>
+            <span className="hidden sm:inline">Nästa</span>
+            <ChevronRight className="h-3.5 w-3.5" />
           </Button>
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto">
+        <div className="flex items-center gap-2 ml-auto">
           <div className="relative">
             <Search className="h-3.5 w-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder="Sök personal…"
-              className="h-8 pl-7 w-44 text-sm"
+              className="h-7 pl-7 w-40 text-sm"
             />
           </div>
           <Select value={staffFilter} onValueChange={onStaffFilterChange}>
-            <SelectTrigger className="h-8 w-48 text-sm">
+            <SelectTrigger className="h-7 w-40 text-sm">
               <SelectValue placeholder="Personal" />
             </SelectTrigger>
             <SelectContent>
@@ -125,7 +108,7 @@ export const WeekApprovalToolbar: React.FC<WeekApprovalToolbarProps> = ({
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={onStatusFilterChange}>
-            <SelectTrigger className="h-8 w-44 text-sm">
+            <SelectTrigger className="h-7 w-40 text-sm">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
