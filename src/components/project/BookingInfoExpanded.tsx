@@ -67,6 +67,7 @@ const BookingInfoExpanded = ({ booking, projectLeader }: BookingInfoExpandedProp
         groundNailsAllowed={booking.ground_nails_allowed}
         exactTimeNeeded={booking.exact_time_needed}
         exactTimeInfo={booking.exact_time_info}
+        rentalOnly={booking.rental_only}
         projectLeader={projectLeader}
       />
       <Card className="mb-4 border-border/40 rounded-2xl">
