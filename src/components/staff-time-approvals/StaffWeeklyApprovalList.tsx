@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import StaffWeeklyApprovalRow from "./StaffWeeklyApprovalRow";
-import type { WeeklyStaffBundle } from "./weeklyApprovalModel";
+import type { WeeklyDayCell, WeeklyStaffBundle } from "./weeklyApprovalModel";
 import { Inbox, CheckCircle2, ChevronDown } from "lucide-react";
 
 interface Props {
@@ -11,7 +11,9 @@ interface Props {
   onOpen: (staffId: string) => void;
   approvingStaffId: string | null;
   onApproveWeek: (staffId: string) => void;
+  onOpenDay?: (bundle: WeeklyStaffBundle, day: WeeklyDayCell) => void;
 }
+
 
 const APPROVED_COLLAPSED_LIMIT = 8;
 
