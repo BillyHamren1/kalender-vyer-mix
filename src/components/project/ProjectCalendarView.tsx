@@ -228,7 +228,7 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
       </CardHeader>
 
       <CardContent className="p-0">
-        <div className="project-calendar-shell">
+        <div className="project-calendar-shell calendar-zoom-out">
           <div style={{ minHeight: '1020px', height: 'calc(100vh - 260px)' }}>
             {effectiveDays.length === 0 ? (
               <div className="flex items-center justify-center h-full text-sm text-muted-foreground italic">
