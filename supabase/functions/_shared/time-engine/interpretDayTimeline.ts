@@ -312,6 +312,42 @@ export function interpretDayTimeline(
     };
   }
 
+  // 3b. Same-target sandwich (GPS drift collapse).
+  //
+  // Pattern: [prev=project/warehouse X] [mid=unknown|gps_gap|travel]
+  //          [next=same target X]
+  //
+  // If the mid block's own GPS displacement is below
+  // sandwichMaxDisplacementM (default 500 m), the person never really left
+  // X — the mid block is GPS jitter / signal noise. Reclassify mid to X so
+  // the merge pass collapses all three into one stay on X.
+  //
+  // This enforces both `geofence-inside-time-authority-v1` (inside = X) and
+  // `transport-requires-own-movement-v1` (no displacement = not a real trip).
+  // Honors manual_override and night_no_heuristic by skipping them.
+  for (let i = 1; i < blocks.length - 1; i++) {
+    const prev = blocks[i - 1];
+    const cur = blocks[i];
+    const next = blocks[i + 1];
+    if (cur.reason === 'manual_override') continue;
+    if (cur.kind !== 'unknown' && cur.kind !== 'gps_gap' && cur.kind !== 'travel') continue;
+    if (!sameTarget(prev, next)) continue;
+    if (cur.maxDisplacementM > rules.sandwichMaxDisplacementM) continue;
+    // Don't auto-absorb very long nightly gaps — those are real signal gaps,
+    // not jitter. Night blocks are left to night_no_heuristic.
+    if (isNight(cur, rules, tz)) continue;
+    blocks[i] = {
+      ...cur,
+      kind: prev.kind, // project or warehouse
+      targetKind: prev.targetKind,
+      targetRefId: prev.targetRefId,
+      targetLabel: prev.targetLabel,
+      reinterpreted: true,
+      reason: 'absorbed_same_target_sandwich',
+    };
+  }
+
+
   // 4. Merge contiguous same-target blocks (gap ≤ mergeGapMinutes).
   const merged: DayTimelineBlock[] = [];
   for (const b of blocks) {
