@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import StaffWeeklyApprovalRow from "./StaffWeeklyApprovalRow";
-import type { WeeklyStaffBundle } from "./weeklyApprovalModel";
+import type { WeeklyDayCell, WeeklyStaffBundle } from "./weeklyApprovalModel";
 import { Inbox, CheckCircle2, ChevronDown } from "lucide-react";
 
 interface Props {
@@ -11,7 +11,9 @@ interface Props {
   onOpen: (staffId: string) => void;
   approvingStaffId: string | null;
   onApproveWeek: (staffId: string) => void;
+  onOpenDay?: (bundle: WeeklyStaffBundle, day: WeeklyDayCell) => void;
 }
+
 
 const APPROVED_COLLAPSED_LIMIT = 8;
 
@@ -22,7 +24,9 @@ export const StaffWeeklyApprovalList: React.FC<Props> = ({
   onOpen,
   approvingStaffId,
   onApproveWeek,
+  onOpenDay,
 }) => {
+
   const [showAllApproved, setShowAllApproved] = useState(false);
   const approvedToRender = showAllApproved
     ? approved
@@ -54,8 +58,10 @@ export const StaffWeeklyApprovalList: React.FC<Props> = ({
                 isApproving={approvingStaffId === b.staff.id}
                 onOpen={() => onOpen(b.staff.id)}
                 onApproveWeek={() => onApproveWeek(b.staff.id)}
+                onOpenDay={onOpenDay}
               />
             ))}
+
           </div>
         )}
       </section>
@@ -78,8 +84,10 @@ export const StaffWeeklyApprovalList: React.FC<Props> = ({
                 isApproving={approvingStaffId === b.staff.id}
                 onOpen={() => onOpen(b.staff.id)}
                 onApproveWeek={() => onApproveWeek(b.staff.id)}
+                onOpenDay={onOpenDay}
               />
             ))}
+
           </div>
           {hiddenApproved > 0 && (
             <div className="flex justify-center pt-1">

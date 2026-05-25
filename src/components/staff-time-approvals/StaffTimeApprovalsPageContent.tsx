@@ -8,7 +8,9 @@ import { useApproveStaffWeek, NoApprovableError } from "@/hooks/staff/useApprove
 import WeekApprovalToolbar from "./WeekApprovalToolbar";
 import StaffWeeklyApprovalList from "./StaffWeeklyApprovalList";
 import StaffWeeklyApprovalPanel from "./StaffWeeklyApprovalPanel";
-import { buildWeeklyBundles } from "./weeklyApprovalModel";
+import StaffDayInspectionDrawer from "./StaffDayInspectionDrawer";
+import { buildWeeklyBundles, type WeeklyDayCell, type WeeklyStaffBundle } from "./weeklyApprovalModel";
+
 
 interface SummaryChipProps {
   label: string;
@@ -42,6 +44,10 @@ export const StaffTimeApprovalsPageContent: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [approvingStaffId, setApprovingStaffId] = useState<string | null>(null);
+  const [selectedDayInspection, setSelectedDayInspection] = useState<
+    { bundle: WeeklyStaffBundle; day: WeeklyDayCell } | null
+  >(null);
+
 
   const weekStart = useMemo(() => startOfWeek(anchor, { weekStartsOn: 1 }), [anchor]);
   const weekEnd = useMemo(() => endOfWeek(anchor, { weekStartsOn: 1 }), [anchor]);
