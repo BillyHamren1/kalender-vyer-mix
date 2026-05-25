@@ -1,8 +1,11 @@
 import React, { useMemo, useState } from "react";
 import { addDays, endOfWeek, format, getISOWeek, startOfWeek } from "date-fns";
 import { sv } from "date-fns/locale";
+import { Link } from "react-router-dom";
+import { FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
 import { useStaffWeeklyTimeApprovals } from "@/hooks/staff/useStaffWeeklyTimeApprovals";
 import { useApproveStaffWeek, NoApprovableError } from "@/hooks/staff/useApproveStaffWeek";
 import WeekApprovalToolbar from "./WeekApprovalToolbar";
@@ -213,6 +216,18 @@ export const StaffTimeApprovalsPageContent: React.FC = () => {
         )}
         <SummaryChip label="godkännbara dagar" value={summary.approvableDays} tone="sky" />
         <SummaryChip label="godkända dagar" value={summary.approvedDays} tone="emerald" />
+
+        <div className="ml-auto flex items-center gap-2">
+          <span className="hidden md:inline text-[11px] text-muted-foreground">
+            Visa godkänd tid som löneunderlag.
+          </span>
+          <Button asChild variant="outline" size="sm" className="h-7 gap-1.5">
+            <Link to="/staff-management/payroll-month-report">
+              <FileText className="h-3.5 w-3.5" />
+              Månadsrapport lön
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <div className="flex-1 px-4 py-3 min-w-0">
