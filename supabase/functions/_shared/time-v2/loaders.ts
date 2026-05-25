@@ -1,8 +1,7 @@
 // Time v2 — shared loaders
 // =============================================================================
-// Hämtar pings + kända platser för Time v2-funktionerna. Identisk teknik som
-// get-mobile-staff-gps-day-suggestion men isolerad i egen modul så att Time v2
-// aldrig läcker in gammal time/timer/workday-logik.
+// Hämtar pings + kända platser för Time v2-funktionerna.
+// Aldrig läckande gammal time/timer/workday-logik.
 
 import type { RawPingInput } from "../timeline/buildGpsDayTimelineOnly.ts";
 import type { KnownPlace } from "../timeline/types.ts";
@@ -37,7 +36,6 @@ export async function loadKnownTargetsV2(
   for (const r of (locsRes.data ?? []) as any[]) {
     const isHome = r.is_private_residence === true;
     const rawName = String(r.name ?? (isHome ? "Boende" : "Plats"));
-    // Säkerställ "Boende" som tydlig prefix när admin glömt att namnge det.
     const name = isHome && !/boende/i.test(rawName) ? `Boende ${rawName}` : rawName;
     out.push({
       id: String(r.id),
@@ -45,7 +43,6 @@ export async function loadKnownTargetsV2(
       name,
       lat: Number(r.latitude),
       lng: Number(r.longitude),
-      // Tighta boende-fences ska respekteras — sänk minimum för home från 20 → 15 m.
       radiusM: Math.max(isHome ? 15 : 20, Number(r.radius_meters ?? (isHome ? 50 : 75))),
     });
   }
@@ -108,7 +105,7 @@ export async function fetchPingsForDayV2(
 export interface SubmissionSnapshot {
   hasSubmission: boolean;
   id: string | null;
-  status: string;          // not_submitted | submitted | correction_requested | approved | payroll_approved | edited | ai_flagged | needs_user_attention | needs_control | rejected | withdrawn
+  status: string;
   source: string | null;
   submittedAt: string | null;
   submittedBy: string | null;
@@ -243,4 +240,188 @@ export function readManualOverridesFromSubmission(
     });
   }
   return out;
+}
+
+// =========================================================================
+// Manual report targets — vad användaren själv kan välja att fördela
+// manuell tid på för EN dag. Aldrig auto-vald av systemet, bara förslag.
+// =========================================================================
+export type ManualTargetType =
+  | "booking"
+  | "project"
+  | "large_project"
+  | "location"
+  | "other";
+
+export interface ManualReportTarget {
+  targetType: ManualTargetType;
+  targetId: string | null;
+  label: string;
+  subtitle: string | null;
+  booking_id?: string | null;
+  project_id?: string | null;
+  large_project_id?: string | null;
+  location_id?: string | null;
+}
+
+export interface ManualReportTargets {
+  assignedTargets: ManualReportTarget[];
+  locationTargets: ManualReportTarget[];
+  searchableTargets: ManualReportTarget[];
+}
+
+const INACTIVE_BOOKING_STATUSES = new Set([
+  "OFFER", "OFFERT", "DRAFT", "UTKAST",
+  "CANCELLED", "AVBOKAD", "AVBOKAT",
+]);
+
+/**
+ * Returnerar förslag (snabbval) per dag för manuell tidrapportering.
+ * Visar bara faktiska kopplingar — auto-väljer aldrig.
+ */
+export async function loadManualReportTargetsForDay(
+  admin: any,
+  orgId: string,
+  staffId: string,
+  date: string,
+): Promise<ManualReportTargets> {
+  const assignedTargets: ManualReportTarget[] = [];
+  const locationTargets: ManualReportTarget[] = [];
+  const searchableTargets: ManualReportTarget[] = [];
+
+  // 1) Hämta vilka bookings/large_projects/projects som personen är knuten
+  //    till denna dag via staff_assignments × calendar_events
+  //    + booking_staff_assignments direkt.
+  const [teamRes, bsaRes] = await Promise.all([
+    admin.from("staff_assignments")
+      .select("team_id")
+      .eq("staff_id", staffId)
+      .eq("assignment_date", date),
+    admin.from("booking_staff_assignments")
+      .select("booking_id")
+      .eq("staff_id", staffId)
+      .eq("assignment_date", date),
+  ]);
+
+  const teamIds = Array.from(
+    new Set(((teamRes.data ?? []) as any[]).map((r) => String(r.team_id)).filter(Boolean)),
+  );
+  const bookingIds = new Set<string>();
+  for (const r of (bsaRes.data ?? []) as any[]) {
+    if (r.booking_id) bookingIds.add(String(r.booking_id));
+  }
+
+  if (teamIds.length) {
+    const dayStartIso = `${date}T00:00:00.000Z`;
+    const dayEndIso = `${date}T23:59:59.999Z`;
+    const evRes = await admin
+      .from("calendar_events")
+      .select("booking_id, start_time, end_time, source_date")
+      .in("resource_id", teamIds)
+      .or(
+        `source_date.eq.${date},and(start_time.lte.${dayEndIso},end_time.gte.${dayStartIso})`,
+      );
+    for (const e of (evRes.data ?? []) as any[]) {
+      if (e.booking_id) bookingIds.add(String(e.booking_id));
+    }
+  }
+
+  // 2) Bokningar → ev. projekt/large_project + label
+  const projectIds = new Set<string>();
+  const largeIds = new Set<string>();
+  if (bookingIds.size) {
+    const [bookingsRes, lpbRes] = await Promise.all([
+      admin.from("bookings")
+        .select("id, client, booking_number, deliveryaddress, large_project_id, assigned_project_id, status")
+        .in("id", [...bookingIds]),
+      admin.from("large_project_bookings")
+        .select("large_project_id, booking_id")
+        .in("booking_id", [...bookingIds]),
+    ]);
+
+    const activeBookings: any[] = [];
+    for (const b of (bookingsRes.data ?? []) as any[]) {
+      const status = String(b.status ?? "").trim().toUpperCase().replace(/[!.,:;]+$/g, "");
+      if (INACTIVE_BOOKING_STATUSES.has(status)) continue;
+      activeBookings.push(b);
+      if (b.assigned_project_id) projectIds.add(String(b.assigned_project_id));
+      if (b.large_project_id) largeIds.add(String(b.large_project_id));
+    }
+    for (const row of (lpbRes.data ?? []) as any[]) {
+      if (row.large_project_id) largeIds.add(String(row.large_project_id));
+    }
+
+    // Lägg in large_projects FÖRST (mer specifika), sedan bokningar utan LP.
+    if (largeIds.size) {
+      const lpRes = await admin
+        .from("large_projects")
+        .select("id, name")
+        .in("id", [...largeIds]);
+      for (const lp of (lpRes.data ?? []) as any[]) {
+        assignedTargets.push({
+          targetType: "large_project",
+          targetId: String(lp.id),
+          label: String(lp.name ?? "Stort projekt"),
+          subtitle: "Stort projekt",
+          large_project_id: String(lp.id),
+        });
+      }
+    }
+
+    if (projectIds.size) {
+      const pRes = await admin
+        .from("projects")
+        .select("id, name, status, planning_status, deleted_at")
+        .in("id", [...projectIds])
+        .is("deleted_at", null);
+      for (const p of (pRes.data ?? []) as any[]) {
+        const status = String(p.planning_status ?? p.status ?? "").toLowerCase();
+        if (status === "cancelled" || status === "avbokat") continue;
+        assignedTargets.push({
+          targetType: "project",
+          targetId: String(p.id),
+          label: String(p.name ?? "Projekt"),
+          subtitle: "Projekt",
+          project_id: String(p.id),
+        });
+      }
+    }
+
+    // Bokningar som varken har project eller large_project — exponera bokningen
+    for (const b of activeBookings) {
+      if (b.assigned_project_id || b.large_project_id) continue;
+      const label = b.booking_number
+        ? `${b.booking_number}${b.client ? ` · ${b.client}` : ""}`
+        : (b.client ?? b.deliveryaddress ?? "Bokning");
+      assignedTargets.push({
+        targetType: "booking",
+        targetId: String(b.id),
+        label: String(label),
+        subtitle: b.deliveryaddress ?? "Bokning",
+        booking_id: String(b.id),
+      });
+    }
+  }
+
+  // 3) Locations (lager/kontor/arbetsplats — inte privat boende)
+  const locsRes = await admin
+    .from("organization_locations")
+    .select("id, name, is_private_residence, location_type")
+    .eq("organization_id", orgId)
+    .or("is_private_residence.is.null,is_private_residence.eq.false")
+    .order("name", { ascending: true })
+    .limit(200);
+  for (const r of (locsRes.data ?? []) as any[]) {
+    if (r.is_private_residence === true) continue;
+    locationTargets.push({
+      targetType: "location",
+      targetId: String(r.id),
+      label: String(r.name ?? "Plats"),
+      subtitle: r.location_type ? String(r.location_type) : "Plats",
+      location_id: String(r.id),
+    });
+  }
+
+  // 4) Searchable targets — förberedd för senare; tom i v1.
+  return { assignedTargets, locationTargets, searchableTargets };
 }

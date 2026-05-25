@@ -1,9 +1,10 @@
 /**
  * Time v2 — thin frontend client for the GPS Day View edge functions.
  *
- * Only allowed endpoints:
+ * Allowed endpoints:
  *   - get-mobile-gps-day-view
  *   - submit-mobile-gps-day-v2
+ *   - get-mobile-time-report-queue
  */
 import { supabase } from '@/integrations/supabase/client';
 import { getToken } from '@/services/mobileApiService';
@@ -11,9 +12,13 @@ import type {
   MobileGpsDayView,
   SubmitMobileGpsDayV2Input,
   SubmitMobileGpsDayV2Result,
+  TimeReportQueue,
 } from './types';
 
-type V2FunctionName = 'get-mobile-gps-day-view' | 'submit-mobile-gps-day-v2';
+type V2FunctionName =
+  | 'get-mobile-gps-day-view'
+  | 'submit-mobile-gps-day-v2'
+  | 'get-mobile-time-report-queue';
 
 async function callV2<T>(name: V2FunctionName, body: Record<string, unknown>): Promise<T> {
   const mobileToken = getToken();
@@ -47,18 +52,8 @@ async function callV2<T>(name: V2FunctionName, body: Record<string, unknown>): P
   return data as T;
 }
 
-export interface GetMobileGpsDayViewInput {
-  staffId: string;
-  date: string; // YYYY-MM-DD
-}
-
-export function getMobileGpsDayView(
-  input: GetMobileGpsDayViewInput,
-): Promise<MobileGpsDayView> {
-  return callV2<MobileGpsDayView>('get-mobile-gps-day-view', {
-    staffId: input.staffId,
-    date: input.date,
-  });
+export function getMobileGpsDayView(input: { staffId: string; date: string }): Promise<MobileGpsDayView> {
+  return callV2<MobileGpsDayView>('get-mobile-gps-day-view', input);
 }
 
 export function submitMobileGpsDayV2(
@@ -71,5 +66,17 @@ export function submitMobileGpsDayV2(
     manualOverrides: input.manualOverrides ?? [],
     expectedSourceSnapshotId: input.expectedSourceSnapshotId ?? null,
     manualDay: input.manualDay ?? null,
+  });
+}
+
+export function getMobileTimeReportQueue(input: {
+  staffId: string;
+  from?: string;
+  to?: string;
+}): Promise<TimeReportQueue> {
+  return callV2<TimeReportQueue>('get-mobile-time-report-queue', {
+    staffId: input.staffId,
+    from: input.from ?? null,
+    to: input.to ?? null,
   });
 }
