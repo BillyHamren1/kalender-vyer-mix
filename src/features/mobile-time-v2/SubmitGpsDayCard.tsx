@@ -1,7 +1,5 @@
 /**
- * SubmitGpsDayCard — bottom card with day summary, comment field and
- * "Skicka in dagen" action. The actual submit call lives in the parent
- * page so it can refresh the view after success.
+ * SubmitGpsDayCard — sammanfattning av dagens GPS-förslag + inskick.
  */
 import React from 'react';
 import { Card } from '@/components/ui/card';
@@ -20,6 +18,7 @@ interface Props {
   isSubmitting: boolean;
   disabled?: boolean;
   disabledReason?: string | null;
+  breakLabel?: string | null;
 }
 
 const SubmitGpsDayCard: React.FC<Props> = ({
@@ -32,19 +31,22 @@ const SubmitGpsDayCard: React.FC<Props> = ({
   isSubmitting,
   disabled,
   disabledReason,
+  breakLabel,
 }) => {
+  const heading = overrideCount > 0 ? 'Skicka in ändrad tidrapport' : 'Skicka in tidrapport';
   return (
     <Card className="p-4 space-y-4">
       <div>
-        <h3 className="font-semibold">Skicka in dagen</h3>
+        <h3 className="font-semibold">{heading}</h3>
         <p className="text-sm text-muted-foreground mt-1">
           {segmentCount} segment · totalt {totalLabel}
-          {overrideCount > 0 ? ` · ${overrideCount} ändrade` : ''}
+          {overrideCount > 0 ? ` · ${overrideCount} ändringar` : ''}
+          {breakLabel ? ` · rast ${breakLabel}` : ''}
         </p>
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="day-comment">Kommentar (valfri)</Label>
+        <Label htmlFor="day-comment">Kommentar till admin (valfri)</Label>
         <Textarea
           id="day-comment"
           placeholder="t.ex. långa körningar, oplanerad omdirigering …"
@@ -66,15 +68,9 @@ const SubmitGpsDayCard: React.FC<Props> = ({
         size="lg"
       >
         {isSubmitting ? (
-          <>
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            Skickar…
-          </>
+          <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Skickar…</>
         ) : (
-          <>
-            <Send className="h-4 w-4 mr-2" />
-            Skicka in dagen
-          </>
+          <><Send className="h-4 w-4 mr-2" />Skicka in tidrapport</>
         )}
       </Button>
     </Card>

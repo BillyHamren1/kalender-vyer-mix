@@ -1,5 +1,5 @@
 /**
- * Time v2 — frontend types for the GPS Day View.
+ * Time v2 — frontend types for the Day Report view.
  * Mirrors the shape returned by `get-mobile-gps-day-view` /
  * `submit-mobile-gps-day-v2`. The app is a dumb renderer of these objects;
  * it never computes time, reads pings or talks to legacy tables.
@@ -65,9 +65,21 @@ export interface MobileGpsDayTotals {
 export type MobileGpsSubmissionStatus =
   | 'not_submitted'
   | 'submitted'
+  | 'edited'
+  | 'ai_flagged'
+  | 'needs_user_attention'
+  | 'needs_control'
   | 'correction_requested'
   | 'approved'
-  | 'payroll_approved';
+  | 'payroll_approved'
+  | 'rejected'
+  | 'withdrawn';
+
+export type MobileGpsReportMode =
+  | 'gps_suggestion'
+  | 'manual_empty'
+  | 'submitted'
+  | 'locked';
 
 export interface MobileGpsDaySubmission {
   hasSubmission: boolean;
@@ -161,6 +173,8 @@ export interface MobileGpsDayView {
   sourceSnapshotId: string;
   title: string;
   subtitle: string;
+  reportMode?: MobileGpsReportMode;
+  canSubmitManual?: boolean;
   map: MobileGpsMap;
   segments: MobileGpsDaySegment[];
   rows: MobileGpsDayRow[];
@@ -175,12 +189,19 @@ export interface MobileGpsDayView {
   generatedAt: string;
 }
 
+export interface ManualDayInput {
+  startTime: string; // "HH:mm"
+  endTime: string;   // "HH:mm"
+  breakMinutes: number;
+}
+
 export interface SubmitMobileGpsDayV2Input {
   staffId: string;
   date: string;
   userComment?: string | null;
   manualOverrides: MobileGpsManualOverride[];
   expectedSourceSnapshotId?: string | null;
+  manualDay?: ManualDayInput | null;
 }
 
 export interface SubmitMobileGpsDayV2Result {

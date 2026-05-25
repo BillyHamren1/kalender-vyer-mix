@@ -4,11 +4,6 @@
  * Only allowed endpoints:
  *   - get-mobile-gps-day-view
  *   - submit-mobile-gps-day-v2
- *
- * Dual auth: prefers the mobile token (eventflow-mobile-token) and falls
- * back to Supabase JWT via supabase.functions.invoke. Mirrors the pattern
- * in staffSnapshotApi but lives in this isolated feature so the module
- * never imports from legacy mobile-time code paths.
  */
 import { supabase } from '@/integrations/supabase/client';
 import { getToken } from '@/services/mobileApiService';
@@ -75,5 +70,6 @@ export function submitMobileGpsDayV2(
     userComment: input.userComment ?? null,
     manualOverrides: input.manualOverrides ?? [],
     expectedSourceSnapshotId: input.expectedSourceSnapshotId ?? null,
+    manualDay: input.manualDay ?? null,
   });
 }
