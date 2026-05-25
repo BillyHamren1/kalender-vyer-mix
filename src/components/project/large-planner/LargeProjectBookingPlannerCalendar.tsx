@@ -364,16 +364,25 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
                         )}
                       </div>
                       {staffColumns.map((s) => {
-                        const cellItems = grid.get(`${day.date}|${s.id}`) ?? [];
+                        const key = dropKey(day.date, s.id);
+                        const cellItems = grid.get(key) ?? [];
+                        const isOver = dragOverKey === key;
                         return (
                           <div
                             key={s.id}
-                            className="group relative min-h-[80px] cursor-pointer space-y-1 border-l border-border/60 p-1.5 transition-colors hover:bg-primary/5"
+                            className={`group relative min-h-[80px] cursor-pointer space-y-1 border-l border-border/60 p-1.5 transition-colors hover:bg-primary/5 ${
+                              isOver ? 'bg-primary/15 ring-2 ring-primary/50' : ''
+                            }`}
                             onClick={(e) => {
                               if ((e.target as HTMLElement).closest('[data-task-card]')) return;
                               handleCreateManual({ date: day.date, staffId: s.id });
                             }}
-                            title="Klicka för att skapa manuell task"
+                            onDragOver={(e) => handleCellDragOver(e, key)}
+                            onDragLeave={() => {
+                              if (dragOverKey === key) setDragOverKey(null);
+                            }}
+                            onDrop={(e) => handleCellDrop(e, day.date, s.id)}
+                            title="Klicka för att skapa manuell task — eller släpp en task här"
                           >
                             {cellItems.map((it) => (
                               <div data-task-card key={it.id}>
@@ -385,6 +394,7 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
                                       : null
                                   }
                                   staff={staffById.get(s.id) ?? null}
+                                  draggable
                                   onClick={handleItemClick}
                                   onDelete={handleItemDelete}
                                 />
@@ -394,29 +404,44 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
                         );
                       })}
                       {/* Ej tilldelat */}
-                      <div
-                        className="group min-h-[80px] cursor-pointer space-y-1 border-l border-dashed border-border/60 bg-muted/20 p-1.5 transition-colors hover:bg-muted/40"
-                        onClick={(e) => {
-                          if ((e.target as HTMLElement).closest('[data-task-card]')) return;
-                          handleCreateManual({ date: day.date, staffId: null });
-                        }}
-                        title="Klicka för att skapa manuell task"
-                      >
-                        {(grid.get(`${day.date}|${UNASSIGNED_KEY}`) ?? []).map((it) => (
-                          <div data-task-card key={it.id}>
-                            <LargeProjectPlannerTaskCard
-                              item={it}
-                              booking={
-                                it.booking_id
-                                  ? bookingById.get(it.booking_id) ?? null
-                                  : null
-                              }
-                              onClick={handleItemClick}
-                              onDelete={handleItemDelete}
-                            />
+                      {(() => {
+                        const key = dropKey(day.date, null);
+                        const isOver = dragOverKey === key;
+                        return (
+                          <div
+                            className={`group min-h-[80px] cursor-pointer space-y-1 border-l border-dashed border-border/60 bg-muted/20 p-1.5 transition-colors hover:bg-muted/40 ${
+                              isOver ? 'bg-muted/60 ring-2 ring-primary/40' : ''
+                            }`}
+                            onClick={(e) => {
+                              if ((e.target as HTMLElement).closest('[data-task-card]')) return;
+                              handleCreateManual({ date: day.date, staffId: null });
+                            }}
+                            onDragOver={(e) => handleCellDragOver(e, key)}
+                            onDragLeave={() => {
+                              if (dragOverKey === key) setDragOverKey(null);
+                            }}
+                            onDrop={(e) => handleCellDrop(e, day.date, null)}
+                            title="Släpp här för att avtilldela"
+                          >
+                            {(grid.get(key) ?? []).map((it) => (
+                              <div data-task-card key={it.id}>
+                                <LargeProjectPlannerTaskCard
+                                  item={it}
+                                  booking={
+                                    it.booking_id
+                                      ? bookingById.get(it.booking_id) ?? null
+                                      : null
+                                  }
+                                  draggable
+                                  onClick={handleItemClick}
+                                  onDelete={handleItemDelete}
+                                />
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        );
+                      })()}
+                    </div>
                     </div>
                   );
                 })}
