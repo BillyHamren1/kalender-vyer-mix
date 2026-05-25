@@ -43,11 +43,10 @@ const VisitsTable: React.FC<{ visits: StaffGpsWeekDayVisit[] }> = ({ visits }) =
     <table className="w-full text-[11.5px]">
       <thead>
         <tr className="text-left text-[10px] uppercase tracking-wider text-muted-foreground">
-          <th className="font-semibold px-2 py-1">Plats</th>
-          <th className="font-semibold px-2 py-1">Typ</th>
-          <th className="font-semibold px-2 py-1 tabular-nums">In</th>
-          <th className="font-semibold px-2 py-1 tabular-nums">Ut</th>
-          <th className="font-semibold px-2 py-1 tabular-nums text-right">Tid</th>
+          <th className="font-semibold px-1.5 py-1">Plats</th>
+          <th className="font-semibold px-1.5 py-1 tabular-nums w-[52px]">In</th>
+          <th className="font-semibold px-1.5 py-1 tabular-nums w-[52px]">Ut</th>
+          <th className="font-semibold px-1.5 py-1 tabular-nums text-right w-[68px]">Tid</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-[hsl(270_18%_94%)]">
@@ -55,15 +54,17 @@ const VisitsTable: React.FC<{ visits: StaffGpsWeekDayVisit[] }> = ({ visits }) =
           const tl = typeLabel(v.type);
           return (
             <tr key={`${v.knownSiteId ?? 'unknown'}-${v.inIso}-${i}`} className="hover:bg-[hsl(270_45%_98%)]">
-              <td className="px-2 py-1.5 text-foreground truncate max-w-[260px]" title={v.name}>{v.name}</td>
-              <td className="px-2 py-1.5">
-                <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-[10.5px] font-semibold', tl.tone)}>
-                  {tl.text}
-                </span>
+              <td className="px-1.5 py-1.5 text-foreground max-w-[360px]" title={v.name}>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className={cn('inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[10px] font-semibold', tl.tone)}>
+                    {tl.text}
+                  </span>
+                  <span className="truncate">{v.name}</span>
+                </div>
               </td>
-              <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{formatStockholmHm(v.inIso)}</td>
-              <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{formatStockholmHm(v.outIso)}</td>
-              <td className="px-2 py-1.5 tabular-nums text-right font-semibold text-foreground">{fmtDur(v.durationMin)}</td>
+              <td className="px-1.5 py-1.5 tabular-nums text-muted-foreground">{formatStockholmHm(v.inIso)}</td>
+              <td className="px-1.5 py-1.5 tabular-nums text-muted-foreground">{formatStockholmHm(v.outIso)}</td>
+              <td className="px-1.5 py-1.5 tabular-nums text-right font-semibold text-foreground">{fmtDur(v.durationMin)}</td>
             </tr>
           );
         })}
