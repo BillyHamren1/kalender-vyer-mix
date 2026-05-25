@@ -275,7 +275,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
 }
 
 
-type PingRow = { recorded_at: string; lat: number; lng: number; accuracy: number | null };
+type PingRow = { recorded_at: string; lat: number; lng: number; accuracy?: number | null };
 
 function GeofenceVisitsTable({ visits, allDayPings }: { visits: PlaceVisit[]; allDayPings: PingRow[] }) {
   const sorted = useMemo(
