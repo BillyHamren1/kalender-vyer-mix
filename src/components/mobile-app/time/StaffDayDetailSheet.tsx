@@ -278,6 +278,11 @@ const DayBody: React.FC<{
 
       {/* D. (Borttagen) "Behöver åtgärdas" — personal ska bara rapportera tid. */}
 
+      {/* C-bis. Per-block editor — alla projekt/plats-block med start/slut.
+          Skriver via mobile-app-api update_time_report (samma som admin).
+          Approved-block är låsta. */}
+      <DayBlocksEditor snapshot={snapshot} onChanged={onChanged} />
+
       {/* C. Tidslinje — ENDA källa: admin-Gantten via StaffGanttMirrorTimeline.
           Tidigare renderades snapshot.segments här (egen cache-källa) vilket
           gav olika block i app vs webb. Nu speglas Gantten 1:1.
