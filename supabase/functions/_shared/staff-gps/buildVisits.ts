@@ -198,12 +198,13 @@ export async function loadOrgGeofences(
           .not("delivery_latitude", "is", null)
           .not("delivery_longitude", "is", null)
           .limit(5000)),
-    // Stora projekt: matcha via bookings inom datum-spannet. Saknas datum → ingen filter.
+    // Stora projekt: matcha via BEKRÄFTADE bookings inom datum-spannet.
     hasDateFilter
       ? admin
           .from("bookings")
           .select("large_project_id, eventdate, rigdaydate, rigdowndate")
           .eq("organization_id", orgId)
+          .eq("status", "CONFIRMED")
           .not("large_project_id", "is", null)
           .or(
             [
@@ -215,7 +216,7 @@ export async function loadOrgGeofences(
           .limit(20000)
       : Promise.resolve({ data: [] as any[] }),
     // Bokningens EGNA pin (fallback när projekt saknas/inte datumvalid).
-    // Speglar useDayKnownSites: bokningar inom datumspannet med koordinater.
+    // Endast BEKRÄFTADE bokningar räknas som känd plats.
     hasDateFilter
       ? admin
           .from("bookings")
@@ -223,6 +224,7 @@ export async function loadOrgGeofences(
             "id, client, booking_number, delivery_latitude, delivery_longitude, large_project_id, eventdate, rigdaydate, rigdowndate",
           )
           .eq("organization_id", orgId)
+          .eq("status", "CONFIRMED")
           .not("delivery_latitude", "is", null)
           .not("delivery_longitude", "is", null)
           .or(
@@ -235,6 +237,7 @@ export async function loadOrgGeofences(
           .limit(20000)
       : Promise.resolve({ data: [] as any[] }),
   ]);
+
 
   // Bygg en map över large_project_id → set av datum bokningen "tillhör".
   const largeDatesById = new Map<string, Set<string>>();
