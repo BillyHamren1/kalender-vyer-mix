@@ -96,7 +96,9 @@ export const StaffWeeklyApprovalRow: React.FC<Props> = ({
   isApproving,
   onOpen,
   onApproveWeek,
+  onOpenDay,
 }) => {
+
   const canApproveWeek = isWeekFullyApprovable(bundle);
   const cleanWeek = isCleanWeekApproval(bundle);
   const hasCorrection = bundle.correctionRequestedCount > 0;
