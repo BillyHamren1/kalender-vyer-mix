@@ -1,29 +1,45 @@
-# Verifiering av Mobile Time v2 snabbflöde
+## Mål
+Stoppa den belastning som gör att appen fastnar i laddning och att databasen/edge functions matas konstant när man står på `/projects`.
 
-Föregående tur implementerade snabbflödet (Skicka/Granska/Fyll i direkt från listan, auto-next i review-kö, optimistiska uppdateringar). Nu ska vi verifiera att allt fungerar.
+## Vad jag har isolerat
+1. **Automatisk bokningsimport kör globalt på projektrutter**
+   - `App.tsx` monterar `useBackgroundImport()` globalt.
+   - `useBackgroundImport.ts` kör `import-bookings` automatiskt på rutter som börjar med `/projects`.
+   - Den triggar efter 1 sekund och sedan var 30:e sekund.
+   - Detta kan orsaka kontinuerliga `import-bookings`-körningar, query-invalidations och ny omladdning av projektlistor.
 
-## Steg
+2. **GPS-uppladdning kör från webbpreviewn och timeoutar/retryar**
+   - Nätverksloggen visar återkommande `mobile-app-api` `upload_location_batch` från webben.
+   - `useGeofencing.ts` använder `navigator.geolocation.watchPosition` på web och enqueuar GPS-punkter som flushas till `mobile-app-api`.
+   - När dessa timeoutar fortsätter kön att retrya, vilket skapar extra tryck och brus.
 
-1. **Kör enhetstesterna**
-   - `bash scripts/test-time-reporting.sh` (officiella tidsrapporterings-gaten enligt time-reporting-quality-gate-v1)
-   - `bunx vitest run src/features/mobile-time-v2/suggestionPayload.test.ts` för det nya logiklagret
-   - Om något test fallerar: läs felet, åtgärda i `suggestionPayload.ts` eller anropande komponent, kör om
+## Plan
+### 1) Stoppa aggressiv auto-import på `/projects`
+- Begränsa eller stänga av automatisk `useBackgroundImport()` för projektsidan.
+- Behålla manuell uppdatering via knappen **Uppdatera** i `ProjectManagement.tsx`.
+- Säkerställa att import inte går i bakgrunden bara för att användaren tittar på projektlistan.
 
-2. **Statisk genomgång av call-sites**
-   - Bekräfta att `MobileTimeReportQueue` korrekt hanterar:
-     - tom kö efter sista submit (visar "Allt klart")
-     - skip → nästa dag utan att markera som submitted
-     - fel vid submit → dagen stannar i "Att göra", felmeddelande visas
-   - Bekräfta att `MobileTimeReportDayCard` knappar är disabled under pågående submit (ingen dubbel-submit)
+### 2) Stoppa web-preview från att skicka GPS-batcher i onödan
+- Gå igenom web-vägen i geofencing/location reporting.
+- Sätta guard så att webbpreviewn inte startar eller flushar GPS-uppladdningar när den inte används som faktisk Time-app.
+- Målet är att `/projects` i webbläget inte ska trigga `upload_location_batch`-stormar.
 
-3. **Backend-validering intakt**
-   - Verifiera att direct-submit fortfarande går genom `submit-mobile-gps-day-v2` (samma payload som "Granska"-flödet), så att alla server-side guards (approved-lock, overlap, night-guard) gäller även för snabbsubmit
-   - Inga shortcuts förbi `staff_day_submissions`
+### 3) Minska risken att projektsidan ser "fastlåst" ut
+- Se över laddningsbeteendet i projektvyerna (`ProjectManagement`, `UnifiedProjectList`, dashboard-widgets).
+- Förhindra att sidan hoppar tillbaka till full loading state vid varje invalidation när gammal data redan finns.
+- Behålla senaste data synlig medan ny hämtning pågår.
 
-4. **Rapportera resultat**
-   - Lista vilka tester som kördes och status
-   - Bekräfta de 8 kontrollpunkterna från originaluppdraget (dagkort-knappar, direct submit, Granska alla, auto-next, ingen back-navigering, listuppdatering utan refresh, Redigera kvar, backend-validering)
-   - Flagga eventuella avvikelser
+### 4) Verifiering
+- Testa i preview direkt efter ändringarna.
+- Kontrollera att `/projects` inte längre genererar återkommande import-/GPS-anrop.
+- Bekräfta att sidan laddar klart och förblir stabil.
+- Köra relevanta tester för regressionsskydd.
 
-## Inga kodändringar planerade
-Detta är ren verifiering. Om tester avslöjar buggar lägger jag in fixar i samma tur och kör om gaten innan jag rapporterar klart.
+## Tekniska detaljer
+Berörda filer blir sannolikt främst:
+- `src/App.tsx`
+- `src/hooks/useBackgroundImport.ts`
+- `src/hooks/useGeofencing.ts`
+- eventuellt projektlistans query-komponenter för laddningsbeteendet
+
+Om du godkänner planen implementerar jag direkt och verifierar i preview efter varje ändring.
