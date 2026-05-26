@@ -106,7 +106,7 @@ const PersonalkalendernInner: React.FC = () => {
 
         {/* Kalender */}
         <main className="flex-1 overflow-hidden">
-          <div className="calendar-zoom-out h-full w-full">
+          <div className="h-full w-full">
             <CustomCalendar
               events={mergedEvents}
               resources={teamResources}
