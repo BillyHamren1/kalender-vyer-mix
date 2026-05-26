@@ -138,7 +138,9 @@ async function processOne(
   date: string,
   engineVersion: string,
   dryRun: boolean,
+  enablePeerEvidence: boolean = false,
 ): Promise<ProcessedRow> {
+
   const out: ProcessedRow = {
     staff_id: staffId,
     date,
