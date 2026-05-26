@@ -58,14 +58,16 @@ const MobileTimeReportQueue: React.FC<Props> = ({ staffId, onOpenDay }) => {
   return (
     <div className="flex flex-col min-h-screen bg-background pb-24">
       {/* Header */}
-      <div className="px-5 pt-6 pb-4 bg-card border-b">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-[11px] text-muted-foreground uppercase tracking-wide">
+      <div className="px-5 pt-6 pb-5 bg-card border-b border-border/60">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold text-primary uppercase tracking-widest">
               <ClipboardList className="h-3 w-3" />
               Tidrapport
             </div>
-            <h1 className="text-2xl font-semibold mt-0.5">Dagar att skicka in</h1>
+            <h1 className="text-[22px] font-extrabold tracking-tight leading-tight mt-1 text-foreground">
+              Dagar att skicka in
+            </h1>
           </div>
           <Button
             variant="ghost"
@@ -73,22 +75,23 @@ const MobileTimeReportQueue: React.FC<Props> = ({ staffId, onOpenDay }) => {
             onClick={() => void load()}
             disabled={isLoading}
             aria-label="Uppdatera"
+            className="h-9 w-9 rounded-xl hover:bg-muted/70"
           >
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
         </div>
       </div>
 
-      <div className="flex-1 px-4 pt-4 space-y-5 w-full">
+      <div className="flex-1 px-4 pt-5 space-y-6 w-full">
         {isLoading && !data && (
-          <Card className="p-6 flex items-center justify-center gap-2 text-muted-foreground">
+          <Card className="p-6 flex items-center justify-center gap-2 text-muted-foreground rounded-2xl border-border/60">
             <Loader2 className="h-4 w-4 animate-spin" />
             Laddar dagar…
           </Card>
         )}
 
         {error && !isLoading && (
-          <Card className="p-4 border-destructive/40 bg-destructive/5">
+          <Card className="p-4 border-destructive/40 bg-destructive/5 rounded-2xl">
             <p className="text-sm font-medium text-destructive">Kunde inte ladda</p>
             <p className="text-xs text-muted-foreground mt-1">{error}</p>
             <Button size="sm" variant="outline" className="mt-3" onClick={() => void load()}>
@@ -99,16 +102,20 @@ const MobileTimeReportQueue: React.FC<Props> = ({ staffId, onOpenDay }) => {
 
         {data && (
           <>
-            <section className="space-y-2">
-              <div className="flex items-center justify-between px-1">
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <section className="space-y-2.5">
+              <div className="flex items-center gap-2 px-1">
+                <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/80">
                   Att göra
                 </h2>
-                <span className="text-[11px] text-muted-foreground">{todoDays.length}</span>
+                {todoDays.length > 0 && (
+                  <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold flex items-center justify-center">
+                    {todoDays.length}
+                  </span>
+                )}
               </div>
               {todoDays.length === 0 ? (
-                <Card className="p-4 flex items-center gap-2 text-sm text-muted-foreground bg-emerald-50/40 border-emerald-200/60">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                <Card className="p-4 flex items-center gap-2 text-sm text-emerald-800 bg-emerald-50/60 border-emerald-200/70 rounded-2xl">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
                   Inga dagar väntar på dig just nu.
                 </Card>
               ) : (
@@ -126,12 +133,14 @@ const MobileTimeReportQueue: React.FC<Props> = ({ staffId, onOpenDay }) => {
             </section>
 
             {doneDays.length > 0 && (
-              <section className="space-y-2">
-                <div className="flex items-center justify-between px-1">
-                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <section className="space-y-2.5">
+                <div className="flex items-center gap-2 px-1">
+                  <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/80">
                     Skickade & klara
                   </h2>
-                  <span className="text-[11px] text-muted-foreground">{doneDays.length}</span>
+                  <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-muted text-muted-foreground text-[10px] font-bold flex items-center justify-center">
+                    {doneDays.length}
+                  </span>
                 </div>
                 <div className="space-y-2">
                   {doneDays.map((d) => (
@@ -150,5 +159,6 @@ const MobileTimeReportQueue: React.FC<Props> = ({ staffId, onOpenDay }) => {
     </div>
   );
 };
+
 
 export default MobileTimeReportQueue;
