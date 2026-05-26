@@ -20,7 +20,7 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+
 import {
   Loader2, RefreshCw, CheckCircle2, Lock, AlertCircle,
 } from 'lucide-react';
