@@ -67,12 +67,12 @@ function itemLargeProjectName(it: MobileCalendarItem): string | null {
 function kindMeta(kind: Kind) {
   switch (kind) {
     case 'project':
-      return { label: 'PROJEKT', icon: Briefcase, cls: 'bg-primary/10 text-primary border-primary/30' };
+      return { label: 'PROJEKT', icon: Briefcase, cls: 'bg-primary-soft text-primary-soft-foreground' };
     case 'location':
-      return { label: 'LAGER', icon: Building2, cls: 'bg-accent/50 text-accent-foreground border-accent/30' };
+      return { label: 'LAGER', icon: Building2, cls: 'bg-accent text-accent-foreground' };
     case 'booking':
     default:
-      return { label: 'JOBB', icon: Package, cls: 'bg-muted text-muted-foreground border-border' };
+      return { label: 'JOBB', icon: Package, cls: 'bg-muted text-muted-foreground' };
   }
 }
 
