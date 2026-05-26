@@ -22,7 +22,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
-  ChevronLeft, Loader2, RefreshCw, CheckCircle2, Lock, AlertCircle,
+  Loader2, RefreshCw, CheckCircle2, Lock, AlertCircle,
 } from 'lucide-react';
 
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
@@ -35,6 +35,7 @@ import type {
 import MobileGpsDayMap from './MobileGpsDayMap';
 import MobileTimeReportQueue from './MobileTimeReportQueue';
 import ManualWorkSegmentsEditor from './ManualWorkSegmentsEditor';
+import { MobileBackHeader } from '@/components/mobile-app/MobileHeader';
 
 interface StatusVisual {
   label: string;
