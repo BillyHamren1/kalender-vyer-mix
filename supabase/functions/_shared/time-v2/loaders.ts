@@ -27,6 +27,7 @@ export async function loadKnownTargetsV2(
     const type: KnownPlace["type"] =
       isHome ? "home"
       : prefix === "project" ? "project"
+      : prefix === "large" ? "project"
       : prefix === "booking" ? "booking"
       : "location";
 
