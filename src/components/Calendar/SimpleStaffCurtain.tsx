@@ -55,7 +55,7 @@ const SimpleStaffCurtain: React.FC<SimpleStaffCurtainProps> = ({
       // Don't close - allow adding multiple staff
     } catch (error) {
       console.error('Error assigning staff:', error);
-      toast.error('Failed to assign staff');
+      toast.error('Kunde inte tilldela personal');
     } finally {
       setAssigning(null);
     }

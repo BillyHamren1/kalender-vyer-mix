@@ -21,8 +21,8 @@ export const useEventDeletion = (refreshEvents: () => Promise<void>) => {
       
     } catch (error) {
       console.error('Error deleting event:', error);
-      toast.error('Failed to delete event', {
-        description: 'Please try again or contact support if the problem persists'
+      toast.error('Kunde inte ta bort händelsen', {
+        description: 'Försök igen eller kontakta support om problemet kvarstår'
       });
     } finally {
       setIsDeleting(false);

@@ -28,15 +28,15 @@ export const useLogisticsMap = (bookingId?: string | null) => {
       setBookings(bookingsWithCoordinates);
       
       if (bookingsWithCoordinates.length === 0) {
-        toast.warning('No bookings with coordinates found');
+        toast.warning('Inga bokningar med koordinater hittades');
       } else {
-        toast.success(`Loaded ${bookingsWithCoordinates.length} bookings with location data`);
+        toast.success(`Laddade ${bookingsWithCoordinates.length} bokningar med platsdata`);
       }
       
       return bookingsWithCoordinates;
     } catch (error) {
       console.error('Error loading bookings:', error);
-      toast.error('Failed to load bookings');
+      toast.error('Kunde inte ladda bokningar');
       return [];
     } finally {
       setIsLoading(false);

@@ -100,7 +100,7 @@ export const PackingSelector: React.FC<PackingSelectorProps> = ({ onSelect }) =>
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           type="search"
-          placeholder="Search packing list, client..."
+          placeholder="Sök packlista, kund..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-10"
@@ -112,7 +112,7 @@ export const PackingSelector: React.FC<PackingSelectorProps> = ({ onSelect }) =>
         {filteredPackings.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <Package className="h-12 w-12 mx-auto mb-2 opacity-50" />
-            <p>No packing lists found</p>
+            <p>Inga packlistor hittades</p>
           </div>
         ) : (
           filteredPackings.map(packing => (

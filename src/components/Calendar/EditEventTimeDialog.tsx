@@ -118,8 +118,8 @@ const EditEventTimeDialog: React.FC<EditEventTimeDialogProps> = ({
       }
     } catch (error) {
       console.error('Error updating event time:', error);
-      toast.error('Failed to update event', {
-        description: 'Please try again'
+      toast.error('Kunde inte uppdatera händelsen', {
+        description: 'Försök igen'
       });
     } finally {
       setIsSubmitting(false);

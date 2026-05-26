@@ -192,7 +192,7 @@ const EventHoverCard: React.FC<EventHoverCardProps> = ({
           {(!products || products.length === 0) && !internalNotes && !fullAddress && 
            !event.extendedProps?.carryMoreThan10m && !event.extendedProps?.groundNailsAllowed && !event.extendedProps?.exactTimeNeeded && (
             <div className="bg-gray-50 p-2 rounded border border-gray-200 text-center">
-              <p className="text-xs text-gray-500 italic">No additional details available</p>
+              <p className="text-xs text-gray-500 italic">Inga ytterligare detaljer tillgängliga</p>
             </div>
           )}
         </div>

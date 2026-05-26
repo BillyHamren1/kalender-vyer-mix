@@ -46,7 +46,7 @@ export const useCalendarImport = () => {
     } catch (error) {
       console.error('Manual import error:', error);
       if (!silent) {
-        toast.error('Failed to refresh booking data');
+        toast.error('Kunde inte uppdatera bokningsdata');
       }
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     } finally {

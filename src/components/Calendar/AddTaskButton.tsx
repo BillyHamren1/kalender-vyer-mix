@@ -108,7 +108,7 @@ const AddTaskButton: React.FC<AddTaskButtonProps> = ({ resources, onAddTask, cur
       handleCloseDialog();
     } catch (error) {
       console.error('Error adding task:', error);
-      toast.error('Failed to add task to calendar');
+      toast.error('Kunde inte lägga till uppgiften i kalendern');
     } finally {
       setIsSubmitting(false);
     }
@@ -123,33 +123,33 @@ const AddTaskButton: React.FC<AddTaskButtonProps> = ({ resources, onAddTask, cur
         className="flex items-center gap-1"
       >
         <PlusCircle className="h-3 w-3" />
-        Add Task
+        Lägg till uppgift
       </Button>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Add Manual Task</DialogTitle>
+            <DialogTitle>Lägg till manuell uppgift</DialogTitle>
             <DialogDescription>
-              Create a new task or job to be added to the calendar.
+              Skapa en ny uppgift eller jobb att lägga till i kalendern.
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="task-title">Task Title</Label>
+              <Label htmlFor="task-title">Uppgiftsnamn</Label>
               <Input
                 id="task-title"
                 value={taskTitle}
                 onChange={(e) => setTaskTitle(e.target.value)}
-                placeholder="Enter task title"
+                placeholder="Ange uppgiftsnamn"
                 required
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Start Date</Label>
+                <Label>Startdatum</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -160,7 +160,7 @@ const AddTaskButton: React.FC<AddTaskButtonProps> = ({ resources, onAddTask, cur
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {startDate ? format(startDate, "PPP") : "Select date"}
+                      {startDate ? format(startDate, "PPP") : "Välj datum"}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -175,7 +175,7 @@ const AddTaskButton: React.FC<AddTaskButtonProps> = ({ resources, onAddTask, cur
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="start-time">Start Time</Label>
+                <Label htmlFor="start-time">Starttid</Label>
                 <Input
                   id="start-time"
                   type="time"
@@ -187,7 +187,7 @@ const AddTaskButton: React.FC<AddTaskButtonProps> = ({ resources, onAddTask, cur
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>End Date</Label>
+                <Label>Slutdatum</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -198,7 +198,7 @@ const AddTaskButton: React.FC<AddTaskButtonProps> = ({ resources, onAddTask, cur
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {endDate ? format(endDate, "PPP") : "Select date"}
+                      {endDate ? format(endDate, "PPP") : "Välj datum"}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -213,7 +213,7 @@ const AddTaskButton: React.FC<AddTaskButtonProps> = ({ resources, onAddTask, cur
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="end-time">End Time</Label>
+                <Label htmlFor="end-time">Sluttid</Label>
                 <Input
                   id="end-time"
                   type="time"
@@ -224,10 +224,10 @@ const AddTaskButton: React.FC<AddTaskButtonProps> = ({ resources, onAddTask, cur
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="team-select">Assign to Team</Label>
+              <Label htmlFor="team-select">Tilldela team</Label>
               <Select value={selectedTeam} onValueChange={setSelectedTeam}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a team" />
+                  <SelectValue placeholder="Välj team" />
                 </SelectTrigger>
                 <SelectContent>
                   {resources.map((resource) => (
@@ -240,12 +240,12 @@ const AddTaskButton: React.FC<AddTaskButtonProps> = ({ resources, onAddTask, cur
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="task-description">Description (Optional)</Label>
+              <Label htmlFor="task-description">Beskrivning (valfri)</Label>
               <Textarea
                 id="task-description"
                 value={taskDescription}
                 onChange={(e) => setTaskDescription(e.target.value)}
-                placeholder="Add any additional details about this task"
+                placeholder="Lägg till ytterligare detaljer om uppgiften"
                 rows={3}
               />
             </div>

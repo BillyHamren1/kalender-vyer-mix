@@ -18,7 +18,7 @@ const StaffForm: React.FC<StaffFormProps> = ({ onSave, onCancel }) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      toast.error('Name is required');
+      toast.error('Namn krävs');
       return;
     }
     onSave(name, email, phone);
@@ -27,37 +27,37 @@ const StaffForm: React.FC<StaffFormProps> = ({ onSave, onCancel }) => {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <Label htmlFor="name">Name</Label>
+        <Label htmlFor="name">Namn</Label>
         <Input 
           id="name" 
           value={name} 
           onChange={(e) => setName(e.target.value)} 
-          placeholder="Full name" 
+          placeholder="Fullständigt namn" 
           required 
         />
       </div>
       <div>
-        <Label htmlFor="email">Email</Label>
+        <Label htmlFor="email">E-post</Label>
         <Input 
           id="email" 
           type="email" 
           value={email} 
           onChange={(e) => setEmail(e.target.value)} 
-          placeholder="Email address" 
+          placeholder="E-postadress" 
         />
       </div>
       <div>
-        <Label htmlFor="phone">Phone</Label>
+        <Label htmlFor="phone">Telefon</Label>
         <Input 
           id="phone" 
           value={phone} 
           onChange={(e) => setPhone(e.target.value)} 
-          placeholder="Phone number" 
+          placeholder="Telefonnummer" 
         />
       </div>
       <div className="flex justify-end space-x-2">
-        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button type="submit">Save Staff</Button>
+        <Button type="button" variant="outline" onClick={onCancel}>Avbryt</Button>
+        <Button type="submit">Spara personal</Button>
       </div>
     </form>
   );

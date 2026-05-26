@@ -109,7 +109,7 @@ export const useEventDuplicateDialog = ({
             </Label>
             <Select onValueChange={setTargetTeam} value={targetTeam}>
               <SelectTrigger className="col-span-3">
-                <SelectValue placeholder="Select a team" />
+                <SelectValue placeholder="Välj team" />
               </SelectTrigger>
               <SelectContent>
                 {resources

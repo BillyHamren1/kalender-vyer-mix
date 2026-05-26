@@ -66,8 +66,8 @@ export const useEventMarking = () => {
       startTime: time
     }));
 
-    toast.success("Start time set", {
-      description: "Click another time slot to set the end time"
+    toast.success("Starttid satt", {
+      description: "Klicka på en annan tidslucka för att sätta sluttiden"
     });
   }, [markedEvent]);
 
@@ -76,8 +76,8 @@ export const useEventMarking = () => {
 
     // Validate that end time is after start time
     if (time <= timeSelection.startTime) {
-      toast.error("Invalid time selection", {
-        description: "End time must be after start time"
+      toast.error("Ogiltig tidsval", {
+        description: "Sluttiden måste vara efter starttiden"
       });
       return;
     }
@@ -91,16 +91,16 @@ export const useEventMarking = () => {
         end: time.toISOString()
       });
 
-      toast.success("Event time updated", {
-        description: `${markedEvent.title} has been rescheduled`
+      toast.success("Händelsens tid uppdaterad", {
+        description: `${markedEvent.title} har flyttats`
       });
 
       // Reset state
       unmarkEvent();
     } catch (error) {
       console.error('Error updating event time:', error);
-      toast.error("Failed to update event", {
-        description: "Please try again"
+      toast.error("Kunde inte uppdatera händelsen", {
+        description: "Försök igen"
       });
     } finally {
       setIsUpdating(false);

@@ -129,7 +129,7 @@ const StaffSelector: React.FC<StaffSelectorProps> = ({
       </PopoverTrigger>
       <PopoverContent className="w-[280px] p-0" align="start">
         <Command>
-          <CommandInput placeholder="Search staff members..." />
+          <CommandInput placeholder="Sök personal..." />
           <CommandList>
             <CommandEmpty>
               {isLoading ? 'Laddar...' : filterByDate && availableStaffIds.length === 0 ? 'Ingen personal tillgänglig för detta datum' : 'Ingen personal hittades'}

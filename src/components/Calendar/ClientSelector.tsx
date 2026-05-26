@@ -58,7 +58,7 @@ const ClientSelector: React.FC<ClientSelectorProps> = ({
         className="flex items-center space-x-2"
       >
         <Filter className="h-4 w-4" />
-        <span>Filter Clients</span>
+        <span>Filtrera kunder</span>
         {selectedClients.length > 0 && (
           <Badge variant="secondary">{selectedClients.length}</Badge>
         )}

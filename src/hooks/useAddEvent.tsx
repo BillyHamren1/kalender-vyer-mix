@@ -22,7 +22,7 @@ export const useAddEvent = (resources: Resource[], onEventAdded: () => void) => 
       throw new Error('Failed to create event');
     } catch (error) {
       console.error('Error adding event:', error);
-      toast.error('Failed to add event');
+      toast.error('Kunde inte lägga till händelsen');
       throw error;
     }
   };

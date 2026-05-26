@@ -78,13 +78,13 @@ const TeamEditDialog: React.FC<TeamEditDialogProps> = ({
     setIsLoading(true);
     try {
       await onCopyFromPreviousWeek();
-      toast.success('Staff assignments copied', {
-        description: 'Previous week\'s assignments have been copied to this week'
+      toast.success('Personaltilldelningar kopierade', {
+        description: 'Föregående veckas tilldelningar har kopierats till denna vecka'
       });
     } catch (error) {
       console.error('Error copying assignments:', error);
-      toast.error('Failed to copy assignments', {
-        description: 'There was an error copying the previous week\'s assignments'
+      toast.error('Kunde inte kopiera tilldelningar', {
+        description: 'Ett fel uppstod vid kopiering av föregående veckas tilldelningar'
       });
     } finally {
       setIsLoading(false);
@@ -108,7 +108,7 @@ const TeamEditDialog: React.FC<TeamEditDialogProps> = ({
             className="bg-white hover:bg-gray-50 border-gray-300"
           >
             <Edit className="mr-1" size={16} />
-            Edit Teams
+            Redigera team
           </Button>
         </DialogTriggerWrapper>
       )}
@@ -116,19 +116,19 @@ const TeamEditDialog: React.FC<TeamEditDialogProps> = ({
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Manage Teams</DialogTitle>
+            <DialogTitle>Hantera team</DialogTitle>
             <DialogDescription>
-              Add or remove teams, and copy staff assignments from previous week.
+              Lägg till eller ta bort team, och kopiera personaltilldelningar från föregående vecka.
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-6">
             {/* Copy from previous week section */}
             <div className="border rounded-lg p-4 bg-blue-50">
-              <h3 className="font-medium text-sm mb-2">Copy Staff Assignments</h3>
+              <h3 className="font-medium text-sm mb-2">Kopiera personaltilldelningar</h3>
               <p className="text-xs text-gray-600 mb-3">
-                Copy all staff assignments from {format(previousWeekStart, 'MMM d')} - {format(previousWeekEnd, 'MMM d')} 
-                to {format(currentWeekStart, 'MMM d')} - {format(currentWeekEnd, 'MMM d')}
+                Kopiera alla personaltilldelningar från {format(previousWeekStart, 'd MMM')} – {format(previousWeekEnd, 'd MMM')} 
+                till {format(currentWeekStart, 'd MMM')} – {format(currentWeekEnd, 'd MMM')}
               </p>
               <Button 
                 onClick={handleCopyFromPreviousWeek}
@@ -137,34 +137,34 @@ const TeamEditDialog: React.FC<TeamEditDialogProps> = ({
                 className="w-full"
               >
                 <Copy className="mr-1" size={14} />
-                {isLoading ? 'Copying...' : 'Copy from Previous Week'}
+                {isLoading ? 'Kopierar...' : 'Kopiera från föregående vecka'}
               </Button>
             </div>
 
             {/* Add new team section */}
             <div className="border rounded-lg p-4">
-              <h3 className="font-medium text-sm mb-3">Add New Team</h3>
+              <h3 className="font-medium text-sm mb-3">Lägg till nytt team</h3>
               <div className="flex gap-2">
                 <Input
                   value={newTeamName}
                   onChange={(e) => setNewTeamName(e.target.value)}
-                  placeholder="Team name"
+                  placeholder="Teamnamn"
                   className="flex-1"
                   onKeyPress={(e) => e.key === 'Enter' && handleAddTeam()}
                 />
                 <Button onClick={handleAddTeam} size="sm">
                   <Plus size={16} className="mr-1" />
-                  Add
+                  Lägg till
                 </Button>
               </div>
             </div>
 
             {/* Existing teams section */}
             <div>
-              <h3 className="font-medium text-sm mb-3">Existing Teams</h3>
+              <h3 className="font-medium text-sm mb-3">Befintliga team</h3>
               {teamResources.length === 0 ? (
                 <div className="text-center py-6 text-gray-500">
-                  <p className="text-sm">No teams added yet.</p>
+                  <p className="text-sm">Inga team tillagda ännu.</p>
                 </div>
               ) : (
                 <div className="space-y-2 max-h-[200px] overflow-y-auto">
@@ -193,18 +193,18 @@ const TeamEditDialog: React.FC<TeamEditDialogProps> = ({
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Remove Team</AlertDialogTitle>
+                                <AlertDialogTitle>Ta bort team</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Are you sure you want to remove "{team.title}"? This action cannot be undone.
+                                  Är du säker på att du vill ta bort "{team.title}"? Detta går inte att ångra.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogCancel>Avbryt</AlertDialogCancel>
                                 <AlertDialogAction
                                   onClick={() => handleRemoveTeam(team.id, team.title)}
                                   className="bg-red-600 hover:bg-red-700"
                                 >
-                                  Remove
+                                  Ta bort
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>

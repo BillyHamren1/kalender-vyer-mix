@@ -14,7 +14,7 @@ export const useDuplicateEvent = (onEventDuplicated: () => void) => {
       
       if (!selectedEvent) {
         console.error('No event selected for duplication');
-        toast.error("No event selected for duplication");
+        toast.error("Ingen händelse vald för duplicering");
         throw new Error('No event selected for duplication');
       }
 
@@ -36,17 +36,17 @@ export const useDuplicateEvent = (onEventDuplicated: () => void) => {
       const savedEvent = await createCalendarEvent(duplicatedEvent);
       
       if (savedEvent) {
-        toast.success('Event duplicated successfully');
+        toast.success('Händelsen dupplicerades');
         onEventDuplicated();
         setIsDialogOpen(false);
         setSelectedEvent(null);
         return savedEvent.id;
       }
       
-      throw new Error('Failed to duplicate event');
+      throw new Error('Kunde inte duplicera händelsen');
     } catch (error) {
       console.error('Error duplicating event:', error);
-      toast.error('Failed to duplicate event');
+      toast.error('Kunde inte duplicera händelsen');
       throw error;
     }
   };

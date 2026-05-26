@@ -348,8 +348,8 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
             <div className="flex items-start gap-2">
               <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-amber-800 text-sm">No products</p>
-                <p className="text-xs text-amber-700 mt-0.5">Packing list has not been generated yet.</p>
+                <p className="font-medium text-amber-800 text-sm">Inga produkter</p>
+                <p className="text-xs text-amber-700 mt-0.5">Packlistan har inte genererats än.</p>
               </div>
             </div>
           </CardContent>

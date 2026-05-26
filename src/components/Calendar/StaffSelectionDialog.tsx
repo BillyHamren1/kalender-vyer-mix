@@ -94,7 +94,7 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
           }
         } catch (error) {
           console.error('Error loading staff data:', error);
-          toast.error('Failed to load staff data');
+          toast.error('Kunde inte ladda personaldata');
         } finally {
           setLoading(false);
         }
@@ -175,10 +175,10 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
       
       console.log('StaffSelectionDialog: Assignment completed successfully');
       // Don't close the dialog - allow adding multiple staff members
-      toast.success(`${staffName} added`);
+      toast.success(`${staffName} tillagd`);
     } catch (error) {
       console.error('Error assigning staff:', error);
-      toast.error('Failed to assign staff member');
+      toast.error('Kunde inte tilldela personalen');
     } finally {
       setAssigning(null);
     }
@@ -201,14 +201,14 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>
-            Add Staff to {resourceTitle} ({format(currentDate, 'MMM d, yyyy')})
+            Lägg till personal i {resourceTitle} ({format(currentDate, 'd MMM yyyy')})
           </DialogTitle>
         </DialogHeader>
         
         <div className="relative my-2">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input 
-            placeholder="Search staff members..." 
+            placeholder="Sök personal..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-8"
@@ -218,11 +218,11 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
         <div className="max-h-[300px] overflow-y-auto border rounded-md">
           {loading ? (
             <div className="flex justify-center items-center h-16">
-              <p className="text-sm text-muted-foreground">Loading staff...</p>
+              <p className="text-sm text-muted-foreground">Laddar personal...</p>
             </div>
           ) : filteredStaff.length === 0 ? (
             <div className="flex justify-center items-center h-16">
-              <p className="text-sm text-muted-foreground">No staff found</p>
+              <p className="text-sm text-muted-foreground">Ingen personal hittades</p>
             </div>
           ) : (
             <ul className="divide-y">
