@@ -88,25 +88,31 @@ export const WorkDayPanel: React.FC = () => {
   if (!timer.timerActive) {
     return (
       <>
-        <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm flex items-center gap-3">
-          <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-muted shrink-0">
-            <Sun className="w-4 h-4 text-muted-foreground" />
+        <div
+          className="rounded-2xl border border-primary/15 bg-primary-soft p-4 flex items-center gap-3"
+          style={{ boxShadow: '0 1px 2px hsl(184 30% 15% / 0.04)' }}
+        >
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-card border border-primary/15 shrink-0">
+            <Sun className="w-[18px] h-[18px] text-primary" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-foreground leading-tight">
-              Arbetsdagen är inte startad
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/80 leading-none">
+              Arbetsdag
             </p>
-            <p className="text-xs text-muted-foreground leading-tight mt-0.5">
-              Starta dagen när du börjar jobba.
+            <p className="text-[15px] font-semibold text-foreground leading-tight mt-1">
+              Inte startad
+            </p>
+            <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+              Tryck för att börja jobba.
             </p>
           </div>
           <button
             onClick={() => setDialogOpen(true)}
             disabled={starting}
-            className="shrink-0 h-11 px-4 rounded-xl bg-primary text-primary-foreground font-semibold text-sm flex items-center gap-1.5 active:scale-[0.99] transition-all disabled:opacity-60"
+            className="shrink-0 h-11 px-4 rounded-xl bg-primary text-primary-foreground font-semibold text-sm flex items-center gap-1.5 active:scale-[0.98] transition-all disabled:opacity-60 shadow-[0_2px_0_hsl(var(--primary-dark))]"
           >
             {starting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
-            <span>{starting ? 'Startar…' : 'Starta arbetsdag'}</span>
+            <span>{starting ? 'Startar…' : 'Starta'}</span>
           </button>
         </div>
         <StartDayDialog
@@ -118,6 +124,7 @@ export const WorkDayPanel: React.FC = () => {
       </>
     );
   }
+
 
   // ── Kompakt: arbetsdagen är aktiv ───────────────────────────────────
   const startedLabel = timer.startedAt ? format(parseISO(timer.startedAt), 'HH:mm') : '—';
