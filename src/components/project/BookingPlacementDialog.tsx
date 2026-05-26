@@ -442,11 +442,22 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-none w-screen h-screen sm:rounded-none p-6 overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 flex-wrap">
             <CalIcon className="h-5 w-5 text-primary" />
-            Placera bokning
+            <span>Placera bokning</span>
+            {deliveryOnly && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-800 border border-emerald-300">
+                📦 Endast leverans
+              </span>
+            )}
           </DialogTitle>
+          {deliveryOnly && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Inget rigg/riv på bokningen. Leverans <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 align-middle mx-0.5" /> och retur <span className="inline-block w-2 h-2 rounded-full bg-red-500 align-middle mx-0.5" /> placeras i <strong>Lager</strong>-kolumnen samma dag.
+            </p>
+          )}
         </DialogHeader>
+
 
 
         <div className="flex-1 overflow-y-auto pr-1">
