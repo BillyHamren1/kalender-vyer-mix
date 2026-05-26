@@ -484,6 +484,18 @@ if (typeof window !== 'undefined') {
     }
   })();
 
+  // Session ogiltig / utgången — töm kön omedelbart så vi inte fortsätter
+  // försöka ladda upp med ett dött token (vilket annars belastar Supabase).
+  const clearOnInvalidSession = () => {
+    saveQueue([]);
+    patchStatus({
+      lastErrorAt: Date.now(),
+      lastErrorMessage: 'Session ogiltig — GPS-kö tömd.',
+    });
+  };
+  window.addEventListener('mobile-session-expired', clearOnInvalidSession);
+  window.addEventListener('mobile-session-invalid', clearOnInvalidSession);
+
   // App start — resume any leftover work from the previous session
   // (offline period, force-quit, crash, etc.).
   void flushLocationQueue();
