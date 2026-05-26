@@ -11,11 +11,13 @@ describe('ProjectManagement incoming flow', () => {
     expect(src).not.toContain('<UnplannedProjectsBanner');
   });
 
-  it('IncomingBookingsList merges unplanned projects into the same container', () => {
+  it('IncomingBookingsList merges unplanned projects into the same Placera flow', () => {
     const src = read('src/components/project/IncomingBookingsList.tsx');
     expect(src).toContain('useUnplannedProjects');
-    expect(src).toContain('ProjectPlanningSheet');
-    expect(src).toContain('Att planera');
+    expect(src).toContain('setPlacementBookingId(project.bookingId)');
+    expect(src).toContain('<span>Placera</span>');
+    expect(src).not.toContain('ProjectPlanningSheet');
+    expect(src).not.toContain('Att planera');
     expect(src).toContain('bookings.length + unplannedProjects.length');
   });
 });

@@ -10,7 +10,6 @@ import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { BookingPlacementDialog } from './BookingPlacementDialog';
 import { useUnplannedProjects } from '@/hooks/useUnplannedProjects';
-import { ProjectPlanningSheet } from './ProjectPlanningSheet';
 
 interface IncomingBooking {
   id: string;
@@ -34,8 +33,6 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [placementBookingId, setPlacementBookingId] = useState<string | null>(null);
-  const [planningProjectId, setPlanningProjectId] = useState<string | null>(null);
-  const [planningProjectKind, setPlanningProjectKind] = useState<'medium' | 'large' | null>(null);
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ['bookings-without-project'],
     queryFn: async () => {
@@ -162,10 +159,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
           >
             <div
               className="flex-1 min-w-0 cursor-pointer"
-              onClick={() => {
-                setPlanningProjectId(project.id);
-                setPlanningProjectKind(project.kind);
-              }}
+              onClick={() => project.bookingId && setPlacementBookingId(project.bookingId)}
             >
               <div className="flex items-center gap-2">
                 <h4 className="text-sm font-medium truncate text-foreground group-hover:text-primary transition-colors">
@@ -178,9 +172,6 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                 )}
                 <Badge variant="outline" className="h-4 px-1.5 text-[10px] shrink-0">
                   {project.kind === 'large' ? 'Stort' : 'Medel'}
-                </Badge>
-                <Badge className="h-4 px-1.5 text-[10px] font-medium bg-primary/10 text-primary border-0 shrink-0">
-                  Att planera
                 </Badge>
               </div>
               <div className="flex items-center gap-3 mt-0.5 text-[11px] text-muted-foreground">
@@ -199,16 +190,15 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
 
             <div className="flex items-center gap-1 shrink-0">
               <Button
-                variant="ghost"
+                variant="default"
                 size="sm"
-                onClick={() => {
-                  setPlanningProjectId(project.id);
-                  setPlanningProjectKind(project.kind);
-                }}
-                className="h-7 px-2 text-xs gap-1 hover:bg-primary/10 hover:text-primary"
-                title="Planera projektet"
+                onClick={() => project.bookingId && setPlacementBookingId(project.bookingId)}
+                className="h-7 px-3 text-xs gap-1"
+                title="Placera bokningen"
+                disabled={!project.bookingId}
               >
-                <span>Planera</span>
+                <CalendarPlus className="w-3.5 h-3.5" />
+                <span>Placera</span>
               </Button>
               <ChevronRight className="h-4 w-4 text-muted-foreground/20 ml-1" />
             </div>
@@ -306,18 +296,6 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
         onOpenChange={(o) => { if (!o) setPlacementBookingId(null); }}
         bookingId={placementBookingId}
       />
-
-      {planningProjectId && planningProjectKind && (
-        <ProjectPlanningSheet
-          projectId={planningProjectId}
-          projectKind={planningProjectKind}
-          open={true}
-          onClose={() => {
-            setPlanningProjectId(null);
-            setPlanningProjectKind(null);
-          }}
-        />
-      )}
     </div>
   );
 };
