@@ -279,7 +279,12 @@ export const StaffDayInspectionDrawer: React.FC<Props> = ({ open, bundle, day, o
                 <div className="space-y-3 min-w-0">
                   <div className="relative h-[420px] rounded-lg border border-border/70 overflow-hidden bg-background">
                     {staffId && dateStr && (
-                      <DayInspectionMap staffId={staffId} date={dateStr} open={open} />
+                      <DayInspectionMap
+                        staffId={staffId}
+                        date={dateStr}
+                        open={open}
+                        clampEndIso={mapClampEndIso}
+                      />
                     )}
                   </div>
 
