@@ -126,6 +126,16 @@ const ProjectLayout = () => {
     else navigate(`/project/${target.id}`, { replace: true });
   }, [lpFallback.data, navigate]);
 
+  // Rental-only redirect: tvinga rental-only-projekt till översiktsvyn (inga tools)
+  const rentalOnlyFlag = (project as any)?.booking?.rental_only === true;
+  useEffect(() => {
+    if (!rentalOnlyFlag || !projectId) return;
+    const p = location.pathname;
+    if (p.endsWith('/execution') || p.endsWith('/economy') || p.endsWith('/establishment')) {
+      navigate(`/project/${projectId}`, { replace: true });
+    }
+  }, [rentalOnlyFlag, projectId, location.pathname, navigate]);
+
   if (isLoading) {
     return (
       <div className="theme-purple h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
@@ -443,11 +453,6 @@ const ProjectLayout = () => {
           </nav>
         )}
 
-        {isRentalOnly && (activeKey === 'execution' || activeKey === 'economy') && (
-          <div className="mb-6">
-            {(() => { navigate(basePath, { replace: true }); return null; })()}
-          </div>
-        )}
 
         {/* Sub-page content */}
         <Outlet context={detail} />
