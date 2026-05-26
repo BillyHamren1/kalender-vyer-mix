@@ -1,8 +1,10 @@
 // @ts-nocheck
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
 
-import { processGpsTimelineForAutoStart } from '../_shared/time-engine/processGpsTimelineForAutoStart.ts'
-import { evaluateAutoStopForActiveDay } from '../_shared/time-engine/evaluateAutoStopForActiveDay.ts'
+// Time Engine imports removed — GPS endpoints are ingestion-only.
+// import { processGpsTimelineForAutoStart } from '../_shared/time-engine/processGpsTimelineForAutoStart.ts'
+// import { evaluateAutoStopForActiveDay } from '../_shared/time-engine/evaluateAutoStopForActiveDay.ts'
+
 import { isWarehouseTeam } from '../_shared/warehouseTeam.ts'
 
 const corsHeaders = {
