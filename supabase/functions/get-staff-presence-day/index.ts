@@ -62,9 +62,8 @@ import { buildDayEvidence } from '../_shared/time-engine/buildDayEvidence.ts';
 import { buildLocationTruthFromDayEvidence } from '../_shared/time-engine/buildLocationTruthFromDayEvidence.ts';
 import { buildWorkdayAllocationFromLocationTruth, resolveWorkdayEnvelope } from '../_shared/time-engine/buildWorkdayAllocationFromLocationTruth.ts';
 import { buildDisplayTimelineFromWorkdayAllocation } from '../_shared/time-engine/buildDisplayTimelineFromWorkdayAllocation.ts';
-// Lager 3.7 — AI Workday Reviewer (read-only, no-op default).
-// WorkdayAllocation is read-only until Lager 4/display integration.
-import { buildAiWorkdayReviewInput, reviewWorkdayWithAi } from '../_shared/time-engine/aiWorkdayReviewer.ts';
+// Lager 3.7 — AI Workday Reviewer: BORTKOPPLAD (CPU-spill, ingen UI-konsument).
+// Lämnar aiWorkdayReviewSummary/Proposals tomma så trace-export/hook fungerar oförändrat.
 
 // ── Lager 2.7 feature flag ────────────────────────────────────────────────
 // Read-only: returnerar locationTruthSegments + locationTruthDiagnostics.
@@ -409,29 +408,9 @@ Deno.serve(async (req) => {
             console.warn('[presence-day] buildDisplayTimelineFromWorkdayAllocation failed', e);
             displayTimelineDiagnosticsV2 = { error: e?.message ?? String(e) };
           }
-
-          // Lager 3.7 — AI reviewer (read-only, no-op default).
-          // WorkdayAllocation is read-only until Lager 4/display integration.
-          try {
-            const aiInput = buildAiWorkdayReviewInput({
-              dayEvidence,
-              locationTruthV2: lt,
-              workdayAllocation: wda,
-            });
-            const aiOut = reviewWorkdayWithAi(aiInput);
-            aiWorkdayReviewSummary = {
-              summary: aiOut.summary,
-              risks: aiOut.risks,
-              reviewer: aiOut.reviewer,
-              triggeredSegmentCount: aiInput.diagnostics.triggeredSegmentCount,
-              triggeredProposalCount: aiInput.diagnostics.triggeredProposalCount,
-              triggerCounts: aiInput.diagnostics.triggerCounts,
-            };
-            aiWorkdayReviewProposals = aiOut.proposals;
-          } catch (e: any) {
-            console.warn('[presence-day] aiWorkdayReviewer failed', e);
-            aiWorkdayReviewSummary = { error: e?.message ?? String(e) };
-          }
+          // Lager 3.7 — AI reviewer bortkopplad (se import-kommentar ovan).
+          aiWorkdayReviewSummary = null;
+          aiWorkdayReviewProposals = [];
         } catch (e: any) {
           console.warn('[presence-day] buildWorkdayAllocationFromLocationTruth failed', e);
           workdayAllocationDiagnostics = { error: e?.message ?? String(e) };

@@ -1,45 +1,33 @@
-## Mål
-Stoppa den belastning som gör att appen fastnar i laddning och att databasen/edge functions matas konstant när man står på `/projects`.
+## Vad AI workday-reviewern faktiskt gör idag
 
-## Vad jag har isolerat
-1. **Automatisk bokningsimport kör globalt på projektrutter**
-   - `App.tsx` monterar `useBackgroundImport()` globalt.
-   - `useBackgroundImport.ts` kör `import-bookings` automatiskt på rutter som börjar med `/projects`.
-   - Den triggar efter 1 sekund och sedan var 30:e sekund.
-   - Detta kan orsaka kontinuerliga `import-bookings`-körningar, query-invalidations och ny omladdning av projektlistor.
+Den körs synkront i `supabase/functions/get-staff-presence-day/index.ts` (rad 415–434) per staff×dag som "Lager 3.7" i Location Truth-pipelinen. Den bygger `aiInput` (`buildAiWorkdayReviewInput`) och kör `reviewWorkdayWithAi(aiInput)` — en CPU-tung pure-funktion (motorn analyserar segment + förslag).
 
-2. **GPS-uppladdning kör från webbpreviewn och timeoutar/retryar**
-   - Nätverksloggen visar återkommande `mobile-app-api` `upload_location_batch` från webben.
-   - `useGeofencing.ts` använder `navigator.geolocation.watchPosition` på web och enqueuar GPS-punkter som flushas till `mobile-app-api`.
-   - När dessa timeoutar fortsätter kön att retrya, vilket skapar extra tryck och brus.
+Resultatet sparas i `aiWorkdayReviewSummary` + `aiWorkdayReviewProposals` på responsen och:
+
+- `src/lib/staff/timeEngineTraceExport.ts` — bara passerar vidare i en debug-/trace-export.
+- `src/hooks/useDisplayTimelineV2.ts` rad 169 — sätter `aiProposals` på timeline-objektet.
+
+`aiProposals` läses **ingenstans** i UI. Det finns ingen knapp, ingen rendering, ingen skrivning till databasen — bara en separat batch-funktion `workday-ai-auto-stop` som är sin egen cron-funktion och inte beror på det här.
+
+Slutsats: hela 3.7-blocket är död kod som äter CPU/RAM i varje presence-day-anrop. Det stämmer med din "vi kopplade bort den för längesen" — vi tog bort konsumenten, inte producenten.
 
 ## Plan
-### 1) Stoppa aggressiv auto-import på `/projects`
-- Begränsa eller stänga av automatisk `useBackgroundImport()` för projektsidan.
-- Behålla manuell uppdatering via knappen **Uppdatera** i `ProjectManagement.tsx`.
-- Säkerställa att import inte går i bakgrunden bara för att användaren tittar på projektlistan.
 
-### 2) Stoppa web-preview från att skicka GPS-batcher i onödan
-- Gå igenom web-vägen i geofencing/location reporting.
-- Sätta guard så att webbpreviewn inte startar eller flushar GPS-uppladdningar när den inte används som faktisk Time-app.
-- Målet är att `/projects` i webbläget inte ska trigga `upload_location_batch`-stormar.
+1. **Ta bort 3.7-blocket i `get-staff-presence-day/index.ts`**
+   - Radera try/catch på rad 413–434 (`buildAiWorkdayReviewInput` + `reviewWorkdayWithAi`).
+   - Ta bort importen på rad 67.
+   - Sätt `aiWorkdayReviewSummary = null` och `aiWorkdayReviewProposals = []` så responsens shape inte ändras (trace-export och hook fortsätter fungera oförändrat).
 
-### 3) Minska risken att projektsidan ser "fastlåst" ut
-- Se över laddningsbeteendet i projektvyerna (`ProjectManagement`, `UnifiedProjectList`, dashboard-widgets).
-- Förhindra att sidan hoppar tillbaka till full loading state vid varje invalidation när gammal data redan finns.
-- Behålla senaste data synlig medan ny hämtning pågår.
+2. **Lämna kvar (rör inte)**
+   - `_shared/time-engine/aiWorkdayReviewer.ts` + tester — orörd, ifall vi vill återanvända senare.
+   - `workday-ai-auto-stop` edge function — separat cron, inte i hot path.
+   - `useDisplayTimelineV2.aiProposals` och fältet i `timeEngineTraceExport` — tomma arrays, ingen UI-effekt.
 
-### 4) Verifiering
-- Testa i preview direkt efter ändringarna.
-- Kontrollera att `/projects` inte längre genererar återkommande import-/GPS-anrop.
-- Bekräfta att sidan laddar klart och förblir stabil.
-- Köra relevanta tester för regressionsskydd.
+3. **Verifiera**
+   - Bygget passerar.
+   - Öppna personalkalendern → rader laddar (ingen WORKER_RESOURCE_LIMIT på `get-staff-presence-day`).
+   - Kolla edge-logs för funktionen direkt efter.
 
-## Tekniska detaljer
-Berörda filer blir sannolikt främst:
-- `src/App.tsx`
-- `src/hooks/useBackgroundImport.ts`
-- `src/hooks/useGeofencing.ts`
-- eventuellt projektlistans query-komponenter för laddningsbeteendet
+## Varför inte hela presence-day-splitten nu
 
-Om du godkänner planen implementerar jag direkt och verifierar i preview efter varje ändring.
+Det löser symptomet (CPU-spike per rad) utan att röra resten av Location Truth-pipelinen. Splitten i 3 funktioner kan vi göra som ett separat steg om kalendern fortfarande är seg efter detta.
