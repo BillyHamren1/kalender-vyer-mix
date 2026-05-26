@@ -36,12 +36,15 @@ import {
   PlanningDay,
   isPhaseLocked,
   seedDaysFromBooking,
+  isDeliveryOnlyBooking,
+  DELIVERY_DEFAULT_TEAM_ID,
 } from './bookingPlacementSeed';
 import { BookingInfoHeader } from './BookingInfoHeader';
 import { PhaseDatesEditor } from './PhaseDatesEditor';
 import { PlacementDayCalendar } from './PlacementDayCalendar';
 import { translateSupabaseError } from '@/lib/supabase/translateError';
 import { findAvailableTeam } from '@/utils/teamAvailability';
+
 
 
 interface Props {
@@ -131,7 +134,11 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
     seededForBookingId.current = booking.id;
     let cancelled = false;
     (async () => {
-      const seed = seedDaysFromBooking(booking);
+      const deliveryOnly = isDeliveryOnlyBooking(booking);
+      const seed = seedDaysFromBooking(
+        booking,
+        deliveryOnly ? DELIVERY_DEFAULT_TEAM_ID : 'team-1',
+      );
       const dates = Array.from(new Set(seed.map((d) => d.date)));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let dayEvents: any[] = [];
@@ -142,17 +149,20 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
           .in('source_date', dates);
         dayEvents = data || [];
       }
-      const rig = seed.find((d) => d.kind === 'rig');
+      // Delivery-only: behåll Lager-kolumnen, gör ingen findAvailableTeam-omfördelning.
       let rigTeamId: string | null = null;
-      if (rig) {
-        const start = new Date(`${rig.date}T${rig.startTime}:00`);
-        const end = new Date(`${rig.date}T${rig.endTime}:00`);
-        const eventsLike = dayEvents
-          .filter((e) => e.source_date === rig.date && e.booking_id !== booking.id)
+      if (!deliveryOnly) {
+        const rig = seed.find((d) => d.kind === 'rig');
+        if (rig) {
+          const start = new Date(`${rig.date}T${rig.startTime}:00`);
+          const end = new Date(`${rig.date}T${rig.endTime}:00`);
+          const eventsLike = dayEvents
+            .filter((e) => e.source_date === rig.date && e.booking_id !== booking.id)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .map((e) => ({ id: e.resource_id, resourceId: e.resource_id, start: e.start_time, end: e.end_time, title: '' } as any));
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .map((e) => ({ id: e.resource_id, resourceId: e.resource_id, start: e.start_time, end: e.end_time, title: '' } as any));
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        rigTeamId = findAvailableTeam(start, end, eventsLike as any, teamResources as any, true);
+          rigTeamId = findAvailableTeam(start, end, eventsLike as any, teamResources as any, true);
+        }
       }
       const finalDays = seed.map((d) => {
         if ((d.kind === 'rig' || d.kind === 'rigDown') && rigTeamId) {
@@ -173,6 +183,7 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
     };
   }, [open, booking, teamResources]);
 
+
   // När bokningen länkas till ett BEFINTLIGT stort projekt ärvs riggdagar
   // och tider från det stora projektet — användaren ska då inte planera dagar.
   const linkingToExistingLarge = isLarge && largeMode === 'existing' && !!largeExistingId;
@@ -183,20 +194,28 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
     [days, linkingToExistingLarge],
   );
 
+  const deliveryOnly = useMemo(() => isDeliveryOnlyBooking(booking), [booking]);
+
   const teamOptions = useMemo(
     () =>
       (teamResources || [])
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .filter((r: any) => r.id !== 'team-11' && r.id !== 'transport')
+        .filter((r: any) => {
+          if (r.id === 'team-11') return false;
+          // För delivery-only: tillåt Lager-kolumnen ('transport') som valbart team
+          if (r.id === 'transport') return deliveryOnly;
+          return true;
+        })
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((r: any) => ({ id: r.id, title: r.title })),
-    [teamResources],
+        .map((r: any) => ({ id: r.id, title: r.id === 'transport' ? 'Lager' : r.title })),
+    [teamResources, deliveryOnly],
   );
 
   const inheritedTeamId = useMemo(
     () => days[0]?.teamId || teamOptions[0]?.id || 'team-1',
     [days, teamOptions],
   );
+
 
   // Datum som ska visas i personalkalendern (vänster kolumn).
   // Använd alla planerade dagar (rig/event/rigDown); om inga finns ännu,
@@ -423,11 +442,22 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-none w-screen h-screen sm:rounded-none p-6 overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 flex-wrap">
             <CalIcon className="h-5 w-5 text-primary" />
-            Placera bokning
+            <span>Placera bokning</span>
+            {deliveryOnly && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-800 border border-emerald-300">
+                📦 Endast leverans
+              </span>
+            )}
           </DialogTitle>
+          {deliveryOnly && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Inget rigg/riv på bokningen. Leverans <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 align-middle mx-0.5" /> och retur <span className="inline-block w-2 h-2 rounded-full bg-red-500 align-middle mx-0.5" /> placeras i <strong>Lager</strong>-kolumnen samma dag.
+            </p>
+          )}
         </DialogHeader>
+
 
 
         <div className="flex-1 overflow-y-auto pr-1">

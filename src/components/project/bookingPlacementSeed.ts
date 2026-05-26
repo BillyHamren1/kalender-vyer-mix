@@ -118,11 +118,65 @@ export const removeDayAt = (days: PlanningDay[], index: number): PlanningDay[] =
 };
 
 /**
+ * Returnerar true om bokningen saknar både rig- och rivdatum men har en eventdate.
+ * Då är detta en ren leverans (utan rigg/riv) och ska placeras som leverans + retur
+ * på samma dag i Lager-kolumnen.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const isDeliveryOnlyBooking = (b: any): boolean =>
+  !!b?.eventdate && !b?.rigdaydate && !b?.rigdowndate;
+
+/**
+ * Fallback-tidsslots för delivery-only-flödet.
+ * Nr 1 = leverans (08–11), nr 2 = retur (12–15). Lätt att utöka med fler slots.
+ */
+export const DELIVERY_FALLBACK_SLOTS: Array<{ start: string; end: string }> = [
+  { start: '08:00', end: '11:00' },
+  { start: '12:00', end: '15:00' },
+  { start: '16:00', end: '19:00' },
+];
+
+/**
+ * Default team-id för Lager-kolumnen i planeringskalendern.
+ * OBS: I planeringskalendern heter Lager-kolumnen `'transport'` (legacy-id).
+ */
+export const DELIVERY_DEFAULT_TEAM_ID = 'transport' as const;
+
+/**
  * Bygger initial dag-lista från en bokning (rig + event + rigDown om datum finns),
  * sorterad kronologiskt. Användare kan plocka bort eventdagen i wizard.
+ *
+ * Special case — delivery-only: bokning utan rig/riv men med eventdate seedas som
+ * ett rig-pass (leverans UT) + ett rigDown-pass (retur IN) på samma dag, med
+ * sekventiella fallback-tider (08–11 + 12–15) och team `transport` (Lager).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const seedDaysFromBooking = (b: any, defaultTeamId = 'team-1'): PlanningDay[] => {
+  // Delivery-only: skapa leverans + retur på eventdate i Lager-kolumnen
+  if (isDeliveryOnlyBooking(b)) {
+    const date = b.eventdate as string;
+    const evStart = trimSec(b?.event_start_time);
+    const evEnd = trimSec(b?.event_end_time);
+    const slot1 = DELIVERY_FALLBACK_SLOTS[0];
+    const slot2 = DELIVERY_FALLBACK_SLOTS[1];
+    return [
+      {
+        date,
+        kind: 'rig',
+        startTime: evStart ?? slot1.start,
+        endTime: evEnd ?? slot1.end,
+        teamId: DELIVERY_DEFAULT_TEAM_ID,
+      },
+      {
+        date,
+        kind: 'rigDown',
+        startTime: slot2.start,
+        endTime: slot2.end,
+        teamId: DELIVERY_DEFAULT_TEAM_ID,
+      },
+    ];
+  }
+
   const list: PlanningDay[] = [];
   if (b?.rigdaydate) {
     list.push({
@@ -155,6 +209,7 @@ export const seedDaysFromBooking = (b: any, defaultTeamId = 'team-1'): PlanningD
       teamId: rig?.teamId ?? defaultTeamId,
     });
   }
+
   list.sort((a, z) => a.date.localeCompare(z.date));
   return list;
 };
