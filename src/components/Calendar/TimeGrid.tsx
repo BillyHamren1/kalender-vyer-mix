@@ -185,7 +185,9 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         ref={rootRef}
         data-density={density}
         className={`time-grid-with-staff-header day-card bg-background rounded-2xl shadow-lg border overflow-y-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}
+        style={{ ['--slot-px' as any]: `${slotPx}px` }}
       >
+
         {/* Fixed header */}
         <div
           className="time-grid-fixed-header"
