@@ -102,10 +102,28 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   }, []);
 
   const timeSlots = generateTimeSlots();
-  // Slot-höjd anpassas så 24 slots fyller tillgänglig höjd. Min 22 px för läsbarhet.
+  // Höjdfördelning: standard 05–20 (15 timmar) fyller hela ytan så varje timme blir stor.
+  // Om event sträcker sig efter 20:00 ökar vi divisorn så event ryms — timmarna krymper då.
+  let maxEndHour = 20;
+  for (const r of resources) {
+    for (const ev of getEventsForDayAndResource(day, r.id)) {
+      const startClock = ev.start.includes('T') ? (ev.start.split('T')[1]?.slice(0, 5) ?? '00:00') : '00:00';
+      const endClock = ev.end.includes('T') ? (ev.end.split('T')[1]?.slice(0, 5) ?? '00:00') : '00:00';
+      const startDate = ev.start.slice(0, 10);
+      const endDate = ev.end.slice(0, 10);
+      const [sH, sM] = startClock.split(':').map(Number);
+      const [eH, eM] = endClock.split(':').map(Number);
+      const startH = (sH || 0) + (sM || 0) / 60;
+      let endH = (eH || 0) + (eM || 0) / 60;
+      if (endDate > startDate || endH < startH) endH += 24;
+      if (endH > maxEndHour) maxEndHour = endH;
+    }
+  }
+  const requiredHours = Math.ceil(maxEndHour - 5);
+  const visibleHours = Math.min(24, Math.max(15, requiredHours));
   const slotPx = scrollH > 0
-    ? Math.max(22, Math.floor(scrollH / timeSlots.length))
-    : 25;
+    ? Math.max(22, Math.floor(scrollH / visibleHours))
+    : 36;
 
   const getAssignedStaffForTeamSafe = (teamId: string) => {
     if (!weeklyStaffOperations) return [];
