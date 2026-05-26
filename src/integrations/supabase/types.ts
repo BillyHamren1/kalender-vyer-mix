@@ -9907,6 +9907,10 @@ export type Database = {
         Returns: number
       }
       auto_close_open_location_entries: { Args: never; Returns: number }
+      auto_create_project_for_orphan_booking: {
+        Args: { p_booking_id: string }
+        Returns: string
+      }
       claim_sync_jobs: {
         Args: { batch_limit?: number }
         Returns: {
