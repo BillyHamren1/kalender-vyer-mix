@@ -77,7 +77,9 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   // Adaptiv kolumnbredd: mät containerns faktiska bredd och fördela jämnt över teams
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const [containerW, setContainerW] = useState(0);
+  const [scrollH, setScrollH] = useState(0);
   useEffect(() => {
     if (!rootRef.current || typeof ResizeObserver === 'undefined') return;
     const el = rootRef.current;
@@ -88,8 +90,22 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+  useEffect(() => {
+    if (!scrollRef.current || typeof ResizeObserver === 'undefined') return;
+    const el = scrollRef.current;
+    const ro = new ResizeObserver((entries) => {
+      const h = entries[0]?.contentRect.height ?? 0;
+      setScrollH(h);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const timeSlots = generateTimeSlots();
+  // Slot-höjd anpassas så 24 slots fyller tillgänglig höjd. Min 22 px för läsbarhet.
+  const slotPx = scrollH > 0
+    ? Math.max(22, Math.floor(scrollH / timeSlots.length))
+    : 25;
 
   const getAssignedStaffForTeamSafe = (teamId: string) => {
     if (!weeklyStaffOperations) return [];
@@ -101,13 +117,14 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   // Beräkna max-överlapp per resurs så vi kan bredda kolumnen även när två
   // event ligger samtidigt (samma princip som vid flera personer i teamet).
   const overlapMaps = resources.map((r) =>
-    computeOverlapLayout(getEventsForDayAndResource(day, r.id), getEventPosition),
+    computeOverlapLayout(getEventsForDayAndResource(day, r.id), (e) => getEventPosition(e, slotPx)),
   );
   const maxOverlapPerResource = overlapMaps.map((map) => {
     let m = 1;
     for (const info of map.values()) if (info.totalColumns > m) m = info.totalColumns;
     return m;
   });
+
   const teamColumnWidths = resources.map((r, i) => {
     const staffCount = getAssignedStaffForTeamSafe(r.id).length;
     const staffWidth = staffCount > 5 ? WIDE_TEAM_COLUMN_WIDTH : TEAM_COLUMN_WIDTH;
