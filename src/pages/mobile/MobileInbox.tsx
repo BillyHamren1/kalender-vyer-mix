@@ -307,11 +307,13 @@ const MobileInbox = () => {
       {/* FAB */}
       <button
         onClick={() => setView('new')}
-        className="fixed bottom-28 right-5 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center active:scale-95 transition-transform"
+        className="fixed bottom-24 right-5 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center active:scale-95 transition-transform"
+        style={{ boxShadow: '0 8px 24px hsl(184 60% 26% / 0.30), 0 2px 6px hsl(184 60% 26% / 0.20)' }}
         aria-label={t('inbox.newMessage')}
       >
-        <Plus className="w-6 h-6" />
+        <Plus className="w-6 h-6" strokeWidth={2.5} />
       </button>
+
     </div>
   );
 };
