@@ -75,6 +75,20 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   const [openPickerTeamId, setOpenPickerTeamId] = useState<string | null>(null);
   const { handleEventClick } = useEventNavigation();
 
+  // Adaptiv kolumnbredd: mät containerns faktiska bredd och fördela jämnt över teams
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [containerW, setContainerW] = useState(0);
+  useEffect(() => {
+    if (!rootRef.current || typeof ResizeObserver === 'undefined') return;
+    const el = rootRef.current;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? 0;
+      setContainerW(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const timeSlots = generateTimeSlots();
 
   const getAssignedStaffForTeamSafe = (teamId: string) => {
