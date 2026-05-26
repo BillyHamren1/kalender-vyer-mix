@@ -26,6 +26,11 @@ import {
 import { buildDayView } from "../_shared/time-v2/buildDayView.ts";
 import { buildDayMap } from "../_shared/time-v2/buildDayMap.ts";
 import { buildGpsDayTimelineOnly } from "../_shared/timeline/buildGpsDayTimelineOnly.ts";
+import {
+  buildAnchorsPayload,
+  computeAnchorSuggestions,
+  loadAnchorsForDay,
+} from "../_shared/time-v2/anchors.ts";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -154,6 +159,13 @@ Deno.serve(async (req: Request) => {
           ? "gps_suggestion"
           : "manual_empty";
   const canSubmitManual = reportMode === "manual_empty";
+
+  // Anchors — bekräfta/justera dagstart/dagslut (Time v2)
+  const anchorRows = await loadAnchorsForDay(admin, orgId, staffId, date);
+  const { startSuggested, endSuggested } = computeAnchorSuggestions(view.segments ?? []);
+  const anchors = buildAnchorsPayload({
+    rows: anchorRows, startSuggested, endSuggested, isLocked,
+  });
 
   return json({
     source: "mobile_gps_day_view_v2",

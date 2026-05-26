@@ -6310,6 +6310,57 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_gps_day_anchors: {
+        Row: {
+          anchor_type: string
+          confirmation_mode: string
+          confirmed_at: string | null
+          created_at: string
+          created_by: string | null
+          date: string
+          id: string
+          organization_id: string
+          reason: string | null
+          source: string
+          staff_id: string
+          suggested_at: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          anchor_type: string
+          confirmation_mode?: string
+          confirmed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          date: string
+          id?: string
+          organization_id: string
+          reason?: string | null
+          source?: string
+          staff_id: string
+          suggested_at?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          anchor_type?: string
+          confirmation_mode?: string
+          confirmed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          id?: string
+          organization_id?: string
+          reason?: string | null
+          source?: string
+          staff_id?: string
+          suggested_at?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       staff_gps_day_snapshots: {
         Row: {
           built_at: string
