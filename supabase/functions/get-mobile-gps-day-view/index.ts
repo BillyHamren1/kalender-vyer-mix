@@ -26,6 +26,11 @@ import {
 import { buildDayView } from "../_shared/time-v2/buildDayView.ts";
 import { buildDayMap } from "../_shared/time-v2/buildDayMap.ts";
 import { buildGpsDayTimelineOnly } from "../_shared/timeline/buildGpsDayTimelineOnly.ts";
+import {
+  buildAnchorsPayload,
+  computeAnchorSuggestions,
+  loadAnchorsForDay,
+} from "../_shared/time-v2/anchors.ts";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
