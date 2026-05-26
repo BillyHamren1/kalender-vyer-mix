@@ -118,17 +118,22 @@ export const removeDayAt = (days: PlanningDay[], index: number): PlanningDay[] =
 };
 
 /**
- * Returnerar true om bokningen saknar både rig- och rivdatum men har en eventdate.
- * Då är detta en ren leverans (utan rigg/riv) och ska placeras som leverans + retur
- * på samma dag i Lager-kolumnen.
+ * Returnerar true om bokningen är "endast uthyrning/leverans".
+ * Sanningskälla: `rental_only`-flaggan från externa bokningssystemets webhook
+ * (booking.updated / booking.confirmed osv.). När flaggan är true ska INGA
+ * rigg-upp/rigg-ner-uppgifter planeras — bara leverans UT + retur IN i Lager.
+ *
+ * Datumheuristik används INTE. Om flaggan saknas tolkas bokningen som vanlig.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const isDeliveryOnlyBooking = (b: any): boolean =>
-  !!b?.eventdate && !b?.rigdaydate && !b?.rigdowndate;
+  b?.rental_only === true;
 
 /**
- * Fallback-tidsslots för delivery-only-flödet.
- * Nr 1 = leverans (08–11), nr 2 = retur (12–15). Lätt att utöka med fler slots.
+ * Fallback-tidsslots för delivery-only-flödet (när bokningen saknar egna tider).
+ * Slot 0 = leverans UT (08–11), slot 1 = retur IN (12–15).
+ * Om UT och IN ligger på SAMMA dag används slot 0 + slot 1.
+ * Om de ligger på olika dagar används slot 0 (08–11) för båda.
  */
 export const DELIVERY_FALLBACK_SLOTS: Array<{ start: string; end: string }> = [
   { start: '08:00', end: '11:00' },
@@ -146,37 +151,66 @@ export const DELIVERY_DEFAULT_TEAM_ID = 'transport' as const;
  * Bygger initial dag-lista från en bokning (rig + event + rigDown om datum finns),
  * sorterad kronologiskt. Användare kan plocka bort eventdagen i wizard.
  *
- * Special case — delivery-only: bokning utan rig/riv men med eventdate seedas som
- * ett rig-pass (leverans UT) + ett rigDown-pass (retur IN) på samma dag, med
- * sekventiella fallback-tider (08–11 + 12–15) och team `transport` (Lager).
+ * Special case — `rental_only === true` (leverans): inget event/rigg planeras.
+ * Vi tolkar då bokningens datum som:
+ *   - rigdaydate   = Leverans UT  (rig-pass, Lager)
+ *   - rigdowndate  = Retur IN     (rigDown-pass, Lager)
+ *   - eventdate    = själva eventet hos kund — hoppas över i planeringen
+ * Om varken rigdaydate eller rigdowndate finns används eventdate för båda
+ * passen (UT 08–11, IN 12–15 fallback). Om bara ett av rig/rigdown saknas,
+ * faller det tillbaka till motsvarande närmaste datum (rigdate → rigdowndate
+ * eller eventdate).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const seedDaysFromBooking = (b: any, defaultTeamId = 'team-1'): PlanningDay[] => {
-  // Delivery-only: skapa leverans + retur på eventdate i Lager-kolumnen
+  // === Rental-only (leverans) — rig=UT, rigdown=IN, alltid i Lager ===
   if (isDeliveryOnlyBooking(b)) {
-    const date = b.eventdate as string;
-    const evStart = trimSec(b?.event_start_time);
-    const evEnd = trimSec(b?.event_end_time);
-    const slot1 = DELIVERY_FALLBACK_SLOTS[0];
-    const slot2 = DELIVERY_FALLBACK_SLOTS[1];
-    return [
-      {
-        date,
-        kind: 'rig',
-        startTime: evStart ?? slot1.start,
-        endTime: evEnd ?? slot1.end,
+    const slot0 = DELIVERY_FALLBACK_SLOTS[0]; // 08–11
+    const slot1 = DELIVERY_FALLBACK_SLOTS[1]; // 12–15
+
+    const outDate: string | null =
+      (b?.rigdaydate as string | undefined) ??
+      (b?.eventdate as string | undefined) ??
+      null;
+    const inDate: string | null =
+      (b?.rigdowndate as string | undefined) ??
+      (b?.eventdate as string | undefined) ??
+      null;
+
+    const list: PlanningDay[] = [];
+    if (outDate) {
+      const sameDay = inDate === outDate;
+      list.push({
+        date: outDate,
+        kind: 'rig', // Leverans UT
+        startTime: trimSec(b?.rig_start_time) ?? slot0.start,
+        endTime: trimSec(b?.rig_end_time) ?? slot0.end,
         teamId: DELIVERY_DEFAULT_TEAM_ID,
-      },
-      {
-        date,
+      });
+      if (inDate) {
+        list.push({
+          date: inDate,
+          kind: 'rigDown', // Retur IN
+          startTime: trimSec(b?.rigdown_start_time) ?? (sameDay ? slot1.start : slot0.start),
+          endTime: trimSec(b?.rigdown_end_time) ?? (sameDay ? slot1.end : slot0.end),
+          teamId: DELIVERY_DEFAULT_TEAM_ID,
+        });
+      }
+    } else if (inDate) {
+      // Bara retur-datum
+      list.push({
+        date: inDate,
         kind: 'rigDown',
-        startTime: slot2.start,
-        endTime: slot2.end,
+        startTime: trimSec(b?.rigdown_start_time) ?? slot0.start,
+        endTime: trimSec(b?.rigdown_end_time) ?? slot0.end,
         teamId: DELIVERY_DEFAULT_TEAM_ID,
-      },
-    ];
+      });
+    }
+    list.sort((a, z) => a.date.localeCompare(z.date));
+    return list;
   }
 
+  // === Vanlig bokning ===
   const list: PlanningDay[] = [];
   if (b?.rigdaydate) {
     list.push({
