@@ -422,7 +422,6 @@ const MobileTimeReportQueue: React.FC<Props> = ({ staffId }) => {
               title={openDate ? formatNiceDate(openDate) : ''}
               subtitle={queuePosition ? `Dag ${queuePosition.index + 1} av ${queuePosition.total}` : undefined}
               onBack={closeSheet}
-              backIcon={<ArrowLeft className="h-4 w-4" />}
             />
             <div className="px-4 pt-4 pb-6 space-y-3">
               {dayLoading && !dayView && (
