@@ -22,7 +22,7 @@ import MobileEventsList from '@/components/mobile/MobileEventsList';
 import MobileWarehouseWeekSelector from '@/components/mobile/MobileWarehouseWeekSelector';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
 import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
-import { UnplannedProjectsBanner } from '@/components/Calendar/UnplannedProjectsBanner';
+
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { startOfWeek, startOfMonth, format } from 'date-fns';
