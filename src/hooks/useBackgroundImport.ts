@@ -10,8 +10,13 @@ interface BackgroundImportState {
   importCount: number;
 }
 
-const IMPORT_INTERVAL = 30 * 1000;
-const MIN_IMPORT_GAP = 25 * 1000;
+// Throttling: tidigare 30s var alldeles för aggressivt och orsakade att
+// `import-bookings` kördes konstant så fort någon stod på /projects, vilket
+// tröttade ut databasen och fick UI att kännas "fastlåst" i laddning.
+// Bakgrundsimport behövs egentligen bara som mjuk fallback — realtime +
+// manuell "Uppdatera"-knapp är primära signaler.
+const IMPORT_INTERVAL = 5 * 60 * 1000;      // 5 min mellan auto-importer
+const MIN_IMPORT_GAP = 4 * 60 * 1000;       // skydd mot focus-storms
 const STORAGE_KEY = 'background_import_state';
 
 const BACKGROUND_IMPORT_ROUTE_PREFIXES = [
@@ -68,6 +73,9 @@ export const useBackgroundImport = () => {
     if (s.isRunning) return;
     if (s.lastImport && Date.now() - s.lastImport.getTime() < MIN_IMPORT_GAP) return;
     if (!isBackgroundImportRoute()) return;
+    // Skip when tab is hidden — sparar databasen från att matas av
+    // bortglömda flikar i bakgrunden.
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
 
     // Gate on verified auth + org context to prevent cross-tenant import attempts.
     // Uses shared cache (10 min) — no per-tick /auth/user + profiles roundtrip.
