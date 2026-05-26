@@ -13,6 +13,7 @@ const dayKnownSitesPath = path.resolve(
   'supabase/functions/_shared/staff-gps/dayKnownSites.ts',
 );
 const useDayKnownSitesPath = path.resolve('src/hooks/useDayKnownSites.ts');
+const timeV2LoadersPath = path.resolve('supabase/functions/_shared/time-v2/loaders.ts');
 
 describe('Known Sites Date Bound — contract', () => {
   it('snapshotCache.ts routes geofences via loadDayKnownSites', () => {
@@ -58,5 +59,14 @@ describe('Known Sites Date Bound — contract', () => {
     expect(src).toMatch(/avbokat/);
     expect(src).toMatch(/INACTIVE_BOOKING_STATUSES/);
     expect(src).toMatch(/OFFER/);
+  });
+
+  it('Time v2 loaders route known targets through date-bound dayKnownSites', () => {
+    const src = fs.readFileSync(timeV2LoadersPath, 'utf8');
+    expect(src).toMatch(/from\s+["']\.\.\/staff-gps\/dayKnownSites\.ts["']/);
+    expect(src).toMatch(/loadDayKnownSites\(/);
+    const loadKnownTargetsSection = src.match(/export async function loadKnownTargetsV2[\s\S]*?return out;\n}/)?.[0] ?? src;
+    expect(loadKnownTargetsSection).not.toMatch(/from\(["']projects["']\)/);
+    expect(loadKnownTargetsSection).not.toMatch(/from\(["']large_projects["']\)/);
   });
 });

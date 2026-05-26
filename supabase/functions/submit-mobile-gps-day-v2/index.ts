@@ -19,6 +19,7 @@ import {
 import {
   fetchPingsForDayV2,
   loadKnownTargetsV2,
+  loadManualReportTargetsForDay,
 } from "../_shared/time-v2/loaders.ts";
 import {
   buildDayView,
@@ -70,6 +71,11 @@ interface SubmitBody {
   manualOverrides?: ManualSegmentOverride[];
   expectedSourceSnapshotId?: string | null;
   manualDay?: ManualDayInput | null;
+}
+
+interface ManualTargetConstraint {
+  targetType: ManualTargetType;
+  targetId: string;
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -133,6 +139,40 @@ function fmtDuration(mins: number): string {
   if (h === 0) return `${m}m`;
   if (m === 0) return `${h}h`;
   return `${h}h ${m}m`;
+}
+
+function targetConstraintKey(targetType: ManualTargetType, targetId: string): string {
+  return `${targetType}:${targetId}`;
+}
+
+function collectAllowedManualTargetConstraints(view: any): Set<string> {
+  const allowed = new Set<string>();
+
+  for (const seg of (view?.segments ?? [])) {
+    const kind = seg?.matched?.kind;
+    const id = seg?.matched?.id;
+    if (!kind || !id) continue;
+    if (kind === "home") continue;
+    if (kind === "booking" || kind === "project" || kind === "large_project" || kind === "location") {
+      allowed.add(targetConstraintKey(kind, id));
+    }
+  }
+
+  const manualTargets = view?.manualTargets;
+  const pushTargets = (items: any[] | undefined) => {
+    for (const item of items ?? []) {
+      const targetType = item?.targetType;
+      const targetId = item?.targetId;
+      if (!targetType || !targetId) continue;
+      allowed.add(targetConstraintKey(targetType, targetId));
+    }
+  };
+
+  pushTargets(manualTargets?.assignedTargets);
+  pushTargets(manualTargets?.locationTargets);
+  pushTargets(manualTargets?.searchableTargets);
+
+  return allowed;
 }
 
 function mapSegmentsForDisplaySnapshot(segments: any[]): any[] {
@@ -313,7 +353,7 @@ Deno.serve(async (req: Request) => {
 
   // ── Bygg vyn på samma sätt som get-mobile-gps-day-view ──────
   let knownTargets: any[] = [];
-  try { knownTargets = await loadKnownTargetsV2(admin, orgId); }
+  try { knownTargets = await loadKnownTargetsV2(admin, orgId, staffId, date); }
   catch (e) { console.error("[submit-mobile-gps-day-v2] target load failed", e); return json({ error: "target load failed" }, 500); }
 
   let pings: any[] = [];
@@ -322,6 +362,12 @@ Deno.serve(async (req: Request) => {
 
   const view = buildDayView({
     staffId, organizationId: orgId, date, pings, knownTargets, manualOverrides, staffName,
+  });
+
+  const manualTargets = await loadManualReportTargetsForDay(admin, orgId, staffId, date);
+  const allowedManualTargets = collectAllowedManualTargetConstraints({
+    segments: view.segments,
+    manualTargets,
   });
 
   const sourceSnapshotId =
@@ -366,6 +412,22 @@ Deno.serve(async (req: Request) => {
 
       const t = seg.target;
       const tt = (t.targetType ?? "other") as ManualTargetType;
+      const explicitTargetId =
+        t.targetId
+        ?? t.booking_id
+        ?? t.project_id
+        ?? t.large_project_id
+        ?? t.location_id
+        ?? null;
+      if (tt !== "other") {
+        if (!explicitTargetId) {
+          return json({ error: "manualDay.segments: targetId krävs för vald target" }, 400);
+        }
+        const key = targetConstraintKey(tt, explicitTargetId);
+        if (!allowedManualTargets.has(key)) {
+          return json({ error: "Valt projekt/plats är inte öppet för den här dagen" }, 409);
+        }
+      }
       rows.push({
         id: seg.id,
         segmentKey: seg.id,
@@ -380,13 +442,13 @@ Deno.serve(async (req: Request) => {
         end: endIso,
         durationMinutes: mins,
         minutes: mins,
-        booking_id: t.booking_id ?? (tt === "booking" ? t.targetId : null),
-        project_id: t.project_id ?? (tt === "project" ? t.targetId : null),
-        large_project_id: t.large_project_id ?? (tt === "large_project" ? t.targetId : null),
-        location_id: t.location_id ?? (tt === "location" ? t.targetId : null),
+        booking_id: t.booking_id ?? (tt === "booking" ? explicitTargetId : null),
+        project_id: t.project_id ?? (tt === "project" ? explicitTargetId : null),
+        large_project_id: t.large_project_id ?? (tt === "large_project" ? explicitTargetId : null),
+        location_id: t.location_id ?? (tt === "location" ? explicitTargetId : null),
         assignment_id: null,
         targetType: tt,
-        targetId: t.targetId ?? null,
+        targetId: explicitTargetId,
         warning: tt === "other" ? "unassigned_manual_time" : null,
         comment: seg.comment ?? null,
       });

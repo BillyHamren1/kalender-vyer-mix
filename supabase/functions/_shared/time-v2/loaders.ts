@@ -5,65 +5,39 @@
 
 import type { RawPingInput } from "../timeline/buildGpsDayTimelineOnly.ts";
 import type { KnownPlace } from "../timeline/types.ts";
+import { loadDayKnownSites } from "../staff-gps/dayKnownSites.ts";
 
 export async function loadKnownTargetsV2(
   admin: any,
   orgId: string,
+  staffId: string,
+  date: string,
 ): Promise<KnownPlace[]> {
-  const [locsRes, projRes, largeRes] = await Promise.all([
-    admin.from("organization_locations")
-      .select("id, name, latitude, longitude, radius_meters, is_private_residence")
-      .eq("organization_id", orgId)
-      .not("latitude", "is", null)
-      .not("longitude", "is", null)
-      .limit(2000),
-    admin.from("projects")
-      .select("id, name, delivery_latitude, delivery_longitude, address_radius_meters, deleted_at")
-      .eq("organization_id", orgId)
-      .is("deleted_at", null)
-      .not("delivery_latitude", "is", null)
-      .not("delivery_longitude", "is", null)
-      .limit(5000),
-    admin.from("large_projects")
-      .select("id, name, address_latitude, address_longitude, address_radius_meters")
-      .eq("organization_id", orgId)
-      .not("address_latitude", "is", null)
-      .not("address_longitude", "is", null)
-      .limit(2000),
-  ]);
-
+  const { geofences, privateGeofenceIds } = await loadDayKnownSites(admin, {
+    staffId,
+    date,
+    organizationId: orgId,
+  });
   const out: KnownPlace[] = [];
-  for (const r of (locsRes.data ?? []) as any[]) {
-    const isHome = r.is_private_residence === true;
-    const rawName = String(r.name ?? (isHome ? "Boende" : "Plats"));
+  for (const site of geofences) {
+    const isHome = privateGeofenceIds.includes(site.id);
+    const [prefix, rawId] = String(site.id).split(":", 2);
+    const rawName = String(site.name ?? (isHome ? "Boende" : "Plats"));
     const name = isHome && !/boende/i.test(rawName) ? `Boende ${rawName}` : rawName;
+    const type: KnownPlace["type"] =
+      isHome ? "home"
+      : prefix === "project" ? "project"
+      : prefix === "large" ? "project"
+      : prefix === "booking" ? "booking"
+      : "location";
+
     out.push({
-      id: String(r.id),
-      type: isHome ? "home" : "location",
+      id: rawId ?? String(site.id),
+      type,
       name,
-      lat: Number(r.latitude),
-      lng: Number(r.longitude),
-      radiusM: Math.max(isHome ? 15 : 20, Number(r.radius_meters ?? (isHome ? 50 : 75))),
-    });
-  }
-  for (const r of (projRes.data ?? []) as any[]) {
-    out.push({
-      id: String(r.id),
-      type: "project",
-      name: String(r.name ?? "Projekt"),
-      lat: Number(r.delivery_latitude),
-      lng: Number(r.delivery_longitude),
-      radiusM: Math.max(20, Number(r.address_radius_meters ?? 75)),
-    });
-  }
-  for (const r of (largeRes.data ?? []) as any[]) {
-    out.push({
-      id: String(r.id),
-      type: "project",
-      name: String(r.name ?? "Stort projekt"),
-      lat: Number(r.address_latitude),
-      lng: Number(r.address_longitude),
-      radiusM: Math.max(30, Number(r.address_radius_meters ?? 100)),
+      lat: Number(site.lat),
+      lng: Number(site.lng),
+      radiusM: Math.max(isHome ? 15 : 20, Number(site.radiusMeters ?? (isHome ? 50 : 75))),
     });
   }
   return out;
@@ -329,6 +303,7 @@ export async function loadManualReportTargetsForDay(
   // 2) Bokningar → ev. projekt/large_project + label
   const projectIds = new Set<string>();
   const largeIds = new Set<string>();
+  const directlyAssignedProjectIds = new Set<string>();
   if (bookingIds.size) {
     const [bookingsRes, lpbRes] = await Promise.all([
       admin.from("bookings")
@@ -345,6 +320,7 @@ export async function loadManualReportTargetsForDay(
       if (INACTIVE_BOOKING_STATUSES.has(status)) continue;
       activeBookings.push(b);
       if (b.assigned_project_id) projectIds.add(String(b.assigned_project_id));
+      if (b.assigned_project_id) directlyAssignedProjectIds.add(String(b.assigned_project_id));
       if (b.large_project_id) largeIds.add(String(b.large_project_id));
     }
     for (const row of (lpbRes.data ?? []) as any[]) {
@@ -377,6 +353,7 @@ export async function loadManualReportTargetsForDay(
       for (const p of (pRes.data ?? []) as any[]) {
         const status = String(p.planning_status ?? p.status ?? "").toLowerCase();
         if (status === "cancelled" || status === "avbokat") continue;
+        if (!directlyAssignedProjectIds.has(String(p.id))) continue;
         assignedTargets.push({
           targetType: "project",
           targetId: String(p.id),
