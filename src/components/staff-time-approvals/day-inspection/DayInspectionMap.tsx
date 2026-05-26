@@ -11,6 +11,9 @@ interface Props {
   staffId: string;
   date: string;
   open: boolean;
+  /** Om dagen är inskickad: klipp visit-durations vid denna tidpunkt (ISO) så
+   * att kartans tooltip inte fortsätter "ticka" efter att personalen avslutat dagen. */
+  clampEndIso?: string | null;
 }
 
 /**
