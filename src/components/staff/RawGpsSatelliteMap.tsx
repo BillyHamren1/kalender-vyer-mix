@@ -109,6 +109,7 @@ const LAYER_IDS = [
   'gps-stay-labels',
   'gps-first',
   'gps-last',
+  'raw-all-pings',
 ];
 const SOURCE_IDS = [
   'geofence-fill-src',
@@ -118,6 +119,7 @@ const SOURCE_IDS = [
   'gps-move-points-src',
   'gps-stay-points-src',
   'gps-endpoints-src',
+  'raw-all-pings-src',
 ];
 
 const ZOOM_DETAIL_THRESHOLD = 14;
