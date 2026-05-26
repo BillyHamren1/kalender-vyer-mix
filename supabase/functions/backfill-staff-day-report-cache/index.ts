@@ -725,7 +725,7 @@ Deno.serve(async (req) => {
   // Process serially (engine is CPU-light, DB is the bottleneck — keep gentle)
   const results: ProcessedRow[] = [];
   for (const c of limited) {
-    const r = await processOne(admin, orgId, c.staff_id, c.date, engineVersion, dryRun);
+    const r = await processOne(admin, orgId, c.staff_id, c.date, engineVersion, dryRun, enablePeerEvidence);
     results.push(r);
   }
 
