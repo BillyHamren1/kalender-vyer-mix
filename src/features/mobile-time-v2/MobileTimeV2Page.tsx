@@ -133,30 +133,34 @@ const DayView: React.FC<DayViewProps> = ({ date, onBack }) => {
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-28">
-      {/* Header */}
-      <div className="px-5 pt-5 pb-4 bg-card border-b">
-        <button
-          onClick={onBack}
-          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground -ml-1"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Alla dagar
-        </button>
-        <h1 className="text-xl font-semibold mt-1.5 capitalize">{niceDate}</h1>
-      </div>
+      <MobileBackHeader
+        title={niceDate}
+        subtitle={visual.label}
+        onBack={onBack}
+        rightAction={
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => void refresh()}
+            disabled={isLoading}
+            aria-label="Uppdatera"
+            className="h-9 w-9 rounded-xl text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+          </Button>
+        }
+      />
 
-      <div className="flex-1 px-4 pt-3 space-y-3 w-full min-w-0 max-w-full">
+      <div className="flex-1 px-4 pt-4 space-y-3 w-full min-w-0 max-w-full">
         {data && (
           <div className="flex items-center justify-between gap-2">
             <Badge variant={visual.variant} className="gap-1.5 px-2.5 py-1">
               {visual.icon}
               {visual.label}
             </Badge>
-            <Button variant="ghost" size="sm" onClick={() => void refresh()} disabled={isLoading}>
-              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-            </Button>
           </div>
         )}
+
 
         {isCorrection && submission?.reviewComment && (
           <Card className="p-3.5 border-destructive/40 bg-destructive/5">
