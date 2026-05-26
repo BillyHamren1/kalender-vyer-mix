@@ -5975,226 +5975,16 @@ async function handleUploadLocationBatch(
     console.warn('[mobile-app-api] upload_location_batch presence update failed:', presenceErr)
   }
 
-  // ── 3. Drive the new Time Engine ──
-  // Batch-upload feeds GPS pings into the Time Engine, which is the only
-  // component allowed to write `active_time_registrations`. We run it per
-  // distinct date present in the batch so backfill across day boundaries
-  // is handled correctly.
+  // ── 3. Time Engine processing — DISABLED in GPS upload path ──
+  // EMERGENCY FIX: Running processGpsTimelineForAutoStart + evaluateAutoStopForActiveDay
+  // synchronously on every upload_location_batch was overloading the database
+  // (paginated full-day ping fetches + per-ping reprocessing per device).
   //
-  // The engine MUST NOT touch workdays / location_time_entries / time_reports /
-  // travel_time_logs — only `active_time_registrations`.
-  const batchDates = new Set<string>()
-  for (const p of valid) {
-    batchDates.add(new Date(p.recordedMs).toISOString().slice(0, 10))
-  }
+  // TODO: Time Engine ska köras via kontrollerad queue/cron/manual reprocess,
+  // inte direkt i GPS-upload-requesten. Raw GPS sparas redan ovan i
+  // staff_location_history och staff_locations är uppdaterad — det räcker
+  // för att appen och kartan ska fungera.
   const chainSummary: { dates: Array<{ date: string; createdRegistrationId: string | null }> } = { dates: [] }
-  for (const date of batchDates) {
-    try {
-      const dayStartIso = `${date}T00:00:00.000Z`
-      const dayEndIso = `${date}T23:59:59.999Z`
-      // Paginated fetch — Time Engine MUST receive ALL pings for the day,
-      // not just the first 2000. Batch in chunks of 1000 via .range().
-      const PAGE_SIZE = 1000
-      const allDayPings: any[] = []
-      for (let from = 0; ; from += PAGE_SIZE) {
-        const to = from + PAGE_SIZE - 1
-        const { data: pageRows, error: pageErr } = await supabase
-          .from('staff_location_history')
-          .select('recorded_at, lat, lng, accuracy, speed')
-          .eq('organization_id', organizationId)
-          .eq('staff_id', staffId)
-          .gte('recorded_at', dayStartIso)
-          .lte('recorded_at', dayEndIso)
-          .order('recorded_at', { ascending: true })
-          .range(from, to)
-        if (pageErr) break
-        const rows = pageRows || []
-        if (rows.length === 0) break
-        allDayPings.push(...rows)
-        if (rows.length < PAGE_SIZE) break
-      }
-
-      const pings = allDayPings
-        .filter((p: any) => p.lat != null && p.lng != null && p.recorded_at)
-        .map((p: any) => ({
-          ts: p.recorded_at,
-          lat: Number(p.lat),
-          lng: Number(p.lng),
-          accuracyM: p.accuracy != null ? Number(p.accuracy) : null,
-          speedMs: p.speed != null ? Number(p.speed) : null,
-        }))
-
-      if (pings.length < 2) {
-        chainSummary.dates.push({ date, createdRegistrationId: null })
-        continue
-      }
-
-      const result = await processGpsTimelineForAutoStart({
-        organizationId,
-        staffId,
-        date,
-        pings,
-        supabaseAdmin: supabase,
-      })
-      chainSummary.dates.push({ date, createdRegistrationId: result.createdRegistrationId ?? null })
-      if (result.createdRegistrationId) {
-        console.log(
-          '[time-engine] upload_location_batch auto-started active_time_registration',
-          result.createdRegistrationId,
-          'staff=', staffId,
-          'date=', date,
-        )
-      }
-    } catch (engineErr) {
-      // Never fail the upload because the engine hiccupped — GPS history is
-      // already persisted above.
-      console.warn(
-        '[time-engine] upload_location_batch processGpsTimelineForAutoStart failed (non-fatal):',
-        engineErr,
-      )
-    }
-  }
-
-  // ── 4. GPS-driven AUTO-STOP for the day timer ──
-  // Policy contract (GPS_SIGNAL_ONLY + DAY_TIMER_ONLY):
-  //   • GPS may auto-START the day timer (above).
-  //   • GPS may auto-STOP the day timer (here).
-  //   • GPS MUST NOT create or mutate time_reports / location_time_entries /
-  //     workdays / travel_time_logs. The Time Engine + admin own the timeline.
-  // Therefore the only mutation this block is allowed to perform is on
-  // `active_time_registrations` via the pure evaluator.
-  try {
-    const nowIsoForStop = new Date().toISOString()
-    const { data: activeRegs } = await supabase
-      .from('active_time_registrations')
-      .select('id, staff_id, started_at, status, stopped_at, start_source, metadata')
-      .eq('organization_id', organizationId)
-      .eq('staff_id', staffId)
-      .eq('status', 'active')
-      .is('stopped_at', null)
-      .order('started_at', { ascending: false })
-      .limit(1)
-
-    const reg = activeRegs?.[0]
-    if (reg) {
-      // Load anchors (LTE for day) — read-only EVIDENCE, never mutated here.
-      const sinceIso = reg.started_at
-      const [{ data: lteRows }, { data: homes }] = await Promise.all([
-        supabase
-          .from('location_time_entries')
-          .select(`entered_at, exited_at, location_id, booking_id, project_id, large_project_id,
-                   organization_locations(name, latitude, longitude)`)
-          .eq('organization_id', organizationId)
-          .eq('staff_id', reg.staff_id)
-          .gte('entered_at', sinceIso)
-          .order('entered_at', { ascending: true })
-          .limit(50),
-        supabase
-          .from('staff_inferred_home_locations')
-          .select('lat, lng')
-          .eq('organization_id', organizationId)
-          .eq('staff_id', reg.staff_id)
-          .is('valid_until', null)
-          .limit(3),
-      ])
-
-      const workAnchors = (lteRows || []).map((r: any) => {
-        const loc = r.organization_locations || null
-        let kind: 'project' | 'large_project' | 'location' | 'booking' | 'warehouse' = 'location'
-        let targetId: string | null = r.location_id ?? null
-        if (r.large_project_id) { kind = 'large_project'; targetId = r.large_project_id }
-        else if (r.project_id) { kind = 'project'; targetId = r.project_id }
-        else if (r.booking_id) { kind = 'booking'; targetId = r.booking_id }
-        return {
-          enteredAtIso: r.entered_at,
-          exitedAtIso: r.exited_at ?? null,
-          kind,
-          targetId,
-          label: loc?.name ?? null,
-          lat: loc?.latitude != null ? Number(loc.latitude) : null,
-          lng: loc?.longitude != null ? Number(loc.longitude) : null,
-        }
-      })
-
-      const homeZones = (homes || []).map((h: any) => ({
-        lat: Number(h.lat), lng: Number(h.lng), radiusM: 150, kind: 'inferred_home' as const,
-      })).filter((z: any) => Number.isFinite(z.lat) && Number.isFinite(z.lng))
-
-      const lastExits = workAnchors
-        .map((a: any) => a.exitedAtIso)
-        .filter((x: any): x is string => !!x)
-        .sort()
-      const pingSince = lastExits.length > 0 ? lastExits[lastExits.length - 1] : sinceIso
-
-      const { data: pingRows } = await supabase
-        .from('staff_location_history')
-        .select('lat, lng, recorded_at')
-        .eq('organization_id', organizationId)
-        .eq('staff_id', reg.staff_id)
-        .gte('recorded_at', pingSince)
-        .lte('recorded_at', nowIsoForStop)
-        .order('recorded_at', { ascending: true })
-        .limit(500)
-
-      const pingsAfterLastAnchor = (pingRows || [])
-        .map((p: any) => ({
-          recordedAtIso: p.recorded_at,
-          lat: Number(p.lat),
-          lng: Number(p.lng),
-        }))
-        .filter((p: any) => Number.isFinite(p.lat) && Number.isFinite(p.lng))
-
-      const decision = evaluateAutoStopForActiveDay({
-        registration: {
-          id: reg.id,
-          staffId: reg.staff_id,
-          organizationId,
-          startedAtIso: reg.started_at,
-          status: reg.status,
-          stoppedAtIso: reg.stopped_at,
-          startSource: reg.start_source ?? null,
-        },
-        workAnchors,
-        pingsAfterLastAnchor,
-        homeZones,
-        nowIso: nowIsoForStop,
-      })
-
-      if (decision.stop) {
-        const { error: stopErr } = await supabase
-          .from('active_time_registrations')
-          .update({
-            status: 'stopped',
-            stopped_at: decision.stopAtIso,
-            stop_source: decision.stopSource,
-            stopped_by: 'system_day_auto_stop',
-            metadata: {
-              ...(reg.metadata || {}),
-              autoStop: { ...decision.diagnostics, decidedAt: nowIsoForStop, source: 'upload_location_batch' },
-            },
-            updated_at: nowIsoForStop,
-          })
-          .eq('id', reg.id)
-          .eq('status', 'active')
-          .is('stopped_at', null)
-        if (stopErr) {
-          console.warn('[time-engine] upload_location_batch auto-stop update failed (non-fatal):', stopErr)
-        } else {
-          console.log(JSON.stringify({
-            evt: 'day_timer_auto_stopped',
-            via: 'upload_location_batch',
-            registration_id: reg.id,
-            staff_id: reg.staff_id,
-            organization_id: organizationId,
-            stop_source: decision.stopSource,
-            stop_at: decision.stopAtIso,
-          }))
-        }
-      }
-    }
-  } catch (autoStopErr) {
-    console.warn('[time-engine] upload_location_batch evaluateAutoStopForActiveDay failed (non-fatal):', autoStopErr)
-  }
 
   return new Response(
     JSON.stringify({
@@ -6207,6 +5997,8 @@ async function handleUploadLocationBatch(
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
   )
 }
+
+
 
 // ── ORGANIZATION LOCATIONS HANDLERS ──
 
