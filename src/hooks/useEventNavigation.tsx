@@ -41,8 +41,16 @@ export const useEventNavigation = () => {
 
   const navigateToProjectFromBooking = async (bookingId: string, directLargeProjectId?: string) => {
     if (directLargeProjectId) {
-      navigate(`/large-project/${directLargeProjectId}`);
-      return true;
+      const { data: lp } = await supabase
+        .from('large_projects')
+        .select('id')
+        .eq('id', directLargeProjectId)
+        .is('deleted_at', null)
+        .maybeSingle();
+      if (lp?.id) {
+        navigate(`/large-project/${lp.id}`);
+        return true;
+      }
     }
 
     const { data: booking } = await supabase
@@ -52,13 +60,36 @@ export const useEventNavigation = () => {
       .single();
 
     if (booking?.large_project_id) {
-      navigate(`/large-project/${booking.large_project_id}`);
-      return true;
+      const { data: lp } = await supabase
+        .from('large_projects')
+        .select('id')
+        .eq('id', booking.large_project_id)
+        .is('deleted_at', null)
+        .maybeSingle();
+      if (lp?.id) {
+        navigate(`/large-project/${lp.id}`);
+        return true;
+      }
+      // Stale reference — clear it so future clicks fall through correctly
+      await supabase.from('bookings').update({ large_project_id: null }).eq('id', bookingId);
     }
 
     if (booking?.assigned_project_id) {
-      navigate(`/project/${booking.assigned_project_id}`);
-      return true;
+      const { data: mp } = await supabase
+        .from('projects')
+        .select('id')
+        .eq('id', booking.assigned_project_id)
+        .is('deleted_at', null)
+        .maybeSingle();
+      if (mp?.id) {
+        navigate(`/project/${mp.id}`);
+        return true;
+      }
+      // Stale reference — clear so the booking is treated as unassigned
+      await supabase
+        .from('bookings')
+        .update({ assigned_project_id: null, assigned_project_name: null, assigned_to_project: false })
+        .eq('id', bookingId);
     }
 
     const { data: mediumProject } = await supabase
@@ -76,6 +107,7 @@ export const useEventNavigation = () => {
 
     return false;
   };
+
 
   const handleEventClick = async (info: any) => {
     const bookingId = getBookingId(info);
