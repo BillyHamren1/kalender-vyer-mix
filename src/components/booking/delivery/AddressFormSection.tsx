@@ -58,12 +58,12 @@ export const AddressFormSection: React.FC<AddressFormSectionProps> = ({
       
       <div className="space-y-2">
         <div>
-          <Label htmlFor="delivery-address" className="text-xs">Address</Label>
+          <Label htmlFor="delivery-address" className="text-xs">Adress</Label>
           <Textarea 
             id="delivery-address"
             value={deliveryDetails?.address || ''}
             onChange={(e) => onDeliveryDetailsChange('address', e.target.value)}
-            placeholder="Street address"
+            placeholder="Gatuadress"
             className="mt-1 min-h-[60px] text-sm"
           />
         </div>

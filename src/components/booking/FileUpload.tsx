@@ -51,7 +51,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ bookingId, onFileUploade
 
       if (uploadError) {
         console.error('❌ Upload error:', uploadError);
-        toast.error('Failed to upload file');
+        toast.error('Kunde inte ladda upp filen');
         return;
       }
 
@@ -82,12 +82,12 @@ export const FileUpload: React.FC<FileUploadProps> = ({ bookingId, onFileUploade
         console.error('❌ Database error:', dbError);
         // Try to clean up uploaded file
         await supabase.storage.from('map-snapshots').remove([filePath]);
-        toast.error('Failed to save attachment record');
+        toast.error('Kunde inte spara bilagepost');
         return;
       }
 
       console.log('✅ Attachment saved successfully:', attachmentData);
-      toast.success(`File "${file.name}" uploaded successfully`);
+      toast.success(`Filen "${file.name}" har laddats upp`);
 
       // Call callback with new attachment
       onFileUploaded({
@@ -104,7 +104,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ bookingId, onFileUploade
 
     } catch (error) {
       console.error('❌ Unexpected error uploading file:', error);
-      toast.error('An unexpected error occurred');
+      toast.error('Ett oväntat fel inträffade');
     } finally {
       setUploading(false);
     }
@@ -134,12 +134,12 @@ export const FileUpload: React.FC<FileUploadProps> = ({ bookingId, onFileUploade
         {uploading ? (
           <>
             <div className="animate-spin h-3 w-3 border-2 border-primary border-t-transparent rounded-full" />
-            <span>Uploading...</span>
+            <span>Laddar upp...</span>
           </>
         ) : (
           <>
             <Plus className="h-3 w-3" />
-            <span>Add File</span>
+            <span>Lägg till fil</span>
           </>
         )}
       </Button>

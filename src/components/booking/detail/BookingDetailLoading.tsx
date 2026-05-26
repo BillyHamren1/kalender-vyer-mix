@@ -18,7 +18,7 @@ export const BookingDetailLoading: React.FC<BookingDetailLoadingProps> = ({
             <Button variant="ghost" size="sm" onClick={onBack}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <h1 className="text-lg font-semibold">Loading booking details...</h1>
+            <h1 className="text-lg font-semibold">Laddar bokningsdetaljer...</h1>
           </div>
         </div>
       </div>

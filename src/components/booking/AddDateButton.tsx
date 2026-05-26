@@ -41,7 +41,7 @@ export const AddDateButton = ({
       </PopoverTrigger>
       <PopoverContent className="w-auto p-4" align="start">
         <div className="space-y-4">
-          <h4 className="font-medium">Add new date</h4>
+          <h4 className="font-medium">Lägg till nytt datum</h4>
           <Calendar
             mode="single"
             selected={selectedNewDate}

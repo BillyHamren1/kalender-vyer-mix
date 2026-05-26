@@ -18,13 +18,13 @@ export const BookingDetailMissingId: React.FC<BookingDetailMissingIdProps> = ({
             <Button variant="ghost" size="sm" onClick={onBack}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <h1 className="text-lg font-semibold text-red-500">No Booking ID</h1>
+            <h1 className="text-lg font-semibold text-red-500">Boknings-ID saknas</h1>
           </div>
         </div>
       </div>
       <div className="p-3">
-        <p className="text-gray-700">No booking ID was provided in the URL.</p>
-        <p className="mt-2 text-sm text-gray-500">Expected URL format: /booking/[booking-id]</p>
+        <p className="text-gray-700">Inget boknings-ID angavs i URL:en.</p>
+        <p className="mt-2 text-sm text-gray-500">Förväntat URL-format: /booking/[boknings-id]</p>
       </div>
     </div>
   );
