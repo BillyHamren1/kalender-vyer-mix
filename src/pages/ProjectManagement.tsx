@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import CreateTodoWizard from "@/components/todo/CreateTodoWizard";
 import CreateProjectWizard from "@/components/project/CreateProjectWizard";
 import { IncomingBookingsList } from "@/components/project/IncomingBookingsList";
+import { UnplannedProjectsBanner } from "@/components/Calendar/UnplannedProjectsBanner";
 import { UpdatedBookingsList } from "@/components/project/UpdatedBookingsList";
 import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectDialog";
 import UnifiedProjectList, { type ProjectTypeFilter } from "@/components/project/UnifiedProjectList";
@@ -214,6 +215,7 @@ const ProjectManagement = () => {
                 onCreateProject={handleCreateProject}
                 onCreateLargeProject={handleCreateLargeProject}
               />
+              <UnplannedProjectsBanner />
               <UpdatedBookingsList />
             </div>
 
