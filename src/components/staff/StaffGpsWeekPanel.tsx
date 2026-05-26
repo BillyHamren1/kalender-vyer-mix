@@ -105,13 +105,14 @@ export function StaffGpsWeekPanel({
               staffId={staffId}
               staffName={staffName}
               onClick={() => onDateChange(day)}
+              mode="report"
             />
           );
         })}
       </div>
 
       <div className="px-3 py-2 border-t border-[hsl(270_20%_90%)] bg-[hsl(270_35%_97%)] text-[10.5px] text-muted-foreground tracking-tight">
-        Tid per projekt = tid inom geofence. Boende räknas inte.
+        Tidrapport-underlag (filtrerat från GPS). Råa pings &amp; glapp visas i kartan.
       </div>
     </aside>
   );
