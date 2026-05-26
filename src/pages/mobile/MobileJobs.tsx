@@ -7,7 +7,7 @@ import { useScheduledShifts } from '@/hooks/useScheduledShifts';
 // Time Legacy Purge 6 — GeofencePrompt borttagen som UI-källa. GPS/geofence
 // är passiv evidence; ingen popup får längre fråga om att starta tid.
 import { HeaderShell } from '@/components/mobile-app/MobileHeader';
-import MobileWorkDayWidget from '@/components/mobile-app/MobileWorkDayWidget';
+
 import CalendarViewToggle, { type CalendarViewMode } from '@/components/mobile-app/calendar/CalendarViewToggle';
 import CalendarDateNav from '@/components/mobile-app/calendar/CalendarDateNav';
 import MobileDayView from '@/components/mobile-app/calendar/MobileDayView';
