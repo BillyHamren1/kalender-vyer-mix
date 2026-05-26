@@ -194,20 +194,28 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
     [days, linkingToExistingLarge],
   );
 
+  const deliveryOnly = useMemo(() => isDeliveryOnlyBooking(booking), [booking]);
+
   const teamOptions = useMemo(
     () =>
       (teamResources || [])
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .filter((r: any) => r.id !== 'team-11' && r.id !== 'transport')
+        .filter((r: any) => {
+          if (r.id === 'team-11') return false;
+          // För delivery-only: tillåt Lager-kolumnen ('transport') som valbart team
+          if (r.id === 'transport') return deliveryOnly;
+          return true;
+        })
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((r: any) => ({ id: r.id, title: r.title })),
-    [teamResources],
+        .map((r: any) => ({ id: r.id, title: r.id === 'transport' ? 'Lager' : r.title })),
+    [teamResources, deliveryOnly],
   );
 
   const inheritedTeamId = useMemo(
     () => days[0]?.teamId || teamOptions[0]?.id || 'team-1',
     [days, teamOptions],
   );
+
 
   // Datum som ska visas i personalkalendern (vänster kolumn).
   // Använd alla planerade dagar (rig/event/rigDown); om inga finns ännu,
