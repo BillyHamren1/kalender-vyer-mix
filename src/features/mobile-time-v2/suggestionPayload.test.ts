@@ -147,6 +147,14 @@ describe('evaluateDirectSubmit', () => {
     expect(r.ok).toBe(false);
   });
 
+  it('stort projekt från GPS-förslag mappar till large_project-target', () => {
+    const payload = buildManualDayFromSuggested(mkView({
+      segments: [mkSegment({ matched: { kind: 'large_project', id: 'LP1', name: 'Sommarturné' } })],
+    }), '');
+    expect(payload?.segments[0].target?.targetType).toBe('large_project');
+    expect(payload?.segments[0].target?.large_project_id).toBe('LP1');
+  });
+
   it('canSubmit=false → blockerad', () => {
     const r = evaluateDirectSubmit(mkView({
       submission: { ...mkView().submission, canSubmit: false },
