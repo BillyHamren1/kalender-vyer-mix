@@ -65,7 +65,7 @@ const TimeAppLayout: React.FC<TimeAppLayoutProps> = ({ children }) => {
             className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain"
             style={{
               WebkitOverflowScrolling: 'touch',
-              paddingBottom: 'calc(68px + env(safe-area-inset-bottom, 0px) + 16px)',
+              paddingBottom: 'calc(64px + env(safe-area-inset-bottom, 0px) + 16px)',
             }}
           >
             {/* Global overlays — banners render here at top of scroll, dialogs portal to root. */}
