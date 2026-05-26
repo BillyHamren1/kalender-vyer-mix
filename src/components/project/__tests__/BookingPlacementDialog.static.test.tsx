@@ -12,6 +12,6 @@ describe('PhaseDatesEditor team selection UX', () => {
     expect(source).toContain('text-muted-foreground">Team</Label>');
     expect(source).toContain('<Select value={teamId} onValueChange={setTeam} disabled={locked}>');
     expect(source).toContain('{teamOptions.map((t) => (');
-    expect(source).toContain('<SelectItem key={t.id} value={t.id}>');
+    expect(source).toContain('<SelectItem key={t.id} value={t.id} className="text-xs">');
   });
 });
