@@ -1,7 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentOrg } from "@/hooks/useCurrentOrg";
 import { fetchStaffMembers } from "@/services/staffService";
+import { matchesWeeklyApprovalsRealtime } from "./staffWeeklyTimeApprovalsRealtime";
 
 export type StaffDaySubmissionStatus =
   | "submitted"
@@ -96,20 +98,58 @@ const REAL_SUBMISSION_STATUSES: ReadonlySet<string> = new Set([
 ]);
 
 export function useStaffWeeklyTimeApprovals(params: UseStaffWeeklyTimeApprovalsParams) {
+  const queryClient = useQueryClient();
   const { organizationId } = useCurrentOrg();
   const { weekStart, weekEnd, staffId, status } = params;
 
+  const queryKey = [
+    "staff-weekly-time-approvals",
+    organizationId,
+    weekStart,
+    weekEnd,
+    staffId ?? "all",
+    status ?? "all",
+  ] as const;
+
+  useEffect(() => {
+    if (!organizationId) return;
+
+    const channel = supabase
+      .channel(`staff-weekly-time-approvals:${organizationId}:${weekStart}:${weekEnd}:${staffId ?? "all"}:${status ?? "all"}`)
+      .on(
+        "postgres_changes" as any,
+        { event: "*", schema: "public", table: "staff_day_submissions" },
+        (payload: any) => {
+          if (!matchesWeeklyApprovalsRealtime({ organizationId, weekStart, weekEnd, staffId, payload })) {
+            return;
+          }
+          queryClient.invalidateQueries({ queryKey });
+        },
+      )
+      .on(
+        "postgres_changes" as any,
+        { event: "*", schema: "public", table: "staff_day_report_cache" },
+        (payload: any) => {
+          if (!matchesWeeklyApprovalsRealtime({ organizationId, weekStart, weekEnd, staffId, payload })) {
+            return;
+          }
+          queryClient.invalidateQueries({ queryKey });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [organizationId, queryClient, queryKey, staffId, status, weekEnd, weekStart]);
+
   return useQuery({
-    queryKey: [
-      "staff-weekly-time-approvals",
-      organizationId,
-      weekStart,
-      weekEnd,
-      staffId ?? "all",
-      status ?? "all",
-    ],
+    queryKey,
     enabled: !!organizationId,
-    staleTime: 15_000,
+    staleTime: 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
     queryFn: async (): Promise<StaffWeeklyTimeApprovalsResult> => {
       if (!organizationId) return { submissions: [], cacheRows: [], staff: [] };
 
