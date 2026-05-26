@@ -95,7 +95,7 @@ Deno.serve(async (req: Request) => {
 
   let knownTargets: any[] = [];
   try {
-    knownTargets = await loadKnownTargetsV2(admin, orgId);
+    knownTargets = await loadKnownTargetsV2(admin, orgId, staffId, date);
   } catch (e) {
     console.error("[get-mobile-gps-day-view] target load failed", e);
     return json({ error: "target load failed" }, 500);

@@ -313,7 +313,7 @@ Deno.serve(async (req: Request) => {
 
   // ── Bygg vyn på samma sätt som get-mobile-gps-day-view ──────
   let knownTargets: any[] = [];
-  try { knownTargets = await loadKnownTargetsV2(admin, orgId); }
+  try { knownTargets = await loadKnownTargetsV2(admin, orgId, staffId, date); }
   catch (e) { console.error("[submit-mobile-gps-day-v2] target load failed", e); return json({ error: "target load failed" }, 500); }
 
   let pings: any[] = [];
