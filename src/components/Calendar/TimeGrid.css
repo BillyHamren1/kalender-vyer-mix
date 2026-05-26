@@ -401,7 +401,7 @@
   padding: 2px 4px;
   border-bottom: 1px solid hsl(var(--border) / 0.3);
   text-align: center;
-  height: 25px;
+  height: var(--slot-px, 25px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -447,7 +447,7 @@
 }
 
 .time-slot-cell {
-  height: 25px;
+  height: var(--slot-px, 25px);
   flex-shrink: 0;
   border-bottom: 1px solid hsl(var(--border) / 0.15);
   transition: background 0.15s ease;

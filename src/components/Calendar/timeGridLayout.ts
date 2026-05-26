@@ -81,8 +81,8 @@ export function generateTimeSlots(): Array<{ time: string; displayTime: string }
   return slots;
 }
 
-/** Vertical position in pixels for an event on a continuous 24h grid (25px per hour, offset 5h). */
-export function getEventPosition(event: CalendarEvent): { top: number; height: number } {
+/** Vertical position in pixels for an event on a continuous 24h grid. slotPx = pixels per 1h. */
+export function getEventPosition(event: CalendarEvent, slotPx: number = 25): { top: number; height: number } {
   const startClock = extractUTCTime(event.start);
   const endClock = extractUTCTime(event.end);
   const startDate = extractUTCDate(event.start);
@@ -98,7 +98,7 @@ export function getEventPosition(event: CalendarEvent): { top: number; height: n
     endHour += 24;
   }
 
-  const top = (startHour - 5) * 25;
-  const height = Math.max(12, (endHour - startHour) * 25);
+  const top = (startHour - 5) * slotPx;
+  const height = Math.max(12, (endHour - startHour) * slotPx);
   return { top, height };
 }
