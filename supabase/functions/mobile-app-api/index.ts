@@ -1,8 +1,10 @@
 // @ts-nocheck
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
 
-import { processGpsTimelineForAutoStart } from '../_shared/time-engine/processGpsTimelineForAutoStart.ts'
-import { evaluateAutoStopForActiveDay } from '../_shared/time-engine/evaluateAutoStopForActiveDay.ts'
+// Time Engine imports removed — GPS endpoints are ingestion-only.
+// import { processGpsTimelineForAutoStart } from '../_shared/time-engine/processGpsTimelineForAutoStart.ts'
+// import { evaluateAutoStopForActiveDay } from '../_shared/time-engine/evaluateAutoStopForActiveDay.ts'
+
 import { isWarehouseTeam } from '../_shared/warehouseTeam.ts'
 
 const corsHeaders = {
@@ -5549,58 +5551,12 @@ async function handleReportLocation(supabase: any, staffId: string, data: any, o
     console.warn('[geofence] Error during location check:', geoErr)
   }
 
-  // ── TIME ENGINE v2: GPS-driven auto-start into active_time_registrations ──
-  //
-  // After staff_location_history has been appended above, hand the recent
-  // pings to the new Time Engine. It builds a GPS day timeline, resolves
-  // valid work targets, runs decideAutoStart and — only if the policy allows —
-  // INSERTs an active_time_registration row.
-  //
-  // It MUST NOT write workdays / location_time_entries / time_reports /
-  // travel_time_logs. The processor only touches active_time_registrations.
-  //
-  // Best-effort: never fail the location update if the engine errors.
-  try {
-    const todayIso = new Date().toISOString().split('T')[0]
-    const sinceIso = new Date(Date.now() - 6 * 3600 * 1000).toISOString()
-    const { data: recentPings } = await supabase
-      .from('staff_location_history')
-      .select('recorded_at, lat, lng, accuracy, speed')
-      .eq('organization_id', organizationId)
-      .eq('staff_id', staffId)
-      .gte('recorded_at', sinceIso)
-      .order('recorded_at', { ascending: true })
-      .limit(500)
+  // IMPORTANT:
+  // report_location is a GPS ingestion endpoint only.
+  // Do not run Time Engine, auto-start, auto-stop, report cache sync,
+  // or full/recent GPS reprocessing from this request.
+  // It must only store raw GPS and update latest known location.
 
-    const pings = (recentPings || [])
-      .filter((p: any) => p.lat != null && p.lng != null && p.recorded_at)
-      .map((p: any) => ({
-        ts: p.recorded_at,
-        lat: Number(p.lat),
-        lng: Number(p.lng),
-        accuracyM: p.accuracy != null ? Number(p.accuracy) : null,
-        speedMs: p.speed != null ? Number(p.speed) : null,
-      }))
-
-    if (pings.length >= 2) {
-      const result = await processGpsTimelineForAutoStart({
-        organizationId,
-        staffId,
-        date: todayIso,
-        pings,
-        supabaseAdmin: supabase,
-      })
-      if (result.createdRegistrationId) {
-        console.log(
-          '[time-engine] auto-started active_time_registration',
-          result.createdRegistrationId,
-          'staff=', staffId,
-        )
-      }
-    }
-  } catch (engineErr) {
-    console.warn('[time-engine] processGpsTimelineForAutoStart failed (non-fatal):', engineErr)
-  }
 
   // ── BACKGROUND GEOFENCE for assigned bookings & projects ──
   // EVENT-MODELL (Runda 2 cleanup): vi skapar INTE längre tysta
