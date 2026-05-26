@@ -672,9 +672,11 @@ Deno.serve(async (req) => {
   const dryRun = body?.dryRun !== false; // default TRUE for safety
   const batchSize = Math.max(1, Math.min(200, Number(body?.batchSize ?? 25)));
   const skipExisting = body?.skipExisting !== false;
+  const enablePeerEvidence = body?.enablePeerEvidence === true; // default false
   const requestedStaff: string[] | null = Array.isArray(body?.staffIds) && body.staffIds.length
     ? body.staffIds
     : null;
+
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
