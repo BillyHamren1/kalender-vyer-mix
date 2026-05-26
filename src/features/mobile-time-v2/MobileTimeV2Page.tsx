@@ -85,6 +85,7 @@ const DayView: React.FC<DayViewProps> = ({ date, onBack }) => {
 
   const [userComment, setUserComment] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   React.useEffect(() => {
     setUserComment('');
