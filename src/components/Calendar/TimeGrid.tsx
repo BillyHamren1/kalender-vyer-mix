@@ -370,7 +370,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   {(() => {
                     const overlapMap = overlapMaps[index];
                     return resourceEvents.map((event) => {
-                      const position = getEventPosition(event);
+                      const position = getEventPosition(event, slotPx);
                       const readOnly = isEventReadOnly ? isEventReadOnly(event) : false;
                       return (
                         <EventWrapper
