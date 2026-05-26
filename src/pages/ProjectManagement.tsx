@@ -215,6 +215,7 @@ const ProjectManagement = () => {
                 onCreateProject={handleCreateProject}
                 onCreateLargeProject={handleCreateLargeProject}
               />
+              <UnplannedProjectsBanner />
               <UpdatedBookingsList />
             </div>
 
