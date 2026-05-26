@@ -7,13 +7,13 @@
  *   - Ingen egen GPS-tolkning, inga inputfält
  *   - Editorn (ManualWorkSegmentsEditor) öppnas bara om användaren trycker "Redigera"
  */
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  Send, Loader2, AlertTriangle, MapPin, Clock, Pencil, CheckCircle2,
+  Send, Loader2, Info, MapPin, Clock, Pencil, CheckCircle2, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import MobileGpsDayMap from './MobileGpsDayMap';
 import type {
@@ -136,14 +136,15 @@ const MobileDayReportPreview: React.FC<Props> = ({
   const firstStart = validBlocks[0] ? isoToHHmm(validBlocks[0].currentStartTime) : null;
   const lastEnd = validBlocks.length ? isoToHHmm(validBlocks[validBlocks.length - 1].currentEndTime) : null;
 
-  // Heuristiska varningar (bara presentation, ingen omräkning)
+  // Mjuka, granska-vänliga varningar (ingen omräkning, ingen blockering av submit)
   const warnings: string[] = [];
-  if (totalMin > 14 * 60) warnings.push(`Förslaget visar ${fmtDuration(totalMin)} — kontrollera innan du skickar in.`);
-  if (validBlocks.some((b) => b.durationMinutes > 12 * 60)) warnings.push('Ett block är längre än 12 timmar.');
-  if (firstStart === '02:00') warnings.push('Dagstart 02:00 är ovanligt — kontrollera GPS-underlaget.');
+  if (totalMin > 14 * 60) warnings.push(`Föreslagen tid är ${fmtDuration(totalMin)}.`);
+  if (validBlocks.some((b) => b.durationMinutes > 12 * 60)) warnings.push('Ett block är ovanligt långt.');
+  if (firstStart === '02:00') warnings.push('Dagen startar tidigt enligt GPS-underlaget.');
   if (validBlocks.some((b) => !targetFromMatched(b))) warnings.push('Något block saknar tydlig plats/projekt.');
 
   const hasWarnings = warnings.length > 0;
+  const [showWarningDetails, setShowWarningDetails] = useState(false);
 
   const handleDirectSubmit = () => {
     const payload = buildManualDayFromSuggested(data, userComment);
@@ -180,18 +181,52 @@ const MobileDayReportPreview: React.FC<Props> = ({
         )}
       </Card>
 
-      {/* Varningar */}
-      {hasWarnings && (
-        <Card className="p-3 border-orange-400/50 bg-orange-50 dark:bg-orange-950/20">
+      {/* Mjuk granska-varning */}
+      {hasWarnings && !isLocked && (
+        <Card className="p-3 border border-amber-200/70 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/10 shadow-none">
           <div className="flex items-start gap-2">
-            <AlertTriangle className="h-4 w-4 text-orange-600 mt-0.5 shrink-0" />
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-orange-900 dark:text-orange-200">
-                Förslaget ser ovanligt ut – kontrollera innan du skickar in.
+            <Info className="h-3.5 w-3.5 text-amber-700/80 dark:text-amber-300/80 mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0 space-y-1">
+              <p className="text-sm font-medium text-foreground">Kontrollera förslaget</p>
+              <p className="text-xs text-muted-foreground">
+                Dagen verkar längre än vanligt. Granska tiderna innan du skickar in. Justera vid behov med Redigera.
               </p>
-              <ul className="text-xs text-orange-800 dark:text-orange-300 space-y-0.5 list-disc list-inside">
-                {warnings.map((w, i) => <li key={i}>{w}</li>)}
-              </ul>
+              <div className="flex items-center gap-2 pt-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowWarningDetails((v) => !v)}
+                  aria-expanded={showWarningDetails}
+                >
+                  {showWarningDetails ? (
+                    <>Dölj detaljer <ChevronUp className="h-3 w-3 ml-1" /></>
+                  ) : (
+                    <>Visa detaljer <ChevronDown className="h-3 w-3 ml-1" /></>
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-xs"
+                  onClick={onEdit}
+                >
+                  <Pencil className="h-3 w-3 mr-1" />
+                  Redigera tider
+                </Button>
+              </div>
+              {showWarningDetails && (
+                <ul className="text-xs text-muted-foreground space-y-0.5 pt-1 pl-1">
+                  {warnings.map((w, i) => (
+                    <li key={i} className="flex gap-1.5">
+                      <span className="text-muted-foreground/60">•</span>
+                      <span>{w}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </Card>
