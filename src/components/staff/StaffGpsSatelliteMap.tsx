@@ -260,7 +260,21 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
         {/* Karta */}
         <div className="planning-card relative h-[60vh] min-h-[420px] overflow-hidden p-0">
           {pings.length > 0 || geofences.length > 0 ? (
-            <RawGpsSatelliteMap pings={pings} geofences={geofences} visits={geofenceVisits} onSaveRadius={saveRadius} onSavePolygon={savePolygon} className="h-full w-full" />
+            <>
+              <RawGpsSatelliteMap pings={pings} geofences={geofences} visits={geofenceVisits} onSaveRadius={saveRadius} onSavePolygon={savePolygon} showAllRawPings={showAllRawPings} className="h-full w-full" />
+              <button
+                type="button"
+                onClick={() => setShowAllRawPings((v) => !v)}
+                className={`absolute top-3 left-3 z-10 text-[11px] px-2.5 py-1.5 rounded-md border font-medium shadow-md transition-colors ${
+                  showAllRawPings
+                    ? 'bg-yellow-300 border-yellow-500 text-slate-900 hover:bg-yellow-200'
+                    : 'bg-white/95 border-[hsl(270_25%_85%)] text-foreground/80 hover:bg-[hsl(270_45%_96%)]'
+                }`}
+                title={`${pings.length} råpings för dagen`}
+              >
+                {showAllRawPings ? 'Dölj' : 'Visa'} alla råpings ({pings.length})
+              </button>
+            </>
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
                {snapshotQuery.isLoading ? 'Laddar…' : 'Inga rörelser registrerade för vald dag.'}
