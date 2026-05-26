@@ -104,6 +104,11 @@ export const BookingInfoHeader: React.FC<Props> = ({ booking, hideTimes = false 
               #{booking.booking_number}
             </span>
           )}
+          {booking.rental_only === true && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-900 border border-amber-300">
+              📦 Endast uthyrning
+            </span>
+          )}
         </div>
         {booking.deliveryaddress && (
           <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
