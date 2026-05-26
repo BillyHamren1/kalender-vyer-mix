@@ -286,13 +286,13 @@ Deno.serve(async (req) => {
       if (logErr) console.warn('[gps-pulse] log insert failed:', logErr.message)
     }
 
+    console.log(`[gps-pulse] pulsed=${okCount}/${candidates.length} failed=${failCount} runtime_ms=${Date.now() - startedAt} truncated=${truncatedByRuntime}`)
     return new Response(JSON.stringify({
       pulsed: candidates.length,
       ok: okCount,
       failed: failCount,
       tokens: tokens.length,
-      platform_ios: candidates.filter(c => (c.platform ?? '').toLowerCase() === 'ios').length,
-      platform_android: candidates.filter(c => (c.platform ?? '').toLowerCase() === 'android').length,
+      truncated_by_runtime: truncatedByRuntime,
       duration_ms: Date.now() - startedAt,
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   } catch (err) {
