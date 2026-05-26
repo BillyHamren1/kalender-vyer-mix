@@ -31,6 +31,7 @@ import {
   createLargeProject,
   addBookingToLargeProject,
 } from '@/services/largeProjectService';
+import { deleteProject } from '@/services/projectService';
 import { writeProjectDates } from '@/services/projectDateAuthority';
 import {
   PlanningDay,
@@ -55,6 +56,7 @@ interface Props {
 
 const BOOKING_FIELDS = `
   id, client, booking_number, deliveryaddress, organization_id,
+  assigned_project_id,
   contact_name, contact_phone, contact_email, internalnotes,
   eventdate, rigdaydate, rigdowndate,
   rig_start_time, rig_end_time, event_start_time, event_end_time,
@@ -269,6 +271,10 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
           largeProjectId = largeExistingId;
         }
         await addBookingToLargeProject(largeProjectId!, booking.id);
+
+        if (booking.assigned_project_id) {
+          await deleteProject(booking.assigned_project_id);
+        }
       } else {
         // Skapa medel-projekt på samma sätt som CreateProjectWizard
         const dateStr = booking.eventdate

@@ -53,7 +53,7 @@ export function useUnplannedProjects() {
       if (bookingIds.length > 0) {
         const { data: bookings } = await supabase
           .from('bookings')
-          .select('id, client, booking_number, eventdate, deliveryaddress')
+          .select('id, client, booking_number, eventdate, deliveryaddress, assigned_project_id, large_project_id')
           .eq('organization_id', orgId)
           .in('id', bookingIds);
         bookingsById = new Map((bookings || []).map(b => [b.id, b]));
@@ -64,7 +64,7 @@ export function useUnplannedProjects() {
         const lpIds = largeRows.map(r => r.id);
         const { data: lpBookings } = await supabase
           .from('bookings')
-          .select('large_project_id, client, booking_number, eventdate, deliveryaddress')
+          .select('id, large_project_id, client, booking_number, eventdate, deliveryaddress')
           .eq('organization_id', orgId)
           .in('large_project_id', lpIds)
           .order('eventdate', { ascending: true });
@@ -75,8 +75,10 @@ export function useUnplannedProjects() {
         }
       }
 
-      const medium: UnplannedProjectRow[] = mediumRows.map(r => {
+      const medium: UnplannedProjectRow[] = mediumRows.flatMap(r => {
         const b = r.booking_id ? bookingsById.get(r.booking_id) : null;
+        if (b?.large_project_id) return [];
+        if (b?.assigned_project_id && b.assigned_project_id !== r.id) return [];
         return {
           id: r.id,
           kind: 'medium',
