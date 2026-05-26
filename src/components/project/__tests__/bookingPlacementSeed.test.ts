@@ -114,51 +114,95 @@ describe('bookingPlacementSeed extra-day helpers', () => {
   });
 });
 
-describe('seedDaysFromBooking — delivery-only (utan rig/riv)', () => {
-  it('isDeliveryOnlyBooking känner igen bokning med endast eventdate', () => {
-    expect(isDeliveryOnlyBooking({ eventdate: '2026-06-13' })).toBe(true);
-    expect(isDeliveryOnlyBooking({ eventdate: '2026-06-13', rigdaydate: '2026-06-12' })).toBe(false);
-    expect(isDeliveryOnlyBooking({ eventdate: '2026-06-13', rigdowndate: '2026-06-14' })).toBe(false);
+describe('seedDaysFromBooking — rental_only (leverans)', () => {
+  it('isDeliveryOnlyBooking triggas ENDAST av rental_only=true', () => {
+    expect(isDeliveryOnlyBooking({ rental_only: true })).toBe(true);
+    expect(isDeliveryOnlyBooking({ rental_only: true, rigdaydate: '2026-06-12', rigdowndate: '2026-06-14' })).toBe(true);
+    // Datum-heuristik räknas inte längre
+    expect(isDeliveryOnlyBooking({ eventdate: '2026-06-13' })).toBe(false);
+    expect(isDeliveryOnlyBooking({ eventdate: '2026-06-13', rigdaydate: '2026-07-04' })).toBe(false);
+    expect(isDeliveryOnlyBooking({ rental_only: false })).toBe(false);
     expect(isDeliveryOnlyBooking({})).toBe(false);
   });
 
-  it('seedar leverans + retur på eventdate i Lager (transport) med fallback 08–11 + 12–15', () => {
-    const booking = { eventdate: '2026-06-13' };
+  it('rigdaydate → Leverans UT, rigdowndate → Retur IN i Lager', () => {
+    const booking = {
+      rental_only: true,
+      eventdate: '2026-06-13',
+      rigdaydate: '2026-06-12',
+      rigdowndate: '2026-06-14',
+    };
     const days = seedDaysFromBooking(booking);
-    expect(days).toHaveLength(2);
+    expect(days).toHaveLength(2); // INGEN event-dag
 
-    const [delivery, ret] = days;
-    expect(delivery.kind).toBe('rig');
-    expect(delivery.date).toBe('2026-06-13');
-    expect(delivery.startTime).toBe(DELIVERY_FALLBACK_SLOTS[0].start);
-    expect(delivery.endTime).toBe(DELIVERY_FALLBACK_SLOTS[0].end);
-    expect(delivery.teamId).toBe(DELIVERY_DEFAULT_TEAM_ID);
+    const [out, ret] = days;
+    expect(out.kind).toBe('rig');
+    expect(out.date).toBe('2026-06-12');
+    expect(out.teamId).toBe(DELIVERY_DEFAULT_TEAM_ID);
 
     expect(ret.kind).toBe('rigDown');
-    expect(ret.date).toBe('2026-06-13');
-    expect(ret.startTime).toBe(DELIVERY_FALLBACK_SLOTS[1].start);
-    expect(ret.endTime).toBe(DELIVERY_FALLBACK_SLOTS[1].end);
+    expect(ret.date).toBe('2026-06-14');
     expect(ret.teamId).toBe(DELIVERY_DEFAULT_TEAM_ID);
   });
 
-  it('använder bokningens event_start_time/event_end_time för leveransen om de finns', () => {
+  it('UT och IN på samma dag använder slot 0 (08–11) och slot 1 (12–15)', () => {
     const booking = {
-      eventdate: '2026-06-13',
-      event_start_time: '09:30:00',
-      event_end_time: '10:30:00',
+      rental_only: true,
+      rigdaydate: '2026-06-13',
+      rigdowndate: '2026-06-13',
     };
-    const [delivery, ret] = seedDaysFromBooking(booking);
-    expect(delivery.startTime).toBe('09:30');
-    expect(delivery.endTime).toBe('10:30');
-    // returen behåller alltid fallback slot 2
+    const [out, ret] = seedDaysFromBooking(booking);
+    expect(out.startTime).toBe(DELIVERY_FALLBACK_SLOTS[0].start);
+    expect(out.endTime).toBe(DELIVERY_FALLBACK_SLOTS[0].end);
     expect(ret.startTime).toBe(DELIVERY_FALLBACK_SLOTS[1].start);
     expect(ret.endTime).toBe(DELIVERY_FALLBACK_SLOTS[1].end);
   });
 
-  it('default-defaultTeamId-argument påverkar INTE delivery-only (Lager vinner)', () => {
-    const booking = { eventdate: '2026-06-13' };
+  it('UT och IN på olika dagar använder 08–11 för båda', () => {
+    const booking = {
+      rental_only: true,
+      rigdaydate: '2026-06-12',
+      rigdowndate: '2026-06-14',
+    };
+    const [out, ret] = seedDaysFromBooking(booking);
+    expect(out.startTime).toBe(DELIVERY_FALLBACK_SLOTS[0].start);
+    expect(out.endTime).toBe(DELIVERY_FALLBACK_SLOTS[0].end);
+    expect(ret.startTime).toBe(DELIVERY_FALLBACK_SLOTS[0].start);
+    expect(ret.endTime).toBe(DELIVERY_FALLBACK_SLOTS[0].end);
+  });
+
+  it('saknade rig/rigdown → fallback till eventdate (UT 08–11 + IN 12–15 samma dag)', () => {
+    const booking = { rental_only: true, eventdate: '2026-06-13' };
+    const days = seedDaysFromBooking(booking);
+    expect(days).toHaveLength(2);
+    expect(days[0].date).toBe('2026-06-13');
+    expect(days[1].date).toBe('2026-06-13');
+    expect(days[0].startTime).toBe(DELIVERY_FALLBACK_SLOTS[0].start);
+    expect(days[1].startTime).toBe(DELIVERY_FALLBACK_SLOTS[1].start);
+  });
+
+  it('bokningens egna rig_*/rigdown_*-tider vinner över fallback', () => {
+    const booking = {
+      rental_only: true,
+      rigdaydate: '2026-06-12',
+      rigdowndate: '2026-06-14',
+      rig_start_time: '07:30:00',
+      rig_end_time: '09:00:00',
+      rigdown_start_time: '13:15:00',
+      rigdown_end_time: '14:45:00',
+    };
+    const [out, ret] = seedDaysFromBooking(booking);
+    expect(out.startTime).toBe('07:30');
+    expect(out.endTime).toBe('09:00');
+    expect(ret.startTime).toBe('13:15');
+    expect(ret.endTime).toBe('14:45');
+  });
+
+  it('defaultTeamId-argument påverkar INTE rental_only (Lager vinner)', () => {
+    const booking = { rental_only: true, eventdate: '2026-06-13' };
     const days = seedDaysFromBooking(booking, 'team-5');
     expect(days.every((d) => d.teamId === DELIVERY_DEFAULT_TEAM_ID)).toBe(true);
   });
 });
+
 
