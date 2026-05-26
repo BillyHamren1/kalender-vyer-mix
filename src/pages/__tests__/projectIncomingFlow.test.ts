@@ -20,4 +20,10 @@ describe('ProjectManagement incoming flow', () => {
     expect(src).not.toContain('Att planera');
     expect(src).toContain('bookings.length + unplannedProjects.length');
   });
+
+  it('BookingPlacementDialog removes stale medium project when linking booking into existing large project', () => {
+    const src = read('src/components/project/BookingPlacementDialog.tsx');
+    expect(src).toContain('assigned_project_id');
+    expect(src).toContain('await deleteProject(booking.assigned_project_id)');
+  });
 });

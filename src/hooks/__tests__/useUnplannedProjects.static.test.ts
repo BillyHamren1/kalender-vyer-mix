@@ -10,4 +10,9 @@ describe('useUnplannedProjects payload', () => {
     expect(src).toContain("bookingId: r.booking_id ?? null");
     expect(src).toContain("bookingId: b?.id ?? null");
   });
+
+  it('filters away stale medium rows when booking is already linked to another project or large project', () => {
+    expect(src).toContain('if (b?.large_project_id) return [];');
+    expect(src).toContain("if (b?.assigned_project_id && b.assigned_project_id !== r.id) return [];");
+  });
 });
