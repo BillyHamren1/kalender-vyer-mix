@@ -35,6 +35,8 @@ interface Props {
    * polygon=null återställer till cirkel.
    */
   onSavePolygon?: (id: string, polygon: GeoJSON.Polygon | null) => Promise<void>;
+  /** Visa varje rå GPS-ping som liten prick (inkl. inuti geofences, ingen downsample). */
+  showAllRawPings?: boolean;
 }
 
 
@@ -107,6 +109,7 @@ const LAYER_IDS = [
   'gps-stay-labels',
   'gps-first',
   'gps-last',
+  'raw-all-pings',
 ];
 const SOURCE_IDS = [
   'geofence-fill-src',
@@ -116,6 +119,7 @@ const SOURCE_IDS = [
   'gps-move-points-src',
   'gps-stay-points-src',
   'gps-endpoints-src',
+  'raw-all-pings-src',
 ];
 
 const ZOOM_DETAIL_THRESHOLD = 14;
@@ -124,7 +128,7 @@ export function buildBadgeStackTransform(bumpY: number): string {
   return `translate(-5px, calc(-100% - ${bumpY}px))`;
 }
 
-export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [], className, onSaveRadius, onSavePolygon }: Props) {
+export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [], className, onSaveRadius, onSavePolygon, showAllRawPings = false }: Props) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
   const onSaveRadiusRef = useRef<Props['onSaveRadius']>(onSaveRadius);
@@ -141,6 +145,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     mapRef.current = map;
     renderLayers(map, pings, geofences);
     renderVisitMarkers(map, visits);
+    applyRawPingsVisibility(map, showAllRawPings);
     map.on('zoom', applyZoomVisibility);
     map.on('move', layoutGeofenceBadges);
   };
@@ -155,6 +160,15 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     if (mapRef.current) renderVisitMarkers(mapRef.current, visits);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visits]);
+
+  useEffect(() => {
+    if (mapRef.current) applyRawPingsVisibility(mapRef.current, showAllRawPings);
+  }, [showAllRawPings]);
+
+  function applyRawPingsVisibility(map: mapboxgl.Map, visible: boolean) {
+    if (!map.getLayer('raw-all-pings')) return;
+    map.setLayoutProperty('raw-all-pings', 'visibility', visible ? 'visible' : 'none');
+  }
 
   function clearVisitMarkers() {
     for (const m of visitMarkersRef.current) m.marker.remove();
@@ -922,6 +936,44 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         filter: ['==', ['get', 'kind'], 'last'],
         paint: { 'circle-radius': 9, 'circle-color': '#dc2626', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 },
       });
+
+      // ── Råpings (alla, även inuti geofences) — togglas via prop ─────
+      const rawPingFeatures = data.map((p) => ({
+        type: 'Feature' as const,
+        geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] },
+        properties: { id: p.id, t: p.recorded_at, acc: p.accuracy ?? null },
+      }));
+      map.addSource('raw-all-pings-src', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: rawPingFeatures },
+      });
+      map.addLayer({
+        id: 'raw-all-pings',
+        type: 'circle',
+        source: 'raw-all-pings-src',
+        layout: { visibility: 'none' },
+        paint: {
+          'circle-radius': 2.5,
+          'circle-color': '#fde047',
+          'circle-stroke-color': '#0f172a',
+          'circle-stroke-width': 0.5,
+          'circle-opacity': 0.9,
+        },
+      });
+      map.on('click', 'raw-all-pings', (e) => {
+        const f = e.features?.[0];
+        if (!f) return;
+        const id = String((f.properties as any)?.id ?? '');
+        const p = data.find((q) => q.id === id);
+        if (!p) return;
+        popupRef.current?.remove();
+        popupRef.current = new mapboxgl.Popup({ closeButton: true })
+          .setLngLat([p.lng, p.lat])
+          .setHTML(popupHtml(p))
+          .addTo(map);
+      });
+      map.on('mouseenter', 'raw-all-pings', () => { map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mouseleave', 'raw-all-pings', () => { map.getCanvas().style.cursor = ''; });
 
       // ── Klick: visa popup ──────────────────────────────────────────
       const pingById = new Map(data.map((p) => [p.id, p]));
