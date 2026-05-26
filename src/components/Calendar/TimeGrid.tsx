@@ -48,7 +48,7 @@ interface TimeGridProps {
 
 const TIME_COLUMN_WIDTH = 28;
 const TEAM_COLUMN_WIDTH = 95;
-const MIN_COMPRESSED_TEAM_COLUMN_WIDTH = 68;
+const MIN_COMPRESSED_TEAM_COLUMN_WIDTH = 52;
 const ASSIGNED_STAFF_ROW_HEIGHT = 88;
 
 const TimeGrid: React.FC<TimeGridProps> = ({
