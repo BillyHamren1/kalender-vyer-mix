@@ -32,7 +32,7 @@
   /* Use container-based sizing so the calendar never exceeds the available content width
      (important when the sidebar is open or the window is narrow). */
   --card-width: 100%;
-  --card-max-width: 1400px;
+  --card-max-width: clamp(900px, 96vw, 2000px);
 }
 
 .carousel-3d-container {
