@@ -24,6 +24,7 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
   const [calendarMonth, setCalendarMonth] = useState<Date>(
     initialDate ? new Date(initialDate) : new Date(),
   );
+  const [showAllRawPings, setShowAllRawPings] = useState(false);
 
 
   const dateStr = format(date, 'yyyy-MM-dd');
