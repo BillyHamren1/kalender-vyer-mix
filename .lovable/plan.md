@@ -1,42 +1,65 @@
-# Plan
+# Plan: Auto-skapa projekt för okopplade bekräftade bokningar
 
-## Mål
-Fixa den verkliga källan till att samma plats visas som tre hackade rader i stället för ett sammanhängande block, utan att lägga mer arbete i fel vy.
+Istället för att visa "Bokningen saknar kopplat projekt" eller falla tillbaka till bokningsvyn, ska **varje bekräftad bokning utan projekt automatiskt få ett projekt skapat**. Då försvinner felet i grunden och inkorgen i Projekt blir tom.
 
 ## Vad jag bygger
-1. Identifiera exakt vilken vy och komponent som renderar raden i din skärmdump.
-   - Spåra renderkedjan från den faktiska route/vyn.
-   - Bekräfta om raden kommer från GPS-satellitkartan, dagjournalen eller en annan admin-tidslinje.
-   - Sluta felsöka day-inspection-drawern om den inte är källan.
 
-2. Flytta fixen till rätt modell-lager.
-   - Om hackningen uppstår i journal-/display-modellen: fixa där.
-   - Om hackningen uppstår i blockbyggaren: fixa där.
-   - Om hackningen uppstår i ren UI-mappning/rendering: fixa där istället för i motorlogiken.
+### 1. En ny edge-funktion `auto-create-projects-for-orphan-bookings`
+Skapar lokala projekt för alla bokningar i organisationen som uppfyller:
+- `status = 'CONFIRMED'`
+- `assigned_to_project` är NULL eller false
+- `large_project_id` är NULL
+- finns minst ett datum (eventdate / rigdaydate / rigdowndate)
+- ej `is_internal`
 
-3. Implementera korrekt merge-regel för just den renderade vyn.
-   - Samma plats före och efter ett mellansegment ska kunna kollapsas när mellansegmentet bara är brus/drift och inte verklig resa.
-   - Verklig resa eller verkligt platsbyte ska fortsatt visas separat.
-   - Ingen scope creep till andra flöden som inte använder samma modell.
+För varje sådan bokning:
+- skapar en rad i `projects` med namn `"<Client> #<booking_number>"` (samma mönster som `convertToMedium`) och kopierar över datum, adress, kontakt, internalnotes, rig-/event-/rigdown-tider, koordinater
+- sätter `bookings.assigned_to_project = true`, `assigned_project_id`, `assigned_project_name`
+- skyddar mot dubblett: först kontroll om `projects.booking_id = X` redan finns (status ej cancelled/completed) → koppla den istället
+- multi-tenant: alltid `eq('organization_id', orgId)`
+- returnerar `{ created, linked, skipped }`
 
-4. Låsa beteendet med regressionstester och preview-verifiering.
-   - Skapa testfall för mönstret: Åström → okänd/förflyttning → Åström.
-   - Verifiera i preview på rätt sida efter ändringen.
-   - Säkerställa att vi inte råkar påverka andra dagrader negativt.
+### 2. Automatisk trigger vid sync + manuellt knapp
+- **Direkt efter `import-bookings`** (single + incremental): kalla edge-funktionen för aktuell org så nya bekräftade bokningar genast får projekt
+- **Knapp "Skapa projekt för alla okopplade"** i Projektinkorgen som triggar samma funktion manuellt (snabb återställning för dagens 5 orphans + framtida)
+
+### 3. Säker realtidsuppdatering
+- Efter körning invalideras React Query-cachen för calendar, projects och project-inbox-count
+- `useEventNavigation` behåller stale-clear-logiken (om projektet hunnit raderas) men behöver inte mer fallback eftersom auto-create säkerställer att kopplingen finns
+
+### 4. Engångskörning för befintliga 5 orphans
+- Vid release körs funktionen direkt mot org så Tavet AB-bokningarna #2603-91, #2603-31R1, #2603-90, #2603-7, #2603-97 + #2605-76 får projekt på en gång
+- Användaren kan därefter öppna varje bokning via kalendern och hamnar i sitt nya projekt
+
+### 5. Tester (vitest)
+- `autoCreateProjectsForOrphanBookings.test.ts`: 
+  - skapar projekt + sätter assigned-flaggor för CONFIRMED orphan med datum
+  - hoppar över OFFER, CANCELLED, large-project-länkade, redan kopplade
+  - länkar om existerande aktivt projekt istället för att skapa dubblett
+  - hoppar över is_internal-bokningar
+- Säkerställer att tester körs via `lovable-exec test` efter implementation
 
 ## Tekniska detaljer
-Jag utgår från att problemet sannolikt ligger i den renderkedja som används för adminens GPS-/dagjournalvy, inte i `StaffDayInspectionDrawer`.
 
-Primära kandidater att verifiera och därefter ändra:
-- `src/components/staff/StaffGpsSatelliteMap.tsx`
-- `src/components/staff/DayJournalRow.tsx`
-- `src/components/staff/StaffTimeReportDetail*`
-- `src/lib/staff/buildReportDisplayBlocks.ts`
-- `src/lib/staff/dayBlockTimeline.ts`
-- eventuella mellanliggande mappare som projicerar block till UI-rader
+**Filer som skapas:**
+- `supabase/functions/auto-create-projects-for-orphan-bookings/index.ts`
+- `src/services/autoCreateProjects.ts` (klient-wrapper)
+- `src/services/__tests__/autoCreateProjects.test.ts`
 
-## Klart när
-- Den aktuella vyn som visar Åström-raderna använder rätt merge-logik.
-- Mönstret `Åström → Okänd plats/förflyttning → Åström` visas som ett sammanhängande block när det bara är brus.
-- Samma scenario är täckt av test.
-- Previewn är verifierad på den faktiska sidan där buggen syns.
+**Filer som ändras:**
+- `src/hooks/useRefreshBooking.ts` + `src/pages/ProjectManagement.tsx` (inkorg) – anropa auto-create efter sync
+- `supabase/functions/import-bookings/index.ts` – kalla auto-create i slutet per org (eller låt klient göra det via wrapper)
+- `src/components/project/IncomingBookingsList.tsx` – lägg till "Skapa projekt för alla"-knapp
+- Möjligen `src/hooks/useEventNavigation.tsx` – kortare felmeddelande (men troligen inte triggad alls efter detta)
+
+**Vad jag INTE rör:**
+- Stora projekt (`large_projects`) — orphans där hamnar inte i detta flöde
+- Rental_only-logiken är separat och redan på plats
+- Inga DELETE-migrationer (memory-policy)
+
+## Resultat
+
+- Inga "Bokningen saknar kopplat projekt"-meddelanden kvar.
+- Varje bekräftad bokning syns alltid som projekt i kalendern och i Projektlistan.
+- Existerande 5 orphans åtgärdas vid första körning.
+- Framtida bokningar får projekt automatiskt vid sync.
