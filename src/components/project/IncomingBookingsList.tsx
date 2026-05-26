@@ -9,6 +9,8 @@ import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { BookingPlacementDialog } from './BookingPlacementDialog';
+import { useUnplannedProjects } from '@/hooks/useUnplannedProjects';
+import { ProjectPlanningSheet } from './ProjectPlanningSheet';
 
 interface IncomingBooking {
   id: string;
@@ -32,6 +34,8 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [placementBookingId, setPlacementBookingId] = useState<string | null>(null);
+  const [planningProjectId, setPlanningProjectId] = useState<string | null>(null);
+  const [planningProjectKind, setPlanningProjectKind] = useState<'medium' | 'large' | null>(null);
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ['bookings-without-project'],
     queryFn: async () => {
@@ -68,6 +72,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
     },
     placeholderData: [],
   });
+  const { data: unplannedProjects = [], isLoading: isLoadingUnplannedProjects } = useUnplannedProjects();
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
@@ -120,7 +125,9 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
     }
   });
 
-  if (isLoading || bookings.length === 0) {
+  const hasIncomingItems = bookings.length + unplannedProjects.length > 0;
+
+  if ((isLoading && isLoadingUnplannedProjects) || !hasIncomingItems) {
     return null;
   }
 
@@ -143,11 +150,71 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
           <h3 className="font-semibold text-sm text-foreground">Nya bokningar</h3>
         </div>
         <Badge className="h-5 px-2 text-xs font-medium bg-amber-100 text-amber-800 border-0">
-          {bookings.length} nya
+          {bookings.length + unplannedProjects.length} nya
         </Badge>
       </div>
 
       <div className="divide-y divide-border/30">
+        {unplannedProjects.map((project) => (
+          <div
+            key={`${project.kind}-${project.id}`}
+            className="group flex items-center gap-3 px-4 py-2.5 hover:bg-muted/20 transition-colors"
+          >
+            <div
+              className="flex-1 min-w-0 cursor-pointer"
+              onClick={() => {
+                setPlanningProjectId(project.id);
+                setPlanningProjectKind(project.kind);
+              }}
+            >
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-medium truncate text-foreground group-hover:text-primary transition-colors">
+                  {project.client || project.name}
+                </h4>
+                {project.booking_number && (
+                  <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">
+                    #{project.booking_number}
+                  </span>
+                )}
+                <Badge variant="outline" className="h-4 px-1.5 text-[10px] shrink-0">
+                  {project.kind === 'large' ? 'Stort' : 'Medel'}
+                </Badge>
+                <Badge className="h-4 px-1.5 text-[10px] font-medium bg-primary/10 text-primary border-0 shrink-0">
+                  Att planera
+                </Badge>
+              </div>
+              <div className="flex items-center gap-3 mt-0.5 text-[11px] text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <Calendar className="w-3 h-3" />
+                  {formatDate(project.eventdate || '')}
+                </span>
+                {project.deliveryaddress && (
+                  <span className="flex items-center gap-1 truncate max-w-[180px]">
+                    <MapPin className="w-3 h-3 shrink-0" />
+                    {project.deliveryaddress}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1 shrink-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setPlanningProjectId(project.id);
+                  setPlanningProjectKind(project.kind);
+                }}
+                className="h-7 px-2 text-xs gap-1 hover:bg-primary/10 hover:text-primary"
+                title="Planera projektet"
+              >
+                <span>Planera</span>
+              </Button>
+              <ChevronRight className="h-4 w-4 text-muted-foreground/20 ml-1" />
+            </div>
+          </div>
+        ))}
+
         {bookings.map(booking => {
           const isCancelled = booking.status === 'CANCELLED';
           return (
@@ -239,6 +306,18 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
         onOpenChange={(o) => { if (!o) setPlacementBookingId(null); }}
         bookingId={placementBookingId}
       />
+
+      {planningProjectId && planningProjectKind && (
+        <ProjectPlanningSheet
+          projectId={planningProjectId}
+          projectKind={planningProjectKind}
+          open={true}
+          onClose={() => {
+            setPlanningProjectId(null);
+            setPlanningProjectKind(null);
+          }}
+        />
+      )}
     </div>
   );
 };
