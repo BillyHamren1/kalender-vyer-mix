@@ -260,8 +260,23 @@ Deno.serve(async (req) => {
         .from('large_project_bookings')
         .select('booking_id, large_project_id')
         .in('booking_id', [...bookingIds]);
+      const candidateLpIds = [
+        ...new Set((foreignLinks || []).map((r: any) => r.large_project_id)),
+      ].filter((id) => id && !sourceLargeIds.has(id));
+      // Ignorera länkar till soft-deletade stora projekt — räknas ej som konflikt.
+      let aliveLpIds = new Set<string>();
+      if (candidateLpIds.length) {
+        const { data: aliveLps } = await admin
+          .from('large_projects')
+          .select('id')
+          .in('id', candidateLpIds)
+          .is('deleted_at', null);
+        aliveLpIds = new Set((aliveLps || []).map((r: any) => r.id));
+      }
       const conflicts = (foreignLinks || []).filter(
-        (r: any) => !sourceLargeIds.has(r.large_project_id),
+        (r: any) =>
+          !sourceLargeIds.has(r.large_project_id) &&
+          aliveLpIds.has(r.large_project_id),
       );
       if (conflicts.length) {
         return badRequest(
