@@ -17,7 +17,7 @@ const CalendarViewToggle = ({ value, onChange }: Props) => {
     { key: 'list', label: 'Lista' },
   ];
   return (
-    <div className="inline-flex w-full p-1 rounded-xl bg-muted border border-border">
+    <div className="inline-flex w-full p-1 rounded-full bg-muted/70 border border-border/60">
       {options.map(opt => {
         const active = value === opt.key;
         return (
@@ -26,9 +26,9 @@ const CalendarViewToggle = ({ value, onChange }: Props) => {
             type="button"
             onClick={() => onChange(opt.key)}
             className={cn(
-              'flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all active:scale-95',
+              'flex-1 h-8 text-[12px] font-semibold rounded-full transition-all',
               active
-                ? 'bg-card text-foreground shadow-sm'
+                ? 'bg-card text-foreground shadow-[0_1px_3px_hsl(184_30%_15%/0.08)]'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
@@ -39,5 +39,6 @@ const CalendarViewToggle = ({ value, onChange }: Props) => {
     </div>
   );
 };
+
 
 export default CalendarViewToggle;
