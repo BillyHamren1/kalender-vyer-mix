@@ -142,6 +142,23 @@ export const StaffDayInspectionDrawer: React.FC<Props> = ({ open, bundle, day, o
       ? `/staff-management/gps-satellite-map?staffId=${encodeURIComponent(staffId)}&date=${encodeURIComponent(dateStr)}`
       : "#";
 
+  // Klipp kartans visit-durations vid dagens "Slut" (när dagen är inskickad)
+  // så att tooltipen inte fortsätter ticka även om personalen står kvar på platsen.
+  const mapClampEndIso = useMemo(() => {
+    const sub = day?.submission;
+    if (!sub || !dateStr) return null;
+    const endHm = sub.end_time ? String(sub.end_time).slice(0, 5) : null;
+    if (endHm && /^\d{2}:\d{2}$/.test(endHm)) {
+      const d = new Date(`${dateStr}T${endHm}:00`);
+      if (!isNaN(d.getTime())) return d.toISOString();
+    }
+    if (sub.submitted_at) {
+      const d = new Date(sub.submitted_at);
+      if (!isNaN(d.getTime())) return d.toISOString();
+    }
+    return null;
+  }, [day?.submission, dateStr]);
+
   const handleApprove = () => {
     if (!day?.submission) return;
     approveDay.mutate(
@@ -262,7 +279,12 @@ export const StaffDayInspectionDrawer: React.FC<Props> = ({ open, bundle, day, o
                 <div className="space-y-3 min-w-0">
                   <div className="relative h-[420px] rounded-lg border border-border/70 overflow-hidden bg-background">
                     {staffId && dateStr && (
-                      <DayInspectionMap staffId={staffId} date={dateStr} open={open} />
+                      <DayInspectionMap
+                        staffId={staffId}
+                        date={dateStr}
+                        open={open}
+                        clampEndIso={mapClampEndIso}
+                      />
                     )}
                   </div>
 
