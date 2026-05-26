@@ -205,6 +205,22 @@
   }
 }
 
+/* === Mobile App — Premium polish ===
+   Remove harsh browser focus rings on touch surfaces inside the
+   native mobile shells. Keyboard focus on inputs/links keeps its ring. */
+@layer base {
+  .time-app button:focus,
+  .time-app button:focus-visible,
+  .time-app [role="button"]:focus,
+  .time-app [role="button"]:focus-visible,
+  .scanner-app button:focus,
+  .scanner-app button:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
+}
+
+
 /* Planning purple theme — full token-set + utilities lives in
    src/styles/planning.css. Detta block fanns tidigare här som en
    minimal override; det är flyttat och utökat. Lämna inga
