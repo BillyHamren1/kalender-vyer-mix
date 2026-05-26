@@ -89,6 +89,7 @@ const DayView: React.FC<DayViewProps> = ({ date, onBack }) => {
 
   React.useEffect(() => {
     setUserComment('');
+    setIsEditing(false);
   }, [date, staffId]);
 
   const submission = data?.submission ?? null;
