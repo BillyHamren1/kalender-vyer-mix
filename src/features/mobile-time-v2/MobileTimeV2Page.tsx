@@ -32,10 +32,11 @@ import type {
   MobileGpsSubmissionStatus,
   ManualDayPayload,
 } from './types';
-import MobileGpsDayMap from './MobileGpsDayMap';
 import MobileTimeReportQueue from './MobileTimeReportQueue';
 import ManualWorkSegmentsEditor from './ManualWorkSegmentsEditor';
+import MobileDayReportPreview from './MobileDayReportPreview';
 import { MobileBackHeader } from '@/components/mobile-app/MobileHeader';
+import { ArrowLeft } from 'lucide-react';
 
 interface StatusVisual {
   label: string;
