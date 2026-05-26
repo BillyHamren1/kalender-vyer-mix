@@ -147,83 +147,71 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
   const currentMonthIndex = activeDate.getMonth();
   const currentYearValue = activeDate.getFullYear();
 
-  const buttonColorClass = variant === 'warehouse' 
-    ? 'bg-warehouse hover:bg-warehouse-hover' 
-    : 'bg-primary hover:bg-primary/90';
+  const chevronAccent = variant === 'warehouse'
+    ? 'text-warehouse hover:bg-warehouse/10'
+    : 'text-primary hover:bg-primary/10';
+
+  const segmentActive = variant === 'warehouse'
+    ? 'bg-warehouse text-white shadow-sm'
+    : 'bg-primary text-primary-foreground shadow-sm';
+
+  const viewOptions: Array<{ key: 'day' | 'weekly' | 'monthly' | 'list'; label: string }> = [
+    { key: 'day', label: 'Dag' },
+    { key: 'weekly', label: 'Vecka' },
+    { key: 'monthly', label: 'Månad' },
+    { key: 'list', label: 'Lista' },
+  ];
 
   return (
-    <div className="flex items-center justify-between bg-white border-b border-border px-6 py-1.5">
-      {/* Left spacer for centering */}
-      <div className="w-32" />
+    <div className="flex items-center justify-between gap-4 bg-white/95 backdrop-blur border-b border-border/60 px-5 py-2">
+      <div className="w-24 shrink-0" />
 
-      {/* Centered Navigation */}
-      <div className="flex items-center">
+      <div className="flex items-center gap-1">
         <button
           onClick={handlePrevious}
-          className={`${buttonColorClass} transition-colors duration-300 rounded-lg p-1.5 mr-4`}
+          className={cn(
+            'h-8 w-8 inline-flex items-center justify-center rounded-md transition-colors',
+            chevronAccent
+          )}
+          aria-label="Föregående"
         >
-          <ChevronLeft 
-            className="h-5 w-5 text-white"
-            strokeWidth={3}
-          />
+          <ChevronLeft className="h-4 w-4" strokeWidth={2.5} />
         </button>
-        
-        {/* Clickable date range that opens combined picker */}
+
         <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
           <PopoverTrigger asChild>
             <Button
               variant="ghost"
-              className={cn(
-                "text-xl font-semibold text-foreground px-3 py-1.5 text-center tracking-wide h-auto",
-                "hover:bg-muted transition-colors duration-200 cursor-pointer"
-              )}
+              className="h-8 px-3 text-[15px] font-semibold text-foreground tracking-tight hover:bg-muted/60 rounded-md"
             >
-              <div className="flex items-center justify-center gap-2">
-                <CalendarIcon className="h-5 w-5" />
-                {headerText}
-              </div>
+              <CalendarIcon className="h-4 w-4 mr-2 text-muted-foreground" />
+              {headerText}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0 bg-white z-50" align="center">
             <div className="flex flex-col">
-              {/* Quick select dropdowns at top */}
               <div className="flex gap-2 p-3 border-b border-border bg-muted/30">
-                {/* Month Dropdown */}
-                <Select
-                  value={currentMonthIndex.toString()}
-                  onValueChange={handleMonthSelect}
-                >
+                <Select value={currentMonthIndex.toString()} onValueChange={handleMonthSelect}>
                   <SelectTrigger className="w-[130px] h-9 bg-white">
                     <SelectValue placeholder="Månad" />
                   </SelectTrigger>
                   <SelectContent className="bg-white z-50">
                     {MONTHS.map((month, index) => (
-                      <SelectItem key={index} value={index.toString()}>
-                        {month}
-                      </SelectItem>
+                      <SelectItem key={index} value={index.toString()}>{month}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-
-                {/* Year Dropdown */}
-                <Select
-                  value={currentYearValue.toString()}
-                  onValueChange={handleYearSelect}
-                >
+                <Select value={currentYearValue.toString()} onValueChange={handleYearSelect}>
                   <SelectTrigger className="w-[100px] h-9 bg-white">
                     <SelectValue placeholder="År" />
                   </SelectTrigger>
                   <SelectContent className="bg-white z-50">
                     {yearOptions.map((year) => (
-                      <SelectItem key={year} value={year.toString()}>
-                        {year}
-                      </SelectItem>
+                      <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-
-              {/* Calendar below */}
               <Calendar
                 mode="single"
                 selected={activeDate}
@@ -238,73 +226,50 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
                   }
                 }}
                 initialFocus
-                className={cn("p-3 pointer-events-auto")}
+                className={cn('p-3 pointer-events-auto')}
               />
             </div>
           </PopoverContent>
         </Popover>
-        
+
         <button
           onClick={handleNext}
-          className={`${buttonColorClass} transition-colors duration-300 rounded-lg p-1.5 ml-4`}
+          className={cn(
+            'h-8 w-8 inline-flex items-center justify-center rounded-md transition-colors',
+            chevronAccent
+          )}
+          aria-label="Nästa"
         >
-          <ChevronRight 
-            className="h-5 w-5 text-white"
-            strokeWidth={3}
-          />
+          <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
         </button>
       </div>
 
-      {/* Right side - View Mode Buttons */}
       {viewMode && onViewModeChange ? (
-        <div className="flex gap-1">
-          <Button
-            variant={viewMode === 'day' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => onViewModeChange('day')}
-            className={cn(
-              "text-xs px-2 py-1 h-7",
-              viewMode === 'day' && variant === 'warehouse' && "bg-warehouse hover:bg-warehouse-hover"
-            )}
-          >
-            Dag
-          </Button>
-          <Button
-            variant={viewMode === 'weekly' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => onViewModeChange('weekly')}
-            className={cn(
-              "text-xs px-2 py-1 h-7",
-              viewMode === 'weekly' && variant === 'warehouse' && "bg-warehouse hover:bg-warehouse-hover"
-            )}
-          >
-            Vecka
-          </Button>
-          <Button
-            variant={viewMode === 'monthly' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => onViewModeChange('monthly')}
-            className={cn(
-              "text-xs px-2 py-1 h-7",
-              viewMode === 'monthly' && variant === 'warehouse' && "bg-warehouse hover:bg-warehouse-hover"
-            )}
-          >
-            Månad
-          </Button>
-          <Button
-            variant={viewMode === 'list' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => onViewModeChange('list')}
-            className={cn(
-              "text-xs px-2 py-1 h-7",
-              viewMode === 'list' && variant === 'warehouse' && "bg-warehouse hover:bg-warehouse-hover"
-            )}
-          >
-            Lista
-          </Button>
+        <div className="inline-flex items-center p-0.5 rounded-lg bg-muted/60 border border-border/50">
+          {([
+            { key: 'day', label: 'Dag' },
+            { key: 'weekly', label: 'Vecka' },
+            { key: 'monthly', label: 'Månad' },
+            { key: 'list', label: 'Lista' },
+          ] as const).map(opt => {
+            const active = viewMode === opt.key;
+            return (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => onViewModeChange(opt.key)}
+                className={cn(
+                  'h-7 px-3 text-[12px] font-medium rounded-md transition-all',
+                  active ? segmentActive : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
         </div>
       ) : (
-        <div className="w-32" />
+        <div className="w-24 shrink-0" />
       )}
     </div>
   );
