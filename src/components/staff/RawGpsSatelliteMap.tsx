@@ -964,7 +964,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         const f = e.features?.[0];
         if (!f) return;
         const id = String((f.properties as any)?.id ?? '');
-        const p = pingById.get(id);
+        const p = data.find((q) => q.id === id);
         if (!p) return;
         popupRef.current?.remove();
         popupRef.current = new mapboxgl.Popup({ closeButton: true })
