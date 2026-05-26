@@ -129,12 +129,45 @@ export const StaffDayInspectionDrawer: React.FC<Props> = ({ open, bundle, day, o
   const submissionSegments = day?.submission
     ? extractSegments(day.submission.display_timeline_snapshot_json)
     : [];
-  const cacheSegments = day
-    ? extractSegments(day.cache?.display_blocks_json) ||
-      extractSegments(day.cache?.report_candidate_blocks_json)
-    : [];
+
+  const getEngineSegmentsFromCache = (cache: WeeklyDayCell["cache"]) => {
+    if (!cache) return { segments: [] as ReturnType<typeof extractSegments>, source: "none" as const };
+    const display = extractSegments((cache as any).display_blocks_json);
+    if (display.length > 0) return { segments: display, source: "display_blocks_json" as const };
+    const candidates = extractSegments((cache as any).report_candidate_blocks_json);
+    if (candidates.length > 0) return { segments: candidates, source: "report_candidate_blocks_json" as const };
+    return { segments: [] as ReturnType<typeof extractSegments>, source: "none" as const };
+  };
+  const engineFromCache = day ? getEngineSegmentsFromCache(day.cache) : { segments: [], source: "none" as const };
+  const cacheSegments = engineFromCache.segments;
   const segmentsToShow = submissionSegments.length > 0 ? submissionSegments : cacheSegments;
   const segmentsSource = submissionSegments.length > 0 ? "submission" : "engine";
+
+  if (day && cacheSegments.length === 0 && day.cache && submissionSegments.length === 0) {
+    // eslint-disable-next-line no-console
+    console.warn("[StaffDayInspectionDrawer] empty engine timeline", {
+      staffId,
+      date: dateStr,
+      hasCache: !!day.cache,
+      displayBlocksIsArray: Array.isArray((day.cache as any)?.display_blocks_json),
+      displayBlocksCount: Array.isArray((day.cache as any)?.display_blocks_json) ? (day.cache as any).display_blocks_json.length : null,
+      candidateBlocksIsArray: Array.isArray((day.cache as any)?.report_candidate_blocks_json),
+      candidateBlocksCount: Array.isArray((day.cache as any)?.report_candidate_blocks_json) ? (day.cache as any).report_candidate_blocks_json.length : null,
+      engineVersion: (day.cache as any)?.engine_version,
+      builtAt: (day.cache as any)?.built_at,
+      cacheError: (day.cache as any)?.error,
+    });
+  } else if (day && segmentsSource === "engine" && cacheSegments.length > 0) {
+    // eslint-disable-next-line no-console
+    console.debug("[StaffDayInspectionDrawer] timeline source", {
+      staffId,
+      date: dateStr,
+      timelineSourceUsed: engineFromCache.source,
+      displayBlocksCount: Array.isArray((day.cache as any)?.display_blocks_json) ? (day.cache as any).display_blocks_json.length : 0,
+      candidateBlocksCount: Array.isArray((day.cache as any)?.report_candidate_blocks_json) ? (day.cache as any).report_candidate_blocks_json.length : 0,
+      segmentsCount: cacheSegments.length,
+    });
+  }
 
   const diag = day ? extractDiagnostics(day) : null;
   const gpsHref =
