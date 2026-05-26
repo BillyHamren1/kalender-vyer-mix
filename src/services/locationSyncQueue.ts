@@ -381,7 +381,30 @@ export async function flushLocationQueue(): Promise<void> {
         }
         saveQueue(next);
       } catch (err: any) {
-        // Whole-chunk failure (network / 5xx) — retry with backoff.
+        const msg = err?.message || String(err);
+        // Permanenta fel (auth/permission) — retry hjälper aldrig och
+        // varje försök belastar bara Supabase. Släng kön och pausa.
+        const isPermanent =
+          err?.code === 'SESSION_EXPIRED' ||
+          err?.code === 'INVALID_MOBILE_SESSION' ||
+          /not associated with an organization/i.test(msg) ||
+          /Kontot saknar organisationstillhörighet/i.test(msg) ||
+          /Mobile session required/i.test(msg) ||
+          /401|403/.test(msg);
+        if (isPermanent) {
+          console.warn(
+            '[LocationSync] permanent upload error — clearing queue:',
+            msg,
+          );
+          saveQueue([]);
+          patchStatus({
+            lastErrorAt: Date.now(),
+            lastErrorMessage: `Pausad: ${msg}`,
+          });
+          // Avbryt resterande chunks i denna flush — kön är tom nu.
+          break;
+        }
+        // Transient (network/5xx) — bumpa attempts och back-off.
         const chunkIds = new Set(chunk.map(p => p.id));
         const after = loadQueue().map(p => {
           if (!chunkIds.has(p.id)) return p;
@@ -394,7 +417,6 @@ export async function flushLocationQueue(): Promise<void> {
           };
         });
         saveQueue(after);
-        const msg = err?.message || String(err);
         patchStatus({
           lastErrorAt: Date.now(),
           lastErrorMessage: msg,
@@ -461,6 +483,18 @@ if (typeof window !== 'undefined') {
       // Not running under Capacitor — fine, web triggers above cover it.
     }
   })();
+
+  // Session ogiltig / utgången — töm kön omedelbart så vi inte fortsätter
+  // försöka ladda upp med ett dött token (vilket annars belastar Supabase).
+  const clearOnInvalidSession = () => {
+    saveQueue([]);
+    patchStatus({
+      lastErrorAt: Date.now(),
+      lastErrorMessage: 'Session ogiltig — GPS-kö tömd.',
+    });
+  };
+  window.addEventListener('mobile-session-expired', clearOnInvalidSession);
+  window.addEventListener('mobile-session-invalid', clearOnInvalidSession);
 
   // App start — resume any leftover work from the previous session
   // (offline period, force-quit, crash, etc.).
