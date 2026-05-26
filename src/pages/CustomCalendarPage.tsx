@@ -398,7 +398,7 @@ const CustomCalendarPage = () => {
                 <MobileCalendarView events={mergedEvents} />
               ) : (
                 <div className="flex flex-col h-full overflow-hidden">
-                  <div className="flex-1 min-h-0 overflow-hidden calendar-zoom-out">
+                  <div className="flex-1 min-h-0 overflow-hidden">
                     <CustomCalendar
                       events={mergedEvents}
                       setEvents={setEvents}
