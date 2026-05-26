@@ -47,7 +47,7 @@ const TimeAppLayout: React.FC<TimeAppLayoutProps> = ({ children }) => {
 
   return (
     <GeofencingProvider>
-      <div className="fixed inset-0 overflow-hidden bg-primary">
+      <div className="time-app fixed inset-0 overflow-hidden bg-primary">
         <div className="h-full max-w-lg mx-auto bg-card flex flex-col overflow-hidden">
           {/* Header slot — headers portal in here so they sit OUTSIDE the scroll container.
               This avoids the iOS WKWebView bug where position: sticky inside a momentum-scrolling
@@ -65,7 +65,7 @@ const TimeAppLayout: React.FC<TimeAppLayoutProps> = ({ children }) => {
             className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain"
             style={{
               WebkitOverflowScrolling: 'touch',
-              paddingBottom: 'calc(68px + env(safe-area-inset-bottom, 0px) + 16px)',
+              paddingBottom: 'calc(64px + env(safe-area-inset-bottom, 0px) + 16px)',
             }}
           >
             {/* Global overlays — banners render here at top of scroll, dialogs portal to root. */}

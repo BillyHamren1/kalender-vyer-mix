@@ -307,11 +307,13 @@ const MobileInbox = () => {
       {/* FAB */}
       <button
         onClick={() => setView('new')}
-        className="fixed bottom-28 right-5 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center active:scale-95 transition-transform"
+        className="fixed bottom-24 right-5 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center active:scale-95 transition-transform"
+        style={{ boxShadow: '0 8px 24px hsl(184 60% 26% / 0.30), 0 2px 6px hsl(184 60% 26% / 0.20)' }}
         aria-label={t('inbox.newMessage')}
       >
-        <Plus className="w-6 h-6" />
+        <Plus className="w-6 h-6" strokeWidth={2.5} />
       </button>
+
     </div>
   );
 };
@@ -325,7 +327,7 @@ const previewOf = (m: any, t: (k: any) => string): string => {
 
 const Section = ({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) => (
   <div>
-    <h2 className="px-5 mb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80 flex items-center gap-1">
+    <h2 className="px-5 mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 flex items-center gap-1.5">
       {icon}{title}
     </h2>
     <div className="bg-card">{children}</div>
@@ -346,19 +348,26 @@ interface RowProps {
 const ConversationRow = ({ name, preview, timestamp, unread = 0, avatarIcon, onClick, dim, formatTime }: RowProps) => (
   <button
     onClick={onClick}
-    className={cn("w-full text-left px-4 py-3 flex items-center gap-3 active:bg-muted/40 transition-colors border-b border-border/50", dim && "opacity-60")}
+    className={cn(
+      "w-full text-left px-4 py-3 flex items-center gap-3 active:bg-muted/40 transition-colors",
+      "border-b border-border/40 last:border-b-0",
+      dim && "opacity-60"
+    )}
   >
-    <div className="w-11 h-11 rounded-full bg-muted flex items-center justify-center shrink-0">
-      {avatarIcon || <span className="text-base font-semibold text-muted-foreground">{name.charAt(0).toUpperCase()}</span>}
+    <div className={cn(
+      "w-11 h-11 rounded-full flex items-center justify-center shrink-0 border",
+      avatarIcon ? "bg-muted/60 border-border/40" : "bg-primary-soft border-primary/15"
+    )}>
+      {avatarIcon || <span className="text-[15px] font-bold text-primary">{name.charAt(0).toUpperCase()}</span>}
     </div>
     <div className="flex-1 min-w-0">
       <div className="flex items-center justify-between gap-2">
-        <span className={cn("text-[15px] truncate", unread > 0 ? "font-bold text-foreground" : "font-semibold text-foreground")}>{name}</span>
-        <span className={cn("text-[11px] shrink-0", unread > 0 ? "text-primary font-semibold" : "text-muted-foreground")}>
+        <span className={cn("text-[15px] truncate tracking-tight", unread > 0 ? "font-bold text-foreground" : "font-semibold text-foreground")}>{name}</span>
+        <span className={cn("text-[11px] shrink-0 tabular-nums", unread > 0 ? "text-primary font-semibold" : "text-muted-foreground")}>
           {timestamp ? formatTime(timestamp) : ''}
         </span>
       </div>
-      <p className={cn("text-sm truncate mt-0.5", unread > 0 ? "text-foreground" : "text-muted-foreground")}>{preview}</p>
+      <p className={cn("text-[13px] truncate mt-0.5", unread > 0 ? "text-foreground/90" : "text-muted-foreground")}>{preview}</p>
     </div>
     {unread > 0 && (
       <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-[11px] font-bold flex items-center justify-center">
@@ -367,6 +376,7 @@ const ConversationRow = ({ name, preview, timestamp, unread = 0, avatarIcon, onC
     )}
   </button>
 );
+
 
 // Contact picker
 function ContactPicker({ onBack, onPick }: { onBack: () => void; onPick: (c: { id: string; name: string }) => void }) {

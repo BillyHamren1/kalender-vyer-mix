@@ -88,25 +88,31 @@ export const WorkDayPanel: React.FC = () => {
   if (!timer.timerActive) {
     return (
       <>
-        <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm flex items-center gap-3">
-          <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-muted shrink-0">
-            <Sun className="w-4 h-4 text-muted-foreground" />
+        <div
+          className="rounded-2xl border border-primary/15 bg-primary-soft p-4 flex items-center gap-3"
+          style={{ boxShadow: '0 1px 2px hsl(184 30% 15% / 0.04)' }}
+        >
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-card border border-primary/15 shrink-0">
+            <Sun className="w-[18px] h-[18px] text-primary" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-foreground leading-tight">
-              Arbetsdagen är inte startad
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/80 leading-none">
+              Arbetsdag
             </p>
-            <p className="text-xs text-muted-foreground leading-tight mt-0.5">
-              Starta dagen när du börjar jobba.
+            <p className="text-[15px] font-semibold text-foreground leading-tight mt-1">
+              Inte startad
+            </p>
+            <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+              Tryck för att börja jobba.
             </p>
           </div>
           <button
             onClick={() => setDialogOpen(true)}
             disabled={starting}
-            className="shrink-0 h-11 px-4 rounded-xl bg-primary text-primary-foreground font-semibold text-sm flex items-center gap-1.5 active:scale-[0.99] transition-all disabled:opacity-60"
+            className="shrink-0 h-11 px-4 rounded-xl bg-primary text-primary-foreground font-semibold text-sm flex items-center gap-1.5 active:scale-[0.98] transition-all disabled:opacity-60 shadow-[0_2px_0_hsl(var(--primary-dark))]"
           >
             {starting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
-            <span>{starting ? 'Startar…' : 'Starta arbetsdag'}</span>
+            <span>{starting ? 'Startar…' : 'Starta'}</span>
           </button>
         </div>
         <StartDayDialog
@@ -119,41 +125,40 @@ export const WorkDayPanel: React.FC = () => {
     );
   }
 
+
   // ── Kompakt: arbetsdagen är aktiv ───────────────────────────────────
   const startedLabel = timer.startedAt ? format(parseISO(timer.startedAt), 'HH:mm') : '—';
   const totalLabel = formatDuration(timer.elapsedSeconds);
 
   return (
     <>
-      <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
+      <div
+        className="rounded-2xl border border-primary/15 bg-primary-soft p-4"
+        style={{ boxShadow: '0 1px 2px hsl(184 30% 15% / 0.04)' }}
+      >
         <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-primary/10 shrink-0">
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-card border border-primary/15 shrink-0">
             <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground leading-none">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/80 leading-none">
               Arbetsdag aktiv
             </p>
-            <div className="text-2xl font-extrabold tracking-tight text-foreground tabular-nums leading-tight mt-0.5">
+            <div className="text-[26px] font-extrabold tracking-tight text-foreground tabular-nums leading-none mt-1.5">
               {totalLabel}
             </div>
+            <p className="text-[11px] text-muted-foreground leading-tight mt-1.5">
+              Startad <span className="font-semibold text-foreground">{startedLabel}</span>
+              <span className="text-muted-foreground/60"> · plats fördelas automatiskt</span>
+            </p>
           </div>
-        </div>
-
-        <div className="mt-2 space-y-0.5 text-xs">
-          <p className="text-muted-foreground">
-            Startad: <span className="font-semibold text-foreground">{startedLabel}</span>
-          </p>
-          <p className="text-[11px] text-muted-foreground/80 italic pt-1">
-            Plats/projekt fördelas automatiskt i tidrapporten.
-          </p>
         </div>
 
         <div className="mt-3">
           <button
             onClick={handleStop}
             disabled={stopping}
-            className="w-full h-11 rounded-xl bg-destructive text-destructive-foreground text-sm font-semibold flex items-center justify-center gap-1.5 active:scale-[0.99] transition-all disabled:opacity-60"
+            className="w-full h-11 rounded-xl bg-destructive text-destructive-foreground text-sm font-semibold flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all disabled:opacity-60"
           >
             {stopping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Square className="w-4 h-4 fill-current" />}
             Avsluta arbetsdag
@@ -163,5 +168,6 @@ export const WorkDayPanel: React.FC = () => {
     </>
   );
 };
+
 
 export default WorkDayPanel;

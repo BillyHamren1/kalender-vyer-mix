@@ -17,6 +17,10 @@
     --primary-foreground: 0 0% 100%;
     --primary-hover: 184 55% 32%;
     --primary-dark: 184 60% 26%;        /* 3D-kant på knappar */
+    --primary-soft: 184 50% 95%;        /* Mjuk teal-tint för cards/active states */
+    --primary-soft-foreground: 184 45% 22%;
+
+
 
     /* === SECONDARY === */
     --secondary: 184 45% 65%;
@@ -200,6 +204,22 @@
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 }
+
+/* === Mobile App — Premium polish ===
+   Remove harsh browser focus rings on touch surfaces inside the
+   native mobile shells. Keyboard focus on inputs/links keeps its ring. */
+@layer base {
+  .time-app button:focus,
+  .time-app button:focus-visible,
+  .time-app [role="button"]:focus,
+  .time-app [role="button"]:focus-visible,
+  .scanner-app button:focus,
+  .scanner-app button:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
+}
+
 
 /* Planning purple theme — full token-set + utilities lives in
    src/styles/planning.css. Detta block fanns tidigare här som en
