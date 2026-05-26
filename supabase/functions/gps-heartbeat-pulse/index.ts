@@ -203,7 +203,9 @@ Deno.serve(async (req) => {
     let failCount = 0
     const logRows: any[] = []
 
+    let truncatedByRuntime = false
     for (const c of candidates) {
+      if (Date.now() - startedAt > PULSE_MAX_RUNTIME_MS) { truncatedByRuntime = true; break }
       const platform = (c.platform ?? '').toLowerCase()
       const message: any = {
         message: {
