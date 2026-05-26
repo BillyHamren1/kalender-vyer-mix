@@ -163,6 +163,7 @@ const ProjectLayout = () => {
 
   const booking = project.booking;
   const basePath = `/project/${projectId}`;
+  const isRentalOnly = (booking as any)?.rental_only === true;
 
   // Determine active nav item
   const currentPath = location.pathname;
@@ -402,43 +403,51 @@ const ProjectLayout = () => {
           );
         })()}
 
-        {/* 3-page navigation */}
-        <nav className="mb-6">
-          <div className="bg-card rounded-2xl border border-border/40 shadow-2xl p-1.5 flex gap-1.5">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeKey === item.key;
-              return (
-                <Link
-                  key={item.key}
-                  to={`${basePath}${item.path}`}
-                  className={cn(
-                    "flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
-                    isActive
-                      ? "text-primary-foreground shadow-lg"
-                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
-                  )}
-                  style={
-                    isActive
-                      ? {
-                          background: "var(--gradient-icon)",
-                          boxShadow: "0 4px 14px -2px hsl(var(--primary) / 0.4), 0 2px 6px -1px hsl(var(--primary) / 0.2)",
-                        }
-                      : undefined
-                  }
-                >
-                  <Icon className="h-4 w-4" />
-                  <span className="hidden sm:inline">{item.label}</span>
-                  {!isActive && (item as any).emphasis && (
-                    <span className="hidden sm:inline-flex px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-full bg-primary/15 text-primary leading-none">
-                      Hub
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
+        {/* 3-page navigation — döljs för rental-only projekt (ingen rigg/utförande behövs) */}
+        {!isRentalOnly && (
+          <nav className="mb-6">
+            <div className="bg-card rounded-2xl border border-border/40 shadow-2xl p-1.5 flex gap-1.5">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeKey === item.key;
+                return (
+                  <Link
+                    key={item.key}
+                    to={`${basePath}${item.path}`}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+                      isActive
+                        ? "text-primary-foreground shadow-lg"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                    )}
+                    style={
+                      isActive
+                        ? {
+                            background: "var(--gradient-icon)",
+                            boxShadow: "0 4px 14px -2px hsl(var(--primary) / 0.4), 0 2px 6px -1px hsl(var(--primary) / 0.2)",
+                          }
+                        : undefined
+                    }
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span className="hidden sm:inline">{item.label}</span>
+                    {!isActive && (item as any).emphasis && (
+                      <span className="hidden sm:inline-flex px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-full bg-primary/15 text-primary leading-none">
+                        Hub
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </nav>
+        )}
+
+        {isRentalOnly && (activeKey === 'execution' || activeKey === 'economy') && (
+          <div className="mb-6">
+            {(() => { navigate(basePath, { replace: true }); return null; })()}
           </div>
-        </nav>
+        )}
 
         {/* Sub-page content */}
         <Outlet context={detail} />
