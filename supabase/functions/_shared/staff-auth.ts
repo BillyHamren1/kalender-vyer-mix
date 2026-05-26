@@ -71,7 +71,13 @@ export async function authenticateStaffRequest(
     if (!mobile.staffId) return { ok: false, err: { status: 401, error: "Invalid mobile token" } };
     const { data: staffRow, error: staffErr } = await admin
       .from("staff_members").select("id, organization_id, user_id").eq("id", mobile.staffId).maybeSingle();
-    if (staffErr) return { ok: false, err: { status: 500, error: `Staff lookup failed: ${staffErr.message}` } };
+    if (staffErr) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const e = staffErr as any;
+      const msg = e?.message || e?.hint || e?.details || e?.code || JSON.stringify(e) || "unknown";
+      console.error("[staff-auth] staff lookup failed", { staffId: mobile.staffId, code: e?.code, message: e?.message, details: e?.details, hint: e?.hint });
+      return { ok: false, err: { status: 500, error: `Staff lookup failed: ${msg}` } };
+    }
     if (!staffRow?.organization_id) return { ok: false, err: { status: 404, error: "Staff not found" } };
 
     // Optional admin "view-as" — read-only impersonering via x-view-as-staff-header.
