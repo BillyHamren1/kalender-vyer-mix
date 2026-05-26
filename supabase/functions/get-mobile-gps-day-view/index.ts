@@ -196,6 +196,7 @@ Deno.serve(async (req: Request) => {
     },
     messages,
     manualTargets,
+    anchors,
     debug: {
       rawPingCount: view.rawPingCount,
       firstPingAt: view.firstPingAt,
