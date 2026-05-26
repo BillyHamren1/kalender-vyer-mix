@@ -56,7 +56,7 @@ interface Props {
 
 const BOOKING_FIELDS = `
   id, client, booking_number, deliveryaddress, organization_id,
-  assigned_project_id,
+  assigned_project_id, rental_only,
   contact_name, contact_phone, contact_email, internalnotes,
   eventdate, rigdaydate, rigdowndate,
   rig_start_time, rig_end_time, event_start_time, event_end_time,
