@@ -401,7 +401,7 @@
   padding: 2px 4px;
   border-bottom: 1px solid hsl(var(--border) / 0.3);
   text-align: center;
-  height: 25px;
+  height: var(--slot-px, 25px);
   display: flex;
   align-items: center;
   justify-content: center;
