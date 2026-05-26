@@ -37,6 +37,9 @@ function ymd(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+// Process-wide guard to prevent overlapping cron runs in the same isolate.
+let RUN_IN_PROGRESS = false;
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json(405, { error: 'POST only' });
@@ -48,92 +51,112 @@ Deno.serve(async (req) => {
 
   const engineVersion = body?.engineVersion;
   if (!engineVersion) return json(400, { error: 'missing engineVersion' });
-  const batchSize = Math.max(1, Math.min(200, Number(body?.batchSize ?? 200)));
+  // EMERGENCY: cap batchSize hard (was up to 200) — avoid heavy work per cron tick.
+  const batchSize = Math.max(1, Math.min(10, Number(body?.batchSize ?? 10)));
 
-  const admin = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
-
-  // Resolve org list
-  let orgIds: string[] = [];
-  if (body?.organizationId) {
-    orgIds = [body.organizationId];
-  } else {
-    const { data } = await admin.from('organizations').select('id').limit(100);
-    orgIds = (data ?? []).map((o: any) => o.id);
+  if (RUN_IN_PROGRESS) {
+    return json(200, { ok: true, skipped: 'already_running' });
   }
+  RUN_IN_PROGRESS = true;
 
-  const today = ymd(new Date());
-  const yest = ymd(new Date(Date.now() - 86400000));
+  try {
+    const admin = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
-  const perOrg: any[] = [];
+    // Resolve org list
+    let orgIds: string[] = [];
+    if (body?.organizationId) {
+      orgIds = [body.organizationId];
+    } else {
+      const { data } = await admin.from('organizations').select('id').limit(100);
+      orgIds = (data ?? []).map((o: any) => o.id);
+    }
 
-  for (const orgId of orgIds) {
-    // Find staff with recent ping activity (last 36h). Paginate so dominant
-    // staff don't crowd less-active ones out of the discovery batch.
-    const since = new Date(Date.now() - 36 * 3600 * 1000).toISOString();
-    const seen = new Set<string>();
-    {
-      const PAGE = 1000;
-      const CAP = 50_000; // discovery only — read just staff_id column
-      let from = 0;
-      while (seen.size < 1000 && from < CAP) {
-        const to = from + PAGE - 1;
-        const { data: batch, error } = await admin
-          .from('staff_location_history')
-          .select('staff_id')
-          .eq('organization_id', orgId)
-          .gte('recorded_at', since)
-          .order('recorded_at', { ascending: false })
-          .range(from, to);
-        if (error) break;
-        const rows = batch ?? [];
-        for (const r of rows) seen.add((r as any).staff_id);
-        if (rows.length < PAGE) break;
-        from += PAGE;
+    const today = ymd(new Date());
+    const yest = ymd(new Date(Date.now() - 86400000));
+
+    const perOrg: any[] = [];
+
+    for (const orgId of orgIds) {
+      // Find staff with recent ping activity (last 36h). EMERGENCY: cap hard
+      // at 5_000 rows of discovery; don't scan 50k staff_location_history rows.
+      const since = new Date(Date.now() - 36 * 3600 * 1000).toISOString();
+      const { data: pingRows } = await admin
+        .from('staff_location_history')
+        .select('staff_id')
+        .eq('organization_id', orgId)
+        .gte('recorded_at', since)
+        .order('recorded_at', { ascending: false })
+        .limit(5_000);
+      const seen = new Set<string>();
+      for (const r of pingRows ?? []) seen.add((r as any).staff_id);
+      const staffIds = Array.from(seen);
+      if (staffIds.length === 0) {
+        perOrg.push({ orgId, skipped: 'no_recent_pings' });
+        continue;
       }
-    }
-    const staffIds = Array.from(seen);
-    if (staffIds.length === 0) {
-      perOrg.push({ orgId, skipped: 'no_recent_pings' });
-      continue;
+
+      // Only re-process staff-days where cache is missing OR clearly stale
+      // (older than 2 hours). Avoids unconditional rebuild every cron tick.
+      const staleCutoff = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
+      const { data: cacheRows } = await admin
+        .from('staff_day_report_cache')
+        .select('staff_id, day, updated_at')
+        .eq('organization_id', orgId)
+        .in('staff_id', staffIds)
+        .in('day', [today, yest]);
+      const fresh = new Set<string>();
+      for (const c of cacheRows ?? []) {
+        const u = (c as any).updated_at as string | null;
+        if (u && u > staleCutoff) fresh.add(`${(c as any).staff_id}|${(c as any).day}`);
+      }
+      const candidates: string[] = [];
+      for (const sid of staffIds) {
+        if (!fresh.has(`${sid}|${today}`) || !fresh.has(`${sid}|${yest}`)) candidates.push(sid);
+        if (candidates.length >= batchSize) break;
+      }
+      if (candidates.length === 0) {
+        perOrg.push({ orgId, skipped: 'all_fresh' });
+        continue;
+      }
+
+      const url = `${SUPABASE_URL}/functions/v1/backfill-staff-day-report-cache`;
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SERVICE_ROLE}`,
+        },
+        body: JSON.stringify({
+          organizationId: orgId,
+          dateFrom: yest,
+          dateTo: today,
+          staffIds: candidates,
+          engineVersion,
+          dryRun: false,
+          batchSize,
+          skipExisting: false,
+          enablePeerEvidence: false,
+        }),
+      });
+      const text = await r.text();
+      let parsed: any = null;
+      try { parsed = JSON.parse(text); } catch {}
+      perOrg.push({ orgId, status: r.status, summary: parsed ? {
+        processed: parsed.staffDaysProcessedThisCall,
+        errors: parsed.staffDaysWithErrors,
+        runtimeMs: parsed.runtimeMs,
+      } : null });
     }
 
-    // Invoke backfill via fetch (so it shares a single deployment)
-    const url = `${SUPABASE_URL}/functions/v1/backfill-staff-day-report-cache`;
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SERVICE_ROLE}`,
-      },
-      body: JSON.stringify({
-        organizationId: orgId,
-        dateFrom: yest,
-        dateTo: today,
-        staffIds,
-        engineVersion,
-        dryRun: false,
-        batchSize,
-        skipExisting: false, // sync forces refresh on these 2 dates
-      }),
+    return json(200, {
+      ok: true,
+      engineVersion,
+      today,
+      yesterday: yest,
+      perOrg,
+      safety: { wroteOnlyTo: 'staff_day_report_cache' },
     });
-    const text = await r.text();
-    let parsed: any = null;
-    try { parsed = JSON.parse(text); } catch {}
-    perOrg.push({ orgId, status: r.status, summary: parsed ? {
-      processed: parsed.staffDaysProcessedThisCall,
-      errors: parsed.staffDaysWithErrors,
-      runtimeMs: parsed.runtimeMs,
-    } : null });
+  } finally {
+    RUN_IN_PROGRESS = false;
   }
-
-  return json(200, {
-    ok: true,
-    engineVersion,
-    today,
-    yesterday: yest,
-    perOrg,
-    safety: {
-      wroteOnlyTo: 'staff_day_report_cache',
-    },
-  });
 });
