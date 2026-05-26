@@ -225,21 +225,6 @@ export const StaffWeeklyApprovalRow: React.FC<Props> = ({
 
         {/* Åtgärder */}
         <div className="flex items-center gap-1 shrink-0">
-          {approveLabel && (
-            <Button
-              size="sm"
-              variant="default"
-              className="h-7 px-2 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-              disabled={isApproving}
-              onClick={(e) => {
-                e.stopPropagation();
-                onApproveWeek();
-              }}
-            >
-              <CheckCheck className="h-3.5 w-3.5" />
-              <span className="hidden lg:inline">{approveLabel}</span>
-            </Button>
-          )}
           <Button
             size="sm"
             variant="ghost"
