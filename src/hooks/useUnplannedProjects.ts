@@ -6,6 +6,7 @@ import { useCurrentOrg } from './useCurrentOrg';
 export interface UnplannedProjectRow {
   id: string;
   kind: 'medium' | 'large';
+  bookingId: string | null;
   name: string;
   client: string | null;
   booking_number: string | null;
@@ -79,6 +80,7 @@ export function useUnplannedProjects() {
         return {
           id: r.id,
           kind: 'medium',
+          bookingId: r.booking_id ?? null,
           name: r.name,
           client: b?.client ?? null,
           booking_number: b?.booking_number ?? null,
@@ -93,6 +95,7 @@ export function useUnplannedProjects() {
         return {
           id: r.id,
           kind: 'large',
+          bookingId: b?.id ?? null,
           name: r.name,
           client: b?.client ?? null,
           booking_number: b?.booking_number ?? null,
