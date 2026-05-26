@@ -23,7 +23,16 @@ export function extractSegments(snapshot: unknown): InspectionSegment[] {
   if (!snapshot) return [];
   if (Array.isArray(snapshot)) return snapshot as InspectionSegment[];
   const o = asAny(snapshot);
-  const c = o?.segments ?? o?.timeline ?? o?.blocks ?? o?.display_segments ?? o?.events;
+  const c =
+    o?.segments ??
+    o?.timeline ??
+    o?.blocks ??
+    o?.display_segments ??
+    o?.displayTimelineBlocksV2 ??
+    o?.display_timeline_blocks_v2 ??
+    o?.reportCandidateBlocks ??
+    o?.report_candidate_blocks ??
+    o?.events;
   return Array.isArray(c) ? (c as InspectionSegment[]) : [];
 }
 
@@ -35,12 +44,13 @@ function pick(o: any, keys: string[]): string | undefined {
   return undefined;
 }
 
-const START_KEYS = ["start", "startedAt", "started_at", "start_time", "startTime", "from"];
-const END_KEYS = ["end", "endedAt", "ended_at", "end_time", "endTime", "to"];
+const START_KEYS = ["start", "startedAt", "started_at", "start_time", "startTime", "from", "startAt", "start_at"];
+const END_KEYS = ["end", "endedAt", "ended_at", "end_time", "endTime", "to", "endAt", "end_at"];
+const LABEL_KEYS = ["displayLabel", "display_label", "targetLabel", "target_label", "title", "label", "classification", "type", "kind"];
 
 export function segStart(s: any): string | undefined { return pick(s, START_KEYS); }
 export function segEnd(s: any): string | undefined { return pick(s, END_KEYS); }
-export function segLabel(s: any): string { return s?.label || s?.classification || s?.type || "Okänd"; }
+export function segLabel(s: any): string { return pick(s, LABEL_KEYS) || "Okänd"; }
 
 export function fmtTime(v: string | undefined): string {
   if (!v) return "–";
@@ -49,7 +59,7 @@ export function fmtTime(v: string | undefined): string {
 }
 
 export function segMinutes(s: any): number | null {
-  const m = s?.minutes ?? s?.durationMinutes ?? s?.duration_min;
+  const m = s?.minutes ?? s?.durationMinutes ?? s?.duration_min ?? s?.duration;
   if (typeof m === "number" && isFinite(m)) return Math.round(m);
   const a = segStart(s); const b = segEnd(s);
   if (a && b) {
