@@ -7,13 +7,13 @@
  *   - Ingen egen GPS-tolkning, inga inputfält
  *   - Editorn (ManualWorkSegmentsEditor) öppnas bara om användaren trycker "Redigera"
  */
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  Send, Loader2, AlertTriangle, MapPin, Clock, Pencil, CheckCircle2,
+  Send, Loader2, Info, MapPin, Clock, Pencil, CheckCircle2, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import MobileGpsDayMap from './MobileGpsDayMap';
 import type {
