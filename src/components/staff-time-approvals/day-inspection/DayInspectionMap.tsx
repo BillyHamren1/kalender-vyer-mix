@@ -69,25 +69,45 @@ export const DayInspectionMap: React.FC<Props> = ({ staffId, date, open, clampEn
     const privateIds = new Set(
       orgLocations.filter((l) => l.isPrivate).map((l) => `loc:${l.id}`),
     );
+    const clampMs = clampEndIso ? Date.parse(clampEndIso) : NaN;
+    const hasClamp = Number.isFinite(clampMs);
     return (snap.data?.visits ?? [])
       .filter((v) => !(v.knownSite && privateIds.has(v.knownSite.id)))
-      .map((v) => ({
-        placeKey: v.placeKey,
-        knownSite: v.knownSite,
-        centre: v.centre,
-        start: v.start,
-        end: v.end,
-        durationMin: v.durationMin,
-        pingCount: v.pingCount,
-        pings: v.pings.map((p) => ({
-          recorded_at: p.recorded_at,
-          lat: p.lat,
-          lng: p.lng,
-          accuracy: p.accuracy,
-        })),
-        subKind: v.subKind,
-      }));
-  }, [snap.data?.visits, orgLocations]);
+      .map((v) => {
+        let end = v.end;
+        let durationMin = v.durationMin;
+        let pings = v.pings;
+        if (hasClamp) {
+          const startMs = Date.parse(v.start);
+          const endMs = Date.parse(v.end);
+          if (Number.isFinite(endMs) && endMs > clampMs) {
+            const clampedEndMs = Math.max(startMs, clampMs);
+            end = new Date(clampedEndMs).toISOString();
+            durationMin = Math.max(0, Math.round((clampedEndMs - startMs) / 60000));
+            pings = v.pings.filter((p) => Date.parse(p.recorded_at) <= clampMs);
+          }
+        }
+        return {
+          placeKey: v.placeKey,
+          knownSite: v.knownSite,
+          centre: v.centre,
+          start: v.start,
+          end,
+          durationMin,
+          pingCount: pings.length,
+          pings: pings.map((p) => ({
+            recorded_at: p.recorded_at,
+            lat: p.lat,
+            lng: p.lng,
+            accuracy: p.accuracy,
+          })),
+          subKind: v.subKind,
+        };
+      })
+      // En vistelse vars hela tidsfönster ligger efter klipp-punkten hör inte
+      // till den inskickade dagen → dölj den helt.
+      .filter((v) => !hasClamp || Date.parse(v.start) <= clampMs);
+  }, [snap.data?.visits, orgLocations, clampEndIso]);
 
   if (snap.isLoading) {
     return (
