@@ -171,7 +171,7 @@ const SimpleStaffCurtain: React.FC<SimpleStaffCurtainProps> = ({
           ) : (
             <div className="text-center text-gray-500 py-6 px-4">
               <Users className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-              <div className="text-sm font-medium mb-1">No Staff Found</div>
+              <div className="text-sm font-medium mb-1">Ingen personal hittades</div>
               <div className="text-xs">
                 No staff members in the system
               </div>
