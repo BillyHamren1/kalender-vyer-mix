@@ -74,29 +74,27 @@ const MobileJobs = () => {
   return (
     <div className="flex flex-col min-h-screen bg-card pb-24">
       <HeaderShell>
-        <div className="px-5 pt-1.5 pb-2.5 flex items-center justify-between gap-3">
+        <div className="px-5 pt-2 pb-3 flex items-center justify-between gap-3">
           {/* LEFT: refresh */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              onClick={() => refetch()}
-              className="p-2.5 rounded-xl bg-primary-foreground/10 active:scale-95 transition-all"
-              aria-label="Uppdatera"
-            >
-              <RefreshCw className={cn("w-4.5 h-4.5 text-primary-foreground/80", isRefreshing && "animate-spin")} />
-            </button>
-          </div>
+          <button
+            onClick={() => refetch()}
+            className="p-2 rounded-xl bg-primary-foreground/10 active:scale-95 transition-all"
+            aria-label="Uppdatera"
+          >
+            <RefreshCw className={cn("w-4 h-4 text-primary-foreground/85", isRefreshing && "animate-spin")} />
+          </button>
 
           {/* RIGHT: clickable name → profile */}
           <button
             onClick={() => navigate('/m/profile')}
-            className="flex items-center gap-2 min-w-0 px-2.5 py-1.5 rounded-xl active:bg-primary-foreground/10 active:scale-95 transition-all"
+            className="flex items-center gap-2.5 min-w-0 pl-2.5 pr-1 py-1 rounded-xl active:bg-primary-foreground/10 active:scale-95 transition-all"
             aria-label="Min profil"
           >
             <div className="text-right min-w-0">
-              <p className="text-primary-foreground/70 text-[10px] font-semibold tracking-widest uppercase leading-none">
+              <p className="text-primary-foreground/70 text-[10px] font-semibold tracking-[0.18em] uppercase leading-none">
                 {t('jobs.eyebrow')}
               </p>
-              <h1 className="text-base font-extrabold text-primary-foreground tracking-tight leading-tight mt-0.5 truncate">
+              <h1 className="text-[15px] font-extrabold text-primary-foreground tracking-tight leading-tight mt-0.5 truncate">
                 {staff?.name?.split(' ')[0] || 'Hej'}
               </h1>
             </div>
@@ -104,10 +102,6 @@ const MobileJobs = () => {
               <UserCircle2 className="w-7 h-7 text-primary-foreground/90" />
             </div>
           </button>
-        </div>
-        {/* Kompakt arbetsdags-widget — ersätter tidigare "Öppna Time"-genväg */}
-        <div className="px-5 pb-2">
-          <MobileWorkDayWidget />
         </div>
       </HeaderShell>
 
