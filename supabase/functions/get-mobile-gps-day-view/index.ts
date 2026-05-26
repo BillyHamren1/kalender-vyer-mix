@@ -160,6 +160,13 @@ Deno.serve(async (req: Request) => {
           : "manual_empty";
   const canSubmitManual = reportMode === "manual_empty";
 
+  // Anchors — bekräfta/justera dagstart/dagslut (Time v2)
+  const anchorRows = await loadAnchorsForDay(admin, orgId, staffId, date);
+  const { startSuggested, endSuggested } = computeAnchorSuggestions(view.segments ?? []);
+  const anchors = buildAnchorsPayload({
+    rows: anchorRows, startSuggested, endSuggested, isLocked,
+  });
+
   return json({
     source: "mobile_gps_day_view_v2",
     staffId,
