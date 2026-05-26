@@ -36,12 +36,15 @@ import {
   PlanningDay,
   isPhaseLocked,
   seedDaysFromBooking,
+  isDeliveryOnlyBooking,
+  DELIVERY_DEFAULT_TEAM_ID,
 } from './bookingPlacementSeed';
 import { BookingInfoHeader } from './BookingInfoHeader';
 import { PhaseDatesEditor } from './PhaseDatesEditor';
 import { PlacementDayCalendar } from './PlacementDayCalendar';
 import { translateSupabaseError } from '@/lib/supabase/translateError';
 import { findAvailableTeam } from '@/utils/teamAvailability';
+
 
 
 interface Props {
