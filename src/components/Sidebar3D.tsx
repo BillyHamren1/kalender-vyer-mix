@@ -104,11 +104,9 @@ export function Sidebar3D() {
   const unplannedCount = unplannedProjects.length;
 
   const navigationItems = baseNavigationItems.map((item) => {
-    if (item.url === "/projects" && unviewedCount > 0) {
-      return { ...item, badge: unviewedCount };
-    }
-    if (item.url === "/calendar" && unplannedCount > 0) {
-      return { ...item, badge: unplannedCount };
+    if (item.url === "/projects") {
+      const total = unviewedCount + unplannedCount;
+      return total > 0 ? { ...item, badge: total } : item;
     }
     return item;
   });
