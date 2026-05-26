@@ -138,7 +138,9 @@ async function processOne(
   date: string,
   engineVersion: string,
   dryRun: boolean,
+  enablePeerEvidence: boolean = false,
 ): Promise<ProcessedRow> {
+
   const out: ProcessedRow = {
     staff_id: staffId,
     date,
@@ -213,41 +215,47 @@ async function processOne(
     });
 
     // --- peer pings (companion-route evidence) ---
+    // EMERGENCY: disabled by default. Fetching up to 40k peer pings per
+    // staff/day was a major DB load source. Only enabled for explicit debug
+    // backfills via enablePeerEvidence=true.
     let peerGpsTimelines: any[] = [];
-    try {
-      const peerFetch = await fetchAllStaffLocationPings({
-        supabaseAdmin: admin,
-        organizationId: orgId,
-        staffId: null,
-        excludeStaffId: staffId,
-        startUtc: dayStart,
-        endUtc: dayEnd,
-        select: 'staff_id, lat, lng, recorded_at',
-        cap: 40_000,
-      });
-      const peerRows = peerFetch.rows;
-      out.peerPingFetch = peerFetch.diagnostics;
-      const grouped = new Map<string, any[]>();
-      for (const r of peerRows) {
-        const arr = grouped.get(r.staff_id) ?? [];
-        arr.push({ ts: r.recorded_at, lat: Number(r.lat), lng: Number(r.lng) });
-        grouped.set(r.staff_id, arr);
+    if (enablePeerEvidence) {
+      try {
+        const peerFetch = await fetchAllStaffLocationPings({
+          supabaseAdmin: admin,
+          organizationId: orgId,
+          staffId: null,
+          excludeStaffId: staffId,
+          startUtc: dayStart,
+          endUtc: dayEnd,
+          select: 'staff_id, lat, lng, recorded_at',
+          cap: 40_000,
+        });
+        const peerRows = peerFetch.rows;
+        out.peerPingFetch = peerFetch.diagnostics;
+        const grouped = new Map<string, any[]>();
+        for (const r of peerRows) {
+          const arr = grouped.get(r.staff_id) ?? [];
+          arr.push({ ts: r.recorded_at, lat: Number(r.lat), lng: Number(r.lng) });
+          grouped.set(r.staff_id, arr);
+        }
+        let nameMap = new Map<string, string>();
+        if (grouped.size > 0) {
+          const ids = Array.from(grouped.keys());
+          const { data: staffRows } = await admin.from('staff_members').select('id, name').in('id', ids);
+          for (const s of staffRows ?? []) nameMap.set(s.id, s.name ?? null);
+        }
+        peerGpsTimelines = Array.from(grouped.entries()).map(([sid, pings]) => ({
+          staffId: sid,
+          staffName: nameMap.get(sid) ?? null,
+          pings,
+          assignedTargetKeys: [],
+        }));
+      } catch (e) {
+        // companion is optional
       }
-      let nameMap = new Map<string, string>();
-      if (grouped.size > 0) {
-        const ids = Array.from(grouped.keys());
-        const { data: staffRows } = await admin.from('staff_members').select('id, name').in('id', ids);
-        for (const s of staffRows ?? []) nameMap.set(s.id, s.name ?? null);
-      }
-      peerGpsTimelines = Array.from(grouped.entries()).map(([sid, pings]) => ({
-        staffId: sid,
-        staffName: nameMap.get(sid) ?? null,
-        pings,
-        assignedTargetKeys: [],
-      }));
-    } catch (e) {
-      // companion is optional
     }
+
 
     // --- presence ---
     const presence = buildPresenceDayBlocks({
@@ -664,9 +672,11 @@ Deno.serve(async (req) => {
   const dryRun = body?.dryRun !== false; // default TRUE for safety
   const batchSize = Math.max(1, Math.min(200, Number(body?.batchSize ?? 25)));
   const skipExisting = body?.skipExisting !== false;
+  const enablePeerEvidence = body?.enablePeerEvidence === true; // default false
   const requestedStaff: string[] | null = Array.isArray(body?.staffIds) && body.staffIds.length
     ? body.staffIds
     : null;
+
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
@@ -715,7 +725,7 @@ Deno.serve(async (req) => {
   // Process serially (engine is CPU-light, DB is the bottleneck — keep gentle)
   const results: ProcessedRow[] = [];
   for (const c of limited) {
-    const r = await processOne(admin, orgId, c.staff_id, c.date, engineVersion, dryRun);
+    const r = await processOne(admin, orgId, c.staff_id, c.date, engineVersion, dryRun, enablePeerEvidence);
     results.push(r);
   }
 

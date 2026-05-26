@@ -20,8 +20,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const PULSE_INTERVAL_MIN = Number(Deno.env.get('GPS_PULSE_INTERVAL_MIN') ?? '9')
-const PULSE_MAX_BATCH = Number(Deno.env.get('GPS_PULSE_MAX_BATCH') ?? '500')
+const PULSE_INTERVAL_MIN = Math.max(20, Number(Deno.env.get('GPS_PULSE_INTERVAL_MIN') ?? '20'))
+const PULSE_MAX_BATCH = Math.min(50, Number(Deno.env.get('GPS_PULSE_MAX_BATCH') ?? '50'))
+const PULSE_MAX_RUNTIME_MS = 20_000
+const ACTIVE_CONTEXT_LOOKBACK_MS = 2 * 60 * 60 * 1000
 
 async function getAccessToken(serviceAccount: any): Promise<string> {
   const header = btoa(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
@@ -129,10 +131,40 @@ Deno.serve(async (req) => {
       })
     }
 
-    // 1. Hämta alla aktiva tokens
+    // 1. Hitta staff med rimlig aktiv kontext:
+    //    - aktiv active_time_registration (status='active')
+    //    - eller färsk aktivitet senaste 2h där senaste ping är stale
+    const activeContextSince = new Date(Date.now() - ACTIVE_CONTEXT_LOOKBACK_MS).toISOString()
+    const [{ data: activeRegs }, { data: recentPings }] = await Promise.all([
+      supabase
+        .from('active_time_registrations')
+        .select('staff_id')
+        .eq('status', 'active')
+        .is('stopped_at', null)
+        .limit(PULSE_MAX_BATCH * 2),
+      supabase
+        .from('staff_location_history')
+        .select('staff_id, recorded_at')
+        .gte('recorded_at', activeContextSince)
+        .order('recorded_at', { ascending: false })
+        .limit(PULSE_MAX_BATCH * 4),
+    ])
+
+    const activeStaffIds = new Set<string>()
+    for (const r of activeRegs ?? []) activeStaffIds.add(r.staff_id as string)
+    for (const p of recentPings ?? []) activeStaffIds.add(p.staff_id as string)
+
+    if (activeStaffIds.size === 0) {
+      return new Response(JSON.stringify({ pulsed: 0, reason: 'no_active_context', duration_ms: Date.now() - startedAt }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // 2. Hämta tokens för dessa staff
     const { data: tokens, error: tokenErr } = await supabase
       .from('device_tokens')
       .select('id, staff_id, token, platform, organization_id')
+      .in('staff_id', Array.from(activeStaffIds))
       .limit(PULSE_MAX_BATCH)
     if (tokenErr) throw new Error(`device_tokens fetch failed: ${tokenErr.message}`)
     if (!tokens || tokens.length === 0) {
@@ -141,19 +173,9 @@ Deno.serve(async (req) => {
       })
     }
 
-    // 2. Hämta senaste ping per staff (för relevant fönster)
-    const uniqueStaff = Array.from(new Set(tokens.map(t => t.staff_id)))
-    const lookbackIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-    const { data: pingRows, error: pingErr } = await supabase
-      .from('staff_location_history')
-      .select('staff_id, recorded_at')
-      .in('staff_id', uniqueStaff)
-      .gte('recorded_at', lookbackIso)
-      .order('recorded_at', { ascending: false })
-    if (pingErr) throw new Error(`ping lookup failed: ${pingErr.message}`)
-
+    // 3. Senaste ping per staff (för cutoff)
     const lastPingByStaff = new Map<string, string>()
-    for (const row of pingRows ?? []) {
+    for (const row of recentPings ?? []) {
       if (!lastPingByStaff.has(row.staff_id as string)) {
         lastPingByStaff.set(row.staff_id as string, row.recorded_at as string)
       }
@@ -164,7 +186,7 @@ Deno.serve(async (req) => {
       lastPingByStaff,
       new Date().toISOString(),
       PULSE_INTERVAL_MIN,
-    )
+    ).slice(0, PULSE_MAX_BATCH)
 
     if (candidates.length === 0) {
       return new Response(JSON.stringify({
@@ -181,7 +203,9 @@ Deno.serve(async (req) => {
     let failCount = 0
     const logRows: any[] = []
 
+    let truncatedByRuntime = false
     for (const c of candidates) {
+      if (Date.now() - startedAt > PULSE_MAX_RUNTIME_MS) { truncatedByRuntime = true; break }
       const platform = (c.platform ?? '').toLowerCase()
       const message: any = {
         message: {
@@ -262,13 +286,13 @@ Deno.serve(async (req) => {
       if (logErr) console.warn('[gps-pulse] log insert failed:', logErr.message)
     }
 
+    console.log(`[gps-pulse] pulsed=${okCount}/${candidates.length} failed=${failCount} runtime_ms=${Date.now() - startedAt} truncated=${truncatedByRuntime}`)
     return new Response(JSON.stringify({
       pulsed: candidates.length,
       ok: okCount,
       failed: failCount,
       tokens: tokens.length,
-      platform_ios: candidates.filter(c => (c.platform ?? '').toLowerCase() === 'ios').length,
-      platform_android: candidates.filter(c => (c.platform ?? '').toLowerCase() === 'android').length,
+      truncated_by_runtime: truncatedByRuntime,
       duration_ms: Date.now() - startedAt,
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   } catch (err) {
