@@ -35,6 +35,8 @@ interface Props {
    * polygon=null återställer till cirkel.
    */
   onSavePolygon?: (id: string, polygon: GeoJSON.Polygon | null) => Promise<void>;
+  /** Visa varje rå GPS-ping som liten prick (inkl. inuti geofences, ingen downsample). */
+  showAllRawPings?: boolean;
 }
 
 
