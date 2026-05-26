@@ -46,7 +46,7 @@ const TravelBanner = ({ travelState, elapsedSeconds, onStop }: TravelBannerProps
         <button
           onClick={onStop}
           className="p-2 rounded-xl bg-destructive/10 active:scale-95 transition-all"
-          aria-label="Stop travel"
+          aria-label="Stoppa resa"
         >
           <Square className="w-4 h-4 text-destructive fill-destructive" />
         </button>

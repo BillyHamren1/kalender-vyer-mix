@@ -102,9 +102,9 @@ const AddTeamButton: React.FC<AddTeamButtonProps> = ({
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Add New Team</DialogTitle>
+            <DialogTitle>Lägg till nytt team</DialogTitle>
             <DialogDescription>
-              Enter a name for your new team.
+              Ange ett namn för det nya teamet.
             </DialogDescription>
           </DialogHeader>
           

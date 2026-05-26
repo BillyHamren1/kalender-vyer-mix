@@ -58,35 +58,35 @@ export const AddressFormSection: React.FC<AddressFormSectionProps> = ({
       
       <div className="space-y-2">
         <div>
-          <Label htmlFor="delivery-address" className="text-xs">Address</Label>
+          <Label htmlFor="delivery-address" className="text-xs">Adress</Label>
           <Textarea 
             id="delivery-address"
             value={deliveryDetails?.address || ''}
             onChange={(e) => onDeliveryDetailsChange('address', e.target.value)}
-            placeholder="Street address"
+            placeholder="Gatuadress"
             className="mt-1 min-h-[60px] text-sm"
           />
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           <div>
-            <Label htmlFor="delivery-city" className="text-xs">City</Label>
+            <Label htmlFor="delivery-city" className="text-xs">Ort</Label>
             <Input 
               id="delivery-city"
               value={deliveryDetails?.city || ''}
               onChange={(e) => onDeliveryDetailsChange('city', e.target.value)}
-              placeholder="City"
+              placeholder="Ort"
               className="mt-1 h-8 text-sm"
             />
           </div>
           
           <div>
-            <Label htmlFor="delivery-postal-code" className="text-xs">Postal Code</Label>
+            <Label htmlFor="delivery-postal-code" className="text-xs">Postnummer</Label>
             <Input 
               id="delivery-postal-code"
               value={deliveryDetails?.postalCode || ''}
               onChange={(e) => onDeliveryDetailsChange('postalCode', e.target.value)}
-              placeholder="Postal code"
+              placeholder="Postnummer"
               className="mt-1 h-8 text-sm"
             />
           </div>

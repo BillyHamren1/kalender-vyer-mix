@@ -185,7 +185,7 @@ export const useRealTimeCalendarEvents = () => {
     } catch (error) {
       console.error('Error loading calendar events:', error);
       if (activeRef.current) {
-        toast.error('Failed to load calendar events');
+        toast.error('Kunde inte ladda kalenderhändelser');
       }
     } finally {
       if (activeRef.current) {

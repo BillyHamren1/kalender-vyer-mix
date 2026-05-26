@@ -107,7 +107,7 @@ const LocationSyncDebugCard = () => {
 
       <div className="border-t border-border/50 pt-2 space-y-1.5 text-[11px]">
         <DebugRow
-          label="Pending i kö"
+          label="Väntar i kö"
           value={String(pending.length)}
           accent={pending.length > 0 ? 'warn' : 'ok'}
         />

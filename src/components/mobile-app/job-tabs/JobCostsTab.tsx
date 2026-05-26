@@ -132,8 +132,8 @@ const JobCostsTab = ({ bookingId }: JobCostsTabProps) => {
             <Plus className="w-5 h-5 text-primary" />
           </div>
           <div className="text-left">
-            <p className="font-bold text-sm text-foreground">Add expense</p>
-            <p className="text-[11px] text-muted-foreground">Photo receipt & register</p>
+            <p className="font-bold text-sm text-foreground">Lägg till utgift</p>
+            <p className="text-[11px] text-muted-foreground">Fota kvitto & registrera</p>
           </div>
         </button>
       )}
@@ -143,45 +143,45 @@ const JobCostsTab = ({ bookingId }: JobCostsTabProps) => {
 
           {receiptPreview ? (
             <div className="relative rounded-lg overflow-hidden border border-border/50">
-              <img src={receiptPreview} alt="Receipt" className="w-full h-32 object-cover" />
-              <button onClick={() => { setReceiptPreview(null); setReceiptBase64(null); }} className="absolute top-1.5 right-1.5 px-2 py-0.5 rounded-md bg-foreground/70 text-card text-[10px] font-medium">Remove</button>
+              <img src={receiptPreview} alt="Kvitto" className="w-full h-32 object-cover" />
+              <button onClick={() => { setReceiptPreview(null); setReceiptBase64(null); }} className="absolute top-1.5 right-1.5 px-2 py-0.5 rounded-md bg-foreground/70 text-card text-[10px] font-medium">Ta bort</button>
             </div>
           ) : (
             <button onClick={handleCameraClick} className="w-full h-20 rounded-lg border border-dashed border-primary/25 flex flex-col items-center justify-center gap-1 bg-primary/5">
               <Camera className="w-4 h-4 text-primary/70" />
-              <span className="text-[10px] font-semibold text-primary">Photo receipt</span>
+              <span className="text-[10px] font-semibold text-primary">Fota kvitto</span>
             </button>
           )}
 
           <div className="space-y-1">
-            <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Description</Label>
-            <Textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="What did you buy..." className="rounded-lg min-h-[48px] text-sm" />
+            <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Beskrivning</Label>
+            <Textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Vad köpte du..." className="rounded-lg min-h-[48px] text-sm" />
           </div>
 
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Amount (kr)</Label>
+              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Belopp (kr)</Label>
               <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" className="h-10 rounded-lg text-sm" />
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Category</Label>
+              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Kategori</Label>
               <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger className="h-10 rounded-lg text-sm"><SelectValue placeholder="Select..." /></SelectTrigger>
+                <SelectTrigger className="h-10 rounded-lg text-sm"><SelectValue placeholder="Välj..." /></SelectTrigger>
                 <SelectContent>{categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
               </Select>
             </div>
           </div>
 
           <div className="space-y-1">
-            <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Supplier</Label>
-            <Input value={supplier} onChange={e => setSupplier(e.target.value)} placeholder="Store/company" className="h-10 rounded-lg text-sm" />
+            <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Leverantör</Label>
+            <Input value={supplier} onChange={e => setSupplier(e.target.value)} placeholder="Butik/företag" className="h-10 rounded-lg text-sm" />
           </div>
 
           <div className="flex gap-2 pt-1">
-            <Button variant="outline" size="sm" className="flex-1 rounded-lg text-xs font-semibold" onClick={resetForm}>Cancel</Button>
+            <Button variant="outline" size="sm" className="flex-1 rounded-lg text-xs font-semibold" onClick={resetForm}>Avbryt</Button>
             <Button size="sm" className="flex-1 rounded-lg gap-1 text-xs font-semibold active:scale-[0.98]" onClick={handleSubmit} disabled={isSaving}>
               {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-              Save
+              Spara
             </Button>
           </div>
         </div>
@@ -189,7 +189,7 @@ const JobCostsTab = ({ bookingId }: JobCostsTabProps) => {
 
       {purchases.length > 0 && (
         <div className="rounded-xl border bg-primary/5 border-primary/20 p-3 text-center">
-          <p className="text-[11px] text-muted-foreground">Total cost</p>
+          <p className="text-[11px] text-muted-foreground">Totalkostnad</p>
           <p className="text-xl font-bold text-foreground">{total.toLocaleString('sv-SE')} kr</p>
         </div>
       )}
@@ -197,7 +197,7 @@ const JobCostsTab = ({ bookingId }: JobCostsTabProps) => {
       {purchases.length === 0 && !showForm && (
         <div className="text-center py-10">
           <Receipt className="w-10 h-10 mx-auto text-muted-foreground/20 mb-2" />
-          <p className="text-sm text-muted-foreground">No expenses registered</p>
+          <p className="text-sm text-muted-foreground">Inga utgifter registrerade</p>
         </div>
       )}
 

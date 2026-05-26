@@ -49,10 +49,10 @@ export default function LastShiftEndPrompt({
         await mobileApi.createWorkdayFlag({
           flag_type: 'unclear_day_end',
           flag_date: format(new Date(), 'yyyy-MM-dd'),
-          title: 'Day ended after last shift',
+          title: 'Dagen avslutad efter sista passet',
           description:
-            `Staff confirmed end of day at exit from last planned shift${
-               shiftEndLabel ? ` (planned end ${shiftEndLabel})` : ''
+            `Personalen bekräftade dagens slut vid utträde från sista planerade passet${
+               shiftEndLabel ? ` (planerat slut ${shiftEndLabel})` : ''
             }.`,
           severity: 'info',
           needs_user_input: false,

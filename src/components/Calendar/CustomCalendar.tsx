@@ -170,7 +170,7 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   if (isLoading && !isMounted) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-muted-foreground">Loading staff planning calendar...</div>
+        <div className="text-muted-foreground">Laddar personalens planeringskalender...</div>
       </div>
     );
   }

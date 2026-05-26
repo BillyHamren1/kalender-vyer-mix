@@ -100,7 +100,7 @@ const StaffMemberCalendar: React.FC<StaffMemberCalendarProps> = ({ staffId, staf
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#82b6c6]"></div>
-            <span className="ml-3 text-gray-600">Loading calendar...</span>
+            <span className="ml-3 text-gray-600">Laddar kalender...</span>
           </div>
         ) : (
           <StaffCalendarSwitch

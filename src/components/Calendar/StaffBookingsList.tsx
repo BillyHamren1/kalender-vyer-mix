@@ -90,12 +90,12 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
         navigate(`/booking/${bookingId}`);
       } catch (error) {
         console.error('Navigation error:', error);
-        toast.error('Failed to open booking details');
+        toast.error('Kunde inte öppna bokningsdetaljer');
       }
     } else {
       console.warn('No booking ID found for event:', event);
-      toast.warning('Cannot open booking details', {
-        description: 'This event is not linked to a booking'
+      toast.warning('Kan inte öppna bokningsdetaljer', {
+        description: 'Den här händelsen är inte kopplad till en bokning'
       });
     }
   };
@@ -105,10 +105,10 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
     setIsRefreshing(true);
     try {
       await importBookings({ syncMode: 'incremental' }, false);
-      toast.success('Bookings refreshed successfully');
+      toast.success('Bokningar uppdaterade');
     } catch (error) {
       console.error('Error refreshing bookings:', error);
-      toast.error('Failed to refresh bookings');
+      toast.error('Kunde inte uppdatera bokningar');
     } finally {
       setIsRefreshing(false);
     }
@@ -212,7 +212,7 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-8">
               <Calendar className="h-12 w-12 text-[#82b6c6] mb-4" />
-              <h3 className="text-lg font-medium text-gray-600 mb-2">No bookings found</h3>
+              <h3 className="text-lg font-medium text-gray-600 mb-2">Inga bokningar hittades</h3>
               <p className="text-gray-500 text-center">
                 There are no bookings scheduled for the current date range.
                 <br />
@@ -290,7 +290,7 @@ const StaffBookingsList: React.FC<StaffBookingsListProps> = ({
                                 ))}
                               </div>
                             ) : (
-                              <span className="text-sm text-gray-500 italic">No staff assigned</span>
+                              <span className="text-sm text-gray-500 italic">Ingen personal tilldelad</span>
                             )}
                           </div>
                         </div>

@@ -348,7 +348,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                 ))}
                 {remaining > 0 && (
                   <div className="flex items-center gap-0.5 bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
-                    <span className="text-[9px] font-semibold">No parcel ×{remaining}</span>
+                    <span className="text-[9px] font-semibold">Inget kolli ×{remaining}</span>
                   </div>
                 )}
               </div>
@@ -362,7 +362,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
                 <span className="text-[10px] font-bold">#{parcelNumber}</span>
               </div>
             ) : info.isComplete ? (
-              <div className="shrink-0 text-[10px] text-muted-foreground">No parcel</div>
+              <div className="shrink-0 text-[10px] text-muted-foreground">Inget kolli</div>
             ) : null;
           }
           return parcelNumber ? (
@@ -398,13 +398,13 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Package className="h-5 w-5" />
-              <span className="font-semibold">PARCEL MODE</span>
+              <span className="font-semibold">KOLLI-LÄGE</span>
             </div>
             <div className="bg-primary-foreground/20 px-3 py-1 rounded-full">
               <span className="font-bold text-lg">#{activeParcel.parcel_number}</span>
             </div>
           </div>
-          <p className="text-xs mt-1 opacity-90">Scan or tap products for Parcel #{activeParcel.parcel_number}</p>
+          <p className="text-xs mt-1 opacity-90">Skanna eller tryck på produkter för kolli #{activeParcel.parcel_number}</p>
         </div>
 
         {lastScanResult && (
@@ -423,7 +423,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
             <button
               onClick={() => setScanResult(null)}
               className="shrink-0 p-1 rounded-full hover:bg-black/10 transition-colors"
-              aria-label="Close"
+              aria-label="Stäng"
             >
               <X className="h-4 w-4" />
             </button>

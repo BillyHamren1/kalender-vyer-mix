@@ -77,8 +77,8 @@ export const useTrackedTimeData = ({ staffId, selectedDate }: UseTrackedTimeData
       setLastUpdated(new Date());
     } catch (error) {
       console.error('Error loading tracked time data:', error);
-      setError('Failed to load tracked time data');
-      toast.error('Failed to load tracked time data');
+      setError('Kunde inte ladda spårad tid');
+      toast.error('Kunde inte ladda spårad tid');
     } finally {
       setIsLoading(false);
     }

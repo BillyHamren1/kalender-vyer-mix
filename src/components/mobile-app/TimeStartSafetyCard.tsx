@@ -70,7 +70,7 @@ export default function TimeStartSafetyCard() {
           <ShieldCheck className="w-4 h-4 text-primary" />
         </div>
         <div className="flex-1">
-          <h3 className="text-sm font-bold text-foreground">Time start safety</h3>
+          <h3 className="text-sm font-bold text-foreground">Tidsstartsäkerhet</h3>
           <p className="text-[11px] text-muted-foreground">
             Endast användarstartad timer får skapa tid. GPS klassificerar — startar aldrig.
           </p>

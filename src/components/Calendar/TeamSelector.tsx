@@ -52,11 +52,11 @@ const TeamSelector = ({
         disabled={disabled || isLoading}
       >
         <SelectTrigger className="w-full">
-          <SelectValue placeholder="Select a team" />
+          <SelectValue placeholder="Välj team" />
         </SelectTrigger>
         <SelectContent>
           {allowAuto && (
-            <SelectItem value="auto">Auto-assign (first available team)</SelectItem>
+            <SelectItem value="auto">Tilldela automatiskt (första lediga team)</SelectItem>
           )}
           {teams.map((team) => (
             <SelectItem key={team.id} value={team.id}>
@@ -65,7 +65,7 @@ const TeamSelector = ({
           ))}
         </SelectContent>
       </Select>
-      {isLoading && <p className="text-xs text-gray-500">Loading teams...</p>}
+      {isLoading && <p className="text-xs text-gray-500">Laddar team...</p>}
     </div>
   );
 };

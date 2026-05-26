@@ -33,10 +33,10 @@ const DeleteStaffDialog: React.FC<DeleteStaffDialogProps> = ({
       if (error) throw error;
       
       onStaffDeleted();
-      toast.success('Staff member deleted successfully');
+      toast.success('Personalen har tagits bort');
     } catch (error) {
       console.error('Error deleting staff member:', error);
-      toast.error('Failed to delete staff member');
+      toast.error('Kunde inte ta bort personalen');
     } finally {
       setIsDeleting(false);
     }
@@ -46,10 +46,10 @@ const DeleteStaffDialog: React.FC<DeleteStaffDialogProps> = ({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Delete Staff Member</DialogTitle>
+          <DialogTitle>Ta bort personal</DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete {staff.name}? This action cannot be undone.
-            All assignments and related data for this staff member will also be removed.
+            Är du säker på att du vill ta bort {staff.name}? Detta går inte att ångra.
+            Alla tilldelningar och relaterad data för denna person tas också bort.
           </DialogDescription>
         </DialogHeader>
         

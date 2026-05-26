@@ -19,7 +19,7 @@ const JobTimeTab = ({ bookingId, timeReports }: JobTimeTabProps) => {
     return (
       <div className="text-center py-12">
         <Clock className="w-10 h-10 mx-auto text-muted-foreground/20 mb-2" />
-        <p className="text-sm text-muted-foreground">No time reports for this job</p>
+        <p className="text-sm text-muted-foreground">Inga tidrapporter för det här jobbet</p>
       </div>
     );
   }
@@ -31,11 +31,11 @@ const JobTimeTab = ({ bookingId, timeReports }: JobTimeTabProps) => {
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded-xl border bg-primary/5 border-primary/20 p-3 text-center">
-          <p className="text-xs text-muted-foreground">Total</p>
+          <p className="text-xs text-muted-foreground">Totalt</p>
           <p className="text-xl font-bold text-foreground">{formatHoursMinutes(totalHours)}</p>
         </div>
         <div className="rounded-xl border bg-muted/50 p-3 text-center">
-          <p className="text-xs text-muted-foreground">Overtime</p>
+          <p className="text-xs text-muted-foreground">Övertid</p>
           <p className="text-xl font-bold text-foreground">{formatHoursMinutes(totalOvertime)}</p>
         </div>
       </div>

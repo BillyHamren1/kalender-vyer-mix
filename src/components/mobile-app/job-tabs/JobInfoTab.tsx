@@ -205,14 +205,14 @@ const CommentsSection = ({ bookingId, comments: initialComments, onCommentsUpdat
       setComments(prev => [...prev, {
         id: `temp-${Date.now()}`,
         content: newComment.trim(),
-        author_name: 'You',
+        author_name: 'Du',
         created_at: new Date().toISOString(),
       }]);
       setNewComment('');
-      toast.success('Comment sent');
+      toast.success('Kommentar skickad');
       onCommentsUpdated?.();
     } catch (err: any) {
-      toast.error(err.message || 'Could not send comment');
+      toast.error(err.message || 'Kunde inte skicka kommentaren');
     } finally {
       setIsSending(false);
     }

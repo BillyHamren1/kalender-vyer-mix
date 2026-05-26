@@ -111,7 +111,7 @@ const IndividualStaffCalendar: React.FC<IndividualStaffCalendarProps> = ({
         <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center z-20 backdrop-blur-sm">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-3"></div>
-            <p className="text-sm text-gray-600">Loading staff schedules...</p>
+            <p className="text-sm text-gray-600">Laddar personalscheman...</p>
           </div>
         </div>
       )}
