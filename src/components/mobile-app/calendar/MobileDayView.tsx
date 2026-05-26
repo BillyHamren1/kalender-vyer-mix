@@ -48,15 +48,17 @@ const MobileDayView = ({ date, shifts, activeBookingIds, onShowWeek }: Props) =>
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <div className="flex justify-end">
-        <div className="inline-flex rounded-lg bg-muted p-0.5 text-[11px] font-semibold">
+        <div className="inline-flex rounded-full bg-primary-soft/60 ring-1 ring-primary/10 p-0.5 text-[11px] font-semibold">
           <button
             type="button"
             onClick={() => setDensity('compact')}
             className={cn(
-              'px-2.5 py-1 rounded-md transition-colors',
-              density === 'compact' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+              'px-3 py-1 rounded-full transition-all',
+              density === 'compact'
+                ? 'bg-card text-primary shadow-[0_1px_3px_hsl(184_60%_22%/0.15)]'
+                : 'text-muted-foreground',
             )}
           >
             Hel dag
@@ -65,8 +67,10 @@ const MobileDayView = ({ date, shifts, activeBookingIds, onShowWeek }: Props) =>
             type="button"
             onClick={() => setDensity('detailed')}
             className={cn(
-              'px-2.5 py-1 rounded-md transition-colors',
-              density === 'detailed' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+              'px-3 py-1 rounded-full transition-all',
+              density === 'detailed'
+                ? 'bg-card text-primary shadow-[0_1px_3px_hsl(184_60%_22%/0.15)]'
+                : 'text-muted-foreground',
             )}
           >
             Detalj
