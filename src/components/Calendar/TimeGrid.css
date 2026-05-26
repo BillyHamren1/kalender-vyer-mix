@@ -624,3 +624,25 @@
 .available-staff-time-column {
   background: hsl(var(--muted) / 0.2);
 }
+
+/* Adaptiv densitet — kompakta event-kort när kolumnerna är smala */
+.time-grid-with-staff-header[data-density="compact"] .event-card,
+.time-grid-with-staff-header[data-density="compact"] .calendar-event {
+  padding: 2px 4px;
+  font-size: 11px;
+  line-height: 1.15;
+}
+.time-grid-with-staff-header[data-density="compact"] .event-card .event-title,
+.time-grid-with-staff-header[data-density="compact"] .calendar-event .event-title {
+  font-size: 11px;
+  line-height: 1.15;
+}
+.time-grid-with-staff-header[data-density="compact"] .event-booking-number {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.time-grid-with-staff-header[data-density="comfortable"] .event-card,
+.time-grid-with-staff-header[data-density="comfortable"] .calendar-event {
+  padding: 3px 6px;
+}
