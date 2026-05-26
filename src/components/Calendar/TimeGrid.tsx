@@ -140,8 +140,19 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     if (onStaffDrop) await onStaffDrop(staffId, null, day, fromTeamId);
   };
 
+  // Beräkna ideal kolumnbredd baserat på faktisk containerbredd när vi kör fullWidth
+  const idealColWidth = resources.length > 0 && containerW > 0
+    ? Math.floor((containerW - 2 * TIME_COLUMN_WIDTH) / resources.length)
+    : TEAM_COLUMN_WIDTH;
+  const dynamicMin = Math.max(
+    MIN_COMPRESSED_TEAM_COLUMN_WIDTH,
+    Math.min(idealColWidth, TEAM_COLUMN_WIDTH),
+  );
+  const density: 'compact' | 'comfortable' | 'spacious' =
+    idealColWidth < 80 ? 'compact' : idealColWidth < 140 ? 'comfortable' : 'spacious';
+
   const responsiveColumnWidth = resources.length > 0
-    ? `minmax(${MIN_COMPRESSED_TEAM_COLUMN_WIDTH}px, 1fr)`
+    ? `minmax(${dynamicMin}px, 1fr)`
     : '1fr';
   const gridTemplateColumns = fullWidth
     ? `${TIME_COLUMN_WIDTH}px repeat(${resources.length}, ${responsiveColumnWidth}) ${TIME_COLUMN_WIDTH}px`
@@ -153,7 +164,11 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   return (
     <>
-      <div className={`time-grid-with-staff-header day-card bg-background rounded-2xl shadow-lg border overflow-y-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
+      <div
+        ref={rootRef}
+        data-density={density}
+        className={`time-grid-with-staff-header day-card bg-background rounded-2xl shadow-lg border overflow-y-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}
+      >
         {/* Fixed header */}
         <div
           className="time-grid-fixed-header"
