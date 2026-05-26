@@ -128,7 +128,7 @@ export function buildBadgeStackTransform(bumpY: number): string {
   return `translate(-5px, calc(-100% - ${bumpY}px))`;
 }
 
-export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [], className, onSaveRadius, onSavePolygon }: Props) {
+export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [], className, onSaveRadius, onSavePolygon, showAllRawPings = false }: Props) {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
   const onSaveRadiusRef = useRef<Props['onSaveRadius']>(onSaveRadius);
@@ -145,6 +145,7 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     mapRef.current = map;
     renderLayers(map, pings, geofences);
     renderVisitMarkers(map, visits);
+    applyRawPingsVisibility(map, showAllRawPings);
     map.on('zoom', applyZoomVisibility);
     map.on('move', layoutGeofenceBadges);
   };
@@ -159,6 +160,15 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     if (mapRef.current) renderVisitMarkers(mapRef.current, visits);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visits]);
+
+  useEffect(() => {
+    if (mapRef.current) applyRawPingsVisibility(mapRef.current, showAllRawPings);
+  }, [showAllRawPings]);
+
+  function applyRawPingsVisibility(map: mapboxgl.Map, visible: boolean) {
+    if (!map.getLayer('raw-all-pings')) return;
+    map.setLayoutProperty('raw-all-pings', 'visibility', visible ? 'visible' : 'none');
+  }
 
   function clearVisitMarkers() {
     for (const m of visitMarkersRef.current) m.marker.remove();
