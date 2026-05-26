@@ -17,6 +17,10 @@
     --primary-foreground: 0 0% 100%;
     --primary-hover: 184 55% 32%;
     --primary-dark: 184 60% 26%;        /* 3D-kant på knappar */
+    --primary-soft: 184 50% 95%;        /* Mjuk teal-tint för cards/active states */
+    --primary-soft-foreground: 184 45% 22%;
+
+
 
     /* === SECONDARY === */
     --secondary: 184 45% 65%;
