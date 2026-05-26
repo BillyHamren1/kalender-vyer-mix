@@ -6,6 +6,9 @@
  *   - Renderar bara data.segments / data.totals / data.map / data.submission
  *   - Ingen egen GPS-tolkning, inga inputfält
  *   - Editorn (ManualWorkSegmentsEditor) öppnas bara om användaren trycker "Redigera"
+ *
+ * Queue-mode (Granska alla): visar "Dag X av Y" + "Hoppa över"-knapp.
+ * Föräldern (MobileTimeReportQueue) ansvarar för auto-next efter submit/skip.
  */
 import React, { useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
@@ -13,21 +16,30 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  Send, Loader2, Info, MapPin, Clock, Pencil, CheckCircle2, ChevronDown, ChevronUp,
+  Send, Loader2, Info, MapPin, Clock, Pencil, CheckCircle2,
+  ChevronDown, ChevronUp, SkipForward,
 } from 'lucide-react';
 import MobileGpsDayMap from './MobileGpsDayMap';
+import {
+  buildManualDayFromSuggested,
+  isoToHHmm,
+  fmtDuration,
+  targetFromMatched,
+} from './suggestionPayload';
 import type {
   MobileGpsDayView,
   MobileGpsSubmissionStatus,
   ManualDayPayload,
-  ManualWorkSegmentInput,
-  ManualWorkTarget,
-  MobileGpsDaySegment,
 } from './types';
 
 interface StatusVisual {
   label: string;
   variant: 'default' | 'secondary' | 'destructive' | 'outline';
+}
+
+export interface QueuePosition {
+  index: number; // 0-baserad
+  total: number;
 }
 
 interface Props {
@@ -40,77 +52,10 @@ interface Props {
   onSubmit: (input: ManualDayPayload) => void | Promise<void>;
   onEdit: () => void;
   isSubmitting: boolean;
+  /** Om satt körs vyn i "Granska alla"-läge med X-av-Y och Hoppa över. */
+  queuePosition?: QueuePosition | null;
+  onSkip?: () => void;
 }
-
-// ---- helpers (rendering only, ingen GPS-omtolkning) -----------------------
-
-function isoToHHmm(iso: string | null | undefined): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return new Intl.DateTimeFormat('sv-SE', {
-    timeZone: 'Europe/Stockholm',
-    hour: '2-digit', minute: '2-digit', hour12: false,
-  }).format(d);
-}
-
-function fmtDuration(mins: number): string {
-  if (mins <= 0) return '0m';
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  if (h === 0) return `${m}m`;
-  if (m === 0) return `${h}h`;
-  return `${h}h ${m}m`;
-}
-
-function targetFromMatched(seg: MobileGpsDaySegment): ManualWorkTarget | null {
-  const m = seg.matched;
-  if (!m || !m.kind || !m.id) return null;
-  if (m.kind === 'home') return null;
-  const label = m.name ?? seg.label ?? 'Förslag';
-  switch (m.kind) {
-    case 'project':       return { targetType: 'project',       targetId: m.id, label, subtitle: null, project_id: m.id };
-    case 'large_project': return { targetType: 'large_project', targetId: m.id, label, subtitle: null, large_project_id: m.id };
-    case 'location':      return { targetType: 'location',      targetId: m.id, label, subtitle: null, location_id: m.id };
-    case 'booking':       return { targetType: 'booking',       targetId: m.id, label, subtitle: null, booking_id: m.id };
-    default:              return null;
-  }
-}
-
-/** Bygg ManualDayPayload från suggested segments — utan att räkna om GPS. */
-function buildManualDayFromSuggested(
-  data: MobileGpsDayView,
-  comment: string,
-): ManualDayPayload | null {
-  const work = (data.segments ?? []).filter(
-    (s) => s.kind === 'stay' && s.durationMinutes > 0,
-  );
-  if (work.length === 0) return null;
-  const first = work[0];
-  const last = work[work.length - 1];
-  const dayStart = isoToHHmm(first.currentStartTime) ?? '08:00';
-  const dayEnd = isoToHHmm(last.currentEndTime) ?? '16:00';
-
-  const segments: ManualWorkSegmentInput[] = work.map((s) => ({
-    id: s.segmentKey,
-    startTime: isoToHHmm(s.currentStartTime) ?? '08:00',
-    endTime: isoToHHmm(s.currentEndTime) ?? '16:00',
-    target: targetFromMatched(s),
-    comment: null,
-    sourceSegmentId: s.segmentKey,
-  }));
-
-  return {
-    dayStartTime: dayStart,
-    dayEndTime: dayEnd,
-    breakMinutes: 0,
-    segments,
-    deletedSegmentIds: [],
-    comment: comment.trim() || null,
-  };
-}
-
-// ---- component ------------------------------------------------------------
 
 const MobileDayReportPreview: React.FC<Props> = ({
   data,
@@ -121,6 +66,8 @@ const MobileDayReportPreview: React.FC<Props> = ({
   onSubmit,
   onEdit,
   isSubmitting,
+  queuePosition,
+  onSkip,
 }) => {
   const isLocked = status === 'approved' || status === 'payroll_approved';
   const canSubmit = data.submission?.canSubmit !== false && !isLocked;
@@ -152,16 +99,23 @@ const MobileDayReportPreview: React.FC<Props> = ({
     void onSubmit(payload);
   };
 
+  const inQueue = !!queuePosition && queuePosition.total > 1;
+
   return (
     <div className="space-y-3">
-      {/* A. Statusrad */}
-      <div className="flex items-center justify-between">
+      {/* Statusrad + ev. Dag X av Y */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <Badge variant={visual.variant} className="gap-1.5 px-2.5 py-1 text-xs">
           {visual.label}
         </Badge>
+        {inQueue && (
+          <Badge variant="outline" className="text-xs gap-1.5 px-2.5 py-1">
+            Dag {queuePosition!.index + 1} av {queuePosition!.total}
+          </Badge>
+        )}
       </div>
 
-      {/* B. Dagförslag */}
+      {/* Dagförslag */}
       <Card className="p-4 space-y-2">
         <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide">
           <Clock className="h-3.5 w-3.5" />
@@ -238,7 +192,7 @@ const MobileDayReportPreview: React.FC<Props> = ({
         </p>
       )}
 
-      {/* C. Karta / GPS-underlag */}
+      {/* Karta */}
       {data.map?.hasPings ? (
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide px-1">
@@ -251,7 +205,7 @@ const MobileDayReportPreview: React.FC<Props> = ({
         <p className="text-xs text-muted-foreground px-1">GPS-underlag saknas</p>
       )}
 
-      {/* D. Tidslinje / block (read-only) */}
+      {/* Tidslinje */}
       {validBlocks.length > 0 && (
         <Card className="p-3 space-y-2">
           <div className="text-xs text-muted-foreground uppercase tracking-wide">Tidslinje</div>
@@ -280,7 +234,7 @@ const MobileDayReportPreview: React.FC<Props> = ({
         </Card>
       )}
 
-      {/* E. Kommentar */}
+      {/* Kommentar */}
       {!isLocked && (
         <Card className="p-3 space-y-1.5">
           <div className="text-xs text-muted-foreground uppercase tracking-wide">Kommentar till admin</div>
@@ -295,7 +249,7 @@ const MobileDayReportPreview: React.FC<Props> = ({
         </Card>
       )}
 
-      {/* F. Actions — sticky */}
+      {/* Actions */}
       <div className="sticky bottom-0 -mx-4 px-4 pt-3 pb-4 bg-gradient-to-t from-background via-background to-background/80 space-y-2">
         {isLocked ? (
           <Card className="p-3 flex items-center gap-2 bg-primary/5 border-primary/30">
@@ -309,18 +263,31 @@ const MobileDayReportPreview: React.FC<Props> = ({
             disabled={!canSubmit || isSubmitting || validBlocks.length === 0}
           >
             {isSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
-            Skicka in tidrapport
+            {inQueue ? 'Skicka in & nästa' : 'Skicka in tidrapport'}
           </Button>
         )}
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={onEdit}
-          disabled={isSubmitting || isLocked}
-        >
-          <Pencil className="h-4 w-4 mr-2" />
-          Redigera
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            className="flex-1"
+            onClick={onEdit}
+            disabled={isSubmitting || isLocked}
+          >
+            <Pencil className="h-4 w-4 mr-2" />
+            Redigera
+          </Button>
+          {inQueue && onSkip && (
+            <Button
+              variant="ghost"
+              className="flex-1"
+              onClick={onSkip}
+              disabled={isSubmitting}
+            >
+              <SkipForward className="h-4 w-4 mr-2" />
+              Hoppa över
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );
