@@ -22,7 +22,7 @@ interface Props {
  * filtrerar bort privata boenden och slår ihop projekt/large/lager-geofences.
  * Skriver INGENTING — bara visning.
  */
-export const DayInspectionMap: React.FC<Props> = ({ staffId, date, open }) => {
+export const DayInspectionMap: React.FC<Props> = ({ staffId, date, open, clampEndIso }) => {
   const snap = useMobileStaffDayPings(staffId, date, open);
   const projectsForDay = useAllActiveProjectGeofences(date);
   const { data: orgLocations = [] } = useOrganizationLocations();
