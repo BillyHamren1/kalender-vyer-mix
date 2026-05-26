@@ -5680,9 +5680,12 @@ async function handleUploadLocationBatch(
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
   }
-  if (points.length > 500) {
+  // AKUT STABILISERING 2026-05-26: Sänkt batchmax från 500 → 100 för att
+  // minska CPU/Disk IO per request. Klienten skickar ändå max ~1 punkt/min
+  // per enhet efter native distanceFilter=50m + 60s throttle.
+  if (points.length > 100) {
     return new Response(
-      JSON.stringify({ error: 'batch too large (max 500 points)' }),
+      JSON.stringify({ error: 'batch too large (max 100 points)' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
   }
