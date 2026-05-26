@@ -20,8 +20,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const PULSE_INTERVAL_MIN = Number(Deno.env.get('GPS_PULSE_INTERVAL_MIN') ?? '9')
-const PULSE_MAX_BATCH = Number(Deno.env.get('GPS_PULSE_MAX_BATCH') ?? '500')
+const PULSE_INTERVAL_MIN = Math.max(20, Number(Deno.env.get('GPS_PULSE_INTERVAL_MIN') ?? '20'))
+const PULSE_MAX_BATCH = Math.min(50, Number(Deno.env.get('GPS_PULSE_MAX_BATCH') ?? '50'))
+const PULSE_MAX_RUNTIME_MS = 20_000
+const ACTIVE_CONTEXT_LOOKBACK_MS = 2 * 60 * 60 * 1000
 
 async function getAccessToken(serviceAccount: any): Promise<string> {
   const header = btoa(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
