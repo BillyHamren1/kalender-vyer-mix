@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { CalendarEvent, Resource } from './ResourceData';
 import { format } from 'date-fns';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
@@ -48,7 +48,7 @@ interface TimeGridProps {
 
 const TIME_COLUMN_WIDTH = 28;
 const TEAM_COLUMN_WIDTH = 95;
-const MIN_COMPRESSED_TEAM_COLUMN_WIDTH = 68;
+const MIN_COMPRESSED_TEAM_COLUMN_WIDTH = 52;
 const ASSIGNED_STAFF_ROW_HEIGHT = 88;
 
 const TimeGrid: React.FC<TimeGridProps> = ({
@@ -74,6 +74,20 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 }) => {
   const [openPickerTeamId, setOpenPickerTeamId] = useState<string | null>(null);
   const { handleEventClick } = useEventNavigation();
+
+  // Adaptiv kolumnbredd: mät containerns faktiska bredd och fördela jämnt över teams
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [containerW, setContainerW] = useState(0);
+  useEffect(() => {
+    if (!rootRef.current || typeof ResizeObserver === 'undefined') return;
+    const el = rootRef.current;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? 0;
+      setContainerW(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const timeSlots = generateTimeSlots();
 
@@ -126,8 +140,19 @@ const TimeGrid: React.FC<TimeGridProps> = ({
     if (onStaffDrop) await onStaffDrop(staffId, null, day, fromTeamId);
   };
 
+  // Beräkna ideal kolumnbredd baserat på faktisk containerbredd när vi kör fullWidth
+  const idealColWidth = resources.length > 0 && containerW > 0
+    ? Math.floor((containerW - 2 * TIME_COLUMN_WIDTH) / resources.length)
+    : TEAM_COLUMN_WIDTH;
+  const dynamicMin = Math.max(
+    MIN_COMPRESSED_TEAM_COLUMN_WIDTH,
+    Math.min(idealColWidth, TEAM_COLUMN_WIDTH),
+  );
+  const density: 'compact' | 'comfortable' | 'spacious' =
+    idealColWidth < 80 ? 'compact' : idealColWidth < 140 ? 'comfortable' : 'spacious';
+
   const responsiveColumnWidth = resources.length > 0
-    ? `minmax(${MIN_COMPRESSED_TEAM_COLUMN_WIDTH}px, 1fr)`
+    ? `minmax(${dynamicMin}px, 1fr)`
     : '1fr';
   const gridTemplateColumns = fullWidth
     ? `${TIME_COLUMN_WIDTH}px repeat(${resources.length}, ${responsiveColumnWidth}) ${TIME_COLUMN_WIDTH}px`
@@ -139,7 +164,11 @@ const TimeGrid: React.FC<TimeGridProps> = ({
 
   return (
     <>
-      <div className={`time-grid-with-staff-header day-card bg-background rounded-2xl shadow-lg border overflow-y-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}>
+      <div
+        ref={rootRef}
+        data-density={density}
+        className={`time-grid-with-staff-header day-card bg-background rounded-2xl shadow-lg border overflow-y-hidden ${variant === 'warehouse' ? 'warehouse-theme' : ''}`}
+      >
         {/* Fixed header */}
         <div
           className="time-grid-fixed-header"
