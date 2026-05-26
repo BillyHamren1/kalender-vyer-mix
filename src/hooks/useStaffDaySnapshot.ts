@@ -230,7 +230,10 @@ interface Result {
   refresh: () => Promise<void>;
 }
 
-const POLL_MS = 30_000;
+// AKUT STABILISERING 2026-05-26: Höjt från 30s → 120s för att stoppa
+// Supabase-överbelastning. Realtime-subscriptions täcker fortfarande
+// löpande ändringar; pollen är bara en säkerhetsnät-refresh.
+const POLL_MS = 120_000;
 const REALTIME_TABLES = [
   'workdays',
   'time_reports',

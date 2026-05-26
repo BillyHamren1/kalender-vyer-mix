@@ -20,8 +20,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const PULSE_INTERVAL_MIN = Math.max(20, Number(Deno.env.get('GPS_PULSE_INTERVAL_MIN') ?? '20'))
-const PULSE_MAX_BATCH = Math.min(50, Number(Deno.env.get('GPS_PULSE_MAX_BATCH') ?? '50'))
+// AKUT STABILISERING 2026-05-26: Min-intervall höjt 20 → 30 min, max batch
+// sänkt 50 → 20 enheter per körning. Pulse-cron körs nu var 10:e min (se migration).
+const PULSE_INTERVAL_MIN = Math.max(30, Number(Deno.env.get('GPS_PULSE_INTERVAL_MIN') ?? '30'))
+const PULSE_MAX_BATCH = Math.min(20, Number(Deno.env.get('GPS_PULSE_MAX_BATCH') ?? '20'))
 const PULSE_MAX_RUNTIME_MS = 20_000
 const ACTIVE_CONTEXT_LOOKBACK_MS = 2 * 60 * 60 * 1000
 
