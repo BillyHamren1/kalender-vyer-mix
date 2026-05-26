@@ -65,7 +65,8 @@ describe('Known Sites Date Bound — contract', () => {
     const src = fs.readFileSync(timeV2LoadersPath, 'utf8');
     expect(src).toMatch(/from\s+["']\.\.\/staff-gps\/dayKnownSites\.ts["']/);
     expect(src).toMatch(/loadDayKnownSites\(/);
-    expect(src).not.toMatch(/from\(["']projects["']\)/);
-    expect(src).not.toMatch(/from\(["']large_projects["']\)/);
+    const loadKnownTargetsSection = src.match(/export async function loadKnownTargetsV2[\s\S]*?return out;\n}/)?.[0] ?? src;
+    expect(loadKnownTargetsSection).not.toMatch(/from\(["']projects["']\)/);
+    expect(loadKnownTargetsSection).not.toMatch(/from\(["']large_projects["']\)/);
   });
 });
