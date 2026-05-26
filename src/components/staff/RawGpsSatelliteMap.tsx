@@ -937,6 +937,44 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
         paint: { 'circle-radius': 9, 'circle-color': '#dc2626', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 },
       });
 
+      // ── Råpings (alla, även inuti geofences) — togglas via prop ─────
+      const rawPingFeatures = data.map((p) => ({
+        type: 'Feature' as const,
+        geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] },
+        properties: { id: p.id, t: p.recorded_at, acc: p.accuracy ?? null },
+      }));
+      map.addSource('raw-all-pings-src', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: rawPingFeatures },
+      });
+      map.addLayer({
+        id: 'raw-all-pings',
+        type: 'circle',
+        source: 'raw-all-pings-src',
+        layout: { visibility: 'none' },
+        paint: {
+          'circle-radius': 2.5,
+          'circle-color': '#fde047',
+          'circle-stroke-color': '#0f172a',
+          'circle-stroke-width': 0.5,
+          'circle-opacity': 0.9,
+        },
+      });
+      map.on('click', 'raw-all-pings', (e) => {
+        const f = e.features?.[0];
+        if (!f) return;
+        const id = String((f.properties as any)?.id ?? '');
+        const p = pingById.get(id);
+        if (!p) return;
+        popupRef.current?.remove();
+        popupRef.current = new mapboxgl.Popup({ closeButton: true })
+          .setLngLat([p.lng, p.lat])
+          .setHTML(popupHtml(p))
+          .addTo(map);
+      });
+      map.on('mouseenter', 'raw-all-pings', () => { map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mouseleave', 'raw-all-pings', () => { map.getCanvas().style.cursor = ''; });
+
       // ── Klick: visa popup ──────────────────────────────────────────
       const pingById = new Map(data.map((p) => [p.id, p]));
       const stayByIndex = new Map(
