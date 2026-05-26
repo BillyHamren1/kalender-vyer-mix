@@ -80,6 +80,24 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, []);
 
+  useEffect(() => {
+    const handleInvalidSession = () => {
+      clearAuth();
+      persistViewAs(null);
+      setViewAsState(null);
+      setStaff(null);
+      setIsLoading(false);
+    };
+
+    window.addEventListener('mobile-session-expired', handleInvalidSession);
+    window.addEventListener('mobile-session-invalid', handleInvalidSession);
+
+    return () => {
+      window.removeEventListener('mobile-session-expired', handleInvalidSession);
+      window.removeEventListener('mobile-session-invalid', handleInvalidSession);
+    };
+  }, []);
+
   // Push notifications — disabled for scanner app
   useEffect(() => {
     if (isScannerApp) return;

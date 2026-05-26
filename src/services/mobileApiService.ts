@@ -19,6 +19,14 @@ function createSessionExpiredError(): Error & { code: string; silent: boolean; n
   return err;
 }
 
+function createInvalidMobileSessionError(message = 'Mobile session invalid'): Error & { code: string; silent: boolean; name: string } {
+  const err = new Error(message) as Error & { code: string; silent: boolean; name: string };
+  err.name = 'AbortError';
+  err.code = 'MOBILE_SESSION_INVALID';
+  err.silent = true;
+  return err;
+}
+
 export type MobileAppRole = 'admin' | 'forsaljning' | 'projekt' | 'lager';
 
 export interface MobileStaff {
@@ -378,6 +386,16 @@ async function performApiAttempt<T>(action: string, data: any, token: string | n
     }
 
     if (!res.ok) {
+      if (
+        res.status === 403 &&
+        token &&
+        typeof json?.error === 'string' &&
+        /not associated with an organization/i.test(json.error)
+      ) {
+        clearAuth();
+        window.dispatchEvent(new CustomEvent('mobile-session-invalid'));
+        throw createInvalidMobileSessionError('Kontot saknar organisationstillhörighet. Logga in igen.');
+      }
       throw new Error(json.error || `Serverfel (${res.status})`);
     }
 
