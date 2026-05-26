@@ -8,7 +8,8 @@ import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, ClipboardList, CheckCircle2 } from 'lucide-react';
+import { Loader2, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { MobileHeroHeader } from '@/components/mobile-app/MobileHeader';
 import { getMobileTimeReportQueue } from './mobileTimeV2Api';
 import type { TimeReportQueue, TimeReportQueueDay } from './types';
 import MobileTimeReportDayCard from './MobileTimeReportDayCard';
@@ -55,32 +56,31 @@ const MobileTimeReportQueue: React.FC<Props> = ({ staffId, onOpenDay }) => {
     return 0;
   });
 
+  const todoCount = todoDays.length;
+  const subtitle = todoCount === 0
+    ? 'Inga dagar väntar på dig'
+    : `${todoCount} ${todoCount === 1 ? 'dag väntar' : 'dagar väntar'} på dig`;
+
   return (
     <div className="flex flex-col min-h-screen bg-background pb-24">
-      {/* Header */}
-      <div className="px-5 pt-6 pb-5 bg-card border-b border-border/60">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold text-primary uppercase tracking-widest">
-              <ClipboardList className="h-3 w-3" />
-              Tidrapport
-            </div>
-            <h1 className="text-[22px] font-extrabold tracking-tight leading-tight mt-1 text-foreground">
-              Dagar att skicka in
-            </h1>
-          </div>
+      <MobileHeroHeader
+        eyebrow="Tidrapport"
+        title="Dagar att skicka in"
+        subtitle={subtitle}
+        rightAction={
           <Button
             variant="ghost"
             size="icon"
             onClick={() => void load()}
             disabled={isLoading}
             aria-label="Uppdatera"
-            className="h-9 w-9 rounded-xl hover:bg-muted/70"
+            className="h-9 w-9 rounded-xl text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
           >
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
-        </div>
-      </div>
+        }
+      />
+
 
       <div className="flex-1 px-4 pt-5 space-y-6 w-full">
         {isLoading && !data && (
