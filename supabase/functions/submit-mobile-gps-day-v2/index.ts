@@ -19,6 +19,7 @@ import {
 import {
   fetchPingsForDayV2,
   loadKnownTargetsV2,
+  loadManualReportTargetsForDay,
 } from "../_shared/time-v2/loaders.ts";
 import {
   buildDayView,
