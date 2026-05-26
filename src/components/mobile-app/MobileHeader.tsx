@@ -50,15 +50,24 @@ export const HeaderStartEndDayButton: React.FC = () => null;
 export const HeaderShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const slot = useMobileHeaderSlot();
   const content = (
-    <div className="relative bg-primary shadow-sm">
+    <div
+      className="relative rounded-b-[28px] shadow-[0_6px_20px_-12px_hsl(184_60%_22%/0.45)]"
+      style={{
+        background:
+          'linear-gradient(180deg, hsl(184 58% 36%) 0%, hsl(184 55% 38%) 55%, hsl(184 52% 40%) 100%)',
+      }}
+    >
       {children}
     </div>
   );
   if (slot) return createPortal(content, slot);
   return (
     <div
-      className="sticky top-0 z-[60] bg-primary"
-      style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      className="sticky top-0 z-[60]"
+      style={{
+        paddingTop: 'env(safe-area-inset-top, 0px)',
+        background: 'hsl(184 58% 36%)',
+      }}
     >
       {content}
     </div>

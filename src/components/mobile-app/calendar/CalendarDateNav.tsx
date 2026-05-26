@@ -50,26 +50,26 @@ const CalendarDateNav = ({ viewMode, selectedDate, onChange }: Props) => {
         type="button"
         onClick={goPrev}
         aria-label={t('calendar.prev')}
-        className="w-9 h-9 rounded-lg bg-muted hover:bg-muted/70 flex items-center justify-center active:scale-95 transition-all"
+        className="w-9 h-9 rounded-full bg-primary-soft/60 ring-1 ring-primary/10 flex items-center justify-center active:scale-95 transition-all"
       >
-        <ChevronLeft className="w-4 h-4 text-foreground/70" />
+        <ChevronLeft className="w-4 h-4 text-primary" />
       </button>
-      <div className="flex-1 text-center text-sm font-semibold text-foreground capitalize">
+      <div className="flex-1 text-center text-sm font-semibold text-foreground capitalize tracking-tight">
         {label}
       </div>
       <button
         type="button"
         onClick={goNext}
         aria-label={t('calendar.next')}
-        className="w-9 h-9 rounded-lg bg-muted hover:bg-muted/70 flex items-center justify-center active:scale-95 transition-all"
+        className="w-9 h-9 rounded-full bg-primary-soft/60 ring-1 ring-primary/10 flex items-center justify-center active:scale-95 transition-all"
       >
-        <ChevronRight className="w-4 h-4 text-foreground/70" />
+        <ChevronRight className="w-4 h-4 text-primary" />
       </button>
       {!isToday && (
         <button
           type="button"
           onClick={() => onChange(new Date())}
-          className="ml-1 px-2.5 h-9 rounded-lg bg-primary/10 text-primary text-xs font-semibold active:scale-95 transition-all"
+          className="ml-1 px-3 h-9 rounded-full bg-primary text-primary-foreground text-[11px] font-bold tracking-wide shadow-[0_2px_0_hsl(var(--primary-dark))] active:translate-y-px active:shadow-none transition-all"
         >
           {t('calendar.today')}
         </button>

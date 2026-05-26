@@ -67,12 +67,12 @@ function itemLargeProjectName(it: MobileCalendarItem): string | null {
 function kindMeta(kind: Kind) {
   switch (kind) {
     case 'project':
-      return { label: 'PROJEKT', icon: Briefcase, cls: 'bg-primary/10 text-primary border-primary/30' };
+      return { label: 'PROJEKT', icon: Briefcase, cls: 'bg-primary-soft text-primary-soft-foreground' };
     case 'location':
-      return { label: 'LAGER', icon: Building2, cls: 'bg-accent/50 text-accent-foreground border-accent/30' };
+      return { label: 'LAGER', icon: Building2, cls: 'bg-accent text-accent-foreground' };
     case 'booking':
     default:
-      return { label: 'JOBB', icon: Package, cls: 'bg-muted text-muted-foreground border-border' };
+      return { label: 'JOBB', icon: Package, cls: 'bg-muted text-muted-foreground' };
   }
 }
 
@@ -162,10 +162,10 @@ const MobileJobListView = ({ shifts }: Props) => {
   };
 
   return (
-    <div className="space-y-3">
-      {/* Filter + search */}
-      <div className="space-y-2">
-        <div className="inline-flex w-full p-1 rounded-xl bg-muted border border-border">
+    <div className="space-y-4">
+      {/* Filter pill segmented control + search */}
+      <div className="space-y-2.5">
+        <div className="inline-flex w-full p-1 rounded-2xl bg-primary-soft/60 ring-1 ring-primary/10">
           {(Object.keys(filterLabels) as Filter[]).map((k) => {
             const active = filter === k;
             return (
@@ -174,10 +174,10 @@ const MobileJobListView = ({ shifts }: Props) => {
                 type="button"
                 onClick={() => setFilter(k)}
                 className={cn(
-                  'flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all active:scale-95',
+                  'flex-1 py-1.5 text-[12px] font-semibold rounded-xl transition-all active:scale-[0.97]',
                   active
-                    ? 'bg-card text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground',
+                    ? 'bg-card text-primary shadow-[0_1px_0_hsl(184_30%_15%/0.04),0_2px_8px_-2px_hsl(184_60%_22%/0.18)]'
+                    : 'text-muted-foreground',
                 )}
               >
                 {filterLabels[k]}
@@ -186,19 +186,19 @@ const MobileJobListView = ({ shifts }: Props) => {
           })}
         </div>
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Sök projekt, kund, adress…"
-            className="w-full h-10 pl-9 pr-3 rounded-xl bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full h-11 pl-10 pr-3.5 rounded-2xl bg-card border border-border/60 text-sm text-foreground placeholder:text-muted-foreground/60 shadow-[0_1px_2px_hsl(184_30%_15%/0.04)] focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary/40 transition"
           />
         </div>
       </div>
 
       {/* Empty state */}
       {grouped.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center">
+        <div className="rounded-3xl border border-dashed border-border/70 bg-card p-8 text-center">
           <p className="text-sm font-semibold text-foreground">Inga jobb att visa</p>
           <p className="text-xs text-muted-foreground mt-1">
             {filter === 'today' && 'Inget planerat idag.'}
@@ -207,20 +207,20 @@ const MobileJobListView = ({ shifts }: Props) => {
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-5">
           {grouped.map(([dateKey, dayShifts]) => {
             const date = parseISO(dateKey);
             return (
-              <div key={dateKey}>
+              <section key={dateKey}>
                 <h3
                   className={cn(
-                    'text-[11px] font-bold uppercase tracking-widest mb-1.5 px-1',
+                    'text-[10px] font-bold uppercase tracking-[0.14em] mb-2 px-1',
                     isToday(date) ? 'text-primary' : 'text-muted-foreground',
                   )}
                 >
                   {fmtDateHeader(date)}
                 </h3>
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {dayShifts.map((it) => {
                     const kind = classifyItem(it);
                     const meta = kindMeta(kind);
@@ -235,13 +235,13 @@ const MobileJobListView = ({ shifts }: Props) => {
                         key={it.key}
                         type="button"
                         onClick={() => handleClick(it)}
-                        className="w-full text-left rounded-2xl border border-border bg-card p-3.5 shadow-sm active:opacity-80 transition-all"
+                        className="w-full text-left rounded-[22px] border border-border/60 bg-card p-4 shadow-[0_1px_2px_hsl(184_30%_15%/0.04),0_4px_12px_-6px_hsl(184_60%_22%/0.12)] active:scale-[0.99] active:shadow-[0_1px_2px_hsl(184_30%_15%/0.04)] transition-all"
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-2 min-w-0">
+                          <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                             <span
                               className={cn(
-                                'shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] tracking-wide font-bold border',
+                                'shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] tracking-[0.08em] font-bold',
                                 meta.cls,
                               )}
                             >
@@ -249,31 +249,31 @@ const MobileJobListView = ({ shifts }: Props) => {
                               {meta.label}
                             </span>
                             {phase && (
-                              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide border border-border bg-muted text-muted-foreground">
+                              <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide bg-muted text-muted-foreground">
                                 {phase}
                               </span>
                             )}
                             {subBookingCount > 1 && (
-                              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide border border-primary/30 bg-primary/10 text-primary">
+                              <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide bg-primary-soft text-primary-soft-foreground">
                                 {subBookingCount} bokningar
                               </span>
                             )}
                           </div>
-                          <span className="shrink-0 text-xs font-mono tabular-nums text-foreground">
+                          <span className="shrink-0 text-xs font-mono tabular-nums font-semibold text-foreground/90 pt-0.5">
                             {fmtTimeRange(itemStart(it), getItemEnd(it))}
                           </span>
                         </div>
 
-                        <h4 className="font-bold text-foreground text-[15px] leading-snug mt-1.5 truncate">
+                        <h4 className="font-bold text-foreground text-[15px] leading-snug mt-2 truncate">
                           {projectOrTitle}
                         </h4>
                         {client && client !== projectOrTitle && (
-                          <p className="text-xs text-muted-foreground truncate mt-0.5">{client}</p>
+                          <p className="text-[12px] text-muted-foreground truncate mt-0.5">{client}</p>
                         )}
 
                         {address && (
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1.5">
-                            <MapPin className="w-3 h-3 shrink-0 text-muted-foreground/60" />
+                          <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground mt-2">
+                            <MapPin className="w-3.5 h-3.5 shrink-0 text-muted-foreground/60" />
                             <span className="truncate">{address}</span>
                           </div>
                         )}
@@ -281,7 +281,7 @@ const MobileJobListView = ({ shifts }: Props) => {
                     );
                   })}
                 </div>
-              </div>
+              </section>
             );
           })}
         </div>
