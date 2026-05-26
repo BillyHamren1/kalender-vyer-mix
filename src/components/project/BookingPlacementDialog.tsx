@@ -134,7 +134,11 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
     seededForBookingId.current = booking.id;
     let cancelled = false;
     (async () => {
-      const seed = seedDaysFromBooking(booking);
+      const deliveryOnly = isDeliveryOnlyBooking(booking);
+      const seed = seedDaysFromBooking(
+        booking,
+        deliveryOnly ? DELIVERY_DEFAULT_TEAM_ID : 'team-1',
+      );
       const dates = Array.from(new Set(seed.map((d) => d.date)));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let dayEvents: any[] = [];
@@ -145,17 +149,20 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
           .in('source_date', dates);
         dayEvents = data || [];
       }
-      const rig = seed.find((d) => d.kind === 'rig');
+      // Delivery-only: behåll Lager-kolumnen, gör ingen findAvailableTeam-omfördelning.
       let rigTeamId: string | null = null;
-      if (rig) {
-        const start = new Date(`${rig.date}T${rig.startTime}:00`);
-        const end = new Date(`${rig.date}T${rig.endTime}:00`);
-        const eventsLike = dayEvents
-          .filter((e) => e.source_date === rig.date && e.booking_id !== booking.id)
+      if (!deliveryOnly) {
+        const rig = seed.find((d) => d.kind === 'rig');
+        if (rig) {
+          const start = new Date(`${rig.date}T${rig.startTime}:00`);
+          const end = new Date(`${rig.date}T${rig.endTime}:00`);
+          const eventsLike = dayEvents
+            .filter((e) => e.source_date === rig.date && e.booking_id !== booking.id)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .map((e) => ({ id: e.resource_id, resourceId: e.resource_id, start: e.start_time, end: e.end_time, title: '' } as any));
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .map((e) => ({ id: e.resource_id, resourceId: e.resource_id, start: e.start_time, end: e.end_time, title: '' } as any));
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        rigTeamId = findAvailableTeam(start, end, eventsLike as any, teamResources as any, true);
+          rigTeamId = findAvailableTeam(start, end, eventsLike as any, teamResources as any, true);
+        }
       }
       const finalDays = seed.map((d) => {
         if ((d.kind === 'rig' || d.kind === 'rigDown') && rigTeamId) {
@@ -175,6 +182,7 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
       cancelled = true;
     };
   }, [open, booking, teamResources]);
+
 
   // När bokningen länkas till ett BEFINTLIGT stort projekt ärvs riggdagar
   // och tider från det stora projektet — användaren ska då inte planera dagar.
