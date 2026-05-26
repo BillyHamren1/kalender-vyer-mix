@@ -50,7 +50,7 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
         const fileName = `photo_${Date.now()}.jpg`;
         await uploadBase64(base64, fileName, 'image/jpeg');
       } catch {
-        toast.error('Upload failed');
+        toast.error('Uppladdning misslyckades');
       } finally {
         setIsUploading(false);
       }
@@ -70,13 +70,13 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
         const base64 = ev.target?.result as string;
         await uploadBase64(base64, file.name, file.type);
       } catch {
-        toast.error('Upload failed');
+        toast.error('Uppladdning misslyckades');
       } finally {
         setIsUploading(false);
       }
     };
     reader.onerror = () => {
-      toast.error('Could not read file');
+      toast.error('Kunde inte läsa filen');
       setIsUploading(false);
     };
     reader.readAsDataURL(file);
@@ -115,13 +115,13 @@ const JobPhotosTab = ({ bookingId }: JobPhotosTabProps) => {
         ) : (
           <Camera className="w-5 h-5" />
         )}
-        {isUploading ? 'Uploading...' : 'Take photo / upload'}
+        {isUploading ? 'Laddar upp...' : 'Ta foto / ladda upp'}
       </Button>
 
       {uploadedPhotos.length === 0 ? (
         <div className="text-center py-6">
           <Image className="w-10 h-10 mx-auto text-muted-foreground/20 mb-2" />
-          <p className="text-sm text-muted-foreground">No photos yet</p>
+          <p className="text-sm text-muted-foreground">Inga foton ännu</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2">

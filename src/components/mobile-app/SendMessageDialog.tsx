@@ -21,12 +21,12 @@ const SendMessageDialog = ({ trigger }: SendMessageDialogProps) => {
     setSending(true);
     try {
       await mobileApi.sendMessage({ content, message_type: messageType });
-      toast.success('Message sent');
+      toast.success('Meddelande skickat');
       setContent('');
       setMessageType('text');
       setOpen(false);
     } catch (err: any) {
-      toast.error(err.message || 'Could not send message');
+      toast.error(err.message || 'Kunde inte skicka meddelandet');
     } finally {
       setSending(false);
     }
@@ -37,7 +37,7 @@ const SendMessageDialog = ({ trigger }: SendMessageDialogProps) => {
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="max-w-sm mx-auto">
         <DialogHeader>
-          <DialogTitle className="text-base">Send message</DialogTitle>
+          <DialogTitle className="text-base">Skicka meddelande</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3">
@@ -52,7 +52,7 @@ const SendMessageDialog = ({ trigger }: SendMessageDialogProps) => {
               }`}
             >
               <MessageSquare className="w-3.5 h-3.5" />
-              Normal
+              Normalt
             </button>
             <button
               type="button"

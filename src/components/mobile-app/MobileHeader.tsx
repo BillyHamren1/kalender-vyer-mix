@@ -129,7 +129,7 @@ export const MobileBackHeader: React.FC<BackHeaderProps> = ({
           <button
             onClick={handleBack}
             className="p-1.5 -ml-1.5 rounded-xl active:scale-95 transition-all"
-            aria-label="Back"
+            aria-label="Tillbaka"
           >
             <ArrowLeft className="w-5 h-5 text-primary-foreground" />
           </button>

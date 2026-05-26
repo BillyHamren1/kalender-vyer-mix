@@ -36,7 +36,7 @@ const JobTeamTab = ({ bookingId }: JobTeamTabProps) => {
     return (
       <div className="text-center py-12">
         <Users className="w-10 h-10 mx-auto text-muted-foreground/20 mb-2" />
-        <p className="text-sm text-muted-foreground">No staff assigned</p>
+        <p className="text-sm text-muted-foreground">Ingen personal tilldelad</p>
       </div>
     );
   }
