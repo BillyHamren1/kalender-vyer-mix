@@ -73,6 +73,9 @@ export const useBackgroundImport = () => {
     if (s.isRunning) return;
     if (s.lastImport && Date.now() - s.lastImport.getTime() < MIN_IMPORT_GAP) return;
     if (!isBackgroundImportRoute()) return;
+    // Skip when tab is hidden — sparar databasen från att matas av
+    // bortglömda flikar i bakgrunden.
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
 
     // Gate on verified auth + org context to prevent cross-tenant import attempts.
     // Uses shared cache (10 min) — no per-tick /auth/user + profiles roundtrip.
