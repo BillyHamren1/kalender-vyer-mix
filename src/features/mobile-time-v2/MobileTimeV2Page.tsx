@@ -155,16 +155,6 @@ const DayView: React.FC<DayViewProps> = ({ date, onBack }) => {
       />
 
       <div className="flex-1 px-4 pt-4 space-y-3 w-full min-w-0 max-w-full">
-        {data && (
-          <div className="flex items-center justify-between gap-2">
-            <Badge variant={visual.variant} className="gap-1.5 px-2.5 py-1">
-              {visual.icon}
-              {visual.label}
-            </Badge>
-          </div>
-        )}
-
-
         {isCorrection && submission?.reviewComment && (
           <Card className="p-3.5 border-destructive/40 bg-destructive/5">
             <div className="flex items-start gap-2">
@@ -196,30 +186,51 @@ const DayView: React.FC<DayViewProps> = ({ date, onBack }) => {
           </Card>
         )}
 
-        {/* Unified day editor — alltid (när data finns och inte låst) */}
-        {data && !isLoading && (
-          <ManualWorkSegmentsEditor
+        {/* Default: ren preview. Editorn öppnas bara via "Redigera". */}
+        {data && !isLoading && !isEditing && (
+          <MobileDayReportPreview
             date={date}
-            targets={manualTargets}
-            suggestedSegments={suggestedSegments}
+            data={data}
+            status={status}
+            visual={{ label: visual.label, variant: visual.variant }}
             userComment={userComment}
             onUserCommentChange={setUserComment}
             onSubmit={handleSubmit}
+            onEdit={() => setIsEditing(true)}
             isSubmitting={isSubmitting}
-            disabled={isLocked}
-            disabledReason={
-              isLocked
-                ? status === 'payroll_approved'
-                  ? 'Tidrapporten är godkänd för utbetalning och kan inte ändras.'
-                  : 'Tidrapporten är godkänd och kan inte ändras.'
-                : null
-            }
           />
         )}
 
-        {/* GPS-underlag — bara om det faktiskt finns pings */}
-        {data && !isLoading && data.map?.hasPings && (
-          <MobileGpsDayMap map={data.map} />
+        {data && !isLoading && isEditing && (
+          <div className="space-y-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="-ml-2"
+              onClick={() => setIsEditing(false)}
+              disabled={isSubmitting}
+            >
+              <ArrowLeft className="h-4 w-4 mr-1.5" />
+              Tillbaka till förslag
+            </Button>
+            <ManualWorkSegmentsEditor
+              date={date}
+              targets={manualTargets}
+              suggestedSegments={suggestedSegments}
+              userComment={userComment}
+              onUserCommentChange={setUserComment}
+              onSubmit={handleSubmit}
+              isSubmitting={isSubmitting}
+              disabled={isLocked}
+              disabledReason={
+                isLocked
+                  ? status === 'payroll_approved'
+                    ? 'Tidrapporten är godkänd för utbetalning och kan inte ändras.'
+                    : 'Tidrapporten är godkänd och kan inte ändras.'
+                  : null
+              }
+            />
+          </div>
         )}
       </div>
     </div>
