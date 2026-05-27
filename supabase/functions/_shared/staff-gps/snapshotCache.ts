@@ -3,6 +3,7 @@
 // re-paginate staff_location_history when nothing has changed.
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { loadDayKnownSites } from "./dayKnownSites.ts";
+import { stockholmDayWindowUtc } from "./dayWindow.ts";
 
 export interface PingRow {
   id: string;
@@ -213,7 +214,7 @@ async function computeInputSignature(
     if (maxErr) throw new Error(`signature max failed: ${maxErr.message}`);
     maxIso = data?.recorded_at ? String(data.recorded_at) : "";
   }
-  return `${count ?? 0}|${maxIso}|gf:${geofenceCount}|fh:${fenceSetHash}`;
+  return `${startIso}|${endIso}|${count ?? 0}|${maxIso}|gf:${geofenceCount}|fh:${fenceSetHash}`;
 }
 
 /**
@@ -227,8 +228,8 @@ export async function getOrBuildDaySnapshot(
   opts: { staffId: string; date: string; organizationId: string },
 ): Promise<DaySnapshot> {
   const { staffId, date, organizationId } = opts;
-  const startIso = `${date}T00:00:00.000Z`;
-  const endIso = `${date}T23:59:59.999Z`;
+  const { startIso, endIso } = stockholmDayWindowUtc(date);
+
 
   const { geofences, privateGeofenceIds } = await loadDayKnownSites(admin, {
     staffId,

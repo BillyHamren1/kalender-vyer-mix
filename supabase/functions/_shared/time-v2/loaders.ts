@@ -6,6 +6,7 @@
 import type { RawPingInput } from "../timeline/buildGpsDayTimelineOnly.ts";
 import type { KnownPlace } from "../timeline/types.ts";
 import { loadDayKnownSites } from "../staff-gps/dayKnownSites.ts";
+import { stockholmDayWindowUtc } from "../staff-gps/dayWindow.ts";
 
 export async function loadKnownTargetsV2(
   admin: any,
@@ -48,8 +49,7 @@ export async function fetchPingsForDayV2(
   staffId: string,
   date: string,
 ): Promise<RawPingInput[]> {
-  const startIso = `${date}T00:00:00.000Z`;
-  const endIso = `${date}T23:59:59.999Z`;
+  const { startIso, endIso } = stockholmDayWindowUtc(date);
   const PAGE = 1000;
   const all: any[] = [];
   let from = 0;

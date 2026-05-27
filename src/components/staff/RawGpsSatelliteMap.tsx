@@ -15,7 +15,6 @@ import {
   geofencesToFeatures,
   type GeofenceSite,
 } from '@/lib/staff/geofencesToFeatures';
-import { clipLineOutsideGeofences, pingInsideAnyFence } from '@/lib/staff/clipLineOutsideGeofences';
 import type { PlaceVisit } from '@/lib/staff/pingPlaceSegments';
 
 interface Props {
@@ -724,17 +723,21 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
 
       const segments = segmentPingsForDisplay(data);
 
-      // ── Line features per segment (alla pings ritas) ──────────────
+      // ── Line features per segment ─────────────────────────────────
+      // VIKTIGT: GPS-satellitkartans dagsrutt är HUVUDLAGRET. Vi klipper
+      // INTE bort linjen inne i geofences — då försvinner dagsrutten där
+      // personen jobbade. Geofence-polygonerna ligger som transparent
+      // underlag bakom. Se "Dagsrutt = huvudlager"-direktivet.
       const lineFeatures = segments
         .filter((s) => s.kind === 'move' && s.pings.length >= 2)
-        .flatMap((s) => clipLineOutsideGeofences(s.pings, fences).map((coordinates) => ({
+        .map((s) => ({
           type: 'Feature' as const,
           geometry: {
             type: 'LineString' as const,
-            coordinates,
+            coordinates: s.pings.map((p) => [p.lng, p.lat] as [number, number]),
           },
           properties: { color: colorForSegment(s.colorIndex, 'move') },
-        })));
+        }));
 
 
 
@@ -775,11 +778,11 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       });
 
       // ── Move-label points (endast en tidslabel per globalt 5-minutersintervall) ─
+      // GPS-satellitkartan visar labels även inne i geofences — dagsrutten
+      // är huvudlagret och ska aldrig "döljas" av polygoner.
       const moveLabelFeatures: any[] = [];
       const globallyAllowedLabelIds = new Set(
-        pickPingsByGlobalInterval(data, 5 * 60_000)
-          .filter((p) => !pingInsideAnyFence(p, fences))
-          .map((p) => pingKey(p)),
+        pickPingsByGlobalInterval(data, 5 * 60_000).map((p) => pingKey(p)),
       );
       for (const s of segments) {
         if (s.kind !== 'move') continue;
@@ -791,7 +794,6 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
           const key = pingKey(p);
           if (!labelIds.has(key)) continue;
           if (!globallyAllowedLabelIds.has(key)) continue;
-          if (pingInsideAnyFence(p, fences)) continue;
           moveLabelFeatures.push({
             type: 'Feature',
             geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
@@ -847,10 +849,10 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       });
 
       // ── Stay markers ───────────────────────────────────────────────
+      // Visa även stay-points inne i geofence — dagsrutten ska aldrig döljas.
       const stayFeatures: any[] = [];
       for (const s of segments) {
         if (s.kind !== 'stay') continue;
-        if (pingInsideAnyFence({ lat: s.lat, lng: s.lng }, fences)) continue;
         stayFeatures.push({
           type: 'Feature',
           geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
@@ -898,17 +900,17 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       });
 
       // ── Start/slut-markörer ────────────────────────────────────────
+      // Visa alltid första och sista ping på dagen, även om de råkar
+      // ligga inne i en geofence.
       const first = data[0];
       const last = data[data.length - 1];
-      const endpointFeatures = [];
-      if (!pingInsideAnyFence(first, fences)) {
-        endpointFeatures.push({
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: [first.lng, first.lat] },
-          properties: { kind: 'first' },
-        });
-      }
-      if (!pingInsideAnyFence(last, fences)) {
+      const endpointFeatures: any[] = [];
+      endpointFeatures.push({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [first.lng, first.lat] },
+        properties: { kind: 'first' },
+      });
+      if (last !== first) {
         endpointFeatures.push({
           type: 'Feature',
           geometry: { type: 'Point', coordinates: [last.lng, last.lat] },
