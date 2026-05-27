@@ -214,7 +214,7 @@ async function computeInputSignature(
     if (maxErr) throw new Error(`signature max failed: ${maxErr.message}`);
     maxIso = data?.recorded_at ? String(data.recorded_at) : "";
   }
-  return `${count ?? 0}|${maxIso}|gf:${geofenceCount}|fh:${fenceSetHash}`;
+  return `${startIso}|${endIso}|${count ?? 0}|${maxIso}|gf:${geofenceCount}|fh:${fenceSetHash}`;
 }
 
 /**
