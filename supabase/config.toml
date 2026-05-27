@@ -174,3 +174,6 @@ verify_jwt = false
 
 [functions.sync-external-suppliers]
 verify_jwt = false
+
+[functions.debug-reprocess-staff-day]
+verify_jwt = false
