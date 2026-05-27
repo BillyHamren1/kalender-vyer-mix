@@ -206,6 +206,7 @@ export const BookingInfoHeader: React.FC<Props> = ({ booking, hideTimes = false 
             <strong>Tidsinfo:</strong> {booking.exact_time_info}
           </div>
         )}
+      </div>
 
       {(booking.contact_name || booking.contact_phone || booking.contact_email) && (
         <div className="space-y-0.5">
