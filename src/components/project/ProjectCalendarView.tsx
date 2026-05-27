@@ -28,7 +28,7 @@
  * Lägg INTE till nya intern-plan-features här. Bygg dem i den isolerade
  * komponenten istället.
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { format, parseISO } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -41,23 +41,36 @@ import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { useProjectCalendarDays } from '@/hooks/useProjectCalendarDays';
 import { useProjectTaskCalendarEvents } from '@/hooks/useProjectTaskCalendarEvents';
-import type { Resource } from '@/components/Calendar/ResourceData';
+import type { CalendarEvent, Resource } from '@/components/Calendar/ResourceData';
 import './ProjectCalendarView.css';
 
 interface Props {
   projectId: string | null | undefined;
   bookingId?: string | null;
   isLargeProject?: boolean;
+  /** Extra events att lägga ovanpå (t.ex. planeringsitems). */
+  extraEvents?: CalendarEvent[];
+  /** Sidopanel som visas till höger om kalendern (kalender-first layout). */
+  rightPanel?: ReactNode;
+  /** Kompakt header utan stor titel. */
+  compactHeader?: boolean;
+  /** Klick på event — får CalendarEvent. Används bl.a. för planner_item routing. */
+  onEventClick?: (event: CalendarEvent) => void;
 }
 
 const TASK_RESOURCE: Resource = { id: 'team-tasks', title: 'Aktiviteter', eventColor: '#A78BFA' };
-// Projektkalendern visar default 5 team + Aktiviteter. Övriga team läggs till
-// via "+"-knappen i dagheadern (TeamVisibilityControl). Endast team-tasks är
-// "required" så Aktiviteter-kolumnen alltid finns för task-dragg.
 const PROJECT_REQUIRED_TEAMS = ['team-tasks'];
 const DEFAULT_VISIBLE_TEAM_COUNT = 5;
 
-const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) => {
+const ProjectCalendarView = ({
+  projectId,
+  bookingId,
+  isLargeProject,
+  extraEvents,
+  rightPanel,
+  compactHeader,
+  onEventClick,
+}: Props) => {
   // 1. Hämta projektets events.
   const { events: projectEvents, refetch: refetchProject } = useProjectCalendarDays({
     projectId,
@@ -128,7 +141,7 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
   // bara läsas, aldrig skrivas. Se .lovable/large-project-calendar-audit.md.
   const staffOps = useUnifiedStaffOperations(anchorDate, 'weekly', 'Montage');
 
-  // 4. Filtrera events till projektets bookings + lägg på taskEvents.
+  // 4. Filtrera events till projektets bookings + lägg på taskEvents + extraEvents.
   const filteredEvents = useMemo(() => {
     const bookingEvents =
       projectBookingIds.size === 0
@@ -137,19 +150,24 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
             const bid = e.bookingId || e.booking_id || e.extendedProps?.bookingId;
             return bid && projectBookingIds.has(bid);
           });
-    return [...bookingEvents, ...taskEvents];
-  }, [allEvents, projectBookingIds, taskEvents]);
+    return [...bookingEvents, ...taskEvents, ...(extraEvents ?? [])];
+  }, [allEvents, projectBookingIds, taskEvents, extraEvents]);
 
   // Aktivitetsdagar — säkerställer att projektkalendern visar dagar där
-  // bara aktiviteter finns (inga calendar_events).
+  // bara aktiviteter/planner-items finns (inga calendar_events).
   const taskDayKeys = useMemo(() => {
     const set = new Set<string>();
     taskEvents.forEach((e) => {
       const d = (e.start as string).slice(0, 10);
       if (d) set.add(d);
     });
+    (extraEvents ?? []).forEach((e) => {
+      const d = typeof e.start === 'string' ? e.start.slice(0, 10) : null;
+      if (d) set.add(d);
+    });
     return set;
-  }, [taskEvents]);
+  }, [taskEvents, extraEvents]);
+
 
   // Slå ihop projektets calendar_event-dagar med aktivitetsdagar (för fall
   // där en aktivitet ligger på en dag utan rig/event/rigDown).
@@ -210,27 +228,44 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
 
   if (!projectId) return null;
 
-  return (
-    <Card className="border-border/60 overflow-hidden rounded-none">
-      <CardHeader className="pb-2 flex flex-row items-center justify-between">
-        <div className="flex items-center gap-2">
-          <CalIcon className="h-4 w-4 text-primary" />
-          <CardTitle className="text-base">Projektkalender</CardTitle>
-          <Badge variant="outline" className="text-[10px]">
-            {effectiveDays.length > 0
-              ? `${effectiveDays.length} ${effectiveDays.length === 1 ? 'dag' : 'dagar'}`
-              : 'Inga planerade dagar'}
-          </Badge>
+  const calendarCard = (
+    <Card className="border-border/60 overflow-hidden rounded-none h-full flex flex-col">
+      {!compactHeader && (
+        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CalIcon className="h-4 w-4 text-primary" />
+            <CardTitle className="text-base">Projektkalender</CardTitle>
+            <Badge variant="outline" className="text-[10px]">
+              {effectiveDays.length > 0
+                ? `${effectiveDays.length} ${effectiveDays.length === 1 ? 'dag' : 'dagar'}`
+                : 'Inga planerade dagar'}
+            </Badge>
+          </div>
+          <Button variant="ghost" size="sm" className="h-7 px-2" onClick={handleRefresh}>
+            <RefreshCw className="h-3.5 w-3.5" />
+          </Button>
+        </CardHeader>
+      )}
+      {compactHeader && (
+        <div className="flex items-center justify-between border-b border-border/40 bg-primary/5 px-3 py-1.5">
+          <div className="flex items-center gap-2">
+            <CalIcon className="h-3.5 w-3.5 text-primary" />
+            <span className="text-xs font-semibold">Projektkalender</span>
+            <Badge variant="outline" className="text-[10px]">
+              {effectiveDays.length > 0
+                ? `${effectiveDays.length} ${effectiveDays.length === 1 ? 'dag' : 'dagar'}`
+                : 'Inga dagar'}
+            </Badge>
+          </div>
+          <Button variant="ghost" size="sm" className="h-6 px-2" onClick={handleRefresh}>
+            <RefreshCw className="h-3 w-3" />
+          </Button>
         </div>
-        <Button variant="ghost" size="sm" className="h-7 px-2" onClick={handleRefresh}>
-          <RefreshCw className="h-3.5 w-3.5" />
-        </Button>
-      </CardHeader>
+      )}
 
-      <CardContent className="p-0">
-        <div className="project-calendar-shell">
-          <div style={{ minHeight: '600px', height: 'calc(100vh - 180px)' }}>
-
+      <CardContent className="p-0 flex-1">
+        <div className="project-calendar-shell h-full">
+          <div style={{ minHeight: '600px', height: rightPanel ? 'calc(100vh - 180px)' : 'calc(100vh - 180px)' }}>
             {effectiveDays.length === 0 ? (
               <div className="flex items-center justify-center h-full text-sm text-muted-foreground italic">
                 Projektet saknar planerade dagar
@@ -245,13 +280,9 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
                 currentDate={anchorDate}
                 onDateSet={handleDatesSet}
                 refreshEvents={handleRefresh}
-                // ⚠️ Dessa två props kopplar in personalkalenderns
-                // skrivvägar (staff_assignments + calendar_events drag).
-                // LargeProjectBookingPlannerCalendar ska ALDRIG skicka in
-                // dessa — där ska personal vara read-only och drag använda
-                // egna lokala handlers mot den interna plan-storen.
                 onStaffDrop={staffOps.handleStaffDrop}
                 onOpenStaffSelection={handleStaffSelectionStub}
+                onEventClick={onEventClick}
                 viewMode="weekly"
                 weeklyStaffOperations={staffOps}
                 getVisibleTeamsForDay={getVisibleTeamsForDay}
@@ -267,6 +298,15 @@ const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) =>
         </div>
       </CardContent>
     </Card>
+  );
+
+  if (!rightPanel) return calendarCard;
+
+  return (
+    <div className="grid gap-3 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="min-w-0">{calendarCard}</div>
+      <aside className="min-w-0">{rightPanel}</aside>
+    </div>
   );
 };
 
