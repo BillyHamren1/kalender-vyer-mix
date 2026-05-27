@@ -26,7 +26,7 @@ import LargeProjectPlannerQuickEditDialog from './LargeProjectPlannerQuickEditDi
 import BookingPlannerSheet from './BookingPlannerSheet';
 import { useLargeProjectPlannerItems } from './useLargeProjectPlannerItems';
 import { supabase } from '@/integrations/supabase/client';
-import { updateBookingDatesViaApi } from '@/services/planningApiService';
+// updateBookingDatesViaApi används inte här – datum skrivs lokalt mot bookings (samma väg som personalkalendern)
 import type {
   LargeProjectBookingPlanItem,
   LargeProjectPlannerBooking,
