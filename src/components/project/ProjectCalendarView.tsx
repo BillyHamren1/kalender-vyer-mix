@@ -168,16 +168,6 @@ const ProjectCalendarView = ({
     return set;
   }, [taskEvents, extraEvents]);
 
-  // Aktivitetsdagar — säkerställer att projektkalendern visar dagar där
-  // bara aktiviteter finns (inga calendar_events).
-  const taskDayKeys = useMemo(() => {
-    const set = new Set<string>();
-    taskEvents.forEach((e) => {
-      const d = (e.start as string).slice(0, 10);
-      if (d) set.add(d);
-    });
-    return set;
-  }, [taskEvents]);
 
   // Slå ihop projektets calendar_event-dagar med aktivitetsdagar (för fall
   // där en aktivitet ligger på en dag utan rig/event/rigDown).
