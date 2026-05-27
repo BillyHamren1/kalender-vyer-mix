@@ -251,9 +251,26 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
       <div className="flex-1 min-w-0 flex flex-col gap-4">
         {/* Karta */}
         <div className="planning-card relative h-[60vh] min-h-[420px] overflow-hidden p-0">
-          {pings.length > 0 || geofences.length > 0 ? (
+          {rawPingsQuery.isLoading ? (
+            <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+              Laddar GPS…
+            </div>
+          ) : rawPingsQuery.error ? (
+            <div className="absolute inset-0 flex items-center justify-center text-sm text-destructive">
+              Kunde inte läsa GPS-pings från staff_location_history.
+            </div>
+          ) : pings.length === 0 && geofences.length === 0 ? (
+            <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+              Inga GPS-pings registrerade för vald person och lokal dag.
+            </div>
+          ) : (
             <>
               <RawGpsSatelliteMap pings={pings} geofences={geofences} visits={geofenceVisits} onSaveRadius={saveRadius} onSavePolygon={savePolygon} showAllRawPings={showAllRawPings} className="h-full w-full" />
+              {snapshotQuery.error && pings.length > 0 && (
+                <div className="absolute top-3 right-3 z-10 text-[11px] px-2.5 py-1.5 rounded-md border border-amber-300 bg-amber-50 text-amber-900 shadow-md max-w-xs">
+                  Rå GPS visas. Geofence-besök kunde inte byggas just nu.
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => setShowAllRawPings((v) => !v)}
@@ -264,18 +281,15 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
                 }`}
                 title={`${pings.length} råpings för dagen`}
               >
-                {showAllRawPings ? 'Dölj' : 'Visa'} alla råpings ({pings.length})
+                Debug: {showAllRawPings ? 'dölj' : 'visa'} alla råpings ({pings.length})
               </button>
             </>
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-               {snapshotQuery.isLoading ? 'Laddar…' : 'Inga rörelser registrerade för vald dag.'}
-            </div>
           )}
         </div>
 
         {/* Geofence-besök — exakt IN/UT per stängsel (privata boenden döljs) */}
-        <GeofenceVisitsTable visits={visibleGeofenceVisits} allDayPings={snapshotQuery.data?.pings ?? []} />
+        <GeofenceVisitsTable visits={visibleGeofenceVisits} allDayPings={pings} />
+
       </div>
     </div>
   );
