@@ -44,11 +44,15 @@ const EventHoverCard: React.FC<EventHoverCardProps> = ({
   const bookingNumber = event.extendedProps?.bookingNumber || event.extendedProps?.bookingId;
   const deliveryCity = event.extendedProps?.deliveryCity;
   const deliveryPostalCode = event.extendedProps?.deliveryPostalCode;
-  
-  // Get client and city information
+
+  const isPlannerItem = !!event.extendedProps?.isPlannerItem;
+  const projectName = event.extendedProps?.projectName as string | null | undefined;
+  const projectNumber = event.extendedProps?.projectNumber as string | null | undefined;
+
+  // Get client and city information (icke-planner)
   const client = event.extendedProps?.client || 'Unknown Client';
   const city = event.extendedProps?.deliveryCity || event.extendedProps?.city || 'Unknown City';
-  
+
   // Build full address string
   const fullAddress = [deliveryAddress, deliveryCity, deliveryPostalCode]
     .filter(Boolean)
@@ -83,31 +87,46 @@ const EventHoverCard: React.FC<EventHoverCardProps> = ({
         style={{ zIndex: 9999 }}
       >
         <div className="space-y-3">
-          {/* Event Title and Booking Number */}
+          {/* Event Title and Booking/Project Number */}
           <div className="border-b pb-2">
             <h4 className="font-semibold text-sm text-gray-900 leading-tight">{event.title}</h4>
-            {bookingNumber && (
-              <p className="text-xs text-gray-500 mt-1">Booking #{bookingNumber}</p>
+            {isPlannerItem ? (
+              <>
+                {projectName && (
+                  <p className="text-xs text-gray-700 mt-1">
+                    Projekt: <span className="font-medium">{projectName}</span>
+                  </p>
+                )}
+                {projectNumber && (
+                  <p className="text-xs text-gray-500 mt-0.5">#{projectNumber}</p>
+                )}
+              </>
+            ) : (
+              bookingNumber && (
+                <p className="text-xs text-gray-500 mt-1">Booking #{bookingNumber}</p>
+              )
             )}
           </div>
 
-          {/* Client and City Section */}
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <User className="h-3 w-3 text-indigo-600" />
-              <span className="text-xs font-semibold text-gray-800">Client & Location</span>
-            </div>
-            <div className="bg-indigo-50 p-2 rounded border border-indigo-100 space-y-1">
-              <div className="flex items-center gap-2">
-                <Building className="h-3 w-3 text-indigo-600" />
-                <span className="text-xs text-gray-700 font-medium">{client}</span>
+          {/* Client and City Section — döljs för interna planner-items */}
+          {!isPlannerItem && (
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <User className="h-3 w-3 text-indigo-600" />
+                <span className="text-xs font-semibold text-gray-800">Client & Location</span>
               </div>
-              <div className="flex items-center gap-2">
-                <MapPin className="h-3 w-3 text-indigo-600" />
-                <span className="text-xs text-gray-700">{city}</span>
+              <div className="bg-indigo-50 p-2 rounded border border-indigo-100 space-y-1">
+                <div className="flex items-center gap-2">
+                  <Building className="h-3 w-3 text-indigo-600" />
+                  <span className="text-xs text-gray-700 font-medium">{client}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-3 w-3 text-indigo-600" />
+                  <span className="text-xs text-gray-700">{city}</span>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Products Section */}
           {products && products.length > 0 && (
