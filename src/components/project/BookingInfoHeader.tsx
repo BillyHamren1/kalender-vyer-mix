@@ -2,7 +2,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Phone, Mail, User, Package, Paperclip, FileText } from 'lucide-react';
+import { MapPin, Phone, Mail, User, Package, Paperclip, FileText, AlertTriangle, Truck, Clock, PackageOpen, Hammer, ExternalLink } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { isPhaseLocked, pickBookingTime } from './bookingPlacementSeed';
