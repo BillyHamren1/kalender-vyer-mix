@@ -108,6 +108,7 @@ export interface CreatePlannerItemInput {
   sort_order?: number;
   notes?: string | null;
   metadata?: Record<string, unknown>;
+  booking_product_id?: string | null;
 }
 
 export type UpdatePlannerItemInput = Partial<
