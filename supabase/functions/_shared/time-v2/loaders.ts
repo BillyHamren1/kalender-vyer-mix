@@ -49,8 +49,7 @@ export async function fetchPingsForDayV2(
   staffId: string,
   date: string,
 ): Promise<RawPingInput[]> {
-  const startIso = `${date}T00:00:00.000Z`;
-  const endIso = `${date}T23:59:59.999Z`;
+  const { startIso, endIso } = stockholmDayWindowUtc(date);
   const PAGE = 1000;
   const all: any[] = [];
   let from = 0;
