@@ -396,15 +396,38 @@ export async function flushLocationQueue(): Promise<void> {
     const CHUNK = 100;
     for (let i = 0; i < due.length; i += CHUNK) {
       const chunk = due.slice(i, i + CHUNK);
+
+      // ── Komprimera INNAN upload ──
+      // Stillastående/within-geofence → start+slut+ev. heartbeat var 10 min.
+      // Rörelse → start+slut + representant var 5 min + stora hopp.
+      // Övriga råpunkter täcks (covered) men skickas inte.
+      const compression = compressLocationBatch(
+        chunk.map(p => ({
+          id: p.id,
+          recordedAt: p.recordedAt,
+          latitude: p.latitude,
+          longitude: p.longitude,
+          accuracy: p.accuracy,
+          speed: p.speed,
+          source: p.source,
+        })),
+      );
+      const toSend = chunk.filter(p => compression.selectedIds.has(p.id));
+      patchStatus({
+        lastCompressionInputCount: compression.stats.inputCount,
+        lastCompressionOutputCount: compression.stats.outputCount,
+        lastCompressionRatio: compression.stats.compressionRatio,
+      });
+
       try {
         const res = await mobileApi.uploadLocationBatch(
-          chunk.map(p => ({
+          toSend.map(p => ({
             id: p.id,
             latitude: p.latitude,
             longitude: p.longitude,
             accuracy: p.accuracy,
             speed: p.speed,
-            source: p.source,
+            source: compression.sourceOverrides.get(p.id) || p.source,
             recordedAt: p.recordedAt,
             batteryLevel: p.batteryLevel ?? null,
             batteryPercent: p.batteryPercent ?? null,
@@ -423,11 +446,17 @@ export async function flushLocationQueue(): Promise<void> {
           lastUploadRejected: rejectedIds.size,
         });
 
-        // Drop accepted points; bump attempts for rejected so we back off.
+        // Lokala råpunkter som täcks av batchen (även de vi INTE skickade
+        // eftersom de var brus inom samma stay/move) tas bort när minst
+        // EN punkt i batchen accepterades av servern — då har vi bevis
+        // för perioden på backend.
+        const batchHadAccepted = acceptedIds.size > 0;
+        const coveredIds = compression.coveredIds;
+
         const after = loadQueue();
         const next: PendingLocationPoint[] = [];
         for (const row of after) {
-          if (acceptedIds.has(row.id)) continue; // confirmed by server
+          if (acceptedIds.has(row.id)) continue; // direkt bekräftad
           if (rejectedIds.has(row.id)) {
             const attempts = row.attempts + 1;
             next.push({
@@ -438,9 +467,13 @@ export async function flushLocationQueue(): Promise<void> {
             });
             continue;
           }
+          // Täckt råpunkt som inte skickades — släng den när batchen
+          // hade minst en accepterad punkt. Annars behåll för retry.
+          if (batchHadAccepted && coveredIds.has(row.id)) continue;
           next.push(row);
         }
         saveQueue(next);
+
       } catch (err: any) {
         const msg = err?.message || String(err);
         // Permanenta fel (auth/permission) — retry hjälper aldrig och
