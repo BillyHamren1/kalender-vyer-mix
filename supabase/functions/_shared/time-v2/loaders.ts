@@ -6,6 +6,7 @@
 import type { RawPingInput } from "../timeline/buildGpsDayTimelineOnly.ts";
 import type { KnownPlace } from "../timeline/types.ts";
 import { loadDayKnownSites } from "../staff-gps/dayKnownSites.ts";
+import { stockholmDayWindowUtc } from "../staff-gps/dayWindow.ts";
 
 export async function loadKnownTargetsV2(
   admin: any,
