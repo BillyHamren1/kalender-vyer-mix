@@ -124,7 +124,6 @@ const LargeProjectPlannerCalendarView = ({
    */
   const getStaffForTeamAndDate = useCallback(
     (teamId: string, date: Date) => {
-      if (teamId === UNASSIGNED_RESOURCE_ID) return [];
       const dateStr = format(date, 'yyyy-MM-dd');
       const teamsForDay = teamsByDay[dateStr] ?? [];
       const team = teamsForDay.find((t) => t.teamId === teamId);
