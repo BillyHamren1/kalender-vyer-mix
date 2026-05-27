@@ -18,7 +18,7 @@
  * Capacitor APIs.
  */
 
-import { enqueueLocationPoint, flushLocationQueue } from './locationSyncQueue';
+import { enqueueLocationPoint, forceFlushLocationQueue, flushLocationQueue } from './locationSyncQueue';
 
 export interface LocationPingNotification {
   data?: Record<string, unknown> | null | undefined;
