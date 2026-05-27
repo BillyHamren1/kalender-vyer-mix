@@ -901,17 +901,17 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       });
 
       // ── Start/slut-markörer ────────────────────────────────────────
+      // Visa alltid första och sista ping på dagen, även om de råkar
+      // ligga inne i en geofence.
       const first = data[0];
       const last = data[data.length - 1];
-      const endpointFeatures = [];
-      if (!pingInsideAnyFence(first, fences)) {
-        endpointFeatures.push({
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: [first.lng, first.lat] },
-          properties: { kind: 'first' },
-        });
-      }
-      if (!pingInsideAnyFence(last, fences)) {
+      const endpointFeatures: any[] = [];
+      endpointFeatures.push({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [first.lng, first.lat] },
+        properties: { kind: 'first' },
+      });
+      if (last !== first) {
         endpointFeatures.push({
           type: 'Feature',
           geometry: { type: 'Point', coordinates: [last.lng, last.lat] },
