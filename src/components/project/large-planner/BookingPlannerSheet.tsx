@@ -344,9 +344,15 @@ const BookingPlannerSheet = ({
                     <Checkbox checked={planRigDown} onCheckedChange={(v) => setPlanRigDown(!!v)} />
                     <span>Rigg ner ({drafts.rigDown.dates.length} dagar)</span>
                   </label>
-                  <label className="inline-flex items-center gap-2">
-                    <Checkbox checked={createProductTodos} onCheckedChange={(v) => setCreateProductTodos(!!v)} />
-                    <span>Alla orderrader som to-dos</span>
+                  <label className="inline-flex items-center gap-2 text-muted-foreground">
+                    <span>
+                      Orderrader: {selectedProductIds.size} av {selectableProducts.length} valda
+                      {bookingItems.filter((it) => !!it.booking_product_id).length > 0 && (
+                        <span className="ml-1 text-[10px]">
+                          ({bookingItems.filter((it) => !!it.booking_product_id).length} redan skapade)
+                        </span>
+                      )}
+                    </span>
                   </label>
                 </div>
               </div>
@@ -360,7 +366,7 @@ const BookingPlannerSheet = ({
                       rig: planRig,
                       event: planEvent,
                       rigDown: planRigDown,
-                      createProductTodos,
+                      productIdsForTodos: Array.from(selectedProductIds),
                       drafts,
                     })
                   }
