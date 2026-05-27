@@ -8,22 +8,23 @@
  *
  * STRIKT:
  *  - Får INTE läsa eller skriva supabase-tabeller.
- *  - Får INTE referera personalkalenderns team-resurser.
- *  - resourceId = staffId (per dag) ELLER UNASSIGNED_RESOURCE_ID.
+ *  - resourceId = TEAM-id (per dag) ELLER UNASSIGNED_RESOURCE_ID.
+ *    (Team-kolumner = projektkalenderns spegling av personalkalenderns team.
+ *     assigned_staff_id används bara som metadata, inte som kolumn.)
  *
  * Mapping:
  *  - item.id                         → event.id  (prefix "planner-item-")
  *  - item.title                      → event.title
  *  - item.plan_date + start/end_time → event.start / event.end
- *  - item.assigned_staff_id          → event.resourceId
- *    (om staff saknas eller inte är bemannad den dagen → UNASSIGNED)
+ *  - item.assigned_team_id           → event.resourceId
+ *    (om teamet inte är bemannat den dagen → UNASSIGNED)
  *  - item.booking_id                 → event.bookingId
  *  - eventType                       → 'internal_task' | 'todo'
  *  - extendedProps                   → planner-metadata (se nedan).
  */
 import type { CalendarEvent, Resource } from '@/components/Calendar/ResourceData';
 import type { PlannerItemWithValidity } from './useLargeProjectPlannerItems';
-import type { LargeProjectPlannerStaffMember } from './largeProjectPlannerTypes';
+import type { LargeProjectPlannerTeam } from './largeProjectPlannerTypes';
 
 export const UNASSIGNED_RESOURCE_ID = '__unassigned__';
 export const UNASSIGNED_TITLE = 'Ej tilldelat';
@@ -52,22 +53,22 @@ export const plannerItemIdFromEventId = (eventId: string): string | null => {
 };
 
 /**
- * Bygger kolumn-resurser för EN projektdag från dagens bemanning.
+ * Bygger TEAM-kolumner för EN projektdag från dagens team-bemanning.
  * Lägger alltid på en fast "Ej tilldelat"-kolumn sist.
  *
- * Resource.id === staff.id är vad TimeGrid använder för column matching,
+ * Resource.id === teamId är vad TimeGrid använder för column matching,
  * och vad onEventDrop får tillbaka som targetResourceId.
  */
 export const buildPlannerResourcesForDay = (
-  staffForDay: LargeProjectPlannerStaffMember[],
+  teamsForDay: LargeProjectPlannerTeam[],
 ): Resource[] => {
-  const staffResources: Resource[] = staffForDay.map((s) => ({
-    id: s.id,
-    title: s.name,
-    eventColor: s.color ?? 'hsl(var(--primary))',
+  const teamResources: Resource[] = teamsForDay.map((t) => ({
+    id: t.teamId,
+    title: t.teamTitle,
+    eventColor: 'hsl(var(--primary))',
   }));
   return [
-    ...staffResources,
+    ...teamResources,
     { id: UNASSIGNED_RESOURCE_ID, title: UNASSIGNED_TITLE, eventColor: '#C4B5FD' },
   ];
 };
@@ -88,7 +89,7 @@ interface MapOptions {
 
 /**
  * Mappar planner-items till CalendarEvent[].
- * Item vars assigned_staff_id INTE är bemannad den dagen routas till
+ * Item vars assigned_team_id inte finns på dagen routas till
  * UNASSIGNED-kolumnen och flaggas med extendedProps.assignmentInvalid.
  *
  * Orderrad-todos (item_type === 'task' && booking_product_id != null)
@@ -111,11 +112,13 @@ export const mapPlannerItemsToCalendarEvents = (
 
       const tone = STATUS_COLOR[it.status] ?? STATUS_COLOR.planned;
 
-      const assignmentInvalid =
-        !!it.assigned_staff_id && !it.isAssignedStaffAllowed;
+      // Team-kolumn = primär dimension. Saknat/ogiltigt team → Ej tilldelat.
+      const hasTeam = !!it.assigned_team_id;
+      const teamValid = hasTeam && it.isAssignedStaffAllowed;
+      const assignmentInvalid = hasTeam && !it.isAssignedStaffAllowed;
       const resourceId =
-        it.assigned_staff_id && !assignmentInvalid
-          ? it.assigned_staff_id
+        teamValid && it.assigned_team_id
+          ? it.assigned_team_id
           : UNASSIGNED_RESOURCE_ID;
 
       const booking = it.booking_id
@@ -138,11 +141,12 @@ export const mapPlannerItemsToCalendarEvents = (
           largeProjectId,
           bookingId: it.booking_id,
           assignedStaffId: it.assigned_staff_id,
+          assignedTeamId: it.assigned_team_id,
           status: it.status,
           itemType: it.item_type,
           usesFallbackTime: !it.start_time || !it.end_time,
           assignmentInvalid,
-          assignmentInvalidReason: assignmentInvalid ? 'Bemanning saknas' : null,
+          assignmentInvalidReason: assignmentInvalid ? 'Team saknas i bemanning' : null,
           client: projectName ? `Projekt: ${projectName}` : 'Internt projekt',
           projectName: projectName ?? null,
           projectNumber: projectNumber ?? null,
