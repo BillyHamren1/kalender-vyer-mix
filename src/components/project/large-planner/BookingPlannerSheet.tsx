@@ -49,6 +49,157 @@ import type {
   LargeProjectPlannerStaffMember,
 } from './largeProjectPlannerTypes';
 
+interface PhaseDraft {
+  dates: string[];   // YYYY-MM-DD, sorted, unique
+  startTime: string; // HH:mm
+  endTime: string;   // HH:mm
+}
+
+export interface PlanWholeBookingSelection {
+  rig: boolean;
+  event: boolean;
+  rigDown: boolean;
+  createProductTodos: boolean;
+  /**
+   * Aktuellt lokalt utkast (datum + tider) per fas. DETTA är sanningen
+   * när Planera klickas — DB-skrivningen sker först här.
+   */
+  drafts: {
+    rig: PhaseDraft;
+    event: PhaseDraft;
+    rigDown: PhaseDraft;
+  };
+}
+
+interface Props {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  booking: LargeProjectPlannerBooking | null;
+  items: LargeProjectBookingPlanItem[];
+  staff: LargeProjectPlannerStaffMember[];
+  onCreateTodoForBooking: (booking: LargeProjectPlannerBooking) => void;
+  onCreateTodoForProduct: (
+    booking: LargeProjectPlannerBooking,
+    product: BookingProductForPlanner,
+  ) => void;
+  onPlanWholeBooking: (
+    booking: LargeProjectPlannerBooking,
+    selection: PlanWholeBookingSelection,
+  ) => void | Promise<void>;
+  onItemClick: (item: LargeProjectBookingPlanItem) => void;
+  onItemDelete?: (item: LargeProjectBookingPlanItem) => void;
+  onToggleItemStatus?: (item: LargeProjectBookingPlanItem, checked: boolean) => void;
+}
+
+const fmtTime = (t: string | null) => (t ? t.slice(0, 5) : null);
+const timeRange = (a: string | null, b: string | null) => {
+  const x = fmtTime(a);
+  const y = fmtTime(b);
+  if (x && y) return `${x}–${y}`;
+  return x || y || null;
+};
+
+const normalizeHHMM = (t: string | null | undefined, fallback: string): string => {
+  if (!t) return fallback;
+  if (t.includes('T')) return t.substring(11, 16);
+  return t.substring(0, 5) || fallback;
+};
+
+const buildInitialDrafts = (
+  booking: LargeProjectPlannerBooking,
+): PlanWholeBookingSelection['drafts'] => ({
+  rig: {
+    dates: booking.rig_dates.length
+      ? [...booking.rig_dates].sort()
+      : booking.rigdaydate
+        ? [booking.rigdaydate]
+        : [],
+    startTime: normalizeHHMM(booking.rig_start_time, '08:00'),
+    endTime: normalizeHHMM(booking.rig_end_time, '17:00'),
+  },
+  event: {
+    dates: booking.event_dates.length
+      ? [...booking.event_dates].sort()
+      : booking.eventdate
+        ? [booking.eventdate]
+        : [],
+    startTime: normalizeHHMM(booking.event_start_time, '08:00'),
+    endTime: normalizeHHMM(booking.event_end_time, '17:00'),
+  },
+  rigDown: {
+    dates: booking.rigdown_dates.length
+      ? [...booking.rigdown_dates].sort()
+      : booking.rigdowndate
+        ? [booking.rigdowndate]
+        : [],
+    startTime: normalizeHHMM(booking.rigdown_start_time, '08:00'),
+    endTime: normalizeHHMM(booking.rigdown_end_time, '17:00'),
+  },
+});
+
+const EMPTY_DRAFTS: PlanWholeBookingSelection['drafts'] = {
+  rig: { dates: [], startTime: '08:00', endTime: '17:00' },
+  event: { dates: [], startTime: '08:00', endTime: '17:00' },
+  rigDown: { dates: [], startTime: '08:00', endTime: '17:00' },
+};
+
+const BookingPlannerSheet = ({
+  open,
+  onOpenChange,
+  booking,
+  items,
+  staff,
+  onCreateTodoForBooking,
+  onCreateTodoForProduct,
+  onPlanWholeBooking,
+  onItemClick,
+  onItemDelete,
+  onToggleItemStatus,
+}: Props) => {
+  const bookingId = booking?.id ?? null;
+  const { data: products, isLoading: productsLoading, error: productsError } =
+    useBookingProductsForPlanner(open ? bookingId : null);
+
+  const bookingItems = booking
+    ? items.filter((it) => it.booking_id === booking.id)
+    : [];
+  const hasAnyPlan = bookingItems.length > 0;
+  const staffById = new Map(staff.map((s) => [s.id, s]));
+  const [planRig, setPlanRig] = useState(true);
+  const [planEvent, setPlanEvent] = useState(true);
+  const [planRigDown, setPlanRigDown] = useState(true);
+  const [createProductTodos, setCreateProductTodos] = useState(true);
+  const [drafts, setDrafts] = useState<PlanWholeBookingSelection['drafts']>(EMPTY_DRAFTS);
+
+  useEffect(() => {
+    if (!open || !booking) return;
+    const init = buildInitialDrafts(booking);
+    setDrafts(init);
+    setPlanRig(init.rig.dates.length > 0);
+    setPlanEvent(init.event.dates.length > 0);
+    setPlanRigDown(init.rigDown.dates.length > 0);
+    setCreateProductTodos(true);
+  }, [open, booking]);
+
+  const updateDraftPhase = (
+    dateType: 'rig' | 'event' | 'rigDown',
+    dates: string[],
+    startTime: string,
+    endTime: string,
+  ) => {
+    setDrafts((prev) => ({
+      ...prev,
+      [dateType]: {
+        dates: Array.from(new Set(dates.filter(Boolean))).sort(),
+        startTime: startTime || prev[dateType].startTime,
+        endTime: endTime || prev[dateType].endTime,
+      },
+    }));
+    // Aktivera fasen automatiskt när användaren just lagt in datum
+    if (dateType === 'rig' && dates.length > 0) setPlanRig(true);
+    if (dateType === 'event' && dates.length > 0) setPlanEvent(true);
+    if (dateType === 'rigDown' && dates.length > 0) setPlanRigDown(true);
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
