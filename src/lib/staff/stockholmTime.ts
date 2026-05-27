@@ -58,3 +58,23 @@ export function stockholmWallClockToIso(dateStr: string, timeStr: string): strin
   const finalMs = off1 === off2 ? utcMs : guessUtcMs - off2;
   return new Date(finalMs).toISOString();
 }
+
+/**
+ * Returnerar UTC-fönstret som motsvarar HELA den lokala Stockholm-dagen
+ * `dateStr` (YYYY-MM-DD). Hanterar både CET och CEST oavsett browser-TZ.
+ *
+ * Exempel (CEST): 2026-05-27 → 2026-05-26T22:00:00.000Z .. 2026-05-27T21:59:59.999Z
+ */
+export function stockholmDayWindowUtc(dateStr: string): { startIso: string; endIso: string } {
+  const startIso = stockholmWallClockToIso(dateStr, '00:00:00');
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const next = new Date(Date.UTC(y, (m || 1) - 1, (d || 1) + 1));
+  const nextStr = `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}-${String(next.getUTCDate()).padStart(2, '0')}`;
+  const endExclusiveIso = stockholmWallClockToIso(nextStr, '00:00:00');
+  const endIso = new Date(new Date(endExclusiveIso).getTime() - 1).toISOString();
+  return { startIso, endIso };
+}
+
+function _stockholmTimePlaceholder() {
+  return new Date(finalMs).toISOString();
+}
