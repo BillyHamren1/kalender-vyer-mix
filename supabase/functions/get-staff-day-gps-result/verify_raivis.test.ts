@@ -4,8 +4,8 @@ import "https://deno.land/std@0.224.0/dotenv/load.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { buildCanonicalStaffDayGpsResult } from "../_shared/staff-gps/canonicalStaffDayGpsResult.ts";
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? Deno.env.get("VITE_SUPABASE_URL")!;
-const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_URL = Deno.env.get("EF_SUPABASE_URL") ?? Deno.env.get("SUPABASE_URL") ?? Deno.env.get("VITE_SUPABASE_URL")!;
+const SERVICE_ROLE = Deno.env.get("EF_SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const STAFF_ID = "staff_1775736348370_e5mua0yum";
 const DATE = "2026-05-26";
