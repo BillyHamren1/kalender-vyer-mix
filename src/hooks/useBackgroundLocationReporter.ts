@@ -512,8 +512,12 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
                     batterySource: battery?.battery_source ?? null,
                   });
                   lastEnqueuedAtRef.current = Date.now();
-                  void flushLocationQueue();
+                  // Fresh resume = viktig händelse → force-flush direkt
+                  // så att bevis för "tillbaka från lång bakgrund" går
+                  // upp till backend utan att vänta på 10-min-cykeln.
+                  void forceFlushLocationQueue(`fresh_position:${reason}`);
                 });
+
               // App health: success
               const oid = getCachedOrgId();
               if (oid) {
