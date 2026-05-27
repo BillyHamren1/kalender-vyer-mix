@@ -161,7 +161,7 @@ const LargeProjectPlannerCalendarView = ({
       const plannerItemId = plannerItemIdFromEventId(payload.id);
       if (!plannerItemId) return; // inte ett planner-item — ignorera
 
-      const nextTeamId = targetResourceId === UNASSIGNED_RESOURCE_ID ? null : targetResourceId;
+      const nextTeamId = targetResourceId;
 
       try {
         await updateItem(plannerItemId, {
@@ -170,7 +170,7 @@ const LargeProjectPlannerCalendarView = ({
           // Vid byte av team töms specifik person-tilldelning;
           // den kan sättas igen via QuickEdit/ManualDialog inom teamet.
           assigned_staff_id: null,
-          status: nextTeamId ? 'planned' : undefined,
+          status: 'planned',
         });
       } catch (err) {
         toast.error((err as Error).message || 'Kunde inte flytta task.');
