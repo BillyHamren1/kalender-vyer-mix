@@ -81,6 +81,17 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
     return () => window.removeEventListener('lp-planner-item-open', handler as EventListener);
   }, []);
 
+  // Lyssna på klick på riktiga bokningsblock i projektkalendern → öppna sheet
+  // så att bokningens orderrad-todos blir synliga (de har inga egna block).
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const bid = (e as CustomEvent<{ bookingId?: string }>).detail?.bookingId;
+      if (bid) setPlannerSheetBookingId(bid);
+    };
+    window.addEventListener('lp-booking-sheet-open', handler as EventListener);
+    return () => window.removeEventListener('lp-booking-sheet-open', handler as EventListener);
+  }, []);
+
   /** "Planera"-knapp: öppna sidopanelen med bokningsöversikten. */
   const handleSeedBooking = (booking: LargeProjectPlannerBooking) => {
     setPlannerSheetBookingId(booking.id);
