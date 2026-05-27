@@ -28,7 +28,7 @@
  * Lägg INTE till nya intern-plan-features här. Bygg dem i den isolerade
  * komponenten istället.
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { format, parseISO } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -41,23 +41,36 @@ import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { useProjectCalendarDays } from '@/hooks/useProjectCalendarDays';
 import { useProjectTaskCalendarEvents } from '@/hooks/useProjectTaskCalendarEvents';
-import type { Resource } from '@/components/Calendar/ResourceData';
+import type { CalendarEvent, Resource } from '@/components/Calendar/ResourceData';
 import './ProjectCalendarView.css';
 
 interface Props {
   projectId: string | null | undefined;
   bookingId?: string | null;
   isLargeProject?: boolean;
+  /** Extra events att lägga ovanpå (t.ex. planeringsitems). */
+  extraEvents?: CalendarEvent[];
+  /** Sidopanel som visas till höger om kalendern (kalender-first layout). */
+  rightPanel?: ReactNode;
+  /** Kompakt header utan stor titel. */
+  compactHeader?: boolean;
+  /** Klick på event — får CalendarEvent. Används bl.a. för planner_item routing. */
+  onEventClick?: (event: CalendarEvent) => void;
 }
 
 const TASK_RESOURCE: Resource = { id: 'team-tasks', title: 'Aktiviteter', eventColor: '#A78BFA' };
-// Projektkalendern visar default 5 team + Aktiviteter. Övriga team läggs till
-// via "+"-knappen i dagheadern (TeamVisibilityControl). Endast team-tasks är
-// "required" så Aktiviteter-kolumnen alltid finns för task-dragg.
 const PROJECT_REQUIRED_TEAMS = ['team-tasks'];
 const DEFAULT_VISIBLE_TEAM_COUNT = 5;
 
-const ProjectCalendarView = ({ projectId, bookingId, isLargeProject }: Props) => {
+const ProjectCalendarView = ({
+  projectId,
+  bookingId,
+  isLargeProject,
+  extraEvents,
+  rightPanel,
+  compactHeader,
+  onEventClick,
+}: Props) => {
   // 1. Hämta projektets events.
   const { events: projectEvents, refetch: refetchProject } = useProjectCalendarDays({
     projectId,
