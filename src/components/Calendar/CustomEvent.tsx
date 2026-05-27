@@ -254,7 +254,29 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         <div className={`event-title ${isCancelled ? 'line-through' : ''}`} style={{ color: isCancelled ? '#991B1B' : '#000000' }}>
           {displayTitle}
         </div>
-        {!event.extendedProps?.isLargeProject && !event.extendedProps?.hideBookingNumber && (
+        {(event.extendedProps as any)?.isPlannerItem && (
+          <>
+            {(event.extendedProps as any)?.projectName && (
+              <div
+                className="event-project"
+                style={{ color: '#000000', fontSize: '10px', fontWeight: 600 }}
+              >
+                Projekt: {(event.extendedProps as any).projectName}
+              </div>
+            )}
+            {((event.extendedProps as any)?.projectNumber ||
+              (event.extendedProps as any)?.bookingNumber) && (
+              <div
+                className="event-project-number"
+                style={{ color: '#000000', fontSize: '10px', opacity: 0.85 }}
+              >
+                #{(event.extendedProps as any).projectNumber ??
+                  (event.extendedProps as any).bookingNumber}
+              </div>
+            )}
+          </>
+        )}
+        {!event.extendedProps?.isLargeProject && !event.extendedProps?.hideBookingNumber && !(event.extendedProps as any)?.isPlannerItem && (
           <div 
             className={`event-booking ${isCancelled ? 'line-through' : ''}`}
             style={{ 
