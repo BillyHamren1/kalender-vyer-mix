@@ -14,6 +14,7 @@ import { MapDrawingCard } from '../MapDrawingCard';
 import BookingEconomicsCard from '../BookingEconomicsCard';
 import PackingStatusCard from '../PackingStatusCard';
 import StaffAssignmentWarning from '../StaffAssignmentWarning';
+import LargeProjectBookingPlanMirror from '@/components/project/LargeProjectBookingPlanMirror';
 
 interface BookingDetailContentProps {
   booking: Booking;
