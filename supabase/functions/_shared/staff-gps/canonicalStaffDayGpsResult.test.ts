@@ -75,15 +75,16 @@ Deno.test("visit clamps to exact inside-pings (08:58–09:49)", () => {
   });
   assertEquals(r.geofenceVisits.length, 1);
   const gv = r.geofenceVisits[0];
-  assertEquals(gv.startIso, "2026-05-26T06:58:00Z");
-  assertEquals(gv.endIso, "2026-05-26T07:49:00Z");
+  const norm = (iso: string) => new Date(iso).toISOString();
+  assertEquals(norm(gv.startIso), norm("2026-05-26T06:58:00Z"));
+  assertEquals(norm(gv.endIso), norm("2026-05-26T07:49:00Z"));
   assertEquals(gv.clampSource, "exact_inside_pings");
   assertEquals(gv.label, "FA Warehouse");
   // Måste finnas minst ett work-segment med samma start/end
   const workSeg = r.segments.find((s) => s.type === "work" && s.knownSiteId === "fa");
   assert(workSeg, "work-segment för FA saknas");
-  assertEquals(workSeg!.startIso, "2026-05-26T06:58:00Z");
-  assertEquals(workSeg!.endIso, "2026-05-26T07:49:00Z");
+  assertEquals(norm(workSeg!.startIso), norm("2026-05-26T06:58:00Z"));
+  assertEquals(norm(workSeg!.endIso), norm("2026-05-26T07:49:00Z"));
 });
 
 Deno.test("totals invariant: window = work+private+travel+unknown+gap+idle (±1 min)", () => {
