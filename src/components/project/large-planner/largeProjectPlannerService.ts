@@ -307,6 +307,81 @@ export function buildStaffByDay(
 }
 
 /**
+ * Bygger team-kolumner per dag — projektkalenderns kolumner.
+ * Speglar personalkalenderns ordning (team-1 före team-2 osv).
+ */
+export function buildTeamsByDay(
+  events: Array<{
+    booking_id: string | null;
+    event_type: string | null;
+    source_date: string | null;
+    resource_id: string | null;
+  }>,
+  assignments: Array<{
+    staff_id: string | null;
+    team_id: string | null;
+    assignment_date: string | null;
+  }>,
+  staffMembers: Array<{ id: string; name: string; color: string | null }>,
+): Record<string, LargeProjectPlannerTeam[]> {
+  // (date) → Set<team_id> som projektet "äger"
+  const teamsByDate = new Map<string, Set<string>>();
+  events.forEach((ev) => {
+    const date = ev.source_date;
+    const team = ev.resource_id;
+    const phase = ev.event_type;
+    if (!date || !team) return;
+    if (phase !== 'rig' && phase !== 'event' && phase !== 'rigDown') return;
+    const set = teamsByDate.get(date) ?? new Set<string>();
+    set.add(team);
+    teamsByDate.set(date, set);
+  });
+
+  // (date|team) → Set<staff_id>
+  const staffByDateTeam = new Map<string, Set<string>>();
+  assignments.forEach((a) => {
+    if (!a.staff_id || !a.team_id || !a.assignment_date) return;
+    const key = `${a.assignment_date}|${a.team_id}`;
+    const set = staffByDateTeam.get(key) ?? new Set<string>();
+    set.add(a.staff_id);
+    staffByDateTeam.set(key, set);
+  });
+
+  const memberById = new Map<string, { id: string; name: string; color: string | null }>();
+  staffMembers.forEach((m) => memberById.set(m.id, m));
+
+  const teamOrder = (teamId: string): number => {
+    const m = /^team-(\d+)$/.exec(teamId);
+    return m ? parseInt(m[1], 10) : 9999;
+  };
+  const teamTitle = (teamId: string): string => {
+    const m = /^team-(\d+)$/.exec(teamId);
+    return m ? `Team ${m[1]}` : teamId;
+  };
+
+  const result: Record<string, LargeProjectPlannerTeam[]> = {};
+  teamsByDate.forEach((teams, date) => {
+    const list: LargeProjectPlannerTeam[] = Array.from(teams)
+      .sort((a, b) => teamOrder(a) - teamOrder(b) || a.localeCompare(b))
+      .map((teamId) => {
+        const staffSet = staffByDateTeam.get(`${date}|${teamId}`) ?? new Set<string>();
+        const staff = Array.from(staffSet)
+          .map((sid) => memberById.get(sid))
+          .filter((m): m is { id: string; name: string; color: string | null } => !!m)
+          .sort((a, b) => a.name.localeCompare(b.name, 'sv'));
+        return {
+          teamId,
+          teamTitle: teamTitle(teamId),
+          order: teamOrder(teamId),
+          staff,
+        };
+      });
+    result[date] = list;
+  });
+  return result;
+}
+
+/**
  * Hämta personal per dag på det stora projektet (read-only).
  * Speglar personalkalenderns derivering:
  *   calendar_events(booking IN project, event_type rig/event/rigDown)
