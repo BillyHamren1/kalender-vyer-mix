@@ -11,7 +11,8 @@ import {
   buildPlannerResourcesForDay,
   mapPlannerItemsToCalendarEvents,
   plannerItemIdFromEventId,
-  UNASSIGNED_RESOURCE_ID,
+  DEFAULT_TEAM_ID,
+  FIXED_TEAM_IDS,
   PLANNER_EVENT_ID_PREFIX,
 } from '../LargeProjectPlannerCalendarAdapter';
 import type { PlannerItemWithValidity } from '../useLargeProjectPlannerItems';
