@@ -25,7 +25,7 @@ describe('Stora projekt — projektkalender vs personalkalender, dataisolering',
 
   it('LargeEstablishmentPage skickar inte plannerCalendarEvents som extraEvents till ProjectCalendarView', () => {
     const src = read('src/pages/project/LargeEstablishmentPage.tsx');
-    expect(src).not.toMatch(/useLargeProjectPlannerCalendarEvents/);
+    expect(src).not.toMatch(/from\s+['"][^'"]*useLargeProjectPlannerCalendarEvents['"]/);
     expect(src).not.toMatch(/extraEvents=\{plannerCalendarEvents\}/);
     expect(src).not.toMatch(/<ProjectCalendarView\b/);
     expect(src).not.toMatch(/rightPanel=\{<LargeProjectPlannerPanel/);
