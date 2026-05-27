@@ -229,46 +229,43 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
     startTime: string,
     endTime: string,
   ) => {
-    // EN sanning: samma kolumner som personalkalendern skriver mot
-    // (rigdaydate/eventdate/rigdowndate + *_start_time/*_end_time).
-    // Extra rig/rigdown-dagar lever som calendar_events (AddRiggDayDialog-flödet),
-    // INTE som arrays på bookings. Vi skriver första datumet hit; flerdagsval
-    // får hanteras genom att lägga till calendar_events separat.
-    const firstDate = dates[0] ?? null;
-    const startISO = firstDate && startTime ? `${firstDate}T${startTime}:00Z` : null;
-    const endISO = firstDate && endTime ? `${firstDate}T${endTime}:00Z` : null;
-
-    const patch: Record<string, unknown> = {};
-    if (dateType === 'rig') {
-      patch.rigdaydate = firstDate;
-      patch.rig_start_time = startISO;
-      patch.rig_end_time = endISO;
-    } else if (dateType === 'event') {
-      patch.eventdate = firstDate;
-      patch.event_start_time = startISO;
-      patch.event_end_time = endISO;
-    } else {
-      patch.rigdowndate = firstDate;
-      patch.rigdown_start_time = startISO;
-      patch.rigdown_end_time = endISO;
-    }
-
+    // Samma flerdags-skrivväg som personalkalenderns AddRiggDayDialog:
+    // savePhaseDays() loopar alla valda datum, gör upsert per dag mot
+    // calendar_events (med project-team-stickiness) och speglar bara
+    // FÖRSTA datumet till bokningens primärfält. Detta är den enda
+    // sanningen för bokningsdatum — inga arrays, inga nya kolumner.
     try {
-      const { error } = await supabase
-        .from('bookings')
-        .update(patch)
-        .eq('id', booking.id);
-      if (error) throw error;
+      const { savePhaseDays } = await import('@/lib/calendar/phaseDaysWriter');
+      const result = await savePhaseDays({
+        bookingId: booking.id,
+        eventType: dateType,
+        dates,
+        startTime,
+        endTime,
+        title: booking.display_name ?? booking.client ?? booking.booking_number ?? null,
+      });
+
       await refetch();
-      if (dates.length > 1) {
-        toast.success('Bokningsdatum uppdaterade. Lägg till extra dagar via "Lägg till riggdag".');
+
+      if (result.successCount > 0 && result.failures.length === 0) {
+        toast.success(
+          result.successCount === 1
+            ? 'Datum uppdaterat.'
+            : `${result.successCount} dagar uppdaterade.`,
+        );
+      } else if (result.successCount > 0 && result.failures.length > 0) {
+        toast.warning(
+          `${result.successCount} av ${result.totalDays} dagar sparades`,
+          { description: result.failures.join('\n'), duration: 8000 },
+        );
       } else {
-        toast.success('Bokningsdatum uppdaterade.');
+        throw new Error(result.failures.join('\n') || 'Inga dagar kunde sparas');
       }
     } catch (e) {
       toast.error((e as Error).message || 'Kunde inte uppdatera bokningsdatum.');
     }
   };
+
 
 
   const handleSeedAll = async () => {
