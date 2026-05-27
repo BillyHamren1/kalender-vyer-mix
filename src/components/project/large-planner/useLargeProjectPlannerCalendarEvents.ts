@@ -42,7 +42,7 @@ export function useLargeProjectPlannerCalendarEvents(
         start,
         end,
         resourceId: 'team-tasks',
-        eventType: 'planner_item',
+        eventType: 'internal_task',
         backgroundColor: tone.bg,
         borderColor: tone.border,
         extendedProps: {
@@ -54,7 +54,7 @@ export function useLargeProjectPlannerCalendarEvents(
           itemType: it.item_type,
           usesFallbackTime: !it.start_time || !it.end_time,
         },
-      } as CalendarEvent;
+      } as unknown as CalendarEvent;
     });
   }, [items, itemsWithAssignmentValidity]);
 
