@@ -418,8 +418,9 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
               batterySource: battery?.battery_source ?? null,
             });
             lastEnqueuedAtRef.current = Date.now();
-            void flushLocationQueue();
+            // Ingen direkt flush — periodisk 10-min-batch sköter upload.
           });
+
         // DEPRECATED: lastUploadAt = enqueue, INTE server-accepted.
         // Kvar för bakåtkomp. Använd lastAcceptedUploadAt för sanning.
         lastUploadAtRef.current = now;
