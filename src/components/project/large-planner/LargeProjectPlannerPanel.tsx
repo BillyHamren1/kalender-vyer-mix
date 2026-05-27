@@ -26,7 +26,7 @@ import LargeProjectPlannerQuickEditDialog from './LargeProjectPlannerQuickEditDi
 import BookingPlannerSheet from './BookingPlannerSheet';
 import { useLargeProjectPlannerItems } from './useLargeProjectPlannerItems';
 import { supabase } from '@/integrations/supabase/client';
-import { updateBookingDatesViaApi } from '@/services/planningApiService';
+// updateBookingDatesViaApi används inte här – datum skrivs lokalt mot bookings (samma väg som personalkalendern)
 import type {
   LargeProjectBookingPlanItem,
   LargeProjectPlannerBooking,
@@ -229,49 +229,36 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
     startTime: string,
     endTime: string,
   ) => {
+    // Samma skrivväg som personalkalendern: direkt mot lokala `bookings`-tabellen.
+    // Inga anrop till planning-api-proxy (upstream stödjer inte denna mutation).
+    // calendar_events spegling sker via befintliga DB-triggers / import-bookings reconciler.
     const firstDate = dates[0] ?? null;
-    const payload: {
-      rigdaydate?: string | null;
-      eventdate?: string | null;
-      rigdowndate?: string | null;
-      rig_dates?: string[] | null;
-      event_dates?: string[] | null;
-      rigdown_dates?: string[] | null;
-      rig_start_time?: string | null;
-      rig_end_time?: string | null;
-      event_start_time?: string | null;
-      event_end_time?: string | null;
-      rigdown_start_time?: string | null;
-      rigdown_end_time?: string | null;
-    } = {};
+    const startISO = firstDate && startTime ? `${firstDate}T${startTime}:00Z` : null;
+    const endISO = firstDate && endTime ? `${firstDate}T${endTime}:00Z` : null;
 
+    const patch: Record<string, unknown> = {};
     if (dateType === 'rig') {
-      payload.rigdaydate = firstDate;
-      payload.rig_dates = dates;
-      payload.rig_start_time = startTime ? `${firstDate}T${startTime}:00Z` : null;
-      payload.rig_end_time = endTime ? `${firstDate}T${endTime}:00Z` : null;
-    }
-    if (dateType === 'event') {
-      payload.eventdate = firstDate;
-      payload.event_dates = dates;
-      payload.event_start_time = startTime ? `${firstDate}T${startTime}:00Z` : null;
-      payload.event_end_time = endTime ? `${firstDate}T${endTime}:00Z` : null;
-    }
-    if (dateType === 'rigDown') {
-      payload.rigdowndate = firstDate;
-      payload.rigdown_dates = dates;
-      payload.rigdown_start_time = startTime ? `${firstDate}T${startTime}:00Z` : null;
-      payload.rigdown_end_time = endTime ? `${firstDate}T${endTime}:00Z` : null;
+      patch.rigdaydate = firstDate;
+      patch.rig_dates = dates;
+      patch.rig_start_time = startISO;
+      patch.rig_end_time = endISO;
+    } else if (dateType === 'event') {
+      patch.eventdate = firstDate;
+      patch.event_dates = dates;
+      patch.event_start_time = startISO;
+      patch.event_end_time = endISO;
+    } else {
+      patch.rigdowndate = firstDate;
+      patch.rigdown_dates = dates;
+      patch.rigdown_start_time = startISO;
+      patch.rigdown_end_time = endISO;
     }
 
     try {
-      await updateBookingDatesViaApi(booking.id, payload);
-      const { error } = await supabase.functions.invoke('import-bookings', {
-        body: {
-          booking_id: booking.id,
-          syncMode: 'single',
-        },
-      });
+      const { error } = await supabase
+        .from('bookings')
+        .update(patch)
+        .eq('id', booking.id);
       if (error) throw error;
       await refetch();
       toast.success('Bokningsdatum uppdaterade.');

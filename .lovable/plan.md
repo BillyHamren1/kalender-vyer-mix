@@ -1,77 +1,42 @@
-## Mål
 
-När du planerar inuti ett stort projekt ska:
-1. **Tid/datum synkas tillbaka till underliggande bokning** — bokningens egen vy visar vad som planerats inuti det stora projektet (personalkalendern fortsätter använda det stora projektets tider).
-2. **Alla orderrader för bokningen synas** när du planerar.
-3. **Varje orderrad kunna klickas → skapa to-do** (planner item) för just den raden. Manuell to-do finns kvar.
+## Problemet i klartext
 
-## Vad jag bygger
+Bokningsplaneraren i stora projekt försöker spara datum via `updateBookingDatesViaApi` → `planning-api-proxy` → upstream Booking-API, som svarar `400 Unknown type: bookings`. Det är fel väg.
 
-### 1. DB-koppling: planner item ↔ orderrad
-- Migration: lägg till `booking_product_id uuid NULL` på `large_project_booking_plan_items` (FK till `booking_products.id`, ON DELETE SET NULL) + index.
-- Inga RLS-ändringar (ärver från befintlig tabell).
+Personalkalendern (`timeSync.applyPhaseTimes`) skriver datum/tider rakt mot lokala `bookings`-tabellen och låter befintlig kalender-sync sprida ändringen till calendar_events och syskonbokningar. Det är samma väg vi ska använda här.
 
-### 2. Sync planner → bokning (booking mirror)
-- Ny tabell `booking_internal_plan_items` (eller vy) som speglar planner items per bokning.
-  - Enklare alternativ: **ingen ny tabell** — bokningsvyn läser direkt `large_project_booking_plan_items WHERE booking_id = …`. Det är redan en spegel; ingen extra synk behövs.
-- Vald väg: **ingen extra tabell**. Bokningsvyn (sub-booking-detalj) får en ny sektion "Planering inuti stora projektet" som listar plan-items för den bokningen, med tid, datum, personal, status, kopplad orderrad.
-- Personalkalendern rörs INTE — den fortsätter använda `calendar_events` + LP-team (Large Project Team Source of Truth-policyn intakt).
+## Lösning
 
-### 3. UI: orderrader i planner-panelen
-- I `LargeProjectPlannerPanel` (kortet per bokning): expanderbar lista med bokningens `booking_products` (namn, antal, ev. parent-group).
-- Hook `useBookingProductsForPlanner(bookingId)` med React Query.
-- Varje rad har en `+ To-do`-knapp som öppnar `ManualProjectTaskDialog` förifylld med:
-  - `defaultTitle` = produktnamn
-  - `defaultBookingId` = bokningens id
-  - `defaultBookingProductId` = orderradens id
-  - datum/tid = bokningens event-datum/tid (samma fallback som idag)
+### 1. Byt skrivväg i `LargeProjectPlannerPanel.handleUpdateBookingSchedule`
+- Ta bort anropet till `updateBookingDatesViaApi` + `import-bookings`-invoke.
+- Använd istället samma motor som personalkalendern:
+  - `supabase.from('bookings').update({ rigdaydate, eventdate, rigdowndate, rig_dates, event_dates, rigdown_dates, rig_start_time, ... })` på den valda bokningen.
+  - Kör befintlig `applyPhaseTimes` från `src/services/timeSync.ts` för respektive fas så att tider sprids till calendar_events och syskon i stora projektet.
+  - Trigga `recompute_booking_staff_for_day` RPC per berörd dag (samma som kalendern gör vid datum-flytt) så att BSA-rader följer med.
+- Optimistisk refetch av `useProjectBookings` + invalidering av planning-dashboard queries.
 
-### 4. ManualProjectTaskDialog
-- Lägg till `defaultBookingProductId` prop + dolt fält som skickas in i `createPlanItem`-payload.
-- `largeProjectPlannerService.createItem` får ta emot `booking_product_id` och skriva till nya kolumnen.
+### 2. Verifiera att UI:t fortfarande funkar end-to-end
+- `BookingPlannerSheet`: ingen ändring i komponenten — den anropar samma `onUpdateBookingSchedule`-prop.
+- `LargeProjectBookingPlanMirror` på bokningsdetaljvyn: opåverkad, lever vidare som checklistspegel av order-to-dos.
+- "Planera hela bokningen"-knappen: opåverkad, fortsätter skapa mirror-items + per-orderrad-todos baserat på de nu lokalt sparade datum-arrayerna.
 
-### 5. Bokningsvy
-- Hitta sub-booking-detaljkomponenten (sannolikt `BookingDetailPage` eller motsv.). Lägg in `<LargeProjectBookingPlanMirror bookingId={…} />` ovanför orderrad-sektionen.
-- Komponenten läser plan-items för bokningen, grupperar per datum, visar tid + titel + personal + ev. orderrad-koppling.
+### 3. Tester (vitest)
+- `largeProjectPlannerService` får en ny enhet som mockar supabase-klienten och verifierar att schedule-skrivningen:
+  - Träffar `bookings.update` med rätt fält per fas.
+  - Anropar `applyPhaseTimes` med rätt fas+datum+tid-trippel.
+- Snapshot på `BookingPlannerSheet` att schedule-block är synligt och `Planera hela bokningen` förblir disabled tills minst en fas har datum.
 
-### 6. Tester (Vitest)
-- `largeProjectPlannerService.createItem` skriver `booking_product_id` korrekt.
-- Hook `useBookingProductsForPlanner` returnerar rader för en bokning.
-- Render-test: `LargeProjectPlannerPanel` visar orderrader när bokningskortet expanderas och `+ To-do`-knappen öppnar dialogen förifylld.
+### 4. Rensa upp
+- Lämna `updateBookingDatesViaApi` orörd i `planningApiService.ts` (används inte längre av planneren, men kan finnas kvar för framtiden). Lägg in en TODO-kommentar att upstream svarar 400 så ingen annan call-site tar samma fälla.
+- Ingen migration behövs — alla fält finns redan i lokala `bookings`.
 
-## Tekniska detaljer
+## Filer som ändras
 
-### Migration
-```sql
-ALTER TABLE public.large_project_booking_plan_items
-  ADD COLUMN booking_product_id uuid NULL
-    REFERENCES public.booking_products(id) ON DELETE SET NULL;
+- `src/components/project/large-planner/LargeProjectPlannerPanel.tsx` — byt skrivväg i `handleUpdateBookingSchedule`.
+- `src/components/project/large-planner/largeProjectPlannerService.ts` — flytta ut själva DB-skrivningen hit som ren helper (`saveBookingSchedule(bookingId, dateType, payload)`).
+- `src/components/project/large-planner/__tests__/largeProjectPlannerService.schedule.test.ts` — ny vitest.
+- `src/services/planningApiService.ts` — TODO-kommentar.
 
-CREATE INDEX idx_lp_plan_items_booking_product
-  ON public.large_project_booking_plan_items(booking_product_id)
-  WHERE booking_product_id IS NOT NULL;
-```
+## Det här ändrar inte
 
-### Filer som ändras / skapas
-- ny: `supabase/migrations/<ts>_lp_plan_item_booking_product.sql`
-- ny: `src/hooks/useBookingProductsForPlanner.ts`
-- ny: `src/components/project/large-planner/BookingProductsExpandable.tsx`
-- ny: `src/components/project/LargeProjectBookingPlanMirror.tsx`
-- ny: `src/components/project/large-planner/__tests__/createItemWithProduct.test.ts`
-- redigeras:
-  - `largeProjectPlannerTypes.ts` (lägg till `booking_product_id` i typer)
-  - `largeProjectPlannerService.ts` (skriv/läs `booking_product_id`)
-  - `ManualProjectTaskDialog.tsx` (defaultBookingProductId + visa kopplad rad)
-  - `LargeProjectPlannerPanel.tsx` (montera `BookingProductsExpandable`, propagera till dialog)
-  - Sub-booking-detaljsidan (montera `LargeProjectBookingPlanMirror`)
-
-## Vad jag INTE rör
-- `calendar_events` / personalkalenderns team — fortsätter följa Large Project Team Source of Truth.
-- Ingen autoskrivning av bokningens `event_start_time`/`event_end_time` (det är fortfarande LP-tider).
-- Ingen ny anslagstavla/notes-tabell (One Bulletin Board).
-
-## Frågor jag behöver innan jag kör
-
-1. **Bokningsvy**: ska "Planering inuti stora projektet"-sektionen visas på sub-booking-detaljsidan (det vanliga bokningskortet i Planering) eller på en annan vy?
-2. **Orderradens to-do**: ska todo-titeln auto-bli `<produktnamn> · #<bokningsnr>` eller bara produktnamnet?
-3. När man redigerar/flyttar en plan-item-tid — räcker det att den syns uppdaterad i bokningsvyn (samma rad, ingen ytterligare synk), eller vill du att något fält på själva bokningen också skrivs?
+- Booking-system-as-source-of-truth-policyn berör läs-data (offerter, fakturor, ekonomi). Skrivning av rig/event/rigDown-datum och team-tilldelningar är redan lokal — det är så hela personalkalendern fungerar idag.
