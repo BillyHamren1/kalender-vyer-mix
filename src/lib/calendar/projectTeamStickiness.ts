@@ -58,6 +58,87 @@ export const getStickyTeamForBooking = async (
 };
 
 /**
+ * För stora projekt: om bokningen själv ännu saknar calendar_events-rader ska
+ * nya dagar ärva teamet från syskonbokningar på samma large project.
+ * Prioritet:
+ *   1) exakt match på (phase, date) bland syskon
+ *   2) vanligaste team över alla syskonbokningars rader
+ */
+export const getStickyTeamForLargeProject = async (
+  largeProjectId: string,
+  organizationId: string,
+  phase: string,
+  date: string,
+): Promise<StickinessTeamId | null> => {
+  if (!largeProjectId || !organizationId || !phase || !date) return null;
+
+  const [{ data: joinedRows, error: joinedError }, { data: bookingRows, error: bookingError }] =
+    await Promise.all([
+      supabase
+        .from('large_project_bookings')
+        .select('booking_id')
+        .eq('large_project_id', largeProjectId),
+      supabase
+        .from('bookings')
+        .select('id')
+        .eq('large_project_id', largeProjectId),
+    ]);
+
+  if (joinedError || bookingError) return null;
+
+  const siblingIds = Array.from(
+    new Set([
+      ...(joinedRows ?? []).map((row) => row.booking_id).filter(Boolean),
+      ...(bookingRows ?? []).map((row) => row.id).filter(Boolean),
+    ]),
+  ) as string[];
+
+  if (siblingIds.length === 0) return null;
+
+  const { data: exactRows, error: exactError } = await supabase
+    .from('calendar_events')
+    .select('resource_id')
+    .in('booking_id', siblingIds)
+    .eq('organization_id', organizationId)
+    .eq('event_type', phase)
+    .eq('source_date', date)
+    .in('resource_id', TEAM_IDS as unknown as string[]);
+
+  if (!exactError) {
+    for (const team of TEAM_IDS) {
+      if ((exactRows ?? []).some((row) => row.resource_id === team)) return team;
+    }
+  }
+
+  const { data: anyRows, error: anyError } = await supabase
+    .from('calendar_events')
+    .select('resource_id')
+    .in('booking_id', siblingIds)
+    .eq('organization_id', organizationId)
+    .in('resource_id', TEAM_IDS as unknown as string[])
+    .neq('event_type', 'activity');
+
+  if (anyError || !anyRows || anyRows.length === 0) return null;
+
+  const counts = new Map<StickinessTeamId, number>();
+  for (const row of anyRows) {
+    if (!isTeamId(row.resource_id)) continue;
+    counts.set(row.resource_id, (counts.get(row.resource_id) ?? 0) + 1);
+  }
+
+  let bestTeam: StickinessTeamId | null = null;
+  let bestCount = -1;
+  for (const team of TEAM_IDS) {
+    const count = counts.get(team) ?? 0;
+    if (count > bestCount) {
+      bestCount = count;
+      bestTeam = team;
+    }
+  }
+  return bestTeam;
+};
+
+/**
  * Looks up an active calendar_events row that already exists for
  * (booking, event_type, source_date, organization). Used to detect "this day
  * is already planned" before inserting/upserting — so the existing
