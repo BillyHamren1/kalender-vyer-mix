@@ -78,6 +78,7 @@ export function useLargeProjectPlannerItems(largeProjectId: string | null | unde
 
   const context = query.data;
   const staffByDay = context?.staffByDay ?? {};
+  const teamsByDay = context?.teamsByDay ?? {};
   const items = context?.items ?? [];
 
   const allowedStaffByDate = staffByDay;
@@ -100,8 +101,37 @@ export function useLargeProjectPlannerItems(largeProjectId: string | null | unde
     [allowedStaffByDate],
   );
 
+  const getTeamsForDate = useCallback(
+    (date: string | null | undefined): LargeProjectPlannerTeam[] => {
+      if (!date) return [];
+      return teamsByDay[date] ?? [];
+    },
+    [teamsByDay],
+  );
+
+  const isTeamAllowedForDate = useCallback(
+    (teamId: string | null | undefined, date: string | null | undefined): boolean => {
+      if (!teamId || !date) return false;
+      const list = teamsByDay[date];
+      if (!list) return false;
+      return list.some((t) => t.teamId === teamId);
+    },
+    [teamsByDay],
+  );
+
   const itemsWithAssignmentValidity = useMemo<PlannerItemWithValidity[]>(() => {
     return items.map((it) => {
+      // Primärt valideras team (projektkalenderns kolumner).
+      if (it.assigned_team_id) {
+        const allowed = isTeamAllowedForDate(it.assigned_team_id, it.plan_date);
+        return {
+          ...it,
+          isAssignedStaffAllowed: allowed,
+          assignmentWarning: allowed
+            ? null
+            : 'Teamet är inte bemannat på projektet den här dagen.',
+        };
+      }
       if (!it.assigned_staff_id) {
         return { ...it, isAssignedStaffAllowed: true, assignmentWarning: null };
       }
@@ -114,7 +144,7 @@ export function useLargeProjectPlannerItems(largeProjectId: string | null | unde
           : 'Personen är inte bemannad på projektet den här dagen.',
       };
     });
-  }, [items, isStaffAllowedForDate]);
+  }, [items, isStaffAllowedForDate, isTeamAllowedForDate]);
 
   return useMemo(
     () => ({
