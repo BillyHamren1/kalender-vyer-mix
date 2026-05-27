@@ -850,10 +850,10 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       });
 
       // ── Stay markers ───────────────────────────────────────────────
+      // Visa även stay-points inne i geofence — dagsrutten ska aldrig döljas.
       const stayFeatures: any[] = [];
       for (const s of segments) {
         if (s.kind !== 'stay') continue;
-        if (pingInsideAnyFence({ lat: s.lat, lng: s.lng }, fences)) continue;
         stayFeatures.push({
           type: 'Feature',
           geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
