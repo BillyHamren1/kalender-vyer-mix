@@ -92,16 +92,25 @@ const ManualProjectTaskDialog = ({
   defaultDate,
   defaultStaffId,
   defaultBookingId,
+  defaultTitle,
+  defaultStartTime,
+  defaultEndTime,
   createItem,
   isMutating,
 }: Props) => {
   const today = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
 
-  const [title, setTitle] = useState('');
+  const normTime = (t?: string | null) => {
+    if (!t) return '';
+    // Acceptera "HH:mm" eller "HH:mm:ss"
+    return t.length >= 5 ? t.slice(0, 5) : t;
+  };
+
+  const [title, setTitle] = useState(defaultTitle ?? '');
   const [description, setDescription] = useState('');
   const [planDate, setPlanDate] = useState<string>(defaultDate ?? today);
-  const [startTime, setStartTime] = useState('');
-  const [endTime, setEndTime] = useState('');
+  const [startTime, setStartTime] = useState(normTime(defaultStartTime));
+  const [endTime, setEndTime] = useState(normTime(defaultEndTime));
   const [assignedStaffId, setAssignedStaffId] = useState<string>(
     defaultStaffId ?? UNASSIGNED,
   );
@@ -114,18 +123,18 @@ const ManualProjectTaskDialog = ({
   // Reset vid open
   useEffect(() => {
     if (open) {
-      setTitle('');
+      setTitle(defaultTitle ?? '');
       setDescription('');
       setPlanDate(defaultDate ?? today);
-      setStartTime('');
-      setEndTime('');
+      setStartTime(normTime(defaultStartTime));
+      setEndTime(normTime(defaultEndTime));
       setAssignedStaffId(defaultStaffId ?? UNASSIGNED);
       setAssignedTeamId('');
       setBookingId(defaultBookingId ?? NO_BOOKING);
       setStatus('planned');
       setNotes('');
     }
-  }, [open, defaultDate, defaultStaffId, defaultBookingId, today]);
+  }, [open, defaultDate, defaultStaffId, defaultBookingId, defaultTitle, defaultStartTime, defaultEndTime, today]);
 
   // Visa bara personal som är bemannad på valt datum.
   const allowedForDate = useMemo(() => {
