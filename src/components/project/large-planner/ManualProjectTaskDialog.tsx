@@ -70,6 +70,12 @@ interface Props {
   defaultStaffId?: string | null;
   /** Förifylld bokning. */
   defaultBookingId?: string | null;
+  /** Förifylld titel (t.ex. bokningsnamn när man "lägger in i plan"). */
+  defaultTitle?: string | null;
+  /** Förifylld starttid HH:mm. */
+  defaultStartTime?: string | null;
+  /** Förifylld sluttid HH:mm. */
+  defaultEndTime?: string | null;
   /** Skapa-funktion från useLargeProjectPlannerItems. */
   createItem: (input: CreatePlannerItemInput) => Promise<LargeProjectBookingPlanItem>;
   isMutating?: boolean;
