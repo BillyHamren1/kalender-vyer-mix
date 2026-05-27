@@ -205,7 +205,7 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
       />
 
       <div className="grid flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="min-w-0 overflow-auto" style={{ minHeight: 600 }}>
+        <div className="min-w-0 min-h-0 flex flex-col overflow-hidden">
           <LargeProjectPlannerCalendarView
             largeProjectId={largeProjectId}
             ctx={ctx}
