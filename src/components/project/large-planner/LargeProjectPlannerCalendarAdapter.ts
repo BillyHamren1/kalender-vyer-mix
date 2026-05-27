@@ -17,7 +17,7 @@
  *  - item.title                      → event.title
  *  - item.plan_date + start/end_time → event.start / event.end
  *  - item.assigned_team_id           → event.resourceId
- *    (om teamet inte är bemannat den dagen → UNASSIGNED)
+ *    (saknas team → UNASSIGNED)
  *  - item.booking_id                 → event.bookingId
  *  - eventType                       → 'internal_task' | 'todo'
  *  - extendedProps                   → planner-metadata (se nedan).
@@ -89,8 +89,7 @@ interface MapOptions {
 
 /**
  * Mappar planner-items till CalendarEvent[].
- * Item vars assigned_team_id inte finns på dagen routas till
- * UNASSIGNED-kolumnen och flaggas med extendedProps.assignmentInvalid.
+ * Item utan assigned_team_id routas till UNASSIGNED-kolumnen.
  *
  * Orderrad-todos (item_type === 'task' && booking_product_id != null)
  * filtreras BORT — de visas i BookingPlannerSheet vid klick på bokningens
@@ -112,14 +111,10 @@ export const mapPlannerItemsToCalendarEvents = (
 
       const tone = STATUS_COLOR[it.status] ?? STATUS_COLOR.planned;
 
-      // Team-kolumn = primär dimension. Saknat/ogiltigt team → Ej tilldelat.
-      const hasTeam = !!it.assigned_team_id;
-      const teamValid = hasTeam && it.isAssignedStaffAllowed;
-      const assignmentInvalid = hasTeam && !it.isAssignedStaffAllowed;
-      const resourceId =
-        teamValid && it.assigned_team_id
-          ? it.assigned_team_id
-          : UNASSIGNED_RESOURCE_ID;
+      // Team-kolumn = primär dimension. Finns team sparat ska det visas där,
+      // oavsett bemanning; endast null => Ej tilldelat.
+      const assignmentInvalid = false;
+      const resourceId = it.assigned_team_id ?? UNASSIGNED_RESOURCE_ID;
 
       const booking = it.booking_id
         ? bookingDisplayById?.get(it.booking_id) ?? null
@@ -146,7 +141,7 @@ export const mapPlannerItemsToCalendarEvents = (
           itemType: it.item_type,
           usesFallbackTime: !it.start_time || !it.end_time,
           assignmentInvalid,
-          assignmentInvalidReason: assignmentInvalid ? 'Team saknas i bemanning' : null,
+          assignmentInvalidReason: null,
           client: projectName ? `Projekt: ${projectName}` : 'Internt projekt',
           projectName: projectName ?? null,
           projectNumber: projectNumber ?? null,
