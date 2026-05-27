@@ -137,7 +137,8 @@ Deno.serve(async (req) => {
     }
 
     // 1. Hämta device_tokens för inloggade enheter (de med staff_id satt).
-    //    Ingen active_time_registrations-gating. Ingen recentPings-gating.
+    //    Ingen gating mot aktiva tidsregistreringar. Ingen gating mot
+    //    recentPings — saknad ping = stale = ska pulsas.
     const { data: tokens, error: tokenErr } = await supabase
       .from('device_tokens')
       .select('id, staff_id, token, platform, organization_id, refreshed_at, created_at')
