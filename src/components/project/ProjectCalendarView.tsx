@@ -141,7 +141,7 @@ const ProjectCalendarView = ({
   // bara läsas, aldrig skrivas. Se .lovable/large-project-calendar-audit.md.
   const staffOps = useUnifiedStaffOperations(anchorDate, 'weekly', 'Montage');
 
-  // 4. Filtrera events till projektets bookings + lägg på taskEvents.
+  // 4. Filtrera events till projektets bookings + lägg på taskEvents + extraEvents.
   const filteredEvents = useMemo(() => {
     const bookingEvents =
       projectBookingIds.size === 0
@@ -150,8 +150,23 @@ const ProjectCalendarView = ({
             const bid = e.bookingId || e.booking_id || e.extendedProps?.bookingId;
             return bid && projectBookingIds.has(bid);
           });
-    return [...bookingEvents, ...taskEvents];
-  }, [allEvents, projectBookingIds, taskEvents]);
+    return [...bookingEvents, ...taskEvents, ...(extraEvents ?? [])];
+  }, [allEvents, projectBookingIds, taskEvents, extraEvents]);
+
+  // Aktivitetsdagar — säkerställer att projektkalendern visar dagar där
+  // bara aktiviteter/planner-items finns (inga calendar_events).
+  const taskDayKeys = useMemo(() => {
+    const set = new Set<string>();
+    taskEvents.forEach((e) => {
+      const d = (e.start as string).slice(0, 10);
+      if (d) set.add(d);
+    });
+    (extraEvents ?? []).forEach((e) => {
+      const d = typeof e.start === 'string' ? e.start.slice(0, 10) : null;
+      if (d) set.add(d);
+    });
+    return set;
+  }, [taskEvents, extraEvents]);
 
   // Aktivitetsdagar — säkerställer att projektkalendern visar dagar där
   // bara aktiviteter finns (inga calendar_events).
