@@ -110,6 +110,53 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
     setManualOpen(true);
   };
 
+  /** Skapa planner-items för alla bokningens 3 faser i ett svep. */
+  const handlePlanWholeBooking = async (booking: LargeProjectPlannerBooking) => {
+    const existingForBooking = items.filter((it) => it.booking_id === booking.id);
+    const phases: Array<{
+      phase: 'rig' | 'event' | 'rigDown';
+      label: string;
+      date: string | null;
+      start: string | null;
+      end: string | null;
+    }> = [
+      { phase: 'rig', label: 'Rigg', date: booking.rigdaydate, start: booking.rig_start_time, end: booking.rig_end_time },
+      { phase: 'event', label: 'Event', date: booking.eventdate, start: booking.event_start_time, end: booking.event_end_time },
+      { phase: 'rigDown', label: 'Rigg ner', date: booking.rigdowndate, start: booking.rigdown_start_time, end: booking.rigdown_end_time },
+    ];
+    let created = 0;
+    let skipped = 0;
+    for (const ph of phases) {
+      if (!ph.date) continue;
+      const already = existingForBooking.some(
+        (it) =>
+          it.source_booking_phase === ph.phase &&
+          it.plan_date === ph.date &&
+          !it.booking_product_id,
+      );
+      if (already) { skipped++; continue; }
+      try {
+        await createItem({
+          large_project_id: largeProjectId,
+          booking_id: booking.id,
+          title: `${ph.label} — ${booking.display_name}${booking.booking_number ? ` (#${booking.booking_number})` : ''}`,
+          plan_date: ph.date,
+          item_type: 'booking',
+          source: 'booking',
+          phase: ph.phase,
+          source_booking_phase: ph.phase,
+          start_time: ph.start ?? '08:00:00',
+          end_time: ph.end ?? '17:00:00',
+        });
+        created++;
+      } catch (e) {
+        toast.error(`Kunde inte skapa ${ph.label}: ${(e as Error).message}`);
+      }
+    }
+    if (created > 0) toast.success(`${created} faser planerade${skipped ? ` (${skipped} fanns redan)` : ''}.`);
+    else if (skipped > 0) toast.info('Alla faser fanns redan i planen.');
+  };
+
   const handleSeedAll = async () => {
     try {
       const result = await createItemsFromBookings();
@@ -285,6 +332,7 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
         staff={staff}
         onCreateTodoForBooking={(b) => openCreateTodoDialog(b)}
         onCreateTodoForProduct={(b, p) => openCreateTodoDialog(b, p)}
+        onPlanWholeBooking={handlePlanWholeBooking}
         onItemClick={handleItemClick}
         onItemDelete={handleItemDelete}
       />
