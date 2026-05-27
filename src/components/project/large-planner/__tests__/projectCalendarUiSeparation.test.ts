@@ -1,8 +1,8 @@
 /**
  * Regressionstest: stora projektets ISOLERADE projektkalender återanvänder
  * personalkalenderns visuella TimeGrid-UI men har separat datalager.
- *
- * Statisk källkodsinspektion + enhetstest av adaptern.
+ * Kolumner = TEAM (samma som personalkalendern). Skriver bara till
+ * large_project_booking_plan_items (assigned_team_id).
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -15,11 +15,11 @@ import {
   PLANNER_EVENT_ID_PREFIX,
 } from '../LargeProjectPlannerCalendarAdapter';
 import type { PlannerItemWithValidity } from '../useLargeProjectPlannerItems';
+import type { LargeProjectPlannerTeam } from '../largeProjectPlannerTypes';
 
 const read = (rel: string) => readFileSync(resolve(process.cwd(), rel), 'utf8');
 
 describe('Stora projekt — projektkalender UI/data-separation', () => {
-  // ── Källkodsinspektion ───────────────────────────────────────────────────
   it('LargeEstablishmentPage renderar LargeProjectBookingPlannerCalendar', () => {
     const src = read('src/pages/project/LargeEstablishmentPage.tsx');
     expect(src).toMatch(/<LargeProjectBookingPlannerCalendar/);
@@ -53,8 +53,6 @@ describe('Stora projekt — projektkalender UI/data-separation', () => {
     );
     expect(src).not.toMatch(/from\s+['"][^'"]*useUnifiedStaffOperations['"]/);
     expect(src).not.toMatch(/from\s+['"][^'"]*useRealTimeCalendarEvents['"]/);
-    // useEventDragDrop får importeras för DRAG_DATA_TYPE-konstanten men
-    // får INTE anropas som hook (det skulle ge write-paths till calendar_events).
     expect(src).not.toMatch(/\buseEventDragDrop\s*\(/);
   });
 
@@ -63,6 +61,8 @@ describe('Stora projekt — projektkalender UI/data-separation', () => {
       'src/components/project/large-planner/LargeProjectPlannerCalendarView.tsx',
     );
     expect(src).toMatch(/updateItem\(/);
+    expect(src).toMatch(/assigned_team_id:\s*nextTeamId/);
+    expect(src).toMatch(/assigned_staff_id:\s*null/);
   });
 
   it('LargeProjectPlannerCalendarView skriver inte direkt till skyddade tabeller', () => {
@@ -89,20 +89,21 @@ describe('Stora projekt — projektkalender UI/data-separation', () => {
   });
 
   // ── Adapter-enhetstest ───────────────────────────────────────────────────
-  it('buildPlannerResourcesForDay returnerar personer per dag + Ej tilldelat sist', () => {
-    const resources = buildPlannerResourcesForDay([
-      { id: 'staff-1', name: 'Anna', color: '#FF0000', assignedDates: ['2026-05-27'] },
-      { id: 'staff-2', name: 'Bo', color: null, assignedDates: ['2026-05-27'] },
-    ]);
+  it('buildPlannerResourcesForDay returnerar TEAM-kolumner + Ej tilldelat sist', () => {
+    const teams: LargeProjectPlannerTeam[] = [
+      { teamId: 'team-1', teamTitle: 'Team 1', order: 1, staff: [] },
+      { teamId: 'team-2', teamTitle: 'Team 2', order: 2, staff: [] },
+    ];
+    const resources = buildPlannerResourcesForDay(teams);
     expect(resources).toHaveLength(3);
-    expect(resources[0].id).toBe('staff-1');
-    expect(resources[0].title).toBe('Anna');
-    expect(resources[1].id).toBe('staff-2');
+    expect(resources[0].id).toBe('team-1');
+    expect(resources[0].title).toBe('Team 1');
+    expect(resources[1].id).toBe('team-2');
     expect(resources[2].id).toBe(UNASSIGNED_RESOURCE_ID);
     expect(resources[2].title).toBe('Ej tilldelat');
   });
 
-  it('mapPlannerItemsToCalendarEvents — items renderas från large_project_booking_plan_items, resourceId=staffId', () => {
+  it('mapPlannerItemsToCalendarEvents — items renderas, resourceId=assigned_team_id', () => {
     const items: PlannerItemWithValidity[] = [
       {
         id: 'item-1',
@@ -116,8 +117,8 @@ describe('Stora projekt — projektkalender UI/data-separation', () => {
         plan_date: '2026-05-27',
         start_time: '08:00:00',
         end_time: '12:00:00',
-        assigned_staff_id: 'staff-1',
-        assigned_team_id: null,
+        assigned_staff_id: null,
+        assigned_team_id: 'team-1',
         status: 'planned',
         source: 'booking',
         source_booking_phase: null,
@@ -134,14 +135,14 @@ describe('Stora projekt — projektkalender UI/data-separation', () => {
     const events = mapPlannerItemsToCalendarEvents(items, { largeProjectId: 'lp-1' });
     expect(events).toHaveLength(1);
     expect(events[0].id).toBe(`${PLANNER_EVENT_ID_PREFIX}item-1`);
-    expect(events[0].resourceId).toBe('staff-1');
+    expect(events[0].resourceId).toBe('team-1');
     expect(events[0].start).toBe('2026-05-27T08:00:00');
     expect(events[0].extendedProps?.isLargeProjectPlannerItem).toBe(true);
     expect(events[0].extendedProps?.plannerItemId).toBe('item-1');
     expect(events[0].extendedProps?.assignmentInvalid).toBe(false);
   });
 
-  it('mapPlannerItemsToCalendarEvents — obemannad assigned_staff_id routas till Ej tilldelat med "Bemanning saknas"', () => {
+  it('mapPlannerItemsToCalendarEvents — obemannat team routas till Ej tilldelat', () => {
     const items: PlannerItemWithValidity[] = [
       {
         id: 'item-2',
@@ -155,8 +156,8 @@ describe('Stora projekt — projektkalender UI/data-separation', () => {
         plan_date: '2026-05-28',
         start_time: null,
         end_time: null,
-        assigned_staff_id: 'staff-not-on-day',
-        assigned_team_id: null,
+        assigned_staff_id: null,
+        assigned_team_id: 'team-9',
         status: 'planned',
         source: 'manual',
         source_booking_phase: null,
@@ -167,17 +168,16 @@ describe('Stora projekt — projektkalender UI/data-separation', () => {
         created_at: '',
         updated_at: '',
         isAssignedStaffAllowed: false,
-        assignmentWarning: 'Personen är inte bemannad på projektet den här dagen.',
+        assignmentWarning: 'Teamet är inte bemannat på projektet den här dagen.',
       },
     ];
     const events = mapPlannerItemsToCalendarEvents(items, { largeProjectId: 'lp-1' });
     expect(events).toHaveLength(1);
     expect(events[0].resourceId).toBe(UNASSIGNED_RESOURCE_ID);
     expect(events[0].extendedProps?.assignmentInvalid).toBe(true);
-    expect(events[0].extendedProps?.assignmentInvalidReason).toBe('Bemanning saknas');
   });
 
-  it('mapPlannerItemsToCalendarEvents — orderrad-todos (booking_product_id) filtreras bort (egen renderingsregel)', () => {
+  it('mapPlannerItemsToCalendarEvents — orderrad-todos (booking_product_id) filtreras bort', () => {
     const items: PlannerItemWithValidity[] = [
       {
         id: 'item-3',
@@ -215,11 +215,11 @@ describe('Stora projekt — projektkalender UI/data-separation', () => {
     expect(plannerItemIdFromEventId('calendar-event-123')).toBeNull();
   });
 
-  // ── TimeGrid har plannerMode-läge ────────────────────────────────────────
-  it('TimeGrid exponerar plannerMode-prop som döljer +-knapp och staff-rad', () => {
+  it('TimeGrid exponerar plannerMode-prop som döljer +-knapp men behåller team-staff-rad read-only', () => {
     const src = read('src/components/Calendar/TimeGrid.tsx');
     expect(src).toMatch(/plannerMode\?:\s*boolean/);
     expect(src).toMatch(/!plannerMode\s*&&[\s\S]{0,400}TeamStaffPickerPopover/);
-    expect(src).toMatch(/!plannerMode\s*&&[\s\S]{0,400}staff-row-time-cell/);
+    // Row 3 (staff-row) ska INTE längre gated bakom !plannerMode
+    expect(src).toMatch(/showRemoveDialog=\{!plannerMode\}/);
   });
 });
