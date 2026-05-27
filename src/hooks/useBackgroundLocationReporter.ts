@@ -456,8 +456,9 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
               batterySource: battery?.battery_source ?? null,
             });
             lastEnqueuedAtRef.current = Date.now();
-            void flushLocationQueue();
+            // Ingen direkt flush — periodisk 10-min-batch sköter upload.
           });
+
         lastUploadAtRef.current = now;
       }
       rescheduleHeartbeat();
