@@ -5,13 +5,16 @@
  * (CustomCalendar weekly). Premium UI med lila planning-tema.
  *
  * Datalager: STRIKT ISOLERAT.
- *  - Resources per dag = bemannade personer (staffByDay[date]) + "Ej tilldelat".
+ *  - Kolumner per dag = projektets TEAM (teamsByDay[date]) + "Ej tilldelat".
+ *    Identiskt med personalkalenderns kolumnindelning.
+ *  - Teamets personer visas read-only som badges under team-headern
+ *    (via TimeGrid weeklyStaffOperations + plannerMode read-only).
  *  - Events = large_project_booking_plan_items via LargeProjectPlannerCalendarAdapter.
  *  - Drag/drop på items går genom updateItem (→ large_project_booking_plan_items).
+ *    Sätter assigned_team_id på dropmål. Skriver ALDRIG till staff_assignments.
  *  - Använder ALDRIG:
  *      • CustomCalendar (för att slippa useEventDragDrop + setEvents-vägen)
  *      • useUnifiedStaffOperations / useRealTimeCalendarEvents
- *      • personalkalenderns team-resurser
  *  - Skriver ALDRIG till calendar_events / staff_assignments /
  *    booking_staff_assignments / large_project_team_assignments / bookings.
  */
@@ -26,7 +29,6 @@ import { EditControllerProvider } from '@/contexts/EditControllerContext';
 import { DRAG_DATA_TYPE, type DraggedEventData } from '@/hooks/useEventDragDrop';
 import type { CalendarEvent } from '@/components/Calendar/ResourceData';
 import {
-  PLANNER_EVENT_ID_PREFIX,
   UNASSIGNED_RESOURCE_ID,
   buildPlannerResourcesForDay,
   mapPlannerItemsToCalendarEvents,
@@ -65,9 +67,9 @@ const LargeProjectPlannerCalendarView = ({
     error,
     bookings,
     days,
-    staffByDay,
+    teamsByDay,
     itemsWithAssignmentValidity,
-    isStaffAllowedForDate,
+    isTeamAllowedForDate,
     updateItem,
   } = ctx;
 
@@ -118,9 +120,35 @@ const LargeProjectPlannerCalendarView = ({
   );
 
   /**
+   * Read-only staff-badges per team-kolumn. Speglar personalkalenderns
+   * "Team 1 → personer"-rad men SKRIVS aldrig (TimeGrid plannerMode hindrar
+   * + och remove).
+   */
+  const getStaffForTeamAndDate = useCallback(
+    (teamId: string, date: Date) => {
+      if (teamId === UNASSIGNED_RESOURCE_ID) return [];
+      const dateStr = format(date, 'yyyy-MM-dd');
+      const teamsForDay = teamsByDay[dateStr] ?? [];
+      const team = teamsForDay.find((t) => t.teamId === teamId);
+      if (!team) return [];
+      return team.staff.map((s) => ({
+        id: s.id,
+        name: s.name,
+        color: s.color ?? undefined,
+      }));
+    },
+    [teamsByDay],
+  );
+
+  const weeklyStaffOperations = useMemo(
+    () => ({ getStaffForTeamAndDate }),
+    [getStaffForTeamAndDate],
+  );
+
+  /**
    * Drop-hantering — kallas av TimeGrid per cell när ett event släpps.
    * Skriver ENDAST till large_project_booking_plan_items via updateItem.
-   * Skriver ALDRIG till calendar_events/staff_assignments/etc.
+   * Sätter assigned_team_id. Skriver ALDRIG till calendar_events/staff_assignments.
    */
   const handlePlannerEventDrop = useCallback(
     async (e: React.DragEvent, targetDateStr: string, targetResourceId?: string) => {
@@ -136,32 +164,33 @@ const LargeProjectPlannerCalendarView = ({
       const plannerItemId = plannerItemIdFromEventId(payload.id);
       if (!plannerItemId) return; // inte ett planner-item — ignorera
 
-      // Validera bemanning den nya dagen.
-      let nextStaffId: string | null = null;
+      let nextTeamId: string | null = null;
       if (targetResourceId === UNASSIGNED_RESOURCE_ID) {
-        nextStaffId = null;
+        nextTeamId = null;
       } else {
-        if (!isStaffAllowedForDate(targetResourceId, targetDateStr)) {
+        if (!isTeamAllowedForDate(targetResourceId, targetDateStr)) {
           toast.error(
-            'Personen är inte bemannad på stora projektet den här dagen. Tilldela personen via personalkalendern först.',
+            'Teamet är inte bemannat på stora projektet den här dagen. Lägg till personal i teamet via personalkalendern först.',
           );
           return;
         }
-        nextStaffId = targetResourceId;
+        nextTeamId = targetResourceId;
       }
 
       try {
         await updateItem(plannerItemId, {
           plan_date: targetDateStr,
-          assigned_staff_id: nextStaffId,
-          assigned_team_id: null,
-          status: nextStaffId ? 'planned' : undefined,
+          assigned_team_id: nextTeamId,
+          // Vid byte av team töms specifik person-tilldelning;
+          // den kan sättas igen via QuickEdit/ManualDialog inom teamet.
+          assigned_staff_id: null,
+          status: nextTeamId ? 'planned' : undefined,
         });
       } catch (err) {
         toast.error((err as Error).message || 'Kunde inte flytta task.');
       }
     },
-    [isStaffAllowedForDate, updateItem],
+    [isTeamAllowedForDate, updateItem],
   );
 
   if (isLoading) {
@@ -195,8 +224,8 @@ const LargeProjectPlannerCalendarView = ({
           <div className="weekly-horizontal-grid project-weekly-horizontal-grid">
             {days.map((day) => {
               const date = parseISO(day.date);
-              const dayStaff = staffByDay[day.date] ?? [];
-              const resources = buildPlannerResourcesForDay(dayStaff);
+              const dayTeams = teamsByDay[day.date] ?? [];
+              const resources = buildPlannerResourcesForDay(dayTeams);
               const phaseCls = day.phase ? PHASE_CLASS[day.phase] ?? '' : 'project-phase-none';
               const isToday = day.date === format(new Date(), 'yyyy-MM-dd');
               const headerLabel = format(date, 'EEE d MMM', { locale: sv });
@@ -213,6 +242,7 @@ const LargeProjectPlannerCalendarView = ({
                     getEventsForDayAndResource={getEventsForDayAndResource}
                     onEventDrop={handlePlannerEventDrop}
                     onEventClick={onEventClick}
+                    weeklyStaffOperations={weeklyStaffOperations}
                     fullWidth
                     plannerMode
                     variant="default"
