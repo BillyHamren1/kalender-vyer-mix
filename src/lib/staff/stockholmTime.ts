@@ -75,6 +75,3 @@ export function stockholmDayWindowUtc(dateStr: string): { startIso: string; endI
   return { startIso, endIso };
 }
 
-function _stockholmTimePlaceholder() {
-  return new Date(finalMs).toISOString();
-}
