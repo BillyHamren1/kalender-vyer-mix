@@ -228,8 +228,8 @@ export async function getOrBuildDaySnapshot(
   opts: { staffId: string; date: string; organizationId: string },
 ): Promise<DaySnapshot> {
   const { staffId, date, organizationId } = opts;
-  const startIso = `${date}T00:00:00.000Z`;
-  const endIso = `${date}T23:59:59.999Z`;
+  const { startIso, endIso } = stockholmDayWindowUtc(date);
+
 
   const { geofences, privateGeofenceIds } = await loadDayKnownSites(admin, {
     staffId,
