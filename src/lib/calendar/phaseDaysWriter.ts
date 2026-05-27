@@ -163,7 +163,11 @@ export async function savePhaseDays(input: SavePhaseDaysInput): Promise<SavePhas
       } else {
         // Ny dag → använd sticky team, fall tillbaka på fallbackResourceId
         const stickyTeam = await getStickyTeamForBooking(bookingId, orgId);
-        const targetResourceId = stickyTeam ?? fallbackResourceId ?? null;
+        const largeProjectStickyTeam =
+          !stickyTeam && largeProjectId
+            ? await getStickyTeamForLargeProject(largeProjectId, orgId, eventType, spec.date)
+            : null;
+        const targetResourceId = stickyTeam ?? largeProjectStickyTeam ?? fallbackResourceId ?? null;
 
         if (targetResourceId) {
           const { error: insertError } = await supabase.from('calendar_events').insert({
