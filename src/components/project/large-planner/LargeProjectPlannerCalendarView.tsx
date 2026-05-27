@@ -29,7 +29,6 @@ import { EditControllerProvider } from '@/contexts/EditControllerContext';
 import { DRAG_DATA_TYPE, type DraggedEventData } from '@/hooks/useEventDragDrop';
 import type { CalendarEvent } from '@/components/Calendar/ResourceData';
 import {
-  UNASSIGNED_RESOURCE_ID,
   buildPlannerResourcesForDay,
   mapPlannerItemsToCalendarEvents,
   plannerItemIdFromEventId,
@@ -125,7 +124,6 @@ const LargeProjectPlannerCalendarView = ({
    */
   const getStaffForTeamAndDate = useCallback(
     (teamId: string, date: Date) => {
-      if (teamId === UNASSIGNED_RESOURCE_ID) return [];
       const dateStr = format(date, 'yyyy-MM-dd');
       const teamsForDay = teamsByDay[dateStr] ?? [];
       const team = teamsForDay.find((t) => t.teamId === teamId);
@@ -163,7 +161,7 @@ const LargeProjectPlannerCalendarView = ({
       const plannerItemId = plannerItemIdFromEventId(payload.id);
       if (!plannerItemId) return; // inte ett planner-item — ignorera
 
-      const nextTeamId = targetResourceId === UNASSIGNED_RESOURCE_ID ? null : targetResourceId;
+      const nextTeamId = targetResourceId;
 
       try {
         await updateItem(plannerItemId, {
@@ -172,7 +170,7 @@ const LargeProjectPlannerCalendarView = ({
           // Vid byte av team töms specifik person-tilldelning;
           // den kan sättas igen via QuickEdit/ManualDialog inom teamet.
           assigned_staff_id: null,
-          status: nextTeamId ? 'planned' : undefined,
+          status: 'planned',
         });
       } catch (err) {
         toast.error((err as Error).message || 'Kunde inte flytta task.');

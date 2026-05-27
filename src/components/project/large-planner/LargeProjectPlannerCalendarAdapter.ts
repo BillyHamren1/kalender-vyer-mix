@@ -8,16 +8,17 @@
  *
  * STRIKT:
  *  - Får INTE läsa eller skriva supabase-tabeller.
- *  - resourceId = TEAM-id (per dag) ELLER UNASSIGNED_RESOURCE_ID.
- *    (Team-kolumner = projektkalenderns spegling av personalkalenderns team.
- *     assigned_staff_id används bara som metadata, inte som kolumn.)
+ *  - resourceId = TEAM-id (team-1 … team-5).
+ *  - Projektkalendern har ALLTID fasta kolumner team-1 … team-5 (samma som
+ *    personalkalendern). Ingen "Ej tilldelat"-kolumn.
+ *  - Items utan assigned_team_id renderas i team-1 som default.
  *
  * Mapping:
  *  - item.id                         → event.id  (prefix "planner-item-")
  *  - item.title                      → event.title
  *  - item.plan_date + start/end_time → event.start / event.end
  *  - item.assigned_team_id           → event.resourceId
- *    (saknas team → UNASSIGNED)
+ *    (saknas team → DEFAULT_TEAM_ID)
  *  - item.booking_id                 → event.bookingId
  *  - eventType                       → 'internal_task' | 'todo'
  *  - extendedProps                   → planner-metadata (se nedan).
@@ -26,8 +27,17 @@ import type { CalendarEvent, Resource } from '@/components/Calendar/ResourceData
 import type { PlannerItemWithValidity } from './useLargeProjectPlannerItems';
 import type { LargeProjectPlannerTeam } from './largeProjectPlannerTypes';
 
-export const UNASSIGNED_RESOURCE_ID = '__unassigned__';
-export const UNASSIGNED_TITLE = 'Ej tilldelat';
+/**
+ * Default-team för items utan assigned_team_id.
+ * Items hamnar i team-1 tills användaren drar dem till rätt kolumn.
+ */
+export const DEFAULT_TEAM_ID = 'team-1';
+
+/**
+ * Fasta team-kolumner i projektkalendern — identiskt med personalkalendern.
+ */
+export const FIXED_TEAM_IDS = ['team-1', 'team-2', 'team-3', 'team-4', 'team-5'] as const;
+export type FixedTeamId = (typeof FIXED_TEAM_IDS)[number];
 
 export const PLANNER_EVENT_ID_PREFIX = 'planner-item-';
 
@@ -52,25 +62,28 @@ export const plannerItemIdFromEventId = (eventId: string): string | null => {
   return eventId.slice(PLANNER_EVENT_ID_PREFIX.length);
 };
 
+const teamTitleFor = (teamId: string): string => {
+  const m = /^team-(\d+)$/.exec(teamId);
+  return m ? `Team ${m[1]}` : teamId;
+};
+
 /**
- * Bygger TEAM-kolumner för EN projektdag från dagens team-bemanning.
- * Lägger alltid på en fast "Ej tilldelat"-kolumn sist.
+ * Bygger TEAM-kolumner för EN projektdag.
+ * Returnerar ALLTID exakt fem fasta kolumner team-1 … team-5 (samma som
+ * personalkalendern). Personal-badges per team hämtas separat av
+ * weeklyStaffOperations i vyn (från LPTA).
  *
  * Resource.id === teamId är vad TimeGrid använder för column matching,
  * och vad onEventDrop får tillbaka som targetResourceId.
  */
 export const buildPlannerResourcesForDay = (
-  teamsForDay: LargeProjectPlannerTeam[],
+  _teamsForDay: LargeProjectPlannerTeam[],
 ): Resource[] => {
-  const teamResources: Resource[] = teamsForDay.map((t) => ({
-    id: t.teamId,
-    title: t.teamTitle,
+  return FIXED_TEAM_IDS.map((teamId) => ({
+    id: teamId,
+    title: teamTitleFor(teamId),
     eventColor: 'hsl(var(--primary))',
   }));
-  return [
-    ...teamResources,
-    { id: UNASSIGNED_RESOURCE_ID, title: UNASSIGNED_TITLE, eventColor: '#C4B5FD' },
-  ];
 };
 
 interface MapOptions {
@@ -89,7 +102,7 @@ interface MapOptions {
 
 /**
  * Mappar planner-items till CalendarEvent[].
- * Item utan assigned_team_id routas till UNASSIGNED-kolumnen.
+ * Item utan assigned_team_id routas till DEFAULT_TEAM_ID (team-1).
  *
  * Orderrad-todos (item_type === 'task' && booking_product_id != null)
  * filtreras BORT — de visas i BookingPlannerSheet vid klick på bokningens
@@ -111,10 +124,9 @@ export const mapPlannerItemsToCalendarEvents = (
 
       const tone = STATUS_COLOR[it.status] ?? STATUS_COLOR.planned;
 
-      // Team-kolumn = primär dimension. Finns team sparat ska det visas där,
-      // oavsett bemanning; endast null => Ej tilldelat.
+      // Team-kolumn = primär dimension. Saknas team → default-team (team-1).
       const assignmentInvalid = false;
-      const resourceId = it.assigned_team_id ?? UNASSIGNED_RESOURCE_ID;
+      const resourceId = it.assigned_team_id ?? DEFAULT_TEAM_ID;
 
       const booking = it.booking_id
         ? bookingDisplayById?.get(it.booking_id) ?? null

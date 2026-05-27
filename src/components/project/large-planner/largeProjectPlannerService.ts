@@ -383,45 +383,48 @@ export function buildTeamsByDay(
 
 /**
  * Hämta personal per dag på det stora projektet (read-only).
- * Speglar personalkalenderns derivering:
- *   calendar_events(booking IN project, event_type rig/event/rigDown)
- *   × staff_assignments(team_id, assignment_date)
- *   × staff_members.
+ *
+ * KÄLLA: large_project_team_assignments (LPTA) — INTE calendar_events.
+ * Detta följer memory `large-project-team-source-of-truth-v1`: team på
+ * projektnivå styrs ENDAST av LPTA, syskonbokningarnas
+ * calendar_events.resource_id ignoreras helt.
+ *
+ * För varje (project, assignment_date, team_id) i LPTA hämtas teamets
+ * personal via staff_assignments(team_id, assignment_date) +
+ * staff_members(id → name/color).
  */
 async function fetchProjectStaffPerDay(
-  bookingIds: string[],
+  largeProjectId: string,
 ): Promise<{
   staffByDay: Record<string, LargeProjectPlannerStaffMember[]>;
   teamsByDay: Record<string, LargeProjectPlannerTeam[]>;
   allStaff: LargeProjectPlannerStaffMember[];
 }> {
-  if (bookingIds.length === 0) {
+  const { data: lptaRaw, error: lptaErr } = await supabase
+    .from('large_project_team_assignments')
+    .select('assignment_date, team_id, phase')
+    .eq('large_project_id', largeProjectId);
+  if (lptaErr) throw lptaErr;
+
+  type LptaRow = {
+    assignment_date: string | null;
+    team_id: string | null;
+    phase: string | null;
+  };
+  const lptaRows = (lptaRaw ?? []) as unknown as LptaRow[];
+
+  if (lptaRows.length === 0) {
     return { staffByDay: {}, teamsByDay: {}, allStaff: [] };
   }
-
-  const { data: events, error: evErr } = await supabase
-    .from('calendar_events')
-    .select('booking_id, event_type, source_date, resource_id')
-    .in('booking_id', bookingIds)
-    .in('event_type', ['rig', 'event', 'rigDown']);
-  if (evErr) throw evErr;
-
-  type EvRow = {
-    booking_id: string | null;
-    event_type: string | null;
-    source_date: string | null;
-    resource_id: string | null;
-  };
-  const evRows = (events ?? []) as unknown as EvRow[];
 
   const dateTeamPairs = new Set<string>();
   const teamIds = new Set<string>();
   const dates = new Set<string>();
-  evRows.forEach((e) => {
-    if (!e.source_date || !e.resource_id) return;
-    dateTeamPairs.add(`${e.source_date}|${e.resource_id}`);
-    teamIds.add(e.resource_id);
-    dates.add(e.source_date);
+  lptaRows.forEach((r) => {
+    if (!r.assignment_date || !r.team_id) return;
+    dateTeamPairs.add(`${r.assignment_date}|${r.team_id}`);
+    teamIds.add(r.team_id);
+    dates.add(r.assignment_date);
   });
 
   if (dateTeamPairs.size === 0) {
@@ -472,8 +475,8 @@ async function fetchProjectStaffPerDay(
     }));
   }
 
-  const staffByDay = buildStaffByDay(evRows, assignRows, memberList);
-  const teamsByDay = buildTeamsByDay(evRows, assignRows, memberList);
+  const teamsByDay = buildTeamsByDayFromLpta(lptaRows, assignRows, memberList);
+  const staffByDay = buildStaffByDayFromLpta(lptaRows, assignRows, memberList);
 
   // Bygg en de-dupad union för "all staff" + samla assignedDates per person
   const datesByStaff = new Map<string, Set<string>>();
@@ -498,6 +501,120 @@ async function fetchProjectStaffPerDay(
   return { staffByDay, teamsByDay, allStaff };
 }
 
+/**
+ * Pure helper: bygg teamsByDay från LPTA-rader + staff_assignments-rader.
+ * Exporterad för testbarhet.
+ */
+export function buildTeamsByDayFromLpta(
+  lptaRows: Array<{
+    assignment_date: string | null;
+    team_id: string | null;
+  }>,
+  assignments: Array<{
+    staff_id: string | null;
+    team_id: string | null;
+    assignment_date: string | null;
+  }>,
+  staffMembers: Array<{ id: string; name: string; color: string | null }>,
+): Record<string, LargeProjectPlannerTeam[]> {
+  const teamsByDate = new Map<string, Set<string>>();
+  lptaRows.forEach((r) => {
+    if (!r.assignment_date || !r.team_id) return;
+    const set = teamsByDate.get(r.assignment_date) ?? new Set<string>();
+    set.add(r.team_id);
+    teamsByDate.set(r.assignment_date, set);
+  });
+
+  const staffByDateTeam = new Map<string, Set<string>>();
+  assignments.forEach((a) => {
+    if (!a.staff_id || !a.team_id || !a.assignment_date) return;
+    const key = `${a.assignment_date}|${a.team_id}`;
+    const set = staffByDateTeam.get(key) ?? new Set<string>();
+    set.add(a.staff_id);
+    staffByDateTeam.set(key, set);
+  });
+
+  const memberById = new Map<string, { id: string; name: string; color: string | null }>();
+  staffMembers.forEach((m) => memberById.set(m.id, m));
+
+  const teamOrder = (teamId: string): number => {
+    const m = /^team-(\d+)$/.exec(teamId);
+    return m ? parseInt(m[1], 10) : 9999;
+  };
+  const teamTitle = (teamId: string): string => {
+    const m = /^team-(\d+)$/.exec(teamId);
+    return m ? `Team ${m[1]}` : teamId;
+  };
+
+  const result: Record<string, LargeProjectPlannerTeam[]> = {};
+  teamsByDate.forEach((teams, date) => {
+    const list: LargeProjectPlannerTeam[] = Array.from(teams)
+      .sort((a, b) => teamOrder(a) - teamOrder(b) || a.localeCompare(b))
+      .map((teamId) => {
+        const staffSet = staffByDateTeam.get(`${date}|${teamId}`) ?? new Set<string>();
+        const staff = Array.from(staffSet)
+          .map((sid) => memberById.get(sid))
+          .filter((m): m is { id: string; name: string; color: string | null } => !!m)
+          .sort((a, b) => a.name.localeCompare(b.name, 'sv'));
+        return {
+          teamId,
+          teamTitle: teamTitle(teamId),
+          order: teamOrder(teamId),
+          staff,
+        };
+      });
+    result[date] = list;
+  });
+  return result;
+}
+
+/**
+ * Pure helper: bygg staffByDay (union per dag, oavsett team) från LPTA-rader.
+ * Exporterad för testbarhet.
+ */
+export function buildStaffByDayFromLpta(
+  lptaRows: Array<{
+    assignment_date: string | null;
+    team_id: string | null;
+  }>,
+  assignments: Array<{
+    staff_id: string | null;
+    team_id: string | null;
+    assignment_date: string | null;
+  }>,
+  staffMembers: Array<{ id: string; name: string; color: string | null }>,
+): Record<string, LargeProjectPlannerStaffMember[]> {
+  const dateTeamPairs = new Set<string>();
+  lptaRows.forEach((r) => {
+    if (!r.assignment_date || !r.team_id) return;
+    dateTeamPairs.add(`${r.assignment_date}|${r.team_id}`);
+  });
+
+  const memberById = new Map<string, { id: string; name: string; color: string | null }>();
+  staffMembers.forEach((m) => memberById.set(m.id, m));
+
+  const staffByDate = new Map<string, Set<string>>();
+  assignments.forEach((a) => {
+    if (!a.staff_id || !a.team_id || !a.assignment_date) return;
+    if (!dateTeamPairs.has(`${a.assignment_date}|${a.team_id}`)) return;
+    const set = staffByDate.get(a.assignment_date) ?? new Set<string>();
+    set.add(a.staff_id);
+    staffByDate.set(a.assignment_date, set);
+  });
+
+  const result: Record<string, LargeProjectPlannerStaffMember[]> = {};
+  staffByDate.forEach((staffIds, date) => {
+    const list: LargeProjectPlannerStaffMember[] = Array.from(staffIds)
+      .map((sid) => memberById.get(sid))
+      .filter((m): m is { id: string; name: string; color: string | null } => !!m)
+      .map((m) => ({ id: m.id, name: m.name, color: m.color, assignedDates: [date] }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'sv'));
+    result[date] = list;
+  });
+  return result;
+}
+
+
 export async function fetchLargeProjectPlannerItems(
   largeProjectId: string,
 ): Promise<LargeProjectBookingPlanItem[]> {
@@ -518,7 +635,7 @@ export async function fetchLargeProjectPlannerContext(
     fetchLargeProjectPlannerItems(largeProjectId),
   ]);
   const { staffByDay, teamsByDay, allStaff } = await fetchProjectStaffPerDay(
-    bookings.map((b) => b.id),
+    largeProjectId,
   );
   return {
     projectId: largeProjectId,
