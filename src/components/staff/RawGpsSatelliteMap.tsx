@@ -779,11 +779,11 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
       });
 
       // ── Move-label points (endast en tidslabel per globalt 5-minutersintervall) ─
+      // GPS-satellitkartan visar labels även inne i geofences — dagsrutten
+      // är huvudlagret och ska aldrig "döljas" av polygoner.
       const moveLabelFeatures: any[] = [];
       const globallyAllowedLabelIds = new Set(
-        pickPingsByGlobalInterval(data, 5 * 60_000)
-          .filter((p) => !pingInsideAnyFence(p, fences))
-          .map((p) => pingKey(p)),
+        pickPingsByGlobalInterval(data, 5 * 60_000).map((p) => pingKey(p)),
       );
       for (const s of segments) {
         if (s.kind !== 'move') continue;
@@ -795,7 +795,6 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
           const key = pingKey(p);
           if (!labelIds.has(key)) continue;
           if (!globallyAllowedLabelIds.has(key)) continue;
-          if (pingInsideAnyFence(p, fences)) continue;
           moveLabelFeatures.push({
             type: 'Feature',
             geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
