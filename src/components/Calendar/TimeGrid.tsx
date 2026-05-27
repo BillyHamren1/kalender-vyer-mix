@@ -48,8 +48,9 @@ interface TimeGridProps {
    * Plannermode för stora projektets ISOLERADE interna projektkalender.
    * I detta läge:
    *  - inget +-knapp/TeamStaffPickerPopover (ingen tilldelning av personal)
-   *  - ingen assigned-staff-rad (rad 3) (resources = personer per dag, ej team)
-   *  - använder ändå samma TimeGrid-layout & event-rendering
+   *  - row 3 (team-staff-badges) renderas READ-ONLY (ingen remove-dialog)
+   *  - kolumner = projektets team (samma som personalkalendern)
+   *  - använder samma TimeGrid-layout & event-rendering
    * Skrivvägar styrs av föräldern via onEventDrop som inte får gå till
    * calendar_events/staff_assignments.
    */
@@ -220,7 +221,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         {/* Fixed header */}
         <div
           className="time-grid-fixed-header"
-          style={{ display: 'grid', gridTemplateColumns, gridTemplateRows: plannerMode ? 'auto auto' : 'auto auto auto', width: totalWidth, flexShrink: 0 }}
+          style={{ display: 'grid', gridTemplateColumns, gridTemplateRows: 'auto auto auto', width: totalWidth, flexShrink: 0 }}
         >
           <div className="time-grid-header-bg" style={{ gridColumn: '1 / -1', gridRow: 1 }} />
           <div className="time-column-header" />
@@ -316,46 +317,42 @@ const TimeGrid: React.FC<TimeGridProps> = ({
             <div className="time-title">Time</div>
           </div>
 
-          {/* Row 3: assigned staff per team — skippas i plannerMode */}
-          {!plannerMode && (
-            <>
-              <div className="staff-row-time-cell" style={{ gridRow: 3, gridColumn: 1, minHeight: `${ASSIGNED_STAFF_ROW_HEIGHT}px` }} />
-              {resources.map((resource, index) => {
-                const assignedStaff = getAssignedStaffForTeam(resource.id);
-                const colWidth = teamColumnWidths[index];
-                const wide = assignedStaff.length > 5;
-                return (
-                  <div
-                    key={`staff-${resource.id}`}
-                    className="staff-assignment-header-row"
-                    style={{
-                      gridColumn: index + 2,
-                      gridRow: 3,
-                      width: fullWidth ? 'auto' : `${colWidth}px`,
-                      minWidth: fullWidth ? 0 : `${colWidth}px`,
-                      minHeight: `${ASSIGNED_STAFF_ROW_HEIGHT}px`,
-                    }}
-                  >
-                    <div className="staff-header-assignment-area">
-                      <div className={`assigned-staff-header-list${wide ? ' assigned-staff-header-list--wide' : ''}`}>
-                        {assignedStaff.map((staff) => (
-                          <StaffItem
-                            key={staff.id}
-                            staff={{ id: staff.id, name: staff.name, color: staff.color, assignedTeam: resource.id }}
-                            onRemove={() => handleStaffRemoval(staff.id, resource.id)}
-                            currentDate={day}
-                            teamName={resource.title}
-                            variant="compact"
-                            showRemoveDialog={true}
-                          />
-                        ))}
-                      </div>
-                    </div>
+          {/* Row 3: assigned staff per team — read-only i plannerMode */}
+          <div className="staff-row-time-cell" style={{ gridRow: 3, gridColumn: 1, minHeight: `${ASSIGNED_STAFF_ROW_HEIGHT}px` }} />
+          {resources.map((resource, index) => {
+            const assignedStaff = getAssignedStaffForTeam(resource.id);
+            const colWidth = teamColumnWidths[index];
+            const wide = assignedStaff.length > 5;
+            return (
+              <div
+                key={`staff-${resource.id}`}
+                className="staff-assignment-header-row"
+                style={{
+                  gridColumn: index + 2,
+                  gridRow: 3,
+                  width: fullWidth ? 'auto' : `${colWidth}px`,
+                  minWidth: fullWidth ? 0 : `${colWidth}px`,
+                  minHeight: `${ASSIGNED_STAFF_ROW_HEIGHT}px`,
+                }}
+              >
+                <div className="staff-header-assignment-area">
+                  <div className={`assigned-staff-header-list${wide ? ' assigned-staff-header-list--wide' : ''}`}>
+                    {assignedStaff.map((staff) => (
+                      <StaffItem
+                        key={staff.id}
+                        staff={{ id: staff.id, name: staff.name, color: staff.color, assignedTeam: resource.id }}
+                        onRemove={plannerMode ? undefined : () => handleStaffRemoval(staff.id, resource.id)}
+                        currentDate={day}
+                        teamName={resource.title}
+                        variant="compact"
+                        showRemoveDialog={!plannerMode}
+                      />
+                    ))}
                   </div>
-                );
-              })}
-            </>
-          )}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* Scrollable time slots */}

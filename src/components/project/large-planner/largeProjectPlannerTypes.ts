@@ -84,6 +84,18 @@ export interface LargeProjectPlannerDay {
   items: LargeProjectBookingPlanItem[];
 }
 
+/** Ett team som projektet "äger" en specifik dag (read-only spegling från personalkalendern). */
+export interface LargeProjectPlannerTeam {
+  /** team-id ur staff_assignments / calendar_events.resource_id (ex "team-1"). */
+  teamId: string;
+  /** Visningsnamn (ex "Team 1"). */
+  teamTitle: string;
+  /** Sorteringsindex (1-baserat, från personalkalenderns ordning). */
+  order: number;
+  /** Personer som är bemannade i teamet den dagen. */
+  staff: Array<{ id: string; name: string; color: string | null }>;
+}
+
 export interface LargeProjectPlannerContext {
   projectId: string;
   bookings: LargeProjectPlannerBooking[];
@@ -92,6 +104,8 @@ export interface LargeProjectPlannerContext {
   days: LargeProjectPlannerDay[];
   /** Bemanning per datum (yyyy-MM-dd) — speglar personalkalenderns storprojektbemanning. */
   staffByDay: Record<string, LargeProjectPlannerStaffMember[]>;
+  /** Team-kolumner per datum (yyyy-MM-dd) — projektkalenderns kolumner. */
+  teamsByDay: Record<string, LargeProjectPlannerTeam[]>;
 }
 
 // ── Write inputs ────────────────────────────────────────────────────────────
