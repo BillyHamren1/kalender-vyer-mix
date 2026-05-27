@@ -152,16 +152,14 @@ const LargeProjectPlannerSidebar = ({
                   </Badge>
                 </div>
                 <div className="mt-2 flex gap-1">
-                  {!isPlanned && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-6 flex-1 text-[10px]"
-                      onClick={() => onSeedBooking(booking)}
-                    >
-                      Lägg in i plan
-                    </Button>
-                  )}
+                  <Button
+                    size="sm"
+                    variant={isPlanned ? 'outline' : 'default'}
+                    className="h-6 flex-1 text-[10px]"
+                    onClick={() => onSeedBooking(booking)}
+                  >
+                    Planera
+                  </Button>
                   {onSplitBooking && (
                     <Button
                       size="sm"
