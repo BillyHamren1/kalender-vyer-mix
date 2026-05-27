@@ -215,6 +215,11 @@ const ManualProjectTaskDialog = ({
         </DialogHeader>
 
         <div className="space-y-3">
+          {defaultBookingProductLabel && (
+            <div className="rounded border border-primary/30 bg-primary/5 px-2 py-1 text-[11px] text-foreground">
+              Kopplad orderrad: <span className="font-medium">{defaultBookingProductLabel}</span>
+            </div>
+          )}
           <div className="space-y-1">
             <Label htmlFor="manual-title">Titel *</Label>
             <Input
