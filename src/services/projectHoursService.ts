@@ -216,11 +216,22 @@ async function resolveStaffRates(
 /**
  * Hämta projektets timmar som ProjectHoursSummary (raw helper-output).
  * Använd denna för nya vyer.
+ *
+ * `scope`:
+ *   - `'inherit'` (default): target inkluderar booking_id + (om finns)
+ *     project_id + large_project_id. Korrekt för en SINGLE-booking projektvy
+ *     där bokningen ÄR projektet.
+ *   - `'booking_only'`: target = { booking_id } enbart. Använd när bokningen
+ *     är ett syskon under ett large project — då får per-booking-vyn ALDRIG
+ *     ärva large_project_id-matchade block (annars dubbelräknas hela LP-totalen
+ *     på varje booking). Se useLargeProjectEconomy.
  */
 export async function fetchProjectHoursSummary(
   bookingId: string,
   extraTarget?: Partial<ProjectHoursTarget>,
+  options: { scope?: 'inherit' | 'booking_only' } = {},
 ): Promise<ProjectHoursSummary> {
+  const scope = options.scope ?? 'inherit';
   const ctx = await loadBookingContext(bookingId);
   if (!ctx) {
     return {
@@ -235,15 +246,18 @@ export async function fetchProjectHoursSummary(
     };
   }
   const dayReports = await loadDayReportsForOrg(ctx.organization_id, ctx.window);
-  const target: ProjectHoursTarget = {
-    booking_id: bookingId,
-    project_id: ctx.assigned_project_id ?? extraTarget?.project_id ?? null,
-    large_project_id: ctx.large_project_id ?? extraTarget?.large_project_id ?? null,
-    assignment_id: extraTarget?.assignment_id ?? null,
-    location_id: extraTarget?.location_id ?? null,
-  };
+  const target: ProjectHoursTarget = scope === 'booking_only'
+    ? { booking_id: bookingId }
+    : {
+        booking_id: bookingId,
+        project_id: ctx.assigned_project_id ?? extraTarget?.project_id ?? null,
+        large_project_id: ctx.large_project_id ?? extraTarget?.large_project_id ?? null,
+        assignment_id: extraTarget?.assignment_id ?? null,
+        location_id: extraTarget?.location_id ?? null,
+      };
   return summarizeProjectHoursFromDayReports(dayReports, target);
 }
+
 
 /**
  * Adapter: returnerar projektets timmar i den gamla `StaffTimeReport[]`-shapen
@@ -264,8 +278,32 @@ export async function fetchProjectHoursSummary(
 export async function fetchProjectStaffHoursAsTimeReports(
   bookingId: string,
 ): Promise<StaffTimeReport[]> {
-  const summary = await fetchProjectHoursSummary(bookingId);
+  return _buildStaffTimeReports(bookingId, 'inherit');
+}
+
+/**
+ * Booking-strikt adapter — target inkluderar ENDAST booking_id.
+ *
+ * Använd när bokningen är ett syskon under ett large project: utan denna
+ * begränsning ärver varje syskonbooking hela large projectets block via
+ * `large_project_id`-OR-matchningen i `blockMatchesProjectTarget`, vilket
+ * dubbelräknar timmarna på antalet syskon. Large projectets total ska komma
+ * från `fetchLargeProjectHoursSummary` eller godkända
+ * `project_staff_time_cost_lines`, inte från en summa över per-booking-vyer.
+ */
+export async function fetchProjectStaffHoursAsTimeReportsBookingOnly(
+  bookingId: string,
+): Promise<StaffTimeReport[]> {
+  return _buildStaffTimeReports(bookingId, 'booking_only');
+}
+
+async function _buildStaffTimeReports(
+  bookingId: string,
+  scope: 'inherit' | 'booking_only',
+): Promise<StaffTimeReport[]> {
+  const summary = await fetchProjectHoursSummary(bookingId, undefined, { scope });
   if (summary.staffSummaries.length === 0) return [];
+
 
   const staffIds = summary.staffSummaries.map((s) => s.staff_id);
   const rates = await resolveStaffRates(staffIds, bookingId);

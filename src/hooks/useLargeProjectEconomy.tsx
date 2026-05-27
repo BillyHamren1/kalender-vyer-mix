@@ -9,7 +9,7 @@ import {
   deleteLargeProjectPurchase,
 } from '@/services/largeProjectService';
 import { fetchAllEconomyDataMulti } from '@/services/planningApiService';
-import { fetchProjectTimeReports } from '@/services/projectEconomyService';
+import { fetchProjectStaffHoursAsTimeReportsBookingOnly } from '@/services/projectHoursService';
 import { fetchLargeProjectHoursSummary } from '@/services/projectHoursService';
 import { fetchApprovedProjectStaffTimeCostSummary } from '@/services/projectStaffTimeCostLinesService';
 import type { StaffTimeReport } from '@/types/projectEconomy';
@@ -82,15 +82,17 @@ export const useLargeProjectEconomy = (
     enabled: bookingIds.length > 0,
   });
 
-  // DETAIL-only: per-booking time reports breakdown. Får inte användas som
-  // total — totalsanningen för LP är largeProjectHours nedan.
+  // DETAIL-only: per-booking time reports breakdown. STRIKT booking-target —
+  // får INTE ärva large_project_id, då dubbelräknas hela LP-totalen på varje
+  // syskonbooking. Large project-totalen kommer från largeProjectHours /
+  // approvedLpCostSummaries nedan.
   const { data: timeReportsByBooking = {} } = useQuery({
-    queryKey: ['large-project-time-reports', bookingIds],
+    queryKey: ['large-project-time-reports-booking-only', bookingIds],
     queryFn: async () => {
       const result: Record<string, StaffTimeReport[]> = {};
       await Promise.all(bookingIds.map(async (bId) => {
         try {
-          result[bId] = await fetchProjectTimeReports(bId);
+          result[bId] = await fetchProjectStaffHoursAsTimeReportsBookingOnly(bId);
         } catch (e) {
           console.warn('[LargeProjectEcon] time reports fetch failed for', bId, e);
           result[bId] = [];
@@ -100,6 +102,7 @@ export const useLargeProjectEconomy = (
     },
     enabled: bookingIds.length > 0,
   });
+
 
   // PROGNOS-källa (Time Engine, staff_day_report_cache). Endast förslag.
   const { data: largeProjectHours } = useQuery({
