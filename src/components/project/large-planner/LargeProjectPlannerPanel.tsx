@@ -212,25 +212,9 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
                 setManualDefaults({ date: days[0]?.date ?? null, staffId: null });
                 setManualOpen(true);
               }}
-              onCreateTodoForProduct={(booking, product) => {
-                const suggestedDate =
-                  booking.rigdaydate ?? booking.eventdate ?? booking.rigdowndate ?? days[0]?.date ?? null;
-                const suggestedStart =
-                  booking.event_start_time ?? booking.rig_start_time ?? '08:00:00';
-                const suggestedEnd =
-                  booking.event_end_time ?? booking.rig_end_time ?? '17:00:00';
-                setManualDefaults({
-                  date: suggestedDate,
-                  staffId: null,
-                  bookingId: booking.id,
-                  title: product.name || booking.display_name,
-                  startTime: suggestedStart,
-                  endTime: suggestedEnd,
-                  bookingProductId: product.id,
-                  bookingProductLabel: `${product.name}${product.quantity ? ` · ${product.quantity} st` : ''}`,
-                });
-                setManualOpen(true);
-              }}
+              onCreateTodoForProduct={(booking, product) =>
+                openCreateTodoDialog(booking, product)
+              }
             />
           </div>
         )}
