@@ -173,8 +173,15 @@ const LargeProjectPlannerSidebar = ({
                     </Button>
                   )}
                 </div>
+                {onCreateTodoForProduct && (
+                  <BookingProductsExpandable
+                    bookingId={booking.id}
+                    onCreateTodoForProduct={(p) => onCreateTodoForProduct(booking, p)}
+                  />
+                )}
                 {isPlanned && (
                   <div className="mt-2 space-y-1">
+
                     {its.map((it) => (
                       <LargeProjectPlannerTaskCard
                         key={it.id}
