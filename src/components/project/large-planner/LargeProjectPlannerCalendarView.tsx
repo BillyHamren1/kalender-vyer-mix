@@ -29,7 +29,6 @@ import { EditControllerProvider } from '@/contexts/EditControllerContext';
 import { DRAG_DATA_TYPE, type DraggedEventData } from '@/hooks/useEventDragDrop';
 import type { CalendarEvent } from '@/components/Calendar/ResourceData';
 import {
-  UNASSIGNED_RESOURCE_ID,
   buildPlannerResourcesForDay,
   mapPlannerItemsToCalendarEvents,
   plannerItemIdFromEventId,
