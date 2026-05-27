@@ -107,6 +107,12 @@ const LargeProjectEconomyPage = () => {
         </Card>
       </div>
 
+      {/* Dag-för-dag personalöversikt: BSA × submissions × cost lines */}
+      <ProjectDailyStaffTimeOverview
+        largeProjectId={project.id}
+        bookingIds={bookingIds}
+      />
+
       {/* Editable unified cost list */}
       <LargeProjectEditableCostList
         largeProjectId={project.id}
