@@ -13,11 +13,10 @@ import { useCurrentOrg } from './useCurrentOrg';
  * - filtered by current organization_id (multi-tenant)
  */
 async function fetchProjectInboxCount(orgId: string): Promise<number> {
-  const today = new Date().toISOString().slice(0, 10);
-
-  const { data, error } = await supabase
+  // Måste matcha IncomingBookingsList 1:1 (samma filter, inget datumkrav)
+  const { data: candidates, error } = await supabase
     .from('bookings')
-    .select('id, eventdate, rigdaydate, rigdowndate')
+    .select('id')
     .eq('organization_id', orgId)
     .eq('status', 'CONFIRMED')
     .is('large_project_id', null)
@@ -27,24 +26,18 @@ async function fetchProjectInboxCount(orgId: string): Promise<number> {
     console.error('Error fetching project inbox count:', error);
     return 0;
   }
+  if (!candidates || candidates.length === 0) return 0;
 
-  const candidates = (data ?? []).filter(b => {
-    const dates = [b.eventdate, b.rigdaydate, b.rigdowndate].filter(Boolean);
-    if (dates.length === 0) return false;
-    return dates.some(d => d! >= today);
-  });
-  if (candidates.length === 0) return 0;
-
-  // Dedup mot useUnplannedProjects: exkludera bokningar som redan har ett
-  // aktivt projekt (oavsett planning_status). De räknas/visas via unplanned-listan.
   const candidateIds = candidates.map(b => b.id);
-  const [{ data: activeJobs }, { data: activeProjects }] = await Promise.all([
+  const [{ data: activeJobs }, { data: activeProjects }, { data: largeLinks }] = await Promise.all([
     supabase.from('jobs').select('booking_id').in('booking_id', candidateIds).is('deleted_at', null).not('status', 'in', '("completed","cancelled")'),
     supabase.from('projects').select('booking_id').in('booking_id', candidateIds).not('status', 'in', '("completed","cancelled")'),
+    supabase.from('large_project_bookings').select('booking_id').in('booking_id', candidateIds),
   ]);
   const assigned = new Set([
     ...(activeJobs || []).map(j => j.booking_id),
     ...(activeProjects || []).map(p => p.booking_id),
+    ...(largeLinks || []).map(l => l.booking_id),
   ]);
   return candidates.filter(b => !assigned.has(b.id)).length;
 }
