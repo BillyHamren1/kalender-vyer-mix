@@ -251,9 +251,11 @@ export interface EnqueueLocationPointInput {
 }
 
 /**
- * Persist a GPS point and trigger a flush. Always returns the id of
- * the stored point. Duplicate ids (or same lat/lng/recordedAt within
- * the same second) are coalesced.
+ * Persist a GPS point. **Triggar INTE flush** — backend ska få batch
+ * var 10:e minut, eller via forceFlushLocationQueue(reason) vid viktiga
+ * händelser (start/stop dag, geofence enter/exit, travel start/end).
+ * Duplicate ids (or same lat/lng/recordedAt within the same second)
+ * are coalesced.
  */
 export function enqueueLocationPoint(input: EnqueueLocationPointInput): string {
   const queue = loadQueue();
@@ -300,9 +302,43 @@ export function enqueueLocationPoint(input: EnqueueLocationPointInput): string {
     lastEnqueuedAt: Date.now(),
     lastEnqueuedSource: input.source,
   });
-  void flushLocationQueue();
+  // OBS: ingen automatisk flush här. Lokal buffer först; backend får
+  // batch via 10-min-timern eller via forceFlushLocationQueue().
   return id;
 }
+
+/**
+ * Tvinga en flush oavsett throttle. Använd vid:
+ *   - användaren startar/stoppar dag
+ *   - online efter offline-period
+ *   - app resume efter lång bakgrund
+ *   - tydlig geofence enter/exit
+ *   - tydlig travel start/end
+ * Vanlig GPS-observation ska INTE kalla denna.
+ */
+export async function forceFlushLocationQueue(reason: string): Promise<void> {
+  lastForceFlushReason = reason;
+  lastForceFlushAt = Date.now();
+  patchStatus({
+    lastForceFlushReason: reason,
+    lastForceFlushAt,
+  });
+  lastAutoFlushAt = Date.now();
+  await flushLocationQueue();
+}
+
+/**
+ * Mild throttle för opportunistiska auto-flush-triggers (online, focus,
+ * visibilitychange, periodisk 10-min-timer). Använd INTE för viktiga
+ * händelser — använd forceFlushLocationQueue(reason) då.
+ */
+function autoFlushIfDue(): void {
+  const now = Date.now();
+  if (now - lastAutoFlushAt < MIN_AUTO_FLUSH_INTERVAL_MS) return;
+  lastAutoFlushAt = now;
+  void flushLocationQueue();
+}
+
 
 let flushing = false;
 let flushTimeoutId: number | null = null;
