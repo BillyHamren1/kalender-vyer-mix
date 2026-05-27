@@ -483,7 +483,9 @@ Deno.serve(async (req: Request) => {
       engineVersion: cacheRow?.engine_version ?? null,
       cacheBuiltAt: cacheRow?.built_at ?? null,
       cacheError: cacheRow?.error ?? null,
+      canonical: canonicalDebug,
     },
+
     generatedAt: new Date().toISOString(),
   });
 });
