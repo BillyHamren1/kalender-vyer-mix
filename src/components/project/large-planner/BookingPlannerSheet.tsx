@@ -151,7 +151,6 @@ const BookingPlannerSheet = ({
   items,
   staff,
   onCreateTodoForBooking,
-  onCreateTodoForProduct,
   onPlanWholeBooking,
   onItemClick,
   onItemDelete,
@@ -169,9 +168,10 @@ const BookingPlannerSheet = ({
   const [planRig, setPlanRig] = useState(true);
   const [planEvent, setPlanEvent] = useState(true);
   const [planRigDown, setPlanRigDown] = useState(true);
-  const [createProductTodos, setCreateProductTodos] = useState(true);
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
   const [drafts, setDrafts] = useState<PlanWholeBookingSelection['drafts']>(EMPTY_DRAFTS);
 
+  // Default: alla orderrader utan befintlig to-do är förvalda
   useEffect(() => {
     if (!open || !booking) return;
     const init = buildInitialDrafts(booking);
@@ -179,8 +179,45 @@ const BookingPlannerSheet = ({
     setPlanRig(init.rig.dates.length > 0);
     setPlanEvent(init.event.dates.length > 0);
     setPlanRigDown(init.rigDown.dates.length > 0);
-    setCreateProductTodos(true);
   }, [open, booking]);
+
+  // När produkter laddats: förvälj alla rader som inte redan har to-do
+  useEffect(() => {
+    if (!open || !booking || !products) return;
+    const linkedProductIds = new Set(
+      bookingItems
+        .map((it) => it.booking_product_id)
+        .filter((id): id is string => !!id),
+    );
+    setSelectedProductIds(
+      new Set(products.filter((p) => !linkedProductIds.has(p.id)).map((p) => p.id)),
+    );
+    // bookingItems beror på items + booking — vi vill bara köra när products byts
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, booking?.id, products]);
+
+  const toggleProduct = (id: string, checked: boolean) => {
+    setSelectedProductIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const selectableProducts = (products ?? []).filter(
+    (p) => !bookingItems.some((it) => it.booking_product_id === p.id),
+  );
+  const allSelected =
+    selectableProducts.length > 0 &&
+    selectableProducts.every((p) => selectedProductIds.has(p.id));
+  const toggleAllProducts = () => {
+    if (allSelected) {
+      setSelectedProductIds(new Set());
+    } else {
+      setSelectedProductIds(new Set(selectableProducts.map((p) => p.id)));
+    }
+  };
 
   const updateDraftPhase = (
     dateType: 'rig' | 'event' | 'rigDown',
