@@ -49,6 +49,28 @@ import type {
   LargeProjectPlannerStaffMember,
 } from './largeProjectPlannerTypes';
 
+interface PhaseDraft {
+  dates: string[];   // YYYY-MM-DD, sorted, unique
+  startTime: string; // HH:mm
+  endTime: string;   // HH:mm
+}
+
+export interface PlanWholeBookingSelection {
+  rig: boolean;
+  event: boolean;
+  rigDown: boolean;
+  createProductTodos: boolean;
+  /**
+   * Aktuellt lokalt utkast (datum + tider) per fas. DETTA är sanningen
+   * när Planera klickas — DB-skrivningen sker först här.
+   */
+  drafts: {
+    rig: PhaseDraft;
+    event: PhaseDraft;
+    rigDown: PhaseDraft;
+  };
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -62,15 +84,8 @@ interface Props {
   ) => void;
   onPlanWholeBooking: (
     booking: LargeProjectPlannerBooking,
-    selection: { rig: boolean; event: boolean; rigDown: boolean; createProductTodos: boolean },
-  ) => void;
-  onUpdateBookingSchedule: (
-    booking: LargeProjectPlannerBooking,
-    dateType: 'rig' | 'event' | 'rigDown',
-    dates: string[],
-    startTime: string,
-    endTime: string,
-  ) => void;
+    selection: PlanWholeBookingSelection,
+  ) => void | Promise<void>;
   onItemClick: (item: LargeProjectBookingPlanItem) => void;
   onItemDelete?: (item: LargeProjectBookingPlanItem) => void;
   onToggleItemStatus?: (item: LargeProjectBookingPlanItem, checked: boolean) => void;
@@ -84,6 +99,50 @@ const timeRange = (a: string | null, b: string | null) => {
   return x || y || null;
 };
 
+const normalizeHHMM = (t: string | null | undefined, fallback: string): string => {
+  if (!t) return fallback;
+  if (t.includes('T')) return t.substring(11, 16);
+  return t.substring(0, 5) || fallback;
+};
+
+const buildInitialDrafts = (
+  booking: LargeProjectPlannerBooking,
+): PlanWholeBookingSelection['drafts'] => ({
+  rig: {
+    dates: booking.rig_dates.length
+      ? [...booking.rig_dates].sort()
+      : booking.rigdaydate
+        ? [booking.rigdaydate]
+        : [],
+    startTime: normalizeHHMM(booking.rig_start_time, '08:00'),
+    endTime: normalizeHHMM(booking.rig_end_time, '17:00'),
+  },
+  event: {
+    dates: booking.event_dates.length
+      ? [...booking.event_dates].sort()
+      : booking.eventdate
+        ? [booking.eventdate]
+        : [],
+    startTime: normalizeHHMM(booking.event_start_time, '08:00'),
+    endTime: normalizeHHMM(booking.event_end_time, '17:00'),
+  },
+  rigDown: {
+    dates: booking.rigdown_dates.length
+      ? [...booking.rigdown_dates].sort()
+      : booking.rigdowndate
+        ? [booking.rigdowndate]
+        : [],
+    startTime: normalizeHHMM(booking.rigdown_start_time, '08:00'),
+    endTime: normalizeHHMM(booking.rigdown_end_time, '17:00'),
+  },
+});
+
+const EMPTY_DRAFTS: PlanWholeBookingSelection['drafts'] = {
+  rig: { dates: [], startTime: '08:00', endTime: '17:00' },
+  event: { dates: [], startTime: '08:00', endTime: '17:00' },
+  rigDown: { dates: [], startTime: '08:00', endTime: '17:00' },
+};
+
 const BookingPlannerSheet = ({
   open,
   onOpenChange,
@@ -93,7 +152,6 @@ const BookingPlannerSheet = ({
   onCreateTodoForBooking,
   onCreateTodoForProduct,
   onPlanWholeBooking,
-  onUpdateBookingSchedule,
   onItemClick,
   onItemDelete,
   onToggleItemStatus,
@@ -111,14 +169,37 @@ const BookingPlannerSheet = ({
   const [planEvent, setPlanEvent] = useState(true);
   const [planRigDown, setPlanRigDown] = useState(true);
   const [createProductTodos, setCreateProductTodos] = useState(true);
+  const [drafts, setDrafts] = useState<PlanWholeBookingSelection['drafts']>(EMPTY_DRAFTS);
 
   useEffect(() => {
     if (!open || !booking) return;
-    setPlanRig(booking.rig_dates.length > 0 || !!booking.rigdaydate);
-    setPlanEvent(booking.event_dates.length > 0 || !!booking.eventdate);
-    setPlanRigDown(booking.rigdown_dates.length > 0 || !!booking.rigdowndate);
+    const init = buildInitialDrafts(booking);
+    setDrafts(init);
+    setPlanRig(init.rig.dates.length > 0);
+    setPlanEvent(init.event.dates.length > 0);
+    setPlanRigDown(init.rigDown.dates.length > 0);
     setCreateProductTodos(true);
   }, [open, booking]);
+
+  const updateDraftPhase = (
+    dateType: 'rig' | 'event' | 'rigDown',
+    dates: string[],
+    startTime: string,
+    endTime: string,
+  ) => {
+    setDrafts((prev) => ({
+      ...prev,
+      [dateType]: {
+        dates: Array.from(new Set(dates.filter(Boolean))).sort(),
+        startTime: startTime || prev[dateType].startTime,
+        endTime: endTime || prev[dateType].endTime,
+      },
+    }));
+    // Aktivera fasen automatiskt när användaren just lagt in datum
+    if (dateType === 'rig' && dates.length > 0) setPlanRig(true);
+    if (dateType === 'event' && dates.length > 0) setPlanEvent(true);
+    if (dateType === 'rigDown' && dates.length > 0) setPlanRigDown(true);
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -190,19 +271,22 @@ const BookingPlannerSheet = ({
                   Datum per fas
                 </div>
                 <LargeProjectScheduleEditable
-                  startDates={booking.rig_dates.length ? booking.rig_dates : (booking.rigdaydate ? [booking.rigdaydate] : [])}
-                  eventDates={booking.event_dates.length ? booking.event_dates : (booking.eventdate ? [booking.eventdate] : [])}
-                  endDates={booking.rigdown_dates.length ? booking.rigdown_dates : (booking.rigdowndate ? [booking.rigdowndate] : [])}
-                  startStartTime={booking.rig_start_time}
-                  startEndTime={booking.rig_end_time}
-                  eventStartTime={booking.event_start_time}
-                  eventEndTime={booking.event_end_time}
-                  endStartTime={booking.rigdown_start_time}
-                  endEndTime={booking.rigdown_end_time}
+                  startDates={drafts.rig.dates}
+                  eventDates={drafts.event.dates}
+                  endDates={drafts.rigDown.dates}
+                  startStartTime={drafts.rig.startTime}
+                  startEndTime={drafts.rig.endTime}
+                  eventStartTime={drafts.event.startTime}
+                  eventEndTime={drafts.event.endTime}
+                  endStartTime={drafts.rigDown.startTime}
+                  endEndTime={drafts.rigDown.endTime}
                   onUpdateScheduleMulti={(dateType, dates, startTime, endTime) =>
-                    onUpdateBookingSchedule(booking, dateType, dates, startTime, endTime)
+                    updateDraftPhase(dateType, dates, startTime, endTime)
                   }
                 />
+                <p className="mt-2 text-[10px] italic text-muted-foreground">
+                  Ändringar sparas först när du klickar <strong>Planera hela bokningen</strong>.
+                </p>
               </div>
 
               <div className="mt-3 rounded-md border border-border/60 bg-background px-3 py-2">
@@ -212,15 +296,15 @@ const BookingPlannerSheet = ({
                 <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
                   <label className="inline-flex items-center gap-2">
                     <Checkbox checked={planRig} onCheckedChange={(v) => setPlanRig(!!v)} />
-                    <span>Rigg ({booking.rig_dates.length || (booking.rigdaydate ? 1 : 0)} dagar)</span>
+                    <span>Rigg ({drafts.rig.dates.length} dagar)</span>
                   </label>
                   <label className="inline-flex items-center gap-2">
                     <Checkbox checked={planEvent} onCheckedChange={(v) => setPlanEvent(!!v)} />
-                    <span>Event ({booking.event_dates.length || (booking.eventdate ? 1 : 0)} dagar)</span>
+                    <span>Event ({drafts.event.dates.length} dagar)</span>
                   </label>
                   <label className="inline-flex items-center gap-2">
                     <Checkbox checked={planRigDown} onCheckedChange={(v) => setPlanRigDown(!!v)} />
-                    <span>Rigg ner ({booking.rigdown_dates.length || (booking.rigdowndate ? 1 : 0)} dagar)</span>
+                    <span>Rigg ner ({drafts.rigDown.dates.length} dagar)</span>
                   </label>
                   <label className="inline-flex items-center gap-2">
                     <Checkbox checked={createProductTodos} onCheckedChange={(v) => setCreateProductTodos(!!v)} />
@@ -239,12 +323,14 @@ const BookingPlannerSheet = ({
                       event: planEvent,
                       rigDown: planRigDown,
                       createProductTodos,
+                      drafts,
                     })
                   }
                   className="flex-1"
                   variant={hasAnyPlan ? 'outline' : 'default'}
-                  title="Skapa kalenderaktiviteter för alla bokningens faser"
+                  title="Spara datum och skapa kalenderaktiviteter för alla bokningens faser"
                 >
+
                   <CalendarPlus className="mr-1.5 h-3.5 w-3.5" />
                   Planera hela bokningen
                 </Button>

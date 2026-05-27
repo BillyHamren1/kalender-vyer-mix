@@ -112,32 +112,80 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
     setManualOpen(true);
   };
 
-  /** Skapa planner-items för valda bokningsfaser + ev. orderrads-to-dos i ett svep. */
+  /**
+   * Skapa planner-items för valda bokningsfaser + ev. orderrads-to-dos.
+   *
+   * Datum + tider kommer från sheetens lokala utkast (selection.drafts) —
+   * INGENTING skrivs förrän användaren klickar Planera. För varje aktiverad
+   * fas:
+   *   1. savePhaseDays() committar utkastet till bookings + calendar_events
+   *      (samma flerdagsväg som personalkalenderns AddRiggDayDialog).
+   *   2. planner-items skapas för varje datum i utkastet (alla dagar,
+   *      inte bara första — det var den gamla buggen).
+   */
   const handlePlanWholeBooking = async (
     booking: LargeProjectPlannerBooking,
-    selection: { rig: boolean; event: boolean; rigDown: boolean; createProductTodos: boolean },
+    selection: import('./BookingPlannerSheet').PlanWholeBookingSelection,
   ) => {
     const existingForBooking = items.filter((it) => it.booking_id === booking.id);
     const phases: Array<{
       phase: 'rig' | 'event' | 'rigDown';
       label: string;
+      enabled: boolean;
       dates: string[];
-      start: string | null;
-      end: string | null;
+      startTime: string;
+      endTime: string;
     }> = [
-      { phase: 'rig', label: 'Rigg', dates: booking.rig_dates.length ? booking.rig_dates : (booking.rigdaydate ? [booking.rigdaydate] : []), start: booking.rig_start_time, end: booking.rig_end_time },
-      { phase: 'event', label: 'Event', dates: booking.event_dates.length ? booking.event_dates : (booking.eventdate ? [booking.eventdate] : []), start: booking.event_start_time, end: booking.event_end_time },
-      { phase: 'rigDown', label: 'Rigg ner', dates: booking.rigdown_dates.length ? booking.rigdown_dates : (booking.rigdowndate ? [booking.rigdowndate] : []), start: booking.rigdown_start_time, end: booking.rigdown_end_time },
+      { phase: 'rig', label: 'Rigg', enabled: selection.rig, dates: selection.drafts.rig.dates, startTime: selection.drafts.rig.startTime, endTime: selection.drafts.rig.endTime },
+      { phase: 'event', label: 'Event', enabled: selection.event, dates: selection.drafts.event.dates, startTime: selection.drafts.event.startTime, endTime: selection.drafts.event.endTime },
+      { phase: 'rigDown', label: 'Rigg ner', enabled: selection.rigDown, dates: selection.drafts.rigDown.dates, startTime: selection.drafts.rigDown.startTime, endTime: selection.drafts.rigDown.endTime },
     ];
+
+    // 1. Committa utkast → bookings + calendar_events (single source).
+    try {
+      const { savePhaseDays } = await import('@/lib/calendar/phaseDaysWriter');
+      for (const ph of phases) {
+        if (!ph.enabled || ph.dates.length === 0) continue;
+        const result = await savePhaseDays({
+          bookingId: booking.id,
+          eventType: ph.phase,
+          dates: ph.dates,
+          startTime: ph.startTime,
+          endTime: ph.endTime,
+          title: booking.display_name ?? booking.client ?? booking.booking_number ?? null,
+        });
+        if (result.failures.length > 0 && result.successCount === 0) {
+          toast.error(`Kunde inte spara ${ph.label}-datum`, {
+            description: result.failures.join('\n'),
+          });
+        } else if (result.failures.length > 0) {
+          toast.warning(
+            `${result.successCount} av ${result.totalDays} ${ph.label.toLowerCase()}-dagar sparades`,
+            { description: result.failures.join('\n'), duration: 8000 },
+          );
+        }
+      }
+      await refetch();
+    } catch (e) {
+      toast.error((e as Error).message || 'Kunde inte spara datum.');
+      return;
+    }
+
+    // 2. Skapa planner-items baserade på utkastet (inte den gamla läsmodellen)
     let created = 0;
     let skipped = 0;
-    const shouldInclude = (phase: 'rig' | 'event' | 'rigDown') =>
-      phase === 'rig' ? selection.rig : phase === 'event' ? selection.event : selection.rigDown;
-    const selectedDates: Array<{ date: string; start: string | null; end: string | null; phase: string }> = [];
+    const selectedSeed: { date: string; start: string; end: string } | null =
+      (() => {
+        for (const ph of phases) {
+          if (ph.enabled && ph.dates.length > 0) {
+            return { date: ph.dates[0], start: ph.startTime, end: ph.endTime };
+          }
+        }
+        return null;
+      })();
     for (const ph of phases) {
-      if (!shouldInclude(ph.phase)) continue;
+      if (!ph.enabled) continue;
       for (const date of ph.dates) {
-        selectedDates.push({ date, start: ph.start, end: ph.end, phase: ph.phase });
         const already = existingForBooking.some(
           (it) =>
             it.source_booking_phase === ph.phase &&
@@ -158,8 +206,8 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
             source: 'booking',
             phase: ph.phase,
             source_booking_phase: ph.phase,
-            start_time: ph.start ?? '08:00:00',
-            end_time: ph.end ?? '17:00:00',
+            start_time: `${ph.startTime}:00`,
+            end_time: `${ph.endTime}:00`,
           });
           created++;
         } catch (e) {
@@ -167,45 +215,41 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
         }
       }
     }
-    if (selection.createProductTodos) {
-      try {
-        const seedDate =
-          selectedDates[0]?.date ?? booking.rigdaydate ?? booking.eventdate ?? booking.rigdowndate;
-        const seedStart = selectedDates[0]?.start ?? booking.rig_start_time ?? booking.event_start_time ?? '08:00:00';
-        const seedEnd = selectedDates[0]?.end ?? booking.rig_end_time ?? booking.event_end_time ?? '17:00:00';
-        if (seedDate) {
-          const { data: products, error } = await supabase
-            .from('booking_products')
-            .select('id,name,quantity')
-            .eq('booking_id', booking.id)
-            .order('sort_index', { ascending: true, nullsFirst: false });
-          if (error) throw error;
 
-          for (const product of products ?? []) {
-            const alreadyExists = existingForBooking.some((it) => it.booking_product_id === product.id);
-            if (alreadyExists) {
-              skipped++;
-              continue;
-            }
-            await createItem({
-              large_project_id: largeProjectId,
-              booking_id: booking.id,
-              booking_product_id: product.id,
-              title: product.name || 'Orderrad',
-              plan_date: seedDate,
-              start_time: seedStart,
-              end_time: seedEnd,
-              item_type: 'task',
-              source: 'manual',
-              status: 'planned',
-            });
-            created++;
+    if (selection.createProductTodos && selectedSeed) {
+      try {
+        const { data: products, error } = await supabase
+          .from('booking_products')
+          .select('id,name,quantity')
+          .eq('booking_id', booking.id)
+          .order('sort_index', { ascending: true, nullsFirst: false });
+        if (error) throw error;
+
+        for (const product of products ?? []) {
+          const alreadyExists = existingForBooking.some((it) => it.booking_product_id === product.id);
+          if (alreadyExists) {
+            skipped++;
+            continue;
           }
+          await createItem({
+            large_project_id: largeProjectId,
+            booking_id: booking.id,
+            booking_product_id: product.id,
+            title: product.name || 'Orderrad',
+            plan_date: selectedSeed.date,
+            start_time: `${selectedSeed.start}:00`,
+            end_time: `${selectedSeed.end}:00`,
+            item_type: 'task',
+            source: 'manual',
+            status: 'planned',
+          });
+          created++;
         }
       } catch (e) {
         toast.error((e as Error).message || 'Kunde inte skapa to-dos från orderrader.');
       }
     }
+
     setPlannerSheetBookingId(booking.id);
     if (created > 0) toast.success(`${created} faser planerade${skipped ? ` (${skipped} fanns redan)` : ''}.`);
     else if (skipped > 0) toast.info('Alla faser fanns redan i planen.');
@@ -222,49 +266,7 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
     }
   };
 
-  const handleUpdateBookingSchedule = async (
-    booking: LargeProjectPlannerBooking,
-    dateType: 'rig' | 'event' | 'rigDown',
-    dates: string[],
-    startTime: string,
-    endTime: string,
-  ) => {
-    // Samma flerdags-skrivväg som personalkalenderns AddRiggDayDialog:
-    // savePhaseDays() loopar alla valda datum, gör upsert per dag mot
-    // calendar_events (med project-team-stickiness) och speglar bara
-    // FÖRSTA datumet till bokningens primärfält. Detta är den enda
-    // sanningen för bokningsdatum — inga arrays, inga nya kolumner.
-    try {
-      const { savePhaseDays } = await import('@/lib/calendar/phaseDaysWriter');
-      const result = await savePhaseDays({
-        bookingId: booking.id,
-        eventType: dateType,
-        dates,
-        startTime,
-        endTime,
-        title: booking.display_name ?? booking.client ?? booking.booking_number ?? null,
-      });
 
-      await refetch();
-
-      if (result.successCount > 0 && result.failures.length === 0) {
-        toast.success(
-          result.successCount === 1
-            ? 'Datum uppdaterat.'
-            : `${result.successCount} dagar uppdaterade.`,
-        );
-      } else if (result.successCount > 0 && result.failures.length > 0) {
-        toast.warning(
-          `${result.successCount} av ${result.totalDays} dagar sparades`,
-          { description: result.failures.join('\n'), duration: 8000 },
-        );
-      } else {
-        throw new Error(result.failures.join('\n') || 'Inga dagar kunde sparas');
-      }
-    } catch (e) {
-      toast.error((e as Error).message || 'Kunde inte uppdatera bokningsdatum.');
-    }
-  };
 
 
 
@@ -444,7 +446,7 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
         onCreateTodoForBooking={(b) => openCreateTodoDialog(b)}
         onCreateTodoForProduct={(b, p) => openCreateTodoDialog(b, p)}
         onPlanWholeBooking={handlePlanWholeBooking}
-        onUpdateBookingSchedule={handleUpdateBookingSchedule}
+        
         onItemClick={handleItemClick}
         onItemDelete={handleItemDelete}
         onToggleItemStatus={handleToggleItemStatus}

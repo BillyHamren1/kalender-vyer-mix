@@ -1,41 +1,40 @@
+# Plan
+
 ## Mål
-När du sparar flera datum i stora projekt-planeraren ska alla dagar faktiskt sparas, exakt som i personalkalendern.
+- Planeringsvyn ska visa alla valda dagar per fas, inte bara första dagen.
+- Ändrade datum i sheeten ska vara lokala utkast tills användaren klickar **Planera hela bokningen**.
+- Ingen ny sanningskälla: fortsatt samma modell som personalkalendern med `bookings` primärdatum + `calendar_events` för extra dagar.
 
-## Lösning
-1. Bryt ut personalkalenderns flerdagslogik till en gemensam helper/service.
-   - Samma beteende som `AddRiggDayDialog`:
-     - loopa alla valda datum
-     - skapa/uppdatera `calendar_events` per dag
-     - bevara befintlig `resource_id` om dagen redan finns
-     - skriva endast första datumet till `bookings.rigdaydate/eventdate/rigdowndate`
-     - köra `recompute_booking_staff_for_day` för varje ny/sparad dag
+## Vad jag bygger
+1. **Inför lokalt utkast i BookingPlannerSheet**
+   - Datumeditorn ska inte längre skriva direkt till databasen.
+   - När användaren ändrar rigg/event/rigg ner sparas ändringen bara i sheetens lokala state.
+   - UI:t uppdateras direkt i sheeten så användaren ser alla valda dagar innan något sparas.
 
-2. Byt stora projekt-panelens `handleUpdateBookingSchedule` till den gemensamma helpern.
-   - Ta bort nuvarande felaktiga logik som bara sparar `dates[0]`
-   - Ingen ny tabell, inga nya datumkolumner, inga arrays på `bookings`
+2. **Planera-knappen blir enda commit för datum**
+   - När användaren klickar **Planera hela bokningen** skickas de lokala datumutkasten vidare tillsammans med checkbox-valen.
+   - För varje vald fas skrivs full daglista via samma flerdagslogik som personalkalendern använder.
+   - Om användaren öppnar/stänger sheeten utan att klicka Planera ska inga datum skrivas.
 
-3. Håll läslogiken oförändrad där den redan är rätt.
-   - `largeProjectPlannerService` fortsätter att härleda flerdagar från `calendar_events` + primärdatumet på `bookings`
-   - UI:t ska därför direkt visa 3 dagar efter save, inte 1
+3. **Säkerställ korrekt flerdagsvisning i planeringsvyn**
+   - Sheeten ska alltid rendera från den fulla daglistan (`rig_dates`, `event_dates`, `rigdown_dates`) när den finns.
+   - Dagräknarna under “Vad ska planeras nu?” ska baseras på samma lokala utkast, så att 3 valda dagar visas som 3 direkt.
+   - Efter commit ska refetch ge samma resultat från läsmodellen.
 
-4. Lägg till testskydd så detta inte händer igen.
-   - Enhetstest för den gemensamma flerdags-helpern:
-     - flera datum => flera `calendar_events`
-     - första datumet speglas till `bookings`
-     - befintlig dag uppdateras utan att byta team
-   - Om lämpligt: ett mindre kontraktstest för stora projekt-panelens save-väg
-
-5. Verifiering efter implementation.
-   - Kör tester
-   - Kontrollera i preview att vald fas visar alla sparade datum
-   - Bekräfta att “Planera hela bokningen” räknar rätt antal dagar efter save
+4. **Testa regressionspunkterna**
+   - Test för att ändrade datum i sheeten inte triggar skrivning direkt.
+   - Test för att Planera skriver alla valda dagar för vald fas.
+   - Test för att flerdagsvisningen och dagräknaren visar hela listan, inte bara första dagen.
 
 ## Tekniska detaljer
-- Källa att spegla: `src/components/Calendar/AddRiggDayDialog.tsx`
-- Felaktig väg idag: `src/components/project/large-planner/LargeProjectPlannerPanel.tsx` där `dates` kapas till första datumet
-- Målet är att ha en enda implementerad skrivlogik för flerdagar, inte två nästan-lika versioner
+- Berörda filer:
+  - `src/components/project/large-planner/BookingPlannerSheet.tsx`
+  - `src/components/project/large-planner/LargeProjectPlannerPanel.tsx`
+  - ev. `src/components/project/LargeProjectScheduleEditable.tsx` om callbacken behöver göras tydligare som draft-only
+  - tester i `src/components/project/large-planner/__tests__/...`
+- Jag återanvänder befintlig skrivväg (`savePhaseDays`) istället för att skapa nya tabeller/kolumner eller parallell logik.
+- `onUpdateBookingSchedule` ändras från “skriv direkt” till “uppdatera utkast”, och själva DB-skrivningen flyttas till Planera-flödet.
+- Jag behåller nuvarande read-model i `largeProjectPlannerService`, men verifierar att den fortsätter läsa full daglista från `calendar_events` + bokningens primärdatum efter commit.
 
-## Ingen scope-creep
-- Jag ändrar inte datamodellen igen
-- Jag skapar inga nya tabeller eller kolumner
-- Jag ändrar bara datum-sparvägen så den matchar personalkalendern 1:1
+## Resultat
+Efter detta kan användaren välja flera datum, se dem direkt i planeringssheeten, och inget sparas förrän **Planera hela bokningen** klickas.
