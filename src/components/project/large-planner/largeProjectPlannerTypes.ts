@@ -33,6 +33,8 @@ export interface LargeProjectBookingPlanItem {
   sort_order: number;
   notes: string | null;
   metadata: Record<string, unknown>;
+  /** Koppling till en specifik orderrad i bokningen (booking_products.id). */
+  booking_product_id: string | null;
   created_at: string;
   updated_at: string;
 }
