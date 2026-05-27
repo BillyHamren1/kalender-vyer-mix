@@ -76,6 +76,10 @@ interface Props {
   defaultStartTime?: string | null;
   /** Förifylld sluttid HH:mm. */
   defaultEndTime?: string | null;
+  /** Förifylld koppling till orderrad (booking_products.id). */
+  defaultBookingProductId?: string | null;
+  /** Visningstext för kopplad orderrad (visas som chip). */
+  defaultBookingProductLabel?: string | null;
   /** Skapa-funktion från useLargeProjectPlannerItems. */
   createItem: (input: CreatePlannerItemInput) => Promise<LargeProjectBookingPlanItem>;
   isMutating?: boolean;
