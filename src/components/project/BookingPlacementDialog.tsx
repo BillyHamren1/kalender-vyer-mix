@@ -282,37 +282,51 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
           : '';
         const projectName = `${booking.client || 'Projekt'}${dateStr ? ` - ${dateStr}` : ''}`;
 
-        // Duplicate guard
+        // Återanvänd befintligt projekt om bokningen redan har ett aktivt
+        // (kan uppstå när bokning re-bekräftas och hamnar tillbaka i inkorgen
+        // utan att gamla projektet städats — se Booking Triage Policy v2).
         const { data: existing } = await supabase
           .from('projects')
-          .select('id')
+          .select('id, name')
           .eq('booking_id', booking.id)
           .not('status', 'in', '("completed","cancelled")')
-          .is('deleted_at', null);
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
         if (existing && existing.length > 0) {
-          throw new Error('Bokningen har redan ett aktivt projekt.');
+          mediumProjectId = existing[0].id;
+          await supabase
+            .from('bookings')
+            .update({
+              assigned_to_project: true,
+              assigned_project_id: existing[0].id,
+              assigned_project_name: existing[0].name ?? projectName,
+            })
+            .eq('id', booking.id);
+          toast.info('Bokningen hade redan ett projekt — öppnar det.');
+        } else {
+          const { data: project, error: projErr } = await supabase
+            .from('projects')
+            .insert({
+              name: projectName,
+              booking_id: booking.id,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } as any)
+            .select()
+            .single();
+          if (projErr) throw projErr;
+          mediumProjectId = project.id;
+
+          await supabase
+            .from('bookings')
+            .update({
+              assigned_to_project: true,
+              assigned_project_id: project.id,
+              assigned_project_name: projectName,
+            })
+            .eq('id', booking.id);
         }
-
-        const { data: project, error: projErr } = await supabase
-          .from('projects')
-          .insert({
-            name: projectName,
-            booking_id: booking.id,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          } as any)
-          .select()
-          .single();
-        if (projErr) throw projErr;
-        mediumProjectId = project.id;
-
-        await supabase
-          .from('bookings')
-          .update({
-            assigned_to_project: true,
-            assigned_project_id: project.id,
-            assigned_project_name: projectName,
-          })
-          .eq('id', booking.id);
       }
 
       if (linkingToExistingLarge && largeProjectId) {
