@@ -189,6 +189,7 @@ const ManualProjectTaskDialog = ({
         assigned_staff_id: assignedStaffId === UNASSIGNED ? null : assignedStaffId,
         assigned_team_id: assignedTeamId.trim() || null,
         booking_id: bookingId === NO_BOOKING ? null : bookingId,
+        booking_product_id: defaultBookingProductId ?? null,
         notes: notes.trim() || null,
       });
       toast.success('Manuell task skapad.');
