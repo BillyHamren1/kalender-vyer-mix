@@ -228,27 +228,44 @@ const ProjectCalendarView = ({
 
   if (!projectId) return null;
 
-  return (
-    <Card className="border-border/60 overflow-hidden rounded-none">
-      <CardHeader className="pb-2 flex flex-row items-center justify-between">
-        <div className="flex items-center gap-2">
-          <CalIcon className="h-4 w-4 text-primary" />
-          <CardTitle className="text-base">Projektkalender</CardTitle>
-          <Badge variant="outline" className="text-[10px]">
-            {effectiveDays.length > 0
-              ? `${effectiveDays.length} ${effectiveDays.length === 1 ? 'dag' : 'dagar'}`
-              : 'Inga planerade dagar'}
-          </Badge>
+  const calendarCard = (
+    <Card className="border-border/60 overflow-hidden rounded-none h-full flex flex-col">
+      {!compactHeader && (
+        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CalIcon className="h-4 w-4 text-primary" />
+            <CardTitle className="text-base">Projektkalender</CardTitle>
+            <Badge variant="outline" className="text-[10px]">
+              {effectiveDays.length > 0
+                ? `${effectiveDays.length} ${effectiveDays.length === 1 ? 'dag' : 'dagar'}`
+                : 'Inga planerade dagar'}
+            </Badge>
+          </div>
+          <Button variant="ghost" size="sm" className="h-7 px-2" onClick={handleRefresh}>
+            <RefreshCw className="h-3.5 w-3.5" />
+          </Button>
+        </CardHeader>
+      )}
+      {compactHeader && (
+        <div className="flex items-center justify-between border-b border-border/40 bg-primary/5 px-3 py-1.5">
+          <div className="flex items-center gap-2">
+            <CalIcon className="h-3.5 w-3.5 text-primary" />
+            <span className="text-xs font-semibold">Projektkalender</span>
+            <Badge variant="outline" className="text-[10px]">
+              {effectiveDays.length > 0
+                ? `${effectiveDays.length} ${effectiveDays.length === 1 ? 'dag' : 'dagar'}`
+                : 'Inga dagar'}
+            </Badge>
+          </div>
+          <Button variant="ghost" size="sm" className="h-6 px-2" onClick={handleRefresh}>
+            <RefreshCw className="h-3 w-3" />
+          </Button>
         </div>
-        <Button variant="ghost" size="sm" className="h-7 px-2" onClick={handleRefresh}>
-          <RefreshCw className="h-3.5 w-3.5" />
-        </Button>
-      </CardHeader>
+      )}
 
-      <CardContent className="p-0">
-        <div className="project-calendar-shell">
-          <div style={{ minHeight: '600px', height: 'calc(100vh - 180px)' }}>
-
+      <CardContent className="p-0 flex-1">
+        <div className="project-calendar-shell h-full">
+          <div style={{ minHeight: '600px', height: rightPanel ? 'calc(100vh - 180px)' : 'calc(100vh - 180px)' }}>
             {effectiveDays.length === 0 ? (
               <div className="flex items-center justify-center h-full text-sm text-muted-foreground italic">
                 Projektet saknar planerade dagar
@@ -263,13 +280,9 @@ const ProjectCalendarView = ({
                 currentDate={anchorDate}
                 onDateSet={handleDatesSet}
                 refreshEvents={handleRefresh}
-                // ⚠️ Dessa två props kopplar in personalkalenderns
-                // skrivvägar (staff_assignments + calendar_events drag).
-                // LargeProjectBookingPlannerCalendar ska ALDRIG skicka in
-                // dessa — där ska personal vara read-only och drag använda
-                // egna lokala handlers mot den interna plan-storen.
                 onStaffDrop={staffOps.handleStaffDrop}
                 onOpenStaffSelection={handleStaffSelectionStub}
+                onEventClick={onEventClick}
                 viewMode="weekly"
                 weeklyStaffOperations={staffOps}
                 getVisibleTeamsForDay={getVisibleTeamsForDay}
@@ -285,6 +298,15 @@ const ProjectCalendarView = ({
         </div>
       </CardContent>
     </Card>
+  );
+
+  if (!rightPanel) return calendarCard;
+
+  return (
+    <div className="grid gap-3 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="min-w-0">{calendarCard}</div>
+      <aside className="min-w-0">{rightPanel}</aside>
+    </div>
   );
 };
 
