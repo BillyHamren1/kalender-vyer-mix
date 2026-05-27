@@ -159,6 +159,7 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
         if (!ph.enabled || ph.dates.length === 0) continue;
         const result = await savePhaseDays({
           bookingId: booking.id,
+          largeProjectId,
           eventType: ph.phase,
           dates: ph.dates,
           startTime: ph.startTime,
