@@ -148,37 +148,37 @@ async function fetchProjectBookings(
     });
   }
 
-  return rows.map((b) => ({
+  return rows.map((b) => {
     const phaseDates =
       phaseDatesByBooking.get(b.id) ??
       { rig: new Set<string>(), event: new Set<string>(), rigDown: new Set<string>() };
 
     return {
-    id: b.id,
-    booking_number: b.booking_number ?? null,
-    client: b.client ?? null,
-    display_name: b.client || b.booking_number || 'Bokning',
-    rigdaydate: normalizePlannerDate(b.rigdaydate),
-    eventdate: normalizePlannerDate(b.eventdate),
-    rigdowndate: normalizePlannerDate(b.rigdowndate),
-    rig_start_time: normalizePlannerTime(b.rig_start_time),
-    rig_end_time: normalizePlannerTime(b.rig_end_time),
-    event_start_time: normalizePlannerTime(b.event_start_time),
-    event_end_time: normalizePlannerTime(b.event_end_time),
-    rigdown_start_time: normalizePlannerTime(b.rigdown_start_time),
-    rigdown_end_time: normalizePlannerTime(b.rigdown_end_time),
-    deliveryaddress: b.deliveryaddress ?? null,
-    delivery_city: b.delivery_city ?? null,
-    contact_name: b.contact_name ?? null,
-    contact_phone: b.contact_phone ?? null,
-    contact_email: b.contact_email ?? null,
-    internalnotes: b.internalnotes ?? null,
-    rig_dates: uniqueSortedDates([...phaseDates.rig, normalizePlannerDate(b.rigdaydate)]),
-    event_dates: uniqueSortedDates([...phaseDates.event, normalizePlannerDate(b.eventdate)]),
-    rigdown_dates: uniqueSortedDates([
-      ...phaseDates.rigDown,
-      normalizePlannerDate(b.rigdowndate),
-    ]),
+      id: b.id,
+      booking_number: b.booking_number ?? null,
+      client: b.client ?? null,
+      display_name: b.client || b.booking_number || 'Bokning',
+      rigdaydate: normalizePlannerDate(b.rigdaydate),
+      eventdate: normalizePlannerDate(b.eventdate),
+      rigdowndate: normalizePlannerDate(b.rigdowndate),
+      rig_start_time: normalizePlannerTime(b.rig_start_time),
+      rig_end_time: normalizePlannerTime(b.rig_end_time),
+      event_start_time: normalizePlannerTime(b.event_start_time),
+      event_end_time: normalizePlannerTime(b.event_end_time),
+      rigdown_start_time: normalizePlannerTime(b.rigdown_start_time),
+      rigdown_end_time: normalizePlannerTime(b.rigdown_end_time),
+      deliveryaddress: b.deliveryaddress ?? null,
+      delivery_city: b.delivery_city ?? null,
+      contact_name: b.contact_name ?? null,
+      contact_phone: b.contact_phone ?? null,
+      contact_email: b.contact_email ?? null,
+      internalnotes: b.internalnotes ?? null,
+      rig_dates: uniqueSortedDates([...phaseDates.rig, normalizePlannerDate(b.rigdaydate)]),
+      event_dates: uniqueSortedDates([...phaseDates.event, normalizePlannerDate(b.eventdate)]),
+      rigdown_dates: uniqueSortedDates([
+        ...phaseDates.rigDown,
+        normalizePlannerDate(b.rigdowndate),
+      ]),
     };
   });
 }
