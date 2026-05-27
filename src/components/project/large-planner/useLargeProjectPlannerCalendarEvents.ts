@@ -77,16 +77,17 @@ export function useLargeProjectPlannerCalendarEvents(
 
       const booking = it.booking_id ? bookingById.get(it.booking_id) ?? null : null;
 
-      // Titeln visas direkt i kalenderblocket. Vi håller den kort men tydlig:
-      // "<task>" + projektnamn på radbrytning hanteras av popovern.
-      const title = it.title;
-
-      // För hover-popovern: visa projekt som "client" och projektnummer
-      // som "bookingNumber" → ger raden "Projekt: <namn>  #<projektnr>".
+      // Titeln visas direkt i kalenderblocket. Bygg flerradigt:
+      //   <aktivitet>
+      //   Projekt: <namn>
+      //   #<projektnr>
+      const numberLabel = projectNumber ?? booking?.booking_number ?? null;
       const clientLabel = projectName
         ? `Projekt: ${projectName}`
         : 'Internt projekt';
-      const numberLabel = projectNumber ?? booking?.booking_number ?? null;
+      const titleLines = [it.title, clientLabel];
+      if (numberLabel) titleLines.push(`#${numberLabel}`);
+      const title = titleLines.join('\n');
 
       return {
         id: `planner-item-${it.id}`,
