@@ -90,18 +90,27 @@ describe('Stora projekt — projektkalender UI/data-separation', () => {
   });
 
   // ── Adapter-enhetstest ───────────────────────────────────────────────────
-  it('buildPlannerResourcesForDay returnerar TEAM-kolumner + Ej tilldelat sist', () => {
+  it('buildPlannerResourcesForDay returnerar ALLTID fasta team-1…team-5 (ingen Ej tilldelat)', () => {
     const teams: LargeProjectPlannerTeam[] = [
       { teamId: 'team-1', teamTitle: 'Team 1', order: 1, staff: [] },
       { teamId: 'team-2', teamTitle: 'Team 2', order: 2, staff: [] },
     ];
     const resources = buildPlannerResourcesForDay(teams);
-    expect(resources).toHaveLength(3);
-    expect(resources[0].id).toBe('team-1');
-    expect(resources[0].title).toBe('Team 1');
-    expect(resources[1].id).toBe('team-2');
-    expect(resources[2].id).toBe(UNASSIGNED_RESOURCE_ID);
-    expect(resources[2].title).toBe('Ej tilldelat');
+    expect(resources).toHaveLength(5);
+    expect(resources.map((r) => r.id)).toEqual([...FIXED_TEAM_IDS]);
+    expect(resources.map((r) => r.title)).toEqual([
+      'Team 1',
+      'Team 2',
+      'Team 3',
+      'Team 4',
+      'Team 5',
+    ]);
+  });
+
+  it('buildPlannerResourcesForDay returnerar fasta team-1…5 även när teamsForDay är tom', () => {
+    const resources = buildPlannerResourcesForDay([]);
+    expect(resources).toHaveLength(5);
+    expect(resources.map((r) => r.id)).toEqual([...FIXED_TEAM_IDS]);
   });
 
   it('mapPlannerItemsToCalendarEvents — items renderas, resourceId=assigned_team_id', () => {
@@ -119,7 +128,7 @@ describe('Stora projekt — projektkalender UI/data-separation', () => {
         start_time: '08:00:00',
         end_time: '12:00:00',
         assigned_staff_id: null,
-        assigned_team_id: 'team-1',
+        assigned_team_id: 'team-3',
         status: 'planned',
         source: 'booking',
         source_booking_phase: null,
@@ -136,11 +145,46 @@ describe('Stora projekt — projektkalender UI/data-separation', () => {
     const events = mapPlannerItemsToCalendarEvents(items, { largeProjectId: 'lp-1' });
     expect(events).toHaveLength(1);
     expect(events[0].id).toBe(`${PLANNER_EVENT_ID_PREFIX}item-1`);
-    expect(events[0].resourceId).toBe('team-1');
+    expect(events[0].resourceId).toBe('team-3');
     expect(events[0].start).toBe('2026-05-27T08:00:00');
     expect(events[0].extendedProps?.isLargeProjectPlannerItem).toBe(true);
     expect(events[0].extendedProps?.plannerItemId).toBe('item-1');
     expect(events[0].extendedProps?.assignmentInvalid).toBe(false);
+  });
+
+  it('mapPlannerItemsToCalendarEvents — item utan assigned_team_id hamnar i DEFAULT_TEAM_ID (team-1)', () => {
+    const items: PlannerItemWithValidity[] = [
+      {
+        id: 'item-unassigned',
+        large_project_id: 'lp-1',
+        booking_id: 'book-1',
+        parent_item_id: null,
+        title: 'Rigg ner',
+        description: null,
+        item_type: 'booking',
+        phase: null,
+        plan_date: '2026-05-29',
+        start_time: null,
+        end_time: null,
+        assigned_staff_id: null,
+        assigned_team_id: null,
+        status: 'planned',
+        source: 'booking',
+        source_booking_phase: null,
+        sort_order: 0,
+        notes: null,
+        metadata: {},
+        booking_product_id: null,
+        created_at: '',
+        updated_at: '',
+        isAssignedStaffAllowed: true,
+        assignmentWarning: null,
+      },
+    ];
+    const events = mapPlannerItemsToCalendarEvents(items, { largeProjectId: 'lp-1' });
+    expect(events).toHaveLength(1);
+    expect(events[0].resourceId).toBe(DEFAULT_TEAM_ID);
+    expect(DEFAULT_TEAM_ID).toBe('team-1');
   });
 
   it('mapPlannerItemsToCalendarEvents — sparat team visas kvar i samma teamkolumn även utan bemanning', () => {
@@ -158,7 +202,7 @@ describe('Stora projekt — projektkalender UI/data-separation', () => {
         start_time: null,
         end_time: null,
         assigned_staff_id: null,
-        assigned_team_id: 'team-9',
+        assigned_team_id: 'team-5',
         status: 'planned',
         source: 'manual',
         source_booking_phase: null,
@@ -174,7 +218,7 @@ describe('Stora projekt — projektkalender UI/data-separation', () => {
     ];
     const events = mapPlannerItemsToCalendarEvents(items, { largeProjectId: 'lp-1' });
     expect(events).toHaveLength(1);
-    expect(events[0].resourceId).toBe('team-9');
+    expect(events[0].resourceId).toBe('team-5');
     expect(events[0].extendedProps?.assignmentInvalid).toBe(false);
   });
 
