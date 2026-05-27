@@ -55,7 +55,11 @@ interface Props {
 }
 
 const BOOKING_FIELDS = `
-  id, client, booking_number, deliveryaddress, organization_id,
+  id, client, booking_number, deliveryaddress, delivery_city, delivery_postal_code,
+  delivery_latitude, delivery_longitude, map_drawing_url,
+  customer_pickup, carry_more_than_10m, ground_nails_allowed,
+  exact_time_needed, exact_time_info,
+  organization_id,
   assigned_project_id, rental_only,
   contact_name, contact_phone, contact_email, internalnotes,
   eventdate, rigdaydate, rigdowndate,
