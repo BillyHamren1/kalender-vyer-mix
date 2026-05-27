@@ -40,6 +40,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import LargeProjectScheduleEditable from '@/components/project/LargeProjectScheduleEditable';
 import LargeProjectPlannerTaskCard from './LargeProjectPlannerTaskCard';
 import { useBookingProductsForPlanner, type BookingProductForPlanner } from '@/hooks/useBookingProductsForPlanner';
 import type {
@@ -63,6 +64,13 @@ interface Props {
     booking: LargeProjectPlannerBooking,
     selection: { rig: boolean; event: boolean; rigDown: boolean; createProductTodos: boolean },
   ) => void;
+  onUpdateBookingSchedule: (
+    booking: LargeProjectPlannerBooking,
+    dateType: 'rig' | 'event' | 'rigDown',
+    dates: string[],
+    startTime: string,
+    endTime: string,
+  ) => void;
   onItemClick: (item: LargeProjectBookingPlanItem) => void;
   onItemDelete?: (item: LargeProjectBookingPlanItem) => void;
   onToggleItemStatus?: (item: LargeProjectBookingPlanItem, checked: boolean) => void;
@@ -85,6 +93,7 @@ const BookingPlannerSheet = ({
   onCreateTodoForBooking,
   onCreateTodoForProduct,
   onPlanWholeBooking,
+  onUpdateBookingSchedule,
   onItemClick,
   onItemDelete,
   onToggleItemStatus,
@@ -176,25 +185,23 @@ const BookingPlannerSheet = ({
                 )}
               </div>
 
-              {/* Faser */}
-              <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
-                <PhaseChip
-                  label="Rigg"
-                  date={booking.rig_dates[0] ?? booking.rigdaydate}
-                  time={timeRange(booking.rig_start_time, booking.rig_end_time)}
-                  count={booking.rig_dates.length}
-                />
-                <PhaseChip
-                  label="Event"
-                  date={booking.event_dates[0] ?? booking.eventdate}
-                  time={timeRange(booking.event_start_time, booking.event_end_time)}
-                  count={booking.event_dates.length}
-                />
-                <PhaseChip
-                  label="Rigg ner"
-                  date={booking.rigdown_dates[0] ?? booking.rigdowndate}
-                  time={timeRange(booking.rigdown_start_time, booking.rigdown_end_time)}
-                  count={booking.rigdown_dates.length}
+              <div className="mt-3 rounded-md border border-border/60 bg-background px-3 py-3">
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Datum per fas
+                </div>
+                <LargeProjectScheduleEditable
+                  startDates={booking.rig_dates.length ? booking.rig_dates : (booking.rigdaydate ? [booking.rigdaydate] : [])}
+                  eventDates={booking.event_dates.length ? booking.event_dates : (booking.eventdate ? [booking.eventdate] : [])}
+                  endDates={booking.rigdown_dates.length ? booking.rigdown_dates : (booking.rigdowndate ? [booking.rigdowndate] : [])}
+                  startStartTime={booking.rig_start_time}
+                  startEndTime={booking.rig_end_time}
+                  eventStartTime={booking.event_start_time}
+                  eventEndTime={booking.event_end_time}
+                  endStartTime={booking.rigdown_start_time}
+                  endEndTime={booking.rigdown_end_time}
+                  onUpdateScheduleMulti={(dateType, dates, startTime, endTime) =>
+                    onUpdateBookingSchedule(booking, dateType, dates, startTime, endTime)
+                  }
                 />
               </div>
 
@@ -422,33 +429,5 @@ const BookingPlannerSheet = ({
     </Sheet>
   );
 };
-
-const PhaseChip = ({
-  label,
-  date,
-  time,
-  count,
-}: {
-  label: string;
-  date: string | null;
-  time: string | null;
-  count?: number;
-}) => (
-  <div className="rounded border border-border/60 bg-background px-2 py-1.5">
-    <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-      {label}
-    </div>
-    <div className="mt-0.5 inline-flex items-center gap-1 text-foreground">
-      <Calendar className="h-3 w-3 text-muted-foreground" />
-      <span className="text-[11px]">{date ?? '—'}</span>
-      {!!count && count > 1 && (
-        <Badge variant="secondary" className="h-4 px-1 text-[9px]">
-          {count} dagar
-        </Badge>
-      )}
-    </div>
-    {time && <div className="text-[10px] text-muted-foreground">{time}</div>}
-  </div>
-);
 
 export default BookingPlannerSheet;

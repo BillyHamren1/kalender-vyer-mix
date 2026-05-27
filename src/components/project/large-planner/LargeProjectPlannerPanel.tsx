@@ -26,6 +26,7 @@ import LargeProjectPlannerQuickEditDialog from './LargeProjectPlannerQuickEditDi
 import BookingPlannerSheet from './BookingPlannerSheet';
 import { useLargeProjectPlannerItems } from './useLargeProjectPlannerItems';
 import { supabase } from '@/integrations/supabase/client';
+import { updateBookingDatesViaApi } from '@/services/planningApiService';
 import type {
   LargeProjectBookingPlanItem,
   LargeProjectPlannerBooking,
@@ -221,6 +222,64 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
     }
   };
 
+  const handleUpdateBookingSchedule = async (
+    booking: LargeProjectPlannerBooking,
+    dateType: 'rig' | 'event' | 'rigDown',
+    dates: string[],
+    startTime: string,
+    endTime: string,
+  ) => {
+    const firstDate = dates[0] ?? null;
+    const payload: {
+      rigdaydate?: string | null;
+      eventdate?: string | null;
+      rigdowndate?: string | null;
+      rig_dates?: string[] | null;
+      event_dates?: string[] | null;
+      rigdown_dates?: string[] | null;
+      rig_start_time?: string | null;
+      rig_end_time?: string | null;
+      event_start_time?: string | null;
+      event_end_time?: string | null;
+      rigdown_start_time?: string | null;
+      rigdown_end_time?: string | null;
+    } = {};
+
+    if (dateType === 'rig') {
+      payload.rigdaydate = firstDate;
+      payload.rig_dates = dates;
+      payload.rig_start_time = startTime ? `${firstDate}T${startTime}:00Z` : null;
+      payload.rig_end_time = endTime ? `${firstDate}T${endTime}:00Z` : null;
+    }
+    if (dateType === 'event') {
+      payload.eventdate = firstDate;
+      payload.event_dates = dates;
+      payload.event_start_time = startTime ? `${firstDate}T${startTime}:00Z` : null;
+      payload.event_end_time = endTime ? `${firstDate}T${endTime}:00Z` : null;
+    }
+    if (dateType === 'rigDown') {
+      payload.rigdowndate = firstDate;
+      payload.rigdown_dates = dates;
+      payload.rigdown_start_time = startTime ? `${firstDate}T${startTime}:00Z` : null;
+      payload.rigdown_end_time = endTime ? `${firstDate}T${endTime}:00Z` : null;
+    }
+
+    try {
+      await updateBookingDatesViaApi(booking.id, payload);
+      const { error } = await supabase.functions.invoke('import-bookings', {
+        body: {
+          booking_id: booking.id,
+          syncMode: 'single',
+        },
+      });
+      if (error) throw error;
+      await refetch();
+      toast.success('Bokningsdatum uppdaterade.');
+    } catch (e) {
+      toast.error((e as Error).message || 'Kunde inte uppdatera bokningsdatum.');
+    }
+  };
+
   const handleSeedAll = async () => {
     try {
       const result = await createItemsFromBookings();
@@ -397,6 +456,7 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
         onCreateTodoForBooking={(b) => openCreateTodoDialog(b)}
         onCreateTodoForProduct={(b, p) => openCreateTodoDialog(b, p)}
         onPlanWholeBooking={handlePlanWholeBooking}
+        onUpdateBookingSchedule={handleUpdateBookingSchedule}
         onItemClick={handleItemClick}
         onItemDelete={handleItemDelete}
         onToggleItemStatus={handleToggleItemStatus}
