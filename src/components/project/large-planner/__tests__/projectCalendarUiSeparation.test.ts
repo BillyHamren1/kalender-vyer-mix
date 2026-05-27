@@ -142,7 +142,7 @@ describe('Stora projekt — projektkalender UI/data-separation', () => {
     expect(events[0].extendedProps?.assignmentInvalid).toBe(false);
   });
 
-  it('mapPlannerItemsToCalendarEvents — obemannat team routas till Ej tilldelat', () => {
+  it('mapPlannerItemsToCalendarEvents — sparat team visas kvar i samma teamkolumn även utan bemanning', () => {
     const items: PlannerItemWithValidity[] = [
       {
         id: 'item-2',
@@ -173,8 +173,8 @@ describe('Stora projekt — projektkalender UI/data-separation', () => {
     ];
     const events = mapPlannerItemsToCalendarEvents(items, { largeProjectId: 'lp-1' });
     expect(events).toHaveLength(1);
-    expect(events[0].resourceId).toBe(UNASSIGNED_RESOURCE_ID);
-    expect(events[0].extendedProps?.assignmentInvalid).toBe(true);
+    expect(events[0].resourceId).toBe('team-9');
+    expect(events[0].extendedProps?.assignmentInvalid).toBe(false);
   });
 
   it('mapPlannerItemsToCalendarEvents — orderrad-todos (booking_product_id) filtreras bort', () => {
