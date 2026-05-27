@@ -35,6 +35,7 @@ import {
 import type { useLargeProjectPlannerItems } from './useLargeProjectPlannerItems';
 
 import '@/components/project/ProjectCalendarView.css';
+import './LargeProjectPlannerCalendarView.css';
 
 type PlannerCtx = ReturnType<typeof useLargeProjectPlannerItems>;
 
@@ -189,7 +190,7 @@ const LargeProjectPlannerCalendarView = ({
 
   return (
     <EditControllerProvider>
-      <div className="project-calendar-shell">
+      <div className="project-calendar-shell large-planner-calendar-shell">
         <div className="custom-calendar-container weekly-view">
           <div className="weekly-horizontal-grid project-weekly-horizontal-grid">
             {days.map((day) => {
