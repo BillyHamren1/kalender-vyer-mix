@@ -3,6 +3,7 @@
 // re-paginate staff_location_history when nothing has changed.
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { loadDayKnownSites } from "./dayKnownSites.ts";
+import { stockholmDayWindowUtc } from "./dayWindow.ts";
 
 export interface PingRow {
   id: string;
