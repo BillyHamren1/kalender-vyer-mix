@@ -58,6 +58,10 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
   const [manualDefaults, setManualDefaults] = useState<{
     date?: string | null;
     staffId?: string | null;
+    bookingId?: string | null;
+    title?: string | null;
+    startTime?: string | null;
+    endTime?: string | null;
   }>({});
   const [quickEditId, setQuickEditId] = useState<string | null>(null);
 
@@ -71,29 +75,19 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
     return () => window.removeEventListener('lp-planner-item-open', handler as EventListener);
   }, []);
 
-  const handleSeedBooking = async (booking: LargeProjectPlannerBooking) => {
-    const planDate =
-      booking.rigdaydate ?? booking.eventdate ?? booking.rigdowndate ?? days[0]?.date;
-    if (!planDate) {
-      toast.error('Bokningen saknar datum.');
-      return;
-    }
-    try {
-      await createItem({
-        large_project_id: largeProjectId,
-        title: booking.display_name,
-        plan_date: planDate,
-        booking_id: booking.id,
-        item_type: 'booking',
-        source: 'booking',
-        status: 'planned',
-        start_time: booking.event_start_time ?? booking.rig_start_time ?? null,
-        end_time: booking.event_end_time ?? booking.rig_end_time ?? null,
-      });
-      toast.success('Bokning tillagd i plan.');
-    } catch (e) {
-      toast.error((e as Error).message || 'Kunde inte lägga in bokning.');
-    }
+  const handleSeedBooking = (booking: LargeProjectPlannerBooking) => {
+    // Auto-skapar INTE längre — öppnar dialogen så admin kan välja dag, tider, personal.
+    const suggestedDate =
+      booking.rigdaydate ?? booking.eventdate ?? booking.rigdowndate ?? days[0]?.date ?? null;
+    setManualDefaults({
+      date: suggestedDate,
+      staffId: null,
+      bookingId: booking.id,
+      title: booking.display_name,
+      startTime: booking.event_start_time ?? booking.rig_start_time ?? null,
+      endTime: booking.event_end_time ?? booking.rig_end_time ?? null,
+    });
+    setManualOpen(true);
   };
 
   const handleSeedAll = async () => {
@@ -227,6 +221,10 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
         isStaffAllowedForDate={isStaffAllowedForDate}
         defaultDate={manualDefaults.date ?? null}
         defaultStaffId={manualDefaults.staffId ?? null}
+        defaultBookingId={manualDefaults.bookingId ?? null}
+        defaultTitle={manualDefaults.title ?? null}
+        defaultStartTime={manualDefaults.startTime ?? null}
+        defaultEndTime={manualDefaults.endTime ?? null}
         createItem={createItem}
         isMutating={isMutating}
       />
