@@ -4,7 +4,10 @@ import { format } from 'date-fns';
 import { fetchStaffMembers } from '@/services/staffService';
 import { supabase } from '@/integrations/supabase/client';
 import type { RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
+import { useStaffGpsPingsForDay } from '@/hooks/staff/useStaffGpsPingsForDay';
 import { useMobileStaffDayPings } from '@/hooks/staff/useMobileStaffDayPings';
+import { stockholmDayWindowUtc } from '@/lib/staff/stockholmTime';
+
 import RawGpsSatelliteMap from './RawGpsSatelliteMap';
 import { StaffGpsWeekPanel } from './StaffGpsWeekPanel';
 import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
