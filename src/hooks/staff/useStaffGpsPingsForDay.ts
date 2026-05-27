@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { stockholmDayWindowUtc } from '@/lib/staff/stockholmTime';
+
 
 /**
  * Rådata-hook: hämtar ALLA pings för en staff+dag direkt från
