@@ -77,17 +77,11 @@ export function useLargeProjectPlannerCalendarEvents(
 
       const booking = it.booking_id ? bookingById.get(it.booking_id) ?? null : null;
 
-      // Titeln visas direkt i kalenderblocket. Bygg flerradigt:
-      //   <aktivitet>
-      //   Projekt: <namn>
-      //   #<projektnr>
       const numberLabel = projectNumber ?? booking?.booking_number ?? null;
       const clientLabel = projectName
         ? `Projekt: ${projectName}`
         : 'Internt projekt';
-      const titleLines = [it.title, clientLabel];
-      if (numberLabel) titleLines.push(`#${numberLabel}`);
-      const title = titleLines.join('\n');
+      const title = it.title;
 
       return {
         id: `planner-item-${it.id}`,
