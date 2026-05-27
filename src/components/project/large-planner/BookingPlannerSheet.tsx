@@ -373,6 +373,15 @@ const BookingPlannerSheet = ({
                                     key={it.id}
                                     className="flex items-center gap-2 text-[11px] text-muted-foreground"
                                   >
+                                    {onToggleItemStatus && (
+                                      <Checkbox
+                                        checked={it.status === 'done'}
+                                        onCheckedChange={(checked) =>
+                                          onToggleItemStatus(it, !!checked)
+                                        }
+                                        aria-label={`Markera ${it.title} som klar`}
+                                      />
+                                    )}
                                     <button
                                       type="button"
                                       className="inline-flex items-center gap-1 truncate text-left hover:text-foreground hover:underline"
