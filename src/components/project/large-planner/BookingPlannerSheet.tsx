@@ -83,10 +83,6 @@ interface Props {
   items: LargeProjectBookingPlanItem[];
   staff: LargeProjectPlannerStaffMember[];
   onCreateTodoForBooking: (booking: LargeProjectPlannerBooking) => void;
-  onCreateTodoForProduct: (
-    booking: LargeProjectPlannerBooking,
-    product: BookingProductForPlanner,
-  ) => void;
   onPlanWholeBooking: (
     booking: LargeProjectPlannerBooking,
     selection: PlanWholeBookingSelection,
