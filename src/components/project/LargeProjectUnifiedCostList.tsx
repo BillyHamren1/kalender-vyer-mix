@@ -70,13 +70,16 @@ export function LargeProjectUnifiedCostList({
     const timeRows: Array<{ staff: string; date: string; hours: number; cost: number }> = [];
     Object.values(timeReportsByBooking).forEach((reports) => {
       reports.forEach((r: any) => {
+        const date = r.work_date || r.date || '';
+        // ⛔ Filtrera odaterade rader — får inte räknas in i Faktiskt-summan.
+        if (!date) return;
         const hours = (Number(r.total_hours) || 0) + (Number(r.overtime_hours) || 0);
         const cost = Number(r.total_cost) || 0;
         actualAssembly += cost;
         totalReportedHours += hours;
         timeRows.push({
           staff: r.staff_name || r.staff_id || 'Okänd',
-          date: r.work_date || r.date || '',
+          date,
           hours,
           cost,
         });
