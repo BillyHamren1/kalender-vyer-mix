@@ -48,8 +48,9 @@ interface TimeGridProps {
    * Plannermode för stora projektets ISOLERADE interna projektkalender.
    * I detta läge:
    *  - inget +-knapp/TeamStaffPickerPopover (ingen tilldelning av personal)
-   *  - ingen assigned-staff-rad (rad 3) (resources = personer per dag, ej team)
-   *  - använder ändå samma TimeGrid-layout & event-rendering
+   *  - row 3 (team-staff-badges) renderas READ-ONLY (ingen remove-dialog)
+   *  - kolumner = projektets team (samma som personalkalendern)
+   *  - använder samma TimeGrid-layout & event-rendering
    * Skrivvägar styrs av föräldern via onEventDrop som inte får gå till
    * calendar_events/staff_assignments.
    */
