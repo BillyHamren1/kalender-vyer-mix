@@ -19,6 +19,7 @@
  *
  * Skriver INTE själv till DB — delegerar till parent via callbacks.
  */
+import { useEffect, useState } from 'react';
 import {
   Hash,
   Calendar,
@@ -36,6 +37,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import LargeProjectPlannerTaskCard from './LargeProjectPlannerTaskCard';
@@ -57,9 +59,13 @@ interface Props {
     booking: LargeProjectPlannerBooking,
     product: BookingProductForPlanner,
   ) => void;
-  onPlanWholeBooking: (booking: LargeProjectPlannerBooking) => void;
+  onPlanWholeBooking: (
+    booking: LargeProjectPlannerBooking,
+    selection: { rig: boolean; event: boolean; rigDown: boolean; createProductTodos: boolean },
+  ) => void;
   onItemClick: (item: LargeProjectBookingPlanItem) => void;
   onItemDelete?: (item: LargeProjectBookingPlanItem) => void;
+  onToggleItemStatus?: (item: LargeProjectBookingPlanItem, checked: boolean) => void;
 }
 
 const fmtTime = (t: string | null) => (t ? t.slice(0, 5) : null);
@@ -81,6 +87,7 @@ const BookingPlannerSheet = ({
   onPlanWholeBooking,
   onItemClick,
   onItemDelete,
+  onToggleItemStatus,
 }: Props) => {
   const bookingId = booking?.id ?? null;
   const { data: products, isLoading: productsLoading, error: productsError } =
@@ -91,6 +98,18 @@ const BookingPlannerSheet = ({
     : [];
   const hasAnyPlan = bookingItems.length > 0;
   const staffById = new Map(staff.map((s) => [s.id, s]));
+  const [planRig, setPlanRig] = useState(true);
+  const [planEvent, setPlanEvent] = useState(true);
+  const [planRigDown, setPlanRigDown] = useState(true);
+  const [createProductTodos, setCreateProductTodos] = useState(true);
+
+  useEffect(() => {
+    if (!open || !booking) return;
+    setPlanRig(booking.rig_dates.length > 0 || !!booking.rigdaydate);
+    setPlanEvent(booking.event_dates.length > 0 || !!booking.eventdate);
+    setPlanRigDown(booking.rigdown_dates.length > 0 || !!booking.rigdowndate);
+    setCreateProductTodos(true);
+  }, [open, booking]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
