@@ -8,8 +8,8 @@
  * PULSE_INTERVAL_MIN. Detta väcker mobilappen och triggar en forced
  * getCurrentPosition + upload_location_batch med battery_source='gps_pulse'.
  *
- * INGEN workday-gating. INGEN active_time_registrations-gating. INGEN
- * Time Engine. INGEN staff_day_report_cache. Pulse är endast ett
+ * INGEN workday-gating. INGEN gating mot aktiva tidsregistreringar.
+ * INGEN Time Engine. INGEN dag-rapport-cache. Pulse är endast ett
  * lågintensivt sätt att få färsk råposition från inloggade devices.
  * Arbetstid avgörs senare i Time Engine.
  *
