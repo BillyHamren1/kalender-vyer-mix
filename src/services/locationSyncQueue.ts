@@ -531,55 +531,56 @@ export async function flushLocationQueue(): Promise<void> {
 }
 
 // ── AUTO-FLUSH TRIGGERS ──
-// Mirror the timer queue's recovery surface so GPS points have at least as
-// many resync opportunities as timer starts. Each trigger is no-op safe:
-//   - flushLocationQueue() guards against concurrent runs via `flushing`
-//   - successful uploads are idempotent on the server (dedupe by recorded_at)
-//   - failed chunks back off and retry on the next trigger
+// Bakgrundskadens: var 10:e minut. Event-baserade triggers (online,
+// focus, visibilitychange, Capacitor resume) går via autoFlushIfDue
+// som har en MIN_AUTO_FLUSH_INTERVAL_MS-throttle så vi inte skickar
+// flera batchar tätt efter varandra.
 //
-// We intentionally DO NOT touch timerSyncQueue here — it manages its own
-// online/focus/module-load triggers in src/services/timerSyncQueue.ts.
+// Viktiga händelser (start/stop dag, geofence enter/exit, travel
+// start/end) ska istället använda forceFlushLocationQueue(reason)
+// från den anropande koden — det bypassar throttlen.
 if (typeof window !== 'undefined') {
-  // Network back online — most common offline → online recovery.
+  // Periodisk 10-min-batch — backend-friendly bas-cadence.
+  window.setInterval(() => {
+    autoFlushIfDue();
+  }, LOCATION_BATCH_FLUSH_INTERVAL_MS);
+
+  // Network back online — opportunistisk men throttlad.
   window.addEventListener('online', () => {
-    void flushLocationQueue();
+    autoFlushIfDue();
   });
 
-  // Tab/window regains focus (web + foregrounded WebView).
+  // Tab/window regains focus.
   window.addEventListener('focus', () => {
-    void flushLocationQueue();
+    autoFlushIfDue();
   });
 
-  // Tab becomes visible again — fires when user switches back from another
-  // app on mobile WebView even when `focus` doesn't (iOS PWA quirk).
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
-        void flushLocationQueue();
+        autoFlushIfDue();
       }
     });
   }
 
-  // Native app foreground (Capacitor). Best-effort dynamic import so this
-  // file stays usable in pure-web tests where @capacitor/app isn't installed.
-  // Critical on iOS where `focus` / `visibilitychange` are unreliable when
-  // the app resumes from a long background period.
+  // Native Capacitor resume / appStateChange — throttlad. Den som
+  // verkligen vet att telefonen kommer tillbaka efter LÅNG bakgrund
+  // ska anropa forceFlushLocationQueue('cap-resume-long-bg').
   void (async () => {
     try {
       const { App } = await import('@capacitor/app');
       App.addListener('appStateChange', ({ isActive }) => {
-        if (isActive) void flushLocationQueue();
+        if (isActive) autoFlushIfDue();
       });
       App.addListener('resume', () => {
-        void flushLocationQueue();
+        autoFlushIfDue();
       });
     } catch {
       // Not running under Capacitor — fine, web triggers above cover it.
     }
   })();
 
-  // Session ogiltig / utgången — töm kön omedelbart så vi inte fortsätter
-  // försöka ladda upp med ett dött token (vilket annars belastar Supabase).
+  // Session ogiltig / utgången — töm kön omedelbart.
   const clearOnInvalidSession = () => {
     saveQueue([]);
     patchStatus({
@@ -590,8 +591,9 @@ if (typeof window !== 'undefined') {
   window.addEventListener('mobile-session-expired', clearOnInvalidSession);
   window.addEventListener('mobile-session-invalid', clearOnInvalidSession);
 
-  // App start — resume any leftover work from the previous session
-  // (offline period, force-quit, crash, etc.).
+  // App start — kör en initial flush så ev. leftover-data från
+  // tidigare session kommer iväg direkt.
   void flushLocationQueue();
 }
+
 
