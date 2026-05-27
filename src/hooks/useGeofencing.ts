@@ -716,7 +716,7 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
               speed: speed ?? null,
               source: 'foreground',
             });
-            void flushLocationQueue();
+            // Ingen direkt flush — 10-min batch sköter upload.
           }
         }
       },
