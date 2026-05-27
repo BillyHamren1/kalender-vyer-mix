@@ -1,18 +1,36 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+/**
+ * LargeEstablishmentPage — stort projekt: "Kalender & planering".
+ * --------------------------------------------------------------------------
+ * STRIKT SEPARATION (se .lovable/large-project-calendar-audit.md):
+ *
+ *   • Personalkalendern (ProjectCalendarView/CustomCalendar) = planerar
+ *     PROJEKTETS DAGAR. Får skriva calendar_events, staff_assignments och
+ *     booking_staff_assignments. Den styr vilken personal som finns
+ *     tillgänglig på projektets dagar.
+ *
+ *   • Den interna projektkalendern (LargeProjectBookingPlannerCalendar) =
+ *     planerar bokningsdelar/tasks INOM projektets dagar. Får ENDAST skriva
+ *     till large_project_booking_plan_items.
+ *
+ * Den här sidan renderar därför ENBART LargeProjectBookingPlannerCalendar i
+ * kalenderläget — ingen ProjectCalendarView, inga plannerCalendarEvents som
+ * extraEvents, ingen LargeProjectPlannerPanel som rightPanel. Excel-vyn är
+ * oförändrad och EstablishmentTaskDetailSheet lever kvar.
+ *
+ * Lägg INTE tillbaka useLargeProjectPlannerCalendarEvents här. Planner-items
+ * får aldrig renderas som calendar_events i ProjectCalendarView.
+ */
+import { useState, useCallback, useEffect } from "react";
 import { useOutletContext, useNavigate, useLocation } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { CalendarDays, Table as TableIcon } from "lucide-react";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
-import ProjectCalendarView from "@/components/project/ProjectCalendarView";
 import LargeProjectExcelView from "@/components/project/LargeProjectExcelView";
-import LargeProjectPlannerPanel from "@/components/project/large-planner/LargeProjectPlannerPanel";
-import { useLargeProjectPlannerCalendarEvents } from "@/components/project/large-planner/useLargeProjectPlannerCalendarEvents";
+import LargeProjectBookingPlannerCalendar from "@/components/project/large-planner/LargeProjectBookingPlannerCalendar";
 import { supabase } from "@/integrations/supabase/client";
 import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
 import { getLargeProjectBookingLabel } from "@/lib/largeProjectBookingLabel";
-import type { CalendarEvent } from "@/components/Calendar/ResourceData";
 
 interface SelectedTask {
   id: string;
@@ -57,64 +75,10 @@ const LargeEstablishmentPage = () => {
     }
   }, [location.state]);
 
-  const bookingIds = useMemo(() => {
-    return (project?.bookings || [])
-      .map((b) => b.booking_id)
-      .filter(Boolean);
-  }, [project?.bookings]);
-
-  useQuery({
-    queryKey: ['large-project-staff-pool', project?.id, bookingIds],
-    queryFn: async () => {
-      let staffIds: string[] = [];
-      if (bookingIds.length > 0) {
-        const { data } = await supabase
-          .from('booking_staff_assignments')
-          .select('staff_id')
-          .in('booking_id', bookingIds);
-        staffIds = [...new Set((data || []).map((d) => d.staff_id))];
-      }
-      if (staffIds.length === 0) return [];
-      const { data: staffData } = await supabase
-        .from('staff_members')
-        .select('id, name')
-        .eq('is_active', true)
-        .in('id', staffIds)
-        .order('name');
-      return staffData || [];
-    },
-    enabled: !!project?.id,
-  });
-
   const handleOpenInChat = useCallback((_taskId: string, _taskTitle: string) => {
     setSheetOpen(false);
     navigate("..");
   }, [navigate]);
-
-  // Mappa planner-items till kalender-events så de visas i CustomCalendar.
-  const { events: plannerCalendarEvents } = useLargeProjectPlannerCalendarEvents(project?.id);
-
-  // Klick på event i kalendern:
-  //  - planner-item → öppna quick-edit i panelen
-  //  - riktigt bokningsblock → öppna BookingPlannerSheet så att orderrad-todos
-  //    blir synliga (de renderas inte som egna kalenderblock).
-  const handleCalendarEventClick = useCallback((evt: CalendarEvent) => {
-    const ext = (evt as any)?.extendedProps;
-    const isPlanner = ext?.isPlannerItem;
-    const plannerItemId = ext?.plannerItemId;
-    if (isPlanner && plannerItemId) {
-      window.dispatchEvent(
-        new CustomEvent('lp-planner-item-open', { detail: { itemId: plannerItemId } }),
-      );
-      return;
-    }
-    const bookingId = ext?.bookingId || (evt as any)?.bookingId || (evt as any)?.booking_id;
-    if (bookingId) {
-      window.dispatchEvent(
-        new CustomEvent('lp-booking-sheet-open', { detail: { bookingId } }),
-      );
-    }
-  }, []);
 
   if (!project) return null;
 
@@ -126,7 +90,6 @@ const LargeEstablishmentPage = () => {
 
   return (
     <div className="space-y-3">
-      {/* Top toggle: Kalender (unified planera+kalender) vs Excel-vy */}
       <div className="flex items-center justify-center">
         <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
           <Button
@@ -153,14 +116,7 @@ const LargeEstablishmentPage = () => {
       {pageMode === "excel" ? (
         <LargeProjectExcelView bookings={(project as any)?.bookings || []} />
       ) : (
-        <ProjectCalendarView
-          projectId={project.id}
-          isLargeProject
-          compactHeader
-          extraEvents={plannerCalendarEvents}
-          onEventClick={handleCalendarEventClick}
-          rightPanel={<LargeProjectPlannerPanel largeProjectId={project.id} />}
-        />
+        <LargeProjectBookingPlannerCalendar largeProjectId={project.id} />
       )}
 
       <EstablishmentTaskDetailSheet
