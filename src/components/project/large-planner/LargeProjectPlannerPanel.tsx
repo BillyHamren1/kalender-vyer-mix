@@ -62,6 +62,8 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
     title?: string | null;
     startTime?: string | null;
     endTime?: string | null;
+    bookingProductId?: string | null;
+    bookingProductLabel?: string | null;
   }>({});
   const [quickEditId, setQuickEditId] = useState<string | null>(null);
 
