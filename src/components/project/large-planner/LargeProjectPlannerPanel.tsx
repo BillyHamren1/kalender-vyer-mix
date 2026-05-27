@@ -1,8 +1,14 @@
 /**
- * LargeProjectPlannerPanel
+ * LargeProjectPlannerPanel — intern bokningsplanering, sidopanel.
  * --------------------------------------------------------------------------
- * Sidopanel för intern bokningsplanering i ett stort projekt — designad
- * att stå BREDVID ProjectCalendarView (personalkalenderns CustomCalendar).
+ * HÅRDA REGLER (STRIKT SEPARATION mot personalkalendern):
+ *  - Skriver ENDAST till `large_project_booking_plan_items` via
+ *    useLargeProjectPlannerItems / largeProjectPlannerService.
+ *  - Får ALDRIG skriva till calendar_events, staff_assignments,
+ *    booking_staff_assignments, large_project_team_assignments eller
+ *    ändra bookings (datum/tider/team).
+ *  - Projektets DAGAR ägs av personalkalendern. Saknas dagen där kan
+ *    vi inte committa här — vi visar en tydlig varning och stoppar.
  *
  * Innehåller:
  *  - Lista över bokningar (planerade / oplannerade)
@@ -10,9 +16,6 @@
  *  - Splitta bokning
  *  - Quick-edit (öppnas både via klick i panelen och via klick på
  *    planner-item-event i kalendern — global event 'lp-planner-item-open')
- *
- * Skriver ENDAST till large_project_booking_plan_items via
- * useLargeProjectPlannerItems / largeProjectPlannerService.
  */
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -26,7 +29,6 @@ import LargeProjectPlannerQuickEditDialog from './LargeProjectPlannerQuickEditDi
 import BookingPlannerSheet from './BookingPlannerSheet';
 import { useLargeProjectPlannerItems } from './useLargeProjectPlannerItems';
 import { supabase } from '@/integrations/supabase/client';
-// updateBookingDatesViaApi används inte här – datum skrivs lokalt mot bookings (samma väg som personalkalendern)
 import type {
   LargeProjectBookingPlanItem,
   LargeProjectPlannerBooking,
