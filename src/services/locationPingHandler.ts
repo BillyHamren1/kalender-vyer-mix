@@ -18,10 +18,7 @@
  * Capacitor APIs.
  */
 
-import { enqueueLocationPoint, forceFlushLocationQueue, flushLocationQueue as _flushLocationQueue } from './locationSyncQueue';
-
-// Re-export for type compatibility (LocationPingDeps.flush still typed against flushLocationQueue).
-type _FlushFn = typeof _flushLocationQueue;
+import { enqueueLocationPoint, flushLocationQueue, forceFlushLocationQueue } from './locationSyncQueue';
 
 export interface LocationPingNotification {
   data?: Record<string, unknown> | null | undefined;
