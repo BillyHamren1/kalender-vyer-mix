@@ -418,10 +418,12 @@ const PhaseChip = ({
   label,
   date,
   time,
+  count,
 }: {
   label: string;
   date: string | null;
   time: string | null;
+  count?: number;
 }) => (
   <div className="rounded border border-border/60 bg-background px-2 py-1.5">
     <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -430,6 +432,11 @@ const PhaseChip = ({
     <div className="mt-0.5 inline-flex items-center gap-1 text-foreground">
       <Calendar className="h-3 w-3 text-muted-foreground" />
       <span className="text-[11px]">{date ?? '—'}</span>
+      {!!count && count > 1 && (
+        <Badge variant="secondary" className="h-4 px-1 text-[9px]">
+          {count} dagar
+        </Badge>
+      )}
     </div>
     {time && <div className="text-[10px] text-muted-foreground">{time}</div>}
   </div>
