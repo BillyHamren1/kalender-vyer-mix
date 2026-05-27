@@ -270,6 +270,24 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
         onSplit={(it) => it.booking_id && setSplitBookingId(it.booking_id)}
         isMutating={isMutating}
       />
+
+      <BookingPlannerSheet
+        open={plannerSheetBookingId !== null}
+        onOpenChange={(open) => {
+          if (!open) setPlannerSheetBookingId(null);
+        }}
+        booking={
+          plannerSheetBookingId
+            ? bookingById.get(plannerSheetBookingId) ?? null
+            : null
+        }
+        items={items}
+        staff={staff}
+        onCreateTodoForBooking={(b) => openCreateTodoDialog(b)}
+        onCreateTodoForProduct={(b, p) => openCreateTodoDialog(b, p)}
+        onItemClick={handleItemClick}
+        onItemDelete={handleItemDelete}
+      />
     </Card>
   );
 };
