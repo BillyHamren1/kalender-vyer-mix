@@ -180,26 +180,60 @@ const BookingPlannerSheet = ({
               <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
                 <PhaseChip
                   label="Rigg"
-                  date={booking.rigdaydate}
+                  date={booking.rig_dates[0] ?? booking.rigdaydate}
                   time={timeRange(booking.rig_start_time, booking.rig_end_time)}
+                  count={booking.rig_dates.length}
                 />
                 <PhaseChip
                   label="Event"
-                  date={booking.eventdate}
+                  date={booking.event_dates[0] ?? booking.eventdate}
                   time={timeRange(booking.event_start_time, booking.event_end_time)}
+                  count={booking.event_dates.length}
                 />
                 <PhaseChip
                   label="Rigg ner"
-                  date={booking.rigdowndate}
+                  date={booking.rigdown_dates[0] ?? booking.rigdowndate}
                   time={timeRange(booking.rigdown_start_time, booking.rigdown_end_time)}
+                  count={booking.rigdown_dates.length}
                 />
+              </div>
+
+              <div className="mt-3 rounded-md border border-border/60 bg-background px-3 py-2">
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Vad ska planeras nu?
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                  <label className="inline-flex items-center gap-2">
+                    <Checkbox checked={planRig} onCheckedChange={(v) => setPlanRig(!!v)} />
+                    <span>Rigg ({booking.rig_dates.length || (booking.rigdaydate ? 1 : 0)} dagar)</span>
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <Checkbox checked={planEvent} onCheckedChange={(v) => setPlanEvent(!!v)} />
+                    <span>Event ({booking.event_dates.length || (booking.eventdate ? 1 : 0)} dagar)</span>
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <Checkbox checked={planRigDown} onCheckedChange={(v) => setPlanRigDown(!!v)} />
+                    <span>Rigg ner ({booking.rigdown_dates.length || (booking.rigdowndate ? 1 : 0)} dagar)</span>
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <Checkbox checked={createProductTodos} onCheckedChange={(v) => setCreateProductTodos(!!v)} />
+                    <span>Alla orderrader som to-dos</span>
+                  </label>
+                </div>
               </div>
 
               {/* Actions */}
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button
                   size="sm"
-                  onClick={() => onPlanWholeBooking(booking)}
+                  onClick={() =>
+                    onPlanWholeBooking(booking, {
+                      rig: planRig,
+                      event: planEvent,
+                      rigDown: planRigDown,
+                      createProductTodos,
+                    })
+                  }
                   className="flex-1"
                   variant={hasAnyPlan ? 'outline' : 'default'}
                   title="Skapa kalenderaktiviteter för alla bokningens faser"
