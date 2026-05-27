@@ -28,6 +28,7 @@ import {
 import { buildDayView } from "../_shared/time-v2/buildDayView.ts";
 import { buildDayMap } from "../_shared/time-v2/buildDayMap.ts";
 import { buildGpsDayTimelineOnly } from "../_shared/timeline/buildGpsDayTimelineOnly.ts";
+import { buildCanonicalStaffDayGpsResult } from "../_shared/staff-gps/canonicalStaffDayGpsResult.ts";
 import {
   buildAnchorsPayload,
   computeAnchorSuggestions,
