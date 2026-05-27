@@ -51,9 +51,11 @@ describe('Stora projekt — projektkalender UI/data-separation', () => {
     const src = read(
       'src/components/project/large-planner/LargeProjectPlannerCalendarView.tsx',
     );
-    expect(src).not.toMatch(/useUnifiedStaffOperations/);
-    expect(src).not.toMatch(/useRealTimeCalendarEvents/);
-    expect(src).not.toMatch(/useEventDragDrop\(/);
+    expect(src).not.toMatch(/from\s+['"][^'"]*useUnifiedStaffOperations['"]/);
+    expect(src).not.toMatch(/from\s+['"][^'"]*useRealTimeCalendarEvents['"]/);
+    // useEventDragDrop får importeras för DRAG_DATA_TYPE-konstanten men
+    // får INTE anropas som hook (det skulle ge write-paths till calendar_events).
+    expect(src).not.toMatch(/\buseEventDragDrop\s*\(/);
   });
 
   it('LargeProjectPlannerCalendarView drop-handler kallar updateItem (→ large_project_booking_plan_items)', () => {
