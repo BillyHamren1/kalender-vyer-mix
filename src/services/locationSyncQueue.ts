@@ -591,9 +591,18 @@ if (typeof window !== 'undefined') {
   window.addEventListener('mobile-session-expired', clearOnInvalidSession);
   window.addEventListener('mobile-session-invalid', clearOnInvalidSession);
 
+  // Viktiga händelser → force-flush direkt (bypassar throttle).
+  window.addEventListener('workday-started', () => {
+    void forceFlushLocationQueue('workday-started');
+  });
+  window.addEventListener('workday-ended', () => {
+    void forceFlushLocationQueue('workday-ended');
+  });
+
   // App start — kör en initial flush så ev. leftover-data från
   // tidigare session kommer iväg direkt.
   void flushLocationQueue();
 }
+
 
 
