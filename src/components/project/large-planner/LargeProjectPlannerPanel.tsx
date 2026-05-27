@@ -216,13 +216,13 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
       }
     }
 
-    if (selection.createProductTodos && selectedSeed) {
+    if (selection.productIdsForTodos.length > 0 && selectedSeed) {
       try {
         const { data: products, error } = await supabase
           .from('booking_products')
           .select('id,name,quantity')
           .eq('booking_id', booking.id)
-          .order('sort_index', { ascending: true, nullsFirst: false });
+          .in('id', selection.productIdsForTodos);
         if (error) throw error;
 
         for (const product of products ?? []) {
