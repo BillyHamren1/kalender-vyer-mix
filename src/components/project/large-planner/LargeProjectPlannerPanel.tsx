@@ -23,6 +23,7 @@ import LargeProjectPlannerSidebar from './LargeProjectPlannerSidebar';
 import SplitBookingIntoTasksDialog from './SplitBookingIntoTasksDialog';
 import ManualProjectTaskDialog from './ManualProjectTaskDialog';
 import LargeProjectPlannerQuickEditDialog from './LargeProjectPlannerQuickEditDialog';
+import BookingPlannerSheet from './BookingPlannerSheet';
 import { useLargeProjectPlannerItems } from './useLargeProjectPlannerItems';
 import type {
   LargeProjectBookingPlanItem,
