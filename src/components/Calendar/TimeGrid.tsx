@@ -221,7 +221,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         {/* Fixed header */}
         <div
           className="time-grid-fixed-header"
-          style={{ display: 'grid', gridTemplateColumns, gridTemplateRows: plannerMode ? 'auto auto' : 'auto auto auto', width: totalWidth, flexShrink: 0 }}
+          style={{ display: 'grid', gridTemplateColumns, gridTemplateRows: 'auto auto auto', width: totalWidth, flexShrink: 0 }}
         >
           <div className="time-grid-header-bg" style={{ gridColumn: '1 / -1', gridRow: 1 }} />
           <div className="time-column-header" />
