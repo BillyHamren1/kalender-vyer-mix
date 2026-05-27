@@ -53,7 +53,8 @@ async function fetchProjectBookings(
   const cols =
     'id, booking_number, client, large_project_id, rigdaydate, eventdate, rigdowndate, ' +
     'rig_start_time, rig_end_time, event_start_time, event_end_time, ' +
-    'rigdown_start_time, rigdown_end_time, deliveryaddress, delivery_city';
+    'rigdown_start_time, rigdown_end_time, deliveryaddress, delivery_city, ' +
+    'contact_name, contact_phone, contact_email, internalnotes';
 
   type RawBooking = {
     id: string;
@@ -70,6 +71,10 @@ async function fetchProjectBookings(
     rigdown_end_time?: string | null;
     deliveryaddress?: string | null;
     delivery_city?: string | null;
+    contact_name?: string | null;
+    contact_phone?: string | null;
+    contact_email?: string | null;
+    internalnotes?: string | null;
   };
 
   let rows: RawBooking[] = [];
@@ -106,6 +111,10 @@ async function fetchProjectBookings(
     rigdown_end_time: b.rigdown_end_time ?? null,
     deliveryaddress: b.deliveryaddress ?? null,
     delivery_city: b.delivery_city ?? null,
+    contact_name: b.contact_name ?? null,
+    contact_phone: b.contact_phone ?? null,
+    contact_email: b.contact_email ?? null,
+    internalnotes: b.internalnotes ?? null,
   }));
 }
 
