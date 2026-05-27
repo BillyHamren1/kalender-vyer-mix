@@ -56,6 +56,10 @@ export interface LargeProjectPlannerBooking {
   rigdown_end_time: string | null;
   deliveryaddress: string | null;
   delivery_city: string | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  internalnotes: string | null;
 }
 
 /**
