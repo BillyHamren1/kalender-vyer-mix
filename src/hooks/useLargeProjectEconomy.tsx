@@ -9,7 +9,7 @@ import {
   deleteLargeProjectPurchase,
 } from '@/services/largeProjectService';
 import { fetchAllEconomyDataMulti } from '@/services/planningApiService';
-import { fetchProjectTimeReports } from '@/services/projectEconomyService';
+import { fetchProjectStaffHoursAsTimeReportsBookingOnly } from '@/services/projectHoursService';
 import { fetchLargeProjectHoursSummary } from '@/services/projectHoursService';
 import { fetchApprovedProjectStaffTimeCostSummary } from '@/services/projectStaffTimeCostLinesService';
 import type { StaffTimeReport } from '@/types/projectEconomy';
