@@ -14,11 +14,10 @@
  *  - All write går via useLargeProjectPlannerItems → largeProjectPlannerService
  *    → enbart tabellen `large_project_booking_plan_items`.
  *
- * BEMANNING PER DAG (project-team-stickiness):
- *  - Personalkolumner renderas PER dag från staffByDay[day.date].
- *  - Items vars assigned_staff_id inte är bemannad den dagen flyttas till
- *    "Ej tilldelat" med flagga "Bemanning saknas".
- *  - Drag/drop till obemannad person stoppas med toast.
+ * TEAM PER DAG:
+ *  - Teamkolumner renderas PER dag från projektets egen teamsByDay[day.date].
+ *  - Samma team-UI som personalkalendern, men separat projektdata.
+ *  - Om personal finns i teamet visas den read-only; om ingen finns visas teamet ändå.
  */
 import { useCallback, useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';

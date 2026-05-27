@@ -121,15 +121,14 @@ export function useLargeProjectPlannerItems(largeProjectId: string | null | unde
 
   const itemsWithAssignmentValidity = useMemo<PlannerItemWithValidity[]>(() => {
     return items.map((it) => {
-      // Primärt valideras team (projektkalenderns kolumner).
+      // Projektkalendern ska ALLTID visa team exakt som teamkolumner,
+      // oberoende av om det finns personal att assigna. Team-assignment
+      // betraktas därför alltid som giltigt i själva kalender-UI:t.
       if (it.assigned_team_id) {
-        const allowed = isTeamAllowedForDate(it.assigned_team_id, it.plan_date);
         return {
           ...it,
-          isAssignedStaffAllowed: allowed,
-          assignmentWarning: allowed
-            ? null
-            : 'Teamet är inte bemannat på projektet den här dagen.',
+          isAssignedStaffAllowed: true,
+          assignmentWarning: null,
         };
       }
       if (!it.assigned_staff_id) {
@@ -144,7 +143,7 @@ export function useLargeProjectPlannerItems(largeProjectId: string | null | unde
           : 'Personen är inte bemannad på projektet den här dagen.',
       };
     });
-  }, [items, isStaffAllowedForDate, isTeamAllowedForDate]);
+  }, [items, isStaffAllowedForDate]);
 
   return useMemo(
     () => ({

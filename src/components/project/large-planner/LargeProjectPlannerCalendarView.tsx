@@ -69,7 +69,6 @@ const LargeProjectPlannerCalendarView = ({
     days,
     teamsByDay,
     itemsWithAssignmentValidity,
-    isTeamAllowedForDate,
     updateItem,
   } = ctx;
 
@@ -164,18 +163,7 @@ const LargeProjectPlannerCalendarView = ({
       const plannerItemId = plannerItemIdFromEventId(payload.id);
       if (!plannerItemId) return; // inte ett planner-item — ignorera
 
-      let nextTeamId: string | null = null;
-      if (targetResourceId === UNASSIGNED_RESOURCE_ID) {
-        nextTeamId = null;
-      } else {
-        if (!isTeamAllowedForDate(targetResourceId, targetDateStr)) {
-          toast.error(
-            'Teamet är inte bemannat på stora projektet den här dagen. Lägg till personal i teamet via personalkalendern först.',
-          );
-          return;
-        }
-        nextTeamId = targetResourceId;
-      }
+      const nextTeamId = targetResourceId === UNASSIGNED_RESOURCE_ID ? null : targetResourceId;
 
       try {
         await updateItem(plannerItemId, {
@@ -190,7 +178,7 @@ const LargeProjectPlannerCalendarView = ({
         toast.error((err as Error).message || 'Kunde inte flytta task.');
       }
     },
-    [isTeamAllowedForDate, updateItem],
+    [updateItem],
   );
 
   if (isLoading) {
