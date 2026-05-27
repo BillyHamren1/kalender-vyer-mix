@@ -110,51 +110,77 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
     setManualOpen(true);
   };
 
-  /** Skapa planner-items för alla bokningens 3 faser i ett svep. */
-  const handlePlanWholeBooking = async (booking: LargeProjectPlannerBooking) => {
+  /** Skapa planner-items för valda bokningsfaser + ev. orderrads-to-dos i ett svep. */
+  const handlePlanWholeBooking = async (
+    booking: LargeProjectPlannerBooking,
+    selection: { rig: boolean; event: boolean; rigDown: boolean; createProductTodos: boolean },
+  ) => {
     const existingForBooking = items.filter((it) => it.booking_id === booking.id);
     const phases: Array<{
       phase: 'rig' | 'event' | 'rigDown';
       label: string;
-      date: string | null;
+      dates: string[];
       start: string | null;
       end: string | null;
     }> = [
-      { phase: 'rig', label: 'Rigg', date: booking.rigdaydate, start: booking.rig_start_time, end: booking.rig_end_time },
-      { phase: 'event', label: 'Event', date: booking.eventdate, start: booking.event_start_time, end: booking.event_end_time },
-      { phase: 'rigDown', label: 'Rigg ner', date: booking.rigdowndate, start: booking.rigdown_start_time, end: booking.rigdown_end_time },
+      { phase: 'rig', label: 'Rigg', dates: booking.rig_dates.length ? booking.rig_dates : (booking.rigdaydate ? [booking.rigdaydate] : []), start: booking.rig_start_time, end: booking.rig_end_time },
+      { phase: 'event', label: 'Event', dates: booking.event_dates.length ? booking.event_dates : (booking.eventdate ? [booking.eventdate] : []), start: booking.event_start_time, end: booking.event_end_time },
+      { phase: 'rigDown', label: 'Rigg ner', dates: booking.rigdown_dates.length ? booking.rigdown_dates : (booking.rigdowndate ? [booking.rigdowndate] : []), start: booking.rigdown_start_time, end: booking.rigdown_end_time },
     ];
     let created = 0;
     let skipped = 0;
+    const shouldInclude = (phase: 'rig' | 'event' | 'rigDown') =>
+      phase === 'rig' ? selection.rig : phase === 'event' ? selection.event : selection.rigDown;
     for (const ph of phases) {
-      if (!ph.date) continue;
-      const already = existingForBooking.some(
-        (it) =>
-          it.source_booking_phase === ph.phase &&
-          it.plan_date === ph.date &&
-          !it.booking_product_id,
-      );
-      if (already) { skipped++; continue; }
-      try {
-        await createItem({
-          large_project_id: largeProjectId,
-          booking_id: booking.id,
-          title: `${ph.label} — ${booking.display_name}${booking.booking_number ? ` (#${booking.booking_number})` : ''}`,
-          plan_date: ph.date,
-          item_type: 'booking',
-          source: 'booking',
-          phase: ph.phase,
-          source_booking_phase: ph.phase,
-          start_time: ph.start ?? '08:00:00',
-          end_time: ph.end ?? '17:00:00',
-        });
-        created++;
-      } catch (e) {
-        toast.error(`Kunde inte skapa ${ph.label}: ${(e as Error).message}`);
+      if (!shouldInclude(ph.phase)) continue;
+      for (const date of ph.dates) {
+        const already = existingForBooking.some(
+          (it) =>
+            it.source_booking_phase === ph.phase &&
+            it.plan_date === date &&
+            !it.booking_product_id,
+        );
+        if (already) {
+          skipped++;
+          continue;
+        }
+        try {
+          await createItem({
+            large_project_id: largeProjectId,
+            booking_id: booking.id,
+            title: `${ph.label} — ${booking.display_name}${booking.booking_number ? ` (#${booking.booking_number})` : ''}`,
+            plan_date: date,
+            item_type: 'booking',
+            source: 'booking',
+            phase: ph.phase,
+            source_booking_phase: ph.phase,
+            start_time: ph.start ?? '08:00:00',
+            end_time: ph.end ?? '17:00:00',
+          });
+          created++;
+        } catch (e) {
+          toast.error(`Kunde inte skapa ${ph.label}: ${(e as Error).message}`);
+        }
       }
+    }
+    if (selection.createProductTodos) {
+      setPlannerSheetBookingId(booking.id);
+      toast.success('Bokningsfaser planerade. Lägg nu orderrader som to-dos direkt i samma panel.');
+      return;
     }
     if (created > 0) toast.success(`${created} faser planerade${skipped ? ` (${skipped} fanns redan)` : ''}.`);
     else if (skipped > 0) toast.info('Alla faser fanns redan i planen.');
+  };
+
+  const handleToggleItemStatus = async (
+    item: LargeProjectBookingPlanItem,
+    checked: boolean,
+  ) => {
+    try {
+      await updateItem(item.id, { status: checked ? 'done' : 'planned' });
+    } catch (e) {
+      toast.error((e as Error).message || 'Kunde inte uppdatera status.');
+    }
   };
 
   const handleSeedAll = async () => {
@@ -335,6 +361,7 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
         onPlanWholeBooking={handlePlanWholeBooking}
         onItemClick={handleItemClick}
         onItemDelete={handleItemDelete}
+        onToggleItemStatus={handleToggleItemStatus}
       />
     </Card>
   );
