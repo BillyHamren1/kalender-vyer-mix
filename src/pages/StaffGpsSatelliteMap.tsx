@@ -34,7 +34,7 @@ export default function StaffGpsSatelliteMapPage() {
               : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          <Satellite className="h-4 w-4" /> Per person & dag
+          <Satellite className="h-4 w-4" /> Dagsrutt
         </button>
         <button
           type="button"
@@ -45,7 +45,7 @@ export default function StaffGpsSatelliteMapPage() {
               : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          <Radio className="h-4 w-4" /> Alla just nu
+          <Radio className="h-4 w-4" /> Livepositioner
           <span className="ml-1 inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
         </button>
       </div>
