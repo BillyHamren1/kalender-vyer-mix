@@ -59,7 +59,12 @@ export interface PlanWholeBookingSelection {
   rig: boolean;
   event: boolean;
   rigDown: boolean;
-  createProductTodos: boolean;
+  /**
+   * Id:n på orderrader (booking_products) som ska bli to-dos vid commit.
+   * Tomt array = inga produkt-todos skapas. Default = alla rader utan
+   * befintlig to-do.
+   */
+  productIdsForTodos: string[];
   /**
    * Aktuellt lokalt utkast (datum + tider) per fas. DETTA är sanningen
    * när Planera klickas — DB-skrivningen sker först här.
