@@ -440,10 +440,25 @@ const BookingPlannerSheet = ({
 
                 {/* Orderrader */}
                 <section>
-                  <h3 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    <Package className="h-3.5 w-3.5" />
-                    Orderrader {products ? `(${products.length})` : ''}
-                  </h3>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <h3 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      <Package className="h-3.5 w-3.5" />
+                      Orderrader {products ? `(${products.length})` : ''}
+                    </h3>
+                    {selectableProducts.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={toggleAllProducts}
+                        className="text-[11px] text-primary hover:underline"
+                      >
+                        {allSelected ? 'Avmarkera alla' : 'Markera alla'}
+                      </button>
+                    )}
+                  </div>
+                  <p className="mb-2 text-[10px] italic text-muted-foreground">
+                    Valda rader blir to-dos när du klickar <strong>Planera hela bokningen</strong>.
+                    To-dos visas under bokningens kalenderblock — inte som egna block.
+                  </p>
 
                   {productsLoading && (
                     <div className="flex items-center gap-1 px-2 py-2 text-xs text-muted-foreground">
@@ -466,19 +481,37 @@ const BookingPlannerSheet = ({
                         const linkedItems = bookingItems.filter(
                           (it) => it.booking_product_id === p.id,
                         );
+                        const alreadyHasTodo = linkedItems.length > 0;
+                        const isSelected = selectedProductIds.has(p.id);
                         return (
                           <li
                             key={p.id}
                             className="flex flex-col gap-1.5 px-3 py-2 hover:bg-muted/40"
                           >
-                            <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-3">
+                              {alreadyHasTodo ? (
+                                <Badge
+                                  variant="secondary"
+                                  className="mt-0.5 shrink-0 text-[10px]"
+                                  title="To-do redan skapad"
+                                >
+                                  ✓ Skapad
+                                </Badge>
+                              ) : (
+                                <Checkbox
+                                  className="mt-1 shrink-0"
+                                  checked={isSelected}
+                                  onCheckedChange={(v) => toggleProduct(p.id, !!v)}
+                                  aria-label={`Skapa to-do för ${p.name || 'orderrad'}`}
+                                />
+                              )}
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2">
                                   <span className="truncate text-sm font-medium text-foreground">
                                     {p.name || 'Namnlös rad'}
                                   </span>
                                   {linkedItems.length > 0 && (
-                                    <Badge variant="secondary" className="text-[10px]">
+                                    <Badge variant="outline" className="text-[10px]">
                                       {linkedItems.length} to-do
                                     </Badge>
                                   )}
@@ -490,16 +523,6 @@ const BookingPlannerSheet = ({
                                   {p.notes && <span className="italic">{p.notes}</span>}
                                 </div>
                               </div>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 shrink-0 text-[11px]"
-                                onClick={() => onCreateTodoForProduct(booking, p)}
-                                title="Skapa to-do för denna orderrad"
-                              >
-                                <ListPlus className="mr-1 h-3 w-3" />
-                                To-do
-                              </Button>
                             </div>
 
                             {/* Inline: när är denna orderrad planerad? */}
