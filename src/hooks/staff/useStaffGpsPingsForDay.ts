@@ -39,9 +39,12 @@ export function useStaffGpsPingsForDay(staffId: string | null, date: string | nu
     staleTime: 30_000,
     queryFn: async () => {
       if (!staffId || !date) return [];
-      const startIso = `${date}T00:00:00.000Z`;
-      const endIso = `${date}T23:59:59.999Z`;
+      // Tolka `date` som lokal svensk dag (Europe/Stockholm). Annars
+      // tappar vi pings sena svenska kvällar (de hamnar nästa UTC-dag).
+      const { startIso, endIso } = stockholmDayWindowUtc(date);
       // Supabase PostgREST cap är 1000 rader per request → paginera via range()
+      // tills vi får tom/kort sida. Annars tappar vi pings sent på dagen.
+
       // tills vi får tom/kort sida. Annars tappar vi pings sent på dagen.
       const PAGE = 1000;
       const all: any[] = [];
