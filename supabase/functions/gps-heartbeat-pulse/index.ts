@@ -2,14 +2,16 @@
 /**
  * gps-heartbeat-pulse
  *
- * Körs av pg_cron varje minut. Hittar alla registrerade device_tokens där
- * senaste GPS-ping är äldre än PULSE_INTERVAL_MIN. Skickar en silent push
- * (data-only, content-available:1) som väcker mobilappen och triggar en
- * forced getCurrentPosition + upload_location_batch med
- * battery_source='gps_pulse'.
+ * Körs av pg_cron var 10:e minut. Hämtar alla inloggade device_tokens och
+ * skickar en silent push (data-only, content-available:1) till de enheter
+ * vars senaste staff_location_history-ping saknas eller är äldre än
+ * PULSE_INTERVAL_MIN. Detta väcker mobilappen och triggar en forced
+ * getCurrentPosition + upload_location_batch med battery_source='gps_pulse'.
  *
- * Ingen workday-gating, ingen aktivitetsgating — alla inloggade enheter
- * pingas så vi alltid har en färsk position på kartan.
+ * INGEN workday-gating. INGEN gating mot aktiva tidsregistreringar.
+ * INGEN Time Engine. INGEN dag-rapport-cache. Pulse är endast ett
+ * lågintensivt sätt att få färsk råposition från inloggade devices.
+ * Arbetstid avgörs senare i Time Engine.
  *
  * Loggar varje försök i gps_pulse_log.
  */
@@ -25,7 +27,8 @@ const corsHeaders = {
 const PULSE_INTERVAL_MIN = Math.max(30, Number(Deno.env.get('GPS_PULSE_INTERVAL_MIN') ?? '30'))
 const PULSE_MAX_BATCH = Math.min(20, Number(Deno.env.get('GPS_PULSE_MAX_BATCH') ?? '20'))
 const PULSE_MAX_RUNTIME_MS = 20_000
-const ACTIVE_CONTEXT_LOOKBACK_MS = 2 * 60 * 60 * 1000
+const STALE_LOOKBACK_MS = 24 * 60 * 60 * 1000
+
 
 async function getAccessToken(serviceAccount: any): Promise<string> {
   const header = btoa(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
@@ -133,53 +136,39 @@ Deno.serve(async (req) => {
       })
     }
 
-    // 1. Hitta staff med rimlig aktiv kontext:
-    //    - aktiv active_time_registration (status='active')
-    //    - eller färsk aktivitet senaste 2h där senaste ping är stale
-    const activeContextSince = new Date(Date.now() - ACTIVE_CONTEXT_LOOKBACK_MS).toISOString()
-    const [{ data: activeRegs }, { data: recentPings }] = await Promise.all([
-      supabase
-        .from('active_time_registrations')
-        .select('staff_id')
-        .eq('status', 'active')
-        .is('stopped_at', null)
-        .limit(PULSE_MAX_BATCH * 2),
-      supabase
-        .from('staff_location_history')
-        .select('staff_id, recorded_at')
-        .gte('recorded_at', activeContextSince)
-        .order('recorded_at', { ascending: false })
-        .limit(PULSE_MAX_BATCH * 4),
-    ])
-
-    const activeStaffIds = new Set<string>()
-    for (const r of activeRegs ?? []) activeStaffIds.add(r.staff_id as string)
-    for (const p of recentPings ?? []) activeStaffIds.add(p.staff_id as string)
-
-    if (activeStaffIds.size === 0) {
-      return new Response(JSON.stringify({ pulsed: 0, reason: 'no_active_context', duration_ms: Date.now() - startedAt }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    // 2. Hämta tokens för dessa staff
+    // 1. Hämta device_tokens för inloggade enheter (de med staff_id satt).
+    //    Ingen gating mot aktiva tidsregistreringar. Ingen gating mot
+    //    recentPings — saknad ping = stale = ska pulsas.
     const { data: tokens, error: tokenErr } = await supabase
       .from('device_tokens')
-      .select('id, staff_id, token, platform, organization_id')
-      .in('staff_id', Array.from(activeStaffIds))
-      .limit(PULSE_MAX_BATCH)
+      .select('id, staff_id, token, platform, organization_id, refreshed_at, created_at')
+      .not('staff_id', 'is', null)
+      .order('refreshed_at', { ascending: false, nullsFirst: false })
+      .limit(PULSE_MAX_BATCH * 5)
     if (tokenErr) throw new Error(`device_tokens fetch failed: ${tokenErr.message}`)
     if (!tokens || tokens.length === 0) {
-      return new Response(JSON.stringify({ pulsed: 0, reason: 'no_tokens' }), {
+      return new Response(JSON.stringify({ pulsed: 0, reason: 'no_tokens', duration_ms: Date.now() - startedAt }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    // 3. Senaste ping per staff (för cutoff)
+    // 2. Bygg staffIds-set från tokens och hämta senaste ping per staff
+    //    inom rimligt fönster (24h) — staff utan rad räknas som stale.
+    const staffIds = Array.from(new Set(tokens.map(t => String(t.staff_id)).filter(Boolean)))
+    const staleLookbackIso = new Date(Date.now() - STALE_LOOKBACK_MS).toISOString()
+    const { data: lastRows } = await supabase
+      .from('staff_location_history')
+      .select('staff_id, recorded_at')
+      .in('staff_id', staffIds)
+      .gte('recorded_at', staleLookbackIso)
+      .order('recorded_at', { ascending: false })
+      .limit(Math.max(PULSE_MAX_BATCH * 20, 200))
+
     const lastPingByStaff = new Map<string, string>()
-    for (const row of recentPings ?? []) {
-      if (!lastPingByStaff.has(row.staff_id as string)) {
-        lastPingByStaff.set(row.staff_id as string, row.recorded_at as string)
+    for (const row of lastRows ?? []) {
+      const sid = row.staff_id as string
+      if (!lastPingByStaff.has(sid)) {
+        lastPingByStaff.set(sid, row.recorded_at as string)
       }
     }
 
@@ -195,6 +184,7 @@ Deno.serve(async (req) => {
         pulsed: 0, tokens: tokens.length, reason: 'all_fresh', duration_ms: Date.now() - startedAt,
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
+
 
     // 3. Hämta access token EN gång och skicka silent push per device
     const accessToken = await getAccessToken(sa)

@@ -48,3 +48,48 @@ Deno.test('cutoff på exakt intervallgränsen räknas som färsk', () => {
   // strict <, så exakt 9 min anses fortfarande färsk
   assertEquals(out.length, 0)
 })
+
+// --- Kontraktstest: ingen active-context-gating får återkomma ---
+Deno.test('source: ingen referens till active_time_registrations', async () => {
+  const src = await Deno.readTextFile(new URL('./index.ts', import.meta.url))
+  if (src.includes('active_time_registrations')) {
+    throw new Error('gps-heartbeat-pulse får aldrig läsa active_time_registrations')
+  }
+})
+
+Deno.test('source: reason "no_active_context" får inte finnas', async () => {
+  const src = await Deno.readTextFile(new URL('./index.ts', import.meta.url))
+  if (src.includes('no_active_context')) {
+    throw new Error('reason "no_active_context" får inte återkomma')
+  }
+})
+
+Deno.test('source: ingen Time Engine eller staff_day_report_cache', async () => {
+  const src = await Deno.readTextFile(new URL('./index.ts', import.meta.url))
+  for (const forbidden of ['processGpsTimelineForAutoStart', 'staff_day_report_cache', 'ACTIVE_CONTEXT_LOOKBACK_MS']) {
+    if (src.includes(forbidden)) {
+      throw new Error(`gps-heartbeat-pulse får inte innehålla ${forbidden}`)
+    }
+  }
+})
+
+Deno.test('token utan last ping → kandidat (oavsett aktiv timer)', () => {
+  const t = [{ id: 't1', staff_id: 's1', token: 'x', platform: 'ios', organization_id: 'o1' }]
+  const out = pickPulseCandidates(t as any, new Map(), NOW, 30)
+  assertEquals(out.length, 1)
+})
+
+Deno.test('token med stale last ping (>30 min) → kandidat', () => {
+  const t = [{ id: 't1', staff_id: 's1', token: 'x', platform: 'ios', organization_id: 'o1' }]
+  const last = new Map<string, string | null>([['s1', '2026-05-25T11:00:00.000Z']]) // 60 min sedan
+  const out = pickPulseCandidates(t as any, last, NOW, 30)
+  assertEquals(out.length, 1)
+})
+
+Deno.test('token med färsk last ping (<30 min) → ej kandidat', () => {
+  const t = [{ id: 't1', staff_id: 's1', token: 'x', platform: 'ios', organization_id: 'o1' }]
+  const last = new Map<string, string | null>([['s1', '2026-05-25T11:45:00.000Z']]) // 15 min sedan
+  const out = pickPulseCandidates(t as any, last, NOW, 30)
+  assertEquals(out.length, 0)
+})
+
