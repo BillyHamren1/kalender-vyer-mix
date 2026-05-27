@@ -11,7 +11,7 @@
  * Read-only. Inga skrivningar.
  */
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { CalendarClock, ClipboardList, Loader2, Package } from 'lucide-react';
@@ -70,6 +70,7 @@ interface Props {
 }
 
 const LargeProjectBookingPlanMirror = ({ bookingId }: Props) => {
+  const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery({
     queryKey: ['lp-plan-mirror-for-booking', bookingId],
     queryFn: () => fetchMirror(bookingId),
@@ -93,6 +94,10 @@ const LargeProjectBookingPlanMirror = ({ bookingId }: Props) => {
       .update({ status: checked ? 'done' : 'planned' })
       .eq('id', row.id);
     if (error) throw error;
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['lp-plan-mirror-for-booking', bookingId] }),
+      queryClient.invalidateQueries({ queryKey: ['large-project-planner'] }),
+    ]);
   };
 
   if (!isLoading && !error && (!data || data.length === 0)) {
