@@ -20,6 +20,7 @@ import type {
   LargeProjectBookingPlanItem,
   LargeProjectPlannerContext,
   LargeProjectPlannerStaffMember,
+  LargeProjectPlannerTeam,
   SplitBookingInput,
   UpdatePlannerItemInput,
 } from './largeProjectPlannerTypes';
