@@ -229,9 +229,11 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
     startTime: string,
     endTime: string,
   ) => {
-    // Samma skrivväg som personalkalendern: direkt mot lokala `bookings`-tabellen.
-    // Inga anrop till planning-api-proxy (upstream stödjer inte denna mutation).
-    // calendar_events spegling sker via befintliga DB-triggers / import-bookings reconciler.
+    // EN sanning: samma kolumner som personalkalendern skriver mot
+    // (rigdaydate/eventdate/rigdowndate + *_start_time/*_end_time).
+    // Extra rig/rigdown-dagar lever som calendar_events (AddRiggDayDialog-flödet),
+    // INTE som arrays på bookings. Vi skriver första datumet hit; flerdagsval
+    // får hanteras genom att lägga till calendar_events separat.
     const firstDate = dates[0] ?? null;
     const startISO = firstDate && startTime ? `${firstDate}T${startTime}:00Z` : null;
     const endISO = firstDate && endTime ? `${firstDate}T${endTime}:00Z` : null;
@@ -239,17 +241,14 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
     const patch: Record<string, unknown> = {};
     if (dateType === 'rig') {
       patch.rigdaydate = firstDate;
-      patch.rig_dates = dates;
       patch.rig_start_time = startISO;
       patch.rig_end_time = endISO;
     } else if (dateType === 'event') {
       patch.eventdate = firstDate;
-      patch.event_dates = dates;
       patch.event_start_time = startISO;
       patch.event_end_time = endISO;
     } else {
       patch.rigdowndate = firstDate;
-      patch.rigdown_dates = dates;
       patch.rigdown_start_time = startISO;
       patch.rigdown_end_time = endISO;
     }
@@ -261,11 +260,16 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
         .eq('id', booking.id);
       if (error) throw error;
       await refetch();
-      toast.success('Bokningsdatum uppdaterade.');
+      if (dates.length > 1) {
+        toast.success('Bokningsdatum uppdaterade. Lägg till extra dagar via "Lägg till riggdag".');
+      } else {
+        toast.success('Bokningsdatum uppdaterade.');
+      }
     } catch (e) {
       toast.error((e as Error).message || 'Kunde inte uppdatera bokningsdatum.');
     }
   };
+
 
   const handleSeedAll = async () => {
     try {
