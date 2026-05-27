@@ -28,6 +28,7 @@ import {
 import { buildDayView } from "../_shared/time-v2/buildDayView.ts";
 import { buildDayMap } from "../_shared/time-v2/buildDayMap.ts";
 import { buildGpsDayTimelineOnly } from "../_shared/timeline/buildGpsDayTimelineOnly.ts";
+import { buildCanonicalStaffDayGpsResult } from "../_shared/staff-gps/canonicalStaffDayGpsResult.ts";
 import {
   buildAnchorsPayload,
   computeAnchorSuggestions,
@@ -384,7 +385,34 @@ Deno.serve(async (req: Request) => {
     knownTargets,
   });
 
+  // ── CANONICAL pipeline (Etapp 2) ───────────────────────────────────────────
+  // Bygg canonical-resultatet sida vid sida som verifierings-källa. UI fortsätter
+  // primärt rita från Time Engine-cache + buildDayView-fallback (oförändrat),
+  // men exposerar canonical i `debug.canonical` så att Etapp 3 kan koppla på
+  // submission/payroll utan fler runtime-ändringar.
+  let canonicalDebug: any = null;
+  try {
+    const canonical = await buildCanonicalStaffDayGpsResult(admin, {
+      organizationId: orgId,
+      staffId,
+      date,
+    });
+    canonicalDebug = {
+      version: canonical.version,
+      firstIso: canonical.firstIso,
+      lastIso: canonical.lastIso,
+      totals: canonical.totals,
+      segmentCount: canonical.segments.length,
+      geofenceVisitCount: canonical.geofenceVisits.length,
+      sourceSnapshotId: canonical.debug.sourceSnapshotId,
+    };
+  } catch (e) {
+    console.warn("[get-mobile-gps-day-view] canonical build failed", e);
+    canonicalDebug = { error: (e as Error).message };
+  }
+
   const sourceSnapshotId = `${date}:${staffId}:${gpsTimeline.rawPingCount}:${gpsTimeline.firstPingAt ?? "-"}:${gpsTimeline.lastPingAt ?? "-"}`;
+
 
   const messages = await loadMessages(admin, orgId, staffId, date, 20);
 
@@ -455,7 +483,9 @@ Deno.serve(async (req: Request) => {
       engineVersion: cacheRow?.engine_version ?? null,
       cacheBuiltAt: cacheRow?.built_at ?? null,
       cacheError: cacheRow?.error ?? null,
+      canonical: canonicalDebug,
     },
+
     generatedAt: new Date().toISOString(),
   });
 });
