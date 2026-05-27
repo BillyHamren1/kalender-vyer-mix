@@ -28,11 +28,25 @@ async function fetchProjectInboxCount(orgId: string): Promise<number> {
     return 0;
   }
 
-  return (data ?? []).filter(b => {
+  const candidates = (data ?? []).filter(b => {
     const dates = [b.eventdate, b.rigdaydate, b.rigdowndate].filter(Boolean);
     if (dates.length === 0) return false;
     return dates.some(d => d! >= today);
-  }).length;
+  });
+  if (candidates.length === 0) return 0;
+
+  // Dedup mot useUnplannedProjects: exkludera bokningar som redan har ett
+  // aktivt projekt (oavsett planning_status). De räknas/visas via unplanned-listan.
+  const candidateIds = candidates.map(b => b.id);
+  const [{ data: activeJobs }, { data: activeProjects }] = await Promise.all([
+    supabase.from('jobs').select('booking_id').in('booking_id', candidateIds).is('deleted_at', null).not('status', 'in', '("completed","cancelled")'),
+    supabase.from('projects').select('booking_id').in('booking_id', candidateIds).not('status', 'in', '("completed","cancelled")'),
+  ]);
+  const assigned = new Set([
+    ...(activeJobs || []).map(j => j.booking_id),
+    ...(activeProjects || []).map(p => p.booking_id),
+  ]);
+  return candidates.filter(b => !assigned.has(b.id)).length;
 }
 
 /**
