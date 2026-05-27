@@ -1,9 +1,6 @@
-/* Scopad override: låt dagkortet fylla hela vänsterkolumnen i Placera bokning-dialogen.
-   Den globala .weekly-day-card-regeln (min-width:400px; max-width:600px) kapar annars bredden. */
-
-/* Ge wrappern explicit höjd — annars kollapsar height:100%-kedjan
-   (.weekly-horizontal-grid → .weekly-day-card → .day-card → scrollable content)
-   till 0 inuti dialogens auto-höjda body, och tidsraderna försvinner. */
+/* Höjd för dialog-embed: annars kollapsar height-kedjan
+   (.weekly-horizontal-grid → .weekly-day-card → .day-card) till 0 i en
+   auto-höjd dialog-body, och tidsraderna försvinner. */
 .placement-day-calendar {
   height: min(72vh, 760px);
   min-height: 560px;
@@ -11,3 +8,10 @@
   flex-direction: column;
 }
 
+/* Låt dagkortet fylla bredden i dialogens vänsterkolumn — annars kapas det
+   av .weekly-day-card { min-width:400px; max-width:600px } från grundtemat. */
+.placement-day-calendar .weekly-day-card {
+  min-width: 0 !important;
+  max-width: none !important;
+  flex: 1 1 0 !important;
+}
