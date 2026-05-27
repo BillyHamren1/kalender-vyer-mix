@@ -21,8 +21,21 @@
 // ------------------------------------------------------------------
 
 import { mobileApi } from './mobileApiService';
+import { compressLocationBatch } from './locationBatchCompressor';
 
 const QUEUE_KEY = 'eventflow-location-sync-queue';
+
+// ── Smart batch-cadence ─────────────────────────────────────────────
+// GPS observeras ofta lokalt, men vi får inte hamra backend. Standard
+// flushar var 10:e minut. Viktiga händelser (start/stop dag, online,
+// geofence enter/exit, travel start/end) ska istället använda
+// forceFlushLocationQueue(reason) och bypassar då throttle.
+export const LOCATION_BATCH_FLUSH_INTERVAL_MS = 10 * 60_000;
+const MIN_AUTO_FLUSH_INTERVAL_MS = 60_000;
+let lastAutoFlushAt = 0;
+let lastForceFlushReason: string | null = null;
+let lastForceFlushAt: number | null = null;
+
 
 // Hard cap so a multi-day offline session can't grow the queue
 // unboundedly and blow past the localStorage quota. Oldest points are
