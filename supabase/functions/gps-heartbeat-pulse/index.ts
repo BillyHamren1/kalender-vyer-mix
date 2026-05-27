@@ -2,14 +2,16 @@
 /**
  * gps-heartbeat-pulse
  *
- * Körs av pg_cron varje minut. Hittar alla registrerade device_tokens där
- * senaste GPS-ping är äldre än PULSE_INTERVAL_MIN. Skickar en silent push
- * (data-only, content-available:1) som väcker mobilappen och triggar en
- * forced getCurrentPosition + upload_location_batch med
- * battery_source='gps_pulse'.
+ * Körs av pg_cron var 10:e minut. Hämtar alla inloggade device_tokens och
+ * skickar en silent push (data-only, content-available:1) till de enheter
+ * vars senaste staff_location_history-ping saknas eller är äldre än
+ * PULSE_INTERVAL_MIN. Detta väcker mobilappen och triggar en forced
+ * getCurrentPosition + upload_location_batch med battery_source='gps_pulse'.
  *
- * Ingen workday-gating, ingen aktivitetsgating — alla inloggade enheter
- * pingas så vi alltid har en färsk position på kartan.
+ * INGEN workday-gating. INGEN active_time_registrations-gating. INGEN
+ * Time Engine. INGEN staff_day_report_cache. Pulse är endast ett
+ * lågintensivt sätt att få färsk råposition från inloggade devices.
+ * Arbetstid avgörs senare i Time Engine.
  *
  * Loggar varje försök i gps_pulse_log.
  */
@@ -25,7 +27,8 @@ const corsHeaders = {
 const PULSE_INTERVAL_MIN = Math.max(30, Number(Deno.env.get('GPS_PULSE_INTERVAL_MIN') ?? '30'))
 const PULSE_MAX_BATCH = Math.min(20, Number(Deno.env.get('GPS_PULSE_MAX_BATCH') ?? '20'))
 const PULSE_MAX_RUNTIME_MS = 20_000
-const ACTIVE_CONTEXT_LOOKBACK_MS = 2 * 60 * 60 * 1000
+const STALE_LOOKBACK_MS = 24 * 60 * 60 * 1000
+
 
 async function getAccessToken(serviceAccount: any): Promise<string> {
   const header = btoa(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
