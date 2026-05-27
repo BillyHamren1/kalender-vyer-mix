@@ -110,13 +110,102 @@ export const BookingInfoHeader: React.FC<Props> = ({ booking, hideTimes = false 
             </span>
           )}
         </div>
-        {booking.deliveryaddress && (
-          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-            <MapPin className="h-3 w-3" />
-            <span className="truncate">{booking.deliveryaddress}</span>
+        {/* LEVERANSADRESS — alltid synlig, prominent */}
+        {(() => {
+          const addr = (booking.deliveryaddress || '').trim();
+          const postal = (booking.delivery_postal_code || '').trim();
+          const city = (booking.delivery_city || '').trim();
+          const lat = booking.delivery_latitude;
+          const lng = booking.delivery_longitude;
+          const hasAny = addr || postal || city || (lat != null && lng != null);
+          const mapsQuery = encodeURIComponent(
+            [addr, [postal, city].filter(Boolean).join(' ')].filter(Boolean).join(', ') ||
+              (lat != null && lng != null ? `${lat},${lng}` : ''),
+          );
+          if (!hasAny) {
+            return (
+              <div className="mt-1 flex items-start gap-1.5 rounded-md border border-destructive/40 bg-destructive/5 px-2 py-1.5 text-xs text-destructive">
+                <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                <div>
+                  <div className="font-semibold">Leveransadress saknas</div>
+                  <div className="text-[11px] opacity-90">
+                    Fyll i adressen i bokningen innan team åker ut.
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          return (
+            <div className="mt-1 flex items-start gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2 py-1.5 text-xs">
+              <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0 text-primary" />
+              <div className="flex-1 min-w-0">
+                {addr && <div className="font-medium">{addr}</div>}
+                {(postal || city) && (
+                  <div className="text-muted-foreground">
+                    {[postal, city].filter(Boolean).join(' ')}
+                  </div>
+                )}
+                {lat != null && lng != null && (
+                  <div className="text-[10px] text-muted-foreground font-mono">
+                    {Number(lat).toFixed(5)}, {Number(lng).toFixed(5)}
+                  </div>
+                )}
+              </div>
+              {mapsQuery && (
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${mapsQuery}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline shrink-0"
+                  title="Öppna i Google Maps"
+                >
+                  Karta <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Logistik-flaggor */}
+        {(booking.customer_pickup || booking.carry_more_than_10m || booking.ground_nails_allowed === false || booking.exact_time_needed || booking.map_drawing_url) && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {booking.customer_pickup && (
+              <Badge variant="outline" className="h-5 gap-1 text-[10px]">
+                <PackageOpen className="h-3 w-3" /> Kundupphämtning
+              </Badge>
+            )}
+            {booking.carry_more_than_10m && (
+              <Badge variant="outline" className="h-5 gap-1 text-[10px] border-amber-400 text-amber-800 bg-amber-50">
+                <Truck className="h-3 w-3" /> Bär &gt;10 m
+              </Badge>
+            )}
+            {booking.ground_nails_allowed === false && (
+              <Badge variant="outline" className="h-5 gap-1 text-[10px] border-red-400 text-red-800 bg-red-50">
+                <Hammer className="h-3 w-3" /> Inga markspik
+              </Badge>
+            )}
+            {booking.exact_time_needed && (
+              <Badge variant="outline" className="h-5 gap-1 text-[10px] border-red-400 text-red-800 bg-red-50">
+                <Clock className="h-3 w-3" /> Exakt tid krävs
+              </Badge>
+            )}
+            {booking.map_drawing_url && (
+              <a
+                href={booking.map_drawing_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded border border-border/60 px-1.5 py-0.5 text-[10px] hover:bg-muted"
+              >
+                <Paperclip className="h-3 w-3" /> Platsritning
+              </a>
+            )}
           </div>
         )}
-      </div>
+        {booking.exact_time_needed && booking.exact_time_info && (
+          <div className="mt-1 rounded border border-red-300 bg-red-50 px-2 py-1 text-[11px] text-red-900 whitespace-pre-wrap">
+            <strong>Tidsinfo:</strong> {booking.exact_time_info}
+          </div>
+        )}
 
       {(booking.contact_name || booking.contact_phone || booking.contact_email) && (
         <div className="space-y-0.5">
