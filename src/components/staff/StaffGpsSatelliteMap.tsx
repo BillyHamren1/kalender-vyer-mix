@@ -138,8 +138,8 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     queryKey: ['gps-map-pinged-ids', dateStr],
     staleTime: 60_000,
     queryFn: async () => {
-      const startIso = `${dateStr}T00:00:00.000Z`;
-      const endIso = `${dateStr}T23:59:59.999Z`;
+      const { startIso, endIso } = stockholmDayWindowUtc(dateStr);
+
       const { data, error } = await supabase
         .from('staff_location_history')
         .select('staff_id')
