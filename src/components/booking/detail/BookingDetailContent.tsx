@@ -107,6 +107,7 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
               />
             </CardContent>
           </Card>
+          <LargeProjectBookingPlanMirror bookingId={booking.id} />
           <ProductsList products={booking.products || []} />
           <AttachmentsList 
             bookingId={booking.id}
