@@ -3,11 +3,12 @@ import { Capacitor } from '@capacitor/core';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
 import {
   enqueueLocationPoint,
-  flushLocationQueue,
+  forceFlushLocationQueue,
   getLocationSyncStatus,
   subscribeLocationSyncStatus,
   type LocationSyncStatus,
 } from '@/services/locationSyncQueue';
+
 import { getBatterySnapshot } from '@/lib/mobile/getBatterySnapshot';
 import { GpsPosition, haversineDistance, ENTER_RADIUS } from '@/hooks/useGeofencing';
 import {
