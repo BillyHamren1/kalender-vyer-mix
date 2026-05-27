@@ -17,6 +17,7 @@ import { sv } from 'date-fns/locale';
 import { CalendarClock, ClipboardList, Loader2, Package } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 
 interface MirrorRow {
@@ -86,6 +87,14 @@ const LargeProjectBookingPlanMirror = ({ bookingId }: Props) => {
     return Array.from(byDate.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [data]);
 
+  const toggleDone = async (row: MirrorRow, checked: boolean) => {
+    const { error } = await supabase
+      .from('large_project_booking_plan_items')
+      .update({ status: checked ? 'done' : 'planned' })
+      .eq('id', row.id);
+    if (error) throw error;
+  };
+
   if (!isLoading && !error && (!data || data.length === 0)) {
     return null; // Visa ingenting om bokningen inte är planerad inuti ett stort projekt
   }
@@ -128,7 +137,14 @@ const LargeProjectBookingPlanMirror = ({ bookingId }: Props) => {
                 <ul className="divide-y divide-border/30">
                   {rows.map((r) => (
                     <li key={r.id} className="flex items-start justify-between gap-2 px-2 py-1.5">
-                      <div className="min-w-0">
+                      <div className="flex min-w-0 items-start gap-2">
+                        <Checkbox
+                          checked={r.status === 'done'}
+                          onCheckedChange={(checked) => void toggleDone(r, !!checked)}
+                          aria-label={`Markera ${r.title} som klar`}
+                          className="mt-0.5"
+                        />
+                        <div className="min-w-0">
                         <div className="text-xs font-medium text-foreground">{r.title}</div>
                         <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
                           {formatTimeRange(r.start_time, r.end_time) && (
@@ -141,6 +157,7 @@ const LargeProjectBookingPlanMirror = ({ bookingId }: Props) => {
                             </span>
                           )}
                           {r.notes && <span className="italic">"{r.notes.slice(0, 60)}"</span>}
+                        </div>
                         </div>
                       </div>
                       <Badge variant="outline" className="shrink-0 text-[9px]">
