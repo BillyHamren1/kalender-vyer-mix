@@ -444,7 +444,6 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
         items={items}
         staff={staff}
         onCreateTodoForBooking={(b) => openCreateTodoDialog(b)}
-        onCreateTodoForProduct={(b, p) => openCreateTodoDialog(b, p)}
         onPlanWholeBooking={handlePlanWholeBooking}
         
         onItemClick={handleItemClick}
