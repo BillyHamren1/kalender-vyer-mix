@@ -122,14 +122,15 @@ Deno.serve(async (req) => {
   try {
     const results = await Promise.all(
       dates.map(async (date) => {
-        const snapshot = await getOrBuildDaySnapshot(admin, {
+        const canonical = await buildCanonicalStaffDayGpsResult(admin, {
+          organizationId: orgId,
           staffId,
           date,
-          organizationId: orgId,
         });
-        return summarize(date, snapshot);
+        return projectToDaySummary(canonical);
       }),
     );
+
     return new Response(
       JSON.stringify({
         staffId,
