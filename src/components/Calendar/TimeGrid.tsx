@@ -289,22 +289,24 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               >
                 <div className="team-header-content">
                   <span className="team-title">{resource.title}</span>
-                  <TeamStaffPickerPopover
-                    teamId={resource.id}
-                    teamTitle={resource.title}
-                    staff={availableStaff}
-                    assignedStaffIds={assignedIds}
-                    onPick={(staffId) => handlePickStaffForTeam(resource.id, staffId)}
-                    open={isActiveTeam}
-                    onOpenChange={(o) => setOpenPickerTeamId(o ? resource.id : null)}
-                  >
-                    <button
-                      className="add-staff-button-header"
-                      onClick={(e) => e.stopPropagation()}
-                      title={`Tilldela personal till ${resource.title}`}
-                      aria-label={`Tilldela personal till ${resource.title}`}
-                    >+</button>
-                  </TeamStaffPickerPopover>
+                  {!plannerMode && (
+                    <TeamStaffPickerPopover
+                      teamId={resource.id}
+                      teamTitle={resource.title}
+                      staff={availableStaff}
+                      assignedStaffIds={assignedIds}
+                      onPick={(staffId) => handlePickStaffForTeam(resource.id, staffId)}
+                      open={isActiveTeam}
+                      onOpenChange={(o) => setOpenPickerTeamId(o ? resource.id : null)}
+                    >
+                      <button
+                        className="add-staff-button-header"
+                        onClick={(e) => e.stopPropagation()}
+                        title={`Tilldela personal till ${resource.title}`}
+                        aria-label={`Tilldela personal till ${resource.title}`}
+                      >+</button>
+                    </TeamStaffPickerPopover>
+                  )}
                 </div>
               </div>
             );
