@@ -96,15 +96,19 @@ export function LargeProjectEditableCostList({
   }, [lines]);
 
   // Reported time (drives Assembly actual)
+  // Filtrerar bort odaterade rader — en cost line utan datum kan inte tillhöra
+  // en specifik dag och får inte räknas in i Faktiskt-summan (Etapp 3 / dagvy).
   const timeRows = useMemo(() => {
     const rows: Array<{ id: string; staff: string; date: string; hours: number; cost: number }> = [];
     Object.values(timeReportsByBooking).forEach((reps) => {
       reps.forEach((r: any) => {
+        const date = r.work_date || r.date || '';
+        if (!date) return; // ⛔ odaterad rad — exkluderas
         const hours = (Number(r.total_hours) || 0) + (Number(r.overtime_hours) || 0);
         rows.push({
-          id: r.id || `${r.staff_id}-${r.work_date}`,
+          id: r.id || `${r.staff_id}-${date}`,
           staff: r.staff_name || r.staff_id || 'Okänd',
-          date: r.work_date || r.date || '',
+          date,
           hours,
           cost: Number(r.total_cost) || 0,
         });
