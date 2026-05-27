@@ -44,6 +44,16 @@ interface TimeGridProps {
   };
   onTitleClick?: (date: Date) => void;
   setEvents?: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
+  /**
+   * Plannermode för stora projektets ISOLERADE interna projektkalender.
+   * I detta läge:
+   *  - inget +-knapp/TeamStaffPickerPopover (ingen tilldelning av personal)
+   *  - ingen assigned-staff-rad (rad 3) (resources = personer per dag, ej team)
+   *  - använder ändå samma TimeGrid-layout & event-rendering
+   * Skrivvägar styrs av föräldern via onEventDrop som inte får gå till
+   * calendar_events/staff_assignments.
+   */
+  plannerMode?: boolean;
 }
 
 const TIME_COLUMN_WIDTH = 28;
@@ -71,6 +81,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   carouselNav,
   onTitleClick,
   setEvents,
+  plannerMode = false,
 }) => {
   const [openPickerTeamId, setOpenPickerTeamId] = useState<string | null>(null);
   const { handleEventClick } = useEventNavigation();
@@ -209,7 +220,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
         {/* Fixed header */}
         <div
           className="time-grid-fixed-header"
-          style={{ display: 'grid', gridTemplateColumns, gridTemplateRows: 'auto auto auto', width: totalWidth, flexShrink: 0 }}
+          style={{ display: 'grid', gridTemplateColumns, gridTemplateRows: plannerMode ? 'auto auto' : 'auto auto auto', width: totalWidth, flexShrink: 0 }}
         >
           <div className="time-grid-header-bg" style={{ gridColumn: '1 / -1', gridRow: 1 }} />
           <div className="time-column-header" />
@@ -278,22 +289,24 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               >
                 <div className="team-header-content">
                   <span className="team-title">{resource.title}</span>
-                  <TeamStaffPickerPopover
-                    teamId={resource.id}
-                    teamTitle={resource.title}
-                    staff={availableStaff}
-                    assignedStaffIds={assignedIds}
-                    onPick={(staffId) => handlePickStaffForTeam(resource.id, staffId)}
-                    open={isActiveTeam}
-                    onOpenChange={(o) => setOpenPickerTeamId(o ? resource.id : null)}
-                  >
-                    <button
-                      className="add-staff-button-header"
-                      onClick={(e) => e.stopPropagation()}
-                      title={`Tilldela personal till ${resource.title}`}
-                      aria-label={`Tilldela personal till ${resource.title}`}
-                    >+</button>
-                  </TeamStaffPickerPopover>
+                  {!plannerMode && (
+                    <TeamStaffPickerPopover
+                      teamId={resource.id}
+                      teamTitle={resource.title}
+                      staff={availableStaff}
+                      assignedStaffIds={assignedIds}
+                      onPick={(staffId) => handlePickStaffForTeam(resource.id, staffId)}
+                      open={isActiveTeam}
+                      onOpenChange={(o) => setOpenPickerTeamId(o ? resource.id : null)}
+                    >
+                      <button
+                        className="add-staff-button-header"
+                        onClick={(e) => e.stopPropagation()}
+                        title={`Tilldela personal till ${resource.title}`}
+                        aria-label={`Tilldela personal till ${resource.title}`}
+                      >+</button>
+                    </TeamStaffPickerPopover>
+                  )}
                 </div>
               </div>
             );
@@ -303,42 +316,46 @@ const TimeGrid: React.FC<TimeGridProps> = ({
             <div className="time-title">Time</div>
           </div>
 
-          {/* Row 3: assigned staff per team */}
-          <div className="staff-row-time-cell" style={{ gridRow: 3, gridColumn: 1, minHeight: `${ASSIGNED_STAFF_ROW_HEIGHT}px` }} />
-          {resources.map((resource, index) => {
-            const assignedStaff = getAssignedStaffForTeam(resource.id);
-            const colWidth = teamColumnWidths[index];
-            const wide = assignedStaff.length > 5;
-            return (
-              <div
-                key={`staff-${resource.id}`}
-                className="staff-assignment-header-row"
-                style={{
-                  gridColumn: index + 2,
-                  gridRow: 3,
-                  width: fullWidth ? 'auto' : `${colWidth}px`,
-                  minWidth: fullWidth ? 0 : `${colWidth}px`,
-                  minHeight: `${ASSIGNED_STAFF_ROW_HEIGHT}px`,
-                }}
-              >
-                <div className="staff-header-assignment-area">
-                  <div className={`assigned-staff-header-list${wide ? ' assigned-staff-header-list--wide' : ''}`}>
-                    {assignedStaff.map((staff) => (
-                      <StaffItem
-                        key={staff.id}
-                        staff={{ id: staff.id, name: staff.name, color: staff.color, assignedTeam: resource.id }}
-                        onRemove={() => handleStaffRemoval(staff.id, resource.id)}
-                        currentDate={day}
-                        teamName={resource.title}
-                        variant="compact"
-                        showRemoveDialog={true}
-                      />
-                    ))}
+          {/* Row 3: assigned staff per team — skippas i plannerMode */}
+          {!plannerMode && (
+            <>
+              <div className="staff-row-time-cell" style={{ gridRow: 3, gridColumn: 1, minHeight: `${ASSIGNED_STAFF_ROW_HEIGHT}px` }} />
+              {resources.map((resource, index) => {
+                const assignedStaff = getAssignedStaffForTeam(resource.id);
+                const colWidth = teamColumnWidths[index];
+                const wide = assignedStaff.length > 5;
+                return (
+                  <div
+                    key={`staff-${resource.id}`}
+                    className="staff-assignment-header-row"
+                    style={{
+                      gridColumn: index + 2,
+                      gridRow: 3,
+                      width: fullWidth ? 'auto' : `${colWidth}px`,
+                      minWidth: fullWidth ? 0 : `${colWidth}px`,
+                      minHeight: `${ASSIGNED_STAFF_ROW_HEIGHT}px`,
+                    }}
+                  >
+                    <div className="staff-header-assignment-area">
+                      <div className={`assigned-staff-header-list${wide ? ' assigned-staff-header-list--wide' : ''}`}>
+                        {assignedStaff.map((staff) => (
+                          <StaffItem
+                            key={staff.id}
+                            staff={{ id: staff.id, name: staff.name, color: staff.color, assignedTeam: resource.id }}
+                            onRemove={() => handleStaffRemoval(staff.id, resource.id)}
+                            currentDate={day}
+                            teamName={resource.title}
+                            variant="compact"
+                            showRemoveDialog={true}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            );
-          })}
+                );
+              })}
+            </>
+          )}
         </div>
 
         {/* Scrollable time slots */}
