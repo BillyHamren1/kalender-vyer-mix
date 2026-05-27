@@ -15,7 +15,6 @@ import {
   geofencesToFeatures,
   type GeofenceSite,
 } from '@/lib/staff/geofencesToFeatures';
-import { clipLineOutsideGeofences, pingInsideAnyFence } from '@/lib/staff/clipLineOutsideGeofences';
 import type { PlaceVisit } from '@/lib/staff/pingPlaceSegments';
 
 interface Props {
