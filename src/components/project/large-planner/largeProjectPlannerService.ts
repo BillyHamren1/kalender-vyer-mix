@@ -635,7 +635,7 @@ export async function fetchLargeProjectPlannerContext(
     fetchLargeProjectPlannerItems(largeProjectId),
   ]);
   const { staffByDay, teamsByDay, allStaff } = await fetchProjectStaffPerDay(
-    bookings.map((b) => b.id),
+    largeProjectId,
   );
   return {
     projectId: largeProjectId,
