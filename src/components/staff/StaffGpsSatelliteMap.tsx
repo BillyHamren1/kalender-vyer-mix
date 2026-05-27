@@ -4,7 +4,10 @@ import { format } from 'date-fns';
 import { fetchStaffMembers } from '@/services/staffService';
 import { supabase } from '@/integrations/supabase/client';
 import type { RawStaffGpsPing } from '@/hooks/staff/useStaffGpsPingsForDay';
+import { useStaffGpsPingsForDay } from '@/hooks/staff/useStaffGpsPingsForDay';
 import { useMobileStaffDayPings } from '@/hooks/staff/useMobileStaffDayPings';
+import { stockholmDayWindowUtc } from '@/lib/staff/stockholmTime';
+
 import RawGpsSatelliteMap from './RawGpsSatelliteMap';
 import { StaffGpsWeekPanel } from './StaffGpsWeekPanel';
 import type { GeofenceSite } from '@/lib/staff/geofencesToFeatures';
@@ -135,8 +138,8 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
     queryKey: ['gps-map-pinged-ids', dateStr],
     staleTime: 60_000,
     queryFn: async () => {
-      const startIso = `${dateStr}T00:00:00.000Z`;
-      const endIso = `${dateStr}T23:59:59.999Z`;
+      const { startIso, endIso } = stockholmDayWindowUtc(dateStr);
+
       const { data, error } = await supabase
         .from('staff_location_history')
         .select('staff_id')
@@ -159,24 +162,13 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
 
   const effectiveStaffId = staff.some((s) => s.id === staffId) ? staffId : (staff[0]?.id ?? null);
 
+  // PRIMÄR källa för pings = rådata från staff_location_history.
+  // Kartan ska aldrig bli tom bara för att snapshot-/Time Engine-spåret failar.
+  const rawPingsQuery = useStaffGpsPingsForDay(effectiveStaffId, dateStr, !!effectiveStaffId);
+  // SEKUNDÄR källa: snapshot bidrar bara med geofence-besök / org_locations.
   const snapshotQuery = useMobileStaffDayPings(effectiveStaffId, dateStr, !!effectiveStaffId);
-  const pings: RawStaffGpsPing[] = useMemo(() => (snapshotQuery.data?.pings ?? []).map((p) => ({
-    id: p.id,
-    recorded_at: p.recorded_at,
-    lat: p.lat,
-    lng: p.lng,
-    accuracy: p.accuracy,
-    speed: null,
-    source: null,
-    battery_percent: null,
-    is_charging: null,
-    app_version: null,
-    app_build: null,
-    platform: null,
-    os_version: null,
-    device_model: null,
-    app_id: null,
-  })), [snapshotQuery.data?.pings]);
+  const pings: RawStaffGpsPing[] = useMemo(() => rawPingsQuery.data ?? [], [rawPingsQuery.data]);
+
 
   // (Månadsprickar borttagna — vecknavigeringen ersätter månadskalendern.)
   void calendarMonth;
@@ -259,9 +251,26 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
       <div className="flex-1 min-w-0 flex flex-col gap-4">
         {/* Karta */}
         <div className="planning-card relative h-[60vh] min-h-[420px] overflow-hidden p-0">
-          {pings.length > 0 || geofences.length > 0 ? (
+          {rawPingsQuery.isLoading ? (
+            <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+              Laddar GPS…
+            </div>
+          ) : rawPingsQuery.error ? (
+            <div className="absolute inset-0 flex items-center justify-center text-sm text-destructive">
+              Kunde inte läsa GPS-pings från staff_location_history.
+            </div>
+          ) : pings.length === 0 && geofences.length === 0 ? (
+            <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+              Inga GPS-pings registrerade för vald person och lokal dag.
+            </div>
+          ) : (
             <>
               <RawGpsSatelliteMap pings={pings} geofences={geofences} visits={geofenceVisits} onSaveRadius={saveRadius} onSavePolygon={savePolygon} showAllRawPings={showAllRawPings} className="h-full w-full" />
+              {snapshotQuery.error && pings.length > 0 && (
+                <div className="absolute top-3 right-3 z-10 text-[11px] px-2.5 py-1.5 rounded-md border border-amber-300 bg-amber-50 text-amber-900 shadow-md max-w-xs">
+                  Rå GPS visas. Geofence-besök kunde inte byggas just nu.
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => setShowAllRawPings((v) => !v)}
@@ -272,18 +281,15 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
                 }`}
                 title={`${pings.length} råpings för dagen`}
               >
-                {showAllRawPings ? 'Dölj' : 'Visa'} alla råpings ({pings.length})
+                Debug: {showAllRawPings ? 'dölj' : 'visa'} alla råpings ({pings.length})
               </button>
             </>
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-               {snapshotQuery.isLoading ? 'Laddar…' : 'Inga rörelser registrerade för vald dag.'}
-            </div>
           )}
         </div>
 
         {/* Geofence-besök — exakt IN/UT per stängsel (privata boenden döljs) */}
-        <GeofenceVisitsTable visits={visibleGeofenceVisits} allDayPings={snapshotQuery.data?.pings ?? []} />
+        <GeofenceVisitsTable visits={visibleGeofenceVisits} allDayPings={pings} />
+
       </div>
     </div>
   );
