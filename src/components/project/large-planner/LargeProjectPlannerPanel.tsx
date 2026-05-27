@@ -23,6 +23,7 @@ import LargeProjectPlannerSidebar from './LargeProjectPlannerSidebar';
 import SplitBookingIntoTasksDialog from './SplitBookingIntoTasksDialog';
 import ManualProjectTaskDialog from './ManualProjectTaskDialog';
 import LargeProjectPlannerQuickEditDialog from './LargeProjectPlannerQuickEditDialog';
+import BookingPlannerSheet from './BookingPlannerSheet';
 import { useLargeProjectPlannerItems } from './useLargeProjectPlannerItems';
 import type {
   LargeProjectBookingPlanItem,
@@ -66,6 +67,7 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
     bookingProductLabel?: string | null;
   }>({});
   const [quickEditId, setQuickEditId] = useState<string | null>(null);
+  const [plannerSheetBookingId, setPlannerSheetBookingId] = useState<string | null>(null);
 
   // Lyssna på klick i kalenderns planner_item-event.
   useEffect(() => {
@@ -77,11 +79,18 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
     return () => window.removeEventListener('lp-planner-item-open', handler as EventListener);
   }, []);
 
+  /** "Planera"-knapp: öppna sidopanelen med bokningsöversikten. */
   const handleSeedBooking = (booking: LargeProjectPlannerBooking) => {
-    // Auto-skapar INTE längre — öppnar dialogen så admin kan välja dag, tider, personal.
+    setPlannerSheetBookingId(booking.id);
+  };
+
+  /** Bygg defaults för manuell to-do-dialog från en bokning + (valfri) orderrad. */
+  const openCreateTodoDialog = (
+    booking: LargeProjectPlannerBooking,
+    product?: { id: string; name: string; quantity: number | null },
+  ) => {
     const suggestedDate =
       booking.rigdaydate ?? booking.eventdate ?? booking.rigdowndate ?? days[0]?.date ?? null;
-    // Förifyll med bokningens tider om de finns, annars standard 08:00–17:00.
     const suggestedStart =
       booking.event_start_time ?? booking.rig_start_time ?? '08:00:00';
     const suggestedEnd =
@@ -90,9 +99,13 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
       date: suggestedDate,
       staffId: null,
       bookingId: booking.id,
-      title: booking.display_name,
+      title: product ? product.name : booking.display_name,
       startTime: suggestedStart,
       endTime: suggestedEnd,
+      bookingProductId: product?.id ?? null,
+      bookingProductLabel: product
+        ? `${product.name}${product.quantity ? ` · ${product.quantity} st` : ''}`
+        : null,
     });
     setManualOpen(true);
   };
@@ -199,25 +212,9 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
                 setManualDefaults({ date: days[0]?.date ?? null, staffId: null });
                 setManualOpen(true);
               }}
-              onCreateTodoForProduct={(booking, product) => {
-                const suggestedDate =
-                  booking.rigdaydate ?? booking.eventdate ?? booking.rigdowndate ?? days[0]?.date ?? null;
-                const suggestedStart =
-                  booking.event_start_time ?? booking.rig_start_time ?? '08:00:00';
-                const suggestedEnd =
-                  booking.event_end_time ?? booking.rig_end_time ?? '17:00:00';
-                setManualDefaults({
-                  date: suggestedDate,
-                  staffId: null,
-                  bookingId: booking.id,
-                  title: product.name || booking.display_name,
-                  startTime: suggestedStart,
-                  endTime: suggestedEnd,
-                  bookingProductId: product.id,
-                  bookingProductLabel: `${product.name}${product.quantity ? ` · ${product.quantity} st` : ''}`,
-                });
-                setManualOpen(true);
-              }}
+              onCreateTodoForProduct={(booking, product) =>
+                openCreateTodoDialog(booking, product)
+              }
             />
           </div>
         )}
@@ -272,6 +269,24 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
         deleteItem={deleteItem}
         onSplit={(it) => it.booking_id && setSplitBookingId(it.booking_id)}
         isMutating={isMutating}
+      />
+
+      <BookingPlannerSheet
+        open={plannerSheetBookingId !== null}
+        onOpenChange={(open) => {
+          if (!open) setPlannerSheetBookingId(null);
+        }}
+        booking={
+          plannerSheetBookingId
+            ? bookingById.get(plannerSheetBookingId) ?? null
+            : null
+        }
+        items={items}
+        staff={staff}
+        onCreateTodoForBooking={(b) => openCreateTodoDialog(b)}
+        onCreateTodoForProduct={(b, p) => openCreateTodoDialog(b, p)}
+        onItemClick={handleItemClick}
+        onItemDelete={handleItemDelete}
       />
     </Card>
   );
