@@ -252,6 +252,8 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
         defaultTitle={manualDefaults.title ?? null}
         defaultStartTime={manualDefaults.startTime ?? null}
         defaultEndTime={manualDefaults.endTime ?? null}
+        defaultBookingProductId={manualDefaults.bookingProductId ?? null}
+        defaultBookingProductLabel={manualDefaults.bookingProductLabel ?? null}
         createItem={createItem}
         isMutating={isMutating}
       />
