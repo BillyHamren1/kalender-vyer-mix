@@ -2638,6 +2638,7 @@ export type Database = {
           assigned_staff_id: string | null
           assigned_team_id: string | null
           booking_id: string | null
+          booking_product_id: string | null
           created_at: string
           created_by: string | null
           description: string | null
@@ -2663,6 +2664,7 @@ export type Database = {
           assigned_staff_id?: string | null
           assigned_team_id?: string | null
           booking_id?: string | null
+          booking_product_id?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -2688,6 +2690,7 @@ export type Database = {
           assigned_staff_id?: string | null
           assigned_team_id?: string | null
           booking_id?: string | null
+          booking_product_id?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -2729,6 +2732,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "confirmed_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "large_project_booking_plan_items_booking_product_id_fkey"
+            columns: ["booking_product_id"]
+            isOneToOne: false
+            referencedRelation: "booking_products"
             referencedColumns: ["id"]
           },
           {

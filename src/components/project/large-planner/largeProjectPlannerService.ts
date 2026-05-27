@@ -404,6 +404,7 @@ export async function createLargeProjectPlannerItem(
     sort_order: input.sort_order ?? 0,
     notes: input.notes ?? null,
     metadata: input.metadata ?? {},
+    booking_product_id: input.booking_product_id ?? null,
   };
   const { data, error } = await planTable().insert(payload).select('*').single();
   if (error) throw error;

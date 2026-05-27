@@ -76,6 +76,10 @@ interface Props {
   defaultStartTime?: string | null;
   /** Förifylld sluttid HH:mm. */
   defaultEndTime?: string | null;
+  /** Förifylld koppling till orderrad (booking_products.id). */
+  defaultBookingProductId?: string | null;
+  /** Visningstext för kopplad orderrad (visas som chip). */
+  defaultBookingProductLabel?: string | null;
   /** Skapa-funktion från useLargeProjectPlannerItems. */
   createItem: (input: CreatePlannerItemInput) => Promise<LargeProjectBookingPlanItem>;
   isMutating?: boolean;
@@ -95,6 +99,8 @@ const ManualProjectTaskDialog = ({
   defaultTitle,
   defaultStartTime,
   defaultEndTime,
+  defaultBookingProductId,
+  defaultBookingProductLabel,
   createItem,
   isMutating,
 }: Props) => {
@@ -183,6 +189,7 @@ const ManualProjectTaskDialog = ({
         assigned_staff_id: assignedStaffId === UNASSIGNED ? null : assignedStaffId,
         assigned_team_id: assignedTeamId.trim() || null,
         booking_id: bookingId === NO_BOOKING ? null : bookingId,
+        booking_product_id: defaultBookingProductId ?? null,
         notes: notes.trim() || null,
       });
       toast.success('Manuell task skapad.');
@@ -208,6 +215,11 @@ const ManualProjectTaskDialog = ({
         </DialogHeader>
 
         <div className="space-y-3">
+          {defaultBookingProductLabel && (
+            <div className="rounded border border-primary/30 bg-primary/5 px-2 py-1 text-[11px] text-foreground">
+              Kopplad orderrad: <span className="font-medium">{defaultBookingProductLabel}</span>
+            </div>
+          )}
           <div className="space-y-1">
             <Label htmlFor="manual-title">Titel *</Label>
             <Input

@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import LargeProjectPlannerTaskCard from './LargeProjectPlannerTaskCard';
+import BookingProductsExpandable from './BookingProductsExpandable';
+import type { BookingProductForPlanner } from '@/hooks/useBookingProductsForPlanner';
 import type {
   LargeProjectBookingPlanItem,
   LargeProjectPlannerBooking,
@@ -27,6 +29,10 @@ interface Props {
   onItemClick?: (item: LargeProjectBookingPlanItem) => void;
   onItemDelete?: (item: LargeProjectBookingPlanItem) => void;
   onCreateManual?: () => void;
+  onCreateTodoForProduct?: (
+    booking: LargeProjectPlannerBooking,
+    product: BookingProductForPlanner,
+  ) => void;
 }
 
 const FILTERS: { key: Filter; label: string }[] = [
@@ -45,6 +51,7 @@ const LargeProjectPlannerSidebar = ({
   onItemClick,
   onItemDelete,
   onCreateManual,
+  onCreateTodoForProduct,
 }: Props) => {
   const [filter, setFilter] = useState<Filter>('all');
 
@@ -166,8 +173,15 @@ const LargeProjectPlannerSidebar = ({
                     </Button>
                   )}
                 </div>
+                {onCreateTodoForProduct && (
+                  <BookingProductsExpandable
+                    bookingId={booking.id}
+                    onCreateTodoForProduct={(p) => onCreateTodoForProduct(booking, p)}
+                  />
+                )}
                 {isPlanned && (
                   <div className="mt-2 space-y-1">
+
                     {its.map((it) => (
                       <LargeProjectPlannerTaskCard
                         key={it.id}
