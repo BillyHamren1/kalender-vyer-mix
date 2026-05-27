@@ -446,7 +446,7 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
         onCreateTodoForBooking={(b) => openCreateTodoDialog(b)}
         onCreateTodoForProduct={(b, p) => openCreateTodoDialog(b, p)}
         onPlanWholeBooking={handlePlanWholeBooking}
-        onUpdateBookingSchedule={handleUpdateBookingSchedule}
+        
         onItemClick={handleItemClick}
         onItemDelete={handleItemDelete}
         onToggleItemStatus={handleToggleItemStatus}
