@@ -162,24 +162,13 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
 
   const effectiveStaffId = staff.some((s) => s.id === staffId) ? staffId : (staff[0]?.id ?? null);
 
+  // PRIMÄR källa för pings = rådata från staff_location_history.
+  // Kartan ska aldrig bli tom bara för att snapshot-/Time Engine-spåret failar.
+  const rawPingsQuery = useStaffGpsPingsForDay(effectiveStaffId, dateStr, !!effectiveStaffId);
+  // SEKUNDÄR källa: snapshot bidrar bara med geofence-besök / org_locations.
   const snapshotQuery = useMobileStaffDayPings(effectiveStaffId, dateStr, !!effectiveStaffId);
-  const pings: RawStaffGpsPing[] = useMemo(() => (snapshotQuery.data?.pings ?? []).map((p) => ({
-    id: p.id,
-    recorded_at: p.recorded_at,
-    lat: p.lat,
-    lng: p.lng,
-    accuracy: p.accuracy,
-    speed: null,
-    source: null,
-    battery_percent: null,
-    is_charging: null,
-    app_version: null,
-    app_build: null,
-    platform: null,
-    os_version: null,
-    device_model: null,
-    app_id: null,
-  })), [snapshotQuery.data?.pings]);
+  const pings: RawStaffGpsPing[] = useMemo(() => rawPingsQuery.data ?? [], [rawPingsQuery.data]);
+
 
   // (Månadsprickar borttagna — vecknavigeringen ersätter månadskalendern.)
   void calendarMonth;
