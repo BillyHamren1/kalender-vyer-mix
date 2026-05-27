@@ -81,6 +81,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   carouselNav,
   onTitleClick,
   setEvents,
+  plannerMode = false,
 }) => {
   const [openPickerTeamId, setOpenPickerTeamId] = useState<string | null>(null);
   const { handleEventClick } = useEventNavigation();
