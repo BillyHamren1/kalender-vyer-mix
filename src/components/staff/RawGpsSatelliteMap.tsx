@@ -724,17 +724,21 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
 
       const segments = segmentPingsForDisplay(data);
 
-      // ── Line features per segment (alla pings ritas) ──────────────
+      // ── Line features per segment ─────────────────────────────────
+      // VIKTIGT: GPS-satellitkartans dagsrutt är HUVUDLAGRET. Vi klipper
+      // INTE bort linjen inne i geofences — då försvinner dagsrutten där
+      // personen jobbade. Geofence-polygonerna ligger som transparent
+      // underlag bakom. Se "Dagsrutt = huvudlager"-direktivet.
       const lineFeatures = segments
         .filter((s) => s.kind === 'move' && s.pings.length >= 2)
-        .flatMap((s) => clipLineOutsideGeofences(s.pings, fences).map((coordinates) => ({
+        .map((s) => ({
           type: 'Feature' as const,
           geometry: {
             type: 'LineString' as const,
-            coordinates,
+            coordinates: s.pings.map((p) => [p.lng, p.lat] as [number, number]),
           },
           properties: { color: colorForSegment(s.colorIndex, 'move') },
-        })));
+        }));
 
 
 
