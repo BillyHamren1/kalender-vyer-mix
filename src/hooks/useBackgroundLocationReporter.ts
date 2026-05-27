@@ -3,11 +3,12 @@ import { Capacitor } from '@capacitor/core';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
 import {
   enqueueLocationPoint,
-  flushLocationQueue,
+  forceFlushLocationQueue,
   getLocationSyncStatus,
   subscribeLocationSyncStatus,
   type LocationSyncStatus,
 } from '@/services/locationSyncQueue';
+
 import { getBatterySnapshot } from '@/lib/mobile/getBatterySnapshot';
 import { GpsPosition, haversineDistance, ENTER_RADIUS } from '@/hooks/useGeofencing';
 import {
@@ -417,8 +418,9 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
               batterySource: battery?.battery_source ?? null,
             });
             lastEnqueuedAtRef.current = Date.now();
-            void flushLocationQueue();
+            // Ingen direkt flush — periodisk 10-min-batch sköter upload.
           });
+
         // DEPRECATED: lastUploadAt = enqueue, INTE server-accepted.
         // Kvar för bakåtkomp. Använd lastAcceptedUploadAt för sanning.
         lastUploadAtRef.current = now;
@@ -454,8 +456,9 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
               batterySource: battery?.battery_source ?? null,
             });
             lastEnqueuedAtRef.current = Date.now();
-            void flushLocationQueue();
+            // Ingen direkt flush — periodisk 10-min-batch sköter upload.
           });
+
         lastUploadAtRef.current = now;
       }
       rescheduleHeartbeat();
@@ -509,8 +512,12 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
                     batterySource: battery?.battery_source ?? null,
                   });
                   lastEnqueuedAtRef.current = Date.now();
-                  void flushLocationQueue();
+                  // Fresh resume = viktig händelse → force-flush direkt
+                  // så att bevis för "tillbaka från lång bakgrund" går
+                  // upp till backend utan att vänta på 10-min-cykeln.
+                  void forceFlushLocationQueue(`fresh_position:${reason}`);
                 });
+
               // App health: success
               const oid = getCachedOrgId();
               if (oid) {

@@ -21,8 +21,21 @@
 // ------------------------------------------------------------------
 
 import { mobileApi } from './mobileApiService';
+import { compressLocationBatch } from './locationBatchCompressor';
 
 const QUEUE_KEY = 'eventflow-location-sync-queue';
+
+// ── Smart batch-cadence ─────────────────────────────────────────────
+// GPS observeras ofta lokalt, men vi får inte hamra backend. Standard
+// flushar var 10:e minut. Viktiga händelser (start/stop dag, online,
+// geofence enter/exit, travel start/end) ska istället använda
+// forceFlushLocationQueue(reason) och bypassar då throttle.
+export const LOCATION_BATCH_FLUSH_INTERVAL_MS = 10 * 60_000;
+const MIN_AUTO_FLUSH_INTERVAL_MS = 60_000;
+let lastAutoFlushAt = 0;
+let lastForceFlushReason: string | null = null;
+let lastForceFlushAt: number | null = null;
+
 
 // Hard cap so a multi-day offline session can't grow the queue
 // unboundedly and blow past the localStorage quota. Oldest points are
@@ -87,6 +100,12 @@ export interface LocationSyncStatus {
   lastUploadRejected: number;
   lastErrorAt: number | null;
   lastErrorMessage: string | null;
+  // ── Komprimeringsdiagnostik ──
+  lastCompressionInputCount: number;
+  lastCompressionOutputCount: number;
+  lastCompressionRatio: number;
+  lastForceFlushReason: string | null;
+  lastForceFlushAt: number | null;
 }
 
 const DEFAULT_STATUS: LocationSyncStatus = {
@@ -98,7 +117,13 @@ const DEFAULT_STATUS: LocationSyncStatus = {
   lastUploadRejected: 0,
   lastErrorAt: null,
   lastErrorMessage: null,
+  lastCompressionInputCount: 0,
+  lastCompressionOutputCount: 0,
+  lastCompressionRatio: 1,
+  lastForceFlushReason: null,
+  lastForceFlushAt: null,
 };
+
 
 type StatusListener = (status: LocationSyncStatus) => void;
 const statusListeners = new Set<StatusListener>();
@@ -226,9 +251,11 @@ export interface EnqueueLocationPointInput {
 }
 
 /**
- * Persist a GPS point and trigger a flush. Always returns the id of
- * the stored point. Duplicate ids (or same lat/lng/recordedAt within
- * the same second) are coalesced.
+ * Persist a GPS point. **Triggar INTE flush** — backend ska få batch
+ * var 10:e minut, eller via forceFlushLocationQueue(reason) vid viktiga
+ * händelser (start/stop dag, geofence enter/exit, travel start/end).
+ * Duplicate ids (or same lat/lng/recordedAt within the same second)
+ * are coalesced.
  */
 export function enqueueLocationPoint(input: EnqueueLocationPointInput): string {
   const queue = loadQueue();
@@ -275,9 +302,43 @@ export function enqueueLocationPoint(input: EnqueueLocationPointInput): string {
     lastEnqueuedAt: Date.now(),
     lastEnqueuedSource: input.source,
   });
-  void flushLocationQueue();
+  // OBS: ingen automatisk flush här. Lokal buffer först; backend får
+  // batch via 10-min-timern eller via forceFlushLocationQueue().
   return id;
 }
+
+/**
+ * Tvinga en flush oavsett throttle. Använd vid:
+ *   - användaren startar/stoppar dag
+ *   - online efter offline-period
+ *   - app resume efter lång bakgrund
+ *   - tydlig geofence enter/exit
+ *   - tydlig travel start/end
+ * Vanlig GPS-observation ska INTE kalla denna.
+ */
+export async function forceFlushLocationQueue(reason: string): Promise<void> {
+  lastForceFlushReason = reason;
+  lastForceFlushAt = Date.now();
+  patchStatus({
+    lastForceFlushReason: reason,
+    lastForceFlushAt,
+  });
+  lastAutoFlushAt = Date.now();
+  await flushLocationQueue();
+}
+
+/**
+ * Mild throttle för opportunistiska auto-flush-triggers (online, focus,
+ * visibilitychange, periodisk 10-min-timer). Använd INTE för viktiga
+ * händelser — använd forceFlushLocationQueue(reason) då.
+ */
+function autoFlushIfDue(): void {
+  const now = Date.now();
+  if (now - lastAutoFlushAt < MIN_AUTO_FLUSH_INTERVAL_MS) return;
+  lastAutoFlushAt = now;
+  void flushLocationQueue();
+}
+
 
 let flushing = false;
 let flushTimeoutId: number | null = null;
@@ -335,15 +396,38 @@ export async function flushLocationQueue(): Promise<void> {
     const CHUNK = 100;
     for (let i = 0; i < due.length; i += CHUNK) {
       const chunk = due.slice(i, i + CHUNK);
+
+      // ── Komprimera INNAN upload ──
+      // Stillastående/within-geofence → start+slut+ev. heartbeat var 10 min.
+      // Rörelse → start+slut + representant var 5 min + stora hopp.
+      // Övriga råpunkter täcks (covered) men skickas inte.
+      const compression = compressLocationBatch(
+        chunk.map(p => ({
+          id: p.id,
+          recordedAt: p.recordedAt,
+          latitude: p.latitude,
+          longitude: p.longitude,
+          accuracy: p.accuracy,
+          speed: p.speed,
+          source: p.source,
+        })),
+      );
+      const toSend = chunk.filter(p => compression.selectedIds.has(p.id));
+      patchStatus({
+        lastCompressionInputCount: compression.stats.inputCount,
+        lastCompressionOutputCount: compression.stats.outputCount,
+        lastCompressionRatio: compression.stats.compressionRatio,
+      });
+
       try {
         const res = await mobileApi.uploadLocationBatch(
-          chunk.map(p => ({
+          toSend.map(p => ({
             id: p.id,
             latitude: p.latitude,
             longitude: p.longitude,
             accuracy: p.accuracy,
             speed: p.speed,
-            source: p.source,
+            source: compression.sourceOverrides.get(p.id) || p.source,
             recordedAt: p.recordedAt,
             batteryLevel: p.batteryLevel ?? null,
             batteryPercent: p.batteryPercent ?? null,
@@ -362,11 +446,17 @@ export async function flushLocationQueue(): Promise<void> {
           lastUploadRejected: rejectedIds.size,
         });
 
-        // Drop accepted points; bump attempts for rejected so we back off.
+        // Lokala råpunkter som täcks av batchen (även de vi INTE skickade
+        // eftersom de var brus inom samma stay/move) tas bort när minst
+        // EN punkt i batchen accepterades av servern — då har vi bevis
+        // för perioden på backend.
+        const batchHadAccepted = acceptedIds.size > 0;
+        const coveredIds = compression.coveredIds;
+
         const after = loadQueue();
         const next: PendingLocationPoint[] = [];
         for (const row of after) {
-          if (acceptedIds.has(row.id)) continue; // confirmed by server
+          if (acceptedIds.has(row.id)) continue; // direkt bekräftad
           if (rejectedIds.has(row.id)) {
             const attempts = row.attempts + 1;
             next.push({
@@ -377,9 +467,13 @@ export async function flushLocationQueue(): Promise<void> {
             });
             continue;
           }
+          // Täckt råpunkt som inte skickades — släng den när batchen
+          // hade minst en accepterad punkt. Annars behåll för retry.
+          if (batchHadAccepted && coveredIds.has(row.id)) continue;
           next.push(row);
         }
         saveQueue(next);
+
       } catch (err: any) {
         const msg = err?.message || String(err);
         // Permanenta fel (auth/permission) — retry hjälper aldrig och
@@ -437,55 +531,56 @@ export async function flushLocationQueue(): Promise<void> {
 }
 
 // ── AUTO-FLUSH TRIGGERS ──
-// Mirror the timer queue's recovery surface so GPS points have at least as
-// many resync opportunities as timer starts. Each trigger is no-op safe:
-//   - flushLocationQueue() guards against concurrent runs via `flushing`
-//   - successful uploads are idempotent on the server (dedupe by recorded_at)
-//   - failed chunks back off and retry on the next trigger
+// Bakgrundskadens: var 10:e minut. Event-baserade triggers (online,
+// focus, visibilitychange, Capacitor resume) går via autoFlushIfDue
+// som har en MIN_AUTO_FLUSH_INTERVAL_MS-throttle så vi inte skickar
+// flera batchar tätt efter varandra.
 //
-// We intentionally DO NOT touch timerSyncQueue here — it manages its own
-// online/focus/module-load triggers in src/services/timerSyncQueue.ts.
+// Viktiga händelser (start/stop dag, geofence enter/exit, travel
+// start/end) ska istället använda forceFlushLocationQueue(reason)
+// från den anropande koden — det bypassar throttlen.
 if (typeof window !== 'undefined') {
-  // Network back online — most common offline → online recovery.
+  // Periodisk 10-min-batch — backend-friendly bas-cadence.
+  window.setInterval(() => {
+    autoFlushIfDue();
+  }, LOCATION_BATCH_FLUSH_INTERVAL_MS);
+
+  // Network back online — opportunistisk men throttlad.
   window.addEventListener('online', () => {
-    void flushLocationQueue();
+    autoFlushIfDue();
   });
 
-  // Tab/window regains focus (web + foregrounded WebView).
+  // Tab/window regains focus.
   window.addEventListener('focus', () => {
-    void flushLocationQueue();
+    autoFlushIfDue();
   });
 
-  // Tab becomes visible again — fires when user switches back from another
-  // app on mobile WebView even when `focus` doesn't (iOS PWA quirk).
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
-        void flushLocationQueue();
+        autoFlushIfDue();
       }
     });
   }
 
-  // Native app foreground (Capacitor). Best-effort dynamic import so this
-  // file stays usable in pure-web tests where @capacitor/app isn't installed.
-  // Critical on iOS where `focus` / `visibilitychange` are unreliable when
-  // the app resumes from a long background period.
+  // Native Capacitor resume / appStateChange — throttlad. Den som
+  // verkligen vet att telefonen kommer tillbaka efter LÅNG bakgrund
+  // ska anropa forceFlushLocationQueue('cap-resume-long-bg').
   void (async () => {
     try {
       const { App } = await import('@capacitor/app');
       App.addListener('appStateChange', ({ isActive }) => {
-        if (isActive) void flushLocationQueue();
+        if (isActive) autoFlushIfDue();
       });
       App.addListener('resume', () => {
-        void flushLocationQueue();
+        autoFlushIfDue();
       });
     } catch {
       // Not running under Capacitor — fine, web triggers above cover it.
     }
   })();
 
-  // Session ogiltig / utgången — töm kön omedelbart så vi inte fortsätter
-  // försöka ladda upp med ett dött token (vilket annars belastar Supabase).
+  // Session ogiltig / utgången — töm kön omedelbart.
   const clearOnInvalidSession = () => {
     saveQueue([]);
     patchStatus({
@@ -496,8 +591,18 @@ if (typeof window !== 'undefined') {
   window.addEventListener('mobile-session-expired', clearOnInvalidSession);
   window.addEventListener('mobile-session-invalid', clearOnInvalidSession);
 
-  // App start — resume any leftover work from the previous session
-  // (offline period, force-quit, crash, etc.).
+  // Viktiga händelser → force-flush direkt (bypassar throttle).
+  window.addEventListener('workday-started', () => {
+    void forceFlushLocationQueue('workday-started');
+  });
+  window.addEventListener('workday-ended', () => {
+    void forceFlushLocationQueue('workday-ended');
+  });
+
+  // App start — kör en initial flush så ev. leftover-data från
+  // tidigare session kommer iväg direkt.
   void flushLocationQueue();
 }
+
+
 
