@@ -18,7 +18,7 @@
  * Capacitor APIs.
  */
 
-import { enqueueLocationPoint, flushLocationQueue } from './locationSyncQueue';
+import { enqueueLocationPoint, flushLocationQueue, forceFlushLocationQueue } from './locationSyncQueue';
 
 export interface LocationPingNotification {
   data?: Record<string, unknown> | null | undefined;
@@ -69,7 +69,7 @@ export async function handleLocationPingPush(
   }
 
   const enqueue = deps.enqueue ?? enqueueLocationPoint;
-  const flush = deps.flush ?? flushLocationQueue;
+  const flush = deps.flush ?? (() => forceFlushLocationQueue('location_ping'));
   const log = deps.log ?? ((msg: string, extra?: unknown) =>
     console.log(`[LocationPing] ${msg}`, extra ?? ''));
 
@@ -89,7 +89,7 @@ export async function handleLocationPingPush(
     longitude: pos.longitude,
     accuracy: pos.accuracy ?? null,
     speed: pos.speed ?? null,
-    source: 'heartbeat',
+    source: 'location_ping',
     // Use the server-supplied timestamp as a stable id so a duplicate FCM
     // delivery doesn't double-upload the same ping.
     id: requestedAt ? `ping-${requestedAt}` : undefined,
@@ -97,8 +97,8 @@ export async function handleLocationPingPush(
 
   log('enqueued ping', { id, reason });
 
-  // Kick the flush — this is normally already auto-triggered by enqueue,
-  // but call it explicitly so callers/tests can `await` the round-trip.
+  // location_ping är en explicit serverbegäran om färsk position, därför
+  // force-flushar vi efter enqueue (kön auto-flushar inte längre).
   void flush();
 
   return { handled: true, reason: 'enqueued', pointId: id };

@@ -47,7 +47,11 @@ export type LocationPointSource =
   | 'foreground'
   | 'geofence'
   | 'manual'
-  | 'heartbeat';
+  | 'heartbeat'
+  | 'gps_pulse'
+  | 'location_ping'
+  | 'compressed_move'
+  | 'compressed_stay';
 
 export type LocationPointStatus =
   | 'pending'
@@ -55,7 +59,7 @@ export type LocationPointStatus =
   | 'uploaded'
   | 'failed';
 
-export type BatterySource = 'capacitor_device' | 'unavailable' | 'error';
+export type BatterySource = 'capacitor_device' | 'unavailable' | 'error' | 'gps_pulse';
 
 export interface PendingLocationPoint {
   id: string;

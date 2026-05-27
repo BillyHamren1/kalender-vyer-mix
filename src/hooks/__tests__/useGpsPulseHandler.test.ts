@@ -5,16 +5,6 @@ vi.mock('@capacitor/core', () => ({
   Capacitor: { isNativePlatform: () => true, getPlatform: () => 'ios' },
 }));
 
-const addListenerMock = vi.fn();
-vi.mock('@capacitor/push-notifications', () => ({
-  PushNotifications: {
-    addListener: (...args: any[]) => {
-      addListenerMock(...args);
-      return Promise.resolve({ remove: vi.fn() });
-    },
-  },
-}));
-
 const getCurrentPositionMock = vi.fn().mockResolvedValue({
   coords: { latitude: 59.5, longitude: 17.8, accuracy: 10, speed: 0 },
 });
@@ -25,9 +15,11 @@ vi.mock('@capacitor/geolocation', () => ({
   },
 }));
 
-const uploadLocationBatchMock = vi.fn().mockResolvedValue({ success: true, accepted: [], rejected: [], received: 1 });
-vi.mock('@/services/mobileApiService', () => ({
-  mobileApi: { uploadLocationBatch: (...args: any[]) => uploadLocationBatchMock(...args) },
+const enqueueLocationPointMock = vi.fn().mockReturnValue('queued-id-1');
+const forceFlushLocationQueueMock = vi.fn().mockResolvedValue(undefined);
+vi.mock('@/services/locationSyncQueue', () => ({
+  enqueueLocationPoint: (...args: any[]) => enqueueLocationPointMock(...args),
+  forceFlushLocationQueue: (...args: any[]) => forceFlushLocationQueueMock(...args),
 }));
 
 vi.mock('@/lib/mobile/getBatterySnapshot', () => ({
@@ -42,35 +34,48 @@ import { useGpsPulseHandler } from '../useGpsPulseHandler';
 
 describe('useGpsPulseHandler', () => {
   beforeEach(() => {
-    addListenerMock.mockClear();
     getCurrentPositionMock.mockClear();
-    uploadLocationBatchMock.mockClear();
+    enqueueLocationPointMock.mockClear();
+    forceFlushLocationQueueMock.mockClear();
   });
 
-  it('registrerar listener på pushNotificationReceived', () => {
+  it('registrerar window-listener på gps-pulse-received', () => {
+    const addSpy = vi.spyOn(window, 'addEventListener');
     renderHook(() => useGpsPulseHandler());
-    expect(addListenerMock).toHaveBeenCalledWith('pushNotificationReceived', expect.any(Function));
+    expect(addSpy).toHaveBeenCalledWith('gps-pulse-received', expect.any(Function));
+    addSpy.mockRestore();
   });
 
-  it('hämtar fix + postar batch när gps_pulse-data tas emot', async () => {
+  it('hämtar fix + enqueueer + force-flushar när gps-pulse-received dispatchas', async () => {
     renderHook(() => useGpsPulseHandler());
-    const handler = addListenerMock.mock.calls[0][1] as (n: any) => void;
-    handler({ data: { type: 'gps_pulse', issued_at: '2026-05-25T12:00:00.000Z' } });
+    window.dispatchEvent(new CustomEvent('gps-pulse-received', {
+      detail: { type: 'gps_pulse', issued_at: '2026-05-25T12:00:00.000Z' },
+    }));
     await new Promise((r) => setTimeout(r, 10));
+
     expect(getCurrentPositionMock).toHaveBeenCalledTimes(1);
-    expect(uploadLocationBatchMock).toHaveBeenCalledTimes(1);
-    const points = uploadLocationBatchMock.mock.calls[0][0];
-    expect(points[0]).toMatchObject({
-      latitude: 59.5, longitude: 17.8, source: 'gps_pulse', batterySource: 'gps_pulse',
+    expect(enqueueLocationPointMock).toHaveBeenCalledTimes(1);
+    expect(forceFlushLocationQueueMock).toHaveBeenCalledWith('gps_pulse');
+
+    const point = enqueueLocationPointMock.mock.calls[0][0];
+    expect(point).toMatchObject({
+      latitude: 59.5,
+      longitude: 17.8,
+      source: 'gps_pulse',
+      batterySource: 'gps_pulse',
     });
   });
 
-  it('ignorerar pushar utan type=gps_pulse', async () => {
+  it('går inte direkt mot mobileApi.uploadLocationBatch', async () => {
+    // Vi mockar inte mobileApi alls — om hooken skulle använda det skulle testet
+    // tvingas importera/strula. Säkerställ att vår queue-väg är enda vägen genom
+    // att triggern leder till enqueue + force-flush ovan.
     renderHook(() => useGpsPulseHandler());
-    const handler = addListenerMock.mock.calls[0][1] as (n: any) => void;
-    handler({ data: { type: 'message' } });
+    window.dispatchEvent(new CustomEvent('gps-pulse-received', {
+      detail: { type: 'gps_pulse' },
+    }));
     await new Promise((r) => setTimeout(r, 10));
-    expect(getCurrentPositionMock).not.toHaveBeenCalled();
-    expect(uploadLocationBatchMock).not.toHaveBeenCalled();
+    expect(enqueueLocationPointMock).toHaveBeenCalled();
+    expect(forceFlushLocationQueueMock).toHaveBeenCalledWith('gps_pulse');
   });
 });

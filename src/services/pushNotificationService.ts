@@ -137,14 +137,13 @@ async function _doInit(staffId: string): Promise<void> {
     return;
   }
 
-  // 2. Clean slate — remove old listeners (non-critical, wrap defensively)
-  try {
-    await PushNotifications.removeAllListeners();
-  } catch (err) {
-    console.warn('[Push] removeAllListeners failed:', err);
-  }
+  // 2. Set up ALL listeners BEFORE calling register().
+  //    NOTE: We intentionally do NOT call PushNotifications.removeAllListeners()
+  //    here. Other parts of the app (notably useGpsPulseHandler) register their
+  //    own listeners on the same plugin, and removeAllListeners would silently
+  //    wipe them — causing gps_pulse silent pushes to never be handled.
+  //    Dubblettskydd sker via initialized/initializing-flaggorna ovan.
 
-  // 3. Set up ALL listeners BEFORE calling register()
   PushNotifications.addListener('registration', (token) => {
     console.log('[Push] Token received:', token.value?.slice(0, 20) + '...');
     // Save token async — never block on this
@@ -161,17 +160,39 @@ async function _doInit(staffId: string): Promise<void> {
   });
 
   PushNotifications.addListener('pushNotificationReceived', (notification) => {
+    const data = (notification?.data ?? (notification as any)?.notification?.data ?? {}) as Record<string, any>;
+
+    // ── Silent system events (gps_pulse) — dispatch only, no UI ──
+    if (data?.type === 'gps_pulse') {
+      console.log('[Push] gps_pulse received (silent) — dispatching event');
+      try {
+        window.dispatchEvent(new CustomEvent('gps-pulse-received', { detail: data }));
+      } catch (err) {
+        console.warn('[Push] gps-pulse-received dispatch failed:', err);
+      }
+      // Also dispatch the general event so other listeners can observe it,
+      // but skip any toast/navigation for this silent system event.
+      try {
+        window.dispatchEvent(new CustomEvent('push-notification-received', { detail: notification }));
+      } catch { /* ignore */ }
+      return;
+    }
+
     console.log('[Push] Notification received in foreground:', notification);
-    
-    // Dispatch custom event so hooks/components can react (e.g. badge refresh)
+
+    // Dispatch custom event so hooks/components can react (e.g. badge refresh, location_ping)
     window.dispatchEvent(new CustomEvent('push-notification-received', {
       detail: notification,
     }));
 
+    // location_ping is a silent system request — no toast/navigation.
+    if (data?.notification_type === 'location_ping') {
+      return;
+    }
+
     // Show in-app toast using sonner (imported dynamically to avoid circular deps)
     const title = notification.title || 'Nytt meddelande';
     const body = notification.body || '';
-    const data = notification.data || {};
 
     // Use dynamic import to avoid pulling toast into the push init chain
     import('sonner').then(({ toast }) => {
