@@ -37,6 +37,7 @@ vi.mock('@/integrations/supabase/client', () => {
 
 import {
   getStickyTeamForBooking,
+  getStickyTeamForLargeProject,
   findExistingDayRow,
 } from '@/lib/calendar/projectTeamStickiness';
 
@@ -69,6 +70,42 @@ describe('getStickyTeamForBooking', () => {
     ];
     const team = await getStickyTeamForBooking('b1', ORG);
     expect(team).toBe('team-4');
+  });
+});
+
+describe('getStickyTeamForLargeProject', () => {
+  it('ärver team från syskonbokning på exakt phase+date', async () => {
+    mockState.rows = [
+      { large_project_id: 'lp-1', booking_id: 'b1' },
+      { large_project_id: 'lp-1', booking_id: 'b2' },
+      { id: 'b1', large_project_id: 'lp-1' },
+      { id: 'b2', large_project_id: 'lp-1' },
+      {
+        booking_id: 'b2',
+        organization_id: ORG,
+        resource_id: 'team-4',
+        event_type: 'rig',
+        source_date: '2026-06-18',
+      },
+    ];
+
+    const team = await getStickyTeamForLargeProject('lp-1', ORG, 'rig', '2026-06-18');
+    expect(team).toBe('team-4');
+  });
+
+  it('faller tillbaka till vanligaste syskonteam när exakt dag saknas', async () => {
+    mockState.rows = [
+      { large_project_id: 'lp-1', booking_id: 'b1' },
+      { large_project_id: 'lp-1', booking_id: 'b2' },
+      { id: 'b1', large_project_id: 'lp-1' },
+      { id: 'b2', large_project_id: 'lp-1' },
+      { booking_id: 'b1', organization_id: ORG, resource_id: 'team-2', event_type: 'rig', source_date: '2026-06-10' },
+      { booking_id: 'b2', organization_id: ORG, resource_id: 'team-2', event_type: 'event', source_date: '2026-06-11' },
+      { booking_id: 'b2', organization_id: ORG, resource_id: 'team-3', event_type: 'rigDown', source_date: '2026-06-12' },
+    ];
+
+    const team = await getStickyTeamForLargeProject('lp-1', ORG, 'rig', '2026-06-18');
+    expect(team).toBe('team-2');
   });
 });
 

@@ -28,6 +28,7 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   findExistingDayRow,
   getStickyTeamForBooking,
+  getStickyTeamForLargeProject,
 } from '@/lib/calendar/projectTeamStickiness';
 
 export type PhaseEventType = 'rig' | 'event' | 'rigDown';
@@ -77,6 +78,7 @@ const PHASE_BOOKING_FIELDS: Record<
 
 export interface SavePhaseDaysInput {
   bookingId: string;
+  largeProjectId?: string | null;
   eventType: PhaseEventType;
   /** YYYY-MM-DD list — får vara osorterad */
   dates: string[];
@@ -102,7 +104,16 @@ export interface SavePhaseDaysResult {
 }
 
 export async function savePhaseDays(input: SavePhaseDaysInput): Promise<SavePhaseDaysResult> {
-  const { bookingId, eventType, dates, startTime, endTime, fallbackResourceId, title } = input;
+  const {
+    bookingId,
+    largeProjectId,
+    eventType,
+    dates,
+    startTime,
+    endTime,
+    fallbackResourceId,
+    title,
+  } = input;
 
   const specs = planPhaseDayWrites(dates, startTime, endTime);
   if (specs.length === 0) {
@@ -152,7 +163,11 @@ export async function savePhaseDays(input: SavePhaseDaysInput): Promise<SavePhas
       } else {
         // Ny dag → använd sticky team, fall tillbaka på fallbackResourceId
         const stickyTeam = await getStickyTeamForBooking(bookingId, orgId);
-        const targetResourceId = stickyTeam ?? fallbackResourceId ?? null;
+        const largeProjectStickyTeam =
+          !stickyTeam && largeProjectId
+            ? await getStickyTeamForLargeProject(largeProjectId, orgId, eventType, spec.date)
+            : null;
+        const targetResourceId = stickyTeam ?? largeProjectStickyTeam ?? fallbackResourceId ?? null;
 
         if (targetResourceId) {
           const { error: insertError } = await supabase.from('calendar_events').insert({
