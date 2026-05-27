@@ -99,6 +99,8 @@ const ManualProjectTaskDialog = ({
   defaultTitle,
   defaultStartTime,
   defaultEndTime,
+  defaultBookingProductId,
+  defaultBookingProductLabel,
   createItem,
   isMutating,
 }: Props) => {
