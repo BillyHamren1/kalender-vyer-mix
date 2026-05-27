@@ -128,19 +128,19 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
   /**
    * Skapa planner-items för valda bokningsfaser + ev. orderrads-to-dos.
    *
-   * Datum + tider kommer från sheetens lokala utkast (selection.drafts) —
-   * INGENTING skrivs förrän användaren klickar Planera. För varje aktiverad
-   * fas:
-   *   1. savePhaseDays() committar utkastet till bookings + calendar_events
-   *      (samma flerdagsväg som personalkalenderns AddRiggDayDialog).
-   *   2. planner-items skapas för varje datum i utkastet (alla dagar,
-   *      inte bara första — det var den gamla buggen).
+   * STRIKT: Projektkalendern äger INTE projektdagar — den får inte skriva
+   * till bookings/calendar_events. Vi validerar därför varje önskad
+   * plan_date mot projektdagarna (`days`, härledda från personalkalenderns
+   * calendar_events). Saknas dagen där visar vi en blockerande varning.
+   * Hela skrivvägen går till `large_project_booking_plan_items`.
    */
   const handlePlanWholeBooking = async (
     booking: LargeProjectPlannerBooking,
     selection: import('./BookingPlannerSheet').PlanWholeBookingSelection,
   ) => {
     const existingForBooking = items.filter((it) => it.booking_id === booking.id);
+    const projectDateSet = new Set(days.map((d) => d.date));
+
     const phases: Array<{
       phase: 'rig' | 'event' | 'rigDown';
       label: string;
@@ -154,38 +154,24 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
       { phase: 'rigDown', label: 'Rigg ner', enabled: selection.rigDown, dates: selection.drafts.rigDown.dates, startTime: selection.drafts.rigDown.startTime, endTime: selection.drafts.rigDown.endTime },
     ];
 
-    // 1. Committa utkast → bookings + calendar_events (single source).
-    try {
-      const { savePhaseDays } = await import('@/lib/calendar/phaseDaysWriter');
-      for (const ph of phases) {
-        if (!ph.enabled || ph.dates.length === 0) continue;
-        const result = await savePhaseDays({
-          bookingId: booking.id,
-          largeProjectId,
-          eventType: ph.phase,
-          dates: ph.dates,
-          startTime: ph.startTime,
-          endTime: ph.endTime,
-          title: booking.display_name ?? booking.client ?? booking.booking_number ?? null,
-        });
-        if (result.failures.length > 0 && result.successCount === 0) {
-          toast.error(`Kunde inte spara ${ph.label}-datum`, {
-            description: result.failures.join('\n'),
-          });
-        } else if (result.failures.length > 0) {
-          toast.warning(
-            `${result.successCount} av ${result.totalDays} ${ph.label.toLowerCase()}-dagar sparades`,
-            { description: result.failures.join('\n'), duration: 8000 },
-          );
-        }
+    const missingDays: string[] = [];
+    for (const ph of phases) {
+      if (!ph.enabled) continue;
+      for (const d of ph.dates) {
+        if (!projectDateSet.has(d)) missingDays.push(`${ph.label}: ${d}`);
       }
-      await refetch();
-    } catch (e) {
-      toast.error((e as Error).message || 'Kunde inte spara datum.');
+    }
+    if (missingDays.length > 0) {
+      toast.error('Den här dagen är inte planerad som projektdag ännu.', {
+        description:
+          'Lägg till projektdagen i personalkalendern först.\n\nSaknas: ' +
+          missingDays.slice(0, 6).join(', ') +
+          (missingDays.length > 6 ? ` (+${missingDays.length - 6} till)` : ''),
+        duration: 10000,
+      });
       return;
     }
 
-    // 2. Skapa planner-items baserade på utkastet (inte den gamla läsmodellen)
     let created = 0;
     let skipped = 0;
     const selectedSeed: { date: string; start: string; end: string } | null =
