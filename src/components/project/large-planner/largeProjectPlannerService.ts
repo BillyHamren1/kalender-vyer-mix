@@ -77,6 +77,28 @@ async function fetchProjectBookings(
     internalnotes?: string | null;
   };
 
+  const normalizePlannerTime = (value?: string | null): string | null => {
+    if (!value) return null;
+    if (value.includes('T')) {
+      const timePart = value.split('T')[1]?.replace('Z', '').slice(0, 8) ?? '';
+      if (timePart) return timePart.length === 5 ? `${timePart}:00` : timePart;
+    }
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (trimmed.length === 5) return `${trimmed}:00`;
+    return trimmed.slice(0, 8);
+  };
+
+  const normalizePlannerDate = (value?: string | null): string | null => {
+    if (!value) return null;
+    return value.includes('T') ? value.slice(0, 10) : value.slice(0, 10);
+  };
+
+  const uniqueSortedDates = (values: Array<string | null | undefined>): string[] =>
+    Array.from(new Set(values.filter((value): value is string => !!value))).sort((a, b) =>
+      a.localeCompare(b),
+    );
+
   let rows: RawBooking[] = [];
   if (bookingIdsFromJoin.length > 0) {
     const { data, error } = await supabase
@@ -95,27 +117,70 @@ async function fetchProjectBookings(
     rows = (data ?? []) as unknown as RawBooking[];
   }
 
-  return rows.map((b) => ({
-    id: b.id,
-    booking_number: b.booking_number ?? null,
-    client: b.client ?? null,
-    display_name: b.client || b.booking_number || 'Bokning',
-    rigdaydate: b.rigdaydate ?? null,
-    eventdate: b.eventdate ?? null,
-    rigdowndate: b.rigdowndate ?? null,
-    rig_start_time: b.rig_start_time ?? null,
-    rig_end_time: b.rig_end_time ?? null,
-    event_start_time: b.event_start_time ?? null,
-    event_end_time: b.event_end_time ?? null,
-    rigdown_start_time: b.rigdown_start_time ?? null,
-    rigdown_end_time: b.rigdown_end_time ?? null,
-    deliveryaddress: b.deliveryaddress ?? null,
-    delivery_city: b.delivery_city ?? null,
-    contact_name: b.contact_name ?? null,
-    contact_phone: b.contact_phone ?? null,
-    contact_email: b.contact_email ?? null,
-    internalnotes: b.internalnotes ?? null,
-  }));
+  const bookingIds = rows.map((row) => row.id);
+  const phaseDatesByBooking = new Map<
+    string,
+    { rig: Set<string>; event: Set<string>; rigDown: Set<string> }
+  >();
+
+  if (bookingIds.length > 0) {
+    const { data: eventRows, error: eventError } = await supabase
+      .from('calendar_events')
+      .select('booking_id, event_type, start_time')
+      .in('booking_id', bookingIds)
+      .in('event_type', ['rig', 'event', 'rigDown']);
+
+    if (eventError) throw eventError;
+
+    (eventRows ?? []).forEach((row) => {
+      const bookingId = (row as { booking_id?: string | null }).booking_id ?? null;
+      const eventType = (row as { event_type?: string | null }).event_type ?? null;
+      const startTime = (row as { start_time?: string | null }).start_time ?? null;
+      const date = normalizePlannerDate(startTime);
+      if (!bookingId || !eventType || !date) return;
+      const current =
+        phaseDatesByBooking.get(bookingId) ??
+        { rig: new Set<string>(), event: new Set<string>(), rigDown: new Set<string>() };
+      if (eventType === 'rig') current.rig.add(date);
+      if (eventType === 'event') current.event.add(date);
+      if (eventType === 'rigDown') current.rigDown.add(date);
+      phaseDatesByBooking.set(bookingId, current);
+    });
+  }
+
+  return rows.map((b) => {
+    const phaseDates =
+      phaseDatesByBooking.get(b.id) ??
+      { rig: new Set<string>(), event: new Set<string>(), rigDown: new Set<string>() };
+
+    return {
+      id: b.id,
+      booking_number: b.booking_number ?? null,
+      client: b.client ?? null,
+      display_name: b.client || b.booking_number || 'Bokning',
+      rigdaydate: normalizePlannerDate(b.rigdaydate),
+      eventdate: normalizePlannerDate(b.eventdate),
+      rigdowndate: normalizePlannerDate(b.rigdowndate),
+      rig_start_time: normalizePlannerTime(b.rig_start_time),
+      rig_end_time: normalizePlannerTime(b.rig_end_time),
+      event_start_time: normalizePlannerTime(b.event_start_time),
+      event_end_time: normalizePlannerTime(b.event_end_time),
+      rigdown_start_time: normalizePlannerTime(b.rigdown_start_time),
+      rigdown_end_time: normalizePlannerTime(b.rigdown_end_time),
+      deliveryaddress: b.deliveryaddress ?? null,
+      delivery_city: b.delivery_city ?? null,
+      contact_name: b.contact_name ?? null,
+      contact_phone: b.contact_phone ?? null,
+      contact_email: b.contact_email ?? null,
+      internalnotes: b.internalnotes ?? null,
+      rig_dates: uniqueSortedDates([...phaseDates.rig, normalizePlannerDate(b.rigdaydate)]),
+      event_dates: uniqueSortedDates([...phaseDates.event, normalizePlannerDate(b.eventdate)]),
+      rigdown_dates: uniqueSortedDates([
+        ...phaseDates.rigDown,
+        normalizePlannerDate(b.rigdowndate),
+      ]),
+    };
+  });
 }
 
 /**

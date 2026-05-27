@@ -25,6 +25,7 @@ import ManualProjectTaskDialog from './ManualProjectTaskDialog';
 import LargeProjectPlannerQuickEditDialog from './LargeProjectPlannerQuickEditDialog';
 import BookingPlannerSheet from './BookingPlannerSheet';
 import { useLargeProjectPlannerItems } from './useLargeProjectPlannerItems';
+import { supabase } from '@/integrations/supabase/client';
 import type {
   LargeProjectBookingPlanItem,
   LargeProjectPlannerBooking,
@@ -110,51 +111,114 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
     setManualOpen(true);
   };
 
-  /** Skapa planner-items för alla bokningens 3 faser i ett svep. */
-  const handlePlanWholeBooking = async (booking: LargeProjectPlannerBooking) => {
+  /** Skapa planner-items för valda bokningsfaser + ev. orderrads-to-dos i ett svep. */
+  const handlePlanWholeBooking = async (
+    booking: LargeProjectPlannerBooking,
+    selection: { rig: boolean; event: boolean; rigDown: boolean; createProductTodos: boolean },
+  ) => {
     const existingForBooking = items.filter((it) => it.booking_id === booking.id);
     const phases: Array<{
       phase: 'rig' | 'event' | 'rigDown';
       label: string;
-      date: string | null;
+      dates: string[];
       start: string | null;
       end: string | null;
     }> = [
-      { phase: 'rig', label: 'Rigg', date: booking.rigdaydate, start: booking.rig_start_time, end: booking.rig_end_time },
-      { phase: 'event', label: 'Event', date: booking.eventdate, start: booking.event_start_time, end: booking.event_end_time },
-      { phase: 'rigDown', label: 'Rigg ner', date: booking.rigdowndate, start: booking.rigdown_start_time, end: booking.rigdown_end_time },
+      { phase: 'rig', label: 'Rigg', dates: booking.rig_dates.length ? booking.rig_dates : (booking.rigdaydate ? [booking.rigdaydate] : []), start: booking.rig_start_time, end: booking.rig_end_time },
+      { phase: 'event', label: 'Event', dates: booking.event_dates.length ? booking.event_dates : (booking.eventdate ? [booking.eventdate] : []), start: booking.event_start_time, end: booking.event_end_time },
+      { phase: 'rigDown', label: 'Rigg ner', dates: booking.rigdown_dates.length ? booking.rigdown_dates : (booking.rigdowndate ? [booking.rigdowndate] : []), start: booking.rigdown_start_time, end: booking.rigdown_end_time },
     ];
     let created = 0;
     let skipped = 0;
+    const shouldInclude = (phase: 'rig' | 'event' | 'rigDown') =>
+      phase === 'rig' ? selection.rig : phase === 'event' ? selection.event : selection.rigDown;
+    const selectedDates: Array<{ date: string; start: string | null; end: string | null; phase: string }> = [];
     for (const ph of phases) {
-      if (!ph.date) continue;
-      const already = existingForBooking.some(
-        (it) =>
-          it.source_booking_phase === ph.phase &&
-          it.plan_date === ph.date &&
-          !it.booking_product_id,
-      );
-      if (already) { skipped++; continue; }
-      try {
-        await createItem({
-          large_project_id: largeProjectId,
-          booking_id: booking.id,
-          title: `${ph.label} — ${booking.display_name}${booking.booking_number ? ` (#${booking.booking_number})` : ''}`,
-          plan_date: ph.date,
-          item_type: 'booking',
-          source: 'booking',
-          phase: ph.phase,
-          source_booking_phase: ph.phase,
-          start_time: ph.start ?? '08:00:00',
-          end_time: ph.end ?? '17:00:00',
-        });
-        created++;
-      } catch (e) {
-        toast.error(`Kunde inte skapa ${ph.label}: ${(e as Error).message}`);
+      if (!shouldInclude(ph.phase)) continue;
+      for (const date of ph.dates) {
+        selectedDates.push({ date, start: ph.start, end: ph.end, phase: ph.phase });
+        const already = existingForBooking.some(
+          (it) =>
+            it.source_booking_phase === ph.phase &&
+            it.plan_date === date &&
+            !it.booking_product_id,
+        );
+        if (already) {
+          skipped++;
+          continue;
+        }
+        try {
+          await createItem({
+            large_project_id: largeProjectId,
+            booking_id: booking.id,
+            title: `${ph.label} — ${booking.display_name}${booking.booking_number ? ` (#${booking.booking_number})` : ''}`,
+            plan_date: date,
+            item_type: 'booking',
+            source: 'booking',
+            phase: ph.phase,
+            source_booking_phase: ph.phase,
+            start_time: ph.start ?? '08:00:00',
+            end_time: ph.end ?? '17:00:00',
+          });
+          created++;
+        } catch (e) {
+          toast.error(`Kunde inte skapa ${ph.label}: ${(e as Error).message}`);
+        }
       }
     }
+    if (selection.createProductTodos) {
+      try {
+        const seedDate =
+          selectedDates[0]?.date ?? booking.rigdaydate ?? booking.eventdate ?? booking.rigdowndate;
+        const seedStart = selectedDates[0]?.start ?? booking.rig_start_time ?? booking.event_start_time ?? '08:00:00';
+        const seedEnd = selectedDates[0]?.end ?? booking.rig_end_time ?? booking.event_end_time ?? '17:00:00';
+        if (seedDate) {
+          const { data: products, error } = await supabase
+            .from('booking_products')
+            .select('id,name,quantity')
+            .eq('booking_id', booking.id)
+            .order('sort_index', { ascending: true, nullsFirst: false });
+          if (error) throw error;
+
+          for (const product of products ?? []) {
+            const alreadyExists = existingForBooking.some((it) => it.booking_product_id === product.id);
+            if (alreadyExists) {
+              skipped++;
+              continue;
+            }
+            await createItem({
+              large_project_id: largeProjectId,
+              booking_id: booking.id,
+              booking_product_id: product.id,
+              title: product.name || 'Orderrad',
+              plan_date: seedDate,
+              start_time: seedStart,
+              end_time: seedEnd,
+              item_type: 'task',
+              source: 'manual',
+              status: 'planned',
+            });
+            created++;
+          }
+        }
+      } catch (e) {
+        toast.error((e as Error).message || 'Kunde inte skapa to-dos från orderrader.');
+      }
+    }
+    setPlannerSheetBookingId(booking.id);
     if (created > 0) toast.success(`${created} faser planerade${skipped ? ` (${skipped} fanns redan)` : ''}.`);
     else if (skipped > 0) toast.info('Alla faser fanns redan i planen.');
+  };
+
+  const handleToggleItemStatus = async (
+    item: LargeProjectBookingPlanItem,
+    checked: boolean,
+  ) => {
+    try {
+      await updateItem(item.id, { status: checked ? 'done' : 'planned' });
+    } catch (e) {
+      toast.error((e as Error).message || 'Kunde inte uppdatera status.');
+    }
   };
 
   const handleSeedAll = async () => {
@@ -335,6 +399,7 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
         onPlanWholeBooking={handlePlanWholeBooking}
         onItemClick={handleItemClick}
         onItemDelete={handleItemDelete}
+        onToggleItemStatus={handleToggleItemStatus}
       />
     </Card>
   );

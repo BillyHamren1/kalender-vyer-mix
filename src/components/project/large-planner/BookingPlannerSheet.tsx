@@ -19,6 +19,7 @@
  *
  * Skriver INTE själv till DB — delegerar till parent via callbacks.
  */
+import { useEffect, useState } from 'react';
 import {
   Hash,
   Calendar,
@@ -36,6 +37,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import LargeProjectPlannerTaskCard from './LargeProjectPlannerTaskCard';
@@ -57,9 +59,13 @@ interface Props {
     booking: LargeProjectPlannerBooking,
     product: BookingProductForPlanner,
   ) => void;
-  onPlanWholeBooking: (booking: LargeProjectPlannerBooking) => void;
+  onPlanWholeBooking: (
+    booking: LargeProjectPlannerBooking,
+    selection: { rig: boolean; event: boolean; rigDown: boolean; createProductTodos: boolean },
+  ) => void;
   onItemClick: (item: LargeProjectBookingPlanItem) => void;
   onItemDelete?: (item: LargeProjectBookingPlanItem) => void;
+  onToggleItemStatus?: (item: LargeProjectBookingPlanItem, checked: boolean) => void;
 }
 
 const fmtTime = (t: string | null) => (t ? t.slice(0, 5) : null);
@@ -81,6 +87,7 @@ const BookingPlannerSheet = ({
   onPlanWholeBooking,
   onItemClick,
   onItemDelete,
+  onToggleItemStatus,
 }: Props) => {
   const bookingId = booking?.id ?? null;
   const { data: products, isLoading: productsLoading, error: productsError } =
@@ -91,6 +98,18 @@ const BookingPlannerSheet = ({
     : [];
   const hasAnyPlan = bookingItems.length > 0;
   const staffById = new Map(staff.map((s) => [s.id, s]));
+  const [planRig, setPlanRig] = useState(true);
+  const [planEvent, setPlanEvent] = useState(true);
+  const [planRigDown, setPlanRigDown] = useState(true);
+  const [createProductTodos, setCreateProductTodos] = useState(true);
+
+  useEffect(() => {
+    if (!open || !booking) return;
+    setPlanRig(booking.rig_dates.length > 0 || !!booking.rigdaydate);
+    setPlanEvent(booking.event_dates.length > 0 || !!booking.eventdate);
+    setPlanRigDown(booking.rigdown_dates.length > 0 || !!booking.rigdowndate);
+    setCreateProductTodos(true);
+  }, [open, booking]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -161,26 +180,60 @@ const BookingPlannerSheet = ({
               <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
                 <PhaseChip
                   label="Rigg"
-                  date={booking.rigdaydate}
+                  date={booking.rig_dates[0] ?? booking.rigdaydate}
                   time={timeRange(booking.rig_start_time, booking.rig_end_time)}
+                  count={booking.rig_dates.length}
                 />
                 <PhaseChip
                   label="Event"
-                  date={booking.eventdate}
+                  date={booking.event_dates[0] ?? booking.eventdate}
                   time={timeRange(booking.event_start_time, booking.event_end_time)}
+                  count={booking.event_dates.length}
                 />
                 <PhaseChip
                   label="Rigg ner"
-                  date={booking.rigdowndate}
+                  date={booking.rigdown_dates[0] ?? booking.rigdowndate}
                   time={timeRange(booking.rigdown_start_time, booking.rigdown_end_time)}
+                  count={booking.rigdown_dates.length}
                 />
+              </div>
+
+              <div className="mt-3 rounded-md border border-border/60 bg-background px-3 py-2">
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Vad ska planeras nu?
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                  <label className="inline-flex items-center gap-2">
+                    <Checkbox checked={planRig} onCheckedChange={(v) => setPlanRig(!!v)} />
+                    <span>Rigg ({booking.rig_dates.length || (booking.rigdaydate ? 1 : 0)} dagar)</span>
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <Checkbox checked={planEvent} onCheckedChange={(v) => setPlanEvent(!!v)} />
+                    <span>Event ({booking.event_dates.length || (booking.eventdate ? 1 : 0)} dagar)</span>
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <Checkbox checked={planRigDown} onCheckedChange={(v) => setPlanRigDown(!!v)} />
+                    <span>Rigg ner ({booking.rigdown_dates.length || (booking.rigdowndate ? 1 : 0)} dagar)</span>
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <Checkbox checked={createProductTodos} onCheckedChange={(v) => setCreateProductTodos(!!v)} />
+                    <span>Alla orderrader som to-dos</span>
+                  </label>
+                </div>
               </div>
 
               {/* Actions */}
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button
                   size="sm"
-                  onClick={() => onPlanWholeBooking(booking)}
+                  onClick={() =>
+                    onPlanWholeBooking(booking, {
+                      rig: planRig,
+                      event: planEvent,
+                      rigDown: planRigDown,
+                      createProductTodos,
+                    })
+                  }
                   className="flex-1"
                   variant={hasAnyPlan ? 'outline' : 'default'}
                   title="Skapa kalenderaktiviteter för alla bokningens faser"
@@ -320,6 +373,15 @@ const BookingPlannerSheet = ({
                                     key={it.id}
                                     className="flex items-center gap-2 text-[11px] text-muted-foreground"
                                   >
+                                    {onToggleItemStatus && (
+                                      <Checkbox
+                                        checked={it.status === 'done'}
+                                        onCheckedChange={(checked) =>
+                                          onToggleItemStatus(it, !!checked)
+                                        }
+                                        aria-label={`Markera ${it.title} som klar`}
+                                      />
+                                    )}
                                     <button
                                       type="button"
                                       className="inline-flex items-center gap-1 truncate text-left hover:text-foreground hover:underline"
@@ -365,10 +427,12 @@ const PhaseChip = ({
   label,
   date,
   time,
+  count,
 }: {
   label: string;
   date: string | null;
   time: string | null;
+  count?: number;
 }) => (
   <div className="rounded border border-border/60 bg-background px-2 py-1.5">
     <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -377,6 +441,11 @@ const PhaseChip = ({
     <div className="mt-0.5 inline-flex items-center gap-1 text-foreground">
       <Calendar className="h-3 w-3 text-muted-foreground" />
       <span className="text-[11px]">{date ?? '—'}</span>
+      {!!count && count > 1 && (
+        <Badge variant="secondary" className="h-4 px-1 text-[9px]">
+          {count} dagar
+        </Badge>
+      )}
     </div>
     {time && <div className="text-[10px] text-muted-foreground">{time}</div>}
   </div>

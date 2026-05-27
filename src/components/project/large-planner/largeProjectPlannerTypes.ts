@@ -60,6 +60,9 @@ export interface LargeProjectPlannerBooking {
   contact_phone: string | null;
   contact_email: string | null;
   internalnotes: string | null;
+  rig_dates: string[];
+  event_dates: string[];
+  rigdown_dates: string[];
 }
 
 /**
