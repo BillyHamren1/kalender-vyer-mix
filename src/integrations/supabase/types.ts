@@ -959,7 +959,6 @@ export type Database = {
           delivery_postal_code: string | null
           deliveryaddress: string | null
           economics_data: Json | null
-          event_dates: string[]
           event_end_time: string | null
           event_end_time_external: string | null
           event_start_time: string | null
@@ -980,14 +979,12 @@ export type Database = {
           needs_review_reason: string | null
           organization_id: string
           rental_only: boolean
-          rig_dates: string[]
           rig_end_time: string | null
           rig_end_time_external: string | null
           rig_start_time: string | null
           rig_start_time_external: string | null
           rig_time_locked: boolean
           rigdaydate: string | null
-          rigdown_dates: string[]
           rigdown_end_time: string | null
           rigdown_end_time_external: string | null
           rigdown_start_time: string | null
@@ -1018,7 +1015,6 @@ export type Database = {
           delivery_postal_code?: string | null
           deliveryaddress?: string | null
           economics_data?: Json | null
-          event_dates?: string[]
           event_end_time?: string | null
           event_end_time_external?: string | null
           event_start_time?: string | null
@@ -1039,14 +1035,12 @@ export type Database = {
           needs_review_reason?: string | null
           organization_id?: string
           rental_only?: boolean
-          rig_dates?: string[]
           rig_end_time?: string | null
           rig_end_time_external?: string | null
           rig_start_time?: string | null
           rig_start_time_external?: string | null
           rig_time_locked?: boolean
           rigdaydate?: string | null
-          rigdown_dates?: string[]
           rigdown_end_time?: string | null
           rigdown_end_time_external?: string | null
           rigdown_start_time?: string | null
@@ -1077,7 +1071,6 @@ export type Database = {
           delivery_postal_code?: string | null
           deliveryaddress?: string | null
           economics_data?: Json | null
-          event_dates?: string[]
           event_end_time?: string | null
           event_end_time_external?: string | null
           event_start_time?: string | null
@@ -1098,14 +1091,12 @@ export type Database = {
           needs_review_reason?: string | null
           organization_id?: string
           rental_only?: boolean
-          rig_dates?: string[]
           rig_end_time?: string | null
           rig_end_time_external?: string | null
           rig_start_time?: string | null
           rig_start_time_external?: string | null
           rig_time_locked?: boolean
           rigdaydate?: string | null
-          rigdown_dates?: string[]
           rigdown_end_time?: string | null
           rigdown_end_time_external?: string | null
           rigdown_start_time?: string | null
