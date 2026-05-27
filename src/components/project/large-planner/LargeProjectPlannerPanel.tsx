@@ -79,13 +79,18 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
     // Auto-skapar INTE längre — öppnar dialogen så admin kan välja dag, tider, personal.
     const suggestedDate =
       booking.rigdaydate ?? booking.eventdate ?? booking.rigdowndate ?? days[0]?.date ?? null;
+    // Förifyll med bokningens tider om de finns, annars standard 08:00–17:00.
+    const suggestedStart =
+      booking.event_start_time ?? booking.rig_start_time ?? '08:00:00';
+    const suggestedEnd =
+      booking.event_end_time ?? booking.rig_end_time ?? '17:00:00';
     setManualDefaults({
       date: suggestedDate,
       staffId: null,
       bookingId: booking.id,
       title: booking.display_name,
-      startTime: booking.event_start_time ?? booking.rig_start_time ?? null,
-      endTime: booking.event_end_time ?? booking.rig_end_time ?? null,
+      startTime: suggestedStart,
+      endTime: suggestedEnd,
     });
     setManualOpen(true);
   };
