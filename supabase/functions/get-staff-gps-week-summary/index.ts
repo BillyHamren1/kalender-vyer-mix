@@ -6,20 +6,20 @@
 // segmenten == windowMin. Användare ska aldrig se "försvunna minuter".
 //
 // Se mem://constraints/gps-day-partition-v1
+//
+// Etapp 2 (canonical pipeline): per-dag-byggandet delegerar nu till
+// buildCanonicalStaffDayGpsResult så att admin-veckovyn och GPS-satellitkartan
+// får BYTE-FÖR-BYTE samma siffror som mobil/admin/lön via en enda källa.
 import { corsHeaders } from "../_shared/cors.ts";
 import {
   authenticateStaffRequest,
   authorizeStaffAccess,
 } from "../_shared/staff-auth.ts";
 import {
-  getOrBuildDaySnapshot,
-  type DaySnapshot,
-} from "../_shared/staff-gps/snapshotCache.ts";
-import {
-  buildDayPartition,
-  type DaySegment,
-} from "../_shared/staff-gps/dayPartition.ts";
-import { summarizeVisibleWindow } from "../_shared/staff-gps/visibleWindow.ts";
+  buildCanonicalStaffDayGpsResult,
+  type CanonicalStaffDayGpsResult,
+} from "../_shared/staff-gps/canonicalStaffDayGpsResult.ts";
+import type { DaySegment } from "../_shared/staff-gps/dayPartition.ts";
 
 interface RequestBody {
   staffId?: string;
@@ -53,52 +53,50 @@ function bad(status: number, error: string, extra: Record<string, unknown> = {})
   });
 }
 
-function summarize(date: string, snapshot: DaySnapshot): DaySummary {
-  const partition = buildDayPartition({
-    pings: snapshot.pings,
-    visits: snapshot.visits.map((v) => ({
-      start: v.start,
-      end: v.end,
-      knownSite: v.knownSite,
-    })),
-    privateGeofenceIds: snapshot.privateGeofenceIds,
-  });
-
-  // LOCKED: start/sluttid är första respektive sista pingen UTANFÖR privata
-  // geofences (hem). Privata visits ska aldrig flytta dagens fönster — då
-  // räknas hemmavistelser av misstag in som arbetsdag.
-  // Se mem://constraints/gps-day-partition-v1 + chat #9967.
-  const privateIds = new Set(snapshot.privateGeofenceIds);
-  const privatePingIds = new Set<string>();
-  for (const v of snapshot.visits) {
-    if (v.knownSite && privateIds.has(v.knownSite.id)) {
-      for (const p of v.pings) privatePingIds.add(p.id);
+/** Projicerar canonical result → bakåtkompatibel DaySummary för admin-veckovyn. */
+function projectToDaySummary(canonical: CanonicalStaffDayGpsResult): DaySummary {
+  const placeMap = new Map<string, { name: string; minutes: number }>();
+  const placeNames: string[] = [];
+  for (const seg of canonical.segments) {
+    if (seg.type === "work" && seg.knownSiteId) {
+      const cur = placeMap.get(seg.knownSiteId);
+      if (cur) cur.minutes += seg.durationMinutes;
+      else {
+        placeMap.set(seg.knownSiteId, { name: seg.label, minutes: seg.durationMinutes });
+        placeNames.push(seg.label);
+      }
     }
   }
-  const nonPrivate = snapshot.pings.filter((p) => !privatePingIds.has(p.id));
-  const firstIso = nonPrivate.length ? nonPrivate[0].recorded_at : null;
-  const lastIso = nonPrivate.length ? nonPrivate[nonPrivate.length - 1].recorded_at : null;
-  const visible = summarizeVisibleWindow(partition.segments, firstIso, lastIso);
-
+  const places = Array.from(placeMap.values()).sort((a, b) => b.minutes - a.minutes);
+  const segments: DaySegment[] = canonical.segments.map((s) => ({
+    type: s.type,
+    label: s.label,
+    start: s.startIso,
+    end: s.endIso,
+    minutes: s.durationMinutes,
+    knownSiteId: s.knownSiteId,
+  }));
   return {
-    date,
-    pingsCount: snapshot.pings.length,
-    firstIso,
-    lastIso,
-    durationMin: visible.workMin,
-    windowMin: visible.windowMin,
-    workMin: visible.workMin,
-    privateMin: visible.privateMin,
-    travelMin: visible.travelMin,
-    unknownMin: visible.unknownMin,
-    gapMin: visible.gapMin,
-    idleMin: visible.idleMin,
-    places: visible.placeMinutes.map((p) => ({ name: p.name, minutes: p.minutes })),
-    placeNames: visible.placeNames,
-    visitsCount: visible.visitsCount,
-    segments: visible.segments,
+    date: canonical.date,
+    pingsCount: canonical.debug.pingsCount,
+    firstIso: canonical.firstIso,
+    lastIso: canonical.lastIso,
+    durationMin: canonical.totals.workMinutes,
+    windowMin: canonical.totals.visibleWindowMinutes,
+    workMin: canonical.totals.workMinutes,
+    privateMin: canonical.totals.privateMinutes,
+    travelMin: canonical.totals.travelMinutes,
+    unknownMin: canonical.totals.unknownMinutes,
+    gapMin: canonical.totals.gpsGapMinutes,
+    idleMin: canonical.totals.idleMinutes,
+    places,
+    placeNames,
+    visitsCount: canonical.geofenceVisits.length,
+    segments,
   };
 }
+
+
 
 
 Deno.serve(async (req) => {
