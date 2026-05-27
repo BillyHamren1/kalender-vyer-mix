@@ -81,6 +81,17 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
     return () => window.removeEventListener('lp-planner-item-open', handler as EventListener);
   }, []);
 
+  // Lyssna på klick på riktiga bokningsblock i projektkalendern → öppna sheet
+  // så att bokningens orderrad-todos blir synliga (de har inga egna block).
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const bid = (e as CustomEvent<{ bookingId?: string }>).detail?.bookingId;
+      if (bid) setPlannerSheetBookingId(bid);
+    };
+    window.addEventListener('lp-booking-sheet-open', handler as EventListener);
+    return () => window.removeEventListener('lp-booking-sheet-open', handler as EventListener);
+  }, []);
+
   /** "Planera"-knapp: öppna sidopanelen med bokningsöversikten. */
   const handleSeedBooking = (booking: LargeProjectPlannerBooking) => {
     setPlannerSheetBookingId(booking.id);
@@ -216,13 +227,13 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
       }
     }
 
-    if (selection.createProductTodos && selectedSeed) {
+    if (selection.productIdsForTodos.length > 0 && selectedSeed) {
       try {
         const { data: products, error } = await supabase
           .from('booking_products')
           .select('id,name,quantity')
           .eq('booking_id', booking.id)
-          .order('sort_index', { ascending: true, nullsFirst: false });
+          .in('id', selection.productIdsForTodos);
         if (error) throw error;
 
         for (const product of products ?? []) {
@@ -444,7 +455,6 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
         items={items}
         staff={staff}
         onCreateTodoForBooking={(b) => openCreateTodoDialog(b)}
-        onCreateTodoForProduct={(b, p) => openCreateTodoDialog(b, p)}
         onPlanWholeBooking={handlePlanWholeBooking}
         
         onItemClick={handleItemClick}

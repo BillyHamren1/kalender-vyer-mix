@@ -59,7 +59,12 @@ export interface PlanWholeBookingSelection {
   rig: boolean;
   event: boolean;
   rigDown: boolean;
-  createProductTodos: boolean;
+  /**
+   * Id:n på orderrader (booking_products) som ska bli to-dos vid commit.
+   * Tomt array = inga produkt-todos skapas. Default = alla rader utan
+   * befintlig to-do.
+   */
+  productIdsForTodos: string[];
   /**
    * Aktuellt lokalt utkast (datum + tider) per fas. DETTA är sanningen
    * när Planera klickas — DB-skrivningen sker först här.
@@ -78,10 +83,6 @@ interface Props {
   items: LargeProjectBookingPlanItem[];
   staff: LargeProjectPlannerStaffMember[];
   onCreateTodoForBooking: (booking: LargeProjectPlannerBooking) => void;
-  onCreateTodoForProduct: (
-    booking: LargeProjectPlannerBooking,
-    product: BookingProductForPlanner,
-  ) => void;
   onPlanWholeBooking: (
     booking: LargeProjectPlannerBooking,
     selection: PlanWholeBookingSelection,
@@ -150,7 +151,6 @@ const BookingPlannerSheet = ({
   items,
   staff,
   onCreateTodoForBooking,
-  onCreateTodoForProduct,
   onPlanWholeBooking,
   onItemClick,
   onItemDelete,
@@ -168,9 +168,10 @@ const BookingPlannerSheet = ({
   const [planRig, setPlanRig] = useState(true);
   const [planEvent, setPlanEvent] = useState(true);
   const [planRigDown, setPlanRigDown] = useState(true);
-  const [createProductTodos, setCreateProductTodos] = useState(true);
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
   const [drafts, setDrafts] = useState<PlanWholeBookingSelection['drafts']>(EMPTY_DRAFTS);
 
+  // Default: alla orderrader utan befintlig to-do är förvalda
   useEffect(() => {
     if (!open || !booking) return;
     const init = buildInitialDrafts(booking);
@@ -178,8 +179,45 @@ const BookingPlannerSheet = ({
     setPlanRig(init.rig.dates.length > 0);
     setPlanEvent(init.event.dates.length > 0);
     setPlanRigDown(init.rigDown.dates.length > 0);
-    setCreateProductTodos(true);
   }, [open, booking]);
+
+  // När produkter laddats: förvälj alla rader som inte redan har to-do
+  useEffect(() => {
+    if (!open || !booking || !products) return;
+    const linkedProductIds = new Set(
+      bookingItems
+        .map((it) => it.booking_product_id)
+        .filter((id): id is string => !!id),
+    );
+    setSelectedProductIds(
+      new Set(products.filter((p) => !linkedProductIds.has(p.id)).map((p) => p.id)),
+    );
+    // bookingItems beror på items + booking — vi vill bara köra när products byts
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, booking?.id, products]);
+
+  const toggleProduct = (id: string, checked: boolean) => {
+    setSelectedProductIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const selectableProducts = (products ?? []).filter(
+    (p) => !bookingItems.some((it) => it.booking_product_id === p.id),
+  );
+  const allSelected =
+    selectableProducts.length > 0 &&
+    selectableProducts.every((p) => selectedProductIds.has(p.id));
+  const toggleAllProducts = () => {
+    if (allSelected) {
+      setSelectedProductIds(new Set());
+    } else {
+      setSelectedProductIds(new Set(selectableProducts.map((p) => p.id)));
+    }
+  };
 
   const updateDraftPhase = (
     dateType: 'rig' | 'event' | 'rigDown',
@@ -306,9 +344,15 @@ const BookingPlannerSheet = ({
                     <Checkbox checked={planRigDown} onCheckedChange={(v) => setPlanRigDown(!!v)} />
                     <span>Rigg ner ({drafts.rigDown.dates.length} dagar)</span>
                   </label>
-                  <label className="inline-flex items-center gap-2">
-                    <Checkbox checked={createProductTodos} onCheckedChange={(v) => setCreateProductTodos(!!v)} />
-                    <span>Alla orderrader som to-dos</span>
+                  <label className="inline-flex items-center gap-2 text-muted-foreground">
+                    <span>
+                      Orderrader: {selectedProductIds.size} av {selectableProducts.length} valda
+                      {bookingItems.filter((it) => !!it.booking_product_id).length > 0 && (
+                        <span className="ml-1 text-[10px]">
+                          ({bookingItems.filter((it) => !!it.booking_product_id).length} redan skapade)
+                        </span>
+                      )}
+                    </span>
                   </label>
                 </div>
               </div>
@@ -322,7 +366,7 @@ const BookingPlannerSheet = ({
                       rig: planRig,
                       event: planEvent,
                       rigDown: planRigDown,
-                      createProductTodos,
+                      productIdsForTodos: Array.from(selectedProductIds),
                       drafts,
                     })
                   }
@@ -396,10 +440,25 @@ const BookingPlannerSheet = ({
 
                 {/* Orderrader */}
                 <section>
-                  <h3 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    <Package className="h-3.5 w-3.5" />
-                    Orderrader {products ? `(${products.length})` : ''}
-                  </h3>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <h3 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      <Package className="h-3.5 w-3.5" />
+                      Orderrader {products ? `(${products.length})` : ''}
+                    </h3>
+                    {selectableProducts.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={toggleAllProducts}
+                        className="text-[11px] text-primary hover:underline"
+                      >
+                        {allSelected ? 'Avmarkera alla' : 'Markera alla'}
+                      </button>
+                    )}
+                  </div>
+                  <p className="mb-2 text-[10px] italic text-muted-foreground">
+                    Valda rader blir to-dos när du klickar <strong>Planera hela bokningen</strong>.
+                    To-dos visas under bokningens kalenderblock — inte som egna block.
+                  </p>
 
                   {productsLoading && (
                     <div className="flex items-center gap-1 px-2 py-2 text-xs text-muted-foreground">
@@ -422,19 +481,37 @@ const BookingPlannerSheet = ({
                         const linkedItems = bookingItems.filter(
                           (it) => it.booking_product_id === p.id,
                         );
+                        const alreadyHasTodo = linkedItems.length > 0;
+                        const isSelected = selectedProductIds.has(p.id);
                         return (
                           <li
                             key={p.id}
                             className="flex flex-col gap-1.5 px-3 py-2 hover:bg-muted/40"
                           >
-                            <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-3">
+                              {alreadyHasTodo ? (
+                                <Badge
+                                  variant="secondary"
+                                  className="mt-0.5 shrink-0 text-[10px]"
+                                  title="To-do redan skapad"
+                                >
+                                  ✓ Skapad
+                                </Badge>
+                              ) : (
+                                <Checkbox
+                                  className="mt-1 shrink-0"
+                                  checked={isSelected}
+                                  onCheckedChange={(v) => toggleProduct(p.id, !!v)}
+                                  aria-label={`Skapa to-do för ${p.name || 'orderrad'}`}
+                                />
+                              )}
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2">
                                   <span className="truncate text-sm font-medium text-foreground">
                                     {p.name || 'Namnlös rad'}
                                   </span>
                                   {linkedItems.length > 0 && (
-                                    <Badge variant="secondary" className="text-[10px]">
+                                    <Badge variant="outline" className="text-[10px]">
                                       {linkedItems.length} to-do
                                     </Badge>
                                   )}
@@ -446,16 +523,6 @@ const BookingPlannerSheet = ({
                                   {p.notes && <span className="italic">{p.notes}</span>}
                                 </div>
                               </div>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 shrink-0 text-[11px]"
-                                onClick={() => onCreateTodoForProduct(booking, p)}
-                                title="Skapa to-do för denna orderrad"
-                              >
-                                <ListPlus className="mr-1 h-3 w-3" />
-                                To-do
-                              </Button>
                             </div>
 
                             {/* Inline: när är denna orderrad planerad? */}

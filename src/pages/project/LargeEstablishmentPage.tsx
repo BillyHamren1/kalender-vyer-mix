@@ -94,13 +94,24 @@ const LargeEstablishmentPage = () => {
   // Mappa planner-items till kalender-events så de visas i CustomCalendar.
   const { events: plannerCalendarEvents } = useLargeProjectPlannerCalendarEvents(project?.id);
 
-  // Klick på planner-item-event i kalendern → öppna quick-edit i panelen.
+  // Klick på event i kalendern:
+  //  - planner-item → öppna quick-edit i panelen
+  //  - riktigt bokningsblock → öppna BookingPlannerSheet så att orderrad-todos
+  //    blir synliga (de renderas inte som egna kalenderblock).
   const handleCalendarEventClick = useCallback((evt: CalendarEvent) => {
-    const isPlanner = (evt as any)?.extendedProps?.isPlannerItem;
-    const plannerItemId = (evt as any)?.extendedProps?.plannerItemId;
+    const ext = (evt as any)?.extendedProps;
+    const isPlanner = ext?.isPlannerItem;
+    const plannerItemId = ext?.plannerItemId;
     if (isPlanner && plannerItemId) {
       window.dispatchEvent(
         new CustomEvent('lp-planner-item-open', { detail: { itemId: plannerItemId } }),
+      );
+      return;
+    }
+    const bookingId = ext?.bookingId || (evt as any)?.bookingId || (evt as any)?.booking_id;
+    if (bookingId) {
+      window.dispatchEvent(
+        new CustomEvent('lp-booking-sheet-open', { detail: { bookingId } }),
       );
     }
   }, []);
