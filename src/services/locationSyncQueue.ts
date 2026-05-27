@@ -450,12 +450,23 @@ export async function flushLocationQueue(): Promise<void> {
           lastUploadRejected: rejectedIds.size,
         });
 
-        // Lokala råpunkter som täcks av batchen (även de vi INTE skickade
-        // eftersom de var brus inom samma stay/move) tas bort när minst
-        // EN punkt i batchen accepterades av servern — då har vi bevis
-        // för perioden på backend.
-        const batchHadAccepted = acceptedIds.size > 0;
+        // Säker rensning av covered raw-points:
+        // - acceptedIds plockas alltid bort (bekräftade på server).
+        // - rejectedIds retryas med back-off.
+        // - coveredIds (brus som filtrerades bort av kompressorn) får
+        //   ENDAST slängas om hela urvalet vi faktiskt skickade
+        //   (selectedIds) blev accepterat. Om någon selectedId saknas i
+        //   acceptedIds eller finns i rejectedIds har vi inte bevis för
+        //   hela perioden — behåll covered råpunkter för nästa flush.
         const coveredIds = compression.coveredIds;
+        const selectedIds = compression.selectedIds;
+        let allSelectedAccepted = selectedIds.size > 0;
+        for (const sid of selectedIds) {
+          if (!acceptedIds.has(sid) || rejectedIds.has(sid)) {
+            allSelectedAccepted = false;
+            break;
+          }
+        }
 
         const after = loadQueue();
         const next: PendingLocationPoint[] = [];
@@ -471,9 +482,10 @@ export async function flushLocationQueue(): Promise<void> {
             });
             continue;
           }
-          // Täckt råpunkt som inte skickades — släng den när batchen
-          // hade minst en accepterad punkt. Annars behåll för retry.
-          if (batchHadAccepted && coveredIds.has(row.id)) continue;
+          // Täckt råpunkt som inte skickades — släng ENDAST om hela
+          // urvalet bekräftades. Annars behåll för retry så ingen lokal
+          // GPS-fix tappas vid halvlyckad upload.
+          if (allSelectedAccepted && coveredIds.has(row.id)) continue;
           next.push(row);
         }
         saveQueue(next);
