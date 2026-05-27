@@ -392,10 +392,11 @@ async function fetchProjectStaffPerDay(
   bookingIds: string[],
 ): Promise<{
   staffByDay: Record<string, LargeProjectPlannerStaffMember[]>;
+  teamsByDay: Record<string, LargeProjectPlannerTeam[]>;
   allStaff: LargeProjectPlannerStaffMember[];
 }> {
   if (bookingIds.length === 0) {
-    return { staffByDay: {}, allStaff: [] };
+    return { staffByDay: {}, teamsByDay: {}, allStaff: [] };
   }
 
   const { data: events, error: evErr } = await supabase
@@ -424,7 +425,7 @@ async function fetchProjectStaffPerDay(
   });
 
   if (dateTeamPairs.size === 0) {
-    return { staffByDay: {}, allStaff: [] };
+    return { staffByDay: {}, teamsByDay: {}, allStaff: [] };
   }
 
   const { data: assignments, error: aErr } = await supabase
@@ -455,25 +456,24 @@ async function fetchProjectStaffPerDay(
     ),
   );
 
-  if (relevantStaffIds.length === 0) {
-    return { staffByDay: {}, allStaff: [] };
+  let memberList: Array<{ id: string; name: string; color: string | null }> = [];
+  if (relevantStaffIds.length > 0) {
+    const { data: members, error: mErr } = await supabase
+      .from('staff_members')
+      .select('id, name, color')
+      .in('id', relevantStaffIds);
+    if (mErr) throw mErr;
+    type MemberRow = { id: string; name: string; color?: string | null };
+    const memberRows = (members ?? []) as unknown as MemberRow[];
+    memberList = memberRows.map((m) => ({
+      id: m.id,
+      name: m.name,
+      color: m.color ?? null,
+    }));
   }
 
-  const { data: members, error: mErr } = await supabase
-    .from('staff_members')
-    .select('id, name, color')
-    .in('id', relevantStaffIds);
-  if (mErr) throw mErr;
-
-  type MemberRow = { id: string; name: string; color?: string | null };
-  const memberRows = (members ?? []) as unknown as MemberRow[];
-  const memberList = memberRows.map((m) => ({
-    id: m.id,
-    name: m.name,
-    color: m.color ?? null,
-  }));
-
   const staffByDay = buildStaffByDay(evRows, assignRows, memberList);
+  const teamsByDay = buildTeamsByDay(evRows, assignRows, memberList);
 
   // Bygg en de-dupad union för "all staff" + samla assignedDates per person
   const datesByStaff = new Map<string, Set<string>>();
@@ -495,7 +495,7 @@ async function fetchProjectStaffPerDay(
     }))
     .sort((a, b) => a.name.localeCompare(b.name, 'sv'));
 
-  return { staffByDay, allStaff };
+  return { staffByDay, teamsByDay, allStaff };
 }
 
 export async function fetchLargeProjectPlannerItems(
@@ -517,7 +517,7 @@ export async function fetchLargeProjectPlannerContext(
     fetchProjectBookings(largeProjectId),
     fetchLargeProjectPlannerItems(largeProjectId),
   ]);
-  const { staffByDay, allStaff } = await fetchProjectStaffPerDay(
+  const { staffByDay, teamsByDay, allStaff } = await fetchProjectStaffPerDay(
     bookings.map((b) => b.id),
   );
   return {
@@ -527,6 +527,7 @@ export async function fetchLargeProjectPlannerContext(
     items,
     days: buildProjectDays(bookings, items),
     staffByDay,
+    teamsByDay,
   };
 }
 
