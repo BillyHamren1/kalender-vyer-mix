@@ -100,6 +100,12 @@ export interface LocationSyncStatus {
   lastUploadRejected: number;
   lastErrorAt: number | null;
   lastErrorMessage: string | null;
+  // ── Komprimeringsdiagnostik ──
+  lastCompressionInputCount: number;
+  lastCompressionOutputCount: number;
+  lastCompressionRatio: number;
+  lastForceFlushReason: string | null;
+  lastForceFlushAt: number | null;
 }
 
 const DEFAULT_STATUS: LocationSyncStatus = {
@@ -111,7 +117,13 @@ const DEFAULT_STATUS: LocationSyncStatus = {
   lastUploadRejected: 0,
   lastErrorAt: null,
   lastErrorMessage: null,
+  lastCompressionInputCount: 0,
+  lastCompressionOutputCount: 0,
+  lastCompressionRatio: 1,
+  lastForceFlushReason: null,
+  lastForceFlushAt: null,
 };
+
 
 type StatusListener = (status: LocationSyncStatus) => void;
 const statusListeners = new Set<StatusListener>();
