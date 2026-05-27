@@ -68,7 +68,12 @@ export function useLargeProjectPlannerCalendarEvents(
     const projectName = projectMetaQuery.data?.name ?? null;
     const projectNumber = projectMetaQuery.data?.projectNumber ?? null;
 
-    return source.map((it) => {
+    return source
+      // Orderrad-todos (booking_product_id != null) renderas ALDRIG som egna
+      // kalenderblock. De visas i bokningens BookingPlannerSheet vid klick
+      // på bokningsblocket. Se mem: konstraint för design-policyn.
+      .filter((it) => !it.booking_product_id)
+      .map((it) => {
       const startTime = (it.start_time || FALLBACK_START).slice(0, 8);
       const endTime = (it.end_time || FALLBACK_END).slice(0, 8);
       const start = `${it.plan_date}T${startTime}`;
