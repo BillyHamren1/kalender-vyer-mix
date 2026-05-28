@@ -29,7 +29,7 @@ import LargeProjectPlannerQuickEditDialog from './LargeProjectPlannerQuickEditDi
 import BookingPlannerSheet from './BookingPlannerSheet';
 import { useLargeProjectPlannerItems } from './useLargeProjectPlannerItems';
 import { supabase } from '@/integrations/supabase/client';
-import { syncBookingPhaseDays } from '@/services/bookingPhaseDaysService';
+
 import type {
   LargeProjectBookingPlanItem,
   LargeProjectPlannerBooking,
