@@ -1,28 +1,25 @@
 /**
  * LargeProjectBookingPlannerCalendar — ISOLERAD intern bokningsplanerare
  * --------------------------------------------------------------------------
- * Mål: planera BOKNINGAR/TASKS inuti ett stort projekt utan att röra
+ * Planera BOKNINGAR/TASKS inuti ett stort projekt utan att röra
  * personalkalenderns dataskrivning.
  *
- * Kalender-UI:t är samma TimeGrid/dagkort som personalkalendern
- * (LargeProjectPlannerCalendarView), men datalager och write-paths är
- * helt separerade.
+ * "Planera"-knappen på en bokning öppnar BookingPlannerSheet (full
+ * översikt + faser + orderrader). Den skapar ALDRIG items direkt utan
+ * att admin bekräftat — annars hamnar man bara "in i kalendern" utan att
+ * veta vart eller hur.
  *
  * HÅRDA REGLER:
  *  - Får ALDRIG skriva till calendar_events / staff_assignments /
  *    booking_staff_assignments / large_project_team_assignments / bookings.
  *  - All write går via useLargeProjectPlannerItems → largeProjectPlannerService
  *    → enbart tabellen `large_project_booking_plan_items`.
- *
- * TEAM PER DAG:
- *  - Teamkolumner renderas PER dag från projektets egen teamsByDay[day.date].
- *  - Samma team-UI som personalkalendern, men separat projektdata.
- *  - Om personal finns i teamet visas den read-only; om ingen finns visas teamet ändå.
  */
 import { useCallback, useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import type { CalendarEvent } from '@/components/Calendar/ResourceData';
 
 import LargeProjectPlannerToolbar from './LargeProjectPlannerToolbar';
@@ -31,12 +28,24 @@ import SplitBookingIntoTasksDialog from './SplitBookingIntoTasksDialog';
 import ManualProjectTaskDialog from './ManualProjectTaskDialog';
 import LargeProjectPlannerQuickEditDialog from './LargeProjectPlannerQuickEditDialog';
 import LargeProjectPlannerCalendarView from './LargeProjectPlannerCalendarView';
+import BookingPlannerSheet, { type PlanWholeBookingSelection } from './BookingPlannerSheet';
 import { useLargeProjectPlannerItems } from './useLargeProjectPlannerItems';
 import { plannerItemIdFromEventId } from './LargeProjectPlannerCalendarAdapter';
 import type { LargeProjectPlannerBooking } from './largeProjectPlannerTypes';
 
 interface Props {
   largeProjectId: string;
+}
+
+interface ManualDefaults {
+  date?: string | null;
+  staffId?: string | null;
+  bookingId?: string | null;
+  title?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  bookingProductId?: string | null;
+  bookingProductLabel?: string | null;
 }
 
 const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
@@ -61,11 +70,9 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
 
   const [splitBookingId, setSplitBookingId] = useState<string | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
-  const [manualDefaults, setManualDefaults] = useState<{
-    date?: string | null;
-    staffId?: string | null;
-  }>({});
+  const [manualDefaults, setManualDefaults] = useState<ManualDefaults>({});
   const [quickEditId, setQuickEditId] = useState<string | null>(null);
+  const [plannerSheetBookingId, setPlannerSheetBookingId] = useState<string | null>(null);
 
   const bookingById = useMemo(() => {
     const map = new Map<string, LargeProjectPlannerBooking>();
@@ -108,8 +115,7 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
           ? (result as { errors: string[] }).errors
           : [];
 
-      const parts: string[] = [];
-      parts.push(`${createdCount} skapade`);
+      const parts: string[] = [`${createdCount} skapade`];
       if (skippedCount > 0) parts.push(`${skippedCount} fanns redan`);
       if (errors.length > 0) parts.push(`${errors.length} fel`);
       const description = errors.length > 0 ? errors.slice(0, 3).join('\n') : undefined;
@@ -126,28 +132,148 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     }
   };
 
-  const handleSeedBooking = async (booking: LargeProjectPlannerBooking) => {
-    const planDate =
-      booking.rigdaydate ?? booking.eventdate ?? booking.rigdowndate ?? days[0]?.date;
-    if (!planDate) {
-      toast.error('Bokningen saknar datum.');
-      return;
+  /**
+   * "Planera" på en bokning ÖPPNAR BookingPlannerSheet (full översikt
+   * med faser, datum, tider, orderrader). Skapar ALDRIG items direkt —
+   * admin måste bekräfta via "Planera hela bokningen" i sheeten.
+   */
+  const handleSeedBooking = (booking: LargeProjectPlannerBooking) => {
+    setPlannerSheetBookingId(booking.id);
+  };
+
+  const openCreateTodoDialog = (
+    booking: LargeProjectPlannerBooking,
+    product?: { id: string; name: string; quantity: number | null },
+  ) => {
+    const suggestedDate =
+      booking.rigdaydate ?? booking.eventdate ?? booking.rigdowndate ?? days[0]?.date ?? null;
+    const suggestedStart =
+      booking.event_start_time ?? booking.rig_start_time ?? '08:00:00';
+    const suggestedEnd =
+      booking.event_end_time ?? booking.rig_end_time ?? '17:00:00';
+    setManualDefaults({
+      date: suggestedDate,
+      staffId: null,
+      bookingId: booking.id,
+      title: product ? product.name : booking.display_name,
+      startTime: suggestedStart,
+      endTime: suggestedEnd,
+      bookingProductId: product?.id ?? null,
+      bookingProductLabel: product?.name ?? null,
+    });
+    setManualOpen(true);
+  };
+
+  const handlePlanWholeBooking = async (
+    booking: LargeProjectPlannerBooking,
+    selection: PlanWholeBookingSelection,
+  ) => {
+    const existingForBooking = items.filter((it) => it.booking_id === booking.id);
+
+    const phases: Array<{
+      phase: 'rig' | 'event' | 'rigDown';
+      label: string;
+      enabled: boolean;
+      dates: string[];
+      startTime: string;
+      endTime: string;
+    }> = [
+      { phase: 'rig', label: 'Rigg', enabled: selection.rig, dates: selection.drafts.rig.dates, startTime: selection.drafts.rig.startTime, endTime: selection.drafts.rig.endTime },
+      { phase: 'event', label: 'Event', enabled: selection.event, dates: selection.drafts.event.dates, startTime: selection.drafts.event.startTime, endTime: selection.drafts.event.endTime },
+      { phase: 'rigDown', label: 'Rigg ner', enabled: selection.rigDown, dates: selection.drafts.rigDown.dates, startTime: selection.drafts.rigDown.startTime, endTime: selection.drafts.rigDown.endTime },
+    ];
+
+    let created = 0;
+    let skipped = 0;
+    const selectedSeed: { date: string; start: string; end: string } | null = (() => {
+      for (const ph of phases) {
+        if (ph.enabled && ph.dates.length > 0) {
+          return { date: ph.dates[0], start: ph.startTime, end: ph.endTime };
+        }
+      }
+      return null;
+    })();
+
+    for (const ph of phases) {
+      if (!ph.enabled) continue;
+      for (const date of ph.dates) {
+        const already = existingForBooking.some(
+          (it) =>
+            it.source_booking_phase === ph.phase &&
+            it.plan_date === date &&
+            !it.booking_product_id,
+        );
+        if (already) {
+          skipped++;
+          continue;
+        }
+        try {
+          await createItem({
+            large_project_id: largeProjectId,
+            booking_id: booking.id,
+            title: `${ph.label} — ${booking.display_name}${booking.booking_number ? ` (#${booking.booking_number})` : ''}`,
+            plan_date: date,
+            item_type: 'booking',
+            source: 'booking',
+            phase: ph.phase,
+            source_booking_phase: ph.phase,
+            start_time: `${ph.startTime}:00`,
+            end_time: `${ph.endTime}:00`,
+          });
+          created++;
+        } catch (e) {
+          toast.error(`Kunde inte skapa ${ph.label}: ${(e as Error).message}`);
+        }
+      }
     }
+
+    if (selection.productIdsForTodos.length > 0 && selectedSeed) {
+      try {
+        const { data: products, error } = await supabase
+          .from('booking_products')
+          .select('id,name,quantity')
+          .eq('booking_id', booking.id)
+          .in('id', selection.productIdsForTodos);
+        if (error) throw error;
+
+        for (const product of products ?? []) {
+          const alreadyExists = existingForBooking.some((it) => it.booking_product_id === product.id);
+          if (alreadyExists) {
+            skipped++;
+            continue;
+          }
+          await createItem({
+            large_project_id: largeProjectId,
+            booking_id: booking.id,
+            booking_product_id: product.id,
+            title: product.name || 'Orderrad',
+            plan_date: selectedSeed.date,
+            start_time: `${selectedSeed.start}:00`,
+            end_time: `${selectedSeed.end}:00`,
+            item_type: 'task',
+            source: 'manual',
+            status: 'planned',
+          });
+          created++;
+        }
+      } catch (e) {
+        toast.error((e as Error).message || 'Kunde inte skapa to-dos från orderrader.');
+      }
+    }
+
+    setPlannerSheetBookingId(booking.id);
+    if (created > 0) toast.success(`${created} faser planerade${skipped ? ` (${skipped} fanns redan)` : ''}.`);
+    else if (skipped > 0) toast.info('Alla faser fanns redan i planen.');
+  };
+
+  const handleToggleItemStatus = async (
+    item: { id: string },
+    checked: boolean,
+  ) => {
     try {
-      await createItem({
-        large_project_id: largeProjectId,
-        title: booking.display_name,
-        plan_date: planDate,
-        booking_id: booking.id,
-        item_type: 'booking',
-        source: 'booking',
-        status: 'planned',
-        start_time: booking.event_start_time ?? booking.rig_start_time ?? null,
-        end_time: booking.event_end_time ?? booking.rig_end_time ?? null,
-      });
-      toast.success('Bokning tillagd i plan.');
+      await updateItem(item.id, { status: checked ? 'done' : 'planned' });
     } catch (e) {
-      toast.error((e as Error).message || 'Kunde inte lägga in bokning.');
+      toast.error((e as Error).message || 'Kunde inte uppdatera status.');
     }
   };
 
@@ -175,7 +301,6 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     await handleItemDelete(item.id);
   };
 
-  // Klick på event i kalendern → öppna QuickEdit för items.
   const handleCalendarEventClick = useCallback((ev: CalendarEvent) => {
     const plannerItemId = plannerItemIdFromEventId(ev.id);
     if (plannerItemId) setQuickEditId(plannerItemId);
@@ -214,6 +339,9 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
           onItemClick={(it) => setQuickEditId(it.id)}
           onItemDelete={handleSidebarItemDelete}
           onCreateManual={() => handleCreateManual()}
+          onCreateTodoForProduct={(booking, product) =>
+            openCreateTodoDialog(booking, product)
+          }
         />
 
         <div className="min-w-0 min-h-0 flex flex-1 flex-col overflow-hidden">
@@ -249,6 +377,12 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
         isStaffAllowedForDate={isStaffAllowedForDate}
         defaultDate={manualDefaults.date ?? null}
         defaultStaffId={manualDefaults.staffId ?? null}
+        defaultBookingId={manualDefaults.bookingId ?? null}
+        defaultTitle={manualDefaults.title ?? null}
+        defaultStartTime={manualDefaults.startTime ?? null}
+        defaultEndTime={manualDefaults.endTime ?? null}
+        defaultBookingProductId={manualDefaults.bookingProductId ?? null}
+        defaultBookingProductLabel={manualDefaults.bookingProductLabel ?? null}
         createItem={createItem}
         isMutating={isMutating}
       />
@@ -267,6 +401,25 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
         deleteItem={deleteItem}
         onSplit={(it) => it.booking_id && setSplitBookingId(it.booking_id)}
         isMutating={isMutating}
+      />
+
+      <BookingPlannerSheet
+        open={plannerSheetBookingId !== null}
+        onOpenChange={(open) => {
+          if (!open) setPlannerSheetBookingId(null);
+        }}
+        booking={
+          plannerSheetBookingId
+            ? bookingById.get(plannerSheetBookingId) ?? null
+            : null
+        }
+        items={items}
+        staff={staff}
+        onCreateTodoForBooking={(b) => openCreateTodoDialog(b)}
+        onPlanWholeBooking={handlePlanWholeBooking}
+        onItemClick={(it) => setQuickEditId(it.id)}
+        onItemDelete={(it) => handleItemDelete(it.id)}
+        onToggleItemStatus={handleToggleItemStatus}
       />
     </div>
   );
