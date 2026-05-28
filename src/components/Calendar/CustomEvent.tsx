@@ -435,8 +435,9 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     );
   }
 
-
+  return (
     <>
+
       <ContextMenu>
         <ContextMenuTrigger asChild>
           <div style={{ width: '100%', height: '100%' }}>
