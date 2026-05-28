@@ -26,6 +26,7 @@ import { Loader2, CalendarOff } from 'lucide-react';
 
 import TimeGrid from '@/components/Calendar/TimeGrid';
 import { EditControllerProvider } from '@/contexts/EditControllerContext';
+import { ConsolidationMenuDisabledProvider } from '@/contexts/ConsolidationMenuContext';
 import { DRAG_DATA_TYPE, type DraggedEventData } from '@/hooks/useEventDragDrop';
 import type { CalendarEvent } from '@/components/Calendar/ResourceData';
 import {
