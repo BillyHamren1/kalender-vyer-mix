@@ -143,8 +143,17 @@ export const mapPlannerItemsToCalendarEvents = (
         borderColor: tone.border,
         bookingId: it.booking_id ?? undefined,
         extendedProps: {
+          // Routing-flagg som CustomEvent läser för att välja
+          // PlannerEventActionPopover (separat skrivväg) istället för
+          // EventActionPopover (calendar_events / bookings).
+          kind: 'planner_item',
           isLargeProjectPlannerItem: true,
+          isPlannerItem: true,
           plannerItemId: it.id,
+          plannerLargeProjectId: largeProjectId,
+          plannerBookingId: it.booking_id,
+          plannerPhase: it.source_booking_phase ?? null,
+          plannerItemType: it.item_type,
           largeProjectId,
           bookingId: it.booking_id,
           assignedStaffId: it.assigned_staff_id,
@@ -161,6 +170,7 @@ export const mapPlannerItemsToCalendarEvents = (
           sourceBookingNumber: booking?.booking_number ?? null,
           sourceBookingClient: booking?.client ?? null,
         },
+
       } as CalendarEvent;
     });
 };

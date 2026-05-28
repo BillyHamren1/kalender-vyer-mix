@@ -1,45 +1,64 @@
-# Projektkalender: kopiera beteende, inte backend
+# Projektkalendern: full UX-paritet med personalkalendern (separat backend)
 
-## Vad jag missförstod
-Jag bytte ut projektkalendern mot `ProjectCalendarView` (personalkalenderns komponent) och lät `LargeProjectPlannerPanel` skriva via `syncBookingPhaseDays` — det blandar ihop backends. Det är fel.
+## Utgångsläge (efter förra reverten)
+- `LargeEstablishmentPage` renderar `LargeProjectBookingPlannerCalendar`.
+- Den använder TimeGrid → `EventWrapper` → **`CustomEvent`**, som redan har `EventHoverCard` + `EventActionPopover`.
+- Planner-items kommer in som `CalendarEvent` via `mapPlannerItemsToCalendarEvents`.
+- **Problemet:** `EventActionPopover` (delete, ändra tid, lägg till rigg-dag, flytta) skriver via `eventService`/`updateCalendarEvent` → personalkalenderns tabeller. Det får planner-items inte göra.
 
-## Regel (låsa fast)
-- **Personalkalendern** skriver till `calendar_events` + `bookings.<phase>_*`.
-- **Projektkalendern (large project planner)** skriver till `large_project_booking_plan_items` (+ `large_project_team_assignments` för team).
-- De får **aldrig** dela skrivväg. Endast UX/beteende ska vara identiskt.
+## Mål
+Projektkalenderns block ska:
+- Hovra → samma info-card som personalkalendern.
+- Klick → action-popover som ser likadan ut, men där varje action skriver till **`large_project_booking_plan_items`** (via `largeProjectPlannerService` / `updateItem` / `deleteItem` / `createItem`).
+- "Lägg till rigg-/event-/nedriggdag"-knapp i tomma celler/toolbar → skapar planner-item, inte calendar_event.
 
-## Vad som ska göras
+## Steg
 
-### 1. Återställ komponentvalet
-- `LargeEstablishmentPage.tsx` ska återgå till att rendera **`LargeProjectBookingPlannerCalendar`** (projektkalenderns egen komponent), inte `ProjectCalendarView`.
-- Behåll `LargeProjectPlannerPanel` som högerpanel som tidigare.
+### 1. Markera planner-events i CalendarEvent
+I `LargeProjectPlannerCalendarAdapter.mapPlannerItemsToCalendarEvents` — sätt `extendedProps.kind = 'planner_item'` + `plannerItemId`, `plannerItemType` ('booking'|'task'), `plannerPhase`, `plannerBookingId`, `plannerLargeProjectId`. (Idag finns delar av det redan — säkerställ kompletthet.)
 
-### 2. Återställ skrivvägen i panelen
-- `LargeProjectPlannerPanel.handlePlanWholeBooking` ska **inte** anropa `syncBookingPhaseDays`.
-- Den ska skriva planerade dagar till `large_project_booking_plan_items` via den befintliga planner-servicen (samma väg som tidigare innan jag bröt den).
-- Återinför valideringen att man bara kan planera på dagar som finns i projektet (eller ersätt med projektkalenderns egen "lägg till rigdag/nedriggdag"-flöde — se punkt 3).
+### 2. Routa popover-typ i CustomEvent
+I `src/components/Calendar/CustomEvent.tsx`: när `extendedProps.kind === 'planner_item'` → rendera **`PlannerEventActionPopover`** istället för `EventActionPopover`. EventHoverCard återanvänds som-är (läser bara visningsfält).
 
-### 3. Kopiera BETEENDE från personalkalendern till projektkalendern
-Detta är det som faktiskt löser användarens problem. Identifiera och spegla i `LargeProjectBookingPlannerCalendar`:
+### 3. Ny `PlannerEventActionPopover`
+Ny fil `src/components/project/large-planner/PlannerEventActionPopover.tsx` (~250 rader). Speglar `EventActionPopover` visuellt (samma popover-layout, samma sektioner: Tid, Team/Dag-lista, Ta bort, Öppna detaljer), men:
+- **Ändra tid** → `updatePlannerItem(id, { start_time, end_time })`.
+- **Flytta till annan dag/team** → `updatePlannerItem(id, { plan_date, assigned_team_id, assigned_staff_id: null })`.
+- **Ta bort** → `deletePlannerItem(id)`.
+- **Öppna detaljer** → dispatchar samma `lp-planner-item-open` event som idag.
+- **Lägg till rigg-/event-/nedriggdag** (om source_booking_phase finns) → öppnar ny `PlannerAddPhaseDayDialog`.
+- Hämtar "befintliga fas-dagar" från `items` i samma projekt (filter på `booking_id` + `source_booking_phase`), inte från `useEventBookingDays`.
 
-- **Hover/popover**: samma hover-card-komponent som personalkalendern (`StaffCalendarHoverCard` eller motsv.) — visa samma info, samma trigger-delay, samma stil.
-- **Klick → redigera rig/event/nedrigg**: samma dialog/flöde som personalkalendern använder för att ändra fas-dagar. I projektkalendern ska den dialogen skriva till **planner-tabellen**, inte till `bookings`/`calendar_events`.
-- **Lägg till extra rigg-/nedriggdag**: samma UX som `AddRiggDayDialog`, men sparvägen går till `large_project_booking_plan_items` (eller motsvarande planner-store).
-- **Drag/resize, färger, block-layout, badges**: matcha visuellt och interaktionsmässigt.
+### 4. Ny `PlannerAddPhaseDayDialog`
+Ny fil `src/components/project/large-planner/PlannerAddPhaseDayDialog.tsx` (~200 rader). Speglar `AddRiggDayDialog` (månadsväljare, multiselect på datum, tid-fält), men sparvägen:
+- Skapar ett `large_project_booking_plan_items`-item per vald dag med `source_booking_phase = phase`, `source = 'booking'`, ärver tider från bokningens fas, ärver `assigned_team_id` från det klickade eventet om sådan finns.
+- **Skriver aldrig** till `bookings` eller `calendar_events`.
 
-Konkret: lyft ut den **presentationella** delen av personalkalenderns block/hover/dialog till delade, "dumma" UI-komponenter (props in, callbacks ut) som båda kalendrarna kan rendera. Skrivlogiken stannar i respektive kalenders egen container/hook.
+### 5. "Lägg till dag"-knapp i tomma TimeGrid-celler
+I projektkalenderns view: lägg en + -knapp i tomma celler (som personalkalenderns `AddDayButton`) som öppnar `PlannerAddPhaseDayDialog` förvalt på det datumet/teamet. Använder befintlig TimeGrid `plannerMode`-prop — kräver en ny callback-prop `onAddDay(date, teamId)` som TimeGrid kan exponera via en floating + i tomma kolumner.
 
-### 4. Fixa "sparade 3 nedriggdagar men inget hände"
-- Verifiera att projektkalenderns "spara nedriggdagar"-flöde faktiskt skriver till planner-tabellen och att kalendern läser från samma källa.
-- Lägg till en vitest som planerar 3 nedriggdagar via projektkalenderns flöde och asserterar att de dyker upp i `large_project_booking_plan_items` och renderas i kalendern — utan att röra `calendar_events`/`bookings`.
+### 6. Tester (vitest)
+- `plannerPopoverIsolation.test.tsx`: rendera `CustomEvent` med planner-event → verifiera att `PlannerEventActionPopover` används (inte `EventActionPopover`), och att inga `supabase.from('calendar_events'|'bookings')`-anrop sker när man trycker delete/ändra tid/flytta dag.
+- `plannerAddPhaseDay.test.ts`: kalla dialogens onSave → assertera att `large_project_booking_plan_items` får N rader och `calendar_events`/`bookings` INTE rörs.
+- Behåll befintlig `projectCalendarSeparation.test.ts` grön.
 
-## Tekniskt (filer)
-- `src/pages/project/LargeEstablishmentPage.tsx` — återställ till `LargeProjectBookingPlannerCalendar`.
-- `src/components/project/large-planner/LargeProjectPlannerPanel.tsx` — ta bort `syncBookingPhaseDays`-anropet, återställ planner-service-skrivning.
-- `src/components/project/large-planner/LargeProjectBookingPlannerCalendar.tsx` (+ adapter/service) — addera hover-card, edit-dialog, add-day-dialog som speglar personalkalenderns beteende, men med planner-skrivväg.
-- Eventuellt nya delade presentationskomponenter under `src/components/calendar/shared/` (hover-card, phase-day-dialog skal) — inga DB-anrop i dessa.
-- Test: `src/components/project/large-planner/__tests__/plannerWriteIsolation.test.ts` — säkerställer att projektkalendern aldrig skriver till `calendar_events`/`bookings`.
+### 7. Verifiering
+- `bash scripts/test-time-reporting.sh` (vid behov) + `lovable-exec test` på de nya specerna.
+- Manuell rök: öppna `/large-project/:id/establishment`, hovra block → info; klicka block → popover; tryck "Lägg till nedriggdag", välj 3 datum, spara → 3 nya planner-block dyker upp utan att personalkalendern påverkas.
+
+## Filer (sammanfattning)
+- **Nya:**
+  - `src/components/project/large-planner/PlannerEventActionPopover.tsx`
+  - `src/components/project/large-planner/PlannerAddPhaseDayDialog.tsx`
+  - `src/components/project/large-planner/__tests__/plannerPopoverIsolation.test.tsx`
+  - `src/components/project/large-planner/__tests__/plannerAddPhaseDay.test.ts`
+- **Ändras:**
+  - `src/components/project/large-planner/LargeProjectPlannerCalendarAdapter.ts` — kompletta planner-flaggor i `extendedProps`.
+  - `src/components/Calendar/CustomEvent.tsx` — välj popover baserat på `extendedProps.kind`.
+  - `src/components/project/large-planner/LargeProjectPlannerCalendarView.tsx` — visa + i tomma celler via TimeGrid-callback.
+  - `src/components/Calendar/TimeGrid.tsx` — liten `onAddDay?(date, resourceId)`-prop som visar en + i tomma cellytor när `plannerMode` är på.
 
 ## Vad jag INTE rör
-- `calendar_events`, `bookings.<phase>_*`, `syncBookingPhaseDays`, personalkalenderns logik.
-- Time Engine, BSA, geofence — orelaterat.
+- `calendar_events`, `bookings.*`, `staff_assignments`, `large_project_team_assignments`.
+- `eventService`, `bookingPhaseDaysService`, personalkalenderns popover/dialog.
+- Time Engine, BSA, geofence.
