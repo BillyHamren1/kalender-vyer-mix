@@ -228,6 +228,15 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
       style={getDynamicStyles()}
     >
       <div className="event-content" style={{ color: '#000000', pointerEvents: 'auto' }}>
+        {/* Färgmärknings-knapp i hörnet — visas för alla bokningskort
+            (utom avbokade där "AVBOKAD"/Trash redan tar den platsen). */}
+        {!isCancelled && event.bookingId && !isTodo && (
+          <BookingColorMarkButton
+            bookingId={event.bookingId}
+            currentColor={calendarColor}
+            onChanged={onEventResize}
+          />
+        )}
         {/* Cancelled badge */}
         {isCancelled && (
           <div 
