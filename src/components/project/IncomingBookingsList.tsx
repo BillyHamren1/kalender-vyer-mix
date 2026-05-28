@@ -171,7 +171,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                   </span>
                 )}
                 <Badge variant="outline" className="h-4 px-1.5 text-[10px] shrink-0">
-                  {project.kind === 'large' ? 'Stort' : 'Medel'}
+                  Medel
                 </Badge>
               </div>
               <div className="flex items-center gap-3 mt-0.5 text-[11px] text-muted-foreground">
