@@ -1,8 +1,9 @@
 /**
  * WeekFlowMobilePanel — mobil-vyn för /m/report. Speglar admin Tid & Lön 1:1.
  *
- * - Auth: useMobileAuth (MobileAuthProvider). useCurrentStaffId får INTE
- *   användas här — den läser Supabase AuthContext som är null i mobilappen.
+ * - Auth: useMobileAuth (MobileAuthProvider). Den vanliga Supabase-baserade
+ *   staff-id-hooken får INTE användas här — den läser AuthContext som är null
+ *   i mobilappen.
  * - Använder samma `useStaffTimeWeekFlow` + `WeekFlowDayCard` som admin.
  *   Hooken kör viewer="staff" → går via mobile token / edge function.
  * - "Skicka in" öppnar DayReviewSheet (samma get-mobile-gps-day-view +
