@@ -143,9 +143,39 @@ export async function savePhaseDays(input: SavePhaseDaysInput): Promise<SavePhas
   const failures: string[] = [];
   let successCount = 0;
 
+  // ── Migrate stale rows ────────────────────────────────────────────────
+  // Pre-fetch ALL existing rows for (booking, event_type) so we can
+  // re-purpose a row whose source_date is no longer in the desired list
+  // (typical case: user changed rigdaydate 06-04 → 06-03 — old row at
+  // 06-04 must MOVE to 06-03, not coexist as a duplicate that the
+  // import-bookings reconciler will later delete as stale).
+  const desiredDateSet = new Set(specs.map((s) => s.date));
+  const { data: allExistingRows } = await supabase
+    .from('calendar_events')
+    .select('id, source_date, resource_id')
+    .eq('booking_id', bookingId)
+    .eq('organization_id', orgId)
+    .eq('event_type', eventType);
+
+  const orphanRows = (allExistingRows ?? []).filter(
+    (row: any) => row?.source_date && !desiredDateSet.has(row.source_date),
+  );
+
   for (const spec of specs) {
     try {
-      const existingRow = await findExistingDayRow(bookingId, orgId, eventType, spec.date);
+      let existingRow = await findExistingDayRow(bookingId, orgId, eventType, spec.date);
+
+      // No row on the new date — try to repurpose an orphan (preserves
+      // resource_id = team stickiness).
+      if (!existingRow && orphanRows.length > 0) {
+        const orphan = orphanRows.shift()!;
+        const { error: moveErr } = await supabase
+          .from('calendar_events')
+          .update({ source_date: spec.date })
+          .eq('id', orphan.id);
+        if (moveErr) throw moveErr;
+        existingRow = { id: orphan.id, resource_id: orphan.resource_id };
+      }
 
       if (existingRow) {
         // Befintlig dag → bara metadata + tider, ALDRIG resource_id
@@ -184,12 +214,13 @@ export async function savePhaseDays(input: SavePhaseDaysInput): Promise<SavePhas
           });
           if (insertError) throw insertError;
         } else {
-          // Inget team kunde härledas — booking-update nedan triggar
-          // reconcilern att skapa calendar_events vid nästa sync.
-          console.log(
+          // Inget team kunde härledas — flagga som fel så UI kan visa
+          // "datum bytt men kalender ej uppdaterad".
+          console.warn(
             '[savePhaseDays] no sticky/fallback resourceId — skipping calendar_events insert for',
             spec.date,
           );
+          failures.push(`${spec.date}: inget team kunde härledas — kalenderraden skapades inte`);
         }
       }
 
