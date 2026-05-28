@@ -119,7 +119,7 @@ export const StaffDayApprovalRow: React.FC<Props> = ({
               className="gap-1 text-[10px] border-indigo-500/40 text-indigo-700 dark:text-indigo-300 bg-indigo-500/10"
             >
               <Cpu className="h-3 w-3" />
-              Förslag från Time Engine
+              Förslag från GPS
             </Badge>
           )}
           {day.hasComment && (
