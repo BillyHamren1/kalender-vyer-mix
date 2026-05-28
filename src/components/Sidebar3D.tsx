@@ -18,6 +18,14 @@ import {
 import { cn } from "@/lib/utils";
 import { useProjectInboxCount } from "@/hooks/useProjectInboxCount";
 import { useUnplannedProjects } from "@/hooks/useUnplannedProjects";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import { usePinnedTabs } from "@/contexts/PinnedTabsContext";
+import { Pin, PinOff } from "lucide-react";
 
 interface NavChild {
   title: string;
