@@ -203,16 +203,9 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
         onCreateManual={() => handleCreateManual()}
       />
 
-      <div className="grid flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="min-w-0 min-h-0 flex flex-col overflow-hidden">
-          <LargeProjectPlannerCalendarView
-            largeProjectId={largeProjectId}
-            ctx={ctx}
-            onEventClick={handleCalendarEventClick}
-          />
-        </div>
-
+      <div className="flex flex-1 flex-col overflow-hidden">
         <LargeProjectPlannerSidebar
+          horizontal
           bookings={bookings}
           items={items}
           staff={staff}
@@ -222,6 +215,14 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
           onItemDelete={handleSidebarItemDelete}
           onCreateManual={() => handleCreateManual()}
         />
+
+        <div className="min-w-0 min-h-0 flex flex-1 flex-col overflow-hidden">
+          <LargeProjectPlannerCalendarView
+            largeProjectId={largeProjectId}
+            ctx={ctx}
+            onEventClick={handleCalendarEventClick}
+          />
+        </div>
       </div>
 
       <SplitBookingIntoTasksDialog
