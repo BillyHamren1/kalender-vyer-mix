@@ -1,10 +1,12 @@
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
+import { AlertTriangle, Home } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
 import type { StaffGpsDaySummary } from '@/hooks/staff/useStaffGpsWeekSummary';
 import type { SegmentType } from '@/lib/staff-gps/dayPartition';
 import { toReportRows, summarizeReportRows } from '@/lib/staff-gps/reportRowFilter';
+import { inferLastPingReason } from '@/lib/staff-gps/lastPingReason';
 
 interface Props {
   day: Date;
