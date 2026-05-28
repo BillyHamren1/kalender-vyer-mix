@@ -33,6 +33,7 @@ import {
   Loader2,
   Package,
   CalendarPlus,
+  Trash2,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
