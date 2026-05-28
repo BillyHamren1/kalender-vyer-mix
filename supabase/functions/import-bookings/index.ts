@@ -1235,8 +1235,30 @@ async function reconcileCalendarEvents(
     }
   }
 
-  // 5. Delete stale events
-  const staleEvents = (existingEvents || []).filter((e: any) => !matchedExistingIds.has(e.id));
+  // 5. Delete stale events — but PROTECT rows that match the booking's own
+  // authoritative date columns (rigdaydate/rigdowndate). The external system
+  // occasionally lags behind a local UI date change (savePhaseDays writes the
+  // booking row + a new calendar_events row, but the next external import may
+  // not yet reflect the change). Without this guard the reconciler deletes
+  // the freshly created row as "stale", which is exactly how booking 2604-8
+  // lost its rig row on 2026-05-27. See memory: booking-dates-single-source-v1.
+  const localAuthoritativeKeys = new Set<string>();
+  if (bookingData.rigdaydate) localAuthoritativeKeys.add(`rig|${bookingData.rigdaydate}`);
+  if (bookingData.rigdowndate) localAuthoritativeKeys.add(`rigDown|${bookingData.rigdowndate}`);
+  // event-days are intentionally NOT persisted (see line 1101-1104), so we
+  // don't protect them here.
+
+  const staleEvents = (existingEvents || []).filter((e: any) => {
+    if (matchedExistingIds.has(e.id)) return false;
+    const evtDate = e.source_date || e.start_time?.split('T')[0] || '';
+    const key = `${e.event_type}|${evtDate}`;
+    if (localAuthoritativeKeys.has(key)) {
+      console.log(`[Calendar Reconcile] KEEP-LOCAL ${e.event_type}@${evtDate} (matches booking.${e.event_type === 'rig' ? 'rigdaydate' : 'rigdowndate'}; not in external desired but locally authoritative)`);
+      return false;
+    }
+    return true;
+  });
+
   if (staleEvents.length > 0) {
     const staleIds = staleEvents.map((e: any) => e.id);
     console.log(`[Calendar Reconcile] DELETE ${staleEvents.length} stale events: ${staleEvents.map((e: any) => `${e.event_type}@${e.start_time?.split('T')[0]}`).join(', ')}`);
