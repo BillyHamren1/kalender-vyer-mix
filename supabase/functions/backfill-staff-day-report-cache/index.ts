@@ -561,7 +561,43 @@ async function processOne(
     }
 
     if (!dryRun) {
-      const summary = {
+      // ── CANONICAL OVERRIDE — Time report mirrors GPS week summary 1:1 ──
+      // Spegla `buildCanonicalStaffDayGpsResult` (samma motor som
+      // `get-staff-gps-week-summary` / GPS-satellitkartan / mobil-time v2).
+      // Legacy Time Engine-totals (`work`/`unknown`) bevaras endast i
+      // diagnostiken — admin-tidrapporten ska visa exakt det GPS-veckovyn visar.
+      let canonicalSummary: any = null;
+      let canonicalBlocks: any[] | null = null;
+      let canonicalError: string | null = null;
+      let canonicalTotalsForDiag: any = null;
+      try {
+        const canonical = await buildCanonicalStaffDayGpsResult(admin, {
+          organizationId: orgId,
+          staffId,
+          date,
+        });
+        canonicalSummary = canonicalToCacheSummary(canonical, {
+          pingCount: pings.length,
+        });
+        canonicalBlocks = canonicalToCacheBlocks(canonical) as any[];
+        canonicalTotalsForDiag = {
+          totals: canonical.totals,
+          version: canonical.version,
+          firstIso: canonical.firstIso,
+          lastIso: canonical.lastIso,
+          segmentCount: canonical.segments.length,
+        };
+        out.workMinutes = canonical.totals.payableSuggestionMinutes;
+        out.reportBlocks = canonical.segments.length;
+      } catch (e: any) {
+        canonicalError = e?.message ?? String(e);
+        console.warn(
+          `[backfill] canonical projection failed for ${staffId} ${date}: ${canonicalError}`,
+        );
+      }
+
+      const summary = canonicalSummary ?? {
+        source: 'legacy_time_engine_fallback',
         pingCount: pings.length,
         reportBlocks: report.blocks.length,
         workMinutes: work,
@@ -570,6 +606,8 @@ async function processOne(
         preWorkExcludedMinutes: preWork,
         targetsCount: targets.length,
       };
+      const blocksForCache = canonicalBlocks ?? enrichedBlocks;
+
       const { error } = await admin
         .from('staff_day_report_cache')
         .upsert(
