@@ -3,6 +3,8 @@ import { PlannerStoreProvider, usePlannerSync } from '@/stores/plannerStore';
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { useBackgroundImport } from "@/hooks/useBackgroundImport";
 import { useSsoListener } from "@/hooks/useSsoListener";
@@ -135,10 +137,9 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 60_000,
-      gcTime: 30 * 60_000,
+      gcTime: 24 * 60 * 60_000, // 24h, för persisted cache
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
-      // refetchOnMount default = true: stale data refreshes silently in background while cache shows instantly
       retry: 1,
     },
     mutations: {
@@ -146,6 +147,20 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Persistera react-query-cachen i localStorage så att tunga sidor (t.ex.
+// /staff-management/time) visas direkt med förra besökets data och
+// uppdateras tyst i bakgrunden istället för att ladda om från noll varje gång.
+const queryPersister = typeof window !== "undefined"
+  ? createSyncStoragePersister({
+      storage: window.localStorage,
+      key: "lovable-rq-cache-v1",
+      throttleTime: 1000,
+    })
+  : undefined;
+
+// Bumpa när cache-shape ändras så gamla entries kastas.
+const PERSIST_BUSTER = "v2026-05-28";
 
 // Pause all polling/refetching while the tab is hidden. Resume on visibility.
 // This stops dashboards (planning/ops/warehouse) from hammering the network in the background
@@ -216,15 +231,44 @@ const AppContent = () => {
       <CalendarContext.Provider value={contextValue}>
         {/* Bridge: sync legacy CalendarContext state into PlannerStore */}
         <LegacyStateBridge lastViewedDate={lastViewedDate} lastPath={lastPath} />
-        <QueryClientProvider client={queryClient}>
-          <TooltipProvider>
-            <Toaster />
-            {APP_MODE !== 'scanner' && <WebTimeBootstrap />}
-            <BrowserRouter>
-              <ShellEntry />
-            </BrowserRouter>
-          </TooltipProvider>
-        </QueryClientProvider>
+        {queryPersister ? (
+          <PersistQueryClientProvider
+            client={queryClient}
+            persistOptions={{
+              persister: queryPersister,
+              maxAge: 24 * 60 * 60_000,
+              buster: PERSIST_BUSTER,
+              dehydrateOptions: {
+                shouldDehydrateQuery: (q) => {
+                  // Persistera bara queries som lyckades och har data.
+                  if (q.state.status !== "success") return false;
+                  // Skippa realtime-känsliga "live"-queries om de explicit
+                  // markeras med meta.persist === false.
+                  if (q.meta && q.meta.persist === false) return false;
+                  return true;
+                },
+              },
+            }}
+          >
+            <TooltipProvider>
+              <Toaster />
+              {APP_MODE !== 'scanner' && <WebTimeBootstrap />}
+              <BrowserRouter>
+                <ShellEntry />
+              </BrowserRouter>
+            </TooltipProvider>
+          </PersistQueryClientProvider>
+        ) : (
+          <QueryClientProvider client={queryClient}>
+            <TooltipProvider>
+              <Toaster />
+              {APP_MODE !== 'scanner' && <WebTimeBootstrap />}
+              <BrowserRouter>
+                <ShellEntry />
+              </BrowserRouter>
+            </TooltipProvider>
+          </QueryClientProvider>
+        )}
       </CalendarContext.Provider>
     </PlannerStoreProvider>
   );
