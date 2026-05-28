@@ -422,8 +422,20 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
       </>
     );
   }
+  // Planner-items (projektkalenderns large_project_booking_plan_items)
+  // har en EGEN popover som skriver till plan-tabellen — aldrig till
+  // calendar_events / bookings. Routningen sker via extendedProps.kind.
+  if ((event.extendedProps as any)?.kind === 'planner_item') {
+    return (
+      <PlannerEventActionPopover event={event} onOpenDetails={handleViewDetails}>
+        <div style={{ width: '100%', height: '100%' }}>
+          {eventCardContent}
+        </div>
+      </PlannerEventActionPopover>
+    );
+  }
 
-  return (
+
     <>
       <ContextMenu>
         <ContextMenuTrigger asChild>
