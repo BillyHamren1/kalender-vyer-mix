@@ -388,6 +388,26 @@ const BookingPlannerSheet = ({
                   <ListPlus className="mr-1.5 h-3.5 w-3.5" />
                   Skapa to-do
                 </Button>
+                {hasAnyPlan && onItemDelete && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive border-destructive/40 hover:bg-destructive/10"
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `Ta bort all planering (${bookingItems.length} aktiviteter) för denna bokning från projektkalendern?`,
+                        )
+                      ) {
+                        bookingItems.forEach((it) => onItemDelete(it));
+                      }
+                    }}
+                    title="Tar bort alla planner-aktiviteter för bokningen från projektkalendern. Påverkar inte personalkalendern."
+                  >
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                    Ta bort all planering
+                  </Button>
+                )}
               </div>
             </SheetHeader>
 
