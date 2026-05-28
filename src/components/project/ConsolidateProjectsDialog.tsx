@@ -222,11 +222,17 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
     },
   });
 
-  const canSubmit =
-    !mutation.isPending &&
-    (mode === 'create'
+  const [confirmText, setConfirmText] = useState('');
+  useEffect(() => {
+    if (!open) setConfirmText('');
+  }, [open]);
+
+  const baseValid =
+    mode === 'create'
       ? name.trim().length > 0 && selected.size >= 2
-      : !!targetLargeId && selected.size >= 1);
+      : !!targetLargeId && selected.size >= 1;
+  const canSubmit =
+    !mutation.isPending && baseValid && confirmText.trim().toUpperCase() === 'KONSOLIDERA';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
