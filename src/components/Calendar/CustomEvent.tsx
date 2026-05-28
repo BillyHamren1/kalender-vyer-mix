@@ -9,9 +9,11 @@ import { Trash2, Combine, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import EventHoverCard from './EventHoverCard';
 import EventActionPopover from './EventActionPopover';
+import PlannerEventActionPopover from '@/components/project/large-planner/PlannerEventActionPopover';
 import MoveEventDateDialog from './MoveEventDateDialog';
 import { DeleteDayButton } from './DeleteDayButton';
 import { TodoEventCard } from './TodoEventCard';
+
 import { useWarehouseResources } from '@/hooks/useWarehouseResources';
 import {
   ContextMenu,
