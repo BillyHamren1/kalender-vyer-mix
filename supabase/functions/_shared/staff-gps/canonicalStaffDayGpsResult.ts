@@ -70,6 +70,10 @@ export interface CanonicalSegment {
   confidence: "high" | "medium" | "low";
   warningReasons: string[];
   source: "gps_partition";
+  /** För travel/gps_gap/unknown_place: namn på föregående känd plats (om finns). */
+  fromLabel: string | null;
+  /** För travel/gps_gap/unknown_place: namn på nästa kända plats (om finns). */
+  toLabel: string | null;
 }
 
 export interface CanonicalGeofenceVisit {
@@ -248,6 +252,8 @@ export function projectCanonicalResult(input: {
     confidence: confidenceFor(seg),
     warningReasons: warningReasonsFor(seg),
     source: "gps_partition",
+    fromLabel: seg.fromLabel ?? null,
+    toLabel: seg.toLabel ?? null,
   }));
 
   // ── Geofence-visits — clampade till exakta in/ut-pings (snapshot.visits).

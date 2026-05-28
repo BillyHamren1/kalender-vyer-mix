@@ -75,6 +75,8 @@ function projectToDaySummary(canonical: CanonicalStaffDayGpsResult): DaySummary 
     end: s.endIso,
     minutes: s.durationMinutes,
     knownSiteId: s.knownSiteId,
+    fromLabel: s.fromLabel ?? null,
+    toLabel: s.toLabel ?? null,
   }));
   return {
     date: canonical.date,
