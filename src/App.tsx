@@ -137,10 +137,9 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 60_000,
-      gcTime: 30 * 60_000,
+      gcTime: 24 * 60 * 60_000, // 24h, för persisted cache
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
-      // refetchOnMount default = true: stale data refreshes silently in background while cache shows instantly
       retry: 1,
     },
     mutations: {
@@ -148,6 +147,20 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Persistera react-query-cachen i localStorage så att tunga sidor (t.ex.
+// /staff-management/time) visas direkt med förra besökets data och
+// uppdateras tyst i bakgrunden istället för att ladda om från noll varje gång.
+const queryPersister = typeof window !== "undefined"
+  ? createSyncStoragePersister({
+      storage: window.localStorage,
+      key: "lovable-rq-cache-v1",
+      throttleTime: 1000,
+    })
+  : undefined;
+
+// Bumpa när cache-shape ändras så gamla entries kastas.
+const PERSIST_BUSTER = "v2026-05-28";
 
 // Pause all polling/refetching while the tab is hidden. Resume on visibility.
 // This stops dashboards (planning/ops/warehouse) from hammering the network in the background
