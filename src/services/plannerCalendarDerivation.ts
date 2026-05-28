@@ -40,6 +40,7 @@ interface BookingRow {
   rigdown_time_locked?: boolean | null;
   status: string | null;
   customer_pickup?: boolean | null;
+  calendar_color?: string | null;
 }
 
 interface LargeProjectRow {
@@ -145,10 +146,10 @@ const mapRealRowToCalendarEvent = (
   project?: LargeProjectRow,
 ): CalendarEvent => {
   const bookingTitle = booking?.title?.trim() || null;
-  const baseLabel = project?.name || booking?.client || row.title;
-  const displayTitle = !project?.name && bookingTitle
-    ? `${baseLabel} – ${bookingTitle}`
-    : baseLabel;
+  // baseLabel = projektets namn eller kundens namn. Bokningens "rubrik"
+  // (booking.title) renderas som EGEN rad i CustomEvent, så vi
+  // konkatar inte längre här.
+  const displayTitle = project?.name || booking?.client || row.title;
   const isTodo = row.event_type === 'todo';
   return {
     id: row.id,
@@ -168,6 +169,7 @@ const mapRealRowToCalendarEvent = (
       deliveryAddress: row.delivery_address || booking?.deliveryaddress || project?.address || undefined,
       bookingNumber: isTodo ? undefined : (row.booking_number || booking?.booking_number || undefined),
       bookingTitle: bookingTitle || undefined,
+      calendarColor: booking?.calendar_color || undefined,
       eventType: isTodo ? 'todo' : (normalizePhase(row.event_type) || row.event_type),
       sourceDate: row.source_date || extractDate(row.start_time),
       largeProjectId: booking?.large_project_id || undefined,

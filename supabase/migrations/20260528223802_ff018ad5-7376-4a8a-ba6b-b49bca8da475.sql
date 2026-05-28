@@ -1,0 +1,2 @@
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS calendar_color text;
+COMMENT ON COLUMN public.bookings.calendar_color IS 'Manuell färgmärkning för bokningens kalenderkort (hex eller preset-nyckel som transport/rental).';

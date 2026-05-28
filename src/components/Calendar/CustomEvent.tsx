@@ -13,6 +13,7 @@ import PlannerEventActionPopover from '@/components/project/large-planner/Planne
 import MoveEventDateDialog from './MoveEventDateDialog';
 import { DeleteDayButton } from './DeleteDayButton';
 import { TodoEventCard } from './TodoEventCard';
+import { BookingColorMarkButton } from './BookingColorMarkButton';
 
 import { useWarehouseResources } from '@/hooks/useWarehouseResources';
 import {
@@ -101,7 +102,11 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   );
 
   const customerPickup = Boolean((event.extendedProps as any)?.customerPickup);
-  const eventColor = getEventColor(event.eventType, customerPickup);
+  const calendarColor = (event.extendedProps as any)?.calendarColor as string | undefined;
+  const bookingTitle = (event.extendedProps as any)?.bookingTitle as string | undefined;
+  const defaultEventColor = getEventColor(event.eventType, customerPickup);
+  // Manuell färgmärkning vinner alltid över default-färgen.
+  const eventColor = calendarColor || defaultEventColor;
 
   // Check if booking is cancelled
   const isCancelled = event.bookingStatus === 'CANCELLED' || event.extendedProps?.bookingStatus === 'CANCELLED';
@@ -223,6 +228,15 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
       style={getDynamicStyles()}
     >
       <div className="event-content" style={{ color: '#000000', pointerEvents: 'auto' }}>
+        {/* Färgmärknings-knapp i hörnet — visas för alla bokningskort
+            (utom avbokade där "AVBOKAD"/Trash redan tar den platsen). */}
+        {!isCancelled && event.bookingId && !isTodo && (
+          <BookingColorMarkButton
+            bookingId={event.bookingId}
+            currentColor={calendarColor}
+            onChanged={onEventResize}
+          />
+        )}
         {/* Cancelled badge */}
         {isCancelled && (
           <div 
@@ -260,6 +274,22 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         <div className={`event-title ${isCancelled ? 'line-through' : ''}`} style={{ color: isCancelled ? '#991B1B' : '#000000' }}>
           {displayTitle}
         </div>
+        {bookingTitle && !event.extendedProps?.isLargeProject && (
+          <div
+            className={`event-rubrik ${isCancelled ? 'line-through' : ''}`}
+            style={{
+              color: isCancelled ? '#991B1B' : '#000000',
+              fontSize: '11px',
+              fontWeight: 700,
+              lineHeight: 1.15,
+              marginTop: 1,
+              wordBreak: 'break-word',
+            }}
+            title={bookingTitle}
+          >
+            {bookingTitle}
+          </div>
+        )}
         {(event.extendedProps as any)?.isPlannerItem && (
           <>
             {(event.extendedProps as any)?.projectName && (
