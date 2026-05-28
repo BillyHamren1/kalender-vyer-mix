@@ -33,6 +33,8 @@ interface Props {
     booking: LargeProjectPlannerBooking,
     product: BookingProductForPlanner,
   ) => void;
+  /** Horisontell layout — ligger ovanför kalendern och scrollar i sidled. */
+  horizontal?: boolean;
 }
 
 const FILTERS: { key: Filter; label: string }[] = [
