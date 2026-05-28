@@ -206,40 +206,42 @@ const LargeProjectPlannerCalendarView = ({
 
   return (
     <EditControllerProvider>
-      <div className="project-calendar-shell large-planner-calendar-shell">
-        <div className="custom-calendar-container weekly-view">
-          <div className="weekly-horizontal-grid project-weekly-horizontal-grid">
-            {days.map((day) => {
-              const date = parseISO(day.date);
-              const dayTeams = teamsByDay[day.date] ?? [];
-              const resources = buildPlannerResourcesForDay(dayTeams);
-              const phaseCls = day.phase ? PHASE_CLASS[day.phase] ?? '' : 'project-phase-none';
-              const isToday = day.date === format(new Date(), 'yyyy-MM-dd');
-              const headerLabel = format(date, 'EEE d MMM', { locale: sv });
-              return (
-                <div
-                  key={day.date}
-                  className={`weekly-day-card project-weekly-day-card ${phaseCls} ${isToday ? 'is-today' : ''}`}
-                  title={headerLabel}
-                >
-                  <TimeGrid
-                    day={date}
-                    resources={resources}
-                    events={events}
-                    getEventsForDayAndResource={getEventsForDayAndResource}
-                    onEventDrop={handlePlannerEventDrop}
-                    onEventClick={onEventClick}
-                    weeklyStaffOperations={weeklyStaffOperations}
-                    fullWidth
-                    plannerMode
-                    variant="default"
-                  />
-                </div>
-              );
-            })}
+      <ConsolidationMenuDisabledProvider disabled>
+        <div className="project-calendar-shell large-planner-calendar-shell">
+          <div className="custom-calendar-container weekly-view">
+            <div className="weekly-horizontal-grid project-weekly-horizontal-grid">
+              {days.map((day) => {
+                const date = parseISO(day.date);
+                const dayTeams = teamsByDay[day.date] ?? [];
+                const resources = buildPlannerResourcesForDay(dayTeams);
+                const phaseCls = day.phase ? PHASE_CLASS[day.phase] ?? '' : 'project-phase-none';
+                const isToday = day.date === format(new Date(), 'yyyy-MM-dd');
+                const headerLabel = format(date, 'EEE d MMM', { locale: sv });
+                return (
+                  <div
+                    key={day.date}
+                    className={`weekly-day-card project-weekly-day-card ${phaseCls} ${isToday ? 'is-today' : ''}`}
+                    title={headerLabel}
+                  >
+                    <TimeGrid
+                      day={date}
+                      resources={resources}
+                      events={events}
+                      getEventsForDayAndResource={getEventsForDayAndResource}
+                      onEventDrop={handlePlannerEventDrop}
+                      onEventClick={onEventClick}
+                      weeklyStaffOperations={weeklyStaffOperations}
+                      fullWidth
+                      plannerMode
+                      variant="default"
+                    />
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
-      </div>
+      </ConsolidationMenuDisabledProvider>
     </EditControllerProvider>
   );
 };
