@@ -24,6 +24,7 @@ import {
 import ConsolidateProjectsDialog from '@/components/project/ConsolidateProjectsDialog';
 import { resolveEventConsolidationSource } from '@/services/eventConsolidationResolver';
 import type { ConsolidationSource } from '@/services/projectConsolidationService';
+import { useConsolidationMenuDisabled } from '@/contexts/ConsolidationMenuContext';
 import './CustomEvent.css';
 
 interface CustomEventProps {
