@@ -4093,6 +4093,32 @@ serve(async (req) => {
       errors: results.errors.length > 0 ? results.errors : undefined,
     }))
 
+    // ── Kort-varsel-notiser för nya bokningar (fire-and-forget) ──────────
+    // Inom-app-meddelande + mejl till admin/projekt/forsaljning om
+    // riggdagen ligger inom 7 dagar.
+    if (results.new_bookings.length > 0) {
+      try {
+        const supabaseUrlForNotify = Deno.env.get('SUPABASE_URL')!;
+        const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        // Vänta inte på svaret — kapa max 2 sek så vi aldrig blockar importen.
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        fetch(`${supabaseUrlForNotify}/functions/v1/notify-short-notice-bookings`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${serviceKey}`,
+          },
+          body: JSON.stringify({ booking_ids: results.new_bookings }),
+          signal: controller.signal,
+        })
+          .catch((err) => console.warn('[import-bookings] notify-short-notice dispatch failed', err))
+          .finally(() => clearTimeout(timeoutId));
+      } catch (err) {
+        console.warn('[import-bookings] notify-short-notice setup failed', err);
+      }
+    }
+
     return new Response(
       JSON.stringify({ success: true, results }),
       {
