@@ -1,91 +1,124 @@
-import type { DaySegment, SegmentType } from './dayPartition';
+import type { DaySegment } from './dayPartition';
+import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
 
-export type LastPingReasonKind =
-  | 'home_end_of_day'
-  | 'work_ended_quiet'
-  | 'travel_cutoff'
-  | 'signal_lost'
-  | 'battery_or_app_closed'
-  | 'normal_end_of_day'
-  | 'unknown';
-
-export interface LastPingReason {
-  kind: LastPingReasonKind;
-  /** Kort förklaring som visas i UI:t. */
+export interface DayCloser {
+  /** Kort fakta-text om hur dagen faktiskt avslutades. */
   text: string;
-  /** Om det är en avvikelse värd en varningstriangel. */
-  warn: boolean;
+}
+
+interface BuildArgs {
+  /** Sista synliga rapport-radens segment (måste komma från samma listas filter). */
+  reportRows: DaySegment[];
+  /** Hela dagens rå-segment (work/travel/private/unknown_place/gps_gap/idle). */
+  rawSegments: DaySegment[];
+  /** Sista faktiska ping (summary.lastIso). */
+  actualLastPingIso?: string | null;
+}
+
+function isHomeLike(seg: DaySegment | undefined): boolean {
+  if (!seg) return false;
+  if (seg.type === 'private') return true;
+  const label = `${seg.label ?? ''} ${seg.toLabel ?? ''}`.toLowerCase();
+  return /\bhem\b|\bhome\b|\bbostad\b|\bprivat\b/.test(label);
+}
+
+function fmtDur(min: number): string {
+  if (!min) return '0m';
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (h <= 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
+function hiddenKindLabel(t: DaySegment['type']): string | null {
+  if (t === 'private') return 'privat';
+  if (t === 'unknown_place') return 'okänt';
+  if (t === 'gps_gap') return 'GPS-glapp';
+  if (t === 'travel') return 'intern rörelse';
+  return null;
 }
 
 /**
- * Heuristisk gissning för varför ping-strömmen tystnar efter sista blocket.
- * Ren funktion — ingen DB, inga sidoeffekter. Används av StaffGpsDayRow.
+ * Returnera en faktabaserad beskrivning av hur dagen avslutades baserat ENBART
+ * på vad rå-segmenten faktiskt visar efter sista rapport-rad. Aldrig en gissning
+ * om batteri/app/GPS — bara observerade händelser eller null.
  */
-export function inferLastPingReason(
-  lastSegment: DaySegment | null | undefined,
-  lastIso: string | null | undefined,
-  staffName?: string | null,
-): LastPingReason | null {
-  if (!lastSegment || !lastIso) return null;
+export function buildDayCloser({
+  reportRows,
+  rawSegments,
+  actualLastPingIso,
+}: BuildArgs): DayCloser | null {
+  if (!rawSegments?.length || !reportRows?.length) return null;
 
-  const who = staffName?.split(' ')[0]?.trim() || 'Personalen';
-  const endDate = new Date(lastIso);
-  if (Number.isNaN(endDate.getTime())) return null;
-  const hour = endDate.getHours();
-  const lateEvening = hour >= 21 || hour < 5;
+  const lastReportEnd = reportRows[reportRows.length - 1]?.end;
+  if (!lastReportEnd) return null;
+  const lastReportEndMs = new Date(lastReportEnd).getTime();
+  if (Number.isNaN(lastReportEndMs)) return null;
 
-  const type: SegmentType = lastSegment.type;
+  // Allt som ligger EFTER sista rapport-rad (lite slack för exakt-end-match).
+  const after = rawSegments.filter((s) => {
+    const startMs = new Date(s.start).getTime();
+    return !Number.isNaN(startMs) && startMs >= lastReportEndMs - 60_000 && s.start !== lastReportEnd ? startMs >= lastReportEndMs : false;
+  });
+  // Enklare och mer pålitlig version:
+  const afterSegments = rawSegments.filter((s) => {
+    const startMs = new Date(s.start).getTime();
+    return !Number.isNaN(startMs) && startMs >= lastReportEndMs;
+  });
 
-  if (type === 'private') {
-    return {
-      kind: 'home_end_of_day',
-      text: `${who} kom hem — avslutad dag triggades automatiskt och bakgrundsloggningen stängdes av.`,
-      warn: false,
-    };
-  }
+  // Hitta första travel + första private efter sista rapport-rad.
+  const firstTravel = afterSegments.find((s) => s.type === 'travel');
+  const firstPrivate = afterSegments.find((s) => s.type === 'private');
 
-  if (type === 'gps_gap') {
-    return {
-      kind: 'signal_lost',
-      text: 'GPS-signalen tappades efter sista händelsen — möjligen inomhus, dålig täckning eller telefonen i fickan utan rörelse.',
-      warn: true,
-    };
-  }
+  const lastReportLabel =
+    reportRows[reportRows.length - 1]?.toLabel?.trim() ||
+    reportRows[reportRows.length - 1]?.label?.trim() ||
+    firstTravel?.fromLabel?.trim() ||
+    'arbetsplatsen';
 
-  if (type === 'unknown_place') {
-    return {
-      kind: 'signal_lost',
-      text: 'Sista positionerna kunde inte kopplas till en känd plats — inga fler pings registrerades därefter.',
-      warn: true,
-    };
-  }
-
-  if (type === 'travel') {
-    return {
-      kind: 'travel_cutoff',
-      text: 'Loggningen tystnade mitt under en förflyttning — troligen tomt batteri, app i bakgrunden eller avslagen GPS.',
-      warn: true,
-    };
-  }
-
-  if (type === 'work') {
-    if (lateEvening) {
+  // Fall 1: Resa till hem/privat → dagen avslutades genom att personen åkte hem.
+  if (firstTravel) {
+    const arrivedHome =
+      isHomeLike(firstPrivate) ||
+      isHomeLike(firstTravel) ||
+      (firstTravel.toLabel ?? '').toLowerCase().includes('hem');
+    if (arrivedHome) {
+      const from = firstTravel.fromLabel?.trim() || lastReportLabel;
       return {
-        kind: 'normal_end_of_day',
-        text: `${who} stannade kvar på platsen — inga fler pings förväntas efter arbetsdagens slut.`,
-        warn: false,
+        text: `Arbetsdagen avslutades — ${formatStockholmHm(firstTravel.start)} resa från ${from} → Hem.`,
       };
     }
+    // Resa utan känt mål — bara fakta.
+    const from = firstTravel.fromLabel?.trim() || lastReportLabel;
     return {
-      kind: 'battery_or_app_closed',
-      text: `Inga fler pings efter detta — troligen tomt batteri, app stängd eller GPS avstängd innan ${who} lämnade platsen.`,
-      warn: true,
+      text: `${formatStockholmHm(firstTravel.start)} resa från ${from}. Inga fler arbetsplats-pings efter detta.`,
     };
   }
 
-  return {
-    kind: 'unknown',
-    text: 'Inga fler pings registrerades efter sista blocket.',
-    warn: false,
-  };
+  // Fall 2: Direkt private utan resa → "X → privat/hem".
+  if (firstPrivate) {
+    const homeWord = isHomeLike(firstPrivate) ? 'Hem' : 'privat';
+    return {
+      text: `Arbetsdagen avslutades — ${formatStockholmHm(firstPrivate.start)} ${lastReportLabel} → ${homeWord}.`,
+    };
+  }
+
+  // Fall 3: Pings fortsätter (dolda kategorier som unknown/gap) utan resa eller hem.
+  const hiddenAfter = afterSegments.filter((s) => s.minutes >= 1 && s.type !== 'work');
+  if (hiddenAfter.length > 0 && actualLastPingIso) {
+    const lastMs = new Date(actualLastPingIso).getTime();
+    if (!Number.isNaN(lastMs) && lastMs - lastReportEndMs >= 2 * 60_000) {
+      const kinds = Array.from(
+        new Set(hiddenAfter.map((s) => hiddenKindLabel(s.type)).filter((x): x is string => !!x)),
+      );
+      const totalMin = hiddenAfter.reduce((a, b) => a + b.minutes, 0);
+      const kindsText = kinds.length ? ` (dolt: ${kinds.join(', ')}, ${fmtDur(totalMin)})` : '';
+      return {
+        text: `Pings fortsatte till ${formatStockholmHm(actualLastPingIso)}${kindsText}. Ingen ny arbetsplats.`,
+      };
+    }
+  }
+
+  return null;
 }
