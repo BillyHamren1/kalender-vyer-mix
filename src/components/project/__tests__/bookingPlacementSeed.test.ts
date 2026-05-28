@@ -4,6 +4,7 @@ import {
   insertDaySorted,
   removeDayAt,
   seedDaysFromBooking,
+  mergeCalendarEventsIntoSeed,
   nextDayIso,
   prevDayIso,
   DEFAULTS,
@@ -204,5 +205,110 @@ describe('seedDaysFromBooking — rental_only (leverans)', () => {
     expect(days.every((d) => d.teamId === DELIVERY_DEFAULT_TEAM_ID)).toBe(true);
   });
 });
+
+describe('mergeCalendarEventsIntoSeed — flera riggdagar behandlas likadant', () => {
+  const baseBooking = {
+    rigdaydate: '2026-05-30',
+    rig_start_time: '08:00:00',
+    rig_end_time: '12:00:00',
+    eventdate: '2026-05-30',
+    rigdowndate: '2026-05-30',
+  };
+
+  it('lägger till extra riggdag från calendar_events som saknas i seed', () => {
+    const seed = seedDaysFromBooking(baseBooking, 'team-2');
+    const merged = mergeCalendarEventsIntoSeed(seed, [
+      {
+        event_type: 'rig',
+        source_date: '2026-05-29',
+        start_time: '09:00:00',
+        end_time: '17:00:00',
+        resource_id: 'team-3',
+      },
+    ], 'team-2');
+
+    const rigs = merged.filter((d) => d.kind === 'rig');
+    expect(rigs.map((d) => d.date)).toEqual(['2026-05-29', '2026-05-30']);
+    // Extra riggdagen behåller exakt samma form som seed-dagen
+    expect(rigs[0]).toEqual({
+      date: '2026-05-29',
+      kind: 'rig',
+      startTime: '09:00',
+      endTime: '17:00',
+      teamId: 'team-3',
+    });
+  });
+
+  it('dedupar samma fas+datum — seed vinner, ingen dubblett', () => {
+    const seed = seedDaysFromBooking(baseBooking, 'team-2');
+    const merged = mergeCalendarEventsIntoSeed(seed, [
+      {
+        event_type: 'rig',
+        source_date: '2026-05-30',
+        start_time: '06:00:00',
+        end_time: '07:00:00',
+        resource_id: 'team-9',
+      },
+    ]);
+    const rigs = merged.filter((d) => d.kind === 'rig');
+    expect(rigs).toHaveLength(1);
+    // Seed-värdena är intakta
+    expect(rigs[0].startTime).toBe('08:00');
+    expect(rigs[0].teamId).toBe('team-2');
+  });
+
+  it('hanterar flera rigDown- och eventdagar från calendar_events', () => {
+    const seed = seedDaysFromBooking(
+      { rigdaydate: '2026-05-29', eventdate: '2026-05-30', rigdowndate: '2026-05-31' },
+      'team-1',
+    );
+    const merged = mergeCalendarEventsIntoSeed(seed, [
+      { event_type: 'rigDown', source_date: '2026-06-01', start_time: '08:00', end_time: '12:00', resource_id: 'team-1' },
+      { event_type: 'event', source_date: '2026-05-31', start_time: '18:00', end_time: '23:00', resource_id: null },
+    ]);
+    expect(merged.filter((d) => d.kind === 'rigDown').map((d) => d.date)).toEqual(['2026-05-31', '2026-06-01']);
+    expect(merged.filter((d) => d.kind === 'event').map((d) => d.date)).toEqual(['2026-05-30', '2026-05-31']);
+  });
+
+  it('sorterar kronologiskt med fasordning inom samma datum', () => {
+    const merged = mergeCalendarEventsIntoSeed(
+      [],
+      [
+        { event_type: 'rigDown', source_date: '2026-05-30', start_time: null, end_time: null, resource_id: null },
+        { event_type: 'rig', source_date: '2026-05-30', start_time: null, end_time: null, resource_id: null },
+        { event_type: 'event', source_date: '2026-05-30', start_time: null, end_time: null, resource_id: null },
+        { event_type: 'rig', source_date: '2026-05-28', start_time: null, end_time: null, resource_id: null },
+      ],
+      'team-1',
+    );
+    expect(merged.map((d) => `${d.date}/${d.kind}`)).toEqual([
+      '2026-05-28/rig',
+      '2026-05-30/rig',
+      '2026-05-30/event',
+      '2026-05-30/rigDown',
+    ]);
+  });
+
+  it('faller tillbaka till seedens rig-team när calendar_events saknar giltigt resource_id', () => {
+    const seed = seedDaysFromBooking({ rigdaydate: '2026-05-30' }, 'team-7');
+    const merged = mergeCalendarEventsIntoSeed(seed, [
+      { event_type: 'rig', source_date: '2026-05-29', start_time: null, end_time: null, resource_id: null },
+      { event_type: 'rig', source_date: '2026-05-28', start_time: null, end_time: null, resource_id: 'not-a-team' },
+    ]);
+    const rigs = merged.filter((d) => d.kind === 'rig');
+    expect(rigs.every((d) => d.teamId === 'team-7')).toBe(true);
+  });
+
+  it('ignorerar okända event_type och ogiltiga datum', () => {
+    const merged = mergeCalendarEventsIntoSeed([], [
+      { event_type: 'lunch' as any, source_date: '2026-05-29', start_time: null, end_time: null, resource_id: null },
+      { event_type: 'rig', source_date: 'inte-ett-datum', start_time: null, end_time: null, resource_id: null },
+      { event_type: 'rig', source_date: '2026-05-29', start_time: null, end_time: null, resource_id: null },
+    ]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].date).toBe('2026-05-29');
+  });
+});
+
 
 
