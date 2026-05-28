@@ -1,21 +1,31 @@
-// Mobil-spegel av WeekFlow. Använder samma `useStaffTimeWeekFlow` + samma
-// DayCard som admin → samma rader, samma status, samma datum-summor.
-// Lägg in i toppen av TimeReportTab (eller var som helst i mobilen).
-
+/**
+ * WeekFlowMobilePanel — mobil-vyn för /m/report. Speglar admin Tid & Lön 1:1.
+ *
+ * - Använder samma `useStaffTimeWeekFlow` + `WeekFlowDayCard` som admin.
+ * - "Skicka in" öppnar DayReviewSheet (samma get-mobile-gps-day-view +
+ *   submit-mobile-gps-day-v2 som tidigare).
+ * - "Öppna GPS" → /m/gps?date=… (om sådan vy finns; annars osynlig).
+ *
+ * Ingen egen statusmodell. Inga skrivningar till legacy-tabeller.
+ */
 import { useMemo, useState } from "react";
-import { addDays, startOfWeek } from "date-fns";
+import { addDays, addWeeks, format, startOfWeek, subWeeks } from "date-fns";
+import { sv } from "date-fns/locale";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useStaffTimeWeekFlow } from "@/hooks/staffTimeFlow/useStaffTimeWeekFlow";
 import WeekFlowDayCard from "@/components/staff-time/week-flow/WeekFlowDayCard";
+import DayReviewSheet from "@/features/mobile-time-v2/DayReviewSheet";
 import { useCurrentStaffId } from "@/hooks/useCurrentStaffId";
-import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
-import { format, subWeeks, addWeeks } from "date-fns";
-import { sv } from "date-fns/locale";
 
 export default function WeekFlowMobilePanel() {
+  const qc = useQueryClient();
   const navigate = useNavigate();
   const { staffId } = useCurrentStaffId();
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const [openDate, setOpenDate] = useState<string | null>(null);
+
   const weekDates = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
     [weekStart],
@@ -27,6 +37,8 @@ export default function WeekFlowMobilePanel() {
     viewer: "staff",
   });
 
+  const weekEnd = addDays(weekStart, 6);
+
   if (!staffId) {
     return (
       <div className="text-sm text-muted-foreground p-4 text-center">
@@ -35,16 +47,30 @@ export default function WeekFlowMobilePanel() {
     );
   }
 
+  const openDateRow = openDate
+    ? flow?.days.find((d) => d.date === openDate) ?? null
+    : null;
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 p-3">
       <div className="flex items-center justify-between gap-2 px-1">
-        <button onClick={() => setWeekStart(subWeeks(weekStart, 1))} className="p-1.5 rounded hover:bg-muted">
+        <button
+          onClick={() => setWeekStart(subWeeks(weekStart, 1))}
+          className="p-1.5 rounded hover:bg-muted"
+          aria-label="Föregående vecka"
+        >
           <ChevronLeft className="h-4 w-4" />
         </button>
-        <div className="text-xs font-semibold tabular-nums">
-          Vecka {format(weekStart, "I")} · {format(weekStart, "d MMM", { locale: sv })}
+        <div className="text-xs font-semibold tabular-nums text-center">
+          Vecka {format(weekStart, "I")} ·{" "}
+          {format(weekStart, "d MMM", { locale: sv })} –{" "}
+          {format(weekEnd, "d MMM", { locale: sv })}
         </div>
-        <button onClick={() => setWeekStart(addWeeks(weekStart, 1))} className="p-1.5 rounded hover:bg-muted">
+        <button
+          onClick={() => setWeekStart(addWeeks(weekStart, 1))}
+          className="p-1.5 rounded hover:bg-muted"
+          aria-label="Nästa vecka"
+        >
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
@@ -59,10 +85,20 @@ export default function WeekFlowMobilePanel() {
         <WeekFlowDayCard
           key={day.date}
           day={day}
-          onSubmit={(date) => navigate(`/m/day-review?date=${date}`)}
-          onOpenGps={(date) => navigate(`/m/report?date=${date}`)}
+          onSubmit={(date) => setOpenDate(date)}
+          onOpenGps={(date) => navigate(`/m/gps?date=${date}`)}
         />
       ))}
+
+      <DayReviewSheet
+        staffId={staffId}
+        date={openDate}
+        reviewComment={openDateRow?.reviewComment ?? null}
+        onClose={() => setOpenDate(null)}
+        onSubmitted={() => {
+          qc.invalidateQueries({ queryKey: ["staff-time-flow-submissions"] });
+        }}
+      />
     </div>
   );
 }

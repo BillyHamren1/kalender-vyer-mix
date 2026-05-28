@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Users } from "lucide-react";
-import { format, addWeeks, subWeeks, startOfWeek } from "date-fns";
+import { format, addDays, addWeeks, subWeeks, startOfWeek } from "date-fns";
 import { sv } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentOrg } from "@/hooks/useCurrentOrg";
@@ -40,7 +40,8 @@ export default function WeekFlowHeader({
     return () => { alive = false; };
   }, [organizationId]);
 
-  const weekLabel = `Vecka ${format(weekStart, "I")} · ${format(weekStart, "d MMM", { locale: sv })} – ${format(addWeeks(weekStart, 1), "d MMM", { locale: sv })}`;
+  const weekEnd = addDays(weekStart, 6);
+  const weekLabel = `Vecka ${format(weekStart, "I")} · ${format(weekStart, "d MMM", { locale: sv })} – ${format(weekEnd, "d MMM", { locale: sv })}`;
 
   return (
     <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b bg-card/50">

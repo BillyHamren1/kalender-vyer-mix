@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Clock, AlertCircle, FileEdit, MapPin } from "lucide-react";
 import type { WeekFlowDay, WeekFlowStatus } from "@/lib/staffTimeFlow/types";
+import { formatStockholmHm } from "@/lib/staff/formatStockholmTime";
 import WeekFlowApproveButtons from "./WeekFlowApproveButtons";
 
 function fmtDur(min: number): string {
@@ -146,7 +147,7 @@ export default function WeekFlowDayCard({ day, onSubmit, onOpenGps, showHeader =
                   <span className="truncate">{routeLabel}</span>
                   {r.startIso && r.endIso && (
                     <span className="text-[10px] tabular-nums text-muted-foreground/60 shrink-0">
-                      {r.startIso.slice(11, 16)}–{r.endIso.slice(11, 16)}
+                      {formatStockholmHm(r.startIso)}–{formatStockholmHm(r.endIso)}
                     </span>
                   )}
                 </span>
