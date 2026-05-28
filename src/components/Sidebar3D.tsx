@@ -338,53 +338,70 @@ export function Sidebar3D() {
                 : {};
 
 
+            const pinned = hasTab(item.url);
+            const triggerEl = hasChildren ? (
+              <button
+                onClick={() => {
+                  navigate(item.url);
+                  toggleExpanded(item.url);
+                }}
+                className={itemClassName}
+                style={itemStyle}
+                {...sharedMouseProps}
+              >
+                {iconEl}
+                {labelEl}
+                {badgeEl}
+                {!isCollapsed && (
+                  <ChevronDown
+                    className={cn(
+                      "w-3.5 h-3.5 shrink-0 transition-transform duration-200",
+                      expanded ? "rotate-180" : "",
+                      active || hasActiveChild
+                        ? "text-[hsl(var(--primary))]"
+                        : "text-[hsl(240_6%_55%)]"
+                    )}
+                    strokeWidth={2}
+                  />
+                )}
+                {isCollapsed && (
+                  <CollapsedTooltip label={item.title} show={hovered} />
+                )}
+              </button>
+            ) : (
+              <NavLink
+                to={item.url}
+                className={itemClassName}
+                style={itemStyle}
+                {...sharedMouseProps}
+              >
+                {iconEl}
+                {labelEl}
+                {badgeEl}
+                {isCollapsed && (
+                  <CollapsedTooltip label={item.title} show={hovered} />
+                )}
+              </NavLink>
+            );
+
             return (
               <div key={item.url} className="relative">
-                {hasChildren ? (
-                  <button
-                    onClick={() => {
-                      navigate(item.url);
-                      toggleExpanded(item.url);
-                    }}
-                    className={itemClassName}
-                    style={itemStyle}
-                    {...sharedMouseProps}
-                  >
-                    {iconEl}
-                    {labelEl}
-                    {badgeEl}
-                    {!isCollapsed && (
-                      <ChevronDown
-                        className={cn(
-                          "w-3.5 h-3.5 shrink-0 transition-transform duration-200",
-                          expanded ? "rotate-180" : "",
-                          active || hasActiveChild
-                            ? "text-[hsl(var(--primary))]"
-                            : "text-[hsl(240_6%_55%)]"
-                        )}
-                        strokeWidth={2}
-                      />
-
+                <ContextMenu>
+                  <ContextMenuTrigger asChild>{triggerEl}</ContextMenuTrigger>
+                  <ContextMenuContent>
+                    {pinned ? (
+                      <ContextMenuItem onSelect={() => removeTab(item.url)}>
+                        <PinOff className="w-3.5 h-3.5 mr-2" /> Ta bort tabb
+                      </ContextMenuItem>
+                    ) : (
+                      <ContextMenuItem
+                        onSelect={() => addTab({ path: item.url, title: item.title })}
+                      >
+                        <Pin className="w-3.5 h-3.5 mr-2" /> Spara som tabb
+                      </ContextMenuItem>
                     )}
-                    {isCollapsed && (
-                      <CollapsedTooltip label={item.title} show={hovered} />
-                    )}
-                  </button>
-                ) : (
-                  <NavLink
-                    to={item.url}
-                    className={itemClassName}
-                    style={itemStyle}
-                    {...sharedMouseProps}
-                  >
-                    {iconEl}
-                    {labelEl}
-                    {badgeEl}
-                    {isCollapsed && (
-                      <CollapsedTooltip label={item.title} show={hovered} />
-                    )}
-                  </NavLink>
-                )}
+                  </ContextMenuContent>
+                </ContextMenu>
 
                 {/* Sub-items */}
                 {hasChildren && !isCollapsed && expanded && (
@@ -394,53 +411,71 @@ export function Sidebar3D() {
                   >
                     {item.children!.map((child) => {
                       const childActive = isChildActive(child.url);
+                      const childPinned = hasTab(child.url);
                       return (
-                        <NavLink
-                          key={child.url}
-                          to={child.url}
-                          className={cn(
-                            "flex items-center gap-2 rounded-md px-2 py-1.5 text-[12px] transition-all duration-150"
-                          )}
-                          style={
-                            childActive
-                              ? {
-                                  background: "hsl(270 55% 96%)",
-                                  color: "hsl(280 50% 28%)",
-                                  fontWeight: 600,
-                                }
-                              : {
-                                  color: "hsl(240 8% 38%)",
-                                }
-                          }
-                          onMouseEnter={(e) => {
-                            if (!childActive)
-                              (e.currentTarget as HTMLElement).style.background =
-                                "hsl(240 8% 95%)";
-                          }}
-                          onMouseLeave={(e) => {
-                            if (!childActive)
-                              (e.currentTarget as HTMLElement).style.background =
-                                "transparent";
-                          }}
-                        >
-                          {child.icon && (
-                            <child.icon
-                              className="w-3.5 h-3.5 shrink-0"
-                              strokeWidth={childActive ? 2.1 : 1.75}
-                              style={{
-                                color: childActive
-                                  ? "hsl(var(--primary))"
-                                  : "hsl(240 6% 52%)",
+                        <ContextMenu key={child.url}>
+                          <ContextMenuTrigger asChild>
+                            <NavLink
+                              to={child.url}
+                              className={cn(
+                                "flex items-center gap-2 rounded-md px-2 py-1.5 text-[12px] transition-all duration-150"
+                              )}
+                              style={
+                                childActive
+                                  ? {
+                                      background: "hsl(270 55% 96%)",
+                                      color: "hsl(280 50% 28%)",
+                                      fontWeight: 600,
+                                    }
+                                  : {
+                                      color: "hsl(240 8% 38%)",
+                                    }
+                              }
+                              onMouseEnter={(e) => {
+                                if (!childActive)
+                                  (e.currentTarget as HTMLElement).style.background =
+                                    "hsl(240 8% 95%)";
                               }}
-                            />
-                          )}
-                          <span className="truncate">{child.title}</span>
-                        </NavLink>
+                              onMouseLeave={(e) => {
+                                if (!childActive)
+                                  (e.currentTarget as HTMLElement).style.background =
+                                    "transparent";
+                              }}
+                            >
+                              {child.icon && (
+                                <child.icon
+                                  className="w-3.5 h-3.5 shrink-0"
+                                  strokeWidth={childActive ? 2.1 : 1.75}
+                                  style={{
+                                    color: childActive
+                                      ? "hsl(var(--primary))"
+                                      : "hsl(240 6% 52%)",
+                                  }}
+                                />
+                              )}
+                              <span className="truncate">{child.title}</span>
+                            </NavLink>
+                          </ContextMenuTrigger>
+                          <ContextMenuContent>
+                            {childPinned ? (
+                              <ContextMenuItem onSelect={() => removeTab(child.url)}>
+                                <PinOff className="w-3.5 h-3.5 mr-2" /> Ta bort tabb
+                              </ContextMenuItem>
+                            ) : (
+                              <ContextMenuItem
+                                onSelect={() =>
+                                  addTab({ path: child.url, title: child.title })
+                                }
+                              >
+                                <Pin className="w-3.5 h-3.5 mr-2" /> Spara som tabb
+                              </ContextMenuItem>
+                            )}
+                          </ContextMenuContent>
+                        </ContextMenu>
                       );
                     })}
                   </div>
                 )}
-
               </div>
             );
           })}
