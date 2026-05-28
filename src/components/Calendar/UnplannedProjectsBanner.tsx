@@ -54,11 +54,7 @@ export const UnplannedProjectsBanner: React.FC = () => {
               className="w-full text-left group flex items-center gap-3 px-4 py-2 hover:bg-primary/5 transition-colors"
             >
               <div className="shrink-0">
-                {p.kind === 'large' ? (
-                  <Building2 className="h-4 w-4 text-primary/70" />
-                ) : (
-                  <FolderKanban className="h-4 w-4 text-primary/70" />
-                )}
+                <FolderKanban className="h-4 w-4 text-primary/70" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -71,7 +67,7 @@ export const UnplannedProjectsBanner: React.FC = () => {
                     </span>
                   )}
                   <Badge variant="outline" className="h-4 px-1.5 text-[10px] shrink-0">
-                    {p.kind === 'large' ? 'Stort' : 'Medel'}
+                    Medel
                   </Badge>
                 </div>
                 <div className="flex items-center gap-3 mt-0.5 text-[11px] text-muted-foreground">
