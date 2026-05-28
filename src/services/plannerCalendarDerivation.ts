@@ -40,6 +40,7 @@ interface BookingRow {
   rigdown_time_locked?: boolean | null;
   status: string | null;
   customer_pickup?: boolean | null;
+  calendar_color?: string | null;
 }
 
 interface LargeProjectRow {
