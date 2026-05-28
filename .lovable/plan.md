@@ -1,62 +1,45 @@
+# Projektkalender: kopiera beteende, inte backend
 
-## Mål
+## Vad jag missförstod
+Jag bytte ut projektkalendern mot `ProjectCalendarView` (personalkalenderns komponent) och lät `LargeProjectPlannerPanel` skriva via `syncBookingPhaseDays` — det blandar ihop backends. Det är fel.
 
-Projektkalendern (`/large-project/:id/establishment` → `LargeProjectPlannerCalendarView`) ska spegla personalkalenderns kolumnindelning **exakt**: fasta kolumner **Team 1 … Team 5** per dag. Ingen "Ej tilldelat"-kolumn. Planner-items som saknar `assigned_team_id` placeras i sitt naturliga team via en deterministisk regel (se nedan) så att inget item försvinner.
+## Regel (låsa fast)
+- **Personalkalendern** skriver till `calendar_events` + `bookings.<phase>_*`.
+- **Projektkalendern (large project planner)** skriver till `large_project_booking_plan_items` (+ `large_project_team_assignments` för team).
+- De får **aldrig** dela skrivväg. Endast UX/beteende ska vara identiskt.
 
-## Beslutad lösning
+## Vad som ska göras
 
-- **Kolumner per dag:** alltid fasta `team-1 … team-5`. Identiskt med personalkalendern.
-- **"Ej tilldelat"-kolumnen tas bort helt** ur projektplanner-vyn.
-- **Källa till team-PERSONAL i kolumnerna:** ENDAST `large_project_team_assignments` (LPTA), enligt memory `large-project-team-source-of-truth-v1`. Tom LPTA ⇒ team-kolumnen visar inga staff-badges, men kolumnen finns kvar.
-- **Items utan `assigned_team_id`:** renderas i Team 1 som default (eller — om man föredrar — i det första team som har LPTA-personal den dagen; se öppen fråga nedan). Vid första drop sätts riktigt team.
-- **Drag-and-drop:** oförändrat — skriver bara `assigned_team_id` på `large_project_booking_plan_items`. Ingen skrivning till LPTA, `calendar_events`, `staff_assignments` eller `bookings`.
+### 1. Återställ komponentvalet
+- `LargeEstablishmentPage.tsx` ska återgå till att rendera **`LargeProjectBookingPlannerCalendar`** (projektkalenderns egen komponent), inte `ProjectCalendarView`.
+- Behåll `LargeProjectPlannerPanel` som högerpanel som tidigare.
 
-## Ändringar (endast frontend/data-läsning)
+### 2. Återställ skrivvägen i panelen
+- `LargeProjectPlannerPanel.handlePlanWholeBooking` ska **inte** anropa `syncBookingPhaseDays`.
+- Den ska skriva planerade dagar till `large_project_booking_plan_items` via den befintliga planner-servicen (samma väg som tidigare innan jag bröt den).
+- Återinför valideringen att man bara kan planera på dagar som finns i projektet (eller ersätt med projektkalenderns egen "lägg till rigdag/nedriggdag"-flöde — se punkt 3).
 
-### 1. `src/components/project/large-planner/LargeProjectPlannerCalendarAdapter.ts`
-- Ta bort `UNASSIGNED_RESOURCE_ID` och dess kolumn i `buildPlannerResourcesForDay`.
-- `buildPlannerResourcesForDay(dayTeams)` returnerar **alltid** fem resurser: team-1, team-2, team-3, team-4, team-5 (i den ordningen). Title = "Team N". Staff-badges hämtas från `dayTeams` om teamet finns där, annars tom lista.
-- `mapPlannerItemsToCalendarEvents`: om `assigned_team_id` saknas → fallback till `'team-1'` så itemet alltid hamnar i en synlig kolumn.
+### 3. Kopiera BETEENDE från personalkalendern till projektkalendern
+Detta är det som faktiskt löser användarens problem. Identifiera och spegla i `LargeProjectBookingPlannerCalendar`:
 
-### 2. `src/components/project/large-planner/LargeProjectPlannerCalendarView.tsx`
-- Ta bort all referens till `UNASSIGNED_RESOURCE_ID`.
-- `handlePlannerEventDrop`: `nextTeamId = targetResourceId` (alltid ett team-id; ingen null-gren).
-- `getStaffForTeamAndDate`: returnera `[]` för team som saknas i `teamsByDay[date]`.
+- **Hover/popover**: samma hover-card-komponent som personalkalendern (`StaffCalendarHoverCard` eller motsv.) — visa samma info, samma trigger-delay, samma stil.
+- **Klick → redigera rig/event/nedrigg**: samma dialog/flöde som personalkalendern använder för att ändra fas-dagar. I projektkalendern ska den dialogen skriva till **planner-tabellen**, inte till `bookings`/`calendar_events`.
+- **Lägg till extra rigg-/nedriggdag**: samma UX som `AddRiggDayDialog`, men sparvägen går till `large_project_booking_plan_items` (eller motsvarande planner-store).
+- **Drag/resize, färger, block-layout, badges**: matcha visuellt och interaktionsmässigt.
 
-### 3. `src/components/project/large-planner/largeProjectPlannerService.ts`
-- `fetchProjectStaffPerDay` byter källa från `calendar_events.resource_id` till `large_project_team_assignments`:
-  - Hämta LPTA-rader för `large_project_id`.
-  - För varje `(assignment_date, team_id)` → bygg `teamsByDate`.
-  - Hämta personal via `staff_assignments` på `(team_id, assignment_date)` och slå upp namn/färg i `staff_members`.
-- `buildTeamsByDay` får en LPTA-variant (`buildTeamsByDayFromLpta`). Gamla funktionen kan tas bort eller markeras deprecated.
+Konkret: lyft ut den **presentationella** delen av personalkalenderns block/hover/dialog till delade, "dumma" UI-komponenter (props in, callbacks ut) som båda kalendrarna kan rendera. Skrivlogiken stannar i respektive kalenders egen container/hook.
 
-### 4. Memory
-- Förtydliga `mem://constraints/large-project-team-source-of-truth-v1`: projektplanner-kalendern visar alltid fasta kolumner team-1…5. Personal-badges per team läses ENDAST från LPTA. Ingen "Ej tilldelat"-kolumn.
+### 4. Fixa "sparade 3 nedriggdagar men inget hände"
+- Verifiera att projektkalenderns "spara nedriggdagar"-flöde faktiskt skriver till planner-tabellen och att kalendern läser från samma källa.
+- Lägg till en vitest som planerar 3 nedriggdagar via projektkalenderns flöde och asserterar att de dyker upp i `large_project_booking_plan_items` och renderas i kalendern — utan att röra `calendar_events`/`bookings`.
 
-## Tester (vitest)
+## Tekniskt (filer)
+- `src/pages/project/LargeEstablishmentPage.tsx` — återställ till `LargeProjectBookingPlannerCalendar`.
+- `src/components/project/large-planner/LargeProjectPlannerPanel.tsx` — ta bort `syncBookingPhaseDays`-anropet, återställ planner-service-skrivning.
+- `src/components/project/large-planner/LargeProjectBookingPlannerCalendar.tsx` (+ adapter/service) — addera hover-card, edit-dialog, add-day-dialog som speglar personalkalenderns beteende, men med planner-skrivväg.
+- Eventuellt nya delade presentationskomponenter under `src/components/calendar/shared/` (hover-card, phase-day-dialog skal) — inga DB-anrop i dessa.
+- Test: `src/components/project/large-planner/__tests__/plannerWriteIsolation.test.ts` — säkerställer att projektkalendern aldrig skriver till `calendar_events`/`bookings`.
 
-Ny fil `src/components/project/large-planner/__tests__/projectCalendarTeamColumns.test.ts`:
-1. `buildPlannerResourcesForDay` returnerar exakt fem team (team-1…5), aldrig "unassigned".
-2. `LargeProjectPlannerCalendarView` renderar fem teamkolumner per dag oavsett om LPTA är tom.
-3. Item utan `assigned_team_id` hamnar i team-1.
-4. Item med `assigned_team_id='team-3'` hamnar i team-3.
-5. Drop på team-4 anropar `updateItem({ assigned_team_id: 'team-4', ... })`.
-6. `fetchProjectStaffPerDay` läser team-personal från LPTA, inte från `calendar_events.resource_id` (mocka båda; verifiera källan).
-
-Uppdatera även `projectCalendarSeparation.test.ts` och `projectCalendarUiSeparation.test.ts` om de antar "Ej tilldelat".
-
-Kör `bunx vitest run src/components/project/large-planner` direkt efter ändringen.
-
-## Filer som INTE rörs
-
-- `calendar_events`, `staff_assignments`, `bookings`, `large_project_team_assignments` (inga skrivningar)
-- `plannerCalendarDerivation.ts` (personalkalendern påverkas inte)
-- Time Engine, GPS, mobile-app-api, alla migrationer
-
-## Öppen fråga (snabbsvar räcker)
-
-Items utan `assigned_team_id` — vill du att de:
-- (a) alltid hamnar i **Team 1** (enklast, deterministiskt), eller
-- (b) hamnar i **första team som har LPTA-personal den dagen** (smartare, kräver att LPTA är ifylld för att fungera bra)?
-
-Default i denna plan = **(a) Team 1**. Säg till om du vill ha (b).
+## Vad jag INTE rör
+- `calendar_events`, `bookings.<phase>_*`, `syncBookingPhaseDays`, personalkalenderns logik.
+- Time Engine, BSA, geofence — orelaterat.
