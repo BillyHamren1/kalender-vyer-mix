@@ -1,50 +1,47 @@
-# Plan: rensa "Nya bokningar"-listan från stora projekt
+# Plan: låt Placera-dialogen läsa alla riggdagar enhetligt
 
-## Vad jag faktiskt hittade (inte luddigt — fakta)
+## Mål
+När en bokning har flera riggdagar ska **alla** visas i Placera-dialogen. En riggdag är en riggdag — ingen särskild logik för ”första”, ”extra” eller någon annan variant.
 
-Jag gick igenom hela kedjan **personalkalender ↔ projektkalender ↔ "Nya bokningar"-listan** och kan bekräfta:
+## Vad som ska ändras
 
-### Personalkalendern är HELT orörd
-- `src/services/staffCalendarService.ts`, `src/services/plannerCalendarDerivation.ts` och `src/lib/staffCalendar/deriveStaffEvents.ts` har inga differentiella ändringar.
-- Personalkalendern bygger sin synlighet på **`booking_staff_assignments` + `large_project_staff` + projektets datum** — INTE på `calendar_events`-rader, INTE på `planning_status`, INTE på "Nya bokningar"-listan.
-- Kontrakts­testet `personalkalenderUntouched.contract.test.ts` skyddar fortfarande detta.
+1. **Gör en gemensam läsmodell för bokningens dagar**
+   - Bygg en helper som läser bokningens planeringsdagar som **en enda lista per fas** (`rig`, `event`, `rigDown`).
+   - Den ska slå ihop:
+     - bokningens datumfält
+     - motsvarande dagar som redan finns i `calendar_events`
+   - Resultatet ska vara en enhetlig lista där varje dag behandlas likadant oavsett varifrån den kom.
 
-### Varför "Swedish game fair" syns i listan
-- `src/hooks/useUnplannedProjects.ts` (rad 40–45) frågar **explicit** `large_projects WHERE planning_status = 'needs_planning'`.
-- `createLargeProject` sätter aldrig `planning_status`, så DB-default `needs_planning` gäller → **varje nytt stort projekt hamnar automatiskt i listan**.
-- Det är detta som triggar din "Stort"-badge. Listan har alltså blandat ihop två orelaterade saker:
-  1. Fristående bokningar som väntar på att placeras i personalkalendern (rätt målgrupp för listan).
-  2. Stora projekt som råkar ha en gammal `needs_planning`-flagga (fel målgrupp — stora projekt styrs av sin egen projektkalender).
+2. **Använd den gemensamma modellen i `BookingPlacementDialog`**
+   - Seedningen i dialogen ska inte längre bara läsa `rigdaydate/eventdate/rigdowndate`.
+   - Den ska använda den gemensamma helpern så att alla riggdagar, eventdagar och nedmonteringsdagar kommer med direkt när man öppnar Placera.
 
-### Vad händer om man klickar "Placera" på ett stort projekt i listan?
-Då — och **endast då** — skriver `BookingPlacementDialog` `calendar_events`-rader. Men eftersom personalkalendern inte läser `calendar_events` för synlighet utan bara för tider/team-enrichment, **påverkar det inte vem som ser vad i personalkalendern**. Det är assignment-styrt.
+3. **Behåll samma regler för alla riggdagar**
+   - Samma sortering, samma tidslogik, samma teamlogik.
+   - Ingen specialbehandling för en viss riggdag beroende på om den ligger i `bookings` eller i `calendar_events`.
+   - Ingen ändring av personalkalenderns logik.
 
-**Slutsats:** Listan är förvirrande, men personalkalendern är inte och har inte varit påverkad av projektkalendern.
+4. **Lägg till tester som låser beteendet**
+   - Bokning med flera riggdagar ska ge flera riggdagar i seed-listan.
+   - Samma dag får inte dubblas om den finns i båda källorna.
+   - Flera `rigDown`-dagar och eventdagar ska också komma med korrekt.
+   - Test som säkerställer att dagarna behandlas enhetligt oavsett källa.
 
-## Vad jag föreslår att vi gör (minimalt)
-
-Ändringen är liten och rör bara frontend-listan:
-
-1. **Ta bort `large_projects`-frågan ur `useUnplannedProjects`.**
-   - Listan visar då endast `projects` (medel) med `planning_status='needs_planning'` + fristående bokningar utan projekt.
-   - Stora projekt försvinner ur "Nya bokningar" helt — där hör de inte hemma.
-
-2. **`UnplannedProjectsBanner`** (samma datakälla) följer med automatiskt.
-
-3. **Inget DB-arbete behövs.** `planning_status`-kolumnen på `large_projects` lämnas orörd (den läses bara av dessa två frontend-ställen efter ändringen).
-
-4. **Personalkalendern rörs inte.** Kontrakts­testet fortsätter skydda det.
-
-5. **Regressionstest:** uppdatera `useUnplannedProjects.static.test.ts` så det bevisar att `large_projects`-tabellen inte längre frågas — så ingen återinför det av misstag.
+5. **Verifiera i preview och med tester**
+   - Öppna samma typ av bokning i preview och kontrollera att båda riggdagarna syns i Placera-dialogen.
+   - Kör riktade Vitest-tester efter ändringen.
 
 ## Berörda filer
+- `src/components/project/bookingPlacementSeed.ts`
+- `src/components/project/BookingPlacementDialog.tsx`
+- `src/components/project/__tests__/bookingPlacementSeed.test.ts`
 
-- `src/hooks/useUnplannedProjects.ts` — ta bort `largeRes`-grenen och `large`-mappningen.
-- `src/hooks/__tests__/useUnplannedProjects.static.test.ts` — nytt assert: `.from('large_projects')` får inte finnas.
-- (ingenting i personalkalender-koden)
+## Tekniska detaljer
+- Ingen ny datamodell i databasen.
+- Ingen skillnad mellan ”huvud-riggdag” och ”extra riggdag”.
+- `bookings` och `calendar_events` används bara som två läskällor till **samma** daglista i UI:t.
+- Deduplikering ska ske på kombinationen `kind + date` så att samma dag inte visas två gånger.
+- Sortering ska fortsätta vara kronologisk med fasordning inom samma datum.
 
 ## Resultat
-
-- "Swedish game fair" och alla andra stora projekt försvinner från "Nya bokningar"-listan på `/projects`.
-- Personalkalendern fortsätter fungera exakt som tidigare.
-- Projektkalendern fortsätter vara fristående.
+Placera-dialogen visar alla bokningens riggdagar korrekt, utan att införa olika logik för olika riggdagar.

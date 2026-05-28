@@ -37,6 +37,7 @@ import {
   PlanningDay,
   isPhaseLocked,
   seedDaysFromBooking,
+  mergeCalendarEventsIntoSeed,
   isDeliveryOnlyBooking,
   DELIVERY_DEFAULT_TEAM_ID,
 } from './bookingPlacementSeed';
@@ -141,10 +142,26 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
     let cancelled = false;
     (async () => {
       const deliveryOnly = isDeliveryOnlyBooking(booking);
-      const seed = seedDaysFromBooking(
+      const baseSeed = seedDaysFromBooking(
         booking,
         deliveryOnly ? DELIVERY_DEFAULT_TEAM_ID : 'team-1',
       );
+
+      // Hämta ALLA fas-dagar som redan finns för bokningen i calendar_events
+      // (rig/event/rigDown). En riggdag är en riggdag — extra dagar har
+      // exakt samma logik som de som speglas till bookings-fälten.
+      const { data: bookingEventRows } = await supabase
+        .from('calendar_events')
+        .select('event_type, source_date, start_time, end_time, resource_id')
+        .eq('booking_id', booking.id)
+        .in('event_type', ['rig', 'event', 'rigDown']);
+
+      const seed = mergeCalendarEventsIntoSeed(
+        baseSeed,
+        (bookingEventRows || []) as any,
+        deliveryOnly ? DELIVERY_DEFAULT_TEAM_ID : 'team-1',
+      );
+
       const dates = Array.from(new Set(seed.map((d) => d.date)));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let dayEvents: any[] = [];
