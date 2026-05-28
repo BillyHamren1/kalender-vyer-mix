@@ -1,5 +1,13 @@
 // Gemensam hook för admin (Tid & Lön) och personalapp.
 // Returnerar EN week-flow-modell (GPS-förslag + submissions) som båda vyer läser.
+//
+// Auth-strategi:
+//   viewer === "admin" → Supabase JWT + useCurrentOrg + direkt .from() query
+//                        + realtime på staff_day_submissions
+//   viewer === "staff" → mobile token via callStaffSnapshotFunction
+//                        (get-staff-time-flow-submissions). Ingen useCurrentOrg-
+//                        beroende, ingen Supabase realtime. Refetch sker via
+//                        query invalidation efter submit/approve.
 
 import { useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -8,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCurrentOrg } from "@/hooks/useCurrentOrg";
 import { useStaffGpsWeekSummary } from "@/hooks/staff/useStaffGpsWeekSummary";
 import { buildWeekFlow } from "@/lib/staffTimeFlow/weekFlow";
+import { callStaffSnapshotFunction } from "@/services/staffSnapshotApi";
 import type { WeekFlow, WeekFlowViewer } from "@/lib/staffTimeFlow/types";
 import type { StaffDaySubmissionRow } from "@/hooks/staff/useStaffDaySubmissions";
 
@@ -37,12 +46,27 @@ export function useStaffTimeWeekFlow(params: UseStaffTimeWeekFlowParams): UseSta
   const from = weekDates.length > 0 ? format(weekDates[0], "yyyy-MM-dd") : null;
   const to = weekDates.length > 0 ? format(weekDates[weekDates.length - 1], "yyyy-MM-dd") : null;
 
+  // Staff-vägen kräver INTE organizationId — mobile token resolvar org server-side.
+  const enabled = viewer === "staff"
+    ? !!staffId && !!from && !!to
+    : !!organizationId && !!staffId && !!from && !!to;
+
   const subsQuery = useQuery({
-    queryKey: ["staff-time-flow-submissions", organizationId, staffId, from, to],
-    enabled: !!organizationId && !!staffId && !!from && !!to,
+    queryKey: ["staff-time-flow-submissions", viewer, organizationId, staffId, from, to],
+    enabled,
     staleTime: 15_000,
     queryFn: async (): Promise<SubmissionWithSnapshot[]> => {
-      if (!organizationId || !staffId || !from || !to) return [];
+      if (!staffId || !from || !to) return [];
+
+      if (viewer === "staff") {
+        const res = await callStaffSnapshotFunction<{ submissions: SubmissionWithSnapshot[] }>(
+          "get-staff-time-flow-submissions",
+          { staffId, from, to },
+        );
+        return (res?.submissions ?? []) as SubmissionWithSnapshot[];
+      }
+
+      if (!organizationId) return [];
       const { data, error } = await supabase
         .from("staff_day_submissions")
         .select(
@@ -59,8 +83,10 @@ export function useStaffTimeWeekFlow(params: UseStaffTimeWeekFlowParams): UseSta
     },
   });
 
-  // Realtime invalidation
+  // Realtime invalidation — endast admin (JWT-session). Mobil auth har ingen
+  // Supabase-session och kan inte prenumerera på postgres_changes.
   useEffect(() => {
+    if (viewer !== "admin") return;
     if (!organizationId || !staffId) return;
     const channel = supabase
       .channel(`week-flow-${staffId}-${from}-${to}`)
@@ -68,12 +94,12 @@ export function useStaffTimeWeekFlow(params: UseStaffTimeWeekFlowParams): UseSta
         "postgres_changes" as any,
         { event: "*", schema: "public", table: "staff_day_submissions", filter: `staff_id=eq.${staffId}` },
         () => {
-          qc.invalidateQueries({ queryKey: ["staff-time-flow-submissions", organizationId, staffId, from, to] });
+          qc.invalidateQueries({ queryKey: ["staff-time-flow-submissions"] });
         },
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [organizationId, staffId, from, to, qc]);
+  }, [viewer, organizationId, staffId, from, to, qc]);
 
   const flow = useMemo<WeekFlow | null>(() => {
     if (!staffId || weekDates.length === 0) return null;

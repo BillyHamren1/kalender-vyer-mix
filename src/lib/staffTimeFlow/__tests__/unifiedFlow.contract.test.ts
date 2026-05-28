@@ -74,6 +74,59 @@ describe("WeekFlow unified flow contract", () => {
   });
 });
 
+describe("WeekFlow mobile auth contract", () => {
+  it("WeekFlowMobilePanel använder useMobileAuth + effectiveStaffId (INTE useCurrentStaffId)", () => {
+    const src = read("src/components/mobile-app/time/WeekFlowMobilePanel.tsx");
+    expect(src).toMatch(/useMobileAuth/);
+    expect(src).toMatch(/effectiveStaffId/);
+    expect(src).not.toMatch(/useCurrentStaffId/);
+  });
+
+  it("useStaffTimeWeekFlow har separat staff-path som inte kräver organizationId", () => {
+    const src = read("src/hooks/staffTimeFlow/useStaffTimeWeekFlow.ts");
+    // Måste branchas på viewer
+    expect(src).toMatch(/viewer === "staff"/);
+    // Staff-path går via dual-auth edge function
+    expect(src).toMatch(/callStaffSnapshotFunction/);
+    expect(src).toMatch(/get-staff-time-flow-submissions/);
+    // Realtime får inte aktiveras för staff-viewer
+    expect(src).toMatch(/if \(viewer !== "admin"\) return/);
+  });
+
+  it("staffSnapshotApi exponerar get-staff-time-flow-submissions", () => {
+    const src = read("src/services/staffSnapshotApi.ts");
+    expect(src).toMatch(/'get-staff-time-flow-submissions'/);
+  });
+
+  it("get-staff-time-flow-submissions edge function finns och använder dual-auth", () => {
+    const src = read("supabase/functions/get-staff-time-flow-submissions/index.ts");
+    expect(src).toMatch(/authenticateStaffRequest/);
+    expect(src).toMatch(/authorizeStaffAccess/);
+    expect(src).toMatch(/from\(\s*['"]staff_day_submissions['"]/);
+  });
+
+  it("get-staff-time-flow-submissions rör INGA legacy tidskällor och skriver inte", () => {
+    const src = read("supabase/functions/get-staff-time-flow-submissions/index.ts");
+    const forbiddenTables = [
+      "time_reports",
+      "workdays",
+      "location_time_entries",
+      "travel_time_logs",
+      "day_attestations",
+      "staff_day_report_cache",
+    ];
+    for (const t of forbiddenTables) {
+      const re = new RegExp(`from\\(\\s*['"\`]${t}['"\`]`);
+      expect(src).not.toMatch(re);
+    }
+    // Inga skrivningar
+    expect(src).not.toMatch(/\.insert\(/);
+    expect(src).not.toMatch(/\.update\(/);
+    expect(src).not.toMatch(/\.upsert\(/);
+    expect(src).not.toMatch(/\.delete\(/);
+  });
+});
+
 describe("WeekFlow status mapping", () => {
   it("mappar DB-status korrekt → WeekFlow-status", async () => {
     const { mapDbStatusToFlow } = await import("@/lib/staffTimeFlow/weekFlow");

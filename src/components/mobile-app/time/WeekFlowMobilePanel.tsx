@@ -1,12 +1,14 @@
 /**
  * WeekFlowMobilePanel — mobil-vyn för /m/report. Speglar admin Tid & Lön 1:1.
  *
+ * - Auth: useMobileAuth (MobileAuthProvider). Den vanliga Supabase-baserade
+ *   staff-id-hooken får INTE användas här — den läser AuthContext som är null
+ *   i mobilappen.
  * - Använder samma `useStaffTimeWeekFlow` + `WeekFlowDayCard` som admin.
+ *   Hooken kör viewer="staff" → går via mobile token / edge function.
  * - "Skicka in" öppnar DayReviewSheet (samma get-mobile-gps-day-view +
  *   submit-mobile-gps-day-v2 som tidigare).
- * - "Öppna GPS" → /m/gps?date=… (om sådan vy finns; annars osynlig).
- *
- * Ingen egen statusmodell. Inga skrivningar till legacy-tabeller.
+ * - "Öppna GPS" → /m/gps?date=…
  */
 import { useMemo, useState } from "react";
 import { addDays, addWeeks, format, startOfWeek, subWeeks } from "date-fns";
@@ -17,12 +19,13 @@ import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useStaffTimeWeekFlow } from "@/hooks/staffTimeFlow/useStaffTimeWeekFlow";
 import WeekFlowDayCard from "@/components/staff-time/week-flow/WeekFlowDayCard";
 import DayReviewSheet from "@/features/mobile-time-v2/DayReviewSheet";
-import { useCurrentStaffId } from "@/hooks/useCurrentStaffId";
+import { useMobileAuth } from "@/contexts/MobileAuthContext";
 
 export default function WeekFlowMobilePanel() {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { staffId } = useCurrentStaffId();
+  const { effectiveStaffId, isLoading: authLoading } = useMobileAuth();
+  const staffId = effectiveStaffId ?? null;
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [openDate, setOpenDate] = useState<string | null>(null);
 
@@ -32,12 +35,20 @@ export default function WeekFlowMobilePanel() {
   );
 
   const { flow, isLoading } = useStaffTimeWeekFlow({
-    staffId: staffId ?? null,
+    staffId,
     weekDates,
     viewer: "staff",
   });
 
   const weekEnd = addDays(weekStart, 6);
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground p-4 justify-center">
+        <Loader2 className="h-4 w-4 animate-spin" /> Laddar tidrapport…
+      </div>
+    );
+  }
 
   if (!staffId) {
     return (
@@ -96,7 +107,9 @@ export default function WeekFlowMobilePanel() {
         reviewComment={openDateRow?.reviewComment ?? null}
         onClose={() => setOpenDate(null)}
         onSubmitted={() => {
+          // Bred invalidation — träffar både admin- och staff-viewer key.
           qc.invalidateQueries({ queryKey: ["staff-time-flow-submissions"] });
+          qc.invalidateQueries({ queryKey: ["staff-gps-week-summary"] });
         }}
       />
     </div>
