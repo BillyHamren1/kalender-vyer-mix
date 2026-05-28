@@ -247,3 +247,75 @@ export const seedDaysFromBooking = (b: any, defaultTeamId = 'team-1'): PlanningD
   list.sort((a, z) => a.date.localeCompare(z.date));
   return list;
 };
+
+/**
+ * Rå rad ur calendar_events som beskriver en fas-dag på en bokning.
+ * Bara fälten vi behöver för att slå ihop med seed-listan.
+ */
+export interface CalendarEventDayRow {
+  event_type: string | null;
+  source_date: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  resource_id: string | null;
+}
+
+const KIND_RANK: Record<DayKind, number> = { rig: 0, event: 1, rigDown: 2 };
+
+const isValidTeamId = (id: string | null | undefined): boolean =>
+  !!id && (id === 'transport' || /^team-\d+$/.test(id));
+
+/**
+ * PURE — slår ihop seed-listan (från bookings-fälten) med ytterligare fas-dagar
+ * som lever i calendar_events. EN riggdag är en riggdag, oavsett källa.
+ *
+ *  - Deduplikering på `kind + date`. Seed vinner vid kollision (samma tider/team
+ *    som bokningens egna fält).
+ *  - Tider på extra-dagar tas från calendar_events.start_time/end_time.
+ *    Saknas de används DEFAULTS för respektive fas.
+ *  - Team ärvs från calendar_events.resource_id om det är ett giltigt team-id.
+ *    Saknas ett team används seed-rigs team (Project Team Stickiness) eller
+ *    fallbackTeamId.
+ *  - Resultatet sorteras kronologiskt med fasordning inom samma datum.
+ */
+export const mergeCalendarEventsIntoSeed = (
+  seed: PlanningDay[],
+  rows: CalendarEventDayRow[],
+  fallbackTeamId = 'team-1',
+): PlanningDay[] => {
+  const seen = new Set(seed.map((d) => `${d.kind}|${d.date}`));
+  const seedRigTeam =
+    seed.find((d) => d.kind === 'rig')?.teamId ??
+    seed[0]?.teamId ??
+    fallbackTeamId;
+
+  const extras: PlanningDay[] = [];
+  for (const row of rows || []) {
+    const kindRaw = row?.event_type;
+    const date = row?.source_date;
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    if (kindRaw !== 'rig' && kindRaw !== 'event' && kindRaw !== 'rigDown') continue;
+    const kind = kindRaw as DayKind;
+    const key = `${kind}|${date}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const teamId = isValidTeamId(row.resource_id) ? (row.resource_id as string) : seedRigTeam;
+    extras.push({
+      date,
+      kind,
+      startTime: trimSec(row.start_time) ?? DEFAULTS[kind].start,
+      endTime: trimSec(row.end_time) ?? DEFAULTS[kind].end,
+      teamId,
+    });
+  }
+
+  const merged = [...seed, ...extras];
+  merged.sort((a, z) => {
+    const c = a.date.localeCompare(z.date);
+    if (c !== 0) return c;
+    return KIND_RANK[a.kind] - KIND_RANK[z.kind];
+  });
+  return merged;
+};
+
