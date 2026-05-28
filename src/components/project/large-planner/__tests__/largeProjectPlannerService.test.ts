@@ -73,3 +73,65 @@ describe('buildPlannerDays (legacy, items-only)', () => {
     expect(__buildPlannerDays([], [])).toEqual([]);
   });
 });
+
+describe('buildPlannerDays — flerdagars rig/event/rigDown', () => {
+  it('inkluderar ALLA rigg-, event- och nedriggdagar från *_dates', () => {
+    const days = __buildPlannerDays(
+      [
+        baseBooking({
+          rigdaydate: '2026-06-07',
+          eventdate: null,
+          rigdowndate: '2026-06-27',
+          rig_dates: ['2026-06-07', '2026-06-08', '2026-06-20'],
+          event_dates: [],
+          rigdown_dates: ['2026-06-27', '2026-06-28', '2026-07-02'],
+        }),
+      ],
+      [],
+    );
+    expect(days.map((d) => d.date)).toEqual([
+      '2026-06-07',
+      '2026-06-08',
+      '2026-06-20',
+      '2026-06-27',
+      '2026-06-28',
+      '2026-07-02',
+    ]);
+    expect(days[0].phase).toBe('rig');
+    expect(days[3].phase).toBe('rigDown');
+  });
+
+  it('faller tillbaka på *date-fält när *_dates saknas (äldre data)', () => {
+    const days = __buildPlannerDays(
+      [
+        baseBooking({
+          rigdaydate: '2026-06-07',
+          eventdate: '2026-06-15',
+          rigdowndate: '2026-06-27',
+          rig_dates: [],
+          event_dates: [],
+          rigdown_dates: [],
+        }),
+      ],
+      [],
+    );
+    expect(days.map((d) => d.date)).toEqual([
+      '2026-06-07',
+      '2026-06-15',
+      '2026-06-27',
+    ]);
+  });
+
+  it('dedupar datum som finns i både *date och *_dates', () => {
+    const days = __buildPlannerDays(
+      [
+        baseBooking({
+          rigdaydate: '2026-06-07',
+          rig_dates: ['2026-06-07', '2026-06-08'],
+        }),
+      ],
+      [],
+    );
+    expect(days.map((d) => d.date)).toEqual(['2026-06-07', '2026-06-08']);
+  });
+});
