@@ -1,11 +1,9 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   CalendarClock,
-  LayoutDashboard,
-  Clock,
-  ClipboardCheck,
-  Wallet,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { Card } from "@/components/ui/card";
@@ -16,90 +14,81 @@ import {
   TabsContent,
 } from "@/components/ui/tabs";
 
+import StaffTimeWeeklyGpsReportContent from "@/components/staff-time/StaffTimeWeeklyGpsReportContent";
 import StaffTimeApprovalsPageContent from "@/components/staff-time-approvals/StaffTimeApprovalsPageContent";
 import PayrollMonthReportPageContent from "@/components/staff-payroll-month/PayrollMonthReportPageContent";
 import StaffTimeReportsContent from "@/components/staff-time/StaffTimeReportsContent";
 import StaffPayrollPeriodsContent from "@/components/staff-time/StaffPayrollPeriodsContent";
 import TimePayrollOverview from "@/components/staff-time/TimePayrollOverview";
 
-type TabKey = "overview" | "reports" | "approvals" | "payroll";
-const VALID: TabKey[] = ["overview", "reports", "approvals", "payroll"];
-
+// HUVUDVY: Den enkla flow-vyn (GPS → submitted → approved). Inga andra tabbar
+// dominerar längre — gamla attest/rapport/lönesidor finns kvar under
+// "Avancerat ▾" för bakåtkompatibilitet (per .lovable/plan.md krav K).
 const StaffTimeAndPayrollPage: React.FC = () => {
-  const [params, setParams] = useSearchParams();
-  const raw = params.get("tab");
-  const tab: TabKey = useMemo(
-    () => (VALID.includes(raw as TabKey) ? (raw as TabKey) : "approvals"),
-    [raw],
-  );
-
-  const setTab = (v: string) => {
-    const next = new URLSearchParams(params);
-    next.set("tab", v);
-    setParams(next, { replace: true });
-  };
+  const [params] = useSearchParams();
+  const showAdvanced = params.get("advanced") === "1";
+  const [advancedOpen, setAdvancedOpen] = useState<boolean>(showAdvanced);
 
   return (
     <PageContainer theme="purple" className="p-0">
-      {/* Premium compact header */}
       <div className="px-4 pt-4 pb-2 border-b border-border/60 bg-gradient-to-b from-purple-500/5 to-transparent">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center shadow-sm">
             <CalendarClock className="h-5 w-5 text-white" strokeWidth={2} />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h1 className="text-lg font-semibold leading-tight tracking-tight">Tid &amp; Lön</h1>
             <p className="text-xs text-muted-foreground leading-tight">
-              Tidrapporter, attest och löneunderlag – samlat på ett ställe.
+              GPS-förslag → Inskickat → Attesterat. Samma data i admin och personalappen.
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((v) => !v)}
+            className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+          >
+            Avancerat {advancedOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </button>
         </div>
-
-        <Tabs value={tab} onValueChange={setTab} className="mt-3">
-          <TabsList className="bg-transparent p-0 h-auto gap-1">
-            <TabsTrigger value="overview" className="gap-1.5 data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-800 px-3 h-8">
-              <LayoutDashboard className="h-3.5 w-3.5" /> Översikt
-            </TabsTrigger>
-            <TabsTrigger value="reports" className="gap-1.5 data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-800 px-3 h-8">
-              <Clock className="h-3.5 w-3.5" /> Rapporter
-            </TabsTrigger>
-            <TabsTrigger value="approvals" className="gap-1.5 data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-800 px-3 h-8">
-              <ClipboardCheck className="h-3.5 w-3.5" /> Attest
-            </TabsTrigger>
-            <TabsTrigger value="payroll" className="gap-1.5 data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-800 px-3 h-8">
-              <Wallet className="h-3.5 w-3.5" /> Lön
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
       </div>
 
-      {/* Tab content */}
       <div className="min-h-[calc(100vh-160px)]">
-        {tab === "overview" && (
-          <div className="p-4">
-            <TimePayrollOverview onNavigateTab={setTab} />
-          </div>
-        )}
-
-        {tab === "reports" && (
-          <div className="p-0">
-            <StaffTimeReportsContent />
-          </div>
-        )}
-
-        {tab === "approvals" && (
-          <div className="p-0">
-            <StaffTimeApprovalsPageContent />
-          </div>
-        )}
-
-        {tab === "payroll" && (
-          <div className="p-4">
-            <PayrollSubTabs />
-          </div>
-        )}
+        <StaffTimeWeeklyGpsReportContent />
       </div>
+
+      {advancedOpen && <AdvancedLegacySection />}
     </PageContainer>
+  );
+};
+
+// Legacy: gamla attest/rapport/löne-tabbar bakom diskret Avancerat-meny.
+const AdvancedLegacySection: React.FC = () => {
+  return (
+    <div className="border-t bg-muted/30 px-4 py-4">
+      <div className="text-xs font-semibold uppercase text-muted-foreground mb-2 tracking-wider">
+        Avancerat (legacy-vyer)
+      </div>
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList>
+          <TabsTrigger value="overview">Översikt</TabsTrigger>
+          <TabsTrigger value="reports">Rapporter</TabsTrigger>
+          <TabsTrigger value="approvals">Gamla attest-vyn</TabsTrigger>
+          <TabsTrigger value="payroll">Lön</TabsTrigger>
+        </TabsList>
+        <TabsContent value="overview" className="mt-3">
+          <TimePayrollOverview onNavigateTab={() => {}} />
+        </TabsContent>
+        <TabsContent value="reports" className="mt-3">
+          <StaffTimeReportsContent />
+        </TabsContent>
+        <TabsContent value="approvals" className="mt-3">
+          <StaffTimeApprovalsPageContent />
+        </TabsContent>
+        <TabsContent value="payroll" className="mt-3">
+          <PayrollSubTabs />
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 };
 
