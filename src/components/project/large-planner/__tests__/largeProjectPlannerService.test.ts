@@ -1,37 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { __buildPlannerDays } from '../largeProjectPlannerService';
-import type {
-  LargeProjectBookingPlanItem,
-  LargeProjectPlannerBooking,
-} from '../largeProjectPlannerTypes';
+import type { LargeProjectBookingPlanItem } from '../largeProjectPlannerTypes';
 
-const baseBooking = (
-  overrides: Partial<LargeProjectPlannerBooking>,
-): LargeProjectPlannerBooking => ({
-  id: overrides.id ?? crypto.randomUUID(),
-  booking_number: null,
-  client: null,
-  display_name: 'B',
-  rigdaydate: null,
-  eventdate: null,
-  rigdowndate: null,
-  rig_start_time: null,
-  rig_end_time: null,
-  event_start_time: null,
-  event_end_time: null,
-  rigdown_start_time: null,
-  rigdown_end_time: null,
-  deliveryaddress: null,
-  delivery_city: null,
-  contact_name: null,
-  contact_phone: null,
-  contact_email: null,
-  internalnotes: null,
-  rig_dates: [],
-  event_dates: [],
-  rigdown_dates: [],
-  ...overrides,
-});
+const emptyProjectDates = { rig: [] as string[], event: [] as string[], rigDown: [] as string[] };
 
 const baseItem = (overrides: Partial<LargeProjectBookingPlanItem>): LargeProjectBookingPlanItem => ({
   id: overrides.id ?? crypto.randomUUID(),
@@ -58,80 +29,55 @@ const baseItem = (overrides: Partial<LargeProjectBookingPlanItem>): LargeProject
   ...overrides,
 });
 
-describe('buildPlannerDays (legacy, items-only)', () => {
-  it('grupperar items per datum och sorterar stigande', () => {
-    const days = __buildPlannerDays([], [
-      baseItem({ plan_date: '2026-06-03' }),
-      baseItem({ plan_date: '2026-06-01' }),
-      baseItem({ plan_date: '2026-06-01' }),
-    ]);
-    expect(days.map((d) => d.date)).toEqual(['2026-06-01', '2026-06-03']);
-    expect(days[0].items.length).toBe(2);
-  });
-
-  it('returnerar tom array för tom input', () => {
-    expect(__buildPlannerDays([], [])).toEqual([]);
-  });
-});
-
-describe('buildPlannerDays — flerdagars rig/event/rigDown', () => {
-  it('inkluderar ALLA rigg-, event- och nedriggdagar från *_dates', () => {
+describe('buildProjectDays — strikt från stora projektets datum', () => {
+  it('visar EXAKT stora projektets rig + event + rigDown-datum, inget annat', () => {
     const days = __buildPlannerDays(
-      [
-        baseBooking({
-          rigdaydate: '2026-06-07',
-          eventdate: null,
-          rigdowndate: '2026-06-27',
-          rig_dates: ['2026-06-07', '2026-06-08', '2026-06-20'],
-          event_dates: [],
-          rigdown_dates: ['2026-06-27', '2026-06-28', '2026-07-02'],
-        }),
-      ],
+      {
+        rig: ['2026-06-07', '2026-06-08'],
+        event: ['2026-06-22'],
+        rigDown: ['2026-06-27', '2026-06-28'],
+      },
       [],
     );
     expect(days.map((d) => d.date)).toEqual([
       '2026-06-07',
       '2026-06-08',
-      '2026-06-20',
+      '2026-06-22',
       '2026-06-27',
       '2026-06-28',
-      '2026-07-02',
     ]);
     expect(days[0].phase).toBe('rig');
+    expect(days[2].phase).toBe('event');
     expect(days[3].phase).toBe('rigDown');
   });
 
-  it('faller tillbaka på *date-fält när *_dates saknas (äldre data)', () => {
+  it('plan_items UTANFÖR projektets datum får ALDRIG skapa nya kolumner', () => {
     const days = __buildPlannerDays(
+      { rig: ['2026-06-07'], event: [], rigDown: ['2026-06-27'] },
       [
-        baseBooking({
-          rigdaydate: '2026-06-07',
-          eventdate: '2026-06-15',
-          rigdowndate: '2026-06-27',
-          rig_dates: [],
-          event_dates: [],
-          rigdown_dates: [],
-        }),
+        baseItem({ plan_date: '2026-05-29' }), // utanför
+        baseItem({ plan_date: '2026-06-26' }), // utanför
+        baseItem({ plan_date: '2026-06-07' }), // innanför
       ],
-      [],
     );
-    expect(days.map((d) => d.date)).toEqual([
-      '2026-06-07',
-      '2026-06-15',
-      '2026-06-27',
-    ]);
+    expect(days.map((d) => d.date)).toEqual(['2026-06-07', '2026-06-27']);
+    expect(days[0].items.length).toBe(1);
+    expect(days[1].items.length).toBe(0);
   });
 
-  it('dedupar datum som finns i både *date och *_dates', () => {
+  it('returnerar tom array när projektet saknar datum', () => {
+    expect(__buildPlannerDays(emptyProjectDates, [])).toEqual([]);
+    expect(
+      __buildPlannerDays(emptyProjectDates, [baseItem({ plan_date: '2026-06-01' })]),
+    ).toEqual([]);
+  });
+
+  it('event-fasen vinner över rig/rigDown vid kollision på samma datum', () => {
     const days = __buildPlannerDays(
-      [
-        baseBooking({
-          rigdaydate: '2026-06-07',
-          rig_dates: ['2026-06-07', '2026-06-08'],
-        }),
-      ],
+      { rig: ['2026-06-22'], event: ['2026-06-22'], rigDown: ['2026-06-22'] },
       [],
     );
-    expect(days.map((d) => d.date)).toEqual(['2026-06-07', '2026-06-08']);
+    expect(days).toHaveLength(1);
+    expect(days[0].phase).toBe('event');
   });
 });
