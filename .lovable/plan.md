@@ -1,48 +1,79 @@
-## Problem
 
-Notisen efter sista blocket gissar orsak ("troligen tomt batteri…"). Det är fel. Användaren vill bara se **faktiska händelser** ur GPS-datat som förklarar att dagen tog slut — t.ex. "20:06 resa från Swedish game fair → Hem. Arbetsdagen avslutad." Finns ingen sådan faktisk händelse ska vi inte hitta på något.
+# Ett tidrapportsflöde — WeekFlow i både Tid & Lön och appen
 
-## Vad jag gör
+Mål: GPS-förslag → WeekFlow → admin & app visar SAMMA → personal submitar → `staff_day_submissions` (submitted) → admin attesterar → båda visar "Attesterad". Inga skrivningar till `time_reports/workdays/location_time_entries/travel_time_logs/day_attestations`.
 
-### 1. `src/lib/staff-gps/lastPingReason.ts` — skriv om till faktabaserad "day closer"
+## 1. App: gör WeekFlow till huvudvy på `/m/report`
 
-Byt namn på exporten till `buildDayCloser` (behåll bakåtkompatibel `inferLastPingReason`-alias som no-op tas bort). Funktionen tittar på **alla rå-segment efter sista synliga rapport-rad** och letar efter en konkret avslutshändelse:
+**`src/features/mobile-time-v2/MobileTimeV2Page.tsx`**
+- Rendera `WeekFlowMobilePanel` istället för `MobileTimeReportQueue`.
+- Behåll auth-guarden.
 
-```ts
-buildDayCloser({
-  reportRows,           // synliga rapportrader
-  rawSegments,          // hela dagens segment (work/travel/private/...)
-  actualLastPingIso,    // summary.lastIso
-}) → { text: string } | null
+`MobileTimeReportQueue`, `MobileDayReportPreview`, `ManualWorkSegmentsEditor`, `submit-mobile-gps-day-v2`, `get-mobile-gps-day-view` får ligga kvar (sheet-granskningen återanvänds nedan), men inte längre vara huvudvy.
+
+## 2. `WeekFlowMobilePanel` öppnar dag i sheet (ingen `/m/day-review`-navigering)
+
+**`src/components/mobile-app/time/WeekFlowMobilePanel.tsx`**
+- Ta bort `navigate('/m/day-review?date=…')`.
+- Lägg in ett internt `Sheet` som öppnas på `onSubmit(date)`. Sheet återanvänder `getMobileGpsDayView` + `MobileDayReportPreview` + `ManualWorkSegmentsEditor` + `submitMobileGpsDayV2` (precis som `MobileTimeReportQueue` gör idag — extrahera en liten `<DayReviewSheet date staffId onClose onSubmitted />` om enklare).
+- `onOpenGps` får ligga kvar som "Öppna GPS"-länk till `/m/gps?date=…` om sådan finns, annars dölj knappen i mobilvyn.
+- Efter lyckad submit: invalidera `staff-time-flow-submissions`-querykey så kortet flippar till "Väntar godkännande" direkt.
+
+`/m/day-review`-redirecten i `App.tsx` + `TimeAppShell.tsx` lämnas orörd (används inte längre av WeekFlow, bara av legacy stale-reminder).
+
+## 3. Admin: rätt länk till GPS-satellitkarta
+
+**`src/components/staff-time/StaffTimeWeeklyGpsReportContent.tsx`** rad 60:
+```
+navigate(`/staff-management/gps-satellite-map?staffId=${staffId}&date=${date}`)
 ```
 
-Regler — endast fakta från data:
-- **Resa hem hittad**: sök efter `travel`-segment efter sista rapport-rad där `toLabel` matchar private/hem (segment-typ `private` direkt efter, eller `toLabel` innehåller "hem"/"home"/privat-zon).  
-  → `"Arbetsdagen avslutades — {HH:MM} resa från {fromLabel} → Hem."`
-- **Privat-segment direkt efter sista arbete utan resa**: `"Arbetsdagen avslutades — {HH:MM} {fromLabel} → privat/hem."`
-- **Resa utan känt mål efter sista arbete**: `"{HH:MM} resa från {fromLabel}. Inga fler arbetsplats-pings efter detta."`
-- **Pings fortsätter men bara dolda (privat/okänt) utan resa**: `"Pings fortsatte till {HH:MM} (dolt: {kinds}). Ingen ny arbetsplats."`
-- **Inget av ovanstående** (ingen extra data efter sista rapport-rad): returnera `null` — visa ingenting.
+## 4. Stockholm-tid på rapportrader
 
-INGA ord om batteri, app, GPS-avstängd, "stannade kvar", gissningar om varför pings tystnade.
+**`src/components/staff-time/week-flow/WeekFlowDayCard.tsx`** rad 149:
+- Importera `formatStockholmHm` från `@/lib/staff/formatStockholmTime`.
+- Byt `r.startIso.slice(11,16)` → `formatStockholmHm(r.startIso)`, motsvarande för end.
 
-### 2. `src/components/staff/StaffGpsDayRow.tsx`
+## 5. Veckolabel mån–sön
 
-- Anropa `buildDayCloser({ reportRows, rawSegments, actualLastPingIso: summary?.lastIso })`.
-- Visa resultatet i en neutral grå/zinc-ruta (ingen amber-varning, ingen `AlertTriangle`).
-- Ta bort `Home`/`AlertTriangle`-ikonerna och `warn`-logiken.
-- Om `null` → rendera ingenting.
+**`src/components/staff-time/week-flow/WeekFlowHeader.tsx`** rad 43:
+- `const weekEnd = addDays(weekStart, 6)` → `…${format(weekEnd, "d MMM")}`.
 
-### 3. Tester — `src/lib/staff-gps/__tests__/lastPingReason.test.ts`
+## 6. Begär komplettering — kommentar synlig i app
 
-Skriv om:
-- travel → private (hem) efter sista work → korrekt "resa till Hem"-text med tid
-- private direkt efter sista work, ingen travel → "till privat/hem"
-- travel utan mål → "resa från X. Inga fler arbetsplats-pings"
-- bara dolda privat/okänt utan resa → "Pings fortsatte till …"
-- tom dag / inget efter sista rad → `null`
-- **regression-guard**: regex `/batteri|app stängd|GPS avstängd|troligen|möjligen|stannade kvar/i` får inte matcha någon output.
+`WeekFlowDayCard` visar redan `day.reviewComment` när `status === "correction_requested"`. Säkerställ att:
+- `update-staff-day-submission-status` skriver `review_comment` (verifiera i edge function).
+- `useStaffTimeWeekFlow` selectar redan `review_comment` ✓.
+- App-sheet (punkt 2) visar `day.reviewComment` överst när status = correction_requested, så personalen ser orsaken innan re-submit.
 
-## Utanför scope
+## 7. Approval-renhet (ingen skrivning till legacy)
 
-Ingen ändring av `dayPartition`, `reportRowFilter`, hem-detektion eller GPS-pipeline. Använder befintliga `private`-segment + `toLabel`/`fromLabel` som redan finns.
+Verifiera i `supabase/functions/update-staff-day-submission-status/index.ts` att den ENDAST uppdaterar `staff_day_submissions` (status, reviewed_at, reviewed_by, review_comment). Inga inserts i `time_reports/workdays/location_time_entries/travel_time_logs/day_attestations`. Om sådan kod finns: ta bort.
+
+## 8. Contract-tester (`src/lib/staffTimeFlow/__tests__/` + `src/components/staff-time/__tests__/`)
+
+Nya/uppdaterade tester:
+
+1. **`mobileTimeV2.routing.test.tsx`** — `MobileTimeV2Page` renderar `WeekFlowMobilePanel`, inte `MobileTimeReportQueue`, som default.
+2. **`weekFlowMobilePanel.test.tsx`** — innehåller inte strängen `/m/day-review`; öppnar sheet istället; använder `useStaffTimeWeekFlow`.
+3. **`adminGpsLink.test.tsx`** — `StaffTimeWeeklyGpsReportContent` länkar till `/staff-management/gps-satellite-map`.
+4. **`weekFlowDayCard.format.test.tsx`** — radtider renderas via `formatStockholmHm` (DST-säkert; testa en sommar- och en vinter-ISO).
+5. **`weekFlow.status.test.ts`** — `mapDbStatusToFlow`: submitted/edited/needs_control/ai_flagged/needs_user_attention → submitted_waiting_approval; approved/payroll_approved → approved; correction_requested → correction_requested.
+6. **`weekFlowHeader.label.test.tsx`** — visar mån–sön (7 dagars span), inte mån–mån (8 dagar).
+7. **`approvalWritePath.contract.test.ts`** — statisk grep: `update-staff-day-submission-status/index.ts` innehåller inga `from('time_reports'|'workdays'|'location_time_entries'|'travel_time_logs'|'day_attestations')`.
+8. **`weekFlowSharedHook.test.ts`** — både admin-vy och `WeekFlowMobilePanel` importerar `useStaffTimeWeekFlow` (statisk grep).
+
+## 9. Slutrapport (efter implementation)
+
+- `/m/report` → `MobileTimeV2Page` → `WeekFlowMobilePanel` (samma `useStaffTimeWeekFlow` + `WeekFlowDayCard` som admin).
+- Submit i appens sheet → `submitMobileGpsDayV2` → `staff_day_submissions` (submitted/edited).
+- Admin attest → `update-staff-day-submission-status` → samma rad (approved). Inga legacy-skrivningar.
+- "Öppna GPS" i admin → `/staff-management/gps-satellite-map`.
+- Radtider via `formatStockholmHm`.
+
+## Det här rörs INTE
+
+- DB-schema, RLS, edge-funktionernas API-kontrakt.
+- `time_reports / workdays / location_time_entries / travel_time_logs`.
+- `MobileTimeReportQueue` och dess hjälpfiler — finns kvar som legacy, men inte default.
+- GPS-pipelinen / `useStaffGpsWeekSummary`.
