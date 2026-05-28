@@ -57,7 +57,7 @@ export default function StaffTimeWeeklyGpsReportContent() {
               <WeekFlowDayCard
                 key={day.date}
                 day={day}
-                onOpenGps={(date) => navigate(`/staff-management/time?staff=${staffId}&date=${date}`)}
+                onOpenGps={(date) => navigate(`/staff-management/gps-satellite-map?staffId=${staffId}&date=${date}`)}
               />
             ))}
           </>
