@@ -57,6 +57,11 @@ import {
 import { getStockholmDayWindowUtc } from '../_shared/stockholmDayWindow.ts';
 import { buildDayEvidence } from '../_shared/time-engine/buildDayEvidence.ts';
 import { buildLocationTruthFromDayEvidence } from '../_shared/time-engine/buildLocationTruthFromDayEvidence.ts';
+import { buildCanonicalStaffDayGpsResult } from '../_shared/staff-gps/canonicalStaffDayGpsResult.ts';
+import {
+  canonicalToCacheBlocks,
+  canonicalToCacheSummary,
+} from '../_shared/staff-gps/canonicalToCacheProjection.ts';
 
 // ── Lager 2.7 feature flag ────────────────────────────────────────────────
 // Read-only: lägger locationTruthV2-diagnostik i staff_day_report_cache.diagnostics_json.
@@ -556,7 +561,43 @@ async function processOne(
     }
 
     if (!dryRun) {
-      const summary = {
+      // ── CANONICAL OVERRIDE — Time report mirrors GPS week summary 1:1 ──
+      // Spegla `buildCanonicalStaffDayGpsResult` (samma motor som
+      // `get-staff-gps-week-summary` / GPS-satellitkartan / mobil-time v2).
+      // Legacy Time Engine-totals (`work`/`unknown`) bevaras endast i
+      // diagnostiken — admin-tidrapporten ska visa exakt det GPS-veckovyn visar.
+      let canonicalSummary: any = null;
+      let canonicalBlocks: any[] | null = null;
+      let canonicalError: string | null = null;
+      let canonicalTotalsForDiag: any = null;
+      try {
+        const canonical = await buildCanonicalStaffDayGpsResult(admin, {
+          organizationId: orgId,
+          staffId,
+          date,
+        });
+        canonicalSummary = canonicalToCacheSummary(canonical, {
+          pingCount: pings.length,
+        });
+        canonicalBlocks = canonicalToCacheBlocks(canonical) as any[];
+        canonicalTotalsForDiag = {
+          totals: canonical.totals,
+          version: canonical.version,
+          firstIso: canonical.firstIso,
+          lastIso: canonical.lastIso,
+          segmentCount: canonical.segments.length,
+        };
+        out.workMinutes = canonical.totals.payableSuggestionMinutes;
+        out.reportBlocks = canonical.segments.length;
+      } catch (e: any) {
+        canonicalError = e?.message ?? String(e);
+        console.warn(
+          `[backfill] canonical projection failed for ${staffId} ${date}: ${canonicalError}`,
+        );
+      }
+
+      const summary = canonicalSummary ?? {
+        source: 'legacy_time_engine_fallback',
         pingCount: pings.length,
         reportBlocks: report.blocks.length,
         workMinutes: work,
@@ -565,6 +606,8 @@ async function processOne(
         preWorkExcludedMinutes: preWork,
         targetsCount: targets.length,
       };
+      const blocksForCache = canonicalBlocks ?? enrichedBlocks;
+
       const { error } = await admin
         .from('staff_day_report_cache')
         .upsert(
@@ -574,12 +617,18 @@ async function processOne(
             date,
             engine_version: engineVersion,
             summary_json: summary,
-            report_candidate_blocks_json: enrichedBlocks,
+            report_candidate_blocks_json: blocksForCache,
             // ── Time Legacy Purge: backfill skriver INTE display_blocks_json ──
             // Endast DisplayTimelineV2-pipelinen får skriva display_blocks_json.
             // Vi rör inte kolumnen alls här (befintliga värden bevaras orörda).
             diagnostics_json: {
               ...((report as any).diagnostics ?? {}),
+              // ── Canonical projection (GPS-veckovyn = sanningen) ──
+              canonicalGpsProjection: {
+                applied: !!canonicalSummary,
+                error: canonicalError,
+                ...(canonicalTotalsForDiag ?? {}),
+              },
               // ── Time Legacy Purge — legacy display_blocks_json får aldrig skrivas härifrån ──
               legacyBackfillDisplayBlocksWritten: false,
               canonicalDisplaySource: 'display_timeline_v2',

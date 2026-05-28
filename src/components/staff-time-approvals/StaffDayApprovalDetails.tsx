@@ -264,7 +264,7 @@ export const StaffDayApprovalDetails: React.FC<Props> = ({ day, staffId }) => {
         <Cpu className="h-4 w-4 text-indigo-700 dark:text-indigo-300 mt-0.5 shrink-0" />
         <div>
           <p className="text-xs font-medium text-indigo-900 dark:text-indigo-200">
-            Förslag från Time Engine / GPS-satellit
+            Förslag från GPS
           </p>
           <p className="text-[11px] text-muted-foreground">
             Väntar på att personalen granskar och skickar in.

@@ -209,7 +209,7 @@ export const StaffWeeklyApprovalRow: React.FC<Props> = ({
                   {d.minutes > 0 ? ` · ${formatHm(d.minutes)}` : ""}
                   {d.source === "engine_cache" && d.uiStatus === "pending_staff_attest" ? (
                     <div className="text-[10px] text-muted-foreground mt-0.5">
-                      Förslag från Time Engine · klicka för granskning
+                      Förslag från GPS · klicka för granskning
                     </div>
                   ) : clickable ? (
                     <div className="text-[10px] text-muted-foreground mt-0.5">

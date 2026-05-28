@@ -325,7 +325,7 @@ export const StaffDayInspectionDrawer: React.FC<Props> = ({ open, bundle, day, o
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="text-[10px] uppercase font-semibold tracking-wider text-muted-foreground">
                         Tidslinje{" "}
-                        {segmentsSource === "submission" ? "(inskickad)" : "(Time Engine-förslag)"}
+                        {segmentsSource === "submission" ? "(inskickad)" : "(GPS-förslag)"}
                       </h4>
                       {diff != null && (
                         <span
