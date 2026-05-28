@@ -195,6 +195,30 @@ export function StaffGpsDayRow({ day, dateStr, selected, summary, staffName, onC
           )}
         </div>
       )}
+
+      {hasData && segments.length > 0 && (() => {
+        const lastSeg = segments[segments.length - 1];
+        const reason = inferLastPingReason(lastSeg, lastIso, staffName);
+        if (!reason) return null;
+        const Icon = reason.warn ? AlertTriangle : reason.kind === 'home_end_of_day' ? Home : null;
+        return (
+          <div
+            className={cn(
+              'mt-1.5 flex items-start gap-1.5 rounded-md border px-2 py-1 text-[10.5px] leading-snug',
+              reason.warn
+                ? 'border-amber-300/60 bg-amber-50/70 text-amber-800'
+                : 'border-zinc-200/70 bg-zinc-50/70 text-muted-foreground',
+            )}
+            title={`Sista ping: ${lastIso ? formatStockholmHm(lastIso) : '—'}`}
+          >
+            {Icon && <Icon className="h-3 w-3 shrink-0 translate-y-[1.5px]" />}
+            <span className="min-w-0">
+              <span className="font-medium">Efter {lastIso ? formatStockholmHm(lastIso) : 'sista blocket'}:</span>{' '}
+              <span className="opacity-90">{reason.text}</span>
+            </span>
+          </div>
+        );
+      })()}
     </button>
   );
 }
