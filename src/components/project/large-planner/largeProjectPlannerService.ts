@@ -185,20 +185,26 @@ async function fetchProjectBookings(
 }
 
 /**
- * Bygger en dedupad sorterad lista av datum för projektet:
- *  - bokningarnas rig/event/rigdown-datum
- *  - befintliga plan_items.plan_date
+ * Bygger projektkalenderns synliga dagar STRIKT från stora projektets egna
+ * datum (large_projects.start_date / event_date / end_date).
  *
- * Faser tilldelas i prioritetsordning event > rig > rigDown om datumet
- * matchar flera bokningar (samma som personalkalenderns visning).
+ * REGEL: Bokningar och plan_items får ALDRIG utöka eller krympa kalenderns
+ * datumspann. Projektkalendern ska alltid spegla projektets datumkort 1:1.
+ * Plan-items vars plan_date ligger UTANFÖR projektets datum visas inte som
+ * egna kolumner (de tappas inte — items lever kvar i DB), och fasen för
+ * varje dag bestäms av projektets egna datum-arrayer (event > rig > rigDown).
  */
 export function buildProjectDays(
-  bookings: LargeProjectPlannerBooking[],
+  projectDates: {
+    rig: string[];
+    event: string[];
+    rigDown: string[];
+  },
   items: LargeProjectBookingPlanItem[],
 ): LargeProjectPlannerDay[] {
   const dateSet = new Set<string>();
   const phaseByDate = new Map<string, 'rig' | 'event' | 'rigDown'>();
-  const tag = (date: string | null, phase: 'rig' | 'event' | 'rigDown') => {
+  const tag = (date: string | null | undefined, phase: 'rig' | 'event' | 'rigDown') => {
     if (!date) return;
     dateSet.add(date);
     // event > rig > rigDown — sätt bara om svagare/saknad
@@ -211,22 +217,15 @@ export function buildProjectDays(
       phaseByDate.set(date, phase);
     }
   };
-  bookings.forEach((b) => {
-    // Använd hela datumlistorna (rig_dates/event_dates/rigdown_dates), inte
-    // bara förstadatumet — annars saknas extra rigg-/event-/nedriggdagar
-    // som ligger i calendar_events. En riggdag är en riggdag.
-    (b.rig_dates ?? []).forEach((d) => tag(d, 'rig'));
-    (b.event_dates ?? []).forEach((d) => tag(d, 'event'));
-    (b.rigdown_dates ?? []).forEach((d) => tag(d, 'rigDown'));
-    // Säkerhetsnät för äldre data där *_dates ev. saknas.
-    tag(b.rigdaydate, 'rig');
-    tag(b.eventdate, 'event');
-    tag(b.rigdowndate, 'rigDown');
-  });
 
+  (projectDates.rig ?? []).forEach((d) => tag(d, 'rig'));
+  (projectDates.event ?? []).forEach((d) => tag(d, 'event'));
+  (projectDates.rigDown ?? []).forEach((d) => tag(d, 'rigDown'));
+
+  // Items grupperas in i befintliga projektdagar — de får INTE skapa nya.
   const itemsByDate = new Map<string, LargeProjectBookingPlanItem[]>();
   items.forEach((it) => {
-    dateSet.add(it.plan_date);
+    if (!dateSet.has(it.plan_date)) return;
     const list = itemsByDate.get(it.plan_date) ?? [];
     list.push(it);
     itemsByDate.set(it.plan_date, list);
@@ -243,6 +242,7 @@ export function buildProjectDays(
       }),
     }));
 }
+
 
 /**
  * Bygg staffByDay från calendar_events × staff_assignments. Pure helper —
@@ -634,12 +634,46 @@ export async function fetchLargeProjectPlannerItems(
   return (data ?? []) as LargeProjectBookingPlanItem[];
 }
 
+/**
+ * Hämtar stora projektets EGNA datum-arrayer (start_date / event_date /
+ * end_date). Detta är ENDA tillåtna källa för projektkalenderns datumspann.
+ */
+async function fetchLargeProjectDates(
+  largeProjectId: string,
+): Promise<{ rig: string[]; event: string[]; rigDown: string[] }> {
+  const { data, error } = await supabase
+    .from('large_projects')
+    .select('start_date, event_date, end_date')
+    .eq('id', largeProjectId)
+    .single();
+  if (error) {
+    console.warn('[largeProjectPlannerService] fetchLargeProjectDates', error);
+    return { rig: [], event: [], rigDown: [] };
+  }
+  const norm = (arr: unknown): string[] =>
+    Array.isArray(arr)
+      ? Array.from(
+          new Set(
+            (arr as unknown[])
+              .filter((v): v is string => typeof v === 'string' && !!v)
+              .map((v) => (v.includes('T') ? v.slice(0, 10) : v.slice(0, 10))),
+          ),
+        ).sort((a, b) => a.localeCompare(b))
+      : [];
+  return {
+    rig: norm((data as { start_date?: unknown })?.start_date),
+    event: norm((data as { event_date?: unknown })?.event_date),
+    rigDown: norm((data as { end_date?: unknown })?.end_date),
+  };
+}
+
 export async function fetchLargeProjectPlannerContext(
   largeProjectId: string,
 ): Promise<LargeProjectPlannerContext> {
-  const [bookings, items] = await Promise.all([
+  const [bookings, items, projectDates] = await Promise.all([
     fetchProjectBookings(largeProjectId),
     fetchLargeProjectPlannerItems(largeProjectId),
+    fetchLargeProjectDates(largeProjectId),
   ]);
   const { staffByDay, teamsByDay, allStaff } = await fetchProjectStaffPerDay(
     largeProjectId,
@@ -649,11 +683,12 @@ export async function fetchLargeProjectPlannerContext(
     bookings,
     staff: allStaff,
     items,
-    days: buildProjectDays(bookings, items),
+    days: buildProjectDays(projectDates, items),
     staffByDay,
     teamsByDay,
   };
 }
+
 
 // ── Writes (endast plan-tabellen) ──────────────────────────────────────────
 
