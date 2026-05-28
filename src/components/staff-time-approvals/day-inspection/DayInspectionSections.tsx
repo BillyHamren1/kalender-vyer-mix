@@ -113,7 +113,7 @@ export function extractDiagnostics(day: WeeklyDayCell): DiagnosticsBrief {
 
 export const SegmentList: React.FC<{ segments: InspectionSegment[] }> = ({ segments }) => {
   if (segments.length === 0) {
-    return <p className="text-xs italic text-muted-foreground">Inga segment i Time Engine-förslaget.</p>;
+    return <p className="text-xs italic text-muted-foreground">Inga segment i GPS-förslaget.</p>;
   }
   return (
     <ol className="space-y-1">
@@ -253,7 +253,7 @@ export const EngineProposalBanner: React.FC = () => (
     <Cpu className="h-4 w-4 text-indigo-700 dark:text-indigo-300 mt-0.5 shrink-0" />
     <div>
       <p className="text-xs font-medium text-indigo-900 dark:text-indigo-200">
-        Förslag från Time Engine / GPS-satellit
+        Förslag från GPS
       </p>
       <p className="text-[11px] text-muted-foreground">
         Väntar på att personalen granskar och skickar in. Admin kan inte godkänna ännu.
