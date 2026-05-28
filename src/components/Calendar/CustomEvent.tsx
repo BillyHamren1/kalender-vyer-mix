@@ -426,9 +426,22 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   // har en EGEN popover som skriver till plan-tabellen — aldrig till
   // calendar_events / bookings. Routningen sker via extendedProps.kind.
   if ((event.extendedProps as any)?.kind === 'planner_item') {
+    const plannerBookingId = (event.extendedProps as any)?.plannerBookingId as string | undefined;
+    const handlePlannerDoubleClick = (e: React.MouseEvent) => {
+      if (!plannerBookingId) return;
+      e.stopPropagation();
+      e.preventDefault();
+      window.dispatchEvent(
+        new CustomEvent('lp-booking-sheet-open', { detail: { bookingId: plannerBookingId } }),
+      );
+    };
     return (
       <PlannerEventActionPopover event={event} onOpenDetails={handleViewDetails}>
-        <div style={{ width: '100%', height: '100%' }}>
+        <div
+          style={{ width: '100%', height: '100%' }}
+          onDoubleClick={handlePlannerDoubleClick}
+          title="Dubbelklicka för bokningsöversikt"
+        >
           {eventCardContent}
         </div>
       </PlannerEventActionPopover>
