@@ -252,6 +252,8 @@ export function projectCanonicalResult(input: {
     confidence: confidenceFor(seg),
     warningReasons: warningReasonsFor(seg),
     source: "gps_partition",
+    fromLabel: seg.fromLabel ?? null,
+    toLabel: seg.toLabel ?? null,
   }));
 
   // ── Geofence-visits — clampade till exakta in/ut-pings (snapshot.visits).
