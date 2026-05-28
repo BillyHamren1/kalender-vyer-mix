@@ -4093,6 +4093,33 @@ serve(async (req) => {
       errors: results.errors.length > 0 ? results.errors : undefined,
     }))
 
+    // ── Kort-varsel-notiser för nya bokningar (fire-and-forget) ──────────
+    // Inom-app-meddelande + mejl till admin/projekt/forsaljning om
+    // riggdagen ligger inom 7 dagar.
+    if (results.new_bookings.length > 0) {
+      try {
+        const supabaseUrlForNotify = Deno.env.get('SUPABASE_URL')!;
+        const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        // Fire-and-forget — notifieringen ska aldrig blockera importen
+        // och dess fel ska aldrig faila importen.
+        const dispatch = fetch(`${supabaseUrlForNotify}/functions/v1/notify-short-notice-bookings`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${serviceKey}`,
+          },
+          body: JSON.stringify({ booking_ids: results.new_bookings }),
+        }).catch((err) => console.warn('[import-bookings] notify-short-notice dispatch failed', err));
+        // @ts-ignore — EdgeRuntime finns i Supabase Edge Runtime
+        if (typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') {
+          // @ts-ignore
+          EdgeRuntime.waitUntil(dispatch);
+        }
+      } catch (err) {
+        console.warn('[import-bookings] notify-short-notice setup failed', err);
+      }
+    }
+
     return new Response(
       JSON.stringify({ success: true, results }),
       {
