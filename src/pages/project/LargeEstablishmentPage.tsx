@@ -1,24 +1,17 @@
 /**
  * LargeEstablishmentPage — stort projekt: "Kalender & planering".
  * --------------------------------------------------------------------------
- * STRIKT SEPARATION (se .lovable/large-project-calendar-audit.md):
+ * Projektkalendern ska bete sig EXAKT som personalkalendern för bokningarnas
+ * riktiga projektdagar (hover, popover, flytt, rigg-/event-/nedrigg-redigering).
+ * Därför renderas samma ProjectCalendarView här.
  *
- *   • Personalkalendern (ProjectCalendarView/CustomCalendar) = planerar
- *     PROJEKTETS DAGAR. Får skriva calendar_events, staff_assignments och
- *     booking_staff_assignments. Den styr vilken personal som finns
- *     tillgänglig på projektets dagar.
+ * Den interna planeringen lever kvar som sidopanel (LargeProjectPlannerPanel)
+ * och hanterar bara planner-items / bokningssheeten.
  *
- *   • Den interna projektkalendern (LargeProjectBookingPlannerCalendar) =
- *     planerar bokningsdelar/tasks INOM projektets dagar. Får ENDAST skriva
- *     till large_project_booking_plan_items.
- *
- * Den här sidan renderar därför ENBART LargeProjectBookingPlannerCalendar i
- * kalenderläget — ingen ProjectCalendarView, inga plannerCalendarEvents som
- * extraEvents, ingen LargeProjectPlannerPanel som rightPanel. Excel-vyn är
- * oförändrad och EstablishmentTaskDetailSheet lever kvar.
- *
- * Lägg INTE tillbaka useLargeProjectPlannerCalendarEvents här. Planner-items
- * får aldrig renderas som calendar_events i ProjectCalendarView.
+ * Viktigt:
+ *  - ProjectCalendarView är source-of-truth-linsen över calendar_events.
+ *  - Planner-items får INTE renderas som extraEvents här.
+ *  - Excel-vyn och EstablishmentTaskDetailSheet lever kvar oförändrade.
  */
 import { useState, useCallback, useEffect } from "react";
 import { useOutletContext, useNavigate, useLocation } from "react-router-dom";
@@ -27,7 +20,8 @@ import { Button } from "@/components/ui/button";
 import { CalendarDays, Table as TableIcon } from "lucide-react";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
 import LargeProjectExcelView from "@/components/project/LargeProjectExcelView";
-import LargeProjectBookingPlannerCalendar from "@/components/project/large-planner/LargeProjectBookingPlannerCalendar";
+import ProjectCalendarView from "@/components/project/ProjectCalendarView";
+import LargeProjectPlannerPanel from "@/components/project/large-planner/LargeProjectPlannerPanel";
 import { supabase } from "@/integrations/supabase/client";
 import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
 import { getLargeProjectBookingLabel } from "@/lib/largeProjectBookingLabel";
@@ -116,7 +110,12 @@ const LargeEstablishmentPage = () => {
       {pageMode === "excel" ? (
         <LargeProjectExcelView bookings={(project as any)?.bookings || []} />
       ) : (
-        <LargeProjectBookingPlannerCalendar largeProjectId={project.id} />
+        <ProjectCalendarView
+          projectId={project.id}
+          isLargeProject
+          compactHeader
+          rightPanel={<LargeProjectPlannerPanel largeProjectId={project.id} />}
+        />
       )}
 
       <EstablishmentTaskDetailSheet
