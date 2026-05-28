@@ -212,6 +212,13 @@ export function buildProjectDays(
     }
   };
   bookings.forEach((b) => {
+    // Använd hela datumlistorna (rig_dates/event_dates/rigdown_dates), inte
+    // bara förstadatumet — annars saknas extra rigg-/event-/nedriggdagar
+    // som ligger i calendar_events. En riggdag är en riggdag.
+    (b.rig_dates ?? []).forEach((d) => tag(d, 'rig'));
+    (b.event_dates ?? []).forEach((d) => tag(d, 'event'));
+    (b.rigdown_dates ?? []).forEach((d) => tag(d, 'rigDown'));
+    // Säkerhetsnät för äldre data där *_dates ev. saknas.
     tag(b.rigdaydate, 'rig');
     tag(b.eventdate, 'event');
     tag(b.rigdowndate, 'rigDown');
