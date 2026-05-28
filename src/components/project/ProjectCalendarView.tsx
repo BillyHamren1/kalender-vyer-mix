@@ -34,6 +34,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar as CalIcon, RefreshCw } from 'lucide-react';
+import { ConsolidationMenuDisabledProvider } from '@/contexts/ConsolidationMenuContext';
 
 import CustomCalendar from '@/components/Calendar/CustomCalendar';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
@@ -300,13 +301,21 @@ const ProjectCalendarView = ({
     </Card>
   );
 
-  if (!rightPanel) return calendarCard;
-
-  return (
+  const wrapped = rightPanel ? (
     <div className="grid gap-3 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px]">
       <div className="min-w-0">{calendarCard}</div>
       <aside className="min-w-0">{rightPanel}</aside>
     </div>
+  ) : (
+    calendarCard
+  );
+
+  // Spärrar högerklicks-menyn "Konsolidera till nytt stort projekt" inifrån
+  // projektkalendern. Personalkalendern har kvar menyn.
+  return (
+    <ConsolidationMenuDisabledProvider disabled>
+      {wrapped}
+    </ConsolidationMenuDisabledProvider>
   );
 };
 

@@ -1,75 +1,57 @@
-# Varför rig-raden försvann för bokning 2604-8
+## Mål
 
-## Vad jag hittade i datan
+1. Återställ läget så People Partner (#2603-14) och de övriga 21 bokningarna ligger där de låg före kl. 09:00 idag.
+2. Förhindra att samma olycka kan hända igen från projekt-/personalkalendern.
 
-**Bokning 2604-8 (Westmans Uthyrning):**
-- `bookings`-raden är korrekt: `rigdaydate = 2026-06-03`, `rig_start_time/end_time` satta, `eventdate = 2026-06-05`, `rigdowndate = 2026-06-08`.
-- `calendar_events` har bara EN rad: `rigDown @ 2026-06-08, team-4`. Ingen rig-rad. Ingen event-rad.
+## Vad databasen visar
 
-**Audit-spår (`booking_changes` version 6, 2026-05-27 09:04:10):**
-Endast `rigdaydate`, `rig_start_time`, `rig_end_time` ändrades — från `2026-06-04` → `2026-06-03`. Det var ditt datumbyte igår.
+- Storprojekt `a5d3f31b` "Almedalenveckan 2026" skapades 09:00:00 idag och drog in 22 bokningar i `large_project_bookings`.
+- Källprojekten enligt audit:
+  - Storprojekt `5c94ebcc` — **hård-raderat** (finns inte längre i `large_projects`). Inga rader att återställa, bara audit-spår.
+  - Mediumprojekt `d75279e7` "NT Management AB – 22 juni 2026" — **soft-deleted** (`deleted_at` satt 09:00:00.185). Kan väckas till liv.
+- Bokningarna har `large_project_id = a5d3f31b` på sig. De gamla länkarna i `large_project_bookings` mot `5c94ebcc` är borta.
 
-## Vad som hände — rotorsak
+Eftersom `5c94ebcc` är hårddraderat går det **inte** att exakt återställa den gamla projekt-raden (namn/intern­anteckningar/leveransadress/files). Däremot kan jag återställa själva bokningskopplingen — vilket är det viktiga för People Partner.
 
-Två skrivvägar slåss om `calendar_events`, och de stämmer inte överens efter ett datumbyte:
+## Steg 1 — Återställning (engångsmigration, ingen kodändring)
 
-1. **UI-vägen (`savePhaseDays` i `src/lib/calendar/phaseDaysWriter.ts`)** uppdaterade `bookings.rigdaydate` till 06-03 och försökte INSERT-a en ny `calendar_events`-rad för rig@06-03. Den **raderade aldrig** den gamla rig-raden på 06-04. Best case: två rig-rader (gammal + ny). Worst case: insert skippades tyst om sticky-team inte kunde härledas (se rad 186-193 — bara `console.log`).
+1. Återväck mediumprojektet `d75279e7` (sätt `deleted_at = NULL`, `planning_status = 'planned'`).
+2. Flytta tillbaka rätt booking till mediumprojektet: sätt `bookings.assigned_project_id = d75279e7`, `assigned_to_project = true`, `large_project_id = NULL` för bokningen som ursprungligen tillhörde mediumprojektet (booking_id `72ff457e-06be-4ae4-b400-6219729a2c38`, dvs medium-projektets `booking_id`).
+3. Återskapa ett storprojekt för de övriga 21 bokningarna (ersätter det hård-raderade `5c94ebcc`). Skapar en NY `large_projects`-rad med samma namn som källkonsolideringen ("Almedalenveckan 2026" minus mediumbokningen ovan), `planning_status = 'planned'` (så den INTE poppar upp i Nya bokningar), `status = 'planning'`. Återskoppla de 21 övriga via `large_project_bookings`.
+4. Ta bort det av misstag skapade `a5d3f31b` (soft-delete) och dess `large_project_bookings`-rader.
+5. Skriver audit-rad `rollback_consolidation` med referens till de tre projekt-id:na så vi har spår av vad som gjordes.
 
-2. **`import-bookings`-reconcilern** (supabase/functions/import-bookings/index.ts, rad 1135-1251) körs sedan när bokningen importeras nästa gång från det externa systemet. Den bygger `desiredEvents` från **vad det externa systemet skickar**, matchar mot existing via `event_type|date` och **DELETE:ar allt som inte matchar** (rad 1238-1251).
+Effekt: People Partner ligger tillbaka i ett storprojekt med `planning_status='planned'` → försvinner från "Nya bokningar". Den medium-bokning som hade ett eget projekt får tillbaka sitt eget mediumprojekt.
 
-   Det externa systemet har inte registrerat ditt UI-datumbyte (det skedde lokalt via phaseDaysWriter — inte mot Bokningssystemet). Så reconcilern fick ett desired som inte innehöll rig@06-03, och raderade den nya raden som stale. Event-dagen på 06-05 raderades samtidigt — det är by design (rad 1101: "Event days are NO LONGER persisted to calendar_events").
+**Risker / begränsningar (transparent):**
+- Det gamla storprojektets **namn, internalnotes, attachments, project_leader, address** går inte att återskapa exakt (raderna är hård-raderade). Vi får återanvända samma fält som källkonsolideringen läste från (`Almedalenveckan 2026`), eller du säger ett annat namn så använder jag det.
+- Eventuella ändringar gjorda i `a5d3f31b` efter 09:00 idag (extra anteckningar, dokument, team-tilldelningar) flyttas till det återställda storprojektet så inget arbete tappas.
 
-Resultat: bara rigDown@06-08 överlever.
+## Steg 2 — Kodfix mot framtida olyckor
 
-## Vad vi behöver fixa
+**A. Bekräftelsedialog innan konsolidering.** Ändring i `ConsolidateProjectsDialog.tsx`: lägg till en explicit "Är du säker?"-steg med listan av källprojekt och totalantalet bokningar som ska flyttas, samt en "Skriv ordet KONSOLIDERA"-input innan submit blir aktiv. Inget kan triggas av misstag.
 
-### A. Akut: återskapa rig-raden för 2604-8
+**B. Dölj högerklicksmenyn i projektkalendern.** I `CustomEvent.tsx` (rad 454–490) återanvänds samma ContextMenu för alla event. Lägg till en `disableConsolidate`-prop (eller läs från context) som tystar `ContextMenuItem`-raderna när komponenten renderas inuti `LargeProjectPlannerCalendarView` / `ProjectCalendarView`. Konsolideringsmenyn finns kvar i personalkalendern där den hör hemma.
 
-En engångs-INSERT i `calendar_events`:
-- `booking_id = f60e2565-7a09-42f3-bc90-164f29c17ddd`
-- `event_type = 'rig'`
-- `start_time = 2026-06-03 08:00:00+00`, `end_time = 2026-06-03 12:00:00+00`
-- `source_date = 2026-06-03`
-- `resource_id = team-4` (samma som rigDown — sticky team)
-- `booking_number = '2604-8'`, `title = 'Westmans Uthyrning'`, adress från bokningen, `organization_id` från bokningen.
+**C. Test som låser beteendet.**
+- `src/components/Calendar/__tests__/consolidateMenuGuard.test.tsx`: säkerställer att menyalternativen "Konsolidera till nytt stort projekt…" / "Lägg till i stort projekt…" INTE finns i DOM:en när `disableConsolidate=true`.
+- `src/components/project/__tests__/consolidateConfirm.test.tsx`: säkerställer att submit-knappen är disabled tills bekräftelsetexten skrivits.
 
-Görs via vanlig migration eller en liten admin-action — ingen kodändring krävs för detta steget.
+## Filer som kommer ändras
 
-### B. Strukturell fix: phaseDaysWriter ska migrera gammal rad i stället för att lämna kvar den
-
-I `src/lib/calendar/phaseDaysWriter.ts`:
-
-1. **Innan** vi letar/INSERT:ar på det nya datumet — leta upp eventuell befintlig rad för `(booking_id, event_type)` vars `source_date` INTE finns i den nya `dates`-listan. Om det är **exakt en sådan föräldralös rad** och vi är på väg att skapa en ny rad: gör en `UPDATE` på den gamla i stället (flytta `source_date`, `start_time`, `end_time`, `title`). Det bevarar `resource_id` (team stickiness).
-2. Om sticky-team saknas → returnera ett **tydligt fel** i `failures[]` i stället för bara `console.log`, så UI:t kan visa "datum bytt men kalender ej uppdaterad".
-
-### C. Skydda mot import-bookings stale-delete för lokalt ändrade datum
-
-I `supabase/functions/import-bookings/index.ts` runt rad 1238-1251 (stale-delete-passet):
-
-- Lägg till en guard: om en existing rad har `source_date` som matchar bokningens nuvarande `rigdaydate`/`eventdate`/`rigdowndate` (det "sanna" datumet enligt vår lokala booking-rad), **radera inte** den även om externa desiredEvents inte innehåller den. Då vinner alltid det lokala bookings-fältet, vilket är vad memory-regeln **Booking Dates Single Source** föreskriver.
-- Logga `[Calendar Reconcile] KEEP-LOCAL` för spårbarhet.
-
-### D. Test som låser beteendet
-
-Ny test i `supabase/functions/import-bookings/__tests__/` (eller motsvarande):
-- Setup: bokning med `rigdaydate=2026-06-03` lokalt, calendar_events har rig@06-03.
-- Kör reconcileCalendarEvents med externt desired som saknar rig (simulerar EventFlow-glitch).
-- Förvänta: rig@06-03 finns kvar efteråt.
-
-Och en `phaseDaysWriter.test.ts`-fall:
-- Befintlig rig@06-04 + savePhaseDays för rig@06-03 → resultat: en (1) rig-rad på 06-03, samma `resource_id` som tidigare. Ingen kvarvarande 06-04-rad.
-
-## Filer som ändras
-
-- `src/lib/calendar/phaseDaysWriter.ts` (logik B)
-- `src/lib/calendar/__tests__/phaseDaysWriter.test.ts` (ny, eller utöka befintlig)
-- `supabase/functions/import-bookings/index.ts` (logik C, rad ~1238-1251)
-- Ny test för reconciler-guarden
-- Engångs-INSERT för 2604-8 (migration eller manuell SQL)
+- `src/components/project/ConsolidateProjectsDialog.tsx` (bekräftelsesteg)
+- `src/components/Calendar/CustomEvent.tsx` (gate på menyn)
+- `src/components/Calendar/EventActionPopover.tsx` eller motsvarande props-genomgång om det behövs för att skicka `disableConsolidate` neråt
+- Ny: `src/components/Calendar/__tests__/consolidateMenuGuard.test.tsx`
+- Ny: `src/components/project/__tests__/consolidateConfirm.test.tsx`
+- Ny migrations-fil: rollback av Almedalenveckan-konsolideringen (steg 1)
 
 ## Vad jag INTE rör
 
-- Personalkalendern-renderingen (bara saknad data, inte renderfel).
-- `calendar_events`-schemat.
-- BSA-recompute / staff_assignments — de följer automatiskt när rig-raden är på plats igen.
-- Stora projekt-planerarens egen tabell (`large_project_booking_plan_items`).
+- `consolidate-projects` edge function (den fungerar som tänkt — problemet är att den var för lätt att råka trigga).
+- Personalkalenderns rendering, BSA, `calendar_events`.
+- Konsolideringslogik i mobil / packlista.
+
+## Innan jag kör
+
+Bara en sak: när jag återskapar storprojektet i steg 1.3 — vill du ha det med namnet **"Almedalenveckan 2026"** (samma som det konsoliderade), eller vill du att jag använder **något annat namn** (t.ex. exakt det som `5c94ebcc` hette innan)? Jag har inte det gamla namnet kvar i någon backup, så om det fanns ett specifikt original­namn måste du säga det. Annars kör jag "Almedalenveckan 2026" och du kan döpa om i UI:n.

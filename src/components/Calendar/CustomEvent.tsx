@@ -24,6 +24,7 @@ import {
 import ConsolidateProjectsDialog from '@/components/project/ConsolidateProjectsDialog';
 import { resolveEventConsolidationSource } from '@/services/eventConsolidationResolver';
 import type { ConsolidationSource } from '@/services/projectConsolidationService';
+import { useConsolidationMenuDisabled } from '@/contexts/ConsolidationMenuContext';
 import './CustomEvent.css';
 
 interface CustomEventProps {
@@ -51,7 +52,10 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   const [consolidateName, setConsolidateName] = useState<string>('');
   const [consolidateMode, setConsolidateMode] = useState<'create' | 'add'>('create');
 
+  const consolidationMenuDisabled = useConsolidationMenuDisabled();
+
   const handleOpenConsolidate = useCallback(async (mode: 'create' | 'add') => {
+    if (consolidationMenuDisabled) return;
     try {
       const src = await resolveEventConsolidationSource(event);
       if (!src) {
@@ -65,7 +69,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     } catch (err: any) {
       toast.error(err?.message || 'Kunde inte öppna konsolidering');
     }
-  }, [event]);
+  }, [event, consolidationMenuDisabled]);
 
   // Add event navigation hook for context menu
   const { handleEventClick } = useEventNavigation();
@@ -472,22 +476,24 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             </EventActionPopover>
           </div>
         </ContextMenuTrigger>
-        <ContextMenuContent className="w-64 rounded-xl border bg-popover p-1.5 shadow-lg">
-          <ContextMenuItem
-            onSelect={() => handleOpenConsolidate('create')}
-            className="rounded-lg gap-2 px-2.5 py-2 text-sm cursor-pointer focus:bg-primary/10"
-          >
-            <Combine className="h-4 w-4" style={{ color: 'hsl(var(--project-large-foreground))' }} />
-            Konsolidera till nytt stort projekt...
-          </ContextMenuItem>
-          <ContextMenuItem
-            onSelect={() => handleOpenConsolidate('add')}
-            className="rounded-lg gap-2 px-2.5 py-2 text-sm cursor-pointer focus:bg-primary/10"
-          >
-            <Plus className="h-4 w-4" style={{ color: 'hsl(var(--project-large-foreground))' }} />
-            Lägg till i stort projekt...
-          </ContextMenuItem>
-        </ContextMenuContent>
+        {!consolidationMenuDisabled && (
+          <ContextMenuContent className="w-64 rounded-xl border bg-popover p-1.5 shadow-lg">
+            <ContextMenuItem
+              onSelect={() => handleOpenConsolidate('create')}
+              className="rounded-lg gap-2 px-2.5 py-2 text-sm cursor-pointer focus:bg-primary/10"
+            >
+              <Combine className="h-4 w-4" style={{ color: 'hsl(var(--project-large-foreground))' }} />
+              Konsolidera till nytt stort projekt...
+            </ContextMenuItem>
+            <ContextMenuItem
+              onSelect={() => handleOpenConsolidate('add')}
+              className="rounded-lg gap-2 px-2.5 py-2 text-sm cursor-pointer focus:bg-primary/10"
+            >
+              <Plus className="h-4 w-4" style={{ color: 'hsl(var(--project-large-foreground))' }} />
+              Lägg till i stort projekt...
+            </ContextMenuItem>
+          </ContextMenuContent>
+        )}
       </ContextMenu>
 
       <ConsolidateProjectsDialog
