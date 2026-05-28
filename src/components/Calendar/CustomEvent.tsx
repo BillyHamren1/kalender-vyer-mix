@@ -52,7 +52,10 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   const [consolidateName, setConsolidateName] = useState<string>('');
   const [consolidateMode, setConsolidateMode] = useState<'create' | 'add'>('create');
 
+  const consolidationMenuDisabled = useConsolidationMenuDisabled();
+
   const handleOpenConsolidate = useCallback(async (mode: 'create' | 'add') => {
+    if (consolidationMenuDisabled) return;
     try {
       const src = await resolveEventConsolidationSource(event);
       if (!src) {
@@ -66,7 +69,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
     } catch (err: any) {
       toast.error(err?.message || 'Kunde inte öppna konsolidering');
     }
-  }, [event]);
+  }, [event, consolidationMenuDisabled]);
 
   // Add event navigation hook for context menu
   const { handleEventClick } = useEventNavigation();
