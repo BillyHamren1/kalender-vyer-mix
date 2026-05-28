@@ -51,7 +51,7 @@ const SEGMENT_LABEL_COLOR: Record<SegmentType, string> = {
   idle: 'text-zinc-500',
 };
 
-export function StaffGpsDayRow({ day, dateStr, selected, summary, onClick, mode = 'report' }: Props) {
+export function StaffGpsDayRow({ day, dateStr, selected, summary, staffName, onClick, mode = 'report' }: Props) {
   const weekday = format(day, 'EEE', { locale: sv });
   const dayMonth = format(day, 'd/M', { locale: sv });
   const hasData = !!summary && summary.pingsCount > 0;
