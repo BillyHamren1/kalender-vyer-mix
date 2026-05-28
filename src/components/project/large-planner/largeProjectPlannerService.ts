@@ -634,12 +634,46 @@ export async function fetchLargeProjectPlannerItems(
   return (data ?? []) as LargeProjectBookingPlanItem[];
 }
 
+/**
+ * Hämtar stora projektets EGNA datum-arrayer (start_date / event_date /
+ * end_date). Detta är ENDA tillåtna källa för projektkalenderns datumspann.
+ */
+async function fetchLargeProjectDates(
+  largeProjectId: string,
+): Promise<{ rig: string[]; event: string[]; rigDown: string[] }> {
+  const { data, error } = await supabase
+    .from('large_projects')
+    .select('start_date, event_date, end_date')
+    .eq('id', largeProjectId)
+    .single();
+  if (error) {
+    console.warn('[largeProjectPlannerService] fetchLargeProjectDates', error);
+    return { rig: [], event: [], rigDown: [] };
+  }
+  const norm = (arr: unknown): string[] =>
+    Array.isArray(arr)
+      ? Array.from(
+          new Set(
+            (arr as unknown[])
+              .filter((v): v is string => typeof v === 'string' && !!v)
+              .map((v) => (v.includes('T') ? v.slice(0, 10) : v.slice(0, 10))),
+          ),
+        ).sort((a, b) => a.localeCompare(b))
+      : [];
+  return {
+    rig: norm((data as { start_date?: unknown })?.start_date),
+    event: norm((data as { event_date?: unknown })?.event_date),
+    rigDown: norm((data as { end_date?: unknown })?.end_date),
+  };
+}
+
 export async function fetchLargeProjectPlannerContext(
   largeProjectId: string,
 ): Promise<LargeProjectPlannerContext> {
-  const [bookings, items] = await Promise.all([
+  const [bookings, items, projectDates] = await Promise.all([
     fetchProjectBookings(largeProjectId),
     fetchLargeProjectPlannerItems(largeProjectId),
+    fetchLargeProjectDates(largeProjectId),
   ]);
   const { staffByDay, teamsByDay, allStaff } = await fetchProjectStaffPerDay(
     largeProjectId,
@@ -649,11 +683,12 @@ export async function fetchLargeProjectPlannerContext(
     bookings,
     staff: allStaff,
     items,
-    days: buildProjectDays(bookings, items),
+    days: buildProjectDays(projectDates, items),
     staffByDay,
     teamsByDay,
   };
 }
+
 
 // ── Writes (endast plan-tabellen) ──────────────────────────────────────────
 
