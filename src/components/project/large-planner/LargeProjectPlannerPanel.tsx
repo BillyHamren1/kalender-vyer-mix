@@ -29,6 +29,7 @@ import LargeProjectPlannerQuickEditDialog from './LargeProjectPlannerQuickEditDi
 import BookingPlannerSheet from './BookingPlannerSheet';
 import { useLargeProjectPlannerItems } from './useLargeProjectPlannerItems';
 import { supabase } from '@/integrations/supabase/client';
+import { syncBookingPhaseDays } from '@/services/bookingPhaseDaysService';
 import type {
   LargeProjectBookingPlanItem,
   LargeProjectPlannerBooking,
@@ -139,7 +140,6 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
     selection: import('./BookingPlannerSheet').PlanWholeBookingSelection,
   ) => {
     const existingForBooking = items.filter((it) => it.booking_id === booking.id);
-    const projectDateSet = new Set(days.map((d) => d.date));
 
     const phases: Array<{
       phase: 'rig' | 'event' | 'rigDown';
@@ -154,22 +154,15 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
       { phase: 'rigDown', label: 'Rigg ner', enabled: selection.rigDown, dates: selection.drafts.rigDown.dates, startTime: selection.drafts.rigDown.startTime, endTime: selection.drafts.rigDown.endTime },
     ];
 
-    const missingDays: string[] = [];
     for (const ph of phases) {
       if (!ph.enabled) continue;
-      for (const d of ph.dates) {
-        if (!projectDateSet.has(d)) missingDays.push(`${ph.label}: ${d}`);
-      }
-    }
-    if (missingDays.length > 0) {
-      toast.error('Den här dagen är inte planerad som projektdag ännu.', {
-        description:
-          'Lägg till projektdagen i personalkalendern först.\n\nSaknas: ' +
-          missingDays.slice(0, 6).join(', ') +
-          (missingDays.length > 6 ? ` (+${missingDays.length - 6} till)` : ''),
-        duration: 10000,
+      await syncBookingPhaseDays({
+        bookingId: booking.id,
+        phase: ph.phase,
+        dates: ph.dates,
+        startTime: ph.startTime,
+        endTime: ph.endTime,
       });
-      return;
     }
 
     let created = 0;
