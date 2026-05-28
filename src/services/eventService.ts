@@ -132,7 +132,7 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
   const [{ data: bookingsData, error: bookingsError }, { data: projectsData, error: projectsError }] = await Promise.all([
     supabase
       .from('bookings')
-      .select('id, client, title, booking_number, deliveryaddress, large_project_id, rigdaydate, eventdate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, status, rig_time_locked, event_time_locked, rigdown_time_locked, customer_pickup')
+      .select('id, client, title, booking_number, deliveryaddress, large_project_id, rigdaydate, eventdate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, status, rig_time_locked, event_time_locked, rigdown_time_locked, customer_pickup, calendar_color')
       .or(`and(rigdaydate.gte.${fromDate},rigdaydate.lte.${toDate}),and(eventdate.gte.${fromDate},eventdate.lte.${toDate}),and(rigdowndate.gte.${fromDate},rigdowndate.lte.${toDate})`),
     supabase
       .from('large_projects')
