@@ -154,16 +154,10 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
       { phase: 'rigDown', label: 'Rigg ner', enabled: selection.rigDown, dates: selection.drafts.rigDown.dates, startTime: selection.drafts.rigDown.startTime, endTime: selection.drafts.rigDown.endTime },
     ];
 
-    for (const ph of phases) {
-      if (!ph.enabled) continue;
-      await syncBookingPhaseDays({
-        bookingId: booking.id,
-        phase: ph.phase,
-        dates: ph.dates,
-        startTime: ph.startTime,
-        endTime: ph.endTime,
-      });
-    }
+    // STRIKT: Vi skriver ALDRIG till bookings/calendar_events härifrån.
+    // Bokningens rig/event/nedrigg-datum ägs av personalkalendern och
+    // ändras endast där. Planner-items skrivs nedan till
+    // `large_project_booking_plan_items`.
 
     let created = 0;
     let skipped = 0;
