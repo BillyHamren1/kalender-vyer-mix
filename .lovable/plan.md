@@ -1,56 +1,50 @@
-## Problem
+# Plan: rensa "Nya bokningar"-listan från stora projekt
 
-På `/staff-management/time` (bild 2) visas helt andra siffror än i GPS-veckovyn (bild 1):
+## Vad jag faktiskt hittade (inte luddigt — fakta)
 
-| Dag | GPS-veckovy (bild 1) | Tidrapportsida (bild 2) |
-|-----|----------------------|--------------------------|
-| Mån 25/5 | Arbete 10h 27m | 3m |
-| Tis 26/5 | Arbete 9h 27m + Resa 1h 44m | 9h 29m |
-| Tors 28/5 | Arbete 2h 30m + Resa 1h 8m | — (ingen rapport) |
+Jag gick igenom hela kedjan **personalkalender ↔ projektkalender ↔ "Nya bokningar"-listan** och kan bekräfta:
 
-Orsaken är att de två vyerna går igenom helt olika pipelines:
+### Personalkalendern är HELT orörd
+- `src/services/staffCalendarService.ts`, `src/services/plannerCalendarDerivation.ts` och `src/lib/staffCalendar/deriveStaffEvents.ts` har inga differentiella ändringar.
+- Personalkalendern bygger sin synlighet på **`booking_staff_assignments` + `large_project_staff` + projektets datum** — INTE på `calendar_events`-rader, INTE på `planning_status`, INTE på "Nya bokningar"-listan.
+- Kontrakts­testet `personalkalenderUntouched.contract.test.ts` skyddar fortfarande detta.
 
-- **Bild 1** (GPS-veckovy) läses från edge-funktionen `get-staff-gps-week-summary`, som bygger varje dag med `buildCanonicalStaffDayGpsResult` (delar samma kod som GPS-satellitkartan). Detta är den enda vyn där "Arbete", "Resa", "FA Warehouse → Swedish game fair" m.m. faktiskt är rätt — det är ren GPS, ingen Time Engine-omskrivning.
-- **Bild 2** (tidrapportsida → "Förslag från Time Engine") läses från `staff_day_report_cache.summary_json` som skrivs av `backfill-staff-day-report-cache` via den interna Time Engine-byggaren (`report.blocks`). Den räknar om allt själv (geofence-policy, workday-policy, klippregler) och får ofta dramatiskt lägre siffror.
+### Varför "Swedish game fair" syns i listan
+- `src/hooks/useUnplannedProjects.ts` (rad 40–45) frågar **explicit** `large_projects WHERE planning_status = 'needs_planning'`.
+- `createLargeProject` sätter aldrig `planning_status`, så DB-default `needs_planning` gäller → **varje nytt stort projekt hamnar automatiskt i listan**.
+- Det är detta som triggar din "Stort"-badge. Listan har alltså blandat ihop två orelaterade saker:
+  1. Fristående bokningar som väntar på att placeras i personalkalendern (rätt målgrupp för listan).
+  2. Stora projekt som råkar ha en gammal `needs_planning`-flagga (fel målgrupp — stora projekt styrs av sin egen projektkalender).
 
-Användarens krav: **spegla GPS-veckovyn 1:1**. Ingen omräkning, ingen geofence, ingen workday. Det som syns på bild 1 ska vara det som personalattest visar och det som sparas på projekt och tidrapport.
+### Vad händer om man klickar "Placera" på ett stort projekt i listan?
+Då — och **endast då** — skriver `BookingPlacementDialog` `calendar_events`-rader. Men eftersom personalkalendern inte läser `calendar_events` för synlighet utan bara för tider/team-enrichment, **påverkar det inte vem som ser vad i personalkalendern**. Det är assignment-styrt.
 
-## Lösning
+**Slutsats:** Listan är förvirrande, men personalkalendern är inte och har inte varit påverkad av projektkalendern.
 
-Gör `buildCanonicalStaffDayGpsResult` till den enda källan för tidrapport-förslag. Den engine-cache som tidrapportsidan läser ska skrivas direkt från canonical-resultatet, och submit-vägen som sparar tid på projekt/tidrapport ska använda samma block.
+## Vad jag föreslår att vi gör (minimalt)
 
-### 1. Bygg cache från GPS-canonical (bakåt)
-- I `supabase/functions/backfill-staff-day-report-cache/index.ts`: ersätt det interna `report`/Time Engine-flödet med ett anrop till `buildCanonicalStaffDayGpsResult`. Skriv om `summary_json` så fälten matchar canonical-resultatet:
-  - `workMinutes` = `canonical.totals.workMinutes` (Arbete = 10h 27m, 9h 27m, …)
-  - `travelMinutes` = `canonical.totals.travelMinutes` (Resa = 1h 44m, 1h 8m, …)
-  - `payableMinutes` = `workMinutes + travelMinutes` (det som tidrapporten räknar som "godkännbar tid", t.ex. 9h 32m → 11h 11m för 26/5)
-- `report_candidate_blocks_json` skrivs från canonical-segmenten (place stays + travel-segments) med `fromLabel`/`toLabel`, `targetType`, `targetId`, `start/end`, `durationMinutes`. Då visar drawern på tidrapportsidan exakt samma rader som bild 1 ("FA Warehouse 08:58–09:49", "Resa FA Warehouse → Swedish game fair", …).
-- `display_blocks_json` rörs inte (skrivs av display-pipelinen separat — låt den fortsätta läsa från samma canonical-källa, se steg 2).
+Ändringen är liten och rör bara frontend-listan:
 
-### 2. Online-vägen (idag och framåt)
-- I `sync-staff-day-report-cache` (cron) går allt redan via backfill-funktionen, så den behöver inte ändras — den ärver nya logiken.
-- I `submit-mobile-gps-day-v2` och `submit-staff-day-v3`: bygg `staff_day_submissions.start_time/end_time/source_summary_json` från samma `buildCanonicalStaffDayGpsResult`. När personalen attesterar är det GPS-vyns siffror som hamnar i `time_reports` och `location_time_entries`, oavsett vilken admin-vy man tittar på.
+1. **Ta bort `large_projects`-frågan ur `useUnplannedProjects`.**
+   - Listan visar då endast `projects` (medel) med `planning_status='needs_planning'` + fristående bokningar utan projekt.
+   - Stora projekt försvinner ur "Nya bokningar" helt — där hör de inte hemma.
 
-### 3. Tidrapport-läsaren
-- `src/components/staff-time-approvals/weeklyApprovalModel.ts` läser redan `summary_json.payableMinutes`/`workMinutes`. Inget behöver ändras där — den kommer automatiskt visa 10h 27m / 9h 27m+1h 44m så fort cachen byggs om.
-- "Förslag från Time Engine"-pillen byter etikett till **"Förslag från GPS"** (bild 2 visar inte längre Time Engine).
-- Drawern (`StaffDayInspectionDrawer`/`DayInspectionSections`) läser `report_candidate_blocks_json` → blocken kommer redan ha `fromLabel`/`toLabel`, så "Resa FA Warehouse → Swedish game fair" syns även där.
+2. **`UnplannedProjectsBanner`** (samma datakälla) följer med automatiskt.
 
-### 4. Backfill av historik
-- Kör `backfill-staff-day-report-cache` för innevarande och föregående vecka för Raivis (och hela orgen) så att tidrapportsidan visar nya siffrorna direkt utan att vänta på cron.
+3. **Inget DB-arbete behövs.** `planning_status`-kolumnen på `large_projects` lämnas orörd (den läses bara av dessa två frontend-ställen efter ändringen).
 
-## Det här ändras INTE
-- `time_reports`-tabellen och hur lön/projekt-kostnad sammanställs. Vi flyttar bara *källan* för förslagssiffrorna och submit-payloaden — själva sparningen lever kvar oförändrad.
-- GPS-pings, geofence-data, workday-flaggor. Inga rader raderas eller migreras.
-- Bild 1 (`get-staff-gps-week-summary`) — den är redan rätt och blir nu enda sanningen.
+4. **Personalkalendern rörs inte.** Kontrakts­testet fortsätter skydda det.
 
-## Teknisk sammanfattning
-- Edge: `backfill-staff-day-report-cache` skrivs om så `summary_json`/`report_candidate_blocks_json` byggs direkt från `buildCanonicalStaffDayGpsResult` (samma kontrakt som `get-staff-gps-week-summary`).
-- Edge: `submit-mobile-gps-day-v2` + `submit-staff-day-v3` använder samma canonical-builder för submitted payload.
-- Frontend: minimalt — bara etikettändring + nytt deploy. UI-modellen läser redan rätt fält.
-- Konstant att låsa i memory: **"Time report page mirrors GPS week summary 1:1"** — tidrapport-cache får ALDRIG byggas från någon annan motor än `buildCanonicalStaffDayGpsResult`.
+5. **Regressionstest:** uppdatera `useUnplannedProjects.static.test.ts` så det bevisar att `large_projects`-tabellen inte längre frågas — så ingen återinför det av misstag.
 
-## Verifiering
-- Kör `backfill-staff-day-report-cache` för Raivis vecka 22 och jämför `summary_json.payableMinutes` mot `get-staff-gps-week-summary` per dag — ska vara exakt lika.
-- Vitest: nytt test i `src/test/` som anropar båda källorna för en mock-dag och försäkrar att `workMinutes`, `travelMinutes`, segment-listan och labels stämmer rad för rad.
-- Manuellt: öppna `/staff-management/time` för Raivis vecka 22 → Mån ska visa 10h 27m, Tis 11h 11m (9h 27m + 1h 44m), Tors 3h 38m.
+## Berörda filer
+
+- `src/hooks/useUnplannedProjects.ts` — ta bort `largeRes`-grenen och `large`-mappningen.
+- `src/hooks/__tests__/useUnplannedProjects.static.test.ts` — nytt assert: `.from('large_projects')` får inte finnas.
+- (ingenting i personalkalender-koden)
+
+## Resultat
+
+- "Swedish game fair" och alla andra stora projekt försvinner från "Nya bokningar"-listan på `/projects`.
+- Personalkalendern fortsätter fungera exakt som tidigare.
+- Projektkalendern fortsätter vara fristående.
