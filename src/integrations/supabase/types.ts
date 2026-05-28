@@ -946,6 +946,7 @@ export type Database = {
           assigned_project_name: string | null
           assigned_to_project: boolean | null
           booking_number: string | null
+          calendar_color: string | null
           carry_more_than_10m: boolean | null
           client: string
           contact_email: string | null
@@ -1002,6 +1003,7 @@ export type Database = {
           assigned_project_name?: string | null
           assigned_to_project?: boolean | null
           booking_number?: string | null
+          calendar_color?: string | null
           carry_more_than_10m?: boolean | null
           client: string
           contact_email?: string | null
@@ -1058,6 +1060,7 @@ export type Database = {
           assigned_project_name?: string | null
           assigned_to_project?: boolean | null
           booking_number?: string | null
+          calendar_color?: string | null
           carry_more_than_10m?: boolean | null
           client?: string
           contact_email?: string | null
