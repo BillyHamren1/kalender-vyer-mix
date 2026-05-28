@@ -13,6 +13,7 @@ import PlannerEventActionPopover from '@/components/project/large-planner/Planne
 import MoveEventDateDialog from './MoveEventDateDialog';
 import { DeleteDayButton } from './DeleteDayButton';
 import { TodoEventCard } from './TodoEventCard';
+import { BookingColorMarkButton } from './BookingColorMarkButton';
 
 import { useWarehouseResources } from '@/hooks/useWarehouseResources';
 import {
