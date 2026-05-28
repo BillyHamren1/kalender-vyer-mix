@@ -389,6 +389,22 @@ export const ConsolidateProjectsDialog: React.FC<Props> = ({
           </div>
         </div>
 
+        {baseValid && (
+          <div className="rounded-lg border border-amber-400/40 bg-amber-50/60 dark:bg-amber-950/20 p-3 space-y-2">
+            <p className="text-xs text-amber-900 dark:text-amber-200">
+              ⚠️ Detta {mode === 'add' ? 'lägger till' : 'slår ihop'} <strong>{selected.size}</strong>{' '}
+              projekt {mode === 'add' ? `i "${targetLarge?.name ?? ''}"` : 'till ett nytt stort projekt'}.
+              Bokningarna flyttas och de gamla projekten arkiveras. Skriv <strong>KONSOLIDERA</strong> för att bekräfta.
+            </p>
+            <Input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder="KONSOLIDERA"
+              className="h-8 text-sm"
+            />
+          </div>
+        )}
+
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Avbryt
