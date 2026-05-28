@@ -57,6 +57,11 @@ import {
 import { getStockholmDayWindowUtc } from '../_shared/stockholmDayWindow.ts';
 import { buildDayEvidence } from '../_shared/time-engine/buildDayEvidence.ts';
 import { buildLocationTruthFromDayEvidence } from '../_shared/time-engine/buildLocationTruthFromDayEvidence.ts';
+import { buildCanonicalStaffDayGpsResult } from '../_shared/staff-gps/canonicalStaffDayGpsResult.ts';
+import {
+  canonicalToCacheBlocks,
+  canonicalToCacheSummary,
+} from '../_shared/staff-gps/canonicalToCacheProjection.ts';
 
 // ── Lager 2.7 feature flag ────────────────────────────────────────────────
 // Read-only: lägger locationTruthV2-diagnostik i staff_day_report_cache.diagnostics_json.
