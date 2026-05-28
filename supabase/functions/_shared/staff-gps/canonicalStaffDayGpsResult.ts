@@ -70,6 +70,10 @@ export interface CanonicalSegment {
   confidence: "high" | "medium" | "low";
   warningReasons: string[];
   source: "gps_partition";
+  /** För travel/gps_gap/unknown_place: namn på föregående känd plats (om finns). */
+  fromLabel: string | null;
+  /** För travel/gps_gap/unknown_place: namn på nästa kända plats (om finns). */
+  toLabel: string | null;
 }
 
 export interface CanonicalGeofenceVisit {
