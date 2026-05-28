@@ -476,22 +476,24 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             </EventActionPopover>
           </div>
         </ContextMenuTrigger>
-        <ContextMenuContent className="w-64 rounded-xl border bg-popover p-1.5 shadow-lg">
-          <ContextMenuItem
-            onSelect={() => handleOpenConsolidate('create')}
-            className="rounded-lg gap-2 px-2.5 py-2 text-sm cursor-pointer focus:bg-primary/10"
-          >
-            <Combine className="h-4 w-4" style={{ color: 'hsl(var(--project-large-foreground))' }} />
-            Konsolidera till nytt stort projekt...
-          </ContextMenuItem>
-          <ContextMenuItem
-            onSelect={() => handleOpenConsolidate('add')}
-            className="rounded-lg gap-2 px-2.5 py-2 text-sm cursor-pointer focus:bg-primary/10"
-          >
-            <Plus className="h-4 w-4" style={{ color: 'hsl(var(--project-large-foreground))' }} />
-            Lägg till i stort projekt...
-          </ContextMenuItem>
-        </ContextMenuContent>
+        {!consolidationMenuDisabled && (
+          <ContextMenuContent className="w-64 rounded-xl border bg-popover p-1.5 shadow-lg">
+            <ContextMenuItem
+              onSelect={() => handleOpenConsolidate('create')}
+              className="rounded-lg gap-2 px-2.5 py-2 text-sm cursor-pointer focus:bg-primary/10"
+            >
+              <Combine className="h-4 w-4" style={{ color: 'hsl(var(--project-large-foreground))' }} />
+              Konsolidera till nytt stort projekt...
+            </ContextMenuItem>
+            <ContextMenuItem
+              onSelect={() => handleOpenConsolidate('add')}
+              className="rounded-lg gap-2 px-2.5 py-2 text-sm cursor-pointer focus:bg-primary/10"
+            >
+              <Plus className="h-4 w-4" style={{ color: 'hsl(var(--project-large-foreground))' }} />
+              Lägg till i stort projekt...
+            </ContextMenuItem>
+          </ContextMenuContent>
+        )}
       </ContextMenu>
 
       <ConsolidateProjectsDialog
