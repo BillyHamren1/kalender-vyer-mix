@@ -14,7 +14,7 @@ import { sv } from "date-fns/locale";
 
 export default function WeekFlowMobilePanel() {
   const navigate = useNavigate();
-  const staffId = useCurrentStaffId();
+  const { staffId } = useCurrentStaffId();
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const weekDates = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
