@@ -432,7 +432,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
       e.stopPropagation();
       e.preventDefault();
       window.dispatchEvent(
-        new CustomEvent('lp-booking-sheet-open', { detail: { bookingId: plannerBookingId } }),
+        new window.CustomEvent('lp-booking-sheet-open', { detail: { bookingId: plannerBookingId } }),
       );
     };
     return (
