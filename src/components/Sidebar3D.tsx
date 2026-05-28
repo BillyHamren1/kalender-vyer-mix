@@ -110,6 +110,7 @@ export function Sidebar3D() {
   const unviewedCount = useProjectInboxCount();
   const { data: unplannedProjects = [] } = useUnplannedProjects();
   const unplannedCount = unplannedProjects.length;
+  const { addTab, removeTab, hasTab } = usePinnedTabs();
 
   const navigationItems = baseNavigationItems.map((item) => {
     if (item.url === "/projects") {
