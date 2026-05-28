@@ -101,7 +101,11 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   );
 
   const customerPickup = Boolean((event.extendedProps as any)?.customerPickup);
-  const eventColor = getEventColor(event.eventType, customerPickup);
+  const calendarColor = (event.extendedProps as any)?.calendarColor as string | undefined;
+  const bookingTitle = (event.extendedProps as any)?.bookingTitle as string | undefined;
+  const defaultEventColor = getEventColor(event.eventType, customerPickup);
+  // Manuell färgmärkning vinner alltid över default-färgen.
+  const eventColor = calendarColor || defaultEventColor;
 
   // Check if booking is cancelled
   const isCancelled = event.bookingStatus === 'CANCELLED' || event.extendedProps?.bookingStatus === 'CANCELLED';
