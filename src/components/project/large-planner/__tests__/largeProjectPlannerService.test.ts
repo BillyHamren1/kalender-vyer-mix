@@ -1,6 +1,37 @@
 import { describe, it, expect } from 'vitest';
 import { __buildPlannerDays } from '../largeProjectPlannerService';
-import type { LargeProjectBookingPlanItem } from '../largeProjectPlannerTypes';
+import type {
+  LargeProjectBookingPlanItem,
+  LargeProjectPlannerBooking,
+} from '../largeProjectPlannerTypes';
+
+const baseBooking = (
+  overrides: Partial<LargeProjectPlannerBooking>,
+): LargeProjectPlannerBooking => ({
+  id: overrides.id ?? crypto.randomUUID(),
+  booking_number: null,
+  client: null,
+  display_name: 'B',
+  rigdaydate: null,
+  eventdate: null,
+  rigdowndate: null,
+  rig_start_time: null,
+  rig_end_time: null,
+  event_start_time: null,
+  event_end_time: null,
+  rigdown_start_time: null,
+  rigdown_end_time: null,
+  deliveryaddress: null,
+  delivery_city: null,
+  contact_name: null,
+  contact_phone: null,
+  contact_email: null,
+  internalnotes: null,
+  rig_dates: [],
+  event_dates: [],
+  rigdown_dates: [],
+  ...overrides,
+});
 
 const baseItem = (overrides: Partial<LargeProjectBookingPlanItem>): LargeProjectBookingPlanItem => ({
   id: overrides.id ?? crypto.randomUUID(),
