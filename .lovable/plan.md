@@ -1,47 +1,43 @@
-# Plan: låt Placera-dialogen läsa alla riggdagar enhetligt
+# Plan
 
-## Mål
-När en bokning har flera riggdagar ska **alla** visas i Placera-dialogen. En riggdag är en riggdag — ingen särskild logik för ”första”, ”extra” eller någon annan variant.
+Jag ändrar projektkalendern så att dess datum blir exakt samma som **stora projektets datum** och aldrig längre påverkas av underbokningar eller plan-items.
 
-## Vad som ska ändras
+## Det jag bygger
 
-1. **Gör en gemensam läsmodell för bokningens dagar**
-   - Bygg en helper som läser bokningens planeringsdagar som **en enda lista per fas** (`rig`, `event`, `rigDown`).
-   - Den ska slå ihop:
-     - bokningens datumfält
-     - motsvarande dagar som redan finns i `calendar_events`
-   - Resultatet ska vara en enhetlig lista där varje dag behandlas likadant oavsett varifrån den kom.
+1. **Byt datumkälla för projektkalendern**
+   - Projektkalenderns dagar ska byggas från `large_projects.start_date`, `large_projects.event_date` och `large_projects.end_date`.
+   - Bokningars `rigdaydate/eventdate/rigdowndate`, `calendar_events` och `large_project_booking_plan_items.plan_date` ska **inte längre få utöka datumspannet**.
 
-2. **Använd den gemensamma modellen i `BookingPlacementDialog`**
-   - Seedningen i dialogen ska inte längre bara läsa `rigdaydate/eventdate/rigdowndate`.
-   - Den ska använda den gemensamma helpern så att alla riggdagar, eventdagar och nedmonteringsdagar kommer med direkt när man öppnar Placera.
+2. **Behåll planeringen, men utan att den styr kalenderns spann**
+   - Befintliga bokningar och plan-items finns kvar som data.
+   - Om något ligger utanför stora projektets datum ska det **inte skapa extra datum i projektkalendern**.
+   - Jag rör inte databasen och skriver inte om några datum i befintliga bokningar.
 
-3. **Behåll samma regler för alla riggdagar**
-   - Samma sortering, samma tidslogik, samma teamlogik.
-   - Ingen specialbehandling för en viss riggdag beroende på om den ligger i `bookings` eller i `calendar_events`.
-   - Ingen ändring av personalkalenderns logik.
+3. **Lägg till skyddande tester**
+   - Test som verifierar att kalendern följer stora projektets datum 1:1.
+   - Test som verifierar att en avvikande underbokning (som 29 maj / 26 juni-fallet) inte kan dra ut kalendern.
+   - Test som verifierar att ett `plan_item` utanför projektets datum inte skapar nya kalenderdagar.
 
-4. **Lägg till tester som låser beteendet**
-   - Bokning med flera riggdagar ska ge flera riggdagar i seed-listan.
-   - Samma dag får inte dubblas om den finns i båda källorna.
-   - Flera `rigDown`-dagar och eventdagar ska också komma med korrekt.
-   - Test som säkerställer att dagarna behandlas enhetligt oavsett källa.
+4. **Validera i preview och testsvit**
+   - Jag verifierar att kalenderns range-label och dagkolumner matchar headerns stora projektdatum.
+   - Jag kör relevanta tester direkt efter ändringen.
 
-5. **Verifiera i preview och med tester**
-   - Öppna samma typ av bokning i preview och kontrollera att båda riggdagarna syns i Placera-dialogen.
-   - Kör riktade Vitest-tester efter ändringen.
+## Tekniskt
 
-## Berörda filer
-- `src/components/project/bookingPlacementSeed.ts`
-- `src/components/project/BookingPlacementDialog.tsx`
-- `src/components/project/__tests__/bookingPlacementSeed.test.ts`
+- Uppdatera `largeProjectPlannerService.ts` så att `fetchLargeProjectPlannerContext()` även läser stora projektets datum-arrayer.
+- Ändra `buildProjectDays()` till att använda **endast** stora projektets datum-arrayer som källa för synliga dagar.
+- Justera typerna i planner-contexten om det behövs för att bära projektets datum separat från bokningarnas datum.
+- Uppdatera/utöka testfilen för planner-service så att detta blir låst framåt.
 
-## Tekniska detaljer
-- Ingen ny datamodell i databasen.
-- Ingen skillnad mellan ”huvud-riggdag” och ”extra riggdag”.
-- `bookings` och `calendar_events` används bara som två läskällor till **samma** daglista i UI:t.
-- Deduplikering ska ske på kombinationen `kind + date` så att samma dag inte visas två gånger.
-- Sortering ska fortsätta vara kronologisk med fasordning inom samma datum.
+```text
+Ny sanning för projektkalendern:
+large_projects.start_date/event_date/end_date
+            ↓
+      buildProjectDays()
+            ↓
+   visade dagar i projektkalendern
+```
 
-## Resultat
-Placera-dialogen visar alla bokningens riggdagar korrekt, utan att införa olika logik för olika riggdagar.
+## Resultat efter ändringen
+
+Projektkalendern kommer att visa **exakt samma datum som stora projektets datumkort**. Inga enskilda bokningar eller gamla plan-items ska längre kunna lägga till egna extra dagar.
