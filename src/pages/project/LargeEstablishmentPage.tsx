@@ -104,12 +104,7 @@ const LargeEstablishmentPage = () => {
       {pageMode === "excel" ? (
         <LargeProjectExcelView bookings={(project as any)?.bookings || []} />
       ) : (
-        <ProjectCalendarView
-          projectId={project.id}
-          isLargeProject
-          compactHeader
-          rightPanel={<LargeProjectPlannerPanel largeProjectId={project.id} />}
-        />
+        <LargeProjectBookingPlannerCalendar largeProjectId={project.id} />
       )}
 
       <EstablishmentTaskDetailSheet
