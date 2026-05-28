@@ -98,6 +98,106 @@ const LargeProjectPlannerSidebar = ({
     matchesFilter(itemsByBooking.get(b.id) ?? []),
   );
 
+  if (horizontal) {
+    return (
+      <aside className="flex shrink-0 flex-col border-b border-border/60 bg-background">
+        <div className="flex items-center gap-3 border-b border-border/60 px-3 py-2">
+          <div className="flex items-center gap-1.5 text-sm font-semibold">
+            <Inbox className="h-3.5 w-3.5 text-primary" />
+            Bokningar i projektet
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {FILTERS.map((f) => (
+              <Button
+                key={f.key}
+                size="sm"
+                variant={filter === f.key ? 'default' : 'outline'}
+                className="h-6 px-2 text-[10px]"
+                onClick={() => setFilter(f.key)}
+              >
+                {f.label}
+              </Button>
+            ))}
+          </div>
+          {onCreateManual && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="ml-auto h-6 px-2 text-[10px]"
+              onClick={onCreateManual}
+            >
+              <Pencil className="mr-1 h-3 w-3" /> Manuell task
+            </Button>
+          )}
+          <div className="inline-flex items-center gap-1 text-[10px] text-muted-foreground whitespace-nowrap">
+            <ListChecks className="h-3 w-3" />
+            {items.length} items
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <div className="flex gap-2 p-2 min-w-min">
+            {filteredBookings.length === 0 && (
+              <div className="rounded-md border border-dashed border-border/60 p-3 text-center text-[11px] text-muted-foreground w-full">
+                Inga bokningar matchar filtret.
+              </div>
+            )}
+            {filteredBookings.map((booking) => {
+              const its = itemsByBooking.get(booking.id) ?? [];
+              const isPlanned = its.length > 0;
+              return (
+                <div
+                  key={booking.id}
+                  className="w-[260px] shrink-0 rounded-md border border-border/60 bg-card p-2"
+                >
+                  <div className="flex items-start justify-between gap-1">
+                    <div className="min-w-0">
+                      <div className="truncate text-xs font-medium text-foreground">
+                        {booking.display_name}
+                      </div>
+                      {booking.booking_number && (
+                        <div className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                          <Hash className="h-2.5 w-2.5" />
+                          {booking.booking_number}
+                        </div>
+                      )}
+                    </div>
+                    <Badge
+                      variant={isPlanned ? 'secondary' : 'outline'}
+                      className="text-[9px]"
+                    >
+                      {isPlanned ? `${its.length} st` : 'Ej planerad'}
+                    </Badge>
+                  </div>
+                  <div className="mt-2 flex gap-1">
+                    <Button
+                      size="sm"
+                      variant={isPlanned ? 'outline' : 'default'}
+                      className="h-6 flex-1 text-[10px]"
+                      onClick={() => onSeedBooking(booking)}
+                    >
+                      Planera
+                    </Button>
+                    {onSplitBooking && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-6 flex-1 text-[10px]"
+                        onClick={() => onSplitBooking(booking)}
+                      >
+                        Dela upp
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </aside>
+    );
+  }
+
   return (
     <aside className="flex w-72 shrink-0 flex-col border-l border-border/60 bg-background">
       <div className="border-b border-border/60 px-3 py-2">
