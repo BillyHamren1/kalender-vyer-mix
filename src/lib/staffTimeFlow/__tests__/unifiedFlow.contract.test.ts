@@ -37,10 +37,11 @@ describe("WeekFlow unified flow contract", () => {
     expect(sheet).toMatch(/submitMobileGpsDayV2/);
   });
 
-  it("Admin 'Öppna GPS' länkar till /staff-management/gps-satellite-map", () => {
-    const src = read("src/components/staff-time/StaffTimeWeeklyGpsReportContent.tsx");
-    expect(src).toMatch(/\/staff-management\/gps-satellite-map\?staffId=/);
-    expect(src).not.toMatch(/\/staff-management\/time\?staff=/);
+  it("Admin 'Granska' / 'Öppna GPS' länkar till /staff-management/gps-satellite-map", () => {
+    const row = read("src/components/staff-time/StaffTimeWeekMatrixRow.tsx");
+    expect(row).toMatch(/\/staff-management\/gps-satellite-map\?staffId=/);
+    const sheet = read("src/components/staff-time/StaffTimeMatrixDayDetailSheet.tsx");
+    expect(sheet).toMatch(/\/staff-management\/gps-satellite-map\?staffId=/);
   });
 
   it("WeekFlowDayCard använder formatStockholmHm för radtider (inte slice 11,16)", () => {
