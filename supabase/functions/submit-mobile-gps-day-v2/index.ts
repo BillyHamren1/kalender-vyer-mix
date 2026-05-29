@@ -27,6 +27,56 @@ import {
 } from "../_shared/time-v2/buildDayView.ts";
 
 const TZ = "Europe/Stockholm";
+const NORMAL_START_MIN = 7 * 60;
+const NORMAL_END_MIN = 17 * 60;
+
+function stockholmMinuteOfDayV2(d: Date): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: TZ, hour12: false, hour: "2-digit", minute: "2-digit",
+  }).formatToParts(d);
+  let h = 0, m = 0;
+  for (const p of parts) {
+    if (p.type === "hour") h = Number(p.value) % 24;
+    else if (p.type === "minute") m = Number(p.value);
+  }
+  return h * 60 + m;
+}
+
+function computeWorkTimeBucketsFromSnapshot(
+  snapshot: Array<Record<string, unknown>> | null | undefined,
+  breakMinutes: number,
+): { normalMinutes: number; overtimeMinutes: number; travelMinutes: number; totalWorkMinutes: number } {
+  let normal = 0, overtime = 0, travel = 0;
+  for (const r of snapshot ?? []) {
+    const type = String((r as any).type ?? (r as any).kind ?? "");
+    const startIso = (r as any).start ?? (r as any).startedAt ?? null;
+    const endIso = (r as any).end ?? (r as any).endedAt ?? null;
+    const minutes = Number((r as any).minutes ?? 0) || 0;
+    if (type === "travel") { travel += Math.max(0, Math.round(minutes)); continue; }
+    if (type !== "work" && type !== "manual_work") continue;
+    if (startIso && endIso) {
+      const s = Date.parse(String(startIso));
+      const e = Date.parse(String(endIso));
+      if (Number.isFinite(s) && Number.isFinite(e) && e > s) {
+        const total = Math.min(Math.round((e - s) / 60_000), 48 * 60);
+        for (let i = 0; i < total; i++) {
+          const mod = stockholmMinuteOfDayV2(new Date(s + i * 60_000));
+          if (mod >= NORMAL_START_MIN && mod < NORMAL_END_MIN) normal++;
+          else overtime++;
+        }
+        continue;
+      }
+    }
+    normal += Math.max(0, Math.round(minutes));
+  }
+  let left = Math.max(0, Math.round(breakMinutes || 0));
+  if (left > 0) {
+    const fromN = Math.min(normal, left); normal -= fromN; left -= fromN;
+    if (left > 0) { const fromO = Math.min(overtime, left); overtime -= fromO; }
+  }
+  return { normalMinutes: normal, overtimeMinutes: overtime, travelMinutes: travel, totalWorkMinutes: normal + overtime };
+}
+
 
 type ManualTargetType = "booking" | "project" | "large_project" | "location" | "other";
 
@@ -506,6 +556,11 @@ Deno.serve(async (req: Request) => {
     userChanged,
   };
 
+  const workTimeBuckets = computeWorkTimeBucketsFromSnapshot(
+    displaySnapshot as Array<Record<string, unknown>> | null,
+    breakMinutes ?? 0,
+  );
+
   const sourceSummaryJson = {
     source: sourceTag,
     sourceSnapshotId,
@@ -519,6 +574,12 @@ Deno.serve(async (req: Request) => {
     overrideCount: manualOverrides.length,
     deletedSegmentCount: manualDay?.deletedSegmentIds.length ?? 0,
     hasManualDay,
+    // Normal/övertid (Europe/Stockholm 07:00–17:00). Beräknas server-side från
+    // display_timeline_snapshot_json så att admin och app alltid speglar varandra.
+    normalMinutes: workTimeBuckets.normalMinutes,
+    overtimeMinutes: workTimeBuckets.overtimeMinutes,
+    travelMinutesBuckets: workTimeBuckets.travelMinutes,
+    totalWorkMinutes: workTimeBuckets.totalWorkMinutes,
   };
 
   const upsertPayload: Record<string, unknown> = {

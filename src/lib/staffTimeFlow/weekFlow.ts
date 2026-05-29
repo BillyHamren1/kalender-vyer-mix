@@ -7,6 +7,7 @@ import { toReportRows, summarizeReportRows } from "@/lib/staff-gps/reportRowFilt
 import { formatStockholmHm } from "@/lib/staff/formatStockholmTime";
 import type { StaffGpsDaySummary } from "@/hooks/staff/useStaffGpsWeekSummary";
 import type { StaffDaySubmissionRow } from "@/hooks/staff/useStaffDaySubmissions";
+import { calculateWorkTimeBuckets } from "./workTimeBuckets";
 import type {
   WeekFlow,
   WeekFlowDay,
@@ -52,6 +53,8 @@ function emptyDay(date: string, viewer: WeekFlowViewer): WeekFlowDay {
     workMinutes: 0,
     travelMinutes: 0,
     totalMinutes: 0,
+    normalMinutes: 0,
+    overtimeMinutes: 0,
     rows: [],
     source: "empty",
     submissionId: null,
@@ -166,6 +169,10 @@ export function buildWeekFlow(input: BuildWeekFlowInput): WeekFlow {
         : (startIso && endIso
             ? Math.max(0, Math.round((Date.parse(endIso) - Date.parse(startIso)) / 60_000) - (sub.break_minutes ?? 0))
             : 0);
+      const buckets = calculateWorkTimeBuckets(
+        rows.map((r) => ({ kind: r.kind, startIso: r.startIso, endIso: r.endIso, minutes: r.minutes })),
+        { breakMinutes: sub.break_minutes ?? 0 },
+      );
 
       const perms = permissionsFor(status, viewer);
       const isApproved = status === "approved";
@@ -177,6 +184,8 @@ export function buildWeekFlow(input: BuildWeekFlowInput): WeekFlow {
         workMinutes: workMin,
         travelMinutes: travelMin,
         totalMinutes: totalMin,
+        normalMinutes: buckets.normalMinutes,
+        overtimeMinutes: buckets.overtimeMinutes,
         rows,
         source: "submission_snapshot",
         submissionId: sub.id,
@@ -196,6 +205,10 @@ export function buildWeekFlow(input: BuildWeekFlowInput): WeekFlow {
       const endIso = rows[rows.length - 1]?.endIso ?? gps.lastIso;
       const status: WeekFlowStatus = "gps_proposal";
       const perms = permissionsFor(status, viewer);
+      const buckets = calculateWorkTimeBuckets(
+        rows.map((r) => ({ kind: r.kind, startIso: r.startIso, endIso: r.endIso, minutes: r.minutes })),
+        { breakMinutes: 0 },
+      );
       return {
         ...day,
         status,
@@ -204,6 +217,8 @@ export function buildWeekFlow(input: BuildWeekFlowInput): WeekFlow {
         workMinutes: reportSummary.workMin,
         travelMinutes: reportSummary.travelMin,
         totalMinutes: rows.reduce((a, r) => a + r.minutes, 0),
+        normalMinutes: buckets.normalMinutes,
+        overtimeMinutes: buckets.overtimeMinutes,
         rows,
         source: "gps_proposal",
         ...perms,

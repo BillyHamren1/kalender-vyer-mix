@@ -46,6 +46,10 @@ export interface WeekFlowDay {
   workMinutes: number;
   travelMinutes: number;
   totalMinutes: number;
+  /** Arbetstid 07:00–17:00 (Stockholm), efter rast. */
+  normalMinutes: number;
+  /** Arbetstid utanför 07:00–17:00 (Stockholm), efter rast. */
+  overtimeMinutes: number;
   rows: WeekFlowRow[];
   source: "gps_proposal" | "submission_snapshot" | "empty";
   submissionId: string | null;
