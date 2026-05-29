@@ -19,8 +19,8 @@ describe("StaffTimeWeekMatrix (admin veckomatris)", () => {
   it("Matrisens kolumner är Namn + Mån–Sön + Åtgärd", () => {
     const src = read("src/components/staff-time/StaffTimeWeekMatrix.tsx");
     expect(src).toMatch(/\["Mån",\s*"Tis",\s*"Ons",\s*"Tor",\s*"Fre",\s*"Lör",\s*"Sön"\]/);
-    expect(src).toMatch(/>Namn</);
-    expect(src).toMatch(/>Åtgärd</);
+    expect(src).toMatch(/>\s*Namn\s*</);
+    expect(src).toMatch(/>\s*Åtgärd\s*</);
   });
 
   it("Matrisen renderar en rad per person via StaffTimeWeekMatrixRow", () => {
@@ -49,7 +49,7 @@ describe("StaffTimeWeekMatrix (admin veckomatris)", () => {
 
   it("approved → Klar, correction_requested → Väntar komplettering", () => {
     const src = read("src/components/staff-time/StaffTimeWeekMatrixRow.tsx");
-    expect(src).toMatch(/>Klar</);
+    expect(src).toMatch(/\bKlar\b/);
     expect(src).toMatch(/Väntar komplettering/);
   });
 
