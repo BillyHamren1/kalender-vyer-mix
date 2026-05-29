@@ -249,23 +249,24 @@ Deno.serve(async (req) => {
       if (!subByKey.has(k)) subByKey.set(k, s);
     }
 
-    // 3. GPS-presence: hämta lättviktigt staff_id+captured_at för veckans UTC-fönster.
+    // 3. GPS-presence: hämta lättviktigt staff_id+recorded_at för veckans UTC-fönster.
     const winStart = stockholmDayWindowUtc(weekStart).startIso;
     const winEnd = stockholmDayWindowUtc(weekEnd).endIso;
     const { data: pingRows, error: pingErr } = await admin
       .from("staff_location_history")
-      .select("staff_id, captured_at")
+      .select("staff_id, recorded_at")
       .eq("organization_id", orgId)
-      .gte("captured_at", winStart)
-      .lte("captured_at", winEnd)
+      .gte("recorded_at", winStart)
+      .lte("recorded_at", winEnd)
       .limit(100000);
     if (pingErr) throw pingErr;
     const pingCount = new Map<string, number>();
-    for (const r of ((pingRows ?? []) as Array<{ staff_id: string; captured_at: string }>)) {
-      const localDate = stockholmLocalDate(r.captured_at);
+    for (const r of ((pingRows ?? []) as Array<{ staff_id: string; recorded_at: string }>)) {
+      const localDate = stockholmLocalDate(r.recorded_at);
       const k = `${r.staff_id}|${localDate}`;
       pingCount.set(k, (pingCount.get(k) ?? 0) + 1);
     }
+
 
     // 4. Bestäm vilka (staff,date) som behöver canonical-build (ingen submission + pings finns).
     const buildTargets: Array<{ staffId: string; date: string }> = [];
