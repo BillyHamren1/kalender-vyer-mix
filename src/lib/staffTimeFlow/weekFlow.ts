@@ -7,6 +7,7 @@ import { toReportRows, summarizeReportRows } from "@/lib/staff-gps/reportRowFilt
 import { formatStockholmHm } from "@/lib/staff/formatStockholmTime";
 import type { StaffGpsDaySummary } from "@/hooks/staff/useStaffGpsWeekSummary";
 import type { StaffDaySubmissionRow } from "@/hooks/staff/useStaffDaySubmissions";
+import { calculateWorkTimeBuckets } from "./workTimeBuckets";
 import type {
   WeekFlow,
   WeekFlowDay,
@@ -52,6 +53,8 @@ function emptyDay(date: string, viewer: WeekFlowViewer): WeekFlowDay {
     workMinutes: 0,
     travelMinutes: 0,
     totalMinutes: 0,
+    normalMinutes: 0,
+    overtimeMinutes: 0,
     rows: [],
     source: "empty",
     submissionId: null,
