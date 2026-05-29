@@ -12,7 +12,6 @@ describe("StaffTimeWeekMatrix (admin veckomatris)", () => {
   it("StaffTimeWeeklyGpsReportContent renderar StaffTimeWeekMatrix som default", () => {
     const src = read("src/components/staff-time/StaffTimeWeeklyGpsReportContent.tsx");
     expect(src).toMatch(/<StaffTimeWeekMatrix\s*\/?>/);
-    // Får inte ha tomläges-texten kvar
     expect(src).not.toMatch(/Välj personal i listan ovan/);
   });
 
@@ -34,6 +33,16 @@ describe("StaffTimeWeekMatrix (admin veckomatris)", () => {
     for (const label of ["GPS", "Väntar", "Komplettera", "Attesterad"]) {
       expect(src).toContain(`"${label}"`);
     }
+  });
+
+  it("Cellen visar normal/övertid (N/Ö) och restid", () => {
+    const src = read("src/components/staff-time/StaffTimeWeekMatrixCell.tsx");
+    expect(src).toMatch(/cell\.normalMinutes/);
+    expect(src).toMatch(/cell\.overtimeMinutes/);
+    expect(src).toMatch(/cell\.travelMinutes/);
+    expect(src).toMatch(/\bN\s/);
+    expect(src).toMatch(/Ö\s/);
+    expect(src).toMatch(/Resa\s/);
   });
 
   it("submitted_waiting_approval ger Godkänn-knapp med antal", () => {
@@ -65,11 +74,11 @@ describe("StaffTimeWeekMatrix (admin veckomatris)", () => {
     expect(hook).toMatch(/update-staff-day-submission-status/);
   });
 
-  it("Matris-hooken använder mapDbStatusToFlow (delad statusmappning, inte egen)", () => {
+  it("Matris-hooken anropar get-staff-time-week-matrix (bygger INTE bara från submissions)", () => {
     const src = read("src/hooks/staffTimeFlow/useStaffTimeWeekMatrix.ts");
-    expect(src).toMatch(/import\s+\{[^}]*mapDbStatusToFlow[^}]*\}\s+from\s+["']@\/lib\/staffTimeFlow\/weekFlow["']/);
-    // Får inte mappa status själv
-    expect(src).not.toMatch(/status ===\s*["']approved["']\s*\?/);
+    expect(src).toMatch(/supabase\.functions\.invoke\(\s*["']get-staff-time-week-matrix["']/);
+    // Får inte längre läsa staff_day_submissions direkt i hooken.
+    expect(src).not.toMatch(/from\(\s*["']staff_day_submissions["']\s*\)\s*\n?[\s\S]{0,200}\.select/);
   });
 
   it("Matris-hooken rör INGA legacy tidskällor", () => {
@@ -81,12 +90,37 @@ describe("StaffTimeWeekMatrix (admin veckomatris)", () => {
     }
   });
 
-  it("Matris-hooken läser staff_members + staff_day_submissions för veckan", () => {
-    const src = read("src/hooks/staffTimeFlow/useStaffTimeWeekMatrix.ts");
-    expect(src).toMatch(/from\(\s*"staff_members"/);
-    expect(src).toMatch(/from\(\s*"staff_day_submissions"/);
-    expect(src).toMatch(/\.gte\("date"/);
-    expect(src).toMatch(/\.lte\("date"/);
+  it("Edge function get-staff-time-week-matrix använder canonical GPS-builder", () => {
+    const src = read("supabase/functions/get-staff-time-week-matrix/index.ts");
+    expect(src).toMatch(/buildCanonicalStaffDayGpsResult/);
+    expect(src).toMatch(/from\(\s*["']staff_members["']/);
+    expect(src).toMatch(/from\(\s*["']staff_day_submissions["']/);
+    expect(src).toMatch(/from\(\s*["']staff_location_history["']/);
+  });
+
+  it("Edge function rör INGA legacy tidskällor och skriver inte", () => {
+    const src = read("supabase/functions/get-staff-time-week-matrix/index.ts");
+    const forbidden = ["time_reports", "workdays", "location_time_entries", "travel_time_logs", "day_attestations", "staff_day_report_cache"];
+    for (const t of forbidden) {
+      const re = new RegExp(`from\\(\\s*["'\`]${t}["'\`]`);
+      expect(src).not.toMatch(re);
+    }
+    expect(src).not.toMatch(/\.insert\(/);
+    expect(src).not.toMatch(/\.update\(/);
+    expect(src).not.toMatch(/\.upsert\(/);
+    expect(src).not.toMatch(/\.delete\(/);
+  });
+
+  it("Edge function kräver privilegierad JWT (admin/projekt/lager)", () => {
+    const src = read("supabase/functions/get-staff-time-week-matrix/index.ts");
+    expect(src).toMatch(/authenticateStaffRequest/);
+    expect(src).toMatch(/isPrivileged/);
+  });
+
+  it("Edge function använder workTimeBuckets-helper (samma 07–17-regel som frontend)", () => {
+    const src = read("supabase/functions/get-staff-time-week-matrix/index.ts");
+    expect(src).toMatch(/calculateWorkTimeBuckets/);
+    expect(src).toMatch(/_shared\/staffTimeFlow\/workTimeBuckets\.ts/);
   });
 
   it("Dag-detalj-sheeten återanvänder WeekFlowDayCard (samma som /m/report)", () => {
