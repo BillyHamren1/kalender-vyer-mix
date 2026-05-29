@@ -87,8 +87,13 @@ export default function WeekFlowDayCard({ day, onSubmit, onOpenGps, showHeader =
 
         <div className="flex items-center gap-2">
           {hasData && (
-            <span className="text-[11px] tabular-nums text-muted-foreground">
-              Arbete {fmtDur(day.workMinutes)}{day.travelMinutes > 0 && <> · Resa {fmtDur(day.travelMinutes)}</>}
+            <span
+              className="text-[11px] tabular-nums text-muted-foreground"
+              title={`Normal arbetstid: ${fmtDur(day.normalMinutes)}\nÖvertid: ${fmtDur(day.overtimeMinutes)}\nRestid: ${fmtDur(day.travelMinutes)}\nTotal arbetstid: ${fmtDur(day.normalMinutes + day.overtimeMinutes)}`}
+            >
+              N {fmtDur(day.normalMinutes)}
+              {day.overtimeMinutes > 0 && <> · Ö {fmtDur(day.overtimeMinutes)}</>}
+              {day.travelMinutes > 0 && <> · Resa {fmtDur(day.travelMinutes)}</>}
             </span>
           )}
           {day.submissionId && (day.canApprove || day.canRequestCorrection) && (
