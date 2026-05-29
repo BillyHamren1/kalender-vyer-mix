@@ -152,8 +152,18 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
   });
 
   const allStaff = staffQuery.data ?? [];
-  const assignedSet = assignedQuery.data ?? new Set<string>();
-  const pingedSet = pingedQuery.data ?? new Set<string>();
+  const assignedSet = useMemo(() => {
+    const d = assignedQuery.data;
+    if (d instanceof Set) return d;
+    if (Array.isArray(d)) return new Set<string>(d.map(String));
+    return new Set<string>();
+  }, [assignedQuery.data]);
+  const pingedSet = useMemo(() => {
+    const d = pingedQuery.data;
+    if (d instanceof Set) return d;
+    if (Array.isArray(d)) return new Set<string>(d.map(String));
+    return new Set<string>();
+  }, [pingedQuery.data]);
 
   const staff = useMemo(() => {
     // Visa alltid personer som antingen är assignade ELLER har pingat den valda dagen.
