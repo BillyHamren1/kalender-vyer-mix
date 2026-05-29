@@ -102,11 +102,11 @@ export default function StaffTimeWeekMatrix() {
       )}
 
       <Dialog open={!!openDay} onOpenChange={(o) => !o && setOpenDay(null)}>
-        <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] p-0 flex flex-col overflow-hidden">
-          <DialogHeader className="px-4 py-3 border-b">
+        <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] max-h-[90vh] p-0 flex flex-col overflow-hidden">
+          <DialogHeader className="px-4 py-3 border-b shrink-0">
             <DialogTitle className="text-sm">GPS-karta · {openDay?.date}</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-auto p-4">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4">
             {openDay && (
               <StaffGpsSatelliteMap
                 key={`${openDay.staffId}-${openDay.date}`}
