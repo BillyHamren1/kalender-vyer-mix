@@ -80,7 +80,7 @@ export default function StaffTimeWeekMatrixRow({ row, gridTemplate, onOpenDay }:
     );
   } else if (correctionCount > 0) {
     action = (
-      <span className="inline-flex items-center gap-1 h-7 px-1.5 rounded-md text-[10px] text-rose-700 bg-rose-50 border border-rose-200 w-full justify-center">
+      <span className="inline-flex items-center gap-1 h-7 px-1.5 rounded-md text-[10px] text-rose-700 bg-rose-50 border border-rose-200 w-full justify-center" title="Väntar komplettering">
         <AlertTriangle className="h-3 w-3" /> Komplettera
       </span>
     );
