@@ -35,14 +35,35 @@ describe("StaffTimeWeekMatrix (admin veckomatris)", () => {
     }
   });
 
-  it("Cellen visar normal/övertid (N/Ö) och restid", () => {
+  it("Cellen renderar cell.rows som primärt innehåll (samma reportRows som GPS-satelliten)", () => {
+    const src = read("src/components/staff-time/StaffTimeWeekMatrixCell.tsx");
+    expect(src).toMatch(/WeekFlowReportRowsMini/);
+    expect(src).toMatch(/rows=\{cell\.rows\}/);
+  });
+
+  it("Cellen visar normal/övertid och restid som sekundär summering (inte huvudvy)", () => {
     const src = read("src/components/staff-time/StaffTimeWeekMatrixCell.tsx");
     expect(src).toMatch(/cell\.normalMinutes/);
     expect(src).toMatch(/cell\.overtimeMinutes/);
     expect(src).toMatch(/cell\.travelMinutes/);
-    expect(src).toMatch(/\bN\s/);
-    expect(src).toMatch(/Ö\s/);
-    expect(src).toMatch(/Resa\s/);
+    expect(src).toMatch(/\bN /);
+    expect(src).toMatch(/Ö /);
+    expect(src).toMatch(/Resa /);
+  });
+
+  it("WeekFlowReportRowsMini-helpern finns och renderar work/travel-rader", () => {
+    const src = read("src/components/staff-time/week-flow/WeekFlowReportRowsMini.tsx");
+    expect(src).toMatch(/"work"/);
+    expect(src).toMatch(/r\.kind === "travel"/);
+    expect(src).toMatch(/Resa \$\{r\.fromLabel/);
+  });
+
+  it("Matrisen använder breda dagkolumner (minst 240px) och horisontell scroll", () => {
+    const src = read("src/components/staff-time/StaffTimeWeekMatrix.tsx");
+    expect(src).toMatch(/overflow-x-auto/);
+    expect(src).toMatch(/repeat\(7,\s*minmax\(240px/);
+    expect(src).toMatch(/minmax\(120px,\s*140px\)/);
+    expect(src).toMatch(/minmax\(90px,\s*110px\)/);
   });
 
   it("submitted_waiting_approval ger Godkänn-knapp med antal", () => {
