@@ -33,13 +33,14 @@ interface Props {
 
 export default function StaffTimeWeekMatrixCell({ cell, onClick }: Props) {
   const hasTimes = cell.startTime && cell.endTime;
+  const hasBuckets = cell.normalMinutes > 0 || cell.overtimeMinutes > 0;
   return (
     <button
       type="button"
       onClick={onClick}
       title={cell.reviewComment ?? undefined}
       className={cn(
-        "w-full h-full min-h-[56px] rounded-md border px-1.5 py-1 text-left flex flex-col justify-between transition-colors",
+        "w-full h-full min-h-[68px] rounded-md border px-1.5 py-1 text-left flex flex-col justify-between gap-0.5 transition-colors",
         "hover:ring-1 hover:ring-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/60",
         STATUS_STYLE[cell.status],
       )}
@@ -47,23 +48,27 @@ export default function StaffTimeWeekMatrixCell({ cell, onClick }: Props) {
       <div className="text-[10.5px] font-semibold uppercase tracking-wide leading-none">
         {STATUS_LABEL[cell.status]}
       </div>
-      <div className="space-y-0.5">
-        {hasTimes ? (
-          <>
-            <div className="text-[10.5px] tabular-nums leading-none opacity-80">
-              {cell.startTime}–{cell.endTime}
+      {hasTimes ? (
+        <>
+          <div className="text-[10.5px] tabular-nums leading-none opacity-80">
+            {cell.startTime}–{cell.endTime}
+          </div>
+          {hasBuckets && (
+            <div className="text-[10px] tabular-nums leading-none font-semibold">
+              N {fmtDur(cell.normalMinutes)}
+              <span className="opacity-60"> · </span>
+              Ö {fmtDur(cell.overtimeMinutes)}
             </div>
-            <div className="text-[11px] tabular-nums font-semibold leading-none">
-              {fmtDur(cell.totalMinutes)}
-              {cell.travelMinutes > 0 && (
-                <span className="ml-1 text-[9.5px] font-normal opacity-70">+{fmtDur(cell.travelMinutes)} resa</span>
-              )}
+          )}
+          {cell.travelMinutes > 0 && (
+            <div className="text-[10px] tabular-nums leading-none opacity-75">
+              Resa {fmtDur(cell.travelMinutes)}
             </div>
-          </>
-        ) : (
-          <div className="text-[10.5px] opacity-50">–</div>
-        )}
-      </div>
+          )}
+        </>
+      ) : (
+        <div className="text-[10.5px] opacity-50">–</div>
+      )}
     </button>
   );
 }
