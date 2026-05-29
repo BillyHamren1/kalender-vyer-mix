@@ -43,6 +43,7 @@ export default function StaffTimeWeekMatrixRow({ row, onOpenDay }: Props) {
       }
     }
     setBusy(false);
+    qc.invalidateQueries({ queryKey: ["staff-time-week-matrix"] });
     qc.invalidateQueries({ queryKey: ["staff-time-matrix-subs"] });
     qc.invalidateQueries({ queryKey: ["staff-time-flow-submissions"] });
     if (failed.length === 0) {
