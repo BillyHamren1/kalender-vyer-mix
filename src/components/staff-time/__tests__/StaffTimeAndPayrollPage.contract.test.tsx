@@ -1,5 +1,5 @@
-// Page contract test: säkerställer att Tid & Lön huvudvy är den nya
-// WeekFlow-vyn (inte gamla StaffTimeApprovalsPageContent som default).
+// Page contract test: Tid & Lön huvudvy ska vara ett enda enkelt flöde
+// (StaffTimeWeeklyGpsReportContent). Inga legacy-tabbar, ingen Advanced-meny.
 
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
@@ -12,26 +12,22 @@ describe("StaffTimeAndPayrollPage default view", () => {
 
   it("importerar och renderar StaffTimeWeeklyGpsReportContent som huvudvy", () => {
     expect(src).toMatch(/import\s+StaffTimeWeeklyGpsReportContent\s+from/);
-    // Måste renderas utanför AdvancedLegacySection (alltså i toppen, inte i en defaultValue-Tabs)
-    const advancedStart = src.indexOf("AdvancedLegacySection");
-    const mainRender = src.indexOf("<StaffTimeWeeklyGpsReportContent />");
-    expect(mainRender).toBeGreaterThan(-1);
-    // Renderpunkten ska komma FÖRE Advanced (= som main view).
-    const advancedRender = src.indexOf("<AdvancedLegacySection");
-    expect(mainRender).toBeLessThan(advancedRender);
+    expect(src).toMatch(/<StaffTimeWeeklyGpsReportContent\s*\/>/);
   });
 
-  it("StaffTimeApprovalsPageContent ligger ENDAST i AdvancedLegacySection", () => {
-    const approvalsUsages = (src.match(/<StaffTimeApprovalsPageContent/g) ?? []).length;
-    expect(approvalsUsages).toBe(1);
-    // Och måste ligga inne i Advanced-blocket.
-    const advancedFnStart = src.indexOf("const AdvancedLegacySection");
-    const approvalIdx = src.indexOf("<StaffTimeApprovalsPageContent");
-    expect(approvalIdx).toBeGreaterThan(advancedFnStart);
+  it("renderar INTE legacy-vyer i huvudsidan", () => {
+    expect(src).not.toMatch(/StaffTimeApprovalsPageContent/);
+    expect(src).not.toMatch(/PayrollMonthReportPageContent/);
+    expect(src).not.toMatch(/StaffTimeReportsContent/);
+    expect(src).not.toMatch(/StaffPayrollPeriodsContent/);
+    expect(src).not.toMatch(/TimePayrollOverview/);
+    expect(src).not.toMatch(/AdvancedLegacySection/);
+    expect(src).not.toMatch(/PayrollSubTabs/);
   });
 
-  it("default-tab är INTE 'approvals'", () => {
-    expect(src).not.toMatch(/tab.*\?\?\s*["']approvals["']/);
-    expect(src).not.toMatch(/\?\s*["']approvals["']\s*:/);
+  it("har ingen Tabs-huvudstruktur och ingen Avancerat-toggle", () => {
+    expect(src).not.toMatch(/from\s+["']@\/components\/ui\/tabs["']/);
+    expect(src).not.toMatch(/advancedOpen/);
+    expect(src).not.toMatch(/Avancerat/);
   });
 });
