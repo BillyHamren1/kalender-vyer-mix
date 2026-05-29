@@ -556,6 +556,11 @@ Deno.serve(async (req: Request) => {
     userChanged,
   };
 
+  const workTimeBuckets = computeWorkTimeBucketsFromSnapshot(
+    displaySnapshot as Array<Record<string, unknown>> | null,
+    breakMinutes ?? 0,
+  );
+
   const sourceSummaryJson = {
     source: sourceTag,
     sourceSnapshotId,
@@ -569,6 +574,12 @@ Deno.serve(async (req: Request) => {
     overrideCount: manualOverrides.length,
     deletedSegmentCount: manualDay?.deletedSegmentIds.length ?? 0,
     hasManualDay,
+    // Normal/övertid (Europe/Stockholm 07:00–17:00). Beräknas server-side från
+    // display_timeline_snapshot_json så att admin och app alltid speglar varandra.
+    normalMinutes: workTimeBuckets.normalMinutes,
+    overtimeMinutes: workTimeBuckets.overtimeMinutes,
+    travelMinutesBuckets: workTimeBuckets.travelMinutes,
+    totalWorkMinutes: workTimeBuckets.totalWorkMinutes,
   };
 
   const upsertPayload: Record<string, unknown> = {
