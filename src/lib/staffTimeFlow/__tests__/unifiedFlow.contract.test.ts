@@ -138,3 +138,31 @@ describe("WeekFlow status mapping", () => {
     expect(mapDbStatusToFlow("correction_requested")).toBe("correction_requested");
   });
 });
+
+describe("StaffTimeAndPayrollPage rent flöde (inga legacy-vyer)", () => {
+  const src = read("src/pages/StaffTimeAndPayrollPage.tsx");
+
+  it("renderar StaffTimeWeeklyGpsReportContent", () => {
+    expect(src).toMatch(/<StaffTimeWeeklyGpsReportContent\s*\/>/);
+  });
+
+  it("importerar/renderar INTE StaffTimeApprovalsPageContent", () => {
+    expect(src).not.toMatch(/StaffTimeApprovalsPageContent/);
+  });
+
+  it("importerar/renderar INTE StaffTimeReportsContent", () => {
+    expect(src).not.toMatch(/StaffTimeReportsContent/);
+  });
+
+  it("importerar/renderar INTE PayrollMonthReportPageContent", () => {
+    expect(src).not.toMatch(/PayrollMonthReportPageContent/);
+  });
+
+  it("importerar/renderar INTE StaffPayrollPeriodsContent", () => {
+    expect(src).not.toMatch(/StaffPayrollPeriodsContent/);
+  });
+
+  it("har ingen Tabs-huvudstruktur", () => {
+    expect(src).not.toMatch(/from\s+["']@\/components\/ui\/tabs["']/);
+  });
+});
