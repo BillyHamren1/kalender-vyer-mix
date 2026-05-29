@@ -10,10 +10,11 @@ import StaffTimeWeekMatrixCell from "./StaffTimeWeekMatrixCell";
 
 interface Props {
   row: StaffTimeMatrixRow;
+  gridTemplate: string;
   onOpenDay: (staffId: string, date: string) => void;
 }
 
-export default function StaffTimeWeekMatrixRow({ row, onOpenDay }: Props) {
+export default function StaffTimeWeekMatrixRow({ row, gridTemplate, onOpenDay }: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const approveDay = useApproveStaffDay();
@@ -69,26 +70,24 @@ export default function StaffTimeWeekMatrixRow({ row, onOpenDay }: Props) {
         onClick={handleApproveAll}
         disabled={busy}
         className={cn(
-          "inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-semibold",
+          "inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-semibold w-full justify-center",
           "bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60",
         )}
       >
-        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
         Godkänn {pendingCount} {pendingCount === 1 ? "dag" : "dagar"}
       </button>
     );
   } else if (correctionCount > 0) {
     action = (
-      <span className="inline-flex items-center gap-1.5 h-8 px-2 rounded-md text-[11px] text-rose-700 bg-rose-50 border border-rose-200">
-        <AlertTriangle className="h-3.5 w-3.5" />
-        Väntar komplettering
+      <span className="inline-flex items-center gap-1 h-7 px-1.5 rounded-md text-[10px] text-rose-700 bg-rose-50 border border-rose-200 w-full justify-center">
+        <AlertTriangle className="h-3 w-3" /> Komplettera
       </span>
     );
   } else if (approvedCount > 0 && approvedCount === row.days.filter((d) => d.status !== "empty").length) {
     action = (
-      <span className="inline-flex items-center gap-1.5 h-8 px-2 rounded-md text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200">
-        <CheckCircle2 className="h-3.5 w-3.5" />
-        Klar
+      <span className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[10.5px] text-emerald-700 bg-emerald-50 border border-emerald-200 w-full justify-center">
+        <CheckCircle2 className="h-3 w-3" /> Klar
       </span>
     );
   } else if (!anyData) {
@@ -96,9 +95,9 @@ export default function StaffTimeWeekMatrixRow({ row, onOpenDay }: Props) {
       <button
         type="button"
         onClick={handleReview}
-        className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md text-[11px] text-muted-foreground hover:bg-muted"
+        className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[10.5px] text-muted-foreground hover:bg-muted w-full justify-center"
       >
-        <Eye className="h-3.5 w-3.5" /> Ingen data
+        <Eye className="h-3 w-3" /> Ingen data
       </button>
     );
   } else {
@@ -106,24 +105,27 @@ export default function StaffTimeWeekMatrixRow({ row, onOpenDay }: Props) {
       <button
         type="button"
         onClick={handleReview}
-        className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md text-[11px] font-medium text-primary hover:bg-primary/10"
+        className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[10.5px] font-medium text-primary hover:bg-primary/10 w-full justify-center"
       >
-        <Eye className="h-3.5 w-3.5" /> Granska
+        <Eye className="h-3 w-3" /> Granska
       </button>
     );
   }
 
   return (
-    <tr className="border-b border-border/60 hover:bg-muted/20">
-      <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap sticky left-0 bg-card z-[1]">
-        {row.staffName}
-      </td>
+    <div
+      className="grid items-stretch border-b border-border/60 hover:bg-muted/20"
+      style={{ gridTemplateColumns: gridTemplate }}
+    >
+      <div className="px-3 py-1.5 text-xs font-medium flex items-center bg-card truncate" title={row.staffName}>
+        <span className="truncate">{row.staffName}</span>
+      </div>
       {row.days.map((cell) => (
-        <td key={cell.date} className="p-1 align-middle">
+        <div key={cell.date} className="p-1">
           <StaffTimeWeekMatrixCell cell={cell} onClick={() => onOpenDay(row.staffId, cell.date)} />
-        </td>
+        </div>
       ))}
-      <td className="px-3 py-1.5 text-right whitespace-nowrap">{action}</td>
-    </tr>
+      <div className="px-2 py-1.5 flex items-center justify-end">{action}</div>
+    </div>
   );
 }
