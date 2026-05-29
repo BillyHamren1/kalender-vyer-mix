@@ -166,3 +166,41 @@ describe("StaffTimeAndPayrollPage rent flöde (inga legacy-vyer)", () => {
     expect(src).not.toMatch(/from\s+["']@\/components\/ui\/tabs["']/);
   });
 });
+
+describe("WeekFlow normal/övertid kontrakt", () => {
+  it("WeekFlowDay-typ innehåller normalMinutes och overtimeMinutes", () => {
+    const src = read("src/lib/staffTimeFlow/types.ts");
+    expect(src).toMatch(/normalMinutes:\s*number/);
+    expect(src).toMatch(/overtimeMinutes:\s*number/);
+  });
+
+  it("weekFlow.ts använder calculateWorkTimeBuckets för båda källor (snapshot + gps)", () => {
+    const src = read("src/lib/staffTimeFlow/weekFlow.ts");
+    expect(src).toMatch(/calculateWorkTimeBuckets/);
+    // Båda grenarna (submission + gps_proposal) ska sätta normalMinutes/overtimeMinutes
+    const occurrences = (src.match(/normalMinutes:\s*buckets\.normalMinutes/g) ?? []).length;
+    expect(occurrences).toBeGreaterThanOrEqual(2);
+  });
+
+  it("WeekFlowDayCard visar 'N' (normal) och 'Ö' (övertid) — admin OCH app delar denna komponent", () => {
+    const src = read("src/components/staff-time/week-flow/WeekFlowDayCard.tsx");
+    expect(src).toMatch(/day\.normalMinutes/);
+    expect(src).toMatch(/day\.overtimeMinutes/);
+    expect(src).toMatch(/\bN\s/);
+    expect(src).toMatch(/Ö\s/);
+  });
+
+  it("submit-mobile-gps-day-v2 sparar normalMinutes/overtimeMinutes i source_summary_json", () => {
+    const src = read("supabase/functions/submit-mobile-gps-day-v2/index.ts");
+    expect(src).toMatch(/normalMinutes:\s*workTimeBuckets\.normalMinutes/);
+    expect(src).toMatch(/overtimeMinutes:\s*workTimeBuckets\.overtimeMinutes/);
+  });
+
+  it("normal/övertid räknas INTE från legacy-tabeller (time_reports/workdays/LTE/travel_time_logs)", () => {
+    const src = read("src/lib/staffTimeFlow/workTimeBuckets.ts");
+    expect(src).not.toMatch(/time_reports/);
+    expect(src).not.toMatch(/workdays/);
+    expect(src).not.toMatch(/location_time_entries/);
+    expect(src).not.toMatch(/travel_time_logs/);
+  });
+});
