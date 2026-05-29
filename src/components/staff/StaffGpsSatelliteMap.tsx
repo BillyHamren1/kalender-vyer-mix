@@ -153,15 +153,15 @@ export default function StaffGpsSatelliteMap({ initialStaffId, initialDate }: Pr
 
   const allStaff = staffQuery.data ?? [];
   const assignedSet = useMemo(() => {
-    const d = assignedQuery.data;
-    if (d instanceof Set) return d;
-    if (Array.isArray(d)) return new Set<string>(d.map(String));
+    const d: unknown = assignedQuery.data;
+    if (d instanceof Set) return d as Set<string>;
+    if (Array.isArray(d)) return new Set<string>((d as unknown[]).map((x) => String(x)));
     return new Set<string>();
   }, [assignedQuery.data]);
   const pingedSet = useMemo(() => {
-    const d = pingedQuery.data;
-    if (d instanceof Set) return d;
-    if (Array.isArray(d)) return new Set<string>(d.map(String));
+    const d: unknown = pingedQuery.data;
+    if (d instanceof Set) return d as Set<string>;
+    if (Array.isArray(d)) return new Set<string>((d as unknown[]).map((x) => String(x)));
     return new Set<string>();
   }, [pingedQuery.data]);
 
