@@ -13,7 +13,8 @@ import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useStaffTimeWeekMatrix } from "@/hooks/staffTimeFlow/useStaffTimeWeekMatrix";
 import StaffTimeWeekMatrixRow from "./StaffTimeWeekMatrixRow";
-import StaffTimeMatrixDayDetailSheet from "./StaffTimeMatrixDayDetailSheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import StaffGpsSatelliteMap from "@/components/staff/StaffGpsSatelliteMap";
 
 const WEEK_HEADERS = ["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"] as const;
 
@@ -100,10 +101,22 @@ export default function StaffTimeWeekMatrix() {
         </div>
       )}
 
-      <StaffTimeMatrixDayDetailSheet
-        open={openDay}
-        onClose={() => setOpenDay(null)}
-      />
+      <Dialog open={!!openDay} onOpenChange={(o) => !o && setOpenDay(null)}>
+        <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] p-0 flex flex-col overflow-hidden">
+          <DialogHeader className="px-4 py-3 border-b">
+            <DialogTitle className="text-sm">GPS-karta · {openDay?.date}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto p-4">
+            {openDay && (
+              <StaffGpsSatelliteMap
+                key={`${openDay.staffId}-${openDay.date}`}
+                initialStaffId={openDay.staffId}
+                initialDate={openDay.date}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
