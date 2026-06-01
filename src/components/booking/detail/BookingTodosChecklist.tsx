@@ -1,12 +1,17 @@
 /**
  * BookingTodosChecklist
  * --------------------------------------------------------------------------
- * Full översikt över bokningens to-dos på bokningssidan:
- *  - Lista alla planner-items (large_project_booking_plan_items) för bokningen
- *  - Checkbox för klar/ej klar
- *  - Datum-chip + tid-chip per rad (planera individuellt)
- *  - Personalväljare per to-do (begränsad till bokningens tilldelade team)
- *  - Sektion för orderrader (booking_products) som saknar to-do — snabbskapande
+ * Full översikt över bokningens to-dos på bokningssidan.
+ *
+ * Regler (per användarens spec):
+ *  - Fas-rader (Rigg/Event/Nedrivning) ÄR INTE to-dos. De är dagrubriker.
+ *  - Bokningens dagar (rigDates + eventDates + rigDownDates) bildar grupp-
+ *    rubriker — alla visas alltid, även om de saknar to-dos.
+ *  - En to-do med specifikt `plan_date` visas under den dagens grupp.
+ *  - En to-do UTAN `plan_date` (null) gäller hela bokningen och visas under
+ *    SAMTLIGA bokningsdagar (med samma id — checkbox-status delas).
+ *  - Nyskapade to-dos från "Orderrader utan to-do" får `plan_date = null`
+ *    så de gäller alla dagar tills man väljer ett specifikt datum.
  *
  * Skriver ENBART till large_project_booking_plan_items via service.
  */
@@ -17,6 +22,7 @@ import { sv } from 'date-fns/locale';
 import {
   CalendarClock,
   ClipboardList,
+  Layers,
   Loader2,
   Package,
   Plus,
@@ -49,7 +55,7 @@ interface PlanRow {
   id: string;
   title: string;
   status: string;
-  plan_date: string;
+  plan_date: string | null;
   start_time: string | null;
   end_time: string | null;
   assigned_staff_id: string | null;
@@ -57,6 +63,8 @@ interface PlanRow {
   notes: string | null;
   large_project_id: string;
   source_booking_phase: string | null;
+  item_type: string;
+  source: string;
   large_projects?: { name: string | null; project_number: string | null } | null;
   booking_products?: {
     name: string | null;
@@ -70,12 +78,12 @@ async function fetchRows(bookingId: string): Promise<PlanRow[]> {
   const { data, error } = await supabase
     .from('large_project_booking_plan_items')
     .select(
-      `id,title,status,plan_date,start_time,end_time,assigned_staff_id,booking_product_id,notes,large_project_id,source_booking_phase,
+      `id,title,status,plan_date,start_time,end_time,assigned_staff_id,booking_product_id,notes,large_project_id,source_booking_phase,item_type,source,
        large_projects:large_project_id(name,project_number),
        booking_products:booking_product_id(name,sku,is_package_component,parent_product_id)`,
     )
     .eq('booking_id', bookingId)
-    .order('plan_date', { ascending: true })
+    .order('plan_date', { ascending: true, nullsFirst: true })
     .order('start_time', { ascending: true, nullsFirst: true });
   if (error) throw error;
   return (data ?? []) as unknown as PlanRow[];
@@ -86,6 +94,10 @@ const isPackageMember = (
   p: { is_package_component?: boolean | null; parent_product_id?: string | null } | null | undefined,
 ): boolean => !!p && (!!p.is_package_component || !!p.parent_product_id);
 
+/** Fas-rader från bokningsspegeln är dagrubriker, inte to-dos. */
+const isPhaseRow = (r: PlanRow): boolean =>
+  r.item_type === 'booking' || (r.source === 'booking' && !r.booking_product_id);
+
 const STATUS_LABEL: Record<string, string> = {
   planned: 'Planerad',
   unplanned: 'Ej planerad',
@@ -94,23 +106,34 @@ const STATUS_LABEL: Record<string, string> = {
   blocked: 'Blockerad',
 };
 
+const PHASE_LABEL: Record<string, string> = {
+  rig: 'Rigg',
+  event: 'Event',
+  rigDown: 'Nedrivning',
+};
+
 interface Props {
   bookingId: string;
   largeProjectId?: string | null;
-  /** Datum från bokningen för snabbval i datum-popovern. */
-  rigDate?: string | null;
-  eventDate?: string | null;
-  rigDownDate?: string | null;
+  /** Alla bokningsdagar — bildar grupp-rubriker. */
+  rigDates: string[];
+  eventDates: string[];
+  rigDownDates: string[];
 }
 
 const UNASSIGNED = '__unassigned__';
 
+interface DayHeader {
+  date: string;
+  phase: 'rig' | 'event' | 'rigDown';
+}
+
 const BookingTodosChecklist = ({
   bookingId,
   largeProjectId,
-  rigDate,
-  eventDate,
-  rigDownDate,
+  rigDates,
+  eventDates,
+  rigDownDates,
 }: Props) => {
   const qc = useQueryClient();
   const { data: rows, isLoading, error } = useQuery({
@@ -125,23 +148,58 @@ const BookingTodosChecklist = ({
 
   const lpId = largeProjectId ?? rows?.[0]?.large_project_id ?? null;
 
-  const quickPicks = useMemo<DateQuickPick[]>(() => {
-    const picks: DateQuickPick[] = [];
-    if (rigDate) picks.push({ label: 'Rigg', date: rigDate });
-    if (eventDate) picks.push({ label: 'Event', date: eventDate });
-    if (rigDownDate) picks.push({ label: 'Nedrivning', date: rigDownDate });
-    return picks;
-  }, [rigDate, eventDate, rigDownDate]);
+  /** Bygg unika dagrubriker från bokningens datum. */
+  const dayHeaders = useMemo<DayHeader[]>(() => {
+    const map = new Map<string, DayHeader>();
+    rigDates.forEach((d) => map.set(d, { date: d, phase: 'rig' }));
+    eventDates.forEach((d) => {
+      if (!map.has(d)) map.set(d, { date: d, phase: 'event' });
+    });
+    rigDownDates.forEach((d) => {
+      if (!map.has(d)) map.set(d, { date: d, phase: 'rigDown' });
+    });
+    return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+  }, [rigDates, eventDates, rigDownDates]);
 
-  /** Filtrera bort paketmedlemmar — de hör till sitt paket och ska aldrig vara egna to-dos. */
-  const visibleRows = useMemo(
-    () => (rows ?? []).filter((r) => !isPackageMember(r.booking_products ?? null)),
+  const quickPicks = useMemo<DateQuickPick[]>(() => {
+    return dayHeaders.map((h) => ({
+      label: PHASE_LABEL[h.phase] ?? h.phase,
+      date: h.date,
+    }));
+  }, [dayHeaders]);
+
+  /** Riktiga to-dos = inga paketmedlemmar, inga fas-rader. */
+  const todoRows = useMemo(
+    () =>
+      (rows ?? [])
+        .filter((r) => !isPhaseRow(r))
+        .filter((r) => !isPackageMember(r.booking_products ?? null)),
     [rows],
   );
 
-  /** Städa upp gamla to-dos som råkar peka på paketmedlemmar. */
+  /** To-dos utan datum gäller hela bokningen. */
+  const todosForAllDays = useMemo(
+    () => todoRows.filter((r) => !r.plan_date),
+    [todoRows],
+  );
+
+  /** To-dos med specifikt datum, grupperade per dag. */
+  const todosByDate = useMemo(() => {
+    const map = new Map<string, PlanRow[]>();
+    todoRows.forEach((r) => {
+      if (!r.plan_date) return;
+      const list = map.get(r.plan_date) ?? [];
+      list.push(r);
+      map.set(r.plan_date, list);
+    });
+    return map;
+  }, [todoRows]);
+
+  /** Städa upp ev. paketmedlems-rader (en gång). */
   useEffect(() => {
-    const stale = (rows ?? []).filter((r) => isPackageMember(r.booking_products ?? null));
+    const stale = (rows ?? []).filter((r) =>
+      isPackageMember(r.booking_products ?? null),
+    );
     if (stale.length === 0) return;
     let cancelled = false;
     (async () => {
@@ -149,7 +207,7 @@ const BookingTodosChecklist = ({
         try {
           await deleteLargeProjectPlannerItem(r.id);
         } catch {
-          /* ignorera — visningen är ändå filtrerad */
+          /* ignore */
         }
       }
       if (!cancelled) invalidate();
@@ -160,31 +218,21 @@ const BookingTodosChecklist = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows]);
 
-  const grouped = useMemo(() => {
-    const map = new Map<string, PlanRow[]>();
-    visibleRows.forEach((r) => {
-      const list = map.get(r.plan_date) ?? [];
-      list.push(r);
-      map.set(r.plan_date, list);
-    });
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [visibleRows]);
-
   const stats = useMemo(() => {
-    const total = visibleRows.length;
-    const done = visibleRows.filter((r) => r.status === 'done').length;
+    const total = todoRows.length;
+    const done = todoRows.filter((r) => r.status === 'done').length;
     return { total, done };
-  }, [visibleRows]);
+  }, [todoRows]);
 
   const productsWithoutTodo = useMemo(() => {
     if (!products) return [];
     const linked = new Set(
-      visibleRows.map((r) => r.booking_product_id).filter((id): id is string => !!id),
+      todoRows.map((r) => r.booking_product_id).filter((id): id is string => !!id),
     );
     return products
       .filter((p) => !isPackageMember(p))
       .filter((p) => !linked.has(p.id));
-  }, [products, visibleRows]);
+  }, [products, todoRows]);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['booking-todos-checklist', bookingId] });
@@ -223,7 +271,7 @@ const BookingTodosChecklist = ({
     }
   };
 
-  const setDate = async (row: PlanRow, planDate: string) => {
+  const setDate = async (row: PlanRow, planDate: string | null) => {
     patchLocal(row.id, { plan_date: planDate });
     try {
       await updateLargeProjectPlannerItem(row.id, { plan_date: planDate } as never);
@@ -252,16 +300,7 @@ const BookingTodosChecklist = ({
     }
   };
 
-  const defaultDate = useMemo(() => {
-    if (rigDate) return rigDate;
-    if (rows && rows.length) return rows[0].plan_date;
-    return format(new Date(), 'yyyy-MM-dd');
-  }, [rigDate, rows]);
-
-  const createTodoForProduct = async (
-    product: { id: string; name: string },
-    planDate: string,
-  ) => {
+  const createTodoForProduct = async (product: { id: string; name: string }) => {
     if (!lpId) {
       toast.error('Saknar koppling till stort projekt.');
       return;
@@ -273,7 +312,8 @@ const BookingTodosChecklist = ({
         booking_id: bookingId,
         booking_product_id: product.id,
         title: product.name,
-        plan_date: planDate,
+        // null = gäller alla bokningsdagar tills man väljer ett specifikt datum
+        plan_date: null,
         item_type: 'task',
         source: 'manual',
         status: 'planned',
@@ -285,6 +325,84 @@ const BookingTodosChecklist = ({
       setCreatingFor(null);
     }
   };
+
+  const renderTodoRow = (r: PlanRow, opts?: { mirrored?: boolean }) => (
+    <li
+      key={`${r.id}-${opts?.mirrored ? 'm' : 'p'}`}
+      className="flex flex-wrap items-center gap-2 px-2 py-2"
+    >
+      <Checkbox
+        checked={r.status === 'done'}
+        onCheckedChange={(c) => void toggleDone(r, !!c)}
+        aria-label={`Markera ${r.title} som klar`}
+      />
+      <div className="min-w-0 flex-1">
+        <div
+          className={`text-xs font-medium ${
+            r.status === 'done' ? 'line-through text-muted-foreground' : ''
+          }`}
+        >
+          {r.title}
+        </div>
+        {r.booking_products?.name && (
+          <div className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+            <Package className="h-2.5 w-2.5" />
+            {r.booking_products.name}
+          </div>
+        )}
+      </div>
+      {opts?.mirrored ? (
+        <Badge
+          variant="secondary"
+          className="h-7 gap-1 px-2 text-[10px] font-normal"
+          title="Den här to-don saknar specifikt datum och visas på samtliga bokningsdagar"
+        >
+          <Layers className="h-3 w-3" /> Alla dagar
+        </Badge>
+      ) : (
+        <BookingTodoDateChip
+          value={r.plan_date}
+          quickPicks={quickPicks}
+          allowClear
+          emptyLabel="Alla dagar"
+          clearLabel="Gäller alla dagar"
+          onChange={(d) => void setDate(r, d)}
+        />
+      )}
+      <BookingTodoTimeChip
+        start={r.start_time}
+        end={r.end_time}
+        onChange={(s, e) => void setTime(r, s, e)}
+      />
+      <Select
+        value={r.assigned_staff_id ?? UNASSIGNED}
+        onValueChange={(v) => void setAssignee(r, v)}
+      >
+        <SelectTrigger className="h-7 w-[140px] text-[11px]">
+          <SelectValue placeholder="Tilldela…">
+            <span className="inline-flex items-center gap-1">
+              <User className="h-3 w-3" />
+              {team?.find((t) => t.staff_id === r.assigned_staff_id)?.staff_name ??
+                'Ingen'}
+            </span>
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={UNASSIGNED}>Ingen</SelectItem>
+          {(team ?? []).map((t) => (
+            <SelectItem key={t.staff_id} value={t.staff_id}>
+              {t.staff_name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Badge variant="outline" className="shrink-0 text-[9px]">
+        {STATUS_LABEL[r.status] ?? r.status}
+      </Badge>
+    </li>
+  );
+
+  const hasAnyTodos = todoRows.length > 0;
 
   return (
     <Card className="shadow-sm">
@@ -311,81 +429,52 @@ const BookingTodosChecklist = ({
           </div>
         )}
 
-        {!isLoading && grouped.length === 0 && (
+        {!isLoading && !hasAnyTodos && dayHeaders.length === 0 && (
           <div className="rounded-md border border-dashed border-border/60 p-3 text-center text-xs text-muted-foreground">
-            Inga to-dos planerade ännu.
+            Inga bokningsdagar eller to-dos ännu.
           </div>
         )}
 
-        {grouped.map(([date, items]) => (
-          <div key={date} className="rounded border border-border/40">
+        {/* Sektion: to-dos utan specifikt datum (gäller alla dagar) */}
+        {todosForAllDays.length > 0 && (
+          <div className="rounded border border-border/40">
             <div className="flex items-center gap-1.5 border-b border-border/40 bg-muted/40 px-2 py-1 text-xs font-medium">
-              <CalendarClock className="h-3 w-3 text-muted-foreground" />
-              {format(parseISO(date), 'EEE d MMM yyyy', { locale: sv })}
+              <Layers className="h-3 w-3 text-muted-foreground" />
+              Gäller alla bokningsdagar
+              <span className="ml-1 text-[10px] font-normal text-muted-foreground">
+                ({todosForAllDays.length})
+              </span>
             </div>
             <ul className="divide-y divide-border/30">
-              {items.map((r) => (
-                <li key={r.id} className="flex flex-wrap items-center gap-2 px-2 py-2">
-                  <Checkbox
-                    checked={r.status === 'done'}
-                    onCheckedChange={(c) => void toggleDone(r, !!c)}
-                    aria-label={`Markera ${r.title} som klar`}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div
-                      className={`text-xs font-medium ${
-                        r.status === 'done' ? 'line-through text-muted-foreground' : ''
-                      }`}
-                    >
-                      {r.title}
-                    </div>
-                    {r.booking_products?.name && (
-                      <div className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                        <Package className="h-2.5 w-2.5" />
-                        {r.booking_products.name}
-                      </div>
-                    )}
-                  </div>
-                  <BookingTodoDateChip
-                    value={r.plan_date}
-                    quickPicks={quickPicks}
-                    onChange={(d) => void setDate(r, d)}
-                  />
-                  <BookingTodoTimeChip
-                    start={r.start_time}
-                    end={r.end_time}
-                    onChange={(s, e) => void setTime(r, s, e)}
-                  />
-                  <Select
-                    value={r.assigned_staff_id ?? UNASSIGNED}
-                    onValueChange={(v) => void setAssignee(r, v)}
-                  >
-                    <SelectTrigger className="h-7 w-[140px] text-[11px]">
-                      <SelectValue placeholder="Tilldela…">
-                        <span className="inline-flex items-center gap-1">
-                          <User className="h-3 w-3" />
-                          {team?.find((t) => t.staff_id === r.assigned_staff_id)
-                            ?.staff_name ?? 'Ingen'}
-                        </span>
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={UNASSIGNED}>Ingen</SelectItem>
-                      {(team ?? []).map((t) => (
-                        <SelectItem key={t.staff_id} value={t.staff_id}>
-                          {t.staff_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Badge variant="outline" className="shrink-0 text-[9px]">
-                    {STATUS_LABEL[r.status] ?? r.status}
-                  </Badge>
-                </li>
-              ))}
+              {todosForAllDays.map((r) => renderTodoRow(r))}
             </ul>
           </div>
-        ))}
+        )}
+
+        {/* Sektion per bokningsdag */}
+        {dayHeaders.map((h) => {
+          const specific = todosByDate.get(h.date) ?? [];
+          return (
+            <div key={h.date} className="rounded border border-border/40">
+              <div className="flex items-center gap-1.5 border-b border-border/40 bg-muted/40 px-2 py-1 text-xs font-medium">
+                <CalendarClock className="h-3 w-3 text-muted-foreground" />
+                <span>{format(parseISO(h.date), 'EEE d MMM yyyy', { locale: sv })}</span>
+                <Badge variant="outline" className="h-4 px-1 text-[9px]">
+                  {PHASE_LABEL[h.phase] ?? h.phase}
+                </Badge>
+              </div>
+              <ul className="divide-y divide-border/30">
+                {specific.map((r) => renderTodoRow(r))}
+                {todosForAllDays.map((r) => renderTodoRow(r, { mirrored: true }))}
+                {specific.length === 0 && todosForAllDays.length === 0 && (
+                  <li className="px-2 py-2 text-[11px] italic text-muted-foreground">
+                    Inga to-dos för dagen.
+                  </li>
+                )}
+              </ul>
+            </div>
+          );
+        })}
 
         {lpId && productsWithoutTodo.length > 0 && (
           <div className="rounded border border-dashed border-border/50">
@@ -409,7 +498,7 @@ const BookingTodosChecklist = ({
                     variant="ghost"
                     className="h-7 text-[11px]"
                     disabled={creatingFor === p.id}
-                    onClick={() => void createTodoForProduct(p, defaultDate)}
+                    onClick={() => void createTodoForProduct(p)}
                   >
                     {creatingFor === p.id ? (
                       <Loader2 className="h-3 w-3 animate-spin" />

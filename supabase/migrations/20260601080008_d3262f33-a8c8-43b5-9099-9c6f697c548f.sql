@@ -1,0 +1,1 @@
+ALTER TABLE public.large_project_booking_plan_items ALTER COLUMN plan_date DROP NOT NULL;

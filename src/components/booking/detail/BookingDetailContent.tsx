@@ -110,9 +110,9 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
           <BookingTodosChecklist
             bookingId={booking.id}
             largeProjectId={booking.largeProjectId ?? null}
-            rigDate={rigDates[0] ?? booking.rigDayDate ?? null}
-            eventDate={eventDates[0] ?? booking.eventDate ?? null}
-            rigDownDate={rigDownDates[0] ?? booking.rigDownDate ?? null}
+            rigDates={rigDates}
+            eventDates={eventDates}
+            rigDownDates={rigDownDates}
           />
           <ProductsList products={booking.products || []} />
           <AttachmentsList 

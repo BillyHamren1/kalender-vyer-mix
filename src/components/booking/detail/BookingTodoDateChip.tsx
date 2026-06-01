@@ -26,16 +26,28 @@ interface Props {
   value: string | null;
   quickPicks?: DateQuickPick[];
   disabled?: boolean;
-  onChange: (date: string) => void;
+  /** Visa "Gäller alla dagar"-knapp som rensar datum. */
+  allowClear?: boolean;
+  clearLabel?: string;
+  emptyLabel?: string;
+  onChange: (date: string | null) => void;
 }
 
-const BookingTodoDateChip = ({ value, quickPicks = [], disabled, onChange }: Props) => {
+const BookingTodoDateChip = ({
+  value,
+  quickPicks = [],
+  disabled,
+  allowClear = false,
+  clearLabel = 'Gäller alla dagar',
+  emptyLabel = 'Alla dagar',
+  onChange,
+}: Props) => {
   const [open, setOpen] = useState(false);
 
   const selected = value ? parseISO(value) : undefined;
-  const label = value ? format(parseISO(value), 'd MMM', { locale: sv }) : 'Sätt datum';
+  const label = value ? format(parseISO(value), 'd MMM', { locale: sv }) : emptyLabel;
 
-  const pick = (iso: string) => {
+  const pick = (iso: string | null) => {
     onChange(iso);
     setOpen(false);
   };
@@ -57,12 +69,22 @@ const BookingTodoDateChip = ({ value, quickPicks = [], disabled, onChange }: Pro
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
-        {quickPicks.length > 0 && (
+        {(quickPicks.length > 0 || allowClear) && (
           <div className="flex flex-col gap-1 border-b border-border/40 p-2">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
               Snabbval
             </span>
             <div className="flex flex-wrap gap-1">
+              {allowClear && (
+                <Button
+                  variant={value === null ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() => pick(null)}
+                >
+                  {clearLabel}
+                </Button>
+              )}
               {quickPicks.map((q) => (
                 <Button
                   key={`${q.label}-${q.date}`}

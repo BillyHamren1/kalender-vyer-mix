@@ -2654,7 +2654,7 @@ export type Database = {
           organization_id: string
           parent_item_id: string | null
           phase: string | null
-          plan_date: string
+          plan_date: string | null
           sort_order: number
           source: string
           source_booking_phase: string | null
@@ -2681,7 +2681,7 @@ export type Database = {
           organization_id: string
           parent_item_id?: string | null
           phase?: string | null
-          plan_date: string
+          plan_date?: string | null
           sort_order?: number
           source?: string
           source_booking_phase?: string | null
@@ -2708,7 +2708,7 @@ export type Database = {
           organization_id?: string
           parent_item_id?: string | null
           phase?: string | null
-          plan_date?: string
+          plan_date?: string | null
           sort_order?: number
           source?: string
           source_booking_phase?: string | null
