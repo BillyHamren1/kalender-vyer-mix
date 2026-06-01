@@ -31,11 +31,9 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import { authenticateStaffRequest } from "../_shared/staff-auth.ts";
 import {
-  resolveStaffDayReportsBatch,
-  type ResolvedDayRow,
-  type ResolvedStaffDay,
+  resolveStaffDayReportSummariesBatch,
+  type ResolvedStaffDaySummary,
 } from "../_shared/staff-day-report/resolveStaffDayReport.ts";
-import { calculateWorkTimeBuckets } from "../_shared/staffTimeFlow/workTimeBuckets.ts";
 
 interface RequestBody {
   weekStart?: string;
@@ -116,54 +114,7 @@ interface MatrixRow {
   pendingSubmissionIds: string[];
 }
 
-function mapKind(k: ResolvedDayRow["kind"]): CellRow["kind"] {
-  if (k === "work") return "work";
-  if (k === "travel") return "travel";
-  if (k === "private") return "private";
-  if (k === "unknown_place" || k === "needs_review") return "unknown_place";
-  if (k === "gps_gap") return "gps_gap";
-  return "other";
-}
-
-function cellFromResolved(r: ResolvedStaffDay): MatrixCell {
-  const rows: CellRow[] = r.rows.map((rr) => ({
-    kind: mapKind(rr.kind),
-    label: rr.label,
-    startIso: rr.startIso,
-    endIso: rr.endIso,
-    minutes: rr.minutes,
-    fromLabel: rr.fromLabel,
-    toLabel: rr.toLabel,
-  }));
-
-  // Buckets för normal/övertid: föredra cache.summary om finns på source=submission
-  // (sub.source_summary_json.normalMinutes), annars räkna från rows.
-  let normalMinutes = 0;
-  let overtimeMinutes = 0;
-  if (r.source === "submission") {
-    const sum = (r.rawSubmission?.source_summary_json ?? {}) as Record<string, any>;
-    const n = typeof sum.normalMinutes === "number" ? Math.max(0, Math.round(sum.normalMinutes)) : -1;
-    const o = typeof sum.overtimeMinutes === "number" ? Math.max(0, Math.round(sum.overtimeMinutes)) : -1;
-    if (n >= 0 && o >= 0) {
-      normalMinutes = n;
-      overtimeMinutes = o;
-    }
-  }
-  if (normalMinutes === 0 && overtimeMinutes === 0 && rows.length > 0) {
-    const b = calculateWorkTimeBuckets(
-      rows.map((rr) => ({ kind: rr.kind, startIso: rr.startIso, endIso: rr.endIso, minutes: rr.minutes })),
-      { breakMinutes: r.breakMinutes ?? 0 },
-    );
-    normalMinutes = b.normalMinutes;
-    overtimeMinutes = b.overtimeMinutes;
-  }
-
-  const totalMinutes = rows.length > 0
-    ? rows.reduce((a, rr) => a + rr.minutes, 0)
-    : (r.startIso && r.endIso
-        ? Math.max(0, Math.round((Date.parse(r.endIso) - Date.parse(r.startIso)) / 60_000) - (r.breakMinutes ?? 0))
-        : 0);
-
+function cellFromResolvedSummary(r: ResolvedStaffDaySummary): MatrixCell {
   // status-mapping till frontend-vokabulär (resolvern använder samma ord).
   let status: FlowStatus;
   let source: MatrixCell["source"];
@@ -184,13 +135,13 @@ function cellFromResolved(r: ResolvedStaffDay): MatrixCell {
     date: r.date,
     status,
     source,
-    startTime: stockholmHm(r.startIso ?? r.rawSubmission?.start_time ?? null),
-    endTime: stockholmHm(r.endIso ?? r.rawSubmission?.end_time ?? null),
+    startTime: stockholmHm(r.startIso),
+    endTime: stockholmHm(r.endIso),
     workMinutes: r.workMinutes,
     travelMinutes: r.travelMinutes,
-    totalMinutes,
-    normalMinutes,
-    overtimeMinutes,
+    totalMinutes: r.totalMinutes,
+    normalMinutes: r.normalMinutes,
+    overtimeMinutes: r.overtimeMinutes,
     submissionId: r.submissionId,
     reviewComment: r.reviewComment,
     // pingCount/gpsAvailable är legacy-fält i UI:t. Vi rör inte raw GPS
@@ -198,7 +149,7 @@ function cellFromResolved(r: ResolvedStaffDay): MatrixCell {
     // via cache.summary_json om vi behöver visa "GPS finns" i Tid&Lön.
     pingCount: 0,
     gpsAvailable: r.source === "cache" || r.source === "submission",
-    rows,
+    rows: [],
   };
 }
 
@@ -266,7 +217,7 @@ Deno.serve(async (req) => {
 
 
     // 2) En enda resolver — batch över hela veckan.
-    const resolved = await resolveStaffDayReportsBatch({
+    const resolved = await resolveStaffDayReportSummariesBatch({
       admin,
       organizationId: orgId,
       staffIds: staff.map((s) => s.id),
@@ -291,7 +242,7 @@ Deno.serve(async (req) => {
             rows: [],
           };
         }
-        const cell = cellFromResolved(r);
+        const cell = cellFromResolvedSummary(r);
         if (cell.status === "submitted_waiting_approval" && cell.submissionId) {
           pendingIds.push(cell.submissionId);
         }
