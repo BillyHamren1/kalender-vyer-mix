@@ -31,7 +31,7 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import { authenticateStaffRequest } from "../_shared/staff-auth.ts";
 import {
-  resolveStaffDayReportSummariesBatch as resolveStaffDayReportsBatch,
+  resolveStaffDayReportSummariesBatch,
   type ResolvedStaffDaySummary,
 } from "../_shared/staff-day-report/resolveStaffDayReport.ts";
 
@@ -217,7 +217,7 @@ Deno.serve(async (req) => {
 
 
     // 2) En enda resolver — batch över hela veckan.
-    const resolved = await resolveStaffDayReportsBatch({
+    const resolved = await resolveStaffDayReportSummariesBatch({
       admin,
       organizationId: orgId,
       staffIds: staff.map((s) => s.id),
