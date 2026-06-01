@@ -34,9 +34,9 @@ export interface CalendarEvent extends EventInput {
 }
 
 export const getEventColor = (eventType: string | undefined, customerPickup?: boolean): string => {
-  // Customer self-pickup ("Kund hämtar själv") → rosa/lila för rig & rivning
+  // Customer self-pickup ("Kund hämtar") → tydligt lila för rig & rivning (skiljer från röd rigDown)
   if (customerPickup && (eventType === 'rig' || eventType === 'rigDown' || eventType === 'rigdown')) {
-    return eventType === 'rig' ? '#FBCFE8' /* pink-200 */ : '#E9D5FF' /* purple-200 */;
+    return eventType === 'rig' ? '#D8B4FE' /* purple-300 */ : '#C084FC' /* purple-400 */;
   }
   switch (eventType) {
     // --- Planning colors (green / yellow / red) ---

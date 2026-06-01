@@ -268,7 +268,12 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             Ändrad!
           </div>
         )}
-        {/* Read-only events no longer show a badge */}
+        {/* Customer self-pickup badge */}
+        {customerPickup && (event.eventType === 'rig' || event.eventType === 'rigDown') && !isCancelled && (
+          <div className="absolute -top-1 -left-1 bg-purple-700 text-white text-[8px] px-1 py-0.5 rounded font-bold z-10 uppercase tracking-wide">
+            Kund hämtar
+          </div>
+        )}
         {!(event.extendedProps as any)?.isPlannerItem && (
           <div className={`event-title ${isCancelled ? 'line-through' : ''}`} style={{ color: isCancelled ? '#991B1B' : '#000000' }}>
             {displayTitle}
