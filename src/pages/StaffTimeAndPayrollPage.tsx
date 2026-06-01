@@ -1,12 +1,24 @@
 import React from "react";
+import { useSearchParams } from "react-router-dom";
 import { CalendarClock } from "lucide-react";
 import { PageContainer } from "@/components/ui/PageContainer";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import StaffTimeWeeklyGpsReportContent from "@/components/staff-time/StaffTimeWeeklyGpsReportContent";
+import StaffTimeReportsContent from "@/components/staff-time/StaffTimeReportsContent";
 
-// HUVUDVY: Ett enda enkelt flöde — GPS-förslag → Inskickat → Attesterat.
-// Gamla attest/rapport/löne-vyer har medvetet tagits bort från denna sida
-// (komponenterna finns kvar i kodbasen men importeras/renderas inte här).
+// HUVUDVY: Två tabbar — "Tid" (GPS-veckomatris) och "Lön" (tidrapport-/attestvy).
+// Tabbvalet speglas i URL via ?tab=tid|lon så djuplänkar fungerar.
 const StaffTimeAndPayrollPage: React.FC = () => {
+  const [params, setParams] = useSearchParams();
+  const tab = params.get("tab") === "lon" ? "lon" : "tid";
+
+  const handleChange = (next: string) => {
+    const p = new URLSearchParams(params);
+    if (next === "lon") p.set("tab", "lon");
+    else p.delete("tab");
+    setParams(p, { replace: true });
+  };
+
   return (
     <PageContainer theme="purple" className="p-0">
       <div className="px-4 pt-4 pb-2 border-b border-border/60 bg-gradient-to-b from-purple-500/5 to-transparent">
@@ -23,9 +35,22 @@ const StaffTimeAndPayrollPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="min-h-[calc(100vh-160px)]">
-        <StaffTimeWeeklyGpsReportContent />
-      </div>
+      <Tabs value={tab} onValueChange={handleChange} className="min-h-[calc(100vh-160px)]">
+        <div className="px-4 pt-3">
+          <TabsList>
+            <TabsTrigger value="tid">Tid</TabsTrigger>
+            <TabsTrigger value="lon">Lön</TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value="tid" className="mt-2">
+          <StaffTimeWeeklyGpsReportContent />
+        </TabsContent>
+
+        <TabsContent value="lon" className="mt-2">
+          <StaffTimeReportsContent />
+        </TabsContent>
+      </Tabs>
     </PageContainer>
   );
 };
