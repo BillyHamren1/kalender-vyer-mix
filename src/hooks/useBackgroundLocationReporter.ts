@@ -858,6 +858,8 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
 
       let arrivals = loadPendingArrivals();
       let changed = false;
+      let didEnter = false;
+      let didExit = false;
       const arrivalKeys = new Set(arrivals.map(a => a.key));
 
       for (const target of targets) {
@@ -883,8 +885,12 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
               lng: target.lng,
             });
             changed = true;
+            didEnter = true;
             console.log(`[BGLocation] Pending arrival saved: ${target.name} (${target.key})`);
           } else {
+            if (!insideRef.current.has(target.key) && !cooldownActive) {
+              didEnter = true;
+            }
             insideRef.current.add(target.key);
             if (cooldownActive) {
               // eslint-disable-next-line no-console
@@ -894,6 +900,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
         } else if (dist > exitRadius) {
           if (insideRef.current.has(target.key)) {
             insideRef.current.delete(target.key);
+            didExit = true;
             const beforeLen = arrivals.length;
             arrivals = arrivals.filter(a => a.key !== target.key);
             if (arrivals.length !== beforeLen) {
@@ -905,6 +912,10 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       }
 
       if (changed) savePendingArrivals(arrivals);
+      // Geofence boundary cross → forcera upload direkt så backend ser in/ut
+      // även om vi just nu kör batch_inside_geofence (30 min auto-flush).
+      if (didEnter) void forceFlushLocationQueue('geofence-enter');
+      if (didExit) void forceFlushLocationQueue('geofence-exit');
       // Mode may have changed (entered/exited a target) — reschedule
       rescheduleHeartbeat();
     };
