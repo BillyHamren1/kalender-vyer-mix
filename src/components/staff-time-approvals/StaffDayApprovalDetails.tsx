@@ -81,17 +81,26 @@ function SegmentList({ segments }: { segments: TimelineSegment[] }) {
   );
 }
 
+function formatHm(min: number): string {
+  const m = Math.max(0, Math.round(min));
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  if (h === 0) return `${r} min`;
+  if (r === 0) return `${h} h`;
+  return `${h} h ${r} min`;
+}
+
 function CacheSummary({ summary }: { summary: any }) {
   if (!summary || typeof summary !== "object") return null;
-  const rows: Array<{ k: string; v: number | string }> = [];
+  const rows: Array<{ k: string; v: string }> = [];
   const push = (label: string, raw: any) => {
-    if (typeof raw === "number" && isFinite(raw) && raw > 0) rows.push({ k: label, v: raw });
+    if (typeof raw === "number" && isFinite(raw) && raw > 0) rows.push({ k: label, v: formatHm(raw) });
   };
-  push("Arbete (min)", summary.workMinutes);
-  push("Lönegrund (min)", summary.payableMinutes);
-  push("Totalt (min)", summary.totalMinutes);
-  push("Transport (min)", summary.transportMinutes);
-  push("Rast (min)", summary.breakMinutes);
+  push("Arbete", summary.workMinutes);
+  push("Lönegrund", summary.payableMinutes);
+  push("Totalt", summary.totalMinutes);
+  push("Transport", summary.transportMinutes);
+  push("Rast", summary.breakMinutes);
   if (rows.length === 0) return null;
   return (
     <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]">
@@ -104,6 +113,7 @@ function CacheSummary({ summary }: { summary: any }) {
     </div>
   );
 }
+
 
 export const StaffDayApprovalDetails: React.FC<Props> = ({ day, staffId }) => {
   const gpsHref = `/staff-management/gps-satellite-map?staffId=${encodeURIComponent(staffId)}&date=${encodeURIComponent(day.date)}`;
