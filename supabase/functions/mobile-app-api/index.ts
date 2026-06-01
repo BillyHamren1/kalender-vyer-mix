@@ -4185,12 +4185,50 @@ async function handleGetBookingDetails(supabase: any, staffId: string, data: { b
     return task
   })
 
+  // ── team_vehicles enrichment (visa bil tilldelad mitt team för bokningens dagar) ──
+  let teamVehicles: Array<{ id: string; name: string; registration_number: string | null }> = []
+  try {
+    const myTeamIds = [...new Set((staffAssignments || [])
+      .filter((a: any) => a.staff_id === staffId && a.team_id)
+      .map((a: any) => a.team_id as string))]
+    const dates = [...new Set([
+      booking.rigdaydate,
+      booking.eventdate,
+      booking.rigdowndate,
+      ...((calendarEvents || []).map((e: any) => String(e.start_time || '').slice(0, 10))),
+    ].filter(Boolean) as string[])]
+    if (myTeamIds.length > 0 && dates.length > 0) {
+      const { data: tvaRows, error: tvaErr } = await supabase
+        .from('team_vehicle_assignments')
+        .select('team_id, date, vehicles!inner(id, name, registration_number, is_external, is_active)')
+        .eq('organization_id', organizationId)
+        .in('team_id', myTeamIds)
+        .in('date', dates)
+      if (tvaErr) {
+        console.warn('[get_booking_details] team_vehicle_assignments query failed (non-fatal):', tvaErr)
+      } else {
+        const collected = new Map<string, { id: string; name: string; registration_number: string | null }>()
+        for (const row of (tvaRows || [])) {
+          const v: any = (row as any).vehicles
+          if (!v || v.is_external === true || v.is_active === false) continue
+          if (!collected.has(v.id)) {
+            collected.set(v.id, { id: v.id, name: v.name, registration_number: v.registration_number ?? null })
+          }
+        }
+        teamVehicles = [...collected.values()].sort((a, b) => a.name.localeCompare(b.name, 'sv'))
+      }
+    }
+  } catch (e) {
+    console.warn('[get_booking_details] team_vehicles enrichment failed (non-fatal):', e)
+  }
+
   // Construct comprehensive response
   const response = {
     booking: {
       ...booking,
       products: products || [],
-      attachments: attachments || []
+      attachments: attachments || [],
+      team_vehicles: teamVehicles,
     },
     planning: {
       assigned_staff: assignedStaff,

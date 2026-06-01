@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import JobAttachmentsSection from './JobAttachmentsSection';
+import TeamVehicleLine from '@/components/mobile-app/TeamVehicleLine';
 
 interface EstablishmentTask {
   id: string;
@@ -414,6 +415,13 @@ const JobInfoTab = ({ booking, bookingId, establishmentTasks, onCommentsUpdated,
               {[booking.delivery_postal_code, booking.delivery_city].filter(Boolean).join(' ')}
             </p>
           )}
+        </div>
+      )}
+
+      {/* Team vehicles for this booking's dates */}
+      {Array.isArray((booking as any).team_vehicles) && (booking as any).team_vehicles.length > 0 && (
+        <div className="rounded-xl border bg-card p-3">
+          <TeamVehicleLine vehicles={(booking as any).team_vehicles} />
         </div>
       )}
 
