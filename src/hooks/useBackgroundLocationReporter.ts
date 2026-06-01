@@ -19,6 +19,7 @@ import {
 } from '@/lib/geofence/locationMode';
 import { resolveAppliedTrackingDistanceFilter } from '@/lib/geofence/nativeTrackingPolicy';
 import { isInDismissCooldown } from '@/lib/geofence/dismissCooldown';
+import { mergeTrackingPolicy } from '@/lib/geofence/mergeTrackingPolicy';
 import { isWorkdayActive } from '@/lib/workday/workdayActiveSignal';
 import { recordAppHealthEvent } from '@/lib/mobile/recordAppHealthEvent';
 
