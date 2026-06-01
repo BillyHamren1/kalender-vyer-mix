@@ -1,30 +1,37 @@
 // get-staff-time-week-matrix
 // ==========================
-// Admin-only batch som returnerar EN färdig veckomatris för Tid & Lön.
+// Admin-only batch som returnerar EN färdig veckomatris för Tid & Lön och
+// Time Approvals.
 //
-// För varje (staff × dag) gäller:
-//   1. Om staff_day_submissions finns → använd submission/snapshot, status från DB.
-//   2. Annars om GPS-pings finns i veckan → bygg canonical GPS-resultat (SAMMA
-//      builder som GPS-satellitkartan: buildCanonicalStaffDayGpsResult).
-//   3. Annars → empty.
+// SINGLE-PIPELINE-REGEL:
+//   Denna endpoint bygger ALDRIG egen dag från raw GPS. All källval för
+//   (staff × dag) går genom den gemensamma `resolveStaffDayReportsBatch`
+//   i _shared/staff-day-report/resolveStaffDayReport.ts.
 //
-// Den här funktionen får ALDRIG bygga egen GPS-logik. All canonical projection
-// går via _shared/staff-gps/canonicalStaffDayGpsResult.ts. Normal/övertid
-// räknas via _shared/staffTimeFlow/workTimeBuckets.ts (mirror av frontend).
+//   Prioritet (orubblig, ägs av resolvern):
+//     1. staff_day_submissions  → source: 'submission'
+//     2. staff_day_report_cache → source: 'cache'
+//     3. annars                  → source: 'empty'
 //
-// Rör INTE: time_reports, workdays, location_time_entries, travel_time_logs,
-// day_attestations, staff_day_report_cache (skriv-vägar). Vi LÄSER bara
-// staff_members, staff_day_submissions och staff_location_history (för
-// presence-detektion). Canonical-byggaren använder sin egen snapshot-cache.
+//   Vi får aldrig hamna i ett läge där Tid & Lön visar cache medan Attest
+//   visar submission (eller tvärtom). Båda går via samma resolver.
+//
+// FÖRBJUDET I DENNA FIL (vaktat av contract-test):
+//   - import av `buildCanonicalStaffDayGpsResult`
+//   - läsning av `staff_location_history`
+//   - läsning av time_reports / workdays / location_time_entries /
+//     travel_time_logs / day_attestations
+//
+// Time Engine är ensam ägare av raw GPS. Konsumenter läser bara dess
+// färdiga cache (eller användarens submission).
 
 import { corsHeaders } from "../_shared/cors.ts";
 import { authenticateStaffRequest } from "../_shared/staff-auth.ts";
 import {
-  buildCanonicalStaffDayGpsResult,
-  type CanonicalStaffDayGpsResult,
-  type CanonicalSegment,
-} from "../_shared/staff-gps/canonicalStaffDayGpsResult.ts";
-import { stockholmDayWindowUtc } from "../_shared/staff-gps/dayWindow.ts";
+  resolveStaffDayReportsBatch,
+  type ResolvedDayRow,
+  type ResolvedStaffDay,
+} from "../_shared/staff-day-report/resolveStaffDayReport.ts";
 import { calculateWorkTimeBuckets } from "../_shared/staffTimeFlow/workTimeBuckets.ts";
 
 interface RequestBody {
@@ -41,17 +48,6 @@ function bad(status: number, error: string, extra: Record<string, unknown> = {})
 
 const TZ = "Europe/Stockholm";
 
-function stockholmLocalDate(iso: string): string {
-  const d = new Date(iso);
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
-  }).formatToParts(d);
-  const y = parts.find((p) => p.type === "year")?.value;
-  const m = parts.find((p) => p.type === "month")?.value;
-  const dd = parts.find((p) => p.type === "day")?.value;
-  return `${y}-${m}-${dd}`;
-}
-
 function stockholmHm(iso: string | null): string | null {
   if (!iso) return null;
   try {
@@ -65,8 +61,6 @@ function stockholmHm(iso: string | null): string | null {
 }
 
 function weekDates(weekStart: string): string[] {
-  // weekStart är en lokal måndag (YYYY-MM-DD). Lägg på 0..6 lokala dagar.
-  // Vi använder noon-UTC + offset-stabil iteration via Date.UTC.
   const [y, m, d] = weekStart.split("-").map(Number);
   const out: string[] = [];
   for (let i = 0; i < 7; i++) {
@@ -76,13 +70,13 @@ function weekDates(weekStart: string): string[] {
   return out;
 }
 
-// ---- Status mapping (mirror src/lib/staffTimeFlow/weekFlow.ts mapDbStatusToFlow)
-type FlowStatus = "gps_proposal" | "submitted_waiting_approval" | "correction_requested" | "approved" | "empty";
-function mapDbStatusToFlow(status: string): Exclude<FlowStatus, "empty" | "gps_proposal"> {
-  if (status === "approved" || status === "payroll_approved") return "approved";
-  if (status === "correction_requested") return "correction_requested";
-  return "submitted_waiting_approval";
-}
+// ── Utvy-typ (oförändrad shape mot frontend) ─────────────────────────────
+type FlowStatus =
+  | "gps_proposal"
+  | "submitted_waiting_approval"
+  | "correction_requested"
+  | "approved"
+  | "empty";
 
 interface CellRow {
   kind: "work" | "travel" | "private" | "unknown_place" | "gps_gap" | "other";
@@ -119,67 +113,90 @@ interface MatrixRow {
   pendingSubmissionIds: string[];
 }
 
-function segmentKindToCell(t: CanonicalSegment["type"]): CellRow["kind"] {
-  switch (t) {
-    case "work": return "work";
-    case "travel": return "travel";
-    case "private": return "private";
-    case "unknown_place": return "unknown_place";
-    case "gps_gap": return "gps_gap";
-    default: return "other";
-  }
+function mapKind(k: ResolvedDayRow["kind"]): CellRow["kind"] {
+  if (k === "work") return "work";
+  if (k === "travel") return "travel";
+  if (k === "private") return "private";
+  if (k === "unknown_place" || k === "needs_review") return "unknown_place";
+  if (k === "gps_gap") return "gps_gap";
+  return "other";
 }
 
-function rowsFromCanonical(c: CanonicalStaffDayGpsResult): CellRow[] {
-  return c.segments
-    .filter((s) => s.type !== "idle")
-    .map((s) => ({
-      kind: segmentKindToCell(s.type),
-      label: s.label,
-      startIso: s.startIso,
-      endIso: s.endIso,
-      minutes: s.durationMinutes,
-      fromLabel: s.fromLabel ?? null,
-      toLabel: s.toLabel ?? null,
-    }));
-}
+function cellFromResolved(r: ResolvedStaffDay): MatrixCell {
+  const rows: CellRow[] = r.rows.map((rr) => ({
+    kind: mapKind(rr.kind),
+    label: rr.label,
+    startIso: rr.startIso,
+    endIso: rr.endIso,
+    minutes: rr.minutes,
+    fromLabel: rr.fromLabel,
+    toLabel: rr.toLabel,
+  }));
 
-function rowsFromSnapshot(snapshot: unknown): CellRow[] {
-  if (!Array.isArray(snapshot)) return [];
-  return snapshot.map((r) => {
-    const raw = r as Record<string, any>;
-    const t = String(raw.type ?? raw.kind ?? "work");
-    const kind: CellRow["kind"] =
-      t === "manual_work" || t === "work" ? "work"
-      : t === "travel" ? "travel"
-      : t === "private" ? "private"
-      : t === "unknown_place" ? "unknown_place"
-      : t === "gps_gap" ? "gps_gap"
-      : "other";
-    return {
-      kind,
-      label: String(raw.label ?? "Arbete"),
-      startIso: (raw.start ?? raw.startedAt ?? null) as string | null,
-      endIso: (raw.end ?? raw.endedAt ?? null) as string | null,
-      minutes: Number(raw.minutes ?? raw.durationMinutes ?? 0) || 0,
-      fromLabel: (raw.fromLabel ?? null) as string | null,
-      toLabel: (raw.toLabel ?? null) as string | null,
-    };
-  });
-}
-
-async function processPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const out: R[] = new Array(items.length);
-  let idx = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (true) {
-      const i = idx++;
-      if (i >= items.length) return;
-      out[i] = await fn(items[i]);
+  // Buckets för normal/övertid: föredra cache.summary om finns på source=submission
+  // (sub.source_summary_json.normalMinutes), annars räkna från rows.
+  let normalMinutes = 0;
+  let overtimeMinutes = 0;
+  if (r.source === "submission") {
+    const sum = (r.rawSubmission?.source_summary_json ?? {}) as Record<string, any>;
+    const n = typeof sum.normalMinutes === "number" ? Math.max(0, Math.round(sum.normalMinutes)) : -1;
+    const o = typeof sum.overtimeMinutes === "number" ? Math.max(0, Math.round(sum.overtimeMinutes)) : -1;
+    if (n >= 0 && o >= 0) {
+      normalMinutes = n;
+      overtimeMinutes = o;
     }
-  });
-  await Promise.all(workers);
-  return out;
+  }
+  if (normalMinutes === 0 && overtimeMinutes === 0 && rows.length > 0) {
+    const b = calculateWorkTimeBuckets(
+      rows.map((rr) => ({ kind: rr.kind, startIso: rr.startIso, endIso: rr.endIso, minutes: rr.minutes })),
+      { breakMinutes: r.breakMinutes ?? 0 },
+    );
+    normalMinutes = b.normalMinutes;
+    overtimeMinutes = b.overtimeMinutes;
+  }
+
+  const totalMinutes = rows.length > 0
+    ? rows.reduce((a, rr) => a + rr.minutes, 0)
+    : (r.startIso && r.endIso
+        ? Math.max(0, Math.round((Date.parse(r.endIso) - Date.parse(r.startIso)) / 60_000) - (r.breakMinutes ?? 0))
+        : 0);
+
+  // status-mapping till frontend-vokabulär (resolvern använder samma ord).
+  let status: FlowStatus;
+  let source: MatrixCell["source"];
+  if (r.source === "submission") {
+    status = r.status === "approved" ? "approved"
+      : r.status === "correction_requested" ? "correction_requested"
+      : "submitted_waiting_approval";
+    source = "submission_snapshot";
+  } else if (r.source === "cache") {
+    status = "gps_proposal";
+    source = "gps_proposal";
+  } else {
+    status = "empty";
+    source = "empty";
+  }
+
+  return {
+    date: r.date,
+    status,
+    source,
+    startTime: stockholmHm(r.startIso ?? r.rawSubmission?.start_time ?? null),
+    endTime: stockholmHm(r.endIso ?? r.rawSubmission?.end_time ?? null),
+    workMinutes: r.workMinutes,
+    travelMinutes: r.travelMinutes,
+    totalMinutes,
+    normalMinutes,
+    overtimeMinutes,
+    submissionId: r.submissionId,
+    reviewComment: r.reviewComment,
+    // pingCount/gpsAvailable är legacy-fält i UI:t. Vi rör inte raw GPS
+    // härifrån — sätt 0/false. Time Engine kan i framtiden exponera detta
+    // via cache.summary_json om vi behöver visa "GPS finns" i Tid&Lön.
+    pingCount: 0,
+    gpsAvailable: r.source === "cache" || r.source === "submission",
+    rows,
+  };
 }
 
 Deno.serve(async (req) => {
@@ -215,7 +232,7 @@ Deno.serve(async (req) => {
   const orgId = auth.organizationId;
 
   try {
-    // 1. Staff
+    // 1) Personal i org.
     const { data: staffRows, error: staffErr } = await admin
       .from("staff_members")
       .select("id, name")
@@ -225,163 +242,37 @@ Deno.serve(async (req) => {
     if (staffErr) throw staffErr;
     const staff = (staffRows ?? []) as Array<{ id: string; name: string }>;
 
-    // 2. Submissions för veckan (latest per staff/date)
-    const { data: subRows, error: subErr } = await admin
-      .from("staff_day_submissions")
-      .select("id, staff_id, date, status, requested_start_at, requested_end_at, start_time, end_time, break_minutes, review_comment, source_summary_json, display_timeline_snapshot_json")
-      .eq("organization_id", orgId)
-      .gte("date", weekStart)
-      .lte("date", weekEnd)
-      .order("submitted_at", { ascending: false })
-      .limit(5000);
-    if (subErr) throw subErr;
-    type SubRow = {
-      id: string; staff_id: string; date: string; status: string;
-      requested_start_at: string | null; requested_end_at: string | null;
-      start_time: string | null; end_time: string | null;
-      break_minutes: number | null; review_comment: string | null;
-      source_summary_json: any; display_timeline_snapshot_json: any;
-    };
-    const submissions = ((subRows ?? []) as unknown) as SubRow[];
-    const subByKey = new Map<string, SubRow>();
-    for (const s of submissions) {
-      const k = `${s.staff_id}|${s.date}`;
-      if (!subByKey.has(k)) subByKey.set(k, s);
-    }
-
-    // 3. GPS-presence: hämta lättviktigt staff_id+recorded_at för veckans UTC-fönster.
-    const winStart = stockholmDayWindowUtc(weekStart).startIso;
-    const winEnd = stockholmDayWindowUtc(weekEnd).endIso;
-    const { data: pingRows, error: pingErr } = await admin
-      .from("staff_location_history")
-      .select("staff_id, recorded_at")
-      .eq("organization_id", orgId)
-      .gte("recorded_at", winStart)
-      .lte("recorded_at", winEnd)
-      .limit(100000);
-    if (pingErr) throw pingErr;
-    const pingCount = new Map<string, number>();
-    for (const r of ((pingRows ?? []) as Array<{ staff_id: string; recorded_at: string }>)) {
-      const localDate = stockholmLocalDate(r.recorded_at);
-      const k = `${r.staff_id}|${localDate}`;
-      pingCount.set(k, (pingCount.get(k) ?? 0) + 1);
-    }
-
-
-    // 4. Bestäm vilka (staff,date) som behöver canonical-build (ingen submission + pings finns).
-    const buildTargets: Array<{ staffId: string; date: string }> = [];
-    for (const s of staff) {
-      for (const date of dates) {
-        const key = `${s.id}|${date}`;
-        if (subByKey.has(key)) continue;
-        if ((pingCount.get(key) ?? 0) <= 0) continue;
-        buildTargets.push({ staffId: s.id, date });
-      }
-    }
-
-    // 5. Begränsad parallellitet — kör canonical i pool om max 4.
-    const canonicalByKey = new Map<string, CanonicalStaffDayGpsResult>();
-    await processPool(buildTargets, 4, async (t) => {
-      try {
-        const c = await buildCanonicalStaffDayGpsResult(admin, {
-          organizationId: orgId, staffId: t.staffId, date: t.date,
-        });
-        canonicalByKey.set(`${t.staffId}|${t.date}`, c);
-      } catch (err) {
-        console.error("[week-matrix] canonical build failed", { staffId: t.staffId, date: t.date, msg: (err as Error).message });
-      }
+    // 2) En enda resolver — batch över hela veckan.
+    const resolved = await resolveStaffDayReportsBatch({
+      admin,
+      organizationId: orgId,
+      staffIds: staff.map((s) => s.id),
+      dates,
     });
 
-    // 6. Bygg matrix
+    // 3) Projicera till matrix-shape.
     const matrixRows: MatrixRow[] = staff.map((s) => {
       const pendingIds: string[] = [];
       const days: MatrixCell[] = dates.map((date) => {
-        const key = `${s.id}|${date}`;
-        const sub = subByKey.get(key);
-        const pings = pingCount.get(key) ?? 0;
-
-        if (sub) {
-          const status = mapDbStatusToFlow(String(sub.status));
-          if (status === "submitted_waiting_approval") pendingIds.push(sub.id);
-          const snapshotRows = rowsFromSnapshot(sub.display_timeline_snapshot_json);
-          const rows = snapshotRows;
-          const sum = (sub.source_summary_json ?? {}) as Record<string, any>;
-          const startIso = sub.requested_start_at ?? rows[0]?.startIso ?? null;
-          const endIso = sub.requested_end_at ?? rows[rows.length - 1]?.endIso ?? null;
-          const workMin = rows.filter((r) => r.kind === "work").reduce((a, r) => a + r.minutes, 0);
-          const travelMin = rows.filter((r) => r.kind === "travel").reduce((a, r) => a + r.minutes, 0);
-          const totalMin = rows.length > 0
-            ? rows.reduce((a, r) => a + r.minutes, 0)
-            : (startIso && endIso
-                ? Math.max(0, Math.round((Date.parse(endIso) - Date.parse(startIso)) / 60_000) - (sub.break_minutes ?? 0))
-                : 0);
-          // Föredra sparade buckets, annars räkna om från snapshot.
-          let normalMinutes = typeof sum.normalMinutes === "number" ? Math.max(0, Math.round(sum.normalMinutes)) : -1;
-          let overtimeMinutes = typeof sum.overtimeMinutes === "number" ? Math.max(0, Math.round(sum.overtimeMinutes)) : -1;
-          if (normalMinutes < 0 || overtimeMinutes < 0) {
-            const b = calculateWorkTimeBuckets(
-              rows.map((r) => ({ kind: r.kind, startIso: r.startIso, endIso: r.endIso, minutes: r.minutes })),
-              { breakMinutes: sub.break_minutes ?? 0 },
-            );
-            normalMinutes = b.normalMinutes;
-            overtimeMinutes = b.overtimeMinutes;
-          }
+        const r = resolved.get(`${s.id}|${date}`);
+        if (!r) {
           return {
             date,
-            status,
-            source: "submission_snapshot",
-            startTime: stockholmHm(startIso) ?? (sub.start_time?.slice(0, 5) ?? null),
-            endTime: stockholmHm(endIso) ?? (sub.end_time?.slice(0, 5) ?? null),
-            workMinutes: workMin,
-            travelMinutes: travelMin,
-            totalMinutes: totalMin,
-            normalMinutes,
-            overtimeMinutes,
-            submissionId: sub.id,
-            reviewComment: sub.review_comment ?? null,
-            pingCount: pings,
-            gpsAvailable: pings > 0,
-            rows,
+            status: "empty",
+            source: "empty",
+            startTime: null, endTime: null,
+            workMinutes: 0, travelMinutes: 0, totalMinutes: 0,
+            normalMinutes: 0, overtimeMinutes: 0,
+            submissionId: null, reviewComment: null,
+            pingCount: 0, gpsAvailable: false,
+            rows: [],
           };
         }
-
-        const canonical = canonicalByKey.get(key);
-        if (canonical && (canonical.debug.pingsCount > 0)) {
-          const rows = rowsFromCanonical(canonical);
-          const buckets = calculateWorkTimeBuckets(
-            rows.map((r) => ({ kind: r.kind, startIso: r.startIso, endIso: r.endIso, minutes: r.minutes })),
-            { breakMinutes: 0 },
-          );
-          return {
-            date,
-            status: "gps_proposal",
-            source: "gps_proposal",
-            startTime: stockholmHm(canonical.firstIso),
-            endTime: stockholmHm(canonical.lastIso),
-            workMinutes: canonical.totals.workMinutes,
-            travelMinutes: canonical.totals.travelMinutes,
-            totalMinutes: canonical.totals.workMinutes + canonical.totals.travelMinutes,
-            normalMinutes: buckets.normalMinutes,
-            overtimeMinutes: buckets.overtimeMinutes,
-            submissionId: null,
-            reviewComment: null,
-            pingCount: canonical.debug.pingsCount,
-            gpsAvailable: true,
-            rows,
-          };
+        const cell = cellFromResolved(r);
+        if (cell.status === "submitted_waiting_approval" && cell.submissionId) {
+          pendingIds.push(cell.submissionId);
         }
-
-        return {
-          date,
-          status: "empty",
-          source: "empty",
-          startTime: null, endTime: null,
-          workMinutes: 0, travelMinutes: 0, totalMinutes: 0,
-          normalMinutes: 0, overtimeMinutes: 0,
-          submissionId: null, reviewComment: null,
-          pingCount: pings, gpsAvailable: pings > 0,
-          rows: [],
-        };
+        return cell;
       });
       return { staffId: s.id, staffName: s.name, days, pendingSubmissionIds: pendingIds };
     });
@@ -392,6 +283,7 @@ Deno.serve(async (req) => {
         weekEnd,
         rows: matrixRows,
         generatedAt: new Date().toISOString(),
+        pipeline: "resolveStaffDayReport@v1",
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
