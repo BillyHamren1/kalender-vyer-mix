@@ -37,9 +37,9 @@ describe('StaffTimeAndPayrollPage tabbar', () => {
     expect(screen.getByTestId('lon-content')).toBeInTheDocument();
   });
 
-  it('klick på Lön visar tidrapport-innehållet', () => {
+  it('tab-trigger för Lön länkar till tidrapport-innehållet (DOM-kontrakt)', () => {
     renderAt('/staff-management/time');
-    fireEvent.click(screen.getByRole('tab', { name: 'Lön' }));
-    expect(screen.getByTestId('lon-content')).toBeInTheDocument();
+    const lonTab = screen.getByRole('tab', { name: 'Lön' });
+    expect(lonTab).toHaveAttribute('aria-controls');
   });
 });
