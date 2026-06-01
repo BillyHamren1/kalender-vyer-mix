@@ -423,7 +423,16 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       }
     };
 
-    const handlePosition = (latitude: number, longitude: number, accuracy: number | null, speed: number | null) => {
+    const handlePosition = (
+      latitude: number,
+      longitude: number,
+      accuracy: number | null,
+      speed: number | null,
+      timestampMs?: number | null,
+    ) => {
+      const recordedAt = new Date(
+        typeof timestampMs === 'number' && Number.isFinite(timestampMs) ? timestampMs : Date.now(),
+      ).toISOString();
       lastPingAtRef.current = Date.now();
       lastNativeLocationEventAtRef.current = Date.now();
       setLatestPosition({ lat: latitude, lng: longitude, accuracy, speed, timestamp: Date.now() });
@@ -431,13 +440,15 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
 
       const now = Date.now();
       if (now - lastReportRef.current < captureThrottleMsRef.current) {
-        checkBackgroundGeofences(latitude, longitude);
+        // Geofence-check körs ÄVEN under throttle — den enqueuar själv
+        // crossing-punkten med source='geofence' så staketpassagen aldrig
+        // kan saknas pga capture-throttle.
+        checkBackgroundGeofences(latitude, longitude, accuracy, speed, recordedAt);
         return;
       }
       lastReportRef.current = now;
 
       if (staffIdRef.current) {
-        // Capture battery snapshot but never let it block the GPS ping.
         void getBatterySnapshot()
           .catch(() => null)
           .then((battery) => {
@@ -447,6 +458,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
               accuracy,
               speed,
               source: 'background',
+              recordedAt,
               batteryLevel: battery?.battery_level ?? null,
               batteryPercent: battery?.battery_percent ?? null,
               isCharging: battery?.is_charging ?? null,
@@ -454,19 +466,22 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
               batterySource: battery?.battery_source ?? null,
             });
             lastEnqueuedAtRef.current = Date.now();
-            // Ingen direkt flush — periodisk 10-min-batch sköter upload.
           });
 
-        // DEPRECATED: lastUploadAt = enqueue, INTE server-accepted.
-        // Kvar för bakåtkomp. Använd lastAcceptedUploadAt för sanning.
         lastUploadAtRef.current = now;
       }
 
-      checkBackgroundGeofences(latitude, longitude);
+      checkBackgroundGeofences(latitude, longitude, accuracy, speed, recordedAt);
     };
 
-    const onLocation = (latitude: number, longitude: number, accuracy: number | null, speed: number | null) => {
-      handlePosition(latitude, longitude, accuracy, speed);
+    const onLocation = (
+      latitude: number,
+      longitude: number,
+      accuracy: number | null,
+      speed: number | null,
+      timestampMs?: number | null,
+    ) => {
+      handlePosition(latitude, longitude, accuracy, speed, timestampMs);
     };
 
     const sendHeartbeat = () => {
