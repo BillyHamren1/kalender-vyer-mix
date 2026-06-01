@@ -239,6 +239,11 @@ const PlannerEventActionPopover: React.FC<Props> = ({ event, onOpenDetails, chil
   };
 
   const handleDeleteDay = async (id: string) => {
+    const target = phaseDays.find((d) => d.id === id);
+    if (target?.times_locked) {
+      toast.error('Dagen är låst – lås upp först');
+      return;
+    }
     setDeletingId(id);
     try {
       await ctx.deleteItem(id);
@@ -251,7 +256,12 @@ const PlannerEventActionPopover: React.FC<Props> = ({ event, onOpenDetails, chil
   };
 
   const handleDeleteCurrent = async () => {
-    if (plannerItemId) await handleDeleteDay(plannerItemId);
+    if (!plannerItemId) return;
+    if (isCurrentLocked) {
+      toast.error('Dagen är låst – lås upp först');
+      return;
+    }
+    await handleDeleteDay(plannerItemId);
     setOpen(false);
   };
 
