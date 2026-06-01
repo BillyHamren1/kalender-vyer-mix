@@ -23,7 +23,7 @@
  *  - eventType                       → 'internal_task' | 'todo'
  *  - extendedProps                   → planner-metadata (se nedan).
  */
-import type { CalendarEvent, Resource } from '@/components/Calendar/ResourceData';
+import { type CalendarEvent, type Resource, getEventColor } from '@/components/Calendar/ResourceData';
 import type { PlannerItemWithValidity } from './useLargeProjectPlannerItems';
 import type { LargeProjectPlannerTeam } from './largeProjectPlannerTypes';
 
@@ -116,6 +116,9 @@ export const mapPlannerItemsToCalendarEvents = (
 
   return items
     .filter((it) => !it.booking_product_id)
+    // Dölj eventdagar — samma logik som personalkalendern (Staff Calendar No Event Day).
+    // Endast rig + rigDown visas. Andra item_type (task/manual/split) påverkas inte.
+    .filter((it) => !(it.item_type === 'booking' && it.source_booking_phase === 'event'))
     .map((it) => {
       const startTime = normalizeTime(it.start_time, FALLBACK_START);
       const endTime = normalizeTime(it.end_time, FALLBACK_END);
@@ -132,14 +135,27 @@ export const mapPlannerItemsToCalendarEvents = (
         ? bookingDisplayById?.get(it.booking_id) ?? null
         : null;
 
+      // Bokningar (item_type='booking') ärver fas-färgen från personal-
+      // kalendern: rig=ljusgrön, rigDown=ljusröd. Status-tonen används
+      // fortfarande för tasks/manual/split-items.
+      const isBookingItem = it.item_type === 'booking';
+      const phaseEventType =
+        it.source_booking_phase === 'rig'
+          ? 'rig'
+          : it.source_booking_phase === 'rigDown'
+            ? 'rigDown'
+            : null;
+      const bgColor = isBookingItem && phaseEventType ? getEventColor(phaseEventType) : tone.bg;
+      const eventTypeForCard = isBookingItem && phaseEventType ? phaseEventType : (it.item_type === 'task' ? 'todo' : 'internal_task');
+
       return {
         id: `${PLANNER_EVENT_ID_PREFIX}${it.id}`,
         title: it.title,
         start,
         end,
         resourceId,
-        eventType: it.item_type === 'task' ? 'todo' : 'internal_task',
-        backgroundColor: tone.bg,
+        eventType: eventTypeForCard,
+        backgroundColor: bgColor,
         borderColor: tone.border,
         bookingId: it.booking_id ?? undefined,
         extendedProps: {
