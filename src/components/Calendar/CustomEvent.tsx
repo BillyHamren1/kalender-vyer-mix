@@ -463,10 +463,9 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
       if (!plannerBookingId) return;
       e.stopPropagation();
       e.preventDefault();
-      window.dispatchEvent(
-        new window.CustomEvent('lp-booking-sheet-open', { detail: { bookingId: plannerBookingId } }),
-      );
+      navigate(`/booking/${plannerBookingId}`);
     };
+
     return (
       <PlannerEventActionPopover event={event} onOpenDetails={handleViewDetails}>
         <div
