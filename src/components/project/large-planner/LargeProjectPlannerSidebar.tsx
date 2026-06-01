@@ -99,6 +99,62 @@ const LargeProjectPlannerSidebar = ({
     matchesFilter(itemsByBooking.get(b.id) ?? []),
   );
 
+  const isBookingPlanned = (b: LargeProjectPlannerBooking) =>
+    (itemsByBooking.get(b.id) ?? []).length > 0;
+  const unplannedBookings = filteredBookings.filter((b) => !isBookingPlanned(b));
+  const plannedBookings = filteredBookings.filter((b) => isBookingPlanned(b));
+
+  const renderBookingCard = (booking: LargeProjectPlannerBooking) => {
+    const its = itemsByBooking.get(booking.id) ?? [];
+    const isPlanned = its.length > 0;
+    return (
+      <div
+        key={booking.id}
+        className="w-[260px] shrink-0 rounded-md border border-border/60 bg-card p-2"
+      >
+        <div className="flex items-start justify-between gap-1">
+          <div className="min-w-0">
+            <div className="truncate text-xs font-medium text-foreground">
+              {booking.display_name}
+            </div>
+            {booking.booking_number && (
+              <div className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                <Hash className="h-2.5 w-2.5" />
+                {booking.booking_number}
+              </div>
+            )}
+          </div>
+          <Badge
+            variant={isPlanned ? 'secondary' : 'outline'}
+            className="text-[9px]"
+          >
+            {isPlanned ? `${its.length} st` : 'Ej planerad'}
+          </Badge>
+        </div>
+        <div className="mt-2 flex gap-1">
+          <Button
+            size="sm"
+            variant={isPlanned ? 'outline' : 'default'}
+            className="h-6 flex-1 text-[10px]"
+            onClick={() => onSeedBooking(booking)}
+          >
+            Planera
+          </Button>
+          {onSplitBooking && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 flex-1 text-[10px]"
+              onClick={() => onSplitBooking(booking)}
+            >
+              Dela upp
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   if (horizontal) {
     return (
       <aside className="flex shrink-0 flex-col border-b border-border/60 bg-background">
