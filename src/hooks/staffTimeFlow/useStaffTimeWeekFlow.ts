@@ -9,14 +9,15 @@
 //                        beroende, ingen Supabase realtime. Refetch sker via
 //                        query invalidation efter submit/approve.
 
-import { useEffect, useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentOrg } from "@/hooks/useCurrentOrg";
 import { useStaffGpsWeekSummary } from "@/hooks/staff/useStaffGpsWeekSummary";
 import { buildWeekFlow } from "@/lib/staffTimeFlow/weekFlow";
 import { callStaffSnapshotFunction } from "@/services/staffSnapshotApi";
+import { useStaffDayRealtimeInvalidation } from "@/hooks/staff/useStaffDayRealtimeInvalidation";
 import type { WeekFlow, WeekFlowViewer } from "@/lib/staffTimeFlow/types";
 import type { StaffDaySubmissionRow } from "@/hooks/staff/useStaffDaySubmissions";
 
@@ -39,7 +40,6 @@ export interface UseStaffTimeWeekFlowResult {
 export function useStaffTimeWeekFlow(params: UseStaffTimeWeekFlowParams): UseStaffTimeWeekFlowResult {
   const { staffId, weekDates, viewer } = params;
   const { organizationId } = useCurrentOrg();
-  const qc = useQueryClient();
 
   const gps = useStaffGpsWeekSummary(staffId, weekDates);
 
@@ -85,21 +85,13 @@ export function useStaffTimeWeekFlow(params: UseStaffTimeWeekFlowParams): UseSta
 
   // Realtime invalidation — endast admin (JWT-session). Mobil auth har ingen
   // Supabase-session och kan inte prenumerera på postgres_changes.
-  useEffect(() => {
-    if (viewer !== "admin") return;
-    if (!organizationId || !staffId) return;
-    const channel = supabase
-      .channel(`week-flow-${staffId}-${from}-${to}`)
-      .on(
-        "postgres_changes" as any,
-        { event: "*", schema: "public", table: "staff_day_submissions", filter: `staff_id=eq.${staffId}` },
-        () => {
-          qc.invalidateQueries({ queryKey: ["staff-time-flow-submissions"] });
-        },
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [viewer, organizationId, staffId, from, to, qc]);
+  // Single-pipeline: cache + submissions via gemensam hook.
+  useStaffDayRealtimeInvalidation({
+    channelKey: `week-flow-${staffId}-${from}-${to}`,
+    staffId,
+    queryKeys: [["staff-time-flow-submissions"]],
+    enabled: viewer === "admin" && !!organizationId && !!staffId,
+  });
 
   const flow = useMemo<WeekFlow | null>(() => {
     if (!staffId || weekDates.length === 0) return null;

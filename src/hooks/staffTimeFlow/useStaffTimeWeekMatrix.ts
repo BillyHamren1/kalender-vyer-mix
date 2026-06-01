@@ -20,11 +20,12 @@
  * day_attestations, staff_day_report_cache.
  */
 
-import { useEffect, useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentOrg } from "@/hooks/useCurrentOrg";
+import { useStaffDayRealtimeInvalidation } from "@/hooks/staff/useStaffDayRealtimeInvalidation";
 import type { WeekFlowStatus } from "@/lib/staffTimeFlow/types";
 
 export type StaffTimeMatrixCellStatus = WeekFlowStatus | "empty";
@@ -84,7 +85,6 @@ export interface UseStaffTimeWeekMatrixResult {
 export function useStaffTimeWeekMatrix(params: UseStaffTimeWeekMatrixParams): UseStaffTimeWeekMatrixResult {
   const { weekDates } = params;
   const { organizationId } = useCurrentOrg();
-  const qc = useQueryClient();
 
   const dateStrs = useMemo(() => weekDates.map((d) => format(d, "yyyy-MM-dd")), [weekDates]);
   const from = dateStrs[0] ?? null;
@@ -108,23 +108,16 @@ export function useStaffTimeWeekMatrix(params: UseStaffTimeWeekMatrixParams): Us
     },
   });
 
-  // Realtime: när submissions ändras → invalidera matrisen.
-  useEffect(() => {
-    if (!organizationId) return;
-    const channel = supabase
-      .channel(`staff-time-matrix-${organizationId}-${from}-${to}`)
-      .on(
-        "postgres_changes" as any,
-        { event: "*", schema: "public", table: "staff_day_submissions", filter: `organization_id=eq.${organizationId}` },
-        () => {
-          qc.invalidateQueries({ queryKey: ["staff-time-week-matrix"] });
-          // Backwards-compat key (används av Row-knappen efter approve).
-          qc.invalidateQueries({ queryKey: ["staff-time-matrix-subs"] });
-        },
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [organizationId, from, to, qc]);
+  // Realtime: en hook för båda single-pipeline-tabellerna (cache + submissions).
+  useStaffDayRealtimeInvalidation({
+    channelKey: `staff-time-matrix-${organizationId}-${from}-${to}`,
+    organizationId,
+    queryKeys: [
+      ["staff-time-week-matrix"],
+      ["staff-time-matrix-subs"], // backwards-compat (Row-knappen efter approve)
+    ],
+    enabled: !!organizationId,
+  });
 
   return {
     matrix: matrixQuery.data ?? null,
