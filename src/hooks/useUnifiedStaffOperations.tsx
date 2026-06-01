@@ -31,10 +31,10 @@ async function fetchAllAssignments(): Promise<StaffAssignment[]> {
 
   if (error) throw error;
 
-  // NOTE: vi filtrerar INTE bort assignments för "blocked"/"unavailable" personal.
-  // Admin har medvetet planerat in dem och raderna ska visas i kalendern.
-  // En blockerad status kan markeras visuellt i UI:t, men en sparad assignment
-  // får aldrig döljas — det orsakar "personal försvinner vid refresh".
+  // NOTE: vi filtrerar INTE bort assignments baserat på staff_availability-status.
+  // Admin har medvetet planerat in personalen och raderna ska visas i kalendern.
+  // En frånvarostatus kan markeras visuellt i UI, men en sparad assignment
+  // får aldrig döljas i läsvägen — det orsakar att personal försvinner vid refresh.
   return (data || []).map(a => ({
     staffId: a.staff_id,
     staffName: (a.staff_members as any)?.name || `Staff ${a.staff_id}`,
