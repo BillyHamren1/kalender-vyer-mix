@@ -330,6 +330,13 @@ const DayTimeline = ({ shifts, activeBookingIds, date, density = 'compact' }: Da
                         {item.shifts.length} {item.shifts.length === 1 ? 'bokning' : 'bokningar'}
                       </div>
                     )}
+                    {heightPx > 56 && (
+                      <TeamVehicleLine
+                        vehicles={itemVehicles(item)}
+                        size="dense"
+                        className="mt-0.5 opacity-90"
+                      />
+                    )}
                   </>
                 )}
               </button>
