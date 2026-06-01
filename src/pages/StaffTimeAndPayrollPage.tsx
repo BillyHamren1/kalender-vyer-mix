@@ -48,7 +48,7 @@ const StaffTimeAndPayrollPage: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="lon" className="mt-2">
-          <StaffTimeReportsContent />
+          <StaffTimeApprovalsPageContent />
         </TabsContent>
       </Tabs>
     </PageContainer>
