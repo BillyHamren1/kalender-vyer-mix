@@ -476,6 +476,7 @@ export async function flushLocationQueue(): Promise<void> {
           speed: p.speed,
           source: p.source,
         })),
+        { uploadMode: currentUploadPolicy.mode },
       );
       const toSend = chunk.filter(p => compression.selectedIds.has(p.id));
       patchStatus({
