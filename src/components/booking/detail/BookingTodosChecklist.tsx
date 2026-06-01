@@ -10,7 +10,7 @@
  *
  * Skriver ENBART till large_project_booking_plan_items via service.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -39,6 +39,7 @@ import { useProjectTeam } from '@/hooks/useProjectTeam';
 import { useBookingProductsForPlanner } from '@/hooks/useBookingProductsForPlanner';
 import {
   createLargeProjectPlannerItem,
+  deleteLargeProjectPlannerItem,
   updateLargeProjectPlannerItem,
 } from '@/components/project/large-planner/largeProjectPlannerService';
 import BookingTodoDateChip, { DateQuickPick } from './BookingTodoDateChip';
@@ -57,7 +58,12 @@ interface PlanRow {
   large_project_id: string;
   source_booking_phase: string | null;
   large_projects?: { name: string | null; project_number: string | null } | null;
-  booking_products?: { name: string | null; sku: string | null } | null;
+  booking_products?: {
+    name: string | null;
+    sku: string | null;
+    is_package_component: boolean | null;
+    parent_product_id: string | null;
+  } | null;
 }
 
 async function fetchRows(bookingId: string): Promise<PlanRow[]> {
@@ -66,7 +72,7 @@ async function fetchRows(bookingId: string): Promise<PlanRow[]> {
     .select(
       `id,title,status,plan_date,start_time,end_time,assigned_staff_id,booking_product_id,notes,large_project_id,source_booking_phase,
        large_projects:large_project_id(name,project_number),
-       booking_products:booking_product_id(name,sku)`,
+       booking_products:booking_product_id(name,sku,is_package_component,parent_product_id)`,
     )
     .eq('booking_id', bookingId)
     .order('plan_date', { ascending: true })
@@ -74,6 +80,11 @@ async function fetchRows(bookingId: string): Promise<PlanRow[]> {
   if (error) throw error;
   return (data ?? []) as unknown as PlanRow[];
 }
+
+/** Paketmedlemmar (komponenter under ett paket) ska aldrig vara egna to-dos. */
+const isPackageMember = (
+  p: { is_package_component?: boolean | null; parent_product_id?: string | null } | null | undefined,
+): boolean => !!p && (!!p.is_package_component || !!p.parent_product_id);
 
 const STATUS_LABEL: Record<string, string> = {
   planned: 'Planerad',
