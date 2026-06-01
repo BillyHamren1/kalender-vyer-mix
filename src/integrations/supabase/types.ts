@@ -6144,6 +6144,7 @@ export type Database = {
           stale: boolean
           summary_json: Json
           updated_at: string
+          workday_allocation_segments_json: Json | null
         }
         Insert: {
           ai_review_at?: string | null
@@ -6165,6 +6166,7 @@ export type Database = {
           stale?: boolean
           summary_json?: Json
           updated_at?: string
+          workday_allocation_segments_json?: Json | null
         }
         Update: {
           ai_review_at?: string | null
@@ -6186,6 +6188,7 @@ export type Database = {
           stale?: boolean
           summary_json?: Json
           updated_at?: string
+          workday_allocation_segments_json?: Json | null
         }
         Relationships: []
       }
