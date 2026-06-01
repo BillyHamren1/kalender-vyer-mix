@@ -102,7 +102,7 @@ const BookingTodosChecklist = ({ bookingId, largeProjectId }: Props) => {
     enabled: !!bookingId,
     staleTime: 30_000,
   });
-  const { data: team } = useProjectTeam(bookingId).teamQuery;
+  const { teamMembers: team } = useProjectTeam(bookingId);
   const { data: products } = useBookingProductsForPlanner(bookingId);
   const [creatingFor, setCreatingFor] = useState<string | null>(null);
 
