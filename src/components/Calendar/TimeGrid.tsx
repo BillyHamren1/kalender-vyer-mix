@@ -4,11 +4,13 @@ import { format } from 'date-fns';
 import { useEventNavigation } from '@/hooks/useEventNavigation';
 import StaffItem from './StaffItem';
 import TeamVisibilityControl from './TeamVisibilityControl';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Truck } from 'lucide-react';
 import { computeOverlapLayout, generateTimeSlots, getEventPosition } from './timeGridLayout';
 import { EventWrapper, SimpleTimeSlot } from './TimeGridEventLayer';
 import { type AvailableStaffMember } from './TimeGridAvailableStaff';
 import TeamStaffPickerPopover from './TeamStaffPickerPopover';
+import TeamVehiclePickerPopover from './TeamVehiclePickerPopover';
+import { useTeamVehiclesForDay } from '@/hooks/useTeamVehiclesForDay';
 import './TimeGrid.css';
 
 interface TeamVisibilityProps {
