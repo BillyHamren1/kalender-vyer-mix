@@ -15,7 +15,7 @@
  *  - All write går via useLargeProjectPlannerItems → largeProjectPlannerService
  *    → enbart tabellen `large_project_booking_plan_items`.
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
