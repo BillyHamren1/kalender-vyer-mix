@@ -22,7 +22,7 @@
 //   — exakt samma sanning per (staff, date).
 //
 // FÖRBJUDET I DENNA FIL (vaktat av contract-test):
-//   - import av `buildCanonicalStaffDayGpsResult`
+//   - import av canonical GPS-buildern
 //   - läsning av `staff_location_history`
 //   - läsning av time_reports / workdays / location_time_entries /
 //     travel_time_logs / day_attestations
