@@ -426,14 +426,6 @@ const PlannerEventActionPopover: React.FC<Props> = ({ event, onOpenDetails, chil
             )}
 
             {/* TIME ROW */}
-            <div className="space-y-1.5 rounded p-2 -mx-1">
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Clock className="h-3 w-3" /> Tid
-                {phaseLabel && (
-                  <span>· {phaseLabel} {format(parseISO(eventDate), 'd MMM', { locale: sv })}</span>
-                )}
-              </div>
-            {/* TIME ROW */}
             <div className={`space-y-1.5 rounded p-2 -mx-1 ${isCurrentLocked ? 'bg-destructive/5 ring-1 ring-destructive/40' : ''}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -490,11 +482,24 @@ const PlannerEventActionPopover: React.FC<Props> = ({ event, onOpenDetails, chil
                 </div>
               )}
             </div>
+
+            {/* FOOTER */}
+            <div className="flex gap-2 pt-1 border-t">
+              {onOpenDetails && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs flex-1"
+                  onClick={() => { setOpen(false); onOpenDetails(); }}
+                >
+                  <ExternalLink className="h-3 w-3 mr-1" /> Öppna
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="ghost"
                 className="h-7 text-xs text-destructive hover:bg-destructive/10"
-                disabled={deletingId === plannerItemId}
+                disabled={deletingId === plannerItemId || isCurrentLocked}
                 onClick={handleDeleteCurrent}
               >
                 <Trash2 className="h-3 w-3 mr-1" /> Ta bort
