@@ -1,8 +1,11 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 
 export interface PinnedTab {
-  /** Unik nyckel = path */
+  /** Unik nyckel = ursprunglig path (root för tabben) */
   path: string;
+  /** Senast besökta path som börjar med `path` — används vid navigation tillbaka */
+  lastPath?: string;
   /** Visningsnamn */
   title: string;
   /** Valfri undertext (t.ex. bokningsnummer eller sökväg) */
@@ -14,6 +17,8 @@ interface PinnedTabsContextValue {
   addTab: (tab: PinnedTab) => void;
   removeTab: (path: string) => void;
   hasTab: (path: string) => boolean;
+  /** Hämta navigeringsdestination (lastPath || path) för en tabb */
+  resolveTabTarget: (path: string) => string;
 }
 
 const STORAGE_KEY = "pinned-tabs-v1";
@@ -32,6 +37,26 @@ export const PinnedTabsProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   });
 
+  const location = useLocation();
+  const currentPath = location.pathname + location.search;
+
+  // Spåra senaste path för varje tabb vars root matchar aktuell route
+  useEffect(() => {
+    setTabs((prev) => {
+      let changed = false;
+      const next = prev.map((t) => {
+        const matches =
+          location.pathname === t.path || location.pathname.startsWith(t.path + "/");
+        if (matches && t.lastPath !== currentPath) {
+          changed = true;
+          return { ...t, lastPath: currentPath };
+        }
+        return t;
+      });
+      return changed ? next : prev;
+    });
+  }, [currentPath, location.pathname]);
+
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(tabs));
@@ -43,7 +68,7 @@ export const PinnedTabsProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const addTab = useCallback((tab: PinnedTab) => {
     setTabs((prev) => {
       if (prev.some((t) => t.path === tab.path)) return prev;
-      return [...prev, tab];
+      return [...prev, { ...tab, lastPath: tab.lastPath ?? tab.path }];
     });
   }, []);
 
@@ -53,8 +78,16 @@ export const PinnedTabsProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const hasTab = useCallback((path: string) => tabs.some((t) => t.path === path), [tabs]);
 
+  const resolveTabTarget = useCallback(
+    (path: string) => {
+      const t = tabs.find((x) => x.path === path);
+      return t?.lastPath || path;
+    },
+    [tabs]
+  );
+
   return (
-    <PinnedTabsContext.Provider value={{ tabs, addTab, removeTab, hasTab }}>
+    <PinnedTabsContext.Provider value={{ tabs, addTab, removeTab, hasTab, resolveTabTarget }}>
       {children}
     </PinnedTabsContext.Provider>
   );
@@ -63,12 +96,12 @@ export const PinnedTabsProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 export function usePinnedTabs(): PinnedTabsContextValue {
   const ctx = useContext(PinnedTabsContext);
   if (!ctx) {
-    // Fallback no-op så att komponenter inte kraschar om provider saknas
     return {
       tabs: [],
       addTab: () => {},
       removeTab: () => {},
       hasTab: () => false,
+      resolveTabTarget: (p) => p,
     };
   }
   return ctx;

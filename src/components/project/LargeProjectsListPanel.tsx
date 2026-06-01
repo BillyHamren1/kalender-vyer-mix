@@ -12,6 +12,9 @@ import { fetchLargeProjects, createLargeProject, deleteLargeProject } from '@/se
 import { toast } from 'sonner';
 import { LargeProjectStatus, LARGE_PROJECT_STATUS_LABELS, LARGE_PROJECT_STATUS_COLORS } from '@/types/largeProject';
 import { cn } from '@/lib/utils';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
+import { usePinnedTabs } from '@/contexts/PinnedTabsContext';
+import { Pin } from 'lucide-react';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import type { GlobalStatusFilter } from '@/pages/ProjectManagement';
@@ -25,6 +28,7 @@ interface LargeProjectsListPanelProps {
 const LargeProjectsListPanel = ({ completedOnly = false, externalSearch, externalStatusFilter }: LargeProjectsListPanelProps) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { addTab } = usePinnedTabs();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<LargeProjectStatus | 'all'>('all');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -176,47 +180,62 @@ const LargeProjectsListPanel = ({ completedOnly = false, externalSearch, externa
             </div>
           ) : (
           <div className="p-2 space-y-1.5">
-              {filteredProjects.map(project => (
-                <div
-                  key={project.id}
-                  onClick={() => navigate(`/large-project/${project.id}`)}
-                  className="group/card flex items-center gap-3 px-3 py-2.5 cursor-pointer rounded-lg border border-border bg-card shadow-sm hover:shadow-md hover:border-primary/50 transition-all border-l-[3px] border-l-primary"
-                >
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-medium text-foreground truncate group-hover/card:text-primary transition-colors">
-                      {project.name}
-                    </h4>
-                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                      <span className="flex items-center gap-0.5 text-[11px] text-muted-foreground">
-                        <Users className="w-3 h-3" />
-                        {project.bookingCount || 0} bokningar
-                      </span>
-                      {project.location && (
-                        <span className="flex items-center gap-0.5 text-[11px] text-muted-foreground truncate max-w-[100px]">
-                          <MapPin className="w-3 h-3 shrink-0" />
-                          {project.location}
-                        </span>
-                      )}
-                      {project.start_date?.length ? (
-                        <span className="flex items-center gap-0.5 text-[11px] text-muted-foreground">
-                          <Calendar className="w-3 h-3" />
-                          {formatDate(project.start_date[0])}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={(e) => handleDelete(e, project.id)}
-                      className="p-1 rounded opacity-0 group-hover/card:opacity-100 transition-opacity hover:bg-destructive/10"
+              {filteredProjects.map(project => {
+                const targetPath = `/large-project/${project.id}`;
+                return (
+                <ContextMenu key={project.id}>
+                  <ContextMenuTrigger asChild>
+                    <div
+                      onClick={() => navigate(targetPath)}
+                      className="group/card flex items-center gap-3 px-3 py-2.5 cursor-pointer rounded-lg border border-border bg-card shadow-sm hover:shadow-md hover:border-primary/50 transition-all border-l-[3px] border-l-primary"
                     >
-                      <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
-                    </button>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground/30 group-hover/card:text-primary/50 transition-colors" />
-                  </div>
-                </div>
-              ))}
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-medium text-foreground truncate group-hover/card:text-primary transition-colors">
+                          {project.name}
+                        </h4>
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                          <span className="flex items-center gap-0.5 text-[11px] text-muted-foreground">
+                            <Users className="w-3 h-3" />
+                            {project.bookingCount || 0} bokningar
+                          </span>
+                          {project.location && (
+                            <span className="flex items-center gap-0.5 text-[11px] text-muted-foreground truncate max-w-[100px]">
+                              <MapPin className="w-3 h-3 shrink-0" />
+                              {project.location}
+                            </span>
+                          )}
+                          {project.start_date?.length ? (
+                            <span className="flex items-center gap-0.5 text-[11px] text-muted-foreground">
+                              <Calendar className="w-3 h-3" />
+                              {formatDate(project.start_date[0])}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={(e) => handleDelete(e, project.id)}
+                          className="p-1 rounded opacity-0 group-hover/card:opacity-100 transition-opacity hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                        </button>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground/30 group-hover/card:text-primary/50 transition-colors" />
+                      </div>
+                    </div>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    <ContextMenuItem
+                      onSelect={() =>
+                        addTab({ path: targetPath, title: project.name, subtitle: project.location ?? undefined })
+                      }
+                    >
+                      <Pin className="w-3.5 h-3.5 mr-2" /> Spara som tabb
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
+                );
+              })}
             </div>
           )}
         </div>
