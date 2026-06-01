@@ -43,6 +43,11 @@ export interface StaffWeeklySubmissionRow {
 /**
  * Time Engine / GPS-satellitens cache-rad per staff/date.
  * Källa för "Väntar personalattest" — finns innan personalen själv skickat in.
+ *
+ * VIKTIGT: I listvyn (useStaffWeeklyTimeApprovals) är endast `summary_json` (litet)
+ * fyllt. De tunga fälten `report_candidate_blocks_json`, `display_blocks_json` och
+ * `diagnostics_json` hämtas lazy i `useStaffDayApprovalDetails` när inspection-drawern
+ * öppnas. De är därför markerade optional och kan saknas helt på en lista-cache-rad.
  */
 export interface StaffWeeklyCacheRow {
   id: string;
@@ -51,9 +56,9 @@ export interface StaffWeeklyCacheRow {
   date: string;
   engine_version: string | null;
   summary_json: unknown | null;
-  report_candidate_blocks_json: unknown | null;
-  display_blocks_json: unknown | null;
-  diagnostics_json: unknown | null;
+  report_candidate_blocks_json?: unknown | null;
+  display_blocks_json?: unknown | null;
+  diagnostics_json?: unknown | null;
   built_at: string | null;
   stale: boolean | null;
   error: string | null;
