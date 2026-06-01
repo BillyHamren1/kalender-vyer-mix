@@ -252,6 +252,12 @@ export interface MobilePurchase {
   created_at: string;
 }
 
+export interface ShiftTeamVehicle {
+  id: string;
+  name: string;
+  registration_number: string | null;
+}
+
 export interface ScheduledShift {
   shift_id: string;
   booking_id: string;
@@ -268,6 +274,12 @@ export interface ScheduledShift {
   internal_type: string | null;
   large_project_id: string | null;
   large_project_name: string | null;
+  /**
+   * Bilar som tilldelats det team passet tillhör för det aktuella datumet.
+   * Källa: team_vehicle_assignments (egna fordon, is_external=false, is_active=true).
+   * Renderas av <TeamVehicleLine /> som "Bil: X" eller "Bil1: X, Bil2: Y".
+   */
+  team_vehicles?: ShiftTeamVehicle[];
 }
 
 // Token management
