@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import JobAttachmentsSection from './JobAttachmentsSection';
+import TeamVehicleLine from '@/components/mobile-app/TeamVehicleLine';
 
 interface EstablishmentTask {
   id: string;
