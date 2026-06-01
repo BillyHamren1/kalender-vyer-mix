@@ -1675,6 +1675,108 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
     shifts.sort((a: any, b: any) => a.start_time.localeCompare(b.start_time))
   }
 
+  // ─── TEAM VEHICLES — berika varje shift med teamets bilar för dagen ──
+  // Källa: team_vehicle_assignments × vehicles (endast egna, aktiva fordon).
+  // Team-id per shift härleds från:
+  //   1. calendar_events.resource_id om shift kommer från en CE-rad
+  //   2. BSA team_id för (booking, date) annars
+  //   3. staffTeamsByDate[date] som sista fallback (mest relevant för
+  //      lager/fallback-shifts utan eget team_id i datasetet)
+  // Speglar personalkalenderns logik: bilen tillhör team, inte booking.
+  // ──────────────────────────────────────────────────────────────────
+  try {
+    if (shifts.length > 0) {
+      // Bygg index över team_id per (booking_id|date) från BSA + ce
+      const teamsByBookingDate = new Map<string, Set<string>>()
+      for (const a of (assignments || [])) {
+        if (!a?.booking_id || !a?.assignment_date || !a?.team_id) continue
+        if (a.team_id === 'project' || a.team_id === 'location') continue
+        const k = `${a.booking_id}|${a.assignment_date}`
+        if (!teamsByBookingDate.has(k)) teamsByBookingDate.set(k, new Set())
+        teamsByBookingDate.get(k)!.add(a.team_id)
+      }
+
+      // Samla alla unika (team_id, date)-par vi behöver fråga om
+      const teamDatePairs = new Set<string>()
+      const addPair = (teamId: string | null | undefined, date: string | null | undefined) => {
+        if (!teamId || !date) return
+        teamDatePairs.add(`${teamId}|${date}`)
+      }
+      for (const s of shifts) {
+        const date = String(s.start_time || '').slice(0, 10)
+        if (!date) continue
+        const bdKey = `${s.booking_id}|${date}`
+        const bsaTeams = teamsByBookingDate.get(bdKey)
+        if (bsaTeams && bsaTeams.size > 0) {
+          for (const t of bsaTeams) addPair(t, date)
+        }
+        // staffTeamsByDate som fallback (inkl. lager-team för Lager-shifts)
+        const staffTeams = staffTeamsByDate[date]
+        if (staffTeams && staffTeams.size > 0) {
+          for (const t of staffTeams) addPair(t, date)
+        }
+      }
+
+      let vehiclesByTeamDate = new Map<string, Array<{ id: string; name: string; registration_number: string | null }>>()
+      if (teamDatePairs.size > 0) {
+        const teamIds = [...new Set([...teamDatePairs].map((k) => k.split('|')[0]))]
+        const dates = [...new Set([...teamDatePairs].map((k) => k.split('|')[1]))]
+        const { data: tvaRows, error: tvaErr } = await supabase
+          .from('team_vehicle_assignments')
+          .select('team_id, date, vehicle_id, vehicles!inner(id, name, registration_number, is_external, is_active)')
+          .eq('organization_id', organizationId)
+          .in('team_id', teamIds)
+          .in('date', dates)
+        if (tvaErr) {
+          console.warn('[get_bookings] team_vehicle_assignments query failed (non-fatal):', tvaErr)
+        } else {
+          for (const row of (tvaRows || [])) {
+            const v: any = (row as any).vehicles
+            if (!v || v.is_external === true || v.is_active === false) continue
+            const key = `${row.team_id}|${row.date}`
+            if (!teamDatePairs.has(key)) continue // skip pairs the staff isn't actually on
+            const list = vehiclesByTeamDate.get(key) || []
+            list.push({
+              id: v.id,
+              name: v.name,
+              registration_number: v.registration_number ?? null,
+            })
+            vehiclesByTeamDate.set(key, list)
+          }
+          // Stabil sortering på namn (svensk locale via String.localeCompare)
+          for (const list of vehiclesByTeamDate.values()) {
+            list.sort((a, b) => a.name.localeCompare(b.name, 'sv'))
+          }
+        }
+      }
+
+      // Attach vehicles per shift, dedup per shift på vehicle.id
+      for (const s of shifts) {
+        const date = String(s.start_time || '').slice(0, 10)
+        if (!date) continue
+        const collected = new Map<string, { id: string; name: string; registration_number: string | null }>()
+        const teamsForShift = new Set<string>()
+        const bsaTeams = teamsByBookingDate.get(`${s.booking_id}|${date}`)
+        if (bsaTeams) for (const t of bsaTeams) teamsForShift.add(t)
+        const staffTeams = staffTeamsByDate[date]
+        if (staffTeams) for (const t of staffTeams) teamsForShift.add(t)
+        for (const teamId of teamsForShift) {
+          const list = vehiclesByTeamDate.get(`${teamId}|${date}`) || []
+          for (const v of list) {
+            if (!collected.has(v.id)) collected.set(v.id, v)
+          }
+        }
+        if (collected.size > 0) {
+          s.team_vehicles = [...collected.values()].sort((a, b) =>
+            a.name.localeCompare(b.name, 'sv'),
+          )
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[get_bookings] team_vehicles enrichment failed (non-fatal):', e)
+  }
+
   return new Response(
     JSON.stringify({ bookings: bookingsWithAssignments, shifts }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
