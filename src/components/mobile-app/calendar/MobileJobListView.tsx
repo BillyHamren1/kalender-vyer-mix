@@ -11,6 +11,23 @@ import {
   type MobileCalendarItem,
 } from '@/lib/mobileCalendarConsolidation';
 import { cn } from '@/lib/utils';
+import TeamVehicleLine from '@/components/mobile-app/TeamVehicleLine';
+import type { TeamVehicleInfo } from '@/lib/teamVehicles';
+
+/**
+ * Aggregerar team_vehicles från alla shifts i ett konsoliderat projekt-item.
+ * Dedup på vehicle.id, behåller stabil ordning på namn.
+ */
+function aggregateItemVehicles(it: MobileCalendarItem): TeamVehicleInfo[] {
+  const shifts = it.kind === 'project' ? it.shifts : [it.shift];
+  const map = new Map<string, TeamVehicleInfo>();
+  for (const s of shifts) {
+    for (const v of s.team_vehicles ?? []) {
+      if (!map.has(v.id)) map.set(v.id, v);
+    }
+  }
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'sv'));
+}
 
 /* =====================================================================
  * MobileJobListView
