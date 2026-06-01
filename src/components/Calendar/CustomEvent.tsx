@@ -269,9 +269,11 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
           </div>
         )}
         {/* Read-only events no longer show a badge */}
-        <div className={`event-title ${isCancelled ? 'line-through' : ''}`} style={{ color: isCancelled ? '#991B1B' : '#000000' }}>
-          {displayTitle}
-        </div>
+        {!(event.extendedProps as any)?.isPlannerItem && (
+          <div className={`event-title ${isCancelled ? 'line-through' : ''}`} style={{ color: isCancelled ? '#991B1B' : '#000000' }}>
+            {displayTitle}
+          </div>
+        )}
         {bookingTitle && !event.extendedProps?.isLargeProject && (
           <div
             className={`event-rubrik ${isCancelled ? 'line-through' : ''}`}
