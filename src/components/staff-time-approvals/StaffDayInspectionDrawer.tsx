@@ -114,6 +114,32 @@ export const StaffDayInspectionDrawer: React.FC<Props> = ({ open, bundle, day, o
   const staffId = bundle?.staff.id ?? null;
   const dateStr = day?.date ?? null;
 
+  // Lazy detail-query — kör bara när drawer är öppen. Veckolistan bär bara
+  // lätt summary_json; tunga JSON-fält hämtas här.
+  const detailQuery = useStaffDayApprovalDetails({
+    cacheId: day?.cache?.id ?? null,
+    organizationId: day?.cache?.organization_id ?? null,
+    staffId,
+    date: dateStr,
+    enabled: open && (!!day?.cache?.id || (!!staffId && !!dateStr)),
+  });
+
+  // Bygg mergedCache: börja med listans lätta cache och komplettera med
+  // detail-querys tunga fält när den är klar.
+  const mergedCache: StaffWeeklyCacheRow | null = useMemo(() => {
+    const listCache = day?.cache ?? null;
+    const detail = detailQuery.data ?? null;
+    if (!listCache && !detail) return null;
+    if (!detail) return listCache;
+    if (!listCache) return detail;
+    return { ...listCache, ...detail };
+  }, [day?.cache, detailQuery.data]);
+
+  const mergedDay: WeeklyDayCell | null = useMemo(() => {
+    if (!day) return null;
+    return { ...day, cache: mergedCache };
+  }, [day, mergedCache]);
+
   const dateLabel = useMemo(() => {
     if (!dateStr) return "";
     try {
@@ -123,13 +149,13 @@ export const StaffDayInspectionDrawer: React.FC<Props> = ({ open, bundle, day, o
     }
   }, [dateStr]);
 
-  const subMinutes = day?.minutes ?? 0;
-  const engMinutes = day ? engineMinutesFromCache(day.cache) : 0;
-  const diff = day?.submission && day.cache ? subMinutes - engMinutes : null;
-  const breakMin = day?.submission?.break_minutes ?? 0;
+  const subMinutes = mergedDay?.minutes ?? 0;
+  const engMinutes = mergedDay ? engineMinutesFromCache(mergedCache) : 0;
+  const diff = mergedDay?.submission && mergedCache ? subMinutes - engMinutes : null;
+  const breakMin = mergedDay?.submission?.break_minutes ?? 0;
 
-  const submissionSegments = day?.submission
-    ? extractSegments(day.submission.display_timeline_snapshot_json)
+  const submissionSegments = mergedDay?.submission
+    ? extractSegments(mergedDay.submission.display_timeline_snapshot_json)
     : [];
 
   const getEngineSegmentsFromCache = (cache: WeeklyDayCell["cache"]) => {
@@ -140,38 +166,38 @@ export const StaffDayInspectionDrawer: React.FC<Props> = ({ open, bundle, day, o
     if (candidates.length > 0) return { segments: candidates, source: "report_candidate_blocks_json" as const };
     return { segments: [] as ReturnType<typeof extractSegments>, source: "none" as const };
   };
-  const engineFromCache = day ? getEngineSegmentsFromCache(day.cache) : { segments: [], source: "none" as const };
+  const engineFromCache = mergedDay ? getEngineSegmentsFromCache(mergedCache) : { segments: [], source: "none" as const };
   const cacheSegments = engineFromCache.segments;
   const segmentsToShow = submissionSegments.length > 0 ? submissionSegments : cacheSegments;
   const segmentsSource = submissionSegments.length > 0 ? "submission" : "engine";
 
-  if (day && cacheSegments.length === 0 && day.cache && submissionSegments.length === 0) {
+  if (mergedDay && detailQuery.isSuccess && cacheSegments.length === 0 && mergedCache && submissionSegments.length === 0) {
     // eslint-disable-next-line no-console
     console.warn("[StaffDayInspectionDrawer] empty engine timeline", {
       staffId,
       date: dateStr,
-      hasCache: !!day.cache,
-      displayBlocksIsArray: Array.isArray((day.cache as any)?.display_blocks_json),
-      displayBlocksCount: Array.isArray((day.cache as any)?.display_blocks_json) ? (day.cache as any).display_blocks_json.length : null,
-      candidateBlocksIsArray: Array.isArray((day.cache as any)?.report_candidate_blocks_json),
-      candidateBlocksCount: Array.isArray((day.cache as any)?.report_candidate_blocks_json) ? (day.cache as any).report_candidate_blocks_json.length : null,
-      engineVersion: (day.cache as any)?.engine_version,
-      builtAt: (day.cache as any)?.built_at,
-      cacheError: (day.cache as any)?.error,
+      hasCache: !!mergedCache,
+      displayBlocksIsArray: Array.isArray((mergedCache as any)?.display_blocks_json),
+      displayBlocksCount: Array.isArray((mergedCache as any)?.display_blocks_json) ? (mergedCache as any).display_blocks_json.length : null,
+      candidateBlocksIsArray: Array.isArray((mergedCache as any)?.report_candidate_blocks_json),
+      candidateBlocksCount: Array.isArray((mergedCache as any)?.report_candidate_blocks_json) ? (mergedCache as any).report_candidate_blocks_json.length : null,
+      engineVersion: (mergedCache as any)?.engine_version,
+      builtAt: (mergedCache as any)?.built_at,
+      cacheError: (mergedCache as any)?.error,
     });
-  } else if (day && segmentsSource === "engine" && cacheSegments.length > 0) {
+  } else if (mergedDay && segmentsSource === "engine" && cacheSegments.length > 0) {
     // eslint-disable-next-line no-console
     console.debug("[StaffDayInspectionDrawer] timeline source", {
       staffId,
       date: dateStr,
       timelineSourceUsed: engineFromCache.source,
-      displayBlocksCount: Array.isArray((day.cache as any)?.display_blocks_json) ? (day.cache as any).display_blocks_json.length : 0,
-      candidateBlocksCount: Array.isArray((day.cache as any)?.report_candidate_blocks_json) ? (day.cache as any).report_candidate_blocks_json.length : 0,
+      displayBlocksCount: Array.isArray((mergedCache as any)?.display_blocks_json) ? (mergedCache as any).display_blocks_json.length : 0,
+      candidateBlocksCount: Array.isArray((mergedCache as any)?.report_candidate_blocks_json) ? (mergedCache as any).report_candidate_blocks_json.length : 0,
       segmentsCount: cacheSegments.length,
     });
   }
 
-  const diag = day ? extractDiagnostics(day) : null;
+  const diag = mergedDay ? extractDiagnostics(mergedDay) : null;
   const gpsHref =
     staffId && dateStr
       ? `/staff-management/gps-satellite-map?staffId=${encodeURIComponent(staffId)}&date=${encodeURIComponent(dateStr)}`
