@@ -8,7 +8,7 @@ import { usePinnedTabs } from "@/contexts/PinnedTabsContext";
  * Tabbarna är persistenta (localStorage) och navigerar tillbaka till sparad sida.
  */
 export function PinnedTabsRail() {
-  const { tabs, removeTab } = usePinnedTabs();
+  const { tabs, removeTab, resolveTabTarget } = usePinnedTabs();
   const location = useLocation();
 
   if (tabs.length === 0) return null;
@@ -36,10 +36,11 @@ export function PinnedTabsRail() {
         const active =
           location.pathname === tab.path ||
           location.pathname.startsWith(tab.path + "/");
+        const target = resolveTabTarget(tab.path);
         return (
           <div key={tab.path} className="relative group">
             <NavLink
-              to={tab.path}
+              to={target}
               title={tab.title + (tab.subtitle ? ` · ${tab.subtitle}` : "")}
               className={cn(
                 "relative flex flex-col items-center justify-center rounded-lg px-1 py-3 transition-all duration-150 select-none",
