@@ -309,16 +309,3 @@ const MobileJobListView = ({ shifts }: Props) => {
 };
 
 export default MobileJobListView;
-                    );
-                  })}
-                </div>
-              </section>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default MobileJobListView;
