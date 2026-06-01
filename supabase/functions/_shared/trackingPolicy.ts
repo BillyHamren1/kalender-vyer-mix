@@ -77,6 +77,19 @@ interface ModePreset {
 const PRESETS: Record<TrackingMode, ModePreset> = {
   // Idle / no workday — very cheap. 500m endast när workday=stängd OCH
   // ingen aktiv timer/boost. Annars klampas distanceFilter ner längre ner.
+  //
+  // VIKTIGT (GPS-blind-skydd): denna funktion har idag ingen
+  // target-distance-input, så battery_saver kan returneras även när
+  // personalen står precis vid lager/hem. Frontend skyddar mot detta
+  // i två steg:
+  //   1. `src/lib/geofence/mergeTrackingPolicy.ts` tar
+  //      min(backend.distanceFilter, local.distanceFilter) så att
+  //      lokal near_target/inside-logik alltid kan göra tracking finare.
+  //   2. `src/lib/geofence/nativeTrackingPolicy.ts` clampar applied
+  //      distanceFilter till exakt 50 m på native (anti GPS-blind +
+  //      anti-DDoS). 500 m läcker aldrig ut till BackgroundGeolocation.
+  // Ändra därför INTE detta värde uppåt utan att också uppdatera de
+  // två frontend-skydden.
   battery_saver:        { heartbeatMs: 15 * 60_000, distanceFilter: 500, maxSilenceMs: 30 * 60_000 },
   // Workday open utan target/timer: ~3 min heartbeat, MAX 50m distanceFilter
   // (tidigare 200m). 200m var för glest för att fånga vanlig promenad/byggen.

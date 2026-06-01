@@ -22,12 +22,19 @@ export function resolveAppliedTrackingDistanceFilter(args: {
   isNativePlatform: boolean;
 }): number {
   if (args.isNativePlatform) {
-    // Höjt golv: även om en backend-policy ber om finare, släpper vi
-    // aldrig under 50 m på native (anti-DDoS mot egen Supabase).
-    const desired = Number.isFinite(args.desiredDistanceFilter)
-      ? args.desiredDistanceFilter
-      : ALWAYS_ON_NATIVE_DISTANCE_FILTER;
-    return Math.max(MIN_PRODUCTION_DISTANCE_FILTER, desired);
+    // På native får applied distanceFilter ALDRIG bli glesare än
+    // ALWAYS_ON_NATIVE_DISTANCE_FILTER (50 m). Backend kan be om
+    // battery_saver=500m, men då blir telefonen blind nära lager/hem
+    // (GPS-callback fyrar inte förrän personen rört sig 500 m). Vi
+    // clampar därför uppåt (max 50 m) OCH nedåt (min 50 m, anti-DDoS
+    // mot egen Supabase). Resultat på native: alltid exakt 50 m.
+    if (!Number.isFinite(args.desiredDistanceFilter)) {
+      return ALWAYS_ON_NATIVE_DISTANCE_FILTER;
+    }
+    return Math.min(
+      ALWAYS_ON_NATIVE_DISTANCE_FILTER,
+      Math.max(MIN_PRODUCTION_DISTANCE_FILTER, args.desiredDistanceFilter),
+    );
   }
   if (!Number.isFinite(args.desiredDistanceFilter)) return 0;
   return Math.max(0, args.desiredDistanceFilter);
