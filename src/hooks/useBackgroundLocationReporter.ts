@@ -60,6 +60,8 @@ interface GeofenceTarget {
   largeProjectId?: string;
   bookingId?: string;
   address?: string;
+  geofence_mode?: 'circle' | 'polygon' | null;
+  geofence_polygon?: GeoJSONPolygon | null;
 }
 
 function loadPendingArrivals(): PendingArrival[] {
