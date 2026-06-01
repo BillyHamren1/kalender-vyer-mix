@@ -87,7 +87,20 @@ function tsMs(iso: string): number {
   return Number.isFinite(t) ? t : 0;
 }
 
-export function compressLocationBatch(points: CompressInput[]): CompressResult {
+export interface CompressOptions {
+  /** Aktuell upload-policy. Påverkar hur tätt stay-punkter bevaras. */
+  uploadMode?:
+    | 'batch_inside_geofence'
+    | 'boundary_guard'
+    | 'moving_outside_known_geofence'
+    | 'outside_idle'
+    | 'default';
+}
+
+export function compressLocationBatch(
+  points: CompressInput[],
+  options: CompressOptions = {},
+): CompressResult {
   const sourceOverrides = new Map<string, 'compressed_stay' | 'compressed_move'>();
   const selected = new Set<string>();
   let stayGroups = 0;
