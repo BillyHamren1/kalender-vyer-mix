@@ -118,7 +118,7 @@ const LargeProjectPlannerSidebar = ({
 
   const renderBookingCard = (booking: LargeProjectPlannerBooking) => {
     const its = itemsByBooking.get(booking.id) ?? [];
-    const isPlanned = its.length > 0;
+    const isPlanned = hasAnyBookingDate(booking);
     return (
       <div
         key={booking.id}
