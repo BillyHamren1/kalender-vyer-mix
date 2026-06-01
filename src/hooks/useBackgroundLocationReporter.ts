@@ -262,6 +262,14 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
   // geofence kan vi enqueueas tätare (30s) och outside_idle släpper igenom
   // bara var 5:e min.
   const captureThrottleMsRef = useRef<number>(REPORT_THROTTLE_MS);
+  // Capture-distanceFilter — det är DENNA som styr native start/restart,
+  // INTE decision.distanceFilter. Capture-policy får t.ex. välja 20 m
+  // inom geofence för tät lokal rörelse även om backend-policyn vill
+  // ha grövre värde för upload-cadence.
+  const captureDistanceFilterRef = useRef<number>(DEFAULT_DISTANCE_FILTER);
+  // Senaste upload-policy från capture/upload-mapping (för debug).
+  const currentUploadModeRef = useRef<string>('default');
+  const currentUploadIntervalMsRef = useRef<number>(10 * 60_000);
 
 
   const [debug, setDebug] = useState<BackgroundLocationDebugInfo>({
