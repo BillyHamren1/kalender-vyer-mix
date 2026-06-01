@@ -4,11 +4,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FolderKanban, Search, Calendar, Trash2, ChevronRight } from 'lucide-react';
+import { FolderKanban, Search, Calendar, Trash2, ChevronRight, Pin } from 'lucide-react';
 import { fetchProjects, deleteProject } from '@/services/projectService';
 import { ProjectStatus, PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS } from '@/types/project';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
+import { usePinnedTabs } from '@/contexts/PinnedTabsContext';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import type { GlobalStatusFilter } from '@/pages/ProjectManagement';
@@ -22,6 +24,7 @@ interface MediumProjectsListPanelProps {
 const MediumProjectsListPanel = ({ completedOnly = false, externalSearch, externalStatusFilter }: MediumProjectsListPanelProps) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { addTab } = usePinnedTabs();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'all'>('all');
 
