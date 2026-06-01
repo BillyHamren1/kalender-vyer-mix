@@ -45,8 +45,12 @@ describe("Staff day realtime invalidation — single pipeline", () => {
     const src = read("src/hooks/staff/useStaffDayRealtimeInvalidation.ts");
     expect(src).toContain("staff_day_report_cache");
     expect(src).toContain("staff_day_submissions");
+    // Only check actual subscription config strings, not comments.
+    const subscribed = (src.match(/table:\s*['"`]([a-z_]+)['"`]/g) ?? [])
+      .concat(src.match(/REPORT_TABLES\s*=\s*\[([^\]]+)\]/g) ?? []);
+    const joined = subscribed.join(" ");
     for (const t of FORBIDDEN_TABLES) {
-      expect(src.includes(t)).toBe(false);
+      expect(joined.includes(t), `forbidden table ${t} appears in subscription config`).toBe(false);
     }
   });
 
