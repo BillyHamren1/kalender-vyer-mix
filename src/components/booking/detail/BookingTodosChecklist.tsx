@@ -4,9 +4,9 @@
  * Full översikt över bokningens to-dos på bokningssidan:
  *  - Lista alla planner-items (large_project_booking_plan_items) för bokningen
  *  - Checkbox för klar/ej klar
+ *  - Datum-chip + tid-chip per rad (planera individuellt)
  *  - Personalväljare per to-do (begränsad till bokningens tilldelade team)
  *  - Sektion för orderrader (booking_products) som saknar to-do — snabbskapande
- *  - Fri "Skapa to-do"-knapp
  *
  * Skriver ENBART till large_project_booking_plan_items via service.
  */
@@ -41,6 +41,8 @@ import {
   createLargeProjectPlannerItem,
   updateLargeProjectPlannerItem,
 } from '@/components/project/large-planner/largeProjectPlannerService';
+import BookingTodoDateChip, { DateQuickPick } from './BookingTodoDateChip';
+import BookingTodoTimeChip from './BookingTodoTimeChip';
 
 interface PlanRow {
   id: string;
@@ -81,20 +83,24 @@ const STATUS_LABEL: Record<string, string> = {
   blocked: 'Blockerad',
 };
 
-const fmtRange = (s: string | null, e: string | null) => {
-  const t = (v: string | null) => (v ? v.slice(0, 5) : '');
-  if (s && e) return `${t(s)}–${t(e)}`;
-  return t(s) || t(e);
-};
-
 interface Props {
   bookingId: string;
   largeProjectId?: string | null;
+  /** Datum från bokningen för snabbval i datum-popovern. */
+  rigDate?: string | null;
+  eventDate?: string | null;
+  rigDownDate?: string | null;
 }
 
 const UNASSIGNED = '__unassigned__';
 
-const BookingTodosChecklist = ({ bookingId, largeProjectId }: Props) => {
+const BookingTodosChecklist = ({
+  bookingId,
+  largeProjectId,
+  rigDate,
+  eventDate,
+  rigDownDate,
+}: Props) => {
   const qc = useQueryClient();
   const { data: rows, isLoading, error } = useQuery({
     queryKey: ['booking-todos-checklist', bookingId],
@@ -107,6 +113,14 @@ const BookingTodosChecklist = ({ bookingId, largeProjectId }: Props) => {
   const [creatingFor, setCreatingFor] = useState<string | null>(null);
 
   const lpId = largeProjectId ?? rows?.[0]?.large_project_id ?? null;
+
+  const quickPicks = useMemo<DateQuickPick[]>(() => {
+    const picks: DateQuickPick[] = [];
+    if (rigDate) picks.push({ label: 'Rigg', date: rigDate });
+    if (eventDate) picks.push({ label: 'Event', date: eventDate });
+    if (rigDownDate) picks.push({ label: 'Nedrivning', date: rigDownDate });
+    return picks;
+  }, [rigDate, eventDate, rigDownDate]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, PlanRow[]>();
@@ -138,7 +152,14 @@ const BookingTodosChecklist = ({ bookingId, largeProjectId }: Props) => {
     qc.invalidateQueries({ queryKey: ['large-project-planner'] });
   };
 
+  const patchLocal = (id: string, patch: Partial<PlanRow>) => {
+    qc.setQueryData<PlanRow[]>(['booking-todos-checklist', bookingId], (prev) =>
+      (prev ?? []).map((r) => (r.id === id ? { ...r, ...patch } : r)),
+    );
+  };
+
   const toggleDone = async (row: PlanRow, checked: boolean) => {
+    patchLocal(row.id, { status: checked ? 'done' : 'planned' });
     try {
       await updateLargeProjectPlannerItem(row.id, {
         status: checked ? 'done' : 'planned',
@@ -146,18 +167,56 @@ const BookingTodosChecklist = ({ bookingId, largeProjectId }: Props) => {
       invalidate();
     } catch (e) {
       toast.error('Kunde inte uppdatera status', { description: (e as Error).message });
+      invalidate();
     }
   };
 
   const setAssignee = async (row: PlanRow, staffId: string) => {
     const value = staffId === UNASSIGNED ? null : staffId;
+    patchLocal(row.id, { assigned_staff_id: value });
     try {
       await updateLargeProjectPlannerItem(row.id, { assigned_staff_id: value } as never);
       invalidate();
     } catch (e) {
       toast.error('Kunde inte tilldela personal', { description: (e as Error).message });
+      invalidate();
     }
   };
+
+  const setDate = async (row: PlanRow, planDate: string) => {
+    patchLocal(row.id, { plan_date: planDate });
+    try {
+      await updateLargeProjectPlannerItem(row.id, { plan_date: planDate } as never);
+      invalidate();
+    } catch (e) {
+      toast.error('Kunde inte uppdatera datum', { description: (e as Error).message });
+      invalidate();
+    }
+  };
+
+  const setTime = async (
+    row: PlanRow,
+    startTime: string | null,
+    endTime: string | null,
+  ) => {
+    patchLocal(row.id, { start_time: startTime, end_time: endTime });
+    try {
+      await updateLargeProjectPlannerItem(row.id, {
+        start_time: startTime,
+        end_time: endTime,
+      } as never);
+      invalidate();
+    } catch (e) {
+      toast.error('Kunde inte uppdatera tid', { description: (e as Error).message });
+      invalidate();
+    }
+  };
+
+  const defaultDate = useMemo(() => {
+    if (rigDate) return rigDate;
+    if (rows && rows.length) return rows[0].plan_date;
+    return format(new Date(), 'yyyy-MM-dd');
+  }, [rigDate, rows]);
 
   const createTodoForProduct = async (
     product: { id: string; name: string },
@@ -186,11 +245,6 @@ const BookingTodosChecklist = ({ bookingId, largeProjectId }: Props) => {
       setCreatingFor(null);
     }
   };
-
-  const defaultDate = useMemo(() => {
-    if (rows && rows.length) return rows[0].plan_date;
-    return format(new Date(), 'yyyy-MM-dd');
-  }, [rows]);
 
   return (
     <Card className="shadow-sm">
@@ -231,7 +285,7 @@ const BookingTodosChecklist = ({ bookingId, largeProjectId }: Props) => {
             </div>
             <ul className="divide-y divide-border/30">
               {items.map((r) => (
-                <li key={r.id} className="flex items-center gap-2 px-2 py-2">
+                <li key={r.id} className="flex flex-wrap items-center gap-2 px-2 py-2">
                   <Checkbox
                     checked={r.status === 'done'}
                     onCheckedChange={(c) => void toggleDone(r, !!c)}
@@ -245,23 +299,28 @@ const BookingTodosChecklist = ({ bookingId, largeProjectId }: Props) => {
                     >
                       {r.title}
                     </div>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
-                      {fmtRange(r.start_time, r.end_time) && (
-                        <span>{fmtRange(r.start_time, r.end_time)}</span>
-                      )}
-                      {r.booking_products?.name && (
-                        <span className="inline-flex items-center gap-0.5">
-                          <Package className="h-2.5 w-2.5" />
-                          {r.booking_products.name}
-                        </span>
-                      )}
-                    </div>
+                    {r.booking_products?.name && (
+                      <div className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                        <Package className="h-2.5 w-2.5" />
+                        {r.booking_products.name}
+                      </div>
+                    )}
                   </div>
+                  <BookingTodoDateChip
+                    value={r.plan_date}
+                    quickPicks={quickPicks}
+                    onChange={(d) => void setDate(r, d)}
+                  />
+                  <BookingTodoTimeChip
+                    start={r.start_time}
+                    end={r.end_time}
+                    onChange={(s, e) => void setTime(r, s, e)}
+                  />
                   <Select
                     value={r.assigned_staff_id ?? UNASSIGNED}
                     onValueChange={(v) => void setAssignee(r, v)}
                   >
-                    <SelectTrigger className="h-7 w-[150px] text-[11px]">
+                    <SelectTrigger className="h-7 w-[140px] text-[11px]">
                       <SelectValue placeholder="Tilldela…">
                         <span className="inline-flex items-center gap-1">
                           <User className="h-3 w-3" />

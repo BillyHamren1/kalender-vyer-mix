@@ -1,26 +1,28 @@
 ## Mål
-Ta bort palett-ikonen i hörnet av kalenderkortet. Flytta färgmärkningen till högerklicks-menyn (ContextMenu).
+I `BookingTodosChecklist` (kortet "To-do & checklista" på bokningssidan): låt varje to-do få ett eget datum (och valfri start/sluttid), så det syns vilka saker som ska göras vilken dag. Schema-kortet rörs inte.
 
 ## Ändringar
+Endast `src/components/booking/detail/BookingTodosChecklist.tsx`.
 
-### 1. `src/components/Calendar/CustomEvent.tsx`
-- Ta bort renderingen av `<BookingColorMarkButton ... />` (raderna ~233–239) och importen.
-- I `ContextMenuContent` (raderna 510–525), lägg till en ny sektion "Färgmärkning" med:
-  - Transport (blå)
-  - Endast uthyrning (orange)
-  - Valfri färg (öppnar color-picker i submenu eller inline)
-  - Ta bort färg (visas bara om `calendarColor` finns)
-- Sektionen visas alltid när `event.bookingId` finns och kortet inte är avbokat/todo, oavsett `consolidationMenuDisabled` (separat villkor).
-- Använd `setBookingCalendarColor` + `BOOKING_COLOR_PRESETS` från befintlig `bookingColorService`.
-- Bevara `onChanged → onEventResize` så kalendern uppdateras.
+Per rad, mellan title-blocket och personal-väljaren:
+- **Datum-chip** — `Popover` + shadcn `Calendar` (`mode="single"`, `className="p-3 pointer-events-auto"`). Visar `9 jun` om satt, annars "Sätt datum". Spar via `updateLargeProjectPlannerItem({ plan_date })`.
+- **Tid-chip** — `Popover` med två `Input type="time"` (start, slut) + "Rensa". Visar `08:00–17:00` om satt, annars "Hela dagen". Spar via `updateLargeProjectPlannerItem({ start_time, end_time })`.
 
-### 2. `src/components/Calendar/BookingColorMarkButton.tsx`
-- Filen behålls inte längre i bruk via CustomEvent. Antingen: a) lämna kvar orörd (om används annorstädes), eller b) ta bort. Plan: kontrollera användningar med `rg` innan radering — om enda referensen är CustomEvent, ta bort filen.
+Snabbval i datum-popovern: knappar för bokningens rigg-, event- och nedrivnings-datum (om de finns på `booking`) ovanför kalendern, för att snabbt fördela.
 
-## Teknisk detalj
-- ContextMenu från shadcn stödjer `ContextMenuSub` / `ContextMenuSeparator` — använd separator mellan färg-sektion och konsolidera-sektion.
-- För "Valfri färg" använd `<ContextMenuSub>` med inbäddad `<input type="color">` (eller en enkel ContextMenuItem som öppnar en liten Popover/Dialog). Enklast: behåll de två presets + "Ta bort färg" direkt i menyn, och lägg "Valfri färg…" som en ContextMenuItem som öppnar en mini-dialog. För scope: skippa custom-färg helt (presets täcker normalfallet). Bekräfta med användaren om custom behövs.
+Grupperingen (dagens kortrubrik "tis 9 juni 2026") rerenderas automatiskt eftersom listan grupperas på `plan_date` och cachen invalideras efter mutation.
 
-## Inte med i denna ändring
-- Ingen ändring av `bookingColorService` eller DB-schema.
-- Ingen ändring av warehouse-event-flödet (de saknar redan ContextMenu — där fortsätter färg ej vara tillgänglig).
+Skapande av ny to-do från orderrad: lägg till val av datum (default = `defaultDate`, sortlistan av befintliga rigg-dagar) innan rad skapas.
+
+Optimistisk uppdatering via `queryClient.setQueryData` på `['booking-todos-checklist', bookingId]` för att undvika flimmer.
+
+## Tester
+- `BookingTodosChecklist.dates.test.tsx`: 
+  - klick på datum-chip + välj dag → `updateLargeProjectPlannerItem` anropas med ny `plan_date`
+  - skriv tid → mutation anropas med `start_time`/`end_time`
+  - rensa tid → mutation anropas med `null/null`
+
+## Bevaras
+- Schema-kortet, `calendar_events`, personalkalendern, `apply-project-dates`, BookingPlannerSheet — orörda.
+- Inga DB-migrationer (kolumnerna finns redan på `large_project_booking_plan_items`).
+- "Order-row todos not calendar blocks"-policyn — todons datum påverkar inte kalenderblock.
