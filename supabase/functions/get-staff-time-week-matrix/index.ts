@@ -31,7 +31,7 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import { authenticateStaffRequest } from "../_shared/staff-auth.ts";
 import {
-  resolveStaffDayReportSummariesBatch,
+  resolveStaffDayReportSummariesBatch as resolveStaffDayReportsBatch,
   type ResolvedStaffDaySummary,
 } from "../_shared/staff-day-report/resolveStaffDayReport.ts";
 
