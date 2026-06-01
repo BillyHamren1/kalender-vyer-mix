@@ -1,7 +1,12 @@
 // get-staff-time-week-matrix
 // ==========================
-// Admin-only batch som returnerar EN färdig veckomatris för Tid & Lön och
-// Time Approvals.
+// Veckomatris för Tid & Lön, Time Approvals OCH mobilappens veckovy.
+//
+// Dual-auth:
+//   - Privilegierad JWT (admin/projekt/lager) → matris för HELA org (alla
+//     personer × veckans dagar).
+//   - Mobile token → matris för EN person (auth.staffId). Kallaren kan
+//     bara läsa sig själv.
 //
 // SINGLE-PIPELINE-REGEL:
 //   Denna endpoint bygger ALDRIG egen dag från raw GPS. All källval för
@@ -13,17 +18,15 @@
 //     2. staff_day_report_cache → source: 'cache'
 //     3. annars                  → source: 'empty'
 //
-//   Vi får aldrig hamna i ett läge där Tid & Lön visar cache medan Attest
-//   visar submission (eller tvärtom). Båda går via samma resolver.
+//   Mobilens veckovy, Tid & Lön och Attest läser ALLA via samma resolver
+//   — exakt samma sanning per (staff, date).
 //
 // FÖRBJUDET I DENNA FIL (vaktat av contract-test):
 //   - import av `buildCanonicalStaffDayGpsResult`
 //   - läsning av `staff_location_history`
 //   - läsning av time_reports / workdays / location_time_entries /
 //     travel_time_logs / day_attestations
-//
-// Time Engine är ensam ägare av raw GPS. Konsumenter läser bara dess
-// färdiga cache (eller användarens submission).
+
 
 import { corsHeaders } from "../_shared/cors.ts";
 import { authenticateStaffRequest } from "../_shared/staff-auth.ts";
@@ -221,26 +224,46 @@ Deno.serve(async (req) => {
   const weekStart = dates[0];
   const weekEnd = dates[dates.length - 1];
 
-  // Admin auth: kräv privilegierad JWT.
+  // Dual-auth: privilegierad JWT → hela org. Mobile token → enbart self.
   const authResult = await authenticateStaffRequest(req);
   if (!authResult.ok) return bad(authResult.err.status, authResult.err.error);
   const auth = authResult.auth;
-  if (auth.mode !== "jwt" || !auth.isPrivileged) {
-    return bad(403, "Admin role required");
-  }
   const admin = auth.admin;
   const orgId = auth.organizationId;
 
+  const isAdminJwt = auth.mode === "jwt" && auth.isPrivileged;
+  const isMobileSelf = auth.mode === "mobile";
+
+  if (!isAdminJwt && !isMobileSelf) {
+    return bad(403, "Admin role or mobile token required");
+  }
+
   try {
-    // 1) Personal i org.
-    const { data: staffRows, error: staffErr } = await admin
-      .from("staff_members")
-      .select("id, name")
-      .eq("organization_id", orgId)
-      .eq("is_active", true)
-      .order("name", { ascending: true });
-    if (staffErr) throw staffErr;
-    const staff = (staffRows ?? []) as Array<{ id: string; name: string }>;
+    let staff: Array<{ id: string; name: string }>;
+
+    if (isMobileSelf) {
+      // Mobile token: enbart self.
+      const { data: selfRow, error: selfErr } = await admin
+        .from("staff_members")
+        .select("id, name")
+        .eq("organization_id", orgId)
+        .eq("id", (auth as { staffId: string }).staffId)
+        .maybeSingle();
+      if (selfErr) throw selfErr;
+      if (!selfRow) return bad(404, "Staff not found");
+      staff = [selfRow as { id: string; name: string }];
+    } else {
+      // Admin: alla aktiva i org.
+      const { data: staffRows, error: staffErr } = await admin
+        .from("staff_members")
+        .select("id, name")
+        .eq("organization_id", orgId)
+        .eq("is_active", true)
+        .order("name", { ascending: true });
+      if (staffErr) throw staffErr;
+      staff = (staffRows ?? []) as Array<{ id: string; name: string }>;
+    }
+
 
     // 2) En enda resolver — batch över hela veckan.
     const resolved = await resolveStaffDayReportsBatch({

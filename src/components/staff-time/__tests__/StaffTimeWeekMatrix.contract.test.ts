@@ -111,17 +111,19 @@ describe("StaffTimeWeekMatrix (admin veckomatris)", () => {
     }
   });
 
-  it("Edge function get-staff-time-week-matrix använder canonical GPS-builder", () => {
+  it("Edge function get-staff-time-week-matrix går genom resolveStaffDayReportsBatch (INTE canonical GPS-builder)", () => {
     const src = read("supabase/functions/get-staff-time-week-matrix/index.ts");
-    expect(src).toMatch(/buildCanonicalStaffDayGpsResult/);
+    expect(src).toMatch(/resolveStaffDayReportsBatch/);
     expect(src).toMatch(/from\(\s*["']staff_members["']/);
-    expect(src).toMatch(/from\(\s*["']staff_day_submissions["']/);
-    expect(src).toMatch(/from\(\s*["']staff_location_history["']/);
+    // Får INTE bygga från raw GPS
+    expect(src).not.toMatch(/buildCanonicalStaffDayGpsResult/);
+    expect(src).not.toMatch(/from\(\s*["']staff_location_history["']/);
+    expect(src).not.toMatch(/from\(\s*["']staff_day_submissions["']/);
   });
 
   it("Edge function rör INGA legacy tidskällor och skriver inte", () => {
     const src = read("supabase/functions/get-staff-time-week-matrix/index.ts");
-    const forbidden = ["time_reports", "workdays", "location_time_entries", "travel_time_logs", "day_attestations", "staff_day_report_cache"];
+    const forbidden = ["time_reports", "workdays", "location_time_entries", "travel_time_logs", "day_attestations"];
     for (const t of forbidden) {
       const re = new RegExp(`from\\(\\s*["'\`]${t}["'\`]`);
       expect(src).not.toMatch(re);
@@ -132,28 +134,19 @@ describe("StaffTimeWeekMatrix (admin veckomatris)", () => {
     expect(src).not.toMatch(/\.delete\(/);
   });
 
-  it("Edge function kräver privilegierad JWT (admin/projekt/lager)", () => {
+  it("Edge function dual-auth (admin JWT eller mobile token = self)", () => {
     const src = read("supabase/functions/get-staff-time-week-matrix/index.ts");
     expect(src).toMatch(/authenticateStaffRequest/);
-    expect(src).toMatch(/isPrivileged/);
+    expect(src).toMatch(/isAdminJwt/);
+    expect(src).toMatch(/isMobileSelf/);
   });
 
-  it("Edge function använder workTimeBuckets-helper (samma 07–17-regel som frontend)", () => {
-    const src = read("supabase/functions/get-staff-time-week-matrix/index.ts");
-    expect(src).toMatch(/calculateWorkTimeBuckets/);
-    expect(src).toMatch(/_shared\/staffTimeFlow\/workTimeBuckets\.ts/);
+  it("Mobilens veckovy använder useStaffSelfWeekMatrix mot samma endpoint", () => {
+    const hook = read("src/hooks/staffTimeFlow/useStaffSelfWeekMatrix.ts");
+    expect(hook).toMatch(/get-staff-time-week-matrix/);
+    expect(hook).toMatch(/callStaffSnapshotFunction/);
+    expect(hook).not.toMatch(/useStaffGpsWeekSummary/);
+    expect(hook).not.toMatch(/buildCanonicalStaffDayGpsResult/);
   });
 
-  it("Dag-detalj-sheeten återanvänder WeekFlowDayCard (samma som /m/report)", () => {
-    const src = read("src/components/staff-time/StaffTimeMatrixDayDetailSheet.tsx");
-    expect(src).toMatch(/WeekFlowDayCard/);
-    expect(src).toMatch(/useStaffTimeWeekFlow/);
-    expect(src).toMatch(/viewer:\s*"admin"/);
-  });
-
-  it("App-vägen (WeekFlowMobilePanel) använder fortfarande samma WeekFlow", () => {
-    const src = read("src/components/mobile-app/time/WeekFlowMobilePanel.tsx");
-    expect(src).toMatch(/useStaffTimeWeekFlow/);
-    expect(src).toMatch(/WeekFlowDayCard/);
-  });
 });

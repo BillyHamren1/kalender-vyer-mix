@@ -1,17 +1,17 @@
 /**
  * MobileTimeV2Page — startsida för /m/report.
  *
- * Renderar WeekFlowMobilePanel som är den ENDA huvudvyn. Samma
- * useStaffTimeWeekFlow + WeekFlowDayCard som admin Tid & Lön — så
- * appen och admin visar alltid samma statusar och samma underlag.
+ * Renderar WeekFlowMobilePanel som ENDA huvudvy. Veckan kommer från
+ * `get-staff-time-week-matrix` (samma resolver som admin Tid & Lön).
+ * Dag-sheet skickar in via `submit-staff-day-v3`.
  *
- * Submit går genom DayReviewSheet (V2-APIet:
- * get-mobile-gps-day-view + submit-mobile-gps-day-v2). Skriver aldrig
- * till time_reports/workdays/location_time_entries/travel_time_logs.
+ * Single-pipeline: appen läser ALDRIG raw GPS och anropar ALDRIG
+ * get-mobile-gps-day-view eller submit-mobile-gps-day-v2.
  *
  * Legacy MobileTimeReportQueue finns kvar i filträdet men är inte längre
  * monterad — flippa VITE_LEGACY_TIME_QUEUE=1 om något behöver gamla vyn.
  */
+
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
