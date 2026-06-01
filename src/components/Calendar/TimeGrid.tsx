@@ -350,17 +350,19 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               </div>
             );
           })}
-          {/* Höger tids-cell rad 2 */}
-          <div className="time-column-header" style={{ gridRow: 2, gridColumn: rightTimeColumn }}>
-            <div className="time-title">Time</div>
-          </div>
-
           {/* Row 3: assigned staff per team — read-only i plannerMode */}
           <div className="staff-row-time-cell" style={{ gridRow: 3, gridColumn: 1, minHeight: `${ASSIGNED_STAFF_ROW_HEIGHT}px` }} />
           {resources.map((resource, index) => {
             const assignedStaff = getAssignedStaffForTeam(resource.id);
             const colWidth = teamColumnWidths[index];
             const wide = assignedStaff.length > 5;
+            const teamVehiclesForRow = vehiclesByTeam.get(resource.id) ?? [];
+            const vehicleLineTextRow =
+              teamVehiclesForRow.length === 0
+                ? ''
+                : teamVehiclesForRow.length === 1
+                ? `Bil: ${teamVehiclesForRow[0].name}`
+                : teamVehiclesForRow.map((v, i) => `Bil${i + 1}: ${v.name}`).join(', ');
             return (
               <div
                 key={`staff-${resource.id}`}
@@ -374,6 +376,11 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 }}
               >
                 <div className="staff-header-assignment-area">
+                  {vehicleLineTextRow && (
+                    <div className="team-vehicle-line" title={vehicleLineTextRow}>
+                      {vehicleLineTextRow}
+                    </div>
+                  )}
                   <div className={`assigned-staff-header-list${wide ? ' assigned-staff-header-list--wide' : ''}`}>
                     {assignedStaff.map((staff) => (
                       <StaffItem
