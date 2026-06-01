@@ -1,39 +1,41 @@
 // get-mobile-gps-day-view
 // =============================================================================
-// Denna endpoint returnerar mobilens rapportvy. Tidslinjen speglar Time Engine-
-// cache (staff_day_report_cache.display_blocks_json → report_candidate_blocks_json).
-// GPS-pings används bara för karta/underlag och som sista nödfallback om cachen
-// helt saknas. Admin-drawerns "Tidslinje (Time Engine-förslag)" och appens
-// rapportvy bygger på samma segmentlista.
+// SINGLE-PIPELINE: denna endpoint är en TUNN projektion av resolveStaffDayReport
+// (staff_day_submissions → staff_day_report_cache → empty). Den bygger inte
+// längre någon dag från raw GPS.
 //
-// Skriver ALDRIG till time_reports, workdays, location_time_entries,
-// travel_time_logs eller GPS-pings.
+// Får INTE läsa:
+//   - staff_location_history (raw GPS)
+//   - time_reports / workdays / location_time_entries / travel_time_logs
+//   - day_attestations / active_time_registrations
+//
+// Får INTE skriva någonting.
+//
+// Output behåller v2-formen (segments / rows / totals / submission / manualTargets
+// / anchors / map) så att DayReviewSheet, MobileDayReportPreview och
+// ManualWorkSegmentsEditor kan fortsätta konsumera den utan UI-omskrivning.
+// Kartan returneras som en tom shell — appens kartlager är dummad ut tills
+// vi har en cache-driven karta.
 //
 // Input:  { staffId, date }
-// Output: { title, subtitle, segments, rows, totals, submission, messages, debug }
-
+// Output: { title, subtitle, segments, rows, totals, submission, messages,
+//           manualTargets, anchors, map, debug }
 import { corsHeaders } from "../_shared/cors.ts";
 import {
   authenticateStaffRequest,
   authorizeStaffAccess,
 } from "../_shared/staff-auth.ts";
 import {
-  fetchPingsForDayV2,
-  loadKnownTargetsV2,
   loadManualReportTargetsForDay,
   loadMessages,
   loadSubmission,
-  readManualOverridesFromSubmission,
 } from "../_shared/time-v2/loaders.ts";
-import { buildDayView } from "../_shared/time-v2/buildDayView.ts";
-import { buildDayMap } from "../_shared/time-v2/buildDayMap.ts";
-import { buildGpsDayTimelineOnly } from "../_shared/timeline/buildGpsDayTimelineOnly.ts";
-import { buildCanonicalStaffDayGpsResult } from "../_shared/staff-gps/canonicalStaffDayGpsResult.ts";
 import {
   buildAnchorsPayload,
   computeAnchorSuggestions,
   loadAnchorsForDay,
 } from "../_shared/time-v2/anchors.ts";
+import { resolveStaffDayReport } from "../_shared/staff-day-report/resolveStaffDayReport.ts";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -45,7 +47,8 @@ function json(body: unknown, status = 200) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Time Engine block → view-segment mapper
+// Cache-block → view-segment mapper
+// (oförändrat format jämfört med tidigare v2 så att UI-shapen står kvar)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const HIDDEN_KINDS = new Set([
@@ -181,7 +184,7 @@ function mapEngineBlocksToSegments(blocks: any[]): MappedSegment[] {
 function totalsAndRowsFromSegments(segments: MappedSegment[]) {
   let workMinutes = 0;
   let travelMinutes = 0;
-  let gapMinutes = 0;
+  const gapMinutes = 0;
   const rowMap = new Map<string, {
     rowKey: string; label: string; kind: string; totalMinutes: number; segmentKeys: string[];
   }>();
@@ -253,7 +256,7 @@ Deno.serve(async (req: Request) => {
   const admin = authResult.auth.admin;
   const orgId = access.orgId;
 
-  // Hämta staff name (best effort).
+  // Staff name (best effort).
   let staffName: string | null = null;
   try {
     const { data } = await admin
@@ -267,152 +270,72 @@ Deno.serve(async (req: Request) => {
     }
   } catch (_e) { /* ignore */ }
 
+  // ── Resolver: enda källan till sanning ───────────────────────────────────
+  let resolved;
+  try {
+    resolved = await resolveStaffDayReport({
+      admin,
+      organizationId: orgId,
+      staffId,
+      date,
+    });
+  } catch (e) {
+    console.error("[get-mobile-gps-day-view] resolver failed", e);
+    return json({ error: "resolver failed" }, 500);
+  }
+
+  // Submission-status + canEdit/canSubmit (legacy shape) — vi behöver fler fält
+  // än resolverns normaliserade form. Hämtas via loadSubmission (samma rad).
   const submission = await loadSubmission(admin, orgId, staffId, date);
 
-  let payload: any = null;
-  if (submission.hasSubmission) {
-    try {
-      const { data } = await admin
-        .from("staff_day_submissions")
-        .select("submitted_payload_json")
-        .eq("id", submission.id)
-        .maybeSingle();
-      payload = (data as any)?.submitted_payload_json ?? null;
-    } catch (_e) { /* ignore */ }
-  }
-  const manualOverrides = readManualOverridesFromSubmission(submission, payload);
-
-  let knownTargets: any[] = [];
-  try {
-    knownTargets = await loadKnownTargetsV2(admin, orgId, staffId, date);
-  } catch (e) {
-    console.error("[get-mobile-gps-day-view] target load failed", e);
-    return json({ error: "target load failed" }, 500);
-  }
-
-  let pings: any[] = [];
-  try {
-    pings = await fetchPingsForDayV2(admin, staffId, date);
-  } catch (e) {
-    console.error("[get-mobile-gps-day-view] ping fetch failed", e);
-    return json({ error: "ping fetch failed" }, 500);
-  }
-
-  // Time Engine-cache (sanning för rapportvyn).
-  let cacheRow: any = null;
-  try {
-    const { data } = await admin
-      .from("staff_day_report_cache")
-      .select("engine_version, summary_json, display_blocks_json, report_candidate_blocks_json, diagnostics_json, built_at, stale, error")
-      .eq("organization_id", orgId)
-      .eq("staff_id", staffId)
-      .eq("date", date)
-      .order("built_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    cacheRow = data ?? null;
-  } catch (e) {
-    console.warn("[get-mobile-gps-day-view] cache load failed", e);
-  }
-
+  // Bygg segments från cachens display_blocks_json (eller candidate-blocks),
+  // i samma form som UI:n förväntar sig.
+  const cacheRow = resolved.rawCache as any;
   const displayBlocks = Array.isArray(cacheRow?.display_blocks_json) ? cacheRow.display_blocks_json : [];
   const candidateBlocks = Array.isArray(cacheRow?.report_candidate_blocks_json) ? cacheRow.report_candidate_blocks_json : [];
 
-  let timelineSourceUsed: "display_blocks_json" | "report_candidate_blocks_json" | "gps_only_fallback" | "none" = "none";
-  let engineSegments: MappedSegment[] = [];
+  let timelineSourceUsed: "display_blocks_json" | "report_candidate_blocks_json" | "submission_snapshot" | "none" = "none";
+  let viewSegments: MappedSegment[] = [];
 
-  if (displayBlocks.length > 0) {
-    engineSegments = mapEngineBlocksToSegments(displayBlocks);
-    timelineSourceUsed = engineSegments.length > 0 ? "display_blocks_json" : "none";
+  if (resolved.source === "submission") {
+    // För submission renderar UI ofta från cache som "underlag"; om submission
+    // har en snapshot använder vi den, annars fallback till cachens display_blocks
+    // om sådan finns kvar (för referens i preview).
+    const snapBlocks = Array.isArray(resolved.rawSubmission?.display_timeline_snapshot_json)
+      ? (resolved.rawSubmission?.display_timeline_snapshot_json as any[])
+      : [];
+    if (snapBlocks.length > 0) {
+      viewSegments = mapEngineBlocksToSegments(snapBlocks);
+      timelineSourceUsed = "submission_snapshot";
+    } else if (displayBlocks.length > 0) {
+      viewSegments = mapEngineBlocksToSegments(displayBlocks);
+      timelineSourceUsed = viewSegments.length > 0 ? "display_blocks_json" : "none";
+    } else if (candidateBlocks.length > 0) {
+      viewSegments = mapEngineBlocksToSegments(candidateBlocks);
+      if (viewSegments.length > 0) timelineSourceUsed = "report_candidate_blocks_json";
+    }
+  } else if (resolved.source === "cache") {
+    if (displayBlocks.length > 0) {
+      viewSegments = mapEngineBlocksToSegments(displayBlocks);
+      timelineSourceUsed = viewSegments.length > 0 ? "display_blocks_json" : "none";
+    }
+    if (viewSegments.length === 0 && candidateBlocks.length > 0) {
+      viewSegments = mapEngineBlocksToSegments(candidateBlocks);
+      if (viewSegments.length > 0) timelineSourceUsed = "report_candidate_blocks_json";
+    }
   }
-  if (engineSegments.length === 0 && candidateBlocks.length > 0) {
-    engineSegments = mapEngineBlocksToSegments(candidateBlocks);
-    if (engineSegments.length > 0) timelineSourceUsed = "report_candidate_blocks_json";
-  }
+  // resolved.source === "empty" → viewSegments stannar []
 
-  // GPS-only fallback för KARTAN — behövs alltid (även när cache finns).
-  const gpsTimeline = buildGpsDayTimelineOnly({
-    staffId,
-    organizationId: orgId,
-    date,
-    pings,
-    knownTargets,
-  });
+  const { rows: viewRows, totals: viewTotals } = totalsAndRowsFromSegments(viewSegments);
+  const subtitleParts: string[] = [];
+  if (viewTotals.workMinutes > 0) subtitleParts.push(`Arbete ${fmtHm(viewTotals.workMinutes)}`);
+  if (viewTotals.travelMinutes > 0) subtitleParts.push(`Resa ${fmtHm(viewTotals.travelMinutes)}`);
+  const viewSubtitle = subtitleParts.length > 0 ? subtitleParts.join(" · ") : "Ingen aktivitet";
+  const viewTitle = staffName ? `${staffName} · ${date}` : date;
 
-  // Bygg view: om cache finns → segments från cache. Annars GPS-only fallback.
-  let viewSegments: any[];
-  let viewRows: any[];
-  let viewTotals: any;
-  let viewSubtitle: string;
-  let viewTitle: string;
-  let manualOverridesSummary = { count: 0, appliedSegmentKeys: [] as string[] };
-
-  if (engineSegments.length > 0) {
-    viewSegments = engineSegments;
-    const rt = totalsAndRowsFromSegments(engineSegments);
-    viewRows = rt.rows;
-    viewTotals = rt.totals;
-    const parts: string[] = [];
-    if (viewTotals.workMinutes > 0) parts.push(`Arbete ${fmtHm(viewTotals.workMinutes)}`);
-    if (viewTotals.travelMinutes > 0) parts.push(`Resa ${fmtHm(viewTotals.travelMinutes)}`);
-    viewSubtitle = parts.length > 0 ? parts.join(" · ") : "Ingen aktivitet";
-    viewTitle = staffName ? `${staffName} · ${date}` : date;
-  } else {
-    // Sista nödfallback: GPS-only timeline.
-    const fallback = buildDayView({
-      staffId,
-      organizationId: orgId,
-      date,
-      pings,
-      knownTargets,
-      manualOverrides,
-      staffName,
-      prebuiltTimeline: gpsTimeline,
-    });
-    viewSegments = fallback.segments;
-    viewRows = fallback.rows;
-    viewTotals = fallback.totals;
-    viewSubtitle = fallback.subtitle;
-    viewTitle = fallback.title;
-    manualOverridesSummary = fallback.manualOverridesSummary;
-    timelineSourceUsed = displayBlocks.length === 0 && candidateBlocks.length === 0 ? "gps_only_fallback" : "none";
-  }
-
-  // Kartan byggs alltid från råpings + GPS-timeline (rörelser/punkter).
-  const map = buildDayMap({
-    pings,
-    segments: gpsTimeline.segments,
-    knownTargets,
-  });
-
-  // ── CANONICAL pipeline (Etapp 2) ───────────────────────────────────────────
-  // Bygg canonical-resultatet sida vid sida som verifierings-källa. UI fortsätter
-  // primärt rita från Time Engine-cache + buildDayView-fallback (oförändrat),
-  // men exposerar canonical i `debug.canonical` så att Etapp 3 kan koppla på
-  // submission/payroll utan fler runtime-ändringar.
-  let canonicalDebug: any = null;
-  try {
-    const canonical = await buildCanonicalStaffDayGpsResult(admin, {
-      organizationId: orgId,
-      staffId,
-      date,
-    });
-    canonicalDebug = {
-      version: canonical.version,
-      firstIso: canonical.firstIso,
-      lastIso: canonical.lastIso,
-      totals: canonical.totals,
-      segmentCount: canonical.segments.length,
-      geofenceVisitCount: canonical.geofenceVisits.length,
-      sourceSnapshotId: canonical.debug.sourceSnapshotId,
-    };
-  } catch (e) {
-    console.warn("[get-mobile-gps-day-view] canonical build failed", e);
-    canonicalDebug = { error: (e as Error).message };
-  }
-
-  const sourceSnapshotId = `${date}:${staffId}:${gpsTimeline.rawPingCount}:${gpsTimeline.firstPingAt ?? "-"}:${gpsTimeline.lastPingAt ?? "-"}`;
-
+  // Karta byggs INTE från råpings längre. UI har en placeholder tills
+  // vi har en cache-/known-target-driven karta. Returnera tom shell.
+  const map = { points: [] as any[], paths: [] as any[], knownSites: [] as any[] };
 
   const messages = await loadMessages(admin, orgId, staffId, date, 20);
 
@@ -425,7 +348,7 @@ Deno.serve(async (req: Request) => {
 
   const subStatus = String(submission.status ?? "not_submitted");
   const isLocked = subStatus === "approved" || subStatus === "payroll_approved";
-  const hasSegs = (viewSegments?.length ?? 0) > 0;
+  const hasSegs = viewSegments.length > 0;
   const reportMode: "submitted" | "locked" | "gps_suggestion" | "manual_empty" =
     isLocked
       ? "locked"
@@ -442,6 +365,13 @@ Deno.serve(async (req: Request) => {
     rows: anchorRows, startSuggested, endSuggested, isLocked,
   });
 
+  // sourceSnapshotId — stabil för cache-rad eller submission-rad.
+  const sourceSnapshotId = resolved.source === "submission"
+    ? `submission:${resolved.submissionId ?? ""}`
+    : resolved.source === "cache"
+      ? `cache:${resolved.cacheBuiltAt ?? ""}`
+      : `empty:${date}:${staffId}`;
+
   return json({
     source: "mobile_gps_day_view_v2",
     staffId,
@@ -455,7 +385,7 @@ Deno.serve(async (req: Request) => {
     segments: viewSegments,
     rows: viewRows,
     totals: viewTotals,
-    manualOverridesSummary,
+    manualOverridesSummary: { count: 0, appliedSegmentKeys: [] as string[] },
     submission: {
       hasSubmission: submission.hasSubmission,
       status: submission.status,
@@ -473,19 +403,15 @@ Deno.serve(async (req: Request) => {
     manualTargets,
     anchors,
     debug: {
+      resolvedSource: resolved.source,
+      resolvedStatus: resolved.status,
       timelineSourceUsed,
       displayBlocksCount: displayBlocks.length,
       reportCandidateBlocksCount: candidateBlocks.length,
       returnedSegmentsCount: viewSegments.length,
-      rawPingCount: gpsTimeline.rawPingCount,
-      firstPingAt: gpsTimeline.firstPingAt,
-      lastPingAt: gpsTimeline.lastPingAt,
-      engineVersion: cacheRow?.engine_version ?? null,
-      cacheBuiltAt: cacheRow?.built_at ?? null,
-      cacheError: cacheRow?.error ?? null,
-      canonical: canonicalDebug,
+      engineVersion: resolved.engineVersion,
+      cacheBuiltAt: resolved.cacheBuiltAt,
     },
-
     generatedAt: new Date().toISOString(),
   });
 });
