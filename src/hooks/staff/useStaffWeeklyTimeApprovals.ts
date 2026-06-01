@@ -43,6 +43,11 @@ export interface StaffWeeklySubmissionRow {
 /**
  * Time Engine / GPS-satellitens cache-rad per staff/date.
  * Källa för "Väntar personalattest" — finns innan personalen själv skickat in.
+ *
+ * VIKTIGT: I listvyn (useStaffWeeklyTimeApprovals) är endast `summary_json` (litet)
+ * fyllt. De tunga fälten `report_candidate_blocks_json`, `display_blocks_json` och
+ * `diagnostics_json` hämtas lazy i `useStaffDayApprovalDetails` när inspection-drawern
+ * öppnas. De är därför markerade optional och kan saknas helt på en lista-cache-rad.
  */
 export interface StaffWeeklyCacheRow {
   id: string;
@@ -51,9 +56,9 @@ export interface StaffWeeklyCacheRow {
   date: string;
   engine_version: string | null;
   summary_json: unknown | null;
-  report_candidate_blocks_json: unknown | null;
-  display_blocks_json: unknown | null;
-  diagnostics_json: unknown | null;
+  report_candidate_blocks_json?: unknown | null;
+  display_blocks_json?: unknown | null;
+  diagnostics_json?: unknown | null;
   built_at: string | null;
   stale: boolean | null;
   error: string | null;
@@ -194,10 +199,12 @@ export function useStaffWeeklyTimeApprovals(params: UseStaffWeeklyTimeApprovalsP
       }
 
       // --- Engine cache (förslag innan personalen attesterat) ---
-      // NOTE: diagnostics_json är ~600 KB/rad och orsakade statement timeout
-      // när hela veckan laddades. Fältet hämtas lazy i inspection-drawern
-      // istället. summary_json/display_blocks_json/report_candidate_blocks_json
-      // är små (KB-storlek) och stannar kvar för listmodellen.
+      // VIKTIGT: Denna hook är listvyn. Lägg ALDRIG diagnostics_json,
+      // report_candidate_blocks_json eller display_blocks_json här. Dessa fält
+      // är tunga (diagnostics_json är ~600 KB/rad) och orsakar statement timeout
+      // när hela veckan laddas för många personer. De hämtas lazy i
+      // useStaffDayApprovalDetails när inspection-drawern öppnas.
+      // summary_json är lätt (KB-storlek) och räcker för start/slut/minuter i listan.
       let cacheQ = supabase
         .from("staff_day_report_cache")
         .select(
@@ -208,8 +215,6 @@ export function useStaffWeeklyTimeApprovals(params: UseStaffWeeklyTimeApprovalsP
             "date",
             "engine_version",
             "summary_json",
-            "report_candidate_blocks_json",
-            "display_blocks_json",
             "built_at",
             "stale",
             "error",
@@ -220,7 +225,9 @@ export function useStaffWeeklyTimeApprovals(params: UseStaffWeeklyTimeApprovalsP
         .lte("date", weekEnd)
         .order("date", { ascending: true })
         .order("built_at", { ascending: false })
-        .limit(2000);
+        // Veckolista: 1000 räcker till ~140 personer x 7 dagar. För större
+        // org bör vi i nästa steg byta till server-side summary endpoint.
+        .limit(1000);
 
 
       if (staffId) cacheQ = cacheQ.eq("staff_id", staffId);
