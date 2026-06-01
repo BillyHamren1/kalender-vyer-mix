@@ -4,7 +4,7 @@ import { CalendarClock } from "lucide-react";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import StaffTimeWeeklyGpsReportContent from "@/components/staff-time/StaffTimeWeeklyGpsReportContent";
-import StaffTimeReportsContent from "@/components/staff-time/StaffTimeReportsContent";
+import StaffTimeApprovalsPageContent from "@/components/staff-time-approvals/StaffTimeApprovalsPageContent";
 
 // HUVUDVY: Två tabbar — "Tid" (GPS-veckomatris) och "Lön" (tidrapport-/attestvy).
 // Tabbvalet speglas i URL via ?tab=tid|lon så djuplänkar fungerar.
@@ -48,7 +48,7 @@ const StaffTimeAndPayrollPage: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="lon" className="mt-2">
-          <StaffTimeReportsContent />
+          <StaffTimeApprovalsPageContent />
         </TabsContent>
       </Tabs>
     </PageContainer>
