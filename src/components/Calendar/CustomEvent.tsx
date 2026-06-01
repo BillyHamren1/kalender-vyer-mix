@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { createDialogHandlers } from '@/hooks/useEventEditController';
 import { useGlobalEditController } from '@/contexts/EditControllerContext';
 import { deleteCalendarEvent } from '@/services/eventService';
-import { Trash2, Combine, Plus } from 'lucide-react';
+import { Trash2, Combine, Plus, Palette, X, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import EventHoverCard from './EventHoverCard';
 import EventActionPopover from './EventActionPopover';
@@ -13,13 +13,17 @@ import PlannerEventActionPopover from '@/components/project/large-planner/Planne
 import MoveEventDateDialog from './MoveEventDateDialog';
 import { DeleteDayButton } from './DeleteDayButton';
 import { TodoEventCard } from './TodoEventCard';
-import { BookingColorMarkButton } from './BookingColorMarkButton';
+import { BOOKING_COLOR_PRESETS, setBookingCalendarColor } from '@/services/bookingColorService';
 
 import { useWarehouseResources } from '@/hooks/useWarehouseResources';
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import ConsolidateProjectsDialog from '@/components/project/ConsolidateProjectsDialog';
