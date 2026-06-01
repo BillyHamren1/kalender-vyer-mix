@@ -402,7 +402,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       lastKnownPosRef.current = { lat: latitude, lng: longitude, accuracy, speed };
 
       const now = Date.now();
-      if (now - lastReportRef.current < REPORT_THROTTLE_MS) {
+      if (now - lastReportRef.current < captureThrottleMsRef.current) {
         checkBackgroundGeofences(latitude, longitude);
         return;
       }
