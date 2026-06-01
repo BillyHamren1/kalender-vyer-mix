@@ -201,33 +201,12 @@ const LargeProjectPlannerSidebar = ({
 
         <div className="overflow-x-auto">
           <div className="flex gap-2 p-2 min-w-min items-stretch">
-            {filteredBookings.length === 0 && (
+            {unplannedBookings.length === 0 && (
               <div className="rounded-md border border-dashed border-border/60 p-3 text-center text-[11px] text-muted-foreground w-full">
-                Inga bokningar matchar filtret.
+                Alla bokningar är planerade — finns i kalendern nedan.
               </div>
             )}
             {unplannedBookings.map((b) => renderBookingCard(b))}
-            {plannedBookings.length > 0 && (
-              <div className="shrink-0 self-stretch">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-full min-h-[72px] px-3 text-[11px] flex flex-col items-center justify-center gap-1"
-                  onClick={() => setShowPlanned((v) => !v)}
-                >
-                  {showPlanned ? (
-                    <ChevronDown className="h-3.5 w-3.5" />
-                  ) : (
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  )}
-                  <span className="font-semibold">Planerade bokningar</span>
-                  <Badge variant="secondary" className="text-[9px]">
-                    {plannedBookings.length} st
-                  </Badge>
-                </Button>
-              </div>
-            )}
-            {showPlanned && plannedBookings.map((b) => renderBookingCard(b))}
           </div>
         </div>
       </aside>
