@@ -24,6 +24,12 @@ import { isInDismissCooldown } from '@/lib/geofence/dismissCooldown';
 import { mergeTrackingPolicy } from '@/lib/geofence/mergeTrackingPolicy';
 import { isWorkdayActive } from '@/lib/workday/workdayActiveSignal';
 import { recordAppHealthEvent } from '@/lib/mobile/recordAppHealthEvent';
+import {
+  isInsideGeofence,
+  shouldTriggerEnter,
+  shouldTriggerExit,
+  type GeoJSONPolygon,
+} from '@/lib/geofenceEval';
 
 
 const PENDING_ARRIVALS_KEY = 'eventflow-pending-arrivals';
