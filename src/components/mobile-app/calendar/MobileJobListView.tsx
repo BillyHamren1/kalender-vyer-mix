@@ -294,7 +294,21 @@ const MobileJobListView = ({ shifts }: Props) => {
                             <span className="truncate">{address}</span>
                           </div>
                         )}
+                        <TeamVehicleLine vehicles={aggregateItemVehicles(it)} className="mt-2" />
                       </button>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default MobileJobListView;
                     );
                   })}
                 </div>
