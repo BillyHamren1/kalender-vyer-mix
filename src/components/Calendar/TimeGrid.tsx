@@ -278,7 +278,16 @@ const TimeGrid: React.FC<TimeGridProps> = ({
           <div className="time-empty-cell" style={{ gridRow: 2, gridColumn: 1 }} />
           {resources.map((resource, index) => {
             const isActiveTeam = openPickerTeamId === resource.id;
+            const isVehiclePickerOpen = openVehiclePickerTeamId === resource.id;
             const assignedIds = getAssignedStaffForTeam(resource.id).map((s) => s.id);
+            const teamVehicles = vehiclesByTeam.get(resource.id) ?? [];
+            const assignedVehicleIds = teamVehicles.map((v) => v.id);
+            const vehicleLineText =
+              teamVehicles.length === 0
+                ? ''
+                : teamVehicles.length === 1
+                ? `Bil: ${teamVehicles[0].name}`
+                : teamVehicles.map((v, i) => `Bil${i + 1}: ${v.name}`).join(', ');
             const colWidth = teamColumnWidths[index];
             return (
               <div
@@ -293,24 +302,57 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 }}
               >
                 <div className="team-header-content">
+                  {vehicleLineText && (
+                    <div
+                      className="team-vehicle-line"
+                      title={vehicleLineText}
+                    >
+                      {vehicleLineText}
+                    </div>
+                  )}
                   <span className="team-title">{resource.title}</span>
                   {!plannerMode && (
-                    <TeamStaffPickerPopover
-                      teamId={resource.id}
-                      teamTitle={resource.title}
-                      staff={availableStaff}
-                      assignedStaffIds={assignedIds}
-                      onPick={(staffId) => handlePickStaffForTeam(resource.id, staffId)}
-                      open={isActiveTeam}
-                      onOpenChange={(o) => setOpenPickerTeamId(o ? resource.id : null)}
-                    >
-                      <button
-                        className="add-staff-button-header"
-                        onClick={(e) => e.stopPropagation()}
-                        title={`Tilldela personal till ${resource.title}`}
-                        aria-label={`Tilldela personal till ${resource.title}`}
-                      >+</button>
-                    </TeamStaffPickerPopover>
+                    <>
+                      <TeamVehiclePickerPopover
+                        teamId={resource.id}
+                        teamTitle={resource.title}
+                        vehicles={ownVehicles}
+                        assignedVehicleIds={assignedVehicleIds}
+                        onPick={(vehicleId) => assignVehicle(resource.id, vehicleId)}
+                        onUnpick={(vehicleId) => unassignVehicle(resource.id, vehicleId)}
+                        open={isVehiclePickerOpen}
+                        onOpenChange={(o) => setOpenVehiclePickerTeamId(o ? resource.id : null)}
+                      >
+                        <button
+                          className="add-vehicle-button-header"
+                          onClick={(e) => e.stopPropagation()}
+                          title={`Tilldela bil till ${resource.title}`}
+                          aria-label={`Tilldela bil till ${resource.title}`}
+                          data-active={teamVehicles.length > 0 ? 'true' : 'false'}
+                        >
+                          <Truck size={12} strokeWidth={2.2} />
+                          {teamVehicles.length > 1 && (
+                            <span className="add-vehicle-button-badge">{teamVehicles.length}</span>
+                          )}
+                        </button>
+                      </TeamVehiclePickerPopover>
+                      <TeamStaffPickerPopover
+                        teamId={resource.id}
+                        teamTitle={resource.title}
+                        staff={availableStaff}
+                        assignedStaffIds={assignedIds}
+                        onPick={(staffId) => handlePickStaffForTeam(resource.id, staffId)}
+                        open={isActiveTeam}
+                        onOpenChange={(o) => setOpenPickerTeamId(o ? resource.id : null)}
+                      >
+                        <button
+                          className="add-staff-button-header"
+                          onClick={(e) => e.stopPropagation()}
+                          title={`Tilldela personal till ${resource.title}`}
+                          aria-label={`Tilldela personal till ${resource.title}`}
+                        >+</button>
+                      </TeamStaffPickerPopover>
+                    </>
                   )}
                 </div>
               </div>
