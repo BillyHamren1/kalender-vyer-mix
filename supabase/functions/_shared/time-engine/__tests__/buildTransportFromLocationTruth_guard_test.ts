@@ -33,35 +33,32 @@ function seg(partial: Partial<LocationTruthSegment> & {
 }
 
 Deno.test('GATE A — exakt skärmdumpens scenario: 2 pings hemma + 1 ping på jobbet 6h senare → 0 Resa', () => {
-  // 00:09:01 + 00:09:03 hemma, 06:26:20 jobbet (≈8 m fågelvägen, men det är
-  // INTE samma plats för location truth). Ingen egen rörelse i glappet.
+  // 2 hem-pings 00:09 + 1 jobb-ping 06:26. Hem och jobb ≈ 1 km isär (vanligt
+  // i tätort) — så distansen klarar 500 m-gränsen och vi MÅSTE förlita oss
+  // på den hårda gaten (gap_too_long + private_residence + no_own_movement).
   const segs: LocationTruthSegment[] = [
     seg({
       id: 'home', startAt: '2025-01-15T00:09:01Z', endAt: '2025-01-15T00:09:03Z',
       kind: 'private_residence', label: 'Hem', targetId: null, targetType: null,
-      centerLat: 59.651262, centerLng: 17.720690,
+      centerLat: 59.6512, centerLng: 17.7206,
     }),
     seg({
       id: 'work', startAt: '2025-01-15T06:26:20Z', endAt: '2025-01-15T07:00:00Z',
       kind: 'project', label: 'Jobbet', targetId: 'p1', targetType: 'project',
-      centerLat: 59.651268, centerLng: 17.719562,
+      centerLat: 59.6600, centerLng: 17.7300, // ≈ 1.2 km från hemmet
     }),
   ];
+  // Pingarna ligger på respektive plats — ingen egen rörelse under glappet.
   const pings: TransportPing[] = [
-    { ts: '2025-01-15T00:09:01Z', lat: 59.651262, lng: 17.720690 },
-    { ts: '2025-01-15T00:09:03Z', lat: 59.651210, lng: 17.720421 },
-    { ts: '2025-01-15T06:26:20Z', lat: 59.651268, lng: 17.719562 },
+    { ts: '2025-01-15T00:09:01Z', lat: 59.6512, lng: 17.7206 },
+    { ts: '2025-01-15T00:09:03Z', lat: 59.6512, lng: 17.7204 },
+    { ts: '2025-01-15T06:26:20Z', lat: 59.6600, lng: 17.7300 },
   ];
   const r = buildTransportFromLocationTruth({ locationTruthSegments: segs, pings });
   assertEquals(r.transportSegments.length, 0, 'får inte skapa Resa över ett 6h glapp utan rörelse');
   assertEquals(r.diagnostics.transportsCreatedCount, 0);
-  // Glappet är > 30 min → den första gaten som faller är gap_too_long.
-  assert(
-    (r.diagnostics.hardGateRejections.rejected_gap_too_long ?? 0) >= 1
-    || (r.diagnostics.hardGateRejections.rejected_from_private_residence ?? 0) >= 1
-    || (r.diagnostics.hardGateRejections.rejected_no_own_movement ?? 0) >= 1,
-    `förväntade gate-rejection, fick ${JSON.stringify(r.diagnostics.hardGateRejections)}`,
-  );
+  // Den första gaten som faller är gap_too_long (377 min > 30).
+  assertEquals(r.diagnostics.hardGateRejections.rejected_gap_too_long, 1);
   // Och det ska finnas en absorption (inte tyst släppt).
   assert(r.internalMovementAbsorptions.length >= 1);
 });
