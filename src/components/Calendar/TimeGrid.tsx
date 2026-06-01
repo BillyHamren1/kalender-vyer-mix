@@ -350,6 +350,11 @@ const TimeGrid: React.FC<TimeGridProps> = ({
               </div>
             );
           })}
+          {/* Höger tids-cell rad 2 */}
+          <div className="time-column-header" style={{ gridRow: 2, gridColumn: rightTimeColumn }}>
+            <div className="time-title">Time</div>
+          </div>
+
           {/* Row 3: assigned staff per team — read-only i plannerMode */}
           <div className="staff-row-time-cell" style={{ gridRow: 3, gridColumn: 1, minHeight: `${ASSIGNED_STAFF_ROW_HEIGHT}px` }} />
           {resources.map((resource, index) => {
