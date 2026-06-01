@@ -2660,6 +2660,7 @@ export type Database = {
           source_booking_phase: string | null
           start_time: string | null
           status: string
+          times_locked: boolean
           title: string
           updated_at: string
         }
@@ -2686,6 +2687,7 @@ export type Database = {
           source_booking_phase?: string | null
           start_time?: string | null
           status?: string
+          times_locked?: boolean
           title: string
           updated_at?: string
         }
@@ -2712,6 +2714,7 @@ export type Database = {
           source_booking_phase?: string | null
           start_time?: string | null
           status?: string
+          times_locked?: boolean
           title?: string
           updated_at?: string
         }
