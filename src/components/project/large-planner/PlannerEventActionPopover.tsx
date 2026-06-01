@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Button } from '@/components/ui/button';
 import {
   Plus, Trash2, Loader2, Clock, Users, Calendar as CalIcon,
-  ExternalLink, ChevronLeft, ChevronRight,
+  ExternalLink, ChevronLeft, ChevronRight, Lock, Unlock,
 } from 'lucide-react';
 import {
   format, startOfMonth, endOfMonth, eachDayOfInterval,
@@ -87,6 +87,7 @@ const PlannerEventActionPopover: React.FC<Props> = ({ event, onOpenDetails, chil
   const bookingId: string | null = ext?.plannerBookingId ?? null;
   const phaseRaw: string | null = ext?.plannerPhase ?? null;
   const currentTeamId: string | null = ext?.assignedTeamId ?? null;
+  const isCurrentLocked: boolean = ext?.plannerTimesLocked === true;
 
   const ctx = useLargeProjectPlannerItems(largeProjectId ?? null);
 
@@ -95,6 +96,8 @@ const PlannerEventActionPopover: React.FC<Props> = ({ event, onOpenDetails, chil
   const [savingTime, setSavingTime] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [movingTeam, setMovingTeam] = useState(false);
+  const [applyToAll, setApplyToAll] = useState(false);
+  const [togglingLock, setTogglingLock] = useState(false);
 
   const startISO = typeof event.start === 'string'
     ? event.start
