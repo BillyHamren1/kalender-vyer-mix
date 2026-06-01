@@ -31,25 +31,17 @@ async function fetchAllAssignments(): Promise<StaffAssignment[]> {
 
   if (error) throw error;
 
-  const { data: blockedData } = await supabase
-    .from('staff_availability')
-    .select('staff_id, start_date, end_date')
-    .in('availability_type', ['blocked', 'unavailable']);
-
-  const isBlocked = (staffId: string, dateStr: string) =>
-    (blockedData || []).some(
-      b => b.staff_id === staffId && dateStr >= b.start_date && dateStr <= b.end_date
-    );
-
-  return (data || [])
-    .filter(a => !isBlocked(a.staff_id, a.assignment_date))
-    .map(a => ({
-      staffId: a.staff_id,
-      staffName: (a.staff_members as any)?.name || `Staff ${a.staff_id}`,
-      teamId: a.team_id,
-      date: a.assignment_date,
-      color: (a.staff_members as any)?.color || '#E3F2FD',
-    }));
+  // NOTE: vi filtrerar INTE bort assignments baserat på frånvarostatus.
+  // Admin har medvetet planerat in personalen och raderna ska visas i kalendern.
+  // En frånvarostatus kan markeras visuellt i UI, men en sparad assignment
+  // får aldrig döljas i läsvägen — det orsakar att personal försvinner vid refresh.
+  return (data || []).map(a => ({
+    staffId: a.staff_id,
+    staffName: (a.staff_members as any)?.name || `Staff ${a.staff_id}`,
+    teamId: a.team_id,
+    date: a.assignment_date,
+    color: (a.staff_members as any)?.color || '#E3F2FD',
+  }));
 }
 
 async function fetchActiveStaff(): Promise<StaffMember[]> {
@@ -282,6 +274,11 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
           console.warn('[useUnifiedStaffOperations] warehouse assignment cleanup failed', e);
         }
       }
+      // Säkerställ att UI-cachen alltid synkar med DB efter en lyckad write.
+      // Realtime-kanalen är backup; vi kan inte förlita oss på den ensam pga
+      // race mellan commit och re-fetch (badge kan annars hänga kvar som
+      // optimistic och försvinna vid nästa refresh).
+      queryClient.invalidateQueries({ queryKey: ['staff-assignments-all'] });
     } catch (error) {
       toast.error((error as any)?.message || 'Kunde inte uppdatera tilldelning');
       // Revert: invalidate to re-fetch fresh data
