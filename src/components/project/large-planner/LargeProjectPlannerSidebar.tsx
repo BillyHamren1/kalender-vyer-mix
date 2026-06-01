@@ -5,7 +5,7 @@
  * projektplaneraren. Endast read + callbacks — inga DB-skrivningar.
  */
 import { useMemo, useState } from 'react';
-import { Hash, Inbox, ListChecks, Pencil } from 'lucide-react';
+import { ChevronDown, ChevronRight, Hash, Inbox, ListChecks, Pencil } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
