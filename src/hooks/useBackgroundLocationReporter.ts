@@ -614,19 +614,39 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       // aktuell mode och skicka upload-delen till locationSyncQueue så
       // auto-flushen får rätt cadence (30 min inside geofence, 60 s vid
       // boundary, osv). captureThrottle styr lokal enqueue-frekvens.
+      // captureDistanceFilter styr native start/restart (kan vara 20 m
+      // inom geofence) — INTE decision.distanceFilter (som är upload-
+      // policyns vy och kan vara grövre).
       const pos = lastKnownPosRef.current;
+      // I) Om vi är inne i en känd geofence (insideRef har targets) =>
+      //    behandla som inside oavsett om mode råkar säga active_timer.
+      //    active_timer utanför känd plats + rörelse ska bli moving_outside.
+      let policyMode: LocationMode | null = decision.mode;
+      if (decision.mode === 'active_timer') {
+        if (insideRef.current.size > 0) {
+          policyMode = 'inside_geofence_pending';
+        } else if (
+          typeof pos?.speed === 'number' && pos.speed >= 1.2
+        ) {
+          policyMode = 'workday_far';
+        }
+      }
       const capture = deriveCaptureUploadPolicy({
-        mode: decision.mode,
+        mode: policyMode,
         speedMps: pos?.speed ?? null,
       });
       captureThrottleMsRef.current = capture.captureThrottleMs;
+      captureDistanceFilterRef.current = capture.captureDistanceFilter;
+      currentUploadModeRef.current = capture.uploadMode;
+      currentUploadIntervalMsRef.current = capture.uploadIntervalMs;
       setLocationUploadPolicy({ mode: capture.uploadMode, intervalMs: capture.uploadIntervalMs });
 
       if (heartbeatTimerRef.current != null) clearTimeout(heartbeatTimerRef.current);
       heartbeatTimerRef.current = window.setTimeout(sendHeartbeat, decision.heartbeatMs);
 
       if (Capacitor.isNativePlatform()) {
-        maybeRestartNative(decision.distanceFilter);
+        // A) Använd capture.captureDistanceFilter för native start/restart.
+        maybeRestartNative(capture.captureDistanceFilter);
       }
 
       const arrivals = loadPendingArrivals();
@@ -652,6 +672,10 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
         lastGeolocationError: lastGeolocationErrorRef.current,
         currentDistanceFilter: decision.distanceFilter,
         currentHeartbeatMs: decision.heartbeatMs,
+        currentCaptureDistanceFilter: capture.captureDistanceFilter,
+        currentCaptureThrottleMs: capture.captureThrottleMs,
+        currentUploadMode: capture.uploadMode,
+        currentUploadIntervalMs: capture.uploadIntervalMs,
         backendPolicyMode: backendPolicyModeRef.current,
         isNativePlatform: Capacitor.isNativePlatform(),
         appVisibilityState:
