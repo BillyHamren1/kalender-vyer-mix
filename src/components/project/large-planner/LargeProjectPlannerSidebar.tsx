@@ -113,7 +113,7 @@ const LargeProjectPlannerSidebar = ({
 
   const renderBookingCard = (booking: LargeProjectPlannerBooking) => {
     const its = itemsByBooking.get(booking.id) ?? [];
-    const isPlanned = hasAnyBookingDate(booking);
+    const isPlanned = isBookingPlanned(booking);
     return (
       <div
         key={booking.id}
@@ -266,7 +266,7 @@ const LargeProjectPlannerSidebar = ({
           )}
           {filteredBookings.map((booking) => {
             const its = itemsByBooking.get(booking.id) ?? [];
-            const isPlanned = hasAnyBookingDate(booking);
+            const isPlanned = isBookingPlanned(booking);
             return (
               <div
                 key={booking.id}
