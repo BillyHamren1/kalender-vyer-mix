@@ -5,7 +5,7 @@
  * projektplaneraren. Endast read + callbacks — inga DB-skrivningar.
  */
 import { useMemo, useState } from 'react';
-import { Hash, Inbox, ListChecks, Pencil } from 'lucide-react';
+import { ChevronDown, ChevronRight, Hash, Inbox, ListChecks, Pencil } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -57,6 +57,7 @@ const LargeProjectPlannerSidebar = ({
   horizontal = false,
 }: Props) => {
   const [filter, setFilter] = useState<Filter>('all');
+  const [showPlanned, setShowPlanned] = useState(false);
 
   const staffById = useMemo(() => {
     const map = new Map<string, LargeProjectPlannerStaffMember>();
@@ -98,6 +99,62 @@ const LargeProjectPlannerSidebar = ({
     matchesFilter(itemsByBooking.get(b.id) ?? []),
   );
 
+  const isBookingPlanned = (b: LargeProjectPlannerBooking) =>
+    (itemsByBooking.get(b.id) ?? []).length > 0;
+  const unplannedBookings = filteredBookings.filter((b) => !isBookingPlanned(b));
+  const plannedBookings = filteredBookings.filter((b) => isBookingPlanned(b));
+
+  const renderBookingCard = (booking: LargeProjectPlannerBooking) => {
+    const its = itemsByBooking.get(booking.id) ?? [];
+    const isPlanned = its.length > 0;
+    return (
+      <div
+        key={booking.id}
+        className="w-[260px] shrink-0 rounded-md border border-border/60 bg-card p-2"
+      >
+        <div className="flex items-start justify-between gap-1">
+          <div className="min-w-0">
+            <div className="truncate text-xs font-medium text-foreground">
+              {booking.display_name}
+            </div>
+            {booking.booking_number && (
+              <div className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                <Hash className="h-2.5 w-2.5" />
+                {booking.booking_number}
+              </div>
+            )}
+          </div>
+          <Badge
+            variant={isPlanned ? 'secondary' : 'outline'}
+            className="text-[9px]"
+          >
+            {isPlanned ? `${its.length} st` : 'Ej planerad'}
+          </Badge>
+        </div>
+        <div className="mt-2 flex gap-1">
+          <Button
+            size="sm"
+            variant={isPlanned ? 'outline' : 'default'}
+            className="h-6 flex-1 text-[10px]"
+            onClick={() => onSeedBooking(booking)}
+          >
+            Planera
+          </Button>
+          {onSplitBooking && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 flex-1 text-[10px]"
+              onClick={() => onSplitBooking(booking)}
+            >
+              Dela upp
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   if (horizontal) {
     return (
       <aside className="flex shrink-0 flex-col border-b border-border/60 bg-background">
@@ -136,67 +193,40 @@ const LargeProjectPlannerSidebar = ({
         </div>
 
         <div className="overflow-x-auto">
-          <div className="flex gap-2 p-2 min-w-min">
+          <div className="flex gap-2 p-2 min-w-min items-stretch">
             {filteredBookings.length === 0 && (
               <div className="rounded-md border border-dashed border-border/60 p-3 text-center text-[11px] text-muted-foreground w-full">
                 Inga bokningar matchar filtret.
               </div>
             )}
-            {filteredBookings.map((booking) => {
-              const its = itemsByBooking.get(booking.id) ?? [];
-              const isPlanned = its.length > 0;
-              return (
-                <div
-                  key={booking.id}
-                  className="w-[260px] shrink-0 rounded-md border border-border/60 bg-card p-2"
+            {unplannedBookings.map((b) => renderBookingCard(b))}
+            {plannedBookings.length > 0 && (
+              <div className="shrink-0 self-stretch">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-full min-h-[72px] px-3 text-[11px] flex flex-col items-center justify-center gap-1"
+                  onClick={() => setShowPlanned((v) => !v)}
                 >
-                  <div className="flex items-start justify-between gap-1">
-                    <div className="min-w-0">
-                      <div className="truncate text-xs font-medium text-foreground">
-                        {booking.display_name}
-                      </div>
-                      {booking.booking_number && (
-                        <div className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                          <Hash className="h-2.5 w-2.5" />
-                          {booking.booking_number}
-                        </div>
-                      )}
-                    </div>
-                    <Badge
-                      variant={isPlanned ? 'secondary' : 'outline'}
-                      className="text-[9px]"
-                    >
-                      {isPlanned ? `${its.length} st` : 'Ej planerad'}
-                    </Badge>
-                  </div>
-                  <div className="mt-2 flex gap-1">
-                    <Button
-                      size="sm"
-                      variant={isPlanned ? 'outline' : 'default'}
-                      className="h-6 flex-1 text-[10px]"
-                      onClick={() => onSeedBooking(booking)}
-                    >
-                      Planera
-                    </Button>
-                    {onSplitBooking && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-6 flex-1 text-[10px]"
-                        onClick={() => onSplitBooking(booking)}
-                      >
-                        Dela upp
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+                  {showPlanned ? (
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  )}
+                  <span className="font-semibold">Planerade bokningar</span>
+                  <Badge variant="secondary" className="text-[9px]">
+                    {plannedBookings.length} st
+                  </Badge>
+                </Button>
+              </div>
+            )}
+            {showPlanned && plannedBookings.map((b) => renderBookingCard(b))}
           </div>
         </div>
       </aside>
     );
   }
+
 
   return (
     <aside className="flex w-72 shrink-0 flex-col border-l border-border/60 bg-background">
