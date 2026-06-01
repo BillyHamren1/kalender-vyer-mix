@@ -271,7 +271,7 @@ const LargeProjectPlannerSidebar = ({
           )}
           {filteredBookings.map((booking) => {
             const its = itemsByBooking.get(booking.id) ?? [];
-            const isPlanned = its.length > 0;
+            const isPlanned = hasAnyBookingDate(booking);
             return (
               <div
                 key={booking.id}
