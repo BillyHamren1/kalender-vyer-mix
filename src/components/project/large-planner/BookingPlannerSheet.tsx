@@ -110,30 +110,19 @@ const normalizeHHMM = (t: string | null | undefined, fallback: string): string =
 const buildInitialDrafts = (
   booking: LargeProjectPlannerBooking,
 ): PlanWholeBookingSelection['drafts'] => ({
+  // ENBART sparade calendar_events-datum visas — ärvda bokningsdatum är inte planering.
   rig: {
-    dates: booking.rig_dates.length
-      ? [...booking.rig_dates].sort()
-      : booking.rigdaydate
-        ? [booking.rigdaydate]
-        : [],
+    dates: [...booking.rig_dates].sort(),
     startTime: normalizeHHMM(booking.rig_start_time, '08:00'),
     endTime: normalizeHHMM(booking.rig_end_time, '17:00'),
   },
   event: {
-    dates: booking.event_dates.length
-      ? [...booking.event_dates].sort()
-      : booking.eventdate
-        ? [booking.eventdate]
-        : [],
+    dates: [...booking.event_dates].sort(),
     startTime: normalizeHHMM(booking.event_start_time, '08:00'),
     endTime: normalizeHHMM(booking.event_end_time, '17:00'),
   },
   rigDown: {
-    dates: booking.rigdown_dates.length
-      ? [...booking.rigdown_dates].sort()
-      : booking.rigdowndate
-        ? [booking.rigdowndate]
-        : [],
+    dates: [...booking.rigdown_dates].sort(),
     startTime: normalizeHHMM(booking.rigdown_start_time, '08:00'),
     endTime: normalizeHHMM(booking.rigdown_end_time, '17:00'),
   },

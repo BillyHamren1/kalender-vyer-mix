@@ -174,12 +174,11 @@ async function fetchProjectBookings(
       contact_phone: b.contact_phone ?? null,
       contact_email: b.contact_email ?? null,
       internalnotes: b.internalnotes ?? null,
-      rig_dates: uniqueSortedDates([...phaseDates.rig, normalizePlannerDate(b.rigdaydate)]),
-      event_dates: uniqueSortedDates([...phaseDates.event, normalizePlannerDate(b.eventdate)]),
-      rigdown_dates: uniqueSortedDates([
-        ...phaseDates.rigDown,
-        normalizePlannerDate(b.rigdowndate),
-      ]),
+      // ENBART planerade datum från calendar_events — ärvda bokningsdatum
+      // (rigdaydate/eventdate/rigdowndate) ska INTE räknas som planerade.
+      rig_dates: uniqueSortedDates([...phaseDates.rig]),
+      event_dates: uniqueSortedDates([...phaseDates.event]),
+      rigdown_dates: uniqueSortedDates([...phaseDates.rigDown]),
       has_calendar_phase_days:
         phaseDates.rig.size > 0 ||
         phaseDates.event.size > 0 ||
