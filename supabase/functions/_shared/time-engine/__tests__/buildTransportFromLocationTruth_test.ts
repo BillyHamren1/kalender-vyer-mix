@@ -57,11 +57,16 @@ Deno.test('transport: >= 500 m between different places creates Resa', () => {
     seg({ id: 's1', startAt: '2025-01-01T08:00:00Z', endAt: '2025-01-01T09:00:00Z',
       kind: 'project', label: 'Swedish Game Fair', targetId: 'p1', targetType: 'project',
       centerLat: 59.3293, centerLng: 18.0686 }),
-    seg({ id: 's2', startAt: '2025-01-01T09:30:00Z', endAt: '2025-01-01T10:00:00Z',
+    seg({ id: 's2', startAt: '2025-01-01T09:20:00Z', endAt: '2025-01-01T10:00:00Z',
       kind: 'project', label: 'GOPA', targetId: 'p2', targetType: 'project',
       centerLat: 59.2937, centerLng: 18.0830 }),
   ];
-  const r = buildTransportFromLocationTruth({ locationTruthSegments: segs });
+  // Egna pings som täcker glappet och visar verklig förflyttning.
+  const pings = [
+    { ts: '2025-01-01T08:59:00Z', lat: 59.3293, lng: 18.0686 },
+    { ts: '2025-01-01T09:21:00Z', lat: 59.2937, lng: 18.0830 },
+  ];
+  const r = buildTransportFromLocationTruth({ locationTruthSegments: segs, pings });
   assertEquals(r.transportSegments.length, 1);
   assertEquals(r.transportSegments[0].label, 'Resa');
   assertEquals(r.transportSegments[0].fromLabel, 'Swedish Game Fair');
