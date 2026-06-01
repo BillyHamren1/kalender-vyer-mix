@@ -174,6 +174,7 @@ export const mapPlannerItemsToCalendarEvents = (
           bookingId: it.booking_id,
           assignedStaffId: it.assigned_staff_id,
           assignedTeamId: it.assigned_team_id,
+          plannerTimesLocked: it.times_locked === true,
           status: it.status,
           itemType: it.item_type,
           usesFallbackTime: !it.start_time || !it.end_time,

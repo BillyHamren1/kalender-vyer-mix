@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Button } from '@/components/ui/button';
 import {
   Plus, Trash2, Loader2, Clock, Users, Calendar as CalIcon,
-  ExternalLink, ChevronLeft, ChevronRight,
+  ExternalLink, ChevronLeft, ChevronRight, Lock, Unlock,
 } from 'lucide-react';
 import {
   format, startOfMonth, endOfMonth, eachDayOfInterval,
@@ -87,6 +87,7 @@ const PlannerEventActionPopover: React.FC<Props> = ({ event, onOpenDetails, chil
   const bookingId: string | null = ext?.plannerBookingId ?? null;
   const phaseRaw: string | null = ext?.plannerPhase ?? null;
   const currentTeamId: string | null = ext?.assignedTeamId ?? null;
+  const isCurrentLocked: boolean = ext?.plannerTimesLocked === true;
 
   const ctx = useLargeProjectPlannerItems(largeProjectId ?? null);
 
@@ -95,6 +96,8 @@ const PlannerEventActionPopover: React.FC<Props> = ({ event, onOpenDetails, chil
   const [savingTime, setSavingTime] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [movingTeam, setMovingTeam] = useState(false);
+  const [applyToAll, setApplyToAll] = useState(false);
+  const [togglingLock, setTogglingLock] = useState(false);
 
   const startISO = typeof event.start === 'string'
     ? event.start
@@ -151,19 +154,37 @@ const PlannerEventActionPopover: React.FC<Props> = ({ event, onOpenDetails, chil
 
   const handleSaveTime = async () => {
     if (!plannerItemId) return;
+    if (isCurrentLocked && !applyToAll) {
+      toast.error('Tiden är låst för denna dag');
+      return;
+    }
     const newStart = `${sH}:${sM}:00`;
     const newEnd = `${eH}:${eM}:00`;
     if (newEnd <= newStart) {
       toast.error('Sluttid måste vara efter starttid');
       return;
     }
+    // Bulk: alla planner-dagar för samma bokning + fas, hoppa låsta.
+    const targets = applyToAll
+      ? phaseDays.filter((d) => d.times_locked !== true)
+      : phaseDays.filter((d) => d.id === plannerItemId);
+    const skipped = applyToAll
+      ? phaseDays.filter((d) => d.times_locked === true).length
+      : 0;
+    if (targets.length === 0) {
+      toast.error('Inget att uppdatera (alla låsta?)');
+      return;
+    }
     setSavingTime(true);
     try {
-      await ctx.updateItem(plannerItemId, {
-        start_time: newStart,
-        end_time: newEnd,
-      });
-      toast.success('Tid uppdaterad');
+      for (const t of targets) {
+        await ctx.updateItem(t.id, { start_time: newStart, end_time: newEnd });
+      }
+      toast.success(
+        applyToAll
+          ? `Tid uppdaterad för ${targets.length} dag(ar)${skipped ? ` (${skipped} låsta hoppades över)` : ''}`
+          : 'Tid uppdaterad',
+      );
     } catch (e: any) {
       toast.error(e?.message || 'Kunde inte uppdatera tid');
     } finally {
@@ -173,13 +194,30 @@ const PlannerEventActionPopover: React.FC<Props> = ({ event, onOpenDetails, chil
 
   const handleMoveToTeam = async (teamId: string) => {
     if (!plannerItemId || teamId === currentTeamId) return;
+    const targets = applyToAll
+      ? phaseDays.filter((d) => d.times_locked !== true)
+      : phaseDays.filter((d) => d.id === plannerItemId);
+    const skipped = applyToAll
+      ? phaseDays.filter((d) => d.times_locked === true).length
+      : 0;
+    if (targets.length === 0) {
+      toast.error('Inget att flytta (alla låsta?)');
+      return;
+    }
     setMovingTeam(true);
     try {
-      await ctx.updateItem(plannerItemId, {
-        assigned_team_id: teamId,
-        assigned_staff_id: null,
-      });
-      toast.success(`Flyttad till ${teamId.replace('team-', 'Team ')}`);
+      for (const t of targets) {
+        await ctx.updateItem(t.id, {
+          assigned_team_id: teamId,
+          assigned_staff_id: null,
+        });
+      }
+      const label = teamId.replace('team-', 'Team ');
+      toast.success(
+        applyToAll
+          ? `${targets.length} dag(ar) flyttade till ${label}${skipped ? ` (${skipped} låsta hoppades över)` : ''}`
+          : `Flyttad till ${label}`,
+      );
     } catch (e: any) {
       toast.error(e?.message || 'Kunde inte flytta');
     } finally {
@@ -187,7 +225,25 @@ const PlannerEventActionPopover: React.FC<Props> = ({ event, onOpenDetails, chil
     }
   };
 
+  const handleToggleLock = async () => {
+    if (!plannerItemId) return;
+    setTogglingLock(true);
+    try {
+      await ctx.updateItem(plannerItemId, { times_locked: !isCurrentLocked } as never);
+      toast.success(!isCurrentLocked ? 'Tid låst för denna dag' : 'Tid upplåst');
+    } catch (e: any) {
+      toast.error(e?.message || 'Kunde inte ändra lås');
+    } finally {
+      setTogglingLock(false);
+    }
+  };
+
   const handleDeleteDay = async (id: string) => {
+    const target = phaseDays.find((d) => d.id === id);
+    if (target?.times_locked) {
+      toast.error('Dagen är låst – lås upp först');
+      return;
+    }
     setDeletingId(id);
     try {
       await ctx.deleteItem(id);
@@ -200,7 +256,12 @@ const PlannerEventActionPopover: React.FC<Props> = ({ event, onOpenDetails, chil
   };
 
   const handleDeleteCurrent = async () => {
-    if (plannerItemId) await handleDeleteDay(plannerItemId);
+    if (!plannerItemId) return;
+    if (isCurrentLocked) {
+      toast.error('Dagen är låst – lås upp först');
+      return;
+    }
+    await handleDeleteDay(plannerItemId);
     setOpen(false);
   };
 
@@ -296,21 +357,28 @@ const PlannerEventActionPopover: React.FC<Props> = ({ event, onOpenDetails, chil
                     const inMonth = isSameMonth(d, viewMonth);
                     const rows = daysByDate.get(k) ?? [];
                     const hasRows = rows.length > 0;
+                    const anyLocked = rows.some((r) => r.times_locked === true);
+                    const onlyLocked = hasRows && rows.every((r) => r.times_locked === true);
                     const isCurrent = isSameDay(d, parseISO(eventDate));
-                    const ringCls = isCurrent ? 'ring-2 ring-primary' : '';
+                    const ringCls = isCurrent
+                      ? 'ring-2 ring-primary'
+                      : anyLocked
+                        ? 'ring-2 ring-destructive'
+                        : '';
                     return (
                       <button
                         key={k}
                         type="button"
                         onClick={() => {
                           if (hasRows) {
-                            handleDeleteDay(rows[0].id);
+                            const target = rows.find((r) => r.times_locked !== true) ?? rows[0];
+                            handleDeleteDay(target.id);
                           } else {
                             setShowAddDay(true);
                           }
                         }}
                         title={hasRows
-                          ? `${rows.length} dag(ar) — klicka för att ta bort`
+                          ? `${rows.length} dag(ar)${onlyLocked ? ' (låst)' : ' — klicka för att ta bort'}`
                           : 'Klicka för att lägga till dag'}
                         disabled={deletingId !== null && rows.some((r) => r.id === deletingId)}
                         className={`relative h-11 rounded border text-[11px] flex flex-col items-center justify-start pt-1 transition-colors ${
@@ -324,6 +392,9 @@ const PlannerEventActionPopover: React.FC<Props> = ({ event, onOpenDetails, chil
                         <span className={`leading-none ${isCurrent ? 'font-semibold' : ''}`}>
                           {format(d, 'd')}
                         </span>
+                        {anyLocked && (
+                          <Lock className="absolute top-0.5 right-0.5 h-2.5 w-2.5 text-destructive" />
+                        )}
                         {hasRows && (
                           <div className="absolute bottom-1 left-1 right-1 flex flex-wrap justify-center gap-0.5">
                             {rows.map((r) => (
@@ -355,12 +426,31 @@ const PlannerEventActionPopover: React.FC<Props> = ({ event, onOpenDetails, chil
             )}
 
             {/* TIME ROW */}
-            <div className="space-y-1.5 rounded p-2 -mx-1">
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Clock className="h-3 w-3" /> Tid
-                {phaseLabel && (
-                  <span>· {phaseLabel} {format(parseISO(eventDate), 'd MMM', { locale: sv })}</span>
-                )}
+            <div className={`space-y-1.5 rounded p-2 -mx-1 ${isCurrentLocked ? 'bg-destructive/5 ring-1 ring-destructive/40' : ''}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Clock className="h-3 w-3" /> Tid
+                  {phaseLabel && (
+                    <span>· {phaseLabel} {format(parseISO(eventDate), 'd MMM', { locale: sv })}</span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleToggleLock}
+                  disabled={togglingLock || !plannerItemId}
+                  className={`inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border transition-colors ${
+                    isCurrentLocked
+                      ? 'border-destructive text-destructive bg-destructive/10'
+                      : 'border-border text-muted-foreground hover:bg-muted'
+                  } disabled:opacity-50`}
+                  title={isCurrentLocked ? 'Klicka för att låsa upp' : 'Lås tid mot redigering'}
+                >
+                  {togglingLock
+                    ? <Loader2 className="h-3 w-3 animate-spin" />
+                    : isCurrentLocked
+                      ? <><Lock className="h-3 w-3" />Låst</>
+                      : <><Unlock className="h-3 w-3" />Lås tider</>}
+                </button>
               </div>
               <div className="flex items-center gap-2 text-xs">
                 <TimeSelect h={sH} m={sM} onH={setSH} onM={setSM} />
@@ -369,12 +459,28 @@ const PlannerEventActionPopover: React.FC<Props> = ({ event, onOpenDetails, chil
                 <Button
                   size="sm"
                   className="h-7 ml-auto"
-                  disabled={!timeChanged || savingTime}
+                  disabled={!timeChanged || savingTime || (isCurrentLocked && !applyToAll)}
                   onClick={handleSaveTime}
                 >
                   {savingTime ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Spara'}
                 </Button>
               </div>
+              {phaseDays.length > 1 && (
+                <label className="flex items-center gap-2 text-xs cursor-pointer select-none text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={applyToAll}
+                    onChange={(e) => setApplyToAll(e.target.checked)}
+                    className="h-3.5 w-3.5 accent-primary"
+                  />
+                  Ändra tid/team för alla {phaseLabel || 'fas'}-dagar ({phaseDays.length}) — låsta hoppas över
+                </label>
+              )}
+              {isCurrentLocked && !applyToAll && (
+                <div className="text-[11px] text-destructive">
+                  Tiden är låst — lås upp eller bocka i "Ändra för alla …-dagar" för att spara.
+                </div>
+              )}
             </div>
 
             {/* FOOTER */}
@@ -393,7 +499,7 @@ const PlannerEventActionPopover: React.FC<Props> = ({ event, onOpenDetails, chil
                 size="sm"
                 variant="ghost"
                 className="h-7 text-xs text-destructive hover:bg-destructive/10"
-                disabled={deletingId === plannerItemId}
+                disabled={deletingId === plannerItemId || isCurrentLocked}
                 onClick={handleDeleteCurrent}
               >
                 <Trash2 className="h-3 w-3 mr-1" /> Ta bort

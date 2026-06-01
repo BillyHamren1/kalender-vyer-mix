@@ -33,6 +33,8 @@ export interface LargeProjectBookingPlanItem {
   sort_order: number;
   notes: string | null;
   metadata: Record<string, unknown>;
+  /** Låser tider och teamflytt mot ändringar/drag/resize (mirror av personalkalenderns calendar_events.times_locked). */
+  times_locked?: boolean;
   /** Koppling till en specifik orderrad i bokningen (booking_products.id). */
   booking_product_id?: string | null;
   created_at: string;
