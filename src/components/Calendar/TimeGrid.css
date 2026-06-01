@@ -215,11 +215,70 @@
 
 .team-header-content {
   display: flex;
-  align-items: center;
-  justify-content: flex-start;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
   width: 100%;
-  gap: 4px;
+  gap: 1px;
   min-width: 0;
+}
+
+.team-vehicle-line {
+  font-size: 9px;
+  font-weight: 600;
+  color: hsl(var(--calendar-primary));
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.1px;
+  padding-right: 36px; /* lämna plats för bil- + plus-knappen */
+}
+
+.add-vehicle-button-header {
+  background: transparent;
+  color: hsl(var(--calendar-primary) / 0.55);
+  border: none;
+  padding: 0;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: absolute;
+  top: 2px;
+  right: 22px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.add-vehicle-button-header[data-active="true"] {
+  color: hsl(var(--calendar-primary));
+}
+
+.add-vehicle-button-header:hover {
+  background: hsl(var(--calendar-primary) / 0.12);
+  color: hsl(var(--calendar-primary));
+  transform: scale(1.08);
+}
+
+.add-vehicle-button-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  background: hsl(var(--calendar-primary));
+  color: hsl(var(--calendar-primary-foreground));
+  font-size: 8px;
+  font-weight: 700;
+  border-radius: 999px;
+  min-width: 12px;
+  height: 12px;
+  padding: 0 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 .team-title {
