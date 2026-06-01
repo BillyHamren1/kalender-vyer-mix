@@ -1205,8 +1205,12 @@ Deno.serve(async (req) => {
         });
 
         // 6) buildTransportFromLocationTruth
+        //    Mata in råa pings så gate:n kan kräva staffens EGNA GPS-
+        //    displacement över glappet (core: transport-requires-own-movement-v1).
         const ltTransport = buildTransportFromLocationTruth({
           locationTruthSegments: ltTimeline.segments,
+          pings: ltPings.map((p) => ({ ts: p.ts, lat: p.lat, lng: p.lng })),
+          timezone: 'Europe/Stockholm',
         });
 
         // 7) buildReportBlocksFromLocationTruth
