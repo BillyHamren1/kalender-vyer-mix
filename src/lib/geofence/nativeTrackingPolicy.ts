@@ -5,35 +5,39 @@
  * on iOS, which floods Supabase with thousands of pings per device and
  * causes database overload.
  *
- * Production minimum: 50 meters. Never use 0 in production.
+ * Produktionsgräns: 50 meter (anti-DDoS mot Supabase).
+ * Övre gräns: 75 meter — annars blir telefonen blind nära lager/hem och
+ * vi missar in/ut genom geofence. Capture-policy får INTE välja grövre
+ * än 75 m. Upload-skydd görs istället via batch-policy i locationSyncQueue.
  */
 
 // AKUT STABILISERING 2026-05-26: Höjt från 0 → 50m för att stoppa
-// Supabase-överbelastning. distanceFilter=0 (kCLDistanceFilterNone) på iOS
-// triggar GPS-callback för minsta rörelse och hammrar staff_location_history.
-// FÅR INTE sänkas tillbaka till 0 i produktion.
+// Supabase-överbelastning. FÅR INTE sänkas under 50 i produktion.
 export const ALWAYS_ON_NATIVE_DISTANCE_FILTER = 50;
 
-/** Minimum tillåten distanceFilter i produktion. */
+/** Minimum tillåten distanceFilter i produktion (anti-DDoS). */
 export const MIN_PRODUCTION_DISTANCE_FILTER = 50;
+/** Maximum tillåten distanceFilter på native (annars blir telefonen blind). */
+export const MAX_NATIVE_DISTANCE_FILTER = 75;
 
 export function resolveAppliedTrackingDistanceFilter(args: {
   desiredDistanceFilter: number;
   isNativePlatform: boolean;
 }): number {
   if (args.isNativePlatform) {
-    // På native får applied distanceFilter ALDRIG bli glesare än
-    // ALWAYS_ON_NATIVE_DISTANCE_FILTER (50 m). Backend kan be om
-    // battery_saver=500m, men då blir telefonen blind nära lager/hem
-    // (GPS-callback fyrar inte förrän personen rört sig 500 m). Vi
-    // clampar därför uppåt (max 50 m) OCH nedåt (min 50 m, anti-DDoS
-    // mot egen Supabase). Resultat på native: alltid exakt 50 m.
+    // På native måste applied distanceFilter ligga mellan
+    // MIN_PRODUCTION_DISTANCE_FILTER (50m, anti-DDoS) och
+    // MAX_NATIVE_DISTANCE_FILTER (75m, annars missar vi geofence i/ut).
+    // Tidigare clampade vi mot ALWAYS_ON (50) som tak vilket gjorde att
+    // varje desired ≥50 blev exakt 50m — bra för flush-skydd men gjorde
+    // det omöjligt att vila batterit i outside_idle. Med 50–75 får vi
+    // utrymme för båda extremfallen utan att stryka GPS-callback helt.
     if (!Number.isFinite(args.desiredDistanceFilter)) {
-      return ALWAYS_ON_NATIVE_DISTANCE_FILTER;
+      return MIN_PRODUCTION_DISTANCE_FILTER;
     }
-    return Math.min(
-      ALWAYS_ON_NATIVE_DISTANCE_FILTER,
-      Math.max(MIN_PRODUCTION_DISTANCE_FILTER, args.desiredDistanceFilter),
+    return Math.max(
+      MIN_PRODUCTION_DISTANCE_FILTER,
+      Math.min(args.desiredDistanceFilter, MAX_NATIVE_DISTANCE_FILTER),
     );
   }
   if (!Number.isFinite(args.desiredDistanceFilter)) return 0;

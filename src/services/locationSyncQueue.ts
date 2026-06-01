@@ -30,11 +30,55 @@ const QUEUE_KEY = 'eventflow-location-sync-queue';
 // flushar var 10:e minut. Viktiga händelser (start/stop dag, online,
 // geofence enter/exit, travel start/end) ska istället använda
 // forceFlushLocationQueue(reason) och bypassar då throttle.
+//
+// Upload-policy kan justeras runtime via setLocationUploadPolicy så att
+// reporter-hooken kan slå om mellan t.ex. "batch_inside_geofence" (30 min)
+// och "boundary_guard" (60 s). forceFlush bypassar ALLTID policy.
 export const LOCATION_BATCH_FLUSH_INTERVAL_MS = 10 * 60_000;
-const MIN_AUTO_FLUSH_INTERVAL_MS = 60_000;
+const DEFAULT_AUTO_FLUSH_INTERVAL_MS = 60_000;
 let lastAutoFlushAt = 0;
 let lastForceFlushReason: string | null = null;
 let lastForceFlushAt: number | null = null;
+
+export type LocationUploadMode =
+  | 'batch_inside_geofence'
+  | 'boundary_guard'
+  | 'moving_outside_known_geofence'
+  | 'outside_idle'
+  | 'default';
+
+export interface LocationUploadPolicy {
+  mode: LocationUploadMode;
+  /** Min ms mellan auto-flushar. forceFlush ignorerar detta. */
+  intervalMs: number;
+}
+
+let currentUploadPolicy: LocationUploadPolicy = {
+  mode: 'default',
+  intervalMs: DEFAULT_AUTO_FLUSH_INTERVAL_MS,
+};
+
+/**
+ * Reporter-hooken kallar denna när location mode ändras (t.ex. enter
+ * geofence → 'batch_inside_geofence' 30 min). Påverkar enbart
+ * autoFlushIfDue-cadencen — forceFlushLocationQueue går alltid igenom.
+ */
+export function setLocationUploadPolicy(policy: LocationUploadPolicy): void {
+  if (
+    currentUploadPolicy.mode === policy.mode &&
+    currentUploadPolicy.intervalMs === policy.intervalMs
+  ) return;
+  currentUploadPolicy = { ...policy };
+  patchStatus({
+    currentUploadMode: policy.mode,
+    currentUploadIntervalMs: policy.intervalMs,
+  });
+}
+
+export function getLocationUploadPolicy(): LocationUploadPolicy {
+  return currentUploadPolicy;
+}
+
 
 
 // Hard cap so a multi-day offline session can't grow the queue
@@ -110,6 +154,10 @@ export interface LocationSyncStatus {
   lastCompressionRatio: number;
   lastForceFlushReason: string | null;
   lastForceFlushAt: number | null;
+  // ── Upload-policy + senaste auto-flush (debug) ──
+  currentUploadMode: LocationUploadMode;
+  currentUploadIntervalMs: number;
+  lastAutoFlushAt: number | null;
 }
 
 const DEFAULT_STATUS: LocationSyncStatus = {
@@ -126,7 +174,11 @@ const DEFAULT_STATUS: LocationSyncStatus = {
   lastCompressionRatio: 1,
   lastForceFlushReason: null,
   lastForceFlushAt: null,
+  currentUploadMode: 'default',
+  currentUploadIntervalMs: DEFAULT_AUTO_FLUSH_INTERVAL_MS,
+  lastAutoFlushAt: null,
 };
+
 
 
 type StatusListener = (status: LocationSyncStatus) => void;
@@ -328,20 +380,29 @@ export async function forceFlushLocationQueue(reason: string): Promise<void> {
     lastForceFlushAt,
   });
   lastAutoFlushAt = Date.now();
+  patchStatus({ lastAutoFlushAt });
   await flushLocationQueue();
 }
 
 /**
  * Mild throttle för opportunistiska auto-flush-triggers (online, focus,
- * visibilitychange, periodisk 10-min-timer). Använd INTE för viktiga
- * händelser — använd forceFlushLocationQueue(reason) då.
+ * visibilitychange, periodisk timer). Använd INTE för viktiga händelser —
+ * använd forceFlushLocationQueue(reason) då.
+ *
+ * Intervallet styrs av aktuell upload-policy (default 60 s):
+ *   - batch_inside_geofence           → 30 min
+ *   - moving_outside_known_geofence   → 60 s
+ *   - boundary_guard                  → 60 s
+ *   - outside_idle                    → 5 min
  */
 function autoFlushIfDue(): void {
   const now = Date.now();
-  if (now - lastAutoFlushAt < MIN_AUTO_FLUSH_INTERVAL_MS) return;
+  if (now - lastAutoFlushAt < currentUploadPolicy.intervalMs) return;
   lastAutoFlushAt = now;
+  patchStatus({ lastAutoFlushAt });
   void flushLocationQueue();
 }
+
 
 
 let flushing = false;
@@ -415,6 +476,7 @@ export async function flushLocationQueue(): Promise<void> {
           speed: p.speed,
           source: p.source,
         })),
+        { uploadMode: currentUploadPolicy.mode },
       );
       const toSend = chunk.filter(p => compression.selectedIds.has(p.id));
       patchStatus({

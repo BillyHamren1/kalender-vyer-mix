@@ -5,9 +5,11 @@ import {
   enqueueLocationPoint,
   forceFlushLocationQueue,
   getLocationSyncStatus,
+  setLocationUploadPolicy,
   subscribeLocationSyncStatus,
   type LocationSyncStatus,
 } from '@/services/locationSyncQueue';
+import { deriveCaptureUploadPolicy } from '@/lib/geofence/captureUploadPolicy';
 
 import { getBatterySnapshot } from '@/lib/mobile/getBatterySnapshot';
 import { GpsPosition, haversineDistance, ENTER_RADIUS } from '@/hooks/useGeofencing';
@@ -239,6 +241,11 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
   const syncStatusRef = useRef<LocationSyncStatus>(getLocationSyncStatus());
   // Throttle för gps_silent app-health events (max 1/5min per session)
   const lastGpsSilentSentAtRef = useRef<number>(0);
+  // Dynamisk capture-throttle (ms) — uppdateras vid rescheduleHeartbeat.
+  // Ersätter den hårdkodade REPORT_THROTTLE_MS-konstanten så att inom
+  // geofence kan vi enqueueas tätare (30s) och outside_idle släpper igenom
+  // bara var 5:e min.
+  const captureThrottleMsRef = useRef<number>(REPORT_THROTTLE_MS);
 
 
   const [debug, setDebug] = useState<BackgroundLocationDebugInfo>({
@@ -395,7 +402,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       lastKnownPosRef.current = { lat: latitude, lng: longitude, accuracy, speed };
 
       const now = Date.now();
-      if (now - lastReportRef.current < REPORT_THROTTLE_MS) {
+      if (now - lastReportRef.current < captureThrottleMsRef.current) {
         checkBackgroundGeofences(latitude, longitude);
         return;
       }
@@ -574,6 +581,19 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       const prevMode = currentModeRef.current;
       currentHeartbeatMsRef.current = decision.heartbeatMs;
       currentDistanceFilterRef.current = decision.distanceFilter;
+
+      // Separera CAPTURE från UPLOAD: härled capture/upload-policy från
+      // aktuell mode och skicka upload-delen till locationSyncQueue så
+      // auto-flushen får rätt cadence (30 min inside geofence, 60 s vid
+      // boundary, osv). captureThrottle styr lokal enqueue-frekvens.
+      const pos = lastKnownPosRef.current;
+      const capture = deriveCaptureUploadPolicy({
+        mode: decision.mode,
+        speedMps: pos?.speed ?? null,
+      });
+      captureThrottleMsRef.current = capture.captureThrottleMs;
+      setLocationUploadPolicy({ mode: capture.uploadMode, intervalMs: capture.uploadIntervalMs });
+
       if (heartbeatTimerRef.current != null) clearTimeout(heartbeatTimerRef.current);
       heartbeatTimerRef.current = window.setTimeout(sendHeartbeat, decision.heartbeatMs);
 
