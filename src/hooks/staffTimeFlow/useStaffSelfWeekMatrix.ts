@@ -10,9 +10,9 @@
  *
  * Får ALDRIG:
  *   - bygga om dagen från raw GPS (staff_location_history)
- *   - anropa `useStaffGpsWeekSummary` / `get-staff-gps-week-summary`
- *   - anropa `buildCanonicalStaffDayGpsResult`
- *   - anropa `get-mobile-gps-day-view` / `submit-mobile-gps-day-v2`
+ *   - anropa legacy GPS-veckohook eller GPS-summary-endpoint
+ *   - anropa canonical GPS-buildern
+ *   - anropa legacy mobile day-view eller legacy submit-endpoint
  */
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
