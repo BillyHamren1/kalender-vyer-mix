@@ -143,10 +143,17 @@ export function compressLocationBatch(
       selected.add(sorted[j].id);
       sourceOverrides.set(sorted[j].id, 'compressed_stay');
 
+      // När appen är inom geofence och samlar batch ska fler
+      // mellanpunkter bevaras (2 min) så vi ser rörelsen inne på
+      // platsen. Annars klassisk 10-min-heartbeat.
+      const stayHeartbeatMs =
+        options.uploadMode === 'batch_inside_geofence'
+          ? STAY_HEARTBEAT_INSIDE_GEOFENCE_MS
+          : STAY_HEARTBEAT_MS;
       let lastHeartbeat = tsMs(sorted[i].recordedAt);
       for (let k = i + 1; k < j; k++) {
         const t = tsMs(sorted[k].recordedAt);
-        if (t - lastHeartbeat >= STAY_HEARTBEAT_MS) {
+        if (t - lastHeartbeat >= stayHeartbeatMs) {
           selected.add(sorted[k].id);
           sourceOverrides.set(sorted[k].id, 'compressed_stay');
           lastHeartbeat = t;
