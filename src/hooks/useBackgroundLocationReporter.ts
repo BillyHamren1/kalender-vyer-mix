@@ -581,6 +581,19 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       const prevMode = currentModeRef.current;
       currentHeartbeatMsRef.current = decision.heartbeatMs;
       currentDistanceFilterRef.current = decision.distanceFilter;
+
+      // Separera CAPTURE från UPLOAD: härled capture/upload-policy från
+      // aktuell mode och skicka upload-delen till locationSyncQueue så
+      // auto-flushen får rätt cadence (30 min inside geofence, 60 s vid
+      // boundary, osv). captureThrottle styr lokal enqueue-frekvens.
+      const pos = lastKnownPosRef.current;
+      const capture = deriveCaptureUploadPolicy({
+        mode: decision.mode,
+        speedMps: pos?.speed ?? null,
+      });
+      captureThrottleMsRef.current = capture.captureThrottleMs;
+      setLocationUploadPolicy({ mode: capture.uploadMode, intervalMs: capture.uploadIntervalMs });
+
       if (heartbeatTimerRef.current != null) clearTimeout(heartbeatTimerRef.current);
       heartbeatTimerRef.current = window.setTimeout(sendHeartbeat, decision.heartbeatMs);
 
