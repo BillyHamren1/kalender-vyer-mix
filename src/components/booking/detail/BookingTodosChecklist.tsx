@@ -91,8 +91,8 @@ async function fetchRows(bookingId: string): Promise<PlanRow[]> {
 
 /** Paketmedlemmar (komponenter under ett paket) ska aldrig vara egna to-dos. */
 const isPackageMember = (
-  p: { is_package_component?: boolean | null; parent_product_id?: string | null } | null | undefined,
-): boolean => !!p && (!!p.is_package_component || !!p.parent_product_id);
+  p: { is_package_component?: boolean | null } | null | undefined,
+): boolean => !!p && !!p.is_package_component;
 
 /** Fas-rader från bokningsspegeln är dagrubriker, inte to-dos. */
 const isPhaseRow = (r: PlanRow): boolean =>
