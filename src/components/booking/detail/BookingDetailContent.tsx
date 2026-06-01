@@ -14,7 +14,7 @@ import { MapDrawingCard } from '../MapDrawingCard';
 import BookingEconomicsCard from '../BookingEconomicsCard';
 import PackingStatusCard from '../PackingStatusCard';
 import StaffAssignmentWarning from '../StaffAssignmentWarning';
-import LargeProjectBookingPlanMirror from '@/components/project/LargeProjectBookingPlanMirror';
+import BookingTodosChecklist from './BookingTodosChecklist';
 
 interface BookingDetailContentProps {
   booking: Booking;
@@ -107,7 +107,7 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
               />
             </CardContent>
           </Card>
-          <LargeProjectBookingPlanMirror bookingId={booking.id} />
+          <BookingTodosChecklist bookingId={booking.id} largeProjectId={booking.largeProjectId ?? null} />
           <ProductsList products={booking.products || []} />
           <AttachmentsList 
             bookingId={booking.id}
