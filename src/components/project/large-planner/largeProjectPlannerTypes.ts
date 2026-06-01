@@ -65,6 +65,8 @@ export interface LargeProjectPlannerBooking {
   rig_dates: string[];
   event_dates: string[];
   rigdown_dates: string[];
+  /** True om bokningen har minst en sparad fas-dag i projektets calendar_events (rig/event/rigDown). */
+  has_calendar_phase_days: boolean;
 }
 
 /**
