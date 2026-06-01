@@ -31,25 +31,17 @@ async function fetchAllAssignments(): Promise<StaffAssignment[]> {
 
   if (error) throw error;
 
-  const { data: blockedData } = await supabase
-    .from('staff_availability')
-    .select('staff_id, start_date, end_date')
-    .in('availability_type', ['blocked', 'unavailable']);
-
-  const isBlocked = (staffId: string, dateStr: string) =>
-    (blockedData || []).some(
-      b => b.staff_id === staffId && dateStr >= b.start_date && dateStr <= b.end_date
-    );
-
-  return (data || [])
-    .filter(a => !isBlocked(a.staff_id, a.assignment_date))
-    .map(a => ({
-      staffId: a.staff_id,
-      staffName: (a.staff_members as any)?.name || `Staff ${a.staff_id}`,
-      teamId: a.team_id,
-      date: a.assignment_date,
-      color: (a.staff_members as any)?.color || '#E3F2FD',
-    }));
+  // NOTE: vi filtrerar INTE bort assignments för "blocked"/"unavailable" personal.
+  // Admin har medvetet planerat in dem och raderna ska visas i kalendern.
+  // En blockerad status kan markeras visuellt i UI:t, men en sparad assignment
+  // får aldrig döljas — det orsakar "personal försvinner vid refresh".
+  return (data || []).map(a => ({
+    staffId: a.staff_id,
+    staffName: (a.staff_members as any)?.name || `Staff ${a.staff_id}`,
+    teamId: a.team_id,
+    date: a.assignment_date,
+    color: (a.staff_members as any)?.color || '#E3F2FD',
+  }));
 }
 
 async function fetchActiveStaff(): Promise<StaffMember[]> {
