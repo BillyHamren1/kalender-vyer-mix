@@ -20,9 +20,9 @@ const SOURCE = readFileSync(
 
 describe('staff assignments visibility contract', () => {
   it('fetchAllAssignments får inte filtrera bort blocked/unavailable rader', () => {
-    // Plocka ut hela fetchAllAssignments-funktionen
+    // Plocka ut hela fetchAllAssignments-funktionen (non-greedy + första `\n}\n` på radnivå)
     const fnMatch = SOURCE.match(
-      /async function fetchAllAssignments[\s\S]*?\n\}\n/,
+      /async function fetchAllAssignments[\s\S]*?\n\}(?=\n)/,
     );
     expect(fnMatch, 'fetchAllAssignments saknas').toBeTruthy();
     const body = fnMatch![0];
