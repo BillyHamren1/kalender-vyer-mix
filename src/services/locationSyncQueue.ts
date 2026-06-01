@@ -677,9 +677,10 @@ if (typeof window !== 'undefined') {
     void forceFlushLocationQueue('workday-ended');
   });
 
-  // App start — kör en initial flush så ev. leftover-data från
-  // tidigare session kommer iväg direkt.
-  void flushLocationQueue();
+  // App start — kör en throttlad auto-flush. Vi vill inte spränga
+  // batch_inside_geofence-policyn (30 min) bara för att tabben laddas om.
+  // forceFlushLocationQueue används ändå för viktiga händelser.
+  autoFlushIfDue();
 }
 
 
