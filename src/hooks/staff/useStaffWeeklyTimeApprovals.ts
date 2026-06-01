@@ -194,6 +194,10 @@ export function useStaffWeeklyTimeApprovals(params: UseStaffWeeklyTimeApprovalsP
       }
 
       // --- Engine cache (förslag innan personalen attesterat) ---
+      // NOTE: diagnostics_json är ~600 KB/rad och orsakade statement timeout
+      // när hela veckan laddades. Fältet hämtas lazy i inspection-drawern
+      // istället. summary_json/display_blocks_json/report_candidate_blocks_json
+      // är små (KB-storlek) och stannar kvar för listmodellen.
       let cacheQ = supabase
         .from("staff_day_report_cache")
         .select(
@@ -206,7 +210,6 @@ export function useStaffWeeklyTimeApprovals(params: UseStaffWeeklyTimeApprovalsP
             "summary_json",
             "report_candidate_blocks_json",
             "display_blocks_json",
-            "diagnostics_json",
             "built_at",
             "stale",
             "error",
@@ -217,7 +220,8 @@ export function useStaffWeeklyTimeApprovals(params: UseStaffWeeklyTimeApprovalsP
         .lte("date", weekEnd)
         .order("date", { ascending: true })
         .order("built_at", { ascending: false })
-        .limit(5000);
+        .limit(2000);
+
 
       if (staffId) cacheQ = cacheQ.eq("staff_id", staffId);
 
