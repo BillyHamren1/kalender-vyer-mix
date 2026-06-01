@@ -302,14 +302,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 }}
               >
                 <div className="team-header-content">
-                  {vehicleLineText && (
-                    <div
-                      className="team-vehicle-line"
-                      title={vehicleLineText}
-                    >
-                      {vehicleLineText}
-                    </div>
-                  )}
                   <span className="team-title">{resource.title}</span>
                   {!plannerMode && (
                     <>
