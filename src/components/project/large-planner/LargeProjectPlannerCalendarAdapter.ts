@@ -23,7 +23,7 @@
  *  - eventType                       → 'internal_task' | 'todo'
  *  - extendedProps                   → planner-metadata (se nedan).
  */
-import type { CalendarEvent, Resource } from '@/components/Calendar/ResourceData';
+import { type CalendarEvent, type Resource, getEventColor } from '@/components/Calendar/ResourceData';
 import type { PlannerItemWithValidity } from './useLargeProjectPlannerItems';
 import type { LargeProjectPlannerTeam } from './largeProjectPlannerTypes';
 
