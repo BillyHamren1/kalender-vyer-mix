@@ -235,6 +235,11 @@
   padding-right: 36px; /* lämna plats för bil- + plus-knappen */
 }
 
+.staff-header-assignment-area > .team-vehicle-line {
+  padding-right: 0;
+  margin-bottom: 4px;
+}
+
 .add-vehicle-button-header {
   background: transparent;
   color: hsl(var(--calendar-primary) / 0.55);
