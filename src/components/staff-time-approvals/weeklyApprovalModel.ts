@@ -149,14 +149,15 @@ function num(v: unknown): number {
   return typeof v === "number" && isFinite(v) ? v : 0;
 }
 
-/** Cache räknas "användbar" om vi har minst en uppfattning om dagen. */
+/**
+ * Cache räknas "användbar" om vi har minst en uppfattning om dagen.
+ * I listvyn är de tunga JSON-fälten (display_blocks_json,
+ * report_candidate_blocks_json, diagnostics_json) inte hämtade — då räcker
+ * det att summary_json indikerar tid.
+ */
 export function isUsableCacheRow(cache: StaffWeeklyCacheRow | null): boolean {
   if (!cache) return false;
   if (cache.error) return false;
-  const display = asArray(cache.display_blocks_json);
-  if (display.length > 0) return true;
-  const candidates = asArray(cache.report_candidate_blocks_json);
-  if (candidates.length > 0) return true;
   const summary = (cache.summary_json ?? null) as any;
   if (summary && typeof summary === "object") {
     if (
@@ -164,11 +165,19 @@ export function isUsableCacheRow(cache: StaffWeeklyCacheRow | null): boolean {
       num(summary.payableMinutes) > 0 ||
       num(summary.totalMinutes) > 0 ||
       num(summary.transportMinutes) > 0 ||
-      num(summary.breakMinutes) > 0
+      num(summary.travelMinutes) > 0 ||
+      num(summary.breakMinutes) > 0 ||
+      num(summary.grossWorkdayMinutes) > 0
     ) {
       return true;
     }
+    if (summary.firstIso || summary.lastIso) return true;
   }
+  // Tunga fält finns bara i drawer-detaljvyn — i listan saknas de oftast.
+  const display = asArray(cache.display_blocks_json);
+  if (display.length > 0) return true;
+  const candidates = asArray(cache.report_candidate_blocks_json);
+  if (candidates.length > 0) return true;
   return false;
 }
 
@@ -179,6 +188,7 @@ export function computeCacheMinutes(cache: StaffWeeklyCacheRow): number {
     if (num(summary.workMinutes) > 0) return Math.round(summary.workMinutes);
     if (num(summary.totalMinutes) > 0) return Math.round(summary.totalMinutes);
   }
+  // Fallback för drawer-läget där block-fält faktiskt är laddade.
   const sumBlocks = (blocks: unknown[]): number => {
     let total = 0;
     for (const b of blocks) {
@@ -225,6 +235,14 @@ const END_KEYS = ["end", "endedAt", "ended_at", "end_time", "endTime", "to"];
 export function deriveCacheStartEnd(
   cache: StaffWeeklyCacheRow,
 ): { startLabel: string | null; endLabel: string | null } {
+  // Listvyn: använd summary_json.firstIso/lastIso direkt så vi slipper ladda blocks.
+  const summary = (cache.summary_json ?? null) as any;
+  if (summary && typeof summary === "object") {
+    const s = fmtTimeMaybe(typeof summary.firstIso === "string" ? summary.firstIso : null);
+    const e = fmtTimeMaybe(typeof summary.lastIso === "string" ? summary.lastIso : null);
+    if (s || e) return { startLabel: s, endLabel: e };
+  }
+  // Drawer-läget: block-fält kan finnas.
   const tryBlocks = (blocks: unknown[]): { startLabel: string | null; endLabel: string | null } | null => {
     if (blocks.length === 0) return null;
     const first = blocks[0] as any;
