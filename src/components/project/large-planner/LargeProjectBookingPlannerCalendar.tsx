@@ -15,7 +15,7 @@
  *  - All write går via useLargeProjectPlannerItems → largeProjectPlannerService
  *    → enbart tabellen `large_project_booking_plan_items`.
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -304,6 +304,17 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
   const handleCalendarEventClick = useCallback((ev: CalendarEvent) => {
     const plannerItemId = plannerItemIdFromEventId(ev.id);
     if (plannerItemId) setQuickEditId(plannerItemId);
+  }, []);
+
+  // Dubbelklick på ett bokningsblock i kalendern → öppna BookingPlannerSheet
+  // (full översikt med faser + orderrads-to-dos att bocka av).
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const bid = (e as CustomEvent<{ bookingId?: string }>).detail?.bookingId;
+      if (bid) setPlannerSheetBookingId(bid);
+    };
+    window.addEventListener('lp-booking-sheet-open', handler as EventListener);
+    return () => window.removeEventListener('lp-booking-sheet-open', handler as EventListener);
   }, []);
 
   const quickEditItem = quickEditId
