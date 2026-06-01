@@ -31,9 +31,11 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import { authenticateStaffRequest } from "../_shared/staff-auth.ts";
 import {
-  resolveStaffDayReportSummariesBatch as resolveStaffDayReportsBatch,
+  resolveStaffDayReportSummariesBatch,
   type ResolvedStaffDaySummary,
 } from "../_shared/staff-day-report/resolveStaffDayReport.ts";
+
+const resolveStaffDayReportsBatch = resolveStaffDayReportSummariesBatch;
 
 interface RequestBody {
   weekStart?: string;
