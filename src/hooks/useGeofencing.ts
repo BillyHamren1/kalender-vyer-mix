@@ -561,9 +561,11 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
       largeProjectId?: string;
       bookingId?: string;
       address?: string;
+      geofence_mode?: 'circle' | 'polygon';
+      geofence_polygon?: { type: 'Polygon'; coordinates: number[][][] } | null;
     }> = [];
 
-    // Add fixed locations
+    // Add fixed locations (polygon stöds via geofence_mode/geofence_polygon)
     for (const loc of orgLocations) {
       targets.push({
         key: `location-${loc.id}`,
@@ -574,10 +576,15 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
         radius: loc.radius_meters,
         locationId: loc.id,
         address: loc.address || undefined,
+        geofence_mode: loc.geofence_mode || 'circle',
+        geofence_polygon: loc.geofence_polygon || null,
       });
     }
 
-    // Add bookings with coordinates — consolidate large projects
+    // Add bookings with coordinates — consolidate large projects.
+    // Booking-/projektpolygon-stöd finns inte i nuvarande MobileBooking-typ,
+    // så vi fallbackar alltid till circle. Om polygon-fält tillkommer
+    // i framtiden kan de mappas här utan att ändra background-läsaren.
     const seenProjects = new Set<string>();
     for (const booking of bookings) {
       if (!booking.delivery_latitude || !booking.delivery_longitude) continue;
@@ -594,6 +601,8 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           radius: getGpsSettings().radius || ENTER_RADIUS,
           largeProjectId: booking.large_project_id,
           address: booking.deliveryaddress || undefined,
+          geofence_mode: 'circle',
+          geofence_polygon: null,
         });
       } else {
         targets.push({
@@ -605,6 +614,8 @@ export function useGeofencing(bookings: MobileBooking[], staffId?: string) {
           radius: getGpsSettings().radius || ENTER_RADIUS,
           bookingId: booking.id,
           address: booking.deliveryaddress || undefined,
+          geofence_mode: 'circle',
+          geofence_polygon: null,
         });
       }
     }
