@@ -164,6 +164,30 @@ export default function RawGpsSatelliteMap({ pings, geofences = [], visits = [],
     if (mapRef.current) applyRawPingsVisibility(mapRef.current, showAllRawPings);
   }, [showAllRawPings]);
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const map = mapRef.current;
+      if (!map) return;
+      const detail = (e as CustomEvent<{ lat: number; lng: number; label?: string }>).detail;
+      if (!detail || typeof detail.lat !== 'number' || typeof detail.lng !== 'number') return;
+      try {
+        map.flyTo({ center: [detail.lng, detail.lat], zoom: Math.max(map.getZoom(), 17), duration: 600 });
+      } catch { /* ignore */ }
+      try {
+        if (popupRef.current) { popupRef.current.remove(); popupRef.current = null; }
+        popupRef.current = new mapboxgl.Popup({ closeButton: true, offset: 12 })
+          .setLngLat([detail.lng, detail.lat])
+          .setHTML(`<div style="font:12px/1.4 system-ui;padding:2px 4px">${detail.label ?? 'Ping'}<br/><span style="color:#666">${detail.lat.toFixed(6)}, ${detail.lng.toFixed(6)}</span></div>`)
+          .addTo(map);
+      } catch { /* ignore */ }
+      try {
+        map.getContainer().scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } catch { /* ignore */ }
+    };
+    window.addEventListener('staff-gps-focus-ping', handler as EventListener);
+    return () => window.removeEventListener('staff-gps-focus-ping', handler as EventListener);
+  }, []);
+
   function applyRawPingsVisibility(map: mapboxgl.Map, visible: boolean) {
     if (!map.getLayer('raw-all-pings')) return;
     map.setLayoutProperty('raw-all-pings', 'visibility', visible ? 'visible' : 'none');

@@ -442,14 +442,17 @@ function PingsTable({ pings }: { pings: PingRow[] }) {
                   {p.accuracy != null ? Math.round(p.accuracy) : '—'}
                 </td>
                 <td className="px-3 py-1.5">
-                  <a
-                    href={`https://www.google.com/maps?q=${p.lat},${p.lng}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('staff-gps-focus-ping', {
+                        detail: { lat: p.lat, lng: p.lng, label: formatStockholmHms(p.recorded_at) },
+                      }));
+                    }}
                     className="text-primary hover:underline"
                   >
-                    Öppna
-                  </a>
+                    Visa på karta
+                  </button>
                 </td>
               </tr>
             ))}
