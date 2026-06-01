@@ -31,7 +31,7 @@ async function fetchAllAssignments(): Promise<StaffAssignment[]> {
 
   if (error) throw error;
 
-  // NOTE: vi filtrerar INTE bort assignments baserat på staff_availability-status.
+  // NOTE: vi filtrerar INTE bort assignments baserat på frånvarostatus.
   // Admin har medvetet planerat in personalen och raderna ska visas i kalendern.
   // En frånvarostatus kan markeras visuellt i UI, men en sparad assignment
   // får aldrig döljas i läsvägen — det orsakar att personal försvinner vid refresh.
