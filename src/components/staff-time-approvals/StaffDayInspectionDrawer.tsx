@@ -30,12 +30,14 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useApproveStaffDay } from "@/hooks/staff/useApproveStaffDay";
+import { useStaffDayApprovalDetails } from "@/hooks/staff/useStaffDayApprovalDetails";
 import TimeApprovalStatusBadge from "./TimeApprovalStatusBadge";
 import {
   formatHm,
   type WeeklyDayCell,
   type WeeklyStaffBundle,
 } from "./weeklyApprovalModel";
+import type { StaffWeeklyCacheRow } from "@/hooks/staff/useStaffWeeklyTimeApprovals";
 import DayInspectionMap from "./day-inspection/DayInspectionMap";
 import {
   DiagnosticsCard,
