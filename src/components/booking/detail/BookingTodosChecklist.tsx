@@ -133,29 +133,58 @@ const BookingTodosChecklist = ({
     return picks;
   }, [rigDate, eventDate, rigDownDate]);
 
+  /** Filtrera bort paketmedlemmar — de hör till sitt paket och ska aldrig vara egna to-dos. */
+  const visibleRows = useMemo(
+    () => (rows ?? []).filter((r) => !isPackageMember(r.booking_products ?? null)),
+    [rows],
+  );
+
+  /** Städa upp gamla to-dos som råkar peka på paketmedlemmar. */
+  useEffect(() => {
+    const stale = (rows ?? []).filter((r) => isPackageMember(r.booking_products ?? null));
+    if (stale.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      for (const r of stale) {
+        try {
+          await deleteLargeProjectPlannerItem(r.id);
+        } catch {
+          /* ignorera — visningen är ändå filtrerad */
+        }
+      }
+      if (!cancelled) invalidate();
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
+
   const grouped = useMemo(() => {
     const map = new Map<string, PlanRow[]>();
-    (rows ?? []).forEach((r) => {
+    visibleRows.forEach((r) => {
       const list = map.get(r.plan_date) ?? [];
       list.push(r);
       map.set(r.plan_date, list);
     });
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [rows]);
+  }, [visibleRows]);
 
   const stats = useMemo(() => {
-    const total = rows?.length ?? 0;
-    const done = (rows ?? []).filter((r) => r.status === 'done').length;
+    const total = visibleRows.length;
+    const done = visibleRows.filter((r) => r.status === 'done').length;
     return { total, done };
-  }, [rows]);
+  }, [visibleRows]);
 
   const productsWithoutTodo = useMemo(() => {
     if (!products) return [];
     const linked = new Set(
-      (rows ?? []).map((r) => r.booking_product_id).filter((id): id is string => !!id),
+      visibleRows.map((r) => r.booking_product_id).filter((id): id is string => !!id),
     );
-    return products.filter((p) => !linked.has(p.id));
-  }, [products, rows]);
+    return products
+      .filter((p) => !isPackageMember(p))
+      .filter((p) => !linked.has(p.id));
+  }, [products, visibleRows]);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['booking-todos-checklist', bookingId] });
