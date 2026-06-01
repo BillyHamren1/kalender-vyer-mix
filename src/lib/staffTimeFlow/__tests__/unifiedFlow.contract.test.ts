@@ -18,10 +18,16 @@ describe("WeekFlow unified flow contract", () => {
     expect(src).toMatch(/return\s*\(\s*<div[\s\S]*<WeekFlowMobilePanel/);
   });
 
-  it("WeekFlowMobilePanel använder samma useStaffTimeWeekFlow + WeekFlowDayCard som admin", () => {
+  it("WeekFlowMobilePanel använder useStaffSelfWeekMatrix (single-pipeline via resolver)", () => {
     const src = read("src/components/mobile-app/time/WeekFlowMobilePanel.tsx");
-    expect(src).toMatch(/useStaffTimeWeekFlow/);
+    expect(src).toMatch(/useStaffSelfWeekMatrix/);
     expect(src).toMatch(/WeekFlowDayCard/);
+    // Får INTE gå via gamla vägen
+    expect(src).not.toMatch(/useStaffTimeWeekFlow/);
+    expect(src).not.toMatch(/useStaffGpsWeekSummary/);
+    expect(src).not.toMatch(/DayReviewSheet/);
+    expect(src).not.toMatch(/get-mobile-gps-day-view/);
+    expect(src).not.toMatch(/submit-mobile-gps-day-v2/);
   });
 
   it("WeekFlowMobilePanel navigerar INTE till /m/day-review", () => {
@@ -29,13 +35,14 @@ describe("WeekFlow unified flow contract", () => {
     expect(src).not.toMatch(/\/m\/day-review/);
   });
 
-  it("WeekFlowMobilePanel öppnar dag i DayReviewSheet (samma V2-api som queue)", () => {
-    const src = read("src/components/mobile-app/time/WeekFlowMobilePanel.tsx");
-    expect(src).toMatch(/DayReviewSheet/);
-    const sheet = read("src/features/mobile-time-v2/DayReviewSheet.tsx");
-    expect(sheet).toMatch(/getMobileGpsDayView/);
-    expect(sheet).toMatch(/submitMobileGpsDayV2/);
+  it("Mobilens dag-sheet går via get-mobile-staff-day-report + submit-staff-day-v3", () => {
+    const sheet = read("src/components/mobile-app/time/MobileDaySubmitSheet.tsx");
+    expect(sheet).toMatch(/useMobileStaffDayReport/);
+    expect(sheet).toMatch(/useSubmitStaffDayReport/);
+    expect(sheet).not.toMatch(/getMobileGpsDayView/);
+    expect(sheet).not.toMatch(/submitMobileGpsDayV2/);
   });
+
 
   it("Admin 'Granska' / 'Öppna GPS' länkar till /staff-management/gps-satellite-map", () => {
     const row = read("src/components/staff-time/StaffTimeWeekMatrixRow.tsx");
@@ -191,11 +198,12 @@ describe("WeekFlow normal/övertid kontrakt", () => {
     expect(src).toMatch(/Ö\s/);
   });
 
-  it("submit-mobile-gps-day-v2 sparar normalMinutes/overtimeMinutes i source_summary_json", () => {
-    const src = read("supabase/functions/submit-mobile-gps-day-v2/index.ts");
-    expect(src).toMatch(/normalMinutes:\s*workTimeBuckets\.normalMinutes/);
-    expect(src).toMatch(/overtimeMinutes:\s*workTimeBuckets\.overtimeMinutes/);
+  it("submit-staff-day-v3 är enda skriv-vägen från mobilen", () => {
+    const hook = read("src/hooks/useSubmitStaffDayReport.ts");
+    expect(hook).toMatch(/submit-staff-day-v3/);
+    expect(hook).not.toMatch(/submit-mobile-gps-day-v2/);
   });
+
 
   it("normal/övertid räknas INTE från legacy-tabeller (time_reports/workdays/LTE/travel_time_logs)", () => {
     const src = read("src/lib/staffTimeFlow/workTimeBuckets.ts");

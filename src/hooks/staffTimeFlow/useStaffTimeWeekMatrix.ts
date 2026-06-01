@@ -16,9 +16,10 @@
  *
  * Realtime: när staff_day_submissions ändras invalideras query.
  *
- * Rör INTE: time_reports, workdays, location_time_entries, travel_time_logs,
- * day_attestations, staff_day_report_cache.
- */
+ * Rör INTE direkt: time_reports, workdays, location_time_entries,
+ * travel_time_logs, day_attestations. Edge-funktionen läser via
+ * resolveStaffDayReportsBatch (submission > staff_day_report_cache > empty).
+
 
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
