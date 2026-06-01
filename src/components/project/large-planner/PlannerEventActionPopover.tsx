@@ -154,19 +154,37 @@ const PlannerEventActionPopover: React.FC<Props> = ({ event, onOpenDetails, chil
 
   const handleSaveTime = async () => {
     if (!plannerItemId) return;
+    if (isCurrentLocked && !applyToAll) {
+      toast.error('Tiden är låst för denna dag');
+      return;
+    }
     const newStart = `${sH}:${sM}:00`;
     const newEnd = `${eH}:${eM}:00`;
     if (newEnd <= newStart) {
       toast.error('Sluttid måste vara efter starttid');
       return;
     }
+    // Bulk: alla planner-dagar för samma bokning + fas, hoppa låsta.
+    const targets = applyToAll
+      ? phaseDays.filter((d) => d.times_locked !== true)
+      : phaseDays.filter((d) => d.id === plannerItemId);
+    const skipped = applyToAll
+      ? phaseDays.filter((d) => d.times_locked === true).length
+      : 0;
+    if (targets.length === 0) {
+      toast.error('Inget att uppdatera (alla låsta?)');
+      return;
+    }
     setSavingTime(true);
     try {
-      await ctx.updateItem(plannerItemId, {
-        start_time: newStart,
-        end_time: newEnd,
-      });
-      toast.success('Tid uppdaterad');
+      for (const t of targets) {
+        await ctx.updateItem(t.id, { start_time: newStart, end_time: newEnd });
+      }
+      toast.success(
+        applyToAll
+          ? `Tid uppdaterad för ${targets.length} dag(ar)${skipped ? ` (${skipped} låsta hoppades över)` : ''}`
+          : 'Tid uppdaterad',
+      );
     } catch (e: any) {
       toast.error(e?.message || 'Kunde inte uppdatera tid');
     } finally {
@@ -176,17 +194,47 @@ const PlannerEventActionPopover: React.FC<Props> = ({ event, onOpenDetails, chil
 
   const handleMoveToTeam = async (teamId: string) => {
     if (!plannerItemId || teamId === currentTeamId) return;
+    const targets = applyToAll
+      ? phaseDays.filter((d) => d.times_locked !== true)
+      : phaseDays.filter((d) => d.id === plannerItemId);
+    const skipped = applyToAll
+      ? phaseDays.filter((d) => d.times_locked === true).length
+      : 0;
+    if (targets.length === 0) {
+      toast.error('Inget att flytta (alla låsta?)');
+      return;
+    }
     setMovingTeam(true);
     try {
-      await ctx.updateItem(plannerItemId, {
-        assigned_team_id: teamId,
-        assigned_staff_id: null,
-      });
-      toast.success(`Flyttad till ${teamId.replace('team-', 'Team ')}`);
+      for (const t of targets) {
+        await ctx.updateItem(t.id, {
+          assigned_team_id: teamId,
+          assigned_staff_id: null,
+        });
+      }
+      const label = teamId.replace('team-', 'Team ');
+      toast.success(
+        applyToAll
+          ? `${targets.length} dag(ar) flyttade till ${label}${skipped ? ` (${skipped} låsta hoppades över)` : ''}`
+          : `Flyttad till ${label}`,
+      );
     } catch (e: any) {
       toast.error(e?.message || 'Kunde inte flytta');
     } finally {
       setMovingTeam(false);
+    }
+  };
+
+  const handleToggleLock = async () => {
+    if (!plannerItemId) return;
+    setTogglingLock(true);
+    try {
+      await ctx.updateItem(plannerItemId, { times_locked: !isCurrentLocked } as never);
+      toast.success(!isCurrentLocked ? 'Tid låst för denna dag' : 'Tid upplåst');
+    } catch (e: any) {
+      toast.error(e?.message || 'Kunde inte ändra lås');
+    } finally {
+      setTogglingLock(false);
     }
   };
 
