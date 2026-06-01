@@ -380,20 +380,29 @@ export async function forceFlushLocationQueue(reason: string): Promise<void> {
     lastForceFlushAt,
   });
   lastAutoFlushAt = Date.now();
+  patchStatus({ lastAutoFlushAt });
   await flushLocationQueue();
 }
 
 /**
  * Mild throttle för opportunistiska auto-flush-triggers (online, focus,
- * visibilitychange, periodisk 10-min-timer). Använd INTE för viktiga
- * händelser — använd forceFlushLocationQueue(reason) då.
+ * visibilitychange, periodisk timer). Använd INTE för viktiga händelser —
+ * använd forceFlushLocationQueue(reason) då.
+ *
+ * Intervallet styrs av aktuell upload-policy (default 60 s):
+ *   - batch_inside_geofence           → 30 min
+ *   - moving_outside_known_geofence   → 60 s
+ *   - boundary_guard                  → 60 s
+ *   - outside_idle                    → 5 min
  */
 function autoFlushIfDue(): void {
   const now = Date.now();
-  if (now - lastAutoFlushAt < MIN_AUTO_FLUSH_INTERVAL_MS) return;
+  if (now - lastAutoFlushAt < currentUploadPolicy.intervalMs) return;
   lastAutoFlushAt = now;
+  patchStatus({ lastAutoFlushAt });
   void flushLocationQueue();
 }
+
 
 
 let flushing = false;
