@@ -302,14 +302,6 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 }}
               >
                 <div className="team-header-content">
-                  {vehicleLineText && (
-                    <div
-                      className="team-vehicle-line"
-                      title={vehicleLineText}
-                    >
-                      {vehicleLineText}
-                    </div>
-                  )}
                   <span className="team-title">{resource.title}</span>
                   {!plannerMode && (
                     <>
@@ -369,6 +361,13 @@ const TimeGrid: React.FC<TimeGridProps> = ({
             const assignedStaff = getAssignedStaffForTeam(resource.id);
             const colWidth = teamColumnWidths[index];
             const wide = assignedStaff.length > 5;
+            const teamVehiclesForRow = vehiclesByTeam.get(resource.id) ?? [];
+            const vehicleLineTextRow =
+              teamVehiclesForRow.length === 0
+                ? ''
+                : teamVehiclesForRow.length === 1
+                ? `Bil: ${teamVehiclesForRow[0].name}`
+                : teamVehiclesForRow.map((v, i) => `Bil${i + 1}: ${v.name}`).join(', ');
             return (
               <div
                 key={`staff-${resource.id}`}
@@ -382,6 +381,11 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 }}
               >
                 <div className="staff-header-assignment-area">
+                  {vehicleLineTextRow && (
+                    <div className="team-vehicle-line" title={vehicleLineTextRow}>
+                      {vehicleLineTextRow}
+                    </div>
+                  )}
                   <div className={`assigned-staff-header-list${wide ? ' assigned-staff-header-list--wide' : ''}`}>
                     {assignedStaff.map((staff) => (
                       <StaffItem
