@@ -1,22 +1,45 @@
 ## Problem
-För aggressiv filtrering tar bort tillbehör (rader med `parent_product_id` men `is_package_component=false`) från Planera-sheet och to-do-listan. Bara faktiska paketmedlemmar (`is_package_component=true`) ska bort.
 
-## Ändringar
+Min förra fix gjorde att ALLA bokningar visas som "planerade" i Almedalen-sidofältet. Bekräftat mot DB: 20 av 21 Almedalen-bokningar har inga `calendar_events` alls, men ALLA har ärvda `rigdaydate`/`eventdate`/`rigdowndate` från det externa bokningssystemet.
 
-**1. `src/hooks/useBookingProductsForPlanner.ts`**
-Ändra filtret från:
+I `largeProjectPlannerService.ts` (rad 177-182) byggs `rig_dates`/`event_dates`/`rigdown_dates` som **union** av:
+1. `phaseDates` från projektets `calendar_events` (faktiska planerade dagar)
+2. Bokningens egna `b.rigdaydate`/`b.eventdate`/`b.rigdowndate` (ärvt basdatum)
+
+Så `hasAnyBookingDate()` i sidofältet blir alltid `true` så fort bokningen har ett basdatum — vilket alla har.
+
+## Lösning
+
+Skilj "ärvt basdatum" från "sparat i projektkalendern" på typnivå.
+
+### 1. `src/components/project/large-planner/largeProjectPlannerTypes.ts`
+Lägg till ett nytt fält på `LargeProjectPlannerBooking`:
 ```ts
-rows.filter((p) => !p.is_package_component && !p.parent_product_id)
+/** True om bokningen har minst en sparad fas-dag i projektets calendar_events (rig/event/rigDown). */
+has_calendar_phase_days: boolean;
 ```
-till:
+
+### 2. `src/components/project/large-planner/largeProjectPlannerService.ts` (rad 152-184)
+Sätt fältet baserat ENBART på `phaseDates`-Sets (som byggts från `calendar_events`), INTE på de ärvda bokningsdatumen:
 ```ts
-rows.filter((p) => !p.is_package_component)
+has_calendar_phase_days:
+  phaseDates.rig.size > 0 ||
+  phaseDates.event.size > 0 ||
+  phaseDates.rigDown.size > 0,
 ```
+`rig_dates`/`event_dates`/`rigdown_dates`-arrayerna behålls oförändrade (de används av kalender-renderingen för att visa basdatumen).
 
-**2. `src/components/booking/detail/BookingTodosChecklist.tsx`**
-`isPackageMember`-helpern kollar idag både `is_package_component` och `parent_product_id`. Ändra till att enbart returnera `is_package_component === true`. Samma helper styr både den visuella filtreringen, auto-rensningen av stale todos och `productsWithoutTodo` — så tillbehör kommer återigen kunna bli to-dos och visas i "Orderrader utan to-do".
+### 3. `src/components/project/large-planner/LargeProjectPlannerSidebar.tsx` (rad 94-117, 121, 274)
+Byt ut `hasAnyBookingDate()`-helpern mot:
+```ts
+const isBookingPlanned = (b: LargeProjectPlannerBooking) => b.has_calendar_phase_days;
+```
+Uppdatera båda anropsplatserna (`renderBookingCard` rad 121 + rad 274) och filter-logiken (rad 106-107) till att använda `b.has_calendar_phase_days` istället.
 
-## Risk
-Auto-delete-effekten i `BookingTodosChecklist` har redan rensat ev. tillbehörs-todos en gång (under det gamla filtret). De återskapas inte automatiskt — användaren kan markera tillbehör i Planera-sheet igen för att skapa nya to-dos.
+## Resultat
 
-Inga DB-migrationer, inga ändringar i kalenderlogik eller paketlogik utöver detta.
+- Bokningar utan sparade projektkalender-dagar = "Ej planerad" → syns i Att planera-listan
+- Bokningar med minst ett `calendar_event` (rig/event/rigDown) = "Planerad"
+- Ärvda basdatum från externt system räknas inte längre som planering
+
+Inga ändringar i personalkalendern, kalender-rendering, DB eller migrations.
