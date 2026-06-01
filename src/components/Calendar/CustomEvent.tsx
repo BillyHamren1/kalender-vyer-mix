@@ -471,7 +471,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         <div
           style={{ width: '100%', height: '100%' }}
           onDoubleClick={handlePlannerDoubleClick}
-          title="Dubbelklicka för bokningsöversikt"
+          title="Dubbelklicka för att öppna bokningen"
         >
           {eventCardContent}
         </div>
