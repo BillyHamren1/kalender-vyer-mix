@@ -1,7 +1,12 @@
 // get-staff-time-week-matrix
 // ==========================
-// Admin-only batch som returnerar EN färdig veckomatris för Tid & Lön och
-// Time Approvals.
+// Veckomatris för Tid & Lön, Time Approvals OCH mobilappens veckovy.
+//
+// Dual-auth:
+//   - Privilegierad JWT (admin/projekt/lager) → matris för HELA org (alla
+//     personer × veckans dagar).
+//   - Mobile token → matris för EN person (auth.staffId). Kallaren kan
+//     bara läsa sig själv.
 //
 // SINGLE-PIPELINE-REGEL:
 //   Denna endpoint bygger ALDRIG egen dag från raw GPS. All källval för
@@ -13,17 +18,15 @@
 //     2. staff_day_report_cache → source: 'cache'
 //     3. annars                  → source: 'empty'
 //
-//   Vi får aldrig hamna i ett läge där Tid & Lön visar cache medan Attest
-//   visar submission (eller tvärtom). Båda går via samma resolver.
+//   Mobilens veckovy, Tid & Lön och Attest läser ALLA via samma resolver
+//   — exakt samma sanning per (staff, date).
 //
 // FÖRBJUDET I DENNA FIL (vaktat av contract-test):
 //   - import av `buildCanonicalStaffDayGpsResult`
 //   - läsning av `staff_location_history`
 //   - läsning av time_reports / workdays / location_time_entries /
 //     travel_time_logs / day_attestations
-//
-// Time Engine är ensam ägare av raw GPS. Konsumenter läser bara dess
-// färdiga cache (eller användarens submission).
+
 
 import { corsHeaders } from "../_shared/cors.ts";
 import { authenticateStaffRequest } from "../_shared/staff-auth.ts";
