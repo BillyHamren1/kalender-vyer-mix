@@ -284,6 +284,10 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
     lastGeolocationError: null,
     currentDistanceFilter: DEFAULT_DISTANCE_FILTER,
     currentHeartbeatMs: DEFAULT_HEARTBEAT_MS,
+    currentCaptureDistanceFilter: DEFAULT_DISTANCE_FILTER,
+    currentCaptureThrottleMs: REPORT_THROTTLE_MS,
+    currentUploadMode: 'default',
+    currentUploadIntervalMs: 10 * 60_000,
     backendPolicyMode: null,
     isNativePlatform: typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform(),
     appVisibilityState:
