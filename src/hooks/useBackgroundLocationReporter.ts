@@ -176,6 +176,14 @@ export interface BackgroundLocationDebugInfo {
   lastGeolocationError: string | null;
   currentDistanceFilter: number;
   currentHeartbeatMs: number;
+  /** Capture-policyns distanceFilter (lokal native start/restart). */
+  currentCaptureDistanceFilter: number;
+  /** Capture-policyns enqueue-throttle (ms). */
+  currentCaptureThrottleMs: number;
+  /** Aktuell upload-policy (auto-flush-cadence i locationSyncQueue). */
+  currentUploadMode: string;
+  /** Auto-flush-intervall (ms) som upload-policyn just nu kräver. */
+  currentUploadIntervalMs: number;
   backendPolicyMode: string | null;
   isNativePlatform: boolean;
   appVisibilityState: 'visible' | 'hidden' | 'unknown';
