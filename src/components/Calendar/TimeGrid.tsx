@@ -87,7 +87,9 @@ const TimeGrid: React.FC<TimeGridProps> = ({
   plannerMode = false,
 }) => {
   const [openPickerTeamId, setOpenPickerTeamId] = useState<string | null>(null);
+  const [openVehiclePickerTeamId, setOpenVehiclePickerTeamId] = useState<string | null>(null);
   const { handleEventClick } = useEventNavigation();
+  const { ownVehicles, vehiclesByTeam, assign: assignVehicle, unassign: unassignVehicle } = useTeamVehiclesForDay(day);
 
   // Adaptiv kolumnbredd: mät containerns faktiska bredd och fördela jämnt över teams
   const rootRef = useRef<HTMLDivElement | null>(null);
