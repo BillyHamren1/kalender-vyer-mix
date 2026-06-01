@@ -1,44 +1,48 @@
 ## Mål
 
-När en bil är tilldelad ett team för ett datum (`team_vehicle_assignments`), ska all personal som tillhör samma team den dagen se bilen(arna) som en rad på sitt jobbkort/projektkort i mobilappen — i samma format som personalkalendern: `Bil: Volvo` eller `Bil1: Volvo, Bil2: Sprinter` om flera.
+På `/staff-management/time` lägga till två tabbar högst upp:
 
-Rent informativ rad. Ingen klickbarhet. Påverkar inte timer/tidsrapport/GPS-logik.
+- **Tid** — nuvarande veckomatris (`StaffTimeWeeklyGpsReportContent`) — default.
+- **Lön** — tidrapportvyn (admin-listan över personalens tidrapporter med korrigera/attestera).
 
-## Steg
+Klick på dagcell i veckomatrisen fortsätter öppna GPS-karta-dialogen (oförändrat) — attestering nås nu via Lön-tabben istället.
 
-1. **Backend — berika dagsjobben med team-bilar**
-   - `supabase/functions/mobile-app-api/index.ts` (handler för `get_my_jobs` / dagens jobblista som driver MobileJobs + MobileOverview).
-   - För varje (booking, date)-jobb som returneras har vi redan `team_id` (från `calendar_events.resource_id`/BSA).
-   - Samla unika `(team_id, date)`-par för dagen → en `select` mot `team_vehicle_assignments` (filter på org + dessa par) → joina mot `vehicles` (`id, name, registration_number, is_external, is_active`) och behåll endast `is_external=false AND is_active=true`.
-   - Lägg `team_vehicles: Array<{ id, name, registration_number | null }>` (stabil sort på `name`, svensk locale) på varje jobb-objekt i svaret. Inget annat i svaret ändras.
-   - Stora projekt: samma logik per (representant-team_id, date) som LP redan använder för team-resolvning, så hela LP-kortet visar teamets bil.
+## Layout
 
-2. **Frontend — rendera bil-raden**
-   - Lägg en liten presentationskomponent `TeamVehicleLine` (delad i `src/components/mobile-app/`) som tar `team_vehicles` och renderar:
-     - 0 bilar → `null`
-     - 1 bil → `Bil: <name>` (lastbils-ikon till vänster, semantisk färg `text-muted-foreground`)
-     - >1 bilar → `Bil1: <name>, Bil2: <name>, …`
-   - Montera den högst upp i jobb-/projektkortet på:
-     - `src/components/mobile-app/JobCard` (eller motsvarande kort som MobileJobs/MobileOverview använder)
-     - LP-kortet i samma lista
-     - `MobileJobDetail` (Info-tab, ovanför adressen) så samma info syns även när man öppnat jobbet.
+```text
+┌─ Tid & Lön ──────────────────────────────────┐
+│ GPS-förslag → Inskickat → Attesterat …       │
+├──────────────────────────────────────────────┤
+│ [ Tid ] [ Lön ]                              │  ← nya tabbar
+├──────────────────────────────────────────────┤
+│ (innehåll byts beroende på vald tabb)        │
+└──────────────────────────────────────────────┘
+```
 
-3. **Typer**
-   - Utöka `OpsOverviewJob` / motsvarande job-typ i `src/services/mobileApiService.ts` med valfritt `team_vehicles?: Array<{ id: string; name: string; registration_number: string | null }>`.
+## Ändringar
 
-4. **Tester**
-   - Återanvänd `src/test/teamVehicleLine.test.ts` (formaterings-helpern från kalendern) — flytta formattern till `src/lib/teamVehicles.ts` om den ligger inlinad, så både kalender och mobil använder samma `formatTeamVehicleLine()`.
-   - Lägg till komponenttest för `TeamVehicleLine` (0/1/2/3 bilar → korrekt sträng).
-   - Lägg ett enhetstest för backend-berikningssteget (pure helper som givet jobs + assignments + vehicles returnerar jobs med rätt `team_vehicles`).
-   - Kör `bash scripts/test-time-reporting.sh` (sanity, ska inte påverkas) + `bunx vitest run` på de nya filerna.
+### `src/pages/StaffTimeAndPayrollPage.tsx`
+- Lägg till shadcn `Tabs` under headern med `defaultValue="tid"`.
+- Tabb-state speglas i URL via `?tab=tid|lon` (useSearchParams) så att djuplänkar fungerar och navigering tillbaka behåller vyn.
+- `TabsContent value="tid"` renderar `<StaffTimeWeeklyGpsReportContent />` (oförändrat).
+- `TabsContent value="lon"` renderar admin-tidrapportlistan.
 
-## Vad som INTE ändras
+### Lön-tabbens innehåll
+Återanvänder existerande sida `StaffTimeReports` (`src/pages/StaffTimeReports.tsx`) som redan är admin-listvyn för personalens tidrapporter med korrigera/attestera-flöde. Vi extraherar dess huvudsakliga innehållskomponent (utan egen `PageContainer`/`PageHeader`) till `src/components/staff-time/StaffTimeReportsContent.tsx` och importerar i båda ställena:
+- `StaffTimeReports.tsx` (oförändrad route `/staff-management/time-reports`).
+- Nya Lön-tabben.
 
-- Ingen ny tabell, inga RLS-ändringar (`team_vehicle_assignments` finns redan).
-- Inga ändringar i timer/Time Engine/tidsrapport/lön/GPS.
-- Ingen klickbarhet, ingen fordonsdetaljvy på mobilen.
-- Externa fordon visas inte (endast `is_external=false`), samma policy som kalendern.
+Detta undviker att vi dubbel-renderar PageContainer eller bryter befintliga djuplänkar.
 
-## Tekniska detaljer
+### Tester
+- Ny test `src/test/staffTimeAndPayrollTabs.test.tsx`:
+  - Verifierar att tabbarna "Tid" och "Lön" renderas.
+  - Default-tabb = Tid → veckomatrisen syns.
+  - Klick på Lön → tidrapportlistan syns och URL får `?tab=lon`.
+  - Direktbesök på `?tab=lon` → Lön-tabben aktiv direkt.
+- Kör `lovable-exec test` efter implementation.
 
-Berikningen sker i samma loop som redan bygger jobbsvaret i `mobile-app-api`, så det blir 1 extra select på `team_vehicle_assignments` + 1 på `vehicles` (eller en enda join) per request — försumbart.
+## Out of scope
+- Ingen ändring av klick-beteendet på dagcellen (GPS-karta-dialog kvar).
+- Ingen ändring av `/staff-management/time-reports`-routen eller dess komponenter — bara extraktion av innehållet till en återanvändbar komponent.
+- Ingen ändring av attestera-flödet i sig.
