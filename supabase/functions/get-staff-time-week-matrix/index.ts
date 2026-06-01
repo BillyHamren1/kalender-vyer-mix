@@ -224,26 +224,46 @@ Deno.serve(async (req) => {
   const weekStart = dates[0];
   const weekEnd = dates[dates.length - 1];
 
-  // Admin auth: kräv privilegierad JWT.
+  // Dual-auth: privilegierad JWT → hela org. Mobile token → enbart self.
   const authResult = await authenticateStaffRequest(req);
   if (!authResult.ok) return bad(authResult.err.status, authResult.err.error);
   const auth = authResult.auth;
-  if (auth.mode !== "jwt" || !auth.isPrivileged) {
-    return bad(403, "Admin role required");
-  }
   const admin = auth.admin;
   const orgId = auth.organizationId;
 
+  const isAdminJwt = auth.mode === "jwt" && auth.isPrivileged;
+  const isMobileSelf = auth.mode === "mobile";
+
+  if (!isAdminJwt && !isMobileSelf) {
+    return bad(403, "Admin role or mobile token required");
+  }
+
   try {
-    // 1) Personal i org.
-    const { data: staffRows, error: staffErr } = await admin
-      .from("staff_members")
-      .select("id, name")
-      .eq("organization_id", orgId)
-      .eq("is_active", true)
-      .order("name", { ascending: true });
-    if (staffErr) throw staffErr;
-    const staff = (staffRows ?? []) as Array<{ id: string; name: string }>;
+    let staff: Array<{ id: string; name: string }>;
+
+    if (isMobileSelf) {
+      // Mobile token: enbart self.
+      const { data: selfRow, error: selfErr } = await admin
+        .from("staff_members")
+        .select("id, name")
+        .eq("organization_id", orgId)
+        .eq("id", (auth as { staffId: string }).staffId)
+        .maybeSingle();
+      if (selfErr) throw selfErr;
+      if (!selfRow) return bad(404, "Staff not found");
+      staff = [selfRow as { id: string; name: string }];
+    } else {
+      // Admin: alla aktiva i org.
+      const { data: staffRows, error: staffErr } = await admin
+        .from("staff_members")
+        .select("id, name")
+        .eq("organization_id", orgId)
+        .eq("is_active", true)
+        .order("name", { ascending: true });
+      if (staffErr) throw staffErr;
+      staff = (staffRows ?? []) as Array<{ id: string; name: string }>;
+    }
+
 
     // 2) En enda resolver — batch över hela veckan.
     const resolved = await resolveStaffDayReportsBatch({
