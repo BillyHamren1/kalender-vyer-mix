@@ -154,6 +154,10 @@ export interface LocationSyncStatus {
   lastCompressionRatio: number;
   lastForceFlushReason: string | null;
   lastForceFlushAt: number | null;
+  // ── Upload-policy + senaste auto-flush (debug) ──
+  currentUploadMode: LocationUploadMode;
+  currentUploadIntervalMs: number;
+  lastAutoFlushAt: number | null;
 }
 
 const DEFAULT_STATUS: LocationSyncStatus = {
@@ -170,7 +174,11 @@ const DEFAULT_STATUS: LocationSyncStatus = {
   lastCompressionRatio: 1,
   lastForceFlushReason: null,
   lastForceFlushAt: null,
+  currentUploadMode: 'default',
+  currentUploadIntervalMs: DEFAULT_AUTO_FLUSH_INTERVAL_MS,
+  lastAutoFlushAt: null,
 };
+
 
 
 type StatusListener = (status: LocationSyncStatus) => void;
