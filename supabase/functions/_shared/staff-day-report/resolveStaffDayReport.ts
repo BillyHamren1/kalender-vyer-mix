@@ -101,6 +101,25 @@ export interface ResolvedStaffDay {
   rawCache: CacheRow | null;
 }
 
+export interface ResolvedStaffDaySummary {
+  staffId: string;
+  date: string;
+  source: ResolvedDaySource;
+  status: ResolvedDayStatus;
+  startIso: string | null;
+  endIso: string | null;
+  workMinutes: number;
+  travelMinutes: number;
+  breakMinutes: number;
+  totalMinutes: number;
+  normalMinutes: number;
+  overtimeMinutes: number;
+  submissionId: string | null;
+  reviewComment: string | null;
+  cacheBuiltAt: string | null;
+  engineVersion: string | null;
+}
+
 // ---------- Status mapping ----------
 
 export function mapSubmissionStatus(dbStatus: string): Exclude<ResolvedDayStatus, "empty" | "gps_proposal"> {
@@ -282,6 +301,80 @@ export function projectCacheToResolved(args: {
     engineVersion: cache.engine_version ?? null,
     rawSubmission: null,
     rawCache: cache,
+  };
+}
+
+function safeNumber(value: unknown): number {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0;
+}
+
+function buildSummaryFromSubmission(args: {
+  staffId: string;
+  date: string;
+  submission: ResolvedSubmissionRow;
+}): ResolvedStaffDaySummary {
+  const { staffId, date, submission } = args;
+  const summary = (submission.source_summary_json ?? {}) as Record<string, unknown>;
+  const requestedStart = submission.requested_start_at ?? null;
+  const requestedEnd = submission.requested_end_at ?? null;
+  const workMinutes = safeNumber(summary.workMinutes);
+  const travelMinutes = safeNumber(summary.transportMinutes ?? summary.travelMinutes);
+  const breakMinutes = safeNumber(submission.break_minutes);
+  const totalMinutes = Math.max(0, safeNumber(summary.payableMinutes || workMinutes + travelMinutes - breakMinutes));
+  const normalMinutes = safeNumber(summary.normalMinutes);
+  const overtimeMinutes = safeNumber(summary.overtimeMinutes);
+
+  return {
+    staffId,
+    date,
+    source: "submission",
+    status: mapSubmissionStatus(String(submission.status)),
+    startIso: requestedStart,
+    endIso: requestedEnd,
+    workMinutes,
+    travelMinutes,
+    breakMinutes,
+    totalMinutes,
+    normalMinutes,
+    overtimeMinutes,
+    submissionId: submission.id,
+    reviewComment: submission.review_comment ?? null,
+    cacheBuiltAt: null,
+    engineVersion: null,
+  };
+}
+
+function buildSummaryFromCache(args: {
+  staffId: string;
+  date: string;
+  cache: CacheRow;
+}): ResolvedStaffDaySummary {
+  const { staffId, date, cache } = args;
+  const summary = (cache.summary_json ?? {}) as Record<string, unknown>;
+  const workMinutes = safeNumber(summary.workOnlyMinutes ?? summary.workMinutes);
+  const travelMinutes = safeNumber(summary.transportMinutes ?? summary.travelMinutes);
+  const breakMinutes = safeNumber(summary.breakMinutes);
+  const totalMinutes = Math.max(0, safeNumber(summary.payableMinutes ?? summary.totalMinutes ?? workMinutes + travelMinutes - breakMinutes));
+  const normalMinutes = Math.max(0, totalMinutes - travelMinutes);
+
+  return {
+    staffId,
+    date,
+    source: "cache",
+    status: "gps_proposal",
+    startIso: typeof summary.firstIso === "string" ? summary.firstIso : null,
+    endIso: typeof summary.lastIso === "string" ? summary.lastIso : null,
+    workMinutes,
+    travelMinutes,
+    breakMinutes,
+    totalMinutes,
+    normalMinutes,
+    overtimeMinutes: 0,
+    submissionId: null,
+    reviewComment: null,
+    cacheBuiltAt: cache.built_at ?? null,
+    engineVersion: cache.engine_version ?? null,
   };
 }
 
