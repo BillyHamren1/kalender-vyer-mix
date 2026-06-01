@@ -101,6 +101,25 @@ export interface ResolvedStaffDay {
   rawCache: CacheRow | null;
 }
 
+export interface ResolvedStaffDaySummary {
+  staffId: string;
+  date: string;
+  source: ResolvedDaySource;
+  status: ResolvedDayStatus;
+  startIso: string | null;
+  endIso: string | null;
+  workMinutes: number;
+  travelMinutes: number;
+  breakMinutes: number;
+  totalMinutes: number;
+  normalMinutes: number;
+  overtimeMinutes: number;
+  submissionId: string | null;
+  reviewComment: string | null;
+  cacheBuiltAt: string | null;
+  engineVersion: string | null;
+}
+
 // ---------- Status mapping ----------
 
 export function mapSubmissionStatus(dbStatus: string): Exclude<ResolvedDayStatus, "empty" | "gps_proposal"> {
@@ -285,6 +304,80 @@ export function projectCacheToResolved(args: {
   };
 }
 
+function safeNumber(value: unknown): number {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0;
+}
+
+function buildSummaryFromSubmission(args: {
+  staffId: string;
+  date: string;
+  submission: ResolvedSubmissionRow;
+}): ResolvedStaffDaySummary {
+  const { staffId, date, submission } = args;
+  const summary = (submission.source_summary_json ?? {}) as Record<string, unknown>;
+  const requestedStart = submission.requested_start_at ?? null;
+  const requestedEnd = submission.requested_end_at ?? null;
+  const workMinutes = safeNumber(summary.workMinutes);
+  const travelMinutes = safeNumber(summary.transportMinutes ?? summary.travelMinutes);
+  const breakMinutes = safeNumber(submission.break_minutes);
+  const totalMinutes = Math.max(0, safeNumber(summary.payableMinutes || workMinutes + travelMinutes - breakMinutes));
+  const normalMinutes = safeNumber(summary.normalMinutes);
+  const overtimeMinutes = safeNumber(summary.overtimeMinutes);
+
+  return {
+    staffId,
+    date,
+    source: "submission",
+    status: mapSubmissionStatus(String(submission.status)),
+    startIso: requestedStart,
+    endIso: requestedEnd,
+    workMinutes,
+    travelMinutes,
+    breakMinutes,
+    totalMinutes,
+    normalMinutes,
+    overtimeMinutes,
+    submissionId: submission.id,
+    reviewComment: submission.review_comment ?? null,
+    cacheBuiltAt: null,
+    engineVersion: null,
+  };
+}
+
+function buildSummaryFromCache(args: {
+  staffId: string;
+  date: string;
+  cache: CacheRow;
+}): ResolvedStaffDaySummary {
+  const { staffId, date, cache } = args;
+  const summary = (cache.summary_json ?? {}) as Record<string, unknown>;
+  const workMinutes = safeNumber(summary.workOnlyMinutes ?? summary.workMinutes);
+  const travelMinutes = safeNumber(summary.transportMinutes ?? summary.travelMinutes);
+  const breakMinutes = safeNumber(summary.breakMinutes);
+  const totalMinutes = Math.max(0, safeNumber(summary.payableMinutes ?? summary.totalMinutes ?? workMinutes + travelMinutes - breakMinutes));
+  const normalMinutes = Math.max(0, totalMinutes - travelMinutes);
+
+  return {
+    staffId,
+    date,
+    source: "cache",
+    status: "gps_proposal",
+    startIso: typeof summary.firstIso === "string" ? summary.firstIso : null,
+    endIso: typeof summary.lastIso === "string" ? summary.lastIso : null,
+    workMinutes,
+    travelMinutes,
+    breakMinutes,
+    totalMinutes,
+    normalMinutes,
+    overtimeMinutes: 0,
+    submissionId: null,
+    reviewComment: null,
+    cacheBuiltAt: cache.built_at ?? null,
+    engineVersion: cache.engine_version ?? null,
+  };
+}
+
 // ---------- DB readers ----------
 
 const SUBMISSION_SELECT =
@@ -435,6 +528,102 @@ export async function resolveStaffDayReportsBatch(args: {
         continue;
       }
       out.set(key, emptyResolved(staffId, date));
+    }
+  }
+
+  return out;
+}
+
+export async function resolveStaffDayReportSummariesBatch(args: {
+  admin: SupabaseClient;
+  organizationId: string;
+  staffIds: string[];
+  dates: string[];
+}): Promise<Map<string, ResolvedStaffDaySummary>> {
+  const { admin, organizationId, staffIds, dates } = args;
+  const out = new Map<string, ResolvedStaffDaySummary>();
+  if (staffIds.length === 0 || dates.length === 0) return out;
+
+  const sorted = [...dates].sort();
+  const from = sorted[0];
+  const to = sorted[sorted.length - 1];
+
+  const { data: subRows, error: subErr } = await admin
+    .from("staff_day_submissions")
+    .select(SUBMISSION_SELECT)
+    .eq("organization_id", organizationId)
+    .in("staff_id", staffIds)
+    .gte("date", from)
+    .lte("date", to)
+    .order("submitted_at", { ascending: false })
+    .limit(10000);
+  if (subErr) throw subErr;
+
+  const subByKey = new Map<string, SubmissionDbRow>();
+  for (const r of (subRows ?? []) as SubmissionDbRow[]) {
+    const k = `${r.staff_id}|${r.date}`;
+    if (!subByKey.has(k)) subByKey.set(k, r);
+  }
+
+  const cacheSelectLean = "staff_id, date, engine_version, summary_json, built_at, stale, error";
+  const { data: cacheRows, error: cacheErr } = await admin
+    .from("staff_day_report_cache")
+    .select(cacheSelectLean)
+    .eq("organization_id", organizationId)
+    .in("staff_id", staffIds)
+    .gte("date", from)
+    .lte("date", to)
+    .order("built_at", { ascending: false })
+    .limit(10000);
+  if (cacheErr) throw cacheErr;
+
+  const cacheByKey = new Map<string, CacheDbRow>();
+  for (const r of (cacheRows ?? []) as CacheDbRow[]) {
+    const k = `${r.staff_id}|${r.date}`;
+    if (!cacheByKey.has(k)) cacheByKey.set(k, r);
+  }
+
+  for (const staffId of staffIds) {
+    for (const date of dates) {
+      const key = `${staffId}|${date}`;
+      const submission = subByKey.get(key);
+      if (submission) {
+        out.set(key, buildSummaryFromSubmission({
+          staffId,
+          date,
+          submission: submission as unknown as ResolvedSubmissionRow,
+        }));
+        continue;
+      }
+
+      const cache = cacheByKey.get(key);
+      if (cache) {
+        out.set(key, buildSummaryFromCache({
+          staffId,
+          date,
+          cache: cache as unknown as CacheRow,
+        }));
+        continue;
+      }
+
+      out.set(key, {
+        staffId,
+        date,
+        source: "empty",
+        status: "empty",
+        startIso: null,
+        endIso: null,
+        workMinutes: 0,
+        travelMinutes: 0,
+        breakMinutes: 0,
+        totalMinutes: 0,
+        normalMinutes: 0,
+        overtimeMinutes: 0,
+        submissionId: null,
+        reviewComment: null,
+        cacheBuiltAt: null,
+        engineVersion: null,
+      });
     }
   }
 
