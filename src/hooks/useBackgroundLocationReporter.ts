@@ -688,22 +688,28 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       logModeChange(currentModeRef.current, decision);
       currentModeRef.current = decision.mode;
 
-      // Backend trackingPolicy is the single source of truth for heartbeat
-      // and distanceFilter when present. The local mode engine still runs to
-      // detect approach/inside transitions, but its cadence is overridden so
-      // the app cannot invent a denser tracking intensity than the server.
+      // Backend trackingPolicy styr heartbeatMs (server är authority för
+      // cadence). MEN backend distanceFilter får inte göra native tracking
+      // glesare än vad lokal near-target/inside-logik vill ha — annars
+      // blir telefonen blind nära lager/hem när backend råkar svara
+      // battery_saver=500m. Vi tar därför min(backend, local) för
+      // distanceFilter via mergeTrackingPolicy.
       const backend = readBackendPolicy();
-      if (backend) {
-        backendPolicyModeRef.current = backend.mode;
-        return {
-          ...decision,
-          heartbeatMs: backend.heartbeatMs,
-          distanceFilter: backend.distanceFilter,
-          reasonForModeChange: `${decision.reasonForModeChange} (backend:${backend.mode})`,
-        };
-      }
-      backendPolicyModeRef.current = null;
-      return decision;
+      const merged = mergeTrackingPolicy({
+        backend,
+        local: {
+          heartbeatMs: decision.heartbeatMs,
+          distanceFilter: decision.distanceFilter,
+          mode: decision.mode,
+        },
+      });
+      backendPolicyModeRef.current = backend?.mode ?? null;
+      return {
+        ...decision,
+        heartbeatMs: merged.heartbeatMs,
+        distanceFilter: merged.distanceFilter,
+        reasonForModeChange: `${decision.reasonForModeChange} (${merged.reason})`,
+      };
     };
 
 
