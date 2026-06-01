@@ -147,42 +147,57 @@ const MediumProjectsListPanel = ({ completedOnly = false, externalSearch, extern
           </div>
         ) : (
           <div className="p-2 space-y-1.5">
-            {filteredProjects.map(project => (
-              <div
-                key={project.id}
-                onClick={() => navigate(`/project/${project.id}`)}
-                className="group/card flex items-center gap-3 px-3 py-2.5 cursor-pointer rounded-lg border border-border bg-card shadow-sm hover:shadow-md hover:border-primary/50 transition-all border-l-[3px] border-l-primary"
-              >
-                <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-medium text-foreground truncate group-hover/card:text-primary transition-colors">
-                    {project.name}
-                  </h4>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    {project.booking?.eventdate && (
-                      <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                        <Calendar className="w-3 h-3" />
-                        {formatDate(project.booking.eventdate)}
-                      </span>
-                    )}
-                    {project.project_leader && (
-                      <span className="text-[11px] text-muted-foreground truncate">
-                        {project.project_leader}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    onClick={(e) => handleDelete(e, project.id)}
-                    className="p-1 rounded opacity-0 group-hover/card:opacity-100 transition-opacity hover:bg-destructive/10"
+            {filteredProjects.map(project => {
+              const targetPath = `/project/${project.id}`;
+              return (
+              <ContextMenu key={project.id}>
+                <ContextMenuTrigger asChild>
+                  <div
+                    onClick={() => navigate(targetPath)}
+                    className="group/card flex items-center gap-3 px-3 py-2.5 cursor-pointer rounded-lg border border-border bg-card shadow-sm hover:shadow-md hover:border-primary/50 transition-all border-l-[3px] border-l-primary"
                   >
-                    <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
-                  </button>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground/30 group-hover/card:text-primary/50 transition-colors" />
-                </div>
-              </div>
-            ))}
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-medium text-foreground truncate group-hover/card:text-primary transition-colors">
+                        {project.name}
+                      </h4>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {project.booking?.eventdate && (
+                          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                            <Calendar className="w-3 h-3" />
+                            {formatDate(project.booking.eventdate)}
+                          </span>
+                        )}
+                        {project.project_leader && (
+                          <span className="text-[11px] text-muted-foreground truncate">
+                            {project.project_leader}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={(e) => handleDelete(e, project.id)}
+                        className="p-1 rounded opacity-0 group-hover/card:opacity-100 transition-opacity hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                      </button>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground/30 group-hover/card:text-primary/50 transition-colors" />
+                    </div>
+                  </div>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  <ContextMenuItem
+                    onSelect={() =>
+                      addTab({ path: targetPath, title: project.name, subtitle: project.project_leader ?? undefined })
+                    }
+                  >
+                    <Pin className="w-3.5 h-3.5 mr-2" /> Spara som tabb
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
+              );
+            })}
           </div>
         )}
       </div>
