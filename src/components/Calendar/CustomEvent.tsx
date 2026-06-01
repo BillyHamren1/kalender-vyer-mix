@@ -269,7 +269,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
           </div>
         )}
         {/* Customer self-pickup badge */}
-        {customerPickup && (event.eventType === 'rig' || event.eventType === 'rigDown' || event.eventType === 'rigdown') && !isCancelled && (
+        {customerPickup && (event.eventType === 'rig' || event.eventType === 'rigDown') && !isCancelled && (
           <div className="absolute -top-1 -left-1 bg-purple-700 text-white text-[8px] px-1 py-0.5 rounded font-bold z-10 uppercase tracking-wide">
             Kund hämtar
           </div>
