@@ -433,6 +433,33 @@ const PlannerEventActionPopover: React.FC<Props> = ({ event, onOpenDetails, chil
                   <span>· {phaseLabel} {format(parseISO(eventDate), 'd MMM', { locale: sv })}</span>
                 )}
               </div>
+            {/* TIME ROW */}
+            <div className={`space-y-1.5 rounded p-2 -mx-1 ${isCurrentLocked ? 'bg-destructive/5 ring-1 ring-destructive/40' : ''}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Clock className="h-3 w-3" /> Tid
+                  {phaseLabel && (
+                    <span>· {phaseLabel} {format(parseISO(eventDate), 'd MMM', { locale: sv })}</span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleToggleLock}
+                  disabled={togglingLock || !plannerItemId}
+                  className={`inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border transition-colors ${
+                    isCurrentLocked
+                      ? 'border-destructive text-destructive bg-destructive/10'
+                      : 'border-border text-muted-foreground hover:bg-muted'
+                  } disabled:opacity-50`}
+                  title={isCurrentLocked ? 'Klicka för att låsa upp' : 'Lås tid mot redigering'}
+                >
+                  {togglingLock
+                    ? <Loader2 className="h-3 w-3 animate-spin" />
+                    : isCurrentLocked
+                      ? <><Lock className="h-3 w-3" />Låst</>
+                      : <><Unlock className="h-3 w-3" />Lås tider</>}
+                </button>
+              </div>
               <div className="flex items-center gap-2 text-xs">
                 <TimeSelect h={sH} m={sM} onH={setSH} onM={setSM} />
                 <span className="text-muted-foreground">–</span>
@@ -440,26 +467,29 @@ const PlannerEventActionPopover: React.FC<Props> = ({ event, onOpenDetails, chil
                 <Button
                   size="sm"
                   className="h-7 ml-auto"
-                  disabled={!timeChanged || savingTime}
+                  disabled={!timeChanged || savingTime || (isCurrentLocked && !applyToAll)}
                   onClick={handleSaveTime}
                 >
                   {savingTime ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Spara'}
                 </Button>
               </div>
-            </div>
-
-            {/* FOOTER */}
-            <div className="flex gap-2 pt-1 border-t">
-              {onOpenDetails && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 text-xs flex-1"
-                  onClick={() => { setOpen(false); onOpenDetails(); }}
-                >
-                  <ExternalLink className="h-3 w-3 mr-1" /> Öppna
-                </Button>
+              {phaseDays.length > 1 && (
+                <label className="flex items-center gap-2 text-xs cursor-pointer select-none text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={applyToAll}
+                    onChange={(e) => setApplyToAll(e.target.checked)}
+                    className="h-3.5 w-3.5 accent-primary"
+                  />
+                  Ändra tid/team för alla {phaseLabel || 'fas'}-dagar ({phaseDays.length}) — låsta hoppas över
+                </label>
               )}
+              {isCurrentLocked && !applyToAll && (
+                <div className="text-[11px] text-destructive">
+                  Tiden är låst — lås upp eller bocka i "Ändra för alla …-dagar" för att spara.
+                </div>
+              )}
+            </div>
               <Button
                 size="sm"
                 variant="ghost"
