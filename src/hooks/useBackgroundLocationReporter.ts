@@ -1039,7 +1039,10 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
     };
 
     if (Capacitor.isNativePlatform()) {
-      const initialFilter = currentDistanceFilterRef.current || DEFAULT_DISTANCE_FILTER;
+      const initialFilter =
+        captureDistanceFilterRef.current ||
+        currentDistanceFilterRef.current ||
+        DEFAULT_DISTANCE_FILTER;
       void startNative(initialFilter);
 
       // NOTE: No cleanup that stops BackgroundGeolocation. Once started, the
@@ -1058,6 +1061,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
           pos.coords.longitude,
           pos.coords.accuracy ?? null,
           pos.coords.speed ?? null,
+          pos.timestamp ?? null,
         );
       };
 
