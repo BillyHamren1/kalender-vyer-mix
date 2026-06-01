@@ -23,7 +23,7 @@ describe('mergeTrackingPolicy', () => {
     expect(merged.distanceFilter).toBe(50);
   });
 
-  it('backend 20m + lokal idle 50m => applied 20m (men native clamp lyfter till 50m)', () => {
+  it('backend 20m + lokal idle 50m => applied 20m (native MIN är 20m, capture får vara tät)', () => {
     const merged = mergeTrackingPolicy({
       backend: { heartbeatMs: 60_000, distanceFilter: 20, mode: 'active' },
       local: { heartbeatMs: 60_000, distanceFilter: 50, mode: 'idle' },
@@ -33,7 +33,7 @@ describe('mergeTrackingPolicy', () => {
       desiredDistanceFilter: merged.distanceFilter,
       isNativePlatform: true,
     });
-    expect(applied).toBe(50);
+    expect(applied).toBe(20);
   });
 
   it('utan backend används lokal decision rakt av', () => {
@@ -45,10 +45,7 @@ describe('mergeTrackingPolicy', () => {
     expect(merged.reason).toBe('local:near_target');
   });
 
-  it('skyddet är komplett: backend 500m near_target 35m på native => 50m applied (inte 500m)', () => {
-    // Detta är hela poängen med fixen — telefonen får aldrig ligga kvar
-    // med 500m native distanceFilter när lokal logik vet att personen
-    // är nära ett känt target.
+  it('skyddet är komplett: backend 500m near_target 35m på native => 35m applied (inte 500m)', () => {
     const merged = mergeTrackingPolicy({
       backend: { heartbeatMs: 300_000, distanceFilter: 500, mode: 'battery_saver' },
       local: { heartbeatMs: 60_000, distanceFilter: 35, mode: 'near_target' },
@@ -57,6 +54,6 @@ describe('mergeTrackingPolicy', () => {
       desiredDistanceFilter: merged.distanceFilter,
       isNativePlatform: true,
     });
-    expect(applied).toBe(50);
+    expect(applied).toBe(35);
   });
 });
