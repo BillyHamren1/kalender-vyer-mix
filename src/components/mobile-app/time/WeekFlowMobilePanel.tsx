@@ -157,9 +157,9 @@ export default function WeekFlowMobilePanel() {
           key={day.date}
           day={day}
           onSubmit={(date) => setOpenDate(date)}
-          onOpenGps={(date) => navigate(`/m/gps?date=${date}`)}
         />
       ))}
+
 
       <MobileDaySubmitSheet
         date={openDate}
