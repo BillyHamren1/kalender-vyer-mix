@@ -1,25 +1,74 @@
 /**
- * WeekFlowMobilePanel — mobil-vyn för /m/report. Speglar admin Tid & Lön 1:1.
+ * WeekFlowMobilePanel — mobilens veckovy på /m/report.
  *
- * - Auth: useMobileAuth (MobileAuthProvider). Den vanliga Supabase-baserade
- *   staff-id-hooken får INTE användas här — den läser AuthContext som är null
- *   i mobilappen.
- * - Använder samma `useStaffTimeWeekFlow` + `WeekFlowDayCard` som admin.
- *   Hooken kör viewer="staff" → går via mobile token / edge function.
- * - "Skicka in" öppnar DayReviewSheet (samma get-mobile-gps-day-view +
- *   submit-mobile-gps-day-v2 som tidigare).
- * - "Öppna GPS" → /m/gps?date=…
+ * EN dataväg:
+ *   staff_location_history
+ *     → Time Engine / cache-builder
+ *     → staff_day_report_cache
+ *     → resolveStaffDayReportsBatch (samma resolver som Tid & Lön)
+ *     → get-staff-time-week-matrix (dual-auth, mobile token = self only)
+ *     → useStaffSelfWeekMatrix → denna komponent.
+ *
+ * Submit → MobileDaySubmitSheet → submit-staff-day-v3 → staff_day_submissions.
+ *
+ * Får ALDRIG anropa:
+ *   - useStaffTimeWeekFlow / useStaffGpsWeekSummary
+ *   - get-staff-gps-week-summary / buildCanonicalStaffDayGpsResult
+ *   - get-mobile-gps-day-view / submit-mobile-gps-day-v2
+ *   - staff_location_history (raw GPS — endast Time Engine)
  */
 import { useMemo, useState } from "react";
-import { addDays, addWeeks, format, startOfWeek, subWeeks } from "date-fns";
+import { addDays, addWeeks, format, parseISO, startOfWeek, subWeeks } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
-import { useStaffTimeWeekFlow } from "@/hooks/staffTimeFlow/useStaffTimeWeekFlow";
-import WeekFlowDayCard from "@/components/staff-time/week-flow/WeekFlowDayCard";
-import DayReviewSheet from "@/features/mobile-time-v2/DayReviewSheet";
+import { useStaffSelfWeekMatrix } from "@/hooks/staffTimeFlow/useStaffSelfWeekMatrix";
 import { useMobileAuth } from "@/contexts/MobileAuthContext";
+import MobileDaySubmitSheet from "./MobileDaySubmitSheet";
+import WeekFlowDayCard from "@/components/staff-time/week-flow/WeekFlowDayCard";
+import type { WeekFlowDay, WeekFlowStatus } from "@/lib/staffTimeFlow/types";
+import type { StaffTimeMatrixCell } from "@/hooks/staffTimeFlow/useStaffTimeWeekMatrix";
+
+/** Mappa matris-cell → WeekFlowDay så vi återanvänder samma kortrendering som admin. */
+function cellToWeekFlowDay(cell: StaffTimeMatrixCell): WeekFlowDay {
+  const status: WeekFlowStatus =
+    cell.status === "empty" ? "gps_proposal" : cell.status;
+  const canSubmit =
+    !(status === "approved" || status === "submitted_waiting_approval");
+  return {
+    date: cell.date,
+    status,
+    startTime: cell.startTime,
+    endTime: cell.endTime,
+    workMinutes: cell.workMinutes,
+    travelMinutes: cell.travelMinutes,
+    totalMinutes: cell.totalMinutes,
+    normalMinutes: cell.normalMinutes,
+    overtimeMinutes: cell.overtimeMinutes,
+    rows: cell.rows.map((r, i) => ({
+      key: `${cell.date}:${i}`,
+      kind: r.kind,
+      label: r.label,
+      startIso: r.startIso,
+      endIso: r.endIso,
+      minutes: r.minutes,
+      fromLabel: r.fromLabel,
+      toLabel: r.toLabel,
+    })),
+    source: cell.source,
+    submissionId: cell.submissionId,
+    gpsAvailable: cell.gpsAvailable,
+    canSubmit,
+    canApprove: false,
+    canRequestCorrection: false,
+    submittedAt: null,
+    approvedAt: null,
+    approvedBy: null,
+    reviewComment: cell.reviewComment,
+    pingCount: cell.pingCount,
+  };
+}
 
 export default function WeekFlowMobilePanel() {
   const qc = useQueryClient();
@@ -34,11 +83,26 @@ export default function WeekFlowMobilePanel() {
     [weekStart],
   );
 
-  const { flow, isLoading } = useStaffTimeWeekFlow({
-    staffId,
-    weekDates,
-    viewer: "staff",
-  });
+  const { cellsByDate, isLoading } = useStaffSelfWeekMatrix({ staffId, weekDates });
+
+  const days: WeekFlowDay[] = useMemo(
+    () => weekDates.map((d) => {
+      const date = format(d, "yyyy-MM-dd");
+      const cell = cellsByDate.get(date);
+      if (cell) return cellToWeekFlowDay(cell);
+      return cellToWeekFlowDay({
+        date, status: "empty", source: "empty",
+        startTime: null, endTime: null,
+        workMinutes: 0, travelMinutes: 0, totalMinutes: 0,
+        normalMinutes: 0, overtimeMinutes: 0,
+        submissionId: null, reviewComment: null,
+        pingCount: 0, gpsAvailable: false, rows: [],
+      });
+    }),
+    [weekDates, cellsByDate],
+  );
+
+  const openCell = openDate ? cellsByDate.get(openDate) ?? null : null;
 
   const weekEnd = addDays(weekStart, 6);
 
@@ -57,10 +121,6 @@ export default function WeekFlowMobilePanel() {
       </div>
     );
   }
-
-  const openDateRow = openDate
-    ? flow?.days.find((d) => d.date === openDate) ?? null
-    : null;
 
   return (
     <div className="space-y-3 p-3">
@@ -92,7 +152,7 @@ export default function WeekFlowMobilePanel() {
         </div>
       )}
 
-      {flow?.days.map((day) => (
+      {days.map((day) => (
         <WeekFlowDayCard
           key={day.date}
           day={day}
@@ -101,15 +161,13 @@ export default function WeekFlowMobilePanel() {
         />
       ))}
 
-      <DayReviewSheet
-        staffId={staffId}
+      <MobileDaySubmitSheet
         date={openDate}
-        reviewComment={openDateRow?.reviewComment ?? null}
+        reviewComment={openCell?.reviewComment ?? null}
         onClose={() => setOpenDate(null)}
         onSubmitted={() => {
-          // Bred invalidation — träffar både admin- och staff-viewer key.
-          qc.invalidateQueries({ queryKey: ["staff-time-flow-submissions"] });
-          qc.invalidateQueries({ queryKey: ["staff-gps-week-summary"] });
+          qc.invalidateQueries({ queryKey: ["staff-self-week-matrix"] });
+          qc.invalidateQueries({ queryKey: ["staff-time-week-matrix"] });
         }}
       />
     </div>
