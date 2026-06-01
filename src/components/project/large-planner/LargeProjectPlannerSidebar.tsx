@@ -87,26 +87,38 @@ const LargeProjectPlannerSidebar = ({
     [items],
   );
 
-  const matchesFilter = (its: LargeProjectBookingPlanItem[]): boolean => {
+  // En bokning räknas som "planerad i kalendern" när den har minst ett
+  // sparat datum för rig/event/rigDown. Plan-items utan motsvarande datum
+  // räcker INTE — om alla riggdagar/eventdagar/rigdowndagar klickats bort
+  // ska bokningen hamna i "Ej planerade" så att man kan planera den igen.
+  const hasAnyBookingDate = (b: LargeProjectPlannerBooking): boolean =>
+    (b.rig_dates?.length ?? 0) > 0 ||
+    (b.event_dates?.length ?? 0) > 0 ||
+    (b.rigdown_dates?.length ?? 0) > 0;
+
+  const isBookingPlanned = (b: LargeProjectPlannerBooking) => hasAnyBookingDate(b);
+
+  const matchesFilter = (
+    b: LargeProjectPlannerBooking,
+    its: LargeProjectBookingPlanItem[],
+  ): boolean => {
     if (filter === 'all') return true;
-    if (filter === 'unplanned') return its.length === 0;
-    if (filter === 'planned') return its.some((i) => i.status !== 'done');
+    if (filter === 'unplanned') return !hasAnyBookingDate(b);
+    if (filter === 'planned') return hasAnyBookingDate(b) && its.some((i) => i.status !== 'done');
     if (filter === 'done') return its.length > 0 && its.every((i) => i.status === 'done');
     return true;
   };
 
   const filteredBookings = bookings.filter((b) =>
-    matchesFilter(itemsByBooking.get(b.id) ?? []),
+    matchesFilter(b, itemsByBooking.get(b.id) ?? []),
   );
 
-  const isBookingPlanned = (b: LargeProjectPlannerBooking) =>
-    (itemsByBooking.get(b.id) ?? []).length > 0;
   const unplannedBookings = filteredBookings.filter((b) => !isBookingPlanned(b));
   const plannedBookings = filteredBookings.filter((b) => isBookingPlanned(b));
 
   const renderBookingCard = (booking: LargeProjectPlannerBooking) => {
     const its = itemsByBooking.get(booking.id) ?? [];
-    const isPlanned = its.length > 0;
+    const isPlanned = hasAnyBookingDate(booking);
     return (
       <div
         key={booking.id}
@@ -259,7 +271,7 @@ const LargeProjectPlannerSidebar = ({
           )}
           {filteredBookings.map((booking) => {
             const its = itemsByBooking.get(booking.id) ?? [];
-            const isPlanned = its.length > 0;
+            const isPlanned = hasAnyBookingDate(booking);
             return (
               <div
                 key={booking.id}
