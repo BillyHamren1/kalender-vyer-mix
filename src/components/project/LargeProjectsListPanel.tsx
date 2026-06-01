@@ -12,6 +12,9 @@ import { fetchLargeProjects, createLargeProject, deleteLargeProject } from '@/se
 import { toast } from 'sonner';
 import { LargeProjectStatus, LARGE_PROJECT_STATUS_LABELS, LARGE_PROJECT_STATUS_COLORS } from '@/types/largeProject';
 import { cn } from '@/lib/utils';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
+import { usePinnedTabs } from '@/contexts/PinnedTabsContext';
+import { Pin } from 'lucide-react';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import type { GlobalStatusFilter } from '@/pages/ProjectManagement';
