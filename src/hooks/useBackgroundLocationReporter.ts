@@ -5,9 +5,11 @@ import {
   enqueueLocationPoint,
   forceFlushLocationQueue,
   getLocationSyncStatus,
+  setLocationUploadPolicy,
   subscribeLocationSyncStatus,
   type LocationSyncStatus,
 } from '@/services/locationSyncQueue';
+import { deriveCaptureUploadPolicy } from '@/lib/geofence/captureUploadPolicy';
 
 import { getBatterySnapshot } from '@/lib/mobile/getBatterySnapshot';
 import { GpsPosition, haversineDistance, ENTER_RADIUS } from '@/hooks/useGeofencing';
