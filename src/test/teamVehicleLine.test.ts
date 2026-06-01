@@ -1,34 +1,59 @@
 import { describe, it, expect } from 'vitest';
+import {
+  formatTeamVehicleLine,
+  vehicleNames,
+  type TeamVehicleInfo,
+} from '@/lib/teamVehicles';
 
 /**
- * Pure builder-test för bil-rubriken i team-headern: säkerställer formatet
+ * Pure builder-test för bil-rubriken: säkerställer formatet
  * "Bil: X" (en bil) respektive "Bil1: X, Bil2: Y" (flera).
- * Speglar formaterings-logiken i src/components/Calendar/TimeGrid.tsx.
+ * Driver både personalkalenderns header och mobilens jobbkort.
  */
-const buildVehicleLine = (names: string[]): string => {
-  if (names.length === 0) return '';
-  if (names.length === 1) return `Bil: ${names[0]}`;
-  return names.map((n, i) => `Bil${i + 1}: ${n}`).join(', ');
-};
 
-describe('team vehicle line', () => {
+describe('formatTeamVehicleLine', () => {
   it('returnerar tom sträng utan bilar', () => {
-    expect(buildVehicleLine([])).toBe('');
+    expect(formatTeamVehicleLine([])).toBe('');
+  });
+
+  it('hanterar icke-array säkert', () => {
+    // @ts-expect-error medvetet fel input
+    expect(formatTeamVehicleLine(null)).toBe('');
+    // @ts-expect-error medvetet fel input
+    expect(formatTeamVehicleLine(undefined)).toBe('');
   });
 
   it('formaterar EN bil som "Bil: <namn>"', () => {
-    expect(buildVehicleLine(['VW Crafter'])).toBe('Bil: VW Crafter');
+    expect(formatTeamVehicleLine(['VW Crafter'])).toBe('Bil: VW Crafter');
   });
 
   it('numrerar flera bilar', () => {
-    expect(buildVehicleLine(['Crafter', 'Sprinter'])).toBe(
-      'Bil1: Crafter, Bil2: Sprinter'
+    expect(formatTeamVehicleLine(['Crafter', 'Sprinter'])).toBe(
+      'Bil1: Crafter, Bil2: Sprinter',
     );
-    expect(buildVehicleLine(['A', 'B', 'C'])).toBe('Bil1: A, Bil2: B, Bil3: C');
+    expect(formatTeamVehicleLine(['A', 'B', 'C'])).toBe(
+      'Bil1: A, Bil2: B, Bil3: C',
+    );
   });
 });
 
-describe('vehicle filter (own + active)', () => {
+describe('vehicleNames', () => {
+  it('plockar ut namn och filtrerar bort tomma', () => {
+    const vs: TeamVehicleInfo[] = [
+      { id: '1', name: 'Crafter', registration_number: 'ABC123' },
+      { id: '2', name: '   ', registration_number: null },
+      { id: '3', name: 'Sprinter', registration_number: null },
+    ];
+    expect(vehicleNames(vs)).toEqual(['Crafter', 'Sprinter']);
+  });
+
+  it('hanterar null/undefined', () => {
+    expect(vehicleNames(null)).toEqual([]);
+    expect(vehicleNames(undefined)).toEqual([]);
+  });
+});
+
+describe('vehicle filter (own + active) — speglar useTeamVehiclesForDay', () => {
   type V = { id: string; is_external: boolean; is_active: boolean };
   const filterOwnActive = (vs: V[]) => vs.filter((v) => !v.is_external && v.is_active);
 
