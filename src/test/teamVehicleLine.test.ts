@@ -17,10 +17,8 @@ describe('formatTeamVehicleLine', () => {
   });
 
   it('hanterar icke-array säkert', () => {
-    // @ts-expect-error medvetet fel input
-    expect(formatTeamVehicleLine(null)).toBe('');
-    // @ts-expect-error medvetet fel input
-    expect(formatTeamVehicleLine(undefined)).toBe('');
+    expect(formatTeamVehicleLine(null as unknown as string[])).toBe('');
+    expect(formatTeamVehicleLine(undefined as unknown as string[])).toBe('');
   });
 
   it('formaterar EN bil som "Bil: <namn>"', () => {
