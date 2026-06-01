@@ -13,6 +13,19 @@ import {
   isItemActive,
   type MobileCalendarItem,
 } from '@/lib/mobileCalendarConsolidation';
+import TeamVehicleLine from '@/components/mobile-app/TeamVehicleLine';
+import type { TeamVehicleInfo } from '@/lib/teamVehicles';
+
+function itemVehicles(it: MobileCalendarItem): TeamVehicleInfo[] {
+  const shifts = it.kind === 'project' ? it.shifts : [it.shift];
+  const map = new Map<string, TeamVehicleInfo>();
+  for (const s of shifts) {
+    for (const v of s.team_vehicles ?? []) {
+      if (!map.has(v.id)) map.set(v.id, v);
+    }
+  }
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'sv'));
+}
 
 interface DayTimelineProps {
   shifts: ScheduledShift[];
