@@ -306,6 +306,17 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     if (plannerItemId) setQuickEditId(plannerItemId);
   }, []);
 
+  // Dubbelklick på ett bokningsblock i kalendern → öppna BookingPlannerSheet
+  // (full översikt med faser + orderrads-to-dos att bocka av).
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const bid = (e as CustomEvent<{ bookingId?: string }>).detail?.bookingId;
+      if (bid) setPlannerSheetBookingId(bid);
+    };
+    window.addEventListener('lp-booking-sheet-open', handler as EventListener);
+    return () => window.removeEventListener('lp-booking-sheet-open', handler as EventListener);
+  }, []);
+
   const quickEditItem = quickEditId
     ? itemsWithAssignmentValidity.find((it) => it.id === quickEditId) ?? null
     : null;
