@@ -274,6 +274,11 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
           console.warn('[useUnifiedStaffOperations] warehouse assignment cleanup failed', e);
         }
       }
+      // Säkerställ att UI-cachen alltid synkar med DB efter en lyckad write.
+      // Realtime-kanalen är backup; vi kan inte förlita oss på den ensam pga
+      // race mellan commit och re-fetch (badge kan annars hänga kvar som
+      // optimistic och försvinna vid nästa refresh).
+      queryClient.invalidateQueries({ queryKey: ['staff-assignments-all'] });
     } catch (error) {
       toast.error((error as any)?.message || 'Kunde inte uppdatera tilldelning');
       // Revert: invalidate to re-fetch fresh data
