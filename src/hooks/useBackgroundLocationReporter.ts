@@ -12,7 +12,7 @@ import {
 import { deriveCaptureUploadPolicy } from '@/lib/geofence/captureUploadPolicy';
 
 import { getBatterySnapshot } from '@/lib/mobile/getBatterySnapshot';
-import { GpsPosition, haversineDistance, ENTER_RADIUS } from '@/hooks/useGeofencing';
+import { GpsPosition, ENTER_RADIUS } from '@/hooks/useGeofencing';
 import {
   decideLocationMode,
   logModeChange,
@@ -24,6 +24,12 @@ import { isInDismissCooldown } from '@/lib/geofence/dismissCooldown';
 import { mergeTrackingPolicy } from '@/lib/geofence/mergeTrackingPolicy';
 import { isWorkdayActive } from '@/lib/workday/workdayActiveSignal';
 import { recordAppHealthEvent } from '@/lib/mobile/recordAppHealthEvent';
+import {
+  isInsideGeofence,
+  shouldTriggerEnter,
+  shouldTriggerExit,
+  type GeoJSONPolygon,
+} from '@/lib/geofenceEval';
 
 
 const PENDING_ARRIVALS_KEY = 'eventflow-pending-arrivals';
@@ -54,6 +60,8 @@ interface GeofenceTarget {
   largeProjectId?: string;
   bookingId?: string;
   address?: string;
+  geofence_mode?: 'circle' | 'polygon' | null;
+  geofence_polygon?: GeoJSONPolygon | null;
 }
 
 function loadPendingArrivals(): PendingArrival[] {
@@ -168,6 +176,14 @@ export interface BackgroundLocationDebugInfo {
   lastGeolocationError: string | null;
   currentDistanceFilter: number;
   currentHeartbeatMs: number;
+  /** Capture-policyns distanceFilter (lokal native start/restart). */
+  currentCaptureDistanceFilter: number;
+  /** Capture-policyns enqueue-throttle (ms). */
+  currentCaptureThrottleMs: number;
+  /** Aktuell upload-policy (auto-flush-cadence i locationSyncQueue). */
+  currentUploadMode: string;
+  /** Auto-flush-intervall (ms) som upload-policyn just nu kräver. */
+  currentUploadIntervalMs: number;
   backendPolicyMode: string | null;
   isNativePlatform: boolean;
   appVisibilityState: 'visible' | 'hidden' | 'unknown';
@@ -246,6 +262,14 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
   // geofence kan vi enqueueas tätare (30s) och outside_idle släpper igenom
   // bara var 5:e min.
   const captureThrottleMsRef = useRef<number>(REPORT_THROTTLE_MS);
+  // Capture-distanceFilter — det är DENNA som styr native start/restart,
+  // INTE decision.distanceFilter. Capture-policy får t.ex. välja 20 m
+  // inom geofence för tät lokal rörelse även om backend-policyn vill
+  // ha grövre värde för upload-cadence.
+  const captureDistanceFilterRef = useRef<number>(DEFAULT_DISTANCE_FILTER);
+  // Senaste upload-policy från capture/upload-mapping (för debug).
+  const currentUploadModeRef = useRef<string>('default');
+  const currentUploadIntervalMsRef = useRef<number>(10 * 60_000);
 
 
   const [debug, setDebug] = useState<BackgroundLocationDebugInfo>({
@@ -268,6 +292,10 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
     lastGeolocationError: null,
     currentDistanceFilter: DEFAULT_DISTANCE_FILTER,
     currentHeartbeatMs: DEFAULT_HEARTBEAT_MS,
+    currentCaptureDistanceFilter: DEFAULT_DISTANCE_FILTER,
+    currentCaptureThrottleMs: REPORT_THROTTLE_MS,
+    currentUploadMode: 'default',
+    currentUploadIntervalMs: 10 * 60_000,
     backendPolicyMode: null,
     isNativePlatform: typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform(),
     appVisibilityState:
@@ -395,7 +423,16 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       }
     };
 
-    const handlePosition = (latitude: number, longitude: number, accuracy: number | null, speed: number | null) => {
+    const handlePosition = (
+      latitude: number,
+      longitude: number,
+      accuracy: number | null,
+      speed: number | null,
+      timestampMs?: number | null,
+    ) => {
+      const recordedAt = new Date(
+        typeof timestampMs === 'number' && Number.isFinite(timestampMs) ? timestampMs : Date.now(),
+      ).toISOString();
       lastPingAtRef.current = Date.now();
       lastNativeLocationEventAtRef.current = Date.now();
       setLatestPosition({ lat: latitude, lng: longitude, accuracy, speed, timestamp: Date.now() });
@@ -403,13 +440,15 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
 
       const now = Date.now();
       if (now - lastReportRef.current < captureThrottleMsRef.current) {
-        checkBackgroundGeofences(latitude, longitude);
+        // Geofence-check körs ÄVEN under throttle — den enqueuar själv
+        // crossing-punkten med source='geofence' så staketpassagen aldrig
+        // kan saknas pga capture-throttle.
+        checkBackgroundGeofences(latitude, longitude, accuracy, speed, recordedAt);
         return;
       }
       lastReportRef.current = now;
 
       if (staffIdRef.current) {
-        // Capture battery snapshot but never let it block the GPS ping.
         void getBatterySnapshot()
           .catch(() => null)
           .then((battery) => {
@@ -419,6 +458,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
               accuracy,
               speed,
               source: 'background',
+              recordedAt,
               batteryLevel: battery?.battery_level ?? null,
               batteryPercent: battery?.battery_percent ?? null,
               isCharging: battery?.is_charging ?? null,
@@ -426,19 +466,22 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
               batterySource: battery?.battery_source ?? null,
             });
             lastEnqueuedAtRef.current = Date.now();
-            // Ingen direkt flush — periodisk 10-min-batch sköter upload.
           });
 
-        // DEPRECATED: lastUploadAt = enqueue, INTE server-accepted.
-        // Kvar för bakåtkomp. Använd lastAcceptedUploadAt för sanning.
         lastUploadAtRef.current = now;
       }
 
-      checkBackgroundGeofences(latitude, longitude);
+      checkBackgroundGeofences(latitude, longitude, accuracy, speed, recordedAt);
     };
 
-    const onLocation = (latitude: number, longitude: number, accuracy: number | null, speed: number | null) => {
-      handlePosition(latitude, longitude, accuracy, speed);
+    const onLocation = (
+      latitude: number,
+      longitude: number,
+      accuracy: number | null,
+      speed: number | null,
+      timestampMs?: number | null,
+    ) => {
+      handlePosition(latitude, longitude, accuracy, speed, timestampMs);
     };
 
     const sendHeartbeat = () => {
@@ -586,19 +629,39 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       // aktuell mode och skicka upload-delen till locationSyncQueue så
       // auto-flushen får rätt cadence (30 min inside geofence, 60 s vid
       // boundary, osv). captureThrottle styr lokal enqueue-frekvens.
+      // captureDistanceFilter styr native start/restart (kan vara 20 m
+      // inom geofence) — INTE decision.distanceFilter (som är upload-
+      // policyns vy och kan vara grövre).
       const pos = lastKnownPosRef.current;
+      // I) Om vi är inne i en känd geofence (insideRef har targets) =>
+      //    behandla som inside oavsett om mode råkar säga active_timer.
+      //    active_timer utanför känd plats + rörelse ska bli moving_outside.
+      let policyMode: LocationMode | null = decision.mode;
+      if (decision.mode === 'active_timer') {
+        if (insideRef.current.size > 0) {
+          policyMode = 'inside_geofence_pending';
+        } else if (
+          typeof pos?.speed === 'number' && pos.speed >= 1.2
+        ) {
+          policyMode = 'workday_far';
+        }
+      }
       const capture = deriveCaptureUploadPolicy({
-        mode: decision.mode,
+        mode: policyMode,
         speedMps: pos?.speed ?? null,
       });
       captureThrottleMsRef.current = capture.captureThrottleMs;
+      captureDistanceFilterRef.current = capture.captureDistanceFilter;
+      currentUploadModeRef.current = capture.uploadMode;
+      currentUploadIntervalMsRef.current = capture.uploadIntervalMs;
       setLocationUploadPolicy({ mode: capture.uploadMode, intervalMs: capture.uploadIntervalMs });
 
       if (heartbeatTimerRef.current != null) clearTimeout(heartbeatTimerRef.current);
       heartbeatTimerRef.current = window.setTimeout(sendHeartbeat, decision.heartbeatMs);
 
       if (Capacitor.isNativePlatform()) {
-        maybeRestartNative(decision.distanceFilter);
+        // A) Använd capture.captureDistanceFilter för native start/restart.
+        maybeRestartNative(capture.captureDistanceFilter);
       }
 
       const arrivals = loadPendingArrivals();
@@ -624,6 +687,10 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
         lastGeolocationError: lastGeolocationErrorRef.current,
         currentDistanceFilter: decision.distanceFilter,
         currentHeartbeatMs: decision.heartbeatMs,
+        currentCaptureDistanceFilter: capture.captureDistanceFilter,
+        currentCaptureThrottleMs: capture.captureThrottleMs,
+        currentUploadMode: capture.uploadMode,
+        currentUploadIntervalMs: capture.uploadIntervalMs,
         backendPolicyMode: backendPolicyModeRef.current,
         isNativePlatform: Capacitor.isNativePlatform(),
         appVisibilityState:
@@ -790,7 +857,13 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
             return;
           }
           if (location) {
-            onLocation(location.latitude, location.longitude, location.accuracy ?? null, location.speed ?? null);
+            onLocation(
+              location.latitude,
+              location.longitude,
+              location.accuracy ?? null,
+              location.speed ?? null,
+              (location as { time?: number }).time ?? null,
+            );
           }
         },
       ).then(() => {
@@ -852,7 +925,13 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       } catch { /* not native — ok */ }
     })();
 
-    const checkBackgroundGeofences = (lat: number, lng: number) => {
+    const checkBackgroundGeofences = (
+      lat: number,
+      lng: number,
+      accuracy: number | null,
+      speed: number | null,
+      recordedAt: string,
+    ) => {
       const targets = loadGeofenceTargets();
       if (targets.length === 0) return;
 
@@ -863,13 +942,26 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       const arrivalKeys = new Set(arrivals.map(a => a.key));
 
       for (const target of targets) {
-        const dist = haversineDistance(lat, lng, target.lat, target.lng);
-        const enterRadius = target.radius || ENTER_RADIUS;
-        const exitRadius = enterRadius + 50;
+        const evalTarget = {
+          latitude: target.lat,
+          longitude: target.lng,
+          radius_meters: target.radius || ENTER_RADIUS,
+          geofence_mode: (target.geofence_mode ?? 'circle') as 'circle' | 'polygon',
+          geofence_polygon: target.geofence_polygon ?? null,
+        };
 
-        if (dist <= enterRadius) {
+        // Snabb "är vi inne nu?"-koll (utan hysteresis-trösklar) — för
+        // att hålla insideRef synkad och kunna fortsätta filtrera även
+        // när vi inte hinner triggera nytt enter/exit.
+        const insideNow = isInsideGeofence(lat, lng, evalTarget);
+
+        // ENTER: kräv hysteresis + accuracy-gate via shouldTriggerEnter.
+        if (
+          shouldTriggerEnter(lat, lng, evalTarget, accuracy) &&
+          !insideRef.current.has(target.key)
+        ) {
           const cooldownActive = isInDismissCooldown(target.key);
-          if (!insideRef.current.has(target.key) && !arrivalKeys.has(target.key) && !cooldownActive) {
+          if (!arrivalKeys.has(target.key) && !cooldownActive) {
             insideRef.current.add(target.key);
             arrivals.push({
               key: target.key,
@@ -880,48 +972,77 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
               largeProjectId: target.largeProjectId,
               bookingId: target.bookingId,
               address: target.address,
-              radius: enterRadius,
+              radius: evalTarget.radius_meters,
               lat: target.lat,
               lng: target.lng,
             });
             changed = true;
             didEnter = true;
             console.log(`[BGLocation] Pending arrival saved: ${target.name} (${target.key})`);
-          } else {
-            if (!insideRef.current.has(target.key) && !cooldownActive) {
-              didEnter = true;
-            }
+          } else if (!cooldownActive) {
             insideRef.current.add(target.key);
-            if (cooldownActive) {
-              // eslint-disable-next-line no-console
-              console.info('[BGLocation] entry suppressed by per-target cooldown', { key: target.key });
-            }
+            didEnter = true;
+          } else {
+            // cooldown — suppression
+            // eslint-disable-next-line no-console
+            console.info('[BGLocation] entry suppressed by per-target cooldown', { key: target.key });
           }
-        } else if (dist > exitRadius) {
-          if (insideRef.current.has(target.key)) {
-            insideRef.current.delete(target.key);
-            didExit = true;
-            const beforeLen = arrivals.length;
-            arrivals = arrivals.filter(a => a.key !== target.key);
-            if (arrivals.length !== beforeLen) {
-              changed = true;
-              console.log(`[BGLocation] Pending arrival removed (exit): ${target.key}`);
-            }
+          continue;
+        }
+
+        // EXIT: kräv hysteresis + accuracy-gate via shouldTriggerExit.
+        if (
+          shouldTriggerExit(lat, lng, evalTarget, accuracy) &&
+          insideRef.current.has(target.key)
+        ) {
+          insideRef.current.delete(target.key);
+          didExit = true;
+          const beforeLen = arrivals.length;
+          arrivals = arrivals.filter(a => a.key !== target.key);
+          if (arrivals.length !== beforeLen) {
+            changed = true;
+            console.log(`[BGLocation] Pending arrival removed (exit): ${target.key}`);
           }
+          continue;
+        }
+
+        // Inget enter/exit-event men håll insideRef synkad med snabbkollen
+        // så vi inte hänger kvar gamla targets i set:et.
+        if (insideNow && !insideRef.current.has(target.key) && (accuracy == null || accuracy <= 50)) {
+          insideRef.current.add(target.key);
         }
       }
 
       if (changed) savePendingArrivals(arrivals);
-      // Geofence boundary cross → forcera upload direkt så backend ser in/ut
-      // även om vi just nu kör batch_inside_geofence (30 min auto-flush).
+
+      // F) Vid crossing → enqueua crossing-punkten med source='geofence'
+      //    så vi alltid har bevis för in/ut även när vanliga background-
+      //    punkten throttlas. Och force-flush direkt så backend ser
+      //    in/ut även om vi just nu kör batch_inside_geofence (30 min).
+      if (didEnter || didExit) {
+        if (staffIdRef.current) {
+          enqueueLocationPoint({
+            latitude: lat,
+            longitude: lng,
+            accuracy,
+            speed,
+            source: 'geofence',
+            recordedAt,
+          });
+          lastEnqueuedAtRef.current = Date.now();
+        }
+      }
       if (didEnter) void forceFlushLocationQueue('geofence-enter');
       if (didExit) void forceFlushLocationQueue('geofence-exit');
       // Mode may have changed (entered/exited a target) — reschedule
-      rescheduleHeartbeat();
+      if (didEnter || didExit) rescheduleHeartbeat();
     };
 
     if (Capacitor.isNativePlatform()) {
-      const initialFilter = currentDistanceFilterRef.current || DEFAULT_DISTANCE_FILTER;
+      const initialFilter =
+        captureDistanceFilterRef.current ||
+        currentDistanceFilterRef.current ||
+        DEFAULT_DISTANCE_FILTER;
       void startNative(initialFilter);
 
       // NOTE: No cleanup that stops BackgroundGeolocation. Once started, the
@@ -940,6 +1061,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
           pos.coords.longitude,
           pos.coords.accuracy ?? null,
           pos.coords.speed ?? null,
+          pos.timestamp ?? null,
         );
       };
 

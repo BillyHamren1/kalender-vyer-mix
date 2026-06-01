@@ -1,23 +1,20 @@
 /**
  * Native GPS capture must never stop because app code picked a sparse
- * distanceFilter. We keep native capture always-on, but we MUST throttle
- * the position events — distanceFilter=0 maps to kCLDistanceFilterNone
- * on iOS, which floods Supabase with thousands of pings per device and
- * causes database overload.
- *
- * Produktionsgräns: 50 meter (anti-DDoS mot Supabase).
- * Övre gräns: 75 meter — annars blir telefonen blind nära lager/hem och
- * vi missar in/ut genom geofence. Capture-policy får INTE välja grövre
- * än 75 m. Upload-skydd görs istället via batch-policy i locationSyncQueue.
+ * distanceFilter. Vi måste samtidigt skydda Supabase mot ping-flod, men
+ * det skyddet sker via upload-policy + batchning i locationSyncQueue —
+ * INTE genom att strypa LOKAL capture till 50 m. Annars blir det omöjligt
+ * att samla tät rörelse inom geofence (där capture-policy vill ha 20 m).
  */
 
-// AKUT STABILISERING 2026-05-26: Höjt från 0 → 50m för att stoppa
-// Supabase-överbelastning. FÅR INTE sänkas under 50 i produktion.
+/**
+ * Default när desired är ogiltig/NaN. Stannar 50 m för att inte hamra
+ * batteriet om policyn inte kunnat räkna ut något.
+ */
 export const ALWAYS_ON_NATIVE_DISTANCE_FILTER = 50;
 
-/** Minimum tillåten distanceFilter i produktion (anti-DDoS). */
-export const MIN_PRODUCTION_DISTANCE_FILTER = 50;
-/** Maximum tillåten distanceFilter på native (annars blir telefonen blind). */
+/** Minimum tillåten distanceFilter på native (tätare än så ger ingen extra info för GPS). */
+export const MIN_PRODUCTION_DISTANCE_FILTER = 20;
+/** Maximum tillåten distanceFilter på native (annars blir telefonen blind nära geofence). */
 export const MAX_NATIVE_DISTANCE_FILTER = 75;
 
 export function resolveAppliedTrackingDistanceFilter(args: {
@@ -25,15 +22,8 @@ export function resolveAppliedTrackingDistanceFilter(args: {
   isNativePlatform: boolean;
 }): number {
   if (args.isNativePlatform) {
-    // På native måste applied distanceFilter ligga mellan
-    // MIN_PRODUCTION_DISTANCE_FILTER (50m, anti-DDoS) och
-    // MAX_NATIVE_DISTANCE_FILTER (75m, annars missar vi geofence i/ut).
-    // Tidigare clampade vi mot ALWAYS_ON (50) som tak vilket gjorde att
-    // varje desired ≥50 blev exakt 50m — bra för flush-skydd men gjorde
-    // det omöjligt att vila batterit i outside_idle. Med 50–75 får vi
-    // utrymme för båda extremfallen utan att stryka GPS-callback helt.
     if (!Number.isFinite(args.desiredDistanceFilter)) {
-      return MIN_PRODUCTION_DISTANCE_FILTER;
+      return ALWAYS_ON_NATIVE_DISTANCE_FILTER;
     }
     return Math.max(
       MIN_PRODUCTION_DISTANCE_FILTER,

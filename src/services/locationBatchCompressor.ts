@@ -6,13 +6,18 @@
 //
 // Regler (kort):
 //   1. Stillastående (≤50 m mellan flera punkter):
-//      → behåll första + sista, samt en "heartbeat" max var 10:e minut.
+//      → behåll första + sista, samt en "heartbeat".
+//      Default: var 10:e minut.
+//      Inom geofence (uploadMode='batch_inside_geofence'): var 2:a minut,
+//      eftersom batchen då bara skickas var 30:e minut och vi vill bevara
+//      tätare rörelse-bevis lokalt mellan batcharna.
 //   2. Rörelse (>50 m mellan punkter):
 //      → behåll första + sista i rörelsen,
 //        representativa punkter ungefär var 5:e minut,
 //        samt punkter vid större positionshopp (>200 m).
-//   3. Manuella/geofence/foreground-punkter behålls alltid
-//      (de är användardrivna och kostar inget extra).
+//   3. Manuella/geofence/foreground/heartbeat/location_ping/gps_pulse-
+//      punkter behålls alltid (de är användardrivna eller signal-
+//      händelser och kostar inget extra).
 //
 // Komprimeringen rör ALDRIG den lokala kön. Den väljer bara vilka
 // id:n som ska skickas i nästa batch. Resten markeras som
