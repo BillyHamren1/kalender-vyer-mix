@@ -35,6 +35,8 @@ import {
   type ResolvedStaffDaySummary,
 } from "../_shared/staff-day-report/resolveStaffDayReport.ts";
 
+const resolveStaffDayReportsBatch = resolveStaffDayReportSummariesBatch;
+
 interface RequestBody {
   weekStart?: string;
   dates?: string[];
@@ -217,7 +219,7 @@ Deno.serve(async (req) => {
 
 
     // 2) En enda resolver — batch över hela veckan.
-    const resolved = await resolveStaffDayReportSummariesBatch({
+    const resolved = await resolveStaffDayReportsBatch({
       admin,
       organizationId: orgId,
       staffIds: staff.map((s) => s.id),
