@@ -1,49 +1,44 @@
-## Status
+## Mål
 
-- **Personalen är INTE borta från databasen.** `staff_assignments` har t.ex. 22 rader för Sun 7 juni 2026 (team-1: 2, team-2: 1, team-3: 9, team-4: 10) och 5 rader för Sat 6 (team-1: 3, team-2: 2). Alla pekar på aktiv `staff_members.is_active=true` och rätt `organization_id`.
-- **RLS är intakt.** En enda PERMISSIVE policy `org_filter_staff_assignments` (`organization_id = get_user_organization_id(auth.uid())`). Inget restrictive på vägen.
-- **Inget i senaste migrationen rör staff.** Senaste migrationen (2026-06-01 13:44) skapade `team_vehicle_assignments` — den lägger bara till, rör inte `staff_assignments`.
+När en bil är tilldelad ett team för ett datum (`team_vehicle_assignments`), ska all personal som tillhör samma team den dagen se bilen(arna) som en rad på sitt jobbkort/projektkort i mobilappen — i samma format som personalkalendern: `Bil: Volvo` eller `Bil1: Volvo, Bil2: Sprinter` om flera.
 
-Slutsats: **Detta är frontend-render eller cache, inte data som "skrivits över".**
+Rent informativ rad. Ingen klickbarhet. Påverkar inte timer/tidsrapport/GPS-logik.
 
-## Misstänkta orsaker (i prioritetsordning)
+## Steg
 
-1. **React Query-cachen `['staff-assignments-all']` har en gammal eller tom payload.** `useUnifiedStaffOperations` har `staleTime: Infinity` + `gcTime: Infinity` och invalidate sker bara via realtime. Om ett realtime-event kom in med `event: '*'` och något payload-fel inträffade, kan cachen ha hamnat tom utan att vi vet.
-2. **Header-cellens nya `team-vehicle-line` (lagt till i förra uppdraget) ändrar header-radens höjd och knuffar staff-raden (row 3) under viewport eller bakom kort-kant.** Header är `grid-template-rows: auto auto auto` — om CSS skär av kortet vertikalt kan rad 3 döljas.
-3. **Realtime-prenumeranten på `unified-staff-assignments-rt` skickar 401/permission denied** efter senaste deployment och invaliderar in i tom payload. Visste inte att vi behövde GRANT-policy för `staff_availability` nyligen — kan ha gått sönder.
-4. **`useTeamVehiclesForDay` kraschar inuti TimeGrid** så hela TimeGrid renderar fallback utan staff. Hooken läser `team_vehicle_assignments` med `.eq('date', isoDate)` — om RLS-funktionen `has_planning_access(auth.uid())` returnerar false för aktuell user i den orgen blir det error i hooken men inte cascading. Värt att kolla.
+1. **Backend — berika dagsjobben med team-bilar**
+   - `supabase/functions/mobile-app-api/index.ts` (handler för `get_my_jobs` / dagens jobblista som driver MobileJobs + MobileOverview).
+   - För varje (booking, date)-jobb som returneras har vi redan `team_id` (från `calendar_events.resource_id`/BSA).
+   - Samla unika `(team_id, date)`-par för dagen → en `select` mot `team_vehicle_assignments` (filter på org + dessa par) → joina mot `vehicles` (`id, name, registration_number, is_external, is_active`) och behåll endast `is_external=false AND is_active=true`.
+   - Lägg `team_vehicles: Array<{ id, name, registration_number | null }>` (stabil sort på `name`, svensk locale) på varje jobb-objekt i svaret. Inget annat i svaret ändras.
+   - Stora projekt: samma logik per (representant-team_id, date) som LP redan använder för team-resolvning, så hela LP-kortet visar teamets bil.
 
-## Plan
+2. **Frontend — rendera bil-raden**
+   - Lägg en liten presentationskomponent `TeamVehicleLine` (delad i `src/components/mobile-app/`) som tar `team_vehicles` och renderar:
+     - 0 bilar → `null`
+     - 1 bil → `Bil: <name>` (lastbils-ikon till vänster, semantisk färg `text-muted-foreground`)
+     - >1 bilar → `Bil1: <name>, Bil2: <name>, …`
+   - Montera den högst upp i jobb-/projektkortet på:
+     - `src/components/mobile-app/JobCard` (eller motsvarande kort som MobileJobs/MobileOverview använder)
+     - LP-kortet i samma lista
+     - `MobileJobDetail` (Info-tab, ovanför adressen) så samma info syns även när man öppnat jobbet.
 
-**Steg 1 — bekräfta orsaken med användaren (ingen kodändring):**
+3. **Typer**
+   - Utöka `OpsOverviewJob` / motsvarande job-typ i `src/services/mobileApiService.ts` med valfritt `team_vehicles?: Array<{ id: string; name: string; registration_number: string | null }>`.
 
-Be användaren öppna devtools i preview och rapportera:
-- Hard reload (Cmd+Shift+R). Kommer personalen tillbaka?
-- Console: finns det `[useTeamVehiclesForDay]` eller `staff_assignments`-relaterade error/warnings?
-- Network: hitta supabase-anropet `staff_assignments?select=...` — returnerar det 0 rader, 403, eller alla rader?
+4. **Tester**
+   - Återanvänd `src/test/teamVehicleLine.test.ts` (formaterings-helpern från kalendern) — flytta formattern till `src/lib/teamVehicles.ts` om den ligger inlinad, så både kalender och mobil använder samma `formatTeamVehicleLine()`.
+   - Lägg till komponenttest för `TeamVehicleLine` (0/1/2/3 bilar → korrekt sträng).
+   - Lägg ett enhetstest för backend-berikningssteget (pure helper som givet jobs + assignments + vehicles returnerar jobs med rätt `team_vehicles`).
+   - Kör `bash scripts/test-time-reporting.sh` (sanity, ska inte påverkas) + `bunx vitest run` på de nya filerna.
 
-**Steg 2 — beroende på svar:**
+## Vad som INTE ändras
 
-- **Om hard reload löser det** → cache-bug i `useUnifiedStaffOperations`. Lägg till `refetchOnWindowFocus`/`refetchOnMount` eller sänk `staleTime` till några minuter.
-- **Om network visar 0 rader** → RLS/auth-issue. Verifiera `get_user_organization_id(auth.uid())` returnerar rätt org för inloggad användare just nu.
-- **Om network visar rader men UI tomt** → CSS-regression från `team-vehicle-line`. Inspektera `.staff-assignment-header-row` höjd, kolla om `.team-header-cell` flex pushar bort row 3.
-- **Om console-fel från `useTeamVehiclesForDay`** → wrap'a hooken så ett fel inte kan ta ner TimeGrid (defensiv try/catch + tom Map fallback).
+- Ingen ny tabell, inga RLS-ändringar (`team_vehicle_assignments` finns redan).
+- Inga ändringar i timer/Time Engine/tidsrapport/lön/GPS.
+- Ingen klickbarhet, ingen fordonsdetaljvy på mobilen.
+- Externa fordon visas inte (endast `is_external=false`), samma policy som kalendern.
 
-**Steg 3 — fixa minimalt:**
+## Tekniska detaljer
 
-Inga skrivningar mot DB. Endast frontend-fix på den faktiska roten. **Ingen rensning/dedup av staff_assignments** — datan är korrekt och får inte röras.
-
-## Vad jag INTE gör
-
-- Ingen DELETE/UPDATE mot `staff_assignments`.
-- Inga nya migrationer.
-- Ingen ny "städ"-funktion.
-- Inga ändringar i fördelnings-/timer-/lönlogik.
-
-## Fråga till dig
-
-Innan jag rör en rad kod: kan du
-1. göra **hard reload** (Cmd+Shift+R) i kalendervyn och säga om personalen kommer tillbaka, och
-2. öppna devtools → Network, filter "staff_assignments", och säga ungefär hur många rader svaret innehåller (eller om det är 403/401)?
-
-Då vet jag direkt om det är cache, RLS eller CSS, och kan fixa exakt det utan att gissa.
+Berikningen sker i samma loop som redan bygger jobbsvaret i `mobile-app-api`, så det blir 1 extra select på `team_vehicle_assignments` + 1 på `vehicles` (eller en enda join) per request — försumbart.
