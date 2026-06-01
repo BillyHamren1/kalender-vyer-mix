@@ -7378,6 +7378,44 @@ export type Database = {
           },
         ]
       }
+      team_vehicle_assignments: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          date: string
+          id: string
+          organization_id: string
+          team_id: string
+          vehicle_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          date: string
+          id?: string
+          organization_id?: string
+          team_id: string
+          vehicle_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          id?: string
+          organization_id?: string
+          team_id?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_vehicle_assignments_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       time_auto_start_suppressions: {
         Row: {
           created_at: string
