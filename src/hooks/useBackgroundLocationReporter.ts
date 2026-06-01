@@ -857,7 +857,13 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
             return;
           }
           if (location) {
-            onLocation(location.latitude, location.longitude, location.accuracy ?? null, location.speed ?? null);
+            onLocation(
+              location.latitude,
+              location.longitude,
+              location.accuracy ?? null,
+              location.speed ?? null,
+              (location as { time?: number }).time ?? null,
+            );
           }
         },
       ).then(() => {
