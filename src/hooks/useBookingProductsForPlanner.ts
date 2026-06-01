@@ -30,7 +30,11 @@ async function fetchBookingProducts(bookingId: string): Promise<BookingProductFo
     .order('sort_index', { ascending: true, nullsFirst: false })
     .order('name', { ascending: true });
   if (error) throw error;
-  return (data ?? []) as BookingProductForPlanner[];
+  // Paketmedlemmar hör till paketet och ska ALDRIG visas som planerbara
+  // orderrader/to-dos. Filtrera bort både flaggade komponenter och rader
+  // med parent_product_id (paketdel).
+  const rows = (data ?? []) as BookingProductForPlanner[];
+  return rows.filter((p) => !p.is_package_component && !p.parent_product_id);
 }
 
 export function useBookingProductsForPlanner(bookingId: string | null | undefined) {
