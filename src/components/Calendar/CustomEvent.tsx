@@ -504,22 +504,91 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             </EventActionPopover>
           </div>
         </ContextMenuTrigger>
-        {!consolidationMenuDisabled && (
+        {(!consolidationMenuDisabled || (!isCancelled && event.bookingId)) && (
           <ContextMenuContent className="w-64 rounded-xl border bg-popover p-1.5 shadow-lg">
-            <ContextMenuItem
-              onSelect={() => handleOpenConsolidate('create')}
-              className="rounded-lg gap-2 px-2.5 py-2 text-sm cursor-pointer focus:bg-primary/10"
-            >
-              <Combine className="h-4 w-4" style={{ color: 'hsl(var(--project-large-foreground))' }} />
-              Konsolidera till nytt stort projekt...
-            </ContextMenuItem>
-            <ContextMenuItem
-              onSelect={() => handleOpenConsolidate('add')}
-              className="rounded-lg gap-2 px-2.5 py-2 text-sm cursor-pointer focus:bg-primary/10"
-            >
-              <Plus className="h-4 w-4" style={{ color: 'hsl(var(--project-large-foreground))' }} />
-              Lägg till i stort projekt...
-            </ContextMenuItem>
+            {!isCancelled && event.bookingId && (
+              <>
+                <ContextMenuSub>
+                  <ContextMenuSubTrigger className="rounded-lg gap-2 px-2.5 py-2 text-sm cursor-pointer focus:bg-primary/10">
+                    <Palette className="h-4 w-4" />
+                    Färgmärkning
+                  </ContextMenuSubTrigger>
+                  <ContextMenuSubContent className="w-56 rounded-xl border bg-popover p-1.5 shadow-lg">
+                    <ContextMenuItem
+                      onSelect={async () => {
+                        try {
+                          await setBookingCalendarColor(event.bookingId!, BOOKING_COLOR_PRESETS.transport.hex);
+                          toast.success('Färgmärkning uppdaterad');
+                          onEventResize?.();
+                        } catch (e: any) {
+                          toast.error(e?.message || 'Kunde inte spara färg');
+                        }
+                      }}
+                      className="rounded-lg gap-2 px-2.5 py-2 text-sm cursor-pointer focus:bg-primary/10"
+                    >
+                      <span className="h-4 w-4 rounded border border-border" style={{ backgroundColor: BOOKING_COLOR_PRESETS.transport.hex }} />
+                      <span className="flex-1">{BOOKING_COLOR_PRESETS.transport.label}</span>
+                      {calendarColor === BOOKING_COLOR_PRESETS.transport.hex && <Check className="h-3 w-3" />}
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                      onSelect={async () => {
+                        try {
+                          await setBookingCalendarColor(event.bookingId!, BOOKING_COLOR_PRESETS.rental.hex);
+                          toast.success('Färgmärkning uppdaterad');
+                          onEventResize?.();
+                        } catch (e: any) {
+                          toast.error(e?.message || 'Kunde inte spara färg');
+                        }
+                      }}
+                      className="rounded-lg gap-2 px-2.5 py-2 text-sm cursor-pointer focus:bg-primary/10"
+                    >
+                      <span className="h-4 w-4 rounded border border-border" style={{ backgroundColor: BOOKING_COLOR_PRESETS.rental.hex }} />
+                      <span className="flex-1">{BOOKING_COLOR_PRESETS.rental.label}</span>
+                      {calendarColor === BOOKING_COLOR_PRESETS.rental.hex && <Check className="h-3 w-3" />}
+                    </ContextMenuItem>
+                    {calendarColor && (
+                      <>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem
+                          onSelect={async () => {
+                            try {
+                              await setBookingCalendarColor(event.bookingId!, null);
+                              toast.success('Färgmärkning borttagen');
+                              onEventResize?.();
+                            } catch (e: any) {
+                              toast.error(e?.message || 'Kunde inte ta bort färg');
+                            }
+                          }}
+                          className="rounded-lg gap-2 px-2.5 py-2 text-sm cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
+                        >
+                          <X className="h-4 w-4" />
+                          Ta bort färg
+                        </ContextMenuItem>
+                      </>
+                    )}
+                  </ContextMenuSubContent>
+                </ContextMenuSub>
+                {!consolidationMenuDisabled && <ContextMenuSeparator />}
+              </>
+            )}
+            {!consolidationMenuDisabled && (
+              <>
+                <ContextMenuItem
+                  onSelect={() => handleOpenConsolidate('create')}
+                  className="rounded-lg gap-2 px-2.5 py-2 text-sm cursor-pointer focus:bg-primary/10"
+                >
+                  <Combine className="h-4 w-4" style={{ color: 'hsl(var(--project-large-foreground))' }} />
+                  Konsolidera till nytt stort projekt...
+                </ContextMenuItem>
+                <ContextMenuItem
+                  onSelect={() => handleOpenConsolidate('add')}
+                  className="rounded-lg gap-2 px-2.5 py-2 text-sm cursor-pointer focus:bg-primary/10"
+                >
+                  <Plus className="h-4 w-4" style={{ color: 'hsl(var(--project-large-foreground))' }} />
+                  Lägg till i stort projekt...
+                </ContextMenuItem>
+              </>
+            )}
           </ContextMenuContent>
         )}
       </ContextMenu>
