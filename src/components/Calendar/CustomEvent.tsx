@@ -310,6 +310,22 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
                   (event.extendedProps as any).bookingNumber}
               </div>
             )}
+            {(event.extendedProps as any)?.sourceBookingClient && (
+              <div
+                className="event-client"
+                style={{
+                  color: '#000000',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  lineHeight: 1.15,
+                  marginTop: 1,
+                  wordBreak: 'break-word',
+                }}
+                title={(event.extendedProps as any).sourceBookingClient}
+              >
+                {(event.extendedProps as any).sourceBookingClient}
+              </div>
+            )}
           </>
         )}
         {!event.extendedProps?.isLargeProject && !event.extendedProps?.hideBookingNumber && !(event.extendedProps as any)?.isPlannerItem && (
