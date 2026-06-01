@@ -1,66 +1,49 @@
-# Bilar i personalkalenderns team-rutor
+## Status
 
-Visa tilldelade egna fordon (från Transportplanering → Fordon & Partners → Egna fordon) i personalkalenderns team-header, en tilldelning per team + dag, klickbar via en lastbilsikon bredvid "+".
+- **Personalen är INTE borta från databasen.** `staff_assignments` har t.ex. 22 rader för Sun 7 juni 2026 (team-1: 2, team-2: 1, team-3: 9, team-4: 10) och 5 rader för Sat 6 (team-1: 3, team-2: 2). Alla pekar på aktiv `staff_members.is_active=true` och rätt `organization_id`.
+- **RLS är intakt.** En enda PERMISSIVE policy `org_filter_staff_assignments` (`organization_id = get_user_organization_id(auth.uid())`). Inget restrictive på vägen.
+- **Inget i senaste migrationen rör staff.** Senaste migrationen (2026-06-01 13:44) skapade `team_vehicle_assignments` — den lägger bara till, rör inte `staff_assignments`.
 
-## Datamodell (ny tabell)
+Slutsats: **Detta är frontend-render eller cache, inte data som "skrivits över".**
 
-Per-dag-tilldelning, exakt samma logik som personal (men separat tabell — påverkar inte `staff_assignments`).
+## Misstänkta orsaker (i prioritetsordning)
 
-```sql
-CREATE TABLE public.team_vehicle_assignments (
-  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id uuid NOT NULL,
-  team_id         text NOT NULL,        -- t.ex. "team-1" (matchar Resource.id)
-  date            date NOT NULL,
-  vehicle_id      uuid NOT NULL REFERENCES public.vehicles(id) ON DELETE CASCADE,
-  created_at      timestamptz NOT NULL DEFAULT now(),
-  created_by      uuid,
-  UNIQUE (organization_id, team_id, date, vehicle_id)
-);
-```
+1. **React Query-cachen `['staff-assignments-all']` har en gammal eller tom payload.** `useUnifiedStaffOperations` har `staleTime: Infinity` + `gcTime: Infinity` och invalidate sker bara via realtime. Om ett realtime-event kom in med `event: '*'` och något payload-fel inträffade, kan cachen ha hamnat tom utan att vi vet.
+2. **Header-cellens nya `team-vehicle-line` (lagt till i förra uppdraget) ändrar header-radens höjd och knuffar staff-raden (row 3) under viewport eller bakom kort-kant.** Header är `grid-template-rows: auto auto auto` — om CSS skär av kortet vertikalt kan rad 3 döljas.
+3. **Realtime-prenumeranten på `unified-staff-assignments-rt` skickar 401/permission denied** efter senaste deployment och invaliderar in i tom payload. Visste inte att vi behövde GRANT-policy för `staff_availability` nyligen — kan ha gått sönder.
+4. **`useTeamVehiclesForDay` kraschar inuti TimeGrid** så hela TimeGrid renderar fallback utan staff. Hooken läser `team_vehicle_assignments` med `.eq('date', isoDate)` — om RLS-funktionen `has_planning_access(auth.uid())` returnerar false för aktuell user i den orgen blir det error i hooken men inte cascading. Värt att kolla.
 
-- RESTRICTIVE RLS på `organization_id` (samma mönster som `vehicles`).
-- GRANT till `authenticated` + `service_role`.
-- Index på `(organization_id, date)` och `(vehicle_id, date)` för snabb realtidsuppslagning.
-- Realtime publication aktiverad så ändringar speglas direkt i kalendern.
+## Plan
 
-Ingen koppling till `staff_assignments`, inga ändringar i `vehicles`-tabellen, inga schemaändringar i `calendar_events`.
+**Steg 1 — bekräfta orsaken med användaren (ingen kodändring):**
 
-## Frontend
+Be användaren öppna devtools i preview och rapportera:
+- Hard reload (Cmd+Shift+R). Kommer personalen tillbaka?
+- Console: finns det `[useTeamVehiclesForDay]` eller `staff_assignments`-relaterade error/warnings?
+- Network: hitta supabase-anropet `staff_assignments?select=...` — returnerar det 0 rader, 403, eller alla rader?
 
-### Ny hook `useTeamVehicleAssignmentsForDay(date)`
-- Returnerar `Map<teamId, Vehicle[]>` + `assign(teamId, vehicleId)` / `unassign(...)`.
-- Filtrerar `vehicles` på `is_external = false` och `is_active = true` (= Egna fordon, aktiva).
-- Lyssnar på `postgres_changes` för `team_vehicle_assignments` filtrerat på dagens datum → invaliderar.
+**Steg 2 — beroende på svar:**
 
-### Ny komponent `TeamVehiclePickerPopover`
-- Speglar `TeamStaffPickerPopover`: lista över egna aktiva fordon, kryssruta = tilldelad för dagen, klick togglar.
-- Tom-state: "Inga egna fordon registrerade — lägg till under Transportplanering".
+- **Om hard reload löser det** → cache-bug i `useUnifiedStaffOperations`. Lägg till `refetchOnWindowFocus`/`refetchOnMount` eller sänk `staleTime` till några minuter.
+- **Om network visar 0 rader** → RLS/auth-issue. Verifiera `get_user_organization_id(auth.uid())` returnerar rätt org för inloggad användare just nu.
+- **Om network visar rader men UI tomt** → CSS-regression från `team-vehicle-line`. Inspektera `.staff-assignment-header-row` höjd, kolla om `.team-header-cell` flex pushar bort row 3.
+- **Om console-fel från `useTeamVehiclesForDay`** → wrap'a hooken så ett fel inte kan ta ner TimeGrid (defensiv try/catch + tom Map fallback).
 
-### `TimeGrid.tsx` (row 2 / team-header)
-Två tillägg per team-cell (inom `team-header-content`, dolda när `plannerMode`):
-1. **Lastbilsikon-knapp** (lucide `Truck`, samma höjd som `+`) **till vänster om** `+`-knappen. Klick öppnar `TeamVehiclePickerPopover` för det teamet.
-   - Badge med antal när `vehicles.length > 0`.
-2. **Bilrad ovanför `team-title`**: när teamet har 1 bil visas `Bil: <namn>`, vid flera `Bil1: <namn>, Bil2: <namn>, …`. Liten muted text, en rad, trunkeras med ellipsis, full lista i `title`-tooltip.
+**Steg 3 — fixa minimalt:**
 
-Layoutändringen håller sig inom `team-header-cell` — ingen ändring av grid/kolumnbredder. CSS-tillägg i `TimeGrid.css` (`.team-vehicle-line`, `.add-vehicle-button-header`).
+Inga skrivningar mot DB. Endast frontend-fix på den faktiska roten. **Ingen rensning/dedup av staff_assignments** — datan är korrekt och får inte röras.
 
-### Realtime
-React Query-key `['team-vehicles', orgId, isoDate]` invalideras via befintlig `realtime-event-driven-invalidation`-pipeline.
+## Vad jag INTE gör
 
-## Scope-avgränsningar
-- Bilar visas bara på **personalkalendern** (CustomCalendar/TimeGrid). Warehouse-kalendern, mobilkalendern, projektkalendern och plannerMode (stora projekt) är orörda.
-- Ingen koppling till GPS, time_reports, tidsregistrering eller transportbokningar — endast en visuell etikett + tilldelning per dag.
-- Endast egna fordon (`is_external = false`). Transportbolag exkluderas.
+- Ingen DELETE/UPDATE mot `staff_assignments`.
+- Inga nya migrationer.
+- Ingen ny "städ"-funktion.
+- Inga ändringar i fördelnings-/timer-/lönlogik.
 
-## Tester (vitest)
-- `useTeamVehicleAssignmentsForDay`: assign/unassign reducer + filtrering external/inactive.
-- `TeamVehiclePickerPopover`: render tomt-state, render lista med kryss, toggle anropar mutation.
-- `TimeGrid` smoke: när hook returnerar 2 fordon för team-1 → "Bil1: …, Bil2: …" syns i headern och Truck-knappen finns till vänster om `+`.
+## Fråga till dig
 
-## Filer
-- Migration: `team_vehicle_assignments` + RLS + GRANT + index + realtime.
-- Ny: `src/hooks/useTeamVehicleAssignmentsForDay.ts`
-- Ny: `src/components/Calendar/TeamVehiclePickerPopover.tsx`
-- Ändras: `src/components/Calendar/TimeGrid.tsx`, `src/components/Calendar/TimeGrid.css`
-- Tester: `src/test/teamVehicleAssignments.test.ts`, `src/test/teamVehiclePicker.test.tsx`
+Innan jag rör en rad kod: kan du
+1. göra **hard reload** (Cmd+Shift+R) i kalendervyn och säga om personalen kommer tillbaka, och
+2. öppna devtools → Network, filter "staff_assignments", och säga ungefär hur många rader svaret innehåller (eller om det är 403/401)?
+
+Då vet jag direkt om det är cache, RLS eller CSS, och kan fixa exakt det utan att gissa.

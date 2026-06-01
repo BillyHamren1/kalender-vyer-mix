@@ -60,12 +60,18 @@ async function fetchActiveStaff(): Promise<StaffMember[]> {
 export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'weekly' = 'weekly', filterByTag?: string, filterByStaffIds?: string[]) => {
   const queryClient = useQueryClient();
 
-  // Assignments — cached indefinitely, invalidated by realtime
+  // Assignments — cached, men ALDRIG evigt. Realtime-invalidation kan missa
+  // events (channel-drop, payload-fel, RLS-flap) och då fastnar UI med tom
+  // lista — vilket har gett "personalen försvann"-buggen. Vi accepterar en
+  // refetch on focus/mount för att garantera självläkning.
   const { data: assignments = [], isLoading } = useQuery({
     queryKey: ['staff-assignments-all'],
     queryFn: fetchAllAssignments,
-    staleTime: Infinity,
-    gcTime: Infinity,
+    staleTime: 30 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: true,
+    refetchOnMount: 'always',
+    refetchOnReconnect: true,
   });
 
   // Active staff list — rarely changes, cache for 10 minutes
@@ -74,6 +80,8 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
     queryFn: fetchActiveStaff,
     staleTime: 10 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 
   // Realtime: invalidate only when something actually changes in DB
