@@ -417,6 +417,13 @@ const JobInfoTab = ({ booking, bookingId, establishmentTasks, onCommentsUpdated,
         </div>
       )}
 
+      {/* Team vehicles for this booking's dates */}
+      {Array.isArray((booking as any).team_vehicles) && (booking as any).team_vehicles.length > 0 && (
+        <div className="rounded-xl border bg-card p-3">
+          <TeamVehicleLine vehicles={(booking as any).team_vehicles} />
+        </div>
+      )}
+
       {/* MY TASKS */}
       {establishmentTasks && establishmentTasks.length > 0 && (
         <EstablishmentTasksSection tasks={establishmentTasks} onTaskToggled={onTaskToggled} />
