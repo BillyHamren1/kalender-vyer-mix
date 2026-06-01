@@ -290,8 +290,11 @@ export function projectCacheToResolved(args: {
 const SUBMISSION_SELECT =
   "id, staff_id, date, status, requested_start_at, requested_end_at, start_time, end_time, break_minutes, comment, review_comment, submitted_at, reviewed_at, source_summary_json, display_timeline_snapshot_json";
 
+// Diagnostics_json är medvetet EXKLUDERAD — den är en tung JSON-blob som
+// projektionen inte läser. Att inkludera den blåser upp svaren och triggar
+// WORKER_RESOURCE_LIMIT vid batch-hämtning över hela org × vecka.
 const CACHE_SELECT =
-  "staff_id, date, engine_version, summary_json, report_candidate_blocks_json, display_blocks_json, workday_allocation_segments_json, diagnostics_json, built_at, stale, error";
+  "staff_id, date, engine_version, summary_json, report_candidate_blocks_json, display_blocks_json, workday_allocation_segments_json, built_at, stale, error";
 
 interface SubmissionDbRow extends ResolvedSubmissionRow {
   staff_id: string;
