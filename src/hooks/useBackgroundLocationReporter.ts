@@ -241,6 +241,11 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
   const syncStatusRef = useRef<LocationSyncStatus>(getLocationSyncStatus());
   // Throttle för gps_silent app-health events (max 1/5min per session)
   const lastGpsSilentSentAtRef = useRef<number>(0);
+  // Dynamisk capture-throttle (ms) — uppdateras vid rescheduleHeartbeat.
+  // Ersätter den hårdkodade REPORT_THROTTLE_MS-konstanten så att inom
+  // geofence kan vi enqueueas tätare (30s) och outside_idle släpper igenom
+  // bara var 5:e min.
+  const captureThrottleMsRef = useRef<number>(REPORT_THROTTLE_MS);
 
 
   const [debug, setDebug] = useState<BackgroundLocationDebugInfo>({
