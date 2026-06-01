@@ -1,46 +1,32 @@
-# Problem
-När du öppnar BookingPlannerSheet (klick på bokning i projektkalendern) visas datum från det externa bokningssystemet (`bookings.rigdaydate/eventdate/rigdowndate` + `rig_dates`/`event_dates`/`rigdown_dates`), INTE de datum du faktiskt planerat och sparat i projektkalendern (`calendar_events`).
+# Plan för att fixa personalkalendern på webben
 
-# Var det går fel
-`src/components/project/large-planner/largeProjectPlannerService.ts` (rad 177–181) slår ihop `phaseDates` (från `calendar_events`) MED de ärvda bokningsdatumen:
+## Problem
+I webbens personalkalender (`/calendar`) syns personal direkt när man planerar dem, men efter refresh försvinner de. Det pekar på ett fel i synken mellan optimistic UI, cachning och återläsning från databasen.
 
-```ts
-rig_dates: uniqueSortedDates([...phaseDates.rig, normalizePlannerDate(b.rigdaydate)]),
-event_dates: uniqueSortedDates([...phaseDates.event, normalizePlannerDate(b.eventdate)]),
-rigdown_dates: uniqueSortedDates([...phaseDates.rigDown, normalizePlannerDate(b.rigdowndate)]),
-```
+## Jag kommer att fixa
 
-Sedan läser `BookingPlannerSheet.tsx` (rad 114–137) `booking.rig_dates`/`event_dates`/`rigdown_dates` och faller annars tillbaka på `booking.rigdaydate` osv. → ärvda datum dyker upp i sheetet även när inget är planerat.
+### 1. Göra staff-assignment stabil efter save
+I `useUnifiedStaffOperations` lägger jag till korrekt cache-invalidering efter lyckad assign/remove så att kalendern alltid hämtar om den sparade sanningen efter ändring, istället för att leva kvar på en optimistisk lokal version.
 
-# Lagring (redan solitt sparat)
-Planerade fas-datum lever redan i en egen tabell — `calendar_events` (en rad per personal × dag × fas), och skrivs via `savePhaseDays` (`src/lib/calendar/phaseDaysWriter.ts`). Per memory **Booking Dates Single Source** får vi INTE skapa nya kolumner/tabeller — det är `calendar_events` som är sanningen för planerade dagar. Det vi måste fixa är bara läsvägen så att UI:t visar sanningen.
+### 2. Synka optimistic update med samma regler som refresh använder
+Just nu verkar UI kunna visa en person direkt som sedan filtreras bort när sidan laddas om. Jag justerar logiken så att samma regler används både vid direktvisning och vid återläsning, så att det som syns direkt också är det som faktiskt ligger kvar efter refresh.
 
-# Lösning (1 fil, ren UI/läsning)
+### 3. Säkerställa att webbkalendern lyssnar och renderar rätt dataflöde
+Jag verifierar read-pathen i adminvyn `/calendar` så att rätt query keys, realtime/invalidation och rendering av staff-badges används i samma kedja.
 
-**`src/components/project/large-planner/largeProjectPlannerService.ts`** (rad 177–181)
+### 4. Testa och låsa beteendet
+Jag kör riktade tester för staff-kalenderflödet och lägger vid behov till testskydd för scenariot:
+- planera personal
+- verifiera att de finns kvar efter omhämtning
+- verifiera att blockerad/otillgänglig personal inte visas inkonsekvent
 
-Byt sammanslagningen mot att endast använda `phaseDates` (från `calendar_events`):
+## Förväntat resultat
+Efter fixen ska personal som planeras i webbens personalkalender ligga kvar även efter refresh, och UI:t ska inte längre visa tillfälliga assignments som sedan försvinner.
 
-```ts
-rig_dates: uniqueSortedDates([...phaseDates.rig]),
-event_dates: uniqueSortedDates([...phaseDates.event]),
-rigdown_dates: uniqueSortedDates([...phaseDates.rigDown]),
-```
+## Tekniska detaljer
+Berörda områden blir sannolikt främst:
+- `src/hooks/useUnifiedStaffOperations.tsx`
+- eventuellt kompletterande testfil för staff-kalenderkontraktet
+- eventuellt admin-kalenderns koppling till staff assignment-data om jag hittar en felaktig invalideringskedja
 
-Lämna `rigdaydate`/`eventdate`/`rigdowndate` på bookingobjektet kvar (de används som metadata på andra ställen), men de ska aldrig längre visas som planerade datum.
-
-**`src/components/project/large-planner/BookingPlannerSheet.tsx`** (rad 113–139)
-
-Ta bort fallbacken till `booking.rigdaydate`/`eventdate`/`rigdowndate` i `buildInitialDrafts`. Använd endast arrayerna:
-
-```ts
-rig:     { dates: [...booking.rig_dates].sort(),     startTime: ..., endTime: ... },
-event:   { dates: [...booking.event_dates].sort(),   startTime: ..., endTime: ... },
-rigDown: { dates: [...booking.rigdown_dates].sort(), startTime: ..., endTime: ... },
-```
-
-# Resultat
-- BookingPlannerSheet visar enbart de fas-datum du planerat och sparat (lever i `calendar_events`).
-- Bokningar utan sparade dagar öppnas tomma → du planerar och `savePhaseDays` skriver till `calendar_events` (oförändrat).
-- "Planerad/Ej planerad"-logik i sidopanelen (`has_calendar_phase_days`) påverkas inte.
-- Ingen DB-migration. Inga nya tabeller. Bara UI/läsväg.
+Ingen backend-migration planeras i första steget om inte en faktisk RLS-/DB-regression visar sig under implementationen.
