@@ -180,6 +180,10 @@ async function fetchProjectBookings(
         ...phaseDates.rigDown,
         normalizePlannerDate(b.rigdowndate),
       ]),
+      has_calendar_phase_days:
+        phaseDates.rig.size > 0 ||
+        phaseDates.event.size > 0 ||
+        phaseDates.rigDown.size > 0,
     };
   });
 }
