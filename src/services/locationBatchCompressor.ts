@@ -48,9 +48,24 @@ export interface CompressResult {
 const STAY_RADIUS_M = 50;
 const MOVE_REP_INTERVAL_MS = 5 * 60_000;
 const STAY_HEARTBEAT_MS = 10 * 60_000;
+/** När upload-policy är batch_inside_geofence vill vi bevara fler punkter. */
+const STAY_HEARTBEAT_INSIDE_GEOFENCE_MS = 2 * 60_000;
 const LARGE_JUMP_M = 200;
 
-const PRESERVE_SOURCES = new Set(['manual', 'geofence', 'foreground']);
+/**
+ * Källor som ALDRIG får komprimeras bort — antingen användardrivna eller
+ * explicita signal-händelser (geofence enter/exit, location_ping, gps_pulse,
+ * heartbeat). Att smälla bort en av dessa skulle förstöra bevisspåret.
+ */
+const PRESERVE_SOURCES = new Set([
+  'manual',
+  'geofence',
+  'foreground',
+  'location_ping',
+  'gps_pulse',
+  'heartbeat',
+]);
+
 
 function haversineMeters(
   lat1: number, lng1: number,
