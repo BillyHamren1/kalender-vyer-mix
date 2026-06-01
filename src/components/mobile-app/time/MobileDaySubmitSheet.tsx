@@ -115,6 +115,22 @@ const MobileDaySubmitSheet: React.FC<Props> = ({ date, reviewComment, onClose, o
       return;
     }
     try {
+      // Snapshot av exakt det användaren såg när hen skickade in.
+      // Mobilen bygger ALDRIG om dagen — vi skickar bara med vad cachen
+      // levererade så admin/AI kan revidera underlaget i efterhand.
+      const displayTimelineSnapshot = report.segments.map((s) => ({
+        blockId: s.sourceBlockId || s.id,
+        startAtIso: s.startedAt,
+        endAtIso: s.endedAt,
+        allocationType: s.kind,
+        targetType: s.projectId ? 'project'
+          : s.largeProjectId ? 'large_project'
+          : s.bookingId ? 'booking'
+          : s.locationId ? 'location'
+          : null,
+        targetId: s.projectId ?? s.largeProjectId ?? s.bookingId ?? s.locationId ?? null,
+        label: s.label,
+      }));
       await submitDayReport({
         staffId: report.staffId,
         date,
@@ -122,6 +138,8 @@ const MobileDaySubmitSheet: React.FC<Props> = ({ date, reviewComment, onClose, o
         comment: comment.trim() || null,
         requestedStartAt: isoFromHhmm(date, startHhmm),
         requestedEndAt: isoFromHhmm(date, endHhmm),
+        userEdits: [], // sheet redigerar bara start/slut/rast/kommentar
+        displayTimelineSnapshot,
       });
       toast.success('Tidrapport inskickad – väntar godkännande');
       onSubmitted?.(date);
@@ -131,6 +149,7 @@ const MobileDaySubmitSheet: React.FC<Props> = ({ date, reviewComment, onClose, o
       toast.error(err?.message || 'Kunde inte skicka in');
     }
   };
+
 
   return (
     <Sheet open={date !== null} onOpenChange={(open) => { if (!open) onClose(); }}>

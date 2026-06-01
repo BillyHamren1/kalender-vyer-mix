@@ -1,26 +1,27 @@
 /**
  * MobileTimeV2Page — startsida för /m/report.
  *
- * Renderar WeekFlowMobilePanel som ENDA huvudvy. Veckan kommer från
- * `get-staff-time-week-matrix` (samma resolver som admin Tid & Lön).
- * Dag-sheet skickar in via `submit-staff-day-v3`.
+ * EN dataväg:
+ *   staff_location_history
+ *     → Time Engine / cache-builder
+ *     → staff_day_report_cache
+ *     → resolveStaffDayReportsBatch
+ *     → admin (Tid & Lön) OCH mobil (denna sida) läser SAMMA modell.
  *
- * Single-pipeline: appen läser ALDRIG raw GPS och anropar ALDRIG
- * get-mobile-gps-day-view eller submit-mobile-gps-day-v2.
+ * Veckan kommer från `get-staff-time-week-matrix` (dual-auth — mobile
+ * token = self only). Dag-sheet läser via `get-mobile-staff-day-report`
+ * och skickar in via `submit-staff-day-v3`.
  *
- * Legacy MobileTimeReportQueue finns kvar i filträdet men är inte längre
- * monterad — flippa VITE_LEGACY_TIME_QUEUE=1 om något behöver gamla vyn.
+ * Mobilappen får ALDRIG bygga om dagen från raw GPS, och får ALDRIG
+ * anropa get-mobile-gps-day-view / submit-mobile-gps-day-v2 /
+ * get-staff-gps-week-summary / useStaffGpsWeekSummary /
+ * buildCanonicalStaffDayGpsResult / staff_location_history direkt.
  */
 
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { useMobileAuth } from '@/contexts/MobileAuthContext';
 import WeekFlowMobilePanel from '@/components/mobile-app/time/WeekFlowMobilePanel';
-import MobileTimeReportQueue from './MobileTimeReportQueue';
-
-const LEGACY_QUEUE =
-  (import.meta as any).env?.VITE_LEGACY_TIME_QUEUE === '1' ||
-  (import.meta as any).env?.VITE_LEGACY_TIME_QUEUE === 'true';
 
 const MobileTimeV2Page: React.FC = () => {
   const { effectiveStaffId } = useMobileAuth();
@@ -34,10 +35,6 @@ const MobileTimeV2Page: React.FC = () => {
         </Card>
       </div>
     );
-  }
-
-  if (LEGACY_QUEUE) {
-    return <MobileTimeReportQueue staffId={staffId} />;
   }
 
   return (

@@ -6,11 +6,43 @@
  * (`staff-day-submitted`, `timer-state-changed`). Inget attest-/payroll-
  * språk exponeras.
  *
- * useAttestStaffDay finns kvar som legacy för äldre vyer men TIME-flödet
- * är inte beroende av den.
+ * Payloaden speglar submit-staff-day-v3:
+ *   requestedStartAt / requestedEndAt / breakMinutes / comment
+ *   userEdits[] — explicita användarredigeringar (Lager 5.3)
+ *   displayTimelineSnapshot[] — vad användaren SÅG när hen skickade in,
+ *     för revision och AI-validering. Mobilen bygger ALDRIG om dagen.
  */
 import { useCallback, useState } from 'react';
 import { callStaffSnapshotFunction } from '@/services/staffSnapshotApi';
+
+export interface SubmitStaffDayUserEdit {
+  editId: string;
+  sourceDisplayBlockId: string | null;
+  editType:
+    | 'change_block_start'
+    | 'change_block_end'
+    | 'link_block_to_project'
+    | 'mark_supplier_as_pickup'
+    | 'mark_supplier_as_dropoff'
+    | 'link_address_to_project'
+    | 'change_workday_end'
+    | 'add_block_comment';
+  previousValue: unknown;
+  newValue: unknown;
+  userReason: string | null;
+  createdAt: string;
+}
+
+export interface SubmitStaffDayDisplayBlock {
+  blockId: string;
+  startAtIso: string;
+  endAtIso: string | null;
+  allocationType: string;
+  targetType?: string | null;
+  targetId?: string | null;
+  label?: string | null;
+  [key: string]: unknown;
+}
 
 export interface SubmitStaffDayReportInput {
   staffId: string;
@@ -19,6 +51,8 @@ export interface SubmitStaffDayReportInput {
   comment?: string | null;
   requestedStartAt?: string | null;
   requestedEndAt?: string | null;
+  userEdits?: SubmitStaffDayUserEdit[];
+  displayTimelineSnapshot?: SubmitStaffDayDisplayBlock[];
 }
 
 export interface UseSubmitStaffDayReportResult {
@@ -56,6 +90,8 @@ export function useSubmitStaffDayReport(): UseSubmitStaffDayReportResult {
         comment: input.comment ?? null,
         requestedStartAt: input.requestedStartAt ?? null,
         requestedEndAt: input.requestedEndAt ?? null,
+        userEdits: input.userEdits ?? [],
+        displayTimelineSnapshot: input.displayTimelineSnapshot ?? [],
       });
       try {
         const detail = { staffId: input.staffId, date: input.date };
