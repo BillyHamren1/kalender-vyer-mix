@@ -357,21 +357,28 @@ const PlannerEventActionPopover: React.FC<Props> = ({ event, onOpenDetails, chil
                     const inMonth = isSameMonth(d, viewMonth);
                     const rows = daysByDate.get(k) ?? [];
                     const hasRows = rows.length > 0;
+                    const anyLocked = rows.some((r) => r.times_locked === true);
+                    const onlyLocked = hasRows && rows.every((r) => r.times_locked === true);
                     const isCurrent = isSameDay(d, parseISO(eventDate));
-                    const ringCls = isCurrent ? 'ring-2 ring-primary' : '';
+                    const ringCls = isCurrent
+                      ? 'ring-2 ring-primary'
+                      : anyLocked
+                        ? 'ring-2 ring-destructive'
+                        : '';
                     return (
                       <button
                         key={k}
                         type="button"
                         onClick={() => {
                           if (hasRows) {
-                            handleDeleteDay(rows[0].id);
+                            const target = rows.find((r) => r.times_locked !== true) ?? rows[0];
+                            handleDeleteDay(target.id);
                           } else {
                             setShowAddDay(true);
                           }
                         }}
                         title={hasRows
-                          ? `${rows.length} dag(ar) — klicka för att ta bort`
+                          ? `${rows.length} dag(ar)${onlyLocked ? ' (låst)' : ' — klicka för att ta bort'}`
                           : 'Klicka för att lägga till dag'}
                         disabled={deletingId !== null && rows.some((r) => r.id === deletingId)}
                         className={`relative h-11 rounded border text-[11px] flex flex-col items-center justify-start pt-1 transition-colors ${
@@ -385,6 +392,9 @@ const PlannerEventActionPopover: React.FC<Props> = ({ event, onOpenDetails, chil
                         <span className={`leading-none ${isCurrent ? 'font-semibold' : ''}`}>
                           {format(d, 'd')}
                         </span>
+                        {anyLocked && (
+                          <Lock className="absolute top-0.5 right-0.5 h-2.5 w-2.5 text-destructive" />
+                        )}
                         {hasRows && (
                           <div className="absolute bottom-1 left-1 right-1 flex flex-wrap justify-center gap-0.5">
                             {rows.map((r) => (
