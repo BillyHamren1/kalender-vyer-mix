@@ -533,3 +533,99 @@ export async function resolveStaffDayReportsBatch(args: {
 
   return out;
 }
+
+export async function resolveStaffDayReportSummariesBatch(args: {
+  admin: SupabaseClient;
+  organizationId: string;
+  staffIds: string[];
+  dates: string[];
+}): Promise<Map<string, ResolvedStaffDaySummary>> {
+  const { admin, organizationId, staffIds, dates } = args;
+  const out = new Map<string, ResolvedStaffDaySummary>();
+  if (staffIds.length === 0 || dates.length === 0) return out;
+
+  const sorted = [...dates].sort();
+  const from = sorted[0];
+  const to = sorted[sorted.length - 1];
+
+  const { data: subRows, error: subErr } = await admin
+    .from("staff_day_submissions")
+    .select(SUBMISSION_SELECT)
+    .eq("organization_id", organizationId)
+    .in("staff_id", staffIds)
+    .gte("date", from)
+    .lte("date", to)
+    .order("submitted_at", { ascending: false })
+    .limit(10000);
+  if (subErr) throw subErr;
+
+  const subByKey = new Map<string, SubmissionDbRow>();
+  for (const r of (subRows ?? []) as SubmissionDbRow[]) {
+    const k = `${r.staff_id}|${r.date}`;
+    if (!subByKey.has(k)) subByKey.set(k, r);
+  }
+
+  const cacheSelectLean = "staff_id, date, engine_version, summary_json, built_at, stale, error";
+  const { data: cacheRows, error: cacheErr } = await admin
+    .from("staff_day_report_cache")
+    .select(cacheSelectLean)
+    .eq("organization_id", organizationId)
+    .in("staff_id", staffIds)
+    .gte("date", from)
+    .lte("date", to)
+    .order("built_at", { ascending: false })
+    .limit(10000);
+  if (cacheErr) throw cacheErr;
+
+  const cacheByKey = new Map<string, CacheDbRow>();
+  for (const r of (cacheRows ?? []) as CacheDbRow[]) {
+    const k = `${r.staff_id}|${r.date}`;
+    if (!cacheByKey.has(k)) cacheByKey.set(k, r);
+  }
+
+  for (const staffId of staffIds) {
+    for (const date of dates) {
+      const key = `${staffId}|${date}`;
+      const submission = subByKey.get(key);
+      if (submission) {
+        out.set(key, buildSummaryFromSubmission({
+          staffId,
+          date,
+          submission: submission as unknown as ResolvedSubmissionRow,
+        }));
+        continue;
+      }
+
+      const cache = cacheByKey.get(key);
+      if (cache) {
+        out.set(key, buildSummaryFromCache({
+          staffId,
+          date,
+          cache: cache as unknown as CacheRow,
+        }));
+        continue;
+      }
+
+      out.set(key, {
+        staffId,
+        date,
+        source: "empty",
+        status: "empty",
+        startIso: null,
+        endIso: null,
+        workMinutes: 0,
+        travelMinutes: 0,
+        breakMinutes: 0,
+        totalMinutes: 0,
+        normalMinutes: 0,
+        overtimeMinutes: 0,
+        submissionId: null,
+        reviewComment: null,
+        cacheBuiltAt: null,
+        engineVersion: null,
+      });
+    }
+  }
+
+  return out;
+}
