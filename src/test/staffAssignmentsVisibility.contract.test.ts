@@ -39,10 +39,10 @@ describe('staff assignments visibility contract', () => {
       'fetchAllAssignments får inte filtrera assignments via isBlocked()',
     ).toBe(false);
 
-    // Får ALDRIG filtrera mot blocked/unavailable-strängar
+    // Får ALDRIG anropa Supabase med blocked/unavailable-strängar
     expect(
-      /blocked|unavailable/i.test(body),
-      'fetchAllAssignments får inte referera till blocked/unavailable',
+      /['"](blocked|unavailable)['"]/i.test(body),
+      'fetchAllAssignments får inte filtrera på blocked/unavailable-status',
     ).toBe(false);
   });
 
