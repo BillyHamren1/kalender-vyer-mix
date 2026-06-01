@@ -925,7 +925,13 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       } catch { /* not native — ok */ }
     })();
 
-    const checkBackgroundGeofences = (lat: number, lng: number) => {
+    const checkBackgroundGeofences = (
+      lat: number,
+      lng: number,
+      accuracy: number | null,
+      speed: number | null,
+      recordedAt: string,
+    ) => {
       const targets = loadGeofenceTargets();
       if (targets.length === 0) return;
 
@@ -936,13 +942,26 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       const arrivalKeys = new Set(arrivals.map(a => a.key));
 
       for (const target of targets) {
-        const dist = haversineDistance(lat, lng, target.lat, target.lng);
-        const enterRadius = target.radius || ENTER_RADIUS;
-        const exitRadius = enterRadius + 50;
+        const evalTarget = {
+          latitude: target.lat,
+          longitude: target.lng,
+          radius_meters: target.radius || ENTER_RADIUS,
+          geofence_mode: (target.geofence_mode ?? 'circle') as 'circle' | 'polygon',
+          geofence_polygon: target.geofence_polygon ?? null,
+        };
 
-        if (dist <= enterRadius) {
+        // Snabb "är vi inne nu?"-koll (utan hysteresis-trösklar) — för
+        // att hålla insideRef synkad och kunna fortsätta filtrera även
+        // när vi inte hinner triggera nytt enter/exit.
+        const insideNow = isInsideGeofence(lat, lng, evalTarget);
+
+        // ENTER: kräv hysteresis + accuracy-gate via shouldTriggerEnter.
+        if (
+          shouldTriggerEnter(lat, lng, evalTarget, accuracy) &&
+          !insideRef.current.has(target.key)
+        ) {
           const cooldownActive = isInDismissCooldown(target.key);
-          if (!insideRef.current.has(target.key) && !arrivalKeys.has(target.key) && !cooldownActive) {
+          if (!arrivalKeys.has(target.key) && !cooldownActive) {
             insideRef.current.add(target.key);
             arrivals.push({
               key: target.key,
@@ -953,44 +972,70 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
               largeProjectId: target.largeProjectId,
               bookingId: target.bookingId,
               address: target.address,
-              radius: enterRadius,
+              radius: evalTarget.radius_meters,
               lat: target.lat,
               lng: target.lng,
             });
             changed = true;
             didEnter = true;
             console.log(`[BGLocation] Pending arrival saved: ${target.name} (${target.key})`);
-          } else {
-            if (!insideRef.current.has(target.key) && !cooldownActive) {
-              didEnter = true;
-            }
+          } else if (!cooldownActive) {
             insideRef.current.add(target.key);
-            if (cooldownActive) {
-              // eslint-disable-next-line no-console
-              console.info('[BGLocation] entry suppressed by per-target cooldown', { key: target.key });
-            }
+            didEnter = true;
+          } else {
+            // cooldown — suppression
+            // eslint-disable-next-line no-console
+            console.info('[BGLocation] entry suppressed by per-target cooldown', { key: target.key });
           }
-        } else if (dist > exitRadius) {
-          if (insideRef.current.has(target.key)) {
-            insideRef.current.delete(target.key);
-            didExit = true;
-            const beforeLen = arrivals.length;
-            arrivals = arrivals.filter(a => a.key !== target.key);
-            if (arrivals.length !== beforeLen) {
-              changed = true;
-              console.log(`[BGLocation] Pending arrival removed (exit): ${target.key}`);
-            }
+          continue;
+        }
+
+        // EXIT: kräv hysteresis + accuracy-gate via shouldTriggerExit.
+        if (
+          shouldTriggerExit(lat, lng, evalTarget, accuracy) &&
+          insideRef.current.has(target.key)
+        ) {
+          insideRef.current.delete(target.key);
+          didExit = true;
+          const beforeLen = arrivals.length;
+          arrivals = arrivals.filter(a => a.key !== target.key);
+          if (arrivals.length !== beforeLen) {
+            changed = true;
+            console.log(`[BGLocation] Pending arrival removed (exit): ${target.key}`);
           }
+          continue;
+        }
+
+        // Inget enter/exit-event men håll insideRef synkad med snabbkollen
+        // så vi inte hänger kvar gamla targets i set:et.
+        if (insideNow && !insideRef.current.has(target.key) && (accuracy == null || accuracy <= 50)) {
+          insideRef.current.add(target.key);
         }
       }
 
       if (changed) savePendingArrivals(arrivals);
-      // Geofence boundary cross → forcera upload direkt så backend ser in/ut
-      // även om vi just nu kör batch_inside_geofence (30 min auto-flush).
+
+      // F) Vid crossing → enqueua crossing-punkten med source='geofence'
+      //    så vi alltid har bevis för in/ut även när vanliga background-
+      //    punkten throttlas. Och force-flush direkt så backend ser
+      //    in/ut även om vi just nu kör batch_inside_geofence (30 min).
+      if (didEnter || didExit) {
+        if (staffIdRef.current) {
+          enqueueLocationPoint({
+            latitude: lat,
+            longitude: lng,
+            accuracy,
+            speed,
+            source: 'geofence',
+            recordedAt,
+          });
+          lastEnqueuedAtRef.current = Date.now();
+        }
+      }
       if (didEnter) void forceFlushLocationQueue('geofence-enter');
       if (didExit) void forceFlushLocationQueue('geofence-exit');
       // Mode may have changed (entered/exited a target) — reschedule
-      rescheduleHeartbeat();
+      if (didEnter || didExit) rescheduleHeartbeat();
     };
 
     if (Capacitor.isNativePlatform()) {
