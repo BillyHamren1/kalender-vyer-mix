@@ -57,6 +57,7 @@ const LargeProjectPlannerSidebar = ({
   horizontal = false,
 }: Props) => {
   const [filter, setFilter] = useState<Filter>('all');
+  const [showPlanned, setShowPlanned] = useState(false);
 
   const staffById = useMemo(() => {
     const map = new Map<string, LargeProjectPlannerStaffMember>();
