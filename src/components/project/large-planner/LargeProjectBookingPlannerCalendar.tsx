@@ -172,17 +172,39 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
       return null;
     })();
 
+    let updated = 0;
     for (const ph of phases) {
       if (!ph.enabled) continue;
       for (const date of ph.dates) {
-        const already = existingForBooking.some(
+        const nextStart = `${ph.startTime}:00`;
+        const nextEnd = `${ph.endTime}:00`;
+        const existing = existingForBooking.find(
           (it) =>
             it.source_booking_phase === ph.phase &&
             it.plan_date === date &&
             !it.booking_product_id,
         );
-        if (already) {
-          skipped++;
+        if (existing) {
+          // UPSERT: uppdatera tid/titel om något ändrats — annars hoppa över.
+          const nextTitle = `${ph.label} — ${booking.display_name}${booking.booking_number ? ` (#${booking.booking_number})` : ''}`;
+          const timeChanged =
+            existing.start_time !== nextStart || existing.end_time !== nextEnd;
+          const titleChanged = existing.title !== nextTitle;
+          if (timeChanged || titleChanged) {
+            try {
+              await updateItem(existing.id, {
+                start_time: nextStart,
+                end_time: nextEnd,
+                title: nextTitle,
+                status: 'planned',
+              });
+              updated++;
+            } catch (e) {
+              toast.error(`Kunde inte uppdatera ${ph.label}: ${(e as Error).message}`);
+            }
+          } else {
+            skipped++;
+          }
           continue;
         }
         try {
@@ -195,8 +217,8 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
             source: 'booking',
             phase: ph.phase,
             source_booking_phase: ph.phase,
-            start_time: `${ph.startTime}:00`,
-            end_time: `${ph.endTime}:00`,
+            start_time: nextStart,
+            end_time: nextEnd,
           });
           created++;
         } catch (e) {
@@ -204,6 +226,7 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
         }
       }
     }
+
 
     if (selection.productIdsForTodos.length > 0 && selectedSeed) {
       try {
@@ -240,8 +263,15 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     }
 
     setPlannerSheetBookingId(booking.id);
-    if (created > 0) toast.success(`${created} faser planerade${skipped ? ` (${skipped} fanns redan)` : ''}.`);
-    else if (skipped > 0) toast.info('Alla faser fanns redan i planen.');
+    const parts: string[] = [];
+    if (created > 0) parts.push(`${created} nya`);
+    if (updated > 0) parts.push(`${updated} uppdaterade`);
+    if (skipped > 0) parts.push(`${skipped} oförändrade`);
+    if (created + updated > 0) {
+      toast.success(`Arbetsdagar sparade: ${parts.join(', ')}.`);
+    } else if (skipped > 0) {
+      toast.info('Inga ändringar — alla arbetsdagar var redan i planen.');
+    }
   };
 
   const handleToggleItemStatus = async (
@@ -444,6 +474,7 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
         items={items}
         staff={staff}
         onCreateTodoForBooking={(b) => openCreateTodoDialog(b)}
+        onCreateTodoForProduct={(b, p) => openCreateTodoDialog(b, p)}
         onPlanWholeBooking={handlePlanWholeBooking}
         onItemClick={(it) => setQuickEditId(it.id)}
         onItemDelete={(it) => handleItemDelete(it.id)}
