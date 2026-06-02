@@ -495,7 +495,7 @@ const BookingPlannerSheet = ({
                                 return (
                                   <li
                                     key={wd.id}
-                                    ref={isHighlighted ? (highlightRowRef as unknown as React.RefObject<HTMLLIElement>) as any : undefined}
+                                    ref={isHighlighted ? (el) => { highlightRowRef.current = el; } : undefined}
                                     className={`flex items-center gap-3 px-3 py-2 text-[12px] transition-colors ${
                                       isHighlighted
                                         ? 'bg-planner/10 ring-1 ring-inset ring-planner/30'
