@@ -287,6 +287,7 @@ const LargeProjectPlannerSidebar = ({
                 key={f.key}
                 size="sm"
                 variant={filter === f.key ? 'default' : 'outline'}
+                data-active={filter === f.key}
                 className="h-7 px-2.5 text-[10.5px] rounded-md font-medium"
                 onClick={() => setFilter(f.key)}
               >
@@ -342,6 +343,7 @@ const LargeProjectPlannerSidebar = ({
               key={f.key}
               size="sm"
               variant={filter === f.key ? 'default' : 'outline'}
+                data-active={filter === f.key}
               className="h-7 px-2.5 text-[10.5px] rounded-md font-medium"
               onClick={() => setFilter(f.key)}
             >
