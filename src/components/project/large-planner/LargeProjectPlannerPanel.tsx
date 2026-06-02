@@ -28,7 +28,7 @@ import ManualProjectTaskDialog from './ManualProjectTaskDialog';
 import LargeProjectPlannerQuickEditDialog from './LargeProjectPlannerQuickEditDialog';
 import BookingPlannerSheet from './BookingPlannerSheet';
 import { useLargeProjectPlannerItems } from './useLargeProjectPlannerItems';
-import { supabase } from '@/integrations/supabase/client';
+
 
 import type {
   LargeProjectBookingPlanItem,
