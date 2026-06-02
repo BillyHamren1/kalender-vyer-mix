@@ -263,8 +263,15 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     }
 
     setPlannerSheetBookingId(booking.id);
-    if (created > 0) toast.success(`${created} faser planerade${skipped ? ` (${skipped} fanns redan)` : ''}.`);
-    else if (skipped > 0) toast.info('Alla faser fanns redan i planen.');
+    const parts: string[] = [];
+    if (created > 0) parts.push(`${created} nya`);
+    if (updated > 0) parts.push(`${updated} uppdaterade`);
+    if (skipped > 0) parts.push(`${skipped} oförändrade`);
+    if (created + updated > 0) {
+      toast.success(`Arbetsdagar sparade: ${parts.join(', ')}.`);
+    } else if (skipped > 0) {
+      toast.info('Inga ändringar — alla arbetsdagar var redan i planen.');
+    }
   };
 
   const handleToggleItemStatus = async (
