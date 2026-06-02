@@ -5,7 +5,17 @@
  * projektplaneraren. Endast read + callbacks — inga DB-skrivningar.
  */
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Hash, Inbox, ListChecks, Pencil } from 'lucide-react';
+import {
+  Hash,
+  Inbox,
+  ListChecks,
+  Pencil,
+  MapPin,
+  CheckCircle2,
+  CircleDashed,
+  Layers,
+  Building2,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -44,6 +54,19 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: 'done', label: 'Klara' },
 ];
 
+const initialsOf = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? '')
+    .join('') || '?';
+
+const formatAddress = (b: LargeProjectPlannerBooking): string | null => {
+  const parts = [b.deliveryaddress?.trim(), b.delivery_city?.trim()].filter(Boolean);
+  return parts.length ? parts.join(', ') : null;
+};
+
 const LargeProjectPlannerSidebar = ({
   bookings,
   items,
@@ -57,7 +80,6 @@ const LargeProjectPlannerSidebar = ({
   horizontal = false,
 }: Props) => {
   const [filter, setFilter] = useState<Filter>('all');
-  const [showPlanned, setShowPlanned] = useState(false);
 
   const staffById = useMemo(() => {
     const map = new Map<string, LargeProjectPlannerStaffMember>();
@@ -87,10 +109,6 @@ const LargeProjectPlannerSidebar = ({
     [items],
   );
 
-  // En bokning räknas som "planerad i kalendern" när den har minst en sparad
-  // fas-dag i projektets calendar_events (rig/event/rigDown). Ärvda basdatum
-  // (b.rigdaydate/eventdate/rigdowndate) från externt bokningssystem räknas
-  // INTE — de finns på alla bokningar och säger inget om projektplaneringen.
   const isBookingPlanned = (b: LargeProjectPlannerBooking) => b.has_calendar_phase_days;
 
   const matchesFilter = (
@@ -109,53 +127,137 @@ const LargeProjectPlannerSidebar = ({
   );
 
   const unplannedBookings = filteredBookings.filter((b) => !isBookingPlanned(b));
-  const plannedBookings = filteredBookings.filter((b) => isBookingPlanned(b));
 
-  const renderBookingCard = (booking: LargeProjectPlannerBooking) => {
+  /** Premium-booking-kort. Funktion/callbacks oförändrade. */
+  const renderBookingCard = (
+    booking: LargeProjectPlannerBooking,
+    opts: { compact?: boolean } = {},
+  ) => {
     const its = itemsByBooking.get(booking.id) ?? [];
     const isPlanned = isBookingPlanned(booking);
+    const doneCount = its.filter((i) => i.status === 'done').length;
+    const address = formatAddress(booking);
+    const client = booking.client?.trim() || booking.display_name;
+
     return (
       <div
         key={booking.id}
-        className="w-[260px] shrink-0 rounded-md border border-border/60 bg-card p-2"
+        className={`group/booking ${opts.compact ? 'w-[280px] shrink-0' : ''} rounded-xl border border-border/60 bg-card shadow-sm hover:shadow-md hover:border-primary/30 transition-all overflow-hidden`}
       >
-        <div className="flex items-start justify-between gap-1">
-          <div className="min-w-0">
-            <div className="truncate text-xs font-medium text-foreground">
-              {booking.display_name}
+        {/* Status-band överst */}
+        <div
+          className={`h-1 ${
+            isPlanned
+              ? doneCount === its.length && its.length > 0
+                ? 'bg-emerald-500/70'
+                : 'bg-primary/60'
+              : 'bg-muted-foreground/20'
+          }`}
+        />
+        <div className="p-3 space-y-2.5">
+          {/* Header: avatar + namn + status */}
+          <div className="flex items-start gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 border border-primary/15 flex items-center justify-center shrink-0 text-[10.5px] font-bold text-primary tracking-wide">
+              {initialsOf(client)}
             </div>
-            {booking.booking_number && (
-              <div className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                <Hash className="h-2.5 w-2.5" />
-                {booking.booking_number}
+            <div className="min-w-0 flex-1">
+              <div
+                className="truncate text-[12.5px] font-semibold text-foreground leading-tight"
+                title={client}
+              >
+                {client}
               </div>
+              <div className="mt-0.5 truncate text-[10.5px] text-muted-foreground leading-tight" title={booking.display_name}>
+                {booking.display_name}
+              </div>
+            </div>
+            {isPlanned ? (
+              <span className="inline-flex items-center gap-1 text-[9.5px] font-semibold px-1.5 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/15 shrink-0">
+                <CheckCircle2 className="h-2.5 w-2.5" />
+                Planerad
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[9.5px] font-semibold px-1.5 py-0.5 rounded-md bg-muted/70 text-muted-foreground border border-border/60 shrink-0">
+                <CircleDashed className="h-2.5 w-2.5" />
+                Ej planerad
+              </span>
             )}
           </div>
-          <Badge
-            variant={isPlanned ? 'secondary' : 'outline'}
-            className="text-[9px]"
-          >
-            {isPlanned ? `${its.length} st` : 'Ej planerad'}
-          </Badge>
-        </div>
-        <div className="mt-2 flex gap-1">
-          <Button
-            size="sm"
-            variant={isPlanned ? 'outline' : 'default'}
-            className="h-6 flex-1 text-[10px]"
-            onClick={() => onSeedBooking(booking)}
-          >
-            Planera
-          </Button>
-          {onSplitBooking && (
+
+          {/* Meta-rad */}
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10.5px] text-muted-foreground">
+            {booking.booking_number && (
+              <span className="inline-flex items-center gap-1 font-mono tabular-nums font-medium text-foreground/70">
+                <Hash className="h-2.5 w-2.5" />
+                {booking.booking_number}
+              </span>
+            )}
+            {its.length > 0 && (
+              <span className="inline-flex items-center gap-1">
+                <Layers className="h-2.5 w-2.5" />
+                {its.length} {its.length === 1 ? 'task' : 'tasks'}
+                {doneCount > 0 && (
+                  <span className="text-emerald-600/80 font-semibold">· {doneCount} klar</span>
+                )}
+              </span>
+            )}
+          </div>
+
+          {/* Adress */}
+          {address && (
+            <div className="flex items-start gap-1.5 text-[10.5px] text-foreground/75 leading-snug">
+              <MapPin className="h-3 w-3 text-muted-foreground/70 mt-[1.5px] shrink-0" />
+              <span className="truncate" title={address}>
+                {address}
+              </span>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-1.5 pt-0.5">
             <Button
               size="sm"
-              variant="outline"
-              className="h-6 flex-1 text-[10px]"
-              onClick={() => onSplitBooking(booking)}
+              variant={isPlanned ? 'outline' : 'default'}
+              className="h-7 flex-1 text-[10.5px] rounded-md shadow-sm font-medium"
+              onClick={() => onSeedBooking(booking)}
             >
-              Dela upp
+              Planera
             </Button>
+            {onSplitBooking && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 flex-1 text-[10.5px] rounded-md"
+                onClick={() => onSplitBooking(booking)}
+              >
+                Dela upp
+              </Button>
+            )}
+          </div>
+
+          {/* Produktlista — endast i vertikalt läge */}
+          {!opts.compact && onCreateTodoForProduct && (
+            <BookingProductsExpandable
+              bookingId={booking.id}
+              onCreateTodoForProduct={(p) => onCreateTodoForProduct(booking, p)}
+            />
+          )}
+          {!opts.compact && isPlanned && its.length > 0 && (
+            <div className="space-y-1 pt-1">
+              {its.map((it) => (
+                <LargeProjectPlannerTaskCard
+                  key={it.id}
+                  item={it}
+                  booking={bookingById.get(it.booking_id ?? '') ?? null}
+                  staff={
+                    it.assigned_staff_id ? staffById.get(it.assigned_staff_id) ?? null : null
+                  }
+                  compact
+                  onClick={onItemClick}
+                  onDelete={onItemDelete}
+                />
+              ))}
+            </div>
           )}
         </div>
       </div>
@@ -164,19 +266,24 @@ const LargeProjectPlannerSidebar = ({
 
   if (horizontal) {
     return (
-      <aside className="flex shrink-0 flex-col border-b border-border/60 bg-background">
-        <div className="flex items-center gap-3 border-b border-border/60 px-3 py-2">
-          <div className="flex items-center gap-1.5 text-sm font-semibold">
-            <Inbox className="h-3.5 w-3.5 text-primary" />
-            Bokningar i projektet
+      <aside className="flex shrink-0 flex-col border-b border-border/60 bg-gradient-to-b from-muted/20 to-background">
+        <div className="flex items-center gap-3 px-4 py-2.5 flex-wrap">
+          <div className="flex items-center gap-2 text-[13px] font-semibold text-foreground">
+            <div className="h-7 w-7 rounded-lg bg-primary/10 ring-1 ring-primary/15 flex items-center justify-center">
+              <Inbox className="h-3.5 w-3.5 text-primary" />
+            </div>
+            Bokningar
+            <span className="text-[10.5px] font-normal text-muted-foreground">
+              ({unplannedBookings.length} att planera)
+            </span>
           </div>
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-1 ml-1">
             {FILTERS.map((f) => (
               <Button
                 key={f.key}
                 size="sm"
                 variant={filter === f.key ? 'default' : 'outline'}
-                className="h-6 px-2 text-[10px]"
+                className="h-7 px-2.5 text-[10.5px] rounded-md font-medium"
                 onClick={() => setFilter(f.key)}
               >
                 {f.label}
@@ -187,47 +294,51 @@ const LargeProjectPlannerSidebar = ({
             <Button
               size="sm"
               variant="ghost"
-              className="ml-auto h-6 px-2 text-[10px]"
+              className="ml-auto h-7 px-2.5 text-[10.5px] rounded-md"
               onClick={onCreateManual}
             >
               <Pencil className="mr-1 h-3 w-3" /> Manuell task
             </Button>
           )}
-          <div className="inline-flex items-center gap-1 text-[10px] text-muted-foreground whitespace-nowrap">
+          <div className="inline-flex items-center gap-1.5 text-[10.5px] text-muted-foreground whitespace-nowrap px-2 py-1 rounded-md bg-muted/40 border border-border/50">
             <ListChecks className="h-3 w-3" />
-            {items.length} items
+            <span className="tabular-nums font-semibold text-foreground/80">{items.length}</span>
+            items
           </div>
         </div>
 
         <div className="overflow-x-auto">
-          <div className="flex gap-2 p-2 min-w-min items-stretch">
-            {unplannedBookings.length === 0 && (
-              <div className="rounded-md border border-dashed border-border/60 p-3 text-center text-[11px] text-muted-foreground w-full">
+          <div className="flex gap-3 px-4 pb-3 min-w-min items-stretch">
+            {unplannedBookings.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-4 py-3 text-center text-[11px] text-muted-foreground w-full flex items-center justify-center gap-2">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500/80" />
                 Alla bokningar är planerade — finns i kalendern nedan.
               </div>
+            ) : (
+              unplannedBookings.map((b) => renderBookingCard(b, { compact: true }))
             )}
-            {unplannedBookings.map((b) => renderBookingCard(b))}
           </div>
         </div>
       </aside>
     );
   }
 
-
   return (
-    <aside className="flex w-72 shrink-0 flex-col border-l border-border/60 bg-background">
-      <div className="border-b border-border/60 px-3 py-2">
-        <div className="flex items-center gap-1.5 text-sm font-semibold">
-          <Inbox className="h-3.5 w-3.5 text-primary" />
+    <aside className="flex w-80 shrink-0 flex-col border-l border-border/60 bg-gradient-to-b from-muted/15 to-background">
+      <div className="border-b border-border/60 px-3 py-3 space-y-2.5 bg-background/60 backdrop-blur-sm">
+        <div className="flex items-center gap-2 text-[13px] font-semibold text-foreground">
+          <div className="h-7 w-7 rounded-lg bg-primary/10 ring-1 ring-primary/15 flex items-center justify-center">
+            <Building2 className="h-3.5 w-3.5 text-primary" />
+          </div>
           Bokningar i projektet
         </div>
-        <div className="mt-2 flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1">
           {FILTERS.map((f) => (
             <Button
               key={f.key}
               size="sm"
               variant={filter === f.key ? 'default' : 'outline'}
-              className="h-6 px-2 text-[10px]"
+              className="h-7 px-2.5 text-[10.5px] rounded-md font-medium"
               onClick={() => setFilter(f.key)}
             >
               {f.label}
@@ -237,92 +348,17 @@ const LargeProjectPlannerSidebar = ({
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="space-y-3 p-2">
+        <div className="space-y-2.5 p-3">
           {filteredBookings.length === 0 && (
-            <div className="rounded-md border border-dashed border-border/60 p-3 text-center text-[11px] text-muted-foreground">
+            <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 p-4 text-center text-[11px] text-muted-foreground">
               Inga bokningar matchar filtret.
             </div>
           )}
-          {filteredBookings.map((booking) => {
-            const its = itemsByBooking.get(booking.id) ?? [];
-            const isPlanned = isBookingPlanned(booking);
-            return (
-              <div
-                key={booking.id}
-                className="rounded-md border border-border/60 bg-card p-2"
-              >
-                <div className="flex items-start justify-between gap-1">
-                  <div className="min-w-0">
-                    <div className="truncate text-xs font-medium text-foreground">
-                      {booking.display_name}
-                    </div>
-                    {booking.booking_number && (
-                      <div className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                        <Hash className="h-2.5 w-2.5" />
-                        {booking.booking_number}
-                      </div>
-                    )}
-                  </div>
-                  <Badge
-                    variant={isPlanned ? 'secondary' : 'outline'}
-                    className="text-[9px]"
-                  >
-                    {isPlanned ? `${its.length} st` : 'Ej planerad'}
-                  </Badge>
-                </div>
-                <div className="mt-2 flex gap-1">
-                  <Button
-                    size="sm"
-                    variant={isPlanned ? 'outline' : 'default'}
-                    className="h-6 flex-1 text-[10px]"
-                    onClick={() => onSeedBooking(booking)}
-                  >
-                    Planera
-                  </Button>
-                  {onSplitBooking && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-6 flex-1 text-[10px]"
-                      onClick={() => onSplitBooking(booking)}
-                    >
-                      Dela upp
-                    </Button>
-                  )}
-                </div>
-                {onCreateTodoForProduct && (
-                  <BookingProductsExpandable
-                    bookingId={booking.id}
-                    onCreateTodoForProduct={(p) => onCreateTodoForProduct(booking, p)}
-                  />
-                )}
-                {isPlanned && (
-                  <div className="mt-2 space-y-1">
-
-                    {its.map((it) => (
-                      <LargeProjectPlannerTaskCard
-                        key={it.id}
-                        item={it}
-                        booking={bookingById.get(it.booking_id ?? '') ?? null}
-                        staff={
-                          it.assigned_staff_id
-                            ? staffById.get(it.assigned_staff_id) ?? null
-                            : null
-                        }
-                        compact
-                        onClick={onItemClick}
-                        onDelete={onItemDelete}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {filteredBookings.map((booking) => renderBookingCard(booking))}
 
           <div className="pt-2">
-            <div className="flex items-center justify-between gap-1.5">
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
+            <div className="flex items-center justify-between gap-1.5 px-1">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                 <Pencil className="h-3 w-3" />
                 Manuella tasks
               </div>
@@ -330,7 +366,7 @@ const LargeProjectPlannerSidebar = ({
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-5 px-1 text-[10px]"
+                  className="h-6 px-2 text-[10.5px] rounded-md"
                   onClick={onCreateManual}
                 >
                   + Ny
@@ -338,19 +374,17 @@ const LargeProjectPlannerSidebar = ({
               )}
             </div>
             {manualItems.length === 0 ? (
-              <div className="mt-1 rounded-md border border-dashed border-border/60 p-2 text-center text-[10px] text-muted-foreground">
+              <div className="mt-2 rounded-lg border border-dashed border-border/60 bg-muted/20 p-3 text-center text-[10.5px] text-muted-foreground">
                 Inga manuella tasks.
               </div>
             ) : (
-              <div className="mt-1 space-y-1">
+              <div className="mt-2 space-y-1.5">
                 {manualItems.map((it) => (
                   <LargeProjectPlannerTaskCard
                     key={it.id}
                     item={it}
                     staff={
-                      it.assigned_staff_id
-                        ? staffById.get(it.assigned_staff_id) ?? null
-                        : null
+                      it.assigned_staff_id ? staffById.get(it.assigned_staff_id) ?? null : null
                     }
                     compact
                     onClick={onItemClick}
@@ -361,9 +395,10 @@ const LargeProjectPlannerSidebar = ({
             )}
           </div>
 
-          <div className="flex items-center justify-center gap-1 pt-2 text-[10px] text-muted-foreground">
+          <div className="flex items-center justify-center gap-1.5 pt-3 text-[10.5px] text-muted-foreground border-t border-border/40 mt-3">
             <ListChecks className="h-3 w-3" />
-            {items.length} items totalt
+            <span className="tabular-nums font-semibold text-foreground/70">{items.length}</span>
+            items totalt
           </div>
         </div>
       </ScrollArea>
