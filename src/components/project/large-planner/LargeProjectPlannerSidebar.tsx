@@ -288,7 +288,7 @@ const LargeProjectPlannerSidebar = ({
                 size="sm"
                 variant={filter === f.key ? 'default' : 'outline'}
                 data-active={filter === f.key}
-                className="h-7 px-2.5 text-[10.5px] rounded-md font-medium"
+                className={`h-7 px-2.5 text-[10.5px] rounded-lg font-medium transition-colors ${filter === f.key ? "bg-planner text-white hover:bg-planner/90 hover:text-white shadow-[0_2px_6px_-2px_hsl(var(--planner)/0.45)] border-planner" : "hover:text-planner hover:border-planner/40 hover:bg-planner/5"}`}
                 onClick={() => setFilter(f.key)}
               >
                 {f.label}
@@ -344,7 +344,7 @@ const LargeProjectPlannerSidebar = ({
               size="sm"
               variant={filter === f.key ? 'default' : 'outline'}
                 data-active={filter === f.key}
-              className="h-7 px-2.5 text-[10.5px] rounded-md font-medium"
+              className={`h-7 px-2.5 text-[10.5px] rounded-lg font-medium transition-colors ${filter === f.key ? "bg-planner text-white hover:bg-planner/90 hover:text-white shadow-[0_2px_6px_-2px_hsl(var(--planner)/0.45)] border-planner" : "hover:text-planner hover:border-planner/40 hover:bg-planner/5"}`}
               onClick={() => setFilter(f.key)}
             >
               {f.label}
