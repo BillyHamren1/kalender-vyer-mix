@@ -65,6 +65,17 @@ export type StaffDayStatus =
   | 'closed'            // workday avslutad och inga reviews
   | 'review_required';  // något kräver attention (unknown/anomaly/oresolved flag)
 
+/**
+ * Allokeringsorsak för restidsblock — vilket jobb resans kostnad ska bokas på.
+ * Se src/lib/staff/allocateTravelToProjects.ts.
+ */
+export type TravelAllocationReason =
+  | 'travel_to_first_job'
+  | 'travel_between_jobs_allocated_to_destination'
+  | 'travel_after_last_job_allocated_to_last_job'
+  | 'travel_to_private_not_allocated'
+  | 'unresolved_travel_allocation';
+
 export interface StaffDaySegment {
   id: string;
   kind: StaffDaySegmentKind;
@@ -93,6 +104,17 @@ export interface StaffDaySegment {
    * översiktsmått i listor.)
    */
   payable: boolean;
+  // ── Travel allocation (endast meningsfullt när kind === 'travel') ──────
+  /** Projektets/jobbets id som restiden ska registreras på (om allokerad). */
+  travelBelongsToProjectId?: string | null;
+  /** Mänsklig projekt-/jobbtitel. */
+  travelBelongsToProjectName?: string | null;
+  /** Underliggande target-id (sourceBlockId för relaterad presence-segment). */
+  travelBelongsToTargetId?: string | null;
+  /** Mänsklig target-label. */
+  travelBelongsToTargetName?: string | null;
+  /** Varför restiden allokerades hit (eller varför inte). */
+  travelAllocationReason?: TravelAllocationReason | null;
 }
 
 export interface StaffDayEvidence {
