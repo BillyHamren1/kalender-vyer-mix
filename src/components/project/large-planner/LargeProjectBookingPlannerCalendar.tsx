@@ -24,12 +24,14 @@ import type { CalendarEvent } from '@/components/Calendar/ResourceData';
 
 import LargeProjectPlannerToolbar, { type PlannerViewMode } from './LargeProjectPlannerToolbar';
 import LargeProjectPlannerSidebar from './LargeProjectPlannerSidebar';
+import LargeProjectPlannerChecklistView from './LargeProjectPlannerChecklistView';
 import SplitBookingIntoTasksDialog from './SplitBookingIntoTasksDialog';
 import ManualProjectTaskDialog from './ManualProjectTaskDialog';
 import LargeProjectPlannerQuickEditDialog from './LargeProjectPlannerQuickEditDialog';
 import LargeProjectPlannerCalendarView from './LargeProjectPlannerCalendarView';
 import LargeProjectPlannerGanttView from './LargeProjectPlannerGanttView';
 import BookingPlannerSheet, { type PlanWholeBookingSelection } from './BookingPlannerSheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useLargeProjectPlannerItems } from './useLargeProjectPlannerItems';
 import { plannerItemIdFromEventId } from './LargeProjectPlannerCalendarAdapter';
 import type { LargeProjectPlannerBooking } from './largeProjectPlannerTypes';
