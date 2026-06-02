@@ -1,12 +1,25 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders } from "../_shared/cors.ts";
 import {
+  COUNTABLE_SUBMISSION_STATUSES,
+  EXCLUDED_SUBMISSION_STATUSES,
   deleteProjectStaffTimeCostLinesForSubmission,
   rebuildProjectStaffTimeCostLinesForSubmission,
 } from "../_shared/staff-day-cost-lines.ts";
 
-type AllowedStatus = "approved" | "needs_control" | "correction_requested";
-const ALLOWED: AllowedStatus[] = ["approved", "needs_control", "correction_requested"];
+type AllowedStatus =
+  | "approved"
+  | "payroll_approved"
+  | "needs_control"
+  | "correction_requested"
+  | "rejected";
+const ALLOWED: AllowedStatus[] = [
+  "approved",
+  "payroll_approved",
+  "needs_control",
+  "correction_requested",
+  "rejected",
+];
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -109,15 +122,15 @@ Deno.serve(async (req) => {
   if (updErr) return json({ error: "update_failed", detail: updErr.message }, 500);
 
   // Sync project_staff_time_cost_lines:
-  //  - approved  -> rebuild from submission snapshot
-  //  - needs_control / correction_requested -> delete old rows (not approved anymore)
+  //  - countable status (approved / payroll_approved / needs_control) -> rebuild
+  //  - excluded status (correction_requested / rejected)              -> delete
   // Vi rör ALDRIG time_reports / workdays / location_time_entries /
   // travel_time_logs / day_attestations här.
   let costLinesResult: unknown = null;
   try {
-    if (status === "approved") {
+    if (COUNTABLE_SUBMISSION_STATUSES.has(status)) {
       costLinesResult = await rebuildProjectStaffTimeCostLinesForSubmission(admin, submission_id);
-    } else if (status === "needs_control" || status === "correction_requested") {
+    } else if (EXCLUDED_SUBMISSION_STATUSES.has(status)) {
       costLinesResult = await deleteProjectStaffTimeCostLinesForSubmission(admin, submission_id);
     }
   } catch (e) {

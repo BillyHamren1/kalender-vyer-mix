@@ -2,19 +2,24 @@
  * staff-day-cost-lines.ts
  * =======================
  *
- * Bygger `project_staff_time_cost_lines` från en godkänd
+ * Bygger `project_staff_time_cost_lines` från en
  * `staff_day_submissions`-rad.
  *
  * REGLER:
  *  - staff_day_report_cache = Time Engine/GPS-FÖRSLAG. Får ALDRIG användas
  *    som faktisk projektkostnad.
- *  - staff_day_submissions = sanningen. Endast `approved` eller
- *    `payroll_approved` ger upphov till kostnadsrader.
+ *  - staff_day_submissions = sanningen. Alla "countable" statusar (se
+ *    COUNTABLE_SUBMISSION_STATUSES) ger upphov till kostnadsrader,
+ *    inte enbart approved/payroll_approved. Tiden ska synas i projektet
+ *    direkt när personalen rapporterat — admin-attest ändrar bara
+ *    status (oattesterad → godkänd), inte själva förekomsten.
  *  - Vi rör ALDRIG: time_reports, workdays, location_time_entries,
  *    travel_time_logs, day_attestations.
  *
- * Anropas från admin-attesten (`update-staff-day-submission-status`) varje
- * gång status flyttas till/från approved/payroll_approved.
+ * Anropas från:
+ *   - submit-staff-day-v3                (personal skickar in / korrigerar)
+ *   - submit-mobile-gps-day-v2           (personal skickar in via GPS-dag)
+ *   - update-staff-day-submission-status (admin ändrar status)
  */
 
 // deno-lint-ignore-file no-explicit-any
@@ -69,6 +74,36 @@ const NON_WORK_KINDS = new Set([
   "other_place",
   "unclear_movement",
   "unclear_transport",
+]);
+
+/**
+ * Submission-statusar som ska räknas in i projektets total. Dessa ger
+ * upphov till project_staff_time_cost_lines-rader.
+ *
+ * Approved-grupp:  approved, payroll_approved
+ * Oattesterade men inräknade: submitted, edited, ai_flagged,
+ *                             needs_user_attention, needs_control
+ */
+export const COUNTABLE_SUBMISSION_STATUSES = new Set<string>([
+  "submitted",
+  "edited",
+  "ai_flagged",
+  "needs_user_attention",
+  "needs_control",
+  "approved",
+  "payroll_approved",
+]);
+
+/**
+ * Submission-statusar där tiden ALDRIG ska räknas in i projektets total.
+ * För dessa raderar vi project_staff_time_cost_lines-rader.
+ */
+export const EXCLUDED_SUBMISSION_STATUSES = new Set<string>([
+  "draft",
+  "correction_requested",
+  "rejected",
+  "deleted",
+  "cancelled",
 ]);
 
 function readKind(b: BlockLike): string | null {
@@ -238,8 +273,8 @@ export async function rebuildProjectStaffTimeCostLinesForSubmission(
   const deleted = deletedCount ?? 0;
 
   const status = String((sub as any).status ?? "");
-  if (status !== "approved" && status !== "payroll_approved") {
-    return { created: 0, deleted, reason: "not_approved" };
+  if (!COUNTABLE_SUBMISSION_STATUSES.has(status)) {
+    return { created: 0, deleted, reason: `status_not_countable:${status}` };
   }
 
   // 1) Primary source: submission snapshot (frozen at submit-time)

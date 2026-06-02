@@ -43,6 +43,17 @@ export interface ApprovedRowInput {
   staff_id: string;
   minutes: number;
   cost: number;
+  /**
+   * Defaultas till 'approved' så befintliga tester och konsumenter inte
+   * går sönder. Hooken sätter alltid det riktiga värdet baserat på
+   * submission_status.
+   */
+  approvalState?: 'approved' | 'unapproved';
+  hourlyRate?: number;
+  startAt?: string | null;
+  endAt?: string | null;
+  rateSource?: string | null;
+  submissionStatus?: string | null;
 }
 
 export interface DailyStaffRow {
@@ -55,6 +66,15 @@ export interface DailyStaffRow {
   submissionStatus: string | null;
   approvedMinutes: number;
   approvedCost: number;
+  unapprovedMinutes: number;
+  unapprovedCost: number;
+  totalMinutes: number;
+  totalCost: number;
+  hourlyRate: number | null;
+  rateSource: string | null;
+  startAt: string | null;
+  endAt: string | null;
+  approvalState: 'approved' | 'unapproved' | 'none';
 }
 
 export interface DailyOverviewRow {
@@ -68,6 +88,12 @@ export interface DailyOverviewRow {
     extra: number;
     approvedMinutes: number;
     approvedCost: number;
+    unapprovedMinutes: number;
+    unapprovedCost: number;
+    totalMinutes: number;
+    totalCost: number;
+    staffCount: number;
+    hasUnapproved: boolean;
   };
 }
 
@@ -123,12 +149,59 @@ export function buildProjectDailyStaffTimeOverview(
     }
   });
 
-  const approvedByKey = new Map<string, { minutes: number; cost: number }>();
+  type ApprovedAgg = {
+    minutes: number;
+    cost: number;
+    approvedMinutes: number;
+    approvedCost: number;
+    unapprovedMinutes: number;
+    unapprovedCost: number;
+    hourlyRate: number | null;
+    rateSource: string | null;
+    startAt: string | null;
+    endAt: string | null;
+    submissionStatus: string | null;
+    state: 'approved' | 'unapproved' | 'mixed';
+  };
+  const approvedByKey = new Map<string, ApprovedAgg>();
   approvedRows.forEach((r) => {
     const k = `${r.date}|${r.staff_id}`;
-    const prev = approvedByKey.get(k) ?? { minutes: 0, cost: 0 };
-    prev.minutes += Number(r.minutes) || 0;
-    prev.cost += Number(r.cost) || 0;
+    const isApproved = (r.approvalState ?? 'approved') === 'approved';
+    const min = Number(r.minutes) || 0;
+    const cost = Number(r.cost) || 0;
+    const prev: ApprovedAgg =
+      approvedByKey.get(k) ?? {
+        minutes: 0,
+        cost: 0,
+        approvedMinutes: 0,
+        approvedCost: 0,
+        unapprovedMinutes: 0,
+        unapprovedCost: 0,
+        hourlyRate: null,
+        rateSource: null,
+        startAt: null,
+        endAt: null,
+        submissionStatus: null,
+        state: isApproved ? 'approved' : 'unapproved',
+      };
+    prev.minutes += min;
+    prev.cost += cost;
+    if (isApproved) {
+      prev.approvedMinutes += min;
+      prev.approvedCost += cost;
+      if (prev.state === 'unapproved') prev.state = 'mixed';
+    } else {
+      prev.unapprovedMinutes += min;
+      prev.unapprovedCost += cost;
+      if (prev.state === 'approved') prev.state = 'mixed';
+    }
+    if (typeof r.hourlyRate === 'number' && (prev.hourlyRate == null || r.hourlyRate > 0)) {
+      prev.hourlyRate = r.hourlyRate;
+    }
+    if (r.rateSource && !prev.rateSource) prev.rateSource = r.rateSource;
+    if (r.submissionStatus && !prev.submissionStatus) prev.submissionStatus = r.submissionStatus;
+    if (r.startAt && (!prev.startAt || r.startAt < prev.startAt)) prev.startAt = r.startAt;
+    if (r.endAt && (!prev.endAt || r.endAt > prev.endAt)) prev.endAt = r.endAt;
     approvedByKey.set(k, prev);
   });
 
@@ -157,6 +230,13 @@ export function buildProjectDailyStaffTimeOverview(
     else if (hasApproved) status = 'extra_approved';
     else status = 'extra_submitted';
 
+    const approvalState: DailyStaffRow['approvalState'] =
+      approved == null
+        ? 'none'
+        : approved.state === 'mixed'
+          ? 'unapproved'
+          : approved.state;
+
     const row: DailyStaffRow = {
       date,
       staff_id,
@@ -164,9 +244,18 @@ export function buildProjectDailyStaffTimeOverview(
       status,
       assigned,
       hasSubmission,
-      submissionStatus: submission?.status ?? null,
-      approvedMinutes: approved?.minutes ?? 0,
-      approvedCost: approved?.cost ?? 0,
+      submissionStatus: approved?.submissionStatus ?? submission?.status ?? null,
+      approvedMinutes: approved?.approvedMinutes ?? 0,
+      approvedCost: approved?.approvedCost ?? 0,
+      unapprovedMinutes: approved?.unapprovedMinutes ?? 0,
+      unapprovedCost: approved?.unapprovedCost ?? 0,
+      totalMinutes: approved?.minutes ?? 0,
+      totalCost: approved?.cost ?? 0,
+      hourlyRate: approved?.hourlyRate ?? null,
+      rateSource: approved?.rateSource ?? null,
+      startAt: approved?.startAt ?? null,
+      endAt: approved?.endAt ?? null,
+      approvalState,
     };
 
     const list = rowsByDate.get(date) ?? [];
@@ -182,6 +271,7 @@ export function buildProjectDailyStaffTimeOverview(
         if (an && bn) return an.localeCompare(bn, 'sv');
         return a.staff_id.localeCompare(b.staff_id);
       });
+      const staffWithTime = new Set<string>();
       const totals = rows.reduce(
         (acc, r) => {
           if (r.assigned) acc.assigned++;
@@ -191,6 +281,11 @@ export function buildProjectDailyStaffTimeOverview(
           if (r.status === 'extra_approved' || r.status === 'extra_submitted') acc.extra++;
           acc.approvedMinutes += r.approvedMinutes;
           acc.approvedCost += r.approvedCost;
+          acc.unapprovedMinutes += r.unapprovedMinutes;
+          acc.unapprovedCost += r.unapprovedCost;
+          acc.totalMinutes += r.totalMinutes;
+          acc.totalCost += r.totalCost;
+          if (r.totalMinutes > 0) staffWithTime.add(r.staff_id);
           return acc;
         },
         {
@@ -201,11 +296,20 @@ export function buildProjectDailyStaffTimeOverview(
           extra: 0,
           approvedMinutes: 0,
           approvedCost: 0,
+          unapprovedMinutes: 0,
+          unapprovedCost: 0,
+          totalMinutes: 0,
+          totalCost: 0,
+          staffCount: 0,
+          hasUnapproved: false,
         },
       );
+      totals.staffCount = staffWithTime.size;
+      totals.hasUnapproved = totals.unapprovedMinutes > 0;
       return { date, rows, totals };
     })
     .sort((a, b) => a.date.localeCompare(b.date));
+
 
   return result;
 }

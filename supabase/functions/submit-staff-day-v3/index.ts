@@ -21,6 +21,7 @@ import {
   type DisplayBlockShape,
   type UserEdit,
 } from "../_shared/time-engine/applyUserEditsToDisplayTimeline.ts";
+import { rebuildProjectStaffTimeCostLinesForSubmission } from "../_shared/staff-day-cost-lines.ts";
 
 interface SubmitBody {
   staffId?: string;
@@ -226,5 +227,21 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: error.message }, 500);
   }
 
-  return jsonResponse({ ok: true, submission: data });
+  // Bygg om project_staff_time_cost_lines direkt så projektets timmar
+  // syns/uppdateras utan att vänta på admin-attest. Idempotent: tar bort
+  // gamla rader för samma submission och bygger nya från snapshotet.
+  let costLinesResult: unknown = null;
+  try {
+    if ((data as any)?.id) {
+      costLinesResult = await rebuildProjectStaffTimeCostLinesForSubmission(
+        admin,
+        (data as any).id as string,
+      );
+    }
+  } catch (e) {
+    console.error("[submit-staff-day-v3] cost-lines rebuild failed", e);
+    costLinesResult = { error: String((e as Error)?.message ?? e) };
+  }
+
+  return jsonResponse({ ok: true, submission: data, cost_lines: costLinesResult });
 });
