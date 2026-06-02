@@ -127,10 +127,36 @@ const LargeProjectPlannerChecklistView = ({
     return m;
   }, [bookings]);
 
-  // Todos = task / manual / split (aldrig 'booking' = fasblock)
-  const todos = useMemo(
-    () => items.filter((it) => it.item_type !== 'booking'),
+  // Checklistan visar endast aktiva todos. Orderrader från booking_products
+  // visas aldrig direkt här. En orderrad blir synlig först när den har skapats
+  // som riktig todo OCH bokningen har minst en planerad arbetsdag
+  // (item_type='booking' + source='booking').
+  const plannedBookingIds = useMemo(
+    () =>
+      new Set(
+        items
+          .filter(
+            (it) =>
+              it.item_type === 'booking' &&
+              it.source === 'booking' &&
+              !!it.booking_id,
+          )
+          .map((it) => it.booking_id as string),
+      ),
     [items],
+  );
+
+  const todos = useMemo(
+    () =>
+      items.filter((it) => {
+        const isTodoType = it.item_type === 'task' || it.item_type === 'manual';
+        if (!isTodoType) return false;
+        // Fri manuell todo utan bokning får alltid visas.
+        if (!it.booking_id) return true;
+        // Bokningskopplad todo visas bara om bokningen är planerad.
+        return plannedBookingIds.has(it.booking_id);
+      }),
+    [items, plannedBookingIds],
   );
 
   const filteredTodos = useMemo(() => {
