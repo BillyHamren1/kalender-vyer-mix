@@ -594,10 +594,11 @@ const CustomCell = ({ initial, onCommit }: { initial: string; onCommit: (v: stri
         if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
         if (e.key === "Escape") { setVal(initial); (e.currentTarget as HTMLInputElement).blur(); }
       }}
-      placeholder="—"
-      className="h-9 text-sm border-transparent hover:border-border/70 hover:bg-card focus:border-ring focus:bg-card bg-transparent transition-colors rounded-md placeholder:text-muted-foreground/40 placeholder:font-light"
+      placeholder="Klicka för att skriva…"
+      className="h-9 text-[13px] border-transparent hover:border-border/60 hover:bg-background focus:border-ring focus:bg-background focus:ring-2 focus:ring-ring/20 bg-transparent transition-all rounded-md placeholder:text-muted-foreground/35 placeholder:font-light placeholder:italic"
     />
   );
 };
+
 
 export default LargeProjectExcelView;
