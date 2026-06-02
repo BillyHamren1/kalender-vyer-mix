@@ -217,9 +217,17 @@ export function ProjectDailyStaffTimeOverview({ largeProjectId, bookingIds }: Pr
                 )}
                 <div className="flex flex-col min-w-[10rem]">
                   <span className="font-medium capitalize">{dateLabel}</span>
-                  <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                  <span
+                    className="text-[11px] text-muted-foreground flex items-center gap-1"
+                    title="Personer planerade i personalkalendern den här dagen"
+                  >
                     <Users className="h-3 w-3" />
-                    {d.totals.staffCount} personer
+                    {d.totals.assigned} planerade
+                    {d.totals.staffCount > 0 && d.totals.staffCount !== d.totals.assigned && (
+                      <span className="text-muted-foreground/80">
+                        · {d.totals.staffCount} rapporterat
+                      </span>
+                    )}
                   </span>
                 </div>
 
@@ -255,9 +263,10 @@ export function ProjectDailyStaffTimeOverview({ largeProjectId, bookingIds }: Pr
                     <Badge
                       variant="outline"
                       className="text-[10px] border-orange-300 bg-orange-50 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200"
+                      title="Personer planerade i kalendern utan rapporterad tid"
                     >
                       <AlertTriangle className="h-2.5 w-2.5 mr-1" />
-                      {d.totals.missing} saknas
+                      {d.totals.missing} saknar rapport
                     </Badge>
                   )}
                 </div>
