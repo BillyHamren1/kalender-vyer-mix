@@ -127,21 +127,22 @@ export default function WeekFlowDayCard({ day, onSubmit, onOpenGps, showHeader =
           {day.canSubmit && onSubmit && (
             <button
               type="button"
-              onClick={() => onSubmit(day.date)}
+              onClick={(e) => { e.stopPropagation(); onSubmit(day.date); }}
               className="text-xs font-semibold px-2.5 h-7 rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
             >
-              {day.status === "correction_requested" ? "Skicka in igen" : "Skicka in"}
+              {day.status === "correction_requested" ? "Komplettera / redigera" : "Granska / redigera"}
             </button>
           )}
           {onOpenGps && (
             <button
               type="button"
-              onClick={() => onOpenGps(day.date)}
+              onClick={(e) => { e.stopPropagation(); onOpenGps(day.date); }}
               className="text-xs underline text-muted-foreground hover:text-foreground"
             >
               Öppna GPS
             </button>
           )}
+
         </div>
       </div>
 
