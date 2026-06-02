@@ -314,10 +314,11 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     const plannerItemId = plannerItemIdFromEventId(ev.id);
     if (!plannerItemId) return;
     const ep = (ev.extendedProps ?? {}) as Record<string, unknown>;
-    // Booking-fasblock → öppna BookingPlannerSheet (översikt + todos).
-    // Övriga planner-items (manuella/split som ev. visas senare) → quick edit.
     if (ep.plannerItemType === 'booking' && typeof ep.plannerBookingId === 'string') {
       setPlannerSheetBookingId(ep.plannerBookingId);
+      setPlannerSheetHighlightDate(
+        typeof ep.plannerPlanDate === 'string' ? ep.plannerPlanDate : null,
+      );
       return;
     }
     setQuickEditId(plannerItemId);
@@ -325,11 +326,14 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
 
 
   // Dubbelklick på ett bokningsblock i kalendern → öppna BookingPlannerSheet
-  // (full översikt med faser + orderrads-to-dos att bocka av).
   useEffect(() => {
     const handler = (e: Event) => {
-      const bid = (e as CustomEvent<{ bookingId?: string }>).detail?.bookingId;
-      if (bid) setPlannerSheetBookingId(bid);
+      const detail = (e as CustomEvent<{ bookingId?: string; planDate?: string | null }>).detail;
+      const bid = detail?.bookingId;
+      if (bid) {
+        setPlannerSheetBookingId(bid);
+        setPlannerSheetHighlightDate(detail?.planDate ?? null);
+      }
     };
     window.addEventListener('lp-booking-sheet-open', handler as EventListener);
     return () => window.removeEventListener('lp-booking-sheet-open', handler as EventListener);
