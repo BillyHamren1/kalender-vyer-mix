@@ -1,169 +1,53 @@
-## Diagnos — var det går fel
+## Problem
 
-Felet ligger i ETT enda lager:
+Veckomatrisen visar nu rätt siffra i cellen (`cell.totalMinutes` läses från `staff_day_report_cache.summary_json` via `resolveStaffDayReportSummariesBatch`). Men när man klickar på en dag öppnas `StaffTimeMatrixDayDetailSheet`, som **inte** använder samma single-pipeline. Den hämtar via `useStaffTimeWeekFlow` → `get-staff-gps-week-summary`, en separat edge-funktion som bygger canonical-resultat från råa GPS-pings vid varje klick. Resultatet:
 
-`supabase/functions/_shared/time-engine/buildTransportFromLocationTruth.ts`
+- För dagar där cachen har data men `get-staff-gps-week-summary` returnerar tomt (t.ex. om buildern faller på en kant, om pings hamnar i annat dygn, om canonical-byggaren tar timeout/error) → sheet visar "Ingen data för dagen.".
+- Detta bryter mot `single-pipeline-regeln` som veckomatrisen själv följer (kommentar i `get-staff-time-week-matrix/index.ts` rad 11–22).
 
-Med pings i din skärmdump:
+Cachen är redan korrekt skriven (verifierat i DB: `display_blocks_json` populerad efter förra fixen, `summary_json.payableMinutes` > 0).
 
-```
-#1  00:09:01  hemma   (59.6512, 17.7206)
-#2  00:09:03  hemma   (59.6512, 17.7204)
-#3  06:26:20  jobbet  (59.6512, 17.7195)
-```
+## Lösning — minsta säkra fix
 
-Pipelinen gör så här:
+Detaljsheeten ska läsa **exakt samma cache-rad** som matriscellen, inte gå en parallell GPS-väg.
 
-1. `buildGpsDayTimeline` ser det stora glappet 00:09:03 → 06:26:20 (>10 min)
-   och skapar KORREKT ett `gps_gap`-segment + en ny stay på jobbet.
-   Här blir det aldrig "travel". Bra.
+### Steg 1 — Exponera blocks i resolvern
+`supabase/functions/_shared/staff-day-report/resolveStaffDayReport.ts`:
+- Utöka `ResolvedStaffDaySummary` med `blocks: unknown[]` (innehåll från cachens `display_blocks_json`, fallback `report_candidate_blocks_json`; för submissions: `display_timeline_snapshot_json.blocks`).
+- Inkludera `display_blocks_json` + `report_candidate_blocks_json` + `display_timeline_snapshot_json` i den leana SELECT-listan på rad 568.
+- Fyll `blocks` i `buildSummaryFromCache` och `buildSummaryFromSubmission`.
 
-2. `buildLocationTruthFromDayEvidence` klassar:
-   - Stay #1+#2 → `private_residence` (hem)
-   - Stay #3 → `known_target` (jobbet)
-   - Däremellan: `signal_gap`
+### Steg 2 — Skicka blocks i matrix-svaret
+`supabase/functions/get-staff-time-week-matrix/index.ts`:
+- I `cellFromResolvedSummary`: mappa `r.blocks` → `rows: CellRow[]` (kind/label/startIso/endIso/minutes/fromLabel/toLabel) via en liten mapper (samma kontrakt som mobil-rapporten redan använder).
+- Behåll `pingCount`/`gpsAvailable` som de är.
 
-3. `bridgeSignalGaps` ser olika targets → markerar `transition_candidate`,
-   skapar INTE transport. Bra.
+### Steg 3 — Detaljsheet läser direkt från matriscellen
+`src/components/staff-time/StaffTimeMatrixDayDetailSheet.tsx`:
+- Ta emot hela `StaffTimeMatrixCell` som prop istället för `{staffId, date}`.
+- Rendera `cell.rows` direkt (eller via befintlig `WeekFlowDayCard` om vi mappar `MatrixCell → WeekFlowDay` lokalt) — INGET nytt nätverksanrop, INGET `useStaffTimeWeekFlow`.
+- Anroparen (`StaffTimeWeekMatrixCell`) skickar redan in cellen.
 
-4. **`buildTransportFromLocationTruth` (rad 95–218) — buggen.**
-   Den loopar alla "place"-segment och så fort den ser
-   `A (plats) … signal_gap … B (annan plats)` med `haversine(A,B) ≥ 500 m`
-   så pushar den ovillkorligen:
+### Steg 4 — Tester
+- Vitest: `resolveStaffDayReport.cacheBlocks.contract.test.ts` — verifierar att resolvern returnerar `blocks` när cache har `display_blocks_json`, faller tillbaka på `report_candidate_blocks_json`, returnerar `[]` när bägge är tomma.
+- Vitest: `StaffTimeMatrixDayDetailSheet.contract.test.tsx` — renderar med en cell som har `rows.length > 0` och säkerställer att inga nätverksanrop görs (mocka supabase-klienten, assert 0 invokes).
+- Deno test för `get-staff-time-week-matrix` mapper: blocks-shape från cache → CellRow-shape.
 
-   ```ts
-   transports.push({
-     startAt: a.endAt,   // 00:09:03
-     endAt:   b.startAt, // 06:26:20
-     kind: 'transport',
-     label: 'Resa',
-     distanceMeters: 8,             // hem→jobb är ~8 m i ditt fall
-     durationMinutes: 377,          // 6h17m
-     supportEvidence: { sourceSignalGapSegmentIds: [...] },
-   });
-   ```
+### Påverkan
+- `get-staff-gps-week-summary` rörs **inte**; den används fortsatt av GPS-satellitkartan.
+- `useStaffTimeWeekFlow` rörs inte i denna iteration (mobilens WeekFlow-rendrering oförändrad).
+- Inga DB-migrationer. Inga ändringar i Time Engine, canonical pipeline eller cache-writer.
 
-   Det finns INGEN kontroll av:
-   - Glappets längd (377 min accepteras lika gärna som 5 min).
-   - Att staffen faktiskt har EGEN GPS-displacement över glappet
-     (`staffOwnDisplacementMeters` finns men anropas aldrig härifrån).
-   - Att `classifyTransportSignalGap` (som har `MAX_GAP_MIN = 30`,
-     hastighetskontroll, anchor-krav) godkänner glappet.
-   - `night-auto-start-guard` (00:00–05:00 ska blockera).
-   - `transport-requires-own-movement` (kräver staffens egen
-     ≥ 500 m förflyttning).
+### Verifiering efter deploy
+1. Anropa `get-staff-time-week-matrix` med `weekStart=2026-06-01`, kontrollera att celler för 2026-06-01 har `rows.length > 0`.
+2. I UI: klicka på en cell — sheet visar tidslinje från cachen.
+3. Kör vitest-suiten.
 
-   Att hemmet (`private_residence`) räknas som "place" i `isPlace()`
-   (rad 82–85) gör att hem→jobb-paret över huvud taget hamnar i loopen.
+## Filer som ändras
 
-Det här är samma byggare som matar `get-staff-presence-day` (raden
-1207–1208 i den funktionen) — vilket är vad admin-vyn på skärmdumpen
-renderar.
-
-## Fix-plan
-
-### 1. Hård gate i `buildTransportFromLocationTruth`
-
-Innan vi pushar en transport mellan A och B, kräv ALLA dessa:
-
-```text
-- gapMinutes ≤ MAX_TRANSPORT_GAP_MIN (30 min, samma som classifyTransportSignalGap)
-- staffOwnDisplacementMeters(lastPingBeforeGap, firstPingAfterGap) ≥ 500 m
-- Inget av segmenten startar i nattfönstret 00:00–05:00 lokal tid
-  (samma night-guard som backend redan har).
-- A.kind !== 'private_residence'  (hem→annan-plats blir aldrig "Resa"
-  utan riktig rörelse — det ska markeras `transition_candidate`/
-  `unknown_gap_needs_review` så admin får välja).
-```
-
-Allt utom det första (`gapMinutes`-taket) krävs av Core memory:
-`transport-requires-own-movement-v1` och `night-auto-start-guard-v1`.
-Det är därför `classifyTransportSignalGap.ts` redan finns — men den
-används inte av detta lager. Vi återanvänder den.
-
-### 2. Mata in pings i byggaren
-
-`LocationTruthSegment` har redan `diagnostics.sourcePingIds`. Vi
-behöver pingens koordinater för att räkna `staffOwnDisplacement`.
-Två alternativ:
-
-- (A) Skicka in en kompakt `pingCoordsById: Map<id, {lat,lng,ts}>`
-  som input till `buildTransportFromLocationTruth`.
-- (B) Lägg `lastPing` / `firstPing` på `LocationTruthSegment` redan i
-  `buildLocationTruthFromDayEvidence`.
-
-Förslag: **(A)** — minst ytan på segmentkontraktet, isolerat till
-detta lager. Kallsiten `get-staff-presence-day` har redan accepted-pings
-i scope (linjerna före 1207).
-
-### 3. Avvisat glapp → `internalMovementAbsorptions` med ny reason
-
-När gaten faller, returnera istället:
-
-```ts
-absorptions.push({
-  betweenSegmentIds: [a.id, b.id],
-  distanceMeters,
-  reason: 'rejected_no_own_movement'
-        | 'rejected_gap_too_long'
-        | 'rejected_night_window'
-        | 'rejected_from_private_residence',
-});
-```
-
-Downstream (`buildReportBlocksFromLocationTruth` /
-`buildReportCandidateBlocks`) får då ingen transport-rad. Glappet
-exponeras som `gps_gap`/`needs_review`, vilket admin-vyn redan vet
-hur den ska rita.
-
-### 4. Tester (Deno-test bredvid filen)
-
-`supabase/functions/_shared/time-engine/buildTransportFromLocationTruth_guard_test.ts`:
-
-- **fall A** — exakt ditt scenario:
-  två hem-pings 00:09 + en jobb-ping 06:26, samma ~8 m radie.
-  Förväntat: 0 transport, 1 absorption `rejected_no_own_movement`.
-- **fall B** — hem 07:00 → jobb 07:40, två sammanhängande
-  transit-pings med 12 km mellan dem.
-  Förväntat: 1 transport, gap ≤ 30 min, displacement OK.
-- **fall C** — projekt A 14:00 → projekt B 14:20 utan transit-pings
-  men endast 4 minuters glapp, displacement 1 km mellan A och B
-  cluster-centra.
-  Förväntat: 1 transport (kort glapp + verklig egen rörelse).
-- **fall D** — natt: jobb-cluster 02:10 → annan-plats 03:30,
-  displacement 800 m, glapp 80 min.
-  Förväntat: 0 transport, `rejected_night_window` + `rejected_gap_too_long`.
-
-### 5. Cache-invalidering
-
-Inga DB-ändringar. Men eftersom `staff_day_report_cache` har bakade
-transport-rader för redan körda dagar behöver vi:
-
-- Bumpa `engineVersion` i `_shared/time-engine/contracts.ts`
-  så att existerande cache-rader anses inaktuella och byggs om vid
-  nästa resolve.
-- Inget `DELETE` (mem://constraints/never-delete-db-rows-without-explicit-request-v1)
-  — cache byggs om passivt när dagen läses.
-
-### 6. Skydd mot regression
-
-Lägg till en arkitektur-kontrakts-test i
-`src/test/transportRequiresOwnMovement.contract.test.ts` som läser
-`buildTransportFromLocationTruth.ts` som text och misslyckas om
-filen pushar en transport utan att referera `staffOwnDisplacement`
-och `classifyTransportSignalGap`/MAX-gap-konstanten. Det är samma
-mönster som övriga arkitektur-tester i `src/test/`.
-
-## Filer som kommer ändras
-
-- `supabase/functions/_shared/time-engine/buildTransportFromLocationTruth.ts`
-  (gate + ny input `pingCoordsById`)
-- `supabase/functions/get-staff-presence-day/index.ts`
-  (skicka in pings till byggaren — endast call-site-ändring)
-- `supabase/functions/_shared/time-engine/contracts.ts`
-  (bumpa engineVersion)
-- `supabase/functions/_shared/time-engine/__tests__/buildTransportFromLocationTruth_guard_test.ts` (NY)
-- `src/test/transportRequiresOwnMovement.contract.test.ts` (NY)
-
-Ingen UI-fil ändras, ingen DB-migration, inget skrivs till
-time_reports / workdays / LTE / travel_time_logs.
+- `supabase/functions/_shared/staff-day-report/resolveStaffDayReport.ts`
+- `supabase/functions/get-staff-time-week-matrix/index.ts`
+- `src/hooks/staffTimeFlow/useStaffTimeWeekMatrix.ts` (lägg till `rows`-typen — redan deklarerad, kontroll)
+- `src/components/staff-time/StaffTimeMatrixDayDetailSheet.tsx`
+- `src/components/staff-time/StaffTimeWeekMatrixCell.tsx` (skickar `cell` som prop)
+- Nya testfiler enligt Steg 4
