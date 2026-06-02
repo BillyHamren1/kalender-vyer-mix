@@ -2,15 +2,20 @@
  * useProjectDailyStaffTimeOverview
  * ============================================================================
  * React-Query-hook som hämtar:
- *   - booking_staff_assignments (för booking_ids) → assignedDays
- *   - staff_day_submissions      (per staff & datum-fönster) → submissions
- *   - project_staff_time_cost_lines (LP + bookings, dedup på row.id) → approvedRows
- *   - staff_members              → namn-map
+ *   - planerade personer från personalkalendern:
+ *       • Large project → large_project_team_assignments × staff_assignments
+ *       • Vanlig booking → booking_staff_assignments (paginerat)
+ *   - staff_day_submissions per (staff_id, datum-fönster)
+ *   - project_staff_time_cost_lines (LP + bookings, dedup på row.id)
+ *   - staff_members för namn
  *
- * Returnerar resultatet från buildProjectDailyStaffTimeOverview.
- * Inga skrivningar.
+ * Sidoeffekt: om det finns countable submissions men 0 byggda cost lines
+ * triggas en engångs-backfill (`backfill-project-staff-time-cost-lines`)
+ * och hooken refetchas.
+ *
+ * Inga skrivningar mot time_reports/workdays/LTE/travel/GPS.
  */
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -20,12 +25,15 @@ import {
   type DailyOverviewRow,
   type SubmissionInput,
 } from '@/lib/projects/projectDailyStaffTimeOverview';
+import {
+  loadBookingAssignedDays,
+  loadLargeProjectAssignedDays,
+} from '@/lib/projects/loadProjectAssignedDays';
 import { fetchApprovedProjectStaffTimeCostSummary } from '@/services/projectStaffTimeCostLinesService';
 
 interface Params {
   largeProjectId?: string | null;
   bookingIds: string[];
-  /** ISO yyyy-MM-dd. Valfritt — om utelämnat används window från BSA + submissions + cost lines. */
   startDate?: string | null;
   endDate?: string | null;
   enabled?: boolean;
@@ -37,6 +45,17 @@ interface Result {
   days: DailyOverviewRow[];
   refetch: () => void;
 }
+
+const COUNTABLE_STATUS = new Set([
+  'submitted',
+  'edited',
+  'ai_flagged',
+  'needs_user_attention',
+  'needs_control',
+  'approved',
+  'payroll_approved',
+  'corrected',
+]);
 
 export function useProjectDailyStaffTimeOverview({
   largeProjectId,
@@ -59,29 +78,18 @@ export function useProjectDailyStaffTimeOverview({
     queryKey,
     enabled: enabledQuery,
     queryFn: async (): Promise<DailyOverviewRow[]> => {
-      // 1. BSA-assignments för alla bokningar i projektet
+      // 1. Planerade personer från personalkalendern
       let assignedDays: AssignedDay[] = [];
-      if (bookingIds.length > 0) {
-        const { data: bsaRows, error: bsaErr } = await supabase
-          .from('booking_staff_assignments')
-          .select('booking_id, staff_id, assignment_date')
-          .in('booking_id', bookingIds)
-          .limit(5000);
-        if (bsaErr) throw bsaErr;
-        assignedDays = (bsaRows ?? [])
-          .filter((r: any) => r.assignment_date && r.staff_id)
-          .map((r: any) => ({
-            date: String(r.assignment_date).slice(0, 10),
-            staff_id: r.staff_id,
-            source: 'bsa' as const,
-          }));
+      if (largeProjectId) {
+        assignedDays = await loadLargeProjectAssignedDays(supabase as any, largeProjectId);
+      } else if (bookingIds.length > 0) {
+        assignedDays = await loadBookingAssignedDays(supabase as any, bookingIds);
       }
 
-      // 2. Datum-fönster + staff-set för submission-query
       const dateSet = new Set<string>(assignedDays.map((a) => a.date));
       const staffSet = new Set<string>(assignedDays.map((a) => a.staff_id));
 
-      // 3. Godkända cost lines (LP + bookings, dedup hanteras av servicen)
+      // 2. Godkända/oattesterade cost lines
       const approvedSummaries = await Promise.all([
         largeProjectId
           ? fetchApprovedProjectStaffTimeCostSummary({ large_project_id: largeProjectId })
@@ -115,8 +123,7 @@ export function useProjectDailyStaffTimeOverview({
         }
       }
 
-      // 4. Submissions för relevant fönster
-      // Använd startDate/endDate om angivet, annars min/max av dateSet ± 1 dag.
+      // 3. Submissions i fönstret
       let winStart = startDate ?? null;
       let winEnd = endDate ?? null;
       if (!winStart || !winEnd) {
@@ -146,7 +153,7 @@ export function useProjectDailyStaffTimeOverview({
         }));
       }
 
-      // 5. Staff names
+      // 4. Namn
       const staffNames: Record<string, string | null> = {};
       if (staffIds.length > 0) {
         const { data: staffRows } = await supabase
@@ -166,6 +173,37 @@ export function useProjectDailyStaffTimeOverview({
       });
     },
   });
+
+  // ─── Sidoeffekt: engångs-backfill om submissions finns men cost lines saknas
+  const backfilledRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!enabledQuery || !data) return;
+    const fingerprint = queryKey.join('::');
+    if (backfilledRef.current === fingerprint) return;
+
+    const hasCountableSubmission = data.some((d) =>
+      d.rows.some(
+        (r) => r.submissionStatus && COUNTABLE_STATUS.has(r.submissionStatus),
+      ),
+    );
+    const hasAnyCostLine = data.some((d) => d.totals.totalMinutes > 0);
+    if (!hasCountableSubmission || hasAnyCostLine) return;
+
+    backfilledRef.current = fingerprint;
+    (async () => {
+      try {
+        const body: any = {};
+        if (largeProjectId) body.large_project_id = largeProjectId;
+        else if (bookingIds.length > 0) body.booking_ids = bookingIds;
+        await supabase.functions.invoke('backfill-project-staff-time-cost-lines', {
+          body,
+        });
+        refetch();
+      } catch (e) {
+        console.warn('[useProjectDailyStaffTimeOverview] backfill failed', e);
+      }
+    })();
+  }, [data, enabledQuery, largeProjectId, bookingIds, refetch, queryKey]);
 
   return useMemo(
     () => ({
