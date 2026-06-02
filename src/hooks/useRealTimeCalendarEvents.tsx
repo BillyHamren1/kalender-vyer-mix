@@ -48,10 +48,11 @@ export const useRealTimeCalendarEvents = () => {
       if (activeRef.current) {
         // Collect all booking IDs for batch fetching (instead of N+1 queries)
         const bookingIds = calendarEvents
-          .filter(e => e.bookingId)
-          .map(e => e.bookingId);
+          .map(e => e.bookingId)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0);
 
         const uniqueBookingIds = [...new Set(bookingIds)];
+
 
         // Single batch query for all bookings
         let bookingMap = new Map<string, any>();
