@@ -110,17 +110,43 @@ export default function StaffTimeWeekMatrix() {
         </div>
       )}
 
+      {/* Snabbvy: renderar cellens egna rows direkt (single-pipeline). */}
       <Dialog open={!!openDay} onOpenChange={(o) => !o && setOpenDay(null)}>
-        <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] max-h-[90vh] p-0 flex flex-col overflow-hidden">
+        <DialogContent className="max-w-3xl w-[92vw] p-0 flex flex-col overflow-hidden">
           <DialogHeader className="px-4 py-3 border-b shrink-0">
-            <DialogTitle className="text-sm">GPS-karta · {openDay?.date}</DialogTitle>
+            <DialogTitle className="text-sm">
+              Dag {openDay?.date} {openCell ? `· ${openCell.staffName}` : ""}
+            </DialogTitle>
           </DialogHeader>
           <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4">
-            {openDay && (
+            {openCell ? (
+              <StaffTimeMatrixDayQuickView
+                cell={openCell.cell}
+                staffName={openCell.staffName}
+                onOpenSatellite={() => {
+                  if (openDay) setSatelliteFor(openDay);
+                  setOpenDay(null);
+                }}
+              />
+            ) : (
+              <div className="text-sm text-muted-foreground">Laddar…</div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Sekundär: faktisk GPS-satellitkarta, bara om användaren ber om det. */}
+      <Dialog open={!!satelliteFor} onOpenChange={(o) => !o && setSatelliteFor(null)}>
+        <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] max-h-[90vh] p-0 flex flex-col overflow-hidden">
+          <DialogHeader className="px-4 py-3 border-b shrink-0">
+            <DialogTitle className="text-sm">GPS-karta · {satelliteFor?.date}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4">
+            {satelliteFor && (
               <StaffGpsSatelliteMap
-                key={`${openDay.staffId}-${openDay.date}`}
-                initialStaffId={openDay.staffId}
-                initialDate={openDay.date}
+                key={`${satelliteFor.staffId}-${satelliteFor.date}`}
+                initialStaffId={satelliteFor.staffId}
+                initialDate={satelliteFor.date}
               />
             )}
           </div>
