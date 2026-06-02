@@ -273,8 +273,8 @@ export async function rebuildProjectStaffTimeCostLinesForSubmission(
   const deleted = deletedCount ?? 0;
 
   const status = String((sub as any).status ?? "");
-  if (status !== "approved" && status !== "payroll_approved") {
-    return { created: 0, deleted, reason: "not_approved" };
+  if (!COUNTABLE_SUBMISSION_STATUSES.has(status)) {
+    return { created: 0, deleted, reason: `status_not_countable:${status}` };
   }
 
   // 1) Primary source: submission snapshot (frozen at submit-time)
