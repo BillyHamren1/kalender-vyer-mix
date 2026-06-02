@@ -6,7 +6,9 @@
  */
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CalendarDays, Plus, RefreshCw, Sparkles } from 'lucide-react';
+import { CalendarDays, Plus, RefreshCw, Sparkles, LayoutGrid, GanttChartSquare } from 'lucide-react';
+
+export type PlannerViewMode = 'calendar' | 'gantt';
 
 interface Props {
   daysCount: number;
@@ -16,6 +18,8 @@ interface Props {
   onRefresh: () => void;
   onSeedFromBookings: () => void;
   onCreateManual: () => void;
+  viewMode?: PlannerViewMode;
+  onViewModeChange?: (mode: PlannerViewMode) => void;
 }
 
 const LargeProjectPlannerToolbar = ({
