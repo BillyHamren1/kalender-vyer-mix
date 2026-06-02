@@ -42,6 +42,45 @@ import type {
   GapBlock,
 } from './dayBlockTimeline';
 import { formatStockholmHm, formatStockholmHms } from './formatStockholmTime';
+import { allocateTravelToProjects } from './allocateTravelToProjects';
+
+/**
+ * Skriver om label/subtitle på ett allokerat travel-segment så UI får
+ * "Resa till X" / "Resa från X" / "Behöver kontroll …".
+ */
+function applyTravelAllocationToLabel(seg: StaffDaySegment): StaffDaySegment {
+  const reason = seg.travelAllocationReason ?? null;
+  const projectName = seg.travelBelongsToProjectName ?? null;
+  const fromTo = seg.subtitle; // bevara originalets från→till som extra info
+  let label = seg.label;
+  let subtitle = seg.subtitle;
+
+  switch (reason) {
+    case 'travel_to_first_job':
+    case 'travel_between_jobs_allocated_to_destination':
+      if (projectName) {
+        label = `Resa till ${projectName}`;
+        subtitle = `Registreras på ${projectName}${fromTo ? ` · ${fromTo}` : ''}`;
+      }
+      break;
+    case 'travel_after_last_job_allocated_to_last_job':
+      if (projectName) {
+        label = `Resa från ${projectName}`;
+        subtitle = `Registreras på ${projectName}${fromTo ? ` · ${fromTo}` : ''}`;
+      }
+      break;
+    case 'travel_to_private_not_allocated':
+      label = 'Resa hem';
+      subtitle = `Privat resa – ej registrerad på projekt${fromTo ? ` · ${fromTo}` : ''}`;
+      break;
+    case 'unresolved_travel_allocation':
+      subtitle = `Behöver kontroll – inget projekt kunde kopplas${fromTo ? ` · ${fromTo}` : ''}`;
+      break;
+    default:
+      break;
+  }
+  return { ...seg, label, subtitle };
+}
 
 // ── Output-typer ─────────────────────────────────────────────────────
 
