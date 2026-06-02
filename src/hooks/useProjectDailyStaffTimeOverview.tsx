@@ -103,6 +103,12 @@ export function useProjectDailyStaffTimeOverview({
             staff_id: r.staff_id,
             minutes: r.minutes,
             cost: r.cost,
+            approvalState: r.approvalState,
+            hourlyRate: r.hourly_rate,
+            rateSource: r.rate_source,
+            submissionStatus: r.submission_status,
+            startAt: r.start_at,
+            endAt: r.end_at,
           });
           dateSet.add(r.date);
           staffSet.add(r.staff_id);
