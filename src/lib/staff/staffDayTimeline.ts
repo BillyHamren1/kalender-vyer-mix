@@ -42,6 +42,45 @@ import type {
   GapBlock,
 } from './dayBlockTimeline';
 import { formatStockholmHm, formatStockholmHms } from './formatStockholmTime';
+import { allocateTravelToProjects } from './allocateTravelToProjects';
+
+/**
+ * Skriver om label/subtitle på ett allokerat travel-segment så UI får
+ * "Resa till X" / "Resa från X" / "Behöver kontroll …".
+ */
+function applyTravelAllocationToLabel(seg: StaffDaySegment): StaffDaySegment {
+  const reason = seg.travelAllocationReason ?? null;
+  const projectName = seg.travelBelongsToProjectName ?? null;
+  const fromTo = seg.subtitle; // bevara originalets från→till som extra info
+  let label = seg.label;
+  let subtitle = seg.subtitle;
+
+  switch (reason) {
+    case 'travel_to_first_job':
+    case 'travel_between_jobs_allocated_to_destination':
+      if (projectName) {
+        label = `Resa till ${projectName}`;
+        subtitle = `Registreras på ${projectName}${fromTo ? ` · ${fromTo}` : ''}`;
+      }
+      break;
+    case 'travel_after_last_job_allocated_to_last_job':
+      if (projectName) {
+        label = `Resa från ${projectName}`;
+        subtitle = `Registreras på ${projectName}${fromTo ? ` · ${fromTo}` : ''}`;
+      }
+      break;
+    case 'travel_to_private_not_allocated':
+      label = 'Resa hem';
+      subtitle = `Privat resa – ej registrerad på projekt${fromTo ? ` · ${fromTo}` : ''}`;
+      break;
+    case 'unresolved_travel_allocation':
+      subtitle = `Behöver kontroll – inget projekt kunde kopplas${fromTo ? ` · ${fromTo}` : ''}`;
+      break;
+    default:
+      break;
+  }
+  return { ...seg, label, subtitle };
+}
 
 // ── Output-typer ─────────────────────────────────────────────────────
 
@@ -64,6 +103,17 @@ export type StaffDayStatus =
   | 'open'              // workday pågår eller sista segment ongoing
   | 'closed'            // workday avslutad och inga reviews
   | 'review_required';  // något kräver attention (unknown/anomaly/oresolved flag)
+
+/**
+ * Allokeringsorsak för restidsblock — vilket jobb resans kostnad ska bokas på.
+ * Se src/lib/staff/allocateTravelToProjects.ts.
+ */
+export type TravelAllocationReason =
+  | 'travel_to_first_job'
+  | 'travel_between_jobs_allocated_to_destination'
+  | 'travel_after_last_job_allocated_to_last_job'
+  | 'travel_to_private_not_allocated'
+  | 'unresolved_travel_allocation';
 
 export interface StaffDaySegment {
   id: string;
@@ -93,6 +143,17 @@ export interface StaffDaySegment {
    * översiktsmått i listor.)
    */
   payable: boolean;
+  // ── Travel allocation (endast meningsfullt när kind === 'travel') ──────
+  /** Projektets/jobbets id som restiden ska registreras på (om allokerad). */
+  travelBelongsToProjectId?: string | null;
+  /** Mänsklig projekt-/jobbtitel. */
+  travelBelongsToProjectName?: string | null;
+  /** Underliggande target-id (sourceBlockId för relaterad presence-segment). */
+  travelBelongsToTargetId?: string | null;
+  /** Mänsklig target-label. */
+  travelBelongsToTargetName?: string | null;
+  /** Varför restiden allokerades hit (eller varför inte). */
+  travelAllocationReason?: TravelAllocationReason | null;
 }
 
 export interface StaffDayEvidence {
@@ -267,7 +328,15 @@ export function buildStaffDayTimeline(
 
   segments.sort((a, b) => a.startIso.localeCompare(b.startIso));
 
-  const payable_minutes = segments
+  // Travel allocation — kompletterar varje travel-segment med projekt-/jobbtillhörighet.
+  // Pure helper, ändrar inte kind/durations.
+  const blocksById = new Map<string, typeof blocks[number]>();
+  for (const b of blocks) blocksById.set(b.id, b);
+  const allocated = allocateTravelToProjects(segments, blocksById);
+  // Skriv om label/subtitle på travel-segmenten enligt allokering.
+  const finalSegments = allocated.map((s) => (s.kind === 'travel' ? applyTravelAllocationToLabel(s) : s));
+
+  const payable_minutes = finalSegments
     .filter((s) => s.payable)
     .reduce((sum, s) => sum + (s.durationMin || 0), 0);
 
@@ -277,20 +346,21 @@ export function buildStaffDayTimeline(
 
   const unresolvedFlagCount = flags.filter((f) => !f.resolved).length;
   const anomalyCount = model.proposedReport.anomalies.length;
-  const segmentReviewCount = segments.filter((s) => s.reviewRequired).length;
+  const segmentReviewCount = finalSegments.filter((s) => s.reviewRequired).length;
   const review_count = unresolvedFlagCount + anomalyCount + segmentReviewCount;
   const review_required = review_count > 0;
 
   let status: StaffDayStatus;
-  if (!wd && segments.length === 0) {
+  if (!wd && finalSegments.length === 0) {
     status = 'no_workday';
   } else if (review_required) {
     status = 'review_required';
-  } else if (workday_end && !segments.some((s) => s.ongoing)) {
+  } else if (workday_end && !finalSegments.some((s) => s.ongoing)) {
     status = 'closed';
   } else {
     status = 'open';
   }
+
 
   return {
     staff_id,
@@ -301,7 +371,7 @@ export function buildStaffDayTimeline(
     workday_suggested: !wd && workday_start != null,
     status,
     payable_minutes,
-    segments,
+    segments: finalSegments,
     review_required,
     review_count,
     evidence: {
