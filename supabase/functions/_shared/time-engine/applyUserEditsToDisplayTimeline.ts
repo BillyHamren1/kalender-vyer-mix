@@ -21,7 +21,8 @@ export type UserEditType =
   | "mark_supplier_as_dropoff"    // supplier-besök = avlämning
   | "link_address_to_project"     // okopplad adress -> projektkoppling
   | "change_workday_end"          // ändra föreslagen arbetsdagsslut
-  | "add_block_comment";          // lägg till kommentar/förklaring på block
+  | "add_block_comment"           // lägg till kommentar/förklaring på block
+  | "add_manual_block";           // användare lägger till nytt manuellt block
 
 export interface UserEdit {
   /** Stabil id för att kunna ångra/uppdatera senare. */
