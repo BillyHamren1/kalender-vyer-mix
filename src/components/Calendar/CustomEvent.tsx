@@ -513,10 +513,11 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
       e.preventDefault();
       // Lyssnas av LargeProjectBookingPlannerCalendar → öppnar BookingPlannerSheet.
       window.dispatchEvent(
-        new CustomEvent('lp-booking-sheet-open', {
+        new window.CustomEvent('lp-booking-sheet-open', {
           detail: { bookingId: plannerBookingId },
         }),
       );
+
     };
 
     return (
