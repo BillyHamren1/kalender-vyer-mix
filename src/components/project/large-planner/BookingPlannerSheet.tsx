@@ -284,7 +284,7 @@ const BookingPlannerSheet = ({
   }, [open, booking]);
 
   // Scrolla till klickad dag när panelen öppnas
-  const highlightRowRef = useRef<HTMLDivElement | null>(null);
+  const highlightRowRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (!open || !highlightDate) return;
     const t = window.setTimeout(() => {
