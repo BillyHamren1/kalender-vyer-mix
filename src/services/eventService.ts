@@ -193,6 +193,7 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
     console.warn('⚠️ [fetchCalendarEvents] Large project fallback fetch failed — fortsätter utan large-project-enrichment:', projectsError);
   }
 
+  const bookingRows = bookingsData || [];
   const bookingIds = Array.from(new Set(bookingRows.map(booking => booking.id).filter(Boolean))) as string[];
   const realBookingIds = Array.from(new Set(realRows.map((row: any) => row.booking_id).filter(Boolean))) as string[];
   // Union: master = any booking_id touched by either calendar_events or fallback bookings window
@@ -201,30 +202,38 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
 
   // large_project_bookings is master — resolve by booking_id (not by large_project_id)
   // so events get classified as part of a large project even when bookings.large_project_id is null.
-  const [{ data: largeProjectBookingsData, error: largeProjectBookingsError }, { data: bookingAssignmentsData, error: bookingAssignmentsError }] = await Promise.all([
+  const [lpbRes, bsaRes] = await Promise.all([
     allRelevantBookingIds.length > 0
-      ? supabase
-          .from('large_project_bookings')
-          .select('large_project_id, booking_id')
-          .in('booking_id', allRelevantBookingIds)
+      ? withTimeout(
+          supabase
+            .from('large_project_bookings')
+            .select('large_project_id, booking_id')
+            .in('booking_id', allRelevantBookingIds),
+          SECONDARY_QUERY_TIMEOUT_MS,
+          'large_project_bookings',
+        ).catch(err => ({ data: null, error: err as any }))
       : Promise.resolve({ data: [], error: null }),
     bookingIds.length > 0
-      ? supabase
-          .from('booking_staff_assignments')
-          .select('booking_id, team_id, assignment_date')
-          .in('booking_id', bookingIds)
+      ? withTimeout(
+          supabase
+            .from('booking_staff_assignments')
+            .select('booking_id, team_id, assignment_date')
+            .in('booking_id', bookingIds),
+          SECONDARY_QUERY_TIMEOUT_MS,
+          'booking_staff_assignments',
+        ).catch(err => ({ data: null, error: err as any }))
       : Promise.resolve({ data: [], error: null }),
   ]);
 
-  if (largeProjectBookingsError) {
-    console.error('❌ [fetchCalendarEvents] Failed to fetch large_project_bookings master rows:', largeProjectBookingsError);
-    throw largeProjectBookingsError;
+  const largeProjectBookingsData = lpbRes.data;
+  const bookingAssignmentsData = bsaRes.data;
+  if (lpbRes.error) {
+    console.warn('⚠️ [fetchCalendarEvents] large_project_bookings fetch failed — fortsätter utan membership:', lpbRes.error);
+  }
+  if (bsaRes.error) {
+    console.warn('⚠️ [fetchCalendarEvents] booking_staff_assignments fetch failed — fortsätter utan team-fallback:', bsaRes.error);
   }
 
-  if (bookingAssignmentsError) {
-    console.error('❌ [fetchCalendarEvents] Failed to fetch booking_staff_assignments fallback rows:', bookingAssignmentsError);
-    throw bookingAssignmentsError;
-  }
 
   const largeProjectIdsFromMembership = Array.from(
     new Set((largeProjectBookingsData || []).map(row => row.large_project_id).filter(Boolean))
