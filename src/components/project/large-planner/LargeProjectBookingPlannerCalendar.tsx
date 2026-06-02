@@ -311,8 +311,17 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
 
   const handleCalendarEventClick = useCallback((ev: CalendarEvent) => {
     const plannerItemId = plannerItemIdFromEventId(ev.id);
-    if (plannerItemId) setQuickEditId(plannerItemId);
+    if (!plannerItemId) return;
+    const ep = (ev.extendedProps ?? {}) as Record<string, unknown>;
+    // Booking-fasblock → öppna BookingPlannerSheet (översikt + todos).
+    // Övriga planner-items (manuella/split som ev. visas senare) → quick edit.
+    if (ep.plannerItemType === 'booking' && typeof ep.plannerBookingId === 'string') {
+      setPlannerSheetBookingId(ep.plannerBookingId);
+      return;
+    }
+    setQuickEditId(plannerItemId);
   }, []);
+
 
   // Dubbelklick på ett bokningsblock i kalendern → öppna BookingPlannerSheet
   // (full översikt med faser + orderrads-to-dos att bocka av).
