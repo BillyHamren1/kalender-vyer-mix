@@ -145,3 +145,67 @@ Deno.test("ej stödd editType -> unsupported_edit_type", () => {
   );
   assertEquals(r.appliedEdits[0].reasonCode, "unsupported_edit_type");
 });
+
+Deno.test("add_manual_block med target -> nytt block + status edited_by_user", () => {
+  const r = applyUserEditsToDisplayTimeline(
+    [baseBlock()],
+    [edit({
+      editType: "add_manual_block",
+      sourceDisplayBlockId: null,
+      previousValue: null,
+      newValue: {
+        blockId: "manual-1",
+        startAtIso: "2026-05-15T13:00:00.000Z",
+        endAtIso: "2026-05-15T15:00:00.000Z",
+        allocationType: "manual_user_added",
+        targetType: "booking",
+        targetId: "bk-1",
+        label: "Akut leverans",
+        comment: "Extra körning",
+      },
+    })],
+  );
+  assertEquals(r.editedBlocks.length, 2);
+  assertEquals(r.editedBlocks[1].blockId, "manual-1");
+  assertEquals(r.editedBlocks[1].targetId, "bk-1");
+  assertEquals((r.editedBlocks[1] as any).isManualUserAdded, true);
+  assertEquals(r.appliedEdits[0].severity, "minor");
+  assertEquals(r.suggestedSubmissionStatus, "edited_by_user");
+});
+
+Deno.test("add_manual_block utan target -> flaggas men appliceras", () => {
+  const r = applyUserEditsToDisplayTimeline(
+    [baseBlock()],
+    [edit({
+      editType: "add_manual_block",
+      sourceDisplayBlockId: null,
+      newValue: {
+        blockId: "manual-2",
+        startAtIso: "2026-05-15T13:00:00.000Z",
+        endAtIso: "2026-05-15T14:00:00.000Z",
+      },
+    })],
+  );
+  assertEquals(r.editedBlocks.length, 2);
+  assertEquals(r.appliedEdits[0].severity, "major");
+  assertEquals(r.appliedEdits[0].reasonCode, "manual_block_missing_target");
+  assertEquals(r.suggestedSubmissionStatus, "needs_user_attention");
+});
+
+Deno.test("add_manual_block med ogiltig tid -> avvisas", () => {
+  const r = applyUserEditsToDisplayTimeline(
+    [baseBlock()],
+    [edit({
+      editType: "add_manual_block",
+      sourceDisplayBlockId: null,
+      newValue: {
+        blockId: "manual-3",
+        startAtIso: "2026-05-15T14:00:00.000Z",
+        endAtIso: "2026-05-15T13:00:00.000Z",
+      },
+    })],
+  );
+  assertEquals(r.editedBlocks.length, 1);
+  assertEquals(r.appliedEdits[0].reasonCode, "invalid_manual_block");
+  assertEquals(r.diagnostics.rejectedCount, 1);
+});

@@ -21,7 +21,8 @@ export type UserEditType =
   | "mark_supplier_as_dropoff"    // supplier-besök = avlämning
   | "link_address_to_project"     // okopplad adress -> projektkoppling
   | "change_workday_end"          // ändra föreslagen arbetsdagsslut
-  | "add_block_comment";          // lägg till kommentar/förklaring på block
+  | "add_block_comment"           // lägg till kommentar/förklaring på block
+  | "add_manual_block";           // användare lägger till nytt manuellt block
 
 export interface UserEdit {
   /** Stabil id för att kunna ångra/uppdatera senare. */
@@ -97,6 +98,7 @@ const ALLOWED_EDIT_TYPES: ReadonlySet<UserEditType> = new Set<UserEditType>([
   "link_address_to_project",
   "change_workday_end",
   "add_block_comment",
+  "add_manual_block",
 ]);
 
 function parseIso(value: unknown): number | null {
@@ -159,7 +161,7 @@ export function applyUserEditsToDisplayTimeline(
       continue;
     }
 
-    // Day-level edits (inget block-id krävs).
+    // Day-level / no-block edits (inget blockId krävs).
     if (edit.editType === "change_workday_end") {
       const sev = classifyTimeShiftSeverity(
         typeof edit.previousValue === "string" ? edit.previousValue : null,
@@ -170,6 +172,60 @@ export function applyUserEditsToDisplayTimeline(
       appliedEdits.push(result);
       appliedCount += 1;
       if (sev.severity === "conflicts_evidence" || sev.severity === "major") flaggedCount += 1;
+      continue;
+    }
+
+    if (edit.editType === "add_manual_block") {
+      const nv = (edit.newValue ?? {}) as {
+        blockId?: string;
+        startAtIso?: string;
+        endAtIso?: string;
+        allocationType?: string;
+        targetType?: string | null;
+        targetId?: string | null;
+        label?: string | null;
+        comment?: string | null;
+      };
+      const startMs = parseIso(nv.startAtIso);
+      const endMs = parseIso(nv.endAtIso);
+      if (!nv.blockId || startMs == null || endMs == null || startMs >= endMs) {
+        appliedEdits.push({
+          edit,
+          severity: "major",
+          reasonCode: "invalid_manual_block",
+          humanMessage: "Manuellt block saknar giltig start-/sluttid.",
+        });
+        rejectedCount += 1;
+        continue;
+      }
+      const newBlock: DisplayBlockShape = {
+        blockId: String(nv.blockId),
+        startAtIso: String(nv.startAtIso),
+        endAtIso: String(nv.endAtIso),
+        allocationType: String(nv.allocationType ?? "manual_user_added"),
+        targetType: nv.targetType ?? null,
+        targetId: nv.targetId ?? null,
+        label: nv.label ?? null,
+        warnings: [],
+        humanWarnings: [],
+        isManualUserAdded: true,
+      };
+      if (typeof nv.comment === "string" && nv.comment.trim()) {
+        (newBlock as Record<string, unknown>).userComments = [nv.comment.trim()];
+      }
+      editedBlocks.push(newBlock);
+      const missingTarget = !nv.targetId;
+      const result: AppliedEdit = missingTarget
+        ? {
+            edit,
+            severity: "major",
+            reasonCode: "manual_block_missing_target",
+            humanMessage: "Manuellt block utan kopplat projekt/plats.",
+          }
+        : { edit, severity: "minor" };
+      appliedEdits.push(result);
+      appliedCount += 1;
+      if (missingTarget) flaggedCount += 1;
       continue;
     }
 
