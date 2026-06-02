@@ -98,6 +98,7 @@ const ALLOWED_EDIT_TYPES: ReadonlySet<UserEditType> = new Set<UserEditType>([
   "link_address_to_project",
   "change_workday_end",
   "add_block_comment",
+  "add_manual_block",
 ]);
 
 function parseIso(value: unknown): number | null {
