@@ -184,10 +184,13 @@ describe('buildStaffDayTimeline — fältkontrakt', () => {
       blocks: [journey()],
     });
     expect(out.segments[0].kind).toBe('travel');
+    // Ensam resa utan arbete blir unresolved och får "Behöver kontroll" i subtitle.
     expect(out.segments[0].label).toBe('Resa');
     expect(out.segments[0].payable).toBe(true);
-    expect(out.segments[0].subtitle).toBe('A → B');
+    expect(out.segments[0].subtitle).toContain('A → B');
+    expect(out.segments[0].travelAllocationReason).toBe('unresolved_travel_allocation');
   });
+
 
   it('mappar gap → unknown, reviewRequired=true, ej payable', () => {
     const out = buildStaffDayTimeline({
