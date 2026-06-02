@@ -39,6 +39,10 @@ export const useRealTimeCalendarEvents = () => {
     try {
       setIsLoading(true);
 
+      const calendarEvents = await fetchCalendarEvents();
+
+
+
 
 
       if (activeRef.current) {
