@@ -30,7 +30,8 @@ import ManualProjectTaskDialog from './ManualProjectTaskDialog';
 import LargeProjectPlannerQuickEditDialog from './LargeProjectPlannerQuickEditDialog';
 import LargeProjectPlannerCalendarView from './LargeProjectPlannerCalendarView';
 import LargeProjectPlannerGanttView from './LargeProjectPlannerGanttView';
-import BookingPlannerSheet, { type PlanWholeBookingSelection } from './BookingPlannerSheet';
+import type { PlanWholeBookingSelection } from './BookingPlannerSheet';
+import BookingPlannerWorkspace from './BookingPlannerWorkspace';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useLargeProjectPlannerItems } from './useLargeProjectPlannerItems';
 import { plannerItemIdFromEventId } from './LargeProjectPlannerCalendarAdapter';
@@ -372,7 +373,37 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
       />
 
       <div className="min-w-0 min-h-0 flex flex-1 flex-col overflow-hidden">
-        {viewMode === 'gantt' ? (
+        {plannerSheetBookingId ? (
+          (() => {
+            const selectedBooking = bookingById.get(plannerSheetBookingId);
+            if (!selectedBooking) {
+              // Säkerhetsnät: bokningen finns inte längre i contexten — gå tillbaka.
+              return (
+                <div className="flex flex-1 items-center justify-center p-8 text-sm text-muted-foreground">
+                  Bokningen kunde inte hittas.
+                </div>
+              );
+            }
+            return (
+              <BookingPlannerWorkspace
+                booking={selectedBooking}
+                items={items}
+                staff={staff}
+                highlightDate={plannerSheetHighlightDate}
+                onBack={() => {
+                  setPlannerSheetBookingId(null);
+                  setPlannerSheetHighlightDate(null);
+                }}
+                onCreateTodoForBooking={(b, defaultDate) => openCreateTodoDialog(b, undefined, defaultDate)}
+                onCreateTodoForProduct={(b, p, defaultDate) => openCreateTodoDialog(b, p, defaultDate)}
+                onPlanWholeBooking={handlePlanWholeBooking}
+                onItemClick={(it) => setQuickEditId(it.id)}
+                onItemDelete={(it) => handleItemDelete(it.id)}
+                onToggleItemStatus={handleToggleItemStatus}
+              />
+            );
+          })()
+        ) : viewMode === 'gantt' ? (
           <LargeProjectPlannerGanttView ctx={ctx} />
         ) : viewMode === 'checklist' ? (
           <LargeProjectPlannerChecklistView
@@ -480,30 +511,7 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
         onSplit={(it) => it.booking_id && setSplitBookingId(it.booking_id)}
         isMutating={isMutating}
       />
-
-      <BookingPlannerSheet
-        open={plannerSheetBookingId !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setPlannerSheetBookingId(null);
-            setPlannerSheetHighlightDate(null);
-          }
-        }}
-        booking={
-          plannerSheetBookingId
-            ? bookingById.get(plannerSheetBookingId) ?? null
-            : null
-        }
-        items={items}
-        staff={staff}
-        highlightDate={plannerSheetHighlightDate}
-        onCreateTodoForBooking={(b, defaultDate) => openCreateTodoDialog(b, undefined, defaultDate)}
-        onCreateTodoForProduct={(b, p, defaultDate) => openCreateTodoDialog(b, p, defaultDate)}
-        onPlanWholeBooking={handlePlanWholeBooking}
-        onItemClick={(it) => setQuickEditId(it.id)}
-        onItemDelete={(it) => handleItemDelete(it.id)}
-        onToggleItemStatus={handleToggleItemStatus}
-      />
+      {/* BookingPlannerSheet ersatt av BookingPlannerWorkspace (fullscreen ovan). */}
     </div>
   );
 };
