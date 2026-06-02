@@ -651,3 +651,127 @@ export function summarizeLargeProjectHoursFromDayReports(
     warnings,
   };
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Travel allocation per projekt (separat från work-summan)
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Allokerar travel-block till destinations-/sista-jobbets target enligt regeln
+ * "restid tillhör jobbet man åker TILL". Pure helper, ändrar inte blocken.
+ *
+ * Returnerar minuter restid som hör till `target`. Använder samma regelmotor
+ * som `src/lib/staff/allocateTravelToProjects.ts` men opererar på Time Engine-
+ * cache-block (staff_day_report_cache) istället för StaffDaySegment.
+ *
+ * Hem/privat-detektion: travel-block vars label/target_label matchar
+ * /hem|home|bostad|boende|privat/i räknas som privat och allokeras inte.
+ */
+export interface ProjectTravelSummary {
+  target: ProjectHoursTarget;
+  totalMinutes: number;
+  totalHours: number;
+  /** Blocken som räknats — för debug/audit. */
+  blocks: ProjectTimeEngineBlock[];
+}
+
+const HOME_PATTERN_TE = /\b(hem|home|bostad|boende|privat|private)\b/i;
+
+function isTransportBlock(block: ProjectTimeEngineBlock): boolean {
+  const kind = readKind(block);
+  return !!kind && TRANSPORT_KINDS.has(kind);
+}
+
+function blockStartMs(block: ProjectTimeEngineBlock): number {
+  const iso =
+    (block.startAt as string | null | undefined) ??
+    (block.start_at as string | null | undefined) ??
+    null;
+  return iso ? Date.parse(iso) : Number.NaN;
+}
+
+function travelLooksPrivate(block: ProjectTimeEngineBlock): boolean {
+  const label =
+    (block.label as string | null | undefined) ??
+    (block.target_label as string | null | undefined) ??
+    (block.targetLabel as string | null | undefined) ??
+    '';
+  return label ? HOME_PATTERN_TE.test(label) : false;
+}
+
+/**
+ * Summerar projektets restid över en lista av staff-day-rapporter genom att
+ * köra travel-allokeringen per dag och räkna alla resor som hamnar på `target`.
+ */
+export function summarizeProjectTravelFromDayReports(
+  dayReports: StaffDayReportInput[] | null | undefined,
+  target: ProjectHoursTarget,
+): ProjectTravelSummary {
+  const empty: ProjectTravelSummary = {
+    target,
+    totalMinutes: 0,
+    totalHours: 0,
+    blocks: [],
+  };
+  if (isTargetEmpty(target)) return empty;
+  if (!Array.isArray(dayReports) || dayReports.length === 0) return empty;
+
+  const matched: ProjectTimeEngineBlock[] = [];
+  let totalMinutes = 0;
+
+  for (const row of dayReports) {
+    if (!row || !row.staff_id || !row.date) continue;
+    const raw = Array.isArray(row.blocks) ? row.blocks.filter((b): b is ProjectTimeEngineBlock => !!b && typeof b === 'object') : [];
+    if (raw.length === 0) continue;
+
+    // Sortera kronologiskt så next/prev work-lookup blir korrekt.
+    const sorted = raw.slice().sort((a, b) => {
+      const sa = blockStartMs(a);
+      const sb = blockStartMs(b);
+      if (Number.isFinite(sa) && Number.isFinite(sb)) return sa - sb;
+      return 0;
+    });
+
+    for (let i = 0; i < sorted.length; i += 1) {
+      const block = sorted[i];
+      if (!isTransportBlock(block)) continue;
+      if (travelLooksPrivate(block)) continue;
+
+      // Hitta nextWork och prevWork.
+      let nextWork: ProjectTimeEngineBlock | null = null;
+      for (let j = i + 1; j < sorted.length; j += 1) {
+        if (isProjectWorkBlock(sorted[j])) {
+          nextWork = sorted[j];
+          break;
+        }
+      }
+      let prevWork: ProjectTimeEngineBlock | null = null;
+      for (let j = i - 1; j >= 0; j -= 1) {
+        if (isProjectWorkBlock(sorted[j])) {
+          prevWork = sorted[j];
+          break;
+        }
+      }
+
+      // Allokering: nextWork vinner; annars prevWork (sista resan).
+      const allocatedTo = nextWork ?? prevWork;
+      if (!allocatedTo) continue;
+
+      if (!blockMatchesProjectTarget(allocatedTo, target)) continue;
+
+      const minutes = getBlockDurationMinutes(block);
+      if (minutes <= 0) continue;
+
+      totalMinutes += minutes;
+      matched.push(block);
+    }
+  }
+
+  return {
+    target,
+    totalMinutes,
+    totalHours: +(totalMinutes / 60).toFixed(2),
+    blocks: matched,
+  };
+}
+
