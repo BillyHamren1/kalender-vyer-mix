@@ -172,17 +172,39 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
       return null;
     })();
 
+    let updated = 0;
     for (const ph of phases) {
       if (!ph.enabled) continue;
       for (const date of ph.dates) {
-        const already = existingForBooking.some(
+        const nextStart = `${ph.startTime}:00`;
+        const nextEnd = `${ph.endTime}:00`;
+        const existing = existingForBooking.find(
           (it) =>
             it.source_booking_phase === ph.phase &&
             it.plan_date === date &&
             !it.booking_product_id,
         );
-        if (already) {
-          skipped++;
+        if (existing) {
+          // UPSERT: uppdatera tid/titel om något ändrats — annars hoppa över.
+          const nextTitle = `${ph.label} — ${booking.display_name}${booking.booking_number ? ` (#${booking.booking_number})` : ''}`;
+          const timeChanged =
+            existing.start_time !== nextStart || existing.end_time !== nextEnd;
+          const titleChanged = existing.title !== nextTitle;
+          if (timeChanged || titleChanged) {
+            try {
+              await updateItem(existing.id, {
+                start_time: nextStart,
+                end_time: nextEnd,
+                title: nextTitle,
+                status: 'planned',
+              });
+              updated++;
+            } catch (e) {
+              toast.error(`Kunde inte uppdatera ${ph.label}: ${(e as Error).message}`);
+            }
+          } else {
+            skipped++;
+          }
           continue;
         }
         try {
@@ -195,8 +217,8 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
             source: 'booking',
             phase: ph.phase,
             source_booking_phase: ph.phase,
-            start_time: `${ph.startTime}:00`,
-            end_time: `${ph.endTime}:00`,
+            start_time: nextStart,
+            end_time: nextEnd,
           });
           created++;
         } catch (e) {
@@ -204,6 +226,7 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
         }
       }
     }
+
 
     if (selection.productIdsForTodos.length > 0 && selectedSeed) {
       try {
