@@ -202,11 +202,13 @@ export const useRealTimeCalendarEvents = () => {
         toast.error('Kunde inte ladda kalenderhändelser');
       }
     } finally {
+      window.clearTimeout(watchdog);
       if (activeRef.current) {
         setIsLoading(false);
         setIsMounted(true);
       }
     }
+
   }, []);
 
   // Real-time calendar change handler.
