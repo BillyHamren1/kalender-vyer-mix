@@ -9,6 +9,9 @@
   min-height: 600px;
   display: flex;
   flex-direction: column;
+  background:
+    radial-gradient(circle at top left, hsl(var(--primary) / 0.04), transparent 55%),
+    hsl(var(--background));
 }
 
 .large-planner-calendar-shell .custom-calendar-container.weekly-view {
@@ -22,9 +25,41 @@
   flex: 1 1 auto;
   min-height: 0;
   height: 100%;
+  gap: 6px;
+  padding: 8px;
 }
 
 .large-planner-calendar-shell .weekly-day-card {
   height: 100%;
   min-height: 0;
+  border-radius: 12px;
+  border: 1px solid hsl(var(--border) / 0.6);
+  background: hsl(var(--card));
+  box-shadow:
+    0 1px 2px hsl(var(--foreground) / 0.04),
+    0 6px 18px -12px hsl(var(--foreground) / 0.1);
+  overflow: hidden;
+  transition: box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.large-planner-calendar-shell .weekly-day-card:hover {
+  border-color: hsl(var(--primary) / 0.35);
+  box-shadow:
+    0 1px 2px hsl(var(--foreground) / 0.05),
+    0 10px 24px -14px hsl(var(--primary) / 0.25);
+}
+
+/* Markera dagens kort med en subtil primary-glow */
+.large-planner-calendar-shell .weekly-day-card.is-today {
+  border-color: hsl(var(--primary) / 0.45);
+  box-shadow:
+    0 0 0 1px hsl(var(--primary) / 0.15),
+    0 8px 22px -12px hsl(var(--primary) / 0.3);
+}
+
+/* Mjuka upp interna grid-linjer i TimeGrid (om TimeGrid använder borders
+   via inline classes — vi tonar ned border-färgen lokalt) */
+.large-planner-calendar-shell .day-card .time-slot,
+.large-planner-calendar-shell .day-card .resource-column {
+  border-color: hsl(var(--border) / 0.45) !important;
 }

@@ -330,7 +330,7 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     : null;
 
   return (
-    <div className="flex h-full min-h-[600px] flex-col overflow-hidden rounded-md border border-border/60 bg-background">
+    <div className="flex h-full min-h-[600px] flex-col overflow-hidden rounded-2xl border border-border/60 bg-card shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.12)]">
       <LargeProjectPlannerToolbar
         daysCount={days.length}
         rangeLabel={rangeLabel}
