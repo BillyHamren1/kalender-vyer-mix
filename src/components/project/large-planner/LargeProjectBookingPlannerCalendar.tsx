@@ -123,9 +123,15 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
   const openCreateTodoDialog = (
     booking: LargeProjectPlannerBooking,
     product?: { id: string; name: string; quantity: number | null },
+    defaultDate?: string | null,
   ) => {
     const suggestedDate =
-      booking.rigdaydate ?? booking.eventdate ?? booking.rigdowndate ?? days[0]?.date ?? null;
+      defaultDate ??
+      booking.rigdaydate ??
+      booking.eventdate ??
+      booking.rigdowndate ??
+      days[0]?.date ??
+      null;
     const suggestedStart =
       booking.event_start_time ?? booking.rig_start_time ?? '08:00:00';
     const suggestedEnd =
