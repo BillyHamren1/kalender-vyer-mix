@@ -269,6 +269,7 @@ export const buildPlannerCalendarEvents = ({
     eventIds: Set<string>;
     earliestStart: string;
     latestEnd: string;
+    customerPickup: boolean;
   }>();
 
   // PERSONAL/PLANNER allowlist: endast rig/event/rigDown är bemanningsbara
@@ -361,6 +362,7 @@ export const buildPlannerCalendarEvents = ({
           eventIds: new Set([row.id]),
           earliestStart: row.start_time,
           latestEnd: row.end_time,
+          customerPickup: row.customer_pickup === true || booking?.customer_pickup === true,
           anyLocked: rowLocked,
         } as any);
       } else {
@@ -370,6 +372,7 @@ export const buildPlannerCalendarEvents = ({
         existing.eventIds.add(row.id);
         if (row.start_time < existing.earliestStart) existing.earliestStart = row.start_time;
         if (row.end_time > existing.latestEnd) existing.latestEnd = row.end_time;
+        if (row.customer_pickup === true || booking?.customer_pickup === true) existing.customerPickup = true;
         if (rowLocked) (existing as any).anyLocked = true;
       }
       if (isTraced) trace('group:project', { id: row.id, key, projectKnown: projectsById.has(projectId) });
@@ -463,6 +466,7 @@ export const buildPlannerCalendarEvents = ({
         consolidatedBookingIds: includedBookingIds,
         consolidatedEventIds: Array.from(group.eventIds),
         lptaTeamId: lptaTeam || undefined,
+        customerPickup: group.customerPickup === true,
         timeLocked: (group as any).anyLocked === true,
       },
     });
