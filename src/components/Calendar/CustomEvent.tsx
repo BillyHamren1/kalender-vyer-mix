@@ -295,44 +295,69 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             {bookingTitle}
           </div>
         )}
-        {(event.extendedProps as any)?.isPlannerItem && (
-          <>
-            {(event.extendedProps as any)?.projectName && (
-              <div
-                className="event-project"
-                style={{ color: '#000000', fontSize: '10px', fontWeight: 600 }}
-              >
-                Projekt: {(event.extendedProps as any).projectName}
-              </div>
-            )}
-            {((event.extendedProps as any)?.projectNumber ||
-              (event.extendedProps as any)?.bookingNumber) && (
-              <div
-                className="event-project-number"
-                style={{ color: '#000000', fontSize: '10px', opacity: 0.85 }}
-              >
-                #{(event.extendedProps as any).projectNumber ??
-                  (event.extendedProps as any).bookingNumber}
-              </div>
-            )}
-            {(event.extendedProps as any)?.sourceBookingClient && (
-              <div
-                className="event-client"
-                style={{
-                  color: '#000000',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  lineHeight: 1.15,
-                  marginTop: 1,
-                  wordBreak: 'break-word',
-                }}
-                title={(event.extendedProps as any).sourceBookingClient}
-              >
-                {(event.extendedProps as any).sourceBookingClient}
-              </div>
-            )}
-          </>
-        )}
+        {(event.extendedProps as any)?.isPlannerItem && (() => {
+          const ep = event.extendedProps as any;
+          const phaseLabel: string | null = ep.plannerPhaseLabel ?? null;
+          const bookingNumber: string | null =
+            ep.sourceBookingNumber ?? ep.bookingNumber ?? null;
+          const client: string | null =
+            ep.sourceBookingClient ?? ep.projectName ?? null;
+          const todoTotal: number = Number(ep.plannerTodoTotal ?? 0);
+          const todoDone: number = Number(ep.plannerTodoDone ?? 0);
+          return (
+            <div className="flex flex-col gap-0.5">
+              {phaseLabel && (
+                <div
+                  className="inline-flex items-center self-start rounded px-1 py-px text-[8.5px] font-semibold uppercase tracking-wide"
+                  style={{
+                    backgroundColor: 'rgba(0,0,0,0.08)',
+                    color: '#000',
+                  }}
+                >
+                  {phaseLabel}
+                </div>
+              )}
+              {bookingNumber && (
+                <div
+                  className="font-mono tabular-nums"
+                  style={{ color: '#000', fontSize: '10px', fontWeight: 600, opacity: 0.85 }}
+                >
+                  #{bookingNumber}
+                </div>
+              )}
+              {client && (
+                <div
+                  style={{
+                    color: '#000',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    lineHeight: 1.15,
+                    wordBreak: 'break-word',
+                  }}
+                  title={client}
+                >
+                  {client}
+                </div>
+              )}
+              {todoTotal > 0 && (
+                <div
+                  className="inline-flex items-center gap-1 self-start rounded-md px-1 py-px tabular-nums"
+                  style={{
+                    backgroundColor: 'rgba(139,92,246,0.15)',
+                    color: '#5B21B6',
+                    fontSize: '9.5px',
+                    fontWeight: 600,
+                    marginTop: 1,
+                  }}
+                  title={`${todoDone} av ${todoTotal} todos klara`}
+                >
+                  ✓ {todoDone}/{todoTotal} todos
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {!event.extendedProps?.isLargeProject && !event.extendedProps?.hideBookingNumber && !(event.extendedProps as any)?.isPlannerItem && (
           <div 
             className={`event-booking ${isCancelled ? 'line-through' : ''}`}
@@ -486,7 +511,13 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
       if (!plannerBookingId) return;
       e.stopPropagation();
       e.preventDefault();
-      navigate(`/booking/${plannerBookingId}`);
+      // Lyssnas av LargeProjectBookingPlannerCalendar → öppnar BookingPlannerSheet.
+      window.dispatchEvent(
+        new window.CustomEvent('lp-booking-sheet-open', {
+          detail: { bookingId: plannerBookingId },
+        }),
+      );
+
     };
 
     return (
@@ -494,8 +525,9 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         <div
           style={{ width: '100%', height: '100%' }}
           onDoubleClick={handlePlannerDoubleClick}
-          title="Dubbelklicka för att öppna bokningen"
+          title="Dubbelklicka för att öppna bokningens planering"
         >
+
           {eventCardContent}
         </div>
       </PlannerEventActionPopover>
