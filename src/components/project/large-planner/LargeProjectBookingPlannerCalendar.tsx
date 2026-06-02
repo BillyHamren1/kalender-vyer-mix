@@ -309,44 +309,77 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     <div className="flex h-full min-h-[600px] flex-col overflow-hidden rounded-2xl border border-border/60 bg-card shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.12)]">
       <LargeProjectPlannerToolbar
         daysCount={days.length}
+        bookingsCount={bookings.length}
+        todosCount={todosCount}
         rangeLabel={rangeLabel}
         isLoading={isLoading}
         isMutating={isMutating}
         onRefresh={handleRefresh}
-        onSeedFromBookings={handleSeedFromBookings}
         onCreateManual={() => handleCreateManual()}
+        onOpenBookingsDrawer={() => setBookingsDrawerOpen(true)}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
       />
 
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <LargeProjectPlannerSidebar
-          horizontal
-          bookings={bookings}
-          items={items}
-          staff={staff}
-          onSeedBooking={handleSeedBooking}
-          onSplitBooking={(b) => setSplitBookingId(b.id)}
-          onItemClick={(it) => setQuickEditId(it.id)}
-          onItemDelete={handleSidebarItemDelete}
-          onCreateManual={() => handleCreateManual()}
-          onCreateTodoForProduct={(booking, product) =>
-            openCreateTodoDialog(booking, product)
-          }
-        />
-
-        <div className="min-w-0 min-h-0 flex flex-1 flex-col overflow-hidden">
-          {viewMode === 'gantt' ? (
-            <LargeProjectPlannerGanttView ctx={ctx} />
-          ) : (
-            <LargeProjectPlannerCalendarView
-              largeProjectId={largeProjectId}
-              ctx={ctx}
-              onEventClick={handleCalendarEventClick}
-            />
-          )}
-        </div>
+      <div className="min-w-0 min-h-0 flex flex-1 flex-col overflow-hidden">
+        {viewMode === 'gantt' ? (
+          <LargeProjectPlannerGanttView ctx={ctx} />
+        ) : viewMode === 'checklist' ? (
+          <LargeProjectPlannerChecklistView
+            bookings={bookings}
+            items={items}
+            staff={staff}
+            onItemClick={(it) => setQuickEditId(it.id)}
+            onItemDelete={handleSidebarItemDelete}
+            onToggleItemStatus={(it, done) => handleToggleItemStatus(it, done)}
+            onCreateManual={() => handleCreateManual()}
+          />
+        ) : (
+          <LargeProjectPlannerCalendarView
+            largeProjectId={largeProjectId}
+            ctx={ctx}
+            onEventClick={handleCalendarEventClick}
+          />
+        )}
       </div>
+
+      {/* Bokningar — öppnas via "Planera bokning"-knappen i toolbar */}
+      <Sheet open={bookingsDrawerOpen} onOpenChange={setBookingsDrawerOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col gap-0">
+          <SheetHeader className="px-4 py-3 border-b border-border/60">
+            <SheetTitle className="text-sm font-semibold">Bokningar i projektet</SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <LargeProjectPlannerSidebar
+              bookings={bookings}
+              items={items}
+              staff={staff}
+              onSeedBooking={(b) => {
+                setBookingsDrawerOpen(false);
+                handleSeedBooking(b);
+              }}
+              onSplitBooking={(b) => {
+                setBookingsDrawerOpen(false);
+                setSplitBookingId(b.id);
+              }}
+              onItemClick={(it) => {
+                setBookingsDrawerOpen(false);
+                setQuickEditId(it.id);
+              }}
+              onItemDelete={handleSidebarItemDelete}
+              onCreateManual={() => {
+                setBookingsDrawerOpen(false);
+                handleCreateManual();
+              }}
+              onCreateTodoForProduct={(booking, product) => {
+                setBookingsDrawerOpen(false);
+                openCreateTodoDialog(booking, product);
+              }}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
+
 
       <SplitBookingIntoTasksDialog
         open={splitBookingId !== null}
