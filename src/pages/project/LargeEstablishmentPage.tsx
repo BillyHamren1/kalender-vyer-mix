@@ -12,7 +12,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useOutletContext, useNavigate, useLocation } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
-import { CalendarDays, Table as TableIcon } from "lucide-react";
+import { CalendarDays, Table as TableIcon, ClipboardList, Layers, Building2 } from "lucide-react";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
 import LargeProjectExcelView from "@/components/project/LargeProjectExcelView";
 import LargeProjectBookingPlannerCalendar from "@/components/project/large-planner/LargeProjectBookingPlannerCalendar";
