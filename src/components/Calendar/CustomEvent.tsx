@@ -511,7 +511,12 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
       if (!plannerBookingId) return;
       e.stopPropagation();
       e.preventDefault();
-      navigate(`/booking/${plannerBookingId}`);
+      // Lyssnas av LargeProjectBookingPlannerCalendar → öppnar BookingPlannerSheet.
+      window.dispatchEvent(
+        new CustomEvent('lp-booking-sheet-open', {
+          detail: { bookingId: plannerBookingId },
+        }),
+      );
     };
 
     return (
@@ -519,8 +524,9 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
         <div
           style={{ width: '100%', height: '100%' }}
           onDoubleClick={handlePlannerDoubleClick}
-          title="Dubbelklicka för att öppna bokningen"
+          title="Dubbelklicka för att öppna bokningens planering"
         >
+
           {eventCardContent}
         </div>
       </PlannerEventActionPopover>
