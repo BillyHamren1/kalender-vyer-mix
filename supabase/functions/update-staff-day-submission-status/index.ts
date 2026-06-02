@@ -1,12 +1,25 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders } from "../_shared/cors.ts";
 import {
+  COUNTABLE_SUBMISSION_STATUSES,
+  EXCLUDED_SUBMISSION_STATUSES,
   deleteProjectStaffTimeCostLinesForSubmission,
   rebuildProjectStaffTimeCostLinesForSubmission,
 } from "../_shared/staff-day-cost-lines.ts";
 
-type AllowedStatus = "approved" | "needs_control" | "correction_requested";
-const ALLOWED: AllowedStatus[] = ["approved", "needs_control", "correction_requested"];
+type AllowedStatus =
+  | "approved"
+  | "payroll_approved"
+  | "needs_control"
+  | "correction_requested"
+  | "rejected";
+const ALLOWED: AllowedStatus[] = [
+  "approved",
+  "payroll_approved",
+  "needs_control",
+  "correction_requested",
+  "rejected",
+];
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
