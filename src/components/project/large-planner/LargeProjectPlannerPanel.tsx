@@ -203,39 +203,10 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
       }
     }
 
-    if (selection.productIdsForTodos.length > 0 && selectedSeed) {
-      try {
-        const { data: products, error } = await supabase
-          .from('booking_products')
-          .select('id,name,quantity')
-          .eq('booking_id', booking.id)
-          .in('id', selection.productIdsForTodos);
-        if (error) throw error;
+    // Todos från orderrader skapas inte automatiskt här. Användaren skapar
+    // en todo explicit per orderrad via BookingPlannerWorkspace, vilket
+    // öppnar ManualProjectTaskDialog och skriver en riktig todo-rad.
 
-        for (const product of products ?? []) {
-          const alreadyExists = existingForBooking.some((it) => it.booking_product_id === product.id);
-          if (alreadyExists) {
-            skipped++;
-            continue;
-          }
-          await createItem({
-            large_project_id: largeProjectId,
-            booking_id: booking.id,
-            booking_product_id: product.id,
-            title: product.name || 'Orderrad',
-            plan_date: selectedSeed.date,
-            start_time: `${selectedSeed.start}:00`,
-            end_time: `${selectedSeed.end}:00`,
-            item_type: 'task',
-            source: 'manual',
-            status: 'planned',
-          });
-          created++;
-        }
-      } catch (e) {
-        toast.error((e as Error).message || 'Kunde inte skapa to-dos från orderrader.');
-      }
-    }
 
     setPlannerSheetBookingId(booking.id);
     if (created > 0) toast.success(`${created} faser planerade${skipped ? ` (${skipped} fanns redan)` : ''}.`);
