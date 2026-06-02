@@ -4,15 +4,17 @@
  * ─────────────────────────────
  * Cron-driven incremental refresh.
  *
- * For each org: re-process today + yesterday for staff with
- * recent ping activity. Same write contract as backfill-staff-day-report-cache:
+ * For each org: re-process today (+ yesterday unless mode='today') for staff
+ * with recent ping activity. Same write contract as backfill-staff-day-report-cache:
  * ONLY writes staff_day_report_cache.
  *
  * Body (optional):
  * {
  *   organizationId?: uuid,         // if omitted, processes all orgs
  *   engineVersion: string,         // required
- *   batchSize?: number,            // default 50 staff-days per org
+ *   batchSize?: number,            // default 50, hard cap 100
+ *   mode?: 'today' | 'today_and_yesterday',  // default 'today_and_yesterday'
+ *   staffIds?: string[],           // optional override (bypass ping discovery)
  * }
  */
 
