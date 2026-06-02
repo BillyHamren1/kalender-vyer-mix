@@ -83,42 +83,63 @@ Deno.serve(async (req) => {
 
     const perOrg: any[] = [];
 
+    // Datumfönster: today-only för täta tick (5–10 min), today+yesterday för
+    // den långsammare hourly-sweep:en.
+    const dates = mode === 'today' ? [today] : [today, yest];
+    const dateFromSweep = dates[dates.length - 1]; // äldsta
+    const dateToSweep = dates[0];                  // nyaste
+
     for (const orgId of orgIds) {
-      // Find staff with recent ping activity (last 36h). EMERGENCY: cap hard
-      // at 5_000 rows of discovery; don't scan 50k staff_location_history rows.
-      const since = new Date(Date.now() - 36 * 3600 * 1000).toISOString();
-      const { data: pingRows } = await admin
-        .from('staff_location_history')
-        .select('staff_id')
-        .eq('organization_id', orgId)
-        .gte('recorded_at', since)
-        .order('recorded_at', { ascending: false })
-        .limit(5_000);
-      const seen = new Set<string>();
-      for (const r of pingRows ?? []) seen.add((r as any).staff_id);
-      const staffIds = Array.from(seen);
+      // Bestäm staff-kandidater.
+      let staffIds: string[];
+      if (requestedStaffIds) {
+        // Explicit override (manuell körning för t.ex. en specifik person).
+        staffIds = requestedStaffIds;
+      } else {
+        // Hitta personal med ping-aktivitet senaste 12h (today-only mode)
+        // resp. 36h (today+yesterday). Hård cap på discovery-läsning.
+        const lookbackHours = mode === 'today' ? 12 : 36;
+        const since = new Date(Date.now() - lookbackHours * 3600 * 1000).toISOString();
+        const { data: pingRows } = await admin
+          .from('staff_location_history')
+          .select('staff_id')
+          .eq('organization_id', orgId)
+          .gte('recorded_at', since)
+          .order('recorded_at', { ascending: false })
+          .limit(5_000);
+        const seen = new Set<string>();
+        for (const r of pingRows ?? []) seen.add((r as any).staff_id);
+        staffIds = Array.from(seen);
+      }
       if (staffIds.length === 0) {
         perOrg.push({ orgId, skipped: 'no_recent_pings' });
         continue;
       }
 
-      // Only re-process staff-days where cache is missing OR clearly stale
-      // (older than 2 hours). Avoids unconditional rebuild every cron tick.
-      const staleCutoff = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
-      const { data: cacheRows } = await admin
+      // Freshness-gate: hoppa över (staff,date) som har cache yngre än 5 min
+      // (today-only mode) resp. 2h (today+yesterday). FIX: kolumnen heter `date`,
+      // inte `day` — den gamla buggen gjorde gaten värdelös.
+      const freshCutoffMs = mode === 'today' ? 5 * 60 * 1000 : 2 * 3600 * 1000;
+      const staleCutoff = new Date(Date.now() - freshCutoffMs).toISOString();
+      const { data: cacheRows, error: cacheErr } = await admin
         .from('staff_day_report_cache')
-        .select('staff_id, day, updated_at')
+        .select('staff_id, date, updated_at')
         .eq('organization_id', orgId)
         .in('staff_id', staffIds)
-        .in('day', [today, yest]);
+        .in('date', dates);
+      if (cacheErr) {
+        // Tysta inte — logga, men fortsätt (tom fresh-set = bygg allt).
+        console.warn('[sync-staff-day-report-cache] freshness query failed', cacheErr);
+      }
       const fresh = new Set<string>();
       for (const c of cacheRows ?? []) {
         const u = (c as any).updated_at as string | null;
-        if (u && u > staleCutoff) fresh.add(`${(c as any).staff_id}|${(c as any).day}`);
+        if (u && u > staleCutoff) fresh.add(`${(c as any).staff_id}|${(c as any).date}`);
       }
       const candidates: string[] = [];
       for (const sid of staffIds) {
-        if (!fresh.has(`${sid}|${today}`) || !fresh.has(`${sid}|${yest}`)) candidates.push(sid);
+        const allFresh = dates.every((d) => fresh.has(`${sid}|${d}`));
+        if (!allFresh) candidates.push(sid);
         if (candidates.length >= batchSize) break;
       }
       if (candidates.length === 0) {
@@ -135,12 +156,14 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({
           organizationId: orgId,
-          dateFrom: yest,
-          dateTo: today,
+          dateFrom: dateFromSweep,
+          dateTo: dateToSweep,
           staffIds: candidates,
           engineVersion,
           dryRun: false,
-          batchSize,
+          // backfill caps at 200 internally; dimensionera så hela kandidat-
+          // listan får plats i ett anrop när vi kör today-only.
+          batchSize: Math.max(candidates.length * dates.length, batchSize),
           skipExisting: false,
           enablePeerEvidence: false,
         }),
@@ -148,7 +171,7 @@ Deno.serve(async (req) => {
       const text = await r.text();
       let parsed: any = null;
       try { parsed = JSON.parse(text); } catch {}
-      perOrg.push({ orgId, status: r.status, summary: parsed ? {
+      perOrg.push({ orgId, mode, dates, candidateStaff: candidates.length, status: r.status, summary: parsed ? {
         processed: parsed.staffDaysProcessedThisCall,
         errors: parsed.staffDaysWithErrors,
         runtimeMs: parsed.runtimeMs,
