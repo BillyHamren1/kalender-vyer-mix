@@ -26,6 +26,7 @@ export const MATRIX_GRID_TEMPLATE =
 export default function StaffTimeWeekMatrix() {
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [openDay, setOpenDay] = useState<{ staffId: string; date: string } | null>(null);
+  const [satelliteFor, setSatelliteFor] = useState<{ staffId: string; date: string } | null>(null);
 
   const weekDates = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
@@ -34,6 +35,13 @@ export default function StaffTimeWeekMatrix() {
   const weekEnd = addDays(weekStart, 6);
 
   const { matrix, isLoading } = useStaffTimeWeekMatrix({ weekDates });
+
+  const openCell = useMemo(() => {
+    if (!openDay || !matrix) return null;
+    const row = matrix.rows.find((r) => r.staffId === openDay.staffId);
+    const cell = row?.days.find((d) => d.date === openDay.date) ?? null;
+    return cell ? { cell, staffName: row!.staffName } : null;
+  }, [openDay, matrix]);
 
   return (
     <div className="flex flex-col">
