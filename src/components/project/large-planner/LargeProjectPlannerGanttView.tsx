@@ -33,7 +33,7 @@ const PHASE_LABEL: Record<Phase, string> = {
 
 const PHASE_CLS: Record<Phase, string> = {
   rig: 'bg-amber-500/80 hover:bg-amber-500',
-  event: 'bg-planner/80 hover:bg-primary',
+  event: 'bg-planner/80 hover:bg-planner',
   rigDown: 'bg-sky-500/80 hover:bg-sky-500',
   other: 'bg-muted-foreground/60 hover:bg-muted-foreground/80',
 };

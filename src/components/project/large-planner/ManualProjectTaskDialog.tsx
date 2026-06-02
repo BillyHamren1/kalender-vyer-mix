@@ -206,7 +206,7 @@ const ManualProjectTaskDialog = ({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Plus className="h-4 w-4 text-primary" />
+            <Plus className="h-4 w-4 text-planner" />
             Manuell task
           </DialogTitle>
           <DialogDescription>
@@ -216,7 +216,7 @@ const ManualProjectTaskDialog = ({
 
         <div className="space-y-3">
           {defaultBookingProductLabel && (
-            <div className="rounded border border-primary/30 bg-primary/5 px-2 py-1 text-[11px] text-foreground">
+            <div className="rounded border border-planner/30 bg-planner/5 px-2 py-1 text-[11px] text-foreground">
               Kopplad orderrad: <span className="font-medium">{defaultBookingProductLabel}</span>
             </div>
           )}

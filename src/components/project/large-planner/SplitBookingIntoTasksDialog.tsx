@@ -250,7 +250,7 @@ const SplitBookingIntoTasksDialog = ({
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Wand2 className="h-4 w-4 text-primary" />
+            <Wand2 className="h-4 w-4 text-planner" />
             Dela upp bokning i delmoment
           </DialogTitle>
           <DialogDescription>
@@ -261,7 +261,7 @@ const SplitBookingIntoTasksDialog = ({
 
         {booking ? (
           <div className="space-y-3">
-            <div className="rounded-md border border-border/60 bg-primary/5 p-2 text-xs">
+            <div className="rounded-md border border-border/60 bg-planner/5 p-2 text-xs">
               <div className="font-semibold text-foreground">{booking.display_name}</div>
               <div className="flex flex-wrap gap-2 text-muted-foreground">
                 {booking.booking_number && <span>Bokning #{booking.booking_number}</span>}
