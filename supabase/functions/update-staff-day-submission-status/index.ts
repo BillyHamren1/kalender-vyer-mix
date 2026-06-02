@@ -126,11 +126,16 @@ Deno.serve(async (req) => {
   //  - needs_control / correction_requested -> delete old rows (not approved anymore)
   // Vi rör ALDRIG time_reports / workdays / location_time_entries /
   // travel_time_logs / day_attestations här.
+  // Sync project_staff_time_cost_lines:
+  //  - countable status (approved / payroll_approved / needs_control) -> rebuild
+  //  - excluded status (correction_requested / rejected)              -> delete
+  // Vi rör ALDRIG time_reports / workdays / location_time_entries /
+  // travel_time_logs / day_attestations här.
   let costLinesResult: unknown = null;
   try {
-    if (status === "approved") {
+    if (COUNTABLE_SUBMISSION_STATUSES.has(status)) {
       costLinesResult = await rebuildProjectStaffTimeCostLinesForSubmission(admin, submission_id);
-    } else if (status === "needs_control" || status === "correction_requested") {
+    } else if (EXCLUDED_SUBMISSION_STATUSES.has(status)) {
       costLinesResult = await deleteProjectStaffTimeCostLinesForSubmission(admin, submission_id);
     }
   } catch (e) {
