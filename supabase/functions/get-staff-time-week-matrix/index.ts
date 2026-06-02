@@ -151,7 +151,15 @@ function cellFromResolvedSummary(r: ResolvedStaffDaySummary): MatrixCell {
     // via cache.summary_json om vi behöver visa "GPS finns" i Tid&Lön.
     pingCount: 0,
     gpsAvailable: r.source === "cache" || r.source === "submission",
-    rows: [],
+    rows: (r.rows ?? []).map((row) => ({
+      kind: row.kind === "needs_review" ? "other" : row.kind,
+      label: row.label,
+      startIso: row.startIso,
+      endIso: row.endIso,
+      minutes: row.minutes,
+      fromLabel: row.fromLabel,
+      toLabel: row.toLabel,
+    })),
   };
 }
 
