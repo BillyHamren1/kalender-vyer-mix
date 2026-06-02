@@ -111,7 +111,26 @@ export function extractDiagnostics(day: WeeklyDayCell): DiagnosticsBrief {
 // Re-usable subcomponents
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const SegmentList: React.FC<{ segments: InspectionSegment[] }> = ({ segments }) => {
+// Regel (UI-only): "Boende" / private_residence-segment får ALDRIG visas
+// före dagens första arbetsrelaterade ping. Vi droppar därför alla ledande
+// boende-/privat-segment tills första icke-boende-segmentet inträffar.
+// Efter dagens första arbetssegment renderas Boende normalt igen.
+function isResidenceSegment(seg: any): boolean {
+  const label = (segLabel(seg) || "").toLowerCase();
+  const type = String(seg?.type ?? seg?.classification ?? seg?.kind ?? "").toLowerCase();
+  if (/^\s*boende\b/.test(label)) return true;
+  if (/private[_-]?residence|residence|home|boende/.test(type)) return true;
+  return false;
+}
+
+function trimLeadingResidenceSegments(segments: InspectionSegment[]): InspectionSegment[] {
+  let i = 0;
+  while (i < segments.length && isResidenceSegment(segments[i])) i++;
+  return i === 0 ? segments : segments.slice(i);
+}
+
+export const SegmentList: React.FC<{ segments: InspectionSegment[] }> = ({ segments: raw }) => {
+  const segments = trimLeadingResidenceSegments(raw);
   if (segments.length === 0) {
     return <p className="text-xs italic text-muted-foreground">Inga segment i GPS-förslaget.</p>;
   }
