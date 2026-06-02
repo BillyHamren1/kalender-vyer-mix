@@ -107,40 +107,8 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     void refetch();
   };
 
-  const handleSeedFromBookings = async () => {
-    try {
-      const result = await createItemsFromBookings();
-      const createdCount =
-        typeof result === 'object' && result && 'createdCount' in result
-          ? (result as { createdCount: number }).createdCount
-          : Array.isArray(result)
-            ? result.length
-            : 0;
-      const skippedCount =
-        typeof result === 'object' && result && 'skippedCount' in result
-          ? (result as { skippedCount: number }).skippedCount
-          : 0;
-      const errors =
-        typeof result === 'object' && result && 'errors' in result
-          ? (result as { errors: string[] }).errors
-          : [];
-
-      const parts: string[] = [`${createdCount} skapade`];
-      if (skippedCount > 0) parts.push(`${skippedCount} fanns redan`);
-      if (errors.length > 0) parts.push(`${errors.length} fel`);
-      const description = errors.length > 0 ? errors.slice(0, 3).join('\n') : undefined;
-
-      if (createdCount > 0) {
-        toast.success(`Plan från bokningar: ${parts.join(', ')}.`, { description });
-      } else if (errors.length > 0) {
-        toast.error(`Plan från bokningar: ${parts.join(', ')}.`, { description });
-      } else {
-        toast.info(`Plan från bokningar: ${parts.join(', ')}.`);
-      }
-    } catch (e) {
-      toast.error((e as Error).message || 'Kunde inte skapa plan från bokningar.');
-    }
-  };
+  // (Seed-från-bokningar är borttaget — admin planerar varje bokning aktivt
+  // via "Planera bokning" → BookingPlannerSheet för full kontroll.)
 
   /**
    * "Planera" på en bokning ÖPPNAR BookingPlannerSheet (full översikt
