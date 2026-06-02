@@ -511,30 +511,7 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
         onSplit={(it) => it.booking_id && setSplitBookingId(it.booking_id)}
         isMutating={isMutating}
       />
-
-      <BookingPlannerSheet
-        open={plannerSheetBookingId !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setPlannerSheetBookingId(null);
-            setPlannerSheetHighlightDate(null);
-          }
-        }}
-        booking={
-          plannerSheetBookingId
-            ? bookingById.get(plannerSheetBookingId) ?? null
-            : null
-        }
-        items={items}
-        staff={staff}
-        highlightDate={plannerSheetHighlightDate}
-        onCreateTodoForBooking={(b, defaultDate) => openCreateTodoDialog(b, undefined, defaultDate)}
-        onCreateTodoForProduct={(b, p, defaultDate) => openCreateTodoDialog(b, p, defaultDate)}
-        onPlanWholeBooking={handlePlanWholeBooking}
-        onItemClick={(it) => setQuickEditId(it.id)}
-        onItemDelete={(it) => handleItemDelete(it.id)}
-        onToggleItemStatus={handleToggleItemStatus}
-      />
+      {/* BookingPlannerSheet ersatt av BookingPlannerWorkspace (fullscreen ovan). */}
     </div>
   );
 };
