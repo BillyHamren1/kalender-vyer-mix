@@ -48,6 +48,33 @@ export interface CalendarEventUpdate {
 
 // ─── READ OPERATIONS ───────────────────────────────────────
 
+/**
+ * Wrappar en PostgREST-request med timeout så att en hängande nätverksrequest
+ * aldrig kan låsa hela kalender-laddningen. Returnerar samma form som
+ * Supabase ({ data, error, ... }) så kallande kod inte behöver särfall.
+ */
+const withTimeout = async <T,>(
+  promise: PromiseLike<T>,
+  ms: number,
+  label: string,
+): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`[fetchCalendarEvents] Timeout efter ${ms}ms: ${label}`));
+    }, ms);
+  });
+  try {
+    return await Promise.race([Promise.resolve(promise), timeoutPromise]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+};
+
+const PRIMARY_QUERY_TIMEOUT_MS = 15_000;
+const SECONDARY_QUERY_TIMEOUT_MS = 10_000;
+
+
 export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
   const t0 = performance.now();
   console.log('📅 [fetchCalendarEvents] Starting fetch...');
@@ -77,28 +104,33 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
   while (pageIndex < MAX_PAGES) {
     const fromIdx = pageIndex * PAGE_SIZE;
     const toIdx = fromIdx + PAGE_SIZE - 1;
-    const { data, error, status, statusText } = await supabase
-      .from('calendar_events')
-      .select(`
-        id,
-        title,
-        start_time,
-        end_time,
-        resource_id,
-        booking_id,
-        event_type,
-        delivery_address,
-        booking_number,
-        source_date,
-        times_locked,
-        todo_id,
-        customer_pickup
-      `)
-      .neq('event_type', 'event')
-      .gte('start_time', windowFrom)
-      .lte('start_time', windowTo)
-      .order('start_time', { ascending: true })
-      .range(fromIdx, toIdx);
+    const { data, error, status, statusText } = await withTimeout(
+      supabase
+        .from('calendar_events')
+        .select(`
+          id,
+          title,
+          start_time,
+          end_time,
+          resource_id,
+          booking_id,
+          event_type,
+          delivery_address,
+          booking_number,
+          source_date,
+          times_locked,
+          todo_id,
+          customer_pickup
+        `)
+        .neq('event_type', 'event')
+        .gte('start_time', windowFrom)
+        .lte('start_time', windowTo)
+        .order('start_time', { ascending: true })
+        .range(fromIdx, toIdx),
+      PRIMARY_QUERY_TIMEOUT_MS,
+      `calendar_events page ${pageIndex}`,
+    );
+
 
     if (error) {
       const elapsed = Math.round(performance.now() - t0);
@@ -129,25 +161,36 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
     ? extractMaxDate(realRows.map(event => event.source_date || event.start_time))
     : format(addDays(new Date(), 45), 'yyyy-MM-dd');
 
-  const [{ data: bookingsData, error: bookingsError }, { data: projectsData, error: projectsError }] = await Promise.all([
-    supabase
-      .from('bookings')
-      .select('id, client, title, booking_number, deliveryaddress, large_project_id, rigdaydate, eventdate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, status, rig_time_locked, event_time_locked, rigdown_time_locked, customer_pickup, calendar_color')
-      .or(`and(rigdaydate.gte.${fromDate},rigdaydate.lte.${toDate}),and(eventdate.gte.${fromDate},eventdate.lte.${toDate}),and(rigdowndate.gte.${fromDate},rigdowndate.lte.${toDate})`),
-    supabase
-      .from('large_projects')
-      .select('id, name, project_number, address, start_date, event_date, end_date, deleted_at')
-      .is('deleted_at', null),
+  const [bookingsRes, projectsRes] = await Promise.all([
+    withTimeout(
+      supabase
+        .from('bookings')
+        .select('id, client, title, booking_number, deliveryaddress, large_project_id, rigdaydate, eventdate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, status, rig_time_locked, event_time_locked, rigdown_time_locked, customer_pickup, calendar_color')
+        .or(`and(rigdaydate.gte.${fromDate},rigdaydate.lte.${toDate}),and(eventdate.gte.${fromDate},eventdate.lte.${toDate}),and(rigdowndate.gte.${fromDate},rigdowndate.lte.${toDate})`),
+      SECONDARY_QUERY_TIMEOUT_MS,
+      'bookings fallback window',
+    ).catch(err => ({ data: null, error: err as any })),
+    withTimeout(
+      supabase
+        .from('large_projects')
+        .select('id, name, project_number, address, start_date, event_date, end_date, deleted_at')
+        .is('deleted_at', null),
+      SECONDARY_QUERY_TIMEOUT_MS,
+      'large_projects fallback',
+    ).catch(err => ({ data: null, error: err as any })),
   ]);
 
+  const bookingsData = bookingsRes.data;
+  const bookingsError = bookingsRes.error;
+  const projectsData = projectsRes.data;
+  const projectsError = projectsRes.error;
+
   if (bookingsError) {
-    console.error('❌ [fetchCalendarEvents] Failed to fetch booking fallback rows:', bookingsError);
-    throw bookingsError;
+    console.warn('⚠️ [fetchCalendarEvents] Booking fallback fetch failed — fortsätter utan bookings-enrichment:', bookingsError);
   }
 
   if (projectsError) {
-    console.error('❌ [fetchCalendarEvents] Failed to fetch large project fallback rows:', projectsError);
-    throw projectsError;
+    console.warn('⚠️ [fetchCalendarEvents] Large project fallback fetch failed — fortsätter utan large-project-enrichment:', projectsError);
   }
 
   const bookingRows = bookingsData || [];
@@ -159,30 +202,38 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
 
   // large_project_bookings is master — resolve by booking_id (not by large_project_id)
   // so events get classified as part of a large project even when bookings.large_project_id is null.
-  const [{ data: largeProjectBookingsData, error: largeProjectBookingsError }, { data: bookingAssignmentsData, error: bookingAssignmentsError }] = await Promise.all([
+  const [lpbRes, bsaRes] = await Promise.all([
     allRelevantBookingIds.length > 0
-      ? supabase
-          .from('large_project_bookings')
-          .select('large_project_id, booking_id')
-          .in('booking_id', allRelevantBookingIds)
+      ? withTimeout(
+          supabase
+            .from('large_project_bookings')
+            .select('large_project_id, booking_id')
+            .in('booking_id', allRelevantBookingIds),
+          SECONDARY_QUERY_TIMEOUT_MS,
+          'large_project_bookings',
+        ).catch(err => ({ data: null, error: err as any }))
       : Promise.resolve({ data: [], error: null }),
     bookingIds.length > 0
-      ? supabase
-          .from('booking_staff_assignments')
-          .select('booking_id, team_id, assignment_date')
-          .in('booking_id', bookingIds)
+      ? withTimeout(
+          supabase
+            .from('booking_staff_assignments')
+            .select('booking_id, team_id, assignment_date')
+            .in('booking_id', bookingIds),
+          SECONDARY_QUERY_TIMEOUT_MS,
+          'booking_staff_assignments',
+        ).catch(err => ({ data: null, error: err as any }))
       : Promise.resolve({ data: [], error: null }),
   ]);
 
-  if (largeProjectBookingsError) {
-    console.error('❌ [fetchCalendarEvents] Failed to fetch large_project_bookings master rows:', largeProjectBookingsError);
-    throw largeProjectBookingsError;
+  const largeProjectBookingsData = lpbRes.data;
+  const bookingAssignmentsData = bsaRes.data;
+  if (lpbRes.error) {
+    console.warn('⚠️ [fetchCalendarEvents] large_project_bookings fetch failed — fortsätter utan membership:', lpbRes.error);
+  }
+  if (bsaRes.error) {
+    console.warn('⚠️ [fetchCalendarEvents] booking_staff_assignments fetch failed — fortsätter utan team-fallback:', bsaRes.error);
   }
 
-  if (bookingAssignmentsError) {
-    console.error('❌ [fetchCalendarEvents] Failed to fetch booking_staff_assignments fallback rows:', bookingAssignmentsError);
-    throw bookingAssignmentsError;
-  }
 
   const largeProjectIdsFromMembership = Array.from(
     new Set((largeProjectBookingsData || []).map(row => row.large_project_id).filter(Boolean))
