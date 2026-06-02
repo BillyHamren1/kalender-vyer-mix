@@ -114,6 +114,19 @@ export const mapPlannerItemsToCalendarEvents = (
 ): CalendarEvent[] => {
   const { largeProjectId, projectName, projectNumber, bookingDisplayById } = opts;
 
+  // Räkna todos per (booking_id|plan_date) — bara task/manual/split räknas
+  // som todos, fasblocken (item_type='booking') är arbetsdagar inte todos.
+  const todoStats = new Map<string, { total: number; done: number }>();
+  for (const it of items) {
+    if (it.item_type === 'booking') continue;
+    if (!it.booking_id || !it.plan_date) continue;
+    const key = `${it.booking_id}|${it.plan_date}`;
+    const cur = todoStats.get(key) ?? { total: 0, done: 0 };
+    cur.total += 1;
+    if (it.status === 'done') cur.done += 1;
+    todoStats.set(key, cur);
+  }
+
   return items
     .filter((it) => !it.booking_product_id)
     // Dölj eventdagar — samma logik som personalkalendern (Staff Calendar No Event Day).
@@ -150,6 +163,18 @@ export const mapPlannerItemsToCalendarEvents = (
       const bgColor = isBookingItem && phaseEventType ? getEventColor(phaseEventType) : tone.bg;
       const eventTypeForCard = isBookingItem && phaseEventType ? phaseEventType : (it.item_type === 'task' ? 'todo' : 'internal_task');
 
+      const phaseLabel =
+        it.source_booking_phase === 'rig'
+          ? 'Rigg'
+          : it.source_booking_phase === 'event'
+            ? 'Event'
+            : it.source_booking_phase === 'rigDown'
+              ? 'Nedmontering'
+              : null;
+
+      const todoKey = it.booking_id ? `${it.booking_id}|${it.plan_date}` : null;
+      const todoSummary = todoKey ? todoStats.get(todoKey) ?? null : null;
+
       return {
         id: `${PLANNER_EVENT_ID_PREFIX}${it.id}`,
         title: it.title,
@@ -171,7 +196,10 @@ export const mapPlannerItemsToCalendarEvents = (
           plannerLargeProjectId: largeProjectId,
           plannerBookingId: it.booking_id,
           plannerPhase: it.source_booking_phase ?? null,
+          plannerPhaseLabel: phaseLabel,
           plannerItemType: it.item_type,
+          plannerTodoTotal: todoSummary?.total ?? 0,
+          plannerTodoDone: todoSummary?.done ?? 0,
           largeProjectId,
           bookingId: it.booking_id,
           assignedStaffId: it.assigned_staff_id,
@@ -185,7 +213,7 @@ export const mapPlannerItemsToCalendarEvents = (
           client: projectName ? `Projekt: ${projectName}` : 'Internt projekt',
           projectName: projectName ?? null,
           projectNumber: projectNumber ?? null,
-          bookingNumber: projectNumber ?? booking?.booking_number ?? null,
+          bookingNumber: booking?.booking_number ?? projectNumber ?? null,
           sourceBookingNumber: booking?.booking_number ?? null,
           sourceBookingClient: booking?.client ?? null,
         },
@@ -193,3 +221,4 @@ export const mapPlannerItemsToCalendarEvents = (
       } as CalendarEvent;
     });
 };
+
