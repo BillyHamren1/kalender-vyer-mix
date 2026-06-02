@@ -104,28 +104,33 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
   while (pageIndex < MAX_PAGES) {
     const fromIdx = pageIndex * PAGE_SIZE;
     const toIdx = fromIdx + PAGE_SIZE - 1;
-    const { data, error, status, statusText } = await supabase
-      .from('calendar_events')
-      .select(`
-        id,
-        title,
-        start_time,
-        end_time,
-        resource_id,
-        booking_id,
-        event_type,
-        delivery_address,
-        booking_number,
-        source_date,
-        times_locked,
-        todo_id,
-        customer_pickup
-      `)
-      .neq('event_type', 'event')
-      .gte('start_time', windowFrom)
-      .lte('start_time', windowTo)
-      .order('start_time', { ascending: true })
-      .range(fromIdx, toIdx);
+    const { data, error, status, statusText } = await withTimeout(
+      supabase
+        .from('calendar_events')
+        .select(`
+          id,
+          title,
+          start_time,
+          end_time,
+          resource_id,
+          booking_id,
+          event_type,
+          delivery_address,
+          booking_number,
+          source_date,
+          times_locked,
+          todo_id,
+          customer_pickup
+        `)
+        .neq('event_type', 'event')
+        .gte('start_time', windowFrom)
+        .lte('start_time', windowTo)
+        .order('start_time', { ascending: true })
+        .range(fromIdx, toIdx),
+      PRIMARY_QUERY_TIMEOUT_MS,
+      `calendar_events page ${pageIndex}`,
+    );
+
 
     if (error) {
       const elapsed = Math.round(performance.now() - t0);
