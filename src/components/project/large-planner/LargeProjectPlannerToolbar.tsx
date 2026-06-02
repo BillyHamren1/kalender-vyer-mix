@@ -48,6 +48,30 @@ const LargeProjectPlannerToolbar = ({
         </Badge>
       </div>
       <div className="flex items-center gap-2">
+        {onViewModeChange && (
+          <div className="flex items-center rounded-md border border-border/60 bg-background p-0.5">
+            <Button
+              size="sm"
+              variant={viewMode === 'calendar' ? 'secondary' : 'ghost'}
+              className="h-7 px-2 text-[11px]"
+              onClick={() => onViewModeChange('calendar')}
+              title="Kalendervy"
+            >
+              <LayoutGrid className="h-3.5 w-3.5 mr-1" />
+              Kalender
+            </Button>
+            <Button
+              size="sm"
+              variant={viewMode === 'gantt' ? 'secondary' : 'ghost'}
+              className="h-7 px-2 text-[11px]"
+              onClick={() => onViewModeChange('gantt')}
+              title="Gantt-vy (read-only)"
+            >
+              <GanttChartSquare className="h-3.5 w-3.5 mr-1" />
+              Gantt
+            </Button>
+          </div>
+        )}
         <Button
           size="sm"
           variant="ghost"
