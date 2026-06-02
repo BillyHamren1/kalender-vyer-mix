@@ -151,6 +151,35 @@ const EMPTY_DRAFTS: PlanWholeBookingSelection['drafts'] = {
   rigDown: { dates: [], startTime: '08:00', endTime: '17:00' },
 };
 
+/**
+ * Bygger drafts från faktiskt sparade arbetsdagar i large_project_booking_plan_items.
+ * Faller tillbaka till booking-fältens default-tider (men ALDRIG datum) om inga
+ * workday-items finns. Datum ska komma uteslutande från planner-items.
+ */
+const buildDraftsFromWorkdayItems = (
+  booking: LargeProjectPlannerBooking,
+  workdays: LargeProjectBookingPlanItem[],
+): PlanWholeBookingSelection['drafts'] => {
+  const fallback = buildInitialDrafts(booking);
+  const grouped: PlanWholeBookingSelection['drafts'] = {
+    rig: { dates: [], startTime: fallback.rig.startTime, endTime: fallback.rig.endTime },
+    event: { dates: [], startTime: fallback.event.startTime, endTime: fallback.event.endTime },
+    rigDown: { dates: [], startTime: fallback.rigDown.startTime, endTime: fallback.rigDown.endTime },
+  };
+  for (const item of workdays) {
+    const phase = (item.source_booking_phase ?? item.phase) as 'rig' | 'event' | 'rigDown' | null;
+    if (phase !== 'rig' && phase !== 'event' && phase !== 'rigDown') continue;
+    if (!item.plan_date) continue;
+    grouped[phase].dates.push(item.plan_date);
+    if (item.start_time) grouped[phase].startTime = item.start_time.slice(0, 5);
+    if (item.end_time) grouped[phase].endTime = item.end_time.slice(0, 5);
+  }
+  for (const phase of ['rig', 'event', 'rigDown'] as const) {
+    grouped[phase].dates = Array.from(new Set(grouped[phase].dates)).sort();
+  }
+  return grouped;
+};
+
 const SectionHeader = ({
   title,
   icon: Icon,
@@ -193,13 +222,19 @@ const BookingPlannerSheet = ({
     [booking, items],
   );
 
-  // Arbetsdagar = item_type='booking' (fasblock i projektkalendern)
+  // Arbetsdagar = item_type='booking' + source='booking' + ej orderrad
   const workdayItems = useMemo(
-    () => bookingItems.filter((it) => it.item_type === 'booking'),
+    () =>
+      bookingItems.filter(
+        (it) =>
+          it.item_type === 'booking' &&
+          it.source === 'booking' &&
+          !it.booking_product_id,
+      ),
     [bookingItems],
   );
 
-  // Todos = allt utom item_type='booking'
+  // Todos = task/manual
   const todoItems = useMemo(
     () => bookingItems.filter((it) => it.item_type === 'task' || it.item_type === 'manual'),
     [bookingItems],
@@ -276,12 +311,12 @@ const BookingPlannerSheet = ({
 
   useEffect(() => {
     if (!open || !booking) return;
-    const init = buildInitialDrafts(booking);
+    const init = buildDraftsFromWorkdayItems(booking, workdayItems);
     setDrafts(init);
     setPlanRig(init.rig.dates.length > 0);
     setPlanEvent(init.event.dates.length > 0);
     setPlanRigDown(init.rigDown.dates.length > 0);
-  }, [open, booking]);
+  }, [open, booking?.id, workdayItems]);
 
   // Scrolla till klickad dag när panelen öppnas
   const highlightRowRef = useRef<HTMLElement | null>(null);

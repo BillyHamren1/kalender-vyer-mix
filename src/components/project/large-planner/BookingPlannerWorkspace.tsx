@@ -139,6 +139,34 @@ const EMPTY_DRAFTS: PlanWholeBookingSelection['drafts'] = {
   rigDown: { dates: [], startTime: '08:00', endTime: '17:00' },
 };
 
+/**
+ * Bygger drafts från sparade workday-items (large_project_booking_plan_items).
+ * Datum kommer aldrig från booking.rig_dates/event_dates/rigdown_dates här.
+ */
+const buildDraftsFromWorkdayItems = (
+  booking: LargeProjectPlannerBooking,
+  workdays: LargeProjectBookingPlanItem[],
+): PlanWholeBookingSelection['drafts'] => {
+  const fallback = buildInitialDrafts(booking);
+  const grouped: PlanWholeBookingSelection['drafts'] = {
+    rig: { dates: [], startTime: fallback.rig.startTime, endTime: fallback.rig.endTime },
+    event: { dates: [], startTime: fallback.event.startTime, endTime: fallback.event.endTime },
+    rigDown: { dates: [], startTime: fallback.rigDown.startTime, endTime: fallback.rigDown.endTime },
+  };
+  for (const item of workdays) {
+    const phase = (item.source_booking_phase ?? item.phase) as 'rig' | 'event' | 'rigDown' | null;
+    if (phase !== 'rig' && phase !== 'event' && phase !== 'rigDown') continue;
+    if (!item.plan_date) continue;
+    grouped[phase].dates.push(item.plan_date);
+    if (item.start_time) grouped[phase].startTime = item.start_time.slice(0, 5);
+    if (item.end_time) grouped[phase].endTime = item.end_time.slice(0, 5);
+  }
+  for (const phase of ['rig', 'event', 'rigDown'] as const) {
+    grouped[phase].dates = Array.from(new Set(grouped[phase].dates)).sort();
+  }
+  return grouped;
+};
+
 const SectionHeader = ({
   title,
   icon: Icon,
@@ -180,7 +208,13 @@ const BookingPlannerWorkspace = ({
   );
 
   const workdayItems = useMemo(
-    () => bookingItems.filter((it) => it.item_type === 'booking'),
+    () =>
+      bookingItems.filter(
+        (it) =>
+          it.item_type === 'booking' &&
+          it.source === 'booking' &&
+          !it.booking_product_id,
+      ),
     [bookingItems],
   );
 
@@ -265,12 +299,12 @@ const BookingPlannerWorkspace = ({
   const [savingPhases, setSavingPhases] = useState(false);
 
   useEffect(() => {
-    const init = buildInitialDrafts(booking);
+    const init = buildDraftsFromWorkdayItems(booking, workdayItems);
     setDrafts(init);
     setPlanRig(init.rig.dates.length > 0);
     setPlanEvent(init.event.dates.length > 0);
     setPlanRigDown(init.rigDown.dates.length > 0);
-  }, [booking]);
+  }, [booking.id, workdayItems]);
 
   // Scrolla till klickad dag när workspace öppnas
   const highlightRowRef = useRef<HTMLElement | null>(null);
