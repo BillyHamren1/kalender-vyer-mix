@@ -364,8 +364,8 @@ const LargeProjectPlannerChecklistView = ({
     const bookingKeys = Array.from(dateMap.keys()).sort((a, b) => {
       if (a === '__manual__') return 1;
       if (b === '__manual__') return -1;
-      const ia = bookings.findIndex((b) => b.id === a);
-      const ib = bookings.findIndex((b) => b.id === b.id);
+      const ia = bookings.findIndex((bk) => bk.id === a);
+      const ib = bookings.findIndex((bk) => bk.id === b);
       return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
     });
 
