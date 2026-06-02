@@ -62,8 +62,10 @@ export function useWarehouseOpsBoard() {
     queryKey: ["warehouse-ops-board"],
     refetchInterval: 30_000,
     staleTime: 25_000,
+    retry: false,
     queryFn: async () => {
       const cutoff48h = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+
 
       // 1. Fetch active or recently-signed packing_projects
       const { data: projects, error: projErr } = await supabase
@@ -131,10 +133,11 @@ export function useWarehouseOpsBoard() {
       if (bookingIds.length > 0) {
         const { data: bks } = await supabase
           .from("bookings")
-          .select("id,client,booking_number,rigdaydate,rigdowndate,event_type")
+          .select("id,client,booking_number,rigdaydate,rigdowndate")
           .in("id", bookingIds);
         bookingMap = new Map((bks || []).map((b: any) => [b.id, b]));
       }
+
 
       // 6. Group items per project & build workers per project
       const itemsByProject = new Map<string, any[]>();
@@ -192,10 +195,16 @@ export function useWarehouseOpsBoard() {
             .reverse()[0] || p.updated_at;
 
         const booking = p.booking_id ? bookingMap.get(p.booking_id) : null;
-        const eventType = (booking?.event_type as string | undefined)?.toLowerCase() || "";
+        // Härled riktning från packing-status (event_type finns inte på bookings)
+        const isReturnPhase =
+          p.status === "back" ||
+          p.status === "returning" ||
+          p.status === "returned" ||
+          p.status === "delivered";
         let direction: OpsDirection = "out";
-        if (eventType.includes("retur") || eventType.includes("in")) direction = "in";
+        if (isReturnPhase) direction = "in";
         if (!p.booking_id && p.warehouse_project_id) direction = "internal";
+
 
         const signedByName =
           (p.signed_by_staff_id && staffMap.get(p.signed_by_staff_id)) || p.signed_by || null;
