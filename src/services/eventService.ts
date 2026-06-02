@@ -161,28 +161,38 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
     ? extractMaxDate(realRows.map(event => event.source_date || event.start_time))
     : format(addDays(new Date(), 45), 'yyyy-MM-dd');
 
-  const [{ data: bookingsData, error: bookingsError }, { data: projectsData, error: projectsError }] = await Promise.all([
-    supabase
-      .from('bookings')
-      .select('id, client, title, booking_number, deliveryaddress, large_project_id, rigdaydate, eventdate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, status, rig_time_locked, event_time_locked, rigdown_time_locked, customer_pickup, calendar_color')
-      .or(`and(rigdaydate.gte.${fromDate},rigdaydate.lte.${toDate}),and(eventdate.gte.${fromDate},eventdate.lte.${toDate}),and(rigdowndate.gte.${fromDate},rigdowndate.lte.${toDate})`),
-    supabase
-      .from('large_projects')
-      .select('id, name, project_number, address, start_date, event_date, end_date, deleted_at')
-      .is('deleted_at', null),
+  const [bookingsRes, projectsRes] = await Promise.all([
+    withTimeout(
+      supabase
+        .from('bookings')
+        .select('id, client, title, booking_number, deliveryaddress, large_project_id, rigdaydate, eventdate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, status, rig_time_locked, event_time_locked, rigdown_time_locked, customer_pickup, calendar_color')
+        .or(`and(rigdaydate.gte.${fromDate},rigdaydate.lte.${toDate}),and(eventdate.gte.${fromDate},eventdate.lte.${toDate}),and(rigdowndate.gte.${fromDate},rigdowndate.lte.${toDate})`),
+      SECONDARY_QUERY_TIMEOUT_MS,
+      'bookings fallback window',
+    ).catch(err => ({ data: null, error: err as any })),
+    withTimeout(
+      supabase
+        .from('large_projects')
+        .select('id, name, project_number, address, start_date, event_date, end_date, deleted_at')
+        .is('deleted_at', null),
+      SECONDARY_QUERY_TIMEOUT_MS,
+      'large_projects fallback',
+    ).catch(err => ({ data: null, error: err as any })),
   ]);
 
+  const bookingsData = bookingsRes.data;
+  const bookingsError = bookingsRes.error;
+  const projectsData = projectsRes.data;
+  const projectsError = projectsRes.error;
+
   if (bookingsError) {
-    console.error('❌ [fetchCalendarEvents] Failed to fetch booking fallback rows:', bookingsError);
-    throw bookingsError;
+    console.warn('⚠️ [fetchCalendarEvents] Booking fallback fetch failed — fortsätter utan bookings-enrichment:', bookingsError);
   }
 
   if (projectsError) {
-    console.error('❌ [fetchCalendarEvents] Failed to fetch large project fallback rows:', projectsError);
-    throw projectsError;
+    console.warn('⚠️ [fetchCalendarEvents] Large project fallback fetch failed — fortsätter utan large-project-enrichment:', projectsError);
   }
 
-  const bookingRows = bookingsData || [];
   const bookingIds = Array.from(new Set(bookingRows.map(booking => booking.id).filter(Boolean))) as string[];
   const realBookingIds = Array.from(new Set(realRows.map((row: any) => row.booking_id).filter(Boolean))) as string[];
   // Union: master = any booking_id touched by either calendar_events or fallback bookings window
