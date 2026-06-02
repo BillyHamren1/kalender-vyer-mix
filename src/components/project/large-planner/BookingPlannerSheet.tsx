@@ -311,12 +311,12 @@ const BookingPlannerSheet = ({
 
   useEffect(() => {
     if (!open || !booking) return;
-    const init = buildInitialDrafts(booking);
+    const init = buildDraftsFromWorkdayItems(booking, workdayItems);
     setDrafts(init);
     setPlanRig(init.rig.dates.length > 0);
     setPlanEvent(init.event.dates.length > 0);
     setPlanRigDown(init.rigDown.dates.length > 0);
-  }, [open, booking]);
+  }, [open, booking?.id, workdayItems]);
 
   // Scrolla till klickad dag när panelen öppnas
   const highlightRowRef = useRef<HTMLElement | null>(null);
