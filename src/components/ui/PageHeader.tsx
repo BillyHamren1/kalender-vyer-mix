@@ -30,29 +30,75 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   const isWarehouse = variant === 'warehouse';
   const isPurple = variant === 'purple';
 
+  // Purple banner-style header (matches Booking teal banner UI, but in lila)
+  if (isPurple) {
+    return (
+      <div className={cn('mb-4', className)}>
+        <div
+          className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 px-6 py-5 rounded-2xl text-white shadow-[0_10px_28px_-14px_hsl(263_70%_40%/0.55)]"
+          style={{ background: 'var(--gradient-planner)' }}
+        >
+          {/* Left: icon tile + title block */}
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shadow-sm shrink-0">
+              <Icon
+                className="text-[hsl(var(--planner-deep))]"
+                style={{ width: 26, height: 26 }}
+              />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-2xl sm:text-[26px] font-bold tracking-tight text-white leading-tight truncate">
+                {title}
+              </h1>
+              {subtitle && (
+                <p className="text-white/85 text-sm mt-0.5 leading-tight truncate">
+                  {subtitle}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Right: extra children + primary action */}
+          <div className="flex items-center gap-2 shrink-0 [&_button]:rounded-xl">
+            {children && (
+              <div className="flex items-center gap-2 [&_button]:bg-white/15 [&_button]:text-white [&_button]:border-white/25 [&_button:hover]:bg-white/25 [&_button]:shadow-none">
+                {children}
+              </div>
+            )}
+            {action && (
+              <Button
+                onClick={action.onClick}
+                size="sm"
+                className="font-semibold rounded-xl px-4 h-10 bg-white text-[hsl(var(--planner-deep))] hover:bg-white/90 shadow-sm"
+              >
+                {action.icon && <action.icon className="h-4 w-4 mr-1.5" />}
+                {action.label}
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Default & warehouse: untouched card style
   const getIconBackground = () => {
     if (isWarehouse) return 'linear-gradient(135deg, hsl(38 92% 55%) 0%, hsl(32 95% 40%) 100%)';
-    if (isPurple) return 'linear-gradient(135deg, hsl(270 45% 60%) 0%, hsl(280 50% 45%) 100%)';
     return 'var(--gradient-icon)';
   };
 
   const getShadowClass = () => {
     if (isWarehouse) return 'shadow-warehouse/15';
-    if (isPurple) return 'shadow-[hsl(270_45%_55%)]/15';
     return 'shadow-primary/15';
   };
 
-  const wrapperClass = isPurple
-    ? 'flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 px-5 py-3.5 rounded-xl border border-[hsl(270_30%_86%)]/60 shadow-sm planning-hero'
-    : 'flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 px-5 py-3.5 rounded-xl bg-card border border-border/40 shadow-sm';
-
   return (
-    <div className={cn("mb-4", className)}>
-      <div className={wrapperClass}>
+    <div className={cn('mb-4', className)}>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 px-5 py-3.5 rounded-xl bg-card border border-border/40 shadow-sm">
         <div className="flex items-center gap-3">
           <div
             className={cn(
-              "w-9 h-9 rounded-lg flex items-center justify-center shadow-sm shrink-0",
+              'w-9 h-9 rounded-lg flex items-center justify-center shadow-sm shrink-0',
               getShadowClass()
             )}
             style={{ background: getIconBackground() }}
@@ -78,12 +124,10 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
               onClick={action.onClick}
               size="sm"
               className={cn(
-                "font-medium rounded-lg px-4 h-8",
+                'font-medium rounded-lg px-4 h-8',
                 isWarehouse
-                  ? "bg-warehouse hover:bg-warehouse-hover shadow-sm shadow-warehouse/20"
-                  : isPurple
-                    ? "planning-btn-primary px-4 h-8"
-                    : "bg-primary hover:bg-[hsl(var(--primary-hover))] shadow-sm shadow-primary/20"
+                  ? 'bg-warehouse hover:bg-warehouse-hover shadow-sm shadow-warehouse/20'
+                  : 'bg-primary hover:bg-[hsl(var(--primary-hover))] shadow-sm shadow-primary/20'
               )}
             >
               {action.icon && <action.icon className="h-4 w-4 mr-1.5" />}
