@@ -27,10 +27,19 @@ export const useRealTimeCalendarEvents = () => {
 
   // Enhanced event loading with batch fetching (replaces N+1 queries)
   const loadEvents = useCallback(async (force = false) => {
+    // Säkerhetsnät: oavsett vad som händer i finally-blocket ska UI:t
+    // aldrig fastna i evig spinner. Vi släpper isLoading/isMounted efter
+    // max 25s — kalendern visar då tom vy istället för låst skärm.
+    const watchdog = window.setTimeout(() => {
+      if (!activeRef.current) return;
+      console.warn('[useRealTimeCalendarEvents] Watchdog tripped — släpper loading-state efter 25s');
+      setIsLoading(false);
+      setIsMounted(true);
+    }, 25_000);
     try {
       setIsLoading(true);
 
-      const calendarEvents = await fetchCalendarEvents();
+
 
       if (activeRef.current) {
         // Collect all booking IDs for batch fetching (instead of N+1 queries)
