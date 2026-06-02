@@ -122,11 +122,6 @@ Deno.serve(async (req) => {
   if (updErr) return json({ error: "update_failed", detail: updErr.message }, 500);
 
   // Sync project_staff_time_cost_lines:
-  //  - approved  -> rebuild from submission snapshot
-  //  - needs_control / correction_requested -> delete old rows (not approved anymore)
-  // Vi rör ALDRIG time_reports / workdays / location_time_entries /
-  // travel_time_logs / day_attestations här.
-  // Sync project_staff_time_cost_lines:
   //  - countable status (approved / payroll_approved / needs_control) -> rebuild
   //  - excluded status (correction_requested / rejected)              -> delete
   // Vi rör ALDRIG time_reports / workdays / location_time_entries /
