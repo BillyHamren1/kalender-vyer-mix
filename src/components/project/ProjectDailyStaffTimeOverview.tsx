@@ -177,8 +177,9 @@ export function ProjectDailyStaffTimeOverview({ largeProjectId, bookingIds }: Pr
               <Badge
                 variant="outline"
                 className="border-orange-300 bg-orange-50 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200"
+                title="Antal personer planerade i personalkalendern som inte har rapporterat in tid."
               >
-                {totals.missing} saknas
+                {totals.missing} saknar rapport
               </Badge>
             )}
           </div>
