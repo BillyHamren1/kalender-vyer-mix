@@ -289,7 +289,15 @@ export function buildStaffDayTimeline(
 
   segments.sort((a, b) => a.startIso.localeCompare(b.startIso));
 
-  const payable_minutes = segments
+  // Travel allocation — kompletterar varje travel-segment med projekt-/jobbtillhörighet.
+  // Pure helper, ändrar inte kind/durations.
+  const blocksById = new Map<string, typeof blocks[number]>();
+  for (const b of blocks) blocksById.set(b.id, b);
+  const allocated = allocateTravelToProjects(segments, blocksById);
+  // Skriv om label/subtitle på travel-segmenten enligt allokering.
+  const finalSegments = allocated.map((s) => (s.kind === 'travel' ? applyTravelAllocationToLabel(s) : s));
+
+  const payable_minutes = finalSegments
     .filter((s) => s.payable)
     .reduce((sum, s) => sum + (s.durationMin || 0), 0);
 
@@ -299,20 +307,21 @@ export function buildStaffDayTimeline(
 
   const unresolvedFlagCount = flags.filter((f) => !f.resolved).length;
   const anomalyCount = model.proposedReport.anomalies.length;
-  const segmentReviewCount = segments.filter((s) => s.reviewRequired).length;
+  const segmentReviewCount = finalSegments.filter((s) => s.reviewRequired).length;
   const review_count = unresolvedFlagCount + anomalyCount + segmentReviewCount;
   const review_required = review_count > 0;
 
   let status: StaffDayStatus;
-  if (!wd && segments.length === 0) {
+  if (!wd && finalSegments.length === 0) {
     status = 'no_workday';
   } else if (review_required) {
     status = 'review_required';
-  } else if (workday_end && !segments.some((s) => s.ongoing)) {
+  } else if (workday_end && !finalSegments.some((s) => s.ongoing)) {
     status = 'closed';
   } else {
     status = 'open';
   }
+
 
   return {
     staff_id,
