@@ -373,7 +373,37 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
       />
 
       <div className="min-w-0 min-h-0 flex flex-1 flex-col overflow-hidden">
-        {viewMode === 'gantt' ? (
+        {plannerSheetBookingId ? (
+          (() => {
+            const selectedBooking = bookingById.get(plannerSheetBookingId);
+            if (!selectedBooking) {
+              // Säkerhetsnät: bokningen finns inte längre i contexten — gå tillbaka.
+              return (
+                <div className="flex flex-1 items-center justify-center p-8 text-sm text-muted-foreground">
+                  Bokningen kunde inte hittas.
+                </div>
+              );
+            }
+            return (
+              <BookingPlannerWorkspace
+                booking={selectedBooking}
+                items={items}
+                staff={staff}
+                highlightDate={plannerSheetHighlightDate}
+                onBack={() => {
+                  setPlannerSheetBookingId(null);
+                  setPlannerSheetHighlightDate(null);
+                }}
+                onCreateTodoForBooking={(b, defaultDate) => openCreateTodoDialog(b, undefined, defaultDate)}
+                onCreateTodoForProduct={(b, p, defaultDate) => openCreateTodoDialog(b, p, defaultDate)}
+                onPlanWholeBooking={handlePlanWholeBooking}
+                onItemClick={(it) => setQuickEditId(it.id)}
+                onItemDelete={(it) => handleItemDelete(it.id)}
+                onToggleItemStatus={handleToggleItemStatus}
+              />
+            );
+          })()
+        ) : viewMode === 'gantt' ? (
           <LargeProjectPlannerGanttView ctx={ctx} />
         ) : viewMode === 'checklist' ? (
           <LargeProjectPlannerChecklistView
