@@ -193,13 +193,19 @@ const BookingPlannerSheet = ({
     [booking, items],
   );
 
-  // Arbetsdagar = item_type='booking' (fasblock i projektkalendern)
+  // Arbetsdagar = item_type='booking' + source='booking' + ej orderrad
   const workdayItems = useMemo(
-    () => bookingItems.filter((it) => it.item_type === 'booking'),
+    () =>
+      bookingItems.filter(
+        (it) =>
+          it.item_type === 'booking' &&
+          it.source === 'booking' &&
+          !it.booking_product_id,
+      ),
     [bookingItems],
   );
 
-  // Todos = allt utom item_type='booking'
+  // Todos = task/manual
   const todoItems = useMemo(
     () => bookingItems.filter((it) => it.item_type === 'task' || it.item_type === 'manual'),
     [bookingItems],
