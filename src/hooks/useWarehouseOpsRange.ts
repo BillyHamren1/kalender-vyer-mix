@@ -125,7 +125,9 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
     queryKey: ["warehouse-ops-range", format(anchorDate, "yyyy-MM-dd"), mode],
     refetchInterval: 30_000,
     staleTime: 25_000,
+    retry: false,
     queryFn: async () => {
+
       const { start, end } = getRange(anchorDate, mode);
       const startISO = start.toISOString();
       const endISO = end.toISOString();
@@ -150,11 +152,12 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
         const { data: bks } = await supabase
           .from("bookings")
           .select(
-            "id,client,booking_number,rigdaydate,rigdowndate,rig_start_time,rigdown_start_time,event_type"
+            "id,client,booking_number,rigdaydate,rigdowndate,rig_start_time,rigdown_start_time"
           )
           .in("id", bookingIds);
         bookingMap = new Map((bks || []).map((b: any) => [b.id, b]));
       }
+
 
       // 2. Items för progress
       const ids = list.map((p) => p.id);
