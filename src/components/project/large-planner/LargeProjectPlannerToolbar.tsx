@@ -30,6 +30,8 @@ const LargeProjectPlannerToolbar = ({
   onRefresh,
   onSeedFromBookings,
   onCreateManual,
+  viewMode = 'calendar',
+  onViewModeChange,
 }: Props) => {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-primary/5 px-3 py-2">
