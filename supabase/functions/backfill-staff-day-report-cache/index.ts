@@ -618,9 +618,10 @@ async function processOne(
             engine_version: engineVersion,
             summary_json: summary,
             report_candidate_blocks_json: blocksForCache,
-            // ── Time Legacy Purge: backfill skriver INTE display_blocks_json ──
-            // Endast DisplayTimelineV2-pipelinen får skriva display_blocks_json.
-            // Vi rör inte kolumnen alls här (befintliga värden bevaras orörda).
+            // ── Minsta säkra fix: spegla display_blocks_json från canonical-projektionen ──
+            // När canonicalBlocks finns skrivs samma blocklista även till display_blocks_json
+            // (matchar backfill-cache-canonical). Annars rörs kolumnen inte.
+            ...(canonicalBlocks ? { display_blocks_json: canonicalBlocks } : {}),
             diagnostics_json: {
               ...((report as any).diagnostics ?? {}),
               // ── Canonical projection (GPS-veckovyn = sanningen) ──
