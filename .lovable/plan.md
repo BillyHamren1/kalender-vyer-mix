@@ -1,119 +1,47 @@
-# Plan — Restid får projekttillhörighet (utan att restid göms)
+# Fix: avbokningar fastnar i Booking-systemet och syncas aldrig hit
 
-Mål: varje `travel`-segment ska veta vilket projekt/jobb kostnaden tillhör, visas tydligt i tidslinjen, och summeras separat per projekt. Inga GPS-, geofence-, klassnings- eller pipelineändringar.
+## Problem (rotorsak, inte symptom)
 
-## 1. Datamodell — utöka `StaffDaySegment`
+`incremental-sync-all-orgs` frågar externa Booking-API:t med `?since=<last_sync_timestamp>`. För 2606-1 (och troligen andra avbokade bokningar) returnerar externa API:t **0 rader** — antingen för att avbokningen inte bumpade `updated_at` där, eller för att deras `export_bookings`-endpoint filtrerar bort `status=CANCELLED` ur svaret.
 
-Fil: `src/lib/staff/staffDayTimeline.ts`
+Konsekvens: CANCELLED-grenen i `import-bookings` (rad 2558) körs aldrig för dessa bokningar. `bookings.status` förblir `CONFIRMED`, projektet `planning`, och `calendar_events` ligger kvar i kalendern.
 
-Lägg till valfria fält på `StaffDaySegment` (bara meningsfulla när `kind==='travel'`):
+Det här är inte en bugg på *denna* bokning — det är en strukturell svaghet i hela pull-syncen. **Vi kan inte lita på `?since` för att fånga avbokningar.**
 
-```ts
-travelBelongsToProjectId?: string | null;
-travelBelongsToProjectName?: string | null;
-travelBelongsToTargetId?: string | null;   // booking/large_project/location id
-travelBelongsToTargetName?: string | null;
-travelAllocationReason?:
-  | 'travel_to_first_job'
-  | 'travel_between_jobs_allocated_to_destination'
-  | 'travel_after_last_job_allocated_to_last_job'
-  | 'travel_to_private_not_allocated'
-  | 'unresolved_travel_allocation';
-```
+## Lösning: aktiv cancellation-reconciler
 
-Ingen migration. Endast TS-typer.
+Lägg till en ny edge function `reconcile-booking-status` som körs på cron (var 5–10 min). Den gör:
 
-## 2. Allokeringsmotor (pure helper)
+1. Hämta alla lokala bokningar per organization där:
+   - `status IN ('CONFIRMED', 'OFFER')`
+   - `rigdaydate` eller `eventdate` ligger inom ett rullande fönster (t.ex. dagens datum till +90 dagar)
+2. Anropa externa Booking-API:t i batch (eller per bokning via `?booking_id=…`) och hämta aktuell `status`.
+3. För varje bokning där lokal status ≠ extern status:
+   - Återanvänd **exakt samma logik** som idag finns i `import-bookings/index.ts` rad 2558–2689 (uppdatera status, radera calendar_events, sätta projects/jobs till `cancelled`, ta bort packing). Lyft ut den till `_shared/cancellation-handler.ts` så båda funktionerna delar kod.
+   - Logga reconciliation-händelsen så vi ser hur ofta detta räddar oss.
+4. Skriv en sync_state-rad med `sync_type='cancellation_reconcile'` så vi har historik.
 
-Ny fil: `src/lib/staff/allocateTravelToProjects.ts`
+## Schemaläggning
 
-```ts
-allocateTravelToProjects(timeline: StaffDayTimeline): StaffDayTimeline
-```
+Lägg till en pg_cron-rad som triggar `reconcile-booking-status` var 10:e minut, separat från `incremental-sync-all-orgs`. (Behöver göras via insert-tool, inte migration, eftersom URL+anon-key är miljöspecifikt — enligt projektets cron-konvention.)
 
-Regler (kör efter `buildStaffDayTimeline`, muterar inte segmenten utöver de nya fälten):
-- Iterera segments i tidsordning.
-- För varje `kind==='travel'`-segment, hitta:
-  - **nextWork** = nästa segment där `kind in {project, warehouse}`
-  - **prevWork** = föregående segment där `kind in {project, warehouse}`
-- Allokering:
-  - Travel före första arbete + nextWork finns → `travel_to_first_job`, ärver project/target från nextWork.
-  - Travel mellan två arbetsblock → `travel_between_jobs_allocated_to_destination`, ärver från nextWork.
-  - Travel efter sista arbete (ingen nextWork) + prevWork finns → `travel_after_last_job_allocated_to_last_job`, ärver från prevWork.
-  - Om endpoint i JourneyBlock pekar på `private`/`home` (kolla `toPlace.kind`/`fromPlace.kind` när tillgängligt) och ingen nextWork inom dagen → `travel_to_private_not_allocated`, lämna projektfält null.
-  - Annars → `unresolved_travel_allocation`.
-- Source för project/target-ID: läs från segmentets `sourceBlockId` → motsvarande presence-block i `model.blocks` (har `resolvedPlace.projectId` / `targetId`). Hämta via en helper som tar `blocks: DayBlock[]` som andra argument: `allocateTravelToProjects(timeline, blocks)`.
+## Backfill / engångskörning
 
-Anrops-punkt: i slutet av `buildStaffDayTimeline` innan return.
-
-## 3. UI — visa allokering i tidslinjen
-
-Fil: `src/lib/staff/staffDayTimeline.ts` `journeyToSegment` — uppdatera subtitle/label är OK men behåll `kind='travel'`.
-
-Visning i `StaffTimeReportDetail.tsx`, `DayJournalRow.tsx`, `StaffGanttView.tsx`, `MyDayTimeline.tsx`:
-- Label per reason:
-  - `travel_to_first_job` / `travel_between_jobs_allocated_to_destination` → "Resa till {projectName}"
-  - `travel_after_last_job_allocated_to_last_job` → "Resa från {projectName}"
-  - `travel_to_private_not_allocated` → "Resa hem"
-  - `unresolved_travel_allocation` → "Resa"
-- Undertext:
-  - allokerad → "Registreras på {projectName}"
-  - unresolved → "Behöver kontroll – inget projekt kunde kopplas" + `reviewRequired=true`
-  - private → "Privat resa – ej registrerad på projekt"
-
-Sätt `reviewRequired=true` på `unresolved_travel_allocation`.
-
-Behåll alla travel-rader som egna rader. Slå aldrig ihop med arbetsblock.
-
-## 4. Projekttid — separat travel-summering
-
-Fil: `src/lib/projects/projectHoursFromTimeEngine.ts`
-
-Lägg till per projekt:
-- `workMinutes` (oförändrat — befintlig logik)
-- `travelMinutes` (nytt) = summa av segmentens minuter där `kind==='travel'` och `travelBelongsToProjectId === projectId`
-- `totalMinutes = workMinutes + travelMinutes`
-
-Returnera båda så projektvyn kan rendera:
-```
-Arbete: 8h 30m
-Restid: 44m
-Totalt:  9h 14m
-```
-
-Uppdatera `ProjectAutoTimeSection.tsx` (+ ev. `useGetProjectTimeSummary`) att visa restid på egen rad under arbete.
-
-## 5. Personens dagstotal
-
-Personens total är oförändrad (`payable_minutes` summerar redan project+warehouse+travel). Säkerställ bara att UI inte dubbelräknar travel när det visar projekttotaler.
-
-## 6. Tester
-
-Nya filer:
-- `src/lib/staff/__tests__/allocateTravelToProjects.test.ts` — täcker alla 5 reasons + edge cases (endast travel, travel→travel utan arbete, travel mellan samma projekt, sista travel utan nextWork).
-- `src/lib/projects/__tests__/projectHoursTravelAllocation.test.ts` — projekt får `travelMinutes` från resa som pekar på projektet, inte från resa till annat projekt.
-
-Befintliga tester körs: `bunx vitest run` efter ändringarna.
-
-## Tekniska detaljer
-
-- Pure helper, inga DB-anrop, ingen edge function.
-- `kind` förblir `'travel'` — bara metadata läggs till.
-- Travel som idag har `reviewRequired=true` (uncertain journey) behåller det; allokeringen kan ytterligare sätta `reviewRequired` vid `unresolved_travel_allocation`.
-- Hem/privat detekteras via `JourneyBlock.toPlace.kind === 'home' | 'private'` om fältet finns, annars heuristiskt: om sista travel på dagen och `toPlace` inte är ett känt projekt/warehouse → privat.
-
-## Förbjudet (bekräftat följt)
-
-Ingen ändring av: GPS-pings, geofence, råhämtning, Time Engine-pipeline, klassning av travel vs work, ihopslagning av travel+work, dölj/gömning av travel.
+Första körningen av reconcilern kommer att städa upp 2606-1 och alla andra bokningar som hängt sig i samma fälla. Ingen separat migration krävs — reconcilern är idempotent.
 
 ## Filer som ändras
 
-- `src/lib/staff/staffDayTimeline.ts` (typer + journeyToSegment subtitle)
-- `src/lib/staff/allocateTravelToProjects.ts` (ny)
-- `src/lib/projects/projectHoursFromTimeEngine.ts` (separat travelMinutes)
-- `src/components/project/ProjectAutoTimeSection.tsx` (visa restid)
-- `src/components/staff/StaffTimeReportDetail.tsx` (subtitle/label)
-- `src/components/staff/DayJournalRow.tsx` (subtitle/label)
-- `src/components/staff/StaffGanttView.tsx` (tooltip/label)
-- `src/components/mobile-app/MyDayTimeline.tsx` (label)
-- Tester (2 nya filer)
+- **Ny:** `supabase/functions/reconcile-booking-status/index.ts`
+- **Ny:** `supabase/functions/_shared/cancellation-handler.ts` (extraherad logik)
+- **Ändrad:** `supabase/functions/import-bookings/index.ts` — anropar nya shared-helpern istället för inline-blocket (gör koden lättare och säkrare att dela).
+- **Ny:** `supabase/functions/reconcile-booking-status/index.test.ts` — Deno-test som mockar externa API och verifierar att en bokning som lokalt är `CONFIRMED` men externt `CANCELLED` triggar fullständig städning.
+- **Ny:** cron-insert (via `supabase--read_query`-systrar/insert-flödet).
+
+## Vad detta INTE löser
+
+- Om externa Booking-API:t inte ens svarar med korrekt status när vi explicit frågar, måste det fixas där. Reconcilern täcker fallet då avbokningen *finns* externt men inte exporteras via `?since`.
+- Ändrar inte hur planeraren/kalendern *renderar* — när städningen körts försvinner blocket av sig självt eftersom `calendar_events`-raden tas bort.
+
+## Memory-uppdatering
+
+Efter implementation: uppdatera `mem://features/planning/data-sync-integrity-v3` med en notering om reconcilern, så framtida arbete vet att avbokningar har två oberoende vägar in (incremental + reconcile).
