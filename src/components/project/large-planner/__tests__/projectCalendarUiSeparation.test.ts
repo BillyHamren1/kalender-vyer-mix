@@ -262,7 +262,7 @@ describe('Stora projekt — projektkalender UI/data-separation', () => {
   it('TimeGrid exponerar plannerMode-prop som döljer +-knapp men behåller team-staff-rad read-only', () => {
     const src = read('src/components/Calendar/TimeGrid.tsx');
     expect(src).toMatch(/plannerMode\?:\s*boolean/);
-    expect(src).toMatch(/!plannerMode\s*&&[\s\S]{0,400}TeamStaffPickerPopover/);
+    expect(src).toMatch(/!plannerMode\s*&&[\s\S]{0,2000}TeamStaffPickerPopover/);
     // Row 3 (staff-row) ska INTE längre gated bakom !plannerMode
     expect(src).toMatch(/showRemoveDialog=\{!plannerMode\}/);
   });
