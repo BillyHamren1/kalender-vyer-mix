@@ -77,6 +77,12 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
   const [quickEditId, setQuickEditId] = useState<string | null>(null);
   const [plannerSheetBookingId, setPlannerSheetBookingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<PlannerViewMode>('calendar');
+  const [bookingsDrawerOpen, setBookingsDrawerOpen] = useState(false);
+
+  const todosCount = useMemo(
+    () => items.filter((it) => it.item_type !== 'booking').length,
+    [items],
+  );
 
   const bookingById = useMemo(() => {
     const map = new Map<string, LargeProjectPlannerBooking>();
