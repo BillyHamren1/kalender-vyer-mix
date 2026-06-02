@@ -180,7 +180,13 @@ const BookingPlannerWorkspace = ({
   );
 
   const workdayItems = useMemo(
-    () => bookingItems.filter((it) => it.item_type === 'booking'),
+    () =>
+      bookingItems.filter(
+        (it) =>
+          it.item_type === 'booking' &&
+          it.source === 'booking' &&
+          !it.booking_product_id,
+      ),
     [bookingItems],
   );
 
