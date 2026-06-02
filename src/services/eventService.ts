@@ -48,6 +48,33 @@ export interface CalendarEventUpdate {
 
 // ─── READ OPERATIONS ───────────────────────────────────────
 
+/**
+ * Wrappar en PostgREST-request med timeout så att en hängande nätverksrequest
+ * aldrig kan låsa hela kalender-laddningen. Returnerar samma form som
+ * Supabase ({ data, error, ... }) så kallande kod inte behöver särfall.
+ */
+const withTimeout = async <T,>(
+  promise: PromiseLike<T>,
+  ms: number,
+  label: string,
+): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`[fetchCalendarEvents] Timeout efter ${ms}ms: ${label}`));
+    }, ms);
+  });
+  try {
+    return await Promise.race([Promise.resolve(promise), timeoutPromise]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+};
+
+const PRIMARY_QUERY_TIMEOUT_MS = 15_000;
+const SECONDARY_QUERY_TIMEOUT_MS = 10_000;
+
+
 export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
   const t0 = performance.now();
   console.log('📅 [fetchCalendarEvents] Starting fetch...');
