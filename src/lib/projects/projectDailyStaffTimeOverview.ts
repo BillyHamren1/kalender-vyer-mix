@@ -43,6 +43,17 @@ export interface ApprovedRowInput {
   staff_id: string;
   minutes: number;
   cost: number;
+  /**
+   * Defaultas till 'approved' så befintliga tester och konsumenter inte
+   * går sönder. Hooken sätter alltid det riktiga värdet baserat på
+   * submission_status.
+   */
+  approvalState?: 'approved' | 'unapproved';
+  hourlyRate?: number;
+  startAt?: string | null;
+  endAt?: string | null;
+  rateSource?: string | null;
+  submissionStatus?: string | null;
 }
 
 export interface DailyStaffRow {
@@ -55,6 +66,15 @@ export interface DailyStaffRow {
   submissionStatus: string | null;
   approvedMinutes: number;
   approvedCost: number;
+  unapprovedMinutes: number;
+  unapprovedCost: number;
+  totalMinutes: number;
+  totalCost: number;
+  hourlyRate: number | null;
+  rateSource: string | null;
+  startAt: string | null;
+  endAt: string | null;
+  approvalState: 'approved' | 'unapproved' | 'none';
 }
 
 export interface DailyOverviewRow {
@@ -68,6 +88,12 @@ export interface DailyOverviewRow {
     extra: number;
     approvedMinutes: number;
     approvedCost: number;
+    unapprovedMinutes: number;
+    unapprovedCost: number;
+    totalMinutes: number;
+    totalCost: number;
+    staffCount: number;
+    hasUnapproved: boolean;
   };
 }
 
