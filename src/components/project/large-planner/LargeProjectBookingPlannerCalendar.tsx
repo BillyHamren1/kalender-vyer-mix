@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+
 import type { CalendarEvent } from '@/components/Calendar/ResourceData';
 
 import LargeProjectPlannerToolbar, { type PlannerViewMode } from './LargeProjectPlannerToolbar';
