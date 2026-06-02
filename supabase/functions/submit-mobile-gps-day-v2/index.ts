@@ -633,6 +633,21 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  // Bygg om project_staff_time_cost_lines direkt så projektets timmar
+  // syns/uppdateras utan att vänta på admin-attest.
+  let costLinesResult: unknown = null;
+  try {
+    if ((data as any)?.id) {
+      costLinesResult = await rebuildProjectStaffTimeCostLinesForSubmission(
+        admin,
+        (data as any).id as string,
+      );
+    }
+  } catch (e) {
+    console.error("[submit-mobile-gps-day-v2] cost-lines rebuild failed", e);
+    costLinesResult = { error: String((e as Error)?.message ?? e) };
+  }
+
   return json({
     ok: true,
     source: sourceTag,
@@ -646,5 +661,6 @@ Deno.serve(async (req: Request) => {
       userComment,
     },
     priorStatus,
+    cost_lines: costLinesResult,
   });
 });
