@@ -88,6 +88,13 @@ export default {
 						border: 'hsl(var(--planning-rigdown-border) / <alpha-value>)',
 						foreground: 'hsl(var(--planning-rigdown-foreground) / <alpha-value>)'
 					}
+				},
+				planner: {
+					DEFAULT: 'hsl(var(--planner))',
+					foreground: 'hsl(var(--planner-foreground))',
+					soft: 'hsl(var(--planner-soft))',
+					'soft-foreground': 'hsl(var(--planner-soft-foreground))',
+					deep: 'hsl(var(--planner-deep))'
 				}
 			},
 			borderRadius: {

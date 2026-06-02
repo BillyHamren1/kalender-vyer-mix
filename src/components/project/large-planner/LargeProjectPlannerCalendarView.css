@@ -10,7 +10,7 @@
   display: flex;
   flex-direction: column;
   background:
-    radial-gradient(circle at top left, hsl(var(--primary) / 0.04), transparent 55%),
+    radial-gradient(circle at top left, hsl(var(--planner) / 0.04), transparent 55%),
     hsl(var(--background));
 }
 
@@ -43,18 +43,18 @@
 }
 
 .large-planner-calendar-shell .weekly-day-card:hover {
-  border-color: hsl(var(--primary) / 0.35);
+  border-color: hsl(var(--planner) / 0.35);
   box-shadow:
     0 1px 2px hsl(var(--foreground) / 0.05),
-    0 10px 24px -14px hsl(var(--primary) / 0.25);
+    0 10px 24px -14px hsl(var(--planner) / 0.25);
 }
 
 /* Markera dagens kort med en subtil primary-glow */
 .large-planner-calendar-shell .weekly-day-card.is-today {
-  border-color: hsl(var(--primary) / 0.45);
+  border-color: hsl(var(--planner) / 0.45);
   box-shadow:
-    0 0 0 1px hsl(var(--primary) / 0.15),
-    0 8px 22px -12px hsl(var(--primary) / 0.3);
+    0 0 0 1px hsl(var(--planner) / 0.15),
+    0 8px 22px -12px hsl(var(--planner) / 0.3);
 }
 
 /* Mjuka upp interna grid-linjer i TimeGrid (om TimeGrid använder borders

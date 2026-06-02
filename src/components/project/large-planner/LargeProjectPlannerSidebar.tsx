@@ -142,7 +142,7 @@ const LargeProjectPlannerSidebar = ({
     return (
       <div
         key={booking.id}
-        className={`group/booking ${opts.compact ? 'w-[280px] shrink-0' : ''} rounded-xl border border-border/60 bg-card shadow-sm hover:shadow-md hover:border-primary/30 transition-all overflow-hidden`}
+        className={`group/booking ${opts.compact ? 'w-[280px] shrink-0' : ''} rounded-xl border border-border/60 bg-card shadow-sm hover:shadow-md hover:border-planner/30 transition-all overflow-hidden`}
       >
         {/* Status-band överst */}
         <div
@@ -150,14 +150,14 @@ const LargeProjectPlannerSidebar = ({
             isPlanned
               ? doneCount === its.length && its.length > 0
                 ? 'bg-emerald-500/70'
-                : 'bg-primary/60'
+                : 'bg-planner/60'
               : 'bg-muted-foreground/20'
           }`}
         />
         <div className="p-3 space-y-2.5">
           {/* Header: avatar + namn + status */}
           <div className="flex items-start gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 border border-primary/15 flex items-center justify-center shrink-0 text-[10.5px] font-bold text-primary tracking-wide">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-planner/15 to-planner/5 border border-planner/15 flex items-center justify-center shrink-0 text-[10.5px] font-bold text-planner tracking-wide">
               {initialsOf(client)}
             </div>
             <div className="min-w-0 flex-1">
@@ -172,7 +172,7 @@ const LargeProjectPlannerSidebar = ({
               </div>
             </div>
             {isPlanned ? (
-              <span className="inline-flex items-center gap-1 text-[9.5px] font-semibold px-1.5 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/15 shrink-0">
+              <span className="inline-flex items-center gap-1 text-[9.5px] font-semibold px-1.5 py-0.5 rounded-md bg-planner/10 text-planner border border-planner/15 shrink-0">
                 <CheckCircle2 className="h-2.5 w-2.5" />
                 Planerad
               </span>
@@ -218,7 +218,11 @@ const LargeProjectPlannerSidebar = ({
             <Button
               size="sm"
               variant={isPlanned ? 'outline' : 'default'}
-              className="h-7 flex-1 text-[10.5px] rounded-md shadow-sm font-medium"
+              className={
+                isPlanned
+                  ? 'h-7 flex-1 text-[10.5px] rounded-lg font-medium border-planner/25 text-planner hover:bg-planner/10 hover:text-planner hover:border-planner/40'
+                  : 'h-7 flex-1 text-[10.5px] rounded-lg font-medium bg-planner text-white hover:bg-planner/90 shadow-[0_2px_6px_-2px_hsl(var(--planner)/0.45)]'
+              }
               onClick={() => onSeedBooking(booking)}
             >
               Planera
@@ -227,7 +231,7 @@ const LargeProjectPlannerSidebar = ({
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 flex-1 text-[10.5px] rounded-md"
+                className="h-7 flex-1 text-[10.5px] rounded-lg font-medium"
                 onClick={() => onSplitBooking(booking)}
               >
                 Dela upp
@@ -269,8 +273,8 @@ const LargeProjectPlannerSidebar = ({
       <aside className="flex shrink-0 flex-col border-b border-border/60 bg-gradient-to-b from-muted/20 to-background">
         <div className="flex items-center gap-3 px-4 py-2.5 flex-wrap">
           <div className="flex items-center gap-2 text-[13px] font-semibold text-foreground">
-            <div className="h-7 w-7 rounded-lg bg-primary/10 ring-1 ring-primary/15 flex items-center justify-center">
-              <Inbox className="h-3.5 w-3.5 text-primary" />
+            <div className="h-7 w-7 rounded-lg bg-planner/10 ring-1 ring-planner/15 flex items-center justify-center">
+              <Inbox className="h-3.5 w-3.5 text-planner" />
             </div>
             Bokningar
             <span className="text-[10.5px] font-normal text-muted-foreground">
@@ -283,7 +287,8 @@ const LargeProjectPlannerSidebar = ({
                 key={f.key}
                 size="sm"
                 variant={filter === f.key ? 'default' : 'outline'}
-                className="h-7 px-2.5 text-[10.5px] rounded-md font-medium"
+                data-active={filter === f.key}
+                className={`h-7 px-2.5 text-[10.5px] rounded-lg font-medium transition-colors ${filter === f.key ? "bg-planner text-white hover:bg-planner/90 hover:text-white shadow-[0_2px_6px_-2px_hsl(var(--planner)/0.45)] border-planner" : "hover:text-planner hover:border-planner/40 hover:bg-planner/5"}`}
                 onClick={() => setFilter(f.key)}
               >
                 {f.label}
@@ -327,8 +332,8 @@ const LargeProjectPlannerSidebar = ({
     <aside className="flex w-80 shrink-0 flex-col border-l border-border/60 bg-gradient-to-b from-muted/15 to-background">
       <div className="border-b border-border/60 px-3 py-3 space-y-2.5 bg-background/60 backdrop-blur-sm">
         <div className="flex items-center gap-2 text-[13px] font-semibold text-foreground">
-          <div className="h-7 w-7 rounded-lg bg-primary/10 ring-1 ring-primary/15 flex items-center justify-center">
-            <Building2 className="h-3.5 w-3.5 text-primary" />
+          <div className="h-7 w-7 rounded-lg bg-planner/10 ring-1 ring-planner/15 flex items-center justify-center">
+            <Building2 className="h-3.5 w-3.5 text-planner" />
           </div>
           Bokningar i projektet
         </div>
@@ -338,7 +343,8 @@ const LargeProjectPlannerSidebar = ({
               key={f.key}
               size="sm"
               variant={filter === f.key ? 'default' : 'outline'}
-              className="h-7 px-2.5 text-[10.5px] rounded-md font-medium"
+                data-active={filter === f.key}
+              className={`h-7 px-2.5 text-[10.5px] rounded-lg font-medium transition-colors ${filter === f.key ? "bg-planner text-white hover:bg-planner/90 hover:text-white shadow-[0_2px_6px_-2px_hsl(var(--planner)/0.45)] border-planner" : "hover:text-planner hover:border-planner/40 hover:bg-planner/5"}`}
               onClick={() => setFilter(f.key)}
             >
               {f.label}

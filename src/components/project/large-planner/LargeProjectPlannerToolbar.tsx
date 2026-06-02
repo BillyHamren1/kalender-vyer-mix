@@ -40,23 +40,23 @@ const LargeProjectPlannerToolbar = ({
   onViewModeChange,
 }: Props) => {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 bg-gradient-to-b from-primary/[0.06] to-background px-4 py-3">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 bg-gradient-to-b from-planner/[0.05] via-card to-card px-5 py-3.5">
       {/* Vänster: identitet + meta */}
       <div className="flex items-center gap-3 min-w-0">
-        <div className="h-9 w-9 rounded-xl bg-primary/10 ring-1 ring-primary/15 flex items-center justify-center shrink-0">
-          <CalendarDays className="h-4 w-4 text-primary" />
+        <div className="h-10 w-10 rounded-xl bg-white ring-1 ring-planner/20 shadow-[0_2px_6px_-2px_hsl(var(--planner)/0.35)] flex items-center justify-center shrink-0">
+          <CalendarDays className="h-4.5 w-4.5 text-planner" />
         </div>
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-foreground leading-tight">
+          <div className="text-[13px] font-semibold text-foreground leading-tight tracking-tight">
             Projektplanering
           </div>
-          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
             {rangeLabel && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-muted/70 border border-border/60 font-medium tabular-nums">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-muted/70 border border-border/60 font-medium tabular-nums">
                 {rangeLabel}
               </span>
             )}
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-primary/8 border border-primary/15 text-primary/85 font-semibold tabular-nums">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-planner/10 border border-planner/20 text-planner font-semibold tabular-nums">
               {daysCount} {daysCount === 1 ? 'dag' : 'dagar'}
             </span>
           </div>
@@ -66,11 +66,11 @@ const LargeProjectPlannerToolbar = ({
       {/* Höger: vy + actions */}
       <div className="flex items-center gap-2 flex-wrap">
         {onViewModeChange && (
-          <div className="flex items-center rounded-lg border border-border/60 bg-background p-0.5 shadow-sm">
+          <div className="flex items-center rounded-xl border border-border/60 bg-background p-0.5 shadow-sm">
             <Button
               size="sm"
-              variant={viewMode === 'calendar' ? 'secondary' : 'ghost'}
-              className="h-7 px-2.5 text-[11px] rounded-md"
+              variant="ghost"
+              className={`h-7 px-3 text-[11px] rounded-lg font-medium transition-colors ${viewMode === 'calendar' ? 'bg-planner text-white hover:bg-planner/90 hover:text-white shadow-sm' : 'text-muted-foreground hover:text-planner hover:bg-planner/10'}`}
               onClick={() => onViewModeChange('calendar')}
               title="Kalendervy"
             >
@@ -79,8 +79,8 @@ const LargeProjectPlannerToolbar = ({
             </Button>
             <Button
               size="sm"
-              variant={viewMode === 'gantt' ? 'secondary' : 'ghost'}
-              className="h-7 px-2.5 text-[11px] rounded-md"
+              variant="ghost"
+              className={`h-7 px-3 text-[11px] rounded-lg font-medium transition-colors ${viewMode === 'gantt' ? 'bg-planner text-white hover:bg-planner/90 hover:text-white shadow-sm' : 'text-muted-foreground hover:text-planner hover:bg-planner/10'}`}
               onClick={() => onViewModeChange('gantt')}
               title="Gantt-vy (read-only)"
             >
@@ -92,7 +92,7 @@ const LargeProjectPlannerToolbar = ({
         <Button
           size="sm"
           variant="ghost"
-          className="h-8 rounded-lg"
+          className="h-8 rounded-lg text-muted-foreground hover:text-planner hover:bg-planner/10"
           onClick={onRefresh}
           disabled={isLoading || isMutating}
         >
@@ -104,16 +104,16 @@ const LargeProjectPlannerToolbar = ({
         <Button
           size="sm"
           variant="outline"
-          className="h-8 rounded-lg shadow-sm"
+          className="h-8 rounded-lg shadow-sm border-planner/25 text-planner hover:bg-planner/10 hover:text-planner hover:border-planner/40"
           onClick={onSeedFromBookings}
           disabled={isMutating}
         >
-          <Sparkles className="h-3.5 w-3.5 mr-1.5 text-primary" />
+          <Sparkles className="h-3.5 w-3.5 mr-1.5 text-planner" />
           Skapa plan från bokningar
         </Button>
         <Button
           size="sm"
-          className="h-8 rounded-lg shadow-sm"
+          className="h-8 rounded-lg shadow-[0_2px_8px_-2px_hsl(var(--planner)/0.45)] bg-planner text-white hover:bg-planner/90"
           onClick={onCreateManual}
           disabled={isMutating}
         >

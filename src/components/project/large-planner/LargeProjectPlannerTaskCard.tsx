@@ -26,7 +26,7 @@ interface Props {
 
 const STATUS_TONE: Record<LargeProjectBookingPlanItem['status'], string> = {
   unplanned: 'bg-muted/70 text-muted-foreground border border-border/60',
-  planned: 'bg-primary/12 text-primary border border-primary/20',
+  planned: 'bg-planner/12 text-planner border border-planner/20',
   in_progress:
     'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30',
   done: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30',
@@ -35,7 +35,7 @@ const STATUS_TONE: Record<LargeProjectBookingPlanItem['status'], string> = {
 
 const STATUS_ACCENT: Record<LargeProjectBookingPlanItem['status'], string> = {
   unplanned: 'bg-muted-foreground/30',
-  planned: 'bg-primary/60',
+  planned: 'bg-planner/60',
   in_progress: 'bg-amber-500/70',
   done: 'bg-emerald-500/70',
   blocked: 'bg-destructive/70',
@@ -58,7 +58,7 @@ const STATUS_LABEL: Record<LargeProjectBookingPlanItem['status'], string> = {
 };
 
 const SOURCE_TONE: Record<LargeProjectBookingPlanItem['source'], string> = {
-  booking: 'bg-primary/8 text-primary border-primary/20',
+  booking: 'bg-planner/8 text-planner border-planner/20',
   manual: 'bg-muted/60 text-foreground/70 border-border/60',
   split: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25',
 };
@@ -114,7 +114,7 @@ const LargeProjectPlannerTaskCard = ({
             }
           : undefined
       }
-      className={`group relative overflow-hidden rounded-lg border bg-card pl-2.5 pr-2 py-1.5 text-xs shadow-sm transition-all hover:shadow-md hover:border-primary/40 hover:bg-primary/[0.03] ${
+      className={`group relative overflow-hidden rounded-lg border bg-card pl-2.5 pr-2 py-1.5 text-xs shadow-sm transition-all hover:shadow-md hover:border-planner/40 hover:bg-planner/[0.03] ${
         STATUS_RING[item.status]
       } ${onClick ? 'cursor-pointer' : ''} ${
         draggable ? 'active:cursor-grabbing' : ''
