@@ -580,7 +580,10 @@ export async function resolveStaffDayReportSummariesBatch(args: {
     if (!subByKey.has(k)) subByKey.set(k, r);
   }
 
-  const cacheSelectLean = "staff_id, date, engine_version, summary_json, built_at, stale, error";
+  // Inkludera blocks-fälten så vi kan bygga rows[] via samma single-pipeline
+  // som mobil/admin-Gantt. Detta är fortfarande mycket lättare än hela
+  // diagnostics_json som medvetet är exkluderad här.
+  const cacheSelectLean = "staff_id, date, engine_version, summary_json, display_blocks_json, report_candidate_blocks_json, workday_allocation_segments_json, built_at, stale, error";
   const { data: cacheRows, error: cacheErr } = await admin
     .from("staff_day_report_cache")
     .select(cacheSelectLean)
