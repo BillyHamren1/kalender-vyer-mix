@@ -24,12 +24,14 @@ import type { CalendarEvent } from '@/components/Calendar/ResourceData';
 
 import LargeProjectPlannerToolbar, { type PlannerViewMode } from './LargeProjectPlannerToolbar';
 import LargeProjectPlannerSidebar from './LargeProjectPlannerSidebar';
+import LargeProjectPlannerChecklistView from './LargeProjectPlannerChecklistView';
 import SplitBookingIntoTasksDialog from './SplitBookingIntoTasksDialog';
 import ManualProjectTaskDialog from './ManualProjectTaskDialog';
 import LargeProjectPlannerQuickEditDialog from './LargeProjectPlannerQuickEditDialog';
 import LargeProjectPlannerCalendarView from './LargeProjectPlannerCalendarView';
 import LargeProjectPlannerGanttView from './LargeProjectPlannerGanttView';
 import BookingPlannerSheet, { type PlanWholeBookingSelection } from './BookingPlannerSheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useLargeProjectPlannerItems } from './useLargeProjectPlannerItems';
 import { plannerItemIdFromEventId } from './LargeProjectPlannerCalendarAdapter';
 import type { LargeProjectPlannerBooking } from './largeProjectPlannerTypes';
@@ -62,7 +64,7 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     createItem,
     updateItem,
     deleteItem,
-    createItemsFromBookings,
+    // createItemsFromBookings borttaget från UI — admin planerar varje bokning via sheet
     splitBooking,
     getAllowedStaffForDate,
     isStaffAllowedForDate,
@@ -75,6 +77,12 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
   const [quickEditId, setQuickEditId] = useState<string | null>(null);
   const [plannerSheetBookingId, setPlannerSheetBookingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<PlannerViewMode>('calendar');
+  const [bookingsDrawerOpen, setBookingsDrawerOpen] = useState(false);
+
+  const todosCount = useMemo(
+    () => items.filter((it) => it.item_type !== 'booking').length,
+    [items],
+  );
 
   const bookingById = useMemo(() => {
     const map = new Map<string, LargeProjectPlannerBooking>();
@@ -99,40 +107,8 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     void refetch();
   };
 
-  const handleSeedFromBookings = async () => {
-    try {
-      const result = await createItemsFromBookings();
-      const createdCount =
-        typeof result === 'object' && result && 'createdCount' in result
-          ? (result as { createdCount: number }).createdCount
-          : Array.isArray(result)
-            ? result.length
-            : 0;
-      const skippedCount =
-        typeof result === 'object' && result && 'skippedCount' in result
-          ? (result as { skippedCount: number }).skippedCount
-          : 0;
-      const errors =
-        typeof result === 'object' && result && 'errors' in result
-          ? (result as { errors: string[] }).errors
-          : [];
-
-      const parts: string[] = [`${createdCount} skapade`];
-      if (skippedCount > 0) parts.push(`${skippedCount} fanns redan`);
-      if (errors.length > 0) parts.push(`${errors.length} fel`);
-      const description = errors.length > 0 ? errors.slice(0, 3).join('\n') : undefined;
-
-      if (createdCount > 0) {
-        toast.success(`Plan från bokningar: ${parts.join(', ')}.`, { description });
-      } else if (errors.length > 0) {
-        toast.error(`Plan från bokningar: ${parts.join(', ')}.`, { description });
-      } else {
-        toast.info(`Plan från bokningar: ${parts.join(', ')}.`);
-      }
-    } catch (e) {
-      toast.error((e as Error).message || 'Kunde inte skapa plan från bokningar.');
-    }
-  };
+  // (Seed-från-bokningar är borttaget — admin planerar varje bokning aktivt
+  // via "Planera bokning" → BookingPlannerSheet för full kontroll.)
 
   /**
    * "Planera" på en bokning ÖPPNAR BookingPlannerSheet (full översikt
@@ -333,44 +309,77 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     <div className="flex h-full min-h-[600px] flex-col overflow-hidden rounded-2xl border border-border/60 bg-card shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.12)]">
       <LargeProjectPlannerToolbar
         daysCount={days.length}
+        bookingsCount={bookings.length}
+        todosCount={todosCount}
         rangeLabel={rangeLabel}
         isLoading={isLoading}
         isMutating={isMutating}
         onRefresh={handleRefresh}
-        onSeedFromBookings={handleSeedFromBookings}
         onCreateManual={() => handleCreateManual()}
+        onOpenBookingsDrawer={() => setBookingsDrawerOpen(true)}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
       />
 
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <LargeProjectPlannerSidebar
-          horizontal
-          bookings={bookings}
-          items={items}
-          staff={staff}
-          onSeedBooking={handleSeedBooking}
-          onSplitBooking={(b) => setSplitBookingId(b.id)}
-          onItemClick={(it) => setQuickEditId(it.id)}
-          onItemDelete={handleSidebarItemDelete}
-          onCreateManual={() => handleCreateManual()}
-          onCreateTodoForProduct={(booking, product) =>
-            openCreateTodoDialog(booking, product)
-          }
-        />
-
-        <div className="min-w-0 min-h-0 flex flex-1 flex-col overflow-hidden">
-          {viewMode === 'gantt' ? (
-            <LargeProjectPlannerGanttView ctx={ctx} />
-          ) : (
-            <LargeProjectPlannerCalendarView
-              largeProjectId={largeProjectId}
-              ctx={ctx}
-              onEventClick={handleCalendarEventClick}
-            />
-          )}
-        </div>
+      <div className="min-w-0 min-h-0 flex flex-1 flex-col overflow-hidden">
+        {viewMode === 'gantt' ? (
+          <LargeProjectPlannerGanttView ctx={ctx} />
+        ) : viewMode === 'checklist' ? (
+          <LargeProjectPlannerChecklistView
+            bookings={bookings}
+            items={items}
+            staff={staff}
+            onItemClick={(it) => setQuickEditId(it.id)}
+            onItemDelete={handleSidebarItemDelete}
+            onToggleItemStatus={(it, done) => handleToggleItemStatus(it, done)}
+            onCreateManual={() => handleCreateManual()}
+          />
+        ) : (
+          <LargeProjectPlannerCalendarView
+            largeProjectId={largeProjectId}
+            ctx={ctx}
+            onEventClick={handleCalendarEventClick}
+          />
+        )}
       </div>
+
+      {/* Bokningar — öppnas via "Planera bokning"-knappen i toolbar */}
+      <Sheet open={bookingsDrawerOpen} onOpenChange={setBookingsDrawerOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col gap-0">
+          <SheetHeader className="px-4 py-3 border-b border-border/60">
+            <SheetTitle className="text-sm font-semibold">Bokningar i projektet</SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <LargeProjectPlannerSidebar
+              bookings={bookings}
+              items={items}
+              staff={staff}
+              onSeedBooking={(b) => {
+                setBookingsDrawerOpen(false);
+                handleSeedBooking(b);
+              }}
+              onSplitBooking={(b) => {
+                setBookingsDrawerOpen(false);
+                setSplitBookingId(b.id);
+              }}
+              onItemClick={(it) => {
+                setBookingsDrawerOpen(false);
+                setQuickEditId(it.id);
+              }}
+              onItemDelete={handleSidebarItemDelete}
+              onCreateManual={() => {
+                setBookingsDrawerOpen(false);
+                handleCreateManual();
+              }}
+              onCreateTodoForProduct={(booking, product) => {
+                setBookingsDrawerOpen(false);
+                openCreateTodoDialog(booking, product);
+              }}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
+
 
       <SplitBookingIntoTasksDialog
         open={splitBookingId !== null}

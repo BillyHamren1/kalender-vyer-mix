@@ -117,8 +117,10 @@ export const mapPlannerItemsToCalendarEvents = (
   return items
     .filter((it) => !it.booking_product_id)
     // Dölj eventdagar — samma logik som personalkalendern (Staff Calendar No Event Day).
-    // Endast rig + rigDown visas. Andra item_type (task/manual/split) påverkas inte.
     .filter((it) => !(it.item_type === 'booking' && it.source_booking_phase === 'event'))
+    // Lugn kalender: ENDAST faseblock (booking-items) renderas i kalendern.
+    // Todos (task/manual/split) lever i Checklista-vyn — annars blir kalendern rörig.
+    .filter((it) => it.item_type === 'booking')
     .map((it) => {
       const startTime = normalizeTime(it.start_time, FALLBACK_START);
       const endTime = normalizeTime(it.end_time, FALLBACK_END);
