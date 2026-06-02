@@ -484,7 +484,10 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
       <BookingPlannerSheet
         open={plannerSheetBookingId !== null}
         onOpenChange={(open) => {
-          if (!open) setPlannerSheetBookingId(null);
+          if (!open) {
+            setPlannerSheetBookingId(null);
+            setPlannerSheetHighlightDate(null);
+          }
         }}
         booking={
           plannerSheetBookingId
@@ -493,8 +496,9 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
         }
         items={items}
         staff={staff}
-        onCreateTodoForBooking={(b) => openCreateTodoDialog(b)}
-        onCreateTodoForProduct={(b, p) => openCreateTodoDialog(b, p)}
+        highlightDate={plannerSheetHighlightDate}
+        onCreateTodoForBooking={(b, defaultDate) => openCreateTodoDialog(b, undefined, defaultDate)}
+        onCreateTodoForProduct={(b, p, defaultDate) => openCreateTodoDialog(b, p, defaultDate)}
         onPlanWholeBooking={handlePlanWholeBooking}
         onItemClick={(it) => setQuickEditId(it.id)}
         onItemDelete={(it) => handleItemDelete(it.id)}
