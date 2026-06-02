@@ -76,6 +76,36 @@ const NON_WORK_KINDS = new Set([
   "unclear_transport",
 ]);
 
+/**
+ * Submission-statusar som ska räknas in i projektets total. Dessa ger
+ * upphov till project_staff_time_cost_lines-rader.
+ *
+ * Approved-grupp:  approved, payroll_approved
+ * Oattesterade men inräknade: submitted, edited, ai_flagged,
+ *                             needs_user_attention, needs_control
+ */
+export const COUNTABLE_SUBMISSION_STATUSES = new Set<string>([
+  "submitted",
+  "edited",
+  "ai_flagged",
+  "needs_user_attention",
+  "needs_control",
+  "approved",
+  "payroll_approved",
+]);
+
+/**
+ * Submission-statusar där tiden ALDRIG ska räknas in i projektets total.
+ * För dessa raderar vi project_staff_time_cost_lines-rader.
+ */
+export const EXCLUDED_SUBMISSION_STATUSES = new Set<string>([
+  "draft",
+  "correction_requested",
+  "rejected",
+  "deleted",
+  "cancelled",
+]);
+
 function readKind(b: BlockLike): string | null {
   const k = (b?.kind ?? b?.type) as string | null | undefined;
   return k ? String(k).toLowerCase() : null;
