@@ -329,6 +329,7 @@ function buildSummaryFromSubmission(args: {
   const totalMinutes = Math.max(0, safeNumber(summary.payableMinutes || workMinutes + travelMinutes - breakMinutes));
   const normalMinutes = safeNumber(summary.normalMinutes);
   const overtimeMinutes = safeNumber(summary.overtimeMinutes);
+  const rows = rowsFromSubmissionSnapshot(submission.display_timeline_snapshot_json);
 
   return {
     staffId,
@@ -347,6 +348,7 @@ function buildSummaryFromSubmission(args: {
     reviewComment: submission.review_comment ?? null,
     cacheBuiltAt: null,
     engineVersion: null,
+    rows,
   };
 }
 
@@ -362,6 +364,13 @@ function buildSummaryFromCache(args: {
   const breakMinutes = safeNumber(summary.breakMinutes);
   const totalMinutes = Math.max(0, safeNumber(summary.payableMinutes ?? summary.totalMinutes ?? workMinutes + travelMinutes - breakMinutes));
   const normalMinutes = Math.max(0, totalMinutes - travelMinutes);
+
+  // Bygg rader genom samma single-pipeline-mapper som mobil + admin Gantt.
+  const picked = selectCacheBlockSource(cache);
+  const segments: MobileSegment[] = picked.source === "none"
+    ? []
+    : mapReportBlocksToSegments(picked.blocks, { source: picked.source });
+  const rows = rowsFromMobileSegments(segments);
 
   return {
     staffId,
@@ -380,6 +389,7 @@ function buildSummaryFromCache(args: {
     reviewComment: null,
     cacheBuiltAt: cache.built_at ?? null,
     engineVersion: cache.engine_version ?? null,
+    rows,
   };
 }
 
