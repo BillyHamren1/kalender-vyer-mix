@@ -139,7 +139,13 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
     booking: LargeProjectPlannerBooking,
     selection: import('./BookingPlannerSheet').PlanWholeBookingSelection,
   ) => {
-    const existingForBooking = items.filter((it) => it.booking_id === booking.id);
+    const existingForBooking = items.filter(
+      (it) =>
+        it.booking_id === booking.id &&
+        it.item_type === 'booking' &&
+        it.source === 'booking' &&
+        !it.booking_product_id,
+    );
 
     const phases: Array<{
       phase: 'rig' | 'event' | 'rigDown';
