@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   ArrowUp, ArrowDown, ArrowUpDown, GripVertical, Plus, Pencil, Trash2,
+  MapPin, Package, Layers, Hash, Building2,
 } from "lucide-react";
+
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
