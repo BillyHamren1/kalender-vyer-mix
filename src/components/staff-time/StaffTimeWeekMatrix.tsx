@@ -15,6 +15,7 @@ import { useStaffTimeWeekMatrix } from "@/hooks/staffTimeFlow/useStaffTimeWeekMa
 import StaffTimeWeekMatrixRow from "./StaffTimeWeekMatrixRow";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import StaffGpsSatelliteMap from "@/components/staff/StaffGpsSatelliteMap";
+import StaffTimeMatrixDayQuickView from "./StaffTimeMatrixDayQuickView";
 
 const WEEK_HEADERS = ["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"] as const;
 
