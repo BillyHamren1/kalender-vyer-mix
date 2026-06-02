@@ -630,9 +630,9 @@ async function processOne(
                 error: canonicalError,
                 ...(canonicalTotalsForDiag ?? {}),
               },
-              // ── Time Legacy Purge — legacy display_blocks_json får aldrig skrivas härifrån ──
-              legacyBackfillDisplayBlocksWritten: false,
-              canonicalDisplaySource: 'display_timeline_v2',
+              // display_blocks_json speglas från canonicalBlocks när dessa finns.
+              legacyBackfillDisplayBlocksWritten: !!canonicalBlocks,
+              canonicalDisplaySource: canonicalBlocks ? 'canonical_projection' : 'display_timeline_v2',
               sessionConsolidation: report.summary?.sessionConsolidationDiagnostics ?? null,
               // Time Engine 3.12 — samlad diagnostik-vy för felsökning av motorn.
               // Alla underdiagnostik-objekt äger fortfarande sina respektive
