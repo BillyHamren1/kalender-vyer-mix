@@ -64,7 +64,7 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     createItem,
     updateItem,
     deleteItem,
-    createItemsFromBookings,
+    // createItemsFromBookings borttaget från UI — admin planerar varje bokning via sheet
     splitBooking,
     getAllowedStaffForDate,
     isStaffAllowedForDate,
