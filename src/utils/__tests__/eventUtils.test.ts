@@ -119,6 +119,12 @@ describe('eventsEqual', () => {
     const b = [makeEvent({ resourceId: 'team-2' })];
     expect(eventsEqual(a, b)).toBe(false);
   });
+
+  it('different customerPickup flag returns false', () => {
+    const a = [makeEvent({ extendedProps: { customerPickup: true } })];
+    const b = [makeEvent({ extendedProps: { customerPickup: false } })];
+    expect(eventsEqual(a, b)).toBe(false);
+  });
 });
 
 // ─── filterEventsByResourceAndDate ────────────────────────
