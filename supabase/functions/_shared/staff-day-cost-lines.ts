@@ -2,19 +2,24 @@
  * staff-day-cost-lines.ts
  * =======================
  *
- * Bygger `project_staff_time_cost_lines` från en godkänd
+ * Bygger `project_staff_time_cost_lines` från en
  * `staff_day_submissions`-rad.
  *
  * REGLER:
  *  - staff_day_report_cache = Time Engine/GPS-FÖRSLAG. Får ALDRIG användas
  *    som faktisk projektkostnad.
- *  - staff_day_submissions = sanningen. Endast `approved` eller
- *    `payroll_approved` ger upphov till kostnadsrader.
+ *  - staff_day_submissions = sanningen. Alla "countable" statusar (se
+ *    COUNTABLE_SUBMISSION_STATUSES) ger upphov till kostnadsrader,
+ *    inte enbart approved/payroll_approved. Tiden ska synas i projektet
+ *    direkt när personalen rapporterat — admin-attest ändrar bara
+ *    status (oattesterad → godkänd), inte själva förekomsten.
  *  - Vi rör ALDRIG: time_reports, workdays, location_time_entries,
  *    travel_time_logs, day_attestations.
  *
- * Anropas från admin-attesten (`update-staff-day-submission-status`) varje
- * gång status flyttas till/från approved/payroll_approved.
+ * Anropas från:
+ *   - submit-staff-day-v3                (personal skickar in / korrigerar)
+ *   - submit-mobile-gps-day-v2           (personal skickar in via GPS-dag)
+ *   - update-staff-day-submission-status (admin ändrar status)
  */
 
 // deno-lint-ignore-file no-explicit-any
