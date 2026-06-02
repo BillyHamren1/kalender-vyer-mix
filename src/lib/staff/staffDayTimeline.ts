@@ -332,7 +332,7 @@ export function buildStaffDayTimeline(
     workday_suggested: !wd && workday_start != null,
     status,
     payable_minutes,
-    segments,
+    segments: finalSegments,
     review_required,
     review_count,
     evidence: {
