@@ -299,12 +299,12 @@ const BookingPlannerWorkspace = ({
   const [savingPhases, setSavingPhases] = useState(false);
 
   useEffect(() => {
-    const init = buildInitialDrafts(booking);
+    const init = buildDraftsFromWorkdayItems(booking, workdayItems);
     setDrafts(init);
     setPlanRig(init.rig.dates.length > 0);
     setPlanEvent(init.event.dates.length > 0);
     setPlanRigDown(init.rigDown.dates.length > 0);
-  }, [booking]);
+  }, [booking.id, workdayItems]);
 
   // Scrolla till klickad dag när workspace öppnas
   const highlightRowRef = useRef<HTMLElement | null>(null);
