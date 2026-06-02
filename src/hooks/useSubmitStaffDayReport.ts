@@ -26,7 +26,8 @@ export interface SubmitStaffDayUserEdit {
     | 'mark_supplier_as_dropoff'
     | 'link_address_to_project'
     | 'change_workday_end'
-    | 'add_block_comment';
+    | 'add_block_comment'
+    | 'add_manual_block';
   previousValue: unknown;
   newValue: unknown;
   userReason: string | null;
