@@ -33,7 +33,7 @@ const PHASE_LABEL: Record<Phase, string> = {
 
 const PHASE_CLS: Record<Phase, string> = {
   rig: 'bg-amber-500/80 hover:bg-amber-500',
-  event: 'bg-primary/80 hover:bg-primary',
+  event: 'bg-planner/80 hover:bg-primary',
   rigDown: 'bg-sky-500/80 hover:bg-sky-500',
   other: 'bg-muted-foreground/60 hover:bg-muted-foreground/80',
 };
@@ -146,7 +146,7 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
               <div
                 key={d.date}
                 className={`flex flex-col items-center justify-center border-l border-border/40 py-1 text-[10px] ${
-                  isToday ? 'bg-primary/10 font-semibold text-primary' : 'text-muted-foreground'
+                  isToday ? 'bg-planner/10 font-semibold text-planner' : 'text-muted-foreground'
                 }`}
                 style={{ width: colWidth }}
                 title={format(date, 'EEEE d MMMM yyyy', { locale: sv })}
@@ -205,7 +205,7 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
                     return (
                       <div
                         key={d.date}
-                        className={`border-l border-border/30 ${isToday ? 'bg-primary/5' : ''}`}
+                        className={`border-l border-border/30 ${isToday ? 'bg-planner/5' : ''}`}
                         style={{ width: colWidth }}
                       />
                     );

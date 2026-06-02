@@ -297,9 +297,9 @@ const LargeProjectPlannerPanel = ({ largeProjectId }: Props) => {
 
   return (
     <Card className="flex h-full min-h-[600px] flex-col overflow-hidden border-border/60">
-      <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-primary/5 px-3 py-2">
+      <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-planner/5 px-3 py-2">
         <div className="flex items-center gap-1.5 text-sm font-semibold">
-          <ListChecks className="h-4 w-4 text-primary" />
+          <ListChecks className="h-4 w-4 text-planner" />
           Planera projektet
         </div>
         <div className="flex items-center gap-1">
