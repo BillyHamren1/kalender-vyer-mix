@@ -22,12 +22,13 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import type { CalendarEvent } from '@/components/Calendar/ResourceData';
 
-import LargeProjectPlannerToolbar from './LargeProjectPlannerToolbar';
+import LargeProjectPlannerToolbar, { type PlannerViewMode } from './LargeProjectPlannerToolbar';
 import LargeProjectPlannerSidebar from './LargeProjectPlannerSidebar';
 import SplitBookingIntoTasksDialog from './SplitBookingIntoTasksDialog';
 import ManualProjectTaskDialog from './ManualProjectTaskDialog';
 import LargeProjectPlannerQuickEditDialog from './LargeProjectPlannerQuickEditDialog';
 import LargeProjectPlannerCalendarView from './LargeProjectPlannerCalendarView';
+import LargeProjectPlannerGanttView from './LargeProjectPlannerGanttView';
 import BookingPlannerSheet, { type PlanWholeBookingSelection } from './BookingPlannerSheet';
 import { useLargeProjectPlannerItems } from './useLargeProjectPlannerItems';
 import { plannerItemIdFromEventId } from './LargeProjectPlannerCalendarAdapter';
@@ -73,6 +74,7 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
   const [manualDefaults, setManualDefaults] = useState<ManualDefaults>({});
   const [quickEditId, setQuickEditId] = useState<string | null>(null);
   const [plannerSheetBookingId, setPlannerSheetBookingId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<PlannerViewMode>('calendar');
 
   const bookingById = useMemo(() => {
     const map = new Map<string, LargeProjectPlannerBooking>();
@@ -337,6 +339,8 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
         onRefresh={handleRefresh}
         onSeedFromBookings={handleSeedFromBookings}
         onCreateManual={() => handleCreateManual()}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
       />
 
       <div className="flex flex-1 flex-col overflow-hidden">
@@ -356,11 +360,15 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
         />
 
         <div className="min-w-0 min-h-0 flex flex-1 flex-col overflow-hidden">
-          <LargeProjectPlannerCalendarView
-            largeProjectId={largeProjectId}
-            ctx={ctx}
-            onEventClick={handleCalendarEventClick}
-          />
+          {viewMode === 'gantt' ? (
+            <LargeProjectPlannerGanttView ctx={ctx} />
+          ) : (
+            <LargeProjectPlannerCalendarView
+              largeProjectId={largeProjectId}
+              ctx={ctx}
+              onEventClick={handleCalendarEventClick}
+            />
+          )}
         </div>
       </div>
 

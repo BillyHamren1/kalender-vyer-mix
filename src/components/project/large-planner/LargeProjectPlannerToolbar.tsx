@@ -6,7 +6,9 @@
  */
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CalendarDays, Plus, RefreshCw, Sparkles } from 'lucide-react';
+import { CalendarDays, Plus, RefreshCw, Sparkles, LayoutGrid, GanttChartSquare } from 'lucide-react';
+
+export type PlannerViewMode = 'calendar' | 'gantt';
 
 interface Props {
   daysCount: number;
@@ -16,6 +18,8 @@ interface Props {
   onRefresh: () => void;
   onSeedFromBookings: () => void;
   onCreateManual: () => void;
+  viewMode?: PlannerViewMode;
+  onViewModeChange?: (mode: PlannerViewMode) => void;
 }
 
 const LargeProjectPlannerToolbar = ({
@@ -26,6 +30,8 @@ const LargeProjectPlannerToolbar = ({
   onRefresh,
   onSeedFromBookings,
   onCreateManual,
+  viewMode = 'calendar',
+  onViewModeChange,
 }: Props) => {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-primary/5 px-3 py-2">
@@ -42,6 +48,30 @@ const LargeProjectPlannerToolbar = ({
         </Badge>
       </div>
       <div className="flex items-center gap-2">
+        {onViewModeChange && (
+          <div className="flex items-center rounded-md border border-border/60 bg-background p-0.5">
+            <Button
+              size="sm"
+              variant={viewMode === 'calendar' ? 'secondary' : 'ghost'}
+              className="h-7 px-2 text-[11px]"
+              onClick={() => onViewModeChange('calendar')}
+              title="Kalendervy"
+            >
+              <LayoutGrid className="h-3.5 w-3.5 mr-1" />
+              Kalender
+            </Button>
+            <Button
+              size="sm"
+              variant={viewMode === 'gantt' ? 'secondary' : 'ghost'}
+              className="h-7 px-2 text-[11px]"
+              onClick={() => onViewModeChange('gantt')}
+              title="Gantt-vy (read-only)"
+            >
+              <GanttChartSquare className="h-3.5 w-3.5 mr-1" />
+              Gantt
+            </Button>
+          </div>
+        )}
         <Button
           size="sm"
           variant="ghost"
