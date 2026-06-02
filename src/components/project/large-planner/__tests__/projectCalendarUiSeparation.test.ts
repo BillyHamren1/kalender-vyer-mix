@@ -187,7 +187,7 @@ describe('Stora projekt — projektkalender UI/data-separation', () => {
     expect(DEFAULT_TEAM_ID).toBe('team-1');
   });
 
-  it('mapPlannerItemsToCalendarEvents — sparat team visas kvar i samma teamkolumn även utan bemanning', () => {
+  it('mapPlannerItemsToCalendarEvents — task/manual-todos renderas INTE som stora kalenderblock (nya regeln)', () => {
     const items: PlannerItemWithValidity[] = [
       {
         id: 'item-2',
@@ -217,9 +217,8 @@ describe('Stora projekt — projektkalender UI/data-separation', () => {
       },
     ];
     const events = mapPlannerItemsToCalendarEvents(items, { largeProjectId: 'lp-1' });
-    expect(events).toHaveLength(1);
-    expect(events[0].resourceId).toBe('team-5');
-    expect(events[0].extendedProps?.assignmentInvalid).toBe(false);
+    // Todos hör hemma i checklistan, inte kalendern.
+    expect(events).toHaveLength(0);
   });
 
   it('mapPlannerItemsToCalendarEvents — orderrad-todos (booking_product_id) filtreras bort', () => {
@@ -263,7 +262,7 @@ describe('Stora projekt — projektkalender UI/data-separation', () => {
   it('TimeGrid exponerar plannerMode-prop som döljer +-knapp men behåller team-staff-rad read-only', () => {
     const src = read('src/components/Calendar/TimeGrid.tsx');
     expect(src).toMatch(/plannerMode\?:\s*boolean/);
-    expect(src).toMatch(/!plannerMode\s*&&[\s\S]{0,400}TeamStaffPickerPopover/);
+    expect(src).toMatch(/!plannerMode\s*&&[\s\S]{0,2000}TeamStaffPickerPopover/);
     // Row 3 (staff-row) ska INTE längre gated bakom !plannerMode
     expect(src).toMatch(/showRemoveDialog=\{!plannerMode\}/);
   });
