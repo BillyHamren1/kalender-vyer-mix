@@ -218,7 +218,11 @@ const LargeProjectPlannerSidebar = ({
             <Button
               size="sm"
               variant={isPlanned ? 'outline' : 'default'}
-              className="h-7 flex-1 text-[10.5px] rounded-md shadow-sm font-medium"
+              className={
+                isPlanned
+                  ? 'h-7 flex-1 text-[10.5px] rounded-lg font-medium border-planner/25 text-planner hover:bg-planner/10 hover:text-planner hover:border-planner/40'
+                  : 'h-7 flex-1 text-[10.5px] rounded-lg font-medium bg-planner text-white hover:bg-planner/90 shadow-[0_2px_6px_-2px_hsl(var(--planner)/0.45)]'
+              }
               onClick={() => onSeedBooking(booking)}
             >
               Planera
@@ -227,7 +231,7 @@ const LargeProjectPlannerSidebar = ({
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 flex-1 text-[10.5px] rounded-md"
+                className="h-7 flex-1 text-[10.5px] rounded-lg font-medium"
                 onClick={() => onSplitBooking(booking)}
               >
                 Dela upp
