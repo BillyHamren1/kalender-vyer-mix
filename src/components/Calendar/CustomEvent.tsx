@@ -507,6 +507,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   // calendar_events / bookings. Routningen sker via extendedProps.kind.
   if ((event.extendedProps as any)?.kind === 'planner_item') {
     const plannerBookingId = (event.extendedProps as any)?.plannerBookingId as string | undefined;
+    const plannerPlanDate = (event.extendedProps as any)?.plannerPlanDate as string | undefined;
     const handlePlannerDoubleClick = (e: React.MouseEvent) => {
       if (!plannerBookingId) return;
       e.stopPropagation();
@@ -514,7 +515,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
       // Lyssnas av LargeProjectBookingPlannerCalendar → öppnar BookingPlannerSheet.
       window.dispatchEvent(
         new window.CustomEvent('lp-booking-sheet-open', {
-          detail: { bookingId: plannerBookingId },
+          detail: { bookingId: plannerBookingId, planDate: plannerPlanDate ?? null },
         }),
       );
 

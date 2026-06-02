@@ -197,6 +197,7 @@ export const mapPlannerItemsToCalendarEvents = (
           plannerBookingId: it.booking_id,
           plannerPhase: it.source_booking_phase ?? null,
           plannerPhaseLabel: phaseLabel,
+          plannerPlanDate: it.plan_date,
           plannerItemType: it.item_type,
           plannerTodoTotal: todoSummary?.total ?? 0,
           plannerTodoDone: todoSummary?.done ?? 0,

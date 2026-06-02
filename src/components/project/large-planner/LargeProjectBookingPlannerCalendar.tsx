@@ -76,6 +76,7 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
   const [manualDefaults, setManualDefaults] = useState<ManualDefaults>({});
   const [quickEditId, setQuickEditId] = useState<string | null>(null);
   const [plannerSheetBookingId, setPlannerSheetBookingId] = useState<string | null>(null);
+  const [plannerSheetHighlightDate, setPlannerSheetHighlightDate] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<PlannerViewMode>('calendar');
   const [bookingsDrawerOpen, setBookingsDrawerOpen] = useState(false);
 
@@ -122,9 +123,15 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
   const openCreateTodoDialog = (
     booking: LargeProjectPlannerBooking,
     product?: { id: string; name: string; quantity: number | null },
+    defaultDate?: string | null,
   ) => {
     const suggestedDate =
-      booking.rigdaydate ?? booking.eventdate ?? booking.rigdowndate ?? days[0]?.date ?? null;
+      defaultDate ??
+      booking.rigdaydate ??
+      booking.eventdate ??
+      booking.rigdowndate ??
+      days[0]?.date ??
+      null;
     const suggestedStart =
       booking.event_start_time ?? booking.rig_start_time ?? '08:00:00';
     const suggestedEnd =
@@ -313,10 +320,11 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
     const plannerItemId = plannerItemIdFromEventId(ev.id);
     if (!plannerItemId) return;
     const ep = (ev.extendedProps ?? {}) as Record<string, unknown>;
-    // Booking-fasblock → öppna BookingPlannerSheet (översikt + todos).
-    // Övriga planner-items (manuella/split som ev. visas senare) → quick edit.
     if (ep.plannerItemType === 'booking' && typeof ep.plannerBookingId === 'string') {
       setPlannerSheetBookingId(ep.plannerBookingId);
+      setPlannerSheetHighlightDate(
+        typeof ep.plannerPlanDate === 'string' ? ep.plannerPlanDate : null,
+      );
       return;
     }
     setQuickEditId(plannerItemId);
@@ -324,11 +332,14 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
 
 
   // Dubbelklick på ett bokningsblock i kalendern → öppna BookingPlannerSheet
-  // (full översikt med faser + orderrads-to-dos att bocka av).
   useEffect(() => {
     const handler = (e: Event) => {
-      const bid = (e as CustomEvent<{ bookingId?: string }>).detail?.bookingId;
-      if (bid) setPlannerSheetBookingId(bid);
+      const detail = (e as CustomEvent<{ bookingId?: string; planDate?: string | null }>).detail;
+      const bid = detail?.bookingId;
+      if (bid) {
+        setPlannerSheetBookingId(bid);
+        setPlannerSheetHighlightDate(detail?.planDate ?? null);
+      }
     };
     window.addEventListener('lp-booking-sheet-open', handler as EventListener);
     return () => window.removeEventListener('lp-booking-sheet-open', handler as EventListener);
@@ -473,7 +484,10 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
       <BookingPlannerSheet
         open={plannerSheetBookingId !== null}
         onOpenChange={(open) => {
-          if (!open) setPlannerSheetBookingId(null);
+          if (!open) {
+            setPlannerSheetBookingId(null);
+            setPlannerSheetHighlightDate(null);
+          }
         }}
         booking={
           plannerSheetBookingId
@@ -482,8 +496,9 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
         }
         items={items}
         staff={staff}
-        onCreateTodoForBooking={(b) => openCreateTodoDialog(b)}
-        onCreateTodoForProduct={(b, p) => openCreateTodoDialog(b, p)}
+        highlightDate={plannerSheetHighlightDate}
+        onCreateTodoForBooking={(b, defaultDate) => openCreateTodoDialog(b, undefined, defaultDate)}
+        onCreateTodoForProduct={(b, p, defaultDate) => openCreateTodoDialog(b, p, defaultDate)}
         onPlanWholeBooking={handlePlanWholeBooking}
         onItemClick={(it) => setQuickEditId(it.id)}
         onItemDelete={(it) => handleItemDelete(it.id)}
