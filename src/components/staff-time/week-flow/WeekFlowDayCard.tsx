@@ -51,13 +51,34 @@ export default function WeekFlowDayCard({ day, onSubmit, onOpenGps, showHeader =
   const hasData = day.totalMinutes > 0 || day.rows.length > 0;
   const dateObj = parseISO(day.date);
 
+  const cardClickable = !!(day.canSubmit && onSubmit);
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (!cardClickable) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('button,a')) return;
+    onSubmit!(day.date);
+  };
+
   return (
-    <div className={cn(
-      "rounded-lg border bg-card p-3 transition-shadow",
-      day.status === "submitted_waiting_approval" && "border-amber-200",
-      day.status === "approved" && "border-emerald-200",
-      day.status === "correction_requested" && "border-rose-200",
-    )}>
+    <div
+      onClick={handleCardClick}
+      role={cardClickable ? "button" : undefined}
+      tabIndex={cardClickable ? 0 : undefined}
+      onKeyDown={(e) => {
+        if (cardClickable && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          onSubmit!(day.date);
+        }
+      }}
+      className={cn(
+        "rounded-lg border bg-card p-3 transition-shadow",
+        cardClickable && "cursor-pointer hover:shadow-sm hover:border-primary/40",
+        day.status === "submitted_waiting_approval" && "border-amber-200",
+        day.status === "approved" && "border-emerald-200",
+        day.status === "correction_requested" && "border-rose-200",
+      )}
+    >
+
       {showHeader && (
         <div className="flex items-baseline justify-between gap-3 mb-2">
           <div className="flex items-baseline gap-2 min-w-0">
@@ -106,21 +127,22 @@ export default function WeekFlowDayCard({ day, onSubmit, onOpenGps, showHeader =
           {day.canSubmit && onSubmit && (
             <button
               type="button"
-              onClick={() => onSubmit(day.date)}
+              onClick={(e) => { e.stopPropagation(); onSubmit(day.date); }}
               className="text-xs font-semibold px-2.5 h-7 rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
             >
-              {day.status === "correction_requested" ? "Skicka in igen" : "Skicka in"}
+              {day.status === "correction_requested" ? "Komplettera / redigera" : "Granska / redigera"}
             </button>
           )}
           {onOpenGps && (
             <button
               type="button"
-              onClick={() => onOpenGps(day.date)}
+              onClick={(e) => { e.stopPropagation(); onOpenGps(day.date); }}
               className="text-xs underline text-muted-foreground hover:text-foreground"
             >
               Öppna GPS
             </button>
           )}
+
         </div>
       </div>
 
