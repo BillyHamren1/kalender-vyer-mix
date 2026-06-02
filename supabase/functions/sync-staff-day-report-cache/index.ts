@@ -51,6 +51,8 @@ Deno.serve(async (req) => {
     body = await req.json();
   } catch {}
 
+  const engineVersion = body?.engineVersion;
+  if (!engineVersion) return json(400, { error: 'missing engineVersion' });
   // EMERGENCY cap raised from 10 → 100. Today-only ticks need to cover all
   // active staff in one pass to keep cache aligned with GPS-satelliten.
   const batchSize = Math.max(1, Math.min(100, Number(body?.batchSize ?? 50)));
