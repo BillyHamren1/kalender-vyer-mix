@@ -118,6 +118,11 @@ export interface ResolvedStaffDaySummary {
   reviewComment: string | null;
   cacheBuiltAt: string | null;
   engineVersion: string | null;
+  /** Tidslinje-rader (samma kontrakt som ResolvedDayRow). Från cachens
+   *  display_blocks_json / report_candidate_blocks_json eller submissionens
+   *  display_timeline_snapshot_json. Veckomatrisens detaljvy renderar dessa
+   *  direkt — INGEN parallell GPS-bygg ska behövas. */
+  rows: ResolvedDayRow[];
 }
 
 // ---------- Status mapping ----------
