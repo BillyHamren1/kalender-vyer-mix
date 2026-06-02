@@ -76,36 +76,62 @@ const LargeEstablishmentPage = () => {
     client: (b as any).booking?.client || null,
   }));
 
+  const tabs: Array<{ id: "calendar" | "excel"; label: string; icon: typeof CalendarDays; hint: string }> = [
+    { id: "calendar", label: "Kalender & planering", icon: CalendarDays, hint: "Tidsöversikt" },
+    { id: "excel", label: "Excel-vy", icon: TableIcon, hint: "Tabell & produkter" },
+  ];
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
       <div className="flex items-center justify-center">
-        <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
-          <Button
-            variant={pageMode === "calendar" ? "default" : "ghost"}
-            size="sm"
-            className="h-9 px-6 text-sm gap-2"
-            onClick={() => setPageMode("calendar")}
-          >
-            <CalendarDays className="h-4 w-4" />
-            Kalender & planering
-          </Button>
-          <Button
-            variant={pageMode === "excel" ? "default" : "ghost"}
-            size="sm"
-            className="h-9 px-6 text-sm gap-2"
-            onClick={() => setPageMode("excel")}
-          >
-            <TableIcon className="h-4 w-4" />
-            Excel-vy
-          </Button>
+        <div
+          role="tablist"
+          aria-label="Vyläge"
+          className="relative inline-flex items-center gap-1 rounded-2xl border border-border/60 bg-gradient-to-b from-muted/70 to-muted/40 p-1 shadow-[0_1px_2px_rgba(0,0,0,0.04),inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-sm"
+        >
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const active = pageMode === tab.id;
+            return (
+              <button
+                key={tab.id}
+                role="tab"
+                aria-selected={active}
+                onClick={() => setPageMode(tab.id)}
+                className={[
+                  "group relative inline-flex items-center gap-2 rounded-xl px-5 h-10 text-sm font-medium",
+                  "transition-all duration-200 ease-out outline-none",
+                  "focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-background",
+                  active
+                    ? "bg-background text-foreground shadow-[0_2px_8px_-2px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.06)] ring-1 ring-border/70"
+                    : "text-muted-foreground hover:text-foreground hover:bg-background/50",
+                ].join(" ")}
+              >
+                <Icon className={["h-4 w-4 transition-colors", active ? "text-primary" : "text-muted-foreground/80 group-hover:text-foreground"].join(" ")} />
+                <span className="tracking-tight">{tab.label}</span>
+                <span
+                  className={[
+                    "hidden sm:inline-block text-[10px] uppercase tracking-[0.08em] font-semibold px-1.5 py-0.5 rounded-md transition-colors",
+                    active
+                      ? "bg-primary/10 text-primary"
+                      : "bg-muted-foreground/10 text-muted-foreground/70",
+                  ].join(" ")}
+                >
+                  {tab.hint}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {pageMode === "excel" ? (
-        <LargeProjectExcelView bookings={(project as any)?.bookings || []} />
-      ) : (
-        <LargeProjectBookingPlannerCalendar largeProjectId={project.id} />
-      )}
+      <div className="rounded-2xl">
+        {pageMode === "excel" ? (
+          <LargeProjectExcelView bookings={(project as any)?.bookings || []} />
+        ) : (
+          <LargeProjectBookingPlannerCalendar largeProjectId={project.id} />
+        )}
+      </div>
 
       <EstablishmentTaskDetailSheet
         open={sheetOpen}
