@@ -19,6 +19,14 @@
     --primary-dark: 184 60% 26%;        /* 3D-kant på knappar */
     --primary-soft: 184 50% 95%;        /* Mjuk teal-tint för cards/active states */
     --primary-soft-foreground: 184 45% 22%;
+    /* === PLANNER PURPLE (Large project planning identity) === */
+    --planner: 263 70% 50%;             /* Bas-lila */
+    --planner-foreground: 0 0% 100%;
+    --planner-soft: 263 80% 96%;
+    --planner-soft-foreground: 263 50% 28%;
+    --planner-deep: 263 75% 38%;        /* Mörkare lila för gradients */
+    --gradient-planner: linear-gradient(135deg, hsl(263 72% 55%) 0%, hsl(263 75% 40%) 100%);
+    --shadow-planner: 0 14px 32px -16px hsl(263 70% 40% / 0.45);
 
 
 
