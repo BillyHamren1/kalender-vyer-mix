@@ -238,7 +238,7 @@ const BookingPlannerSheet = ({
         {booking ? (
           <>
             {/* ───── Header: namn + kontakt + plats ───── */}
-            <SheetHeader className="border-b border-border/60 bg-primary/5 px-5 py-4">
+            <SheetHeader className="border-b border-border/60 bg-planner/5 px-5 py-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <SheetTitle className="truncate text-base font-semibold">
@@ -459,7 +459,7 @@ const BookingPlannerSheet = ({
                       <button
                         type="button"
                         onClick={toggleAllProducts}
-                        className="text-[11px] text-primary hover:underline"
+                        className="text-[11px] text-planner hover:underline"
                       >
                         {allSelected ? 'Avmarkera alla' : 'Markera alla'}
                       </button>
@@ -537,7 +537,7 @@ const BookingPlannerSheet = ({
 
                             {/* Inline: när är denna orderrad planerad? */}
                             {linkedItems.length > 0 && (
-                              <ul className="ml-1 mt-0.5 space-y-0.5 border-l-2 border-primary/30 pl-2">
+                              <ul className="ml-1 mt-0.5 space-y-0.5 border-l-2 border-planner/30 pl-2">
                                 {linkedItems.map((it) => (
                                   <li
                                     key={it.id}

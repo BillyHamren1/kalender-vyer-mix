@@ -386,7 +386,7 @@ const PlannerEventActionPopover: React.FC<Props> = ({ event, onOpenDetails, chil
                         } ${ringCls} ${
                           hasRows
                             ? 'border-border hover:bg-destructive/10 hover:border-destructive/40'
-                            : 'border-dashed border-border hover:bg-primary/5 hover:border-primary/40'
+                            : 'border-dashed border-border hover:bg-planner/5 hover:border-planner/40'
                         } disabled:opacity-50`}
                       >
                         <span className={`leading-none ${isCurrent ? 'font-semibold' : ''}`}>
