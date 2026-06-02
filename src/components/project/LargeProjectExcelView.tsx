@@ -304,18 +304,23 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
       .join("") || "?";
 
   return (
-    <Card className="border-border/60 rounded-2xl shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.12)] overflow-hidden w-full bg-card">
+    <Card className="border-border/60 rounded-[24px] shadow-[0_1px_2px_rgba(0,0,0,0.04),0_18px_40px_-24px_hsl(var(--planner)/0.35)] overflow-hidden w-full bg-card">
       {/* Premium Toolbar */}
-      <div className="px-6 py-4 border-b border-border/70 bg-gradient-to-b from-muted/30 to-card sticky top-0 z-30 backdrop-blur-sm">
+      <div className="px-6 py-5 border-b border-border/70 bg-gradient-to-b from-planner/[0.06] via-card to-card sticky top-0 z-30 backdrop-blur-sm">
         <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="h-9 w-9 rounded-xl bg-planner/10 flex items-center justify-center shrink-0">
-              <Layers className="w-4 h-4 text-planner" />
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="h-11 w-11 rounded-2xl bg-white ring-1 ring-planner/20 shadow-[0_2px_8px_-2px_hsl(var(--planner)/0.4)] flex items-center justify-center shrink-0">
+              <Layers className="w-5 h-5 text-planner" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-sm font-semibold text-foreground leading-tight">Projektöversikt</h3>
-              <p className="text-[11.5px] text-muted-foreground leading-tight mt-0.5">
-                Bokningar, platser och produkter i en sammanställd vy
+              <div className="text-[10px] uppercase tracking-[0.18em] font-bold text-planner/80">
+                Projektöversikt
+              </div>
+              <h3 className="text-[15px] font-semibold text-foreground leading-tight mt-0.5 tracking-tight">
+                Bokningar, platser & produkter
+              </h3>
+              <p className="text-[11.5px] text-muted-foreground leading-tight mt-1">
+                Sammanställd vy med drag & drop-kolumner och inline-redigering
               </p>
             </div>
           </div>
@@ -326,9 +331,8 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
             <SummaryPill icon={Hash} label="Kolumner" value={totalColumns} />
             <Button
               size="sm"
-              variant="outline"
               onClick={openAddCol}
-              className="rounded-lg h-9 shadow-sm hover:shadow transition-all active:scale-[0.98] font-medium"
+              className="rounded-lg h-9 shadow-[0_2px_8px_-2px_hsl(var(--planner)/0.45)] bg-planner text-white hover:bg-planner/90 transition-all active:scale-[0.98] font-medium"
             >
               <Plus className="w-4 h-4 mr-1.5" />
               Lägg till kolumn
@@ -339,6 +343,7 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
           Tips: dra kolumnrubriker för att ändra ordning. Klicka på rubriken för att sortera. Egna kolumner redigeras direkt i tabellen.
         </p>
       </div>
+
 
       <div className="overflow-x-auto">
         <table className="w-full border-separate border-spacing-0 text-left min-w-[960px]">
