@@ -86,85 +86,35 @@ const LargeEstablishmentPage = () => {
   const projectNumber = (project as any)?.project_number || null;
 
   return (
-    <div className="space-y-5">
-      {/* Premium lila header — booking-likt utseende */}
-      <div className="relative overflow-hidden rounded-[24px] border border-planner/20 bg-[image:var(--gradient-planner)] text-white shadow-[var(--shadow-planner)]">
-        {/* Dekorativa highlights */}
-        <div className="pointer-events-none absolute -top-24 -right-16 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 -left-10 h-60 w-60 rounded-full bg-black/10 blur-3xl" />
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.06)_0%,transparent_40%)]" />
-
-        <div className="relative flex flex-wrap items-center gap-4 px-6 py-5 md:px-8 md:py-6">
-          <div className="h-14 w-14 rounded-2xl bg-white/95 ring-1 ring-white/40 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.35)] flex items-center justify-center shrink-0">
-            <ClipboardList className="h-6 w-6 text-planner" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-white/75">
-              Planering
-            </div>
-            <h1 className="mt-1 text-[22px] md:text-[24px] font-semibold leading-tight tracking-tight truncate">
-              {projectTitle}
-            </h1>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {projectNumber && (
-                <span className="inline-flex items-center gap-1.5 text-[11px] font-mono font-semibold px-2 py-1 rounded-md bg-white/15 text-white/95 ring-1 ring-white/20 backdrop-blur-sm">
-                  #{projectNumber}
-                </span>
-              )}
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-1 rounded-md bg-white/15 text-white/95 ring-1 ring-white/20 backdrop-blur-sm">
-                <Building2 className="h-3 w-3" />
-                {bookingsCount} {bookingsCount === 1 ? "bokning" : "bokningar"}
-              </span>
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-1 rounded-md bg-white/15 text-white/95 ring-1 ring-white/20 backdrop-blur-sm">
-                <Layers className="h-3 w-3" />
-                Operations planning
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Tabs inbäddade i headern — premium segmented control */}
-        <div className="relative px-4 pb-4 md:px-6 md:pb-5">
-          <div
-            role="tablist"
-            aria-label="Vyläge"
-            className="inline-flex items-center gap-1 rounded-2xl bg-white/15 ring-1 ring-white/25 p-1 backdrop-blur-md shadow-[0_4px_16px_-8px_rgba(0,0,0,0.3)]"
-          >
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              const active = pageMode === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => setPageMode(tab.id)}
-                  className={[
-                    "group relative inline-flex items-center gap-2 rounded-xl px-4 md:px-5 h-9 text-[13px] font-semibold tracking-tight",
-                    "transition-all duration-200 ease-out outline-none",
-                    "focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-planner",
-                    active
-                      ? "bg-white text-planner shadow-[0_4px_12px_-4px_rgba(0,0,0,0.25)]"
-                      : "text-white/85 hover:text-white hover:bg-white/10",
-                  ].join(" ")}
-                >
-                  <Icon className={["h-4 w-4 transition-colors", active ? "text-planner" : "text-white/85 group-hover:text-white"].join(" ")} />
-                  <span>{tab.label}</span>
-                  <span
-                    className={[
-                      "hidden sm:inline-block text-[9.5px] uppercase tracking-[0.1em] font-bold px-1.5 py-0.5 rounded-md transition-colors",
-                      active
-                        ? "bg-planner/10 text-planner"
-                        : "bg-white/15 text-white/85",
-                    ].join(" ")}
-                  >
-                    {tab.hint}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+    <div className="space-y-4">
+      {/* Minimal segmented control — header finns redan högst upp på sidan */}
+      <div
+        role="tablist"
+        aria-label="Vyläge"
+        className="inline-flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-1"
+      >
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const active = pageMode === tab.id;
+          return (
+            <button
+              key={tab.id}
+              role="tab"
+              aria-selected={active}
+              onClick={() => setPageMode(tab.id)}
+              className={[
+                "inline-flex items-center gap-2 rounded-md px-3 h-8 text-[13px] font-medium transition-colors outline-none",
+                "focus-visible:ring-2 focus-visible:ring-ring",
+                active
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              ].join(" ")}
+            >
+              <Icon className="h-4 w-4" />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Innehåll */}
@@ -175,6 +125,7 @@ const LargeEstablishmentPage = () => {
           <LargeProjectBookingPlannerCalendar largeProjectId={project.id} />
         )}
       </div>
+
 
 
       <EstablishmentTaskDetailSheet
