@@ -269,16 +269,26 @@ const LargeProjectPlannerSidebar = ({
   };
 
   if (horizontal) {
+    const plannedCount = bookings.filter((b) => isBookingPlanned(b)).length;
+    const unplannedCount = bookings.length - plannedCount;
     return (
-      <aside className="flex shrink-0 flex-col border-b border-border/60 bg-gradient-to-b from-muted/20 to-background">
-        <div className="flex items-center gap-3 px-4 py-2.5 flex-wrap">
+      <aside className="flex shrink-0 flex-col rounded-xl border border-border/60 bg-card shadow-sm overflow-hidden">
+        <div className="flex items-center gap-3 px-4 py-2.5 flex-wrap border-b border-border/60 bg-gradient-to-b from-muted/30 to-background">
           <div className="flex items-center gap-2 text-[13px] font-semibold text-foreground">
             <div className="h-7 w-7 rounded-lg bg-planner/10 ring-1 ring-planner/15 flex items-center justify-center">
               <Inbox className="h-3.5 w-3.5 text-planner" />
             </div>
             Bokningar
             <span className="text-[10.5px] font-normal text-muted-foreground">
-              ({unplannedBookings.length} att planera)
+              ({bookings.length})
+            </span>
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-planner/10 text-planner border border-planner/15">
+              <CheckCircle2 className="h-2.5 w-2.5" />
+              {plannedCount} planerade
+            </span>
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-muted/70 text-muted-foreground border border-border/60">
+              <CircleDashed className="h-2.5 w-2.5" />
+              {unplannedCount} ej planerade
             </span>
           </div>
           <div className="flex flex-wrap gap-1 ml-1">
@@ -313,14 +323,14 @@ const LargeProjectPlannerSidebar = ({
         </div>
 
         <div className="overflow-x-auto">
-          <div className="flex gap-3 px-4 pb-3 min-w-min items-stretch">
-            {unplannedBookings.length === 0 ? (
+          <div className="flex gap-3 px-4 py-3 min-w-min items-stretch">
+            {filteredBookings.length === 0 ? (
               <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-4 py-3 text-center text-[11px] text-muted-foreground w-full flex items-center justify-center gap-2">
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500/80" />
-                Alla bokningar är planerade — finns i kalendern nedan.
+                Inga bokningar matchar filtret.
               </div>
             ) : (
-              unplannedBookings.map((b) => renderBookingCard(b, { compact: true }))
+              filteredBookings.map((b) => renderBookingCard(b, { compact: true }))
             )}
           </div>
         </div>
