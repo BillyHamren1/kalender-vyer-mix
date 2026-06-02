@@ -76,6 +76,7 @@ const LargeProjectBookingPlannerCalendar = ({ largeProjectId }: Props) => {
   const [manualDefaults, setManualDefaults] = useState<ManualDefaults>({});
   const [quickEditId, setQuickEditId] = useState<string | null>(null);
   const [plannerSheetBookingId, setPlannerSheetBookingId] = useState<string | null>(null);
+  const [plannerSheetHighlightDate, setPlannerSheetHighlightDate] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<PlannerViewMode>('calendar');
   const [bookingsDrawerOpen, setBookingsDrawerOpen] = useState(false);
 
