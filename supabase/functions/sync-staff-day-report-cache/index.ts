@@ -51,10 +51,13 @@ Deno.serve(async (req) => {
     body = await req.json();
   } catch {}
 
-  const engineVersion = body?.engineVersion;
-  if (!engineVersion) return json(400, { error: 'missing engineVersion' });
-  // EMERGENCY: cap batchSize hard (was up to 200) — avoid heavy work per cron tick.
-  const batchSize = Math.max(1, Math.min(10, Number(body?.batchSize ?? 10)));
+  // EMERGENCY cap raised from 10 → 100. Today-only ticks need to cover all
+  // active staff in one pass to keep cache aligned with GPS-satelliten.
+  const batchSize = Math.max(1, Math.min(100, Number(body?.batchSize ?? 50)));
+  const mode: 'today' | 'today_and_yesterday' =
+    body?.mode === 'today' ? 'today' : 'today_and_yesterday';
+  const requestedStaffIds: string[] | null =
+    Array.isArray(body?.staffIds) && body.staffIds.length ? body.staffIds : null;
 
   if (RUN_IN_PROGRESS) {
     return json(200, { ok: true, skipped: 'already_running' });
