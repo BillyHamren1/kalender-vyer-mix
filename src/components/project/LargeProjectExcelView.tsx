@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   ArrowUp, ArrowDown, ArrowUpDown, GripVertical, Plus, Pencil, Trash2,
+  MapPin, Package, Layers, Hash, Building2,
 } from "lucide-react";
+
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
@@ -284,31 +286,62 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
   }
 
   const headerCellClass =
-    "px-5 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border align-middle whitespace-nowrap";
-  const cellClass = "px-5 py-3.5 text-sm align-top";
+    "px-5 py-3 text-left text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted-foreground/90 border-b border-border/70 align-middle whitespace-nowrap select-none";
+  const cellClass = "px-5 py-3 text-sm align-top";
+
+  // Summary derived from existing data — read-only
+  const totalProducts = allProducts.length;
+  const totalBookings = rows.length;
+  const totalColumns = orderedColumns.length;
+
+  // Initials for client avatar
+  const initialsOf = (name: string) =>
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() ?? "")
+      .join("") || "?";
 
   return (
-    <Card className="border-border/60 rounded-2xl shadow-xl shadow-foreground/5 overflow-hidden w-full bg-card">
-      {/* Toolbar */}
-      <div className="px-5 py-3 border-b border-border/70 flex items-center justify-between bg-card sticky top-0 z-30 backdrop-blur-sm">
-        <div className="flex items-center gap-3">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={openAddCol}
-            className="rounded-lg shadow-sm hover:shadow transition-all active:scale-[0.98]"
-          >
-            <Plus className="w-4 h-4 mr-1.5 text-muted-foreground" />
-            Lägg till kolumn
-          </Button>
-          <span className="text-xs text-muted-foreground hidden md:inline">
-            Dra kolumnrubriker för att ändra ordning. Egna kolumner kan redigeras direkt i tabellen.
-          </span>
+    <Card className="border-border/60 rounded-2xl shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.12)] overflow-hidden w-full bg-card">
+      {/* Premium Toolbar */}
+      <div className="px-6 py-4 border-b border-border/70 bg-gradient-to-b from-muted/30 to-card sticky top-0 z-30 backdrop-blur-sm">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <Layers className="w-4 h-4 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold text-foreground leading-tight">Projektöversikt</h3>
+              <p className="text-[11.5px] text-muted-foreground leading-tight mt-0.5">
+                Bokningar, platser och produkter i en sammanställd vy
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <SummaryPill icon={Building2} label="Bokningar" value={totalBookings} />
+            <SummaryPill icon={Package} label="Produkter" value={totalProducts} />
+            <SummaryPill icon={Hash} label="Kolumner" value={totalColumns} />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={openAddCol}
+              className="rounded-lg h-9 shadow-sm hover:shadow transition-all active:scale-[0.98] font-medium"
+            >
+              <Plus className="w-4 h-4 mr-1.5" />
+              Lägg till kolumn
+            </Button>
+          </div>
         </div>
+        <p className="text-[11px] text-muted-foreground/70 mt-3 hidden md:block">
+          Tips: dra kolumnrubriker för att ändra ordning. Klicka på rubriken för att sortera. Egna kolumner redigeras direkt i tabellen.
+        </p>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full border-separate border-spacing-0 text-left min-w-[900px]">
+        <table className="w-full border-separate border-spacing-0 text-left min-w-[960px]">
           <thead className="bg-muted/40 backdrop-blur-sm">
             <tr>
               {orderedColumns.map((col, idx) => {
@@ -324,17 +357,17 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
                     onDragOver={(e) => { e.preventDefault(); }}
                     onDrop={() => onDrop(col.id)}
                     onDragEnd={() => setDragId(null)}
-                    className={`${headerCellClass} min-w-[180px] ${sticky ? "sticky left-0 z-20 bg-muted/60 border-r min-w-[240px]" : ""} ${dragId === col.id ? "opacity-50 ring-2 ring-primary/50" : ""} cursor-move group/th transition-colors hover:bg-muted/60`}
+                    className={`${headerCellClass} min-w-[180px] ${sticky ? "sticky left-0 z-20 bg-muted/70 border-r border-border/70 min-w-[280px]" : ""} ${dragId === col.id ? "opacity-50 ring-2 ring-primary/50" : ""} cursor-move group/th transition-colors hover:bg-muted/70`}
                   >
                     <div className="flex items-center gap-2">
-                      <GripVertical className="w-3.5 h-3.5 opacity-30 group-hover/th:opacity-70 transition-opacity shrink-0" />
+                      <GripVertical className="w-3.5 h-3.5 opacity-25 group-hover/th:opacity-70 transition-opacity shrink-0" />
                       <button
                         type="button"
                         onClick={() => toggleSort(col.id)}
-                        className={`flex items-center gap-1.5 text-left transition-colors ${active ? "text-foreground" : "hover:text-foreground"}`}
+                        className={`flex items-center gap-1.5 text-left transition-colors min-w-0 ${active ? "text-foreground" : "hover:text-foreground"}`}
                       >
                         <span className="truncate">{col.label}</span>
-                        <Icon className={`w-3 h-3 transition-opacity ${active ? "opacity-100" : "opacity-40 group-hover/th:opacity-70"}`} />
+                        <Icon className={`w-3 h-3 shrink-0 transition-opacity ${active ? "opacity-100" : "opacity-40 group-hover/th:opacity-70"}`} />
                       </button>
                       {isCustom && (
                         <DropdownMenu>
@@ -366,10 +399,14 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
             {flatRows.map((fr, idx) => {
               const r = fr.bookingRow;
               const p = fr.product;
-              // Zebra by booking, not by row, so a single booking stays visually together
               const bookingIdx = sortedRows.findIndex((sr) => sr.id === r.id);
               const zebra = bookingIdx % 2 === 1;
-              const rowBg = zebra ? "bg-muted/20" : "bg-card";
+              const rowBg = zebra ? "bg-muted/25" : "bg-card";
+              const productCount = fr.bookingRowSpan;
+              // Mark the last row of a booking to draw a stronger separator
+              const isLastInBooking = idx === flatRows.length - 1 || flatRows[idx + 1]?.bookingRow.id !== r.id;
+              const groupSeparator = isLastInBooking ? "border-b-[2px] border-border/70" : "border-b border-border/30";
+
               return (
                 <tr
                   key={fr.key}
@@ -378,9 +415,9 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
                   {orderedColumns.map((col, cidx) => {
                     const sticky = cidx === 0;
                     const stickyClass = sticky
-                      ? `sticky left-0 z-10 ${rowBg} group-hover/row:bg-accent/40 border-r border-border/60 shadow-[6px_0_12px_-8px_hsl(var(--foreground)/0.15)]`
-                      : "border-b border-border/40";
-                    const baseCell = `${cellClass} ${sticky ? "border-b border-border/40" : ""} ${stickyClass}`;
+                      ? `sticky left-0 z-10 ${rowBg} group-hover/row:bg-accent/40 border-r border-border/70 shadow-[6px_0_12px_-8px_hsl(var(--foreground)/0.18)]`
+                      : "";
+                    const baseCell = `${cellClass} ${groupSeparator} ${stickyClass}`;
                     const mergedCell = `${baseCell} align-top`;
 
                     // Booking-level cells (rowSpan): client, address, custom
@@ -388,13 +425,24 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
                       if (!fr.isFirstInBooking) return null;
                       return (
                         <td key={col.id} className={mergedCell} rowSpan={fr.bookingRowSpan}>
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-sm font-semibold text-foreground leading-tight">{r.client}</span>
-                            {r.title && (
-                              <span className="text-[11px] font-medium text-primary/80 uppercase tracking-wide font-mono">
-                                {r.title}
+                          <div className="flex items-start gap-3">
+                            <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 border border-primary/15 flex items-center justify-center shrink-0 text-[11px] font-bold text-primary tracking-wide">
+                              {initialsOf(r.client)}
+                            </div>
+                            <div className="flex flex-col gap-1 min-w-0">
+                              <span className="text-[13.5px] font-semibold text-foreground leading-tight truncate" title={r.client}>
+                                {r.client}
                               </span>
-                            )}
+                              {r.title && (
+                                <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-primary/80 uppercase tracking-wider font-mono w-fit px-1.5 py-0.5 rounded-md bg-primary/8 border border-primary/15">
+                                  {r.title}
+                                </span>
+                              )}
+                              <span className="text-[10.5px] text-muted-foreground/80 inline-flex items-center gap-1 mt-0.5">
+                                <Package className="w-3 h-3" />
+                                {productCount} {productCount === 1 ? "produkt" : "produkter"}
+                              </span>
+                            </div>
                           </div>
                         </td>
                       );
@@ -404,7 +452,10 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
                       return (
                         <td key={col.id} className={mergedCell} rowSpan={fr.bookingRowSpan}>
                           {r.address ? (
-                            <div className="text-sm text-foreground/80 leading-snug">{r.address}</div>
+                            <div className="flex items-start gap-2">
+                              <MapPin className="w-3.5 h-3.5 text-muted-foreground/70 mt-[3px] shrink-0" />
+                              <div className="text-[13px] text-foreground/85 leading-snug whitespace-pre-line">{r.address}</div>
+                            </div>
                           ) : (
                             <span className="text-muted-foreground/40 font-light">—</span>
                           )}
@@ -428,7 +479,9 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
                       return (
                         <td key={col.id} className={baseCell}>
                           {p ? (
-                            <span className="text-sm font-mono tabular-nums text-foreground/90">{p.quantity ?? 1}</span>
+                            <span className="inline-flex items-center justify-center min-w-[28px] h-6 px-1.5 rounded-md bg-muted/70 border border-border/60 text-[12px] font-mono font-semibold tabular-nums text-foreground/90">
+                              {p.quantity ?? 1}
+                            </span>
                           ) : (
                             <span className="text-muted-foreground/40 font-light">—</span>
                           )}
@@ -440,9 +493,9 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
                       return (
                         <td key={col.id} className={baseCell}>
                           {show ? (
-                            <span className="text-sm text-foreground/90">{p!.name}</span>
+                            <span className="text-[13px] text-foreground/90 leading-snug">{p!.name}</span>
                           ) : (
-                            <span className="text-muted-foreground/40 font-light">—</span>
+                            <span className="text-muted-foreground/30 font-light">—</span>
                           )}
                         </td>
                       );
@@ -452,9 +505,11 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
                       return (
                         <td key={col.id} className={baseCell}>
                           {show ? (
-                            <span className="text-sm text-foreground">{p!.name}</span>
+                            <span className="inline-flex items-center text-[13px] text-foreground leading-snug px-2 py-0.5 rounded-md bg-accent/40 border border-border/40">
+                              {p!.name}
+                            </span>
                           ) : (
-                            <span className="text-muted-foreground/40 font-light">—</span>
+                            <span className="text-muted-foreground/30 font-light">—</span>
                           )}
                         </td>
                       );
@@ -468,16 +523,29 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
         </table>
       </div>
 
-      <div className="px-5 py-3 border-t border-border/60 bg-muted/20 flex items-center justify-between">
-        <div className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-widest">
-          Visar {rows.length} bokningar · {orderedColumns.length} kolumner
+      <div className="px-6 py-3 border-t border-border/60 bg-gradient-to-b from-card to-muted/20 flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-4 text-[11.5px] text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
+            <Building2 className="w-3 h-3" />
+            <span className="tabular-nums font-semibold text-foreground/80">{totalBookings}</span> bokningar
+          </span>
+          <span className="text-border">·</span>
+          <span className="inline-flex items-center gap-1.5">
+            <Package className="w-3 h-3" />
+            <span className="tabular-nums font-semibold text-foreground/80">{totalProducts}</span> produkter
+          </span>
+          <span className="text-border">·</span>
+          <span className="inline-flex items-center gap-1.5">
+            <Hash className="w-3 h-3" />
+            <span className="tabular-nums font-semibold text-foreground/80">{totalColumns}</span> kolumner
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <span className="relative flex w-2 h-2">
             <span className="absolute inline-flex w-full h-full rounded-full bg-emerald-500/60 animate-ping" />
             <span className="relative inline-flex rounded-full w-2 h-2 bg-emerald-500" />
           </span>
-          <span className="text-xs font-medium text-muted-foreground">Realtidsuppdaterad vy</span>
+          <span className="text-[11.5px] font-medium text-muted-foreground">Realtidsuppdaterad vy</span>
         </div>
       </div>
 
@@ -503,6 +571,17 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
   );
 };
 
+const SummaryPill = ({
+  icon: Icon, label, value,
+}: { icon: typeof Layers; label: string; value: number }) => (
+  <div className="inline-flex items-center gap-2 h-9 px-3 rounded-lg bg-muted/50 border border-border/60">
+    <Icon className="w-3.5 h-3.5 text-muted-foreground" />
+    <span className="text-[11px] uppercase tracking-wider text-muted-foreground/80 font-semibold">{label}</span>
+    <span className="text-[13px] tabular-nums font-bold text-foreground">{value}</span>
+  </div>
+);
+
+
 const CustomCell = ({ initial, onCommit }: { initial: string; onCommit: (v: string) => void }) => {
   const [val, setVal] = useState(initial);
   useEffect(() => { setVal(initial); }, [initial]);
@@ -515,10 +594,11 @@ const CustomCell = ({ initial, onCommit }: { initial: string; onCommit: (v: stri
         if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
         if (e.key === "Escape") { setVal(initial); (e.currentTarget as HTMLInputElement).blur(); }
       }}
-      placeholder="—"
-      className="h-9 text-sm border-transparent hover:border-border/70 hover:bg-card focus:border-ring focus:bg-card bg-transparent transition-colors rounded-md placeholder:text-muted-foreground/40 placeholder:font-light"
+      placeholder="Klicka för att skriva…"
+      className="h-9 text-[13px] border-transparent hover:border-border/60 hover:bg-background focus:border-ring focus:bg-background focus:ring-2 focus:ring-ring/20 bg-transparent transition-all rounded-md placeholder:text-muted-foreground/35 placeholder:font-light placeholder:italic"
     />
   );
 };
+
 
 export default LargeProjectExcelView;
