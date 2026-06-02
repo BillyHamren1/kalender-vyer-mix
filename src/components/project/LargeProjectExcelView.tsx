@@ -579,9 +579,9 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
 const SummaryPill = ({
   icon: Icon, label, value,
 }: { icon: typeof Layers; label: string; value: number }) => (
-  <div className="inline-flex items-center gap-2 h-9 px-3 rounded-lg bg-muted/50 border border-border/60">
-    <Icon className="w-3.5 h-3.5 text-muted-foreground" />
-    <span className="text-[11px] uppercase tracking-wider text-muted-foreground/80 font-semibold">{label}</span>
+  <div className="inline-flex items-center gap-2 h-9 px-3 rounded-lg bg-white border border-planner/15 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+    <Icon className="w-3.5 h-3.5 text-planner" />
+    <span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground/80 font-semibold">{label}</span>
     <span className="text-[13px] tabular-nums font-bold text-foreground">{value}</span>
   </div>
 );
