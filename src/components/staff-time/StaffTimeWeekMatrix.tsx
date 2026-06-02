@@ -15,6 +15,7 @@ import { useStaffTimeWeekMatrix } from "@/hooks/staffTimeFlow/useStaffTimeWeekMa
 import StaffTimeWeekMatrixRow from "./StaffTimeWeekMatrixRow";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import StaffGpsSatelliteMap from "@/components/staff/StaffGpsSatelliteMap";
+import StaffTimeMatrixDayQuickView from "./StaffTimeMatrixDayQuickView";
 
 const WEEK_HEADERS = ["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"] as const;
 
@@ -25,6 +26,7 @@ export const MATRIX_GRID_TEMPLATE =
 export default function StaffTimeWeekMatrix() {
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [openDay, setOpenDay] = useState<{ staffId: string; date: string } | null>(null);
+  const [satelliteFor, setSatelliteFor] = useState<{ staffId: string; date: string } | null>(null);
 
   const weekDates = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
@@ -33,6 +35,13 @@ export default function StaffTimeWeekMatrix() {
   const weekEnd = addDays(weekStart, 6);
 
   const { matrix, isLoading } = useStaffTimeWeekMatrix({ weekDates });
+
+  const openCell = useMemo(() => {
+    if (!openDay || !matrix) return null;
+    const row = matrix.rows.find((r) => r.staffId === openDay.staffId);
+    const cell = row?.days.find((d) => d.date === openDay.date) ?? null;
+    return cell ? { cell, staffName: row!.staffName } : null;
+  }, [openDay, matrix]);
 
   return (
     <div className="flex flex-col">
@@ -101,17 +110,43 @@ export default function StaffTimeWeekMatrix() {
         </div>
       )}
 
+      {/* Snabbvy: renderar cellens egna rows direkt (single-pipeline). */}
       <Dialog open={!!openDay} onOpenChange={(o) => !o && setOpenDay(null)}>
-        <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] max-h-[90vh] p-0 flex flex-col overflow-hidden">
+        <DialogContent className="max-w-3xl w-[92vw] p-0 flex flex-col overflow-hidden">
           <DialogHeader className="px-4 py-3 border-b shrink-0">
-            <DialogTitle className="text-sm">GPS-karta · {openDay?.date}</DialogTitle>
+            <DialogTitle className="text-sm">
+              Dag {openDay?.date} {openCell ? `· ${openCell.staffName}` : ""}
+            </DialogTitle>
           </DialogHeader>
           <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4">
-            {openDay && (
+            {openCell ? (
+              <StaffTimeMatrixDayQuickView
+                cell={openCell.cell}
+                staffName={openCell.staffName}
+                onOpenSatellite={() => {
+                  if (openDay) setSatelliteFor(openDay);
+                  setOpenDay(null);
+                }}
+              />
+            ) : (
+              <div className="text-sm text-muted-foreground">Laddar…</div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Sekundär: faktisk GPS-satellitkarta, bara om användaren ber om det. */}
+      <Dialog open={!!satelliteFor} onOpenChange={(o) => !o && setSatelliteFor(null)}>
+        <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] max-h-[90vh] p-0 flex flex-col overflow-hidden">
+          <DialogHeader className="px-4 py-3 border-b shrink-0">
+            <DialogTitle className="text-sm">GPS-karta · {satelliteFor?.date}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4">
+            {satelliteFor && (
               <StaffGpsSatelliteMap
-                key={`${openDay.staffId}-${openDay.date}`}
-                initialStaffId={openDay.staffId}
-                initialDate={openDay.date}
+                key={`${satelliteFor.staffId}-${satelliteFor.date}`}
+                initialStaffId={satelliteFor.staffId}
+                initialDate={satelliteFor.date}
               />
             )}
           </div>

@@ -118,6 +118,11 @@ export interface ResolvedStaffDaySummary {
   reviewComment: string | null;
   cacheBuiltAt: string | null;
   engineVersion: string | null;
+  /** Tidslinje-rader (samma kontrakt som ResolvedDayRow). Från cachens
+   *  display_blocks_json / report_candidate_blocks_json eller submissionens
+   *  display_timeline_snapshot_json. Veckomatrisens detaljvy renderar dessa
+   *  direkt — INGEN parallell GPS-bygg ska behövas. */
+  rows: ResolvedDayRow[];
 }
 
 // ---------- Status mapping ----------
@@ -324,6 +329,7 @@ function buildSummaryFromSubmission(args: {
   const totalMinutes = Math.max(0, safeNumber(summary.payableMinutes || workMinutes + travelMinutes - breakMinutes));
   const normalMinutes = safeNumber(summary.normalMinutes);
   const overtimeMinutes = safeNumber(summary.overtimeMinutes);
+  const rows = rowsFromSubmissionSnapshot(submission.display_timeline_snapshot_json);
 
   return {
     staffId,
@@ -342,6 +348,7 @@ function buildSummaryFromSubmission(args: {
     reviewComment: submission.review_comment ?? null,
     cacheBuiltAt: null,
     engineVersion: null,
+    rows,
   };
 }
 
@@ -357,6 +364,13 @@ function buildSummaryFromCache(args: {
   const breakMinutes = safeNumber(summary.breakMinutes);
   const totalMinutes = Math.max(0, safeNumber(summary.payableMinutes ?? summary.totalMinutes ?? workMinutes + travelMinutes - breakMinutes));
   const normalMinutes = Math.max(0, totalMinutes - travelMinutes);
+
+  // Bygg rader genom samma single-pipeline-mapper som mobil + admin Gantt.
+  const picked = selectCacheBlockSource(cache);
+  const segments: MobileSegment[] = picked.source === "none"
+    ? []
+    : mapReportBlocksToSegments(picked.blocks, { source: picked.source });
+  const rows = rowsFromMobileSegments(segments);
 
   return {
     staffId,
@@ -375,6 +389,7 @@ function buildSummaryFromCache(args: {
     reviewComment: null,
     cacheBuiltAt: cache.built_at ?? null,
     engineVersion: cache.engine_version ?? null,
+    rows,
   };
 }
 
@@ -565,7 +580,10 @@ export async function resolveStaffDayReportSummariesBatch(args: {
     if (!subByKey.has(k)) subByKey.set(k, r);
   }
 
-  const cacheSelectLean = "staff_id, date, engine_version, summary_json, built_at, stale, error";
+  // Inkludera blocks-fälten så vi kan bygga rows[] via samma single-pipeline
+  // som mobil/admin-Gantt. Detta är fortfarande mycket lättare än hela
+  // diagnostics_json som medvetet är exkluderad här.
+  const cacheSelectLean = "staff_id, date, engine_version, summary_json, display_blocks_json, report_candidate_blocks_json, workday_allocation_segments_json, built_at, stale, error";
   const { data: cacheRows, error: cacheErr } = await admin
     .from("staff_day_report_cache")
     .select(cacheSelectLean)
