@@ -21,6 +21,7 @@ import {
   type DisplayBlockShape,
   type UserEdit,
 } from "../_shared/time-engine/applyUserEditsToDisplayTimeline.ts";
+import { rebuildProjectStaffTimeCostLinesForSubmission } from "../_shared/staff-day-cost-lines.ts";
 
 interface SubmitBody {
   staffId?: string;
