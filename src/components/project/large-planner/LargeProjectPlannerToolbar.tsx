@@ -40,11 +40,11 @@ const LargeProjectPlannerToolbar = ({
   onViewModeChange,
 }: Props) => {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 bg-gradient-to-b from-primary/[0.06] to-background px-4 py-3">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 bg-gradient-to-b from-planner/[0.06] to-background px-4 py-3">
       {/* Vänster: identitet + meta */}
       <div className="flex items-center gap-3 min-w-0">
-        <div className="h-9 w-9 rounded-xl bg-primary/10 ring-1 ring-primary/15 flex items-center justify-center shrink-0">
-          <CalendarDays className="h-4 w-4 text-primary" />
+        <div className="h-9 w-9 rounded-xl bg-planner/10 ring-1 ring-planner/15 flex items-center justify-center shrink-0">
+          <CalendarDays className="h-4 w-4 text-planner" />
         </div>
         <div className="min-w-0">
           <div className="text-sm font-semibold text-foreground leading-tight">
@@ -56,7 +56,7 @@ const LargeProjectPlannerToolbar = ({
                 {rangeLabel}
               </span>
             )}
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-primary/8 border border-primary/15 text-primary/85 font-semibold tabular-nums">
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-planner/8 border border-planner/15 text-planner/85 font-semibold tabular-nums">
               {daysCount} {daysCount === 1 ? 'dag' : 'dagar'}
             </span>
           </div>
@@ -108,7 +108,7 @@ const LargeProjectPlannerToolbar = ({
           onClick={onSeedFromBookings}
           disabled={isMutating}
         >
-          <Sparkles className="h-3.5 w-3.5 mr-1.5 text-primary" />
+          <Sparkles className="h-3.5 w-3.5 mr-1.5 text-planner" />
           Skapa plan från bokningar
         </Button>
         <Button

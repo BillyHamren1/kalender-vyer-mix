@@ -309,8 +309,8 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
       <div className="px-6 py-4 border-b border-border/70 bg-gradient-to-b from-muted/30 to-card sticky top-0 z-30 backdrop-blur-sm">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-              <Layers className="w-4 h-4 text-primary" />
+            <div className="h-9 w-9 rounded-xl bg-planner/10 flex items-center justify-center shrink-0">
+              <Layers className="w-4 h-4 text-planner" />
             </div>
             <div className="min-w-0">
               <h3 className="text-sm font-semibold text-foreground leading-tight">Projektöversikt</h3>
@@ -357,7 +357,7 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
                     onDragOver={(e) => { e.preventDefault(); }}
                     onDrop={() => onDrop(col.id)}
                     onDragEnd={() => setDragId(null)}
-                    className={`${headerCellClass} min-w-[180px] ${sticky ? "sticky left-0 z-20 bg-muted/70 border-r border-border/70 min-w-[280px]" : ""} ${dragId === col.id ? "opacity-50 ring-2 ring-primary/50" : ""} cursor-move group/th transition-colors hover:bg-muted/70`}
+                    className={`${headerCellClass} min-w-[180px] ${sticky ? "sticky left-0 z-20 bg-muted/70 border-r border-border/70 min-w-[280px]" : ""} ${dragId === col.id ? "opacity-50 ring-2 ring-planner/50" : ""} cursor-move group/th transition-colors hover:bg-muted/70`}
                   >
                     <div className="flex items-center gap-2">
                       <GripVertical className="w-3.5 h-3.5 opacity-25 group-hover/th:opacity-70 transition-opacity shrink-0" />
@@ -426,7 +426,7 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
                       return (
                         <td key={col.id} className={mergedCell} rowSpan={fr.bookingRowSpan}>
                           <div className="flex items-start gap-3">
-                            <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 border border-primary/15 flex items-center justify-center shrink-0 text-[11px] font-bold text-primary tracking-wide">
+                            <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-planner/15 to-planner/5 border border-planner/15 flex items-center justify-center shrink-0 text-[11px] font-bold text-planner tracking-wide">
                               {initialsOf(r.client)}
                             </div>
                             <div className="flex flex-col gap-1 min-w-0">
@@ -434,7 +434,7 @@ const LargeProjectExcelView = ({ bookings }: Props) => {
                                 {r.client}
                               </span>
                               {r.title && (
-                                <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-primary/80 uppercase tracking-wider font-mono w-fit px-1.5 py-0.5 rounded-md bg-primary/8 border border-primary/15">
+                                <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-planner/80 uppercase tracking-wider font-mono w-fit px-1.5 py-0.5 rounded-md bg-planner/8 border border-planner/15">
                                   {r.title}
                                 </span>
                               )}
