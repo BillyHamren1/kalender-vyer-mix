@@ -99,6 +99,10 @@ export interface DailyOverviewRow {
 
 const STATUSES_THAT_MEAN_SUBMITTED = new Set([
   'submitted',
+  'edited',
+  'ai_flagged',
+  'needs_user_attention',
+  'needs_control',
   'approved',
   'payroll_approved',
   'corrected',
