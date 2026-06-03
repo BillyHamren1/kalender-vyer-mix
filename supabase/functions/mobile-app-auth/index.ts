@@ -25,10 +25,11 @@ const corsHeaders = {
 // validate cleanly there.
 const TOKEN_EXPIRY_HOURS = 24 * 30
 
-function generateToken(staffId: string): string {
+function generateToken(staffId: string, sessionId?: string): string {
   const timestamp = Date.now()
   const expiresAt = timestamp + TOKEN_EXPIRY_HOURS * 60 * 60 * 1000
-  const payload = { staffId, timestamp, expiresAt }
+  const payload: Record<string, unknown> = { staffId, timestamp, expiresAt }
+  if (sessionId) payload.sessionId = sessionId
   return btoa(JSON.stringify(payload))
 }
 
