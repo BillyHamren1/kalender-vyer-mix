@@ -219,7 +219,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
 
       <div className="divide-y divide-border/30">
         {/* Uppdaterade bokningar (triage från BOOKING-systemet) */}
-        {unseenUpdates.map((update) => {
+        {visibleUpdates.map((update) => {
           const meta = updatedBookingsMeta.find((b) => b.id === update.booking_id);
           if (!meta) return null;
           return (
