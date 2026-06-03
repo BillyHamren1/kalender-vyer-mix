@@ -39,11 +39,17 @@ async function resolveJwtUserId(
   return { userId: userData.user?.id ?? null, error: null };
 }
 
-function tryParseMobileToken(token: string): { staffId?: string; expiresAt?: number } | null {
+function tryParseMobileToken(token: string): { staffId?: string; sessionId?: string; expiresAt?: number } | null {
   try {
     if (token.includes(".")) return null; // JWTs contain dots
     const payload = JSON.parse(atob(token));
-    if (typeof payload?.staffId === "string" && typeof payload?.expiresAt === "number") return payload;
+    if (typeof payload?.staffId === "string" && typeof payload?.expiresAt === "number") {
+      return {
+        staffId: payload.staffId,
+        sessionId: typeof payload.sessionId === "string" ? payload.sessionId : undefined,
+        expiresAt: payload.expiresAt,
+      };
+    }
     return null;
   } catch { return null; }
 }
