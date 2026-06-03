@@ -93,17 +93,96 @@ serve(async (req) => {
       console.warn(`[receive-booking] Unknown event_type="${event_type}" for booking=${booking_id}`)
     }
 
-    // ── 5. Insert persistent sync job ────────────────────────────────────
+    // ── 5. Insert persistent sync job (with coalescing) ─────────────────
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, serviceRoleKey)
+
+    // Normalize event_type so legacy "booking_updated" and new
+    // "booking.updated" coalesce into the same logical bucket.
+    const normalizedEventType =
+      (event_type || 'unknown').replace(/_/g, '.').toLowerCase()
+
+    // Coalesce webhook bursts:
+    //   - If an unfinished job already exists for this booking+org, reuse it.
+    //   - If a job for this booking+org completed within the last 30 seconds,
+    //     skip queuing entirely — the next coalesced incremental sync will
+    //     pick up anything new via the `since`-cursor anyway.
+    const COOLDOWN_MS = 30_000
+    const cooldownIso = new Date(Date.now() - COOLDOWN_MS).toISOString()
+
+    const { data: existingJobs, error: lookupError } = await supabase
+      .from('booking_sync_jobs')
+      .select('id, status, received_at, processed_at')
+      .eq('booking_id', booking_id)
+      .eq('organization_id', organization_id)
+      .order('received_at', { ascending: false })
+      .limit(5)
+
+    if (lookupError) {
+      console.warn('[receive-booking] Lookup failed, proceeding with insert', lookupError.message)
+    }
+
+    const unfinished = (existingJobs || []).find(
+      (j: any) => j.status === 'pending' || j.status === 'processing'
+    )
+    if (unfinished) {
+      console.log('[receive-booking] Coalesced into existing unfinished job', JSON.stringify({
+        existing_job_id: unfinished.id,
+        booking_id,
+        organization_id,
+        event_type: normalizedEventType,
+        duration_ms: Date.now() - startTime,
+      }))
+      return new Response(
+        JSON.stringify({
+          success: true,
+          accepted: true,
+          coalesced: true,
+          job_id: unfinished.id,
+          booking_id,
+          event_type: normalizedEventType,
+          status: unfinished.status,
+        }),
+        { status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const recentlyCompleted = (existingJobs || []).find(
+      (j: any) =>
+        j.status === 'completed' &&
+        j.processed_at &&
+        j.processed_at > cooldownIso
+    )
+    if (recentlyCompleted) {
+      console.log('[receive-booking] Suppressed (cooldown after recent completion)', JSON.stringify({
+        last_job_id: recentlyCompleted.id,
+        booking_id,
+        organization_id,
+        event_type: normalizedEventType,
+        cooldown_ms: COOLDOWN_MS,
+        duration_ms: Date.now() - startTime,
+      }))
+      return new Response(
+        JSON.stringify({
+          success: true,
+          accepted: true,
+          coalesced: true,
+          suppressed_by_cooldown: true,
+          last_job_id: recentlyCompleted.id,
+          booking_id,
+          event_type: normalizedEventType,
+        }),
+        { status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     const { data: job, error: insertError } = await supabase
       .from('booking_sync_jobs')
       .insert({
         booking_id,
         organization_id,
-        event_type: event_type || 'unknown',
+        event_type: normalizedEventType,
         status: 'pending',
       })
       .select('id, status, received_at')
@@ -124,7 +203,7 @@ serve(async (req) => {
       job_id: job.id,
       booking_id,
       organization_id,
-      event_type: event_type || 'unknown',
+      event_type: normalizedEventType,
       duration_ms: Date.now() - startTime,
     }))
 
@@ -134,7 +213,7 @@ serve(async (req) => {
         accepted: true,
         job_id: job.id,
         booking_id,
-        event_type: event_type || 'unknown',
+        event_type: normalizedEventType,
         status: 'pending',
       }),
       { status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
