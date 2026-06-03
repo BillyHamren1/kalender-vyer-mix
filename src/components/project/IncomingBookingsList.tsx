@@ -180,9 +180,10 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
   };
 
   const handleReviewUpdate = (booking: typeof updatedBookingsMeta[number]) => {
-    const projectId = booking.large_project_id || booking.assigned_project_id;
-    if (projectId) {
-      navigate(`/projects/${booking.large_project_id ? 'large/' : ''}${projectId}`);
+    if (booking.large_project_id) {
+      navigate(`/large-project/${booking.large_project_id}`);
+    } else if (booking.assigned_project_id) {
+      navigate(`/project/${booking.assigned_project_id}`);
     } else {
       navigate(`/booking/${booking.id}`);
     }
