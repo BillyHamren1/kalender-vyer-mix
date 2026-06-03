@@ -1,0 +1,52 @@
+/* Print-styling för lönerapporten — A4, en anställd per sida, dölj kontroller. */
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 14mm 12mm;
+  }
+
+  body {
+    background: #ffffff !important;
+  }
+
+  /* Dölj all chrome utanför rapporten */
+  .payroll-no-print {
+    display: none !important;
+  }
+
+  /* Layouten: rapporten tar hela sidan */
+  .payroll-report-root {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .payroll-sheet {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    break-after: page;
+    page-break-after: always;
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .payroll-sheet:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .payroll-day-row {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Inga interaktiva fokusringar i utskrift */
+  .payroll-report-root button {
+    border: none !important;
+    background: transparent !important;
+    color: inherit !important;
+    padding: 0 !important;
+  }
+}
