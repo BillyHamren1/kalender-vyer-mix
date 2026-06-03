@@ -139,7 +139,8 @@ function rowsFromSubmissionSnapshot(snapshot: unknown): ResolvedDayRow[] {
   if (!Array.isArray(snapshot)) return [];
   return snapshot.map((entry) => {
     const raw = entry as Record<string, any>;
-    const t = String(raw.type ?? raw.kind ?? "work");
+    // allocationType (submission v2 snapshot) räknas också som arbete.
+    const t = String(raw.type ?? raw.kind ?? raw.classification ?? raw.allocationType ?? "work");
     const kind: ResolvedDayRow["kind"] =
       t === "manual_work" || t === "work" || t === "project" || t === "booking" ||
       t === "large_project" || t === "warehouse" || t === "location"
@@ -150,12 +151,24 @@ function rowsFromSubmissionSnapshot(snapshot: unknown): ResolvedDayRow[] {
         : t === "gps_gap" ? "gps_gap"
         : t === "needs_review" ? "needs_review"
         : "other";
+    // Snapshotens fältnamn varierar mellan versioner: start/startedAt/startAt/startAtIso
+    // (samma för end). Plocka första som finns.
+    const startIso = (raw.startAtIso ?? raw.startIso ?? raw.start ?? raw.startedAt ?? raw.startAt ?? null) as string | null;
+    const endIso = (raw.endAtIso ?? raw.endIso ?? raw.end ?? raw.endedAt ?? raw.endAt ?? null) as string | null;
+    let minutes = Math.max(0, Math.round(Number(raw.minutes ?? raw.durationMinutes ?? 0)) || 0);
+    if (minutes === 0 && startIso && endIso) {
+      const s = Date.parse(startIso);
+      const e = Date.parse(endIso);
+      if (Number.isFinite(s) && Number.isFinite(e) && e > s) {
+        minutes = Math.max(0, Math.round((e - s) / 60_000));
+      }
+    }
     return {
       kind,
-      label: String(raw.label ?? raw.title ?? "Arbete"),
-      startIso: (raw.start ?? raw.startedAt ?? raw.startAt ?? null) as string | null,
-      endIso: (raw.end ?? raw.endedAt ?? raw.endAt ?? null) as string | null,
-      minutes: Math.max(0, Math.round(Number(raw.minutes ?? raw.durationMinutes ?? 0)) || 0),
+      label: String(raw.label ?? raw.displayLabel ?? raw.title ?? "Arbete"),
+      startIso,
+      endIso,
+      minutes,
       fromLabel: (raw.fromLabel ?? null) as string | null,
       toLabel: (raw.toLabel ?? null) as string | null,
     };
