@@ -143,6 +143,24 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           projection: 'mercator',
           attributionControl: false,
         });
+        {
+          const m = map.current;
+          if (m) {
+            m.scrollZoom.enable();
+            m.boxZoom.enable();
+            m.dragRotate.enable();
+            m.dragPan.enable();
+            m.keyboard.enable();
+            m.doubleClickZoom.enable();
+            m.touchZoomRotate.enable();
+          }
+          console.debug('[OpsLiveMap] Map interactions enabled', {
+            scrollZoom: true,
+            dragPan: true,
+            doubleClickZoom: true,
+            touchZoomRotate: true,
+          });
+        }
         map.current.addControl(new mapboxgl.NavigationControl({ showCompass: false, visualizePitch: false }), 'top-right');
         map.current.on('load', () => {
           if (!cancelled) {
@@ -901,7 +919,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           : 'relative w-full h-full overflow-hidden rounded-xl border-2 border-border'
       }
     >
-      <div ref={mapContainer} className="w-full h-full" />
+      <div ref={mapContainer} className="w-full h-full" style={{ touchAction: 'none' }} />
       <style>{`@keyframes opspulse { 0%,100% { opacity:.18; transform:translate(-50%,-50%) scale(1);} 50% { opacity:.42; transform:translate(-50%,-50%) scale(1.25);} }`}</style>
 
       {/* Loading */}
