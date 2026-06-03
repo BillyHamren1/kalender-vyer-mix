@@ -1,10 +1,13 @@
 /**
  * StaffPayrollReportDayRow — en datumrad i lönerapporten.
- * Visar varje block (work/travel/...) som en egen rad. Klick = öppna dag-snabbvy.
+ * Renderar block (work/travel/...) som separata rader.
+ * Resa-rader får badge för vilket projekt restiden belastar.
  */
 import { format, parseISO } from "date-fns";
 import { sv } from "date-fns/locale";
+import { ArrowRight } from "lucide-react";
 import type { StaffTimeMatrixCell, StaffTimeMatrixRowItem } from "@/hooks/staffTimeFlow/useStaffTimeWeekMatrix";
+import { resolveTravelAllocation } from "@/lib/staff-payroll/travelAllocation";
 
 function fmtTime(iso: string | null): string {
   if (!iso) return "";
@@ -37,56 +40,83 @@ interface Props {
   onClick: () => void;
 }
 
+function TravelBadge({ cell, item }: { cell: StaffTimeMatrixCell; item: StaffTimeMatrixRowItem }) {
+  const alloc = resolveTravelAllocation(cell, item);
+  if (alloc.kind === "linked") {
+    return (
+      <span
+        className="inline-flex items-center gap-1 max-w-[260px] rounded-full bg-sky-50 border border-sky-200 text-sky-800 px-2 py-0.5 text-[10.5px] font-medium"
+        title={`Belastar: ${alloc.label}`}
+      >
+        <ArrowRight className="h-2.5 w-2.5 shrink-0" />
+        <span className="truncate">Belastar: {alloc.label}</span>
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center rounded-full border border-border bg-muted/50 text-muted-foreground px-2 py-0.5 text-[10.5px]">
+      Ej kopplad
+    </span>
+  );
+}
+
 export default function StaffPayrollReportDayRow({ cell, onClick }: Props) {
   const date = parseISO(cell.date);
   const dayLabel = format(date, "EEE d MMM", { locale: sv });
   const hasRows = cell.rows && cell.rows.length > 0;
   const isEmpty = cell.status === "empty" && !hasRows && !cell.startTime;
 
+  if (isEmpty) {
+    return (
+      <div className="payroll-day-row grid grid-cols-[120px_1fr_70px_70px_72px] gap-3 px-4 py-1.5 text-left border-b border-border/40 text-[11.5px] text-muted-foreground/70">
+        <div className="capitalize">{dayLabel}</div>
+        <div className="col-span-4">—</div>
+      </div>
+    );
+  }
+
   return (
     <button
       type="button"
       onClick={onClick}
-      className="payroll-day-row w-full grid grid-cols-[120px_1fr_70px_70px_72px] gap-3 px-4 py-2 text-left border-b border-neutral-200 hover:bg-neutral-50 print:hover:bg-transparent text-[12px] leading-snug"
+      className="payroll-day-row w-full grid grid-cols-[120px_1fr_70px_70px_72px] gap-3 px-4 py-2.5 text-left border-b border-border/40 hover:bg-muted/40 print:hover:bg-transparent text-[12.5px] leading-snug transition-colors"
     >
-      <div className="font-medium text-neutral-900 capitalize">{dayLabel}</div>
+      <div className="font-semibold text-foreground capitalize pt-0.5">{dayLabel}</div>
 
-      <div className="flex flex-col gap-0.5 min-w-0">
-        {isEmpty && <span className="text-neutral-400">—</span>}
+      <div className="flex flex-col gap-1 min-w-0">
         {hasRows
           ? cell.rows.map((r, i) => (
-              <div key={i} className="flex items-baseline gap-2 min-w-0">
-                <span className="truncate text-neutral-900">{kindLabel(r)}</span>
-                {(r.fromLabel || r.toLabel) && r.kind === "travel" && (
-                  <span className="text-[11px] text-neutral-500 truncate">
+              <div key={i} className="flex items-center gap-2 min-w-0 flex-wrap">
+                <span className="truncate text-foreground">{kindLabel(r)}</span>
+                {r.kind === "travel" && <TravelBadge cell={cell} item={r} />}
+                {r.kind === "travel" && (r.fromLabel || r.toLabel) && (
+                  <span className="text-[10.5px] text-muted-foreground truncate">
                     {r.fromLabel ?? "?"} → {r.toLabel ?? "?"}
                   </span>
                 )}
               </div>
             ))
-          : !isEmpty && (
-              <span className="text-neutral-700">Arbetsdag</span>
-            )}
+          : <span className="text-foreground/80">Arbetsdag</span>}
       </div>
 
-      <div className="text-right tabular-nums text-neutral-700">
+      <div className="text-right tabular-nums text-muted-foreground pt-0.5">
         {hasRows
           ? cell.rows.map((r, i) => <div key={i}>{fmtTime(r.startIso)}</div>)
           : <div>{cell.startTime ?? ""}</div>}
       </div>
 
-      <div className="text-right tabular-nums text-neutral-700">
+      <div className="text-right tabular-nums text-muted-foreground pt-0.5">
         {hasRows
           ? cell.rows.map((r, i) => <div key={i}>{fmtTime(r.endIso)}</div>)
           : <div>{cell.endTime ?? ""}</div>}
       </div>
 
-      <div className="text-right tabular-nums font-medium text-neutral-900">
+      <div className="text-right tabular-nums font-semibold text-foreground pt-0.5">
         {hasRows
           ? cell.rows.map((r, i) => <div key={i}>{fmtH(r.minutes)}</div>)
-          : <div>{isEmpty ? "" : fmtH(cell.totalMinutes)}</div>}
+          : <div>{fmtH(cell.totalMinutes)}</div>}
         {hasRows && cell.rows.length > 1 && (
-          <div className="mt-0.5 pt-0.5 border-t border-neutral-200 text-[11px] text-neutral-600">
+          <div className="mt-1 pt-1 border-t border-border/50 text-[11px] text-muted-foreground">
             {fmtH(cell.totalMinutes)}
           </div>
         )}

@@ -30,11 +30,21 @@
     border: none !important;
     margin: 0 !important;
     padding: 0 !important;
+    max-width: 820px;
+    margin-left: auto !important;
+    margin-right: auto !important;
   }
 
   .payroll-sheet:last-child {
     break-after: auto;
     page-break-after: auto;
+  }
+
+  /* Tvinga tillbaka två-kolumns-gridden till en kolumn i print */
+  .payroll-sheet > div.grid {
+    display: block !important;
+    padding: 0 !important;
+    gap: 0 !important;
   }
 
   .payroll-day-row {
