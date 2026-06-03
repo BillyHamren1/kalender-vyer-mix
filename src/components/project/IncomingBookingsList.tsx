@@ -372,15 +372,18 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
               return (
                 <div
                   key={booking.id}
-                  className={`group relative flex items-center gap-3 pl-4 pr-3 py-3 transition-colors ${isCancelled ? 'hover:bg-muted/30' : 'bg-green-50 hover:bg-green-100/70'}`}
+                  className={`group relative flex items-center gap-3 pl-6 pr-3 py-3 transition-colors ${isCancelled ? 'hover:bg-muted/30' : 'bg-green-50 hover:bg-green-100/70'}`}
                 >
+                  <span
+                    className={`absolute left-0 top-0 bottom-0 w-1.5 ${isCancelled ? 'bg-destructive' : 'bg-emerald-500'}`}
+                    aria-hidden
+                  />
                   <div
                     className="flex-1 min-w-0 cursor-pointer"
                     onClick={() => navigate(`/booking/${booking.id}`)}
                   >
                     <div className="flex items-center gap-2">
-                      <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${isCancelled ? 'bg-destructive' : 'bg-primary'}`} />
-                      <h4 className={`text-sm font-medium truncate group-hover:text-primary transition-colors ${isCancelled ? 'text-destructive line-through' : 'text-foreground'}`}>
+                      <h4 className={`text-sm font-semibold truncate group-hover:text-primary transition-colors ${isCancelled ? 'text-destructive line-through' : 'text-foreground'}`}>
                         {booking.client}
                       </h4>
                       {isCancelled && (
@@ -389,13 +392,8 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                           Avbokad
                         </span>
                       )}
-                      {booking.booking_number && (
-                        <span className="ml-auto text-[10.5px] text-muted-foreground/60 font-mono shrink-0">
-                          #{booking.booking_number}
-                        </span>
-                      )}
                     </div>
-                    <div className="flex items-center gap-3 mt-1 pl-3.5 text-[11.5px] text-muted-foreground">
+                    <div className="flex items-center gap-3 mt-1 text-[11.5px] text-muted-foreground">
                       <span className="flex items-center gap-1.5">
                         <Calendar className="w-3 h-3" />
                         {formatDate(booking.eventdate || '')}
@@ -410,15 +408,20 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                   </div>
 
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className={`flex flex-wrap items-center justify-end gap-x-4 gap-y-1 shrink-0 pl-4 border-l ${isCancelled ? 'border-destructive/20' : 'border-emerald-200/70'}`}>
+                    {booking.booking_number && (
+                      <span className="text-sm font-mono text-slate-400 order-2 sm:order-1">
+                        #{booking.booking_number}
+                      </span>
+                    )}
                     {isCancelled ? (
-                      <>
+                      <div className="flex items-center gap-2 order-1 sm:order-2">
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => deleteMutation.mutate(booking.id)}
                           disabled={deleteMutation.isPending}
-                          className="h-8 px-3 text-xs gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          className="h-9 px-3 text-xs gap-1.5 rounded-lg text-destructive hover:bg-destructive/10 hover:text-destructive"
                           title="Ta bort från planning"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -429,25 +432,25 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                           size="sm"
                           onClick={() => restoreMutation.mutate(booking.id)}
                           disabled={restoreMutation.isPending}
-                          className="h-8 px-3 text-xs gap-1.5"
+                          className="h-9 px-3 text-xs gap-1.5 rounded-lg"
                           title="Återställ till bekräftad"
                         >
                           <Undo2 className="w-3.5 h-3.5" />
                           Ångra
                         </Button>
-                      </>
+                      </div>
                     ) : (
                       <Button
                         size="sm"
                         onClick={() => setPlacementBookingId(booking.id)}
-                        className="h-8 px-3 text-xs gap-1.5 font-medium text-neutral-800 border border-emerald-300 hover:brightness-95" style={{ backgroundColor: '#E2FBE9' }}
+                        className="h-10 px-5 text-sm gap-2 font-semibold rounded-xl shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white whitespace-nowrap transition-colors order-1 sm:order-2"
                         title="Placera bokningen i kalendern"
                       >
-                        <CalendarPlus className="w-3.5 h-3.5" />
+                        <CalendarPlus className="w-4 h-4" />
                         Placera
                       </Button>
                     )}
-                    <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
+                    <ChevronRight className="h-4 w-4 text-muted-foreground/40 order-3" />
                   </div>
                 </div>
               );
