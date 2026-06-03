@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { debugTimed } from '@/lib/performance/debugTiming';
 import type { PackingStatus } from '@/types/packing';
 
 export type LivePackingStatus = Extract<
@@ -40,6 +41,8 @@ export interface LivePackingActivityCounts {
 }
 
 export async function fetchLivePackingProjects(): Promise<LivePackingItem[]> {
+  const extra: Record<string, unknown> = {};
+  return debugTimed('fetchLivePackingProjects', async () => {
   // 1. packing_projects in live phases
   const { data: packings, error } = await supabase
     .from('packing_projects')
@@ -51,12 +54,14 @@ export async function fetchLivePackingProjects(): Promise<LivePackingItem[]> {
     .limit(100);
 
   if (error) throw error;
+  extra.packings = packings?.length || 0;
   if (!packings || packings.length === 0) return [];
 
   // 2. Optional booking enrichment (city + booking_number)
   const bookingIds = Array.from(
     new Set((packings as Array<{ booking_id: string | null }>).map(p => p.booking_id).filter((x): x is string => !!x))
   );
+  extra.bookingIds = bookingIds.length;
 
   let bookingMap = new Map<string, { booking_number: string | null; delivery_city: string | null }>();
   if (bookingIds.length > 0) {
@@ -69,7 +74,7 @@ export async function fetchLivePackingProjects(): Promise<LivePackingItem[]> {
     );
   }
 
-  return (packings as any[]).map(p => {
+  const result = (packings as any[]).map(p => {
     const enrich = p.booking_id ? bookingMap.get(p.booking_id) : undefined;
     return {
       id: p.id,
@@ -87,6 +92,8 @@ export async function fetchLivePackingProjects(): Promise<LivePackingItem[]> {
       booking_number: enrich?.booking_number ?? null,
     };
   });
+  return result;
+  }, extra);
 }
 
 const isoOrFallback = (since: number | undefined): string => {
@@ -98,6 +105,7 @@ export async function fetchActivityCounts(
   packingIds: string[],
   seenAtMap: Record<string, number | undefined>
 ): Promise<Record<string, LivePackingActivityCounts>> {
+  return debugTimed('fetchActivityCounts', async () => {
   const result: Record<string, LivePackingActivityCounts> = {};
   if (packingIds.length === 0) return result;
 
@@ -145,4 +153,5 @@ export async function fetchActivityCounts(
   // Loose fallback: if seenAtMap missing → bucket already aggregated above.
   void isoOrFallback;
   return result;
+  }, { packingIds: packingIds.length });
 }
