@@ -1,5 +1,17 @@
+/**
+ * @deprecated Do not use in project views.
+ *
+ * Project views must not read time_reports / location_time_entries /
+ * travel_time_logs directly. Use `project_staff_time_cost_lines` via
+ * `useProjectReportedTime` / `fetchProjectStaffTimeCostSummaryForTargets`
+ * for reported project time.
+ *
+ * Edge function `get-project-time-summary` får finnas kvar för debug/admin,
+ * men FÅR INTE anropas automatiskt från projektvyer.
+ */
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+
 
 export type ProjectTimeStatus = 'ok' | 'active' | 'review_required' | 'gps_only' | 'missing_workday';
 
