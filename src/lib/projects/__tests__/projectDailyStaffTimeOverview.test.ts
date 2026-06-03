@@ -117,4 +117,41 @@ describe('buildProjectDailyStaffTimeOverview — status rules', () => {
     expect(statusLabel('extra_approved')).toBe('Extra rapporterad');
     expect(statusLabel('extra_submitted')).toBe('Extra (inskickad)');
   });
+
+  // Säkerställer att ALLA countable statusar i resten av systemet räknas som
+  // "submitted" i daily overview (annars visas "saknas" trots inskickad rapport).
+  const countableNonApproved = [
+    'submitted',
+    'edited',
+    'ai_flagged',
+    'needs_user_attention',
+    'needs_control',
+    'corrected',
+  ] as const;
+
+  countableNonApproved.forEach((st) => {
+    it(`assigned + submission status='${st}' (no cost line) → submitted, missing räknas ej`, () => {
+      const out = buildProjectDailyStaffTimeOverview({
+        assignedDays: [{ date: day, staff_id: 's-anna', source: 'bsa' }],
+        submissions: [{ date: day, staff_id: 's-anna', status: st, submitted_at: null }],
+        approvedRows: [],
+        staffNames,
+      });
+      expect(out[0].rows[0].status).toBe('submitted');
+      expect(out[0].totals.submitted).toBe(1);
+      expect(out[0].totals.missing).toBe(0);
+    });
+  });
+
+  it('assigned utan submission och utan cost line → missing (regression)', () => {
+    const out = buildProjectDailyStaffTimeOverview({
+      assignedDays: [{ date: day, staff_id: 's-anna', source: 'bsa' }],
+      submissions: [],
+      approvedRows: [],
+      staffNames,
+    });
+    expect(out[0].rows[0].status).toBe('missing');
+    expect(out[0].totals.missing).toBe(1);
+    expect(out[0].totals.submitted).toBe(0);
+  });
 });
