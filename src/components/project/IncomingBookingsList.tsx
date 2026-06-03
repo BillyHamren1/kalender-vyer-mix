@@ -248,29 +248,18 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
               return (
                 <div
                   key={`update-${update.booking_id}`}
-                  className="group relative flex items-center gap-3 pl-4 pr-3 py-3 bg-yellow-50 hover:bg-yellow-100/70 transition-colors"
+                  className="group relative flex items-center gap-3 pl-6 pr-3 py-3 bg-yellow-50 hover:bg-yellow-100/70 transition-colors"
                 >
+                  <span className="absolute left-0 top-0 bottom-0 w-1.5 bg-amber-500" aria-hidden />
+
                   <div
                     className="flex-1 min-w-0 cursor-pointer"
                     onClick={() => handleReviewUpdate(meta)}
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="h-1.5 w-1.5 rounded-full bg-foreground/60 shrink-0" />
-                      <h4 className="text-sm font-medium truncate text-foreground group-hover:text-primary transition-colors">
-                        {meta.client}
-                      </h4>
-                      {update.change_count > 1 && (
-                        <span className="text-[10.5px] text-muted-foreground shrink-0">
-                          · {update.change_count} ändringar
-                        </span>
-                      )}
-                      {meta.booking_number && (
-                        <span className="ml-auto text-[10.5px] text-muted-foreground/60 font-mono shrink-0">
-                          #{meta.booking_number}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3 mt-1 pl-3.5 text-[11.5px] text-muted-foreground">
+                    <h4 className="text-sm font-semibold truncate text-foreground group-hover:text-primary transition-colors">
+                      {meta.client}
+                    </h4>
+                    <div className="flex items-center gap-3 mt-1 text-[11.5px] text-muted-foreground">
                       <span className="flex items-center gap-1.5">
                         <Calendar className="w-3 h-3" />
                         {formatDate(meta.eventdate || '')}
@@ -284,18 +273,30 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Button
-                      size="sm"
-                      onClick={() => handleReviewUpdate(meta)}
-                      className="h-8 px-3 text-xs gap-1.5 font-medium text-neutral-800 border border-yellow-300 hover:brightness-95" style={{ backgroundColor: '#FDF9C9' }}
-                      title="Granska ändringar och bekräfta mottagen"
-                      disabled={markSeen.isPending}
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>Granska</span>
-                    </Button>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
+                  <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 shrink-0 pl-4 border-l border-amber-200/70">
+                    {meta.booking_number && (
+                      <span className="text-sm font-mono text-slate-400 order-2 sm:order-1">
+                        #{meta.booking_number}
+                      </span>
+                    )}
+                    <div className="flex flex-col items-end gap-0.5 order-1 sm:order-2">
+                      <Button
+                        size="sm"
+                        onClick={() => handleReviewUpdate(meta)}
+                        className="h-10 px-5 text-sm gap-2 font-semibold rounded-xl shadow-sm bg-amber-500 hover:bg-amber-600 text-white whitespace-nowrap transition-colors"
+                        title="Granska ändringar och bekräfta mottagen"
+                        disabled={markSeen.isPending}
+                      >
+                        <Eye className="w-4 h-4" />
+                        <span>Granska</span>
+                      </Button>
+                      {update.change_count > 0 && (
+                        <span className="text-xs text-amber-700/80 font-medium">
+                          {update.change_count} {update.change_count === 1 ? 'ändring väntar' : 'ändringar väntar'}
+                        </span>
+                      )}
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground/40 order-3" />
                   </div>
                 </div>
               );
