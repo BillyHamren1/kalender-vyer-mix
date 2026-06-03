@@ -288,7 +288,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                     <Button
                       size="sm"
                       onClick={() => handleReviewUpdate(meta)}
-                      className="h-8 px-3 text-xs gap-1.5 font-medium bg-slate-900 hover:bg-slate-800 text-white"
+                      className="h-8 px-3 text-xs gap-1.5 font-medium bg-black hover:bg-neutral-800 text-white"
                       title="Granska ändringar och bekräfta mottagen"
                       disabled={markSeen.isPending}
                     >
@@ -354,7 +354,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                   <Button
                     size="sm"
                     onClick={() => project.bookingId && setPlacementBookingId(project.bookingId)}
-                    className="h-8 px-3 text-xs gap-1.5 font-medium bg-slate-900 hover:bg-slate-800 text-white"
+                    className="h-8 px-3 text-xs gap-1.5 font-medium bg-black hover:bg-neutral-800 text-white"
                     title="Placera bokningen"
                     disabled={!project.bookingId}
                   >
@@ -440,7 +440,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                       <Button
                         size="sm"
                         onClick={() => setPlacementBookingId(booking.id)}
-                        className="h-8 px-3 text-xs gap-1.5 font-medium bg-slate-900 hover:bg-slate-800 text-white"
+                        className="h-8 px-3 text-xs gap-1.5 font-medium bg-black hover:bg-neutral-800 text-white"
                         title="Placera bokningen i kalendern"
                       >
                         <CalendarPlus className="w-3.5 h-3.5" />
