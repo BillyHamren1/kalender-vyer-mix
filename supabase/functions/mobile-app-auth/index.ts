@@ -158,9 +158,26 @@ async function handleLogin(
   }
 
   const enriched = await enrichStaffWithRoles(supabase, staffMember)
-  const token = generateToken(account.staff_id)
+
+  // Single-device-per-staff: rotera active_mobile_session_id vid varje login.
+  // Alla tidigare mobil-tokens (med annan/saknad sessionId) avvisas av
+  // mobile-app-api/staff-auth med 401 token_revoked.
+  const sessionId = crypto.randomUUID()
+  const { error: sessionUpdateError } = await supabase
+    .from('staff_members')
+    .update({
+      active_mobile_session_id: sessionId,
+      active_mobile_session_at: new Date().toISOString(),
+    })
+    .eq('id', account.staff_id)
+  if (sessionUpdateError) {
+    console.error('[mobile-app-auth] kunde inte uppdatera active_mobile_session_id:', sessionUpdateError)
+    return json({ error: 'Login failed (session)' }, 500)
+  }
+
+  const token = generateToken(account.staff_id, sessionId)
   console.log(
-    `[mobile-app-auth] login ok: ${staffMember.name} (planner=${enriched.is_planner})`,
+    `[mobile-app-auth] login ok: ${staffMember.name} (planner=${enriched.is_planner}, sessionId=${sessionId})`,
   )
   return json({ success: true, token, staff: enriched })
 }
