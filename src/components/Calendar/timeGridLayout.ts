@@ -7,20 +7,6 @@ import { extractUTCDate, extractUTCTime } from '@/utils/dateUtils';
 
 export interface OverlapInfo { column: number; totalColumns: number; }
 
-/**
- * Beräkna kolumn-layout för överlappande events.
- *
- * Algoritm:
- *  1. Sortera items på top, sedan höjd.
- *  2. Tilldela varje item den lägsta lediga "lane" (kolumn) där det inte krockar
- *     med tidigare placerat item i samma lane (sweep-line via active set).
- *  3. Bygg kluster av transitivt överlappande items via union-find — så att om
- *     A↔B och B↔C så får alla samma totalColumns (= maxLane+1 i klustret).
- *
- * Detta löser den tidigare buggen där två separata "grupper" kunde bildas
- * även när de hade ett gemensamt överlapps-element, vilket fick lanes att
- * räknas oberoende och två kort att hamna på samma plats.
- */
 export function computeOverlapLayout(
   events: CalendarEvent[],
   getPos: (e: CalendarEvent) => { top: number; height: number },
@@ -28,66 +14,52 @@ export function computeOverlapLayout(
   const result = new Map<string, OverlapInfo>();
   if (events.length === 0) return result;
 
-  type Item = { id: string; top: number; bottom: number; lane: number; root: number };
-  const items: Item[] = events.map((e, i) => {
-    const { top, height } = getPos(e);
-    return { id: e.id, top, bottom: top + height, lane: 0, root: i };
-  });
-  items.sort((a, b) => a.top - b.top || (b.bottom - b.top) - (a.bottom - a.top));
+  const items = events.map(e => ({ id: e.id, ...getPos(e) }));
+  items.sort((a, b) => a.top - b.top || b.height - a.height);
 
-  // Union-find över items-indices för att hitta kluster av transitivt
-  // överlappande events.
-  const parent = items.map((_, i) => i);
-  const find = (x: number): number => {
-    while (parent[x] !== x) {
-      parent[x] = parent[parent[x]];
-      x = parent[x];
+  const groups: typeof items[] = [];
+  const eventGroup = new Map<string, number>();
+
+  for (const item of items) {
+    let placed = false;
+    for (let gi = 0; gi < groups.length; gi++) {
+      const group = groups[gi];
+      const overlaps = group.some(g => item.top < g.top + g.height && item.top + item.height > g.top);
+      if (overlaps) {
+        group.push(item);
+        eventGroup.set(item.id, gi);
+        placed = true;
+        break;
+      }
     }
-    return x;
-  };
-  const union = (a: number, b: number) => {
-    const ra = find(a);
-    const rb = find(b);
-    if (ra !== rb) parent[ra] = rb;
-  };
-
-  // Sweep: aktiva = items vars bottom > current.top.
-  type Active = { idx: number; lane: number; bottom: number };
-  const active: Active[] = [];
-
-  for (let i = 0; i < items.length; i++) {
-    const it = items[i];
-    // Rensa active set från items som slutat före it.top.
-    for (let a = active.length - 1; a >= 0; a--) {
-      if (active[a].bottom <= it.top) active.splice(a, 1);
+    if (!placed) {
+      eventGroup.set(item.id, groups.length);
+      groups.push([item]);
     }
-
-    // Union med alla som överlappar (transitiv kluster-bildning).
-    for (const a of active) union(i, a.idx);
-
-    // Hitta lägsta lediga lane.
-    const usedLanes = new Set(active.map((a) => a.lane));
-    let lane = 0;
-    while (usedLanes.has(lane)) lane++;
-    it.lane = lane;
-
-    active.push({ idx: i, lane, bottom: it.bottom });
   }
 
-  // Beräkna totalColumns per kluster (= max lane + 1 i klustret).
-  const clusterMax = new Map<number, number>();
-  for (let i = 0; i < items.length; i++) {
-    const r = find(i);
-    const cur = clusterMax.get(r) ?? 0;
-    if (items[i].lane + 1 > cur) clusterMax.set(r, items[i].lane + 1);
-  }
-
-  for (let i = 0; i < items.length; i++) {
-    const r = find(i);
-    result.set(items[i].id, {
-      column: items[i].lane,
-      totalColumns: clusterMax.get(r) ?? 1,
-    });
+  for (const group of groups) {
+    const cols: typeof items[] = [];
+    for (const item of group) {
+      let assigned = false;
+      for (let ci = 0; ci < cols.length; ci++) {
+        const canFit = cols[ci].every(c => item.top >= c.top + c.height || item.top + item.height <= c.top);
+        if (canFit) {
+          cols[ci].push(item);
+          result.set(item.id, { column: ci, totalColumns: 0 });
+          assigned = true;
+          break;
+        }
+      }
+      if (!assigned) {
+        cols.push([item]);
+        result.set(item.id, { column: cols.length - 1, totalColumns: 0 });
+      }
+    }
+    for (const item of group) {
+      const info = result.get(item.id)!;
+      info.totalColumns = cols.length;
+    }
   }
 
   return result;

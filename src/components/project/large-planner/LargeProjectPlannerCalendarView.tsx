@@ -238,6 +238,7 @@ const LargeProjectPlannerCalendarView = ({
                       onEventDrop={handlePlannerEventDrop}
                       onEventClick={onEventClick}
                       weeklyStaffOperations={weeklyStaffOperations}
+                      fullWidth
                       plannerMode
                       variant="default"
                     />
