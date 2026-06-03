@@ -95,6 +95,9 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
   const [styleRevision, setStyleRevision] = useState(0);
   const [orgLocations, setOrgLocations] = useState<OrganizationLocation[]>([]);
   const [showOrgLocations, setShowOrgLocations] = useState(true);
+  const [showStaff, setShowStaff] = useState(true);
+  const [showJobs, setShowJobs] = useState(true);
+  const [followStaffId, setFollowStaffId] = useState<string | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const { cameras, isLoading: camerasLoading, fetchCameras } = useTrafficCameras();
 
