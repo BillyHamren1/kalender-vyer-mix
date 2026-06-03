@@ -269,68 +269,94 @@ const OpsControlCenter = () => {
           </div>
         </header>
 
-        {/* ── MAIN AREA ── */}
-        <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3">
-          {/* Left: Calendar card */}
-          <section
-            className="planning-card overflow-hidden flex flex-col min-h-0"
-            style={{ padding: 0 }}
-          >
-            <div className="flex-1 min-h-0 overflow-hidden p-3">
-              <OpsPlanningDayPanel />
-            </div>
-          </section>
+        {/* ── MAIN AREA: map-first ── */}
+        <div
+          className="flex-1 min-h-0 grid gap-3 p-3"
+          style={{ gridTemplateColumns: 'minmax(360px, 400px) 1fr' }}
+        >
+          {/* ── LEFT OPERATIONS RAIL ── */}
+          <aside className="flex flex-col gap-3 min-h-0 overflow-y-auto pr-1">
+            {/* Live projects compact */}
+            <section className="planning-card overflow-hidden flex flex-col" style={{ padding: 0 }}>
+              <div className="flex items-center justify-between px-3.5 pt-3 pb-2 shrink-0">
+                <h3 className="planning-section-title">Live projekt</h3>
+              </div>
+              <div className="max-h-[260px] overflow-y-auto px-3 pb-3">
+                <OpsLiveProjects
+                  items={livePacking.items}
+                  counts={livePacking.counts}
+                  pulseIds={livePacking.pulseIds}
+                  isLoading={livePacking.isLoading}
+                  markSeen={livePacking.markSeen}
+                />
+              </div>
+            </section>
 
-          {/* Right: Live Map card */}
-          <section
-            className="planning-card overflow-hidden flex flex-col min-h-0"
-            style={{ padding: 0 }}
-          >
-            <div className="flex-1 min-h-0">
-              <OpsLiveMap
-                locations={locations}
-                mapJobs={mapJobs}
-                isLoading={isLoadingLocations || isLoadingMapJobs}
-                focusCoords={focusCoords}
-                onOpenDM={handleOpenDM}
-                routePolyline={routePolyline}
-              />
-            </div>
-          </section>
-        </div>
+            {/* Planning calendar — collapsible */}
+            <section className="planning-card overflow-hidden flex flex-col" style={{ padding: 0 }}>
+              <details className="group">
+                <summary className="flex items-center justify-between px-3.5 pt-3 pb-2 cursor-pointer select-none list-none">
+                  <h3 className="planning-section-title">Planering</h3>
+                  <span className="text-[11px] text-muted-foreground group-open:hidden">Visa</span>
+                  <span className="text-[11px] text-muted-foreground hidden group-open:inline">Dölj</span>
+                </summary>
+                <div className="max-h-[420px] overflow-hidden p-3 pt-0">
+                  <OpsPlanningDayPanel />
+                </div>
+              </details>
+            </section>
 
-        {/* ── BOTTOM AREA ── */}
-        <div className="shrink-0 h-[260px] grid grid-cols-2 gap-3 px-3 pb-3">
-          {/* Left: Live Projects */}
-          <section className="planning-card overflow-hidden flex flex-col min-h-0" style={{ padding: 0 }}>
-            <div className="flex items-center justify-between px-3.5 pt-3 pb-2 shrink-0">
-              <h3 className="planning-section-title">Live projekt</h3>
-            </div>
-            <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-3">
-              <OpsLiveProjects
-                items={livePacking.items}
-                counts={livePacking.counts}
-                pulseIds={livePacking.pulseIds}
-                isLoading={livePacking.isLoading}
-                markSeen={livePacking.markSeen}
-              />
-            </div>
-          </section>
+            {/* Locations + activity/comms */}
+            <section className="planning-card overflow-hidden flex flex-col" style={{ padding: 0 }}>
+              <div className="p-3 space-y-4">
+                <OrganizationLocationsManager />
+                <OpsActivityComms
+                  activity={activity}
+                  isLoadingActivity={isLoadingActivity}
+                  messages={messages}
+                  isLoadingMessages={isLoadingMessages}
+                  onOpenDM={handleOpenDM}
+                  timeline={timeline}
+                />
+              </div>
+            </section>
+          </aside>
 
-          {/* Right: Locations + Activity & Comms */}
-          <section className="planning-card overflow-hidden flex flex-col min-h-0" style={{ padding: 0 }}>
-            <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-4">
-              <OrganizationLocationsManager />
-              <OpsActivityComms
-                activity={activity}
-                isLoadingActivity={isLoadingActivity}
-                messages={messages}
-                isLoadingMessages={isLoadingMessages}
-                onOpenDM={handleOpenDM}
-                timeline={timeline}
-              />
-            </div>
-          </section>
+          {/* ── RIGHT MAIN: map + jobs strip ── */}
+          <div className="flex flex-col gap-3 min-h-0">
+            {/* Hero live map */}
+            <section
+              className="planning-card overflow-hidden flex flex-col flex-1 min-h-0"
+              style={{ padding: 0 }}
+            >
+              <div className="flex-1 min-h-0">
+                <OpsLiveMap
+                  locations={locations}
+                  mapJobs={mapJobs}
+                  isLoading={isLoadingLocations || isLoadingMapJobs}
+                  focusCoords={focusCoords}
+                  onOpenDM={handleOpenDM}
+                  routePolyline={routePolyline}
+                />
+              </div>
+            </section>
+
+            {/* Dagens jobb — horizontal panel under map */}
+            <section
+              className="planning-card overflow-hidden flex flex-col shrink-0"
+              style={{ padding: 0, height: '260px' }}
+            >
+              <div className="flex items-center justify-between px-3.5 pt-3 pb-2 shrink-0">
+                <h3 className="planning-section-title">Dagens jobb</h3>
+                <span className="text-[11px] text-muted-foreground">
+                  {kpis.staffOnSite} på plats · {kpis.jobsToday} jobb
+                </span>
+              </div>
+              <div className="flex-1 min-h-0 overflow-auto px-3 pb-3">
+                <OpsPlanningDayPanel />
+              </div>
+            </section>
+          </div>
         </div>
       </div>
 
