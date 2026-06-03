@@ -18,11 +18,20 @@ const PackingUpdatedBookings: React.FC = () => {
   const { data: packings = [], isLoading } = useQuery({
     queryKey: ['packing-needs-review'],
     queryFn: async () => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const horizon = new Date(today);
+      horizon.setDate(horizon.getDate() + 21);
+      const toIso = (d: Date) => d.toISOString().slice(0, 10);
+
       const { data, error } = await supabase
         .from('packing_projects')
         .select('id, name, booking_id, client_name, start_date, needs_packing_review_reason')
         .eq('needs_packing_review', true)
-        .order('updated_at', { ascending: false });
+        .not('start_date', 'is', null)
+        .gte('start_date', toIso(today))
+        .lte('start_date', toIso(horizon))
+        .order('start_date', { ascending: true });
 
       if (error) {
         console.error('Error fetching updated packings:', error);
