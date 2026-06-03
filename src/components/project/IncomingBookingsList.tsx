@@ -248,7 +248,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
               return (
                 <div
                   key={`update-${update.booking_id}`}
-                  className="group relative flex items-center gap-3 pl-4 pr-3 py-3 hover:bg-muted/30 transition-colors"
+                  className="group relative flex items-center gap-3 pl-4 pr-3 py-3 bg-yellow-50 hover:bg-yellow-100/70 transition-colors"
                 >
                   <div
                     className="flex-1 min-w-0 cursor-pointer"
@@ -287,9 +287,8 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                   <div className="flex items-center gap-2 shrink-0">
                     <Button
                       size="sm"
-                      variant="outline"
                       onClick={() => handleReviewUpdate(meta)}
-                      className="h-8 px-3 text-xs gap-1.5 font-medium"
+                      className="h-8 px-3 text-xs gap-1.5 font-medium bg-purple-600 hover:bg-purple-700 text-white"
                       title="Granska ändringar och bekräfta mottagen"
                       disabled={markSeen.isPending}
                     >
@@ -320,7 +319,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
             {unplannedProjects.map((project) => (
               <div
                 key={`${project.kind}-${project.id}`}
-                className="group relative flex items-center gap-3 pl-4 pr-3 py-3 hover:bg-muted/30 transition-colors"
+                className="group relative flex items-center gap-3 pl-4 pr-3 py-3 bg-green-50 hover:bg-green-100/70 transition-colors"
               >
                 <div
                   className="flex-1 min-w-0 cursor-pointer"
@@ -354,9 +353,8 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                 <div className="flex items-center gap-2 shrink-0">
                   <Button
                     size="sm"
-                    variant="outline"
                     onClick={() => project.bookingId && setPlacementBookingId(project.bookingId)}
-                    className="h-8 px-3 text-xs gap-1.5 font-medium"
+                    className="h-8 px-3 text-xs gap-1.5 font-medium bg-purple-600 hover:bg-purple-700 text-white"
                     title="Placera bokningen"
                     disabled={!project.bookingId}
                   >
@@ -374,7 +372,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
               return (
                 <div
                   key={booking.id}
-                  className="group relative flex items-center gap-3 pl-4 pr-3 py-3 hover:bg-muted/30 transition-colors"
+                  className={`group relative flex items-center gap-3 pl-4 pr-3 py-3 transition-colors ${isCancelled ? 'hover:bg-muted/30' : 'bg-green-50 hover:bg-green-100/70'}`}
                 >
                   <div
                     className="flex-1 min-w-0 cursor-pointer"
@@ -441,9 +439,8 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                     ) : (
                       <Button
                         size="sm"
-                        variant="outline"
                         onClick={() => setPlacementBookingId(booking.id)}
-                        className="h-8 px-3 text-xs gap-1.5 font-medium"
+                        className="h-8 px-3 text-xs gap-1.5 font-medium bg-purple-600 hover:bg-purple-700 text-white"
                         title="Placera bokningen i kalendern"
                       >
                         <CalendarPlus className="w-3.5 h-3.5" />
