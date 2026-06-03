@@ -147,8 +147,23 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
     }
   });
 
+  // Filtrera bort uppdateringar för bokningar vars datum redan passerat
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const isFutureBooking = (dateStr: string | null | undefined) => {
+    if (!dateStr) return true; // saknat datum: visa hellre än dölj
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return true;
+    return d.getTime() >= todayStart.getTime();
+  };
+  const visibleUpdates = unseenUpdates.filter((u) => {
+    const meta = updatedBookingsMeta.find((b) => b.id === u.booking_id);
+    if (!meta) return false; // metadata laddas; dölj tills vi vet datum
+    return isFutureBooking(meta.eventdate);
+  });
+
   const totalNew = bookings.length + unplannedProjects.length;
-  const totalUpdates = unseenUpdates.length;
+  const totalUpdates = visibleUpdates.length;
   const hasIncomingItems = totalNew + totalUpdates > 0;
 
   if ((isLoading && isLoadingUnplannedProjects && isLoadingUpdates) || !hasIncomingItems) {
@@ -204,7 +219,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
 
       <div className="divide-y divide-border/30">
         {/* Uppdaterade bokningar (triage från BOOKING-systemet) */}
-        {unseenUpdates.map((update) => {
+        {visibleUpdates.map((update) => {
           const meta = updatedBookingsMeta.find((b) => b.id === update.booking_id);
           if (!meta) return null;
           return (
