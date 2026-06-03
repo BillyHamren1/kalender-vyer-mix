@@ -10,7 +10,7 @@
  * - Om inga pings: status='no_pings', edge function kallas inte.
  * - segment_id är deterministiskt → edge function cachear i DB.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
