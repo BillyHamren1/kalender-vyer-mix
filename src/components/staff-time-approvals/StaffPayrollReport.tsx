@@ -72,7 +72,7 @@ export default function StaffPayrollReport() {
     setApprovingAll(true);
     let approved = 0;
     let failed = 0;
-    for (const row of matrix.rows) {
+    for (const row of visibleRows) {
       for (const id of row.pendingSubmissionIds) {
         try {
           await approveDay.mutateAsync({ submission_id: id, action: "approved" });
