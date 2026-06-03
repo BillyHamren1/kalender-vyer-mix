@@ -188,7 +188,17 @@ export default function StaffPayrollReportDayRow({
         {hasRows ? (
           cell.rows.map((r, i) => (
             <div key={i} className="flex items-center gap-2 min-w-0 flex-wrap">
-              <span className="truncate text-foreground">{kindLabel(r)}</span>
+              {r.kind === "unknown_place" ? (
+                <UnknownPlaceLabel
+                  staffId={staffId}
+                  date={cell.date}
+                  startIso={r.startIso}
+                  endIso={r.endIso}
+                  fallback={kindLabel(r)}
+                />
+              ) : (
+                <span className="truncate text-foreground">{kindLabel(r)}</span>
+              )}
               {r.kind === "travel" && <TravelBadge cell={cell} item={r} />}
               {r.kind === "travel" && (r.fromLabel || r.toLabel) && (
                 <span className="text-[10.5px] text-muted-foreground truncate">
