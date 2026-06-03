@@ -71,15 +71,21 @@ async function fetchAssignmentsForDates(isoDates: string[]): Promise<AssignmentR
  *
  * Use this from any parent that knows the visible date range (e.g. CustomCalendar).
  */
-export function useTeamVehiclesPrefetch(days: Date[] | undefined): void {
+export function useTeamVehiclesPrefetch(
+  days: Array<Date | string> | undefined
+): void {
   const queryClient = useQueryClient();
 
   const isoDates = useMemo(() => {
     if (!days || days.length === 0) return [] as string[];
     const unique = new Set<string>();
-    days.forEach((d) => unique.add(format(d, 'yyyy-MM-dd')));
+    days.forEach((d) => {
+      const iso = typeof d === 'string' ? d : format(d, 'yyyy-MM-dd');
+      unique.add(iso);
+    });
     return Array.from(unique).sort();
   }, [days]);
+
 
   const cacheKey = isoDates.join('|');
 
