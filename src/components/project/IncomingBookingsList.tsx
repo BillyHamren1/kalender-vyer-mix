@@ -440,7 +440,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                       <Button
                         size="sm"
                         onClick={() => setPlacementBookingId(booking.id)}
-                        className="h-8 px-3 text-xs gap-1.5 font-medium bg-emerald-600 hover:bg-emerald-700 text-white"
+                        className="h-8 px-3 text-xs gap-1.5 font-medium text-neutral-800 border border-emerald-300 hover:brightness-95" style={{ backgroundColor: '#E2FBE9' }}
                         title="Placera bokningen i kalendern"
                       >
                         <CalendarPlus className="w-3.5 h-3.5" />
