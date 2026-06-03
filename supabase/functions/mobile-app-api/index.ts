@@ -77,14 +77,14 @@ async function resolveJwtUserId(
  *  - the token has less than REFRESH_THRESHOLD_HOURS left until expiry.
  * Returns the new token to send back via X-New-Token, or null to keep current.
  */
-function maybeRotateToken(staffId: string, issuedAt?: number, expiresAt?: number): string | null {
+function maybeRotateToken(staffId: string, sessionId: string | undefined, issuedAt?: number, expiresAt?: number): string | null {
   const now = Date.now()
   const refreshMs = REFRESH_THRESHOLD_HOURS * 60 * 60 * 1000
   const ageOk = typeof issuedAt === 'number' && (now - issuedAt) >= refreshMs
   const closeToExpiry = typeof expiresAt === 'number' && (expiresAt - now) <= refreshMs
   if (!ageOk && !closeToExpiry) return null
-  const fresh = generateToken(staffId)
-  console.log(`[mobile-app-api] 🔄 rotating token for staff=${staffId} (ageOk=${ageOk}, closeToExpiry=${closeToExpiry})`)
+  const fresh = generateToken(staffId, sessionId)
+  console.log(`[mobile-app-api] 🔄 rotating token for staff=${staffId} (ageOk=${ageOk}, closeToExpiry=${closeToExpiry}, sessionId=${sessionId ?? 'none'})`)
   return fresh
 }
 
