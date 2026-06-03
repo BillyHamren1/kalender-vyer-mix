@@ -9,8 +9,9 @@ import OpsDirectChat from '@/components/ops-control/OpsDirectChat';
 import OpsBroadcastDialog from '@/components/ops-control/OpsBroadcastDialog';
 import OpsStaffRoute from '@/components/ops-control/OpsStaffRoute';
 import OrganizationLocationsManager from '@/components/ops-control/OrganizationLocationsManager';
+import OpsTodayJobsPanel from '@/components/ops-control/OpsTodayJobsPanel';
 import { useLivePackingFeed } from '@/hooks/useLivePackingFeed';
-import { OpsTimelineAssignment } from '@/services/opsControlService';
+import { OpsTimelineAssignment, type OpsMapJob } from '@/services/opsControlService';
 import { optimizeStaffRoute, StaffRouteResult } from '@/services/staffRouteService';
 import {
   type LucideIcon,
