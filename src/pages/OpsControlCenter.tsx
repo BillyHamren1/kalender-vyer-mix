@@ -367,55 +367,68 @@ const OpsControlCenter = () => {
               />
             </section>
 
-            {/* ── SEKUNDÄRA PANELER — under dagens jobb ── */}
+            {/* ── SEKUNDÄRA PANELER — collapsade som default, lazy-mount ── */}
             <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))' }}>
               <section className="planning-card overflow-hidden flex flex-col" style={{ padding: 0 }}>
-                <div className="flex items-center justify-between px-3.5 pt-3 pb-2 shrink-0">
-                  <h3 className="planning-section-title">Live projekt</h3>
-                </div>
-                <div className="max-h-[360px] overflow-y-auto px-3 pb-3">
-                  <OpsLiveProjects
-                    items={livePacking.items}
-                    counts={livePacking.counts}
-                    pulseIds={livePacking.pulseIds}
-                    isLoading={livePacking.isLoading}
-                    markSeen={livePacking.markSeen}
-                  />
-                </div>
+                <CollapsibleHeader
+                  title="Live projekt"
+                  open={liveProjectsOpen}
+                  onToggle={() => setLiveProjectsOpen((v) => !v)}
+                />
+                {liveProjectsOpen && (
+                  <div className="max-h-[360px] overflow-y-auto px-3 pb-3">
+                    <LiveProjectsPanelBody />
+                  </div>
+                )}
               </section>
 
               <section className="planning-card overflow-hidden flex flex-col" style={{ padding: 0 }}>
-                <div className="p-3 max-h-[420px] overflow-y-auto">
-                  <OrganizationLocationsManager />
-                </div>
+                <CollapsibleHeader
+                  title="Platshantering"
+                  open={locationsOpen}
+                  onToggle={() => setLocationsOpen((v) => !v)}
+                />
+                {locationsOpen && (
+                  <div className="p-3 max-h-[420px] overflow-y-auto">
+                    <OrganizationLocationsManager />
+                  </div>
+                )}
               </section>
 
               <section className="planning-card overflow-hidden flex flex-col" style={{ padding: 0 }}>
-                <div className="p-3 max-h-[420px] overflow-y-auto">
-                  <OpsActivityComms
-                    activity={activity}
-                    isLoadingActivity={isLoadingActivity}
-                    messages={messages}
-                    isLoadingMessages={isLoadingMessages}
-                    onOpenDM={handleOpenDM}
-                    timeline={timeline}
-                  />
-                </div>
+                <CollapsibleHeader
+                  title="Kommunikation"
+                  open={commsOpen}
+                  onToggle={() => setCommsOpen((v) => !v)}
+                />
+                {commsOpen && (
+                  <div className="p-3 max-h-[420px] overflow-y-auto">
+                    <OpsActivityComms
+                      activity={activity}
+                      isLoadingActivity={isLoadingActivity}
+                      messages={messages}
+                      isLoadingMessages={isLoadingMessages}
+                      onOpenDM={handleOpenDM}
+                      timeline={timeline}
+                    />
+                  </div>
+                )}
               </section>
 
               <section className="planning-card overflow-hidden flex flex-col" style={{ padding: 0 }}>
-                <details className="group">
-                  <summary className="flex items-center justify-between px-3.5 pt-3 pb-2 cursor-pointer select-none list-none">
-                    <h3 className="planning-section-title">Personalkalender</h3>
-                    <span className="text-[11px] text-muted-foreground group-open:hidden">Visa</span>
-                    <span className="text-[11px] text-muted-foreground hidden group-open:inline">Dölj</span>
-                  </summary>
+                <CollapsibleHeader
+                  title="Personalkalender"
+                  open={staffCalendarOpen}
+                  onToggle={() => setStaffCalendarOpen((v) => !v)}
+                />
+                {staffCalendarOpen && (
                   <div className="max-h-[480px] overflow-auto p-3 pt-0">
                     <OpsPlanningDayPanel />
                   </div>
-                </details>
+                )}
               </section>
             </div>
+
           </div>
         </div>
       </div>
