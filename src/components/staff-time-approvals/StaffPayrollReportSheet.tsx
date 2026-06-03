@@ -86,6 +86,7 @@ export default function StaffPayrollReportSheet({ row, weekStart, weekEnd, onOpe
               <StaffPayrollReportDayRow
                 key={cell.date}
                 cell={cell}
+                staffId={row.staffId}
                 onClick={() => onOpenDay(row.staffId, cell.date)}
               />
             ))}

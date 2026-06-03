@@ -2,12 +2,14 @@
  * StaffPayrollReportDayRow — en datumrad i lönerapporten.
  * Renderar block (work/travel/...) som separata rader.
  * Resa-rader får badge för vilket projekt restiden belastar.
+ * Okänd plats-rader får AI-förslag (label + confidence) när GPS finns.
  */
 import { format, parseISO } from "date-fns";
 import { sv } from "date-fns/locale";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Loader2, Sparkles } from "lucide-react";
 import type { StaffTimeMatrixCell, StaffTimeMatrixRowItem } from "@/hooks/staffTimeFlow/useStaffTimeWeekMatrix";
 import { resolveTravelAllocation } from "@/lib/staff-payroll/travelAllocation";
+import { useUnknownPlaceAi } from "@/hooks/staff-time/useUnknownPlaceAi";
 
 function fmtTime(iso: string | null): string {
   if (!iso) return "";
@@ -37,6 +39,7 @@ function kindLabel(item: StaffTimeMatrixRowItem): string {
 
 interface Props {
   cell: StaffTimeMatrixCell;
+  staffId: string;
   onClick: () => void;
 }
 
@@ -60,7 +63,68 @@ function TravelBadge({ cell, item }: { cell: StaffTimeMatrixCell; item: StaffTim
   );
 }
 
-export default function StaffPayrollReportDayRow({ cell, onClick }: Props) {
+function UnknownPlaceCell({
+  staffId,
+  date,
+  item,
+}: {
+  staffId: string;
+  date: string;
+  item: StaffTimeMatrixRowItem;
+}) {
+  const ai = useUnknownPlaceAi({
+    staffId,
+    date,
+    kind: item.kind,
+    startIso: item.startIso,
+    endIso: item.endIso,
+  });
+
+  if (ai.status === "loading") {
+    return (
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span className="truncate text-foreground">Okänd plats</span>
+        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />
+        <span className="text-[10.5px] text-muted-foreground">AI analyserar…</span>
+      </div>
+    );
+  }
+
+  if (ai.status === "ready" && typeof ai.confidence === "number") {
+    const high = ai.confidence >= 0.6 && ai.suggestedType !== "needs_user_input";
+    if (high && ai.label) {
+      return (
+        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+          <span className="truncate text-foreground" title={ai.explanation}>{ai.label}</span>
+          <span
+            className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 text-violet-700 px-2 py-0.5 text-[10px] font-medium"
+            title={ai.explanation}
+          >
+            <Sparkles className="h-2.5 w-2.5" />
+            AI · {Math.round((ai.confidence ?? 0) * 100)}%
+          </span>
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+        <span className="truncate text-foreground">Okänd plats</span>
+        <span
+          className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 text-amber-800 px-2 py-0.5 text-[10px] font-medium"
+          title={ai.userQuestion || ai.explanation}
+        >
+          <Sparkles className="h-2.5 w-2.5" />
+          AI: behöver bekräftas
+        </span>
+      </div>
+    );
+  }
+
+  // idle / no_pings / error → fallback
+  return <span className="truncate text-foreground">Okänd plats</span>;
+}
+
+export default function StaffPayrollReportDayRow({ cell, staffId, onClick }: Props) {
   const date = parseISO(cell.date);
   const dayLabel = format(date, "EEE d MMM", { locale: sv });
   const hasRows = cell.rows && cell.rows.length > 0;
@@ -87,7 +151,11 @@ export default function StaffPayrollReportDayRow({ cell, onClick }: Props) {
         {hasRows
           ? cell.rows.map((r, i) => (
               <div key={i} className="flex items-center gap-2 min-w-0 flex-wrap">
-                <span className="truncate text-foreground">{kindLabel(r)}</span>
+                {r.kind === "unknown_place" ? (
+                  <UnknownPlaceCell staffId={staffId} date={cell.date} item={r} />
+                ) : (
+                  <span className="truncate text-foreground">{kindLabel(r)}</span>
+                )}
                 {r.kind === "travel" && <TravelBadge cell={cell} item={r} />}
                 {r.kind === "travel" && (r.fromLabel || r.toLabel) && (
                   <span className="text-[10.5px] text-muted-foreground truncate">

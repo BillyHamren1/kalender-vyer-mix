@@ -1,86 +1,60 @@
 ## Mål
 
-Lön-tabben (`StaffPayrollReport` → `StaffPayrollReportSheet`) renderas idag som ett smalt "papper" centrerat i `max-w-[820px]`. Bygg om det till ett brett premiumkort som utnyttjar hela skärmbredden och visar två kolumner: tidslinje vänster, "Tid per projekt och dag" höger. Lägg till badge på varje rese-rad som visar vilket projekt resan belastar.
+När en rad i tidrapporten klassas som **`unknown_place`** men det finns GPS-pings under blocket — kör automatiskt befintlig AI (`analyze-unclear-segment`), och **använd resultatet visuellt**. Idag genereras "Okänd plats" trots att råpings finns; AI-funktionen finns men triggas bara via knappen "Analysera dag" och resultatet skrivs aldrig tillbaka in i radens etikett.
 
-Endast presentation + en in-memory helper. Ingen Edge Function, ingen DB-skrivning, inga ändringar i Time Engine, GPS, attestlogik eller `useStaffTimeWeekMatrix`-hämtning. Print/PDF behålls intakt via befintlig `payroll-print.css`.
+**Ingen ändring i klassningslogik, Time Engine, geofence, attest eller DB-skrivningar.** Bara: trigga befintlig AI när villkoret uppfylls + presentera svaret.
 
-## Filer som ändras / skapas
+## Vad som ändras
 
-**Ändras:**
-- `src/components/staff-time-approvals/StaffPayrollReportSheet.tsx` — full ombyggnad till premiumkort med grid-layout.
-- `src/components/staff-time-approvals/StaffPayrollReportDayRow.tsx` — rendering av rad-badges (resa → projekt, "Ej kopplad").
-- `src/components/staff-time-approvals/StaffPayrollReport.tsx` — slopa centrerad `max-w-[820px]`-wrapper, använd full bredd; behåll print-grenen oförändrad.
-- `src/styles/payroll-print.css` — säkerställ att print fortfarande kollapsar bred layout till smalt "papper" (`@media print`).
+### 1. Ny hook `useUnknownPlaceAi(staffId, date, row)`
+`src/hooks/staff-time/useUnknownPlaceAi.ts`
 
-**Skapas:**
-- `src/lib/staff-payroll/reportProjectDaySummary.ts` — ren helper `buildReportProjectDaySummary(row: StaffTimeMatrixRow)` som returnerar `{ date, projects: [{ key, label, normal, overtime, travel, total, travelOnly }] }[]`. Bygger gruppen från `row.days[].rows`, mappar `kind=travel` mot resolverad allokering (se nedan), summerar per `label`-nyckel.
-- `src/lib/staff-payroll/travelAllocation.ts` — helper `resolveTravelAllocation(row, dayCell, travelItem)` som returnerar `{ kind: "linked" | "unknown", label: string | null, projectKey: string | null }`. Regelordning:
-  1. Om `travelItem.toLabel` matchar en `work`-rad samma dag → belastar dit (resa **till** projekt).
-  2. Annars om `travelItem.fromLabel` matchar en `work`-rad samma dag och `toLabel` saknar match → belastar `fromLabel` (resa **från** projekt, t.ex. tillbaka till lagret).
-  3. Annars `{ kind: "unknown", label: null }`.
-  Inga DB-anrop, ingen omklassning av tid — bara presentation.
-- `src/components/staff-time-approvals/ReportProjectDayPanel.tsx` — högerpanel som renderar resultatet från helpern.
-- `src/components/staff-time-approvals/ReportKpiBadges.tsx` — KPI-pills (Normal / Övertid / Resa / Total) för header.
+- Aktiveras endast om `row.kind === "unknown_place"` och `row.startIso && row.endIso`.
+- Hämtar pings för fönstret från `staff_location_history` (samma källa som `ActualDayPanel` använder) — `select id, lat, lng, recorded_at where staff_id=… and recorded_at between start and end`.
+- Om `pings.length === 0` → returnera `{ status: "no_pings" }` (då är "Okänd plats" rätt; gör inget).
+- Annars beräkna centroid (lat/lng-medel) + `ping_count`, bygg `segment_id` deterministiskt (`${staffId}:${startIso}:${endIso}:unknown_place`) och kalla `supabase.functions.invoke('analyze-unclear-segment', { body: { staff_id, date, segment: { segment_id, kind: 'other_place', start_ts, end_ts, duration_min, center_lat, center_lng, is_stationary: true, ping_count } } })`.
+- Använd React Query med `queryKey: ['unknown-place-ai', staffId, segment_id]` och `staleTime: Infinity` — Edge function cachar redan i `unclear_segment_ai_analyses`, queryn ger UI-cache.
+- Returnerar `{ status: 'loading' | 'no_pings' | 'ready' | 'error', label?, confidence?, explanation?, suggestedType?, address? }`.
 
-## Layout
+### 2. `StaffPayrollReportDayRow.tsx` — visa AI-label på unknown_place-rader
+- Ny komponent `UnknownPlaceCell({ cell, item })` som anropar hooken och renderar:
+  - `loading` → samma "Okänd plats"-text + liten `Loader2`-spinner.
+  - `ready` med `confidence ≥ 0.6` → ersätt "Okänd plats" med AI-förslagets label (`Trolig plats: …` eller adress) + liten badge `AI · ${Math.round(c*100)}%` med tooltip = `explanation`.
+  - `ready` med `confidence < 0.6` eller `suggestedType === 'needs_user_input'` → "Okänd plats" + badge `AI: behöver input` (tooltip = `userQuestion`).
+  - `no_pings`/`error` → fallback till nuvarande "Okänd plats".
+- Endast text- och badge-rendering. `kind`/`minutes`/summor rörs inte.
 
-```text
-ReportCard  (rounded-2xl, border, shadow-sm, bg-card, w-full, ingen max-width)
-├── ReportHeader
-│   ├── Namn (text-xl font-semibold) + role
-│   ├── Vecka X · datumintervall (uppercase tracking label)
-│   ├── StatusBadge ("Delvis attesterad" / "Godkänd" / "Väntar")
-│   └── ReportKpiBadges: Normal · Övertid · Resa · Total (pill-stil)
-└── ReportBody  (grid lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)] gap-6, staplas på mobil)
-    ├── DayActivityTimeline (vänster, ~65–70%)
-    │   └── DaySection per dag
-    │       ├── Datum-pil (vänster kolumn, 96px)
-    │       └── Aktivitetslista (Start · Slut · Tim, kompakt)
-    │           └── Resa-rad: liten badge "Belastar: <projekt>" eller "Ej kopplad"
-    └── ProjectDaySummaryPanel  (höger, ~30–35%, bg-muted/40, rounded-xl, lg:sticky lg:top-4)
-        ├── Rubrik "Tid per projekt och dag" (uppercase)
-        └── Daggrupp
-            ├── Datum
-            └── Projektrader: namn · total (· varav resa N:NN)
-```
+### 3. Samma visning i admin-tidsvyer
+Två platser där "Okänd plats" syns idag återanvänder samma hook + helper-komponent:
+- `src/components/staff/DayBlockTimelineView.tsx` (raden `Plats okänd` / `Okänd plats – …`).
+- `src/components/staff-time/week-flow/WeekFlowReportRowsMini.tsx` (mini-vy).
 
-Tomma dagar renderas som en låg rad (`py-1.5`, muted text "—"), inte full datum-sektion.
+I dessa visas AI-labeln på samma sätt (label + AI-badge), men ändrar inte blockets typ/minuter.
 
-## Travel-badge
+### 4. Test
+`src/hooks/staff-time/__tests__/useUnknownPlaceAi.test.ts` (vitest):
+- Inga pings → `status: 'no_pings'`, ingen invoke.
+- Pings finns → invoke kallas med rätt centroid + segment_id + `kind: 'other_place'`.
+- Edge-fel → `status: 'error'`, fallback i UI.
+- Cache-träff (samma segment_id) återanvänds.
 
-I `StaffPayrollReportDayRow` när `r.kind === "travel"`:
-- Anropa `resolveTravelAllocation(row, cell, r)`.
-- `linked` → `<Badge>` med pil-ikon: `Belastar: {label}` (truncate, max ~28 tkn).
-- `unknown` → neutral outline-badge: `Ej kopplad`.
+## Vad som inte rörs
 
-Samma helper används i högerpanelen så att restidens minuter går in i rätt projektgrupp (eller en `Ej kopplad`-grupp) — siffrorna i vänster och höger blir därmed garanterat konsistenta.
+- `analyze-unclear-segment` (oförändrad — endast ny anropare).
+- Time Engine, geofence, `same-target-sandwich-collapse`, `resolveWorkTargets`, dag-klassning.
+- `time_reports`, `place_visits`, `staff_day_submissions`, attest/lön.
+- Andra rad-typer (`work`/`travel`/`gps_gap`/`private`) — AI körs bara på `unknown_place`.
 
-## Sammanställningens regler
+## Tekniska detaljer
 
-`buildReportProjectDaySummary` jobbar uteslutande på data som redan finns i `StaffTimeMatrixRow`:
-- Per dag itereras `cell.rows`.
-- `work` → läggs på sin `label`-grupp, summerar `normal`/`overtime` proportionellt mot `cell.normalMinutes`/`cell.overtimeMinutes` om radnivå saknas (befintligt mönster: matrixen har totalerna per cell, inte per rad — vi ackumulerar `minutes` per projekt och visar dagens cell-totaler för Normal/Övertid som idag).
-- `travel` → läggs på allokerad grupp via `resolveTravelAllocation`, ackumulerar i fältet `travel` samt `total`.
-- `private` / `unknown_place` / `gps_gap` → räknas ej in i projektsumman (visas bara i vänsterlistan).
+- Pings-läsning gör en query per unik (staff,date) — cellen har redan dem? Om inte: batcha i hooken genom att läsa hela dagens pings (`recorded_at::date = date`) en gång per cell via `useQuery(['staff-pings', staffId, date])` och filtrera per row i minnet.
+- `analyze-unclear-segment` cachar per `segment_id` i DB → upprepade öppningar av rapporten kostar ~0.
+- Hård regel från memory `ai-only-on-unclear-segments-v1` respekteras: vi skickar bara `kind: 'other_place'` (en av de tillåtna), aldrig confirmed_*.
+- Confidence-tröskel = 0.6 matchar edge-funktionens egen `CONFIDENCE_THRESHOLD`.
 
-Inga nya queries. Ingen ny edge function. Ingen ändring av `useStaffTimeWeekMatrix`-typer (allokeringen härleds från redan tillgängliga `fromLabel`/`toLabel`-strängar).
+## Verifiering
 
-## Print / PDF
-
-`payroll-print.css` får en regel som tvingar tillbaka `ReportCard` till en kolumn i print, döljer `ProjectDaySummaryPanel` (eller renderar den under tidslinjen — slutgiltigt val tas vid implementation efter visuell QA). Print-vyn ska se ut som idag.
-
-## Out of scope
-
-- Ingen ändring i Time Engine, GPS-partition, attest, lön, eller `staff_day_submissions`.
-- Ingen ny edge function eller migration.
-- Ingen ändring i Tid-tabbens veckomatris.
-- Ingen omtolkning av restidens minuter — bara visuell badge + sammanställning.
-
-## Verifiering efter implementation
-
-1. `/staff-management/time?tab=lon` på desktop (1605 px): kortet fyller bredden, vänsterkolumn ~65%, högerkolumn ~35%.
-2. En rese-rad visar `Belastar: <projekt>` när `toLabel` matchar dagens work-rad; annars `Ej kopplad`.
-3. Högerpanelens summor per projekt matchar summan av rader i vänsterkolumnen (manuell stickprov + ett enkelt vitest på `buildReportProjectDaySummary`).
-4. Tomma dagar tar ≤ 32 px höjd.
-5. Resize till 640 px: kolumnerna staplas, högerpanelen hamnar under.
-6. `window.print()` ger samma utseende som idag (smalt A4-papper, ingen högerpanel synlig).
+1. Öppna Lön-fliken för veckan med Andis 2 juni — raden 12:17–18:09 ska visa AI-label (förväntat: "Trolig plats: FA Warehouse / Vällsta" e.l.) + AI-badge.
+2. Rader utan pings ska fortsatt visa "Okänd plats" oförändrat.
+3. Vitest grön.
+4. Inga ändringar i summerings-kolumner eller dagens totaler.
