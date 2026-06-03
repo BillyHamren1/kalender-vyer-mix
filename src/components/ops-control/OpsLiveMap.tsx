@@ -724,7 +724,23 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         map.current.fitBounds(bounds, { padding: 50, maxZoom: 13 });
       }
     }
-  }, [mapReady, locations, mapJobs, clearMarkers, styleRevision]);
+  }, [mapReady, locations, mapJobs, clearMarkers, styleRevision, showJobs]);
+
+  // Follow mode — keep map centered on followed staff
+  useEffect(() => {
+    if (!followStaffId || !mapReady || !map.current) return;
+    const loc = locations.find(l => l.id === followStaffId);
+    if (!loc?.latitude || !loc?.longitude) return;
+    map.current.easeTo({
+      center: [loc.longitude, loc.latitude],
+      duration: 600,
+      zoom: Math.max(map.current.getZoom(), 14),
+    });
+  }, [followStaffId, locations, mapReady]);
+
+  const followedStaff = followStaffId
+    ? locations.find(l => l.id === followStaffId) || null
+    : null;
 
   // Focus from external trigger
   useEffect(() => {
