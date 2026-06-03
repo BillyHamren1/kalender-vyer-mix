@@ -49,11 +49,12 @@ const statusStyles: Record<StaffStatus, { color: string; label: string }> = {
 
 // Job phase classification — drives premium pin coloring
 type JobPhase = 'build' | 'teardown' | 'event' | 'other';
-const phaseStyles: Record<JobPhase, { fill: string; ring: string; label: string }> = {
-  build:    { fill: '#86efac', ring: '#16a34a', label: 'Bygg / Rig' },     // light green
-  teardown: { fill: '#fca5a5', ring: '#dc2626', label: 'Riv / Rigdown' },  // light red
-  event:    { fill: '#fcd34d', ring: '#d97706', label: 'Event' },          // amber
-  other:    { fill: '#c4b5fd', ring: '#7c3aed', label: 'Övrigt' },         // soft purple
+const phaseStyles: Record<JobPhase, { fill: string; ring: string; label: string; icon: string }> = {
+  // Lucide-style SVG paths (24x24 viewBox) — drawn in white inside the pin
+  build:    { fill: '#15803d', ring: '#bbf7d0', label: 'Bygg / Rig',     icon: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>' },
+  teardown: { fill: '#b91c1c', ring: '#fecaca', label: 'Riv / Rigdown',  icon: '<path d="M3 3l18 18M14.5 6.5L18 10l-3.5 3.5M9.5 17.5L6 14l3.5-3.5"/>' },
+  event:    { fill: '#b45309', ring: '#fde68a', label: 'Event',          icon: '<path d="M5 3v18l7-3 7 3V3z"/>' },
+  other:    { fill: '#6d28d9', ring: '#ddd6fe', label: 'Övrigt',         icon: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>' },
 };
 
 function classifyJobPhase(eventType: string | null | undefined): JobPhase {
@@ -249,13 +250,13 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       // Create building marker
       const el = document.createElement('div');
       el.style.cssText = `
-        width: 28px; height: 28px; border-radius: 6px;
-        background: #7c3aed; border: 2.5px solid white;
-        box-shadow: 0 2px 8px rgba(124,58,237,0.35);
+        width: 22px; height: 22px; border-radius: 5px;
+        background: rgba(124,58,237,0.92); border: 1.5px solid rgba(255,255,255,0.95);
+        box-shadow: 0 1px 4px rgba(0,0,0,0.35);
         display: flex; align-items: center; justify-content: center;
         cursor: pointer;
       `;
-      el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>`;
+      el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/></svg>`;
 
       const popup = new mapboxgl.Popup({ offset: 18, closeButton: false, maxWidth: '180px' })
         .setHTML(`
@@ -449,12 +450,29 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           source: STAFF_SOURCE_ID,
           filter: ['==', ['get', 'isHighlighted'], 1],
           paint: {
-            'circle-radius': 21,
+            'circle-radius': 18,
             'circle-color': 'hsl(184, 55%, 38%)',
-            'circle-opacity': 0.22,
+            'circle-opacity': 0.18,
             'circle-stroke-color': '#ffffff',
-            'circle-stroke-width': 2,
-            'circle-stroke-opacity': 0.85,
+            'circle-stroke-width': 1.5,
+            'circle-stroke-opacity': 0.75,
+          },
+        }, beforeId);
+      }
+
+      // Soft status glow under single staff (premium feel on satellite)
+      const STAFF_GLOW_LAYER_ID = 'ops-staff-glow-layer';
+      if (!mm.getLayer(STAFF_GLOW_LAYER_ID)) {
+        mm.addLayer({
+          id: STAFF_GLOW_LAYER_ID,
+          type: 'circle',
+          source: STAFF_SOURCE_ID,
+          filter: ['==', ['get', 'isCluster'], 0],
+          paint: {
+            'circle-radius': 16,
+            'circle-color': ['get', 'color'],
+            'circle-opacity': 0.18,
+            'circle-blur': 0.6,
           },
         }, beforeId);
       }
@@ -465,26 +483,30 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           type: 'circle',
           source: STAFF_SOURCE_ID,
           paint: {
-            // Larger base + grow with cluster size
+            // Compact premium pins. Clusters scale subtly with count.
             'circle-radius': [
-              'interpolate', ['linear'], ['get', 'clusterSize'],
-              1, 16,
-              3, 19,
-              6, 22,
-              10, 26,
+              'case',
+              ['==', ['get', 'isCluster'], 1],
+              ['interpolate', ['linear'], ['get', 'clusterSize'], 2, 13, 5, 16, 10, 19],
+              11,
             ],
-            'circle-color': ['get', 'color'],
+            // Cluster = dark slate badge, single = status color
+            'circle-color': [
+              'case',
+              ['==', ['get', 'isCluster'], 1], '#0f172a',
+              ['get', 'color'],
+            ],
             'circle-opacity': ['case', ['==', ['get', 'isOffline'], 1], 0.55, 1],
-            // Darker outer ring for clusters with mixed statuses
+            // Cluster ring = status color, single = white
             'circle-stroke-color': [
               'case',
-              ['==', ['get', 'mixedStatus'], 1], '#1f2937',
+              ['==', ['get', 'isCluster'], 1], ['get', 'color'],
               '#ffffff',
             ],
             'circle-stroke-width': [
               'case',
-              ['==', ['get', 'isCluster'], 1], 3.5,
-              3,
+              ['==', ['get', 'isCluster'], 1], 2.5,
+              2,
             ],
             'circle-stroke-opacity': 1,
           },
@@ -492,7 +514,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       }
 
       if (!mm.getLayer(STAFF_LABEL_LAYER_ID)) {
-        // Cluster: number centered on the dot
+        // Cluster: count centered on dark badge
         mm.addLayer({
           id: STAFF_LABEL_LAYER_ID,
           type: 'symbol',
@@ -500,20 +522,20 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           filter: ['==', ['get', 'isCluster'], 1],
           layout: {
             'text-field': ['get', 'initial'],
-            'text-size': 13,
+            'text-size': 12,
             'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
             'text-allow-overlap': true,
             'text-ignore-placement': true,
           },
           paint: {
             'text-color': '#ffffff',
-            'text-halo-color': 'rgba(0,0,0,0.55)',
-            'text-halo-width': 1.4,
+            'text-halo-color': 'rgba(0,0,0,0.0)',
+            'text-halo-width': 0,
           },
         });
       }
 
-      // Singel-marker: förnamn som pill UNDER dot
+      // Singel: förnamn som pill UNDER pin, endast vid hög zoom
       const STAFF_NAME_PILL_LAYER_ID = 'ops-staff-name-pill-layer';
       if (!mm.getLayer(STAFF_NAME_PILL_LAYER_ID)) {
         mm.addLayer({
@@ -521,21 +543,23 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           type: 'symbol',
           source: STAFF_SOURCE_ID,
           filter: ['==', ['get', 'isCluster'], 0],
+          minzoom: 10,
           layout: {
             'text-field': ['get', 'initial'],
-            'text-size': 11,
+            'text-size': 10.5,
             'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
             'text-anchor': 'top',
-            'text-offset': [0, 1.4],
-            'text-padding': 2,
+            'text-offset': [0, 1.1],
+            'text-padding': 3,
             'text-allow-overlap': false,
             'text-optional': true,
+            'text-letter-spacing': 0.02,
           },
           paint: {
             'text-color': '#ffffff',
-            'text-halo-color': 'rgba(15,23,42,0.92)',
-            'text-halo-width': 2.4,
-            'text-halo-blur': 0.4,
+            'text-halo-color': 'rgba(15,23,42,0.95)',
+            'text-halo-width': 2.2,
+            'text-halo-blur': 0.3,
           },
         });
       }
@@ -550,15 +574,16 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
             ['==', ['get', 'isCluster'], 0],
           ],
           paint: {
-            'circle-radius': 4,
+            'circle-radius': 3,
             'circle-color': '#22c55e',
             'circle-stroke-color': '#ffffff',
-            'circle-stroke-width': 1.5,
-            'circle-translate': [10, -10],
+            'circle-stroke-width': 1.2,
+            'circle-translate': [8, -8],
             'circle-opacity': 1,
           },
         });
       }
+
 
       const findMembers = (memberIdsStr: string) => {
         const ids = memberIdsStr.split(',');
@@ -672,22 +697,20 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       const staffOnJob = locations.filter(l => l.bookingId === job.bookingId && l.isWorking).length;
 
       const el = document.createElement('div');
-      el.style.cssText = 'width: 44px; height: 56px; cursor: pointer; z-index: 10; position: relative; display:flex; align-items:flex-end; justify-content:center;';
+      el.style.cssText = 'width: 36px; height: 36px; cursor: pointer; z-index: 8; position: relative; display:flex; align-items:center; justify-content:center;';
       const phase = classifyJobPhase(job.eventType);
       const ph = phaseStyles[phase];
       const glow = job.isActive
-        ? `<div style="position:absolute;left:50%;top:14px;transform:translate(-50%,-50%);width:48px;height:48px;border-radius:9999px;background:${ph.ring};opacity:0.22;filter:blur(10px);animation:opspulse 2.2s ease-in-out infinite;"></div>`
+        ? `<div style="position:absolute;inset:-6px;border-radius:9999px;background:${ph.fill};opacity:0.18;filter:blur(8px);animation:opspulse 2.4s ease-in-out infinite;"></div>`
         : '';
       const staffBadge = staffOnJob > 0
-        ? `<div style="position:absolute;top:-2px;right:-2px;min-width:18px;height:18px;padding:0 5px;border-radius:9999px;background:#0f172a;color:#fff;font:700 10px/18px system-ui;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);">${staffOnJob}</div>`
+        ? `<div style="position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;padding:0 4px;border-radius:9999px;background:#0f172a;color:#fff;font:700 9px/16px system-ui;display:flex;align-items:center;justify-content:center;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);">${staffOnJob}</div>`
         : '';
       el.innerHTML = `
         ${glow}
-        <svg width="36" height="48" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:relative;filter:drop-shadow(0 4px 8px rgba(0,0,0,.35));">
-          <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z"
-                fill="${ph.fill}" stroke="${ph.ring}" stroke-width="1.8"/>
-          <circle cx="12" cy="12" r="4.2" fill="#ffffff" stroke="${ph.ring}" stroke-width="1"/>
-        </svg>
+        <div style="position:relative;width:28px;height:28px;border-radius:8px;background:${ph.fill};border:2px solid ${ph.ring};box-shadow:0 2px 6px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${ph.icon}</svg>
+        </div>
         ${staffBadge}
       `;
 
@@ -700,7 +723,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         }
       });
 
-      const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+      const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
         .setLngLat([job.longitude, job.latitude])
         .addTo(map.current!);
       jobMarkersRef.current.push(marker);
