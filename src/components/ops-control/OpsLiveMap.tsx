@@ -324,7 +324,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
 
     const m = map.current;
     const assignedIds = new Set(selectedJob?.assignedStaff.map(staff => staff.id) || []);
-    const staffWithCoords = locations.filter(loc => loc.latitude && loc.longitude);
+    const staffWithCoords = showStaff ? locations.filter(loc => loc.latitude && loc.longitude) : [];
 
     // Build pixel-grid clusters so overlapping staff merge into one marker.
     // We snap each point to a grid cell sized in pixels at the current zoom.
