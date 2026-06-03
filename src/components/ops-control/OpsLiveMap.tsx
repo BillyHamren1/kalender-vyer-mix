@@ -250,13 +250,13 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       // Create building marker
       const el = document.createElement('div');
       el.style.cssText = `
-        width: 28px; height: 28px; border-radius: 6px;
-        background: #7c3aed; border: 2.5px solid white;
-        box-shadow: 0 2px 8px rgba(124,58,237,0.35);
+        width: 22px; height: 22px; border-radius: 5px;
+        background: rgba(124,58,237,0.92); border: 1.5px solid rgba(255,255,255,0.95);
+        box-shadow: 0 1px 4px rgba(0,0,0,0.35);
         display: flex; align-items: center; justify-content: center;
         cursor: pointer;
       `;
-      el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>`;
+      el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/></svg>`;
 
       const popup = new mapboxgl.Popup({ offset: 18, closeButton: false, maxWidth: '180px' })
         .setHTML(`
