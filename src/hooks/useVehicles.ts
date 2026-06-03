@@ -70,43 +70,79 @@ export interface VehicleFormData {
   vehicle_type_rates?: Record<string, VehicleTypeRate>;
 }
 
-export const useVehicles = () => {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+const VEHICLES_KEY = ['vehicles', 'all'] as const;
 
-  const fetchVehicles = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const { data, error } = await supabase
-        .from('vehicles')
-        .select('*')
-        .order('name');
+// Module-level ref-counted realtime channel — one subscription regardless of
+// how many components mount useVehicles().
+let vehiclesChannel: ReturnType<typeof supabase.channel> | null = null;
+let vehiclesSubscribers = 0;
 
-      if (error) throw error;
-      // Cast to Vehicle[] since DB returns string for enums
-      setVehicles((data as Vehicle[]) || []);
-    } catch (error: any) {
-      console.error('Error fetching vehicles:', error);
-      toast.error('Kunde inte hämta fordon');
-    } finally {
-      setIsLoading(false);
+function ensureVehiclesRealtime(invalidate: () => void) {
+  vehiclesSubscribers += 1;
+  if (!vehiclesChannel) {
+    vehiclesChannel = supabase
+      .channel('vehicles-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'vehicles' },
+        () => invalidate()
+      )
+      .subscribe();
+  }
+  return () => {
+    vehiclesSubscribers = Math.max(0, vehiclesSubscribers - 1);
+    if (vehiclesSubscribers === 0 && vehiclesChannel) {
+      supabase.removeChannel(vehiclesChannel);
+      vehiclesChannel = null;
     }
-  }, []);
+  };
+}
+
+async function fetchVehiclesFromDb(): Promise<Vehicle[]> {
+  const { data, error } = await supabase
+    .from('vehicles')
+    .select('*')
+    .order('name');
+  if (error) throw error;
+  return (data as Vehicle[]) || [];
+}
+
+export const useVehicles = () => {
+  const queryClient = useQueryClient();
+
+  const { data: vehicles = [], isLoading, refetch } = useQuery({
+    queryKey: VEHICLES_KEY,
+    queryFn: fetchVehiclesFromDb,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+  });
+
+  useEffect(() => {
+    const off = ensureVehiclesRealtime(() => {
+      queryClient.invalidateQueries({ queryKey: VEHICLES_KEY });
+    });
+    return off;
+  }, [queryClient]);
+
+  const setVehiclesCache = (updater: (prev: Vehicle[]) => Vehicle[]) => {
+    queryClient.setQueryData<Vehicle[]>(VEHICLES_KEY, (prev) => updater(prev ?? []));
+  };
 
   const createVehicle = async (vehicleData: VehicleFormData): Promise<Vehicle | null> => {
     try {
       const dbData = {
         ...vehicleData,
-        vehicle_type_rates: vehicleData.vehicle_type_rates ? JSON.parse(JSON.stringify(vehicleData.vehicle_type_rates)) : {},
+        vehicle_type_rates: vehicleData.vehicle_type_rates
+          ? JSON.parse(JSON.stringify(vehicleData.vehicle_type_rates))
+          : {},
       };
       const { data, error } = await supabase
         .from('vehicles')
         .insert(dbData)
         .select()
         .single();
-
       if (error) throw error;
-      setVehicles(prev => [...prev, data as Vehicle]);
+      setVehiclesCache((prev) => [...prev, data as Vehicle]);
       toast.success('Fordon skapat');
       return data as Vehicle;
     } catch (error: any) {
@@ -128,10 +164,8 @@ export const useVehicles = () => {
         .from('vehicles')
         .update(dbData)
         .eq('id', id);
-
       if (error) throw error;
-      
-      setVehicles(prev => prev.map(v => v.id === id ? { ...v, ...vehicleData } : v));
+      setVehiclesCache((prev) => prev.map((v) => (v.id === id ? { ...v, ...vehicleData } : v)));
       toast.success('Fordon uppdaterat');
       return true;
     } catch (error: any) {
@@ -143,14 +177,9 @@ export const useVehicles = () => {
 
   const deleteVehicle = async (id: string): Promise<boolean> => {
     try {
-      const { error } = await supabase
-        .from('vehicles')
-        .delete()
-        .eq('id', id);
-
+      const { error } = await supabase.from('vehicles').delete().eq('id', id);
       if (error) throw error;
-      
-      setVehicles(prev => prev.filter(v => v.id !== id));
+      setVehiclesCache((prev) => prev.filter((v) => v.id !== id));
       toast.success('Fordon borttaget');
       return true;
     } catch (error: any) {
@@ -160,35 +189,14 @@ export const useVehicles = () => {
     }
   };
 
-  // Real-time subscription for GPS updates
-  useEffect(() => {
-    fetchVehicles();
-
-    const channel = supabase
-      .channel('vehicles-realtime')
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'vehicles'
-      }, (payload) => {
-        setVehicles(prev => prev.map(v => 
-          v.id === payload.new.id ? { ...v, ...payload.new } : v
-        ));
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [fetchVehicles]);
-
   return {
     vehicles,
-    activeVehicles: vehicles.filter(v => v.is_active),
+    activeVehicles: vehicles.filter((v) => v.is_active),
     isLoading,
-    fetchVehicles,
+    fetchVehicles: refetch,
     createVehicle,
     updateVehicle,
-    deleteVehicle
+    deleteVehicle,
   };
 };
+
