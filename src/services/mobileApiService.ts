@@ -384,8 +384,21 @@ async function performApiAttempt<T>(action: string, data: any, token: string | n
 
     if (res.status === 401) {
       if (token) {
+        // Försök läsa fel-koden för att skilja vanlig session-utgång från
+        // "annan enhet vinner" (token_revoked) — då vill vi visa en egen toast.
+        let revokedReason: string | null = null;
+        try {
+          const peek = await res.clone().json();
+          if (peek && typeof peek === 'object' && (peek as { code?: string }).code === 'token_revoked') {
+            revokedReason = (peek as { error?: string }).error || 'Sessionen avslutades på en annan enhet.';
+          }
+        } catch { /* ignore json parse */ }
         clearAuth();
-        window.dispatchEvent(new CustomEvent('mobile-session-expired'));
+        if (revokedReason) {
+          window.dispatchEvent(new CustomEvent('mobile-session-revoked', { detail: { reason: revokedReason } }));
+        } else {
+          window.dispatchEvent(new CustomEvent('mobile-session-expired'));
+        }
       }
       throw createSessionExpiredError();
     }
