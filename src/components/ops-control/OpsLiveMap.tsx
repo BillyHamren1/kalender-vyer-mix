@@ -1099,6 +1099,16 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
                     {statusStyles[m.status].label}
                     {m.teamName && ` · ${m.teamName}`}
                   </div>
+                  {m.lastSeen && (
+                    <div className="text-[9px] text-muted-foreground/80 flex items-center gap-1 mt-0.5">
+                      <Clock className="w-2.5 h-2.5" />
+                      {(() => {
+                        const diff = Date.now() - new Date(m.lastSeen).getTime();
+                        if (diff < 60_000) return 'just nu';
+                        return formatDistanceToNow(new Date(m.lastSeen), { addSuffix: true, locale: sv });
+                      })()}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
