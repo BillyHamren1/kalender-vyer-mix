@@ -147,15 +147,20 @@ export default function StaffPayrollReport() {
         </div>
       )}
 
-      {matrix && matrix.rows.length === 0 && (
+      {matrix && visibleRows.length === 0 && (
         <div className="py-12 text-center text-sm text-muted-foreground">
-          Inga aktiva personer i organisationen.
+          Ingen personal har registrerat tid den här veckan.
         </div>
       )}
 
-      {matrix && matrix.rows.length > 0 && (
+      {matrix && visibleRows.length > 0 && (
         <div className="bg-neutral-100 print:bg-white py-6 print:py-0 px-4 print:px-0">
-          {matrix.rows.map((row) => (
+          {hiddenEmptyCount > 0 && (
+            <div className="payroll-no-print max-w-[820px] mx-auto mb-3 text-[11px] text-muted-foreground text-right">
+              {hiddenEmptyCount} {hiddenEmptyCount === 1 ? "person" : "personer"} utan registrerad tid göms
+            </div>
+          )}
+          {visibleRows.map((row) => (
             <StaffPayrollReportSheet
               key={row.staffId}
               row={row}
