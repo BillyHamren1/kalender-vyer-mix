@@ -9,24 +9,27 @@ import {
   deleteLargeProjectPurchase,
 } from '@/services/largeProjectService';
 import { fetchAllEconomyDataMulti } from '@/services/planningApiService';
-import { fetchProjectStaffHoursAsTimeReportsBookingOnly } from '@/services/projectHoursService';
-import { fetchLargeProjectHoursSummary } from '@/services/projectHoursService';
-import { fetchApprovedProjectStaffTimeCostSummary } from '@/services/projectStaffTimeCostLinesService';
+import { fetchProjectStaffTimeCostSummaryForTargets } from '@/services/projectStaffTimeCostLinesService';
 import type { StaffTimeReport } from '@/types/projectEconomy';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LARGE PROJECT ECONOMY (post tidrapport-attest):
-//   - FAKTISK personalkostnad för LP = `project_staff_time_cost_lines`
-//     filtrerade på large_project_id ELLER booking_id ∈ linkedBookings.
+// LARGE PROJECT ECONOMY (read-model):
+//   - FAKTISK personalkostnad/timmar = `project_staff_time_cost_lines`
+//     filtrerade på large_project_id ELLER booking_id ∈ linkedBookings i
+//     EN enda batchad query (fetchProjectStaffTimeCostSummaryForTargets).
 //     Dedup på row.id.
-//   - `staff_day_report_cache` (Time Engine) används endast som
-//     prognos/förslag — aldrig som faktisk kanonisk sanning.
-//   - `time_reports` används INTE som källa.
-//   - `timeReportsByBooking` lever kvar som DETALJ-breakdown per booking,
-//     aldrig som total.
+//   - `time_reports` / `location_time_entries` / `travel_time_logs` /
+//     `staff_day_report_cache` / `gps_pings` läses INTE från projektvyer.
+//   - `timeReportsByBooking` (per-booking detalj-breakdown) prefetchas EJ
+//     vid sidladdning. Detta orsakade N+1 mot staff_day_report_cache och
+//     gjorde stora projekt långsamma. Hämtas lazy vid behov (TODO: krok).
+//
+// Do not prefetch per-booking Time Engine summaries for large projects.
+// This causes N+1 staff_day_report_cache reads and makes large projects slow.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { LargeProjectBudget, LargeProjectPurchase } from '@/types/largeProject';
 import { supabase } from '@/integrations/supabase/client';
+
 
 interface AggregatedBookingEconomy {
   totalRevenue: number;
