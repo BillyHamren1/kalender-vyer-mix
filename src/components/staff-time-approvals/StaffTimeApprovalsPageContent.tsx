@@ -1,20 +1,20 @@
 /**
- * StaffTimeApprovalsPageContent — innehåll för "Lön"-tabben.
+ * StaffTimeApprovalsPageContent — Lön-tabben.
  *
- * Visar samma block per dag som Tid-tabben (källa: useStaffTimeWeekMatrix)
- * men i en klinisk, strukturerad veckomatris fokuserad på löneattest.
+ * Ren tidrapport för ekonomiavdelningen: ett "papper" per anställd, samma
+ * underliggande block som Tid-tabben (useStaffTimeWeekMatrix), exporterbar
+ * till CSV och utskrivbar till PDF via browser-print.
  *
- * Den tidigare bundle-listan (StaffWeeklyApprovalList / Sheet-panelen) är
- * borttagen från Lön — granskning sker via cell → dag-snabbvy → ev.
- * GPS-satellitkarta, exakt som i Tid-tabben.
+ * Den tidigare kliniska veckomatrisen (StaffPayrollWeekMatrix*) är borttagen
+ * — den såg ut som ett internt admin-verktyg, inte en lönerapport.
  */
 import React from "react";
-import StaffPayrollWeekMatrix from "./StaffPayrollWeekMatrix";
+import StaffPayrollReport from "./StaffPayrollReport";
 
 export const StaffTimeApprovalsPageContent: React.FC = () => {
   return (
     <div className="flex flex-col min-h-full bg-background">
-      <StaffPayrollWeekMatrix />
+      <StaffPayrollReport />
     </div>
   );
 };
