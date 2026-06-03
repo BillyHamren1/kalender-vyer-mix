@@ -128,107 +128,165 @@ function absorbShortNoise(input: DaySegment[]): DaySegment[] {
   const UNKNOWN_MAX_MS = 15 * 60_000;
   const TRAVEL_MAX_MS = 10 * 60_000;
   const NEW_ADDR_MIN_MS = 5 * 60_000;
+  // Visits kortare än detta räknas som GPS-flapping mellan närliggande
+  // platser (typiskt FA Warehouse ↔ Boende - Venngarn när någon sitter
+  // i en kantzon) och absorberas av föregående stay.
+  const SHORT_STAY_MAX_MS = 2 * 60_000;
   const dur = (s: DaySegment) => toMs(s.end) - toMs(s.start);
   const isStay = (s: DaySegment | undefined) =>
     !!s && (s.type === "work" || s.type === "private");
 
   const segs = input.map((s) => ({ ...s }));
 
-  // Pass 1: korta unknown_place
-  for (let pass = 0; pass < 50; pass++) {
-    let didChange = false;
-    for (let i = 0; i < segs.length; i++) {
-      const s = segs[i];
-      if (s.type !== "unknown_place") continue;
-      if (dur(s) >= UNKNOWN_MAX_MS) continue;
-      const prev = segs[i - 1];
-      const next = segs[i + 1];
-      if (isStay(prev)) {
+  // Kör hela tvätten i en yttre loop så att korta-stay-absorberingen
+  // kan skapa nya same-site-grannar som pass 3 sedan slår ihop.
+  for (let outer = 0; outer < 20; outer++) {
+    let outerChanged = false;
+
+    // Pass 1: korta unknown_place
+    for (let pass = 0; pass < 50; pass++) {
+      let didChange = false;
+      for (let i = 0; i < segs.length; i++) {
+        const s = segs[i];
+        if (s.type !== "unknown_place") continue;
+        if (dur(s) >= UNKNOWN_MAX_MS) continue;
+        const prev = segs[i - 1];
+        const next = segs[i + 1];
+        if (isStay(prev)) {
+          prev.end = s.end;
+          segs.splice(i, 1);
+          didChange = true;
+          break;
+        }
+        if (isStay(next)) {
+          next.start = s.start;
+          segs.splice(i, 1);
+          didChange = true;
+          break;
+        }
+      }
+      if (!didChange) break;
+      outerChanged = true;
+    }
+
+    // Pass 2: korta travel utan ny adress
+    for (let pass = 0; pass < 50; pass++) {
+      let didChange = false;
+      for (let i = 0; i < segs.length; i++) {
+        const s = segs[i];
+        if (s.type !== "travel") continue;
+        if (dur(s) >= TRAVEL_MAX_MS) continue;
+        const prev = segs[i - 1];
+        if (!isStay(prev)) continue;
+        const next = segs[i + 1];
+        const leadsToNewAddr =
+          !!next &&
+          isStay(next) &&
+          (next.knownSiteId ?? null) !== (prev.knownSiteId ?? null) &&
+          dur(next) >= NEW_ADDR_MIN_MS;
+        if (leadsToNewAddr) continue;
         prev.end = s.end;
         segs.splice(i, 1);
         didChange = true;
         break;
       }
-      if (isStay(next)) {
-        next.start = s.start;
+      if (!didChange) break;
+      outerChanged = true;
+    }
+
+    // Pass 2b: KORTA IDLE-segment (<2 min finns naturligt via IDLE_MAX_MS-regeln,
+    // men noll-längd-idle mellan flippande visits ska absorberas av föregående
+    // stay — annars staplas långa listor av "Övergång 0m" upp i UI:t).
+    for (let pass = 0; pass < 50; pass++) {
+      let didChange = false;
+      for (let i = 0; i < segs.length; i++) {
+        const s = segs[i];
+        if (s.type !== "idle") continue;
+        const prev = segs[i - 1];
+        if (!isStay(prev)) continue;
+        prev.end = s.end;
         segs.splice(i, 1);
         didChange = true;
         break;
       }
+      if (!didChange) break;
+      outerChanged = true;
     }
-    if (!didChange) break;
-  }
 
-  // Pass 2: korta travel utan ny adress
-  for (let pass = 0; pass < 50; pass++) {
-    let didChange = false;
-    for (let i = 0; i < segs.length; i++) {
-      const s = segs[i];
-      if (s.type !== "travel") continue;
-      if (dur(s) >= TRAVEL_MAX_MS) continue;
-      const prev = segs[i - 1];
-      if (!isStay(prev)) continue;
-      const next = segs[i + 1];
-      const leadsToNewAddr =
-        !!next &&
-        isStay(next) &&
-        (next.knownSiteId ?? null) !== (prev.knownSiteId ?? null) &&
-        dur(next) >= NEW_ADDR_MIN_MS;
-      if (leadsToNewAddr) continue;
-      prev.end = s.end;
-      segs.splice(i, 1);
-      didChange = true;
-      break;
-    }
-    if (!didChange) break;
-  }
-
-  // Pass 3: slå ihop angränsande work/private på samma site
-  for (let i = segs.length - 1; i > 0; i--) {
-    const a = segs[i - 1];
-    const b = segs[i];
-    if (
-      a.type === b.type &&
-      isStay(a) &&
-      (a.knownSiteId ?? null) === (b.knownSiteId ?? null)
-    ) {
-      a.end = b.end;
-      segs.splice(i, 1);
-    }
-  }
-
-  // Pass 4: SAME-SITE SANDWICH — stay(A) → [unknown_place|gps_gap|idle]+ → stay(A)
-  // med SAMMA knownSiteId omgärdande ska kollapsas oavsett mellanblockens längd.
-  // Personen lämnade aldrig geofencen (annars hade vi fått en travel-segment).
-  // Enforcar mem://constraints/geofence-inside-time-authority-v1 och
-  // mem://constraints/same-target-sandwich-collapse-v1.
-  for (let pass = 0; pass < 50; pass++) {
-    let didChange = false;
-    for (let i = 0; i < segs.length; i++) {
-      const a = segs[i];
-      if (!isStay(a) || !a.knownSiteId) continue;
-      let j = i + 1;
-      let onlyAbsorbable = true;
-      while (j < segs.length) {
-        const mid = segs[j];
-        if (isStay(mid)) break;
-        if (mid.type !== "unknown_place" && mid.type !== "gps_gap" && mid.type !== "idle") {
-          onlyAbsorbable = false;
-          break;
-        }
-        j++;
+    // Pass 2c: KORTA STAYS (work/private < 2 min) som ligger mellan två andra
+    // stays — typiskt GPS-flapping. Absorberas av föregående stay. Detta gör
+    // att en "FA Warehouse ↔ Boende - Venngarn"-flap inte producerar 19 rader.
+    for (let pass = 0; pass < 50; pass++) {
+      let didChange = false;
+      for (let i = 1; i < segs.length - 1; i++) {
+        const s = segs[i];
+        if (!isStay(s)) continue;
+        if (dur(s) >= SHORT_STAY_MAX_MS) continue;
+        const prev = segs[i - 1];
+        const next = segs[i + 1];
+        // Bara absorbera om vi är inklämda mellan två stays (annars bevara
+        // korta arbetsbesök som t.ex. lastningsstopp på riktigt).
+        if (!isStay(prev) || !isStay(next)) continue;
+        prev.end = s.end;
+        segs.splice(i, 1);
+        didChange = true;
+        break;
       }
-      if (!onlyAbsorbable) continue;
-      if (j >= segs.length) continue;
-      const b = segs[j];
-      if (!isStay(b) || b.knownSiteId !== a.knownSiteId) continue;
-      if (j === i + 1) continue;
-      a.end = b.end;
-      segs.splice(i + 1, j - i);
-      didChange = true;
-      break;
+      if (!didChange) break;
+      outerChanged = true;
     }
-    if (!didChange) break;
+
+    // Pass 3: slå ihop angränsande work/private på samma site
+    for (let i = segs.length - 1; i > 0; i--) {
+      const a = segs[i - 1];
+      const b = segs[i];
+      if (
+        a.type === b.type &&
+        isStay(a) &&
+        (a.knownSiteId ?? null) === (b.knownSiteId ?? null)
+      ) {
+        a.end = b.end;
+        segs.splice(i, 1);
+        outerChanged = true;
+      }
+    }
+
+    // Pass 4: SAME-SITE SANDWICH — stay(A) → [unknown_place|gps_gap|idle]+ → stay(A)
+    // med SAMMA knownSiteId omgärdande ska kollapsas oavsett mellanblockens längd.
+    // Personen lämnade aldrig geofencen (annars hade vi fått en travel-segment).
+    // Enforcar mem://constraints/geofence-inside-time-authority-v1 och
+    // mem://constraints/same-target-sandwich-collapse-v1.
+    for (let pass = 0; pass < 50; pass++) {
+      let didChange = false;
+      for (let i = 0; i < segs.length; i++) {
+        const a = segs[i];
+        if (!isStay(a) || !a.knownSiteId) continue;
+        let j = i + 1;
+        let onlyAbsorbable = true;
+        while (j < segs.length) {
+          const mid = segs[j];
+          if (isStay(mid)) break;
+          if (mid.type !== "unknown_place" && mid.type !== "gps_gap" && mid.type !== "idle") {
+            onlyAbsorbable = false;
+            break;
+          }
+          j++;
+        }
+        if (!onlyAbsorbable) continue;
+        if (j >= segs.length) continue;
+        const b = segs[j];
+        if (!isStay(b) || b.knownSiteId !== a.knownSiteId) continue;
+        if (j === i + 1) continue;
+        a.end = b.end;
+        segs.splice(i + 1, j - i);
+        didChange = true;
+        break;
+      }
+      if (!didChange) break;
+      outerChanged = true;
+    }
+
+    if (!outerChanged) break;
   }
 
   return segs;
