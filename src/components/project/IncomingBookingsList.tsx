@@ -234,9 +234,9 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
       {totalUpdates > 0 && (
         <section>
           {showSectionHeaders && (
-            <div className="flex items-center gap-2 px-4 h-8 bg-muted/40 border-b border-border/50">
-              <span className="h-1.5 w-1.5 rounded-full bg-foreground/60" />
-              <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <div className="flex items-center gap-2.5 px-4 h-10 bg-yellow-100 border-y border-yellow-300">
+              <span className="h-2 w-2 rounded-full bg-yellow-500" />
+              <span className="text-xs font-bold uppercase tracking-[0.1em] text-yellow-900">
                 Uppdaterade · kräver granskning
               </span>
             </div>
