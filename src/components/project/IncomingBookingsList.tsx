@@ -11,6 +11,8 @@ import { toast } from 'sonner';
 import { BookingPlacementDialog } from './BookingPlacementDialog';
 import { useUnplannedProjects } from '@/hooks/useUnplannedProjects';
 import { useUnseenBookingUpdates, useMarkBookingChangesSeen } from '@/hooks/useUnseenBookingUpdates';
+import { getBookingUpdatesBaseline } from '@/lib/bookingUpdatesBaseline';
+
 
 
 interface IncomingBooking {
