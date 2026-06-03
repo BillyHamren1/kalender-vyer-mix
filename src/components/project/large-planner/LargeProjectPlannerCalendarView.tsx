@@ -75,7 +75,8 @@ const LargeProjectPlannerCalendarView = ({
   } = ctx;
 
   // Batch-prefetch team-fordon för alla synliga dagar (1 query, 1 realtime-kanal).
-  useTeamVehiclesPrefetch(days);
+  useTeamVehiclesPrefetch(useMemo(() => days.map((d) => d.date), [days]));
+
 
 
   const bookingDisplayById = useMemo(() => {
