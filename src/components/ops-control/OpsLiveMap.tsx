@@ -664,25 +664,31 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
     let hasPoints = false;
 
     // Job location markers (diamond shape)
-    mapJobs.forEach(job => {
+    if (showJobs) mapJobs.forEach(job => {
       if (!job.latitude || !job.longitude) return;
       hasPoints = true;
       bounds.extend([job.longitude, job.latitude]);
 
+      const staffOnJob = locations.filter(l => l.bookingId === job.bookingId && l.isWorking).length;
+
       const el = document.createElement('div');
-      el.style.cssText = 'width: 40px; height: 52px; cursor: pointer; z-index: 10; position: relative; display:flex; align-items:flex-end; justify-content:center;';
+      el.style.cssText = 'width: 44px; height: 56px; cursor: pointer; z-index: 10; position: relative; display:flex; align-items:flex-end; justify-content:center;';
       const phase = classifyJobPhase(job.eventType);
       const ph = phaseStyles[phase];
       const glow = job.isActive
-        ? `<div style="position:absolute;left:50%;top:14px;transform:translate(-50%,-50%);width:46px;height:46px;border-radius:9999px;background:${ph.ring};opacity:0.22;filter:blur(10px);animation:opspulse 2.2s ease-in-out infinite;"></div>`
+        ? `<div style="position:absolute;left:50%;top:14px;transform:translate(-50%,-50%);width:48px;height:48px;border-radius:9999px;background:${ph.ring};opacity:0.22;filter:blur(10px);animation:opspulse 2.2s ease-in-out infinite;"></div>`
+        : '';
+      const staffBadge = staffOnJob > 0
+        ? `<div style="position:absolute;top:-2px;right:-2px;min-width:18px;height:18px;padding:0 5px;border-radius:9999px;background:#0f172a;color:#fff;font:700 10px/18px system-ui;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);">${staffOnJob}</div>`
         : '';
       el.innerHTML = `
         ${glow}
-        <svg width="34" height="46" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:relative;filter:drop-shadow(0 4px 8px rgba(0,0,0,.35));">
+        <svg width="36" height="48" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:relative;filter:drop-shadow(0 4px 8px rgba(0,0,0,.35));">
           <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z"
                 fill="${ph.fill}" stroke="${ph.ring}" stroke-width="1.8"/>
           <circle cx="12" cy="12" r="4.2" fill="#ffffff" stroke="${ph.ring}" stroke-width="1"/>
         </svg>
+        ${staffBadge}
       `;
 
       el.addEventListener('click', (e) => {
