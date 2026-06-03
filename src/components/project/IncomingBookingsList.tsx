@@ -11,6 +11,8 @@ import { toast } from 'sonner';
 import { BookingPlacementDialog } from './BookingPlacementDialog';
 import { useUnplannedProjects } from '@/hooks/useUnplannedProjects';
 import { useUnseenBookingUpdates, useMarkBookingChangesSeen } from '@/hooks/useUnseenBookingUpdates';
+import { getBookingUpdatesBaseline } from '@/lib/bookingUpdatesBaseline';
+
 
 
 interface IncomingBooking {
@@ -147,16 +149,18 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
     }
   });
 
-  // Visa endast uppdateringar som SKEDDE idag eller senare. Ändringar gjorda
-  // före idag räknas inte som "nya" och filtreras bort i listan.
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  // Per-användare baseline: vi börjar räkna från och med första gången koden
+  // körs i denna browser. Allt som ändrades innan dess är osynligt för all
+  // framtid — ingen UI-knapp, ingen "markera alla", bara en ren cutoff.
+  // Klick på "Granska" hanteras separat (last_seen_at per booking).
+  const baselineMs = getBookingUpdatesBaseline();
   const visibleUpdates = unseenUpdates.filter((u) => {
     if (!u.last_change_at) return false;
     const t = new Date(u.last_change_at).getTime();
     if (isNaN(t)) return false;
-    return t >= todayStart.getTime();
+    return t > baselineMs;
   });
+
 
   const totalNew = bookings.length + unplannedProjects.length;
   const totalUpdates = visibleUpdates.length;
