@@ -353,15 +353,35 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
   const assignedStaffIds = (assignments || []).map(a => a.staff_id);
   const assignedSet = new Set(assignedStaffIds);
 
-  // Get ALL GPS positions (no time filter — show everyone, mark offline if stale)
-  const { data: allGpsData } = await supabase
+  // Get recent GPS positions (last 24h, capped) — dedupe to latest per staff_id
+  const gpsCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data: rawGpsData } = await supabase
     .from('staff_locations')
-    .select('staff_id, latitude, longitude, updated_at, location_since');
+    .select('staff_id, latitude, longitude, updated_at, location_since')
+    .gte('updated_at', gpsCutoff)
+    .order('updated_at', { ascending: false })
+    .limit(500);
 
-  extra.gpsRows = (allGpsData || []).length;
+  // Dedupe: first occurrence wins (rows already ordered DESC on updated_at)
+  const gpsMap = new Map<string, NonNullable<typeof rawGpsData>[number]>();
+  for (const row of rawGpsData || []) {
+    if (!gpsMap.has(row.staff_id)) gpsMap.set(row.staff_id, row);
+  }
+  const allGpsData = Array.from(gpsMap.values());
+
+  extra.gpsRows = (rawGpsData || []).length;
+  extra.gpsDeduped = allGpsData.length;
+  extra.gpsCutoff = gpsCutoff;
   const tenMinAgo = Date.now() - 10 * 60 * 1000;
 
-  const gpsMap = new Map(allGpsData?.map(g => [g.staff_id, g]) || []);
+  if (import.meta.env.DEV) {
+    console.debug('[fetchStaffLocations]', {
+      assignedStaffCount: assignedStaffIds.length,
+      gpsRows: rawGpsData?.length ?? 0,
+      gpsDeduped: allGpsData.length,
+      gpsCutoff,
+    });
+  }
 
   // Find unassigned staff with active GPS
   const unassignedGpsStaffIds = (allGpsData || [])
@@ -468,6 +488,9 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
   }
 
   extra.results = results.length;
+  if (import.meta.env.DEV) {
+    console.debug('[fetchStaffLocations:done]', { resultCount: results.length });
+  }
   return results;
   }, extra);
 };
