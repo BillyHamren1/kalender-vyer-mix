@@ -697,22 +697,20 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       const staffOnJob = locations.filter(l => l.bookingId === job.bookingId && l.isWorking).length;
 
       const el = document.createElement('div');
-      el.style.cssText = 'width: 44px; height: 56px; cursor: pointer; z-index: 10; position: relative; display:flex; align-items:flex-end; justify-content:center;';
+      el.style.cssText = 'width: 36px; height: 36px; cursor: pointer; z-index: 8; position: relative; display:flex; align-items:center; justify-content:center;';
       const phase = classifyJobPhase(job.eventType);
       const ph = phaseStyles[phase];
       const glow = job.isActive
-        ? `<div style="position:absolute;left:50%;top:14px;transform:translate(-50%,-50%);width:48px;height:48px;border-radius:9999px;background:${ph.ring};opacity:0.22;filter:blur(10px);animation:opspulse 2.2s ease-in-out infinite;"></div>`
+        ? `<div style="position:absolute;inset:-6px;border-radius:9999px;background:${ph.fill};opacity:0.18;filter:blur(8px);animation:opspulse 2.4s ease-in-out infinite;"></div>`
         : '';
       const staffBadge = staffOnJob > 0
-        ? `<div style="position:absolute;top:-2px;right:-2px;min-width:18px;height:18px;padding:0 5px;border-radius:9999px;background:#0f172a;color:#fff;font:700 10px/18px system-ui;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);">${staffOnJob}</div>`
+        ? `<div style="position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;padding:0 4px;border-radius:9999px;background:#0f172a;color:#fff;font:700 9px/16px system-ui;display:flex;align-items:center;justify-content:center;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);">${staffOnJob}</div>`
         : '';
       el.innerHTML = `
         ${glow}
-        <svg width="36" height="48" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:relative;filter:drop-shadow(0 4px 8px rgba(0,0,0,.35));">
-          <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z"
-                fill="${ph.fill}" stroke="${ph.ring}" stroke-width="1.8"/>
-          <circle cx="12" cy="12" r="4.2" fill="#ffffff" stroke="${ph.ring}" stroke-width="1"/>
-        </svg>
+        <div style="position:relative;width:28px;height:28px;border-radius:8px;background:${ph.fill};border:2px solid ${ph.ring};box-shadow:0 2px 6px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${ph.icon}</svg>
+        </div>
         ${staffBadge}
       `;
 
@@ -725,7 +723,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         }
       });
 
-      const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+      const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
         .setLngLat([job.longitude, job.latitude])
         .addTo(map.current!);
       jobMarkersRef.current.push(marker);
