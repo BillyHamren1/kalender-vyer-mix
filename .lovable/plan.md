@@ -1,29 +1,21 @@
 ## Mål
-Lås upp kartinteraktioner i OpsLiveMap (scroll-zoom, drag, dubbelklick, touch/pinch).
+Default-vyn av OpsLiveMap ska enbart visa personal. Jobb, platser/geofence och kameror är opt-in via toolbar.
 
 ## Ändring (en fil)
 `src/components/ops-control/OpsLiveMap.tsx`
 
-1. Direkt efter `new mapboxgl.Map(...)` i init-`useEffect`, aktivera alla handlers explicit:
-   ```ts
-   const m = map.current;
-   if (m) {
-     m.scrollZoom.enable();
-     m.boxZoom.enable();
-     m.dragRotate.enable();
-     m.dragPan.enable();
-     m.keyboard.enable();
-     m.doubleClickZoom.enable();
-     m.touchZoomRotate.enable();
-   }
-   console.debug('[OpsLiveMap] Map interactions enabled', {
-     scrollZoom: true, dragPan: true, doubleClickZoom: true, touchZoomRotate: true,
-   });
-   ```
-2. Lägg `style={{ touchAction: 'none' }}` på `<div ref={mapContainer} ...>`.
-3. Snabbgranska overlays (toolbar, legend, panels, tooltips, loading) — säkerställ att inga `inset-0` ligger ovanpå kartan med pointer-events aktiva när `mapReady` är true; loading endast vid `isLoading || !mapReady`.
-4. Rör inget annat (pins, satellitstil, layout).
+1. Ändra default state:
+   - `showOrgLocations` → `useState(false)`
+   - `showJobs` → `useState(false)`
+   - `showStaff` lämnas `true`
+   - `showCameras` lämnas `false`
+2. Verifiera att render/effekt-flöden redan respekterar dessa flaggor:
+   - org-platsmarkörer och geofence-lager: hoppas över när `showOrgLocations === false`
+   - jobbmarkörer/badges + auto-öppen `selectedJob`: hoppas över när `showJobs === false`
+   Om någon plats saknar guard, lägg till en kort `if (!flag) return;`-vakt i den marker-/effect-grenen (minimal kirurgisk ändring, ingen omstrukturering).
+3. Legend: visa endast sektioner vars flagga är aktiv (`showStaff` → staff-statusar, `showJobs` → fas-legend, `showOrgLocations` → plats-legend, `showCameras` → kamera-legend). Lägg till conditional render där det saknas.
+4. Toolbar-knapparna lämnas oförändrade så användaren kan slå på lagren.
 
 ## Verifiering
 - Auto-typecheck/build passar.
-- Preview `/ops-control`: scroll zoomar, drag panorerar, dubbelklick zoomar in, console visar debug-raden.
+- Preview `/ops-control`: vid laddning syns endast personal-pins. Klick på Jobb/Platser/Kameror visar respektive lager + legend.
