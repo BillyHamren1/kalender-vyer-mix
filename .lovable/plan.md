@@ -1,37 +1,46 @@
 ## Mål
 
-Gör /ops-control snabbare vid initial load genom att lazy-mounta tunga sekundärpaneler. Kartan + Dagens jobb är fortsatt öppna direkt. Inget UI-beteende ändras utöver att panelerna börjar i stängt läge.
+Gör så `useOpsControl` bara hämtar data som faktiskt visas. `OpsControlCenter` aktiverar `messages`/`activity` först när Kommunikation-panelen öppnas. `metrics` defaultar till `false`.
 
-## Fil som ändras
+## Filer
 
-- `src/pages/OpsControlCenter.tsx` (enda filen)
+- `src/hooks/useOpsControl.ts`
+- `src/pages/OpsControlCenter.tsx`
 
 ## Ändringar
 
-1. **Ta bort top-level `useLivePackingFeed()`-anropet.** Hooken flyttas in i en wrapper-komponent `<LiveProjectsPanelBody />` som bara renderas när panelen är öppen.
+### `src/hooks/useOpsControl.ts`
 
-2. **Lägg till fyra `useState`-flaggor** (alla `false` som default):
-   - `liveProjectsOpen`
-   - `locationsOpen`
-   - `commsOpen`
-   - `staffCalendarOpen`
+1. Lägg till options-typ och parameter:
+   ```ts
+   export type UseOpsControlOptions = {
+     enableMetrics?: boolean;
+     enableTimeline?: boolean;
+     enableJobQueue?: boolean;
+     enableLocations?: boolean;
+     enableMapJobs?: boolean;
+     enableMessages?: boolean;
+     enableActivity?: boolean;
+   };
+   export const useOpsControl = (options: UseOpsControlOptions = {}) => { ... }
+   ```
+2. Lös defaults internt:
+   - `enableTimeline`, `enableJobQueue`, `enableLocations`, `enableMapJobs` → `true`
+   - `enableMetrics`, `enableMessages`, `enableActivity` → `false`
+3. Sätt `enabled: <flag>` på respektive `useQuery` (metrics, timeline, jobQueue, locations, mapJobs, messages, activity).
+4. Behåll realtime-invalidations som de är (de skadar inte när queries är disabled — de invaliderar bara cache-nyckeln).
+5. Return-objektet är oförändrat — `messagesQuery.data || []` och `activityQuery.data || []` ger tomma arrays när disabled.
 
-3. **Konvertera de fyra sekundära `<section>`-blocken** (Live projekt, Platshantering, Kommunikation, Personalkalender) till samma collapsible-mönster:
-   - Header med titel + chevron + "Visa"/"Dölj"-text, `onClick` togglar respektive state.
-   - Body renderas endast när `*Open === true` (villkorlig mount, inte bara `hidden`).
-   - Ersätter `<details>`-varianten på Personalkalender med samma kontrollerade mönster för konsekvens.
+### `src/pages/OpsControlCenter.tsx`
 
-4. **Wrapper-komponenter för att kapsla data-hookar** så att deras queries inte startar förrän panelen öppnas första gången:
-   - `LiveProjectsPanelBody` — anropar `useLivePackingFeed()` internt och renderar `<OpsLiveProjects ... />`.
-   - `OrganizationLocationsManager` mountas direkt i sin `<section>` när `locationsOpen` är `true` (komponenten hämtar sin egen data, så villkorlig mount räcker).
-   - `OpsActivityComms` mountas när `commsOpen` är `true`. `activity`/`messages` kommer fortfarande från `useOpsControl` i denna prompt — bara mount-styrning här, hook-`enabled` löses i nästa prompt enligt instruktionen.
-   - `OpsPlanningDayPanel` mountas när `staffCalendarOpen` är `true`.
+1. Anropa `useOpsControl({ enableMessages: commsOpen, enableActivity: commsOpen })`.
+   - `enableMetrics` lämnas till default `false`.
+   - Övriga (timeline/jobQueue/locations/mapJobs) använder default `true`.
+2. `commsOpen` är redan deklarerat tidigare — eftersom `useOpsControl`-anropet ligger före state-deklarationerna måste state-blocken flyttas upp så `commsOpen` finns innan hook-anropet. Konkret: flytta `useState`-raderna för `liveProjectsOpen`/`locationsOpen`/`commsOpen`/`staffCalendarOpen` (samt övriga useState) ovanför `useOpsControl`-anropet.
+3. Inga UI-ändringar.
 
-5. **Behåll**:
-   - All header-, KPI-, karta-, Dagens jobb-, broadcast- och side-panel-logik oförändrad.
-   - Visuell layout (samma grid, samma `planning-card`, samma padding/höjder).
-   - `useOpsControl`-anropet som det är (ändringar i `enabled` görs i nästa prompt).
+## Verifiering
 
-## Resultat
-
-Vid första rendering körs endast: `useOpsControl` (timeline, jobQueue, locations, mapJobs, messages, activity — som idag) + kartan + Dagens jobb. `useLivePackingFeed`, `OrganizationLocationsManager`, `OpsActivityComms` och `OpsPlanningDayPanel` mountas/fetchar först när användaren öppnar respektive panel.
+- Initial load: nätverksloggen visar inga anrop till `fetchOpsMetrics`, `fetchStaffMessages`, `fetchJobActivity`.
+- Öppna Kommunikation-panelen: `fetchStaffMessages` + `fetchJobActivity` körs då.
+- Karta, Dagens jobb, KPI-chips fortsätter fungera (timeline/jobQueue/locations/mapJobs aktiva som default).

@@ -6,7 +6,27 @@ import { fetchStaffLocations, StaffLocation } from '@/services/planningDashboard
 import { useRealtimeInvalidation } from './useRealtimeInvalidation';
 import { addDays, format } from 'date-fns';
 
-export const useOpsControl = () => {
+export type UseOpsControlOptions = {
+  enableMetrics?: boolean;
+  enableTimeline?: boolean;
+  enableJobQueue?: boolean;
+  enableLocations?: boolean;
+  enableMapJobs?: boolean;
+  enableMessages?: boolean;
+  enableActivity?: boolean;
+};
+
+export const useOpsControl = (options: UseOpsControlOptions = {}) => {
+  const {
+    enableMetrics = false,
+    enableTimeline = true,
+    enableJobQueue = true,
+    enableLocations = true,
+    enableMapJobs = true,
+    enableMessages = false,
+    enableActivity = false,
+  } = options;
+
   const [timelineDate, setTimelineDate] = useState<Date>(new Date());
 
   const devLog = (scope: string, payload: any) => {
@@ -49,6 +69,7 @@ export const useOpsControl = () => {
     queryKey: ['ops-control', 'metrics'],
     queryFn: fetchOpsMetrics,
     refetchInterval: 60000,
+    enabled: enableMetrics,
   });
 
   const dateKey = format(timelineDate, 'yyyy-MM-dd');
@@ -56,36 +77,42 @@ export const useOpsControl = () => {
     queryKey: ['ops-control', 'timeline', dateKey],
     queryFn: () => fetchOpsTimeline(timelineDate),
     refetchInterval: 120000,
+    enabled: enableTimeline,
   });
 
   const jobQueueQuery = useQuery<OpsJobQueueItem[]>({
     queryKey: ['ops-control', 'job-queue'],
     queryFn: fetchOpsJobQueue,
     refetchInterval: 60000,
+    enabled: enableJobQueue,
   });
 
   const locationsQuery = useQuery<StaffLocation[]>({
     queryKey: ['ops-control', 'locations'],
     queryFn: fetchStaffLocations,
     refetchInterval: 120000,
+    enabled: enableLocations,
   });
 
   const mapJobsQuery = useQuery<OpsMapJob[]>({
     queryKey: ['ops-control', 'map-jobs'],
     queryFn: fetchOpsMapJobs,
     refetchInterval: 120000,
+    enabled: enableMapJobs,
   });
 
   const messagesQuery = useQuery<StaffMessage[]>({
     queryKey: ['ops-control', 'messages'],
     queryFn: fetchStaffMessages,
     refetchInterval: 30000,
+    enabled: enableMessages,
   });
 
   const activityQuery = useQuery<JobActivityItem[]>({
     queryKey: ['ops-control', 'activity'],
     queryFn: fetchJobActivity,
     refetchInterval: 60000,
+    enabled: enableActivity,
   });
 
   const goToNextDay = () => setTimelineDate(prev => addDays(prev, 1));
