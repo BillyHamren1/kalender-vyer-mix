@@ -101,9 +101,9 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
   const [mapStyle, setMapStyle] = useState<'streets' | 'satellite'>('satellite');
   const [styleRevision, setStyleRevision] = useState(0);
   const [orgLocations, setOrgLocations] = useState<OrganizationLocation[]>([]);
-  const [showOrgLocations, setShowOrgLocations] = useState(true);
+  const [showOrgLocations, setShowOrgLocations] = useState(false);
   const [showStaff, setShowStaff] = useState(true);
-  const [showJobs, setShowJobs] = useState(true);
+  const [showJobs, setShowJobs] = useState(false);
   const [followStaffId, setFollowStaffId] = useState<string | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const { cameras, isLoading: camerasLoading, fetchCameras } = useTrafficCameras();
@@ -1028,7 +1028,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.7)]" />
         </div>
         <div className="grid grid-cols-2 gap-x-5 gap-y-1.5">
-          {(Object.entries(phaseStyles) as [JobPhase, typeof phaseStyles[JobPhase]][])
+          {showJobs && (Object.entries(phaseStyles) as [JobPhase, typeof phaseStyles[JobPhase]][])
             .filter(([k]) => k !== 'other')
             .map(([key, p]) => (
               <span key={key} className="flex items-center gap-2 text-[10px] text-slate-200">
@@ -1039,7 +1039,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
                 {p.label}
               </span>
             ))}
-          {Object.entries(statusStyles).map(([key, { color, label }]) => (
+          {showStaff && Object.entries(statusStyles).map(([key, { color, label }]) => (
             <span key={key} className="flex items-center gap-2 text-[10px] text-slate-200">
               <span className="w-2.5 h-2.5 rounded-full shrink-0 ring-1 ring-white/40" style={{ background: color }} />
               {label}
@@ -1061,7 +1061,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       </div>
 
       {/* Selected job panel */}
-      {selectedJob && (
+      {selectedJob && showJobs && (
         <div className="absolute top-2 right-2 w-56 bg-card border border-border rounded-lg shadow-lg overflow-hidden animate-in fade-in slide-in-from-right-2 duration-150 z-20">
           <div className="px-3 py-2 border-b border-border flex items-center justify-between">
             <span className="text-[11px] font-bold text-foreground truncate">{selectedJob.client}</span>
