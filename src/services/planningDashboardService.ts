@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfDay, endOfDay, subDays, addDays, startOfWeek } from "date-fns";
+import { debugTimed } from "@/lib/performance/debugTiming";
 
 // Staff with location and status
 export interface StaffLocation {
@@ -292,6 +293,8 @@ export const assignStaffToDay = async (staffId: string, teamId: string, date: Da
 };
 
 export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
+  const extra: Record<string, unknown> = {};
+  return debugTimed('fetchStaffLocations', async () => {
   const today = format(new Date(), 'yyyy-MM-dd');
 
   // Get today's assignments with booking info
@@ -311,6 +314,7 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
     console.error('Error fetching assignments:', assignmentsError);
     return [];
   }
+  extra.assignments = (assignments || []).length;
 
   // Get today's time reports to see who's working
   const { data: timeReports } = await supabase
@@ -354,6 +358,7 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
     .from('staff_locations')
     .select('staff_id, latitude, longitude, updated_at, location_since');
 
+  extra.gpsRows = (allGpsData || []).length;
   const tenMinAgo = Date.now() - 10 * 60 * 1000;
 
   const gpsMap = new Map(allGpsData?.map(g => [g.staff_id, g]) || []);
@@ -362,6 +367,7 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
   const unassignedGpsStaffIds = (allGpsData || [])
     .filter(g => !assignedSet.has(g.staff_id))
     .map(g => g.staff_id);
+  extra.unassignedGpsStaff = unassignedGpsStaffIds.length;
 
   // Fetch names and booking assignments for unassigned GPS staff
   let unassignedStaffDetails = new Map<string, { name: string; teamId: string; teamName: string; bookingId: string | null; bookingClient: string | null }>();
@@ -461,7 +467,9 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
     });
   }
 
+  extra.results = results.length;
   return results;
+  }, extra);
 };
 
 export const fetchAvailableStaff = async (): Promise<AvailableStaff[]> => {
