@@ -143,16 +143,6 @@ function KpiChip({
 }
 
 const OpsControlCenter = () => {
-  const {
-    timeline, isLoadingTimeline,
-    timelineDate, goToNextDay, goToPrevDay, goToToday,
-    jobQueue,
-    locations, isLoadingLocations,
-    mapJobs, isLoadingMapJobs,
-    messages, isLoadingMessages,
-    activity, isLoadingActivity,
-  } = useOpsControl();
-
   const [focusCoords, setFocusCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [selectedJobBookingId, setSelectedJobBookingId] = useState<string | null>(null);
   const [sidePanel, setSidePanel] = useState<SidePanel>(null);
@@ -164,6 +154,19 @@ const OpsControlCenter = () => {
   const [locationsOpen, setLocationsOpen] = useState(false);
   const [commsOpen, setCommsOpen] = useState(false);
   const [staffCalendarOpen, setStaffCalendarOpen] = useState(false);
+
+  const {
+    timeline, isLoadingTimeline,
+    timelineDate, goToNextDay, goToPrevDay, goToToday,
+    jobQueue,
+    locations, isLoadingLocations,
+    mapJobs, isLoadingMapJobs,
+    messages, isLoadingMessages,
+    activity, isLoadingActivity,
+  } = useOpsControl({
+    enableMessages: commsOpen,
+    enableActivity: commsOpen,
+  });
 
   const handleFocusJob = useCallback((job: OpsMapJob) => {
     setSelectedJobBookingId(job.bookingId);
