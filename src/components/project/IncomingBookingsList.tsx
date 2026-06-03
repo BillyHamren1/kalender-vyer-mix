@@ -457,6 +457,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                     ) : (
                       <Button
                         size="sm"
+                        variant="outline"
                         onClick={() => setPlacementBookingId(booking.id)}
                         className="h-8 px-3 text-xs gap-1.5 font-medium"
                         title="Placera bokningen i kalendern"
