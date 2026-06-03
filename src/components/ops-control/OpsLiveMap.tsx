@@ -106,6 +106,8 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
   const [showJobs, setShowJobs] = useState(false);
   const [followStaffId, setFollowStaffId] = useState<string | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const hasInitialFitRef = useRef(false);
+  const userInteractedRef = useRef(false);
   const { cameras, isLoading: camerasLoading, fetchCameras } = useTrafficCameras();
 
   // Hover tooltip state for staff/clusters on the map
