@@ -380,7 +380,7 @@ const OpsControlCenter = () => {
                 />
                 {liveProjectsOpen && (
                   <div className="max-h-[360px] overflow-y-auto px-3 pb-3">
-                    <LiveProjectsPanelBody />
+                    <LiveProjectsPanelBody enabled={liveProjectsOpen} />
                   </div>
                 )}
               </section>
