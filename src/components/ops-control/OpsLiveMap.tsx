@@ -1028,7 +1028,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.7)]" />
         </div>
         <div className="grid grid-cols-2 gap-x-5 gap-y-1.5">
-          {(Object.entries(phaseStyles) as [JobPhase, typeof phaseStyles[JobPhase]][])
+          {showJobs && (Object.entries(phaseStyles) as [JobPhase, typeof phaseStyles[JobPhase]][])
             .filter(([k]) => k !== 'other')
             .map(([key, p]) => (
               <span key={key} className="flex items-center gap-2 text-[10px] text-slate-200">
@@ -1039,7 +1039,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
                 {p.label}
               </span>
             ))}
-          {Object.entries(statusStyles).map(([key, { color, label }]) => (
+          {showStaff && Object.entries(statusStyles).map(([key, { color, label }]) => (
             <span key={key} className="flex items-center gap-2 text-[10px] text-slate-200">
               <span className="w-2.5 h-2.5 rounded-full shrink-0 ring-1 ring-white/40" style={{ background: color }} />
               {label}
