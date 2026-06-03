@@ -112,18 +112,21 @@ export function useProjectDailyStaffTimeOverview({
         large_project_id: largeProjectId ?? null,
         booking_ids: bookingIds,
       });
-      const approvedRows: ApprovedRowInput[] = summary.rows.map((r) => ({
-        date: r.date,
-        staff_id: r.staff_id,
-        minutes: r.minutes,
-        cost: r.cost,
-        approvalState: r.approvalState,
-        hourlyRate: r.hourly_rate,
-        rateSource: r.rate_source,
-        submissionStatus: r.submission_status,
-        startAt: r.start_at,
-        endAt: r.end_at,
-      }));
+      const approvedRows: ApprovedRowInput[] = summary.rows
+        .filter((r) => r.approvalState !== 'excluded')
+        .map((r) => ({
+          date: r.date,
+          staff_id: r.staff_id,
+          minutes: r.minutes,
+          cost: r.cost,
+          approvalState: r.approvalState as 'approved' | 'unapproved',
+          hourlyRate: r.hourly_rate,
+          rateSource: r.rate_source,
+          submissionStatus: r.submission_status,
+          startAt: r.start_at,
+          endAt: r.end_at,
+        }));
+
       for (const r of summary.rows) {
         dateSet.add(r.date);
         staffSet.add(r.staff_id);
