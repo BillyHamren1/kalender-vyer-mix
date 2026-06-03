@@ -3,8 +3,12 @@
  * ===================================
  *
  * Läser FAKTISK registrerad projektkostnad från `project_staff_time_cost_lines`.
+ * Detta är projektens KANONISKA read-model/projection för rapporterad tid och
+ * kostnad. Projektvyer får INTE läsa time_reports / location_time_entries /
+ * travel_time_logs / staff_day_report_cache / gps_pings direkt för att bygga
+ * projektets timmar.
  *
- * Den här tabellen byggs när personal skickar in / korrigerar dagrapport
+ * Tabellen byggs när personal skickar in / korrigerar dagrapport
  * (submit-staff-day-v3, submit-mobile-gps-day-v2) OCH när admin ändrar
  * status (update-staff-day-submission-status):
  *   - countable status  → rebuild (submitted, edited, ai_flagged,
@@ -17,8 +21,9 @@
  *   - Projektets total inkluderar BÅDE approved och oattesterad (countable)
  *     tid — admin-attest avgör inte om tiden syns, bara dess status.
  *   - staff_day_report_cache = Time Engine/GPS-förslag. Aldrig sanning.
- *   - Vi läser ALDRIG time_reports / workdays / location_time_entries /
- *     travel_time_logs / day_attestations som timkälla i projektets ekonomi.
+ *   - Frontend får ALDRIG köra backfill när en sida öppnas — projection/
+ *     backfill körs server-side vid submit/correction/status update eller
+ *     manuellt via admin/dev-verktyg.
  */
 import { supabase } from "@/integrations/supabase/client";
 
@@ -103,16 +108,9 @@ export interface ApprovedCostByDate {
 }
 
 export interface ApprovedProjectStaffTimeCostSummary {
-  /**
-   * @deprecated Använd `totalHours` — semantiken har ändrats till
-   * "alla registrerade countable timmar" (approved + oattesterade).
-   * Behålls som alias så bestående konsumenter inte går sönder.
-   */
+  /** @deprecated Använd `totalHours`. */
   approvedStaffHours: number;
-  /**
-   * @deprecated Använd `totalCost` — semantiken har ändrats till
-   * "alla registrerade countable kostnader" (approved + oattesterade).
-   */
+  /** @deprecated Använd `totalCost`. */
   approvedStaffCost: number;
 
   totalHours: number;
@@ -143,46 +141,39 @@ const EMPTY: ApprovedProjectStaffTimeCostSummary = {
   source: "project_staff_time_cost_lines",
 };
 
-export async function fetchApprovedProjectStaffTimeCostSummary(
-  target: ApprovedCostTarget,
-): Promise<ApprovedProjectStaffTimeCostSummary> {
-  const hasTarget = !!(target.booking_id || target.project_id || target.large_project_id);
-  if (!hasTarget) return EMPTY;
+const COST_LINE_COLS =
+  "id, organization_id, staff_day_submission_id, staff_id, staff_name, date, booking_id, project_id, large_project_id, assignment_id, location_id, source_block_id, source_block_kind, source_label, start_at, end_at, minutes, hours, hourly_rate, cost, rate_source, submission_status";
 
-  const orParts: string[] = [];
-  if (target.booking_id) orParts.push(`booking_id.eq.${target.booking_id}`);
-  if (target.project_id) orParts.push(`project_id.eq.${target.project_id}`);
-  if (target.large_project_id) orParts.push(`large_project_id.eq.${target.large_project_id}`);
-
-  const { data, error } = await supabase
-    .from("project_staff_time_cost_lines")
-    .select(
-      "id, organization_id, staff_day_submission_id, staff_id, staff_name, date, booking_id, project_id, large_project_id, assignment_id, location_id, source_block_id, source_block_kind, source_label, start_at, end_at, minutes, hours, hourly_rate, cost, rate_source, submission_status",
-    )
-    .or(orParts.join(","))
-    .limit(5000);
-
-  if (error) {
-    console.error("[projectStaffTimeCostLinesService] fetch failed:", error);
-    return EMPTY;
+function devLog(label: string, payload: Record<string, unknown>): void {
+  if (import.meta.env.DEV) {
+    // eslint-disable-next-line no-console
+    console.info(`[projectStaffTimeCostLines] ${label}`, payload);
   }
+}
 
-  // Dedup på row.id — samma rad kan matcha både booking_id och large_project_id.
+function devWarn(label: string, payload: Record<string, unknown>): void {
+  if (import.meta.env.DEV) {
+    // eslint-disable-next-line no-console
+    console.warn(`[projectStaffTimeCostLines] ${label}`, payload);
+  }
+}
+
+function summarizeCostLineRows(
+  raw: ReadonlyArray<Omit<ApprovedCostLineRow, "approvalState">>,
+): ApprovedProjectStaffTimeCostSummary {
   const seen = new Set<string>();
   const rows: ApprovedCostLineRow[] = [];
-  for (const raw of (data ?? []) as Omit<ApprovedCostLineRow, "approvalState">[]) {
-    if (seen.has(raw.id)) continue;
-    seen.add(raw.id);
-    const approvalState = classifySubmissionStatus(raw.submission_status);
-    // Defensiv guard: exkluderade statusar ska redan vara raderade,
-    // men om något skulle ha läckt in räknar vi dem aldrig.
+  for (const r of raw) {
+    if (seen.has(r.id)) continue;
+    seen.add(r.id);
+    const approvalState = classifySubmissionStatus(r.submission_status);
     if (approvalState === "excluded") continue;
     rows.push({
-      ...raw,
-      minutes: Number(raw.minutes) || 0,
-      hours: Number(raw.hours) || 0,
-      hourly_rate: Number(raw.hourly_rate) || 0,
-      cost: Number(raw.cost) || 0,
+      ...r,
+      minutes: Number(r.minutes) || 0,
+      hours: Number(r.hours) || 0,
+      hourly_rate: Number(r.hourly_rate) || 0,
+      cost: Number(r.cost) || 0,
       approvalState,
     });
   }
@@ -313,4 +304,104 @@ export async function fetchApprovedProjectStaffTimeCostSummary(
     byDate,
     source: "project_staff_time_cost_lines",
   };
+}
+
+/**
+ * Hämtar en summary för EN target (booking/project/large_project).
+ * Föredra `fetchProjectStaffTimeCostSummaryForTargets` när du har flera ids —
+ * den gör en enda batchad query och dedupar.
+ */
+export async function fetchApprovedProjectStaffTimeCostSummary(
+  target: ApprovedCostTarget,
+): Promise<ApprovedProjectStaffTimeCostSummary> {
+  const hasTarget = !!(target.booking_id || target.project_id || target.large_project_id);
+  if (!hasTarget) return EMPTY;
+
+  const orParts: string[] = [];
+  if (target.booking_id) orParts.push(`booking_id.eq.${target.booking_id}`);
+  if (target.project_id) orParts.push(`project_id.eq.${target.project_id}`);
+  if (target.large_project_id) orParts.push(`large_project_id.eq.${target.large_project_id}`);
+
+  const t0 = performance.now();
+  const { data, error } = await supabase
+    .from("project_staff_time_cost_lines")
+    .select(COST_LINE_COLS)
+    .or(orParts.join(","))
+    .limit(5000);
+
+  if (error) {
+    console.error("[projectStaffTimeCostLinesService] fetch failed:", error);
+    return EMPTY;
+  }
+
+  const summary = summarizeCostLineRows(
+    (data ?? []) as Omit<ApprovedCostLineRow, "approvalState">[],
+  );
+  devLog("single-target fetch", {
+    target,
+    rowCount: summary.rows.length,
+    elapsedMs: Math.round(performance.now() - t0),
+  });
+  return summary;
+}
+
+export interface ProjectStaffTimeCostTargets {
+  large_project_id?: string | null;
+  project_id?: string | null;
+  booking_ids?: string[];
+}
+
+/**
+ * BATCHAD läsning av `project_staff_time_cost_lines` för alla projekttargets
+ * i en enda Supabase-query. Dedupar rader på `row.id` så att samma rad inte
+ * räknas två gånger om den matchar både large_project_id och booking_id.
+ *
+ * Använd denna i ALLA projektvyer (booking, project, large project) i stället
+ * för att loopa `fetchApprovedProjectStaffTimeCostSummary` per booking.
+ */
+export async function fetchProjectStaffTimeCostSummaryForTargets(
+  targets: ProjectStaffTimeCostTargets,
+): Promise<ApprovedProjectStaffTimeCostSummary> {
+  const lpId = targets.large_project_id ?? null;
+  const projectId = targets.project_id ?? null;
+  const bookingIds = (targets.booking_ids ?? []).filter(
+    (id): id is string => typeof id === "string" && id.length > 0,
+  );
+
+  if (!lpId && !projectId && bookingIds.length === 0) return EMPTY;
+
+  const orParts: string[] = [];
+  if (lpId) orParts.push(`large_project_id.eq.${lpId}`);
+  if (projectId) orParts.push(`project_id.eq.${projectId}`);
+  if (bookingIds.length > 0) orParts.push(`booking_id.in.(${bookingIds.join(",")})`);
+
+  const t0 = performance.now();
+  const { data, error } = await supabase
+    .from("project_staff_time_cost_lines")
+    .select(COST_LINE_COLS)
+    .or(orParts.join(","))
+    .limit(10000);
+  const elapsedMs = Math.round(performance.now() - t0);
+
+  if (error) {
+    console.error("[projectStaffTimeCostLinesService] batched fetch failed:", error);
+    return EMPTY;
+  }
+
+  const summary = summarizeCostLineRows(
+    (data ?? []) as Omit<ApprovedCostLineRow, "approvalState">[],
+  );
+
+  devLog("batched fetch", {
+    largeProjectId: lpId,
+    projectId,
+    bookingCount: bookingIds.length,
+    rowCount: summary.rows.length,
+    elapsedMs,
+  });
+  if (bookingIds.length > 10) {
+    devWarn("batched fetch with > 10 bookingIds", { bookingCount: bookingIds.length });
+  }
+
+  return summary;
 }
