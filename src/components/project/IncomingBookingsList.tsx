@@ -234,8 +234,8 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
       {totalUpdates > 0 && (
         <section>
           {showSectionHeaders && (
-            <div className="flex items-center gap-2 px-4 h-8 bg-muted/30 border-b border-border/50">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+            <div className="flex items-center gap-2 px-4 h-8 bg-muted/40 border-b border-border/50">
+              <span className="h-1.5 w-1.5 rounded-full bg-foreground/60" />
               <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 Uppdaterade · kräver granskning
               </span>
@@ -250,21 +250,15 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                   key={`update-${update.booking_id}`}
                   className="group relative flex items-center gap-3 pl-4 pr-3 py-3 hover:bg-muted/30 transition-colors"
                 >
-                  {/* Tunn accent-stripe */}
-                  <span className="absolute left-0 top-2 bottom-2 w-[2px] rounded-full bg-amber-500" />
-
                   <div
                     className="flex-1 min-w-0 cursor-pointer"
                     onClick={() => handleReviewUpdate(meta)}
                   >
                     <div className="flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-foreground/60 shrink-0" />
                       <h4 className="text-sm font-medium truncate text-foreground group-hover:text-primary transition-colors">
                         {meta.client}
                       </h4>
-                      <span className="inline-flex items-center gap-1 h-5 px-1.5 rounded-md bg-amber-500/10 text-amber-700 text-[10.5px] font-medium shrink-0">
-                        <span className="h-1 w-1 rounded-full bg-amber-500" />
-                        Uppdaterad
-                      </span>
                       {update.change_count > 1 && (
                         <span className="text-[10.5px] text-muted-foreground shrink-0">
                           · {update.change_count} ändringar
@@ -276,7 +270,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 mt-1 text-[11.5px] text-muted-foreground">
+                    <div className="flex items-center gap-3 mt-1 pl-3.5 text-[11.5px] text-muted-foreground">
                       <span className="flex items-center gap-1.5">
                         <Calendar className="w-3 h-3" />
                         {formatDate(meta.eventdate || '')}
@@ -300,7 +294,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                       disabled={markSeen.isPending}
                     >
                       <Eye className="w-3.5 h-3.5" />
-                      Granska ändring
+                      <span>Granska</span>
                     </Button>
                     <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
                   </div>
