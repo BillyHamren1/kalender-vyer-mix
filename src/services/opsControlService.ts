@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfDay, endOfDay, addHours } from "date-fns";
 import { formatTeamLabel } from "@/lib/teamLabel";
+import { debugTimed } from "@/lib/performance/debugTiming";
 
 // === Map-specific types ===
 export interface OpsMapJob {
@@ -18,6 +19,8 @@ export interface OpsMapJob {
 }
 
 export const fetchOpsMapJobs = async (): Promise<OpsMapJob[]> => {
+  const extra: Record<string, unknown> = {};
+  return debugTimed('fetchOpsMapJobs', async () => {
   const now = new Date();
   const todayStart = startOfDay(now).toISOString();
   const todayEnd = endOfDay(now).toISOString();
@@ -30,9 +33,11 @@ export const fetchOpsMapJobs = async (): Promise<OpsMapJob[]> => {
     .gte('start_time', todayStart)
     .lte('start_time', todayEnd);
 
+  extra.events = events?.length || 0;
   if (!events?.length) return [];
 
   const bookingIds = [...new Set(events.filter(e => e.booking_id).map(e => e.booking_id!))];
+  extra.bookingIds = bookingIds.length;
   if (!bookingIds.length) return [];
 
   const [bookingsResult, assignmentsResult] = await Promise.all([
@@ -95,7 +100,9 @@ export const fetchOpsMapJobs = async (): Promise<OpsMapJob[]> => {
     });
   }
 
-  return jobs;
+    extra.jobs = jobs.length;
+    return jobs;
+  }, extra);
 };
 
 export interface OpsMetrics {
@@ -177,6 +184,8 @@ export interface OpsJobQueueItem {
 }
 
 export const fetchOpsMetrics = async (): Promise<OpsMetrics> => {
+  const extra: Record<string, unknown> = {};
+  return debugTimed('fetchOpsMetrics', async () => {
   const today = format(new Date(), 'yyyy-MM-dd');
   const now = new Date();
   const todayStart = startOfDay(now).toISOString();
@@ -227,6 +236,13 @@ export const fetchOpsMetrics = async (): Promise<OpsMetrics> => {
   }
   const conflicts = [...staffBookingMap.values()].filter(s => s.size > 1).length;
 
+  extra.todayEvents = todayEvents.count || 0;
+  extra.staffAssignments = staffAssignments.count || 0;
+  extra.bookingAssignments = (bookingAssignments.data || []).length;
+  extra.activeEvents = activeEvents.count || 0;
+  extra.timeReports = timeReports.count || 0;
+  extra.allTodayBookings = (allTodayBookings.data || []).length;
+
   return {
     totalJobsToday: todayEvents.count || 0,
     staffScheduledToday: staffAssignments.count || 0,
@@ -236,9 +252,12 @@ export const fetchOpsMetrics = async (): Promise<OpsMetrics> => {
     staffCheckedIn: timeReports.count || 0,
     conflictsDetected: conflicts,
   };
+  }, extra);
 };
 
 export const fetchOpsTimeline = async (date?: Date): Promise<OpsTimelineStaff[]> => {
+  const extra: Record<string, unknown> = {};
+  return debugTimed('fetchOpsTimeline', async () => {
   const targetDate = date || new Date();
   const dateStr = format(targetDate, 'yyyy-MM-dd');
   const now = new Date();
@@ -254,6 +273,10 @@ export const fetchOpsTimeline = async (date?: Date): Promise<OpsTimelineStaff[]>
   const assignments = assignmentsResult.data || [];
   const bookingAssignments = bookingAssignmentsResult.data || [];
   const availability = (availabilityResult.data || []) as any[];
+  extra.staff = staff.length;
+  extra.bookingAssignments = bookingAssignments.length;
+  extra.staffAssignments = assignments.length;
+  extra.availability = availability.length;
 
   // Availability map
   const availMap = new Map<string, string>();
@@ -285,6 +308,7 @@ export const fetchOpsTimeline = async (date?: Date): Promise<OpsTimelineStaff[]>
     .select('booking_id, resource_id, start_time, end_time, event_type, delivery_address')
     .gte('start_time', dayStart)
     .lte('start_time', dayEnd);
+  extra.calendarEvents = (events || []).length;
 
   const eventsByBookingTeam = new Map<string, any[]>();
   for (const e of (events || [])) {
@@ -383,9 +407,12 @@ export const fetchOpsTimeline = async (date?: Date): Promise<OpsTimelineStaff[]>
       const order = { assigned: 0, available: 1, off_duty: 2 };
       return order[a.status] - order[b.status];
     });
+  }, extra);
 };
 
 export const fetchOpsJobQueue = async (): Promise<OpsJobQueueItem[]> => {
+  const extra: Record<string, unknown> = {};
+  return debugTimed('fetchOpsJobQueue', async () => {
   const today = format(new Date(), 'yyyy-MM-dd');
   const now = new Date();
   const twoHoursFromNow = addHours(now, 2);
@@ -400,6 +427,7 @@ export const fetchOpsJobQueue = async (): Promise<OpsJobQueueItem[]> => {
     .eq('assigned_to_project', true)
     .order('eventdate');
 
+  extra.bookings = bookings?.length || 0;
   if (!bookings?.length) return [];
 
   const bookingIds = bookings.map(b => b.id);
@@ -472,8 +500,11 @@ export const fetchOpsJobQueue = async (): Promise<OpsJobQueueItem[]> => {
     }
   }
 
-  return queue.sort((a, b) => {
+  const sorted = queue.sort((a, b) => {
     const priority = { no_staff: 0, starting_soon: 1, unopened: 2, recently_modified: 3 };
     return priority[a.issue] - priority[b.issue];
   });
+  extra.queue = sorted.length;
+  return sorted;
+  }, extra);
 };
