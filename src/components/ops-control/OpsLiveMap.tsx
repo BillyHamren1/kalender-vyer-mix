@@ -347,18 +347,32 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
     });
   }, [mapReady, showOrgLocations, orgLocations, styleRevision]);
 
-  // Render staff as WebGL layers so positions stay locked at any browser zoom level
-  useEffect(() => {
-    if (!mapReady || !map.current) return;
+  // Refs som speglar senaste props/state — läses från event-handlers och
+  // throttlad rAF-uppdaterare så vi slipper rerun:a hela layer-setup-effekten.
+  const locationsRef = useRef<StaffLocation[]>(locations);
+  const mapJobsRef = useRef<OpsMapJob[]>(mapJobs);
+  const selectedJobRef = useRef<OpsMapJob | null>(selectedJob);
+  const showStaffRef = useRef<boolean>(showStaff);
 
-    const m = map.current;
-    const assignedIds = new Set(selectedJob?.assignedStaff.map(staff => staff.id) || []);
-    const staffWithCoords = showStaff ? locations.filter(loc => loc.latitude && loc.longitude) : [];
+  useEffect(() => { locationsRef.current = locations; }, [locations]);
+  useEffect(() => { mapJobsRef.current = mapJobs; }, [mapJobs]);
+  useEffect(() => { selectedJobRef.current = selectedJob; }, [selectedJob]);
+  useEffect(() => { showStaffRef.current = showStaff; }, [showStaff]);
 
-    // Build pixel-grid clusters so overlapping staff merge into one marker.
-    // We snap each point to a grid cell sized in pixels at the current zoom.
-    const zoom = m.getZoom();
-    // Cell size shrinks slightly at higher zoom so people nearby separate when you zoom in.
+  // Pure builder — använder refs så zoomend kan kalla utan React render.
+  const buildStaffGeoJson = useCallback((): GeoJSON.FeatureCollection<GeoJSON.Point> => {
+    const mm = map.current;
+    if (!mm) return { type: 'FeatureCollection', features: [] };
+
+    const locs = locationsRef.current;
+    const jobs = mapJobsRef.current;
+    const sel = selectedJobRef.current;
+    const showS = showStaffRef.current;
+
+    const assignedIds = new Set(sel?.assignedStaff.map(staff => staff.id) || []);
+    const staffWithCoords = showS ? locs.filter(loc => loc.latitude && loc.longitude) : [];
+
+    const zoom = mm.getZoom();
     const CELL_PX = zoom >= 16 ? 22 : zoom >= 13 ? 30 : 38;
 
     type ClusterGroup = {
@@ -371,8 +385,8 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
     const groups = new Map<string, ClusterGroup>();
 
     staffWithCoords.forEach(loc => {
-      const status = getStaffStatus(loc, mapJobs);
-      const p = m.project([loc.longitude!, loc.latitude!]);
+      const status = getStaffStatus(loc, jobs);
+      const p = mm.project([loc.longitude!, loc.latitude!]);
       const cx = Math.round(p.x / CELL_PX);
       const cy = Math.round(p.y / CELL_PX);
       const key = `${cx}:${cy}`;
@@ -391,10 +405,9 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       }
     });
 
-    // Status priority: on_site > on_way > idle (for cluster color when mixed → use highest priority)
     const statusPriority: Record<StaffStatus, number> = { on_site: 6, on_way: 5, stale: 4, planned: 3, idle: 2, offline: 1 };
 
-    const staffGeoJson = {
+    return {
       type: 'FeatureCollection',
       features: Array.from(groups.values()).map(g => {
         const isCluster = g.members.length > 1;
@@ -406,11 +419,8 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           ? statusStyles[g.statuses[0]].color
           : statusStyles[dominantStatus].color;
 
-        // Highlight if any member is in selected job
         const isHighlighted = g.members.some(loc => assignedIds.has(loc.id));
-        // Recent GPS if any member has it
         const hasRecentGps = g.members.some(loc => Boolean(loc.isGps && !loc.isOffline));
-        // Offline only if ALL members are offline
         const allOffline = g.members.every(loc => loc.isOffline);
 
         const memberIds = g.members.map(loc => loc.id).join(',');
@@ -439,15 +449,27 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         };
       }),
     } as GeoJSON.FeatureCollection<GeoJSON.Point>;
+  }, []);
 
-    console.debug('[OpsLiveMap] render staff', {
-      count: staffWithCoords.length,
-      groups: groups.size,
-      total: locations.length,
-    });
+  // Setup staff-layers ONCE per style. Lyssnar på zoomend och uppdaterar
+  // bara source.setData via rAF — inte React state.
+  useEffect(() => {
+    if (!mapReady || !map.current) return;
 
+    const m = map.current;
     let cancelled = false;
     let cleanupHandlers: (() => void) | null = null;
+    let rafId: number | null = null;
+
+    const scheduleSourceUpdate = () => {
+      if (rafId != null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        if (cancelled || !map.current) return;
+        const src = map.current.getSource(STAFF_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
+        if (src) src.setData(buildStaffGeoJson());
+      });
+    };
 
     const applyLayers = () => {
       if (cancelled || !map.current) return;
@@ -457,11 +479,13 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         return;
       }
 
+      const initialData = buildStaffGeoJson();
+
       const source = mm.getSource(STAFF_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
       if (source) {
-        source.setData(staffGeoJson);
+        source.setData(initialData);
       } else {
-        mm.addSource(STAFF_SOURCE_ID, { type: 'geojson', data: staffGeoJson });
+        mm.addSource(STAFF_SOURCE_ID, { type: 'geojson', data: initialData });
       }
 
       let beforeId: string | undefined;
@@ -488,7 +512,6 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         }, beforeId);
       }
 
-      // Soft status glow under single staff (premium feel on satellite)
       const STAFF_GLOW_LAYER_ID = 'ops-staff-glow-layer';
       if (!mm.getLayer(STAFF_GLOW_LAYER_ID)) {
         mm.addLayer({
@@ -511,21 +534,18 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           type: 'circle',
           source: STAFF_SOURCE_ID,
           paint: {
-            // Compact premium pins. Clusters scale subtly with count.
             'circle-radius': [
               'case',
               ['==', ['get', 'isCluster'], 1],
               ['interpolate', ['linear'], ['get', 'clusterSize'], 2, 13, 5, 16, 10, 19],
               11,
             ],
-            // Cluster = dark slate badge, single = status color
             'circle-color': [
               'case',
               ['==', ['get', 'isCluster'], 1], '#0f172a',
               ['get', 'color'],
             ],
             'circle-opacity': ['case', ['==', ['get', 'isOffline'], 1], 0.55, 1],
-            // Cluster ring = status color, single = white
             'circle-stroke-color': [
               'case',
               ['==', ['get', 'isCluster'], 1], ['get', 'color'],
@@ -542,7 +562,6 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       }
 
       if (!mm.getLayer(STAFF_LABEL_LAYER_ID)) {
-        // Cluster: count centered on dark badge
         mm.addLayer({
           id: STAFF_LABEL_LAYER_ID,
           type: 'symbol',
@@ -563,7 +582,6 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         });
       }
 
-      // Singel: förnamn som pill UNDER pin, endast vid hög zoom
       const STAFF_NAME_PILL_LAYER_ID = 'ops-staff-name-pill-layer';
       if (!mm.getLayer(STAFF_NAME_PILL_LAYER_ID)) {
         mm.addLayer({
@@ -612,11 +630,10 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         });
       }
 
-
       const findMembers = (memberIdsStr: string) => {
         const ids = memberIdsStr.split(',');
         return ids
-          .map(id => locations.find(l => l.id === id))
+          .map(id => locationsRef.current.find(l => l.id === id))
           .filter((l): l is StaffLocation => Boolean(l));
       };
 
@@ -634,7 +651,6 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           return;
         }
 
-        // Cluster click: zoom in if not already deep
         const z = mm.getZoom();
         if (z < 16) {
           mm.flyTo({
@@ -644,7 +660,6 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           });
           setClusterPicker(null);
         } else {
-          // Show picker
           setClusterPicker({
             x: event.point.x,
             y: event.point.y,
@@ -661,7 +676,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         const members = findMembers(memberIdsStr).map(loc => ({
           id: loc.id,
           name: loc.name,
-          status: getStaffStatus(loc, mapJobs),
+          status: getStaffStatus(loc, mapJobsRef.current),
           teamName: loc.teamName,
           lastSeen: loc.lastReportTime,
           isOffline: loc.isOffline,
@@ -695,18 +710,29 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
 
     applyLayers();
 
-    // Re-cluster on zoom changes so cluster cells stay visually consistent.
-    const handleZoomEnd = () => {
-      setStyleRevision(prev => prev + 1);
-    };
-    m.on('zoomend', handleZoomEnd);
+    // Re-cluster on zoom — endast source.setData via rAF, ingen React state.
+    m.on('zoomend', scheduleSourceUpdate);
 
     return () => {
       cancelled = true;
+      if (rafId != null) cancelAnimationFrame(rafId);
       cleanupHandlers?.();
-      if (map.current) map.current.off('zoomend', handleZoomEnd);
+      if (map.current) map.current.off('zoomend', scheduleSourceUpdate);
     };
-  }, [mapReady, locations, mapJobs, selectedJob, styleRevision, showStaff]);
+  }, [mapReady, styleRevision, buildStaffGeoJson]);
+
+  // Data-uppdatering när props ändras — bara source.setData, inga layers omsätts.
+  useEffect(() => {
+    if (!mapReady || !map.current) return;
+    const mm = map.current;
+    const apply = () => {
+      const src = mm.getSource(STAFF_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
+      if (src) src.setData(buildStaffGeoJson());
+    };
+    if (mm.isStyleLoaded()) apply();
+    else mm.once('idle', apply);
+  }, [locations, mapJobs, selectedJob, showStaff, mapReady, buildStaffGeoJson]);
+
 
   // Render markers
   useEffect(() => {
