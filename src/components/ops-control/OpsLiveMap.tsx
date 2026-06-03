@@ -75,6 +75,12 @@ const STAFF_MARKER_LAYER_ID = 'ops-staff-marker-layer';
 const STAFF_LABEL_LAYER_ID = 'ops-staff-label-layer';
 const STAFF_GPS_DOT_LAYER_ID = 'ops-staff-gps-dot-layer';
 
+const MAP_STYLES = {
+  streets: 'mapbox://styles/mapbox/navigation-day-v1',
+  satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
+} as const;
+
+
 const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, routePolyline }: Props) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -128,7 +134,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
 
         map.current = new mapboxgl.Map({
           container: mapContainer.current,
-          style: 'mapbox://styles/mapbox/navigation-day-v1',
+          style: MAP_STYLES.satellite,
           center: [15.5, 58.5],
           zoom: 5,
           // Use mercator (flat) projection — globe causes HTML markers to drift
@@ -872,10 +878,6 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
     }, 50);
   }, []);
 
-  const MAP_STYLES = {
-    streets: 'mapbox://styles/mapbox/navigation-day-v1',
-    satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
-  };
 
   const toggleMapStyle = useCallback(() => {
     const m = map.current;
