@@ -653,7 +653,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       cleanupHandlers?.();
       if (map.current) map.current.off('zoomend', handleZoomEnd);
     };
-  }, [mapReady, locations, mapJobs, selectedJob, styleRevision]);
+  }, [mapReady, locations, mapJobs, selectedJob, styleRevision, showStaff]);
 
   // Render markers
   useEffect(() => {
