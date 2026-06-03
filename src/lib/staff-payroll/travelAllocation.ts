@@ -42,3 +42,23 @@ export function resolveTravelAllocation(
 
   return { kind: "unknown", label: null, projectKey: null };
 }
+
+/**
+ * getTravelAllocationLabel — UI-helper som returnerar en label-sträng för en
+ * travel-rad. Använder befintlig label om den ser meningsfull ut (innehåller
+ * projekt-/platsnamn), annars `resolveTravelAllocation` mot dagens work-rader.
+ * Returnerar "Belastning okänd" som sista fallback.
+ */
+export function getTravelAllocationLabel(
+  cell: StaffTimeMatrixCell,
+  travel: StaffTimeMatrixRowItem,
+): string {
+  if (travel.kind !== "travel") return travel.label || "";
+  const alloc = resolveTravelAllocation(cell, travel);
+  if (alloc.kind === "linked") return alloc.label;
+  const to = (travel.toLabel ?? "").trim();
+  if (to) return to;
+  const from = (travel.fromLabel ?? "").trim();
+  if (from) return from;
+  return "Belastning okänd";
+}
