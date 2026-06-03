@@ -23,14 +23,15 @@ const TOKEN_SECRET = Deno.env.get('STAFF_SECRET_KEY') || 'default-secret-key'
 const TOKEN_EXPIRY_HOURS = 24 * 30
 const REFRESH_THRESHOLD_HOURS = 24 * 7
 
-function generateToken(staffId: string): string {
+function generateToken(staffId: string, sessionId?: string): string {
   const timestamp = Date.now()
   const expiresAt = timestamp + (TOKEN_EXPIRY_HOURS * 60 * 60 * 1000)
-  const payload = { staffId, timestamp, expiresAt }
+  const payload: Record<string, unknown> = { staffId, timestamp, expiresAt }
+  if (sessionId) payload.sessionId = sessionId
   return btoa(JSON.stringify(payload))
 }
 
-function verifyToken(token: string): { valid: boolean; staffId?: string; issuedAt?: number; expiresAt?: number; error?: string } {
+function verifyToken(token: string): { valid: boolean; staffId?: string; sessionId?: string; issuedAt?: number; expiresAt?: number; error?: string } {
   try {
     const payload = JSON.parse(atob(token))
     if (!payload.staffId || !payload.expiresAt) {
@@ -42,6 +43,7 @@ function verifyToken(token: string): { valid: boolean; staffId?: string; issuedA
     return {
       valid: true,
       staffId: payload.staffId,
+      sessionId: typeof payload.sessionId === 'string' ? payload.sessionId : undefined,
       issuedAt: typeof payload.timestamp === 'number' ? payload.timestamp : undefined,
       expiresAt: payload.expiresAt,
     }
