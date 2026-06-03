@@ -236,11 +236,12 @@ export const useLargeProjectEconomy = (
   // Budget cost
   const budgetedCost = (budget?.budgeted_hours || 0) * (budget?.hourly_rate || 0);
 
-  // ── PROGNOS (Time Engine-cache) — endast förslag, ej kanonisk sanning ──
-  const proposedStaffHoursFromTimeEngine = largeProjectHours?.summary.totalHours ?? 0;
-  const proposedStaffCostFromTimeEngine = largeProjectHours?.totalCost ?? 0;
-  const staffHoursByPerson = largeProjectHours?.summary.staffSummaries ?? [];
-  const staffHoursByDay = largeProjectHours?.summary.daySummaries ?? [];
+  // ── PROGNOS (Time Engine-cache) — DISABLED på sidladdning, alltid 0/[] ──
+  const proposedStaffHoursFromTimeEngine = 0;
+  const proposedStaffCostFromTimeEngine = 0;
+  const staffHoursByPerson: never[] = [];
+  const staffHoursByDay: never[] = [];
+
 
   // ── FAKTISK godkänd personalkostnad (project_staff_time_cost_lines) ──
   const approvedStaffHours = approvedLpCostSummaries?.approvedStaffHours ?? 0;
