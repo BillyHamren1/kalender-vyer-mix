@@ -10,7 +10,9 @@ import { useAvailableStaffWeek } from '@/hooks/useAvailableStaffWeek';
 import { useStableEvents } from '@/hooks/useMemoizedEvents';
 import { EditControllerProvider } from '@/contexts/EditControllerContext';
 import { useEventDragDrop } from '@/hooks/useEventDragDrop';
+import { useTeamVehiclesPrefetch } from '@/hooks/useTeamVehiclesForDay';
 import { canConsumeVerticalScroll, getWeeklyHorizontalScrollDelta } from '@/lib/calendar/weeklyScrollRouting';
+
 import { extractUTCDate } from '@/utils/dateUtils';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import './Carousel3DStyles.css';
@@ -74,6 +76,11 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   const [expandedDay, setExpandedDay] = useState<Date | null>(null);
   const computedWeekDays = useWeekDays(currentDate);
   const days = daysOverride ?? computedWeekDays;
+
+  // Batch-prefetch team_vehicle_assignments för alla synliga dagar (1 query
+  // istället för N) och håll en delad realtime-kanal.
+  useTeamVehiclesPrefetch(days);
+
 
   const {
     isDragging,

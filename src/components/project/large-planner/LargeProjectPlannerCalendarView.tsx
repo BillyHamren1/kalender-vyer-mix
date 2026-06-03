@@ -28,7 +28,9 @@ import TimeGrid from '@/components/Calendar/TimeGrid';
 import { EditControllerProvider } from '@/contexts/EditControllerContext';
 import { ConsolidationMenuDisabledProvider } from '@/contexts/ConsolidationMenuContext';
 import { DRAG_DATA_TYPE, type DraggedEventData } from '@/hooks/useEventDragDrop';
+import { useTeamVehiclesPrefetch } from '@/hooks/useTeamVehiclesForDay';
 import type { CalendarEvent } from '@/components/Calendar/ResourceData';
+
 import {
   buildPlannerResourcesForDay,
   mapPlannerItemsToCalendarEvents,
@@ -71,6 +73,11 @@ const LargeProjectPlannerCalendarView = ({
     itemsWithAssignmentValidity,
     updateItem,
   } = ctx;
+
+  // Batch-prefetch team-fordon för alla synliga dagar (1 query, 1 realtime-kanal).
+  useTeamVehiclesPrefetch(useMemo(() => days.map((d) => d.date), [days]));
+
+
 
   const bookingDisplayById = useMemo(() => {
     const map = new Map<string, { booking_number: string | null; client: string | null }>();
