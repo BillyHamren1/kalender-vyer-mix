@@ -430,8 +430,10 @@ export function buildDayPartition(input: {
 
   // Absorbera kort GPS-brus innan minutfördelningen så summan bevaras.
   const absorbed = absorbShortNoise(segments);
+  // Regel 2 & 3: commute-resor → private (icke-payable).
+  const reclassified = reclassifyCommuteTravelAsPrivate(absorbed);
   segments.length = 0;
-  segments.push(...absorbed);
+  segments.push(...reclassified);
 
 
 
