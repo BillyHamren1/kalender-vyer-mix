@@ -11,7 +11,7 @@ import {
   buildPlannerResourcesForDay,
   mapPlannerItemsToCalendarEvents,
   plannerItemIdFromEventId,
-  DEFAULT_TEAM_ID,
+  UNASSIGNED_RESOURCE_ID,
   FIXED_TEAM_IDS,
   PLANNER_EVENT_ID_PREFIX,
 } from '../LargeProjectPlannerCalendarAdapter';
@@ -90,27 +90,27 @@ describe('Stora projekt — projektkalender UI/data-separation', () => {
   });
 
   // ── Adapter-enhetstest ───────────────────────────────────────────────────
-  it('buildPlannerResourcesForDay returnerar ALLTID fasta team-1…team-5 (ingen Ej tilldelat)', () => {
+  it('buildPlannerResourcesForDay returnerar unassigned + fasta team-1…team-5', () => {
     const teams: LargeProjectPlannerTeam[] = [
       { teamId: 'team-1', teamTitle: 'Team 1', order: 1, staff: [] },
       { teamId: 'team-2', teamTitle: 'Team 2', order: 2, staff: [] },
     ];
     const resources = buildPlannerResourcesForDay(teams);
-    expect(resources).toHaveLength(5);
-    expect(resources.map((r) => r.id)).toEqual([...FIXED_TEAM_IDS]);
-    expect(resources.map((r) => r.title)).toEqual([
-      'Team 1',
-      'Team 2',
-      'Team 3',
-      'Team 4',
-      'Team 5',
+    expect(resources).toHaveLength(6);
+    expect(resources.map((r) => r.id)).toEqual([
+      UNASSIGNED_RESOURCE_ID,
+      ...FIXED_TEAM_IDS,
     ]);
+    expect(resources[0].title).toBe('Ej tilldelat');
   });
 
-  it('buildPlannerResourcesForDay returnerar fasta team-1…5 även när teamsForDay är tom', () => {
+  it('buildPlannerResourcesForDay returnerar unassigned + team-1…5 även när teamsForDay är tom', () => {
     const resources = buildPlannerResourcesForDay([]);
-    expect(resources).toHaveLength(5);
-    expect(resources.map((r) => r.id)).toEqual([...FIXED_TEAM_IDS]);
+    expect(resources).toHaveLength(6);
+    expect(resources.map((r) => r.id)).toEqual([
+      UNASSIGNED_RESOURCE_ID,
+      ...FIXED_TEAM_IDS,
+    ]);
   });
 
   it('mapPlannerItemsToCalendarEvents — items renderas, resourceId=assigned_team_id', () => {
@@ -152,7 +152,7 @@ describe('Stora projekt — projektkalender UI/data-separation', () => {
     expect(events[0].extendedProps?.assignmentInvalid).toBe(false);
   });
 
-  it('mapPlannerItemsToCalendarEvents — item utan assigned_team_id hamnar i DEFAULT_TEAM_ID (team-1)', () => {
+  it('mapPlannerItemsToCalendarEvents — item utan assigned_team_id hamnar i UNASSIGNED (inte team-1)', () => {
     const items: PlannerItemWithValidity[] = [
       {
         id: 'item-unassigned',
@@ -183,8 +183,42 @@ describe('Stora projekt — projektkalender UI/data-separation', () => {
     ];
     const events = mapPlannerItemsToCalendarEvents(items, { largeProjectId: 'lp-1' });
     expect(events).toHaveLength(1);
-    expect(events[0].resourceId).toBe(DEFAULT_TEAM_ID);
-    expect(DEFAULT_TEAM_ID).toBe('team-1');
+    expect(events[0].resourceId).toBe(UNASSIGNED_RESOURCE_ID);
+    expect(events[0].resourceId).not.toBe('team-1');
+    expect(events[0].extendedProps?.plannerUnassigned).toBe(true);
+  });
+
+  it('mapPlannerItemsToCalendarEvents — booking-item med source_booking_phase="event" filtreras bort', () => {
+    const items: PlannerItemWithValidity[] = [
+      {
+        id: 'item-event',
+        large_project_id: 'lp-1',
+        booking_id: 'book-1',
+        parent_item_id: null,
+        title: 'Event-dag',
+        description: null,
+        item_type: 'booking',
+        phase: null,
+        plan_date: '2026-05-28',
+        start_time: '08:00:00',
+        end_time: '17:00:00',
+        assigned_staff_id: null,
+        assigned_team_id: 'team-2',
+        status: 'planned',
+        source: 'booking',
+        source_booking_phase: 'event',
+        sort_order: 0,
+        notes: null,
+        metadata: {},
+        booking_product_id: null,
+        created_at: '',
+        updated_at: '',
+        isAssignedStaffAllowed: true,
+        assignmentWarning: null,
+      },
+    ];
+    const events = mapPlannerItemsToCalendarEvents(items, { largeProjectId: 'lp-1' });
+    expect(events).toHaveLength(0);
   });
 
   it('mapPlannerItemsToCalendarEvents — task/manual-todos renderas INTE som stora kalenderblock (nya regeln)', () => {
