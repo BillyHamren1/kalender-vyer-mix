@@ -23,21 +23,28 @@ interface Props {
   routePolyline?: GeoJSON.LineString | null;
 }
 
-type StaffStatus = 'on_site' | 'on_way' | 'idle';
+type StaffStatus = 'on_site' | 'on_way' | 'planned' | 'idle' | 'stale' | 'offline';
+
+const STALE_MS = 10 * 60 * 1000;
 
 function getStaffStatus(loc: StaffLocation, mapJobs: OpsMapJob[]): StaffStatus {
-  if (loc.isOffline) return 'idle';
+  if (loc.isOffline) return 'offline';
+  const lastSeenMs = loc.lastReportTime ? Date.now() - new Date(loc.lastReportTime).getTime() : Infinity;
   if (loc.isWorking) return 'on_site';
+  if (lastSeenMs > STALE_MS) return 'stale';
   const job = mapJobs.find(j => j.bookingId === loc.bookingId);
   if (job?.isActive) return 'on_way';
-  if (loc.bookingId) return 'on_way';
+  if (loc.bookingId) return 'planned';
   return 'idle';
 }
 
 const statusStyles: Record<StaffStatus, { color: string; label: string }> = {
   on_site: { color: '#22c55e', label: 'På plats' },
-  on_way: { color: '#eab308', label: 'På väg' },
-  idle: { color: '#9ca3af', label: 'Inaktiv' },
+  on_way:  { color: '#eab308', label: 'På väg' },
+  planned: { color: '#38bdf8', label: 'Planerad' },
+  idle:    { color: '#9ca3af', label: 'Inaktiv' },
+  stale:   { color: '#f97316', label: 'Saknar GPS' },
+  offline: { color: '#6b7280', label: 'Offline' },
 };
 
 // Job phase classification — drives premium pin coloring
