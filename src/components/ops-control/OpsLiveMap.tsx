@@ -886,43 +886,71 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         </div>
       )}
 
-      {/* Stats overlay */}
-      <div className="absolute top-2 left-2 bg-card/90 backdrop-blur-sm rounded-lg px-2.5 py-1.5 shadow border border-border">
-        <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1 text-[10px] font-semibold text-foreground">
-            <Users className="w-3 h-3 text-primary" /> {totalOnMap} personal
+      {/* ── PREMIUM MAP TOOLBAR ── */}
+      <div className="absolute top-2 left-2 z-20 flex items-stretch gap-2">
+        {/* Live stats pill */}
+        <div
+          className="flex items-center gap-3 px-3 py-1.5 rounded-xl bg-slate-950/85 backdrop-blur-xl border border-white/10 text-white shadow-lg"
+          style={{ boxShadow: '0 4px 16px rgba(15,23,42,0.25)' }}
+        >
+          <span className="flex items-center gap-1.5 text-[11px] font-semibold">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.7)]" />
+            LIVE
           </span>
-          <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-            <Briefcase className="w-3 h-3" /> {jobsOnMap} jobb
+          <span className="h-3 w-px bg-white/20" />
+          <span className="flex items-center gap-1 text-[11px] font-semibold tabular-nums">
+            <Users className="w-3 h-3 text-slate-300" /> {totalOnMap}
           </span>
-          <span className="flex items-center gap-1 text-[10px] text-emerald-600">
+          <span className="flex items-center gap-1 text-[11px] tabular-nums text-emerald-300">
             {onSiteCount} på plats
           </span>
-          <button
-            onClick={handleToggleCameras}
-            disabled={camerasLoading}
-            className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded transition-colors ${
-              showCameras
-                ? 'bg-blue-500 text-white font-semibold'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-            } ${camerasLoading ? 'opacity-50' : ''}`}
-          >
-            <Camera className="w-3 h-3" />
-            {camerasLoading ? '...' : showCameras ? `Kameror (${cameras.length})` : 'Kameror'}
-          </button>
-          <button
-            onClick={() => setShowOrgLocations(v => !v)}
-            className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded transition-colors ${
-              showOrgLocations
-                ? 'bg-purple-600 text-white font-semibold'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-            }`}
-          >
-            <Building2 className="w-3 h-3" />
-            {showOrgLocations ? `Platser (${orgLocations.length})` : 'Platser'}
-          </button>
+          <span className="flex items-center gap-1 text-[11px] tabular-nums text-slate-300">
+            <Briefcase className="w-3 h-3" /> {jobsOnMap}
+          </span>
+        </div>
+
+        {/* Layer toggles toolbar */}
+        <div
+          className="flex items-center gap-0.5 p-1 rounded-xl bg-card/95 backdrop-blur-xl border border-border shadow-lg"
+        >
+          {[
+            { key: 'staff', label: 'Personal', icon: Users, active: showStaff, onClick: () => setShowStaff(v => !v) },
+            { key: 'jobs', label: 'Jobb', icon: Briefcase, active: showJobs, onClick: () => setShowJobs(v => !v) },
+            { key: 'sites', label: 'Platser', icon: Building2, active: showOrgLocations, onClick: () => setShowOrgLocations(v => !v) },
+            { key: 'cams', label: 'Kameror', icon: Camera, active: showCameras, onClick: handleToggleCameras, disabled: camerasLoading },
+          ].map(b => (
+            <button
+              key={b.key}
+              onClick={b.onClick}
+              disabled={b.disabled}
+              title={b.label}
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                b.active
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              } ${b.disabled ? 'opacity-50' : ''}`}
+            >
+              <b.icon className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{b.label}</span>
+            </button>
+          ))}
         </div>
       </div>
+
+      {/* Follow mode badge */}
+      {followedStaff && (
+        <div className="absolute top-14 left-2 z-20 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary text-primary-foreground shadow-lg border border-primary/40 animate-in slide-in-from-top-2 duration-200">
+          <LocateFixed className="w-3.5 h-3.5 animate-pulse" />
+          <span className="text-[11px] font-semibold">Följer: {followedStaff.name}</span>
+          <button
+            onClick={() => setFollowStaffId(null)}
+            className="ml-1 p-0.5 rounded hover:bg-primary-foreground/20 transition-colors"
+            title="Sluta följa"
+          >
+            <XIcon className="w-3 h-3" />
+          </button>
+        </div>
+      )}
 
       {/* Map style + Fullscreen toggles */}
       <div className="absolute top-2 right-2 z-20 flex gap-1">
