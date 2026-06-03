@@ -354,7 +354,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                   <Button
                     size="sm"
                     onClick={() => project.bookingId && setPlacementBookingId(project.bookingId)}
-                    className="h-8 px-3 text-xs gap-1.5 font-medium bg-emerald-600 hover:bg-emerald-700 text-white"
+                    className="h-8 px-3 text-xs gap-1.5 font-medium text-neutral-800 border border-emerald-300 hover:brightness-95" style={{ backgroundColor: '#E2FBE9' }}
                     title="Placera bokningen"
                     disabled={!project.bookingId}
                   >
