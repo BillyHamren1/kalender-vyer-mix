@@ -91,7 +91,7 @@ export default function StaffPayrollReport() {
   function handleExportCsv() {
     if (!matrix) return;
     const name = `lonerapport-v${format(weekStart, "I")}-${format(weekStart, "yyyy")}.csv`;
-    downloadPayrollCsv(matrix, name);
+    downloadPayrollCsv({ ...matrix, rows: visibleRows }, name);
   }
 
   function handlePrint() {
