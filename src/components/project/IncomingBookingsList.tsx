@@ -72,12 +72,35 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
     placeholderData: [],
   });
   const { data: unplannedProjects = [], isLoading: isLoadingUnplannedProjects } = useUnplannedProjects();
+  const { data: unseenUpdates = [], isLoading: isLoadingUpdates } = useUnseenBookingUpdates();
+  const markSeen = useMarkBookingChangesSeen();
+
+  // Hämta bokningsmeta (klient, nummer, datum) för uppdaterade bokningar
+  const updateBookingIds = unseenUpdates.map((u) => u.booking_id);
+  const { data: updatedBookingsMeta = [] } = useQuery({
+    queryKey: ['updated-bookings-meta', updateBookingIds.sort().join(',')],
+    queryFn: async () => {
+      if (updateBookingIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('id, client, booking_number, eventdate, deliveryaddress, assigned_project_id, large_project_id')
+        .in('id', updateBookingIds);
+      if (error) {
+        console.error('[updated-bookings-meta]', error);
+        return [];
+      }
+      return data || [];
+    },
+    enabled: updateBookingIds.length > 0,
+    staleTime: 30_000,
+  });
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
     queryClient.invalidateQueries({ queryKey: ['bookings'] });
     queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
   };
+
 
   // (createJobMutation borttagen — Placera-flödet skapar projekt via BookingPlacementDialog)
 
