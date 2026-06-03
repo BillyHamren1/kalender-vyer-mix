@@ -1,0 +1,1 @@
+DELETE FROM public.large_projects WHERE id = '2c7e393c-9fd8-478b-997f-faddb2aeefa3';
