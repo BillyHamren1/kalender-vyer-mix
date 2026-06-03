@@ -137,22 +137,25 @@ export default function StaffTimeWeekMatrix() {
                   <div className="px-2 py-2.5 text-right font-semibold">Åtgärd</div>
                 </div>
 
-                {filteredRows.length === 0 ? (
+                {filteredCount === 0 ? (
                   <div className="py-12 text-center text-sm text-muted-foreground">
                     {matrix.rows.length === 0
                       ? "Inga aktiva personer i organisationen."
                       : "Inga personer matchar dina filter."}
                   </div>
                 ) : (
-                  filteredRows.map((row, idx) => (
-                    <StaffTimeWeekMatrixRow
-                      key={row.staffId}
-                      row={row}
-                      gridTemplate={MATRIX_GRID_TEMPLATE}
-                      zebra={idx % 2 === 1}
-                      onOpenDay={(staffId, date) => setOpenDay({ staffId, date })}
-                    />
-                  ))
+                  matrix.rows.map((row, idx) => {
+                    if (!filteredIds.has(row.staffId)) return null;
+                    return (
+                      <StaffTimeWeekMatrixRow
+                        key={row.staffId}
+                        row={row}
+                        gridTemplate={MATRIX_GRID_TEMPLATE}
+                        zebra={idx % 2 === 1}
+                        onOpenDay={(staffId, date) => setOpenDay({ staffId, date })}
+                      />
+                    );
+                  })
                 )}
               </div>
             </div>
