@@ -9,8 +9,9 @@ import OpsDirectChat from '@/components/ops-control/OpsDirectChat';
 import OpsBroadcastDialog from '@/components/ops-control/OpsBroadcastDialog';
 import OpsStaffRoute from '@/components/ops-control/OpsStaffRoute';
 import OrganizationLocationsManager from '@/components/ops-control/OrganizationLocationsManager';
+import OpsTodayJobsPanel from '@/components/ops-control/OpsTodayJobsPanel';
 import { useLivePackingFeed } from '@/hooks/useLivePackingFeed';
-import { OpsTimelineAssignment } from '@/services/opsControlService';
+import { OpsTimelineAssignment, type OpsMapJob } from '@/services/opsControlService';
 import { optimizeStaffRoute, StaffRouteResult } from '@/services/staffRouteService';
 import {
   type LucideIcon,
@@ -111,9 +112,17 @@ const OpsControlCenter = () => {
   const livePacking = useLivePackingFeed();
 
   const [focusCoords, setFocusCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [selectedJobBookingId, setSelectedJobBookingId] = useState<string | null>(null);
   const [sidePanel, setSidePanel] = useState<SidePanel>(null);
   const [broadcastOpen, setBroadcastOpen] = useState(false);
   const [routePolyline, setRoutePolyline] = useState<GeoJSON.LineString | null>(null);
+
+  const handleFocusJob = useCallback((job: OpsMapJob) => {
+    setSelectedJobBookingId(job.bookingId);
+    if (job.latitude && job.longitude) {
+      setFocusCoords({ lat: job.latitude, lng: job.longitude });
+    }
+  }, []);
 
   const handleOpenDM = useCallback((staffId: string, staffName: string) => {
     const staff = timeline.find(s => s.id === staffId);
@@ -341,20 +350,24 @@ const OpsControlCenter = () => {
               </div>
             </section>
 
-            {/* Dagens jobb — horizontal panel under map */}
+            {/* Dagens jobb — operations list under map */}
             <section
               className="planning-card overflow-hidden flex flex-col shrink-0"
-              style={{ padding: 0, height: '260px' }}
+              style={{ padding: 0, height: '300px' }}
             >
               <div className="flex items-center justify-between px-3.5 pt-3 pb-2 shrink-0">
                 <h3 className="planning-section-title">Dagens jobb</h3>
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-[11px] text-muted-foreground tabular-nums">
                   {kpis.staffOnSite} på plats · {kpis.jobsToday} jobb
                 </span>
               </div>
-              <div className="flex-1 min-h-0 overflow-auto px-3 pb-3">
-                <OpsPlanningDayPanel />
-              </div>
+              <OpsTodayJobsPanel
+                mapJobs={mapJobs}
+                timeline={timeline}
+                isLoading={isLoadingMapJobs}
+                onFocusJob={handleFocusJob}
+                selectedBookingId={selectedJobBookingId}
+              />
             </section>
           </div>
         </div>
