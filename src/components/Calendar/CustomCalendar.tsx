@@ -10,7 +10,9 @@ import { useAvailableStaffWeek } from '@/hooks/useAvailableStaffWeek';
 import { useStableEvents } from '@/hooks/useMemoizedEvents';
 import { EditControllerProvider } from '@/contexts/EditControllerContext';
 import { useEventDragDrop } from '@/hooks/useEventDragDrop';
+import { useTeamVehiclesPrefetch } from '@/hooks/useTeamVehiclesForDay';
 import { canConsumeVerticalScroll, getWeeklyHorizontalScrollDelta } from '@/lib/calendar/weeklyScrollRouting';
+
 import { extractUTCDate } from '@/utils/dateUtils';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import './Carousel3DStyles.css';
