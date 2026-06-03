@@ -1223,7 +1223,40 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
               </div>
             )}
 
-            {/* Quick message */}
+            {/* Premium quick actions */}
+            <div className="flex gap-1 pt-1.5 border-t border-border/30">
+              <button
+                onClick={() => {
+                  if (!map.current || !staffPanel.latitude || !staffPanel.longitude) return;
+                  map.current.flyTo({ center: [staffPanel.longitude, staffPanel.latitude], zoom: 16, duration: 700 });
+                }}
+                disabled={!staffPanel.latitude || !staffPanel.longitude}
+                className="flex-1 flex items-center justify-center gap-1 text-[10px] font-medium px-2 py-1.5 rounded bg-muted hover:bg-muted/70 text-foreground transition-colors disabled:opacity-40"
+                title="Zooma till person"
+              >
+                <ZoomIn className="w-3 h-3" /> Zooma
+              </button>
+              <button
+                onClick={() => {
+                  if (followStaffId === staffPanel.id) {
+                    setFollowStaffId(null);
+                  } else {
+                    setFollowStaffId(staffPanel.id);
+                  }
+                }}
+                disabled={!staffPanel.latitude || !staffPanel.longitude}
+                className={`flex-1 flex items-center justify-center gap-1 text-[10px] font-semibold px-2 py-1.5 rounded transition-colors disabled:opacity-40 ${
+                  followStaffId === staffPanel.id
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted hover:bg-muted/70 text-foreground'
+                }`}
+                title={followStaffId === staffPanel.id ? 'Sluta följa' : 'Följ live'}
+              >
+                <Crosshair className="w-3 h-3" />
+                {followStaffId === staffPanel.id ? 'Slutar följa' : 'Följ live'}
+              </button>
+            </div>
+
             <div className="pt-1.5 border-t border-border/30">
               <div className="text-[9px] font-bold text-muted-foreground uppercase mb-1">Snabbmeddelande</div>
               <div className="flex gap-1">
