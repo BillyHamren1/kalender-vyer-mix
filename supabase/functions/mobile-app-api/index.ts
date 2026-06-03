@@ -23,14 +23,15 @@ const TOKEN_SECRET = Deno.env.get('STAFF_SECRET_KEY') || 'default-secret-key'
 const TOKEN_EXPIRY_HOURS = 24 * 30
 const REFRESH_THRESHOLD_HOURS = 24 * 7
 
-function generateToken(staffId: string): string {
+function generateToken(staffId: string, sessionId?: string): string {
   const timestamp = Date.now()
   const expiresAt = timestamp + (TOKEN_EXPIRY_HOURS * 60 * 60 * 1000)
-  const payload = { staffId, timestamp, expiresAt }
+  const payload: Record<string, unknown> = { staffId, timestamp, expiresAt }
+  if (sessionId) payload.sessionId = sessionId
   return btoa(JSON.stringify(payload))
 }
 
-function verifyToken(token: string): { valid: boolean; staffId?: string; issuedAt?: number; expiresAt?: number; error?: string } {
+function verifyToken(token: string): { valid: boolean; staffId?: string; sessionId?: string; issuedAt?: number; expiresAt?: number; error?: string } {
   try {
     const payload = JSON.parse(atob(token))
     if (!payload.staffId || !payload.expiresAt) {
@@ -42,6 +43,7 @@ function verifyToken(token: string): { valid: boolean; staffId?: string; issuedA
     return {
       valid: true,
       staffId: payload.staffId,
+      sessionId: typeof payload.sessionId === 'string' ? payload.sessionId : undefined,
       issuedAt: typeof payload.timestamp === 'number' ? payload.timestamp : undefined,
       expiresAt: payload.expiresAt,
     }
@@ -75,14 +77,14 @@ async function resolveJwtUserId(
  *  - the token has less than REFRESH_THRESHOLD_HOURS left until expiry.
  * Returns the new token to send back via X-New-Token, or null to keep current.
  */
-function maybeRotateToken(staffId: string, issuedAt?: number, expiresAt?: number): string | null {
+function maybeRotateToken(staffId: string, sessionId: string | undefined, issuedAt?: number, expiresAt?: number): string | null {
   const now = Date.now()
   const refreshMs = REFRESH_THRESHOLD_HOURS * 60 * 60 * 1000
   const ageOk = typeof issuedAt === 'number' && (now - issuedAt) >= refreshMs
   const closeToExpiry = typeof expiresAt === 'number' && (expiresAt - now) <= refreshMs
   if (!ageOk && !closeToExpiry) return null
-  const fresh = generateToken(staffId)
-  console.log(`[mobile-app-api] 🔄 rotating token for staff=${staffId} (ageOk=${ageOk}, closeToExpiry=${closeToExpiry})`)
+  const fresh = generateToken(staffId, sessionId)
+  console.log(`[mobile-app-api] 🔄 rotating token for staff=${staffId} (ageOk=${ageOk}, closeToExpiry=${closeToExpiry}, sessionId=${sessionId ?? 'none'})`)
   return fresh
 }
 
@@ -460,10 +462,30 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         )
       }
       staffId = tokenResult.staffId!
-      // Sliding refresh: if the token is older than the threshold (or close
-      // to expiry), mint a new one and surface it via X-New-Token. The
-      // client updates localStorage transparently — no UI interruption.
-      rotationSlot.token = maybeRotateToken(staffId, tokenResult.issuedAt, tokenResult.expiresAt)
+
+      // Single-device enforcement: jämför token.sessionId mot staff_members.active_mobile_session_id.
+      // - Om kolumnen är NULL: legacy token / aldrig loggat in efter rollout → accepteras.
+      // - Om kolumnen är satt och tokenens sessionId matchar → OK.
+      // - Annars: en nyare login finns på annan enhet → 401 token_revoked.
+      const { data: sessRow } = await supabase
+        .from('staff_members')
+        .select('active_mobile_session_id')
+        .eq('id', staffId)
+        .maybeSingle()
+      const activeSid = sessRow?.active_mobile_session_id as string | null | undefined
+      if (activeSid && tokenResult.sessionId !== activeSid) {
+        console.warn(`[mobile-app-api] 🚫 token_revoked staff=${staffId} tokenSid=${tokenResult.sessionId ?? 'none'} activeSid=${activeSid}`)
+        return new Response(
+          JSON.stringify({
+            error: 'Sessionen avslutades – kontot är aktivt på en annan enhet.',
+            code: 'token_revoked',
+          }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Sliding refresh: behåll sessionId vid rotation.
+      rotationSlot.token = maybeRotateToken(staffId, tokenResult.sessionId, tokenResult.issuedAt, tokenResult.expiresAt)
     } else {
       // Web JWT fallback (planner UI)
       const authHeader = req.headers.get('Authorization') || ''
@@ -942,10 +964,29 @@ async function handleLogin(supabase: any, data: { username?: string; password?: 
   // user_roles is a "system user" (web login = planner).
   const enriched = await enrichStaffWithRoles(supabase, staffMember)
 
-  // Generate token
-  const token = generateToken(account.staff_id)
+  // Single-device-per-staff: skapa en ny session_id, persistera den på
+  // staff_members, och baka in den i token. Gamla tokens (med tidigare eller
+  // saknad sessionId) avvisas vid nästa anrop med 401 token_revoked.
+  const sessionId = crypto.randomUUID()
+  const { error: sessionUpdateError } = await supabase
+    .from('staff_members')
+    .update({
+      active_mobile_session_id: sessionId,
+      active_mobile_session_at: new Date().toISOString(),
+    })
+    .eq('id', account.staff_id)
+  if (sessionUpdateError) {
+    console.error('[mobile-app-api] kunde inte uppdatera active_mobile_session_id:', sessionUpdateError)
+    // Hård fail för att undvika dubbel-enheter — användaren får försöka igen.
+    return new Response(
+      JSON.stringify({ error: 'Login failed (session)' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
 
-  console.log(`Login successful for: ${staffMember.name} (planner=${enriched.is_planner})`)
+  const token = generateToken(account.staff_id, sessionId)
+
+  console.log(`Login successful for: ${staffMember.name} (planner=${enriched.is_planner}, sessionId=${sessionId})`)
 
   return new Response(
     JSON.stringify({

@@ -89,12 +89,24 @@ export const MobileAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setIsLoading(false);
     };
 
+    const handleRevokedSession = async (e: Event) => {
+      const detail = (e as CustomEvent<{ reason?: string }>).detail;
+      const reason = detail?.reason || 'Sessionen avslutades på en annan enhet.';
+      try {
+        const { toast } = await import('sonner');
+        toast.error(reason, { duration: 6000 });
+      } catch { /* sonner saknas i SSR/test — ignorera */ }
+      handleInvalidSession();
+    };
+
     window.addEventListener('mobile-session-expired', handleInvalidSession);
     window.addEventListener('mobile-session-invalid', handleInvalidSession);
+    window.addEventListener('mobile-session-revoked', handleRevokedSession as EventListener);
 
     return () => {
       window.removeEventListener('mobile-session-expired', handleInvalidSession);
       window.removeEventListener('mobile-session-invalid', handleInvalidSession);
+      window.removeEventListener('mobile-session-revoked', handleRevokedSession as EventListener);
     };
   }, []);
 

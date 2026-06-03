@@ -39,11 +39,17 @@ async function resolveJwtUserId(
   return { userId: userData.user?.id ?? null, error: null };
 }
 
-function tryParseMobileToken(token: string): { staffId?: string; expiresAt?: number } | null {
+function tryParseMobileToken(token: string): { staffId?: string; sessionId?: string; expiresAt?: number } | null {
   try {
     if (token.includes(".")) return null; // JWTs contain dots
     const payload = JSON.parse(atob(token));
-    if (typeof payload?.staffId === "string" && typeof payload?.expiresAt === "number") return payload;
+    if (typeof payload?.staffId === "string" && typeof payload?.expiresAt === "number") {
+      return {
+        staffId: payload.staffId,
+        sessionId: typeof payload.sessionId === "string" ? payload.sessionId : undefined,
+        expiresAt: payload.expiresAt,
+      };
+    }
     return null;
   } catch { return null; }
 }
@@ -70,7 +76,7 @@ export async function authenticateStaffRequest(
     if (!mobile.expiresAt || Date.now() > mobile.expiresAt) return { ok: false, err: { status: 401, error: "Mobile token expired" } };
     if (!mobile.staffId) return { ok: false, err: { status: 401, error: "Invalid mobile token" } };
     const { data: staffRow, error: staffErr } = await admin
-      .from("staff_members").select("id, organization_id, user_id").eq("id", mobile.staffId).maybeSingle();
+      .from("staff_members").select("id, organization_id, user_id, active_mobile_session_id").eq("id", mobile.staffId).maybeSingle();
     if (staffErr) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const e = staffErr as any;
@@ -79,6 +85,14 @@ export async function authenticateStaffRequest(
       return { ok: false, err: { status: 500, error: `Staff lookup failed: ${msg}` } };
     }
     if (!staffRow?.organization_id) return { ok: false, err: { status: 404, error: "Staff not found" } };
+
+    // Single-device-per-staff: avvisa token vars sessionId inte matchar
+    // staff_members.active_mobile_session_id. Legacy tokens (utan sessionId)
+    // släpps igenom så länge active_mobile_session_id är NULL.
+    const activeSid = (staffRow as { active_mobile_session_id?: string | null }).active_mobile_session_id ?? null;
+    if (activeSid && mobile.sessionId !== activeSid) {
+      return { ok: false, err: { status: 401, error: "Sessionen avslutades – kontot är aktivt på en annan enhet." } };
+    }
 
     // Optional admin "view-as" — read-only impersonering via x-view-as-staff-header.
     const viewAsHeader = req.headers.get("x-view-as-staff");

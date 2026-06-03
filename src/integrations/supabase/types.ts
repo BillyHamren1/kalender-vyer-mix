@@ -6707,6 +6707,8 @@ export type Database = {
       }
       staff_members: {
         Row: {
+          active_mobile_session_at: string | null
+          active_mobile_session_id: string | null
           address: string | null
           city: string | null
           color: string | null
@@ -6739,6 +6741,8 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          active_mobile_session_at?: string | null
+          active_mobile_session_id?: string | null
           address?: string | null
           city?: string | null
           color?: string | null
@@ -6771,6 +6775,8 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          active_mobile_session_at?: string | null
+          active_mobile_session_id?: string | null
           address?: string | null
           city?: string | null
           color?: string | null
