@@ -147,19 +147,15 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
     }
   });
 
-  // Filtrera bort uppdateringar för bokningar vars datum redan passerat
+  // Visa endast uppdateringar som SKEDDE idag eller senare. Ändringar gjorda
+  // före idag räknas inte som "nya" och filtreras bort i listan.
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
-  const isFutureBooking = (dateStr: string | null | undefined) => {
-    if (!dateStr) return true; // saknat datum: visa hellre än dölj
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return true;
-    return d.getTime() >= todayStart.getTime();
-  };
   const visibleUpdates = unseenUpdates.filter((u) => {
-    const meta = updatedBookingsMeta.find((b) => b.id === u.booking_id);
-    if (!meta) return false; // metadata laddas; dölj tills vi vet datum
-    return isFutureBooking(meta.eventdate);
+    if (!u.last_change_at) return false;
+    const t = new Date(u.last_change_at).getTime();
+    if (isNaN(t)) return false;
+    return t >= todayStart.getTime();
   });
 
   const totalNew = bookings.length + unplannedProjects.length;
