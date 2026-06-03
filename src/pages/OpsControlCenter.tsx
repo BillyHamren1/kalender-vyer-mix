@@ -22,11 +22,55 @@ import {
   Activity as ActivityIcon,
   Sparkles,
   CalendarDays,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import LogisticsWeeklyWeatherWidget from '@/components/logistics/widgets/LogisticsWeeklyWeatherWidget';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
+
+/** Wrapper so useLivePackingFeed only runs when the panel is actually mounted. */
+function LiveProjectsPanelBody() {
+  const livePacking = useLivePackingFeed();
+  return (
+    <OpsLiveProjects
+      items={livePacking.items}
+      counts={livePacking.counts}
+      pulseIds={livePacking.pulseIds}
+      isLoading={livePacking.isLoading}
+      markSeen={livePacking.markSeen}
+    />
+  );
+}
+
+function CollapsibleHeader({
+  title,
+  open,
+  onToggle,
+}: {
+  title: string;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="flex w-full items-center justify-between px-3.5 pt-3 pb-2 cursor-pointer select-none text-left"
+    >
+      <h3 className="planning-section-title">{title}</h3>
+      <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+        {open ? 'Dölj' : 'Visa'}
+        {open ? (
+          <ChevronDown className="w-3.5 h-3.5" />
+        ) : (
+          <ChevronRight className="w-3.5 h-3.5" />
+        )}
+      </span>
+    </button>
+  );
+}
 
 type SidePanel =
   | { type: 'job-chat'; bookingId: string; label: string }
