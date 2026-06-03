@@ -955,9 +955,9 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       <div ref={mapContainer} className="w-full h-full" style={{ touchAction: 'none' }} />
       <style>{`@keyframes opspulse { 0%,100% { opacity:.18; transform:translate(-50%,-50%) scale(1);} 50% { opacity:.42; transform:translate(-50%,-50%) scale(1.25);} }`}</style>
 
-      {/* Loading */}
-      {(isLoading || !mapReady) && (
-        <div className="absolute inset-0 flex items-center justify-center bg-muted/60">
+      {/* Loading — only block UI on initial load (no data yet) or before map is ready */}
+      {(!mapReady || (isLoading && locations.length === 0 && mapJobs.length === 0)) && (
+        <div className="absolute inset-0 flex items-center justify-center bg-muted/60 pointer-events-none">
           <Loader2 className="w-5 h-5 animate-spin text-primary" />
         </div>
       )}
