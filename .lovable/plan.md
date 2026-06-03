@@ -1,23 +1,29 @@
 ## Mål
-Initiera Mapbox-kartan i OpsLiveMap direkt i satellitvyn.
+Lås upp kartinteraktioner i OpsLiveMap (scroll-zoom, drag, dubbelklick, touch/pinch).
 
 ## Ändring (en fil)
 `src/components/ops-control/OpsLiveMap.tsx`
 
-1. Flytta upp konstanten ovanför map-init `useEffect`:
+1. Direkt efter `new mapboxgl.Map(...)` i init-`useEffect`, aktivera alla handlers explicit:
    ```ts
-   const MAP_STYLES = {
-     streets: 'mapbox://styles/mapbox/navigation-day-v1',
-     satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
-   } as const;
+   const m = map.current;
+   if (m) {
+     m.scrollZoom.enable();
+     m.boxZoom.enable();
+     m.dragRotate.enable();
+     m.dragPan.enable();
+     m.keyboard.enable();
+     m.doubleClickZoom.enable();
+     m.touchZoomRotate.enable();
+   }
+   console.debug('[OpsLiveMap] Map interactions enabled', {
+     scrollZoom: true, dragPan: true, doubleClickZoom: true, touchZoomRotate: true,
+   });
    ```
-2. I `new mapboxgl.Map({...})`: byt `style: 'mapbox://styles/mapbox/navigation-day-v1'` → `style: MAP_STYLES.satellite`.
-3. Bekräfta `useState<'streets' | 'satellite'>('satellite')` (behålls).
-4. Bekräfta `toggleMapStyle` använder `MAP_STYLES[next]` så toggle fortsatt funkar.
+2. Lägg `style={{ touchAction: 'none' }}` på `<div ref={mapContainer} ...>`.
+3. Snabbgranska overlays (toolbar, legend, panels, tooltips, loading) — säkerställ att inga `inset-0` ligger ovanpå kartan med pointer-events aktiva när `mapReady` är true; loading endast vid `isLoading || !mapReady`.
+4. Rör inget annat (pins, satellitstil, layout).
 
 ## Verifiering
-- Bygg ska gå igenom (auto-typecheck).
-- Preview `/ops-control`: kartan ska öppnas i satellit direkt.
-- Toggle-knappen ska fortfarande växla mellan satellit och streets.
-
-Inget annat ändras.
+- Auto-typecheck/build passar.
+- Preview `/ops-control`: scroll zoomar, drag panorerar, dubbelklick zoomar in, console visar debug-raden.
