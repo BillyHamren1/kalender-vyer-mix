@@ -45,14 +45,15 @@ export default function StaffTimeWeekMatrix() {
 
   const { matrix, isLoading } = useStaffTimeWeekMatrix({ weekDates });
 
-  const filteredRows = useMemo(() => {
+  const filteredIds = useMemo(() => {
     const rows = matrix?.rows ?? [];
     const q = query.trim().toLowerCase();
-    return rows.filter((r) => {
-      if (q && !r.staffName.toLowerCase().includes(q)) return false;
+    const ids = new Set<string>();
+    for (const r of rows) {
+      if (q && !r.staffName.toLowerCase().includes(q)) continue;
       if (statusFilter !== "all") {
         const hit = r.days.some((d) => d.status === statusFilter);
-        if (!hit) return false;
+        if (!hit) continue;
       }
       if (onlyAnomalies) {
         const hasAnomaly = r.days.some(
@@ -60,11 +61,13 @@ export default function StaffTimeWeekMatrix() {
             d.status === "correction_requested" ||
             (d.rows ?? []).some((x) => x.kind === "unknown_place" || x.kind === "gps_gap"),
         );
-        if (!hasAnomaly) return false;
+        if (!hasAnomaly) continue;
       }
-      return true;
-    });
+      ids.add(r.staffId);
+    }
+    return ids;
   }, [matrix, query, statusFilter, onlyAnomalies]);
+  const filteredCount = filteredIds.size;
 
   const openCell = useMemo(() => {
     if (!openDay || !matrix) return null;
