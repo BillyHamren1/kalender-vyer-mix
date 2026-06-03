@@ -297,7 +297,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   gridColumn: index + 2,
                   gridRow: 2,
                   width: fullWidth ? 'auto' : `${colWidth}px`,
-                  minWidth: fullWidth ? 0 : `${colWidth}px`,
+                  minWidth: fullWidth ? (colWidth > TEAM_COLUMN_WIDTH ? `${colWidth}px` : 0) : `${colWidth}px`,
                   ...(isActiveTeam ? { background: 'hsl(var(--primary) / 0.15)' } : {}),
                 }}
               >
@@ -376,7 +376,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   gridColumn: index + 2,
                   gridRow: 3,
                   width: fullWidth ? 'auto' : `${colWidth}px`,
-                  minWidth: fullWidth ? 0 : `${colWidth}px`,
+                  minWidth: fullWidth ? (colWidth > TEAM_COLUMN_WIDTH ? `${colWidth}px` : 0) : `${colWidth}px`,
                   minHeight: `${ASSIGNED_STAFF_ROW_HEIGHT}px`,
                 }}
               >
@@ -428,7 +428,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 isLast={index === resources.length - 1}
                 gridColumn={index + 2}
                 fullWidth={fullWidth}
-                fixedWidth={fullWidth ? undefined : colWidth}
+                fixedWidth={fullWidth ? (colWidth > TEAM_COLUMN_WIDTH ? colWidth : undefined) : colWidth}
               >
                 <div
                   className={`time-slots-column ${index === resources.length - 1 ? 'is-last' : ''}`}
