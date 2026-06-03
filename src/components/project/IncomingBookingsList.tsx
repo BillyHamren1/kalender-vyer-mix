@@ -309,8 +309,8 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
       {totalNew > 0 && (
         <section>
           {showSectionHeaders && (
-            <div className="flex items-center gap-2 px-4 h-8 bg-muted/30 border-y border-border/50">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            <div className="flex items-center gap-2 px-4 h-8 bg-muted/40 border-y border-border/50">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
               <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 Nya bokningar · ska placeras
               </span>
@@ -322,27 +322,22 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                 key={`${project.kind}-${project.id}`}
                 className="group relative flex items-center gap-3 pl-4 pr-3 py-3 hover:bg-muted/30 transition-colors"
               >
-                <span className="absolute left-0 top-2 bottom-2 w-[2px] rounded-full bg-emerald-500" />
-
                 <div
                   className="flex-1 min-w-0 cursor-pointer"
                   onClick={() => project.bookingId && setPlacementBookingId(project.bookingId)}
                 >
                   <div className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
                     <h4 className="text-sm font-medium truncate text-foreground group-hover:text-primary transition-colors">
                       {project.client || project.name}
                     </h4>
-                    <span className="inline-flex items-center gap-1 h-5 px-1.5 rounded-md bg-emerald-500/10 text-emerald-700 text-[10.5px] font-medium shrink-0">
-                      <span className="h-1 w-1 rounded-full bg-emerald-500" />
-                      Ny
-                    </span>
                     {project.booking_number && (
                       <span className="ml-auto text-[10.5px] text-muted-foreground/60 font-mono shrink-0">
                         #{project.booking_number}
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-3 mt-1 text-[11.5px] text-muted-foreground">
+                  <div className="flex items-center gap-3 mt-1 pl-3.5 text-[11.5px] text-muted-foreground">
                     <span className="flex items-center gap-1.5">
                       <Calendar className="w-3 h-3" />
                       {formatDate(project.eventdate || '')}
@@ -366,12 +361,13 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                     disabled={!project.bookingId}
                   >
                     <CalendarPlus className="w-3.5 h-3.5" />
-                    Placera
+                    <span>Placera</span>
                   </Button>
                   <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
                 </div>
               </div>
             ))}
+
 
             {bookings.map(booking => {
               const isCancelled = booking.status === 'CANCELLED';
