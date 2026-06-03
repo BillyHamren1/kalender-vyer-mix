@@ -15,6 +15,7 @@ import {
   Loader2,
   MessageSquareWarning,
   Eye,
+  Sparkles,
 } from "lucide-react";
 import type {
   StaffTimeMatrixCell,
@@ -23,6 +24,42 @@ import type {
 import { resolveTravelAllocation } from "@/lib/staff-payroll/travelAllocation";
 import TimeApprovalStatusBadge from "./TimeApprovalStatusBadge";
 import { Button } from "@/components/ui/button";
+import { useUnknownPlaceLabel } from "@/hooks/staff-time/useUnknownPlaceLabel";
+
+function UnknownPlaceLabel({
+  staffId,
+  date,
+  startIso,
+  endIso,
+  fallback,
+}: {
+  staffId: string;
+  date: string;
+  startIso: string | null;
+  endIso: string | null;
+  fallback: string;
+}) {
+  const { data } = useUnknownPlaceLabel({
+    enabled: true,
+    staffId,
+    date,
+    startIso,
+    endIso,
+  });
+  const label = data?.label?.trim() ? data.label : fallback;
+  const hasAi = !!data?.label?.trim();
+  return (
+    <span className="inline-flex items-center gap-1 min-w-0 text-foreground">
+      <span className="truncate">{label}</span>
+      {hasAi && (
+        <Sparkles
+          className="h-3 w-3 shrink-0 text-muted-foreground/70"
+          aria-label="AI-förslag"
+        />
+      )}
+    </span>
+  );
+}
 
 function fmtTime(iso: string | null): string {
   if (!iso) return "";
