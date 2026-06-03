@@ -319,7 +319,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
             {unplannedProjects.map((project) => (
               <div
                 key={`${project.kind}-${project.id}`}
-                className="group relative flex items-center gap-3 pl-4 pr-3 py-3 hover:bg-muted/30 transition-colors"
+                className="group relative flex items-center gap-3 pl-4 pr-3 py-3 bg-green-50 hover:bg-green-100/70 transition-colors"
               >
                 <div
                   className="flex-1 min-w-0 cursor-pointer"
