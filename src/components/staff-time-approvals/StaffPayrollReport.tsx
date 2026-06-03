@@ -47,10 +47,23 @@ export default function StaffPayrollReport() {
     return cell ? { cell, staffName: row!.staffName } : null;
   }, [openDay, matrix]);
 
-  const pendingTotal = useMemo(() => {
-    if (!matrix) return 0;
-    return matrix.rows.reduce((s, r) => s + r.pendingSubmissionIds.length, 0);
+  // Visa endast personer som faktiskt har registrerat tid den här veckan.
+  // (Personer utan en enda rapporterad dag göms helt — de ska inte ligga som
+  // tomma papper i ekonomins rapport.)
+  const visibleRows = useMemo(() => {
+    if (!matrix) return [];
+    return matrix.rows.filter((r) => r.days.some((d) => d.status !== "empty"));
   }, [matrix]);
+
+  const pendingTotal = useMemo(
+    () => visibleRows.reduce((s, r) => s + r.pendingSubmissionIds.length, 0),
+    [visibleRows],
+  );
+
+  const hiddenEmptyCount = useMemo(() => {
+    if (!matrix) return 0;
+    return matrix.rows.length - visibleRows.length;
+  }, [matrix, visibleRows]);
 
   async function handleApproveAllPending() {
     if (!matrix || pendingTotal === 0) return;
