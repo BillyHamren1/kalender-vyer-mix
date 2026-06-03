@@ -76,7 +76,7 @@ export async function authenticateStaffRequest(
     if (!mobile.expiresAt || Date.now() > mobile.expiresAt) return { ok: false, err: { status: 401, error: "Mobile token expired" } };
     if (!mobile.staffId) return { ok: false, err: { status: 401, error: "Invalid mobile token" } };
     const { data: staffRow, error: staffErr } = await admin
-      .from("staff_members").select("id, organization_id, user_id").eq("id", mobile.staffId).maybeSingle();
+      .from("staff_members").select("id, organization_id, user_id, active_mobile_session_id").eq("id", mobile.staffId).maybeSingle();
     if (staffErr) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const e = staffErr as any;
