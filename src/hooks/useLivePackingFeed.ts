@@ -34,7 +34,12 @@ export interface UseLivePackingFeedReturn {
   pulseIds: Set<string>;
 }
 
-export function useLivePackingFeed(): UseLivePackingFeedReturn {
+export interface UseLivePackingFeedOptions {
+  enabled?: boolean;
+}
+
+export function useLivePackingFeed(options?: UseLivePackingFeedOptions): UseLivePackingFeedReturn {
+  const enabled = options?.enabled ?? true;
   const queryClient = useQueryClient();
   const [seenVersion, setSeenVersion] = useState(0);
   const [pulseIds, setPulseIds] = useState<Set<string>>(new Set());
@@ -42,10 +47,11 @@ export function useLivePackingFeed(): UseLivePackingFeedReturn {
   const itemsQuery = useQuery<LivePackingItem[]>({
     queryKey: ['ops-live-packing'],
     queryFn: fetchLivePackingProjects,
-    refetchInterval: 30_000,
+    refetchInterval: 60_000,
+    enabled,
   });
 
-  const items = itemsQuery.data || [];
+  const items = enabled ? (itemsQuery.data || []) : [];
   const ids = useMemo(() => items.map(i => i.id), [items]);
 
   const seenMap = useMemo(() => {
@@ -60,12 +66,13 @@ export function useLivePackingFeed(): UseLivePackingFeedReturn {
   const countsQuery = useQuery<Record<string, LivePackingActivityCounts>>({
     queryKey: ['ops-live-packing-counts', ids.join('|'), seenVersion],
     queryFn: () => fetchActivityCounts(ids, seenMap),
-    enabled: ids.length > 0,
-    refetchInterval: 30_000,
+    enabled: enabled && ids.length > 0,
+    refetchInterval: 120_000,
   });
 
-  // Realtime subscription
+  // Realtime subscription — only when enabled
   useEffect(() => {
+    if (!enabled) return;
     const channel = supabase.channel('ops-live-packing-realtime');
 
     const tables = [
@@ -110,12 +117,22 @@ export function useLivePackingFeed(): UseLivePackingFeedReturn {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [queryClient]);
+  }, [queryClient, enabled]);
 
   const markSeen = useCallback((packingId: string) => {
     writeSeen(packingId, Date.now());
     setSeenVersion(v => v + 1);
   }, []);
+
+  if (!enabled) {
+    return {
+      items: [],
+      counts: {},
+      isLoading: false,
+      markSeen,
+      pulseIds: new Set<string>(),
+    };
+  }
 
   return {
     items,

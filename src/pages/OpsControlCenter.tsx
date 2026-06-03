@@ -31,8 +31,8 @@ import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 
 /** Wrapper so useLivePackingFeed only runs when the panel is actually mounted. */
-function LiveProjectsPanelBody() {
-  const livePacking = useLivePackingFeed();
+function LiveProjectsPanelBody({ enabled }: { enabled: boolean }) {
+  const livePacking = useLivePackingFeed({ enabled });
   return (
     <OpsLiveProjects
       items={livePacking.items}
@@ -380,7 +380,7 @@ const OpsControlCenter = () => {
                 />
                 {liveProjectsOpen && (
                   <div className="max-h-[360px] overflow-y-auto px-3 pb-3">
-                    <LiveProjectsPanelBody />
+                    <LiveProjectsPanelBody enabled={liveProjectsOpen} />
                   </div>
                 )}
               </section>
