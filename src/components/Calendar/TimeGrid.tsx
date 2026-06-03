@@ -428,7 +428,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                 isLast={index === resources.length - 1}
                 gridColumn={index + 2}
                 fullWidth={fullWidth}
-                fixedWidth={fullWidth ? undefined : colWidth}
+                fixedWidth={fullWidth ? (colWidth > TEAM_COLUMN_WIDTH ? colWidth : undefined) : colWidth}
               >
                 <div
                   className={`time-slots-column ${index === resources.length - 1 ? 'is-last' : ''}`}
