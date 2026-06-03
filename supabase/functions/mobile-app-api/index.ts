@@ -462,10 +462,30 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         )
       }
       staffId = tokenResult.staffId!
-      // Sliding refresh: if the token is older than the threshold (or close
-      // to expiry), mint a new one and surface it via X-New-Token. The
-      // client updates localStorage transparently — no UI interruption.
-      rotationSlot.token = maybeRotateToken(staffId, tokenResult.issuedAt, tokenResult.expiresAt)
+
+      // Single-device enforcement: jämför token.sessionId mot staff_members.active_mobile_session_id.
+      // - Om kolumnen är NULL: legacy token / aldrig loggat in efter rollout → accepteras.
+      // - Om kolumnen är satt och tokenens sessionId matchar → OK.
+      // - Annars: en nyare login finns på annan enhet → 401 token_revoked.
+      const { data: sessRow } = await supabase
+        .from('staff_members')
+        .select('active_mobile_session_id')
+        .eq('id', staffId)
+        .maybeSingle()
+      const activeSid = sessRow?.active_mobile_session_id as string | null | undefined
+      if (activeSid && tokenResult.sessionId !== activeSid) {
+        console.warn(`[mobile-app-api] 🚫 token_revoked staff=${staffId} tokenSid=${tokenResult.sessionId ?? 'none'} activeSid=${activeSid}`)
+        return new Response(
+          JSON.stringify({
+            error: 'Sessionen avslutades – kontot är aktivt på en annan enhet.',
+            code: 'token_revoked',
+          }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Sliding refresh: behåll sessionId vid rotation.
+      rotationSlot.token = maybeRotateToken(staffId, tokenResult.sessionId, tokenResult.issuedAt, tokenResult.expiresAt)
     } else {
       // Web JWT fallback (planner UI)
       const authHeader = req.headers.get('Authorization') || ''
