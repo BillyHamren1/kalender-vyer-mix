@@ -143,6 +143,24 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           projection: 'mercator',
           attributionControl: false,
         });
+        {
+          const m = map.current;
+          if (m) {
+            m.scrollZoom.enable();
+            m.boxZoom.enable();
+            m.dragRotate.enable();
+            m.dragPan.enable();
+            m.keyboard.enable();
+            m.doubleClickZoom.enable();
+            m.touchZoomRotate.enable();
+          }
+          console.debug('[OpsLiveMap] Map interactions enabled', {
+            scrollZoom: true,
+            dragPan: true,
+            doubleClickZoom: true,
+            touchZoomRotate: true,
+          });
+        }
         map.current.addControl(new mapboxgl.NavigationControl({ showCompass: false, visualizePitch: false }), 'top-right');
         map.current.on('load', () => {
           if (!cancelled) {
