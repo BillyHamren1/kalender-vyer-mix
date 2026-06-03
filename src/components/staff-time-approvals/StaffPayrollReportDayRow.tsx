@@ -14,7 +14,6 @@ import {
   CheckCircle2,
   Loader2,
   MessageSquareWarning,
-  Sparkles,
   Eye,
 } from "lucide-react";
 import type {
@@ -22,7 +21,6 @@ import type {
   StaffTimeMatrixRowItem,
 } from "@/hooks/staffTimeFlow/useStaffTimeWeekMatrix";
 import { resolveTravelAllocation } from "@/lib/staff-payroll/travelAllocation";
-import { useUnknownPlaceAi } from "@/hooks/staff-time/useUnknownPlaceAi";
 import TimeApprovalStatusBadge from "./TimeApprovalStatusBadge";
 import { Button } from "@/components/ui/button";
 
@@ -99,69 +97,6 @@ function TravelBadge({ cell, item }: { cell: StaffTimeMatrixCell; item: StaffTim
   );
 }
 
-/**
- * UnknownPlaceCell — visar ALLTID "Okänd plats" som etikett.
- * AI körs endast för rows som regelmotorn klassat som unknown_place,
- * och AI:s resultat exponeras som en KOMPAKT badge med tooltip (ingen
- * förklaringstext i raden). Detta uppfyller policyn:
- *   - AI får bara köras på okänd-plats-rader (kontrolleras i useUnknownPlaceAi).
- *   - Ingen lång AI-förklaring som synlig text i tidrapporten.
- */
-function UnknownPlaceCell({
-  staffId,
-  date,
-  item,
-}: {
-  staffId: string;
-  date: string;
-  item: StaffTimeMatrixRowItem;
-}) {
-  const ai = useUnknownPlaceAi({
-    staffId,
-    date,
-    kind: item.kind,
-    startIso: item.startIso,
-    endIso: item.endIso,
-  });
-
-  let badge: React.ReactNode = null;
-  if (ai.status === "loading") {
-    badge = (
-      <span
-        className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/50 text-muted-foreground px-1.5 py-0.5 text-[10px]"
-        title="AI analyserar okänd plats…"
-      >
-        <Loader2 className="h-2.5 w-2.5 animate-spin" />
-        AI
-      </span>
-    );
-  } else if (ai.status === "ready" && typeof ai.confidence === "number") {
-    const high = ai.confidence >= 0.6 && ai.suggestedType !== "needs_user_input";
-    const tooltip = high && ai.label
-      ? `AI-förslag: ${ai.label}`
-      : ai.userQuestion || ai.explanation || "AI kunde inte avgöra plats";
-    badge = (
-      <span
-        className={
-          high
-            ? "inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 text-violet-700 px-1.5 py-0.5 text-[10px] font-medium"
-            : "inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 text-amber-800 px-1.5 py-0.5 text-[10px] font-medium"
-        }
-        title={tooltip}
-      >
-        <Sparkles className="h-2.5 w-2.5" />
-        AI · {Math.round((ai.confidence ?? 0) * 100)}%
-      </span>
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-1.5 min-w-0">
-      <span className="truncate text-foreground">Okänd plats</span>
-      {badge}
-    </div>
-  );
-}
 
 export default function StaffPayrollReportDayRow({
   cell,
@@ -216,11 +151,7 @@ export default function StaffPayrollReportDayRow({
         {hasRows ? (
           cell.rows.map((r, i) => (
             <div key={i} className="flex items-center gap-2 min-w-0 flex-wrap">
-              {r.kind === "unknown_place" ? (
-                <UnknownPlaceCell staffId={staffId} date={cell.date} item={r} />
-              ) : (
-                <span className="truncate text-foreground">{kindLabel(r)}</span>
-              )}
+              <span className="truncate text-foreground">{kindLabel(r)}</span>
               {r.kind === "travel" && <TravelBadge cell={cell} item={r} />}
               {r.kind === "travel" && (r.fromLabel || r.toLabel) && (
                 <span className="text-[10.5px] text-muted-foreground truncate">
