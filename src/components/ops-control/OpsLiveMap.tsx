@@ -49,11 +49,12 @@ const statusStyles: Record<StaffStatus, { color: string; label: string }> = {
 
 // Job phase classification — drives premium pin coloring
 type JobPhase = 'build' | 'teardown' | 'event' | 'other';
-const phaseStyles: Record<JobPhase, { fill: string; ring: string; label: string }> = {
-  build:    { fill: '#86efac', ring: '#16a34a', label: 'Bygg / Rig' },     // light green
-  teardown: { fill: '#fca5a5', ring: '#dc2626', label: 'Riv / Rigdown' },  // light red
-  event:    { fill: '#fcd34d', ring: '#d97706', label: 'Event' },          // amber
-  other:    { fill: '#c4b5fd', ring: '#7c3aed', label: 'Övrigt' },         // soft purple
+const phaseStyles: Record<JobPhase, { fill: string; ring: string; label: string; icon: string }> = {
+  // Lucide-style SVG paths (24x24 viewBox) — drawn in white inside the pin
+  build:    { fill: '#15803d', ring: '#bbf7d0', label: 'Bygg / Rig',     icon: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>' },
+  teardown: { fill: '#b91c1c', ring: '#fecaca', label: 'Riv / Rigdown',  icon: '<path d="M3 3l18 18M14.5 6.5L18 10l-3.5 3.5M9.5 17.5L6 14l3.5-3.5"/>' },
+  event:    { fill: '#b45309', ring: '#fde68a', label: 'Event',          icon: '<path d="M5 3v18l7-3 7 3V3z"/>' },
+  other:    { fill: '#6d28d9', ring: '#ddd6fe', label: 'Övrigt',         icon: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>' },
 };
 
 function classifyJobPhase(eventType: string | null | undefined): JobPhase {
