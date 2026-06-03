@@ -148,10 +148,11 @@ export async function syncBookingToWarehouseCalendar(booking: BookingData): Prom
     });
   }
   
-  // Create return event (day after rigdown)
+  // Create return event (day after rigdown) — stagger by 2h slots from 08:00
   if (booking.rigdowndate) {
     const rule = WAREHOUSE_RULES.return;
-    const { start, end } = calculateEventDateTime(booking.rigdowndate, rule);
+    const { start: baseStart } = calculateEventDateTime(booking.rigdowndate, rule);
+    const { start, end } = await findNextReturnSlot(baseStart, booking.id);
 
     eventsToCreate.push({
       booking_id: booking.id,
@@ -167,6 +168,7 @@ export async function syncBookingToWarehouseCalendar(booking: BookingData): Prom
       source_rigdown_date: booking.rigdowndate
     });
   }
+
 
   // Insert all events
   if (eventsToCreate.length > 0) {
