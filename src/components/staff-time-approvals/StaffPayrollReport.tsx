@@ -47,10 +47,23 @@ export default function StaffPayrollReport() {
     return cell ? { cell, staffName: row!.staffName } : null;
   }, [openDay, matrix]);
 
-  const pendingTotal = useMemo(() => {
-    if (!matrix) return 0;
-    return matrix.rows.reduce((s, r) => s + r.pendingSubmissionIds.length, 0);
+  // Visa endast personer som faktiskt har registrerat tid den här veckan.
+  // (Personer utan en enda rapporterad dag göms helt — de ska inte ligga som
+  // tomma papper i ekonomins rapport.)
+  const visibleRows = useMemo(() => {
+    if (!matrix) return [];
+    return matrix.rows.filter((r) => r.days.some((d) => d.status !== "empty"));
   }, [matrix]);
+
+  const pendingTotal = useMemo(
+    () => visibleRows.reduce((s, r) => s + r.pendingSubmissionIds.length, 0),
+    [visibleRows],
+  );
+
+  const hiddenEmptyCount = useMemo(() => {
+    if (!matrix) return 0;
+    return matrix.rows.length - visibleRows.length;
+  }, [matrix, visibleRows]);
 
   async function handleApproveAllPending() {
     if (!matrix || pendingTotal === 0) return;
@@ -59,7 +72,7 @@ export default function StaffPayrollReport() {
     setApprovingAll(true);
     let approved = 0;
     let failed = 0;
-    for (const row of matrix.rows) {
+    for (const row of visibleRows) {
       for (const id of row.pendingSubmissionIds) {
         try {
           await approveDay.mutateAsync({ submission_id: id, action: "approved" });
@@ -78,7 +91,7 @@ export default function StaffPayrollReport() {
   function handleExportCsv() {
     if (!matrix) return;
     const name = `lonerapport-v${format(weekStart, "I")}-${format(weekStart, "yyyy")}.csv`;
-    downloadPayrollCsv(matrix, name);
+    downloadPayrollCsv({ ...matrix, rows: visibleRows }, name);
   }
 
   function handlePrint() {
@@ -134,15 +147,20 @@ export default function StaffPayrollReport() {
         </div>
       )}
 
-      {matrix && matrix.rows.length === 0 && (
+      {matrix && visibleRows.length === 0 && (
         <div className="py-12 text-center text-sm text-muted-foreground">
-          Inga aktiva personer i organisationen.
+          Ingen personal har registrerat tid den här veckan.
         </div>
       )}
 
-      {matrix && matrix.rows.length > 0 && (
+      {matrix && visibleRows.length > 0 && (
         <div className="bg-neutral-100 print:bg-white py-6 print:py-0 px-4 print:px-0">
-          {matrix.rows.map((row) => (
+          {hiddenEmptyCount > 0 && (
+            <div className="payroll-no-print max-w-[820px] mx-auto mb-3 text-[11px] text-muted-foreground text-right">
+              {hiddenEmptyCount} {hiddenEmptyCount === 1 ? "person" : "personer"} utan registrerad tid göms
+            </div>
+          )}
+          {visibleRows.map((row) => (
             <StaffPayrollReportSheet
               key={row.staffId}
               row={row}
