@@ -99,6 +99,14 @@ function TravelBadge({ cell, item }: { cell: StaffTimeMatrixCell; item: StaffTim
   );
 }
 
+/**
+ * UnknownPlaceCell — visar ALLTID "Okänd plats" som etikett.
+ * AI körs endast för rows som regelmotorn klassat som unknown_place,
+ * och AI:s resultat exponeras som en KOMPAKT badge med tooltip (ingen
+ * förklaringstext i raden). Detta uppfyller policyn:
+ *   - AI får bara köras på okänd-plats-rader (kontrolleras i useUnknownPlaceAi).
+ *   - Ingen lång AI-förklaring som synlig text i tidrapporten.
+ */
 function UnknownPlaceCell({
   staffId,
   date,
@@ -116,47 +124,43 @@ function UnknownPlaceCell({
     endIso: item.endIso,
   });
 
+  let badge: React.ReactNode = null;
   if (ai.status === "loading") {
-    return (
-      <div className="flex items-center gap-1.5 min-w-0">
-        <span className="truncate text-foreground">Okänd plats</span>
-        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />
-        <span className="text-[10.5px] text-muted-foreground">AI analyserar…</span>
-      </div>
+    badge = (
+      <span
+        className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/50 text-muted-foreground px-1.5 py-0.5 text-[10px]"
+        title="AI analyserar okänd plats…"
+      >
+        <Loader2 className="h-2.5 w-2.5 animate-spin" />
+        AI
+      </span>
     );
-  }
-
-  if (ai.status === "ready" && typeof ai.confidence === "number") {
+  } else if (ai.status === "ready" && typeof ai.confidence === "number") {
     const high = ai.confidence >= 0.6 && ai.suggestedType !== "needs_user_input";
-    if (high && ai.label) {
-      return (
-        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-          <span className="truncate text-foreground" title={ai.explanation}>{ai.label}</span>
-          <span
-            className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 text-violet-700 px-2 py-0.5 text-[10px] font-medium"
-            title={ai.explanation}
-          >
-            <Sparkles className="h-2.5 w-2.5" />
-            AI · {Math.round((ai.confidence ?? 0) * 100)}%
-          </span>
-        </div>
-      );
-    }
-    return (
-      <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-        <span className="truncate text-foreground">Okänd plats</span>
-        <span
-          className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 text-amber-800 px-2 py-0.5 text-[10px] font-medium"
-          title={ai.userQuestion || ai.explanation}
-        >
-          <Sparkles className="h-2.5 w-2.5" />
-          AI: behöver bekräftas
-        </span>
-      </div>
+    const tooltip = high && ai.label
+      ? `AI-förslag: ${ai.label}`
+      : ai.userQuestion || ai.explanation || "AI kunde inte avgöra plats";
+    badge = (
+      <span
+        className={
+          high
+            ? "inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 text-violet-700 px-1.5 py-0.5 text-[10px] font-medium"
+            : "inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 text-amber-800 px-1.5 py-0.5 text-[10px] font-medium"
+        }
+        title={tooltip}
+      >
+        <Sparkles className="h-2.5 w-2.5" />
+        AI · {Math.round((ai.confidence ?? 0) * 100)}%
+      </span>
     );
   }
 
-  return <span className="truncate text-foreground">Okänd plats</span>;
+  return (
+    <div className="flex items-center gap-1.5 min-w-0">
+      <span className="truncate text-foreground">Okänd plats</span>
+      {badge}
+    </div>
+  );
 }
 
 export default function StaffPayrollReportDayRow({
