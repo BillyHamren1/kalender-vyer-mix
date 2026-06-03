@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, MapPin, Users, Briefcase, Navigation, MessageCircle, Camera, Maximize2, Minimize2, Map as MapIcon, Satellite, Clock, Wifi, Building2 } from 'lucide-react';
+import { Loader2, MapPin, Users, Briefcase, Navigation, MessageCircle, Camera, Maximize2, Minimize2, Map as MapIcon, Satellite, Clock, Wifi, Building2, Crosshair, LocateFixed, X as XIcon, ZoomIn } from 'lucide-react';
 import { StaffLocation } from '@/services/planningDashboardService';
 import { OpsMapJob } from '@/services/opsControlService';
 import { useNavigate } from 'react-router-dom';
@@ -23,21 +23,28 @@ interface Props {
   routePolyline?: GeoJSON.LineString | null;
 }
 
-type StaffStatus = 'on_site' | 'on_way' | 'idle';
+type StaffStatus = 'on_site' | 'on_way' | 'planned' | 'idle' | 'stale' | 'offline';
+
+const STALE_MS = 10 * 60 * 1000;
 
 function getStaffStatus(loc: StaffLocation, mapJobs: OpsMapJob[]): StaffStatus {
-  if (loc.isOffline) return 'idle';
+  if (loc.isOffline) return 'offline';
+  const lastSeenMs = loc.lastReportTime ? Date.now() - new Date(loc.lastReportTime).getTime() : Infinity;
   if (loc.isWorking) return 'on_site';
+  if (lastSeenMs > STALE_MS) return 'stale';
   const job = mapJobs.find(j => j.bookingId === loc.bookingId);
   if (job?.isActive) return 'on_way';
-  if (loc.bookingId) return 'on_way';
+  if (loc.bookingId) return 'planned';
   return 'idle';
 }
 
 const statusStyles: Record<StaffStatus, { color: string; label: string }> = {
   on_site: { color: '#22c55e', label: 'På plats' },
-  on_way: { color: '#eab308', label: 'På väg' },
-  idle: { color: '#9ca3af', label: 'Inaktiv' },
+  on_way:  { color: '#eab308', label: 'På väg' },
+  planned: { color: '#38bdf8', label: 'Planerad' },
+  idle:    { color: '#9ca3af', label: 'Inaktiv' },
+  stale:   { color: '#f97316', label: 'Saknar GPS' },
+  offline: { color: '#6b7280', label: 'Offline' },
 };
 
 // Job phase classification — drives premium pin coloring
@@ -88,6 +95,9 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
   const [styleRevision, setStyleRevision] = useState(0);
   const [orgLocations, setOrgLocations] = useState<OrganizationLocation[]>([]);
   const [showOrgLocations, setShowOrgLocations] = useState(true);
+  const [showStaff, setShowStaff] = useState(true);
+  const [showJobs, setShowJobs] = useState(true);
+  const [followStaffId, setFollowStaffId] = useState<string | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const { cameras, isLoading: camerasLoading, fetchCameras } = useTrafficCameras();
 
@@ -314,7 +324,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
 
     const m = map.current;
     const assignedIds = new Set(selectedJob?.assignedStaff.map(staff => staff.id) || []);
-    const staffWithCoords = locations.filter(loc => loc.latitude && loc.longitude);
+    const staffWithCoords = showStaff ? locations.filter(loc => loc.latitude && loc.longitude) : [];
 
     // Build pixel-grid clusters so overlapping staff merge into one marker.
     // We snap each point to a grid cell sized in pixels at the current zoom.
@@ -353,7 +363,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
     });
 
     // Status priority: on_site > on_way > idle (for cluster color when mixed → use highest priority)
-    const statusPriority: Record<StaffStatus, number> = { on_site: 3, on_way: 2, idle: 1 };
+    const statusPriority: Record<StaffStatus, number> = { on_site: 6, on_way: 5, stale: 4, planned: 3, idle: 2, offline: 1 };
 
     const staffGeoJson = {
       type: 'FeatureCollection',
@@ -643,7 +653,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       cleanupHandlers?.();
       if (map.current) map.current.off('zoomend', handleZoomEnd);
     };
-  }, [mapReady, locations, mapJobs, selectedJob, styleRevision]);
+  }, [mapReady, locations, mapJobs, selectedJob, styleRevision, showStaff]);
 
   // Render markers
   useEffect(() => {
@@ -654,25 +664,31 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
     let hasPoints = false;
 
     // Job location markers (diamond shape)
-    mapJobs.forEach(job => {
+    if (showJobs) mapJobs.forEach(job => {
       if (!job.latitude || !job.longitude) return;
       hasPoints = true;
       bounds.extend([job.longitude, job.latitude]);
 
+      const staffOnJob = locations.filter(l => l.bookingId === job.bookingId && l.isWorking).length;
+
       const el = document.createElement('div');
-      el.style.cssText = 'width: 40px; height: 52px; cursor: pointer; z-index: 10; position: relative; display:flex; align-items:flex-end; justify-content:center;';
+      el.style.cssText = 'width: 44px; height: 56px; cursor: pointer; z-index: 10; position: relative; display:flex; align-items:flex-end; justify-content:center;';
       const phase = classifyJobPhase(job.eventType);
       const ph = phaseStyles[phase];
       const glow = job.isActive
-        ? `<div style="position:absolute;left:50%;top:14px;transform:translate(-50%,-50%);width:46px;height:46px;border-radius:9999px;background:${ph.ring};opacity:0.22;filter:blur(10px);animation:opspulse 2.2s ease-in-out infinite;"></div>`
+        ? `<div style="position:absolute;left:50%;top:14px;transform:translate(-50%,-50%);width:48px;height:48px;border-radius:9999px;background:${ph.ring};opacity:0.22;filter:blur(10px);animation:opspulse 2.2s ease-in-out infinite;"></div>`
+        : '';
+      const staffBadge = staffOnJob > 0
+        ? `<div style="position:absolute;top:-2px;right:-2px;min-width:18px;height:18px;padding:0 5px;border-radius:9999px;background:#0f172a;color:#fff;font:700 10px/18px system-ui;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);">${staffOnJob}</div>`
         : '';
       el.innerHTML = `
         ${glow}
-        <svg width="34" height="46" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:relative;filter:drop-shadow(0 4px 8px rgba(0,0,0,.35));">
+        <svg width="36" height="48" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:relative;filter:drop-shadow(0 4px 8px rgba(0,0,0,.35));">
           <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z"
                 fill="${ph.fill}" stroke="${ph.ring}" stroke-width="1.8"/>
           <circle cx="12" cy="12" r="4.2" fill="#ffffff" stroke="${ph.ring}" stroke-width="1"/>
         </svg>
+        ${staffBadge}
       `;
 
       el.addEventListener('click', (e) => {
@@ -708,7 +724,23 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         map.current.fitBounds(bounds, { padding: 50, maxZoom: 13 });
       }
     }
-  }, [mapReady, locations, mapJobs, clearMarkers, styleRevision]);
+  }, [mapReady, locations, mapJobs, clearMarkers, styleRevision, showJobs]);
+
+  // Follow mode — keep map centered on followed staff
+  useEffect(() => {
+    if (!followStaffId || !mapReady || !map.current) return;
+    const loc = locations.find(l => l.id === followStaffId);
+    if (!loc?.latitude || !loc?.longitude) return;
+    map.current.easeTo({
+      center: [loc.longitude, loc.latitude],
+      duration: 600,
+      zoom: Math.max(map.current.getZoom(), 14),
+    });
+  }, [followStaffId, locations, mapReady]);
+
+  const followedStaff = followStaffId
+    ? locations.find(l => l.id === followStaffId) || null
+    : null;
 
   // Focus from external trigger
   useEffect(() => {
@@ -854,43 +886,71 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         </div>
       )}
 
-      {/* Stats overlay */}
-      <div className="absolute top-2 left-2 bg-card/90 backdrop-blur-sm rounded-lg px-2.5 py-1.5 shadow border border-border">
-        <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1 text-[10px] font-semibold text-foreground">
-            <Users className="w-3 h-3 text-primary" /> {totalOnMap} personal
+      {/* ── PREMIUM MAP TOOLBAR ── */}
+      <div className="absolute top-2 left-2 z-20 flex items-stretch gap-2">
+        {/* Live stats pill */}
+        <div
+          className="flex items-center gap-3 px-3 py-1.5 rounded-xl bg-slate-950/85 backdrop-blur-xl border border-white/10 text-white shadow-lg"
+          style={{ boxShadow: '0 4px 16px rgba(15,23,42,0.25)' }}
+        >
+          <span className="flex items-center gap-1.5 text-[11px] font-semibold">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.7)]" />
+            LIVE
           </span>
-          <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-            <Briefcase className="w-3 h-3" /> {jobsOnMap} jobb
+          <span className="h-3 w-px bg-white/20" />
+          <span className="flex items-center gap-1 text-[11px] font-semibold tabular-nums">
+            <Users className="w-3 h-3 text-slate-300" /> {totalOnMap}
           </span>
-          <span className="flex items-center gap-1 text-[10px] text-emerald-600">
+          <span className="flex items-center gap-1 text-[11px] tabular-nums text-emerald-300">
             {onSiteCount} på plats
           </span>
-          <button
-            onClick={handleToggleCameras}
-            disabled={camerasLoading}
-            className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded transition-colors ${
-              showCameras
-                ? 'bg-blue-500 text-white font-semibold'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-            } ${camerasLoading ? 'opacity-50' : ''}`}
-          >
-            <Camera className="w-3 h-3" />
-            {camerasLoading ? '...' : showCameras ? `Kameror (${cameras.length})` : 'Kameror'}
-          </button>
-          <button
-            onClick={() => setShowOrgLocations(v => !v)}
-            className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded transition-colors ${
-              showOrgLocations
-                ? 'bg-purple-600 text-white font-semibold'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-            }`}
-          >
-            <Building2 className="w-3 h-3" />
-            {showOrgLocations ? `Platser (${orgLocations.length})` : 'Platser'}
-          </button>
+          <span className="flex items-center gap-1 text-[11px] tabular-nums text-slate-300">
+            <Briefcase className="w-3 h-3" /> {jobsOnMap}
+          </span>
+        </div>
+
+        {/* Layer toggles toolbar */}
+        <div
+          className="flex items-center gap-0.5 p-1 rounded-xl bg-card/95 backdrop-blur-xl border border-border shadow-lg"
+        >
+          {[
+            { key: 'staff', label: 'Personal', icon: Users, active: showStaff, onClick: () => setShowStaff(v => !v) },
+            { key: 'jobs', label: 'Jobb', icon: Briefcase, active: showJobs, onClick: () => setShowJobs(v => !v) },
+            { key: 'sites', label: 'Platser', icon: Building2, active: showOrgLocations, onClick: () => setShowOrgLocations(v => !v) },
+            { key: 'cams', label: 'Kameror', icon: Camera, active: showCameras, onClick: handleToggleCameras, disabled: camerasLoading },
+          ].map(b => (
+            <button
+              key={b.key}
+              onClick={b.onClick}
+              disabled={b.disabled}
+              title={b.label}
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                b.active
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              } ${b.disabled ? 'opacity-50' : ''}`}
+            >
+              <b.icon className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{b.label}</span>
+            </button>
+          ))}
         </div>
       </div>
+
+      {/* Follow mode badge */}
+      {followedStaff && (
+        <div className="absolute top-14 left-2 z-20 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary text-primary-foreground shadow-lg border border-primary/40 animate-in slide-in-from-top-2 duration-200">
+          <LocateFixed className="w-3.5 h-3.5 animate-pulse" />
+          <span className="text-[11px] font-semibold">Följer: {followedStaff.name}</span>
+          <button
+            onClick={() => setFollowStaffId(null)}
+            className="ml-1 p-0.5 rounded hover:bg-primary-foreground/20 transition-colors"
+            title="Sluta följa"
+          >
+            <XIcon className="w-3 h-3" />
+          </button>
+        </div>
+      )}
 
       {/* Map style + Fullscreen toggles */}
       <div className="absolute top-2 right-2 z-20 flex gap-1">
@@ -1039,6 +1099,16 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
                     {statusStyles[m.status].label}
                     {m.teamName && ` · ${m.teamName}`}
                   </div>
+                  {m.lastSeen && (
+                    <div className="text-[9px] text-muted-foreground/80 flex items-center gap-1 mt-0.5">
+                      <Clock className="w-2.5 h-2.5" />
+                      {(() => {
+                        const diff = Date.now() - new Date(m.lastSeen).getTime();
+                        if (diff < 60_000) return 'just nu';
+                        return formatDistanceToNow(new Date(m.lastSeen), { addSuffix: true, locale: sv });
+                      })()}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -1163,7 +1233,40 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
               </div>
             )}
 
-            {/* Quick message */}
+            {/* Premium quick actions */}
+            <div className="flex gap-1 pt-1.5 border-t border-border/30">
+              <button
+                onClick={() => {
+                  if (!map.current || !staffPanel.latitude || !staffPanel.longitude) return;
+                  map.current.flyTo({ center: [staffPanel.longitude, staffPanel.latitude], zoom: 16, duration: 700 });
+                }}
+                disabled={!staffPanel.latitude || !staffPanel.longitude}
+                className="flex-1 flex items-center justify-center gap-1 text-[10px] font-medium px-2 py-1.5 rounded bg-muted hover:bg-muted/70 text-foreground transition-colors disabled:opacity-40"
+                title="Zooma till person"
+              >
+                <ZoomIn className="w-3 h-3" /> Zooma
+              </button>
+              <button
+                onClick={() => {
+                  if (followStaffId === staffPanel.id) {
+                    setFollowStaffId(null);
+                  } else {
+                    setFollowStaffId(staffPanel.id);
+                  }
+                }}
+                disabled={!staffPanel.latitude || !staffPanel.longitude}
+                className={`flex-1 flex items-center justify-center gap-1 text-[10px] font-semibold px-2 py-1.5 rounded transition-colors disabled:opacity-40 ${
+                  followStaffId === staffPanel.id
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted hover:bg-muted/70 text-foreground'
+                }`}
+                title={followStaffId === staffPanel.id ? 'Sluta följa' : 'Följ live'}
+              >
+                <Crosshair className="w-3 h-3" />
+                {followStaffId === staffPanel.id ? 'Slutar följa' : 'Följ live'}
+              </button>
+            </div>
+
             <div className="pt-1.5 border-t border-border/30">
               <div className="text-[9px] font-bold text-muted-foreground uppercase mb-1">Snabbmeddelande</div>
               <div className="flex gap-1">
