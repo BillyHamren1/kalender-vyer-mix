@@ -449,12 +449,29 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           source: STAFF_SOURCE_ID,
           filter: ['==', ['get', 'isHighlighted'], 1],
           paint: {
-            'circle-radius': 21,
+            'circle-radius': 18,
             'circle-color': 'hsl(184, 55%, 38%)',
-            'circle-opacity': 0.22,
+            'circle-opacity': 0.18,
             'circle-stroke-color': '#ffffff',
-            'circle-stroke-width': 2,
-            'circle-stroke-opacity': 0.85,
+            'circle-stroke-width': 1.5,
+            'circle-stroke-opacity': 0.75,
+          },
+        }, beforeId);
+      }
+
+      // Soft status glow under single staff (premium feel on satellite)
+      const STAFF_GLOW_LAYER_ID = 'ops-staff-glow-layer';
+      if (!mm.getLayer(STAFF_GLOW_LAYER_ID)) {
+        mm.addLayer({
+          id: STAFF_GLOW_LAYER_ID,
+          type: 'circle',
+          source: STAFF_SOURCE_ID,
+          filter: ['==', ['get', 'isCluster'], 0],
+          paint: {
+            'circle-radius': 16,
+            'circle-color': ['get', 'color'],
+            'circle-opacity': 0.18,
+            'circle-blur': 0.6,
           },
         }, beforeId);
       }
@@ -465,26 +482,30 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           type: 'circle',
           source: STAFF_SOURCE_ID,
           paint: {
-            // Larger base + grow with cluster size
+            // Compact premium pins. Clusters scale subtly with count.
             'circle-radius': [
-              'interpolate', ['linear'], ['get', 'clusterSize'],
-              1, 16,
-              3, 19,
-              6, 22,
-              10, 26,
+              'case',
+              ['==', ['get', 'isCluster'], 1],
+              ['interpolate', ['linear'], ['get', 'clusterSize'], 2, 13, 5, 16, 10, 19],
+              11,
             ],
-            'circle-color': ['get', 'color'],
+            // Cluster = dark slate badge, single = status color
+            'circle-color': [
+              'case',
+              ['==', ['get', 'isCluster'], 1], '#0f172a',
+              ['get', 'color'],
+            ],
             'circle-opacity': ['case', ['==', ['get', 'isOffline'], 1], 0.55, 1],
-            // Darker outer ring for clusters with mixed statuses
+            // Cluster ring = status color, single = white
             'circle-stroke-color': [
               'case',
-              ['==', ['get', 'mixedStatus'], 1], '#1f2937',
+              ['==', ['get', 'isCluster'], 1], ['get', 'color'],
               '#ffffff',
             ],
             'circle-stroke-width': [
               'case',
-              ['==', ['get', 'isCluster'], 1], 3.5,
-              3,
+              ['==', ['get', 'isCluster'], 1], 2.5,
+              2,
             ],
             'circle-stroke-opacity': 1,
           },
@@ -492,7 +513,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       }
 
       if (!mm.getLayer(STAFF_LABEL_LAYER_ID)) {
-        // Cluster: number centered on the dot
+        // Cluster: count centered on dark badge
         mm.addLayer({
           id: STAFF_LABEL_LAYER_ID,
           type: 'symbol',
@@ -500,20 +521,20 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           filter: ['==', ['get', 'isCluster'], 1],
           layout: {
             'text-field': ['get', 'initial'],
-            'text-size': 13,
+            'text-size': 12,
             'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
             'text-allow-overlap': true,
             'text-ignore-placement': true,
           },
           paint: {
             'text-color': '#ffffff',
-            'text-halo-color': 'rgba(0,0,0,0.55)',
-            'text-halo-width': 1.4,
+            'text-halo-color': 'rgba(0,0,0,0.0)',
+            'text-halo-width': 0,
           },
         });
       }
 
-      // Singel-marker: förnamn som pill UNDER dot
+      // Singel: förnamn som pill UNDER pin, endast vid hög zoom
       const STAFF_NAME_PILL_LAYER_ID = 'ops-staff-name-pill-layer';
       if (!mm.getLayer(STAFF_NAME_PILL_LAYER_ID)) {
         mm.addLayer({
@@ -521,21 +542,23 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           type: 'symbol',
           source: STAFF_SOURCE_ID,
           filter: ['==', ['get', 'isCluster'], 0],
+          minzoom: 10,
           layout: {
             'text-field': ['get', 'initial'],
-            'text-size': 11,
+            'text-size': 10.5,
             'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
             'text-anchor': 'top',
-            'text-offset': [0, 1.4],
-            'text-padding': 2,
+            'text-offset': [0, 1.1],
+            'text-padding': 3,
             'text-allow-overlap': false,
             'text-optional': true,
+            'text-letter-spacing': 0.02,
           },
           paint: {
             'text-color': '#ffffff',
-            'text-halo-color': 'rgba(15,23,42,0.92)',
-            'text-halo-width': 2.4,
-            'text-halo-blur': 0.4,
+            'text-halo-color': 'rgba(15,23,42,0.95)',
+            'text-halo-width': 2.2,
+            'text-halo-blur': 0.3,
           },
         });
       }
@@ -550,15 +573,16 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
             ['==', ['get', 'isCluster'], 0],
           ],
           paint: {
-            'circle-radius': 4,
+            'circle-radius': 3,
             'circle-color': '#22c55e',
             'circle-stroke-color': '#ffffff',
-            'circle-stroke-width': 1.5,
-            'circle-translate': [10, -10],
+            'circle-stroke-width': 1.2,
+            'circle-translate': [8, -8],
             'circle-opacity': 1,
           },
         });
       }
+
 
       const findMembers = (memberIdsStr: string) => {
         const ids = memberIdsStr.split(',');
