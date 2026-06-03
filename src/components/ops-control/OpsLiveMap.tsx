@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, MapPin, Users, Briefcase, Navigation, MessageCircle, Camera, Maximize2, Minimize2, Map as MapIcon, Satellite, Clock, Wifi, Building2 } from 'lucide-react';
+import { Loader2, MapPin, Users, Briefcase, Navigation, MessageCircle, Camera, Maximize2, Minimize2, Map as MapIcon, Satellite, Clock, Wifi, Building2, Crosshair, LocateFixed, X as XIcon, ZoomIn } from 'lucide-react';
 import { StaffLocation } from '@/services/planningDashboardService';
 import { OpsMapJob } from '@/services/opsControlService';
 import { useNavigate } from 'react-router-dom';
