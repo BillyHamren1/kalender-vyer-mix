@@ -360,7 +360,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
     });
 
     // Status priority: on_site > on_way > idle (for cluster color when mixed → use highest priority)
-    const statusPriority: Record<StaffStatus, number> = { on_site: 3, on_way: 2, idle: 1 };
+    const statusPriority: Record<StaffStatus, number> = { on_site: 6, on_way: 5, stale: 4, planned: 3, idle: 2, offline: 1 };
 
     const staffGeoJson = {
       type: 'FeatureCollection',
