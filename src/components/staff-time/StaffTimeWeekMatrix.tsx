@@ -92,7 +92,7 @@ export default function StaffTimeWeekMatrix() {
         setStatusFilter={setStatusFilter}
         onlyAnomalies={onlyAnomalies}
         setOnlyAnomalies={setOnlyAnomalies}
-        rowCountFiltered={filteredRows.length}
+        rowCountFiltered={filteredCount}
         rowCountTotal={matrix?.rows.length ?? 0}
       />
 
