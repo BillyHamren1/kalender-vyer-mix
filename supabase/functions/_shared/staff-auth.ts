@@ -86,6 +86,14 @@ export async function authenticateStaffRequest(
     }
     if (!staffRow?.organization_id) return { ok: false, err: { status: 404, error: "Staff not found" } };
 
+    // Single-device-per-staff: avvisa token vars sessionId inte matchar
+    // staff_members.active_mobile_session_id. Legacy tokens (utan sessionId)
+    // släpps igenom så länge active_mobile_session_id är NULL.
+    const activeSid = (staffRow as { active_mobile_session_id?: string | null }).active_mobile_session_id ?? null;
+    if (activeSid && mobile.sessionId !== activeSid) {
+      return { ok: false, err: { status: 401, error: "Sessionen avslutades – kontot är aktivt på en annan enhet." } };
+    }
+
     // Optional admin "view-as" — read-only impersonering via x-view-as-staff-header.
     const viewAsHeader = req.headers.get("x-view-as-staff");
     if (viewAsHeader && viewAsHeader !== mobile.staffId) {
