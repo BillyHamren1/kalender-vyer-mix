@@ -115,7 +115,9 @@ export const SimpleTimeSlot: React.FC<{
       style={{
         gridColumn,
         width: fullWidth ? 'auto' : (fixedWidth ? `${fixedWidth}px` : '100%'),
-        minWidth: fullWidth ? 0 : (fixedWidth ? `${fixedWidth}px` : '100%'),
+        minWidth: fullWidth
+          ? (fixedWidth ? `${fixedWidth}px` : 0)
+          : (fixedWidth ? `${fixedWidth}px` : '100%'),
         position: 'relative',
         overflow: 'hidden',
       }}
