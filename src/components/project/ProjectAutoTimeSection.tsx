@@ -10,7 +10,7 @@ import {
 import {
   Activity, Clock, Car, AlertTriangle, ChevronRight, ChevronDown, ExternalLink,
 } from 'lucide-react';
-import { useProjectTimeSummary } from '@/hooks/useProjectTimeSummary';
+import { useProjectReportedTime } from '@/hooks/useProjectReportedTime';
 import { supabase } from '@/integrations/supabase/client';
 import type { ProjectTarget, PtmSourceRow } from '@/lib/projects/projectTimeModel';
 import type { PlannedStaffMember } from '@/types/projectStaff';
@@ -68,7 +68,7 @@ const statusVariant: Record<StatusKind, 'default' | 'secondary' | 'outline' | 'd
 export const ProjectAutoTimeSection = ({ target, includeBookingIds = [], plannedStaff = [] }: Props) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { data: summary, isLoading } = useProjectTimeSummary({ target, includeBookingIds });
+  const { data: summary, isLoading } = useProjectReportedTime({ target, includeBookingIds });
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const { data: staffMap = {} } = useQuery({

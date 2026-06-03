@@ -1,3 +1,14 @@
+/**
+ * @deprecated Do not use in project views.
+ *
+ * Project views must not read time_reports / location_time_entries /
+ * travel_time_logs directly. Use `project_staff_time_cost_lines` via
+ * `useProjectReportedTime` / `fetchProjectStaffTimeCostSummaryForTargets`
+ * for reported project time.
+ *
+ * Kvar enbart för bakåtkompabilitet i admin/debug. Får INTE användas i
+ * projekt-/large-project-vyer.
+ */
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -8,6 +19,7 @@ import {
   type PtmLocationTimeEntry,
   type PtmTravelLog,
 } from '@/lib/projects/projectTimeModel';
+
 
 interface UseProjectTimeSummaryArgs {
   target: ProjectTarget | null;

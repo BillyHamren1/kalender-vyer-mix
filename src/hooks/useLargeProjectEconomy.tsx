@@ -9,24 +9,27 @@ import {
   deleteLargeProjectPurchase,
 } from '@/services/largeProjectService';
 import { fetchAllEconomyDataMulti } from '@/services/planningApiService';
-import { fetchProjectStaffHoursAsTimeReportsBookingOnly } from '@/services/projectHoursService';
-import { fetchLargeProjectHoursSummary } from '@/services/projectHoursService';
-import { fetchApprovedProjectStaffTimeCostSummary } from '@/services/projectStaffTimeCostLinesService';
+import { fetchProjectStaffTimeCostSummaryForTargets } from '@/services/projectStaffTimeCostLinesService';
 import type { StaffTimeReport } from '@/types/projectEconomy';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LARGE PROJECT ECONOMY (post tidrapport-attest):
-//   - FAKTISK personalkostnad för LP = `project_staff_time_cost_lines`
-//     filtrerade på large_project_id ELLER booking_id ∈ linkedBookings.
+// LARGE PROJECT ECONOMY (read-model):
+//   - FAKTISK personalkostnad/timmar = `project_staff_time_cost_lines`
+//     filtrerade på large_project_id ELLER booking_id ∈ linkedBookings i
+//     EN enda batchad query (fetchProjectStaffTimeCostSummaryForTargets).
 //     Dedup på row.id.
-//   - `staff_day_report_cache` (Time Engine) används endast som
-//     prognos/förslag — aldrig som faktisk kanonisk sanning.
-//   - `time_reports` används INTE som källa.
-//   - `timeReportsByBooking` lever kvar som DETALJ-breakdown per booking,
-//     aldrig som total.
+//   - `time_reports` / `location_time_entries` / `travel_time_logs` /
+//     `staff_day_report_cache` / `gps_pings` läses INTE från projektvyer.
+//   - `timeReportsByBooking` (per-booking detalj-breakdown) prefetchas EJ
+//     vid sidladdning. Detta orsakade N+1 mot staff_day_report_cache och
+//     gjorde stora projekt långsamma. Hämtas lazy vid behov (TODO: krok).
+//
+// Do not prefetch per-booking Time Engine summaries for large projects.
+// This causes N+1 staff_day_report_cache reads and makes large projects slow.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { LargeProjectBudget, LargeProjectPurchase } from '@/types/largeProject';
 import { supabase } from '@/integrations/supabase/client';
+
 
 interface AggregatedBookingEconomy {
   totalRevenue: number;
@@ -82,89 +85,64 @@ export const useLargeProjectEconomy = (
     enabled: bookingIds.length > 0,
   });
 
-  // DETAIL-only: per-booking time reports breakdown. STRIKT booking-target —
-  // får INTE ärva large_project_id, då dubbelräknas hela LP-totalen på varje
-  // syskonbooking. Large project-totalen kommer från largeProjectHours /
-  // approvedLpCostSummaries nedan.
-  const { data: timeReportsByBooking = {} } = useQuery({
-    queryKey: ['large-project-time-reports-booking-only', bookingIds],
-    queryFn: async () => {
-      const result: Record<string, StaffTimeReport[]> = {};
-      await Promise.all(bookingIds.map(async (bId) => {
-        try {
-          result[bId] = await fetchProjectStaffHoursAsTimeReportsBookingOnly(bId);
-        } catch (e) {
-          console.warn('[LargeProjectEcon] time reports fetch failed for', bId, e);
-          result[bId] = [];
-        }
-      }));
-      return result;
-    },
-    enabled: bookingIds.length > 0,
-  });
+  // DETAIL-only: per-booking time reports breakdown.
+  //
+  // Do not prefetch per-booking Time Engine summaries for large projects.
+  // This causes N+1 staff_day_report_cache reads and makes large projects slow.
+  //
+  // Tomt default. Om någon framtida vy behöver per-booking detalj måste den
+  // hämta den lazy (klick/expand), aldrig vid sidladdning.
+  const timeReportsByBooking: Record<string, StaffTimeReport[]> = {};
 
+  // PROGNOS-källa (Time Engine, staff_day_report_cache) DISABLED på sidladdning.
+  //
+  // Tidigare hämtades fetchLargeProjectHoursSummary direkt vid mount, vilket
+  // läser staff_day_report_cache för hela organisationen i datumfönstret. Den
+  // får numera bara köras via separat admin/dev-verktyg eller server-side
+  // projection. Vi exponerar därför inte längre largeProjectHours i UI.
+  const largeProjectHours: undefined = undefined;
 
-  // PROGNOS-källa (Time Engine, staff_day_report_cache). Endast förslag.
-  const { data: largeProjectHours } = useQuery({
-    queryKey: ['large-project-hours', largeProjectId, bookingIds],
-    queryFn: () => fetchLargeProjectHoursSummary(largeProjectId!, bookingIds),
-    enabled: !!largeProjectId,
-  });
-
-  // FAKTISK godkänd personalkostnad — project_staff_time_cost_lines för
-  // large_project_id ELLER booking_id ∈ bookingIds. Servicen dedupar på row.id.
+  // FAKTISK rapporterad personalkostnad — EN batchad query mot
+  // project_staff_time_cost_lines med OR på (large_project_id, booking_ids).
+  // Dedupar på row.id i servicen.
   const { data: approvedLpCostSummaries } = useQuery({
-    queryKey: ['large-project-approved-staff-cost', largeProjectId, bookingIds],
+    queryKey: ['large-project-cost-lines-batched', largeProjectId, bookingIds.slice().sort()],
     queryFn: async () => {
-      const results = await Promise.all([
-        fetchApprovedProjectStaffTimeCostSummary({ large_project_id: largeProjectId ?? null }),
-        ...bookingIds.map((bId) =>
-          fetchApprovedProjectStaffTimeCostSummary({ booking_id: bId }),
-        ),
-      ]);
-      // Dedupera på row.id över alla queries.
-      const seen = new Set<string>();
-      let approvedStaffHours = 0;
-      let approvedStaffCost = 0;
-      const byStaff = new Map<string, { staff_id: string; staff_name: string | null; totalMinutes: number; totalCost: number }>();
-      const byDate = new Map<string, { date: string; totalMinutes: number; totalCost: number; staff: Set<string> }>();
-      for (const sum of results) {
-        for (const r of sum.rows) {
-          if (seen.has(r.id)) continue;
-          seen.add(r.id);
-          approvedStaffHours += r.hours;
-          approvedStaffCost += r.cost;
-          const s = byStaff.get(r.staff_id) ?? { staff_id: r.staff_id, staff_name: r.staff_name, totalMinutes: 0, totalCost: 0 };
-          s.totalMinutes += r.minutes;
-          s.totalCost += r.cost;
-          if (!s.staff_name && r.staff_name) s.staff_name = r.staff_name;
-          byStaff.set(r.staff_id, s);
-          const d = byDate.get(r.date) ?? { date: r.date, totalMinutes: 0, totalCost: 0, staff: new Set<string>() };
-          d.totalMinutes += r.minutes;
-          d.totalCost += r.cost;
-          d.staff.add(r.staff_id);
-          byDate.set(r.date, d);
+      if (import.meta.env.DEV) {
+        console.info('[LargeProjectEcon] batched cost-line fetch', {
+          largeProjectId,
+          bookingCount: bookingIds.length,
+        });
+        if (bookingIds.length > 10) {
+          console.warn('[LargeProjectEcon] large project with > 10 bookings', bookingIds.length);
         }
       }
+      const summary = await fetchProjectStaffTimeCostSummaryForTargets({
+        large_project_id: largeProjectId ?? null,
+        booking_ids: bookingIds,
+      });
       return {
-        approvedStaffHours: +approvedStaffHours.toFixed(2),
-        approvedStaffCost,
-        byStaff: Array.from(byStaff.values())
-          .map((s) => ({ ...s, totalHours: +(s.totalMinutes / 60).toFixed(2) }))
-          .sort((a, b) => b.totalMinutes - a.totalMinutes),
-        byDate: Array.from(byDate.values())
-          .map((d) => ({
-            date: d.date,
-            totalMinutes: d.totalMinutes,
-            totalHours: +(d.totalMinutes / 60).toFixed(2),
-            totalCost: d.totalCost,
-            staffCount: d.staff.size,
-          }))
-          .sort((a, b) => a.date.localeCompare(b.date)),
+        approvedStaffHours: summary.totalHours,
+        approvedStaffCost: summary.totalCost,
+        byStaff: summary.byStaff.map((s) => ({
+          staff_id: s.staff_id,
+          staff_name: s.staff_name,
+          totalMinutes: s.totalMinutes,
+          totalHours: s.totalHours,
+          totalCost: s.totalCost,
+        })),
+        byDate: summary.byDate.map((d) => ({
+          date: d.date,
+          totalMinutes: d.totalMinutes,
+          totalHours: d.totalHours,
+          totalCost: d.totalCost,
+          staffCount: d.staffCount,
+        })),
       };
     },
-    enabled: !!largeProjectId,
+    enabled: !!largeProjectId || bookingIds.length > 0,
   });
+
   const aggregatedBookingEconomy: AggregatedBookingEconomy = (() => {
     const TAG = '[LargeProjectEcon]';
     if (!bookingEconomyData) {
@@ -258,11 +236,12 @@ export const useLargeProjectEconomy = (
   // Budget cost
   const budgetedCost = (budget?.budgeted_hours || 0) * (budget?.hourly_rate || 0);
 
-  // ── PROGNOS (Time Engine-cache) — endast förslag, ej kanonisk sanning ──
-  const proposedStaffHoursFromTimeEngine = largeProjectHours?.summary.totalHours ?? 0;
-  const proposedStaffCostFromTimeEngine = largeProjectHours?.totalCost ?? 0;
-  const staffHoursByPerson = largeProjectHours?.summary.staffSummaries ?? [];
-  const staffHoursByDay = largeProjectHours?.summary.daySummaries ?? [];
+  // ── PROGNOS (Time Engine-cache) — DISABLED på sidladdning, alltid 0/[] ──
+  const proposedStaffHoursFromTimeEngine = 0;
+  const proposedStaffCostFromTimeEngine = 0;
+  const staffHoursByPerson: never[] = [];
+  const staffHoursByDay: never[] = [];
+
 
   // ── FAKTISK godkänd personalkostnad (project_staff_time_cost_lines) ──
   const approvedStaffHours = approvedLpCostSummaries?.approvedStaffHours ?? 0;

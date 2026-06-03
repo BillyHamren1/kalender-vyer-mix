@@ -6,14 +6,19 @@
  *       • Large project → large_project_team_assignments × staff_assignments
  *       • Vanlig booking → booking_staff_assignments (paginerat)
  *   - staff_day_submissions per (staff_id, datum-fönster)
- *   - project_staff_time_cost_lines (LP + bookings, dedup på row.id)
+ *   - project_staff_time_cost_lines — EN batchad query för
+ *     (large_project_id ∪ booking_ids), dedupar på row.id
  *   - staff_members för namn
  *
- * Sidoeffekt: om det finns countable submissions men 0 byggda cost lines
- * triggas en engångs-backfill (`backfill-project-staff-time-cost-lines`)
- * och hooken refetchas.
+ * VIKTIGT — ändringar mot tidigare version:
+ *   - Backfill-side-effect (`backfill-project-staff-time-cost-lines`) är
+ *     BORTTAGEN. Frontend får aldrig automatiskt skriva när en sida öppnas.
+ *     Saknas cost lines visas det som diagnostik i dev — ingen write.
+ *   - Per-booking Promise.all mot cost lines är BORTTAGEN. All hämtning
+ *     går nu via fetchProjectStaffTimeCostSummaryForTargets — en query.
  *
- * Inga skrivningar mot time_reports/workdays/LTE/travel/GPS.
+ * Projektvyer får INTE läsa time_reports / location_time_entries /
+ * travel_time_logs / staff_day_report_cache direkt här.
  */
 import { useEffect, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -29,7 +34,7 @@ import {
   loadBookingAssignedDays,
   loadLargeProjectAssignedDays,
 } from '@/lib/projects/loadProjectAssignedDays';
-import { fetchApprovedProjectStaffTimeCostSummary } from '@/services/projectStaffTimeCostLinesService';
+import { fetchProjectStaffTimeCostSummaryForTargets } from '@/services/projectStaffTimeCostLinesService';
 
 interface Params {
   largeProjectId?: string | null;
@@ -78,6 +83,19 @@ export function useProjectDailyStaffTimeOverview({
     queryKey,
     enabled: enabledQuery,
     queryFn: async (): Promise<DailyOverviewRow[]> => {
+      const t0 = performance.now();
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.info('[useProjectDailyStaffTimeOverview] fetch', {
+          largeProjectId: largeProjectId ?? null,
+          bookingCount: bookingIds.length,
+        });
+        if (bookingIds.length > 10) {
+          // eslint-disable-next-line no-console
+          console.warn('[useProjectDailyStaffTimeOverview] > 10 bookingIds', bookingIds.length);
+        }
+      }
+
       // 1. Planerade personer från personalkalendern
       let assignedDays: AssignedDay[] = [];
       if (largeProjectId) {
@@ -89,38 +107,29 @@ export function useProjectDailyStaffTimeOverview({
       const dateSet = new Set<string>(assignedDays.map((a) => a.date));
       const staffSet = new Set<string>(assignedDays.map((a) => a.staff_id));
 
-      // 2. Godkända/oattesterade cost lines
-      const approvedSummaries = await Promise.all([
-        largeProjectId
-          ? fetchApprovedProjectStaffTimeCostSummary({ large_project_id: largeProjectId })
-          : Promise.resolve(null),
-        ...bookingIds.map((bId) =>
-          fetchApprovedProjectStaffTimeCostSummary({ booking_id: bId }),
-        ),
-      ]);
-      const seenIds = new Set<string>();
-      const approvedRows: ApprovedRowInput[] = [];
-      for (const sum of approvedSummaries) {
-        if (!sum) continue;
-        for (const r of sum.rows) {
-          const k = `__id__:${(r as any).id}`;
-          if (seenIds.has(k)) continue;
-          seenIds.add(k);
-          approvedRows.push({
-            date: r.date,
-            staff_id: r.staff_id,
-            minutes: r.minutes,
-            cost: r.cost,
-            approvalState: r.approvalState,
-            hourlyRate: r.hourly_rate,
-            rateSource: r.rate_source,
-            submissionStatus: r.submission_status,
-            startAt: r.start_at,
-            endAt: r.end_at,
-          });
-          dateSet.add(r.date);
-          staffSet.add(r.staff_id);
-        }
+      // 2. BATCHAD cost-line-fetch (LP + alla bookings i EN query, dedup på id)
+      const summary = await fetchProjectStaffTimeCostSummaryForTargets({
+        large_project_id: largeProjectId ?? null,
+        booking_ids: bookingIds,
+      });
+      const approvedRows: ApprovedRowInput[] = summary.rows
+        .filter((r) => r.approvalState !== 'excluded')
+        .map((r) => ({
+          date: r.date,
+          staff_id: r.staff_id,
+          minutes: r.minutes,
+          cost: r.cost,
+          approvalState: r.approvalState as 'approved' | 'unapproved',
+          hourlyRate: r.hourly_rate,
+          rateSource: r.rate_source,
+          submissionStatus: r.submission_status,
+          startAt: r.start_at,
+          endAt: r.end_at,
+        }));
+
+      for (const r of summary.rows) {
+        dateSet.add(r.date);
+        staffSet.add(r.staff_id);
       }
 
       // 3. Submissions i fönstret
@@ -165,21 +174,34 @@ export function useProjectDailyStaffTimeOverview({
         });
       }
 
-      return buildProjectDailyStaffTimeOverview({
+      const result = buildProjectDailyStaffTimeOverview({
         assignedDays,
         submissions,
         approvedRows,
         staffNames,
       });
+
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.info('[useProjectDailyStaffTimeOverview] done', {
+          rowCount: summary.rows.length,
+          days: result.length,
+          elapsedMs: Math.round(performance.now() - t0),
+        });
+      }
+      return result;
     },
   });
 
-  // ─── Sidoeffekt: engångs-backfill om submissions finns men cost lines saknas
-  const backfilledRef = useRef<string | null>(null);
+  // ─── Dev-diagnostik: cost lines saknas trots countable submissions.
+  // INGEN backfill, INGEN write. Backfill/projection körs server-side via
+  // submit/correction/status-update eller manuellt via admin/dev-verktyg.
+  const warnedRef = useRef<string | null>(null);
   useEffect(() => {
+    if (!import.meta.env.DEV) return;
     if (!enabledQuery || !data) return;
     const fingerprint = queryKey.join('::');
-    if (backfilledRef.current === fingerprint) return;
+    if (warnedRef.current === fingerprint) return;
 
     const hasCountableSubmission = data.some((d) =>
       d.rows.some(
@@ -187,23 +209,17 @@ export function useProjectDailyStaffTimeOverview({
       ),
     );
     const hasAnyCostLine = data.some((d) => d.totals.totalMinutes > 0);
-    if (!hasCountableSubmission || hasAnyCostLine) return;
-
-    backfilledRef.current = fingerprint;
-    (async () => {
-      try {
-        const body: any = {};
-        if (largeProjectId) body.large_project_id = largeProjectId;
-        else if (bookingIds.length > 0) body.booking_ids = bookingIds;
-        await supabase.functions.invoke('backfill-project-staff-time-cost-lines', {
-          body,
-        });
-        refetch();
-      } catch (e) {
-        console.warn('[useProjectDailyStaffTimeOverview] backfill failed', e);
-      }
-    })();
-  }, [data, enabledQuery, largeProjectId, bookingIds, refetch, queryKey]);
+    if (hasCountableSubmission && !hasAnyCostLine) {
+      warnedRef.current = fingerprint;
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[useProjectDailyStaffTimeOverview] countable submissions men 0 cost lines.' +
+          ' Kör projection server-side (rebuild-project-time-projection / backfill).' +
+          ' Frontend triggar INTE backfill automatiskt.',
+        { largeProjectId, bookingCount: bookingIds.length },
+      );
+    }
+  }, [data, enabledQuery, largeProjectId, bookingIds, queryKey]);
 
   return useMemo(
     () => ({
