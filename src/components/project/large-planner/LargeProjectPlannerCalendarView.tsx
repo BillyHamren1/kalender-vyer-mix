@@ -35,6 +35,7 @@ import {
   buildPlannerResourcesForDay,
   mapPlannerItemsToCalendarEvents,
   plannerItemIdFromEventId,
+  UNASSIGNED_RESOURCE_ID,
 } from './LargeProjectPlannerCalendarAdapter';
 import type { useLargeProjectPlannerItems } from './useLargeProjectPlannerItems';
 
@@ -169,7 +170,10 @@ const LargeProjectPlannerCalendarView = ({
       const plannerItemId = plannerItemIdFromEventId(payload.id);
       if (!plannerItemId) return; // inte ett planner-item — ignorera
 
-      const nextTeamId = targetResourceId;
+      // Drop på "Ej tilldelat"-kolumnen → frigör team-tilldelningen (null).
+      // Drop på riktig team-kolumn → sätt team-id.
+      const nextTeamId =
+        targetResourceId === UNASSIGNED_RESOURCE_ID ? null : targetResourceId;
 
       try {
         await updateItem(plannerItemId, {

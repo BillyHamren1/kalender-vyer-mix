@@ -1,32 +1,27 @@
 /**
- * ProjectCalendarView
+ * ProjectCalendarView — LEGACY: Single-booking project calendar only.
  * --------------------------------------------------------------------------
- * Tunn wrapper kring EXAKT samma kalender-rigg som personalkalendern
- * (CustomCalendarPage). Skillnaden är bara:
- *  - lila tema (theme-purple sätts av ProjectLayout)
- *  - events filtreras till projektets bookings
- *  - kalendern visar BARA projektets faktiska dagar (rig/event/rigdown),
- *    sida vid sida, horisontellt scrollbart — via daysOverride-propen.
+ * Denna komponent används BARA av vanliga single-booking-projekt
+ * (`EstablishmentPage` med `isLargeProject={false}`).
  *
- * All annan logik (team-kolumner, staff per dag, drag/drop, +-knappen,
- * dag-expansion) ärvs oförändrad från CustomCalendar.
+ * ❌ Får INTE användas för stora projekt eller intern large-project-
+ *    planering. Använd `LargeProjectBookingPlannerCalendar` istället
+ *    (src/components/project/large-planner/).
  *
- * ⚠️ SEPARATIONSVARNING (se .lovable/large-project-calendar-audit.md)
- * --------------------------------------------------------------------------
- * Denna komponent ÅTERANVÄNDER personalkalenderns write-handlers och
- * skriver därför fortfarande till:
+ * Återanvänder personalkalenderns write-handlers och skriver fortfarande
+ * till:
  *   • calendar_events            (via CustomCalendar/useEventDragDrop)
  *   • staff_assignments          (via useUnifiedStaffOperations.handleStaffDrop)
  *   • booking_staff_assignments  (via warehouseAssignmentsSync + RPC)
  *   • large_project_team_assignments (via largeProjectPlannerService)
  *
- * Det är OK för det "normala" project-perspektivet i dag, men för intern
- * bokningsplanering i STORA projekt måste man använda den nya isolerade
- * komponenten:
- *     src/components/project/large-planner/LargeProjectBookingPlannerCalendar.tsx
+ * Det är OK för det normala project-perspektivet på ett single-booking-
+ * projekt, men för stora projekt blandar det ihop projektkalendern med
+ * personalkalenderns write-paths. Lägg INTE till nya intern-plan-features
+ * här — bygg dem i den isolerade `LargeProjectBookingPlannerCalendar`.
  *
- * Lägg INTE till nya intern-plan-features här. Bygg dem i den isolerade
- * komponenten istället.
+ * En runtime DEV-guard nedan varnar om komponenten används med
+ * `isLargeProject={true}`.
  */
 import { useMemo, useState, type ReactNode } from 'react';
 import { format, parseISO } from 'date-fns';
@@ -72,6 +67,19 @@ const ProjectCalendarView = ({
   compactHeader,
   onEventClick,
 }: Props) => {
+  // DEV-GUARD: ProjectCalendarView är LEGACY single-booking-only.
+  // Stora projekt har sin egen isolerade kalender
+  // (LargeProjectBookingPlannerCalendar) som inte skriver till
+  // calendar_events / staff_assignments / booking_staff_assignments /
+  // large_project_team_assignments / bookings.
+  if (isLargeProject && import.meta.env?.DEV) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[ProjectCalendarView] FORBIDDEN USAGE: ProjectCalendarView används med isLargeProject=true. ' +
+      'Detta är förbjudet — använd LargeProjectBookingPlannerCalendar istället.',
+      { projectId, bookingId },
+    );
+  }
   // 1. Hämta projektets events.
   const { events: projectEvents, refetch: refetchProject } = useProjectCalendarDays({
     projectId,
