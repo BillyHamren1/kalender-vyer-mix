@@ -350,20 +350,24 @@ const OpsControlCenter = () => {
               </div>
             </section>
 
-            {/* Dagens jobb — horizontal panel under map */}
+            {/* Dagens jobb — operations list under map */}
             <section
               className="planning-card overflow-hidden flex flex-col shrink-0"
-              style={{ padding: 0, height: '260px' }}
+              style={{ padding: 0, height: '300px' }}
             >
               <div className="flex items-center justify-between px-3.5 pt-3 pb-2 shrink-0">
                 <h3 className="planning-section-title">Dagens jobb</h3>
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-[11px] text-muted-foreground tabular-nums">
                   {kpis.staffOnSite} på plats · {kpis.jobsToday} jobb
                 </span>
               </div>
-              <div className="flex-1 min-h-0 overflow-auto px-3 pb-3">
-                <OpsPlanningDayPanel />
-              </div>
+              <OpsTodayJobsPanel
+                mapJobs={mapJobs}
+                timeline={timeline}
+                isLoading={isLoadingMapJobs}
+                onFocusJob={handleFocusJob}
+                selectedBookingId={selectedJobBookingId}
+              />
             </section>
           </div>
         </div>
