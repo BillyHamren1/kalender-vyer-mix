@@ -288,7 +288,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                     <Button
                       size="sm"
                       onClick={() => handleReviewUpdate(meta)}
-                      className="h-8 px-3 text-xs gap-1.5 font-medium bg-indigo-600 hover:bg-indigo-700 text-white"
+                      className="h-8 px-3 text-xs gap-1.5 font-medium bg-amber-600 hover:bg-amber-700 text-white"
                       title="Granska ändringar och bekräfta mottagen"
                       disabled={markSeen.isPending}
                     >
