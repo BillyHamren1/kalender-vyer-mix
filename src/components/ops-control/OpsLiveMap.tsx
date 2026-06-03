@@ -919,7 +919,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           : 'relative w-full h-full overflow-hidden rounded-xl border-2 border-border'
       }
     >
-      <div ref={mapContainer} className="w-full h-full" />
+      <div ref={mapContainer} className="w-full h-full" style={{ touchAction: 'none' }} />
       <style>{`@keyframes opspulse { 0%,100% { opacity:.18; transform:translate(-50%,-50%) scale(1);} 50% { opacity:.42; transform:translate(-50%,-50%) scale(1.25);} }`}</style>
 
       {/* Loading */}
