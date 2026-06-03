@@ -872,10 +872,6 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
     }, 50);
   }, []);
 
-  const MAP_STYLES = {
-    streets: 'mapbox://styles/mapbox/navigation-day-v1',
-    satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
-  };
 
   const toggleMapStyle = useCallback(() => {
     const m = map.current;
