@@ -154,21 +154,23 @@ export default function StaffPayrollReport() {
       )}
 
       {matrix && visibleRows.length > 0 && (
-        <div className="bg-neutral-100 print:bg-white py-6 print:py-0 px-4 print:px-0">
+        <div className="bg-muted/30 print:bg-white py-6 print:py-0 px-4 lg:px-6 print:px-0">
           {hiddenEmptyCount > 0 && (
-            <div className="payroll-no-print max-w-[820px] mx-auto mb-3 text-[11px] text-muted-foreground text-right">
+            <div className="payroll-no-print mb-3 text-[11px] text-muted-foreground text-right">
               {hiddenEmptyCount} {hiddenEmptyCount === 1 ? "person" : "personer"} utan registrerad tid göms
             </div>
           )}
-          {visibleRows.map((row) => (
-            <StaffPayrollReportSheet
-              key={row.staffId}
-              row={row}
-              weekStart={weekStart}
-              weekEnd={weekEnd}
-              onOpenDay={(staffId, date) => setOpenDay({ staffId, date })}
-            />
-          ))}
+          <div className="space-y-6 print:space-y-0">
+            {visibleRows.map((row) => (
+              <StaffPayrollReportSheet
+                key={row.staffId}
+                row={row}
+                weekStart={weekStart}
+                weekEnd={weekEnd}
+                onOpenDay={(staffId, date) => setOpenDay({ staffId, date })}
+              />
+            ))}
+          </div>
         </div>
       )}
 
