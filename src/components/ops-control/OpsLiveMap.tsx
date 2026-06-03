@@ -164,6 +164,8 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
           });
         }
         map.current.addControl(new mapboxgl.NavigationControl({ showCompass: false, visualizePitch: false }), 'top-right');
+        map.current.on('dragstart', () => { userInteractedRef.current = true; });
+        map.current.on('zoomstart', () => { userInteractedRef.current = true; });
         map.current.on('load', () => {
           if (!cancelled) {
             setMapReady(true);
