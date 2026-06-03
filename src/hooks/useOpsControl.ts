@@ -9,11 +9,41 @@ import { addDays, format } from 'date-fns';
 export const useOpsControl = () => {
   const [timelineDate, setTimelineDate] = useState<Date>(new Date());
 
+  const devLog = (scope: string, payload: any) => {
+    if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
+      console.log(`[ops-control][realtime] ${scope}`, payload);
+    }
+  };
+
+  // Planning-data → invaliderar bara timeline / job-queue / map-jobs
   useRealtimeInvalidation({
-    channelName: 'ops-control-realtime',
-    tables: ['calendar_events', 'staff_assignments', 'booking_staff_assignments', 'bookings', 'staff_messages', 'broadcast_messages'],
-    queryKeys: [['ops-control']],
+    channelName: 'ops-control-planning',
+    tables: [
+      { table: 'calendar_events', events: ['INSERT', 'UPDATE', 'DELETE'], onEvent: (p) => { devLog('calendar_events', p?.eventType); } },
+      { table: 'staff_assignments', events: ['INSERT', 'UPDATE', 'DELETE'], onEvent: (p) => { devLog('staff_assignments', p?.eventType); } },
+      { table: 'booking_staff_assignments', events: ['INSERT', 'UPDATE', 'DELETE'], onEvent: (p) => { devLog('booking_staff_assignments', p?.eventType); } },
+      { table: 'bookings', events: ['INSERT', 'UPDATE', 'DELETE'], onEvent: (p) => { devLog('bookings', p?.eventType); } },
+    ],
+    queryKeys: [
+      ['ops-control', 'timeline'],
+      ['ops-control', 'job-queue'],
+      ['ops-control', 'map-jobs'],
+    ],
+    debounceMs: 1000,
   });
+
+  // Messages → invaliderar bara messages
+  useRealtimeInvalidation({
+    channelName: 'ops-control-messages',
+    tables: [
+      { table: 'staff_messages', events: ['INSERT'], onEvent: (p) => { devLog('staff_messages', p?.eventType); } },
+      { table: 'broadcast_messages', events: ['INSERT'], onEvent: (p) => { devLog('broadcast_messages', p?.eventType); } },
+    ],
+    queryKeys: [['ops-control', 'messages']],
+    debounceMs: 1000,
+  });
+
 
   const metricsQuery = useQuery<OpsMetrics>({
     queryKey: ['ops-control', 'metrics'],
