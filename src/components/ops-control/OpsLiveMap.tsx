@@ -1061,7 +1061,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       </div>
 
       {/* Selected job panel */}
-      {selectedJob && (
+      {selectedJob && showJobs && (
         <div className="absolute top-2 right-2 w-56 bg-card border border-border rounded-lg shadow-lg overflow-hidden animate-in fade-in slide-in-from-right-2 duration-150 z-20">
           <div className="px-3 py-2 border-b border-border flex items-center justify-between">
             <span className="text-[11px] font-bold text-foreground truncate">{selectedJob.client}</span>
