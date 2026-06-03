@@ -488,6 +488,9 @@ export const fetchStaffLocations = async (): Promise<StaffLocation[]> => {
   }
 
   extra.results = results.length;
+  if (import.meta.env.DEV) {
+    console.debug('[fetchStaffLocations:done]', { resultCount: results.length });
+  }
   return results;
   }, extra);
 };
