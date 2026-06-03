@@ -763,16 +763,19 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
       bounds.extend([loc.longitude!, loc.latitude!]);
     });
 
-    // Fit bounds
-    if (hasPoints) {
+    // Fit bounds — endast första gången punkter dyker upp och bara om användaren
+    // inte redan har pannat/zoomat. Refetch av locations/mapJobs får inte flytta kartan.
+    if (hasPoints && !hasInitialFitRef.current && !userInteractedRef.current) {
       const coords = [
         ...staffWithCoords.map(l => [l.longitude!, l.latitude!] as [number, number]),
         ...mapJobs.filter(j => j.latitude && j.longitude).map(j => [j.longitude!, j.latitude!] as [number, number]),
       ];
       if (coords.length === 1) {
         map.current.flyTo({ center: coords[0], zoom: 12 });
+        hasInitialFitRef.current = true;
       } else if (coords.length > 1) {
         map.current.fitBounds(bounds, { padding: 50, maxZoom: 13 });
+        hasInitialFitRef.current = true;
       }
     }
   }, [mapReady, locations, mapJobs, clearMarkers, styleRevision, showJobs]);
