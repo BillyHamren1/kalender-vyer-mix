@@ -122,6 +122,14 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
           todo_id,
           customer_pickup
         `)
+        // ──────────────────────────────────────────────────────────────
+        // POLICY: event-fasen är MEDVETET exkluderad här.
+        // Personalkalendern visar bara bemanningsbara dagar (rig + rigDown
+        // + todo + Lager). Eventdagen finns kvar i databasen som data men
+        // ska aldrig renderas som ett bemanningsbart kalenderblock i
+        // personalkalendern eller den interna projektplaneraren.
+        // Se constraint: staff-calendar-no-event-day-v1.
+        // ──────────────────────────────────────────────────────────────
         .neq('event_type', 'event')
         .gte('start_time', windowFrom)
         .lte('start_time', windowTo)
@@ -154,6 +162,35 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
 
   const elapsed = Math.round(performance.now() - t0);
   console.log(`✅ [fetchCalendarEvents] Fetched ${realRows.length} real calendar rows across ${pageIndex} page(s) in ${elapsed}ms (window ${windowFrom} → ${windowTo})`);
+
+  if (import.meta.env?.DEV) {
+    // Sanity-check att event-fasen verkligen filtreras bort på DB-nivå.
+    // Om någon rad med event_type='event' tar sig hit har .neq-filtret slutat
+    // fungera och personalkalendern börjar visa eventdagar.
+    const byType = new Map<string, number>();
+    for (const r of realRows) {
+      const t = String((r as any).event_type ?? 'null');
+      byType.set(t, (byType.get(t) ?? 0) + 1);
+    }
+    const eventLeak = byType.get('event') ?? 0;
+    // eslint-disable-next-line no-console
+    console.info('[fetchCalendarEvents] event_type breakdown', {
+      total: realRows.length,
+      rig: byType.get('rig') ?? 0,
+      rigDown: (byType.get('rigDown') ?? 0) + (byType.get('rigdown') ?? 0),
+      todo: byType.get('todo') ?? 0,
+      event_leak_THIS_SHOULD_BE_ZERO: eventLeak,
+      other: Object.fromEntries(
+        Array.from(byType.entries()).filter(
+          ([k]) => !['rig', 'rigDown', 'rigdown', 'todo', 'event'].includes(k),
+        ),
+      ),
+    });
+    if (eventLeak > 0) {
+      // eslint-disable-next-line no-console
+      console.warn('[fetchCalendarEvents] LEAK: event-fas-rader kom igenom .neq-filtret. Personalkalendern kan börja visa eventdagar.');
+    }
+  }
   const fromDate = realRows.length > 0
     ? extractMinDate(realRows.map(event => event.source_date || event.start_time))
     : format(subDays(new Date(), 14), 'yyyy-MM-dd');

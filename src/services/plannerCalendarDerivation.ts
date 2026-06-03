@@ -338,7 +338,13 @@ export const buildPlannerCalendarEvents = ({
     }
 
     if (projectId && phase && sourceDate) {
-      // Hide the event-day phase from the planner (legacy rule).
+      // ────────────────────────────────────────────────────────────────
+      // Event phase is intentionally hidden in staff planning calendars.
+      // Event days are not staffed/planned here — only rig + rigDown are
+      // bemanningsbara dagar för stora projekt. Eventdagen finns kvar i
+      // calendar_events men ska aldrig generera ett kalenderkort.
+      // Constraint: staff-calendar-no-event-day-v1.
+      // ────────────────────────────────────────────────────────────────
       if (phase === 'event') { eventDaysHidden++; if (isTraced) trace('skip:event_day_hidden', { id: row.id }); continue; }
       // Project-linked rows REQUIRE a resource_id to be placed in a team
       // column. If missing, skip silently (sync should backfill it).

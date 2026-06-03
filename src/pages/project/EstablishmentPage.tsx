@@ -1,3 +1,11 @@
+/**
+ * EstablishmentPage — vanliga single-booking-projekt.
+ * --------------------------------------------------------------------------
+ * Använder LEGACY `ProjectCalendarView` (single-booking only). Stora projekt
+ * har en separat sida: `LargeEstablishmentPage` med
+ * `LargeProjectBookingPlannerCalendar`. Blanda inte ihop dem — projekt-
+ * kalendern och personalkalendern är hårt separerade.
+ */
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useOutletContext, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";

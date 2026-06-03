@@ -8,30 +8,27 @@
  *
  * STRIKT:
  *  - Får INTE läsa eller skriva supabase-tabeller.
- *  - resourceId = TEAM-id (team-1 … team-5).
- *  - Projektkalendern har ALLTID fasta kolumner team-1 … team-5 (samma som
- *    personalkalendern). Ingen "Ej tilldelat"-kolumn.
- *  - Items utan assigned_team_id renderas i team-1 som default.
+ *  - resourceId = TEAM-id (team-1 … team-5) eller `unassigned`.
+ *  - Items utan assigned_team_id routas till `unassigned`-kolumnen
+ *    (visas som "Ej tilldelat") — INTE till team-1. Drag/drop sätter
+ *    assigned_team_id; drag tillbaka till `unassigned` sätter null.
  *
- * Mapping:
- *  - item.id                         → event.id  (prefix "planner-item-")
- *  - item.title                      → event.title
- *  - item.plan_date + start/end_time → event.start / event.end
- *  - item.assigned_team_id           → event.resourceId
- *    (saknas team → DEFAULT_TEAM_ID)
- *  - item.booking_id                 → event.bookingId
- *  - eventType                       → 'internal_task' | 'todo'
- *  - extendedProps                   → planner-metadata (se nedan).
+ * EVENT-FAS:
+ *  Event booking phase is intentionally hidden from the internal large
+ *  project planner calendar. Same rule as personalkalendern — bara rig
+ *  och rigDown bemannas/planeras här. Constraint:
+ *  staff-calendar-no-event-day-v1.
  */
 import { type CalendarEvent, type Resource, getEventColor } from '@/components/Calendar/ResourceData';
 import type { PlannerItemWithValidity } from './useLargeProjectPlannerItems';
 import type { LargeProjectPlannerTeam } from './largeProjectPlannerTypes';
 
 /**
- * Default-team för items utan assigned_team_id.
- * Items hamnar i team-1 tills användaren drar dem till rätt kolumn.
+ * Reserverad resource-id för items utan assigned_team_id.
+ * Renderas som en separat kolumn "Ej tilldelat" längst till vänster.
  */
-export const DEFAULT_TEAM_ID = 'team-1';
+export const UNASSIGNED_RESOURCE_ID = 'unassigned';
+export const UNASSIGNED_RESOURCE_TITLE = 'Ej tilldelat';
 
 /**
  * Fasta team-kolumner i projektkalendern — identiskt med personalkalendern.
@@ -68,22 +65,26 @@ const teamTitleFor = (teamId: string): string => {
 };
 
 /**
- * Bygger TEAM-kolumner för EN projektdag.
- * Returnerar ALLTID exakt fem fasta kolumner team-1 … team-5 (samma som
- * personalkalendern). Personal-badges per team hämtas separat av
- * weeklyStaffOperations i vyn (från LPTA).
- *
- * Resource.id === teamId är vad TimeGrid använder för column matching,
- * och vad onEventDrop får tillbaka som targetResourceId.
+ * Bygger kolumner för EN projektdag.
+ * Returnerar alltid `unassigned` + team-1 … team-5. `unassigned` placeras
+ * först så att otilldelade items syns omedelbart.
  */
 export const buildPlannerResourcesForDay = (
   _teamsForDay: LargeProjectPlannerTeam[],
 ): Resource[] => {
-  return FIXED_TEAM_IDS.map((teamId) => ({
-    id: teamId,
-    title: teamTitleFor(teamId),
-    eventColor: 'hsl(var(--primary))',
-  }));
+  const unassigned: Resource = {
+    id: UNASSIGNED_RESOURCE_ID,
+    title: UNASSIGNED_RESOURCE_TITLE,
+    eventColor: 'hsl(var(--muted-foreground))',
+  };
+  return [
+    unassigned,
+    ...FIXED_TEAM_IDS.map((teamId) => ({
+      id: teamId,
+      title: teamTitleFor(teamId),
+      eventColor: 'hsl(var(--primary))',
+    })),
+  ];
 };
 
 interface MapOptions {
@@ -102,11 +103,17 @@ interface MapOptions {
 
 /**
  * Mappar planner-items till CalendarEvent[].
- * Item utan assigned_team_id routas till DEFAULT_TEAM_ID (team-1).
  *
- * Orderrad-todos (item_type === 'task' && booking_product_id != null)
- * filtreras BORT — de visas i BookingPlannerSheet vid klick på bokningens
- * block, inte som egna kalenderhändelser.
+ * Filterregler:
+ *  - Orderrad-todos (booking_product_id != null) renderas ALDRIG som egna
+ *    kalenderblock — de bor i BookingPlannerSheet.
+ *  - Event booking phase (item_type='booking' + source_booking_phase='event')
+ *    är medvetet dold — se top-of-file kommentar.
+ *  - Endast item_type='booking' renderas i kalendern; todos/tasks lever
+ *    i Checklista-vyn.
+ *
+ * Default-routing:
+ *  - Items utan assigned_team_id → `UNASSIGNED_RESOURCE_ID` (separat kolumn).
  */
 export const mapPlannerItemsToCalendarEvents = (
   items: PlannerItemWithValidity[],
@@ -127,13 +134,35 @@ export const mapPlannerItemsToCalendarEvents = (
     todoStats.set(key, cur);
   }
 
-  return items
-    .filter((it) => !it.booking_product_id)
-    // Dölj eventdagar — samma logik som personalkalendern (Staff Calendar No Event Day).
-    .filter((it) => !(it.item_type === 'booking' && it.source_booking_phase === 'event'))
-    // Lugn kalender: ENDAST faseblock (booking-items) renderas i kalendern.
-    // Todos (task/manual/split) lever i Checklista-vyn — annars blir kalendern rörig.
-    .filter((it) => it.item_type === 'booking')
+  // Dev-counters för diagnostik.
+  let cnt_in = 0;
+  let cnt_orderrow_filtered = 0;
+  let cnt_event_filtered = 0;
+  let cnt_non_booking_filtered = 0;
+  let cnt_rig = 0;
+  let cnt_rigDown = 0;
+  let cnt_other_phase = 0;
+  let cnt_unassigned = 0;
+
+  const out = items
+    .map((it) => {
+      cnt_in++;
+      if (it.booking_product_id) {
+        cnt_orderrow_filtered++;
+        return null;
+      }
+      // Dölj eventdagar — samma regel som personalkalendern.
+      if (it.item_type === 'booking' && it.source_booking_phase === 'event') {
+        cnt_event_filtered++;
+        return null;
+      }
+      if (it.item_type !== 'booking') {
+        cnt_non_booking_filtered++;
+        return null;
+      }
+      return it;
+    })
+    .filter((it): it is PlannerItemWithValidity => it !== null)
     .map((it) => {
       const startTime = normalizeTime(it.start_time, FALLBACK_START);
       const endTime = normalizeTime(it.end_time, FALLBACK_END);
@@ -142,26 +171,30 @@ export const mapPlannerItemsToCalendarEvents = (
 
       const tone = STATUS_COLOR[it.status] ?? STATUS_COLOR.planned;
 
-      // Team-kolumn = primär dimension. Saknas team → default-team (team-1).
+      // Team-kolumn = primär dimension. Saknas team → UNASSIGNED-kolumnen,
+      // INTE team-1 (tidigare fel skulle dölja oplanerade items bland riktig
+      // bemanning).
       const assignmentInvalid = false;
-      const resourceId = it.assigned_team_id ?? DEFAULT_TEAM_ID;
+      const resourceId = it.assigned_team_id ?? UNASSIGNED_RESOURCE_ID;
+      if (!it.assigned_team_id) cnt_unassigned++;
 
       const booking = it.booking_id
         ? bookingDisplayById?.get(it.booking_id) ?? null
         : null;
 
       // Bokningar (item_type='booking') ärver fas-färgen från personal-
-      // kalendern: rig=ljusgrön, rigDown=ljusröd. Status-tonen används
-      // fortfarande för tasks/manual/split-items.
-      const isBookingItem = it.item_type === 'booking';
+      // kalendern: rig=ljusgrön, rigDown=ljusröd.
       const phaseEventType =
         it.source_booking_phase === 'rig'
           ? 'rig'
           : it.source_booking_phase === 'rigDown'
             ? 'rigDown'
             : null;
-      const bgColor = isBookingItem && phaseEventType ? getEventColor(phaseEventType) : tone.bg;
-      const eventTypeForCard = isBookingItem && phaseEventType ? phaseEventType : (it.item_type === 'task' ? 'todo' : 'internal_task');
+      if (phaseEventType === 'rig') cnt_rig++;
+      else if (phaseEventType === 'rigDown') cnt_rigDown++;
+      else cnt_other_phase++;
+      const bgColor = phaseEventType ? getEventColor(phaseEventType) : tone.bg;
+      const eventTypeForCard = phaseEventType ?? 'internal_task';
 
       const phaseLabel =
         it.source_booking_phase === 'rig'
@@ -201,6 +234,7 @@ export const mapPlannerItemsToCalendarEvents = (
           plannerItemType: it.item_type,
           plannerTodoTotal: todoSummary?.total ?? 0,
           plannerTodoDone: todoSummary?.done ?? 0,
+          plannerUnassigned: !it.assigned_team_id,
           largeProjectId,
           bookingId: it.booking_id,
           assignedStaffId: it.assigned_staff_id,
@@ -218,8 +252,23 @@ export const mapPlannerItemsToCalendarEvents = (
           sourceBookingNumber: booking?.booking_number ?? null,
           sourceBookingClient: booking?.client ?? null,
         },
-
       } as CalendarEvent;
     });
-};
 
+  if (import.meta.env?.DEV) {
+    // eslint-disable-next-line no-console
+    console.info('[LargeProjectPlannerCalendarAdapter] map summary', {
+      items_in: cnt_in,
+      orderrow_filtered: cnt_orderrow_filtered,
+      event_phase_filtered_THIS_IS_INTENTIONAL: cnt_event_filtered,
+      todo_or_manual_filtered: cnt_non_booking_filtered,
+      rig_emitted: cnt_rig,
+      rigDown_emitted: cnt_rigDown,
+      other_phase_emitted: cnt_other_phase,
+      unassigned_routed: cnt_unassigned,
+      final_events_emitted: out.length,
+    });
+  }
+
+  return out;
+};

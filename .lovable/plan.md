@@ -1,80 +1,142 @@
-## Vad jag faktiskt mätte i preview
+## Mål
 
-Jag laddade `/large-project/…/establishment` (Almedalsveckan) inloggad och samlade riktiga metrics:
+Tre tydliga kalendrar:
 
-- **First Contentful Paint: 10,3 sekunder** (mål < 2,5 s).
-- **246 script-requests** vid första laddning, totalt ~2,8 MB JS.
-- **N+1 mot Supabase**: ~15 separata GET `team_vehicle_assignments?…date=eq.YYYY-MM-DD` skickas parallellt vid mount (en per dag i etableringsperioden), plus minst 2 `GET vehicles?select=*` utan filter eller `limit`.
-- **Långsamma init-queries**: `large_projects?select=*,large_project…` 601 ms, `user_roles` 559 ms, `bookings?select=*` 584 ms.
-- **Tunga komponenter laddas synkront** (network panel): `LargeProjectEditableCostList` (1,5 s), `LargeProjectProductsOverview` (1,4 s), `LargeProjectBookingEconomyBreakdown` (1,4 s), `EstablishmentTaskDetailSheet` (51 kB), `useGeofencing` (66 kB), `i18n/translations` (58 kB), `MobileProjectDetail` (1,3 s).
-- **CPU-profil under scroll**: ingen enskild JS-funktion dominerar (alla <2 ms self-time). Lagget kommer alltså INTE från en evig render-loop utan från **nätverk + initial bundle-storlek + många kalla moduler**.
+1. **Personalkalendern** — `CustomCalendar` + `useRealTimeCalendarEvents` + `useUnifiedStaffOperations`. Visar rig/rigDown (+ todo + Lager). **Aldrig** event-fasen. **Aldrig** `large_project_booking_plan_items`.
+2. **Stora projektets interna projektkalender** — `LargeProjectBookingPlannerCalendar` → `LargeProjectPlannerCalendarView` → `LargeProjectPlannerCalendarAdapter`. Läser/skriver endast `large_project_booking_plan_items`. **Aldrig** event-fasen.
+3. **Legacy `ProjectCalendarView`** — låst till vanliga single-booking-projekt (`EstablishmentPage`). Får aldrig anropas för stora projekt.
 
-## Rotorsaker (rangordnade)
+Audit visar att huvudstrukturen redan stämmer — det här är ett härdnings-PR.
 
-1. **N+1 mot `team_vehicle_assignments` per dag** i `src/hooks/useTeamVehiclesForDay.ts` (rad 35, 90, 110). Varje dag i etableringskalendern monterar en egen hook, var och en med egen query OCH egen realtime-subscription (filter `date=eq.…`). 14 dagar → 14 queries + 14 realtime-kanaler.
-2. **`useGeofencing` (66 kB) importeras på desktop-vägen** trots att den bara behövs i mobile-appen. Dras in via gemensam barrel-import.
-3. **Mobil-only-filer (`MobileProjectDetail`, scanner-hooks) dras in i desktop-bundlen** via statisk import istället för lazy.
-4. **Tunga panel-komponenter (Economy/Products/EditableCostList, EstablishmentTaskDetailSheet) laddas synkront** även när panelen/fliken inte syns.
-5. **`vehicles?select=*` utan filter eller limit** (samma N+1 + duplicerad mellan teamen, ej delad cache).
-6. **Initiala selects är `select=*`** på `large_projects`, `bookings`, `vehicles` — drar fält som inte används i vyn.
-7. **`i18n/translations` (58 kB) laddas eagerly** — borde vara split per namespace eller komprimerat.
-8. **Manifest 401** på `/manifest.json` ger extra error-logg och en bortkastad request på varje navigation (kosmetiskt men brusigt).
+## Ändringar
 
-Ingen render-loop, inga maximum-update-depth-warnings, inga okontrollerade realtime-storms från projects/bookings själva.
+### 1. `src/services/eventService.ts` (personalkalendern, läsning)
 
-## Vad jag vill bygga (i build-läge)
+Bekräfta `.neq('event_type', 'event')` och lägg policy-kommentar:
 
-### Steg 1 – Eliminera N+1 mot team_vehicle_assignments (störst effekt)
-- Skapa ny hook `useTeamVehiclesForDays(orgId, isoDates[])` som gör **en** query (`.in('date', isoDates)`) och returnerar en Map.
-- Ersätt alla call-sites av `useTeamVehiclesForDay` i etableringskalendern/large project planner med den nya hooken.
-- En enda realtime-kanal (`team_vehicle_assignments` filtrerat på `date=in.(…)` eller på `organization_id`), inte en per dag.
-- Behåll `useTeamVehiclesForDay` som tunn wrapper för enskilda dagar (mobil/dialog) så övriga callers inte bryts.
-
-### Steg 2 – Code splitting av tunga, valfria paneler
-Konvertera till `React.lazy` + `<Suspense>` med skeleton:
-- `LargeProjectEditableCostList`
-- `LargeProjectProductsOverview`
-- `LargeProjectBookingEconomyBreakdown`
-- `EstablishmentTaskDetailSheet` (laddas först när sheet öppnas)
-- `LargeProjectPlanningPanel` etc. där tab inte är default.
-
-### Steg 3 – Stoppa mobil-/geofence-kod från desktop-bundlen
-- Lazy-importera `useGeofencing` bakom platform-gate (endast mobile-appen / Capacitor-native), eller flytta importen till en mobile-only entrypoint.
-- Lazy-importera `MobileProjectDetail` (redan i `pages/mobile/…`) — säkerställ att `App.tsx`/router använder `React.lazy` för hela `/m/*`.
-
-### Steg 4 – Strama åt selects
-- `large_projects` initial fetch: explicit kolumnlista istället för `*`.
-- `vehicles`: explicit kolumner, dela cache via React Query `queryKey: ['vehicles', orgId]` så att alla team återanvänder samma fetch.
-- `bookings` listor som driver projektvyn: explicit kolumner.
-
-### Steg 5 – i18n & manifest
-- Splitta `src/i18n/translations.ts` per namespace eller lazy-load icke-default-språk.
-- Fixa `/manifest.json` 401 (lägg till statisk fil eller ta bort `<link rel="manifest">`).
-
-### Steg 6 – Verifiering (obligatoriskt)
-- Vitest: ny test som verifierar att `useTeamVehiclesForDays` gör exakt 1 fetch för N datum (mocka supabase-klienten).
-- Browser-test efter varje större ändring: ladda om `/large-project/…/establishment`, läs `browser--list_network_requests`, jämför antal `team_vehicle_assignments`-rader och totalt antal Supabase-requests första 5 s, samt `performance_profile` (FCP).
-- Acceptanskriterier: `team_vehicle_assignments`-requests ≤ 2 vid mount, total Supabase-requests första 5 s ≤ 30 (idag 73+), FCP < 3 s på etablering.
-
-## Teknisk detalj
-
-```text
-Före:                                  Efter:
-useTeamVehiclesForDay(day1) → fetch    useTeamVehiclesForDays([d1..dN]) → 1 fetch
-useTeamVehiclesForDay(day2) → fetch    + 1 shared realtime channel
-… (×14)                                + delad cache
-14 realtime-kanaler                    
+```
+// Event-fasen är medvetet exkluderad. Personalkalendern visar bara
+// bemanningsbara dagar (rig + rigDown + todo). Eventdagen finns kvar
+// i databasen men renderas inte här. Se constraint
+// staff-calendar-no-event-day-v1.
 ```
 
-```text
-Bundle (init):                         Bundle (init):
-EditableCostList   24 kB               (lazy chunk)
-ProductsOverview   29 kB               (lazy chunk)
-EconomyBreakdown   43 kB               (lazy chunk)
-EstablishmentSheet 51 kB               (lazy on open)
-useGeofencing      66 kB               (mobile-only chunk)
-MobileProjectDetail 10 kB              (lazy /m/*)
-translations       58 kB               (split per namespace)
+Dev-diagnostik bakom `import.meta.env.DEV`:
+- total rader hämtade
+- count per `event_type`
+- count `event_type='event'` *exkluderade* via .neq (≈0 förväntat, sanity-check)
+- count rig / rigDown / todo skickade vidare
+
+### 2. `src/services/plannerCalendarDerivation.ts`
+
+Bekräfta `if (phase === 'event') continue;` och förstärk kommentar:
+
+```
+// Event phase is intentionally hidden in staff planning calendars.
+// Event days are not staffed/planned here. Constraint:
+// staff-calendar-no-event-day-v1.
 ```
 
-Ingen funktionalitet ändras — bara hur och när data/komponenter hämtas.
+Lägg dev-summary i slutet av `buildPlannerCalendarEvents`:
+- realEvents in
+- phase rig / phase event (hidden) / phase rigDown
+- rader utan resource_id
+- final events emitted
+
+(Befintliga `eventDaysHidden`/`largeProjectMissingAssignment`-counters återanvänds.)
+
+### 3. `src/components/project/large-planner/LargeProjectPlannerCalendarAdapter.ts`
+
+- Lägg tydlig kommentar:
+  ```
+  // Event booking phase is intentionally hidden from the internal
+  // large project planner calendar. Same rule as personalkalendern.
+  ```
+- Ändra default-routing för items utan `assigned_team_id`:
+  - Inför `UNASSIGNED_RESOURCE_ID = 'unassigned'`.
+  - `buildPlannerResourcesForDay` returnerar `[unassigned, team-1..team-5]`.
+  - `mapPlannerItemsToCalendarEvents`: `resourceId = it.assigned_team_id ?? UNASSIGNED_RESOURCE_ID`.
+  - Ta bort `DEFAULT_TEAM_ID = 'team-1'`-fallbacken.
+- Dev-counters: planner-items in, booking-items rig/event(filtered)/rigDown, todos filtrerade, items utan team, final events.
+
+Drop/move-skrivvägen i `LargeProjectPlannerCalendarView`/service ska redan sätta `assigned_team_id = null` när man drar till `unassigned`. Verifiera och justera vid behov.
+
+### 4. `src/components/project/large-planner/useLargeProjectPlannerCalendarEvents.ts`
+
+Inga produktionsimports → **ta bort filen helt**. Befintliga tester verifierar redan att den inte importeras från `LargeEstablishmentPage`.
+
+### 5. `src/components/project/ProjectCalendarView.tsx`
+
+- Topp-kommentar:
+  ```
+  // LEGACY: Single-booking project calendar only.
+  // Do NOT use for large project internal planning — use
+  // LargeProjectBookingPlannerCalendar instead.
+  ```
+- Lägg dev-guard: om `isLargeProject === true` eller `largeProjectId` är satt → `console.warn` + tidig return (eller stor varningsbanner i DEV). Detta hindrar framtida felaktig återanvändning.
+
+### 6. `src/services/largeProjectPlannerService.ts` — `buildProjectDays`
+
+Bygg projektdagar från **unionen** av:
+- projektets `start_date[]` (rig)
+- projektets `end_date[]` (rigDown)
+- alla `large_project_booking_plan_items.plan_date` där `source_booking_phase !== 'event'`
+
+För dagar som kommer enbart från planner-items utanför projektets datumarray: emit dagen, men med metadata `warning: 'planner_item_outside_project_dates'` så UI kan visa varning istället för att tyst dölja items.
+
+### 7. Tester (utöka befintliga)
+
+Lägg till i `src/components/project/large-planner/__tests__/` (källfilsbaserade, samma stil som befintliga separation-tester):
+
+- `LargeProjectBookingPlannerCalendar` importerar inte `useRealTimeCalendarEvents` / `useUnifiedStaffOperations`.
+- `LargeProjectPlannerCalendarView` importerar inte `CustomCalendar` / `ProjectCalendarView` / `useRealTimeCalendarEvents` / `useUnifiedStaffOperations`.
+- `useLargeProjectPlannerCalendarEvents.ts`-filen existerar inte.
+- Adapter filtrerar bort `source_booking_phase === 'event'` (befintligt test utökas).
+- Adapter: items utan `assigned_team_id` → `unassigned`, inte `team-1`.
+- Adapter: `booking_product_id`-items renderas inte.
+- `plannerCalendarDerivation` filtrerar `phase === 'event'` (funktionellt test med fixturer).
+- Personalkalendervägen läser inte `large_project_booking_plan_items` (källsökning i `eventService.ts` + `useRealTimeCalendarEvents.tsx`).
+- `ProjectCalendarView` har dev-guard mot `isLargeProject`.
+
+### 8. Validering (efter implementation)
+
+- Kör `lovable-exec test` för alla nya + befintliga separation-tester.
+- Verifiera i preview att personalkalendern visar rig + rigDown + Lager men inga event-dagar.
+- Verifiera att Almedalen (stort projekt) → Kalender & planering visar `LargeProjectBookingPlannerCalendar` med rig/rigDown men ingen event-dag.
+- Verifiera att drag av planner-item till `unassigned`-kolumnen sätter `assigned_team_id = null` (och inte rör calendar_events).
+
+## Tekniska detaljer
+
+**Ingen DB-migration** — alla regler är frontend-/derivations-policy.
+
+**Inga skrivningar mot skyddade tabeller från intern projektkalender:** `LargeProjectBookingPlannerCalendar`/service skriver endast `large_project_booking_plan_items`. Detta är redan låst av `projectCalendarSeparation.test.ts`; vi utökar bara skyddet.
+
+**Filer som skapas/ändras:**
+
+```text
+ändras:
+  src/services/eventService.ts                                      (kommentar + dev-counters)
+  src/services/plannerCalendarDerivation.ts                         (kommentar + dev-summary)
+  src/components/project/large-planner/LargeProjectPlannerCalendarAdapter.ts  (unassigned + counters + kommentar)
+  src/components/project/large-planner/LargeProjectPlannerCalendarView.tsx    (unassigned-kolumn + drag→null)
+  src/components/project/large-planner/largeProjectPlannerService.ts          (buildProjectDays union + warning)
+  src/components/project/ProjectCalendarView.tsx                    (LEGACY-kommentar + dev-guard)
+  src/pages/project/EstablishmentPage.tsx                           (kommentar: legacy single-booking only)
+
+tas bort:
+  src/components/project/large-planner/useLargeProjectPlannerCalendarEvents.ts
+
+skapas:
+  src/components/project/large-planner/__tests__/calendarArchitectureHardening.test.ts
+  src/services/__tests__/plannerCalendarDerivation.eventPhaseHidden.test.ts
+```
+
+## Slutsumma (skrivs efter implementation)
+
+Efter ändringen kommer svaret innehålla exakt:
+- vilka kalenderkomponenter som finns kvar
+- vilken kalender personalkalendern använder
+- vilken kalender stora projektets interna planering använder
+- om `ProjectCalendarView` finns kvar + var
+- om något togs bort + vilka imports som rensades
+- bekräftelser per regel i Fix 10/11.
