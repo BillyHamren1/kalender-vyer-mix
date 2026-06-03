@@ -1,79 +1,44 @@
+# En enhet per staff (senaste login vinner)
 
-# Lön-tabben → ren tidrapport för ekonomi
+## Bekräftad diagnos
+För Toms Nauzers 2026-06-02 finns pings 2 ms isär men 19 km ifrån varandra. Det är fysiskt omöjligt — två klienter pingar parallellt mot `mobile-app-api`, och eftersom `raw-gps-ingestion-no-dedupe-v1` accepterar allt råmaterial får vi en "solfjäder" i kartan och kaotiska visits/travels i dayPartition.
 
-## Vad som är fel idag
-Lön-tabben visar samma tekniska veckomatris som Tid-tabben (kliniska celler med "Normal/Övertid/Resa"-rutnät, statusetiketter, granskningsknappar). Det ser ut som ett internt verktyg, inte som en lönerapport.
+Vår enhetsfingerprint (`platform|device_model|app_id|app_build`) såg dem som "1 enhet" → vi måste införa ett riktigt device-id för att kunna skilja och retira.
 
-## Vad jag bygger istället
-En **tidrapport-vy** som ekonomiavdelningen kan läsa, exportera (PDF/CSV) och skicka vidare. Samma underliggande block som Tid-tabben (`useStaffTimeWeekMatrix` → samma `rows` per dag), men presenterad som rader i en rapport, inte som celler i en matris.
+## Mål
+1. Vid mobil-login: invalidera ALLA tidigare `mobile_app_tokens` för samma `staff_id` (senaste vinner).
+2. Gamla telefonens token slutar funka → dess `mobile-app-api`-anrop får 401 → klienten loggar ut tyst.
+3. GPS-pings från okänd/utloggad token avvisas (eller flaggas), så pipeline blir ren framåt.
+4. Befintlig brusig GPS-data röras INTE (per `never-delete-db-rows`). Vi filtrerar bara nytt brus.
 
-### Layout (per anställd, per vecka)
+## Genomförande
 
-```text
-─────────────────────────────────────────────────────────────
-  Anna Andersson                              Vecka 23, 2026
-  Personalnr 1042                       1–7 juni              
-─────────────────────────────────────────────────────────────
-  Datum       Block                        Start  Slut  Tim
-─────────────────────────────────────────────────────────────
-  Mån 1 jun   Projekt Globen               07:00  12:00  5:00
-              Resa → Solna                 12:00  12:30  0:30
-              Projekt Solna Arena          12:30  16:00  3:30
-                                                  Dag:   9:00
-  Tis 2 jun   Projekt Solna Arena          07:00  16:00  9:00
-                                                  Dag:   9:00
-  Ons 3 jun   —                                                
-  ...
-─────────────────────────────────────────────────────────────
-  Summa vecka                Normal  37:00   Övertid  3:30
-                             Resa     2:00   Totalt  42:30
-                                          Status: Attesterad
-─────────────────────────────────────────────────────────────
-```
+### 1. Backend — token-rotation
+`supabase/functions/mobile-app-api/` (login-action):
+- Vid lyckad login efter att en ny `mobile_app_tokens`-rad skapats, kör `UPDATE mobile_app_tokens SET revoked_at = now(), revoked_reason = 'superseded_by_newer_login' WHERE staff_id = $1 AND id != $newId AND revoked_at IS NULL`.
+- I auth-middleware (`_shared/staff-auth.ts` eller motsvarande): avvisa token där `revoked_at IS NOT NULL` med 401 `token_revoked`.
 
-### Visuell stil
-- Vit/papper-bakgrund, svart text, tunna grå linjer. Inga färgglada chips, ingen statusfärg-vänsterkant, inga ikonknappar i rapporten.
-- Serif eller neutral sans (samma stack som idag) men med rapport-typografi: tabular siffror, generös radhöjd, tydliga sektionsrubriker.
-- Status visas diskret som text längst ner per anställd: "Attesterad 2026-06-08 av Per Larsson" / "Väntar attest" / "Komplettering begärd".
-- En anställd per "papper" (kort/sektion). Flera anställda staplas vertikalt, en sida per person vid utskrift (`break-after: page`).
+Migration: lägg till `revoked_at timestamptz`, `revoked_reason text` på `mobile_app_tokens` om de saknas.
 
-### Funktioner (minimalt, rapportfokus)
-- **Veckoväljare** högst upp (samma som Tid).
-- **Knapprad ovanför rapporten** (inte inne i den):
-  - "Skriv ut / PDF" (browser print, print-CSS dolda kontroller)
-  - "Exportera CSV" (en rad per block, kolumner: datum, anställd, projekt/typ, start, slut, minuter, övertid, restid, status)
-  - "Godkänn alla väntande" (kvar — men diskret, utanför själva rapportytan)
-- Klick på en dag öppnar fortfarande `StaffTimeMatrixDayQuickView` för granskning (admin-funktion, syns inte i utskriften).
+### 2. Klient — tyst utloggning
+`src/contexts/MobileAuthContext.tsx` (eller motsvarande): vid 401 med kod `token_revoked` → rensa lokal token, navigera till `/m/login`, visa toast "Du loggades ut för att kontot är aktivt på en annan enhet".
 
-### Data
-- Återanvänd **exakt** `useStaffTimeWeekMatrix` (samma block som Tid — inget nytt datalager, inga nya edge functions).
-- Återanvänd `useApproveStaffDay` för "Godkänn"-flödet.
-- Inga ändringar i edge functions, DB, time_reports, workdays, staff_day_submissions.
+### 3. Hård spärr i ping-mottagningen (skyddsnät)
+`mobile-app-api` `report_location`-action: om token är revoked eller saknas → returnera 401 utan att skriva till `staff_location_history`. Detta säkrar att även en cachead/återanvänd token från gammal enhet inte kan smutsa data.
 
-## Filer
+### 4. Admin-synlighet (litet)
+StaffTimeReports-detalj: när dagen har pings som överlappar i tid men ligger >2 km isär inom <60 s, visa en liten varningschip "Möjligt flera enheter under perioden X–Y". (Pure UI, läser bara på data — ingen mutation.)
 
-### Nya
-- `src/components/staff-time-approvals/StaffPayrollReport.tsx` — container: veckoväljare, toolbar (print/CSV/godkänn), loopar staff-rader.
-- `src/components/staff-time-approvals/StaffPayrollReportSheet.tsx` — en anställds "papper": header, datum-rader, summa-footer, status-rad.
-- `src/components/staff-time-approvals/StaffPayrollReportDayRow.tsx` — en dag: visar varje block från `cell.rows` som en egen rad (block-namn, start, slut, minuter) + dagssumma.
-- `src/lib/staff-payroll/payrollCsvExport.ts` — bygger CSV från matrisen.
-- `src/styles/payroll-print.css` — `@media print` regler (dölj toolbar, sidbrytning per anställd, A4-marginaler).
+## Test
+- Vitest: `tokenRotation.test.ts` — sätt upp två tokens, anropa login, verifiera att äldre raden får `revoked_at`.
+- Edge function test: `mobile-app-api/login_test.ts` + `mobile-app-api/auth_revoked_test.ts` (401 på revoked token).
+- Contract: lägg `multipleDeviceDetection.test.ts` som ger två ping-strömmar och verifierar att admin-varningen triggar.
+- Kör `bash scripts/test-time-reporting.sh` efter ändring för att säkra att inget i write-paths gick sönder.
 
-### Ändras
-- `src/components/staff-time-approvals/StaffTimeApprovalsPageContent.tsx` — byter ut `StaffPayrollWeekMatrix` mot `StaffPayrollReport`.
+## Inte i scope
+- Ingen DELETE/UPDATE av befintliga `staff_location_history`-rader (per memory).
+- Ingen ändring av dedupe-logik i dayPartition utöver det vi redan gjort (`SHORT_STAY_MAX_MS` flap-fix).
+- Ingen "tvinga ut" av gamla webb-sessioner (admin-portalen) — påverkar bara mobile_app_tokens.
 
-### Tas bort (eller lämnas oanvända)
-- `StaffPayrollWeekMatrix.tsx`, `StaffPayrollWeekMatrixRow.tsx`, `StaffPayrollWeekMatrixCell.tsx` — den kliniska matrisen som användaren just avvisat. Raderas.
-
-## Vad jag INTE rör
-- Tid-tabben och dess matris.
-- `useStaffTimeWeekMatrix`, edge function `get-staff-time-week-matrix`.
-- Mobil, GPS, time_reports, workdays, staff_day_submissions.
-- Godkännandelogik (`useApproveStaffDay`, `update-staff-day-submission-status`).
-
-## Verifiering
-- Vitest: ett snapshot/render-test som matar in en mockad `StaffTimeMatrix` med 2 anställda, 3 dagar med block (inkl. resa) och kollar att rapporten renderar rätt rader + summor.
-- Manuell preview på `/staff-management/time?tab=lon`: jämför att samma block syns som i Tid-tabben för samma vecka.
-- Print-preview (browser) för att se att layout håller A4.
-
-Okej att köra?
+## Memory-uppdatering
+Lägg `mem://constraints/single-mobile-device-per-staff-v1.md`: "Vid mobil-login revokeras alla tidigare mobile_app_tokens för samma staff_id. Auth-middleware returnerar 401 token_revoked. Skyddar GPS-pipeline från parallella enheter."
