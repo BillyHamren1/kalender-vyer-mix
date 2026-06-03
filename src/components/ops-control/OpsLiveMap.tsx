@@ -134,7 +134,7 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
 
         map.current = new mapboxgl.Map({
           container: mapContainer.current,
-          style: 'mapbox://styles/mapbox/navigation-day-v1',
+          style: MAP_STYLES.satellite,
           center: [15.5, 58.5],
           zoom: 5,
           // Use mercator (flat) projection — globe causes HTML markers to drift
