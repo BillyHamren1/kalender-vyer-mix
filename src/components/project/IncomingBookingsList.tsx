@@ -320,24 +320,18 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
             {unplannedProjects.map((project) => (
               <div
                 key={`${project.kind}-${project.id}`}
-                className="group relative flex items-center gap-3 pl-4 pr-3 py-3 bg-green-50 hover:bg-green-100/70 transition-colors"
+                className="group relative flex items-center gap-3 pl-6 pr-3 py-3 bg-green-50 hover:bg-green-100/70 transition-colors"
               >
+                <span className="absolute left-0 top-0 bottom-0 w-1.5 bg-emerald-500" aria-hidden />
+
                 <div
                   className="flex-1 min-w-0 cursor-pointer"
                   onClick={() => project.bookingId && setPlacementBookingId(project.bookingId)}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
-                    <h4 className="text-sm font-medium truncate text-foreground group-hover:text-primary transition-colors">
-                      {project.client || project.name}
-                    </h4>
-                    {project.booking_number && (
-                      <span className="ml-auto text-[10.5px] text-muted-foreground/60 font-mono shrink-0">
-                        #{project.booking_number}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3 mt-1 pl-3.5 text-[11.5px] text-muted-foreground">
+                  <h4 className="text-sm font-semibold truncate text-foreground group-hover:text-primary transition-colors">
+                    {project.client || project.name}
+                  </h4>
+                  <div className="flex items-center gap-3 mt-1 text-[11.5px] text-muted-foreground">
                     <span className="flex items-center gap-1.5">
                       <Calendar className="w-3 h-3" />
                       {formatDate(project.eventdate || '')}
@@ -351,18 +345,23 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 shrink-0 pl-4 border-l border-emerald-200/70">
+                  {project.booking_number && (
+                    <span className="text-sm font-mono text-slate-400 order-2 sm:order-1">
+                      #{project.booking_number}
+                    </span>
+                  )}
                   <Button
                     size="sm"
                     onClick={() => project.bookingId && setPlacementBookingId(project.bookingId)}
-                    className="h-8 px-3 text-xs gap-1.5 font-medium text-neutral-800 border border-emerald-300 hover:brightness-95" style={{ backgroundColor: '#E2FBE9' }}
+                    className="h-10 px-5 text-sm gap-2 font-semibold rounded-xl shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white whitespace-nowrap transition-colors order-1 sm:order-2"
                     title="Placera bokningen"
                     disabled={!project.bookingId}
                   >
-                    <CalendarPlus className="w-3.5 h-3.5" />
+                    <CalendarPlus className="w-4 h-4" />
                     <span>Placera</span>
                   </Button>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
+                  <ChevronRight className="h-4 w-4 text-muted-foreground/40 order-3" />
                 </div>
               </div>
             ))}
