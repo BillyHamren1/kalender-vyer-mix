@@ -75,6 +75,12 @@ const STAFF_MARKER_LAYER_ID = 'ops-staff-marker-layer';
 const STAFF_LABEL_LAYER_ID = 'ops-staff-label-layer';
 const STAFF_GPS_DOT_LAYER_ID = 'ops-staff-gps-dot-layer';
 
+const MAP_STYLES = {
+  streets: 'mapbox://styles/mapbox/navigation-day-v1',
+  satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
+} as const;
+
+
 const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, routePolyline }: Props) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
