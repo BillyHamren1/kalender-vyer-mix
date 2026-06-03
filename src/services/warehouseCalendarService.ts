@@ -98,6 +98,43 @@ function calculateEventDateTime(
   return { start, end };
 }
 
+// Find next available 2h slot for return events on a given day (08:00, 10:00, 12:00, ...)
+// Counts existing return events on the same local day (excluding this booking) and picks next slot.
+const RETURN_SLOT_HOURS = 2;
+const RETURN_FIRST_HOUR = 8;
+
+async function findNextReturnSlot(
+  baseStart: Date,
+  excludeBookingId: string
+): Promise<{ start: Date; end: Date }> {
+  // Day window in local time
+  const dayStart = new Date(baseStart);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(baseStart);
+  dayEnd.setHours(23, 59, 59, 999);
+
+  const { data, error } = await supabase
+    .from('warehouse_calendar_events')
+    .select('id, start_time, booking_id')
+    .eq('event_type', 'return')
+    .eq('resource_id', 'warehouse')
+    .gte('start_time', dayStart.toISOString())
+    .lte('start_time', dayEnd.toISOString());
+
+  if (error) {
+    console.warn('[WarehouseCalendar] slot lookup failed, using base time', error);
+    const end = new Date(baseStart.getTime() + RETURN_SLOT_HOURS * 60 * 60 * 1000);
+    return { start: baseStart, end };
+  }
+
+  const taken = (data || []).filter(e => e.booking_id !== excludeBookingId).length;
+  const startHour = RETURN_FIRST_HOUR + taken * RETURN_SLOT_HOURS;
+  const start = new Date(baseStart);
+  start.setHours(startHour, 0, 0, 0);
+  const end = new Date(start.getTime() + RETURN_SLOT_HOURS * 60 * 60 * 1000);
+  return { start, end };
+}
+
 // Sync a booking to the warehouse calendar
 export async function syncBookingToWarehouseCalendar(booking: BookingData): Promise<void> {
   console.log('[WarehouseCalendar] Syncing booking:', booking.id);
@@ -148,10 +185,11 @@ export async function syncBookingToWarehouseCalendar(booking: BookingData): Prom
     });
   }
   
-  // Create return event (day after rigdown)
+  // Create return event (day after rigdown) — stagger by 2h slots from 08:00
   if (booking.rigdowndate) {
     const rule = WAREHOUSE_RULES.return;
-    const { start, end } = calculateEventDateTime(booking.rigdowndate, rule);
+    const { start: baseStart } = calculateEventDateTime(booking.rigdowndate, rule);
+    const { start, end } = await findNextReturnSlot(baseStart, booking.id);
 
     eventsToCreate.push({
       booking_id: booking.id,
@@ -167,6 +205,7 @@ export async function syncBookingToWarehouseCalendar(booking: BookingData): Prom
       source_rigdown_date: booking.rigdowndate
     });
   }
+
 
   // Insert all events
   if (eventsToCreate.length > 0) {
