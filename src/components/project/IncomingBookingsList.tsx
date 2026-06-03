@@ -376,27 +376,19 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                   key={booking.id}
                   className="group relative flex items-center gap-3 pl-4 pr-3 py-3 hover:bg-muted/30 transition-colors"
                 >
-                  <span
-                    className={`absolute left-0 top-2 bottom-2 w-[2px] rounded-full ${isCancelled ? 'bg-destructive' : 'bg-emerald-500'}`}
-                  />
-
                   <div
                     className="flex-1 min-w-0 cursor-pointer"
                     onClick={() => navigate(`/booking/${booking.id}`)}
                   >
                     <div className="flex items-center gap-2">
+                      <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${isCancelled ? 'bg-destructive' : 'bg-primary'}`} />
                       <h4 className={`text-sm font-medium truncate group-hover:text-primary transition-colors ${isCancelled ? 'text-destructive line-through' : 'text-foreground'}`}>
                         {booking.client}
                       </h4>
-                      {isCancelled ? (
+                      {isCancelled && (
                         <span className="inline-flex items-center gap-1 h-5 px-1.5 rounded-md bg-destructive/10 text-destructive text-[10.5px] font-medium shrink-0">
                           <XCircle className="w-2.5 h-2.5" />
                           Avbokad
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 h-5 px-1.5 rounded-md bg-emerald-500/10 text-emerald-700 text-[10.5px] font-medium shrink-0">
-                          <span className="h-1 w-1 rounded-full bg-emerald-500" />
-                          Ny
                         </span>
                       )}
                       {booking.booking_number && (
@@ -405,7 +397,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 mt-1 text-[11.5px] text-muted-foreground">
+                    <div className="flex items-center gap-3 mt-1 pl-3.5 text-[11.5px] text-muted-foreground">
                       <span className="flex items-center gap-1.5">
                         <Calendar className="w-3 h-3" />
                         {formatDate(booking.eventdate || '')}
@@ -418,6 +410,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                       )}
                     </div>
                   </div>
+
 
                   <div className="flex items-center gap-2 shrink-0">
                     {isCancelled ? (
