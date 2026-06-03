@@ -74,6 +74,10 @@ const LargeProjectPlannerCalendarView = ({
     updateItem,
   } = ctx;
 
+  // Batch-prefetch team-fordon för alla synliga dagar (1 query, 1 realtime-kanal).
+  useTeamVehiclesPrefetch(days);
+
+
   const bookingDisplayById = useMemo(() => {
     const map = new Map<string, { booking_number: string | null; client: string | null }>();
     bookings.forEach((b) =>
