@@ -92,6 +92,7 @@ export const COUNTABLE_SUBMISSION_STATUSES = new Set<string>([
   "needs_control",
   "approved",
   "payroll_approved",
+  "corrected",
 ]);
 
 /**
