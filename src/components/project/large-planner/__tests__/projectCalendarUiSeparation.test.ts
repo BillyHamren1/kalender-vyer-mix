@@ -40,6 +40,13 @@ describe('Stora projekt — projektkalender UI/data-separation', () => {
     expect(src).toMatch(/from\s+['"]@\/components\/Calendar\/TimeGrid['"]/);
   });
 
+  it('LargeProjectPlannerCalendarView tvingar inte fullWidth, utan följer personalkalenderns fasta kolumnbredder', () => {
+    const src = read(
+      'src/components/project/large-planner/LargeProjectPlannerCalendarView.tsx',
+    );
+    expect(src).not.toMatch(/\bfullWidth\b/);
+  });
+
   it('LargeProjectPlannerCalendarView importerar inte ProjectCalendarView eller CustomCalendar', () => {
     const src = read(
       'src/components/project/large-planner/LargeProjectPlannerCalendarView.tsx',
