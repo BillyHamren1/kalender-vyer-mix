@@ -121,16 +121,39 @@ function classifyGap(
  *  2. `travel` < 10 min utan riktig destination → slukas av föregående
  *     work/private. "Riktig destination" = nästa work/private med
  *     ANNAN knownSiteId OCH ≥ 5 min vistelse.
- *  3. Två angränsande work/private med samma knownSiteId slås ihop.
+ *  2b/2c/2d. Idle/0-längd/korta stay-flap absorberas av föregående stay.
+ *  3. Två angränsande work/private med samma knownSiteId (eller — för work
+ *     — samma normaliserade label) slås ihop.
+ *  4. SAME-SITE SANDWICH (unknown/gap/idle): stay(A) → noise → stay(A)
+ *     kollapsas oavsett mellanblockens längd (personen lämnade aldrig
+ *     geofencen — annars hade vi fått en travel).
+ *  5. SAME-SITE TRAVEL SANDWICH (Regel 4 & 5):
+ *     stay(A) → [travel|unknown|gap|idle]+ → stay(A) där A och B har samma
+ *     knownSiteId ELLER (båda är work och) samma normaliserade label kollapsas.
+ *     Eliminerar "Resa Westmans → Westmans" och liknande intern rörelse
+ *     mellan två geofence-instanser för samma projekt.
  * Bevarar tidsbudget: tid flyttas alltid till absorberande block.
  */
+function normalizeLabel(s?: string | null): string {
+  return (s ?? "").trim().toLowerCase();
+}
+
+function sameTarget(a: DaySegment, b: DaySegment): boolean {
+  if (a.knownSiteId && b.knownSiteId && a.knownSiteId === b.knownSiteId) return true;
+  // Same display name on two work-stays counts as same target
+  // (two geofences för samma projekt — projekt+booking eller large+booking-syskon).
+  if (a.type === "work" && b.type === "work") {
+    const la = normalizeLabel(a.label);
+    const lb = normalizeLabel(b.label);
+    if (la && la === lb) return true;
+  }
+  return false;
+}
+
 function absorbShortNoise(input: DaySegment[]): DaySegment[] {
   const UNKNOWN_MAX_MS = 15 * 60_000;
   const TRAVEL_MAX_MS = 10 * 60_000;
   const NEW_ADDR_MIN_MS = 5 * 60_000;
-  // Visits kortare än detta räknas som GPS-flapping mellan närliggande
-  // platser (typiskt FA Warehouse ↔ Boende - Venngarn när någon sitter
-  // i en kantzon) och absorberas av föregående stay.
   const SHORT_STAY_MAX_MS = 2 * 60_000;
   const dur = (s: DaySegment) => toMs(s.end) - toMs(s.start);
   const isStay = (s: DaySegment | undefined) =>
@@ -138,8 +161,6 @@ function absorbShortNoise(input: DaySegment[]): DaySegment[] {
 
   const segs = input.map((s) => ({ ...s }));
 
-  // Kör hela tvätten i en yttre loop så att korta-stay-absorberingen
-  // kan skapa nya same-site-grannar som pass 3 sedan slår ihop.
   for (let outer = 0; outer < 20; outer++) {
     let outerChanged = false;
 
@@ -169,7 +190,7 @@ function absorbShortNoise(input: DaySegment[]): DaySegment[] {
       outerChanged = true;
     }
 
-    // Pass 2: korta travel utan ny adress
+    // Pass 2: korta travel utan ny adress (använder sameTarget för label-match)
     for (let pass = 0; pass < 50; pass++) {
       let didChange = false;
       for (let i = 0; i < segs.length; i++) {
@@ -182,7 +203,7 @@ function absorbShortNoise(input: DaySegment[]): DaySegment[] {
         const leadsToNewAddr =
           !!next &&
           isStay(next) &&
-          (next.knownSiteId ?? null) !== (prev.knownSiteId ?? null) &&
+          !sameTarget(prev, next) &&
           dur(next) >= NEW_ADDR_MIN_MS;
         if (leadsToNewAddr) continue;
         prev.end = s.end;
@@ -194,9 +215,7 @@ function absorbShortNoise(input: DaySegment[]): DaySegment[] {
       outerChanged = true;
     }
 
-    // Pass 2b: KORTA IDLE-segment (<2 min finns naturligt via IDLE_MAX_MS-regeln,
-    // men noll-längd-idle mellan flippande visits ska absorberas av föregående
-    // stay — annars staplas långa listor av "Övergång 0m" upp i UI:t).
+    // Pass 2b: idle absorberas av föregående stay
     for (let pass = 0; pass < 50; pass++) {
       let didChange = false;
       for (let i = 0; i < segs.length; i++) {
@@ -213,9 +232,7 @@ function absorbShortNoise(input: DaySegment[]): DaySegment[] {
       outerChanged = true;
     }
 
-    // Pass 2c: KORTA STAYS (work/private < 2 min) som ligger mellan två andra
-    // stays — typiskt GPS-flapping. Absorberas av föregående stay. Detta gör
-    // att en "FA Warehouse ↔ Boende - Venngarn"-flap inte producerar 19 rader.
+    // Pass 2c: korta stay-flap absorberas av föregående stay
     for (let pass = 0; pass < 50; pass++) {
       let didChange = false;
       for (let i = 1; i < segs.length - 1; i++) {
@@ -224,8 +241,6 @@ function absorbShortNoise(input: DaySegment[]): DaySegment[] {
         if (dur(s) >= SHORT_STAY_MAX_MS) continue;
         const prev = segs[i - 1];
         const next = segs[i + 1];
-        // Bara absorbera om vi är inklämda mellan två stays (annars bevara
-        // korta arbetsbesök som t.ex. lastningsstopp på riktigt).
         if (!isStay(prev) || !isStay(next)) continue;
         prev.end = s.end;
         segs.splice(i, 1);
@@ -236,31 +251,24 @@ function absorbShortNoise(input: DaySegment[]): DaySegment[] {
       outerChanged = true;
     }
 
-    // Pass 3: slå ihop angränsande work/private på samma site
+    // Pass 3: slå ihop angränsande work/private på samma site (id eller label)
     for (let i = segs.length - 1; i > 0; i--) {
       const a = segs[i - 1];
       const b = segs[i];
-      if (
-        a.type === b.type &&
-        isStay(a) &&
-        (a.knownSiteId ?? null) === (b.knownSiteId ?? null)
-      ) {
+      if (a.type === b.type && isStay(a) && sameTarget(a, b)) {
         a.end = b.end;
+        if (!a.knownSiteId && b.knownSiteId) a.knownSiteId = b.knownSiteId;
         segs.splice(i, 1);
         outerChanged = true;
       }
     }
 
-    // Pass 4: SAME-SITE SANDWICH — stay(A) → [unknown_place|gps_gap|idle]+ → stay(A)
-    // med SAMMA knownSiteId omgärdande ska kollapsas oavsett mellanblockens längd.
-    // Personen lämnade aldrig geofencen (annars hade vi fått en travel-segment).
-    // Enforcar mem://constraints/geofence-inside-time-authority-v1 och
-    // mem://constraints/same-target-sandwich-collapse-v1.
+    // Pass 4: SAME-SITE SANDWICH (unknown/gap/idle) — kollapsa oavsett längd
     for (let pass = 0; pass < 50; pass++) {
       let didChange = false;
       for (let i = 0; i < segs.length; i++) {
         const a = segs[i];
-        if (!isStay(a) || !a.knownSiteId) continue;
+        if (!isStay(a)) continue;
         let j = i + 1;
         let onlyAbsorbable = true;
         while (j < segs.length) {
@@ -275,8 +283,50 @@ function absorbShortNoise(input: DaySegment[]): DaySegment[] {
         if (!onlyAbsorbable) continue;
         if (j >= segs.length) continue;
         const b = segs[j];
-        if (!isStay(b) || b.knownSiteId !== a.knownSiteId) continue;
+        if (!isStay(b) || !sameTarget(a, b)) continue;
         if (j === i + 1) continue;
+        a.end = b.end;
+        segs.splice(i + 1, j - i);
+        didChange = true;
+        break;
+      }
+      if (!didChange) break;
+      outerChanged = true;
+    }
+
+    // Pass 5: SAME-SITE TRAVEL SANDWICH (Regel 4 & 5)
+    // stay(A) → [travel|unknown|gap|idle]+ → stay(A) (samma target) kollapsas.
+    // Eliminerar "Resa Westmans → Westmans" — intern rörelse mellan två
+    // geofence-instanser för samma projekt räknas som EN sammanhängande
+    // vistelse.
+    for (let pass = 0; pass < 50; pass++) {
+      let didChange = false;
+      for (let i = 0; i < segs.length; i++) {
+        const a = segs[i];
+        if (!isStay(a)) continue;
+        let j = i + 1;
+        let onlyAbsorbable = true;
+        let hadTravel = false;
+        while (j < segs.length) {
+          const mid = segs[j];
+          if (isStay(mid)) break;
+          if (
+            mid.type !== "travel" &&
+            mid.type !== "unknown_place" &&
+            mid.type !== "gps_gap" &&
+            mid.type !== "idle"
+          ) {
+            onlyAbsorbable = false;
+            break;
+          }
+          if (mid.type === "travel") hadTravel = true;
+          j++;
+        }
+        if (!onlyAbsorbable) continue;
+        if (j >= segs.length) continue;
+        if (!hadTravel) continue; // Pass 4 hanterar fallet utan travel
+        const b = segs[j];
+        if (!isStay(b) || !sameTarget(a, b)) continue;
         a.end = b.end;
         segs.splice(i + 1, j - i);
         didChange = true;
@@ -289,6 +339,39 @@ function absorbShortNoise(input: DaySegment[]): DaySegment[] {
     if (!outerChanged) break;
   }
 
+  return segs;
+}
+
+/**
+ * Regel 2 & 3 — Resa till/från boende (privat zon) räknas inte som arbetstid.
+ * Reklassificera travel-segment vars FÖRRA eller NÄSTA stay är `private`
+ * från type=`travel` till type=`private`. Behåller from/to-etiketterna så
+ * användaren ser "Resa Boende - Venngarn → Westmans" men minutarna hamnar
+ * i privateMin (icke-lönegrundande) i stället för travelMin.
+ *
+ * Detta gör att GPS-satelliten och Tid & Lön visar exakt samma blocklista
+ * och att payable = work + travel utesluter commute automatiskt.
+ */
+function reclassifyCommuteTravelAsPrivate(input: DaySegment[]): DaySegment[] {
+  const segs = input.map((s) => ({ ...s }));
+  for (let i = 0; i < segs.length; i++) {
+    const s = segs[i];
+    if (s.type !== "travel") continue;
+    const prev = segs[i - 1];
+    const next = segs[i + 1];
+    const touchesPrivate =
+      (!!prev && prev.type === "private") || (!!next && next.type === "private");
+    if (!touchesPrivate) continue;
+
+    const from = s.fromLabel?.trim();
+    const to = s.toLabel?.trim();
+    let label = s.label;
+    if (from && to) label = `Resa ${from} → ${to}`;
+    else if (from) label = `Resa från ${from}`;
+    else if (to) label = `Resa till ${to}`;
+    s.type = "private";
+    s.label = label;
+  }
   return segs;
 }
 
@@ -389,8 +472,10 @@ export function buildDayPartition(input: {
 
   // Absorbera kort GPS-brus innan minutfördelningen så summan bevaras.
   const absorbed = absorbShortNoise(segments);
+  // Regel 2 & 3: commute-resor (boende→jobb, jobb→boende) → private (icke-payable).
+  const reclassified = reclassifyCommuteTravelAsPrivate(absorbed);
   segments.length = 0;
-  segments.push(...absorbed);
+  segments.push(...reclassified);
 
 
 
