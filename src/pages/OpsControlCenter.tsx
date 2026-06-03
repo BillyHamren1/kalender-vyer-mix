@@ -153,14 +153,17 @@ const OpsControlCenter = () => {
     activity, isLoadingActivity,
   } = useOpsControl();
 
-  const livePacking = useLivePackingFeed();
-
-
   const [focusCoords, setFocusCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [selectedJobBookingId, setSelectedJobBookingId] = useState<string | null>(null);
   const [sidePanel, setSidePanel] = useState<SidePanel>(null);
   const [broadcastOpen, setBroadcastOpen] = useState(false);
   const [routePolyline, setRoutePolyline] = useState<GeoJSON.LineString | null>(null);
+
+  // Sekundära paneler — stängda som default så de inte mountar tunga hooks vid första render.
+  const [liveProjectsOpen, setLiveProjectsOpen] = useState(false);
+  const [locationsOpen, setLocationsOpen] = useState(false);
+  const [commsOpen, setCommsOpen] = useState(false);
+  const [staffCalendarOpen, setStaffCalendarOpen] = useState(false);
 
   const handleFocusJob = useCallback((job: OpsMapJob) => {
     setSelectedJobBookingId(job.bookingId);
