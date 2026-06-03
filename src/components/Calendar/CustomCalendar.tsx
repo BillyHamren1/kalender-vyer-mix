@@ -77,6 +77,11 @@ const CustomCalendar: React.FC<CustomCalendarProps> = ({
   const computedWeekDays = useWeekDays(currentDate);
   const days = daysOverride ?? computedWeekDays;
 
+  // Batch-prefetch team_vehicle_assignments för alla synliga dagar (1 query
+  // istället för N) och håll en delad realtime-kanal.
+  useTeamVehiclesPrefetch(days);
+
+
   const {
     isDragging,
     dragOverDate,
