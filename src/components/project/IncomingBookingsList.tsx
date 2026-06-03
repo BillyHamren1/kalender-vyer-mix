@@ -147,9 +147,11 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
     }
   });
 
-  const hasIncomingItems = bookings.length + unplannedProjects.length > 0;
+  const totalNew = bookings.length + unplannedProjects.length;
+  const totalUpdates = unseenUpdates.length;
+  const hasIncomingItems = totalNew + totalUpdates > 0;
 
-  if ((isLoading && isLoadingUnplannedProjects) || !hasIncomingItems) {
+  if ((isLoading && isLoadingUnplannedProjects && isLoadingUpdates) || !hasIncomingItems) {
     return null;
   }
 
@@ -162,19 +164,43 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
     }
   };
 
+  const handleReviewUpdate = (booking: typeof updatedBookingsMeta[number]) => {
+    const projectId = booking.large_project_id || booking.assigned_project_id;
+    if (projectId) {
+      navigate(`/projects/${booking.large_project_id ? 'large/' : ''}${projectId}`);
+    } else {
+      navigate(`/booking/${booking.id}`);
+    }
+    markSeen.mutate(booking.id);
+  };
+
+  // Visuell prioritet: uppdaterade > nya (uppdateringar är ofta tidskritiska)
+  const headerLabel = totalUpdates > 0 ? 'Uppdaterade bokningar' : 'Nya bokningar';
+  const badgeLabel =
+    totalUpdates > 0 && totalNew > 0
+      ? `${totalUpdates} uppdaterade · ${totalNew} nya`
+      : totalUpdates > 0
+        ? `${totalUpdates} uppdaterade`
+        : `${totalNew} nya`;
+
   return (
     <div className="rounded-xl border border-border/60 bg-card overflow-hidden shadow-sm">
       <div className="px-4 py-2.5 border-b border-border/40 bg-amber-50/30 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="p-1.5 rounded-lg bg-amber-500/10">
-            <Inbox className="h-4 w-4 text-amber-600" />
+            {totalUpdates > 0 ? (
+              <RefreshCw className="h-4 w-4 text-amber-600" />
+            ) : (
+              <Inbox className="h-4 w-4 text-amber-600" />
+            )}
           </div>
-          <h3 className="font-semibold text-sm text-foreground">Nya bokningar</h3>
+          <h3 className="font-semibold text-sm text-foreground">{headerLabel}</h3>
         </div>
         <Badge className="h-5 px-2 text-xs font-medium bg-amber-100 text-amber-800 border-0">
-          {bookings.length + unplannedProjects.length} nya
+          {badgeLabel}
         </Badge>
       </div>
+
 
       <div className="divide-y divide-border/30">
         {unplannedProjects.map((project) => (
