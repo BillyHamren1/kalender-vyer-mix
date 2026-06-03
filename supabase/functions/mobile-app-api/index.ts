@@ -964,10 +964,29 @@ async function handleLogin(supabase: any, data: { username?: string; password?: 
   // user_roles is a "system user" (web login = planner).
   const enriched = await enrichStaffWithRoles(supabase, staffMember)
 
-  // Generate token
-  const token = generateToken(account.staff_id)
+  // Single-device-per-staff: skapa en ny session_id, persistera den på
+  // staff_members, och baka in den i token. Gamla tokens (med tidigare eller
+  // saknad sessionId) avvisas vid nästa anrop med 401 token_revoked.
+  const sessionId = crypto.randomUUID()
+  const { error: sessionUpdateError } = await supabase
+    .from('staff_members')
+    .update({
+      active_mobile_session_id: sessionId,
+      active_mobile_session_at: new Date().toISOString(),
+    })
+    .eq('id', account.staff_id)
+  if (sessionUpdateError) {
+    console.error('[mobile-app-api] kunde inte uppdatera active_mobile_session_id:', sessionUpdateError)
+    // Hård fail för att undvika dubbel-enheter — användaren får försöka igen.
+    return new Response(
+      JSON.stringify({ error: 'Login failed (session)' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
 
-  console.log(`Login successful for: ${staffMember.name} (planner=${enriched.is_planner})`)
+  const token = generateToken(account.staff_id, sessionId)
+
+  console.log(`Login successful for: ${staffMember.name} (planner=${enriched.is_planner}, sessionId=${sessionId})`)
 
   return new Response(
     JSON.stringify({
