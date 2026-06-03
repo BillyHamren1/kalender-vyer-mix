@@ -297,7 +297,7 @@ const TimeGrid: React.FC<TimeGridProps> = ({
                   gridColumn: index + 2,
                   gridRow: 2,
                   width: fullWidth ? 'auto' : `${colWidth}px`,
-                  minWidth: fullWidth ? 0 : `${colWidth}px`,
+                  minWidth: fullWidth ? (colWidth > TEAM_COLUMN_WIDTH ? `${colWidth}px` : 0) : `${colWidth}px`,
                   ...(isActiveTeam ? { background: 'hsl(var(--primary) / 0.15)' } : {}),
                 }}
               >
