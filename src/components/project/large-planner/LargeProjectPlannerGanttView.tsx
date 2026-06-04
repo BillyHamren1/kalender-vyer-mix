@@ -1,14 +1,20 @@
 /**
  * LargeProjectPlannerGanttView — read-only horisontell tidslinje.
  * --------------------------------------------------------------------------
- * Annan VISNING av exakt samma data som LargeProjectPlannerCalendarView:
- *  - Källa: ctx.itemsWithAssignmentValidity (large_project_booking_plan_items),
- *    inte bokningarnas calendar_events. Då blir Gantten 1:1 mot kalendern.
- *  - Rader = bokningar (+ "Övrigt" för items utan booking_id).
- *  - Kolumner = ctx.days (projektets datumkort).
- *  - Klick på cell/bokningsrubrik dispatchar samma `lp-booking-sheet-open`
- *    som kalendern.
- *  - Inga DB-skrivningar. Ingen ny logik. Bara en annan lins.
+ * Visar samma data som LargeProjectPlannerCalendarView (large_project_
+ * booking_plan_items) men som klassiska Gantt-staplar.
+ *
+ * Regler:
+ *  - Rader = projektets bokningar (+ "Övrigt" för items utan booking).
+ *  - Konsekutiva dagar med SAMMA fas på samma bokning slås ihop till EN
+ *    sammanhängande stapel (ingen daghackning).
+ *  - Färger speglar personalkalenderns fas-pasteller:
+ *      rig     → ljusgrön (#F2FCE2)
+ *      event   → ljusgul  (#FEF7CD)
+ *      rigDown → ljusröd  (#FEE2E2)
+ *  - Orderrad-todos (booking_product_id != null) renderas ALDRIG som
+ *    egna staplar — samma policy som kalendervyn.
+ *  - "other"-items visar sin egna titel, inte ett generiskt "Uppgift".
  */
 import { useMemo } from 'react';
 import { parseISO, format } from 'date-fns';
@@ -31,21 +37,31 @@ const PHASE_LABEL: Record<Phase, string> = {
   other: 'Uppgift',
 };
 
-const PHASE_CLS: Record<Phase, string> = {
-  rig: 'bg-amber-500/80 hover:bg-amber-500',
-  event: 'bg-planner/80 hover:bg-planner',
-  rigDown: 'bg-sky-500/80 hover:bg-sky-500',
-  other: 'bg-muted-foreground/60 hover:bg-muted-foreground/80',
+// Pastellfärger som matchar personalkalenderns rig/event/rigDown-event
+// (samma hex som .project-phase-* i ProjectCalendarView.css).
+const PHASE_STYLE: Record<Phase, { bg: string; fg: string; border: string }> = {
+  rig:     { bg: '#F2FCE2', fg: '#1f3a24', border: '#bfe5a8' },
+  event:   { bg: '#FEF7CD', fg: '#3a2e0a', border: '#ecd97a' },
+  rigDown: { bg: '#FEE2E2', fg: '#4a1d1d', border: '#f3b4b4' },
+  other:   { bg: '#E5E7EB', fg: '#1f2937', border: '#cbd0d8' },
 };
 
 function resolvePhase(item: PlannerItemWithValidity): Phase {
   const raw = (item.phase ?? item.source_booking_phase ?? '').toLowerCase();
   if (raw === 'rig') return 'rig';
   if (raw === 'event') return 'event';
-  if (raw === 'rigdown' || raw === 'rig_down' || raw === 'rigdown') return 'rigDown';
-  // exakt match mot kalenderkonventionen
+  if (raw === 'rigdown' || raw === 'rig_down') return 'rigDown';
   if (item.phase === 'rigDown' || item.source_booking_phase === 'rigDown') return 'rigDown';
   return 'other';
+}
+
+interface GanttSpan {
+  id: string;
+  phase: Phase;
+  startIdx: number;
+  span: number;
+  title: string;
+  dates: string[];
 }
 
 const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
@@ -57,20 +73,23 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
     return m;
   }, [days]);
 
-  // Gruppera plan_items per booking_id (null → "__other__")
+  // Filtrera bort orderrad-todos (samma policy som kalendervyn).
+  const visibleItems = useMemo(
+    () => itemsWithAssignmentValidity.filter((it) => !it.booking_product_id),
+    [itemsWithAssignmentValidity],
+  );
+
   const itemsByBooking = useMemo(() => {
     const map = new Map<string, PlannerItemWithValidity[]>();
-    for (const it of itemsWithAssignmentValidity) {
+    for (const it of visibleItems) {
       const key = it.booking_id ?? '__other__';
       const arr = map.get(key) ?? [];
       arr.push(it);
       map.set(key, arr);
     }
     return map;
-  }, [itemsWithAssignmentValidity]);
+  }, [visibleItems]);
 
-  // Rader: alla bokningar i projektet (även de utan items, för parity med kalendern),
-  // plus ev. en "Övrigt"-rad om det finns booking_id=null-items.
   const rows = useMemo(() => {
     const list: Array<{
       key: string;
@@ -95,6 +114,81 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
     }
     return list;
   }, [bookings, itemsByBooking]);
+
+  /**
+   * Slå ihop konsekutiva dagar med samma fas till EN sammanhängande
+   * Gantt-stapel per bokning.
+   */
+  const spansByRow = useMemo(() => {
+    const out = new Map<string, GanttSpan[]>();
+    for (const [rowKey, items] of itemsByBooking.entries()) {
+      // Sortera per datum
+      const sorted = [...items].sort((a, b) => a.plan_date.localeCompare(b.plan_date));
+      // Gruppera per fas och slå ihop intilliggande dag-index.
+      const byPhase = new Map<Phase, PlannerItemWithValidity[]>();
+      for (const it of sorted) {
+        if (!dateToIndex.has(it.plan_date)) continue;
+        const ph = resolvePhase(it);
+        const arr = byPhase.get(ph) ?? [];
+        arr.push(it);
+        byPhase.set(ph, arr);
+      }
+
+      const spans: GanttSpan[] = [];
+      for (const [phase, list] of byPhase.entries()) {
+        // Dedupe per datum (kan finnas flera items samma dag, en stapel räcker)
+        const uniqByDate = new Map<string, PlannerItemWithValidity>();
+        for (const it of list) {
+          if (!uniqByDate.has(it.plan_date)) uniqByDate.set(it.plan_date, it);
+        }
+        const ordered = Array.from(uniqByDate.values()).sort((a, b) =>
+          a.plan_date.localeCompare(b.plan_date),
+        );
+
+        let group: PlannerItemWithValidity[] = [];
+        const flush = () => {
+          if (group.length === 0) return;
+          const first = group[0];
+          const startIdx = dateToIndex.get(first.plan_date)!;
+          const span = group.length;
+          const dates = group.map((g) => g.plan_date);
+          const titles = Array.from(new Set(group.map((g) => g.title).filter(Boolean)));
+          const title =
+            phase === 'other'
+              ? titles.join(' · ') || PHASE_LABEL.other
+              : PHASE_LABEL[phase];
+          spans.push({
+            id: `${rowKey}:${phase}:${first.plan_date}`,
+            phase,
+            startIdx,
+            span,
+            title,
+            dates,
+          });
+          group = [];
+        };
+
+        for (const it of ordered) {
+          if (group.length === 0) {
+            group.push(it);
+            continue;
+          }
+          const prev = group[group.length - 1];
+          const prevIdx = dateToIndex.get(prev.plan_date)!;
+          const curIdx = dateToIndex.get(it.plan_date)!;
+          if (curIdx === prevIdx + 1) {
+            group.push(it);
+          } else {
+            flush();
+            group.push(it);
+          }
+        }
+        flush();
+      }
+      out.set(rowKey, spans);
+    }
+    return out;
+  }, [itemsByBooking, dateToIndex]);
 
   const openBooking = (bookingId: string | null) => {
     if (!bookingId) return;
@@ -128,8 +222,9 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
   }
 
   const colWidth = 44;
-  const labelWidth = 240;
-  const rowHeight = 40;
+  const labelWidth = 260;
+  const rowHeight = 44;
+  const barHeight = 26;
 
   return (
     <div className="flex-1 overflow-auto">
@@ -165,16 +260,7 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
           </div>
         ) : (
           rows.map((row) => {
-            const items = itemsByBooking.get(row.key) ?? [];
-            // Gruppera items per dag för att stacka flera på samma datum.
-            const byDate = new Map<string, PlannerItemWithValidity[]>();
-            for (const it of items) {
-              if (!dateToIndex.has(it.plan_date)) continue;
-              const arr = byDate.get(it.plan_date) ?? [];
-              arr.push(it);
-              byDate.set(it.plan_date, arr);
-            }
-
+            const spans = spansByRow.get(row.key) ?? [];
             return (
               <div
                 key={row.key}
@@ -210,33 +296,40 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
                       />
                     );
                   })}
-                  {/* Item-block (stackas vertikalt i samma dagcell) */}
-                  {Array.from(byDate.entries()).flatMap(([date, list]) => {
-                    const idx = dateToIndex.get(date)!;
-                    const slotH = Math.max(8, (rowHeight - 4) / list.length);
-                    return list.map((it, i) => {
-                      const phase = resolvePhase(it);
-                      const top = 2 + i * slotH;
-                      return (
-                        <button
-                          key={it.id}
-                          type="button"
-                          onClick={() => openBooking(row.bookingId)}
-                          className={`absolute rounded-sm px-1 text-[10px] font-medium text-white shadow-sm transition-colors ${PHASE_CLS[phase]}`}
-                          style={{
-                            left: idx * colWidth + 2,
-                            width: colWidth - 4,
-                            top,
-                            height: slotH - 2,
-                          }}
-                          title={`${PHASE_LABEL[phase]} · ${it.title} · ${format(parseISO(date), 'EEE d MMM', { locale: sv })}`}
-                        >
-                          <span className="block truncate leading-tight">
-                            {PHASE_LABEL[phase]}
-                          </span>
-                        </button>
-                      );
-                    });
+                  {/* Spans (sammanhängande staplar per fas) */}
+                  {spans.map((s) => {
+                    const style = PHASE_STYLE[s.phase];
+                    const left = s.startIdx * colWidth + 2;
+                    const width = s.span * colWidth - 4;
+                    const top = (rowHeight - barHeight) / 2;
+                    const firstDate = s.dates[0];
+                    const lastDate = s.dates[s.dates.length - 1];
+                    const rangeLabel =
+                      firstDate === lastDate
+                        ? format(parseISO(firstDate), 'EEE d MMM', { locale: sv })
+                        : `${format(parseISO(firstDate), 'd MMM', { locale: sv })} – ${format(parseISO(lastDate), 'd MMM', { locale: sv })}`;
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => openBooking(row.bookingId)}
+                        className="absolute rounded-md px-2 text-[11px] font-semibold shadow-sm transition-all hover:brightness-95"
+                        style={{
+                          left,
+                          width,
+                          top,
+                          height: barHeight,
+                          background: style.bg,
+                          color: style.fg,
+                          border: `1px solid ${style.border}`,
+                        }}
+                        title={`${PHASE_LABEL[s.phase]} · ${s.title} · ${rangeLabel}`}
+                      >
+                        <span className="block truncate text-left leading-[24px]">
+                          {s.phase === 'other' ? s.title : PHASE_LABEL[s.phase]}
+                        </span>
+                      </button>
+                    );
                   })}
                 </div>
               </div>
