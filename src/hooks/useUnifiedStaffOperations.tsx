@@ -264,7 +264,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
     const staffMember = activeStaff.find(s => s.id === staffId);
 
     // Optimistic update — add OR remove a single team-row.
-    queryClient.setQueryData<StaffAssignment[]>(['staff-assignments-all'], prev => {
+    queryClient.setQueryData<StaffAssignment[]>(['staff-assignments-all', window.bucket], prev => {
       const list = prev || [];
       if (resourceId) {
         // Don't add a duplicate for (staff,team,date)
