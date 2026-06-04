@@ -182,14 +182,31 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
   };
 
   const handleReviewUpdate = (booking: typeof updatedBookingsMeta[number]) => {
+    // Bygg navigateTo + samla alla syskon-bokningar med osedda ändringar
+    // som tillhör samma target, så att dialogen visar ALLA diffar.
+    const unseenIds = new Set(visibleUpdates.map((u) => u.booking_id));
+    let navigateTo: string;
+    let bookingIds: string[];
+    let name: string;
     if (booking.large_project_id) {
-      navigate(`/large-project/${booking.large_project_id}`);
+      navigateTo = `/large-project/${booking.large_project_id}`;
+      bookingIds = updatedBookingsMeta
+        .filter((b) => b.large_project_id === booking.large_project_id && unseenIds.has(b.id))
+        .map((b) => b.id);
+      name = booking.client || 'Stort projekt';
     } else if (booking.assigned_project_id) {
-      navigate(`/project/${booking.assigned_project_id}`);
+      navigateTo = `/project/${booking.assigned_project_id}`;
+      bookingIds = updatedBookingsMeta
+        .filter((b) => b.assigned_project_id === booking.assigned_project_id && unseenIds.has(b.id))
+        .map((b) => b.id);
+      name = booking.client || 'Projekt';
     } else {
-      navigate(`/booking/${booking.id}`);
+      navigateTo = `/booking/${booking.id}`;
+      bookingIds = [booking.id];
+      name = booking.client || 'Bokning';
     }
-    markSeen.mutate(booking.id);
+    if (bookingIds.length === 0) bookingIds = [booking.id];
+    setUpdateDialog({ name, bookingIds, navigateTo });
   };
 
   // Visuell prioritet: uppdaterade vs nya MÅSTE särskiljas tydligt — annars
