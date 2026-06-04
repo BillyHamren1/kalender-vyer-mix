@@ -74,6 +74,7 @@ interface GanttSpan {
 
 const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
   const { isLoading, error, bookings, days, itemsWithAssignmentValidity } = ctx;
+  const [activeTab, setActiveTab] = useState<TabKey>('all');
 
   const dateToIndex = useMemo(() => {
     const m = new Map<string, number>();
