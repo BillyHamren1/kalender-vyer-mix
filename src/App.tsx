@@ -18,7 +18,6 @@ import { lazyWithRecovery } from "@/utils/lazyWithRecovery";
 
 // Main system pages — eager (used immediately after login)
 import PlanningDashboard from "./pages/PlanningDashboard";
-import MyProjects from "./pages/MyProjects";
 import MyPage from "./pages/MyPage";
 import MyPageProjects from "./pages/MyPageProjects";
 import MyPageCalendar from "./pages/MyPageCalendar";

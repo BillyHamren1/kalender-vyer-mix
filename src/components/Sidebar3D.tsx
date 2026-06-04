@@ -14,6 +14,10 @@ import {
   ExternalLink,
   Sparkles,
   CalendarClock,
+  UserRound,
+  CalendarDays,
+  ListChecks,
+  LayoutDashboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProjectInboxCount } from "@/hooks/useProjectInboxCount";
@@ -44,11 +48,21 @@ interface NavItem {
 
 const baseNavigationItems: NavItem[] = [
   {
+    title: "Min sida",
+    url: "/my-page",
+    icon: UserRound,
+    children: [
+      { title: "Översikt", url: "/my-page", icon: LayoutDashboard },
+      { title: "Mina projekt", url: "/my-page/projects", icon: FolderKanban },
+      { title: "Min kalender", url: "/my-page/calendar", icon: CalendarDays },
+      { title: "Mina todos", url: "/my-page/todos", icon: ListChecks },
+    ],
+  },
+  {
     title: "Projekt",
     url: "/projects",
     icon: FolderKanban,
     children: [
-      { title: "Mina projekt", url: "/my-projects", icon: FolderKanban },
       { title: "Projektöversikt", url: "/economy", icon: Wallet },
     ],
   },
