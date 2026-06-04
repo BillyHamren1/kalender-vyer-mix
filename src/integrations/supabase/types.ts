@@ -8199,7 +8199,9 @@ export type Database = {
         Row: {
           address: string | null
           assigned_leader: string | null
+          assigned_staff_id: string | null
           booking_id: string | null
+          calendar_scope: string
           city: string | null
           client: string | null
           contact_email: string | null
@@ -8225,7 +8227,9 @@ export type Database = {
         Insert: {
           address?: string | null
           assigned_leader?: string | null
+          assigned_staff_id?: string | null
           booking_id?: string | null
+          calendar_scope?: string
           city?: string | null
           client?: string | null
           contact_email?: string | null
@@ -8251,7 +8255,9 @@ export type Database = {
         Update: {
           address?: string | null
           assigned_leader?: string | null
+          assigned_staff_id?: string | null
           booking_id?: string | null
+          calendar_scope?: string
           city?: string | null
           client?: string | null
           contact_email?: string | null
@@ -8275,6 +8281,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "todos_assigned_staff_id_fkey"
+            columns: ["assigned_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "todos_booking_id_fkey"
             columns: ["booking_id"]
