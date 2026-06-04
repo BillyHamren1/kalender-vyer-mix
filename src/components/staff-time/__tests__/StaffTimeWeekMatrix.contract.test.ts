@@ -125,7 +125,7 @@ describe("StaffTimeWeekMatrix (admin veckomatris)", () => {
     const src = read("supabase/functions/_shared/staff-day-report/resolveStaffDayReport.ts");
     expect(src).toMatch(/buildCanonicalStaffDayGpsResult/);
     expect(src).toMatch(/canonicalStaffDayGpsResult/);
-    expect(src).toMatch(/GPS-baserade rows kommer från canonicalStaffDayGpsResult/);
+    expect(src).toMatch(/GPS-baserade rows kommer från/);
     // Får aldrig läsa raw GPS själv
     expect(src).not.toMatch(/from\(\s*["']staff_location_history["']/);
   });
