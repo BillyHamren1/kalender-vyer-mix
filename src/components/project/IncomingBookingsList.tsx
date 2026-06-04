@@ -38,6 +38,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [placementBookingId, setPlacementBookingId] = useState<string | null>(null);
+  const [updateDialog, setUpdateDialog] = useState<{ name: string; bookingIds: string[]; navigateTo: string } | null>(null);
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ['bookings-without-project'],
     queryFn: async () => {
