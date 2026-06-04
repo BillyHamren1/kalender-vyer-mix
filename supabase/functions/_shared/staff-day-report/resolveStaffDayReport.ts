@@ -319,7 +319,7 @@ export async function tryBuildCanonicalForDay(
   date: string,
 ): Promise<CanonicalProjection | null> {
   try {
-    const canonical = await buildCanonicalStaffDayGpsResult(admin, {
+    const canonical = await buildCanonicalStaffDayGpsResult(admin as any, {
       organizationId, staffId, date,
     });
     if (!canonical.segments || canonical.segments.length === 0) return null;
