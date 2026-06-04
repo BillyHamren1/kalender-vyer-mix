@@ -164,7 +164,13 @@ export const fetchMyProjects = async (staffId: string): Promise<MyProjectItem[]>
     (largeAssignedTasks || []).map(t => t.large_project_id)
   )];
   const largeLeaderIds = new Set((largeLeaderProjects || []).map(p => p.id));
-  const largeAdditionalIds = largeAssignedIds.filter(id => !largeLeaderIds.has(id));
+  const followerExtraLargeIds = [...followedLargeIds].filter(
+    (id) => !largeLeaderIds.has(id) && !largeAssignedIds.includes(id),
+  );
+  const largeAdditionalIds = [
+    ...largeAssignedIds.filter(id => !largeLeaderIds.has(id)),
+    ...followerExtraLargeIds,
+  ];
 
   let largeAssignedProjects: typeof largeLeaderProjects = [];
   if (largeAdditionalIds.length > 0) {
@@ -178,7 +184,12 @@ export const fetchMyProjects = async (staffId: string): Promise<MyProjectItem[]>
 
   const allLargeProjects = [
     ...(largeLeaderProjects || []).map(p => ({ ...p, role: 'leader' as const })),
-    ...(largeAssignedProjects || []).map(p => ({ ...p, role: 'assigned' as const })),
+    ...(largeAssignedProjects || []).map(p => ({
+      ...p,
+      role: followedLargeIds.has(p.id) && !largeAssignedIds.includes(p.id)
+        ? ('follower' as const)
+        : ('assigned' as const),
+    })),
   ];
 
   const allLargeIds = allLargeProjects.map(p => p.id);
