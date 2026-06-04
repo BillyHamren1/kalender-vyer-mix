@@ -743,53 +743,12 @@ Deno.serve(async (req) => {
   const dates = eachDate(dateFrom, dateTo);
   const totalStaffDays = staffList.length * dates.length;
 
-  // Build candidate list — limited to (staff,date) pairs that actually have
-  // GPS pings in the period. Days without pings produce no cache row and would
-  // otherwise re-appear in every batch forever (the engine returns early on
-  // pingCount=0 without upserting). We pre-filter via a paged query.
+  // Build candidate list
   type Cand = { staff_id: string; date: string; staff_name: string };
   const candidates: Cand[] = [];
-  const staffIdSet = new Set(staffList.map((s: any) => s.id));
-  const nameById = new Map<string, string>(staffList.map((s: any) => [s.id, s.name as string]));
-  const onlyPingDays = body?.onlyPingDays !== false; // default TRUE
-  if (onlyPingDays && staffList.length > 0) {
-    const { startUtc: rangeStart } = getStockholmDayWindowUtc(dateFrom);
-    const { endUtc: rangeEnd } = getStockholmDayWindowUtc(dateTo);
-    const pairSet = new Set<string>();
-    const PAGE = 1000;
-    let from = 0;
-    while (true) {
-      const { data: rows, error } = await admin
-        .from('staff_location_history')
-        .select('staff_id, recorded_at')
-        .eq('organization_id', orgId)
-        .gte('recorded_at', rangeStart)
-        .lte('recorded_at', rangeEnd)
-        .order('recorded_at', { ascending: true })
-        .range(from, from + PAGE - 1);
-      if (error) break;
-      if (!rows || rows.length === 0) break;
-      for (const r of rows) {
-        if (!staffIdSet.has(r.staff_id)) continue;
-        const local = new Intl.DateTimeFormat('sv-SE', {
-          timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit',
-        }).format(new Date(r.recorded_at));
-        pairSet.add(`${r.staff_id}|${local}`);
-      }
-      if (rows.length < PAGE) break;
-      from += PAGE;
-      if (from > 500_000) break;
-    }
-    for (const key of pairSet) {
-      const [sid, d] = key.split('|');
-      if (d < dateFrom || d > dateTo) continue;
-      candidates.push({ staff_id: sid, date: d, staff_name: nameById.get(sid) ?? '' });
-    }
-  } else {
-    for (const d of dates) {
-      for (const s of staffList) {
-        candidates.push({ staff_id: s.id, date: d, staff_name: s.name });
-      }
+  for (const d of dates) {
+    for (const s of staffList) {
+      candidates.push({ staff_id: s.id, date: d, staff_name: s.name });
     }
   }
 
