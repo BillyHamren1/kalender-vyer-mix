@@ -72,6 +72,8 @@ const LargeProjectViewPage = () => {
         projectId={project.id}
       />
 
+      <ProjectFollowersPanel projectId={project.id} projectType="large" />
+
       {/* Leveranskontakt från bokningen */}
       {contactBooking && (
         <ProjectContactCard
