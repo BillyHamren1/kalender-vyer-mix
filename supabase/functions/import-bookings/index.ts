@@ -946,36 +946,50 @@ async function reconcileCalendarEvents(
   let rigdownDates = bookingData.allRigdownDates && bookingData.allRigdownDates.length > 0
     ? bookingData.allRigdownDates : (bookingData.rigdowndate ? [bookingData.rigdowndate] : []);
 
-  // ── BSA-DRIVEN MULTI-DAY EXPANSION ──────────────────────────────────────
-  // BOOKING skickar oftast bara EN rigdaydate/rigdowndate även när personalen
-  // är inplanerad fler dagar. Förr härledde UI:t "synthetic" rader för dessa
-  // extra dagar — vilket innebar att team-byte/datum-byte aldrig sparades.
-  // Nu materialiserar vi en RIKTIG calendar_events-rad per dag som faktiskt
-  // har personal i booking_staff_assignments. Dagar mellan rig och event
-  // räknas som rig; dagar efter event räknas som rigDown.
+  // ── EXTRA-DAY EXPANSION (from existing calendar_events only) ───────────
+  // Tidigare användes booking_staff_assignments som källa för "extra dagar"
+  // utöver det externa Booking-systemets rigdaydate/rigdowndate. Det vände
+  // dataflödet bakvänt: BSA ska SPEGLA calendar_events (calendar-team-model-v1),
+  // inte styra vilka datum som finns. När externa systemet flyttade ett rigdag
+  // (t.ex. 2026-06-03 → 2026-06-04) återuppstod den gamla 06-03-raden eftersom
+  // BSA låg kvar — calendar_events blev permanent stale.
+  //
+  // Ny regel: extra calendar_events-rader (skapade via planner-UI:t
+  // AddRiggDayDialog m.fl.) bevaras endast om deras source_date ligger INOM
+  // bokningens externa fönster [min(rig, event, rigdown), max(...)]. Datum
+  // utanför fönstret betraktas som stale och raderas i steg 5.
   try {
-    const { data: bsaRows } = await supabase
-      .from('booking_staff_assignments')
-      .select('assignment_date')
-      .eq('booking_id', bookingData.id);
-    const bsaDates: string[] = Array.from(new Set((bsaRows || []).map((r: any) => r.assignment_date)));
-    if (bsaDates.length > 0) {
-      const evDate = bookingData.eventdate as string | null;
+    const allBookingDates: string[] = [
+      ...(bookingData.rigdaydate ? [bookingData.rigdaydate] : []),
+      ...(bookingData.eventdate ? [bookingData.eventdate] : []),
+      ...(bookingData.rigdowndate ? [bookingData.rigdowndate] : []),
+      ...rigDates, ...eventDates, ...rigdownDates,
+    ].filter(Boolean).sort();
+    const windowStart = allBookingDates[0];
+    const windowEnd = allBookingDates[allBookingDates.length - 1];
+
+    if (windowStart && windowEnd) {
       const rigSet = new Set<string>(rigDates);
       const evSet = new Set<string>(eventDates);
       const downSet = new Set<string>(rigdownDates);
-      for (const d of bsaDates) {
+      const evDate = bookingData.eventdate as string | null;
+
+      for (const ev of (existingEvents || [])) {
+        if (ev.event_type !== 'rig' && ev.event_type !== 'rigDown') continue;
+        const d = (ev.source_date as string | null) || (ev.start_time as string | null)?.slice(0, 10) || '';
+        if (!d) continue;
+        if (d < windowStart || d > windowEnd) continue; // utanför fönster = stale
         if (rigSet.has(d) || evSet.has(d) || downSet.has(d)) continue;
-        // Klassificera dagen
-        if (evDate && d > evDate) downSet.add(d);
+        if (ev.event_type === 'rigDown' || (evDate && d > evDate)) downSet.add(d);
         else rigSet.add(d);
       }
+
       rigDates = Array.from(rigSet).sort();
       rigdownDates = Array.from(downSet).sort();
-      console.log(`[Calendar Reconcile] BSA expansion for ${bookingData.id}: rig=${rigDates.length}, rigDown=${rigdownDates.length}`);
+      console.log(`[Calendar Reconcile] In-window extra-day expansion for ${bookingData.id} (${windowStart}..${windowEnd}): rig=${rigDates.length}, rigDown=${rigdownDates.length}`);
     }
-  } catch (bsaErr) {
-    console.error(`[Calendar Reconcile] BSA expansion failed:`, bsaErr);
+  } catch (expandErr) {
+    console.error(`[Calendar Reconcile] In-window expansion failed:`, expandErr);
   }
   // ────────────────────────────────────────────────────────────────────────
 

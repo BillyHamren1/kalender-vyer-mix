@@ -1,46 +1,36 @@
-# Plan: återställ paketmedlemmar och tillbehör i packlistor
-
 ## Mål
-Se till att packlistor och produktvyer alltid visar:
-- paketmedlemmar
-- tillbehör
-- barnrader kopplade via både `parent_product_id` och `parent_package_id`
+Säkerställa att ändringar i Booking alltid syns i Planning direkt efter sync, utan att `bookings` och `calendar_events` kan glida isär.
 
-## Det jag kommer att fixa
-1. **Rätta produktvisningen i pack-/bokningsvyn**
-   - Uppdatera produkttabellen som matchar skärmbilden så att den inte tappar barnrader.
-   - Sluta förlita visningen enbart på `parent_product_id`.
-   - Hantera även `parent_package_id` och `is_package_component` så att paketmedlemmar och tillbehör visas under rätt huvudrad.
+## Vad jag har verifierat
+- Webhook/jobbkedjan tar nu emot och behandlar uppdateringen för den aktuella bokningen.
+- `booking_sync_jobs` går till `completed`.
+- `bookings`-raden är uppdaterad.
+- Men `calendar_events` för samma `booking_id` ligger kvar med gamla datum/tider.
+- Planning-kalendern läser primärt från `calendar_events`, så användaren ser den gamla versionen även när `bookings` är korrekt uppdaterad.
 
-2. **Rätta packlistans read-model**
-   - Uppdatera `usePackingList` och tillhörande typer så att packlistan hämtar och bär med hela hierarkin, inte bara `parent_product_id`.
-   - Justera gruppering/rendering i packlistan så att barnrader inte faller bort eller felklassas som toppnivårader.
-   - Säkerställa att "föräldralösa" barnrader fortfarande visas istället för att försvinna.
+## Plan
+1. Granska och laga reconciler-logiken i `import-bookings`
+   - Identifiera exakt varför `calendar_events` inte uppdateras/deletar/skapas om när bookingens fasdatum eller tider ändras.
+   - Säkerställa att single-refresh (`syncMode: 'single'`) alltid kör full kalender-reconcile för den bokningen.
 
-3. **Ta bort drift mellan klientsync och backend-sync**
-   - Gå igenom den klientkod som idag genererar/synkar `packing_list_items` lokalt.
-   - Anpassa den till samma regler som den kanoniska backend-synken, så att klienten inte bygger en annan packlista än backend.
-   - Särskilt säkra att paketrubriker, paketmedlemmar och tillbehör behandlas konsekvent i alla vyer.
+2. Verifiera event-typs- och payloadflöde i intake/import
+   - Kontrollera att varianter som `booking.updated`, `booking.time.updated`, `booking_updated` och `booking.time_updated` inte leder till att importen hoppar över kalender-rebuild.
+   - Om nödvändigt normalisera/vidga stödet så tidsändringar också behandlas som full booking refresh.
 
-4. **Regressionstesta det som nu är trasigt**
-   - Lägga tester för bokning med:
-     - huvudprodukt
-     - paketmedlemmar
-     - tillbehör
-     - barnrader via både `parent_product_id` och `parent_package_id`
-   - Verifiera att både produktöversikt och packlista visar rätt rader.
+3. Lägg regressionstest för den exakta buggen
+   - Test som bevisar: när booking-datum/tider ändras och bokningen importeras på nytt så speglar `calendar_events` den nya sanningen.
+   - Täcka både uppdatering av befintliga dagar och borttagning av gamla/stale dagar.
 
-5. **Verifiering efter fix**
-   - Köra riktade tester.
-   - Kontrollera i preview att samma typ av lista som i din skärmbild faktiskt visar paketmedlemmar och tillbehör igen.
+4. Validera hela flödet efter fix
+   - Köra edge function-test(er) för import/sync.
+   - Kontrollera preview/read-model-signalen så att Planning faktiskt får den uppdaterade kalenderdatan.
 
-## Tekniska ändringar
-Troliga filer att uppdatera:
-- `src/components/project/ProjectProductsList.tsx`
-- `src/hooks/usePackingList.tsx`
-- `src/types/packing.ts`
-- `src/components/packing/PackingListTab.tsx`
-- eventuellt `src/components/packing/DesktopChecklistView.tsx`
+## Tekniska fokusområden
+- `supabase/functions/import-bookings/index.ts`
+- event-reconcile för `calendar_events`
+- `supabase/functions/receive-booking/index.ts`
+- `supabase/functions/process-sync-jobs/index.ts`
+- ev. testfil för `import-bookings`/sync-kedjan
 
-## Nuvarande fynd
-Jag har redan verifierat att databasen **inte verkar sakna datat generellt**: flera aktuella packningar har `packing_list_items` kopplade till `booking_products` där många rader är barnrader/paketkomponenter. Det pekar alltså främst på ett **frontend/read-model-filter**, med möjlig sekundär drift i klientens egen packlistsync.
+## Förväntat resultat
+När en bokning ändras i externa Booking-systemet ska både lokal `bookings`-rad och lokala `calendar_events` uppdateras konsekvent, så Planning visar samma data utan eftersläpning.
