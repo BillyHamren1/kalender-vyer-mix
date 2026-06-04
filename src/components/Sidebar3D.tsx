@@ -55,7 +55,6 @@ const baseNavigationItems: NavItem[] = [
     icon: UserRound,
     children: [
       { title: "Översikt", url: "/my-page", icon: LayoutDashboard },
-      { title: "Mina projekt", url: "/my-page/projects", icon: FolderKanban },
       { title: "Min kalender", url: "/my-page/calendar", icon: CalendarDays },
       { title: "Mina todos", url: "/my-page/todos", icon: ListChecks },
     ],
