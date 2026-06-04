@@ -21,6 +21,7 @@ interface BookingProduct {
   quantity: number;
   notes: string | null;
   parent_product_id: string | null;
+  parent_package_id: string | null;
   is_package_component: boolean | null;
   estimated_weight_kg: number | null;
   estimated_volume_m3: number | null;
@@ -39,11 +40,27 @@ interface ProjectProductsListProps {
 export const cleanName = (name: string) =>
   name.replace(/^(?:L,|--|[↳└→✓\u21B3\u2514\u2192\u2713\-–\s])+\s*/, "").trim();
 
-// `-- foo` = paketkomponent (auto-medföljande, ska döljas i bokningsvyn)
-const isHiddenPackageComponent = (name: string) => /^\s*--/.test(name);
+// En rad är ett barn (paketmedlem eller tillbehör) om DB säger det
+// (parent_product_id, parent_package_id eller is_package_component) ELLER
+// om namnet bär en hierarki-prefix (legacy-data utan FK).
+const NAME_LOOKS_LIKE_CHILD = /^\s*(?:--|↳|└|L,)/;
+const isChildRow = (p: BookingProduct): boolean =>
+  !!p.parent_product_id ||
+  !!p.parent_package_id ||
+  !!p.is_package_component ||
+  NAME_LOOKS_LIKE_CHILD.test(p.name || "");
 
-export const isVisibleAccessory = (p: { name: string; parent_product_id: string | null }) =>
-  !!p.parent_product_id && !isHiddenPackageComponent(p.name);
+// Behåll legacy-export för andra konsumenter — visar nu ALLA barn (även paketmedlemmar).
+export const isVisibleAccessory = (p: {
+  name: string;
+  parent_product_id: string | null;
+  parent_package_id?: string | null;
+  is_package_component?: boolean | null;
+}) =>
+  !!p.parent_product_id ||
+  !!p.parent_package_id ||
+  !!p.is_package_component ||
+  NAME_LOOKS_LIKE_CHILD.test(p.name || "");
 
 const ProjectProductsList = ({
   bookingId,
@@ -60,7 +77,7 @@ const ProjectProductsList = ({
       const { data, error } = await supabase
         .from("booking_products")
         .select(
-          "id, name, quantity, notes, parent_product_id, is_package_component, estimated_weight_kg, estimated_volume_m3, sort_index"
+          "id, name, quantity, notes, parent_product_id, parent_package_id, is_package_component, estimated_weight_kg, estimated_volume_m3, sort_index"
         )
         .eq("booking_id", bookingId)
         .order("sort_index", { ascending: true, nullsFirst: false });
@@ -90,12 +107,19 @@ const ProjectProductsList = ({
     );
   }
 
-  const mainProducts = products.filter((p) => !p.parent_product_id && !p.is_package_component);
-  const allChildren = products.filter((p) => p.parent_product_id || p.is_package_component);
-  // Visa huvudprodukter + ↳-tillbehör (kundvalda). Dölj endast `--`-paketkomponenter.
-  const visibleProducts = products.filter(
-    (p) => !p.parent_product_id || isVisibleAccessory(p)
-  );
+  // Huvudprodukter = rader som inte är barnrader
+  const mainProducts = products.filter((p) => !isChildRow(p));
+  const mainIds = new Set(mainProducts.map((p) => p.id));
+  // ALLA barn (paketmedlemmar + tillbehör) ska visas — vi gömmer aldrig något.
+  const allChildren = products.filter((p) => isChildRow(p));
+
+  // Föräldralösa barn där parent saknas i mainProducts → visas separat
+  const orphanedChildren = allChildren.filter((c) => {
+    const parentKey = c.parent_product_id || c.parent_package_id;
+    return !parentKey || !mainIds.has(parentKey);
+  });
+
+  const visibleProducts = [...mainProducts, ...allChildren];
 
   const totalWeight = visibleProducts.reduce(
     (sum, p) => sum + (p.estimated_weight_kg || 0) * p.quantity,
@@ -166,9 +190,47 @@ const ProjectProductsList = ({
     });
   };
 
+  const isPackageMember = (p: BookingProduct): boolean =>
+    !!p.is_package_component || !!p.parent_package_id || /^\s*--/.test(p.name || "");
+
+  const renderChildRow = (child: BookingProduct) => {
+    const member = isPackageMember(child);
+    return (
+      <div
+        key={child.id}
+        className="grid grid-cols-[minmax(0,1fr)_2rem_5rem] items-center py-1 pl-5 pb-1.5 gap-3"
+      >
+        <span className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+          <span
+            className={
+              member
+                ? "h-1.5 w-1.5 rounded-full bg-primary/40 shrink-0"
+                : "h-1.5 w-1.5 rounded-full bg-muted-foreground/50 shrink-0"
+            }
+            title={member ? "Paketmedlem" : "Tillbehör"}
+          />
+          {cleanName(child.name)}
+          {member && (
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
+              pkt
+            </span>
+          )}
+        </span>
+        <span />
+        <span className="text-right text-xs text-muted-foreground tabular-nums">
+          {child.quantity} st
+        </span>
+      </div>
+    );
+  };
+
   const renderProductLine = (product: BookingProduct, withMenu: boolean) => {
+    // Matcha barn på BÅDE parent_product_id OCH parent_package_id så att
+    // både paketmedlemmar (`-- M Ben`) och tillbehör (`↳ M Takduk`) visas.
     const accessories = allChildren.filter(
-      (c) => c.parent_product_id === product.id && isVisibleAccessory(c)
+      (c) =>
+        c.parent_product_id === product.id ||
+        (!!c.parent_package_id && c.parent_package_id === product.id)
     );
     return (
       <div key={product.id}>
@@ -198,18 +260,7 @@ const ProjectProductsList = ({
             {product.quantity} st
           </span>
         </div>
-        {accessories.map((child) => (
-          <div key={child.id} className="grid grid-cols-[minmax(0,1fr)_2rem_5rem] items-center py-1 pl-5 pb-1.5 gap-3">
-            <span className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
-              <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50 shrink-0" />
-              {cleanName(child.name)}
-            </span>
-            <span />
-            <span className="text-right text-xs text-muted-foreground tabular-nums">
-              {child.quantity} st
-            </span>
-          </div>
-        ))}
+        {accessories.map((child) => renderChildRow(child))}
       </div>
     );
   };
@@ -285,6 +336,16 @@ const ProjectProductsList = ({
           <div className="divide-y divide-border/40">
             {mainProducts.map((p) => renderProductLine(p, false))}
           </div>
+          {orphanedChildren.length > 0 && (
+            <div className="mt-3 pt-2 border-t border-dashed border-border/40">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
+                Tillbehör / paketmedlemmar utan huvudprodukt ({orphanedChildren.length})
+              </p>
+              <div className="divide-y divide-border/40">
+                {orphanedChildren.map((c) => renderChildRow(c))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

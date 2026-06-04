@@ -1,46 +1,46 @@
-# Plan: få webhook-jobb att verkligen uppdatera Planning
+# Plan: återställ paketmedlemmar och tillbehör i packlistor
 
-## Vad jag har bekräftat
-- Bokning **2605-5** finns lokalt i `bookings` men dess `updated_at` är fortfarande från igår kväll.
-- Samtidigt finns flera `booking_sync_jobs` för exakt den bokningen idag med status **completed**.
-- Det betyder att webhooken/kön tas emot och markeras klar, men att den faktiska skrivningen till Planning uteblir.
+## Mål
+Se till att packlistor och produktvyer alltid visar:
+- paketmedlemmar
+- tillbehör
+- barnrader kopplade via både `parent_product_id` och `parent_package_id`
 
-## Trolig rotorsak
-`process-sync-jobs` anropar `import-bookings` i `incremental`-läge.
-Men `import-bookings` är just nu byggd så att **alla icke-single-körningar köar vidare jobb istället för att applicera datat inline**.
-Då uppstår detta felmönster:
+## Det jag kommer att fixa
+1. **Rätta produktvisningen i pack-/bokningsvyn**
+   - Uppdatera produkttabellen som matchar skärmbilden så att den inte tappar barnrader.
+   - Sluta förlita visningen enbart på `parent_product_id`.
+   - Hantera även `parent_package_id` och `is_package_component` så att paketmedlemmar och tillbehör visas under rätt huvudrad.
 
-```text
-receive-booking -> booking_sync_jobs: pending
-process-sync-jobs claimar jobbet
-process-sync-jobs -> import-bookings(incremental)
-import-bookings hämtar externa ändringar men köar bara vidare / hoppar över aktiva jobb
-process-sync-jobs markerar ursprungsjobbet som completed
-Ingen faktisk update av bookings/calendar_events sker
-```
+2. **Rätta packlistans read-model**
+   - Uppdatera `usePackingList` och tillhörande typer så att packlistan hämtar och bär med hela hierarkin, inte bara `parent_product_id`.
+   - Justera gruppering/rendering i packlistan så att barnrader inte faller bort eller felklassas som toppnivårader.
+   - Säkerställa att "föräldralösa" barnrader fortfarande visas istället för att försvinna.
 
-## Jag kommer att ändra
-1. **Rätta kontraktet mellan worker och import**
-   - Införa ett explicit worker-/apply-läge så att `import-bookings` vid köad inkrementell körning faktiskt **persisterar bokningar/events/products** istället för att bara köa vidare.
-   - Behålla nuvarande snabbare intake i `receive-booking`.
+3. **Ta bort drift mellan klientsync och backend-sync**
+   - Gå igenom den klientkod som idag genererar/synkar `packing_list_items` lokalt.
+   - Anpassa den till samma regler som den kanoniska backend-synken, så att klienten inte bygger en annan packlista än backend.
+   - Särskilt säkra att paketrubriker, paketmedlemmar och tillbehör behandlas konsekvent i alla vyer.
 
-2. **Skydda mot falsk “completed”**
-   - Se till att `process-sync-jobs` bara markerar jobb som completed när importen verkligen har kört appliceringssteget.
-   - Om importen bara returnerar “queued” eller tom applicering av fel skäl ska jobbet inte räknas som klart tyst.
+4. **Regressionstesta det som nu är trasigt**
+   - Lägga tester för bokning med:
+     - huvudprodukt
+     - paketmedlemmar
+     - tillbehör
+     - barnrader via både `parent_product_id` och `parent_package_id`
+   - Verifiera att både produktöversikt och packlista visar rätt rader.
 
-3. **Lägga till riktade tester för regressionsskydd**
-   - Ett test för hela kedjan: `receive-booking`/kö/worker/import ska ge verklig uppdatering i `bookings`.
-   - Ett test som fångar just denna bug: worker får inte “slänga” en uppdatering genom att markera jobb completed utan lokal write.
-
-4. **Verifiera på den riktiga bokningen**
-   - Köra en ny synk för 2605-5.
-   - Kontrollera att lokal `bookings.updated_at` ändras och att Planning därefter får realtime/invalidation på korrekt sätt.
+5. **Verifiering efter fix**
+   - Köra riktade tester.
+   - Kontrollera i preview att samma typ av lista som i din skärmbild faktiskt visar paketmedlemmar och tillbehör igen.
 
 ## Tekniska ändringar
-- `supabase/functions/process-sync-jobs/index.ts`
-- `supabase/functions/import-bookings/index.ts`
-- ev. kompletterande test i `supabase/functions/process-sync-jobs/*` eller ny Deno-test för worker→import-kontraktet
+Troliga filer att uppdatera:
+- `src/components/project/ProjectProductsList.tsx`
+- `src/hooks/usePackingList.tsx`
+- `src/types/packing.ts`
+- `src/components/packing/PackingListTab.tsx`
+- eventuellt `src/components/packing/DesktopChecklistView.tsx`
 
-## Resultat efter fix
-- När Planning svarar med `job_id` + `pending` ska bokningen inte bara accepteras i kön, utan också verkligen landa i Planning-databasen.
-- UI:t behöver då inte gissa eller poll:a fram förändringen; det ska komma via den normala dataskrivningen + realtime/invalidation.
+## Nuvarande fynd
+Jag har redan verifierat att databasen **inte verkar sakna datat generellt**: flera aktuella packningar har `packing_list_items` kopplade till `booking_products` där många rader är barnrader/paketkomponenter. Det pekar alltså främst på ett **frontend/read-model-filter**, med möjlig sekundär drift i klientens egen packlistsync.
