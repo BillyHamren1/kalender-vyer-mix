@@ -1,38 +1,33 @@
-## Mål
-Göra så att `/staff-management/time?tab=lon` visar samma platsklassning som GPS-satellitvyn för samma person/dag, så att `FA Warehouse` inte blir `Okänd plats` när canonical GPS redan har matchat platsen.
+# Fix: Sökfältet på "Planera packning" filtrerar inte inbox-listan
 
-## Plan
-1. **Kartlägg och lås den verkliga divergensen**
-   - Verifiera vilka fält Tid & Lön faktiskt läser idag (`staff_day_report_cache.display_blocks_json` / `report_candidate_blocks_json`) och vilka fält GPS-satelliten läser (`staff_gps_day_snapshots.visits` via snapshot/canonical).
-   - Säkerställ med riktade tester att samma `(staffId, date)` idag kan ge olika resultat i de två pipelines.
+## Problem
+På `/warehouse/packing` finns ett sökfält ("Sök packning…"). Idag filtrerar det **bara** `filteredPackings` (befintliga packningsprojekt) som visas längst ner. Men listan användaren faktiskt försöker söka i — **"Nya projekt från Planning"** (`WarehouseProjectInbox`) — tar inte emot någon `search`-prop och filtreras därför aldrig. Samma sak gäller `PackingUpdatedBookings` och `PackingDashboard`. Resultat: man skriver "we" och inget händer i inbox-listan.
 
-2. **Gör resolvern canonical-first för GPS-proposal-läget**
-   - Uppdatera den gemensamma resolver-/week-matrix-pipelinen så att cache-rader i `gps_proposal` byggs från den canonical projektionen när den finns, istället för att lita på en äldre/avvikande `display_blocks_json`.
-   - Behåll submission-prioritet oförändrad: `staff_day_submissions` ska fortsatt vinna över allt.
-   - Scope: endast cache-/gps_proposal-visning, inte godkända eller inskickade dagar.
+## Lösning
+Skicka ner sökterm till de listor som finns på sidan, så att samma fält filtrerar allt.
 
-3. **Täta skrivvägen till `staff_day_report_cache`**
-   - Identifiera och justera eventuell skrivväg som fortfarande kan lämna legacy-/unknown-block i `display_blocks_json` trots att canonical finns.
-   - Säkerställ att cacheprojektionen till `display_blocks_json` och `report_candidate_blocks_json` alltid speglar samma canonical blocklista för GPS-förslagsdagar.
+### Ändringar
+1. **`src/components/warehouse/WarehouseProjectInbox.tsx`**
+   - Lägg till valfri prop `search?: string`.
+   - Filtrera `items` på `client_name` och `source_project_number` (case-insensitive, trimmat). Tom sträng = ingen filtrering (oförändrat beteende).
+   - Behåll "dölj sektionen om listan är tom" — men när `search` är satt och inget matchar visas en kort tom-rad ("Inga matchande projekt i inbox") istället för att hela sektionen försvinner, så användaren förstår att sökningen är aktiv.
 
-4. **Verifiera med testfall för just detta fel**
-   - Lägg till/uppdatera tester som bevisar:
-     - GPS-satellit och Tid & Lön ger samma platslabel för samma dag.
-     - `FA Warehouse` inte degraderas till `Okänd plats` när canonical redan matchat lagret.
-     - Submission-dagar påverkas inte.
+2. **`src/pages/PackingManagement.tsx`**
+   - Skicka `<WarehouseProjectInbox search={search} />`.
+   - Uppdatera placeholder till `"Sök packning, projekt eller bokning…"` så att det matchar att sökfältet nu täcker både inbox och packningar.
 
-5. **Manuell kontroll i preview**
-   - Kontrollera i preview att raden i Tid & Lön använder samma plats som GPS-sat-bilden för det aktuella fallet.
-   - Kontrollera att inga nya regressionsfel uppstår i veckomatriser eller dagsdetalj.
+### Inte i scope
+- `PackingUpdatedBookings` och `PackingDashboard` lämnas orörda om de inte också ska sökas igenom — säg till om du vill att jag tar dem också.
+- Ingen ändring av status-filter, datamodell eller services.
 
-## Tekniska detaljer
-- Berörda delar kommer sannolikt vara:
-  - `supabase/functions/_shared/staff-day-report/resolveStaffDayReport.ts`
-  - `supabase/functions/get-staff-time-week-matrix/index.ts`
-  - `supabase/functions/backfill-staff-day-report-cache/index.ts`
-  - eventuellt shared canonical-projektion under `supabase/functions/_shared/staff-gps/`
-- Ingen schemaändring planeras.
-- Ingen ändring av submission-prioritet eller annan affärslogik utanför denna pipeline-drift.
-
-## Förväntat resultat
-För dagar utan submission ska Tid & Lön och GPS-satellit visa samma platsklassning från samma canonical GPS-underlag, så att admin inte längre får `Okänd plats` där GPS-sat redan visar `FA Warehouse`.
+## Teknisk detalj
+Filterfunktion i inbox:
+```ts
+const q = (search ?? '').trim().toLowerCase();
+const visible = q
+  ? items.filter(i =>
+      (i.client_name ?? '').toLowerCase().includes(q) ||
+      (i.source_project_number ?? '').toLowerCase().includes(q))
+  : items;
+```
+Rendera `visible` istället för `items` (badge-räknaren visar `visible.length` när sök är aktiv, annars `items.length`).

@@ -14,7 +14,11 @@ import { toast } from 'sonner';
 import { ConvertInboxDialog } from './ConvertInboxDialog';
 import { WarehouseProjectInboxItem } from '@/types/warehouseProject';
 
-export const WarehouseProjectInbox: React.FC = () => {
+interface WarehouseProjectInboxProps {
+  search?: string;
+}
+
+export const WarehouseProjectInbox: React.FC<WarehouseProjectInboxProps> = ({ search }) => {
   const queryClient = useQueryClient();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [activeItem, setActiveItem] = useState<WarehouseProjectInboxItem | null>(null);
