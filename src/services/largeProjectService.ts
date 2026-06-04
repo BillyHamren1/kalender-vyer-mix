@@ -52,7 +52,14 @@ export async function fetchLargeProjects(): Promise<LargeProjectWithBookings[]> 
   }));
 }
 
-export async function fetchLargeProject(id: string): Promise<LargeProjectWithBookings | null> {
+/**
+ * Fast core load: project row + linked-bookings stubs (id, booking_id,
+ * display_name, sort_order). Does NOT hit `bookings` — that broad
+ * `.in('id', […])` is the slowest part of opening a large project
+ * (think Almedalen) and is hydrated separately via
+ * `fetchLargeProjectBookingsFull` so the page renders immediately.
+ */
+export async function fetchLargeProjectCore(id: string): Promise<LargeProjectWithBookings | null> {
   const { data, error } = await supabase
     .from('large_projects')
     .select(`
@@ -74,35 +81,55 @@ export async function fetchLargeProject(id: string): Promise<LargeProjectWithBoo
     throw error;
   }
 
-  // Fetch full booking data for each linked booking
-  const bookingIds = data.large_project_bookings?.map((b: any) => b.booking_id) || [];
-  let bookingsData: any[] = [];
-  
-  if (bookingIds.length > 0) {
-    const { data: bookings, error: bookingsError } = await supabase
-      .from('bookings')
-      .select('id, client, booking_number, deliveryaddress, eventdate, rigdaydate, rigdowndate, contact_name, contact_phone, contact_email, delivery_city, delivery_postal_code, carry_more_than_10m, ground_nails_allowed, exact_time_needed, exact_time_info, internalnotes, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, status')
-      .in('id', bookingIds);
-    
-    if (!bookingsError && bookings) {
-      bookingsData = bookings;
-    }
-  }
-
-  // Merge booking data
-  const bookingsWithData: LargeProjectBooking[] = (data.large_project_bookings || []).map((lpb: any) => ({
+  // Stubs only — booking.* is intentionally undefined and will be
+  // hydrated by a follow-up query. Consumers must handle the
+  // "stub only" intermediate state gracefully (`lpb.booking?.…`).
+  const bookingStubs: LargeProjectBooking[] = (data.large_project_bookings || []).map((lpb: any) => ({
     ...lpb,
     large_project_id: lpb.large_project_id || id,
-    booking: bookingsData.find(b => b.id === lpb.booking_id)
+    booking: undefined,
   }));
 
   return {
     ...data,
     status: data.status as LargeProjectStatus,
-    bookings: bookingsWithData,
-    bookingCount: bookingsWithData.length
+    bookings: bookingStubs,
+    bookingCount: bookingStubs.length,
   };
 }
+
+/**
+ * Hydrate the wide booking data (delivery, contact, times, status …)
+ * for an already-loaded large project. Runs as a separate React Query
+ * so the project page can render immediately from the core query.
+ */
+export async function fetchLargeProjectBookingsFull(bookingIds: string[]): Promise<any[]> {
+  if (bookingIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('id, client, booking_number, deliveryaddress, eventdate, rigdaydate, rigdowndate, contact_name, contact_phone, contact_email, delivery_city, delivery_postal_code, carry_more_than_10m, ground_nails_allowed, exact_time_needed, exact_time_info, internalnotes, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, status')
+    .in('id', bookingIds);
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * @deprecated Use fetchLargeProjectCore + fetchLargeProjectBookingsFull
+ * via useLargeProjectDetail. Kept only for the few legacy callers that
+ * still expect a fully merged payload.
+ */
+export async function fetchLargeProject(id: string): Promise<LargeProjectWithBookings | null> {
+  const core = await fetchLargeProjectCore(id);
+  if (!core) return null;
+  const bookingIds = (core.bookings || []).map(b => b.booking_id);
+  const bookingsData = await fetchLargeProjectBookingsFull(bookingIds);
+  const merged: LargeProjectBooking[] = (core.bookings || []).map(lpb => ({
+    ...lpb,
+    booking: bookingsData.find(b => b.id === lpb.booking_id),
+  }));
+  return { ...core, bookings: merged, bookingCount: merged.length };
+}
+
 
 export async function createLargeProject(project: {
   name: string;
