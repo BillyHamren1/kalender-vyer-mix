@@ -223,6 +223,10 @@ export function computeGpsSilentState(args: {
   return 'ok';
 }
 
+export function hasValidMobileOrganization(staff: { organization_id?: string | null } | null | undefined): boolean {
+  return typeof staff?.organization_id === 'string' && staff.organization_id.trim().length > 0;
+}
+
 export const useBackgroundLocationReporter = (staffId: string | null | undefined) => {
   const lastReportRef = useRef(0);
   const watchIdRef = useRef<number | null>(null);
@@ -255,6 +259,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
   const backendPolicyModeRef = useRef<string | null>(null);
   // Senaste sync-status från locationSyncQueue
   const syncStatusRef = useRef<LocationSyncStatus>(getLocationSyncStatus());
+  const hasValidOrgRef = useRef(false);
   // Throttle för gps_silent app-health events (max 1/5min per session)
   const lastGpsSilentSentAtRef = useRef<number>(0);
   // Dynamisk capture-throttle (ms) — uppdateras vid rescheduleHeartbeat.
@@ -322,6 +327,16 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
 
   // Keep ref in sync so heartbeat survives auth-token refreshes without restart
   useEffect(() => { staffIdRef.current = staffId; }, [staffId]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('eventflow-mobile-staff');
+      const parsed = raw ? JSON.parse(raw) : null;
+      hasValidOrgRef.current = hasValidMobileOrganization(parsed);
+    } catch {
+      hasValidOrgRef.current = false;
+    }
+  }, [staffId]);
 
   // ── SILENT-MONITOR ─────────────────────────────────────────────────────
   // Diagnostik. Var 60:e sekund: när appen är visible, kontrollera om
@@ -448,7 +463,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       }
       lastReportRef.current = now;
 
-      if (staffIdRef.current) {
+      if (staffIdRef.current && hasValidOrgRef.current) {
         void getBatterySnapshot()
           .catch(() => null)
           .then((battery) => {
@@ -489,7 +504,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       const sid = staffIdRef.current;
       const now = Date.now();
       lastJsHeartbeatAtRef.current = now;
-      if (pos && sid) {
+      if (pos && sid && hasValidOrgRef.current) {
         lastReportRef.current = now;
         void getBatterySnapshot()
           .catch(() => null)
@@ -523,7 +538,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
      */
     const enqueueFreshPosition = async (reason: string): Promise<boolean> => {
       const sid = staffIdRef.current;
-      if (!sid) return false;
+      if (!sid || !hasValidOrgRef.current) return false;
       if (typeof navigator === 'undefined' || !navigator.geolocation) return false;
 
       return await new Promise<boolean>((resolve) => {
@@ -1020,7 +1035,7 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
       //    punkten throttlas. Och force-flush direkt så backend ser
       //    in/ut även om vi just nu kör batch_inside_geofence (30 min).
       if (didEnter || didExit) {
-        if (staffIdRef.current) {
+        if (staffIdRef.current && hasValidOrgRef.current) {
           enqueueLocationPoint({
             latitude: lat,
             longitude: lng,
@@ -1032,8 +1047,8 @@ export const useBackgroundLocationReporter = (staffId: string | null | undefined
           lastEnqueuedAtRef.current = Date.now();
         }
       }
-      if (didEnter) void forceFlushLocationQueue('geofence-enter');
-      if (didExit) void forceFlushLocationQueue('geofence-exit');
+      if (hasValidOrgRef.current && didEnter) void forceFlushLocationQueue('geofence-enter');
+      if (hasValidOrgRef.current && didExit) void forceFlushLocationQueue('geofence-exit');
       // Mode may have changed (entered/exited a target) — reschedule
       if (didEnter || didExit) rescheduleHeartbeat();
     };
