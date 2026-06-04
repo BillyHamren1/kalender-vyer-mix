@@ -91,7 +91,7 @@ const ProjectFollowersPanel = ({ projectId, projectType, className }: Props) => 
             <SelectContent>
               {pickable.length === 0 && (
                 <div className="px-2 py-2 text-xs text-muted-foreground">
-                  Alla aktiva är redan tilldelade
+                  Inga systemanvändare tillgängliga
                 </div>
               )}
               {pickable.map((s: any) => (
