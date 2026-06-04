@@ -10,7 +10,7 @@ export interface MyProjectItem {
   totalTasks: number;
   completedTasks: number;
   nextDeadline: string | null;
-  role: 'leader' | 'assigned';
+  role: 'leader' | 'assigned' | 'follower';
   projectLeader: string | null;
   bookingNumber: string | null;
   projectNumber: string | null;
