@@ -1,47 +1,46 @@
+## Problem som ska lösas
+Systemet känns segt därför att flera vyer monterar samma tunga planeringshookar, och de hämtar för mycket data samt gör globala uppdateringar.
 
-## Problem
+## Vad jag kommer att ändra
+1. **Begränsa kalenderladdningen till synligt datumintervall**
+   - Bygga om `useRealTimeCalendarEvents` så att den inte alltid laddar ett stort globalt fönster.
+   - Skicka in aktiv vecka/dag/projektets faktiska datum och hämta bara de rader som behövs för den aktuella vyn.
+   - Samma begränsning ska gälla fallback-anropen i `eventService`.
 
-**1. Granska-knappen hoppar förbi diff:en.**
-`IncomingBookingsList.handleReviewUpdate` (src/components/project/IncomingBookingsList.tsx:182) navigerar direkt till projektet och kör `markSeen` — användaren får aldrig se vad som ändrats. Diff-dialogen `ProjectUpdateDialog` (med `BookingChangesDetail`) finns redan och används av `UnifiedProjectList`, men inte härifrån.
+2. **Begränsa personalladdningen till aktuella dagar**
+   - Bygga om `useUnifiedStaffOperations` så att den inte hämtar **alla** `staff_assignments` i hela databasen.
+   - Använd datum-scopad query för aktuell vecka/dag och ta bort aggressiv `refetchOnMount: 'always'` där det inte behövs.
+   - Behålla realtime, men bara invalidiera relevant synligt intervall.
 
-**2. Projektsidan laddade långsamt.**
-`ProjectViewPage` triggar många sekventiella queries (booking-products, team, kalenderhändelser, ekonomi, leverantörsfakturor, etc.). Behöver mätas innan vi vet exakt vilken som är boven.
+3. **Avlasta bokningsflödet från full planeringskalender**
+   - `BookingPlacementDialog` använder idag `PlacementDayCalendar`, som i praktiken monterar hela planeringsmotorn.
+   - Jag byter det till en lättare, datum-scopad read-only variant så att bokning inte drar in hela personalkalenderns dataström.
 
-## Plan
+4. **Stoppa onödiga full-reloads från realtime**
+   - Minska full reload-beteendet i kalendern när `calendar_events`/`large_project_team_assignments` ändras.
+   - Se till att förändringar utanför det synliga datumintervallet inte triggar omladdning.
 
-### Steg 1 – Visa diff:en vid "Granska" (snabbfix, det här löser huvudfrågan)
+5. **Verifiera med riktig prestandakoll**
+   - Mäta före/efter i preview för `/calendar`, projekt och booking-placement.
+   - Köra tester för de berörda hookarna och lägga till test för datum-scopad laddning så att problemet inte kommer tillbaka.
 
-I `src/components/project/IncomingBookingsList.tsx`:
-
-- Lägg till lokal state `updateDialog: { name, bookingIds, navigateTo } | null` (samma form som i `UnifiedProjectList`).
-- Ändra `handleReviewUpdate(meta)` så att den **istället för att navigera direkt**:
-  - Bygger `navigateTo` enligt nuvarande logik (large → `/large-project/:id`, project → `/project/:id`, annars `/booking/:id`).
-  - För large/project: slå ihop alla `visibleUpdates` som tillhör samma target och skicka **alla** booking-id:n till dialogen (så att en uppdatering med flera bokningar visar alla diffar samtidigt, som listan redan visar `change_count`).
-  - För lös bokning utan projekt: skicka bara `[meta.id]`.
-  - `setUpdateDialog({...})`. Ingen `markSeen` här — `ProjectUpdateDialog` markerar själv via "Markera som läst" eller "Markera & öppna projekt".
-- Rendera `<ProjectUpdateDialog />` i slutet av komponenten, identiskt med `UnifiedProjectList`.
-- Ta bort den nuvarande direkt-`markSeen.mutate(booking.id)` i `handleReviewUpdate`.
-
-Resultat: klick på Granska → modal med "Från → Till" per ändrat fält (kund, datum, tider, adress, interna anteckningar, status, etc.). Användaren väljer själv om de bara vill markera som läst eller öppna projektet.
-
-### Steg 2 – Diagnostisera långsam projektladdning
-
-Innan vi optimerar något måste vi veta vad som är långsamt. Jag lägger in lättviktig mätning + tittar på de tyngsta kandidaterna:
-
-1. Lägg en `console.time('project-view:<projectId>')` / `timeEnd` runt huvud-`useQuery`-block i `ProjectViewPage` och de större barnsektionerna (team, produkter, ekonomi, leverantörsfakturor, kalender).
-2. Be dig öppna projektet en gång till så jag kan läsa network + console och se vilken request som dominerar (jag misstänker `booking_products` med full `package_components`-payload eller ekonomi-aggregering, men gissar inte).
-3. Baserat på mätningen: en riktad fix i nästa steg — t.ex. batcha queries parallellt, lazy-loada flikar (Ekonomi/Leverantörsfakturor behövs först när man byter flik), eller cacha `booking_products`-listan.
-
-Steg 2 levereras som en separat, mindre PR efter att vi sett siffrorna — jag vill inte gissa-optimera ett 240-radig sida blint.
+## Varför jag tror att detta är roten
+- `CustomCalendar` fastnar på texten **"Laddar personalens planeringskalender..."** medan tunga hooks laddar färdigt.
+- `useRealTimeCalendarEvents` laddar ett stort fönster av `calendar_events` plus extra enrichment från flera tabeller.
+- `useUnifiedStaffOperations` hämtar hela `staff_assignments`-tabellen utan datumfilter.
+- `BookingPlacementDialog` monterar en inbäddad planeringskalender och drar därmed in samma tunga laddning även i booking-flödet.
 
 ## Tekniska detaljer
+Berörda huvudfiler:
+- `src/hooks/useRealTimeCalendarEvents.tsx`
+- `src/services/eventService.ts`
+- `src/hooks/useUnifiedStaffOperations.tsx`
+- `src/components/project/PlacementDayCalendar.tsx`
+- `src/components/project/ProjectCalendarView.tsx`
+- `src/pages/CustomCalendarPage.tsx`
+- ev. `src/pages/WarehouseCalendarPage.tsx` / `src/pages/PersonalkalendernPage.tsx` för att skicka korrekt datumintervall
 
-- `ProjectUpdateDialog` accepterar redan `bookingIds: string[]` och loopar `BookingChangesDetail` per id, så ingen ändring krävs i den.
-- `useMarkBookingChangesSeen` används redan av dialogen; vi tar bort den duplicerade `markSeen.mutate` i listan.
-- Inga DB-/RLS-/migrations-ändringar.
-- Inga ändringar i `UnifiedProjectList` (den fungerar redan rätt).
-
-## Out of scope
-
-- Faktisk perf-optimering av projektsidan (kommer i steg 2 efter mätning).
-- Ändra hur `booking_changes` skapas eller vilka fält som loggas.
+## Förväntat resultat
+- Kalendern ska visa innehåll mycket snabbare.
+- Projekt och bokning ska inte längre bli sega bara för att planeringskalendern finns inbäddad.
+- Färre korsanrop mellan vyer och mindre risk för att hela appen känns låst.
