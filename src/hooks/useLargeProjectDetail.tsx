@@ -325,11 +325,12 @@ export const useLargeProjectDetail = (projectId: string) => {
   });
 
   return {
-    project: projectQuery.data,
+    project: mergedProject,
     tasks,
     files,
     ganttSteps,
     isLoading: projectQuery.isLoading,
+    isLoadingBookingsFull: bookingsFullQuery.isLoading,
     updateProject: updateProjectMutation.mutateAsync,
     updateStatus: updateStatusMutation.mutate,
     addTask: addTaskMutation.mutate,
@@ -346,4 +347,5 @@ export const useLargeProjectDetail = (projectId: string) => {
       enabled: false, // controlled externally
     },
   };
+
 };
