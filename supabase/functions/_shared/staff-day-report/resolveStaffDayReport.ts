@@ -242,6 +242,21 @@ function firstAndLastIso(rows: ResolvedDayRow[]): { first: string | null; last: 
   return { first, last };
 }
 
+// ---------- Concurrency helper ----------
+
+async function runInBatches<T>(
+  items: T[],
+  batchSize: number,
+  worker: (item: T) => Promise<void>,
+): Promise<void> {
+  for (let i = 0; i < items.length; i += batchSize) {
+    const slice = items.slice(i, i + batchSize);
+    await Promise.all(slice.map((it) => worker(it).catch((e) => {
+      console.warn("[resolveStaffDayReport] batch worker failed", (e as Error).message);
+    })));
+  }
+}
+
 // ---------- Canonical GPS projection ----------
 //
 // Mappar canonical.segments → ResolvedDayRow[] med EXAKT samma fält som
