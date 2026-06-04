@@ -329,7 +329,7 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{planningMode ? 'Planera to do' : (isEdit ? 'Redigera to do' : 'Skapa to do')}</DialogTitle>
+          <DialogTitle>{personalCalendarMode ? (isEdit ? 'Redigera personlig todo' : 'Ny personlig todo') : (planningMode ? 'Planera to do' : (isEdit ? 'Redigera to do' : 'Skapa to do'))}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={(e) => { e.preventDefault(); create.mutate(); }} className="space-y-5">
