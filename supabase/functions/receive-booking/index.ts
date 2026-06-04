@@ -105,12 +105,15 @@ serve(async (req) => {
 
     // Coalesce webhook bursts:
     //   - If an unfinished job already exists for this booking+org, reuse it.
-    //   - If a job for this booking+org completed within the last 30 seconds,
-    //     skip queuing entirely — the next coalesced incremental sync will
-    //     pick up anything new via the `since`-cursor anyway.
-    const COOLDOWN_MS = 30_000
-    const cooldownIso = new Date(Date.now() - COOLDOWN_MS).toISOString()
-
+    //
+    // NOTE: We deliberately do NOT suppress webhooks that arrive shortly
+    // after a recently completed job. The previous "cooldown" branch caused
+    // silent data loss: a webhook fired right after we finished a sync was
+    // dropped, and since no new pending job was enqueued the worker never
+    // ran another incremental sync — the change stayed invisible until the
+    // next unrelated webhook happened to arrive after the cooldown window.
+    // Burst coalescing is already handled by the unfinished-job branch
+    // below, which is the safe place to deduplicate.
     const { data: existingJobs, error: lookupError } = await supabase
       .from('booking_sync_jobs')
       .select('id, status, received_at, processed_at')
@@ -148,34 +151,7 @@ serve(async (req) => {
       )
     }
 
-    const recentlyCompleted = (existingJobs || []).find(
-      (j: any) =>
-        j.status === 'completed' &&
-        j.processed_at &&
-        j.processed_at > cooldownIso
-    )
-    if (recentlyCompleted) {
-      console.log('[receive-booking] Suppressed (cooldown after recent completion)', JSON.stringify({
-        last_job_id: recentlyCompleted.id,
-        booking_id,
-        organization_id,
-        event_type: normalizedEventType,
-        cooldown_ms: COOLDOWN_MS,
-        duration_ms: Date.now() - startTime,
-      }))
-      return new Response(
-        JSON.stringify({
-          success: true,
-          accepted: true,
-          coalesced: true,
-          suppressed_by_cooldown: true,
-          last_job_id: recentlyCompleted.id,
-          booking_id,
-          event_type: normalizedEventType,
-        }),
-        { status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+
 
     const { data: job, error: insertError } = await supabase
       .from('booking_sync_jobs')
