@@ -2,9 +2,28 @@ import { useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { format } from 'date-fns';
+import { format, subDays, addDays } from 'date-fns';
 import { useEffect } from 'react';
 import { assignStaffToTeamCore, removeStaffAssignmentCore } from '@/services/staffAssignmentCore';
+
+// Datum-scope: vi hämtar INTE hela staff_assignments-tabellen (kan vara
+// tiotusentals rader genom åren). Vi laddar ett rullande fönster runt idag.
+// Cache-nyckeln baseras på en STABIL "bucket" (månadens första dag) så att
+// alla vyer i appen delar samma cache och inte triggar ny query för varje
+// veckonavigering. Vid behov av äldre/nyare data: utöka fönstret nedan.
+const STAFF_ASSIGNMENTS_DAYS_BACK = 120;
+const STAFF_ASSIGNMENTS_DAYS_FORWARD = 365;
+
+function getStaffAssignmentsWindow(): { from: string; to: string; bucket: string } {
+  const today = new Date();
+  // Bucket = år-månad, så cache delas inom samma månad
+  const bucket = format(today, 'yyyy-MM');
+  return {
+    from: format(subDays(today, STAFF_ASSIGNMENTS_DAYS_BACK), 'yyyy-MM-dd'),
+    to: format(addDays(today, STAFF_ASSIGNMENTS_DAYS_FORWARD), 'yyyy-MM-dd'),
+    bucket,
+  };
+}
 
 export interface StaffAssignment {
   staffId: string;
