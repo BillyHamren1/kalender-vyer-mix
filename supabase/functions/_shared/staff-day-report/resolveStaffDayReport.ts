@@ -846,13 +846,41 @@ export async function resolveStaffDayReportSummariesBatch(args: {
   }
 
   // Overlay canonical GPS-sanning (samma som GPS SAT).
-  await runInBatches(needsCanonical, 8, async ({ key, staffId, date, requestedStart, requestedEnd }) => {
-    const canonical = await tryBuildCanonicalForDay(admin, organizationId, staffId, date);
-    if (!canonical) return;
-    const base = out.get(key);
-    if (!base) return;
-    out.set(key, overlayCanonicalOnSummary(base, canonical, requestedStart, requestedEnd));
-  });
+  //
+  // VIKTIGT: Tid/Lön får INTE bygga en separat GPS-timeline. När canonical
+  // har renderbara segment ersätts rows/start/end/work/travel/total i
+  // ResolvedStaffDaySummary med canonical-värden. submissionId, status,
+  // reviewComment, breakMinutes m.m. behålls oförändrade från submission/cache.
+  //
+  // Kill switch: sätt USE_CANONICAL_GPS_ROWS_FOR_TIME_MATRIX = false överst
+  // i filen för att direkt återgå till submission-snapshot / cache-blocks.
+  //
+  // tryBuildCanonicalForDay har egen try/catch och returnerar null vid fel
+  // → då används befintligt base (submission/cache) exakt som tidigare.
+  // Ingen DB-write, ingen backfill, läser bara dagen som redan behandlas.
+  if (USE_CANONICAL_GPS_ROWS_FOR_TIME_MATRIX) {
+    await runInBatches(needsCanonical, 8, async ({ key, staffId, date, requestedStart, requestedEnd }) => {
+      try {
+        const canonical = await tryBuildCanonicalForDay(admin, organizationId, staffId, date);
+        if (!canonical) return;
+        const base = out.get(key);
+        if (!base) return;
+        // För Tid/Lön: canonical.startIso/endIso vinner alltid över
+        // requested_start_at/end_at — så att tiderna matchar GPS SAT.
+        // requestedStart/End används bara som sista fallback om canonical
+        // skulle sakna start/slut (extremt sällsynt: rows finns men utan iso).
+        const start = canonical.startIso ?? requestedStart;
+        const end = canonical.endIso ?? requestedEnd;
+        out.set(key, overlayCanonicalOnSummary(base, canonical, start, end));
+      } catch (err) {
+        console.warn("[resolveStaffDayReportSummariesBatch] canonical overlay failed — keeping submission/cache base", {
+          staffId, date, error: (err as Error).message,
+        });
+      }
+    });
+  } else {
+    console.info("[resolveStaffDayReportSummariesBatch] canonical overlay DISABLED via feature flag");
+  }
 
   return out;
 }
