@@ -11,10 +11,16 @@ export interface BookingChange {
 export const fetchRecentBookingChanges = async (bookingIds: string[]): Promise<BookingChange[]> => {
   if (bookingIds.length === 0) return [];
   
+  // Triage ska BARA lysa upp ändringar som kommer från Booking-systemet (webhook
+  // → edge functions → service_role). Ändringar gjorda inifrån Planning
+  // (authenticated-rollen, t.ex. nya tider i personalkalendern) ska INTE
+  // visas som "uppdaterad". Triggern `track_booking_changes` stämplar
+  // `changed_by` med PostgreSQL-rollen som gjorde uppdateringen.
   const { data, error } = await supabase
     .from('booking_changes')
-    .select('booking_id, change_type, changed_fields, changed_at')
+    .select('booking_id, change_type, changed_fields, changed_at, changed_by')
     .in('booking_id', bookingIds)
+    .eq('changed_by', 'service_role')
     .order('changed_at', { ascending: false });
 
   if (error) {
