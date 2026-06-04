@@ -456,6 +456,15 @@ export function Sidebar3D() {
                         </ContextMenu>
                       );
                     })}
+
+                    {/* Dynamisk Mina projekt-sektion under "Min sida" */}
+                    {item.url === "/my-page" && staffId && myProjects.length > 0 && (
+                      <MySidebarProjectsBlock
+                        projects={myProjects}
+                        total={myProjectsTotal}
+                        currentPath={location.pathname}
+                      />
+                    )}
                   </div>
                 )}
               </div>
