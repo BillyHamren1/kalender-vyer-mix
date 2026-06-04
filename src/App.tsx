@@ -22,15 +22,17 @@ import MyProjects from "./pages/MyProjects";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import AuthResetPassword from "./pages/AuthResetPassword";
-import ProjectLayout from "./pages/project/ProjectLayout";
-import LargeProjectLayout from "./pages/project/LargeProjectLayout";
-import ProjectViewPage from "./pages/project/ProjectViewPage";
-import EstablishmentPage from "./pages/project/EstablishmentPage";
-import ProjectEconomyPage from "./pages/project/ProjectEconomyPage";
-import LargeProjectViewPage from "./pages/project/LargeProjectViewPage";
-import LargeEstablishmentPage from "./pages/project/LargeEstablishmentPage";
-import LargeProjectEconomyPage from "./pages/project/LargeProjectEconomyPage";
-import LargeCollaborationPage from "./pages/project/LargeCollaborationPage";
+
+// Project pages — lazy (heavy trees, only load on demand)
+const ProjectLayout = lazyWithRecovery(() => import("./pages/project/ProjectLayout"));
+const LargeProjectLayout = lazyWithRecovery(() => import("./pages/project/LargeProjectLayout"));
+const ProjectViewPage = lazyWithRecovery(() => import("./pages/project/ProjectViewPage"));
+const EstablishmentPage = lazyWithRecovery(() => import("./pages/project/EstablishmentPage"));
+const ProjectEconomyPage = lazyWithRecovery(() => import("./pages/project/ProjectEconomyPage"));
+const LargeProjectViewPage = lazyWithRecovery(() => import("./pages/project/LargeProjectViewPage"));
+const LargeEstablishmentPage = lazyWithRecovery(() => import("./pages/project/LargeEstablishmentPage"));
+const LargeProjectEconomyPage = lazyWithRecovery(() => import("./pages/project/LargeProjectEconomyPage"));
+const LargeCollaborationPage = lazyWithRecovery(() => import("./pages/project/LargeCollaborationPage"));
 
 // Main system pages — lazy
 const InvoicingPage = lazyWithRecovery(() => import("./pages/InvoicingPage"));
