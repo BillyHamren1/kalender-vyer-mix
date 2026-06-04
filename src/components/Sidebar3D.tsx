@@ -174,43 +174,6 @@ export function Sidebar3D() {
           style={{ borderBottom: "1px solid hsl(240 8% 92%)" }}
         >
 
-          <div
-            className={cn(
-              "flex items-center gap-2.5",
-              isCollapsed && "justify-center"
-            )}
-          >
-            {/* Avatar */}
-            <div
-              className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center shadow-sm"
-              style={{
-                background:
-                  "linear-gradient(135deg, hsl(270 55% 60%) 0%, hsl(285 55% 45%) 100%)",
-                boxShadow:
-                  "0 1px 2px hsl(270 40% 25% / 0.18), inset 0 1px 0 hsl(0 0% 100% / 0.25)",
-              }}
-            >
-              <Sparkles className="w-[18px] h-[18px] text-white" strokeWidth={2} />
-            </div>
-
-            {!isCollapsed && (
-              <div className="flex flex-col min-w-0 leading-tight">
-                <span
-                  className="text-[13px] font-semibold tracking-tight truncate"
-                  style={{ color: "hsl(240 10% 18%)" }}
-                >
-                  EventFlow
-                </span>
-                <span
-                  className="text-[10.5px] font-medium uppercase tracking-[0.08em] truncate"
-                  style={{ color: "hsl(var(--primary))" }}
-                >
-                  Operations Hub
-                </span>
-              </div>
-            )}
-
-          </div>
 
           {/* Integrated collapse button */}
           <button
