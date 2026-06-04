@@ -104,7 +104,7 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
       setPostalCode('');
       setLatitude(undefined);
       setLongitude(undefined);
-      setScheduledDate('');
+      setScheduledDate(defaultScheduledDate || '');
       setStartTime('');
       setEndTime('');
       setInternalNotes('');
@@ -113,7 +113,7 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
         setTitle('');
       }
     }
-  }, [open, preselectedBookingId, todoId]);
+  }, [open, preselectedBookingId, todoId, defaultScheduledDate]);
 
   // Bookings dropdown
   const { data: bookings = [] } = useQuery({
