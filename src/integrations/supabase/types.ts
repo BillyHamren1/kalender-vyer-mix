@@ -5056,6 +5056,36 @@ export type Database = {
           },
         ]
       }
+      project_followers: {
+        Row: {
+          added_by: string | null
+          created_at: string
+          id: string
+          organization_id: string
+          project_id: string
+          project_type: string
+          staff_id: string
+        }
+        Insert: {
+          added_by?: string | null
+          created_at?: string
+          id?: string
+          organization_id: string
+          project_id: string
+          project_type: string
+          staff_id: string
+        }
+        Update: {
+          added_by?: string | null
+          created_at?: string
+          id?: string
+          organization_id?: string
+          project_id?: string
+          project_type?: string
+          staff_id?: string
+        }
+        Relationships: []
+      }
       project_invoices: {
         Row: {
           created_at: string
