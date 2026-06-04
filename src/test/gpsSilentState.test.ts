@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeGpsSilentState } from '@/hooks/useBackgroundLocationReporter';
+import { computeGpsSilentState, hasValidMobileOrganization } from '@/hooks/useBackgroundLocationReporter';
 
 const NOW = 1_000_000_000_000;
 const FIVE_MIN = 5 * 60_000;
@@ -58,5 +58,12 @@ describe('computeGpsSilentState', () => {
         now: NOW,
       }),
     ).toBe('native_and_upload_silent');
+  });
+
+  it('validates that mobile session must carry organization_id before GPS upload is allowed', () => {
+    expect(hasValidMobileOrganization(null)).toBe(false);
+    expect(hasValidMobileOrganization({})).toBe(false);
+    expect(hasValidMobileOrganization({ organization_id: '' })).toBe(false);
+    expect(hasValidMobileOrganization({ organization_id: 'org-123' })).toBe(true);
   });
 });
