@@ -238,8 +238,18 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
   useEffect(() => {
     if (open && preselectedBookingId && bookings.length > 0) {
       setSelectedBookingId(preselectedBookingId);
+      setLinkKind('booking');
     }
   }, [open, preselectedBookingId, bookings]);
+
+  // Auto-fill title from project name
+  useEffect(() => {
+    if (!selectedType || title) return;
+    if (linkKind === 'project' && selectedLargeProjectId) {
+      const p = largeProjects.find(x => x.id === selectedLargeProjectId);
+      if (p) setTitle(`${selectedType.label} – ${p.name}`);
+    }
+  }, [selectedType, linkKind, selectedLargeProjectId, largeProjects, title]);
 
   const handleCreateType = async () => {
     if (!newTypeLabel.trim()) return;
