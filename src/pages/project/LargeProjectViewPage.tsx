@@ -13,6 +13,7 @@ import ProjectTransportWidget from "@/components/project/ProjectTransportWidget"
 import ProjectContactCard from "@/components/project/ProjectContactCard";
 import LargeProjectProductsOverview from "@/components/project/LargeProjectProductsOverview";
 import PickupStopsSection from "@/components/pickup/PickupStopsSection";
+import ProjectFollowersPanel from "@/components/project/ProjectFollowersPanel";
 
 
 
