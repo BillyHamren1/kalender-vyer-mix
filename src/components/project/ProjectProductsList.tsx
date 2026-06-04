@@ -168,7 +168,7 @@ const ProjectProductsList = ({
 
   const renderProductLine = (product: BookingProduct, withMenu: boolean) => {
     const accessories = allChildren.filter(
-      (c) => c.parent_product_id === product.id && c.is_package_component !== true
+      (c) => c.parent_product_id === product.id && isVisibleAccessory(c)
     );
     return (
       <div key={product.id}>
