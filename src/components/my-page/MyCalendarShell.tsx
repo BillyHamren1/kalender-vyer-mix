@@ -183,12 +183,29 @@ export const MyCalendarShell: React.FC = () => {
           </CardContent>
         </Card>
       ) : mode === 'month' ? (
-        <MyCalendarMonthView anchorDate={anchor} items={filteredForView} onItemClick={handleItemClick} />
+        <MyCalendarMonthView
+          anchorDate={anchor}
+          items={filteredForView}
+          onItemClick={handleItemClick}
+          onDayClick={(iso) => openNewTodo(iso)}
+        />
       ) : mode === 'week' ? (
         <MyCalendarWeekView anchorDate={anchor} items={filteredForView} onItemClick={handleItemClick} />
       ) : (
         <MyCalendarListView items={filteredForView} onItemClick={handleItemClick} />
       )}
+
+      <CreateTodoWizard
+        open={createOpen}
+        onOpenChange={(o) => {
+          setCreateOpen(o);
+          if (!o) setPrefilledDate(null);
+        }}
+        onSuccess={() => { setCreateOpen(false); setPrefilledDate(null); }}
+        personalCalendarMode
+        currentStaffId={staffId}
+        defaultScheduledDate={prefilledDate}
+      />
 
       {/* Todo dialog */}
       <Dialog open={!!openTodo} onOpenChange={(o) => !o && setOpenTodo(null)}>
