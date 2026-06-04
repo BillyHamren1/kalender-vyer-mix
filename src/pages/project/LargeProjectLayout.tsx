@@ -63,13 +63,15 @@ const LargeProjectLayout = () => {
   const { project, isLoading } = detail;
   const bookings = project?.bookings || [];
 
-  // Sibling booking ids — used to read the canonical phase days from
-  // calendar_events (same source the personalkalender renders from).
+  // Sibling booking ids — read directly from stubs so useBookingPhaseDays
+  // can start the moment core loads, without waiting for the full
+  // bookings hydration. (booking_id lives on large_project_bookings.)
   const siblingBookingIds = useMemo(
-    () => bookings.map(b => b.booking?.id).filter(Boolean) as string[],
+    () => bookings.map(b => b.booking_id).filter(Boolean) as string[],
     [bookings],
   );
   const { days: phaseDays } = useBookingPhaseDays(siblingBookingIds);
+
 
   // Times still come from booking columns (rig_start_time etc) — those are
   // the booking-level "Fast tid" defaults. Date arrays come from
