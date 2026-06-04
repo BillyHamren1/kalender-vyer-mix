@@ -580,9 +580,11 @@ export async function resolveStaffDayReport(args: {
     .maybeSingle();
   if (subErr) throw subErr;
   if (subRow) {
-    return projectSubmissionToResolved({
+    const base = projectSubmissionToResolved({
       staffId, date, submission: subRow as unknown as ResolvedSubmissionRow,
     });
+    const canonical = await tryBuildCanonicalForDay(admin, organizationId, staffId, date);
+    return canonical ? overlayCanonicalOnResolved(base, canonical) : base;
   }
 
   // 2) Cache.
@@ -597,9 +599,11 @@ export async function resolveStaffDayReport(args: {
     .maybeSingle();
   if (cacheErr) throw cacheErr;
   if (cacheRow) {
-    return projectCacheToResolved({
+    const base = projectCacheToResolved({
       staffId, date, cache: cacheRow as unknown as CacheRow,
     });
+    const canonical = await tryBuildCanonicalForDay(admin, organizationId, staffId, date);
+    return canonical ? overlayCanonicalOnResolved(base, canonical) : base;
   }
 
   // 3) Empty.
