@@ -67,8 +67,10 @@ export const useMyCalendarItems = (staffId: string | null) => {
         .map((p) => p.id);
 
       // 2) Mina todos: created_by = userId ELLER tillhör mina projekt
+      //    ELLER personliga my_calendar-todos (assigned_staff_id = staffId)
       const orFilters: string[] = [];
       if (userId) orFilters.push(`created_by.eq.${userId}`);
+      if (staffId) orFilters.push(`assigned_staff_id.eq.${staffId}`);
       if (stdBookingIds.length > 0) {
         orFilters.push(`booking_id.in.(${stdBookingIds.map((s) => `"${s}"`).join(',')})`);
       }
