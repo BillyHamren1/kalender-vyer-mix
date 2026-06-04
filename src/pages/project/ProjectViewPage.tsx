@@ -17,6 +17,7 @@ import PickupStopsSection from "@/components/pickup/PickupStopsSection";
 
 import ProjectStatusPanel from "@/components/project/ProjectStatusPanel";
 import ProjectTeamPanel from "@/components/project/ProjectTeamPanel";
+import ProjectFollowersPanel from "@/components/project/ProjectFollowersPanel";
 
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
