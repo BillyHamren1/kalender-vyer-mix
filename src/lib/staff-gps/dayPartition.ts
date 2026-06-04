@@ -201,16 +201,35 @@ function absorbShortNoise(input: DaySegment[]): DaySegment[] {
       outerChanged = true;
     }
 
-    // Pass 2c: korta stay-flap absorberas av föregående stay
+    // Pass 2c: korta stay-flap absorberas av föregående stay.
+    // Två fall:
+    //   - prev=stay && next=stay → klassisk flap mellan två stays.
+    //   - prev=stay && next är inte stay (t.ex. unknown_place) men `s` är
+    //     en mycket kort stay (< 2 min) med ANNAN target än prev → behandlas
+    //     som geo-noise och absorberas in i prev. Detta är förutsättningen
+    //     för att Pass 4 (same-site sandwich) ska kunna kollapsa mönster
+    //     som `work(A) → 0–2s private(B) → unknown_place → work(A)` där
+    //     personen i praktiken aldrig lämnade A:s område.
     for (let pass = 0; pass < 50; pass++) {
       let didChange = false;
-      for (let i = 1; i < segs.length - 1; i++) {
+      for (let i = 1; i < segs.length; i++) {
         const s = segs[i];
         if (!isStay(s)) continue;
         if (dur(s) >= SHORT_STAY_MAX_MS) continue;
         const prev = segs[i - 1];
+        if (!isStay(prev)) continue;
         const next = segs[i + 1];
-        if (!isStay(prev) || !isStay(next)) continue;
+        const nextIsStay = isStay(next);
+        if (nextIsStay) {
+          prev.end = s.end;
+          segs.splice(i, 1);
+          didChange = true;
+          break;
+        }
+        // next är inte stay (eller saknas) → absorbera endast om s har annan
+        // target än prev, så vi inte rör korrekta korta vistelser med samma
+        // target (Pass 3 hanterar det fallet).
+        if (sameTarget(prev, s)) continue;
         prev.end = s.end;
         segs.splice(i, 1);
         didChange = true;
