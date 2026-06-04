@@ -22,6 +22,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useProjectInboxCount } from "@/hooks/useProjectInboxCount";
 import { useUnplannedProjects } from "@/hooks/useUnplannedProjects";
+import { useCurrentStaffId } from "@/hooks/useCurrentStaffId";
+import { useMySidebarProjects } from "@/hooks/useMySidebarProjects";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -29,7 +31,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { usePinnedTabs } from "@/contexts/PinnedTabsContext";
-import { Pin, PinOff } from "lucide-react";
+import { Pin, PinOff, Briefcase, AlertCircle } from "lucide-react";
 
 interface NavChild {
   title: string;
@@ -53,7 +55,6 @@ const baseNavigationItems: NavItem[] = [
     icon: UserRound,
     children: [
       { title: "Översikt", url: "/my-page", icon: LayoutDashboard },
-      { title: "Mina projekt", url: "/my-page/projects", icon: FolderKanban },
       { title: "Min kalender", url: "/my-page/calendar", icon: CalendarDays },
       { title: "Mina todos", url: "/my-page/todos", icon: ListChecks },
     ],
@@ -125,6 +126,10 @@ export function Sidebar3D() {
   const { data: unplannedProjects = [] } = useUnplannedProjects();
   const unplannedCount = unplannedProjects.length;
   const { addTab, removeTab, hasTab } = usePinnedTabs();
+  const { staffId } = useCurrentStaffId();
+  const { data: myProjData } = useMySidebarProjects(staffId);
+  const myProjects = myProjData?.items ?? [];
+  const myProjectsTotal = myProjData?.total ?? 0;
 
   const navigationItems = baseNavigationItems.map((item) => {
     if (item.url === "/projects") {
@@ -451,6 +456,15 @@ export function Sidebar3D() {
                         </ContextMenu>
                       );
                     })}
+
+                    {/* Dynamisk Mina projekt-sektion under "Min sida" */}
+                    {item.url === "/my-page" && staffId && myProjects.length > 0 && (
+                      <MySidebarProjectsBlock
+                        projects={myProjects}
+                        total={myProjectsTotal}
+                        currentPath={location.pathname}
+                      />
+                    )}
                   </div>
                 )}
               </div>
@@ -550,5 +564,111 @@ export function Sidebar3D() {
         </div>
       </nav>
     </>
+  );
+}
+
+/* ─── Dynamisk mina projekt-lista under "Min sida" ─── */
+function MySidebarProjectsBlock({
+  projects,
+  total,
+  currentPath,
+}: {
+  projects: import("@/hooks/useMySidebarProjects").MySidebarProject[];
+  total: number;
+  currentPath: string;
+}) {
+  return (
+    <div className="mt-2 pt-2" style={{ borderTop: "1px dashed hsl(240 8% 90%)" }}>
+      <div
+        className="flex items-center gap-1.5 px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.06em]"
+        style={{ color: "hsl(240 6% 50%)" }}
+      >
+        <Briefcase className="w-3 h-3" />
+        Mina projekt
+        <span
+          className="ml-auto text-[10px] font-medium normal-case tracking-normal"
+          style={{ color: "hsl(240 6% 60%)" }}
+        >
+          {total}
+        </span>
+      </div>
+      <div className="space-y-0.5">
+        {projects.map((p) => {
+          const active = currentPath === p.href;
+          return (
+            <NavLink
+              key={`${p.type}-${p.id}`}
+              to={p.href}
+              title={p.name}
+              className="group flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] transition-colors"
+              style={
+                active
+                  ? {
+                      background: "hsl(270 55% 96%)",
+                      color: "hsl(280 50% 28%)",
+                      fontWeight: 600,
+                    }
+                  : { color: "hsl(240 8% 38%)" }
+              }
+              onMouseEnter={(e) => {
+                if (!active)
+                  (e.currentTarget as HTMLElement).style.background = "hsl(240 8% 95%)";
+              }}
+              onMouseLeave={(e) => {
+                if (!active)
+                  (e.currentTarget as HTMLElement).style.background = "transparent";
+              }}
+            >
+              {p.overdue ? (
+                <AlertCircle className="w-3 h-3 shrink-0 text-[hsl(0_70%_55%)]" strokeWidth={2.2} />
+              ) : (
+                <span
+                  className="w-1.5 h-1.5 rounded-full shrink-0"
+                  style={{
+                    background: active
+                      ? "hsl(var(--primary))"
+                      : p.type === "large"
+                        ? "hsl(265 60% 60%)"
+                        : "hsl(240 6% 70%)",
+                  }}
+                />
+              )}
+              <span className="truncate flex-1">{p.name}</span>
+              {p.role === "leader" && (
+                <span
+                  className="text-[9px] font-bold px-1 rounded shrink-0"
+                  style={{
+                    background: "hsl(270 55% 92%)",
+                    color: "hsl(280 50% 35%)",
+                  }}
+                >
+                  PL
+                </span>
+              )}
+              {p.type === "large" && (
+                <span
+                  className="text-[9px] font-semibold px-1 rounded shrink-0"
+                  style={{
+                    background: "hsl(265 60% 95%)",
+                    color: "hsl(265 60% 40%)",
+                  }}
+                >
+                  Stor
+                </span>
+              )}
+            </NavLink>
+          );
+        })}
+      </div>
+      {total > projects.length && (
+        <NavLink
+          to="/my-page/projects"
+          className="mt-1 flex items-center justify-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors hover:bg-[hsl(240_8%_95%)]"
+          style={{ color: "hsl(var(--primary))" }}
+        >
+          Visa alla mina projekt →
+        </NavLink>
+      )}
+    </div>
   );
 }
