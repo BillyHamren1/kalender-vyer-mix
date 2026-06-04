@@ -38,7 +38,6 @@ export interface MobileStaff {
   department: string | null;
   hourly_rate: number | null;
   overtime_rate: number | null;
-  organization_id?: string | null;
   app_roles?: MobileAppRole[];
   is_planner?: boolean;
 }
@@ -416,8 +415,7 @@ async function performApiAttempt<T>(action: string, data: any, token: string | n
         res.status === 403 &&
         token &&
         typeof json?.error === 'string' &&
-        (/not associated with an organization/i.test(json.error) ||
-          /has no organization_id/i.test(json.error))
+        /not associated with an organization/i.test(json.error)
       ) {
         clearAuth();
         window.dispatchEvent(new CustomEvent('mobile-session-invalid'));

@@ -111,23 +111,14 @@ describe("StaffTimeWeekMatrix (admin veckomatris)", () => {
     }
   });
 
-  it("Edge function get-staff-time-week-matrix går genom resolveStaffDayReportsBatch (INTE canonical GPS-builder direkt)", () => {
+  it("Edge function get-staff-time-week-matrix går genom resolveStaffDayReportsBatch (INTE canonical GPS-builder)", () => {
     const src = read("supabase/functions/get-staff-time-week-matrix/index.ts");
     expect(src).toMatch(/resolveStaffDayReportsBatch/);
     expect(src).toMatch(/from\(\s*["']staff_members["']/);
-    // Får INTE bygga från raw GPS — canonical-byggarn anropas från resolvern, INTE härifrån
+    // Får INTE bygga från raw GPS
     expect(src).not.toMatch(/buildCanonicalStaffDayGpsResult/);
     expect(src).not.toMatch(/from\(\s*["']staff_location_history["']/);
     expect(src).not.toMatch(/from\(\s*["']staff_day_submissions["']/);
-  });
-
-  it("Resolvern konsumerar canonicalStaffDayGpsResult som enda GPS-sanning", () => {
-    const src = read("supabase/functions/_shared/staff-day-report/resolveStaffDayReport.ts");
-    expect(src).toMatch(/buildCanonicalStaffDayGpsResult/);
-    expect(src).toMatch(/canonicalStaffDayGpsResult/);
-    expect(src).toMatch(/GPS-baserade rows kommer från/);
-    // Får aldrig läsa raw GPS själv
-    expect(src).not.toMatch(/from\(\s*["']staff_location_history["']/);
   });
 
   it("Edge function rör INGA legacy tidskällor och skriver inte", () => {

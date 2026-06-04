@@ -6,30 +6,24 @@
 // mobilen, projektens tidsvisning, framtida löneunderlag — MÅSTE gå via
 // denna resolver. Ingen vy får implementera egen fallback-logik.
 //
-// PRIORITET (orubblig) för STATUS/PROVENANCE:
+// PRIORITET (orubblig):
 //   1. staff_day_submissions  → source: 'submission'
 //   2. staff_day_report_cache → source: 'cache'
 //   3. annars                  → source: 'empty'
 //
-// Submission vinner ALLTID över cache för status/submissionId/reviewComment.
-//
-// === GPS-SANNING ===
-// Tid/Lön får ALDRIG bygga egen timeline. GPS-baserade rows kommer från
-// `buildCanonicalStaffDayGpsResult` (samma som GPS SAT använder). När
-// canonical har segments för dagen ersätter vi rows/start/end/work/travel/
-// total i den projicerade dagen — men STATUS, submissionId och reviewComment
-// kommer fortfarande från submission/cache. När canonical saknar pings/
-// segment faller vi tillbaka till submissionens display_timeline_snapshot
-// eller cachens display_blocks (för manuella rapporter utan GPS).
+// Submission vinner ALLTID över cache. En ny cache-beräkning får aldrig
+// påverka eller "skriva över" en redan inskickad dag — det är därför vi
+// läser submission först och inte ens kollar cache om submission finns.
 //
 // FÖRBJUDET:
-//   - Resolvern får ALDRIG läsa staff_location_history själv. Den får och
-//     ska konsumera `canonicalStaffDayGpsResult` som enda GPS-sanning.
+//   - LÄS aldrig `staff_location_history` här. Time Engine är ensam ägare
+//     av raw GPS. Konsumenter får aldrig bygga arbetstid från raw GPS.
 //   - LÄS aldrig time_reports / workdays / location_time_entries /
 //     travel_time_logs / day_attestations / active_time_registrations.
+//     Dessa är legacy och får inte rendera tidrapport eller attest.
 //
 // Resolvern är ren projektion: DB → normaliserad ResolvedStaffDay.
-// Den gör inga skrivningar.
+// Den gör inga skrivningar och kör ingen GPS-beräkning.
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
@@ -38,10 +32,6 @@ import {
 } from "../mobile/mapReportBlocksToSegments.ts";
 import type { CacheRow } from "../mobile/buildMobileSnapshot.ts";
 import type { MobileSegment } from "../mobile/types.ts";
-import {
-  buildCanonicalStaffDayGpsResult,
-  type CanonicalStaffDayGpsResult,
-} from "../staff-gps/canonicalStaffDayGpsResult.ts";
 
 // ---------- Public types ----------
 
@@ -240,138 +230,6 @@ function firstAndLastIso(rows: ResolvedDayRow[]): { first: string | null; last: 
     if (r.endIso && (!last || r.endIso > last)) last = r.endIso;
   }
   return { first, last };
-}
-
-// ---------- Concurrency helper ----------
-
-async function runInBatches<T>(
-  items: T[],
-  batchSize: number,
-  worker: (item: T) => Promise<void>,
-): Promise<void> {
-  for (let i = 0; i < items.length; i += batchSize) {
-    const slice = items.slice(i, i + batchSize);
-    await Promise.all(slice.map((it) => worker(it).catch((e) => {
-      console.warn("[resolveStaffDayReport] batch worker failed", (e as Error).message);
-    })));
-  }
-}
-
-// ---------- Canonical GPS projection ----------
-//
-// Mappar canonical.segments → ResolvedDayRow[] med EXAKT samma fält som
-// GPS SAT använder. idle filtreras bort (renderas inte i Tid/Lön).
-
-export interface CanonicalProjection {
-  rows: ResolvedDayRow[];
-  startIso: string | null;
-  endIso: string | null;
-  workMinutes: number;
-  travelMinutes: number;
-  totalMinutes: number;
-}
-
-function canonicalKindToRowKind(t: CanonicalStaffDayGpsResult["segments"][number]["type"]): ResolvedDayRow["kind"] | null {
-  switch (t) {
-    case "work": return "work";
-    case "travel": return "travel";
-    case "private": return "private";
-    case "unknown_place": return "unknown_place";
-    case "gps_gap": return "gps_gap";
-    case "idle": return null; // filtreras bort
-  }
-}
-
-export function projectCanonicalToResolvedSummary(
-  canonical: CanonicalStaffDayGpsResult,
-): CanonicalProjection {
-  const rows: ResolvedDayRow[] = [];
-  for (const seg of canonical.segments) {
-    const kind = canonicalKindToRowKind(seg.type);
-    if (!kind) continue;
-    rows.push({
-      kind,
-      label: seg.label,
-      startIso: seg.startIso,
-      endIso: seg.endIso,
-      minutes: Math.max(0, Math.round(seg.durationMinutes || 0)),
-      fromLabel: seg.fromLabel,
-      toLabel: seg.toLabel,
-    });
-  }
-  const { first, last } = firstAndLastIso(rows);
-  return {
-    rows,
-    startIso: first,
-    endIso: last,
-    workMinutes: Math.max(0, Math.round(canonical.totals.workMinutes || 0)),
-    travelMinutes: Math.max(0, Math.round(canonical.totals.travelMinutes || 0)),
-    totalMinutes: Math.max(0, Math.round(canonical.payrollSuggestion.payableMinutes || 0)),
-  };
-}
-
-/** Försök bygga canonical för (staff,date). Returnerar null om bygget
- *  kraschar eller om dagen saknar GPS-segment (då används fallback). */
-export async function tryBuildCanonicalForDay(
-  admin: SupabaseClient,
-  organizationId: string,
-  staffId: string,
-  date: string,
-): Promise<CanonicalProjection | null> {
-  try {
-    const canonical = await buildCanonicalStaffDayGpsResult(admin as any, {
-      organizationId, staffId, date,
-    });
-    if (!canonical.segments || canonical.segments.length === 0) return null;
-    const proj = projectCanonicalToResolvedSummary(canonical);
-    if (proj.rows.length === 0) return null;
-    return proj;
-  } catch (e) {
-    console.warn("[resolveStaffDayReport] canonical build failed", { staffId, date, err: (e as Error).message });
-    return null;
-  }
-}
-
-/**
- * Overlay canonical GPS-projection över en ResolvedStaffDay.
- * Behåller submission/cache-status/provenance, ersätter rows/start/end/
- * work/travel. requested_start_at/requested_end_at från submission har
- * dock företräde över canonical-windowet.
- */
-export function overlayCanonicalOnResolved(
-  day: ResolvedStaffDay,
-  canonical: CanonicalProjection,
-): ResolvedStaffDay {
-  const requestedStart = day.rawSubmission?.requested_start_at ?? null;
-  const requestedEnd = day.rawSubmission?.requested_end_at ?? null;
-  return {
-    ...day,
-    rows: canonical.rows,
-    startIso: requestedStart ?? canonical.startIso,
-    endIso: requestedEnd ?? canonical.endIso,
-    workMinutes: canonical.workMinutes,
-    travelMinutes: canonical.travelMinutes,
-  };
-}
-
-export function overlayCanonicalOnSummary(
-  summary: ResolvedStaffDaySummary,
-  canonical: CanonicalProjection,
-  requestedStart: string | null,
-  requestedEnd: string | null,
-): ResolvedStaffDaySummary {
-  const totalMinutes = canonical.totalMinutes - Math.max(0, summary.breakMinutes || 0);
-  const normalMinutes = Math.max(0, totalMinutes - canonical.travelMinutes);
-  return {
-    ...summary,
-    rows: canonical.rows,
-    startIso: requestedStart ?? canonical.startIso,
-    endIso: requestedEnd ?? canonical.endIso,
-    workMinutes: canonical.workMinutes,
-    travelMinutes: canonical.travelMinutes,
-    totalMinutes: Math.max(0, totalMinutes),
-    normalMinutes,
-  };
 }
 
 // ---------- Empty constructor ----------
@@ -595,11 +453,9 @@ export async function resolveStaffDayReport(args: {
     .maybeSingle();
   if (subErr) throw subErr;
   if (subRow) {
-    const base = projectSubmissionToResolved({
+    return projectSubmissionToResolved({
       staffId, date, submission: subRow as unknown as ResolvedSubmissionRow,
     });
-    const canonical = await tryBuildCanonicalForDay(admin, organizationId, staffId, date);
-    return canonical ? overlayCanonicalOnResolved(base, canonical) : base;
   }
 
   // 2) Cache.
@@ -614,11 +470,9 @@ export async function resolveStaffDayReport(args: {
     .maybeSingle();
   if (cacheErr) throw cacheErr;
   if (cacheRow) {
-    const base = projectCacheToResolved({
+    return projectCacheToResolved({
       staffId, date, cache: cacheRow as unknown as CacheRow,
     });
-    const canonical = await tryBuildCanonicalForDay(admin, organizationId, staffId, date);
-    return canonical ? overlayCanonicalOnResolved(base, canonical) : base;
   }
 
   // 3) Empty.
@@ -684,8 +538,6 @@ export async function resolveStaffDayReportsBatch(args: {
     if (!cacheByKey.has(k)) cacheByKey.set(k, r); // first wins (latest built_at)
   }
 
-  // Bygg base + samla GPS-keys.
-  const needsCanonical: Array<{ key: string; staffId: string; date: string }> = [];
   for (const staffId of staffIds) {
     for (const date of dates) {
       const key = `${staffId}|${date}`;
@@ -694,7 +546,6 @@ export async function resolveStaffDayReportsBatch(args: {
         out.set(key, projectSubmissionToResolved({
           staffId, date, submission: sub as unknown as ResolvedSubmissionRow,
         }));
-        needsCanonical.push({ key, staffId, date });
         continue;
       }
       const cache = cacheByKey.get(key);
@@ -702,23 +553,11 @@ export async function resolveStaffDayReportsBatch(args: {
         out.set(key, projectCacheToResolved({
           staffId, date, cache: cache as unknown as CacheRow,
         }));
-        needsCanonical.push({ key, staffId, date });
         continue;
       }
       out.set(key, emptyResolved(staffId, date));
     }
   }
-
-  // Overlay canonical GPS-sanning för varje (staff,date) med submission/cache.
-  // Parallellt i batches om 8 — buildCanonicalStaffDayGpsResult har egen
-  // snapshot-cache så hot-keys är billiga.
-  await runInBatches(needsCanonical, 8, async ({ key, staffId, date }) => {
-    const canonical = await tryBuildCanonicalForDay(admin, organizationId, staffId, date);
-    if (!canonical) return;
-    const base = out.get(key);
-    if (!base) return;
-    out.set(key, overlayCanonicalOnResolved(base, canonical));
-  });
 
   return out;
 }
@@ -775,7 +614,6 @@ export async function resolveStaffDayReportSummariesBatch(args: {
     if (!cacheByKey.has(k)) cacheByKey.set(k, r);
   }
 
-  const needsCanonical: Array<{ key: string; staffId: string; date: string; requestedStart: string | null; requestedEnd: string | null }> = [];
   for (const staffId of staffIds) {
     for (const date of dates) {
       const key = `${staffId}|${date}`;
@@ -786,11 +624,6 @@ export async function resolveStaffDayReportSummariesBatch(args: {
           date,
           submission: submission as unknown as ResolvedSubmissionRow,
         }));
-        needsCanonical.push({
-          key, staffId, date,
-          requestedStart: submission.requested_start_at ?? null,
-          requestedEnd: submission.requested_end_at ?? null,
-        });
         continue;
       }
 
@@ -801,7 +634,6 @@ export async function resolveStaffDayReportSummariesBatch(args: {
           date,
           cache: cache as unknown as CacheRow,
         }));
-        needsCanonical.push({ key, staffId, date, requestedStart: null, requestedEnd: null });
         continue;
       }
 
@@ -822,19 +654,9 @@ export async function resolveStaffDayReportSummariesBatch(args: {
         reviewComment: null,
         cacheBuiltAt: null,
         engineVersion: null,
-        rows: [],
       });
     }
   }
-
-  // Overlay canonical GPS-sanning (samma som GPS SAT).
-  await runInBatches(needsCanonical, 8, async ({ key, staffId, date, requestedStart, requestedEnd }) => {
-    const canonical = await tryBuildCanonicalForDay(admin, organizationId, staffId, date);
-    if (!canonical) return;
-    const base = out.get(key);
-    if (!base) return;
-    out.set(key, overlayCanonicalOnSummary(base, canonical, requestedStart, requestedEnd));
-  });
 
   return out;
 }

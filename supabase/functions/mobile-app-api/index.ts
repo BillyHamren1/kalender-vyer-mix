@@ -6116,12 +6116,6 @@ async function handleUploadLocationBatch(
   }
 
   // ── 3. Time Engine processing — DISABLED in GPS upload path ──
-  // GPS_SIGNAL_ONLY + DAY_TIMER_ONLY:
-  // upload_location_batch MUST NOT create or mutate time_reports,
-  // location_time_entries, workdays, or other timeline blocks.
-  // This endpoint only ingests GPS evidence (staff_location_history /
-  // staff_locations). Any later timeline interpretation must happen in a
-  // controlled async path, not inline in the upload request.
   // EMERGENCY FIX: Running processGpsTimelineForAutoStart + evaluateAutoStopForActiveDay
   // synchronously on every upload_location_batch was overloading the database
   // (paginated full-day ping fetches + per-ping reprocessing per device).
