@@ -121,7 +121,7 @@ const PackingManagement = () => {
               för normala användare — för att eliminera dubbel UX där
               samma bokning kunde behandlas från två olika listor. */}
           <div className="mb-6">
-            <WarehouseProjectInbox />
+            <WarehouseProjectInbox search={search} />
           </div>
 
           {/* Packing Calendar */}
