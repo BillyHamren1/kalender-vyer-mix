@@ -90,7 +90,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
   // Datum-scopad query. Delas mellan ALLA kalender-/projekt-/booking-vyer
   // tack vare bucket-baserad nyckel (samma månad => samma cache).
   const { data: assignments = [], isLoading } = useQuery({
-    queryKey: ['staff-assignments-window', window.bucket],
+    queryKey: ['staff-assignments-all', window.bucket],
     queryFn: () => fetchAssignmentsInWindow(window.from, window.to),
     staleTime: 60 * 1000,
     gcTime: 10 * 60 * 1000,
