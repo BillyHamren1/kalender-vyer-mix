@@ -509,11 +509,13 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
           <div className="space-y-3">
             <h3 className="text-sm font-semibold">Datum & tid</h3>
             <p className="text-xs text-muted-foreground">
-              {planningMode
-                ? 'Datum, tid och team krävs för att placera i kalendern.'
-                : 'Lämna tomt om to:n ska placeras senare via "Att planera".'}
+              {personalCalendarMode
+                ? 'Lämna tomt om todo:n ska planeras senare.'
+                : planningMode
+                  ? 'Datum, tid och team krävs för att placera i kalendern.'
+                  : 'Lämna tomt om to:n ska placeras senare via "Att planera".'}
             </p>
-            {planningMode && (
+            {planningMode && !personalCalendarMode && (
               <div>
                 <Label>Team</Label>
                 <Select value={resourceId} onValueChange={setResourceId}>
