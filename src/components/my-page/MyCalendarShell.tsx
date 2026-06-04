@@ -10,7 +10,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  Plus,
 } from 'lucide-react';
+import CreateTodoWizard from '@/components/todo/CreateTodoWizard';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useCurrentStaffId } from '@/hooks/useCurrentStaffId';
@@ -40,6 +42,13 @@ export const MyCalendarShell: React.FC = () => {
   const [mode, setMode] = useState<Mode>('month');
   const [anchor, setAnchor] = useState<Date>(new Date());
   const [openTodo, setOpenTodo] = useState<MyCalendarItem | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [prefilledDate, setPrefilledDate] = useState<string | null>(null);
+
+  const openNewTodo = (date?: string) => {
+    setPrefilledDate(date || null);
+    setCreateOpen(true);
+  };
 
   const items = data?.items ?? [];
   const projects = data?.projects ?? [];
@@ -149,6 +158,14 @@ export const MyCalendarShell: React.FC = () => {
             </>
           )}
           {mode === 'list' && <div className="text-sm font-semibold">{headerLabel}</div>}
+          <Button
+            size="sm"
+            onClick={() => openNewTodo()}
+            disabled={!staffId}
+            className="ml-2"
+          >
+            <Plus className="h-4 w-4 mr-1" /> Ny todo
+          </Button>
         </div>
       </div>
 
@@ -166,12 +183,29 @@ export const MyCalendarShell: React.FC = () => {
           </CardContent>
         </Card>
       ) : mode === 'month' ? (
-        <MyCalendarMonthView anchorDate={anchor} items={filteredForView} onItemClick={handleItemClick} />
+        <MyCalendarMonthView
+          anchorDate={anchor}
+          items={filteredForView}
+          onItemClick={handleItemClick}
+          onDayClick={(iso) => openNewTodo(iso)}
+        />
       ) : mode === 'week' ? (
         <MyCalendarWeekView anchorDate={anchor} items={filteredForView} onItemClick={handleItemClick} />
       ) : (
         <MyCalendarListView items={filteredForView} onItemClick={handleItemClick} />
       )}
+
+      <CreateTodoWizard
+        open={createOpen}
+        onOpenChange={(o) => {
+          setCreateOpen(o);
+          if (!o) setPrefilledDate(null);
+        }}
+        onSuccess={() => { setCreateOpen(false); setPrefilledDate(null); }}
+        personalCalendarMode
+        currentStaffId={staffId}
+        defaultScheduledDate={prefilledDate}
+      />
 
       {/* Todo dialog */}
       <Dialog open={!!openTodo} onOpenChange={(o) => !o && setOpenTodo(null)}>

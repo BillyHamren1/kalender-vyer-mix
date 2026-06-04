@@ -18,11 +18,12 @@ interface Props {
   anchorDate: Date;
   items: MyCalendarItem[];
   onItemClick: (item: MyCalendarItem) => void;
+  onDayClick?: (isoDate: string) => void;
 }
 
 const WEEKDAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
 
-export const MyCalendarMonthView: React.FC<Props> = ({ anchorDate, items, onItemClick }) => {
+export const MyCalendarMonthView: React.FC<Props> = ({ anchorDate, items, onItemClick, onDayClick }) => {
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(anchorDate), { weekStartsOn: 1 });
     const end = endOfWeek(endOfMonth(anchorDate), { weekStartsOn: 1 });
@@ -67,8 +68,14 @@ export const MyCalendarMonthView: React.FC<Props> = ({ anchorDate, items, onItem
           return (
             <div
               key={iso}
+              onClick={(e) => {
+                if (!onDayClick) return;
+                // Bara om man klickar på tom yta — inte på ett event-kort
+                if ((e.target as HTMLElement).closest('[data-event-card]')) return;
+                onDayClick(iso);
+              }}
               className={cn(
-                'min-h-[120px] border-r border-b border-border/40 p-1.5 flex flex-col gap-1',
+                'min-h-[120px] border-r border-b border-border/40 p-1.5 flex flex-col gap-1 cursor-pointer hover:bg-muted/40 transition-colors',
                 !inMonth && 'bg-muted/30 text-muted-foreground',
                 today && 'bg-primary/[0.04]',
               )}
@@ -88,12 +95,13 @@ export const MyCalendarMonthView: React.FC<Props> = ({ anchorDate, items, onItem
               </div>
               <div className="flex flex-col gap-1 min-h-0">
                 {dayItems.slice(0, 3).map((it) => (
-                  <MyCalendarEventCard
-                    key={it.id}
-                    item={it}
-                    compact
-                    onClick={() => onItemClick(it)}
-                  />
+                  <div data-event-card key={it.id}>
+                    <MyCalendarEventCard
+                      item={it}
+                      compact
+                      onClick={() => onItemClick(it)}
+                    />
+                  </div>
                 ))}
               </div>
             </div>

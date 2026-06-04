@@ -28,8 +28,9 @@ export function useUnplannedTodos() {
     queryFn: async (): Promise<UnplannedTodoRow[]> => {
       const { data, error } = await supabase
         .from('todos')
-        .select('id, title, client, address, scheduled_date, start_time, end_time, booking_id, created_at, type:todo_types(key,label)')
+        .select('id, title, client, address, scheduled_date, start_time, end_time, booking_id, created_at, calendar_scope, type:todo_types(key,label)')
         .eq('planning_status', 'needs_planning')
+        .eq('calendar_scope', 'team_planning')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return (data || []).map((r: any) => ({

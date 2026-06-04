@@ -29,6 +29,16 @@ interface CreateTodoWizardProps {
    * när man sparar. Kräver todoId. Titel: "Planera to do".
    */
   planningMode?: boolean;
+  /**
+   * Personal calendar mode — för "Min sida". Sparar todo med
+   * calendar_scope='my_calendar' och assigned_staff_id=currentStaffId.
+   * Skapar INGEN rad i calendar_events. Visar ingen team-väljare.
+   */
+  personalCalendarMode?: boolean;
+  /** Staff id som ska tilldelas i personalCalendarMode. */
+  currentStaffId?: string | null;
+  /** Förvalt datum i personalCalendarMode (YYYY-MM-DD). */
+  defaultScheduledDate?: string | null;
 }
 
 interface BookingOption {
@@ -38,7 +48,7 @@ interface BookingOption {
   booking_number: string | null;
 }
 
-export default function CreateTodoWizard({ open, onOpenChange, onSuccess, preselectedBookingId, todoId, planningMode }: CreateTodoWizardProps) {
+export default function CreateTodoWizard({ open, onOpenChange, onSuccess, preselectedBookingId, todoId, planningMode, personalCalendarMode, currentStaffId, defaultScheduledDate }: CreateTodoWizardProps) {
   const isEdit = !!todoId;
   const { organizationId } = useCurrentOrg();
   const { data: todoTypes = [], createType } = useTodoTypes();
@@ -94,7 +104,7 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
       setPostalCode('');
       setLatitude(undefined);
       setLongitude(undefined);
-      setScheduledDate('');
+      setScheduledDate(defaultScheduledDate || '');
       setStartTime('');
       setEndTime('');
       setInternalNotes('');
@@ -103,7 +113,7 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
         setTitle('');
       }
     }
-  }, [open, preselectedBookingId, todoId]);
+  }, [open, preselectedBookingId, todoId, defaultScheduledDate]);
 
   // Bookings dropdown
   const { data: bookings = [] } = useQuery({
@@ -217,7 +227,7 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
       if (!title.trim()) throw new Error('Ange en titel');
       const bookingId = selectedBookingId && selectedBookingId !== 'none' ? selectedBookingId : null;
 
-      const payload = {
+      const payload: any = {
         type_id: typeId,
         title: title.trim(),
         booking_id: bookingId,
@@ -236,6 +246,12 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
         assigned_leader: assignedLeader && assignedLeader !== 'none' ? assignedLeader : null,
         internal_notes: internalNotes.trim() || null,
       };
+
+      if (personalCalendarMode) {
+        payload.calendar_scope = 'my_calendar';
+        payload.assigned_staff_id = currentStaffId || null;
+        payload.planning_status = scheduledDate ? 'planned' : 'needs_planning';
+      }
 
       let savedTodo: any;
       if (isEdit && todoId) {
@@ -258,7 +274,8 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
       }
 
       // Planning mode — placera/uppdatera i personalkalendern.
-      if (planningMode && savedTodo?.id) {
+      // Personal calendar mode skapar ALDRIG calendar_events.
+      if (planningMode && !personalCalendarMode && savedTodo?.id) {
         if (!scheduledDate || !startTime || !endTime || !resourceId) {
           throw new Error('Fyll i datum, tid och team för att placera i kalendern');
         }
@@ -312,7 +329,7 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{planningMode ? 'Planera to do' : (isEdit ? 'Redigera to do' : 'Skapa to do')}</DialogTitle>
+          <DialogTitle>{personalCalendarMode ? (isEdit ? 'Redigera personlig todo' : 'Ny personlig todo') : (planningMode ? 'Planera to do' : (isEdit ? 'Redigera to do' : 'Skapa to do'))}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={(e) => { e.preventDefault(); create.mutate(); }} className="space-y-5">
@@ -492,11 +509,13 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
           <div className="space-y-3">
             <h3 className="text-sm font-semibold">Datum & tid</h3>
             <p className="text-xs text-muted-foreground">
-              {planningMode
-                ? 'Datum, tid och team krävs för att placera i kalendern.'
-                : 'Lämna tomt om to:n ska placeras senare via "Att planera".'}
+              {personalCalendarMode
+                ? 'Lämna tomt om todo:n ska planeras senare.'
+                : planningMode
+                  ? 'Datum, tid och team krävs för att placera i kalendern.'
+                  : 'Lämna tomt om to:n ska placeras senare via "Att planera".'}
             </p>
-            {planningMode && (
+            {planningMode && !personalCalendarMode && (
               <div>
                 <Label>Team</Label>
                 <Select value={resourceId} onValueChange={setResourceId}>
