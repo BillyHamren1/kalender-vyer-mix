@@ -151,34 +151,7 @@ serve(async (req) => {
       )
     }
 
-    const recentlyCompleted = (existingJobs || []).find(
-      (j: any) =>
-        j.status === 'completed' &&
-        j.processed_at &&
-        j.processed_at > cooldownIso
-    )
-    if (recentlyCompleted) {
-      console.log('[receive-booking] Suppressed (cooldown after recent completion)', JSON.stringify({
-        last_job_id: recentlyCompleted.id,
-        booking_id,
-        organization_id,
-        event_type: normalizedEventType,
-        cooldown_ms: COOLDOWN_MS,
-        duration_ms: Date.now() - startTime,
-      }))
-      return new Response(
-        JSON.stringify({
-          success: true,
-          accepted: true,
-          coalesced: true,
-          suppressed_by_cooldown: true,
-          last_job_id: recentlyCompleted.id,
-          booking_id,
-          event_type: normalizedEventType,
-        }),
-        { status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+
 
     const { data: job, error: insertError } = await supabase
       .from('booking_sync_jobs')
