@@ -6,24 +6,30 @@
 // mobilen, projektens tidsvisning, framtida löneunderlag — MÅSTE gå via
 // denna resolver. Ingen vy får implementera egen fallback-logik.
 //
-// PRIORITET (orubblig):
+// PRIORITET (orubblig) för STATUS/PROVENANCE:
 //   1. staff_day_submissions  → source: 'submission'
 //   2. staff_day_report_cache → source: 'cache'
 //   3. annars                  → source: 'empty'
 //
-// Submission vinner ALLTID över cache. En ny cache-beräkning får aldrig
-// påverka eller "skriva över" en redan inskickad dag — det är därför vi
-// läser submission först och inte ens kollar cache om submission finns.
+// Submission vinner ALLTID över cache för status/submissionId/reviewComment.
+//
+// === GPS-SANNING ===
+// Tid/Lön får ALDRIG bygga egen timeline. GPS-baserade rows kommer från
+// `buildCanonicalStaffDayGpsResult` (samma som GPS SAT använder). När
+// canonical har segments för dagen ersätter vi rows/start/end/work/travel/
+// total i den projicerade dagen — men STATUS, submissionId och reviewComment
+// kommer fortfarande från submission/cache. När canonical saknar pings/
+// segment faller vi tillbaka till submissionens display_timeline_snapshot
+// eller cachens display_blocks (för manuella rapporter utan GPS).
 //
 // FÖRBJUDET:
-//   - LÄS aldrig `staff_location_history` här. Time Engine är ensam ägare
-//     av raw GPS. Konsumenter får aldrig bygga arbetstid från raw GPS.
+//   - Resolvern får ALDRIG läsa staff_location_history själv. Den får och
+//     ska konsumera `canonicalStaffDayGpsResult` som enda GPS-sanning.
 //   - LÄS aldrig time_reports / workdays / location_time_entries /
 //     travel_time_logs / day_attestations / active_time_registrations.
-//     Dessa är legacy och får inte rendera tidrapport eller attest.
 //
 // Resolvern är ren projektion: DB → normaliserad ResolvedStaffDay.
-// Den gör inga skrivningar och kör ingen GPS-beräkning.
+// Den gör inga skrivningar.
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
@@ -32,6 +38,10 @@ import {
 } from "../mobile/mapReportBlocksToSegments.ts";
 import type { CacheRow } from "../mobile/buildMobileSnapshot.ts";
 import type { MobileSegment } from "../mobile/types.ts";
+import {
+  buildCanonicalStaffDayGpsResult,
+  type CanonicalStaffDayGpsResult,
+} from "../staff-gps/canonicalStaffDayGpsResult.ts";
 
 // ---------- Public types ----------
 
