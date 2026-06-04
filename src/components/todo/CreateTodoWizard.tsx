@@ -71,6 +71,9 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
   const [resourceId, setResourceId] = useState<string>('team-1');
 
   const [selectedBookingId, setSelectedBookingId] = useState<string>('');
+  const [selectedLargeProjectId, setSelectedLargeProjectId] = useState<string>('');
+  const [linkKind, setLinkKind] = useState<LinkKind>('none');
+  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [assignedLeader, setAssignedLeader] = useState<string>('');
 
