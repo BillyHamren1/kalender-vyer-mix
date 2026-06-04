@@ -18,7 +18,10 @@ import { lazyWithRecovery } from "@/utils/lazyWithRecovery";
 
 // Main system pages — eager (used immediately after login)
 import PlanningDashboard from "./pages/PlanningDashboard";
-import MyProjects from "./pages/MyProjects";
+import MyPage from "./pages/MyPage";
+import MyPageProjects from "./pages/MyPageProjects";
+import MyPageCalendar from "./pages/MyPageCalendar";
+import MyPageTodos from "./pages/MyPageTodos";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import AuthResetPassword from "./pages/AuthResetPassword";
@@ -355,7 +358,11 @@ const WebRoutes: React.FC = () => {
             <Route element={<ProtectedMainLayout />}>
               <Route path="/" element={<Navigate to={defaultRoute} replace />} />
               <Route path="/dashboard" element={<PlanningDashboard />} />
-              <Route path="/my-projects" element={<MyProjects />} />
+              <Route path="/my-projects" element={<Navigate to="/my-page/projects" replace />} />
+              <Route path="/my-page" element={<MyPage />} />
+              <Route path="/my-page/projects" element={<MyPageProjects />} />
+              <Route path="/my-page/calendar" element={<MyPageCalendar />} />
+              <Route path="/my-page/todos" element={<MyPageTodos />} />
               <Route path="/calendar" element={<CustomCalendarPage />} />
               <Route path="/staff-management" element={<StaffManagement />} />
               <Route path="/staff-dashboard" element={<StaffDashboard />} />
