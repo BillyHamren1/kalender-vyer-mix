@@ -669,6 +669,8 @@ export async function resolveStaffDayReportsBatch(args: {
     if (!cacheByKey.has(k)) cacheByKey.set(k, r); // first wins (latest built_at)
   }
 
+  // Bygg base + samla GPS-keys.
+  const needsCanonical: Array<{ key: string; staffId: string; date: string }> = [];
   for (const staffId of staffIds) {
     for (const date of dates) {
       const key = `${staffId}|${date}`;
@@ -677,6 +679,7 @@ export async function resolveStaffDayReportsBatch(args: {
         out.set(key, projectSubmissionToResolved({
           staffId, date, submission: sub as unknown as ResolvedSubmissionRow,
         }));
+        needsCanonical.push({ key, staffId, date });
         continue;
       }
       const cache = cacheByKey.get(key);
@@ -684,11 +687,23 @@ export async function resolveStaffDayReportsBatch(args: {
         out.set(key, projectCacheToResolved({
           staffId, date, cache: cache as unknown as CacheRow,
         }));
+        needsCanonical.push({ key, staffId, date });
         continue;
       }
       out.set(key, emptyResolved(staffId, date));
     }
   }
+
+  // Overlay canonical GPS-sanning för varje (staff,date) med submission/cache.
+  // Parallellt i batches om 8 — buildCanonicalStaffDayGpsResult har egen
+  // snapshot-cache så hot-keys är billiga.
+  await runInBatches(needsCanonical, 8, async ({ key, staffId, date }) => {
+    const canonical = await tryBuildCanonicalForDay(admin, organizationId, staffId, date);
+    if (!canonical) return;
+    const base = out.get(key);
+    if (!base) return;
+    out.set(key, overlayCanonicalOnResolved(base, canonical));
+  });
 
   return out;
 }
