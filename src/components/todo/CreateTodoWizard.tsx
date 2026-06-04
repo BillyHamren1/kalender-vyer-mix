@@ -121,10 +121,30 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
       setInternalNotes('');
       if (!preselectedBookingId) {
         setSelectedBookingId('');
+        setSelectedLargeProjectId('');
+        setLinkKind('none');
         setTitle('');
+      } else {
+        setLinkKind('booking');
       }
     }
   }, [open, preselectedBookingId, todoId, defaultScheduledDate]);
+
+  // Large projects dropdown
+  const { data: largeProjects = [] } = useQuery({
+    queryKey: ['todo-wizard-large-projects', organizationId],
+    enabled: open && !!organizationId,
+    queryFn: async (): Promise<LargeProjectOption[]> => {
+      const { data } = await (supabase as any)
+        .from('large_projects')
+        .select('id, name, project_number, status')
+        .eq('organization_id', organizationId!)
+        .neq('status', 'archived')
+        .order('created_at', { ascending: false })
+        .limit(500);
+      return (data || []) as any;
+    },
+  });
 
   // Bookings dropdown
   const { data: bookings = [] } = useQuery({
