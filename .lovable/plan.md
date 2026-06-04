@@ -1,33 +1,67 @@
-# Fix: Sökfältet på "Planera packning" filtrerar inte inbox-listan
+# Fix: Första bokstaven försvinner + tillbehör visas inte i bokningsvyn
 
-## Problem
-På `/warehouse/packing` finns ett sökfält ("Sök packning…"). Idag filtrerar det **bara** `filteredPackings` (befintliga packningsprojekt) som visas längst ner. Men listan användaren faktiskt försöker söka i — **"Nya projekt från Planning"** (`WarehouseProjectInbox`) — tar inte emot någon `search`-prop och filtreras därför aldrig. Samma sak gäller `PackingUpdatedBookings` och `PackingDashboard`. Resultat: man skriver "we" och inget händer i inbox-listan.
+Båda buggarna sitter i `src/components/project/ProjectProductsList.tsx`.
 
-## Lösning
-Skicka ner sökterm till de listor som finns på sidan, så att samma fält filtrerar allt.
+## Bugg 1 — Första bokstaven på vissa rader försvinner
 
-### Ändringar
-1. **`src/components/warehouse/WarehouseProjectInbox.tsx`**
-   - Lägg till valfri prop `search?: string`.
-   - Filtrera `items` på `client_name` och `source_project_number` (case-insensitive, trimmat). Tom sträng = ingen filtrering (oförändrat beteende).
-   - Behåll "dölj sektionen om listan är tom" — men när `search` är satt och inget matchar visas en kort tom-rad ("Inga matchande projekt i inbox") istället för att hela sektionen försvinner, så användaren förstår att sökningen är aktiv.
+`cleanName` använder en teckenklass som råkar innehålla bokstaven `L`:
 
-2. **`src/pages/PackingManagement.tsx`**
-   - Skicka `<WarehouseProjectInbox search={search} />`.
-   - Uppdatera placeholder till `"Sök packning, projekt eller bokning…"` så att det matchar att sökfältet nu täcker både inbox och packningar.
-
-### Inte i scope
-- `PackingUpdatedBookings` och `PackingDashboard` lämnas orörda om de inte också ska sökas igenom — säg till om du vill att jag tar dem också.
-- Ingen ändring av status-filter, datamodell eller services.
-
-## Teknisk detalj
-Filterfunktion i inbox:
 ```ts
-const q = (search ?? '').trim().toLowerCase();
-const visible = q
-  ? items.filter(i =>
-      (i.client_name ?? '').toLowerCase().includes(q) ||
-      (i.source_project_number ?? '').toLowerCase().includes(q))
-  : items;
+name.replace(/^[\u21B3\u2514\u2192\u2713L,\-–\s↳└→]+\s*/, "").trim();
 ```
-Rendera `visible` istället för `items` (badge-räknaren visar `visible.length` när sök är aktiv, annars `items.length`).
+
+`[L,]` betyder "vilket som helst av `L` eller `,`", så varje produktnamn som börjar på `L` får sin första bokstav strippad. "Ljusslinga …" → "jusslinga …", "Lätt lastbil" → "ätt lastbil".
+
+**Fix:** byt till alternation så endast den exakta prefix-strängen `L,` (tillbehörsmarkör i importen) tas bort, inte ett ensamt `L`:
+
+```ts
+const cleanName = (name: string) =>
+  name.replace(/^(?:L,|[↳└→✓\u21B3\u2514\u2192\u2713\-–\s])+\s*/, "").trim();
+```
+
+## Bugg 2 — Inga tillbehör visas
+
+Importen lagrar alla barnrader med `is_package_component = true`, men det finns två typer som skiljs åt på prefixet i `name`:
+
+- `"-- ..."` = paketkomponenter (alltid med i paketet, ska döljas).
+- `"↳ ..."` = tillbehör som kunden själv lagt till (ska visas under huvudprodukten).
+
+Nuvarande filter i `renderProductLine` döljer alla rader med `is_package_component === true`, så även `↳`-tillbehören försvinner:
+
+```ts
+const accessories = allChildren.filter(
+  (c) => c.parent_product_id === product.id && c.is_package_component !== true
+);
+```
+
+**Fix:** klassa raden på namn-prefix istället för enbart flaggan. En rad räknas som synligt tillbehör om den har en parent och namnet börjar med `↳` (eller, för säkerhets skull, andra arrow/accessory-markörer som `└`, `→`). `-- `-rader (rena paketkomponenter) fortsätter att döljas.
+
+Samma justering görs på de andra ställen i filen som speglar `allChildren`-filtret (t.ex. `visibleProducts`-summeringen för vikt/volym), så att `↳`-tillbehören räknas in i vikt-/volym-summan på samma sätt som de visas.
+
+### Tekniska detaljer
+
+I `ProjectProductsList.tsx`:
+
+1. Lägg till hjälpare:
+   ```ts
+   const isHiddenPackageComponent = (name: string) =>
+     /^\s*--/.test(name); // "-- P Ben" etc
+   const isVisibleAccessory = (p: BookingProduct) =>
+     !!p.parent_product_id && !isHiddenPackageComponent(p.name);
+   ```
+2. Ersätt accessory-filtret i `renderProductLine` med `isVisibleAccessory(c) && c.parent_product_id === product.id`.
+3. Ersätt `visibleProducts`-filtret med `products.filter(p => !p.parent_product_id || isVisibleAccessory(p))`.
+4. Lämna `mainProducts` orört (parent_product_id null & is_package_component false).
+
+## Verifiering
+
+- Visuell kontroll i preview på bokning 2605-56 (Westers Catering, eventdate 2026-06-05):
+  - "Ljusslinga - Pris per lpm" och "Lätt lastbil" visas med rätt namn.
+  - Under "Multiflex 6x9" (och "P 4x4") syns nu `↳ Takduk, vit 4x4`, `↳ Vägg, transparent 4x4`, `↳ Vägg, täck 4x4` osv som tillbehör.
+  - `-- P Ben`, `-- P Hatt` osv visas fortfarande inte.
+- Snabbt enhetstest för `cleanName` + accessory-klassificering (vitest) som låser att "Ljusslinga" och "Lätt lastbil" inte trimmas, och att `↳`-rader klassas som synliga tillbehör medan `--`-rader inte gör det.
+
+## Inte i scope
+
+- Inga ändringar i DB-data eller importflödet.
+- `JobDetail.tsx` (`isAccessory`/`groupProducts`) och `PackingListTab.tsx` rör jag inte — de använder andra prefix-regler och syns inte i den rapporterade vyn.

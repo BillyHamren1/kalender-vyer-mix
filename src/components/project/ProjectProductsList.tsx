@@ -33,8 +33,17 @@ interface ProjectProductsListProps {
   showSummary?: boolean;
 }
 
-const cleanName = (name: string) =>
-  name.replace(/^[\u21B3\u2514\u2192\u2713L,\-–\s↳└→]+\s*/, "").trim();
+// Strippar prefix-markörer som importen lägger på tillbehörs-/komponent-rader.
+// VIKTIGT: använd alternation, inte teckenklass — `[L,]` skulle matcha ett ensamt
+// `L` och kapa första bokstaven på namn som "Ljusslinga" eller "Lätt lastbil".
+export const cleanName = (name: string) =>
+  name.replace(/^(?:L,|--|[↳└→✓\u21B3\u2514\u2192\u2713\-–\s])+\s*/, "").trim();
+
+// `-- foo` = paketkomponent (auto-medföljande, ska döljas i bokningsvyn)
+const isHiddenPackageComponent = (name: string) => /^\s*--/.test(name);
+
+export const isVisibleAccessory = (p: { name: string; parent_product_id: string | null }) =>
+  !!p.parent_product_id && !isHiddenPackageComponent(p.name);
 
 const ProjectProductsList = ({
   bookingId,
@@ -83,7 +92,10 @@ const ProjectProductsList = ({
 
   const mainProducts = products.filter((p) => !p.parent_product_id && !p.is_package_component);
   const allChildren = products.filter((p) => p.parent_product_id || p.is_package_component);
-  const visibleProducts = products.filter((p) => p.is_package_component !== true);
+  // Visa huvudprodukter + ↳-tillbehör (kundvalda). Dölj endast `--`-paketkomponenter.
+  const visibleProducts = products.filter(
+    (p) => !p.parent_product_id || isVisibleAccessory(p)
+  );
 
   const totalWeight = visibleProducts.reduce(
     (sum, p) => sum + (p.estimated_weight_kg || 0) * p.quantity,
@@ -156,7 +168,7 @@ const ProjectProductsList = ({
 
   const renderProductLine = (product: BookingProduct, withMenu: boolean) => {
     const accessories = allChildren.filter(
-      (c) => c.parent_product_id === product.id && c.is_package_component !== true
+      (c) => c.parent_product_id === product.id && isVisibleAccessory(c)
     );
     return (
       <div key={product.id}>
