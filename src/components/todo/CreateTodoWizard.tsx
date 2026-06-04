@@ -227,7 +227,7 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
       if (!title.trim()) throw new Error('Ange en titel');
       const bookingId = selectedBookingId && selectedBookingId !== 'none' ? selectedBookingId : null;
 
-      const payload = {
+      const payload: any = {
         type_id: typeId,
         title: title.trim(),
         booking_id: bookingId,
@@ -246,6 +246,12 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
         assigned_leader: assignedLeader && assignedLeader !== 'none' ? assignedLeader : null,
         internal_notes: internalNotes.trim() || null,
       };
+
+      if (personalCalendarMode) {
+        payload.calendar_scope = 'my_calendar';
+        payload.assigned_staff_id = currentStaffId || null;
+        payload.planning_status = scheduledDate ? 'planned' : 'needs_planning';
+      }
 
       let savedTodo: any;
       if (isEdit && todoId) {
@@ -268,7 +274,8 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
       }
 
       // Planning mode — placera/uppdatera i personalkalendern.
-      if (planningMode && savedTodo?.id) {
+      // Personal calendar mode skapar ALDRIG calendar_events.
+      if (planningMode && !personalCalendarMode && savedTodo?.id) {
         if (!scheduledDate || !startTime || !endTime || !resourceId) {
           throw new Error('Fyll i datum, tid och team för att placera i kalendern');
         }
