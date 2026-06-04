@@ -196,6 +196,33 @@ async function processOne(
     if (pings.length === 0) {
       out.ok = true;
       out.skipped = 'no_pings';
+      // Idempotency: write a stub cache row so next backfill batch can
+      // filter this (staff,date) out via skipExisting. Without this the
+      // pair re-appears in every batch forever and the loop never drains.
+      if (!dryRun) {
+        try {
+          await admin.from('staff_day_report_cache').upsert(
+            {
+              organization_id: orgId,
+              staff_id: staffId,
+              date,
+              engine_version: engineVersion,
+              summary_json: { source: 'no_pings_stub', pingCount: 0, workMinutes: 0 },
+              report_candidate_blocks_json: [],
+              display_blocks_json: [],
+              diagnostics_json: { noPings: true, builtBy: 'backfill-staff-day-report-cache' },
+              source_watermark: { maxPingTs: null, activeRegsCount: 0 },
+              processed_until: dayEnd,
+              built_at: new Date().toISOString(),
+              stale: false,
+              error: null,
+            },
+            { onConflict: 'organization_id,staff_id,date,engine_version' },
+          );
+        } catch {
+          // best-effort; non-fatal
+        }
+      }
       return out;
     }
 
