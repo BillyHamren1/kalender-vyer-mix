@@ -242,6 +242,81 @@ function firstAndLastIso(rows: ResolvedDayRow[]): { first: string | null; last: 
   return { first, last };
 }
 
+// ---------- Canonical GPS projection ----------
+//
+// Mappar canonical.segments → ResolvedDayRow[] med EXAKT samma fält som
+// GPS SAT använder. idle filtreras bort (renderas inte i Tid/Lön).
+
+export interface CanonicalProjection {
+  rows: ResolvedDayRow[];
+  startIso: string | null;
+  endIso: string | null;
+  workMinutes: number;
+  travelMinutes: number;
+  totalMinutes: number;
+}
+
+function canonicalKindToRowKind(t: CanonicalStaffDayGpsResult["segments"][number]["type"]): ResolvedDayRow["kind"] | null {
+  switch (t) {
+    case "work": return "work";
+    case "travel": return "travel";
+    case "private": return "private";
+    case "unknown_place": return "unknown_place";
+    case "gps_gap": return "gps_gap";
+    case "idle": return null; // filtreras bort
+  }
+}
+
+export function projectCanonicalToResolvedSummary(
+  canonical: CanonicalStaffDayGpsResult,
+): CanonicalProjection {
+  const rows: ResolvedDayRow[] = [];
+  for (const seg of canonical.segments) {
+    const kind = canonicalKindToRowKind(seg.type);
+    if (!kind) continue;
+    rows.push({
+      kind,
+      label: seg.label,
+      startIso: seg.startIso,
+      endIso: seg.endIso,
+      minutes: Math.max(0, Math.round(seg.durationMinutes || 0)),
+      fromLabel: seg.fromLabel,
+      toLabel: seg.toLabel,
+    });
+  }
+  const { first, last } = firstAndLastIso(rows);
+  return {
+    rows,
+    startIso: first,
+    endIso: last,
+    workMinutes: Math.max(0, Math.round(canonical.totals.workMinutes || 0)),
+    travelMinutes: Math.max(0, Math.round(canonical.totals.travelMinutes || 0)),
+    totalMinutes: Math.max(0, Math.round(canonical.payrollSuggestion.payableMinutes || 0)),
+  };
+}
+
+/** Försök bygga canonical för (staff,date). Returnerar null om bygget
+ *  kraschar eller om dagen saknar GPS-segment (då används fallback). */
+export async function tryBuildCanonicalForDay(
+  admin: SupabaseClient,
+  organizationId: string,
+  staffId: string,
+  date: string,
+): Promise<CanonicalProjection | null> {
+  try {
+    const canonical = await buildCanonicalStaffDayGpsResult(admin, {
+      organizationId, staffId, date,
+    });
+    if (!canonical.segments || canonical.segments.length === 0) return null;
+    const proj = projectCanonicalToResolvedSummary(canonical);
+    if (proj.rows.length === 0) return null;
+    return proj;
+  } catch (e) {
+    console.warn("[resolveStaffDayReport] canonical build failed", { staffId, date, err: (e as Error).message });
+    return null;
+  }
+}
+
 // ---------- Empty constructor ----------
 
 function emptyResolved(staffId: string, date: string): ResolvedStaffDay {
