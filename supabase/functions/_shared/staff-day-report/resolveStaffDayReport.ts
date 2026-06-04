@@ -760,6 +760,7 @@ export async function resolveStaffDayReportSummariesBatch(args: {
     if (!cacheByKey.has(k)) cacheByKey.set(k, r);
   }
 
+  const needsCanonical: Array<{ key: string; staffId: string; date: string; requestedStart: string | null; requestedEnd: string | null }> = [];
   for (const staffId of staffIds) {
     for (const date of dates) {
       const key = `${staffId}|${date}`;
@@ -770,6 +771,11 @@ export async function resolveStaffDayReportSummariesBatch(args: {
           date,
           submission: submission as unknown as ResolvedSubmissionRow,
         }));
+        needsCanonical.push({
+          key, staffId, date,
+          requestedStart: submission.requested_start_at ?? null,
+          requestedEnd: submission.requested_end_at ?? null,
+        });
         continue;
       }
 
@@ -780,6 +786,7 @@ export async function resolveStaffDayReportSummariesBatch(args: {
           date,
           cache: cache as unknown as CacheRow,
         }));
+        needsCanonical.push({ key, staffId, date, requestedStart: null, requestedEnd: null });
         continue;
       }
 
@@ -800,9 +807,19 @@ export async function resolveStaffDayReportSummariesBatch(args: {
         reviewComment: null,
         cacheBuiltAt: null,
         engineVersion: null,
+        rows: [],
       });
     }
   }
+
+  // Overlay canonical GPS-sanning (samma som GPS SAT).
+  await runInBatches(needsCanonical, 8, async ({ key, staffId, date, requestedStart, requestedEnd }) => {
+    const canonical = await tryBuildCanonicalForDay(admin, organizationId, staffId, date);
+    if (!canonical) return;
+    const base = out.get(key);
+    if (!base) return;
+    out.set(key, overlayCanonicalOnSummary(base, canonical, requestedStart, requestedEnd));
+  });
 
   return out;
 }
