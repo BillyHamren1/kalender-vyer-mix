@@ -72,7 +72,7 @@ serve(async (req) => {
   // ── 2. Group claimed job IDs by (organization_id, booking_id) ───────
   // Multiple webhook rows for the same booking coalesce into ONE import call;
   // we still update all those job rows together at the end.
-  const groups = new Map<string, { organization_id: string; booking_id: string; jobIds: string[] }>()
+  const groups = new Map<string, { organization_id: string; booking_id: string; event_type: string | null; jobIds: string[] }>()
   for (const job of jobs) {
     if (!job.booking_id || !job.organization_id) {
       // No booking_id/org → cannot refresh; mark as failed so it doesn't loop.
@@ -90,8 +90,11 @@ serve(async (req) => {
     const entry = groups.get(key) || {
       organization_id: job.organization_id,
       booking_id: job.booking_id,
+      event_type: job.event_type ?? null,
       jobIds: [],
     }
+    // Keep the most specific event_type if one of the coalesced jobs has it
+    if (!entry.event_type && job.event_type) entry.event_type = job.event_type
     entry.jobIds.push(job.id)
     groups.set(key, entry)
   }
@@ -113,6 +116,11 @@ serve(async (req) => {
   let cursor = 0
 
   const runOne = async (group: typeof entries[number]) => {
+    console.log(
+      `[process-sync-jobs] → import-bookings single booking=${group.booking_id} ` +
+      `org=${group.organization_id} event_type=${group.event_type ?? 'null'} ` +
+      `coalesced_jobs=${group.jobIds.length}`
+    )
     try {
       const res = await fetch(`${supabaseUrl}/functions/v1/import-bookings`, {
         method: 'POST',
@@ -125,11 +133,16 @@ serve(async (req) => {
           syncMode: 'single',
           booking_id: group.booking_id,
           organization_id: group.organization_id,
-          quiet: true,
+          event_type: group.event_type ?? null,
+          quiet: false,
         }),
       })
 
       const bodyText = await res.text().catch(() => '')
+      console.log(
+        `[process-sync-jobs] ← import-bookings booking=${group.booking_id} ` +
+        `status=${res.status} body_preview=${bodyText.substring(0, 200)}`
+      )
       if (!res.ok) {
         throw new Error(
           `import-bookings returned ${res.status}: ${bodyText.substring(0, 500)}`
@@ -137,8 +150,6 @@ serve(async (req) => {
       }
 
       // Defensive: a successful single-refresh must NOT come back as "queued".
-      // If it did, the import contract regressed and we should not mark the
-      // jobs as completed — surface the regression as a failure.
       let parsed: any = null
       try { parsed = JSON.parse(bodyText) } catch { /* ignore */ }
       if (parsed && parsed.queued === true) {
@@ -161,8 +172,8 @@ serve(async (req) => {
         status: 'completed',
       })
       console.log(
-        `[process-sync-jobs] booking=${group.booking_id} org=${group.organization_id} ` +
-        `coalesced ${group.jobIds.length} job(s) into 1 single refresh — OK`
+        `[process-sync-jobs] ✓ completed booking=${group.booking_id} ` +
+        `org=${group.organization_id} jobs=${group.jobIds.length}`
       )
     } catch (err: any) {
       const errMsg = String(err?.message || err).substring(0, 1000)
