@@ -317,6 +317,48 @@ export async function tryBuildCanonicalForDay(
   }
 }
 
+/**
+ * Overlay canonical GPS-projection över en ResolvedStaffDay.
+ * Behåller submission/cache-status/provenance, ersätter rows/start/end/
+ * work/travel. requested_start_at/requested_end_at från submission har
+ * dock företräde över canonical-windowet.
+ */
+export function overlayCanonicalOnResolved(
+  day: ResolvedStaffDay,
+  canonical: CanonicalProjection,
+): ResolvedStaffDay {
+  const requestedStart = day.rawSubmission?.requested_start_at ?? null;
+  const requestedEnd = day.rawSubmission?.requested_end_at ?? null;
+  return {
+    ...day,
+    rows: canonical.rows,
+    startIso: requestedStart ?? canonical.startIso,
+    endIso: requestedEnd ?? canonical.endIso,
+    workMinutes: canonical.workMinutes,
+    travelMinutes: canonical.travelMinutes,
+  };
+}
+
+export function overlayCanonicalOnSummary(
+  summary: ResolvedStaffDaySummary,
+  canonical: CanonicalProjection,
+  requestedStart: string | null,
+  requestedEnd: string | null,
+): ResolvedStaffDaySummary {
+  const totalMinutes = canonical.totalMinutes - Math.max(0, summary.breakMinutes || 0);
+  const normalMinutes = Math.max(0, totalMinutes - canonical.travelMinutes);
+  return {
+    ...summary,
+    rows: canonical.rows,
+    startIso: requestedStart ?? canonical.startIso,
+    endIso: requestedEnd ?? canonical.endIso,
+    workMinutes: canonical.workMinutes,
+    travelMinutes: canonical.travelMinutes,
+    totalMinutes: Math.max(0, totalMinutes),
+    normalMinutes,
+  };
+}
+
 // ---------- Empty constructor ----------
 
 function emptyResolved(staffId: string, date: string): ResolvedStaffDay {
