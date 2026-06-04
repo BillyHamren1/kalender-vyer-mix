@@ -96,11 +96,11 @@ const MyPageTodos: React.FC = () => {
         title="Mina todos"
         variant="purple"
         subtitle="Dina personliga uppgifter"
-        actions={
-          <Button size="sm" onClick={() => { setEditId(null); setCreateOpen(true); }}>
-            <Plus className="h-4 w-4 mr-1" /> Ny todo
-          </Button>
-        }
+        action={{
+          label: 'Ny todo',
+          icon: Plus,
+          onClick: () => { setEditId(null); setCreateOpen(true); },
+        }}
       />
 
       {/* Filter-rad */}
