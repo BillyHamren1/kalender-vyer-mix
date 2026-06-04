@@ -22,6 +22,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useProjectInboxCount } from "@/hooks/useProjectInboxCount";
 import { useUnplannedProjects } from "@/hooks/useUnplannedProjects";
+import { useCurrentStaffId } from "@/hooks/useCurrentStaffId";
+import { useMySidebarProjects } from "@/hooks/useMySidebarProjects";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -29,7 +31,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { usePinnedTabs } from "@/contexts/PinnedTabsContext";
-import { Pin, PinOff } from "lucide-react";
+import { Pin, PinOff, Briefcase, AlertCircle } from "lucide-react";
 
 interface NavChild {
   title: string;
