@@ -95,12 +95,13 @@ export const MyCalendarMonthView: React.FC<Props> = ({ anchorDate, items, onItem
               </div>
               <div className="flex flex-col gap-1 min-h-0">
                 {dayItems.slice(0, 3).map((it) => (
-                  <MyCalendarEventCard
-                    key={it.id}
-                    item={it}
-                    compact
-                    onClick={() => onItemClick(it)}
-                  />
+                  <div data-event-card key={it.id}>
+                    <MyCalendarEventCard
+                      item={it}
+                      compact
+                      onClick={() => onItemClick(it)}
+                    />
+                  </div>
                 ))}
               </div>
             </div>
