@@ -43,6 +43,24 @@ import {
   type CanonicalStaffDayGpsResult,
 } from "../staff-gps/canonicalStaffDayGpsResult.ts";
 
+// ─────────────────────────────────────────────────────────────────────────────
+// FEATURE FLAG — Tid/Lön canonical GPS overlay
+// ─────────────────────────────────────────────────────────────────────────────
+// Tid/Lön får INTE bygga en separat GPS-timeline. För GPS-baserade dagar ska
+// rows/minuter komma från canonicalStaffDayGpsResult — exakt samma källa som
+// GPS SAT. Submission/cache används endast för STATUS och som FALLBACK när
+// canonical saknas / är tom / kraschar.
+//
+// Sätt denna konstant till `false` för att omedelbart återgå till tidigare
+// beteende (rader från submission.display_timeline_snapshot_json eller
+// cache.display_blocks_json). Inga DB-skrivningar, ingen migration krävs.
+//
+// Påverkar ENDAST resolveStaffDayReportSummariesBatch (driver
+// get-staff-time-week-matrix → admin Tid/Lön + Time Approvals). Påverkar
+// INTE: GPS SAT, mobilappen, submit-flödet, attestflödet, cache-writers
+// eller backfill.
+const USE_CANONICAL_GPS_ROWS_FOR_TIME_MATRIX = true;
+
 // ---------- Public types ----------
 
 export type ResolvedDaySource = "submission" | "cache" | "empty";
