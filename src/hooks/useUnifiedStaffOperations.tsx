@@ -42,7 +42,7 @@ export interface StaffMember {
 
 // ── Fetchers ──────────────────────────────────────────────────────────────────
 
-async function fetchAssignmentsInWindow(from: string, to: string): Promise<StaffAssignment[]> {
+async function fetchAllAssignments(from: string, to: string): Promise<StaffAssignment[]> {
   // Paginerad hämtning — PostgREST cappar 1000 rader per request.
   const PAGE = 1000;
   const out: StaffAssignment[] = [];
@@ -91,7 +91,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
   // tack vare bucket-baserad nyckel (samma månad => samma cache).
   const { data: assignments = [], isLoading } = useQuery({
     queryKey: ['staff-assignments-all', window.bucket],
-    queryFn: () => fetchAssignmentsInWindow(window.from, window.to),
+    queryFn: () => fetchAllAssignments(window.from, window.to),
     staleTime: 60 * 1000,
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
