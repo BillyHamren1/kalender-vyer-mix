@@ -29,12 +29,22 @@ const ProjectFollowersPanel = ({ projectId, projectType, className }: Props) => 
     useProjectFollowers({ projectId, projectType });
 
   const { data: allStaff = [] } = useQuery({
-    queryKey: ['all-staff-followers-picker'],
+    queryKey: ['system-users-followers-picker'],
     queryFn: async () => {
+      // Endast systemanvändare (har profil/webbinloggning) — inte rena appanvändare.
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('user_id');
+      const profileUserIds = (profiles || [])
+        .map((p: any) => p.user_id)
+        .filter(Boolean);
+      if (profileUserIds.length === 0) return [];
       const { data } = await supabase
         .from('staff_members')
-        .select('id, name')
+        .select('id, name, user_id')
         .eq('is_active', true)
+        .not('user_id', 'is', null)
+        .in('user_id', profileUserIds)
         .order('name');
       return data || [];
     },
