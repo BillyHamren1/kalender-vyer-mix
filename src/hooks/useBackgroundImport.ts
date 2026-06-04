@@ -24,16 +24,12 @@ const BACKGROUND_IMPORT_ROUTE_PREFIXES = [
   '/calendar',
   '/booking',
   '/booking-list',
-  '/projects',
-  '/project',
-  '/large-project',
-  '/my-projects',
 ];
 
-const isBackgroundImportRoute = () => {
+export const isBackgroundImportRoute = (pathname?: string) => {
   if (typeof window === 'undefined') return false;
-  const pathname = window.location.pathname;
-  return BACKGROUND_IMPORT_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+  const currentPath = pathname ?? window.location.pathname;
+  return BACKGROUND_IMPORT_ROUTE_PREFIXES.some((prefix) => currentPath.startsWith(prefix));
 };
 
 export const useBackgroundImport = () => {
@@ -110,12 +106,10 @@ export const useBackgroundImport = () => {
     // Scanner mode: no background import
     if (isScannerApp) return;
 
-    const timer = setTimeout(() => performImport(), 1000);
     const interval = setInterval(() => performImport(), IMPORT_INTERVAL);
     intervalRef.current = interval;
 
     return () => {
-      clearTimeout(timer);
       clearInterval(interval);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
