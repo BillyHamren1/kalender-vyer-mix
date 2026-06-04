@@ -668,15 +668,22 @@ const LargeProjectLayout = () => {
                               </Button>
                             </div>
                           </div>
-                          {isExpanded && b && (
-                            <div className="px-3 pb-3">
-                              <BookingInfoExpanded
-                                booking={b}
-                                projectLeader={projectLeaderDisplay}
-                                onBookingUpdated={() => queryClient.invalidateQueries({ queryKey: ['large-project', id] })}
-                              />
-                            </div>
+                          {isExpanded && (
+                            b ? (
+                              <div className="px-3 pb-3">
+                                <BookingInfoExpanded
+                                  booking={b}
+                                  projectLeader={projectLeaderDisplay}
+                                  onBookingUpdated={() => queryClient.invalidateQueries({ queryKey: ['large-project-bookings-full', id] })}
+                                />
+                              </div>
+                            ) : (
+                              <div className="px-3 pb-3 text-xs text-muted-foreground italic">
+                                Laddar bokning…
+                              </div>
+                            )
                           )}
+
                         </div>
                       );
                     })}
