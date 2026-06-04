@@ -1,6 +1,8 @@
+import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  fetchLargeProject,
+  fetchLargeProjectCore,
+  fetchLargeProjectBookingsFull,
   updateLargeProject,
   addBookingToLargeProject,
   removeBookingFromLargeProject,
@@ -15,7 +17,7 @@ import {
   fetchLargeProjectGanttSteps,
   saveLargeProjectGanttSteps,
 } from "@/services/largeProjectService";
-import { LargeProject, LargeProjectStatus, LARGE_PROJECT_STATUS_LABELS } from "@/types/largeProject";
+import { LargeProject, LargeProjectStatus, LARGE_PROJECT_STATUS_LABELS, LargeProjectBooking } from "@/types/largeProject";
 import { ProjectTask, ProjectFile } from "@/types/project";
 import { toast } from "sonner";
 import { GanttStep } from "@/components/project/LargeProjectGanttChart";
@@ -27,11 +29,42 @@ import { supabase } from "@/integrations/supabase/client";
 export const useLargeProjectDetail = (projectId: string) => {
   const queryClient = useQueryClient();
 
+  // 1. Fast core query — project row + linked-bookings stubs.
+  //    isLoading is bound to this so the page renders as soon as core arrives.
   const projectQuery = useQuery({
     queryKey: ['large-project', projectId],
-    queryFn: () => fetchLargeProject(projectId),
+    queryFn: () => fetchLargeProjectCore(projectId),
     enabled: !!projectId,
   });
+
+  const bookingStubs = projectQuery.data?.bookings || [];
+  const bookingIds = useMemo(
+    () => bookingStubs.map(b => b.booking_id).filter(Boolean),
+    [bookingStubs],
+  );
+  const bookingIdsKey = bookingIds.join(',');
+
+  // 2. Hydrate wide booking columns separately. Page is already
+  //    interactive while this loads. Cached by id-set so navigation
+  //    between subroutes reuses it.
+  const bookingsFullQuery = useQuery({
+    queryKey: ['large-project-bookings-full', projectId, bookingIdsKey],
+    queryFn: () => fetchLargeProjectBookingsFull(bookingIds),
+    enabled: !!projectId && bookingIds.length > 0,
+    staleTime: 60_000,
+  });
+
+  // Merge stubs with hydrated booking data without blocking initial render.
+  const mergedProject = useMemo(() => {
+    if (!projectQuery.data) return projectQuery.data;
+    const full = bookingsFullQuery.data || [];
+    if (full.length === 0) return projectQuery.data;
+    const mergedBookings: LargeProjectBooking[] = (projectQuery.data.bookings || []).map(lpb => ({
+      ...lpb,
+      booking: full.find(b => b.id === lpb.booking_id) ?? lpb.booking,
+    }));
+    return { ...projectQuery.data, bookings: mergedBookings };
+  }, [projectQuery.data, bookingsFullQuery.data]);
 
   const tasksQuery = useQuery({
     queryKey: ['large-project-tasks', projectId],
@@ -50,6 +83,7 @@ export const useLargeProjectDetail = (projectId: string) => {
     queryFn: () => fetchLargeProjectGanttSteps(projectId),
     enabled: !!projectId,
   });
+
 
   // Map large project types to standard project types for component compatibility
   const tasks: ProjectTask[] = (tasksQuery.data || []).map(t => ({
