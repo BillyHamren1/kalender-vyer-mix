@@ -20,6 +20,23 @@ export interface MyProjectItem {
 export const fetchMyProjects = async (staffId: string): Promise<MyProjectItem[]> => {
   const results: MyProjectItem[] = [];
 
+  // Fetch all follower rows for this staff (used by both standard and large)
+  const { data: followerRows } = await supabase
+    .from('project_followers')
+    .select('project_id, project_type')
+    .eq('staff_id', staffId);
+
+  const followedStandardIds = new Set(
+    (followerRows || [])
+      .filter((r: any) => r.project_type === 'standard')
+      .map((r: any) => r.project_id),
+  );
+  const followedLargeIds = new Set(
+    (followerRows || [])
+      .filter((r: any) => r.project_type === 'large')
+      .map((r: any) => r.project_id),
+  );
+
   // --- Standard projects ---
   // 1. Projects where user is leader
   const { data: leaderProjects } = await supabase
@@ -40,7 +57,13 @@ export const fetchMyProjects = async (staffId: string): Promise<MyProjectItem[]>
 
   // Fetch those projects (exclude already-found leader projects)
   const leaderProjectIds = new Set((leaderProjects || []).map(p => p.id));
-  const additionalIds = assignedProjectIds.filter(id => !leaderProjectIds.has(id));
+  const followerExtraStdIds = [...followedStandardIds].filter(
+    (id) => !leaderProjectIds.has(id) && !assignedProjectIds.includes(id),
+  );
+  const additionalIds = [
+    ...assignedProjectIds.filter(id => !leaderProjectIds.has(id)),
+    ...followerExtraStdIds,
+  ];
 
   let assignedProjects: typeof leaderProjects = [];
   if (additionalIds.length > 0) {
@@ -55,7 +78,12 @@ export const fetchMyProjects = async (staffId: string): Promise<MyProjectItem[]>
   // Combine all standard project IDs
   const allStandardProjects = [
     ...(leaderProjects || []).map(p => ({ ...p, role: 'leader' as const })),
-    ...(assignedProjects || []).map(p => ({ ...p, role: 'assigned' as const })),
+    ...(assignedProjects || []).map(p => ({
+      ...p,
+      role: followedStandardIds.has(p.id) && !assignedProjectIds.includes(p.id)
+        ? ('follower' as const)
+        : ('assigned' as const),
+    })),
   ];
 
   // Fetch tasks for all standard projects in one query
