@@ -68,8 +68,14 @@ export const MyCalendarMonthView: React.FC<Props> = ({ anchorDate, items, onItem
           return (
             <div
               key={iso}
+              onClick={(e) => {
+                if (!onDayClick) return;
+                // Bara om man klickar på tom yta — inte på ett event-kort
+                if ((e.target as HTMLElement).closest('[data-event-card]')) return;
+                onDayClick(iso);
+              }}
               className={cn(
-                'min-h-[120px] border-r border-b border-border/40 p-1.5 flex flex-col gap-1',
+                'min-h-[120px] border-r border-b border-border/40 p-1.5 flex flex-col gap-1 cursor-pointer hover:bg-muted/40 transition-colors',
                 !inMonth && 'bg-muted/30 text-muted-foreground',
                 today && 'bg-primary/[0.04]',
               )}
