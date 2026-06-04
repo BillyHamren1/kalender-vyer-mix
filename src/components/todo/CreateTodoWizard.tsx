@@ -29,6 +29,16 @@ interface CreateTodoWizardProps {
    * när man sparar. Kräver todoId. Titel: "Planera to do".
    */
   planningMode?: boolean;
+  /**
+   * Personal calendar mode — för "Min sida". Sparar todo med
+   * calendar_scope='my_calendar' och assigned_staff_id=currentStaffId.
+   * Skapar INGEN rad i calendar_events. Visar ingen team-väljare.
+   */
+  personalCalendarMode?: boolean;
+  /** Staff id som ska tilldelas i personalCalendarMode. */
+  currentStaffId?: string | null;
+  /** Förvalt datum i personalCalendarMode (YYYY-MM-DD). */
+  defaultScheduledDate?: string | null;
 }
 
 interface BookingOption {
@@ -38,7 +48,7 @@ interface BookingOption {
   booking_number: string | null;
 }
 
-export default function CreateTodoWizard({ open, onOpenChange, onSuccess, preselectedBookingId, todoId, planningMode }: CreateTodoWizardProps) {
+export default function CreateTodoWizard({ open, onOpenChange, onSuccess, preselectedBookingId, todoId, planningMode, personalCalendarMode, currentStaffId, defaultScheduledDate }: CreateTodoWizardProps) {
   const isEdit = !!todoId;
   const { organizationId } = useCurrentOrg();
   const { data: todoTypes = [], createType } = useTodoTypes();
