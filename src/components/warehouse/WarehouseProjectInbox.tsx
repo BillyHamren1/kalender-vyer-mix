@@ -48,6 +48,13 @@ export const WarehouseProjectInbox: React.FC<WarehouseProjectInboxProps> = ({ se
     }
   };
 
+  const q = (search ?? '').trim().toLowerCase();
+  const visible = q
+    ? items.filter(i =>
+        (i.client_name ?? '').toLowerCase().includes(q) ||
+        (i.source_project_number ?? '').toLowerCase().includes(q))
+    : items;
+
   if (isLoading) return null;
   if (items.length === 0) return null;
 
