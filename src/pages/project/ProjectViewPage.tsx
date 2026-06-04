@@ -179,6 +179,7 @@ const ProjectViewPage = () => {
             projectStartDate={project.rigdaydate || project.eventdate}
             projectEndDate={project.rigdowndate || project.eventdate}
           />
+          <ProjectFollowersPanel projectId={project.id} projectType="standard" />
           <SectionHeader icon={MessageSquare} title="Interna anteckningar" />
           <ProjectInternalNotes
             bookingId={bookingId}
