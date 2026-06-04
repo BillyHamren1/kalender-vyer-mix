@@ -33,8 +33,17 @@ interface ProjectProductsListProps {
   showSummary?: boolean;
 }
 
-const cleanName = (name: string) =>
-  name.replace(/^[\u21B3\u2514\u2192\u2713L,\-–\s↳└→]+\s*/, "").trim();
+// Strippar prefix-markörer som importen lägger på tillbehörs-/komponent-rader.
+// VIKTIGT: använd alternation, inte teckenklass — `[L,]` skulle matcha ett ensamt
+// `L` och kapa första bokstaven på namn som "Ljusslinga" eller "Lätt lastbil".
+export const cleanName = (name: string) =>
+  name.replace(/^(?:L,|--|[↳└→✓\u21B3\u2514\u2192\u2713\-–\s])+\s*/, "").trim();
+
+// `-- foo` = paketkomponent (auto-medföljande, ska döljas i bokningsvyn)
+const isHiddenPackageComponent = (name: string) => /^\s*--/.test(name);
+
+export const isVisibleAccessory = (p: { name: string; parent_product_id: string | null }) =>
+  !!p.parent_product_id && !isHiddenPackageComponent(p.name);
 
 const ProjectProductsList = ({
   bookingId,
