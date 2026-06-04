@@ -191,8 +191,12 @@ const ProjectProductsList = ({
   };
 
   const renderProductLine = (product: BookingProduct, withMenu: boolean) => {
+    // Matcha barn på BÅDE parent_product_id OCH parent_package_id så att
+    // både paketmedlemmar (`-- M Ben`) och tillbehör (`↳ M Takduk`) visas.
     const accessories = allChildren.filter(
-      (c) => c.parent_product_id === product.id && isVisibleAccessory(c)
+      (c) =>
+        c.parent_product_id === product.id ||
+        (c.parent_package_id && c.parent_package_id === product.id)
     );
     return (
       <div key={product.id}>
@@ -222,21 +226,42 @@ const ProjectProductsList = ({
             {product.quantity} st
           </span>
         </div>
-        {accessories.map((child) => (
-          <div key={child.id} className="grid grid-cols-[minmax(0,1fr)_2rem_5rem] items-center py-1 pl-5 pb-1.5 gap-3">
-            <span className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
-              <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50 shrink-0" />
-              {cleanName(child.name)}
-            </span>
-            <span />
-            <span className="text-right text-xs text-muted-foreground tabular-nums">
-              {child.quantity} st
-            </span>
-          </div>
-        ))}
+        {accessories.map((child) => {
+          const member = isPackageMember(child);
+          return (
+            <div
+              key={child.id}
+              className="grid grid-cols-[minmax(0,1fr)_2rem_5rem] items-center py-1 pl-5 pb-1.5 gap-3"
+            >
+              <span className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+                <span
+                  className={
+                    member
+                      ? "h-1.5 w-1.5 rounded-full bg-primary/40 shrink-0"
+                      : "h-1.5 w-1.5 rounded-full bg-muted-foreground/50 shrink-0"
+                  }
+                  title={member ? "Paketmedlem" : "Tillbehör"}
+                />
+                {cleanName(child.name)}
+                {member && (
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
+                    pkt
+                  </span>
+                )}
+              </span>
+              <span />
+              <span className="text-right text-xs text-muted-foreground tabular-nums">
+                {child.quantity} st
+              </span>
+            </div>
+          );
+        })}
       </div>
     );
   };
+
+  const isPackageMember = (p: BookingProduct): boolean =>
+    !!p.is_package_component || !!p.parent_package_id || /^\s*--/.test(p.name || "");
 
   const headerRow = (
     <div className="grid grid-cols-[minmax(0,1fr)_2rem_5rem] items-center gap-3 py-2 border-b border-border/60 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
