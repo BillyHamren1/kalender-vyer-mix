@@ -1,67 +1,47 @@
-# Fix: Första bokstaven försvinner + tillbehör visas inte i bokningsvyn
 
-Båda buggarna sitter i `src/components/project/ProjectProductsList.tsx`.
+## Problem
 
-## Bugg 1 — Första bokstaven på vissa rader försvinner
+**1. Granska-knappen hoppar förbi diff:en.**
+`IncomingBookingsList.handleReviewUpdate` (src/components/project/IncomingBookingsList.tsx:182) navigerar direkt till projektet och kör `markSeen` — användaren får aldrig se vad som ändrats. Diff-dialogen `ProjectUpdateDialog` (med `BookingChangesDetail`) finns redan och används av `UnifiedProjectList`, men inte härifrån.
 
-`cleanName` använder en teckenklass som råkar innehålla bokstaven `L`:
+**2. Projektsidan laddade långsamt.**
+`ProjectViewPage` triggar många sekventiella queries (booking-products, team, kalenderhändelser, ekonomi, leverantörsfakturor, etc.). Behöver mätas innan vi vet exakt vilken som är boven.
 
-```ts
-name.replace(/^[\u21B3\u2514\u2192\u2713L,\-–\s↳└→]+\s*/, "").trim();
-```
+## Plan
 
-`[L,]` betyder "vilket som helst av `L` eller `,`", så varje produktnamn som börjar på `L` får sin första bokstav strippad. "Ljusslinga …" → "jusslinga …", "Lätt lastbil" → "ätt lastbil".
+### Steg 1 – Visa diff:en vid "Granska" (snabbfix, det här löser huvudfrågan)
 
-**Fix:** byt till alternation så endast den exakta prefix-strängen `L,` (tillbehörsmarkör i importen) tas bort, inte ett ensamt `L`:
+I `src/components/project/IncomingBookingsList.tsx`:
 
-```ts
-const cleanName = (name: string) =>
-  name.replace(/^(?:L,|[↳└→✓\u21B3\u2514\u2192\u2713\-–\s])+\s*/, "").trim();
-```
+- Lägg till lokal state `updateDialog: { name, bookingIds, navigateTo } | null` (samma form som i `UnifiedProjectList`).
+- Ändra `handleReviewUpdate(meta)` så att den **istället för att navigera direkt**:
+  - Bygger `navigateTo` enligt nuvarande logik (large → `/large-project/:id`, project → `/project/:id`, annars `/booking/:id`).
+  - För large/project: slå ihop alla `visibleUpdates` som tillhör samma target och skicka **alla** booking-id:n till dialogen (så att en uppdatering med flera bokningar visar alla diffar samtidigt, som listan redan visar `change_count`).
+  - För lös bokning utan projekt: skicka bara `[meta.id]`.
+  - `setUpdateDialog({...})`. Ingen `markSeen` här — `ProjectUpdateDialog` markerar själv via "Markera som läst" eller "Markera & öppna projekt".
+- Rendera `<ProjectUpdateDialog />` i slutet av komponenten, identiskt med `UnifiedProjectList`.
+- Ta bort den nuvarande direkt-`markSeen.mutate(booking.id)` i `handleReviewUpdate`.
 
-## Bugg 2 — Inga tillbehör visas
+Resultat: klick på Granska → modal med "Från → Till" per ändrat fält (kund, datum, tider, adress, interna anteckningar, status, etc.). Användaren väljer själv om de bara vill markera som läst eller öppna projektet.
 
-Importen lagrar alla barnrader med `is_package_component = true`, men det finns två typer som skiljs åt på prefixet i `name`:
+### Steg 2 – Diagnostisera långsam projektladdning
 
-- `"-- ..."` = paketkomponenter (alltid med i paketet, ska döljas).
-- `"↳ ..."` = tillbehör som kunden själv lagt till (ska visas under huvudprodukten).
+Innan vi optimerar något måste vi veta vad som är långsamt. Jag lägger in lättviktig mätning + tittar på de tyngsta kandidaterna:
 
-Nuvarande filter i `renderProductLine` döljer alla rader med `is_package_component === true`, så även `↳`-tillbehören försvinner:
+1. Lägg en `console.time('project-view:<projectId>')` / `timeEnd` runt huvud-`useQuery`-block i `ProjectViewPage` och de större barnsektionerna (team, produkter, ekonomi, leverantörsfakturor, kalender).
+2. Be dig öppna projektet en gång till så jag kan läsa network + console och se vilken request som dominerar (jag misstänker `booking_products` med full `package_components`-payload eller ekonomi-aggregering, men gissar inte).
+3. Baserat på mätningen: en riktad fix i nästa steg — t.ex. batcha queries parallellt, lazy-loada flikar (Ekonomi/Leverantörsfakturor behövs först när man byter flik), eller cacha `booking_products`-listan.
 
-```ts
-const accessories = allChildren.filter(
-  (c) => c.parent_product_id === product.id && c.is_package_component !== true
-);
-```
+Steg 2 levereras som en separat, mindre PR efter att vi sett siffrorna — jag vill inte gissa-optimera ett 240-radig sida blint.
 
-**Fix:** klassa raden på namn-prefix istället för enbart flaggan. En rad räknas som synligt tillbehör om den har en parent och namnet börjar med `↳` (eller, för säkerhets skull, andra arrow/accessory-markörer som `└`, `→`). `-- `-rader (rena paketkomponenter) fortsätter att döljas.
+## Tekniska detaljer
 
-Samma justering görs på de andra ställen i filen som speglar `allChildren`-filtret (t.ex. `visibleProducts`-summeringen för vikt/volym), så att `↳`-tillbehören räknas in i vikt-/volym-summan på samma sätt som de visas.
+- `ProjectUpdateDialog` accepterar redan `bookingIds: string[]` och loopar `BookingChangesDetail` per id, så ingen ändring krävs i den.
+- `useMarkBookingChangesSeen` används redan av dialogen; vi tar bort den duplicerade `markSeen.mutate` i listan.
+- Inga DB-/RLS-/migrations-ändringar.
+- Inga ändringar i `UnifiedProjectList` (den fungerar redan rätt).
 
-### Tekniska detaljer
+## Out of scope
 
-I `ProjectProductsList.tsx`:
-
-1. Lägg till hjälpare:
-   ```ts
-   const isHiddenPackageComponent = (name: string) =>
-     /^\s*--/.test(name); // "-- P Ben" etc
-   const isVisibleAccessory = (p: BookingProduct) =>
-     !!p.parent_product_id && !isHiddenPackageComponent(p.name);
-   ```
-2. Ersätt accessory-filtret i `renderProductLine` med `isVisibleAccessory(c) && c.parent_product_id === product.id`.
-3. Ersätt `visibleProducts`-filtret med `products.filter(p => !p.parent_product_id || isVisibleAccessory(p))`.
-4. Lämna `mainProducts` orört (parent_product_id null & is_package_component false).
-
-## Verifiering
-
-- Visuell kontroll i preview på bokning 2605-56 (Westers Catering, eventdate 2026-06-05):
-  - "Ljusslinga - Pris per lpm" och "Lätt lastbil" visas med rätt namn.
-  - Under "Multiflex 6x9" (och "P 4x4") syns nu `↳ Takduk, vit 4x4`, `↳ Vägg, transparent 4x4`, `↳ Vägg, täck 4x4` osv som tillbehör.
-  - `-- P Ben`, `-- P Hatt` osv visas fortfarande inte.
-- Snabbt enhetstest för `cleanName` + accessory-klassificering (vitest) som låser att "Ljusslinga" och "Lätt lastbil" inte trimmas, och att `↳`-rader klassas som synliga tillbehör medan `--`-rader inte gör det.
-
-## Inte i scope
-
-- Inga ändringar i DB-data eller importflödet.
-- `JobDetail.tsx` (`isAccessory`/`groupProducts`) och `PackingListTab.tsx` rör jag inte — de använder andra prefix-regler och syns inte i den rapporterade vyn.
+- Faktisk perf-optimering av projektsidan (kommer i steg 2 efter mätning).
+- Ändra hur `booking_changes` skapas eller vilka fält som loggas.
