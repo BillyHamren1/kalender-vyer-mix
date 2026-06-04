@@ -18,11 +18,12 @@ interface Props {
   anchorDate: Date;
   items: MyCalendarItem[];
   onItemClick: (item: MyCalendarItem) => void;
+  onDayClick?: (isoDate: string) => void;
 }
 
 const WEEKDAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
 
-export const MyCalendarMonthView: React.FC<Props> = ({ anchorDate, items, onItemClick }) => {
+export const MyCalendarMonthView: React.FC<Props> = ({ anchorDate, items, onItemClick, onDayClick }) => {
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(anchorDate), { weekStartsOn: 1 });
     const end = endOfWeek(endOfMonth(anchorDate), { weekStartsOn: 1 });
