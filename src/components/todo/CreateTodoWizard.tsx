@@ -268,12 +268,14 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
     mutationFn: async () => {
       if (!typeId) throw new Error('Välj typ');
       if (!title.trim()) throw new Error('Ange en titel');
-      const bookingId = selectedBookingId && selectedBookingId !== 'none' ? selectedBookingId : null;
+      const bookingId = linkKind === 'booking' && selectedBookingId ? selectedBookingId : null;
+      const largeProjectId = linkKind === 'project' && selectedLargeProjectId ? selectedLargeProjectId : null;
 
       const payload: any = {
         type_id: typeId,
         title: title.trim(),
         booking_id: bookingId,
+        large_project_id: largeProjectId,
         client: client.trim() || null,
         contact_name: contactName.trim() || null,
         contact_phone: contactPhone.trim() || null,
