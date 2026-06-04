@@ -42,6 +42,13 @@ export const MyCalendarShell: React.FC = () => {
   const [mode, setMode] = useState<Mode>('month');
   const [anchor, setAnchor] = useState<Date>(new Date());
   const [openTodo, setOpenTodo] = useState<MyCalendarItem | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [prefilledDate, setPrefilledDate] = useState<string | null>(null);
+
+  const openNewTodo = (date?: string) => {
+    setPrefilledDate(date || null);
+    setCreateOpen(true);
+  };
 
   const items = data?.items ?? [];
   const projects = data?.projects ?? [];
