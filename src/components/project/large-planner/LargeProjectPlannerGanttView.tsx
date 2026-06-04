@@ -16,7 +16,7 @@
  *    egna staplar — samma policy som kalendervyn.
  *  - "other"-items visar sin egna titel, inte ett generiskt "Uppgift".
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { parseISO, format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { CalendarOff, Loader2 } from 'lucide-react';
@@ -27,6 +27,14 @@ type PlannerCtx = ReturnType<typeof useLargeProjectPlannerItems>;
 interface Props {
   ctx: PlannerCtx;
 }
+
+type TabKey = 'all' | 'rig' | 'rigDown';
+
+const TABS: Array<{ key: TabKey; label: string }> = [
+  { key: 'all', label: 'Alla' },
+  { key: 'rig', label: 'Rigg' },
+  { key: 'rigDown', label: 'Nedrigg' },
+];
 
 type Phase = 'rig' | 'event' | 'rigDown' | 'other';
 
