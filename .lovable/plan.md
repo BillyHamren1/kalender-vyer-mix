@@ -1,50 +1,46 @@
-# Lata in bokningar i stora projekt
+# Plan: få webhook-jobb att verkligen uppdatera Planning
 
-Du har rätt — när man öppnar t.ex. Almedalen 2026 körs idag flera tunga queries över ALLA länkade bokningar redan innan något renderats, även om man bara vill se projektsidan:
+## Vad jag har bekräftat
+- Bokning **2605-5** finns lokalt i `bookings` men dess `updated_at` är fortfarande från igår kväll.
+- Samtidigt finns flera `booking_sync_jobs` för exakt den bokningen idag med status **completed**.
+- Det betyder att webhooken/kön tas emot och markeras klar, men att den faktiska skrivningen till Planning uteblir.
 
-1. `fetchLargeProject` hämtar projekt + alla `large_project_bookings` + en `bookings`-batch `.in('id', bookingIds)` med en bred kolumnlista (delivery, kontakt, tider, internalnotes, status …).
-2. `useBookingPhaseDays(siblingBookingIds)` hämtar ALLA `calendar_events` för alla syskonbokningar + en `bookings`-läsning av låsflaggor, plus en global Realtime-kanal på `calendar_events`.
-3. `useEffect` på adress kör en till `bookings`-query.
+## Trolig rotorsak
+`process-sync-jobs` anropar `import-bookings` i `incremental`-läge.
+Men `import-bookings` är just nu byggd så att **alla icke-single-körningar köar vidare jobb istället för att applicera datat inline**.
+Då uppstår detta felmönster:
 
-Med många bokningar (Almedalen) blir det enorma payloads varje gång man bara öppnar projektet — trots att header, anslagstavla, "Följare", filer etc. inte behöver bokningsdata.
-
-## Vad jag vill göra
-
-### 1. Smal initial query, full payload bara på begäran
-Splitta `fetchLargeProject` i två lager (i `largeProjectService.ts` + `useLargeProjectDetail.tsx`):
-
-- `fetchLargeProjectCore(id)` — projekt + `large_project_bookings`-listan (id, booking_id, display_name, sort_order). Räcker för layout, header, antal, navigation, Bokningslistan (svepradens titel kommer redan från `display_name` / vi kompletterar lazy).
-- `fetchLargeProjectBookingsFull(bookingIds)` — den breda `bookings`-läsningen. Körs ENDAST när användaren behöver den (se nedan).
-
-`useLargeProjectDetail` exponerar:
-```
-project          // core (utan booking.*-fält)
-bookingStubs     // [{ id, booking_id, display_name, sort_order }]
-useBookingsFull  // hook som hämtar fulla bokningar batchat när någon vy ber om det
+```text
+receive-booking -> booking_sync_jobs: pending
+process-sync-jobs claimar jobbet
+process-sync-jobs -> import-bookings(incremental)
+import-bookings hämtar externa ändringar men köar bara vidare / hoppar över aktiva jobb
+process-sync-jobs markerar ursprungsjobbet som completed
+Ingen faktisk update av bookings/calendar_events sker
 ```
 
-### 2. Per-bokning lazy load i listan
-I `LargeProjectLayout` Bokningslistan (`linkedView === 'bookings'`):
-- Raderna renderas direkt från stubs (titel via `display_name`, ev. fallback "Laddar…").
-- `BookingInfoExpanded` mountas redan idag bara när raden expanderas — vi byter dess input från det förladdade `b`-objektet till en egen `useBookingDetail(lpb.booking_id)` så att DEN bokningens fulla data hämtas först vid klick. Inget förändras visuellt.
-- Leveransadress-pillen på den kollapsade raden hämtas från en lättviktig batch (`id, deliveryaddress, status`) bara för listan — eller helt enkelt utelämnas tills raden expanderas, om det är OK för dig (jag väljer "lättviktig batch" som default så vyn ser identisk ut).
+## Jag kommer att ändra
+1. **Rätta kontraktet mellan worker och import**
+   - Införa ett explicit worker-/apply-läge så att `import-bookings` vid köad inkrementell körning faktiskt **persisterar bokningar/events/products** istället för att bara köa vidare.
+   - Behålla nuvarande snabbare intake i `receive-booking`.
 
-### 3. Flytta tunga aggregeringar till de vyer som behöver dem
-- `useBookingPhaseDays(siblingBookingIds)` och `derivedTimes` (rig/event/rigDown-datum sammanslaget) flyttas in i `LargeProjectScheduleEditable` (Planering-sektionen) som idag är enda konsumenten. Det betyder att den globala Realtime-kanalen på `calendar_events` inte längre öppnas bara för att man öppnar projektsidan.
-- Adress-auto-inherit `useEffect` flyttas till en engångsbakgrundsfunktion: kör bara om projektet saknar adress OCH bokningslistan redan är hämtad i sammanhang där den ändå behövs (t.ex. när användaren öppnar Planering eller bokningslistan). Just nu kör den en extra `bookings`-query på mount av varje stort projekt.
+2. **Skydda mot falsk “completed”**
+   - Se till att `process-sync-jobs` bara markerar jobb som completed när importen verkligen har kört appliceringssteget.
+   - Om importen bara returnerar “queued” eller tom applicering av fel skäl ska jobbet inte räknas som klart tyst.
 
-### 4. Produkter/Excel/Ekonomi-tabbarna
-De är redan tab-gated via `linkedView` / route, så där krävs ingen ändring — men de får nu `bookingStubs` + en intern `useBookingsFull(bookingIds)` i stället för förladdat data. Excel-vyn och `LargeProjectProductsOverview` byter kontrakt: tar `bookingIds` + `largeProjectId` och hämtar själva bokningsmetadata + produkter.
+3. **Lägga till riktade tester för regressionsskydd**
+   - Ett test för hela kedjan: `receive-booking`/kö/worker/import ska ge verklig uppdatering i `bookings`.
+   - Ett test som fångar just denna bug: worker får inte “slänga” en uppdatering genom att markera jobb completed utan lokal write.
 
-### 5. Verifiering
-- Lägg till en liten testfil `src/services/__tests__/largeProjectService.coreVsFull.test.ts` som verifierar att `fetchLargeProjectCore` aldrig läser `bookings`-tabellen och att `fetchLargeProjectBookingsFull` bara körs för uttryckligen begärda ids.
-- Manuell kontroll i preview: öppna Almedalen 2026 → Network ska bara visa `large_projects` + `large_project_bookings` + projektets egna queries (followers, files, tasks, gantt). Klicka på en bokningsrad → då ska den enda bokningen laddas. Öppna Planering → då laddas calendar_events.
+4. **Verifiera på den riktiga bokningen**
+   - Köra en ny synk för 2605-5.
+   - Kontrollera att lokal `bookings.updated_at` ändras och att Planning därefter får realtime/invalidation på korrekt sätt.
 
-## Tekniska anteckningar
+## Tekniska ändringar
+- `supabase/functions/process-sync-jobs/index.ts`
+- `supabase/functions/import-bookings/index.ts`
+- ev. kompletterande test i `supabase/functions/process-sync-jobs/*` eller ny Deno-test för worker→import-kontraktet
 
-- Ingen schemaändring krävs.
-- Inga UI-ändringar — bara att vissa rader kort visar en skelett-skimmer när man expanderar.
-- Effekt på minne/CPU: payload vid öppning sjunker från `O(antal bokningar × ~20 kolumner + alla calendar_events)` till `O(antal bokningar × 4 kolumner)`.
-- Realtime-kanaler: en (`large-project-detail`-invalidations) i stället för en global `calendar_events`-kanal vid varje projektöppning.
-
-Säg till om jag ska köra, eller om du hellre vill att jag bara gör steg 1+2 först och låter Planering vara orörd.
+## Resultat efter fix
+- När Planning svarar med `job_id` + `pending` ska bokningen inte bara accepteras i kön, utan också verkligen landa i Planning-databasen.
+- UI:t behöver då inte gissa eller poll:a fram förändringen; det ska komma via den normala dataskrivningen + realtime/invalidation.
