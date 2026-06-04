@@ -48,6 +48,14 @@ interface BookingOption {
   booking_number: string | null;
 }
 
+interface LargeProjectOption {
+  id: string;
+  name: string;
+  project_number: string | null;
+}
+
+type LinkKind = 'none' | 'booking' | 'project';
+
 export default function CreateTodoWizard({ open, onOpenChange, onSuccess, preselectedBookingId, todoId, planningMode, personalCalendarMode, currentStaffId, defaultScheduledDate }: CreateTodoWizardProps) {
   const isEdit = !!todoId;
   const { organizationId } = useCurrentOrg();
@@ -63,6 +71,9 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
   const [resourceId, setResourceId] = useState<string>('team-1');
 
   const [selectedBookingId, setSelectedBookingId] = useState<string>('');
+  const [selectedLargeProjectId, setSelectedLargeProjectId] = useState<string>('');
+  const [linkKind, setLinkKind] = useState<LinkKind>('none');
+  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [assignedLeader, setAssignedLeader] = useState<string>('');
 
@@ -110,10 +121,30 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
       setInternalNotes('');
       if (!preselectedBookingId) {
         setSelectedBookingId('');
+        setSelectedLargeProjectId('');
+        setLinkKind('none');
         setTitle('');
+      } else {
+        setLinkKind('booking');
       }
     }
   }, [open, preselectedBookingId, todoId, defaultScheduledDate]);
+
+  // Large projects dropdown
+  const { data: largeProjects = [] } = useQuery({
+    queryKey: ['todo-wizard-large-projects', organizationId],
+    enabled: open && !!organizationId,
+    queryFn: async (): Promise<LargeProjectOption[]> => {
+      const { data } = await (supabase as any)
+        .from('large_projects')
+        .select('id, name, project_number, status')
+        .eq('organization_id', organizationId!)
+        .neq('status', 'archived')
+        .order('created_at', { ascending: false })
+        .limit(500);
+      return (data || []) as any;
+    },
+  });
 
   // Bookings dropdown
   const { data: bookings = [] } = useQuery({
@@ -145,6 +176,8 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
         setTypeId(data.type_id || '');
         setTitle(data.title || '');
         setSelectedBookingId(data.booking_id || '');
+        setSelectedLargeProjectId(data.large_project_id || '');
+        setLinkKind(data.large_project_id ? 'project' : (data.booking_id ? 'booking' : 'none'));
         setAssignedLeader(data.assigned_leader || '');
         setClient(data.client || '');
         setContactName(data.contact_name || '');
@@ -205,8 +238,18 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
   useEffect(() => {
     if (open && preselectedBookingId && bookings.length > 0) {
       setSelectedBookingId(preselectedBookingId);
+      setLinkKind('booking');
     }
   }, [open, preselectedBookingId, bookings]);
+
+  // Auto-fill title from project name
+  useEffect(() => {
+    if (!selectedType || title) return;
+    if (linkKind === 'project' && selectedLargeProjectId) {
+      const p = largeProjects.find(x => x.id === selectedLargeProjectId);
+      if (p) setTitle(`${selectedType.label} – ${p.name}`);
+    }
+  }, [selectedType, linkKind, selectedLargeProjectId, largeProjects, title]);
 
   const handleCreateType = async () => {
     if (!newTypeLabel.trim()) return;
@@ -225,12 +268,14 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
     mutationFn: async () => {
       if (!typeId) throw new Error('Välj typ');
       if (!title.trim()) throw new Error('Ange en titel');
-      const bookingId = selectedBookingId && selectedBookingId !== 'none' ? selectedBookingId : null;
+      const bookingId = linkKind === 'booking' && selectedBookingId ? selectedBookingId : null;
+      const largeProjectId = linkKind === 'project' && selectedLargeProjectId ? selectedLargeProjectId : null;
 
       const payload: any = {
         type_id: typeId,
         title: title.trim(),
         booking_id: bookingId,
+        large_project_id: largeProjectId,
         client: client.trim() || null,
         contact_name: contactName.trim() || null,
         contact_phone: contactPhone.trim() || null,
@@ -363,12 +408,33 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
                 )}
               </div>
               <div>
-                <Label>Koppla till bokning</Label>
+                <Label>Koppla till</Label>
+                <Select
+                  value={linkKind}
+                  onValueChange={(v: LinkKind) => {
+                    setLinkKind(v);
+                    if (v !== 'booking') setSelectedBookingId('');
+                    if (v !== 'project') setSelectedLargeProjectId('');
+                  }}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Ingen koppling</SelectItem>
+                    <SelectItem value="booking">Bokning</SelectItem>
+                    <SelectItem value="project">Projekt</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {linkKind === 'booking' && (
+              <div>
+                <Label>Bokning</Label>
                 {(() => {
                   const selected = bookings.find(b => b.id === selectedBookingId);
                   const selectedLabel = selected
                     ? `${selected.client}${selected.booking_number ? ` (#${selected.booking_number})` : ''}`
-                    : 'Ingen bokning';
+                    : 'Välj bokning';
                   return (
                     <Popover open={bookingPickerOpen} onOpenChange={setBookingPickerOpen}>
                       <PopoverTrigger asChild>
@@ -377,20 +443,13 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
                           variant="outline"
                           role="combobox"
                           aria-expanded={bookingPickerOpen}
-                          className={cn(
-                            'w-full justify-between font-normal',
-                            !selected && 'text-muted-foreground',
-                          )}
+                          className={cn('w-full justify-between font-normal', !selected && 'text-muted-foreground')}
                         >
                           <span className="truncate">{selectedLabel}</span>
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent
-                        className="p-0"
-                        align="start"
-                        style={{ width: 'var(--radix-popover-trigger-width)' }}
-                      >
+                      <PopoverContent className="p-0" align="start" style={{ width: 'var(--radix-popover-trigger-width)' }}>
                         <Command
                           filter={(value, search) => {
                             if (!search) return 1;
@@ -401,16 +460,6 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
                           <CommandList className="max-h-72">
                             <CommandEmpty>Inga bokningar matchar.</CommandEmpty>
                             <CommandGroup>
-                              <CommandItem
-                                value="ingen bokning"
-                                onSelect={() => {
-                                  setSelectedBookingId('');
-                                  setBookingPickerOpen(false);
-                                }}
-                              >
-                                <Check className={cn('mr-2 h-4 w-4', !selected ? 'opacity-100' : 'opacity-0')} />
-                                Ingen bokning
-                              </CommandItem>
                               {bookings.map((b) => {
                                 const label = `${b.client}${b.booking_number ? ` (#${b.booking_number})` : ''}`;
                                 return (
@@ -422,12 +471,7 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
                                       setBookingPickerOpen(false);
                                     }}
                                   >
-                                    <Check
-                                      className={cn(
-                                        'mr-2 h-4 w-4',
-                                        selectedBookingId === b.id ? 'opacity-100' : 'opacity-0',
-                                      )}
-                                    />
+                                    <Check className={cn('mr-2 h-4 w-4', selectedBookingId === b.id ? 'opacity-100' : 'opacity-0')} />
                                     <span className="truncate">{label}</span>
                                   </CommandItem>
                                 );
@@ -440,7 +484,66 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
                   );
                 })()}
               </div>
-            </div>
+            )}
+
+            {linkKind === 'project' && (
+              <div>
+                <Label>Projekt</Label>
+                {(() => {
+                  const selected = largeProjects.find(p => p.id === selectedLargeProjectId);
+                  const selectedLabel = selected
+                    ? `${selected.name}${selected.project_number ? ` (${selected.project_number})` : ''}`
+                    : 'Välj projekt';
+                  return (
+                    <Popover open={projectPickerOpen} onOpenChange={setProjectPickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={projectPickerOpen}
+                          className={cn('w-full justify-between font-normal', !selected && 'text-muted-foreground')}
+                        >
+                          <span className="truncate">{selectedLabel}</span>
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="p-0" align="start" style={{ width: 'var(--radix-popover-trigger-width)' }}>
+                        <Command
+                          filter={(value, search) => {
+                            if (!search) return 1;
+                            return value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0;
+                          }}
+                        >
+                          <CommandInput placeholder="Sök projekt…" />
+                          <CommandList className="max-h-72">
+                            <CommandEmpty>Inga projekt matchar.</CommandEmpty>
+                            <CommandGroup>
+                              {largeProjects.map((p) => {
+                                const label = `${p.name}${p.project_number ? ` (${p.project_number})` : ''}`;
+                                return (
+                                  <CommandItem
+                                    key={p.id}
+                                    value={`${p.name} ${p.project_number ?? ''}`}
+                                    onSelect={() => {
+                                      setSelectedLargeProjectId(p.id);
+                                      setProjectPickerOpen(false);
+                                    }}
+                                  >
+                                    <Check className={cn('mr-2 h-4 w-4', selectedLargeProjectId === p.id ? 'opacity-100' : 'opacity-0')} />
+                                    <span className="truncate">{label}</span>
+                                  </CommandItem>
+                                );
+                              })}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  );
+                })()}
+              </div>
+            )}
             <div>
               <Label>Titel</Label>
               <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="T.ex. Upphämtning lager" />
