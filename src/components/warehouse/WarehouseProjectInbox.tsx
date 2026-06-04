@@ -78,12 +78,16 @@ export const WarehouseProjectInbox: React.FC<WarehouseProjectInboxProps> = ({ se
           <h3 className="font-semibold text-sm text-foreground">Nya projekt från Planning</h3>
         </div>
         <Badge className="h-5 px-2 text-xs font-medium bg-amber-100 text-amber-800 border-0">
-          {items.length} nya
+          {q ? `${visible.length}/${items.length}` : `${items.length} nya`}
         </Badge>
       </div>
 
       <div className="divide-y divide-border/30">
-        {items.map((item) => {
+        {visible.length === 0 ? (
+          <div className="px-4 py-3 text-xs text-muted-foreground">
+            Inga matchande projekt i inbox för "{search}".
+          </div>
+        ) : visible.map((item) => {
           const isBusy = busyId === item.id;
           const isLarge = item.source_type === 'large_project';
           return (
