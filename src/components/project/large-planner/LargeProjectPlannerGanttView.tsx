@@ -235,12 +235,56 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
   const rowHeight = 44;
   const barHeight = 26;
 
+  // Filtrera + sortera rader baserat på aktiv flik.
+  const visibleRows = (() => {
+    if (activeTab === 'all') return rows;
+    const phaseFilter = activeTab; // 'rig' | 'rigDown'
+    return rows
+      .map((row) => {
+        const spans = spansByRow.get(row.key) ?? [];
+        const phaseSpans = spans.filter((s) => s.phase === phaseFilter);
+        if (phaseSpans.length === 0) return null;
+        const minIdx = Math.min(...phaseSpans.map((s) => s.startIdx));
+        return { row, minIdx };
+      })
+      .filter((x): x is { row: typeof rows[number]; minIdx: number } => !!x)
+      .sort((a, b) => a.minIdx - b.minIdx)
+      .map((x) => x.row);
+  })();
+
   return (
     <div className="flex-1 overflow-auto">
+      {/* Flikar */}
+      <div
+        role="tablist"
+        aria-label="Fasfilter"
+        className="sticky top-0 z-20 flex items-center gap-1 border-b border-border/60 bg-card/95 px-3 py-2 backdrop-blur"
+      >
+        {TABS.map((t) => {
+          const active = activeTab === t.key;
+          return (
+            <button
+              key={t.key}
+              role="tab"
+              aria-selected={active}
+              onClick={() => setActiveTab(t.key)}
+              className={[
+                'inline-flex items-center rounded-md px-3 h-8 text-[13px] font-medium transition-colors',
+                active
+                  ? 'bg-background text-foreground shadow-sm border border-border'
+                  : 'text-muted-foreground hover:text-foreground',
+              ].join(' ')}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
       <div className="min-w-max">
         {/* Header */}
         <div
-          className="sticky top-0 z-10 flex border-b border-border/60 bg-card/95 backdrop-blur"
+          className="sticky top-[49px] z-10 flex border-b border-border/60 bg-card/95 backdrop-blur"
           style={{ paddingLeft: labelWidth }}
         >
           {days.map((d) => {
@@ -263,13 +307,16 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
         </div>
 
         {/* Rows */}
-        {rows.length === 0 ? (
+        {visibleRows.length === 0 ? (
           <div className="px-3 py-6 text-xs text-muted-foreground">
-            Inga bokningar i projektet.
+            {rows.length === 0 ? 'Inga bokningar i projektet.' : 'Inga rader för vald fas.'}
           </div>
         ) : (
-          rows.map((row) => {
-            const spans = spansByRow.get(row.key) ?? [];
+          visibleRows.map((row) => {
+            const allSpans = spansByRow.get(row.key) ?? [];
+            const spans = activeTab === 'all'
+              ? allSpans
+              : allSpans.filter((s) => s.phase === activeTab);
             return (
               <div
                 key={row.key}
