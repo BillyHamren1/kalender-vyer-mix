@@ -48,6 +48,14 @@ interface BookingOption {
   booking_number: string | null;
 }
 
+interface LargeProjectOption {
+  id: string;
+  name: string;
+  project_number: string | null;
+}
+
+type LinkKind = 'none' | 'booking' | 'project';
+
 export default function CreateTodoWizard({ open, onOpenChange, onSuccess, preselectedBookingId, todoId, planningMode, personalCalendarMode, currentStaffId, defaultScheduledDate }: CreateTodoWizardProps) {
   const isEdit = !!todoId;
   const { organizationId } = useCurrentOrg();
