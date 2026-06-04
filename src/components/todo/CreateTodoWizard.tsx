@@ -176,6 +176,8 @@ export default function CreateTodoWizard({ open, onOpenChange, onSuccess, presel
         setTypeId(data.type_id || '');
         setTitle(data.title || '');
         setSelectedBookingId(data.booking_id || '');
+        setSelectedLargeProjectId(data.large_project_id || '');
+        setLinkKind(data.large_project_id ? 'project' : (data.booking_id ? 'booking' : 'none'));
         setAssignedLeader(data.assigned_leader || '');
         setClient(data.client || '');
         setContactName(data.contact_name || '');
