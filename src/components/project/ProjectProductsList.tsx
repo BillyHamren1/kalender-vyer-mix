@@ -92,7 +92,10 @@ const ProjectProductsList = ({
 
   const mainProducts = products.filter((p) => !p.parent_product_id && !p.is_package_component);
   const allChildren = products.filter((p) => p.parent_product_id || p.is_package_component);
-  const visibleProducts = products.filter((p) => p.is_package_component !== true);
+  // Visa huvudprodukter + ↳-tillbehör (kundvalda). Dölj endast `--`-paketkomponenter.
+  const visibleProducts = products.filter(
+    (p) => !p.parent_product_id || isVisibleAccessory(p)
+  );
 
   const totalWeight = visibleProducts.reduce(
     (sum, p) => sum + (p.estimated_weight_kg || 0) * p.quantity,
