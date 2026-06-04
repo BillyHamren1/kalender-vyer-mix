@@ -336,6 +336,16 @@ const ProjectProductsList = ({
           <div className="divide-y divide-border/40">
             {mainProducts.map((p) => renderProductLine(p, false))}
           </div>
+          {orphanedChildren.length > 0 && (
+            <div className="mt-3 pt-2 border-t border-dashed border-border/40">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
+                Tillbehör / paketmedlemmar utan huvudprodukt ({orphanedChildren.length})
+              </p>
+              <div className="divide-y divide-border/40">
+                {orphanedChildren.map((c) => renderChildRow(c))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
