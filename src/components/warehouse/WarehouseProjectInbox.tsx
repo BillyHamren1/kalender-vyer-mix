@@ -14,7 +14,11 @@ import { toast } from 'sonner';
 import { ConvertInboxDialog } from './ConvertInboxDialog';
 import { WarehouseProjectInboxItem } from '@/types/warehouseProject';
 
-export const WarehouseProjectInbox: React.FC = () => {
+interface WarehouseProjectInboxProps {
+  search?: string;
+}
+
+export const WarehouseProjectInbox: React.FC<WarehouseProjectInboxProps> = ({ search }) => {
   const queryClient = useQueryClient();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [activeItem, setActiveItem] = useState<WarehouseProjectInboxItem | null>(null);
@@ -44,6 +48,13 @@ export const WarehouseProjectInbox: React.FC = () => {
     }
   };
 
+  const q = (search ?? '').trim().toLowerCase();
+  const visible = q
+    ? items.filter(i =>
+        (i.client_name ?? '').toLowerCase().includes(q) ||
+        (i.source_project_number ?? '').toLowerCase().includes(q))
+    : items;
+
   if (isLoading) return null;
   if (items.length === 0) return null;
 
@@ -67,12 +78,16 @@ export const WarehouseProjectInbox: React.FC = () => {
           <h3 className="font-semibold text-sm text-foreground">Nya projekt från Planning</h3>
         </div>
         <Badge className="h-5 px-2 text-xs font-medium bg-amber-100 text-amber-800 border-0">
-          {items.length} nya
+          {q ? `${visible.length}/${items.length}` : `${items.length} nya`}
         </Badge>
       </div>
 
       <div className="divide-y divide-border/30">
-        {items.map((item) => {
+        {visible.length === 0 ? (
+          <div className="px-4 py-3 text-xs text-muted-foreground">
+            Inga matchande projekt i inbox för "{search}".
+          </div>
+        ) : visible.map((item) => {
           const isBusy = busyId === item.id;
           const isLarge = item.source_type === 'large_project';
           return (

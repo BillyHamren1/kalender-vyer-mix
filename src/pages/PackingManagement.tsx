@@ -87,7 +87,7 @@ const PackingManagement = () => {
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Sök packning..."
+                placeholder="Sök packning, projekt eller bokning..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10 rounded-xl border-border/40"
@@ -121,7 +121,7 @@ const PackingManagement = () => {
               för normala användare — för att eliminera dubbel UX där
               samma bokning kunde behandlas från två olika listor. */}
           <div className="mb-6">
-            <WarehouseProjectInbox />
+            <WarehouseProjectInbox search={search} />
           </div>
 
           {/* Packing Calendar */}
