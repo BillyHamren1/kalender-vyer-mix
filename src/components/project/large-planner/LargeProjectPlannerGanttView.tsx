@@ -341,6 +341,15 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
             </button>
           );
         })}
+        <label className="ml-2 inline-flex items-center gap-1.5 text-[12px] text-muted-foreground cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={showAllTodos}
+            onChange={(e) => setShowAllTodos(e.target.checked)}
+            className="h-3.5 w-3.5 accent-primary"
+          />
+          Visa uppgifter
+        </label>
       </div>
 
       {visibleDays.length === 0 ? (
