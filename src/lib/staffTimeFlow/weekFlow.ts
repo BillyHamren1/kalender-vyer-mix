@@ -17,6 +17,16 @@ import type {
   WeekFlowViewer,
 } from "./types";
 
+/**
+ * Feature flag: när true använder buildWeekFlow canonical GPS-resultat
+ * (samma som GPS-satellitkartan) för rows/start/end/minuter ÄVEN när en
+ * submission finns. Submission bidrar bara med status/submissionId/
+ * reviewComment/submittedAt/approvedAt/breakMinutes.
+ *
+ * Sätt till false för att rulla tillbaka till submission-snapshot direkt.
+ */
+export const USE_CANONICAL_GPS_ROWS_IN_WEEK_FLOW = true;
+
 export interface BuildWeekFlowInput {
   staffId: string;
   weekDates: Date[];
