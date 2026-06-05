@@ -106,6 +106,22 @@ export default function StaffTimeToolbar({
           </SelectContent>
         </Select>
 
+        {/* Only with time (default på) */}
+        <Button
+          type="button"
+          variant={onlyWithTime ? "default" : "outline"}
+          size="sm"
+          className={cn(
+            "h-8 text-xs gap-1.5",
+            onlyWithTime && "bg-primary hover:bg-primary/90 text-primary-foreground",
+          )}
+          onClick={() => setOnlyWithTime(!onlyWithTime)}
+          title="Visa endast personer som har tid någon dag den här veckan"
+        >
+          <Users className="h-3.5 w-3.5" />
+          Endast med tid
+        </Button>
+
         {/* Anomaly toggle */}
         <Button
           type="button"
@@ -120,6 +136,7 @@ export default function StaffTimeToolbar({
           <AlertCircle className="h-3.5 w-3.5" />
           Endast avvikelser
         </Button>
+
 
         <div className="ml-auto text-[11px] text-muted-foreground tabular-nums">
           {rowCountFiltered === rowCountTotal
