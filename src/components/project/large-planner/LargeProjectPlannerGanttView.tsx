@@ -17,6 +17,7 @@
  *  - "other"-items visar sin egna titel, inte ett generiskt "Uppgift".
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { parseISO, format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { CalendarOff, Loader2 } from 'lucide-react';
@@ -199,12 +200,20 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
     return out;
   }, [itemsByBooking, dateToIndex]);
 
+  const navigate = useNavigate();
+
   const openBooking = (bookingId: string | null) => {
     if (!bookingId) return;
     window.dispatchEvent(
       new CustomEvent('lp-booking-sheet-open', { detail: { bookingId } }),
     );
   };
+
+  const openBookingPage = (bookingId: string | null) => {
+    if (!bookingId) return;
+    navigate(`/booking/${bookingId}`);
+  };
+
 
   if (isLoading) {
     return (
@@ -433,6 +442,7 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
                         key={s.id}
                         type="button"
                         onClick={() => setExpanded((e) => ({ ...e, [row.key]: !e[row.key] }))}
+                        onDoubleClick={(ev) => { ev.stopPropagation(); openBookingPage(row.bookingId); }}
                         className="absolute rounded-md px-2 text-[11px] font-semibold shadow-sm transition-all hover:brightness-95"
                         style={{
                           left,
