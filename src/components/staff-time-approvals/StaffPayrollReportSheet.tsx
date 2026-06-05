@@ -165,7 +165,7 @@ export default function StaffPayrollReportSheet({ row, weekStart, weekEnd, onOpe
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)] gap-0 lg:gap-6 lg:p-6">
         {/* Tidslinje + attest */}
         <section className="min-w-0">
-          <div className="grid grid-cols-[112px_minmax(0,1fr)_60px_60px_64px_minmax(176px,220px)] gap-3 px-4 py-2 border-b border-border/60 text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold bg-muted/30 lg:rounded-t-xl">
+          <div className="grid grid-cols-[112px_minmax(0,1fr)_60px_60px_64px_minmax(176px,220px)] gap-x-3 px-4 py-2 border-b-2 border-border text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold bg-muted/30 lg:rounded-t-xl">
             <div>Datum</div>
             <div>Aktivitet</div>
             <div className="text-right">Start</div>

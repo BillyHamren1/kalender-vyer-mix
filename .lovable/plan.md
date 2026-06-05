@@ -1,79 +1,62 @@
-## Problem
+# Snygga till veckorapport-dagraderna
 
-Panelen **"Uppdaterade bokningar"** (på `/projects` och dashboard) listar varje bokning där `bookings.needs_review = true`. Idag flaggas detta för **alla** UPDATE på `bookings` (oavsett källa), så ändringar som görs **inuti vårt system** (Planning-UI, internal notes, status-bytes, team-tilldelningar m.m.) hamnar i listan tillsammans med riktiga externa ändringar från Booking.
+Mål: varje dag i `StaffPayrollReportSheet` ska visa raka, linjerade rader där Aktivitet, Start, Slut och Tim hör ihop på exakt samma höjd, plus tydlig separation mellan dagar. Inga datakällor eller business-regler ändras — bara presentation av `StaffPayrollReportDayRow`.
 
-Du vill att panelen ENDAST visar ändringar som kommer från det externa Booking-systemet (import-bookings / booking-webhook).
+## Vad som är trasigt idag
 
-## Rotorsak
+I `StaffPayrollReportDayRow.tsx` renderas dagar med:
 
-Triggern `public.track_booking_changes()` (senast definierad i `supabase/migrations/20260604200105_*.sql`) sätter:
-
-```sql
-IF has_external_changes AND OLD.assigned_to_project = true AND NOT should_skip_review THEN
-  NEW.needs_review := true;
-  NEW.needs_review_reason := change_type_value;
-END IF;
+```text
+[Datum] [Aktivitet (stack)] [Start (stack)] [Slut (stack)] [Tim (stack)] [Status]
 ```
 
-Variabeln `should_skip_review` läses från GUC `app.skip_review`, men ingen Planning-UI-mutation sätter den. Resultat: varje UPDATE från authenticated user flaggar `needs_review`.
+Varje kolumns interna stack räknas oberoende. När en aktivitetsrad får ett "Belastar:"-chip eller "→ from → to"-text blir den ~28px hög, medan motsvarande Start/Slut/Tim-rad är ~16px. Resultatet: tiderna glider ur led mot aktiviteten (syns tydligt för Ons 3 juni och Tors 4 juni i screenshot).
 
-`resolved_changed_by` beräknas redan längre ner i samma trigger:
-- `service_role` = edge function (import-bookings, booking-webhook) → extern Booking-ändring
-- `authenticated` = Planning UI/intern mutation → ska INTE flagga needs_review
+Dessutom skiljs dagar bara av en tunn `border-b border-border/40` mellan rader — när en dag har 10 aktivitetsrader smälter de ihop med nästa dag.
 
-## Lösning (minsta möjliga ändring)
+## Lösning
 
-**En migration**: skriv om `public.track_booking_changes()` så att `needs_review`-flaggan bara sätts när källan är extern.
+Strukturera om dagraden så att varje aktivitetsrad är en egen **sub-grid-row** som spänner Aktivitet+Start+Slut+Tim. Då tvingas alla fyra cellerna till samma höjd per aktivitet.
 
-### Ändringar i trigger
+### Konkreta ändringar i `StaffPayrollReportDayRow.tsx`
 
-1. Flytta `resolved_changed_by`-beräkningen UPPÅT (före needs_review-blocket).
-2. Lägg till en `is_external_source`-flagga:
-   ```sql
-   is_external_source := resolved_changed_by IN ('service_role', 'booking-import', 'booking-webhook');
+1. Behåll yttre 6-kolumnsgrid endast för headern. Inuti varje dag, rendera istället en inre grid:
+   ```text
+   grid-cols-[minmax(0,1fr)_60px_60px_64px]
    ```
-3. Uppdatera villkoret:
-   ```sql
-   IF has_external_changes 
-      AND OLD.assigned_to_project = true 
-      AND NOT should_skip_review
-      AND is_external_source THEN
-     NEW.needs_review := true;
-     NEW.needs_review_reason := change_type_value;
-   END IF;
-   ```
-4. `booking_changes`-loggen påverkas INTE — alla ändringar fortsätter loggas där (med `changed_by` så audit-trailen kan filtreras på källa i framtiden).
+   och en rad per aktivitet. Datum-cellen ligger i den yttre layouten och spänner alla inre rader (`row-span`/sticky-top inom dagblocket).
 
-### Engångsstädning av redan flaggade interna ändringar
+2. Lyfta datum + status ur den yttre 6-kolumns-flat-griden och bygga dagen som ett "dagblock" med tre regioner:
+   - vänster: `Datum` (sticky-top inom blocket, font-semibold)
+   - mitten: inre grid med aktivitetsrader (Aktivitet | Start | Slut | Tim) — varje rad `items-center` så chip och tid centreras mot varandra
+   - höger: status/actions (sticky-top inom blocket)
 
-Det finns redan 6 bokningar med `needs_review=true` i listan (skärmdumpen). Eftersom vi inte vet vilka som är externa vs interna i historik, gör vi **ingen massiv reset** (per "Never Delete DB Rows"-policyn). Två alternativ — välj ett i nästa steg:
+3. Per aktivitetsrad: lägg `min-h-[28px] items-center` så att rader utan chip får samma höjd som rader med chip → raka horisontella linjer.
 
-- **A (mjukast)**: Lämna befintliga 6 kvar — användaren klickar "Godkänn" en gång och de försvinner. Nya interna ändringar flaggas inte framåt.
-- **B (rensa nu)**: En engångs-UPDATE `SET needs_review=false, needs_review_reason=null WHERE needs_review=true`. Du måste explicit godkänna eftersom det är massiv UPDATE.
+4. Totalsumman för dagen (när det finns flera aktivitetsrader) flyttas till en egen separator-rad längst ner i dagblocket: tunn `border-t`, högerställd `Σ 12:05` i Tim-kolumnen.
 
-Default i planen: **A** (säkrast).
+5. Dag-separation: byt den per-rad `border-b border-border/40` mot:
+   - **inga** borders mellan aktivitetsrader inom samma dag
+   - tydlig `border-b border-border` + lite `pb-2 mb-0` mellan dagblock
+   - svag zebra-bg (`even:bg-muted/20`) på dagblock-nivå, inte på radnivå
 
-## Vad som INTE ändras
+6. Justera headern (rad 168 i `StaffPayrollReportSheet.tsx`) till samma yttre layout: `grid-cols-[112px_minmax(0,1fr)_60px_60px_64px_minmax(176px,220px)]` förblir, men dag-blocket inuti bygger sin egen inre 4-kolumns sub-grid där bredderna matchar 60/60/64 exakt så headern fortfarande linjerar mot dagarnas tid-kolumner.
 
-- Frontend (`UpdatedBookingsList.tsx`, `DashboardUpdatedBookings.tsx`) — orörd. Den läser fortfarande `needs_review=true`, men nu kommer endast externa Booking-ändringar dit.
-- `booking_changes`-tabellen — orörd. All change-historik bevaras.
-- `BookingChangesDetail` (expanderad detaljvy) — orörd.
-- `import-bookings`/`booking-webhook` — orörda. De kör som `service_role` → triggern flaggar nu korrekt.
-- Inga datatabeller raderas, inga DELETEs körs.
+7. Travel-badge ("Belastar: …") flyttas till slutet av aktivitetsraden med `ml-auto`-fallback bortkopplad — den ska ligga **efter** label men inte tvinga tid-cellerna att växa, eftersom hela raden nu är en grid-row med fast minhöjd.
 
-## Verifiering efter migration
+### Filer som rörs
 
-Vitest-kontrakttest (`src/test/bookingNeedsReviewSource.contract.test.ts`) som verifierar:
-1. Trigger-källkod innehåller `is_external_source`-villkoret för `NEW.needs_review := true`.
-2. Trigger sätter fortfarande `booking_changes`-rad för alla UPDATE (interna + externa).
+- `src/components/staff-time-approvals/StaffPayrollReportDayRow.tsx` — full omstrukturering av render-trädet (samma props, samma data).
+- `src/components/staff-time-approvals/StaffPayrollReportSheet.tsx` — minimal: säkerställ att header-grid och dagblock-grid har samma yttre kolumnbredder, och ta bort `overflow-hidden` om det klipper sub-griden.
 
-Manuell smoke-test:
-1. Öppna en bokning i Planning-UI, redigera ett fält → bokningen ska INTE dyka upp i "Uppdaterade bokningar".
-2. Simulera import-bookings-uppdatering (eller vänta på nästa sync) → bokningen SKA dyka upp.
+### Vad som INTE ändras
 
-## Filer som ändras
+- `useStaffTimeWeekMatrix`, `ReportProjectDayPanel` (högerpanelen), attest-knappar, datastruktur, status-vokabulär, badges/chip-utseende, print-CSS.
 
-- **NY**: `supabase/migrations/<timestamp>_track_booking_changes_external_only.sql` — `CREATE OR REPLACE FUNCTION public.track_booking_changes()` med uppdaterat villkor.
-- **NY**: `src/test/bookingNeedsReviewSource.contract.test.ts` — låser kontraktet.
+## Verifiering
 
-Inga andra filer rörs.
+1. Öppna `/staff-management/time?tab=lon`, vecka 23 · 2026 (samma som screenshot).
+2. Kontrollera att för Ons 3 juni ligger "08:53 / 14:25 / 5:32" exakt mittemot raden "Belastar: Westers Catering …" och att alla tider linjerar vertikalt rakt nedåt utan glapp.
+3. Kontrollera att dag-skiftet Ons→Tors har en tydligare avskiljare än aktivitetsraderna inom dagen.
+4. Kontrollera tom dag (Mån 1 juni) fortfarande visar "—" och "Ingen rapport".
+5. Kör `bunx vitest run src/components/staff-time-approvals` för att fånga ev. snapshot-regressioner.
