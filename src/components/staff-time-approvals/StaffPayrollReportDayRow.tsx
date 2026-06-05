@@ -282,7 +282,7 @@ export default function StaffPayrollReportDayRow({
         <div
           style={{
             gridRow: activityRowCount + 1,
-            gridColumn: "3 / span 3",
+            gridColumn: "3 / span 4",
           }}
           className="border-t border-border/60 mt-1 pt-1 text-right tabular-nums text-[11.5px] text-muted-foreground"
         >
@@ -297,7 +297,7 @@ export default function StaffPayrollReportDayRow({
         <div
           style={{
             gridRow: activityRowCount + (showTotalsRow ? 1 : 0) + 1,
-            gridColumn: "2 / span 4",
+            gridColumn: "2 / span 5",
           }}
           className="payroll-no-print mt-2 flex items-start gap-1.5 rounded-md border border-rose-200 bg-rose-50/70 px-2 py-1.5 text-[11px] text-rose-800"
         >
@@ -309,7 +309,7 @@ export default function StaffPayrollReportDayRow({
       {/* Status + per-dag actions — spänner hela blocket */}
       <div
         style={spanAllRows}
-        className="payroll-no-print flex flex-col items-end gap-1.5 pt-0.5 col-start-6"
+        className="payroll-no-print flex flex-col items-end gap-1.5 pt-0.5 col-start-7"
       >
         <TimeApprovalStatusBadge status={badgeStatusFor(cell.status)} />
 
