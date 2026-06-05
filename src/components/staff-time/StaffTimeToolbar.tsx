@@ -2,7 +2,7 @@
  * StaffTimeToolbar — premium toolbar: veckonav · sök · statusfilter · avvikelsefilter.
  * Filterstate hanteras i parent. Ingen ny backend.
  */
-import { ChevronLeft, ChevronRight, Search, Filter, AlertCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, Filter, AlertCircle, Users } from "lucide-react";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
