@@ -478,8 +478,21 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
                               {row.subtitle}
                             </span>
                           )}
-                          <span className="ml-auto shrink-0 text-[10px] font-normal opacity-75">
-                            {PHASE_LABEL[s.phase]}
+                          <span className="ml-auto shrink-0 flex items-center gap-1.5">
+                            <InlinePhaseDateEditor
+                              bookingId={row.bookingId}
+                              largeProjectId={largeProjectId ?? null}
+                              phase={s.phase}
+                              currentDates={s.dates}
+                              startTime={s.startTime}
+                              endTime={s.endTime}
+                              label={rangeLabel}
+                              title={row.title}
+                              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-white/40 hover:bg-white/70 transition-colors"
+                            />
+                            <span className="text-[10px] font-normal opacity-75">
+                              {PHASE_LABEL[s.phase]}
+                            </span>
                           </span>
                         </span>
                       </button>
