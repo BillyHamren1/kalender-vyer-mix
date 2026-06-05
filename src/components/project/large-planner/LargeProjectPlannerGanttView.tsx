@@ -265,6 +265,12 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
     return m;
   }, [visibleDays]);
 
+  const colWidth = useMemo(() => {
+    if (!containerWidth || visibleDays.length === 0) return MIN_COL_WIDTH;
+    const avail = containerWidth - labelWidth;
+    return Math.max(MIN_COL_WIDTH, Math.floor(avail / visibleDays.length));
+  }, [containerWidth, visibleDays.length]);
+
   // Filtrera + sortera rader baserat på aktiv flik.
   const visibleRows = (() => {
     const phaseFilter = activeTab;
