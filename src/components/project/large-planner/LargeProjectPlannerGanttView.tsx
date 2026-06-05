@@ -442,6 +442,7 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
                         key={s.id}
                         type="button"
                         onClick={() => setExpanded((e) => ({ ...e, [row.key]: !e[row.key] }))}
+                        onDoubleClick={(ev) => { ev.stopPropagation(); openBookingPage(row.bookingId); }}
                         className="absolute rounded-md px-2 text-[11px] font-semibold shadow-sm transition-all hover:brightness-95"
                         style={{
                           left,
