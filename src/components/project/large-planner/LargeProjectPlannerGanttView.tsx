@@ -32,16 +32,16 @@ interface Props {
 type TabKey = 'rig' | 'rigDown';
 
 const TABS: Array<{ key: TabKey; label: string }> = [
-  { key: 'rig', label: 'Rigg' },
-  { key: 'rigDown', label: 'Nedrigg' },
+  { key: 'rig', label: 'Uppmontering' },
+  { key: 'rigDown', label: 'Nedmontering' },
 ];
 
 type Phase = 'rig' | 'event' | 'rigDown' | 'other';
 
 const PHASE_LABEL: Record<Phase, string> = {
-  rig: 'Rigg',
+  rig: 'Uppmontering',
   event: 'Event',
-  rigDown: 'Rigg ner',
+  rigDown: 'Nedmontering',
   other: 'Uppgift',
 };
 
