@@ -99,6 +99,8 @@ export default function StaffTimeWeekMatrix() {
         setStatusFilter={setStatusFilter}
         onlyAnomalies={onlyAnomalies}
         setOnlyAnomalies={setOnlyAnomalies}
+        onlyWithTime={onlyWithTime}
+        setOnlyWithTime={setOnlyWithTime}
         rowCountFiltered={filteredCount}
         rowCountTotal={matrix?.rows.length ?? 0}
       />
