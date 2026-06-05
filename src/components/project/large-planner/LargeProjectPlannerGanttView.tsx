@@ -16,7 +16,7 @@
  *    egna staplar — samma policy som kalendervyn.
  *  - "other"-items visar sin egna titel, inte ett generiskt "Uppgift".
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { parseISO, format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { CalendarOff, Loader2 } from 'lucide-react';
@@ -230,10 +230,22 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
     );
   }
 
-  const colWidth = 44;
   const labelWidth = 260;
   const rowHeight = 44;
   const barHeight = 26;
+  const MIN_COL_WIDTH = 44;
+
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const update = () => setContainerWidth(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Bygg visibleDays = endast datum med spans i aktiv fas (oavsett bokning).
   const visibleDays = useMemo(() => {
@@ -252,6 +264,12 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
     visibleDays.forEach((d, i) => m.set(d.date, i));
     return m;
   }, [visibleDays]);
+
+  const colWidth = useMemo(() => {
+    if (!containerWidth || visibleDays.length === 0) return MIN_COL_WIDTH;
+    const avail = containerWidth - labelWidth;
+    return Math.max(MIN_COL_WIDTH, Math.floor(avail / visibleDays.length));
+  }, [containerWidth, visibleDays.length]);
 
   // Filtrera + sortera rader baserat på aktiv flik.
   const visibleRows = (() => {
@@ -287,7 +305,7 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
   const todoRowHeight = 28;
 
   return (
-    <div className="flex-1 overflow-auto">
+    <div ref={scrollerRef} className="flex-1 overflow-auto">
       {/* Flikar */}
       <div
         role="tablist"
