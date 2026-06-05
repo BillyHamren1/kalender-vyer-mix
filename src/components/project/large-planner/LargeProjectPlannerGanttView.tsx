@@ -179,6 +179,8 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
             span,
             title,
             dates,
+            startTime: first.start_time ?? null,
+            endTime: first.end_time ?? null,
           });
           group = [];
         };
