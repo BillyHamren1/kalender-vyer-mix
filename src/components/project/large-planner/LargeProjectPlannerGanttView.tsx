@@ -391,7 +391,7 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
           visibleRows.map((row) => {
             const allSpans = spansByRow.get(row.key) ?? [];
             const spans = allSpans.filter((s) => s.phase === activeTab);
-            const isExpanded = !!expanded[row.key];
+            const isExpanded = !!expanded[row.key] || showAllTodos;
             const todos = (row.bookingId && todosByBooking.get(row.bookingId)) || [];
             // Fallback-span (för todos utan datum i vyn) = första phase-spannet.
             const fallbackSpan = spans[0];
