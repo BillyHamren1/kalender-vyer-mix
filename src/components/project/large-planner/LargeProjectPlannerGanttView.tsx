@@ -76,6 +76,7 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
   const { isLoading, error, bookings, days, itemsWithAssignmentValidity } = ctx;
   const [activeTab, setActiveTab] = useState<TabKey>('rig');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [showAllTodos, setShowAllTodos] = useState(false);
 
   const dateToIndex = useMemo(() => {
     const m = new Map<string, number>();
