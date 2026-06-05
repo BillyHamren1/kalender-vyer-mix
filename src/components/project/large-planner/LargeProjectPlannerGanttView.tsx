@@ -23,6 +23,7 @@ import { sv } from 'date-fns/locale';
 import { CalendarOff, Loader2 } from 'lucide-react';
 import type { useLargeProjectPlannerItems, PlannerItemWithValidity } from './useLargeProjectPlannerItems';
 import InlinePhaseDateEditor from './InlinePhaseDateEditor';
+import InlineTodoDateEditor from './InlineTodoDateEditor';
 
 type PlannerCtx = ReturnType<typeof useLargeProjectPlannerItems>;
 
@@ -552,7 +553,7 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
                               />
                             ))}
                             <div
-                              className="absolute rounded-md px-2 text-[10px] font-medium"
+                              className="absolute rounded-md px-1 flex items-center"
                               style={{
                                 left,
                                 width: Math.max(width, 20),
@@ -563,11 +564,15 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
                                 border: `1px solid ${done ? '#cbd0d8' : '#c7d6f5'}`,
                                 textDecoration: done ? 'line-through' : 'none',
                               }}
-                              title={`${t.title} · ${rangeLabel}${hasDate ? '' : ' (ärvd från bokning)'}`}
                             >
-                              <span className="block truncate leading-[20px]">
-                                {rangeLabel}
-                              </span>
+                              <InlineTodoDateEditor
+                                itemId={t.id}
+                                currentDate={hasDate ? t.plan_date : (fallbackSpan?.dates[0] ?? t.plan_date)}
+                                label={rangeLabel}
+                                inherited={!hasDate}
+                                title={t.title}
+                                className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-[10px] font-medium hover:bg-white/70 transition-colors w-full justify-start"
+                              />
                             </div>
                           </div>
                         </div>
