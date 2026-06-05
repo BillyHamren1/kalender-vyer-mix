@@ -120,11 +120,11 @@ function TravelBadge({ cell, item }: { cell: StaffTimeMatrixCell; item: StaffTim
   if (alloc.kind === "linked") {
     return (
       <span
-        className="inline-flex items-center gap-1 max-w-[260px] rounded-full bg-sky-50 border border-sky-200 text-sky-800 px-2 py-0.5 text-[10.5px] font-medium"
+        className="inline-flex items-center gap-1 max-w-full rounded-full bg-sky-50 border border-sky-200 text-sky-800 px-2 py-0.5 text-[10.5px] font-medium"
         title={`Belastar: ${alloc.label}`}
       >
         <ArrowRight className="h-2.5 w-2.5 shrink-0" />
-        <span className="truncate">Belastar: {alloc.label}</span>
+        <span className="truncate">{alloc.label}</span>
       </span>
     );
   }
@@ -139,7 +139,7 @@ function TravelBadge({ cell, item }: { cell: StaffTimeMatrixCell; item: StaffTim
 }
 
 const GRID_CLASS =
-  "grid grid-cols-[112px_minmax(0,1fr)_60px_60px_64px_minmax(176px,220px)] gap-x-3";
+  "grid grid-cols-[112px_minmax(0,1fr)_60px_60px_64px_minmax(140px,180px)_minmax(176px,220px)] gap-x-3";
 
 const ROW_MIN_H = "min-h-[28px]";
 
@@ -165,7 +165,7 @@ export default function StaffPayrollReportDayRow({
         className={`payroll-day-row ${GRID_CLASS} py-2 px-4 border-b border-border last:border-b-0 text-[11.5px] text-muted-foreground/70 items-center`}
       >
         <div className="capitalize font-medium">{dayLabel}</div>
-        <div className="col-span-4">—</div>
+        <div className="col-span-5">—</div>
         <div className="payroll-no-print flex justify-end">
           <TimeApprovalStatusBadge status="no_report" />
         </div>
@@ -230,7 +230,7 @@ export default function StaffPayrollReportDayRow({
           <Fragment key={`act-${i}`}>
             <div
               style={{ gridRow, gridColumn: 2 }}
-              className={`flex items-center gap-2 min-w-0 flex-wrap ${ROW_MIN_H}`}
+              className={`flex items-center gap-2 min-w-0 ${ROW_MIN_H}`}
             >
               {r.kind === "unknown_place" ? (
                 <UnknownPlaceLabel
@@ -243,7 +243,6 @@ export default function StaffPayrollReportDayRow({
               ) : (
                 <span className="truncate text-foreground">{kindLabel(r)}</span>
               )}
-              {r.kind === "travel" && <TravelBadge cell={cell} item={r} />}
               {r.kind === "travel" && (r.fromLabel || r.toLabel) && (
                 <span className="text-[10.5px] text-muted-foreground truncate">
                   {r.fromLabel ?? "?"} → {r.toLabel ?? "?"}
@@ -268,6 +267,12 @@ export default function StaffPayrollReportDayRow({
             >
               {fmtH(hasRows ? r.minutes : cell.totalMinutes)}
             </div>
+            <div
+              style={{ gridRow, gridColumn: 6 }}
+              className={`flex items-center min-w-0 ${ROW_MIN_H}`}
+            >
+              {r.kind === "travel" && <TravelBadge cell={cell} item={r} />}
+            </div>
           </Fragment>
         );
       })}
@@ -277,7 +282,7 @@ export default function StaffPayrollReportDayRow({
         <div
           style={{
             gridRow: activityRowCount + 1,
-            gridColumn: "3 / span 3",
+            gridColumn: "3 / span 4",
           }}
           className="border-t border-border/60 mt-1 pt-1 text-right tabular-nums text-[11.5px] text-muted-foreground"
         >
@@ -292,7 +297,7 @@ export default function StaffPayrollReportDayRow({
         <div
           style={{
             gridRow: activityRowCount + (showTotalsRow ? 1 : 0) + 1,
-            gridColumn: "2 / span 4",
+            gridColumn: "2 / span 5",
           }}
           className="payroll-no-print mt-2 flex items-start gap-1.5 rounded-md border border-rose-200 bg-rose-50/70 px-2 py-1.5 text-[11px] text-rose-800"
         >
@@ -304,7 +309,7 @@ export default function StaffPayrollReportDayRow({
       {/* Status + per-dag actions — spänner hela blocket */}
       <div
         style={spanAllRows}
-        className="payroll-no-print flex flex-col items-end gap-1.5 pt-0.5 col-start-6"
+        className="payroll-no-print flex flex-col items-end gap-1.5 pt-0.5 col-start-7"
       >
         <TimeApprovalStatusBadge status={badgeStatusFor(cell.status)} />
 
