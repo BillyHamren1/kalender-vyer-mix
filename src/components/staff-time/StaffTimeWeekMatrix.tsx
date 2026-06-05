@@ -23,9 +23,9 @@ import StaffTimeLegend from "./StaffTimeLegend";
 
 const WEEK_HEADERS = ["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"] as const;
 
-// Grid: namn(140) · 7 dagar(min 240) · åtgärd(110).
+// Grid: namn(190) · 7 dagar(min 250) · åtgärd(120).
 export const MATRIX_GRID_TEMPLATE =
-  "minmax(120px, 140px) repeat(7, minmax(240px, 1fr)) minmax(90px, 110px)";
+  "minmax(180px, 200px) repeat(7, minmax(250px, 1fr)) minmax(110px, 130px)";
 
 export default function StaffTimeWeekMatrix() {
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
@@ -116,7 +116,7 @@ export default function StaffTimeWeekMatrix() {
           <div className="rounded-xl border border-border/60 bg-card shadow-sm overflow-hidden">
             <div className="overflow-x-auto max-h-[calc(100vh-360px)] overflow-y-auto">
               {/* Huvudraden: en grid med 9 kolumner — täcker hela bredden men minsta dagkolumn = 240px → naturlig horisontell scroll på smala skärmar. */}
-              <div className="min-w-[1860px]">
+              <div className="min-w-[1980px]">
                 {/* Header */}
                 <div
                   className="grid items-end border-b border-border/60 text-[11px] uppercase tracking-wide bg-gradient-to-b from-muted/40 to-card text-foreground/70 sticky top-0 z-[3]"

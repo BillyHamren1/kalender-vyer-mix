@@ -136,7 +136,7 @@ export default function StaffTimeWeekMatrixRow({ row, gridTemplate, zebra, onOpe
       {/* Sticky namnkolumn */}
       <div
         className={cn(
-          "px-3 py-2 flex items-center gap-2.5 sticky left-0 z-[1] border-r border-border/60 min-w-0",
+          "px-3.5 py-3 flex items-center gap-3 sticky left-0 z-[1] border-r border-border/60 min-w-0",
           zebra ? "bg-muted/40" : "bg-card",
           "group-hover/row:bg-primary/[0.04]",
         )}
@@ -144,10 +144,10 @@ export default function StaffTimeWeekMatrixRow({ row, gridTemplate, zebra, onOpe
       >
         <StaffTimeAvatar name={row.staffName} />
         <div className="min-w-0 flex-1">
-          <div className="text-xs font-semibold truncate text-foreground leading-tight">
+          <div className="text-[13px] font-semibold truncate text-foreground leading-tight">
             {row.staffName}
           </div>
-          <div className="text-[10px] text-muted-foreground leading-tight tabular-nums">
+          <div className="text-[10.5px] text-muted-foreground leading-tight tabular-nums mt-0.5">
             {totalMin > 0
               ? `${Math.floor(totalMin / 60)}h ${totalMin % 60}m totalt`
               : "Ingen tid"}
@@ -162,11 +162,11 @@ export default function StaffTimeWeekMatrixRow({ row, gridTemplate, zebra, onOpe
         )}
       </div>
       {row.days.map((cell) => (
-        <div key={cell.date} className="p-1.5">
+        <div key={cell.date} className="p-2">
           <StaffTimeWeekMatrixCell cell={cell} onClick={() => onOpenDay(row.staffId, cell.date)} />
         </div>
       ))}
-      <div className="px-2 py-2 flex items-center justify-end">{action}</div>
+      <div className="px-2.5 py-2 flex items-center justify-end">{action}</div>
     </div>
   );
 }
