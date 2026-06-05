@@ -1,12 +1,20 @@
 /**
  * StaffPayrollReportDayRow — en datumrad i lönerapporten.
  *
+ * Layout: en enda CSS-grid per dagblock med kolumnerna
+ *   [Datum | Aktivitet | Start | Slut | Tim | Status]
+ * Datum + Status spänner alla rader i blocket via inline gridRow,
+ * så att varje aktivitet (label/start/slut/tim) tvingas på SAMMA
+ * radhöjd → raka horisontella linjer även när "Belastar"-chip eller
+ * "from → to"-detalj gör labelraden högre.
+ *
  * Premium admin-attest direkt i raden:
  *  - statusbadge per dag
  *  - Godkänn / Begär komplettering direkt för submitted_waiting_approval
- *  - klick på radens datadel öppnar dag-detalj; knappar stopPropagatar
+ *  - klick på datumkolumnen öppnar dag-detalj; knappar stopPropagatar
  *  - correction_requested visar admin-kommentaren inline
  */
+import { Fragment, type CSSProperties } from "react";
 import { format, parseISO } from "date-fns";
 import { sv } from "date-fns/locale";
 import {
@@ -87,10 +95,6 @@ function kindLabel(item: StaffTimeMatrixRowItem): string {
   }
 }
 
-/**
- * Mappa rapportstatus → TimeApprovalStatusBadge-status.
- * Behåller "Ingen rapport" för tomma dagar.
- */
 function badgeStatusFor(cellStatus: string): string {
   switch (cellStatus) {
     case "gps_proposal": return "pending_staff_attest";
@@ -134,6 +138,10 @@ function TravelBadge({ cell, item }: { cell: StaffTimeMatrixCell; item: StaffTim
   );
 }
 
+const GRID_CLASS =
+  "grid grid-cols-[112px_minmax(0,1fr)_60px_60px_64px_minmax(176px,220px)] gap-x-3";
+
+const ROW_MIN_H = "min-h-[28px]";
 
 export default function StaffPayrollReportDayRow({
   cell,
@@ -150,15 +158,13 @@ export default function StaffPayrollReportDayRow({
   const submissionId = cell.submissionId;
   const isApproving = approvingId && submissionId && approvingId === submissionId;
 
-  const gridClass =
-    "grid grid-cols-[112px_minmax(0,1fr)_60px_60px_64px_minmax(176px,220px)] gap-3 px-4";
-
+  // ---- Tom dag ----
   if (isEmpty) {
     return (
       <div
-        className={`payroll-day-row ${gridClass} py-1.5 border-b border-border/40 text-[11.5px] text-muted-foreground/70`}
+        className={`payroll-day-row ${GRID_CLASS} py-2 px-4 border-b border-border last:border-b-0 text-[11.5px] text-muted-foreground/70 items-center`}
       >
-        <div className="capitalize">{dayLabel}</div>
+        <div className="capitalize font-medium">{dayLabel}</div>
         <div className="col-span-4">—</div>
         <div className="payroll-no-print flex justify-end">
           <TimeApprovalStatusBadge status="no_report" />
@@ -167,27 +173,65 @@ export default function StaffPayrollReportDayRow({
     );
   }
 
+  const rowsForRender: StaffTimeMatrixRowItem[] = hasRows
+    ? cell.rows
+    : [
+        {
+          kind: "work",
+          label: "Arbetsdag",
+          startIso: null,
+          endIso: null,
+          minutes: cell.totalMinutes,
+          fromLabel: null,
+          toLabel: null,
+        } as StaffTimeMatrixRowItem,
+      ];
+
+  const showTotalsRow = hasRows && cell.rows.length > 1;
+  const showCorrectionRow =
+    cell.status === "correction_requested" && !!cell.reviewComment;
+
+  // Rader: aktivitetsrader (N) + ev. totalsumma (1) + ev. correction-kommentar (1)
+  const activityRowCount = rowsForRender.length;
+  const totalRowsInBlock =
+    activityRowCount + (showTotalsRow ? 1 : 0) + (showCorrectionRow ? 1 : 0);
+
+  const spanAllRows: CSSProperties = {
+    gridRow: `1 / span ${totalRowsInBlock}`,
+  };
+
   const handleRowClick = () => onClick();
 
   return (
     <div
-      role="button"
-      tabIndex={0}
-      onClick={handleRowClick}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          handleRowClick();
-        }
-      }}
-      className={`payroll-day-row ${gridClass} py-2.5 text-left border-b border-border/40 hover:bg-muted/40 print:hover:bg-transparent text-[12.5px] leading-snug transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary/40`}
+      className={`payroll-day-row ${GRID_CLASS} gap-y-0 px-4 py-3 border-b border-border last:border-b-0 hover:bg-muted/20 print:hover:bg-transparent text-[12.5px] leading-snug transition-colors`}
     >
-      <div className="font-semibold text-foreground capitalize pt-0.5">{dayLabel}</div>
+      {/* Datum — spänner hela blocket, klickbart */}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={handleRowClick}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            handleRowClick();
+          }
+        }}
+        style={spanAllRows}
+        className={`font-semibold text-foreground capitalize pt-0.5 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded ${ROW_MIN_H} flex items-start`}
+      >
+        {dayLabel}
+      </div>
 
-      <div className="flex flex-col gap-1 min-w-0">
-        {hasRows ? (
-          cell.rows.map((r, i) => (
-            <div key={i} className="flex items-center gap-2 min-w-0 flex-wrap">
+      {/* Aktivitetsrader */}
+      {rowsForRender.map((r, i) => {
+        const gridRow = i + 1;
+        return (
+          <Fragment key={`act-${i}`}>
+            <div
+              style={{ gridRow, gridColumn: 2 }}
+              className={`flex items-center gap-2 min-w-0 flex-wrap ${ROW_MIN_H}`}
+            >
               {r.kind === "unknown_place" ? (
                 <UnknownPlaceLabel
                   staffId={staffId}
@@ -206,44 +250,62 @@ export default function StaffPayrollReportDayRow({
                 </span>
               )}
             </div>
-          ))
-        ) : (
-          <span className="text-foreground/80">Arbetsdag</span>
-        )}
+            <div
+              style={{ gridRow, gridColumn: 3 }}
+              className={`text-right tabular-nums text-muted-foreground flex items-center justify-end ${ROW_MIN_H}`}
+            >
+              {hasRows ? fmtTime(r.startIso) : cell.startTime ?? ""}
+            </div>
+            <div
+              style={{ gridRow, gridColumn: 4 }}
+              className={`text-right tabular-nums text-muted-foreground flex items-center justify-end ${ROW_MIN_H}`}
+            >
+              {hasRows ? fmtTime(r.endIso) : cell.endTime ?? ""}
+            </div>
+            <div
+              style={{ gridRow, gridColumn: 5 }}
+              className={`text-right tabular-nums font-semibold text-foreground flex items-center justify-end ${ROW_MIN_H}`}
+            >
+              {fmtH(hasRows ? r.minutes : cell.totalMinutes)}
+            </div>
+          </Fragment>
+        );
+      })}
 
-        {cell.status === "correction_requested" && cell.reviewComment && (
-          <div className="payroll-no-print mt-1.5 flex items-start gap-1.5 rounded-md border border-rose-200 bg-rose-50/70 px-2 py-1.5 text-[11px] text-rose-800">
-            <MessageSquareWarning className="h-3 w-3 mt-0.5 shrink-0" />
-            <span className="leading-snug">{cell.reviewComment}</span>
-          </div>
-        )}
-      </div>
+      {/* Totalsumma per dag (när flera aktivitetsrader) */}
+      {showTotalsRow && (
+        <div
+          style={{
+            gridRow: activityRowCount + 1,
+            gridColumn: "3 / span 3",
+          }}
+          className="border-t border-border/60 mt-1 pt-1 text-right tabular-nums text-[11.5px] text-muted-foreground"
+        >
+          <span className="font-semibold text-foreground">
+            Σ {fmtH(cell.totalMinutes)}
+          </span>
+        </div>
+      )}
 
-      <div className="text-right tabular-nums text-muted-foreground pt-0.5">
-        {hasRows
-          ? cell.rows.map((r, i) => <div key={i}>{fmtTime(r.startIso)}</div>)
-          : <div>{cell.startTime ?? ""}</div>}
-      </div>
+      {/* Admin-kommentar vid komplettering */}
+      {showCorrectionRow && (
+        <div
+          style={{
+            gridRow: activityRowCount + (showTotalsRow ? 1 : 0) + 1,
+            gridColumn: "2 / span 4",
+          }}
+          className="payroll-no-print mt-2 flex items-start gap-1.5 rounded-md border border-rose-200 bg-rose-50/70 px-2 py-1.5 text-[11px] text-rose-800"
+        >
+          <MessageSquareWarning className="h-3 w-3 mt-0.5 shrink-0" />
+          <span className="leading-snug">{cell.reviewComment}</span>
+        </div>
+      )}
 
-      <div className="text-right tabular-nums text-muted-foreground pt-0.5">
-        {hasRows
-          ? cell.rows.map((r, i) => <div key={i}>{fmtTime(r.endIso)}</div>)
-          : <div>{cell.endTime ?? ""}</div>}
-      </div>
-
-      <div className="text-right tabular-nums font-semibold text-foreground pt-0.5">
-        {hasRows
-          ? cell.rows.map((r, i) => <div key={i}>{fmtH(r.minutes)}</div>)
-          : <div>{fmtH(cell.totalMinutes)}</div>}
-        {hasRows && cell.rows.length > 1 && (
-          <div className="mt-1 pt-1 border-t border-border/50 text-[11px] text-muted-foreground">
-            {fmtH(cell.totalMinutes)}
-          </div>
-        )}
-      </div>
-
-      {/* Status + per-dag actions — döljs i print */}
-      <div className="payroll-no-print flex flex-col items-end gap-1.5 pt-0.5">
+      {/* Status + per-dag actions — spänner hela blocket */}
+      <div
+        style={spanAllRows}
+        className="payroll-no-print flex flex-col items-end gap-1.5 pt-0.5 col-start-6"
+      >
         <TimeApprovalStatusBadge status={badgeStatusFor(cell.status)} />
 
         {cell.status === "submitted_waiting_approval" && submissionId && (
