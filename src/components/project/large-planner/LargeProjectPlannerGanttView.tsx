@@ -23,6 +23,7 @@ import { sv } from 'date-fns/locale';
 import { CalendarOff, Loader2 } from 'lucide-react';
 import type { useLargeProjectPlannerItems, PlannerItemWithValidity } from './useLargeProjectPlannerItems';
 import InlinePhaseDateEditor from './InlinePhaseDateEditor';
+import InlineTodoDateEditor from './InlineTodoDateEditor';
 
 type PlannerCtx = ReturnType<typeof useLargeProjectPlannerItems>;
 
