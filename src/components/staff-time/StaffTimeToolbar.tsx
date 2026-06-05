@@ -30,6 +30,8 @@ interface Props {
   setStatusFilter: (s: StatusFilter) => void;
   onlyAnomalies: boolean;
   setOnlyAnomalies: (v: boolean) => void;
+  onlyWithTime: boolean;
+  setOnlyWithTime: (v: boolean) => void;
   rowCountFiltered: number;
   rowCountTotal: number;
 }
