@@ -120,11 +120,11 @@ function TravelBadge({ cell, item }: { cell: StaffTimeMatrixCell; item: StaffTim
   if (alloc.kind === "linked") {
     return (
       <span
-        className="inline-flex items-center gap-1 max-w-[260px] rounded-full bg-sky-50 border border-sky-200 text-sky-800 px-2 py-0.5 text-[10.5px] font-medium"
+        className="inline-flex items-center gap-1 max-w-full rounded-full bg-sky-50 border border-sky-200 text-sky-800 px-2 py-0.5 text-[10.5px] font-medium"
         title={`Belastar: ${alloc.label}`}
       >
         <ArrowRight className="h-2.5 w-2.5 shrink-0" />
-        <span className="truncate">Belastar: {alloc.label}</span>
+        <span className="truncate">{alloc.label}</span>
       </span>
     );
   }
@@ -139,7 +139,7 @@ function TravelBadge({ cell, item }: { cell: StaffTimeMatrixCell; item: StaffTim
 }
 
 const GRID_CLASS =
-  "grid grid-cols-[112px_minmax(0,1fr)_60px_60px_64px_minmax(176px,220px)] gap-x-3";
+  "grid grid-cols-[112px_minmax(0,1fr)_60px_60px_64px_minmax(140px,180px)_minmax(176px,220px)] gap-x-3";
 
 const ROW_MIN_H = "min-h-[28px]";
 
