@@ -219,7 +219,15 @@ const BookingPlannerWorkspace = ({
   );
 
   const todoItems = useMemo(
-    () => bookingItems.filter((it) => it.item_type === 'task' || it.item_type === 'manual'),
+    () =>
+      bookingItems.filter(
+        (it) =>
+          it.item_type === 'task' ||
+          it.item_type === 'manual' ||
+          // Orderrad-todos: item_type='booking' men kopplad till en orderrad
+          // (booking_product_id != null) — räknas som todo, inte arbetsdag.
+          !!it.booking_product_id,
+      ),
     [bookingItems],
   );
 
