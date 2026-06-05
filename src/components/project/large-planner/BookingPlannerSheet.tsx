@@ -236,7 +236,13 @@ const BookingPlannerSheet = ({
 
   // Todos = task/manual
   const todoItems = useMemo(
-    () => bookingItems.filter((it) => it.item_type === 'task' || it.item_type === 'manual'),
+    () =>
+      bookingItems.filter(
+        (it) =>
+          it.item_type === 'task' ||
+          it.item_type === 'manual' ||
+          !!it.booking_product_id,
+      ),
     [bookingItems],
   );
 
