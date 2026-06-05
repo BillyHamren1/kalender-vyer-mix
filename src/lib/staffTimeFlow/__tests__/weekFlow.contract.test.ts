@@ -110,7 +110,7 @@ describe("buildWeekFlow", () => {
     }
   });
 
-  it("submitted → submitted_waiting_approval, admin får approve-knappar", () => {
+  it("submitted → submitted_waiting_approval, admin får approve-knappar (canonical GPS-rader när pings finns)", () => {
     const date = "2026-05-26";
     const flow = buildWeekFlow({
       ...baseInput,
@@ -124,10 +124,32 @@ describe("buildWeekFlow", () => {
     });
     const day = flow.days.find((d) => d.date === date)!;
     expect(day.status).toBe("submitted_waiting_approval");
-    expect(day.source).toBe("submission_snapshot");
+    // Policy: när GPS-pings finns används canonical GPS-resultat (samma som GPS SAT)
+    // för rows/start/end/minuter. Submission ger status/submissionId/reviewComment.
+    expect(day.source).toBe("gps_proposal");
+    expect(day.submissionId).toBe(`sub-${date}-submitted`);
     expect(day.canApprove).toBe(true);
     expect(day.canRequestCorrection).toBe(true);
     expect(day.canSubmit).toBe(false);
+    expect(day.rows.length).toBeGreaterThan(0);
+  });
+
+  it("submitted utan GPS-pings → faller tillbaka till submission_snapshot", () => {
+    const date = "2026-05-26";
+    const flow = buildWeekFlow({
+      staffId: "staff-1",
+      weekDates: WEEK,
+      gpsSummaries: WEEK.map((d) => gpsDay(d.toISOString().slice(0, 10), { pingsCount: 0, segments: [] })),
+      submissions: [sub(date, "submitted")],
+      snapshotsById: {
+        [`sub-${date}-submitted`]: [
+          { id: "row-1", type: "work", label: "Lager", start: `${date}T06:00:00Z`, end: `${date}T14:00:00Z`, minutes: 480 },
+        ],
+      },
+      viewer: "admin",
+    });
+    const day = flow.days.find((d) => d.date === date)!;
+    expect(day.source).toBe("submission_snapshot");
     expect(day.rows[0]?.label).toBe("Lager");
   });
 
