@@ -32,16 +32,16 @@ interface Props {
 type TabKey = 'rig' | 'rigDown';
 
 const TABS: Array<{ key: TabKey; label: string }> = [
-  { key: 'rig', label: 'Rigg' },
-  { key: 'rigDown', label: 'Nedrigg' },
+  { key: 'rig', label: 'Uppmontering' },
+  { key: 'rigDown', label: 'Nedmontering' },
 ];
 
 type Phase = 'rig' | 'event' | 'rigDown' | 'other';
 
 const PHASE_LABEL: Record<Phase, string> = {
-  rig: 'Rigg',
+  rig: 'Uppmontering',
   event: 'Event',
-  rigDown: 'Rigg ner',
+  rigDown: 'Nedmontering',
   other: 'Uppgift',
 };
 
@@ -76,6 +76,7 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
   const { isLoading, error, bookings, days, itemsWithAssignmentValidity } = ctx;
   const [activeTab, setActiveTab] = useState<TabKey>('rig');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [showAllTodos, setShowAllTodos] = useState(false);
 
   const dateToIndex = useMemo(() => {
     const m = new Map<string, number>();
@@ -340,6 +341,15 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
             </button>
           );
         })}
+        <label className="ml-2 inline-flex items-center gap-1.5 text-[12px] text-muted-foreground cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={showAllTodos}
+            onChange={(e) => setShowAllTodos(e.target.checked)}
+            className="h-3.5 w-3.5 accent-primary"
+          />
+          Visa uppgifter
+        </label>
       </div>
 
       {visibleDays.length === 0 ? (
@@ -381,7 +391,7 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
           visibleRows.map((row) => {
             const allSpans = spansByRow.get(row.key) ?? [];
             const spans = allSpans.filter((s) => s.phase === activeTab);
-            const isExpanded = !!expanded[row.key];
+            const isExpanded = !!expanded[row.key] || showAllTodos;
             const todos = (row.bookingId && todosByBooking.get(row.bookingId)) || [];
             // Fallback-span (för todos utan datum i vyn) = första phase-spannet.
             const fallbackSpan = spans[0];
