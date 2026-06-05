@@ -105,40 +105,40 @@ export default function StaffTimeWeekMatrixCell({ cell, onClick }: Props) {
       onClick={onClick}
       title={cell.reviewComment ?? undefined}
       className={cn(
-        "group relative w-full min-h-[112px] rounded-xl border text-left flex flex-col overflow-hidden",
-        "shadow-sm hover:shadow-md hover:-translate-y-px transition-all",
-        "focus:outline-none focus:ring-2 focus:ring-primary/60",
+        "group relative w-full min-h-[120px] rounded-lg border text-left flex flex-col overflow-hidden",
+        "hover:border-border hover:shadow-sm transition-all",
+        "focus:outline-none focus:ring-2 focus:ring-primary/40",
         variant.bg,
         variant.border,
       )}
     >
-      {/* 3px statusbar längs vänstra kanten */}
-      <span className={cn("absolute left-0 top-0 bottom-0 w-[3px]", variant.bar)} aria-hidden />
+      {/* 2px statusbar längs vänstra kanten */}
+      <span className={cn("absolute left-0 top-0 bottom-0 w-[2px]", variant.bar)} aria-hidden />
 
       {/* Header: status-chip · start–slut · totaltid */}
-      <div className="flex items-center gap-1.5 w-full px-2.5 pt-2 pl-3.5">
+      <div className="flex items-center gap-2 w-full px-3 pt-2.5 pl-4">
         <span
           className={cn(
-            "text-[9.5px] font-bold uppercase tracking-wide px-1.5 py-px rounded border",
+            "text-[9.5px] font-semibold uppercase tracking-wide px-1.5 py-px rounded border",
             variant.chip,
           )}
         >
           {STATUS_LABEL[cell.status]}
         </span>
         {hasTimes ? (
-          <span className="text-[10.5px] tabular-nums leading-none text-foreground/70 truncate">
+          <span className="text-[10.5px] tabular-nums leading-none text-muted-foreground truncate">
             {cell.startTime}–{cell.endTime}
           </span>
         ) : (
           <span className="text-[10.5px] text-muted-foreground">–</span>
         )}
-        <span className={cn("ml-auto text-sm tabular-nums font-bold leading-none", variant.total)}>
+        <span className={cn("ml-auto text-sm tabular-nums font-semibold leading-none", variant.total)}>
           {fmtDur(cell.totalMinutes)}
         </span>
       </div>
 
       {/* Block-rader (samma reportRows som GPS-satelliten) */}
-      <div className="flex-1 px-2.5 pt-1.5 pl-3.5">
+      <div className="flex-1 px-3 pt-2 pl-4 pb-2">
         {hasRows && (
           <WeekFlowReportRowsMini rows={cell.rows} maxRows={3} compact />
         )}
@@ -146,27 +146,27 @@ export default function StaffTimeWeekMatrixCell({ cell, onClick }: Props) {
 
       {/* Footer: sammanfattning + avvikelsebadges */}
       {(cell.normalMinutes > 0 || cell.overtimeMinutes > 0 || cell.travelMinutes > 0 || hasUnknown) && (
-        <div className="mt-auto px-2.5 py-1.5 pl-3.5 border-t border-current/10 bg-white/30 flex items-center gap-1.5 text-[10px] tabular-nums">
-          <span className="text-foreground/80 truncate">
-            <span className="font-semibold">N </span>{fmtDur(cell.normalMinutes)}
+        <div className="mt-auto px-3 py-1.5 pl-4 border-t border-border/40 bg-muted/20 flex items-center gap-1.5 text-[10px] tabular-nums">
+          <span className="text-muted-foreground truncate">
+            <span className="font-medium text-foreground/80">N </span>{fmtDur(cell.normalMinutes)}
             {hasOvertime && (
               <>
-                <span className="text-foreground/40"> · </span>
-                <span className="font-semibold text-amber-700">Ö </span>
-                <span className="text-amber-800">{fmtDur(cell.overtimeMinutes)}</span>
+                <span className="text-muted-foreground/50"> · </span>
+                <span className="font-medium text-foreground/80">Ö </span>
+                <span>{fmtDur(cell.overtimeMinutes)}</span>
               </>
             )}
             {hasTravel && (
               <>
-                <span className="text-foreground/40"> · </span>
-                <span className="font-semibold text-blue-700">Resa </span>
-                <span className="text-blue-800">{fmtDur(cell.travelMinutes)}</span>
+                <span className="text-muted-foreground/50"> · </span>
+                <span className="font-medium text-foreground/80">Resa </span>
+                <span>{fmtDur(cell.travelMinutes)}</span>
               </>
             )}
           </span>
           {hasUnknown && (
             <span
-              className="ml-auto inline-flex items-center gap-0.5 px-1 h-3.5 rounded text-[9px] font-semibold uppercase bg-amber-100 text-amber-800 border border-amber-200"
+              className="ml-auto inline-flex items-center justify-center px-1 h-3.5 rounded text-[9px] font-semibold uppercase bg-amber-50 text-amber-700 border border-amber-100"
               title="Innehåller GPS-glapp eller okänd plats"
             >
               !
