@@ -200,12 +200,20 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
     return out;
   }, [itemsByBooking, dateToIndex]);
 
+  const navigate = useNavigate();
+
   const openBooking = (bookingId: string | null) => {
     if (!bookingId) return;
     window.dispatchEvent(
       new CustomEvent('lp-booking-sheet-open', { detail: { bookingId } }),
     );
   };
+
+  const openBookingPage = (bookingId: string | null) => {
+    if (!bookingId) return;
+    navigate(`/booking/${bookingId}`);
+  };
+
 
   if (isLoading) {
     return (
