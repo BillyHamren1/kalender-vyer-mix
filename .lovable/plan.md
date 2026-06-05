@@ -1,50 +1,79 @@
 ## Problem
-GPS SAT bygger dagen via `buildCanonicalStaffDayGpsResult` (snapshot → buildDayPartition → summarizeVisibleWindow). Tid/Lön + mobilens veckovy går via `get-staff-time-week-matrix` → `resolveStaffDayReportSummariesBatch` → `staff_day_submissions` / `staff_day_report_cache` → `mapReportBlocksToSegments`. När både canonical och submission/cache finns blir det två olika sanningar för samma dag (Andis 2026-06-04).
 
-Single-pipeline-regeln ska bli: **canonical är GPS-sanningen för rows/start/slut/minuter; submission/cache styr enbart status, submissionId, reviewComment och manuella overrides**.
+Panelen **"Uppdaterade bokningar"** (på `/projects` och dashboard) listar varje bokning där `bookings.needs_review = true`. Idag flaggas detta för **alla** UPDATE på `bookings` (oavsett källa), så ändringar som görs **inuti vårt system** (Planning-UI, internal notes, status-bytes, team-tilldelningar m.m.) hamnar i listan tillsammans med riktiga externa ändringar från Booking.
 
-## Ändringar
+Du vill att panelen ENDAST visar ändringar som kommer från det externa Booking-systemet (import-bookings / booking-webhook).
 
-### 1. `supabase/functions/_shared/staff-day-report/resolveStaffDayReport.ts`
-- Importera `buildCanonicalStaffDayGpsResult` + `CanonicalStaffDayGpsResult` från `../staff-gps/canonicalStaffDayGpsResult.ts`.
-- Uppdatera fil-headern: "Tid/Lön får aldrig bygga egen timeline; GPS-baserade rows kommer från canonicalStaffDayGpsResult, samma som GPS SAT."
-- Ny helper `projectCanonicalToResolvedSummary(canonical, meta)` som mappar `canonical.segments` → `ResolvedDayRow[]`:
-  - `work` → `kind:"work"`, `travel` → `"travel"`, `private` → `"private"`, `unknown_place` → `"unknown_place"`, `gps_gap` → `"gps_gap"`, `idle` → filtreras bort.
-  - `startIso`/`endIso`/`durationMinutes`/`label`/`fromLabel`/`toLabel` kopieras 1:1 från canonical.
-  - `workMinutes` = `canonical.totals.workMinutes`, `travelMinutes` = `canonical.totals.travelMinutes`, `totalMinutes` = `canonical.payrollSuggestion.payableMinutes`, `startIso/endIso` från första/sista renderbara raden (inte canonical.firstIso/lastIso, eftersom de inkluderar privata pings).
-- Ny intern helper `tryBuildCanonicalForDay(admin, orgId, staffId, date)` med try/catch → returnerar `null` om bygget kraschar eller saknar segment/pings. Loggar fel.
-- I `resolveStaffDayReport` och `resolveStaffDayReportsBatch` / `resolveStaffDayReportSummariesBatch`:
-  - Submission/cache-prioriteten är OFÖRÄNDRAD (submission > cache > empty) för status/source/submissionId/reviewComment/normalMinutes/overtimeMinutes/breakMinutes.
-  - Efter projection: försök bygga canonical. Om canonical har `segments.length > 0`, **ersätt** `rows`, `startIso`, `endIso`, `workMinutes`, `travelMinutes`, `totalMinutes` med canonical-projektionen. `requested_start_at`/`requested_end_at` från submission behåller företräde över canonical.firstIso/lastIso (manuell override vinner).
-  - Om canonical saknar segment/pings: behåll befintlig submission/cache-projection (manuella rapporter utan GPS fortsätter fungera).
-- Batch-paralelliseras med `Promise.all` över (staff,date)-paren — `buildCanonicalStaffDayGpsResult` har egen snapshot-cache så detta är OK; vi bygger bara för de paren som har submission eller cache (inte tomma).
+## Rotorsak
 
-### 2. `get-staff-time-week-matrix/index.ts`
-Ingen kodändring i logiken — den fortsätter gå genom `resolveStaffDayReportSummariesBatch`. Uppdatera headerkommentaren: "Canonical GPS-sanningen kommer via resolvern (som internt konsumerar `buildCanonicalStaffDayGpsResult`). Edge-functionen importerar fortfarande ALDRIG canonical-buildern direkt — den regeln gäller fortfarande."
+Triggern `public.track_booking_changes()` (senast definierad i `supabase/migrations/20260604200105_*.sql`) sätter:
 
-### 3. Contract-tester
-- `supabase/functions/_shared/staff-day-report/resolveStaffDayReport_test.ts`:
-  - **Ta bort assertionen** "FORBIDDEN TABLE READ" som blockerar all annan tabell-läsning än `staff_day_submissions` / `staff_day_report_cache` (rad ~91–93, ~122–123, ~172–175). Den regeln är fel eftersom resolvern nu konsumerar canonical builder som internt läser `staff_gps_day_snapshots` + `staff_location_history`.
-  - **Behåll** regeln att resolvern inte själv skriver eller läser legacy `time_reports`/`workdays`/`location_time_entries`/`travel_time_logs`/`day_attestations` (rad 162–166), men kontrollera nu statiskt mot källfilen istället för vid runtime mot mocken.
-  - Lägg till nytt statiskt test: filen `resolveStaffDayReport.ts` **ska** importera `buildCanonicalStaffDayGpsResult` (positiv kontraktscheck).
-  - Lägg till ett mock-test där submission + canonical-segment finns → resultatets `rows`, `workMinutes`, `travelMinutes`, `startIso`, `endIso` kommer från canonical, medan `submissionId`, `reviewComment`, `status="submitted_waiting_approval"` kommer från submission.
-  - Lägg till mock-test där canonical saknar segment → fall tillbaka till submission/cache-projektion (oförändrat beteende).
-- `src/components/staff-time/__tests__/StaffTimeWeekMatrix.contract.test.ts`:
-  - **Behåll** rad 119 (`get-staff-time-week-matrix/index.ts` får INTE importera `buildCanonicalStaffDayGpsResult`). Det är fortsatt korrekt — bara resolvern får konsumera canonical.
-  - Lägg till en ny it-block: `resolveStaffDayReport.ts` SKA importera `buildCanonicalStaffDayGpsResult` (positiv kontraktscheck) och innehålla kommentaren "GPS-baserade rows kommer från canonicalStaffDayGpsResult".
+```sql
+IF has_external_changes AND OLD.assigned_to_project = true AND NOT should_skip_review THEN
+  NEW.needs_review := true;
+  NEW.needs_review_reason := change_type_value;
+END IF;
+```
 
-## Vad ändras INTE
-- Inga schemaändringar, ingen ny tabell, ingen migration.
-- `canonicalStaffDayGpsResult.ts`, `get-staff-gps-week-summary`, `get-staff-day-gps-result`, `getMobileGpsDayView` orörda.
-- Submission write-path, status-mappning, approve-flow, payroll_approved, reviewComment-UI orörda.
-- `staff_day_report_cache`-byggandet (backfill-funktionerna) orört — cache används fortfarande som status/breakMinutes-källa och som fallback när canonical saknar GPS.
-- `display_timeline_snapshot_json` används fortfarande som fallback när canonical saknar pings.
+Variabeln `should_skip_review` läses från GUC `app.skip_review`, men ingen Planning-UI-mutation sätter den. Resultat: varje UPDATE från authenticated user flaggar `needs_review`.
 
-## Verifiering
-1. Kör `vitest` (lovable-exec test) på `StaffTimeWeekMatrix.contract.test.ts`.
-2. Kör `supabase test edge functions` för `resolveStaffDayReport_test.ts`.
-3. Manuell verifiering Andis Grinbergs 2026-06-04: jämför `/staff-management/gps-satellite-map?staffId=...&date=2026-06-04` mot Tid/Lön-veckomatris. Cellens rows ska vara identiska med GPS SAT-segmenten. "Väntar personalattest"-statusen ska finnas kvar.
+`resolved_changed_by` beräknas redan längre ner i samma trigger:
+- `service_role` = edge function (import-bookings, booking-webhook) → extern Booking-ändring
+- `authenticated` = Planning UI/intern mutation → ska INTE flagga needs_review
 
-## Risker
-- Latency: batch-resolvern bygger nu canonical för varje (staff,date) med submission/cache. Snapshot-cachen i `getOrBuildDaySnapshot` mildrar — typiskt ≤50 ms/dag vid cache-hit. Vid kall cache kan en veckomatris × 30 personal trigga 210 builds; vi parallelliserar med `Promise.all` i batches om 8 för att hålla nere worker-CPU.
-- Tester som mockar admin-clientens `.from(table)` kommer brytas av canonical-bygget (försöker läsa `staff_gps_day_snapshots`). Vi uppdaterar mockarna att svara med tomma snapshots så de faller tillbaka till submission-projektionen — det är samma path som "manuell rapport utan GPS"-fallet.
+## Lösning (minsta möjliga ändring)
+
+**En migration**: skriv om `public.track_booking_changes()` så att `needs_review`-flaggan bara sätts när källan är extern.
+
+### Ändringar i trigger
+
+1. Flytta `resolved_changed_by`-beräkningen UPPÅT (före needs_review-blocket).
+2. Lägg till en `is_external_source`-flagga:
+   ```sql
+   is_external_source := resolved_changed_by IN ('service_role', 'booking-import', 'booking-webhook');
+   ```
+3. Uppdatera villkoret:
+   ```sql
+   IF has_external_changes 
+      AND OLD.assigned_to_project = true 
+      AND NOT should_skip_review
+      AND is_external_source THEN
+     NEW.needs_review := true;
+     NEW.needs_review_reason := change_type_value;
+   END IF;
+   ```
+4. `booking_changes`-loggen påverkas INTE — alla ändringar fortsätter loggas där (med `changed_by` så audit-trailen kan filtreras på källa i framtiden).
+
+### Engångsstädning av redan flaggade interna ändringar
+
+Det finns redan 6 bokningar med `needs_review=true` i listan (skärmdumpen). Eftersom vi inte vet vilka som är externa vs interna i historik, gör vi **ingen massiv reset** (per "Never Delete DB Rows"-policyn). Två alternativ — välj ett i nästa steg:
+
+- **A (mjukast)**: Lämna befintliga 6 kvar — användaren klickar "Godkänn" en gång och de försvinner. Nya interna ändringar flaggas inte framåt.
+- **B (rensa nu)**: En engångs-UPDATE `SET needs_review=false, needs_review_reason=null WHERE needs_review=true`. Du måste explicit godkänna eftersom det är massiv UPDATE.
+
+Default i planen: **A** (säkrast).
+
+## Vad som INTE ändras
+
+- Frontend (`UpdatedBookingsList.tsx`, `DashboardUpdatedBookings.tsx`) — orörd. Den läser fortfarande `needs_review=true`, men nu kommer endast externa Booking-ändringar dit.
+- `booking_changes`-tabellen — orörd. All change-historik bevaras.
+- `BookingChangesDetail` (expanderad detaljvy) — orörd.
+- `import-bookings`/`booking-webhook` — orörda. De kör som `service_role` → triggern flaggar nu korrekt.
+- Inga datatabeller raderas, inga DELETEs körs.
+
+## Verifiering efter migration
+
+Vitest-kontrakttest (`src/test/bookingNeedsReviewSource.contract.test.ts`) som verifierar:
+1. Trigger-källkod innehåller `is_external_source`-villkoret för `NEW.needs_review := true`.
+2. Trigger sätter fortfarande `booking_changes`-rad för alla UPDATE (interna + externa).
+
+Manuell smoke-test:
+1. Öppna en bokning i Planning-UI, redigera ett fält → bokningen ska INTE dyka upp i "Uppdaterade bokningar".
+2. Simulera import-bookings-uppdatering (eller vänta på nästa sync) → bokningen SKA dyka upp.
+
+## Filer som ändras
+
+- **NY**: `supabase/migrations/<timestamp>_track_booking_changes_external_only.sql` — `CREATE OR REPLACE FUNCTION public.track_booking_changes()` med uppdaterat villkor.
+- **NY**: `src/test/bookingNeedsReviewSource.contract.test.ts` — låser kontraktet.
+
+Inga andra filer rörs.
