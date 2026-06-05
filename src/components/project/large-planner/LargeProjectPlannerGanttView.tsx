@@ -463,10 +463,18 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
                           color: style.fg,
                           border: `1px solid ${style.border}`,
                         }}
-                        title={`${PHASE_LABEL[s.phase]} · ${s.title} · ${rangeLabel}`}
+                        title={`${PHASE_LABEL[s.phase]} · ${row.title}${row.subtitle ? ' · ' + row.subtitle : ''} · ${rangeLabel}`}
                       >
-                        <span className="block truncate text-left leading-[24px]">
-                          {PHASE_LABEL[s.phase]}
+                        <span className="flex items-center gap-2 truncate text-left leading-[24px]">
+                          <span className="truncate font-semibold">{row.title}</span>
+                          {row.subtitle && (
+                            <span className="truncate text-[10px] font-normal opacity-75">
+                              {row.subtitle}
+                            </span>
+                          )}
+                          <span className="ml-auto shrink-0 text-[10px] font-normal opacity-75">
+                            {PHASE_LABEL[s.phase]}
+                          </span>
                         </span>
                       </button>
                     );
