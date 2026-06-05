@@ -23,9 +23,9 @@ import StaffTimeLegend from "./StaffTimeLegend";
 
 const WEEK_HEADERS = ["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"] as const;
 
-// Grid: namn(140) · 7 dagar(min 240) · åtgärd(110).
+// Grid: namn(190) · 7 dagar(min 250) · åtgärd(120).
 export const MATRIX_GRID_TEMPLATE =
-  "minmax(120px, 140px) repeat(7, minmax(240px, 1fr)) minmax(90px, 110px)";
+  "minmax(180px, 200px) repeat(7, minmax(250px, 1fr)) minmax(110px, 130px)";
 
 export default function StaffTimeWeekMatrix() {
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
