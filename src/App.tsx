@@ -398,7 +398,8 @@ const WebRoutes: React.FC = () => {
               <Route path="/economy/:id" element={<ProjectEconomyDetail />} />
               <Route path="/analytics" element={<AnalyticsDashboard />} />
               <Route path="/large-project/:id" element={<LargeProjectLayout />}>
-                <Route index element={<LargeProjectViewPage />} />
+                <Route index element={<Navigate to="establishment" replace />} />
+                <Route path="overview" element={<LargeProjectViewPage />} />
                 <Route path="establishment" element={<LargeEstablishmentPage />} />
                 <Route path="collaboration" element={<LargeCollaborationPage />} />
                 <Route path="economy" element={<LargeProjectEconomyPage />} />
