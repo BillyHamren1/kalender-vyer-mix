@@ -28,10 +28,9 @@ interface Props {
   ctx: PlannerCtx;
 }
 
-type TabKey = 'all' | 'rig' | 'rigDown';
+type TabKey = 'rig' | 'rigDown';
 
 const TABS: Array<{ key: TabKey; label: string }> = [
-  { key: 'all', label: 'Alla' },
   { key: 'rig', label: 'Rigg' },
   { key: 'rigDown', label: 'Nedrigg' },
 ];
