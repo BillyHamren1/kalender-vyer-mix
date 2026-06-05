@@ -28,7 +28,7 @@ import LargeProjectExcelView from "@/components/project/LargeProjectExcelView";
 import ConsolidateProjectsDialog from "@/components/project/ConsolidateProjectsDialog";
 
 const navItems = [
-  { key: "overview", label: "Projektvy", icon: LayoutDashboard, path: "" },
+  { key: "overview", label: "Projektvy", icon: LayoutDashboard, path: "/overview" },
   { key: "establishment", label: "Planering", icon: HardHat, path: "/establishment" },
   { key: "economy", label: "Projektöversikt", icon: Wallet, path: "/economy" },
 ];
