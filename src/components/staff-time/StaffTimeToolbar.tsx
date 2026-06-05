@@ -2,7 +2,7 @@
  * StaffTimeToolbar — premium toolbar: veckonav · sök · statusfilter · avvikelsefilter.
  * Filterstate hanteras i parent. Ingen ny backend.
  */
-import { ChevronLeft, ChevronRight, Search, Filter, AlertCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, Filter, AlertCircle, Users } from "lucide-react";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,8 @@ interface Props {
   setStatusFilter: (s: StatusFilter) => void;
   onlyAnomalies: boolean;
   setOnlyAnomalies: (v: boolean) => void;
+  onlyWithTime: boolean;
+  setOnlyWithTime: (v: boolean) => void;
   rowCountFiltered: number;
   rowCountTotal: number;
 }
@@ -46,6 +48,8 @@ export default function StaffTimeToolbar({
   setStatusFilter,
   onlyAnomalies,
   setOnlyAnomalies,
+  onlyWithTime,
+  setOnlyWithTime,
   rowCountFiltered,
   rowCountTotal,
 }: Props) {
@@ -102,6 +106,22 @@ export default function StaffTimeToolbar({
           </SelectContent>
         </Select>
 
+        {/* Only with time (default på) */}
+        <Button
+          type="button"
+          variant={onlyWithTime ? "default" : "outline"}
+          size="sm"
+          className={cn(
+            "h-8 text-xs gap-1.5",
+            onlyWithTime && "bg-primary hover:bg-primary/90 text-primary-foreground",
+          )}
+          onClick={() => setOnlyWithTime(!onlyWithTime)}
+          title="Visa endast personer som har tid någon dag den här veckan"
+        >
+          <Users className="h-3.5 w-3.5" />
+          Endast med tid
+        </Button>
+
         {/* Anomaly toggle */}
         <Button
           type="button"
@@ -116,6 +136,7 @@ export default function StaffTimeToolbar({
           <AlertCircle className="h-3.5 w-3.5" />
           Endast avvikelser
         </Button>
+
 
         <div className="ml-auto text-[11px] text-muted-foreground tabular-nums">
           {rowCountFiltered === rowCountTotal
