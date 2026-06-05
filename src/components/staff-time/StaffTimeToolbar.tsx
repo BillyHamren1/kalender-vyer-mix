@@ -48,6 +48,8 @@ export default function StaffTimeToolbar({
   setStatusFilter,
   onlyAnomalies,
   setOnlyAnomalies,
+  onlyWithTime,
+  setOnlyWithTime,
   rowCountFiltered,
   rowCountTotal,
 }: Props) {
