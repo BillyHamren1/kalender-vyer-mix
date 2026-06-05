@@ -28,10 +28,9 @@ interface Props {
   ctx: PlannerCtx;
 }
 
-type TabKey = 'all' | 'rig' | 'rigDown';
+type TabKey = 'rig' | 'rigDown';
 
 const TABS: Array<{ key: TabKey; label: string }> = [
-  { key: 'all', label: 'Alla' },
   { key: 'rig', label: 'Rigg' },
   { key: 'rigDown', label: 'Nedrigg' },
 ];
@@ -74,7 +73,8 @@ interface GanttSpan {
 
 const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
   const { isLoading, error, bookings, days, itemsWithAssignmentValidity } = ctx;
-  const [activeTab, setActiveTab] = useState<TabKey>('all');
+  const [activeTab, setActiveTab] = useState<TabKey>('rig');
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const dateToIndex = useMemo(() => {
     const m = new Map<string, number>();
@@ -235,22 +235,56 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
   const rowHeight = 44;
   const barHeight = 26;
 
+  // Bygg visibleDays = endast datum med spans i aktiv fas (oavsett bokning).
+  const visibleDays = useMemo(() => {
+    const datesWithPhase = new Set<string>();
+    for (const spans of spansByRow.values()) {
+      for (const s of spans) {
+        if (s.phase !== activeTab) continue;
+        for (const d of s.dates) datesWithPhase.add(d);
+      }
+    }
+    return days.filter((d) => datesWithPhase.has(d.date));
+  }, [days, spansByRow, activeTab]);
+
+  const visibleDateToIndex = useMemo(() => {
+    const m = new Map<string, number>();
+    visibleDays.forEach((d, i) => m.set(d.date, i));
+    return m;
+  }, [visibleDays]);
+
   // Filtrera + sortera rader baserat på aktiv flik.
   const visibleRows = (() => {
-    if (activeTab === 'all') return rows;
-    const phaseFilter = activeTab; // 'rig' | 'rigDown'
+    const phaseFilter = activeTab;
     return rows
       .map((row) => {
         const spans = spansByRow.get(row.key) ?? [];
         const phaseSpans = spans.filter((s) => s.phase === phaseFilter);
         if (phaseSpans.length === 0) return null;
-        const minIdx = Math.min(...phaseSpans.map((s) => s.startIdx));
+        const minIdx = Math.min(
+          ...phaseSpans.map((s) => visibleDateToIndex.get(s.dates[0]) ?? 0),
+        );
         return { row, minIdx };
       })
       .filter((x): x is { row: typeof rows[number]; minIdx: number } => !!x)
       .sort((a, b) => a.minIdx - b.minIdx)
       .map((x) => x.row);
   })();
+
+  // Todos per bokning (item_type != 'booking'), inkl. orderrad-todos.
+  const todosByBooking = useMemo(() => {
+    const map = new Map<string, PlannerItemWithValidity[]>();
+    for (const it of itemsWithAssignmentValidity) {
+      if (it.item_type === 'booking') continue;
+      if (!it.booking_id) continue;
+      const arr = map.get(it.booking_id) ?? [];
+      arr.push(it);
+      map.set(it.booking_id, arr);
+    }
+    return map;
+  }, [itemsWithAssignmentValidity]);
+
+  const todoRowHeight = 28;
 
   return (
     <div className="flex-1 overflow-auto">
@@ -281,13 +315,18 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
         })}
       </div>
 
+      {visibleDays.length === 0 ? (
+        <div className="px-3 py-6 text-xs text-muted-foreground">
+          Inga datum för vald fas.
+        </div>
+      ) : (
       <div className="min-w-max">
         {/* Header */}
         <div
           className="sticky top-[49px] z-10 flex border-b border-border/60 bg-card/95 backdrop-blur"
           style={{ paddingLeft: labelWidth }}
         >
-          {days.map((d) => {
+          {visibleDays.map((d) => {
             const date = parseISO(d.date);
             const isToday = d.date === format(new Date(), 'yyyy-MM-dd');
             return (
@@ -314,22 +353,27 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
         ) : (
           visibleRows.map((row) => {
             const allSpans = spansByRow.get(row.key) ?? [];
-            const spans = activeTab === 'all'
-              ? allSpans
-              : allSpans.filter((s) => s.phase === activeTab);
+            const spans = allSpans.filter((s) => s.phase === activeTab);
+            const isExpanded = !!expanded[row.key];
+            const todos = (row.bookingId && todosByBooking.get(row.bookingId)) || [];
+            // Fallback-span (för todos utan datum i vyn) = första phase-spannet.
+            const fallbackSpan = spans[0];
             return (
               <div
                 key={row.key}
-                className="flex items-stretch border-b border-border/40 hover:bg-muted/30"
+                className="flex flex-col border-b border-border/40 hover:bg-muted/30"
               >
+                <div className="flex items-stretch">
                 <button
                   type="button"
-                  onClick={() => openBooking(row.bookingId)}
-                  disabled={!row.bookingId}
-                  className="sticky left-0 z-[1] flex shrink-0 items-center gap-2 border-r border-border/40 bg-background px-2 py-1.5 text-left text-xs hover:bg-muted/50 disabled:cursor-default disabled:hover:bg-background"
+                  onClick={() => setExpanded((e) => ({ ...e, [row.key]: !e[row.key] }))}
+                  className="sticky left-0 z-[1] flex shrink-0 items-center gap-2 border-r border-border/40 bg-background px-2 py-1.5 text-left text-xs hover:bg-muted/50"
                   style={{ width: labelWidth }}
                   title={row.title}
                 >
+                  <span className="text-[10px] text-muted-foreground w-3">
+                    {isExpanded ? '▾' : '▸'}
+                  </span>
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-medium text-foreground">
                       {row.title}
@@ -342,7 +386,7 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
 
                 <div className="relative flex" style={{ minHeight: rowHeight }}>
                   {/* Bakgrundsraster */}
-                  {days.map((d) => {
+                  {visibleDays.map((d) => {
                     const isToday = d.date === format(new Date(), 'yyyy-MM-dd');
                     return (
                       <div
@@ -355,8 +399,10 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
                   {/* Spans (sammanhängande staplar per fas) */}
                   {spans.map((s) => {
                     const style = PHASE_STYLE[s.phase];
-                    const left = s.startIdx * colWidth + 2;
-                    const width = s.span * colWidth - 4;
+                    const startIdx = visibleDateToIndex.get(s.dates[0]) ?? 0;
+                    const lastIdx = visibleDateToIndex.get(s.dates[s.dates.length - 1]) ?? startIdx;
+                    const left = startIdx * colWidth + 2;
+                    const width = (lastIdx - startIdx + 1) * colWidth - 4;
                     const top = (rowHeight - barHeight) / 2;
                     const firstDate = s.dates[0];
                     const lastDate = s.dates[s.dates.length - 1];
@@ -368,7 +414,7 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
                       <button
                         key={s.id}
                         type="button"
-                        onClick={() => openBooking(row.bookingId)}
+                        onClick={() => setExpanded((e) => ({ ...e, [row.key]: !e[row.key] }))}
                         className="absolute rounded-md px-2 text-[11px] font-semibold shadow-sm transition-all hover:brightness-95"
                         style={{
                           left,
@@ -382,17 +428,100 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
                         title={`${PHASE_LABEL[s.phase]} · ${s.title} · ${rangeLabel}`}
                       >
                         <span className="block truncate text-left leading-[24px]">
-                          {s.phase === 'other' ? s.title : PHASE_LABEL[s.phase]}
+                          {PHASE_LABEL[s.phase]}
                         </span>
                       </button>
                     );
                   })}
                 </div>
+                </div>
+
+                {/* Inline todos */}
+                {isExpanded && todos.length > 0 && (
+                  <div className="bg-muted/20">
+                    {todos.map((t) => {
+                      const hasDate = visibleDateToIndex.has(t.plan_date);
+                      let startIdx: number;
+                      let spanLen: number;
+                      let rangeLabel: string;
+                      if (hasDate) {
+                        startIdx = visibleDateToIndex.get(t.plan_date)!;
+                        spanLen = 1;
+                        rangeLabel = format(parseISO(t.plan_date), 'EEE d MMM', { locale: sv });
+                      } else if (fallbackSpan) {
+                        startIdx = visibleDateToIndex.get(fallbackSpan.dates[0]) ?? 0;
+                        const lastIdx = visibleDateToIndex.get(fallbackSpan.dates[fallbackSpan.dates.length - 1]) ?? startIdx;
+                        spanLen = lastIdx - startIdx + 1;
+                        const a = fallbackSpan.dates[0];
+                        const b = fallbackSpan.dates[fallbackSpan.dates.length - 1];
+                        rangeLabel = a === b
+                          ? format(parseISO(a), 'EEE d MMM', { locale: sv })
+                          : `${format(parseISO(a), 'd MMM', { locale: sv })} – ${format(parseISO(b), 'd MMM', { locale: sv })}`;
+                      } else {
+                        return null;
+                      }
+                      const left = startIdx * colWidth + 6;
+                      const width = spanLen * colWidth - 12;
+                      const top = 4;
+                      const done = t.status === 'done';
+                      return (
+                        <div
+                          key={t.id}
+                          className="flex items-stretch border-t border-border/30"
+                        >
+                          <div
+                            className="sticky left-0 z-[1] flex shrink-0 items-center gap-2 border-r border-border/40 bg-background/80 px-2 py-1 text-[11px] text-muted-foreground"
+                            style={{ width: labelWidth, paddingLeft: 28 }}
+                            title={t.title}
+                          >
+                            <span className="truncate">
+                              {done ? '✓ ' : '• '}{t.title}
+                            </span>
+                          </div>
+                          <div className="relative flex" style={{ minHeight: todoRowHeight }}>
+                            {visibleDays.map((d) => (
+                              <div
+                                key={d.date}
+                                className="border-l border-border/20"
+                                style={{ width: colWidth }}
+                              />
+                            ))}
+                            <div
+                              className="absolute rounded-md px-2 text-[10px] font-medium"
+                              style={{
+                                left,
+                                width: Math.max(width, 20),
+                                top,
+                                height: todoRowHeight - 8,
+                                background: done ? '#E5E7EB' : '#EEF4FF',
+                                color: done ? '#4b5563' : '#1e3a8a',
+                                border: `1px solid ${done ? '#cbd0d8' : '#c7d6f5'}`,
+                                textDecoration: done ? 'line-through' : 'none',
+                              }}
+                              title={`${t.title} · ${rangeLabel}${hasDate ? '' : ' (ärvd från bokning)'}`}
+                            >
+                              <span className="block truncate leading-[20px]">
+                                {rangeLabel}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {isExpanded && todos.length === 0 && (
+                  <div className="border-t border-border/30 bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground"
+                       style={{ paddingLeft: labelWidth + 12 }}>
+                    Inga todos för denna bokning.
+                  </div>
+                )}
               </div>
             );
           })
         )}
       </div>
+      )}
     </div>
   );
 };
