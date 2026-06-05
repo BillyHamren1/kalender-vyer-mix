@@ -305,7 +305,7 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
   const todoRowHeight = 28;
 
   return (
-    <div className="flex-1 overflow-auto">
+    <div ref={scrollerRef} className="flex-1 overflow-auto">
       {/* Flikar */}
       <div
         role="tablist"
