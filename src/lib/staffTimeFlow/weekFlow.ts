@@ -168,12 +168,26 @@ export function buildWeekFlow(input: BuildWeekFlowInput): WeekFlow {
     if (sub) {
       const status = mapDbStatusToFlow(String(sub.status));
       const snapshot = snapshotsById?.[sub.id] ?? null;
-      const rows = rowsFromSubmissionSnapshot(snapshot, date);
-      // Total/work/travel: räkna från snapshot om rader finns, annars summary.
+
+      // POLICY: Tid/Lön följer canonical GPS-resultat (samma som GPS SAT) för
+      // rows/start/end/minuter när pings finns. Submission ger endast
+      // status/submissionId/reviewComment/breakMinutes. Detta håller drilldown-
+      // arket och matriscellen i synk med GPS-satellitkartan.
+      const useCanonical =
+        USE_CANONICAL_GPS_ROWS_IN_WEEK_FLOW && !!gps && gps.pingsCount > 0;
+
+      const rows = useCanonical
+        ? rowsFromGpsSummary(gps!)
+        : rowsFromSubmissionSnapshot(snapshot, date);
+
       const workMin = rows.filter((r) => r.kind === "work").reduce((a, r) => a + r.minutes, 0);
       const travelMin = rows.filter((r) => r.kind === "travel").reduce((a, r) => a + r.minutes, 0);
-      const startIso = sub.requested_start_at ?? rows[0]?.startIso ?? null;
-      const endIso = sub.requested_end_at ?? rows[rows.length - 1]?.endIso ?? null;
+      const startIso = useCanonical
+        ? (rows[0]?.startIso ?? gps!.firstIso ?? null)
+        : (sub.requested_start_at ?? rows[0]?.startIso ?? null);
+      const endIso = useCanonical
+        ? (rows[rows.length - 1]?.endIso ?? gps!.lastIso ?? null)
+        : (sub.requested_end_at ?? rows[rows.length - 1]?.endIso ?? null);
       const totalMin = rows.length > 0
         ? rows.reduce((a, r) => a + r.minutes, 0)
         : (startIso && endIso
@@ -197,7 +211,7 @@ export function buildWeekFlow(input: BuildWeekFlowInput): WeekFlow {
         normalMinutes: buckets.normalMinutes,
         overtimeMinutes: buckets.overtimeMinutes,
         rows,
-        source: "submission_snapshot",
+        source: useCanonical ? "gps_proposal" : "submission_snapshot",
         submissionId: sub.id,
         submittedAt: sub.submitted_at ?? null,
         approvedAt: isApproved ? sub.reviewed_at : null,
