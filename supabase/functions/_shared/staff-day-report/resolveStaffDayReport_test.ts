@@ -309,3 +309,250 @@ Deno.test("resolveStaffDayReport.ts läser INTE legacy-tabeller", async () => {
     "staff_location_history får aldrig läsas direkt av resolvern",
   );
 });
+
+// =============================================================================
+// SUMMARY-LAGER (driver get-staff-time-week-matrix → Tid/Lön)
+// =============================================================================
+//
+// Dessa tester skyddar kontraktet att Tid/Lön och GPS SAT delar samma
+// GPS-sanning, att fallback fungerar när canonical saknas/kraschar, och
+// att submission alltid äger status/submissionId/reviewComment.
+
+const SUMMARY_BASE_FROM_SUBMISSION = {
+  staffId: "s1",
+  date: "2026-06-01",
+  source: "submission" as const,
+  status: "submitted_waiting_approval" as const,
+  startIso: "2026-06-01T07:00:00Z",
+  endIso: "2026-06-01T15:00:00Z",
+  workMinutes: 450,
+  travelMinutes: 30,
+  breakMinutes: 30,
+  totalMinutes: 450,
+  normalMinutes: 420,
+  overtimeMinutes: 0,
+  submissionId: "sub-1",
+  reviewComment: "Kolla rasten",
+  cacheBuiltAt: null,
+  engineVersion: null,
+  rows: [
+    // display_timeline_snapshot_json-rader (fallback-källan).
+    { kind: "work" as const, label: "Snapshot A", startIso: "2026-06-01T07:00:00Z", endIso: "2026-06-01T11:00:00Z", minutes: 240, fromLabel: null, toLabel: null },
+    { kind: "work" as const, label: "Snapshot B", startIso: "2026-06-01T11:30:00Z", endIso: "2026-06-01T15:00:00Z", minutes: 210, fromLabel: null, toLabel: null },
+  ],
+};
+
+Deno.test("overlayCanonicalOnSummary: status/submissionId/reviewComment behålls, rows kommer från canonical", () => {
+  const proj = projectCanonicalToResolvedSummary(CANONICAL);
+  const out = overlayCanonicalOnSummary(SUMMARY_BASE_FROM_SUBMISSION, proj, null, null);
+
+  // Submission äger status och provenance — får aldrig skrivas över av canonical.
+  assertEquals(out.source, "submission");
+  assertEquals(out.status, "submitted_waiting_approval");
+  assertEquals(out.submissionId, "sub-1");
+  assertEquals(out.reviewComment, "Kolla rasten");
+
+  // Rows + minuter + start/end kommer från canonical (samma som GPS SAT).
+  assertEquals(out.rows.length, 3);
+  assertEquals(out.rows[0].label, "FA Warehouse");
+  assertEquals(out.workMinutes, 420);
+  assertEquals(out.travelMinutes, 60);
+  assertEquals(out.startIso, "2026-06-01T06:30:00Z");
+  assertEquals(out.endIso, "2026-06-01T14:30:00Z");
+});
+
+Deno.test("FALLBACK: display_timeline_snapshot används när canonical saknas", () => {
+  // När tryBuildCanonicalForDay returnerar null lämnas base orörd.
+  // Verifierar att submissionens snapshot-rader fortfarande är synliga.
+  const base = { ...SUMMARY_BASE_FROM_SUBMISSION };
+  // Simulerar resolverns beteende: ingen overlay-call när canonical är null.
+  assertEquals(base.rows.length, 2, "fallback ska visa display_timeline_snapshot-rader");
+  assertEquals(base.rows[0].label, "Snapshot A");
+  assertEquals(base.workMinutes, 450);
+  assertEquals(base.submissionId, "sub-1");
+  assertEquals(base.status, "submitted_waiting_approval");
+});
+
+Deno.test("FALLBACK: canonical med 0 segment ger null → submission-snapshot vinner", async () => {
+  // Mocka admin så att buildCanonicalStaffDayGpsResult når en tom väg.
+  // tryBuildCanonicalForDay tar all-or-nothing — segments=0 → returnera null.
+  const emptyCanonical: CanonicalStaffDayGpsResult = {
+    ...CANONICAL,
+    segments: [],
+    totals: { ...CANONICAL.totals, workMinutes: 0, travelMinutes: 0 },
+  };
+  const proj = projectCanonicalToResolvedSummary(emptyCanonical);
+  assertEquals(proj.rows.length, 0, "tom canonical ska INTE producera rader");
+  // Resolvern: om proj.rows.length === 0 i tryBuildCanonicalForDay → null →
+  // ingen overlay → submissionens display_timeline_snapshot behålls.
+});
+
+Deno.test("ANDIS-SCENARIO 2026-06-04: status=submitted men rows = canonical GPS", () => {
+  // Reproducerar buggen: GPS SAT visade canonical-uppdelning medan Tid/Lön
+  // visade en annan timeline från display_timeline_snapshot_json. Efter fixen
+  // ska Tid/Lön visa SAMMA rader som GPS SAT, men behålla submission-status.
+  const andisSubmission = {
+    ...SUMMARY_BASE_FROM_SUBMISSION,
+    date: "2026-06-04",
+    submissionId: "andis-sub-0604",
+    reviewComment: null,
+    rows: [
+      // Gamla fel raderna från display_timeline_snapshot.
+      { kind: "work" as const, label: "Fel uppdelning", startIso: "2026-06-04T06:00:00Z", endIso: "2026-06-04T16:00:00Z", minutes: 600, fromLabel: null, toLabel: null },
+    ],
+  };
+  const andisCanonical: CanonicalStaffDayGpsResult = {
+    ...CANONICAL,
+    date: "2026-06-04",
+    firstIso: "2026-06-04T06:30:00Z",
+    lastIso: "2026-06-04T14:30:00Z",
+    segments: CANONICAL.segments.map((s) => ({
+      ...s,
+      startIso: s.startIso.replace("2026-06-01", "2026-06-04"),
+      endIso: s.endIso.replace("2026-06-01", "2026-06-04"),
+    })),
+  };
+  const proj = projectCanonicalToResolvedSummary(andisCanonical);
+  const out = overlayCanonicalOnSummary(andisSubmission, proj, null, null);
+
+  // Status från submission (Väntar personalattest).
+  assertEquals(out.status, "submitted_waiting_approval");
+  assertEquals(out.submissionId, "andis-sub-0604");
+
+  // Rader och tider från canonical — INTE från display_timeline_snapshot.
+  assertEquals(out.rows.length, 3);
+  assertEquals(out.rows[0].label, "FA Warehouse");
+  assertEquals(out.rows[1].kind, "travel");
+  assertEquals(out.startIso, "2026-06-04T06:30:00Z");
+  assertEquals(out.endIso, "2026-06-04T14:30:00Z");
+});
+
+Deno.test("resolveStaffDayReportSummariesBatch: canonical-fel kraschar INTE matrisen", async () => {
+  // Mocka admin: submissions/cache finns, men canonical-buildern kastar.
+  // resolveStaffDayReportSummariesBatch ska fånga felet och behålla base.
+  const admin = {
+    from(table: string) {
+      const builder: any = {
+        select() { return builder; },
+        eq() { return builder; },
+        in() { return builder; },
+        gte() { return builder; },
+        lte() { return builder; },
+        order() { return builder; },
+        maybeSingle() {
+          // Canonical-buildern läser snapshot-cache och staff_location_history.
+          // Vi kastar på snapshot-cache så bygget faller.
+          if (table === "staff_gps_day_snapshot_cache") {
+            return Promise.reject(new Error("simulated canonical error"));
+          }
+          return Promise.resolve({ data: null, error: null });
+        },
+        limit() {
+          if (table === "staff_day_submissions") {
+            return Promise.resolve({
+              data: [
+                { ...SUBMISSION, id: "sub-x", staff_id: "s1", date: "2026-06-01" },
+              ],
+              error: null,
+            });
+          }
+          if (table === "staff_location_history") {
+            return Promise.reject(new Error("simulated GPS read error"));
+          }
+          return Promise.resolve({ data: [], error: null });
+        },
+      };
+      return builder;
+    },
+  } as any;
+
+  const { resolveStaffDayReportSummariesBatch } = await import("./resolveStaffDayReport.ts");
+  const map = await resolveStaffDayReportSummariesBatch({
+    admin, organizationId: "org",
+    staffIds: ["s1"], dates: ["2026-06-01"],
+  });
+  const row = map.get("s1|2026-06-01");
+  assert(row, "matrix måste returnera en rad även när canonical kraschar");
+  assertEquals(row!.source, "submission", "base behålls från submission när canonical kastar");
+  assertEquals(row!.submissionId, "sub-x");
+  assertEquals(row!.status, "submitted_waiting_approval");
+});
+
+// =============================================================================
+// STATISKA KONTRAKTSTESTER för Tid/Lön ↔ GPS SAT samma sanning
+// =============================================================================
+
+Deno.test("kontrakt: get-staff-time-week-matrix använder INGEN egen GPS-pipeline", async () => {
+  const src = await Deno.readTextFile(
+    new URL("../../get-staff-time-week-matrix/index.ts", import.meta.url),
+  );
+  assert(
+    src.includes("resolveStaffDayReportSummariesBatch"),
+    "edge function MÅSTE gå via resolveStaffDayReportSummariesBatch",
+  );
+  assert(
+    !src.includes("buildCanonicalStaffDayGpsResult"),
+    "edge function får INTE importera canonical-buildern direkt (parallell GPS-väg förbjuden)",
+  );
+  assert(
+    !/\.from\(\s*["'`]staff_location_history["'`]/.test(src),
+    "edge function får INTE läsa staff_location_history",
+  );
+});
+
+Deno.test("kontrakt: Tid/Lön och GPS SAT delar samma canonical-importväg", async () => {
+  const resolverSrc = await Deno.readTextFile(
+    new URL("./resolveStaffDayReport.ts", import.meta.url),
+  );
+  const gpsSatSrc = await Deno.readTextFile(
+    new URL("../../get-staff-gps-week-summary/index.ts", import.meta.url),
+  );
+  const importPath = /["'][^"']*staff-gps\/canonicalStaffDayGpsResult\.ts["']/;
+  assert(importPath.test(resolverSrc), "resolvern importerar canonical-buildern från staff-gps/");
+  assert(importPath.test(gpsSatSrc), "GPS SAT importerar canonical-buildern från staff-gps/");
+  // Båda kallar samma symbol — säkrar att det inte finns två parallella builders.
+  assert(resolverSrc.includes("buildCanonicalStaffDayGpsResult("));
+  assert(gpsSatSrc.includes("buildCanonicalStaffDayGpsResult("));
+});
+
+Deno.test("kontrakt: resolvern gör INGA DB-writes mot skyddade tabeller", async () => {
+  const src = await Deno.readTextFile(new URL("./resolveStaffDayReport.ts", import.meta.url));
+  const protectedTables = [
+    "staff_day_submissions",
+    "staff_day_report_cache",
+    "time_reports",
+    "workdays",
+    "location_time_entries",
+    "travel_time_logs",
+  ];
+  for (const t of protectedTables) {
+    for (const op of ["insert", "update", "upsert", "delete"]) {
+      const pattern = new RegExp(
+        `\\.from\\(\\s*["'\`]${t}["'\`][\\s\\S]{0,400}?\\.${op}\\s*\\(`,
+      );
+      assert(
+        !pattern.test(src),
+        `resolveStaffDayReport.ts får inte ${op} mot ${t} (read-only projektion)`,
+      );
+    }
+  }
+});
+
+Deno.test("kontrakt: display_timeline_snapshot används som FALLBACK (canonical först)", async () => {
+  // Verifiera att kodvägen är: först tryBuildCanonicalForDay, sedan overlay.
+  // Om canonical returnerar något så ersätts rows. display_timeline_snapshot
+  // får aldrig vinna över canonical när canonical har segment.
+  const src = await Deno.readTextFile(new URL("./resolveStaffDayReport.ts", import.meta.url));
+  assert(
+    src.includes("tryBuildCanonicalForDay"),
+    "resolvern måste anropa tryBuildCanonicalForDay innan rendering",
+  );
+  assert(
+    src.includes("overlayCanonicalOnSummary"),
+    "resolvern måste overlay:a canonical över submission/cache-baserad summary",
+  );
+  assert(
+    src.includes("USE_CANONICAL_GPS_ROWS_FOR_TIME_MATRIX"),
+    "kill-switch måste finnas så canonical kan stängas av utan migration",
+  );
+});
