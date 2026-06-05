@@ -230,10 +230,22 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
     );
   }
 
-  const colWidth = 44;
   const labelWidth = 260;
   const rowHeight = 44;
   const barHeight = 26;
+  const MIN_COL_WIDTH = 44;
+
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const update = () => setContainerWidth(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Bygg visibleDays = endast datum med spans i aktiv fas (oavsett bokning).
   const visibleDays = useMemo(() => {
