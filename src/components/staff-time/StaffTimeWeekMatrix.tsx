@@ -36,6 +36,7 @@ export default function StaffTimeWeekMatrix() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [onlyAnomalies, setOnlyAnomalies] = useState(false);
+  const [onlyWithTime, setOnlyWithTime] = useState(true);
 
   const weekDates = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
