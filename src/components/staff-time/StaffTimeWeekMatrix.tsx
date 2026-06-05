@@ -64,10 +64,16 @@ export default function StaffTimeWeekMatrix() {
         );
         if (!hasAnomaly) continue;
       }
+      if (onlyWithTime) {
+        const hasTime = r.days.some(
+          (d) => (d.totalMinutes ?? 0) > 0 || (d.rows?.length ?? 0) > 0 || !!d.startTime,
+        );
+        if (!hasTime) continue;
+      }
       ids.add(r.staffId);
     }
     return ids;
-  }, [matrix, query, statusFilter, onlyAnomalies]);
+  }, [matrix, query, statusFilter, onlyAnomalies, onlyWithTime]);
   const filteredCount = filteredIds.size;
 
   const openCell = useMemo(() => {
