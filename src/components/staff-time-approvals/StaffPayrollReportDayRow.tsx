@@ -165,7 +165,7 @@ export default function StaffPayrollReportDayRow({
         className={`payroll-day-row ${GRID_CLASS} py-2 px-4 border-b border-border last:border-b-0 text-[11.5px] text-muted-foreground/70 items-center`}
       >
         <div className="capitalize font-medium">{dayLabel}</div>
-        <div className="col-span-4">—</div>
+        <div className="col-span-5">—</div>
         <div className="payroll-no-print flex justify-end">
           <TimeApprovalStatusBadge status="no_report" />
         </div>
