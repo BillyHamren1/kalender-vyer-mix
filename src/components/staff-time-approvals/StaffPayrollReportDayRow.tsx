@@ -230,7 +230,7 @@ export default function StaffPayrollReportDayRow({
           <Fragment key={`act-${i}`}>
             <div
               style={{ gridRow, gridColumn: 2 }}
-              className={`flex items-center gap-2 min-w-0 flex-wrap ${ROW_MIN_H}`}
+              className={`flex items-center gap-2 min-w-0 ${ROW_MIN_H}`}
             >
               {r.kind === "unknown_place" ? (
                 <UnknownPlaceLabel
@@ -243,7 +243,6 @@ export default function StaffPayrollReportDayRow({
               ) : (
                 <span className="truncate text-foreground">{kindLabel(r)}</span>
               )}
-              {r.kind === "travel" && <TravelBadge cell={cell} item={r} />}
               {r.kind === "travel" && (r.fromLabel || r.toLabel) && (
                 <span className="text-[10.5px] text-muted-foreground truncate">
                   {r.fromLabel ?? "?"} → {r.toLabel ?? "?"}
@@ -267,6 +266,12 @@ export default function StaffPayrollReportDayRow({
               className={`text-right tabular-nums font-semibold text-foreground flex items-center justify-end ${ROW_MIN_H}`}
             >
               {fmtH(hasRows ? r.minutes : cell.totalMinutes)}
+            </div>
+            <div
+              style={{ gridRow, gridColumn: 6 }}
+              className={`flex items-center min-w-0 ${ROW_MIN_H}`}
+            >
+              {r.kind === "travel" && <TravelBadge cell={cell} item={r} />}
             </div>
           </Fragment>
         );
