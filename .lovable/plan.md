@@ -1,62 +1,55 @@
-# Snygga till veckorapport-dagraderna
+## Vad jag hittat i datan
 
-Mål: varje dag i `StaffPayrollReportSheet` ska visa raka, linjerade rader där Aktivitet, Start, Slut och Tim hör ihop på exakt samma höjd, plus tydlig separation mellan dagar. Inga datakällor eller business-regler ändras — bara presentation av `StaffPayrollReportDayRow`.
+| Kontroll | Resultat |
+|---|---|
+| `staff_members` (Raivis Minalto) | Finns, org `Frans August AB` |
+| `staff_accounts` (lösenord-hash) | Finns, skapad 2026-04-15 ✅ |
+| `auth.users` rad | Saknas — men det krävs inte; mobil-login går via `staff_accounts` |
+| `active_mobile_session_id` | NULL → han har aldrig slutfört en login |
+| Edge-loggar `mobile-app-auth` | **0 anrop senaste timmen** |
+| Edge-loggar `mobile-app-api` | Många 200 OK (men från en annan staff, inte Raivis) |
 
-## Vad som är trasigt idag
+Han svarar att felet är "Login failed" på senaste TestFlight-build, med standardlösen Frasse123.
 
-I `StaffPayrollReportDayRow.tsx` renderas dagar med:
+**Slutsats:** Hans login-request når aldrig backend. Om e-post/lösen var fel skulle vi sett 401-poster i `mobile-app-auth`-loggen. Det gör vi inte. Något bryter mellan iOS-appen och Supabase.
 
-```text
-[Datum] [Aktivitet (stack)] [Start (stack)] [Slut (stack)] [Tim (stack)] [Status]
-```
+## Mest sannolika orsaker (i prioritetsordning)
 
-Varje kolumns interna stack räknas oberoende. När en aktivitetsrad får ett "Belastar:"-chip eller "→ from → to"-text blir den ~28px hög, medan motsvarande Start/Slut/Tim-rad är ~16px. Resultatet: tiderna glider ur led mot aktiviteten (syns tydligt för Ons 3 juni och Tors 4 juni i screenshot).
+1. **TestFlight-builden har inte rätt Supabase-URL/anon-key** — om `VITE_SUPABASE_URL` saknades vid native-build går fetch mot en tom/fel host → "Failed to fetch" → frontend visar "Login failed".
+2. **Nätverk på hans iPhone** — captive portal, företags-VPN eller IPv6-only carrier som blockar Supabase.
+3. **iOS ATS / cleartext** — om den aktiva `capacitor.time.config.ts` har `server.url` satt till en `http://`- eller preview-domän som inte längre svarar, blockar iOS requesten.
+4. **E-post stavfel i input-fältet** (autocorrect lägger till mellanslag / stor bokstav). Vi `ilike`-matchar men ledande blanksteg fångas inte alltid.
 
-Dessutom skiljs dagar bara av en tunn `border-b border-border/40` mellan rader — när en dag har 10 aktivitetsrader smälter de ihop med nästa dag.
+## Plan — verifiera utan att gissa
 
-## Lösning
+### Steg 1: Bekräfta att requesten verkligen inte kommer fram
+Be Raivis försöka logga in **medan vi tittar live**, sedan kör jag en analytics-query mot `function_edge_logs` filtrerad på `mobile-app-auth` för senaste 5 min. Tre utfall:
 
-Strukturera om dagraden så att varje aktivitetsrad är en egen **sub-grid-row** som spänner Aktivitet+Start+Slut+Tim. Då tvingas alla fyra cellerna till samma höjd per aktivitet.
+- **Inget anrop syns** → klientproblem (build-URL eller nät). Gå till steg 2.
+- **401 syns** → fel lösen/e-post. Gå till steg 3.
+- **500 syns** → serverbugg. Jag tittar på felet och fixar.
 
-### Konkreta ändringar i `StaffPayrollReportDayRow.tsx`
+### Steg 2: Klientproblem
+Be honom:
+- Öppna TestFlight-appen → kontrollera version + build-nummer (skickar mig en skärmdump).
+- Testa logga in på **WiFi** vs **mobilnät** — om bara ena funkar är det nätverket.
+- Försöka logga in med en *annan* användare på samma telefon — om det också faller är det 100 % build/nätverk, inte hans konto.
 
-1. Behåll yttre 6-kolumnsgrid endast för headern. Inuti varje dag, rendera istället en inre grid:
-   ```text
-   grid-cols-[minmax(0,1fr)_60px_60px_64px]
-   ```
-   och en rad per aktivitet. Datum-cellen ligger i den yttre layouten och spänner alla inre rader (`row-span`/sticky-top inom dagblocket).
+Om alla användare faller på den TestFlight-builden behöver vi göra en ny iOS-build där `VITE_SUPABASE_URL` och `VITE_SUPABASE_PUBLISHABLE_KEY` garanterat är inbakade.
 
-2. Lyfta datum + status ur den yttre 6-kolumns-flat-griden och bygga dagen som ett "dagblock" med tre regioner:
-   - vänster: `Datum` (sticky-top inom blocket, font-semibold)
-   - mitten: inre grid med aktivitetsrader (Aktivitet | Start | Slut | Tim) — varje rad `items-center` så chip och tid centreras mot varandra
-   - höger: status/actions (sticky-top inom blocket)
+### Steg 3: Lösenordsproblem
+Återställ hans `staff_accounts.password_hash` till hash av "Frasse123" via en liten migration (en rad UPDATE — jag visar SQL först och inväntar OK eftersom det rör en användares credentials).
 
-3. Per aktivitetsrad: lägg `min-h-[28px] items-center` så att rader utan chip får samma höjd som rader med chip → raka horisontella linjer.
+### Steg 4 (om steg 1–3 inte räcker): tillfällig diagnostik-logg
+Lägga till en `console.log('[mobile-app-auth] identifier=', normalizedIdentifier, 'matchedEmailStaff=', matchedEmailStaff)` i `supabase/functions/mobile-app-auth/index.ts` så vi ser exakt vilken identifier hans app skickar nästa gång han försöker. Tas bort efteråt.
 
-4. Totalsumman för dagen (när det finns flera aktivitetsrader) flyttas till en egen separator-rad längst ner i dagblocket: tunn `border-t`, högerställd `Σ 12:05` i Tim-kolumnen.
+## Vad jag INTE gör utan grönt ljus
 
-5. Dag-separation: byt den per-rad `border-b border-border/40` mot:
-   - **inga** borders mellan aktivitetsrader inom samma dag
-   - tydlig `border-b border-border` + lite `pb-2 mb-0` mellan dagblock
-   - svag zebra-bg (`even:bg-muted/20`) på dagblock-nivå, inte på radnivå
+- Skapar inte en `auth.users`-rad åt honom (mobil-login behöver det inte).
+- Rör inte några GPS-/time-tabeller.
+- Skriver inte över hans lösenord-hash förrän steg 1 sagt att det är ett 401-problem.
 
-6. Justera headern (rad 168 i `StaffPayrollReportSheet.tsx`) till samma yttre layout: `grid-cols-[112px_minmax(0,1fr)_60px_60px_64px_minmax(176px,220px)]` förblir, men dag-blocket inuti bygger sin egen inre 4-kolumns sub-grid där bredderna matchar 60/60/64 exakt så headern fortfarande linjerar mot dagarnas tid-kolumner.
+## Vad jag behöver från dig nu
 
-7. Travel-badge ("Belastar: …") flyttas till slutet av aktivitetsraden med `ml-auto`-fallback bortkopplad — den ska ligga **efter** label men inte tvinga tid-cellerna att växa, eftersom hela raden nu är en grid-row med fast minhöjd.
-
-### Filer som rörs
-
-- `src/components/staff-time-approvals/StaffPayrollReportDayRow.tsx` — full omstrukturering av render-trädet (samma props, samma data).
-- `src/components/staff-time-approvals/StaffPayrollReportSheet.tsx` — minimal: säkerställ att header-grid och dagblock-grid har samma yttre kolumnbredder, och ta bort `overflow-hidden` om det klipper sub-griden.
-
-### Vad som INTE ändras
-
-- `useStaffTimeWeekMatrix`, `ReportProjectDayPanel` (högerpanelen), attest-knappar, datastruktur, status-vokabulär, badges/chip-utseende, print-CSS.
-
-## Verifiering
-
-1. Öppna `/staff-management/time?tab=lon`, vecka 23 · 2026 (samma som screenshot).
-2. Kontrollera att för Ons 3 juni ligger "08:53 / 14:25 / 5:32" exakt mittemot raden "Belastar: Westers Catering …" och att alla tider linjerar vertikalt rakt nedåt utan glapp.
-3. Kontrollera att dag-skiftet Ons→Tors har en tydligare avskiljare än aktivitetsraderna inom dagen.
-4. Kontrollera tom dag (Mån 1 juni) fortfarande visar "—" och "Ingen rapport".
-5. Kör `bunx vitest run src/components/staff-time-approvals` för att fånga ev. snapshot-regressioner.
+1. Be Raivis trycka "Logga in" **just nu**, och säg till mig när han gjort det — jag kollar loggen direkt.
+2. Skicka gärna skärmdump på exakta felmeddelandet + TestFlight-versionen.
