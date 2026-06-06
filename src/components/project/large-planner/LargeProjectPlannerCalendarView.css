@@ -63,3 +63,29 @@
 .large-planner-calendar-shell .day-card .resource-column {
   border-color: hsl(var(--border) / 0.45) !important;
 }
+
+/* Visa HELA projektperioden samtidigt i kalendervyn.
+   Personalkalenderns 520px min-width per dagkort gör att bara 2-3 dagar
+   ryms i ett 1600px-fönster — resten gömdes i horisontell scroll.
+   I projektplaneraren vill vi se alla projektdagar samtidigt (komprimerat),
+   så vi krymper varje dagkort och låter teamkolumnerna packas tätare. */
+.large-planner-calendar-shell .project-weekly-day-card {
+  min-width: 160px !important;
+  max-width: none !important;
+  flex: 1 1 0 !important;
+}
+
+/* Krymp interna kolumnbredder (TimeGrid resource columns) så 4-6 team
+   ryms inom ett kompakt dagkort utan intern scroll. */
+.large-planner-calendar-shell .project-weekly-day-card .resource-column,
+.large-planner-calendar-shell .project-weekly-day-card .time-grid-resource {
+  min-width: 0 !important;
+}
+
+/* Centrerar Team-rubriken så de inte spiller över när kolumnen är smal */
+.large-planner-calendar-shell .project-weekly-day-card .team-header-label {
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
