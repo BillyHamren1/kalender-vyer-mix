@@ -80,7 +80,7 @@ interface GanttSpan {
 
 const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
   const { id: largeProjectId } = useParams<{ id: string }>();
-  const { isLoading, error, bookings, days, itemsWithAssignmentValidity } = ctx;
+  const { isLoading, error, bookings, days, itemsWithAssignmentValidity, deleteItem } = ctx;
   const [activeTab, setActiveTab] = useState<TabKey>('rig');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [showAllTodos, setShowAllTodos] = useState(false);
