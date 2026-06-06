@@ -20,7 +20,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { parseISO, format } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { CalendarOff, Loader2 } from 'lucide-react';
+import { CalendarOff, Loader2, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import type { useLargeProjectPlannerItems, PlannerItemWithValidity } from './useLargeProjectPlannerItems';
 import InlinePhaseDateEditor from './InlinePhaseDateEditor';
 import InlineTodoDateEditor from './InlineTodoDateEditor';
@@ -78,7 +80,7 @@ interface GanttSpan {
 
 const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
   const { id: largeProjectId } = useParams<{ id: string }>();
-  const { isLoading, error, bookings, days, itemsWithAssignmentValidity } = ctx;
+  const { isLoading, error, bookings, days, itemsWithAssignmentValidity, deleteItem } = ctx;
   const [activeTab, setActiveTab] = useState<TabKey>('rig');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [showAllTodos, setShowAllTodos] = useState(false);
@@ -536,13 +538,31 @@ const LargeProjectPlannerGanttView = ({ ctx }: Props) => {
                           className="flex items-stretch border-t border-border/30"
                         >
                           <div
-                            className="sticky left-0 z-[1] flex shrink-0 items-center gap-2 border-r border-border/40 bg-background/80 px-2 py-1 text-[11px] text-muted-foreground"
+                            className="sticky left-0 z-[1] flex shrink-0 items-center gap-2 border-r border-border/40 bg-background/80 px-2 py-1 text-[11px] text-muted-foreground group"
                             style={{ width: labelWidth, paddingLeft: 28 }}
                             title={t.title}
                           >
-                            <span className="truncate">
+                            <span className="truncate flex-1">
                               {done ? '✓ ' : '• '}{t.title}
                             </span>
+                            <button
+                              type="button"
+                              onClick={async (ev) => {
+                                ev.stopPropagation();
+                                ev.preventDefault();
+                                if (!window.confirm(`Ta bort uppgiften "${t.title}"?`)) return;
+                                try {
+                                  await deleteItem(t.id);
+                                  toast.success('Uppgift borttagen');
+                                } catch (e: any) {
+                                  toast.error(e?.message || 'Kunde inte ta bort uppgiften');
+                                }
+                              }}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-destructive/20 shrink-0"
+                              title="Ta bort uppgift"
+                            >
+                              <Trash2 className="h-3 w-3 text-destructive" />
+                            </button>
                           </div>
                           <div className="relative flex" style={{ minHeight: todoRowHeight }}>
                             {visibleDays.map((d) => (
