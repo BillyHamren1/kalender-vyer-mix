@@ -35,6 +35,8 @@ interface UnifiedProject {
   bookingId?: string | null;
   projectNumber?: string | null;
   isInternal?: boolean;
+  /** Extra fält som ska matchas av fritextsök (bokningsnummer, sub-bokningars klient/display_name för stora projekt). */
+  searchExtra?: string;
 }
 
 interface UnifiedProjectListProps {
