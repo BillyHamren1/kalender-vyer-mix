@@ -35,6 +35,8 @@ interface UnifiedProject {
   bookingId?: string | null;
   projectNumber?: string | null;
   isInternal?: boolean;
+  /** Extra fält som ska matchas av fritextsök (bokningsnummer, sub-bokningars klient/display_name för stora projekt). */
+  searchExtra?: string;
 }
 
 interface UnifiedProjectListProps {
@@ -120,6 +122,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       navigateTo: `/jobs/${j.id}`,
       bookingCancelled: j.booking?.status === 'CANCELLED',
       bookingId: j.bookingId,
+      searchExtra: [j.booking?.bookingNumber, j.bookingId].filter(Boolean).join(' '),
     }));
 
     projects.forEach(p => {
@@ -143,6 +146,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
         bookingId: p.booking_id,
         projectNumber: bookingNum || null,
         isInternal,
+        searchExtra: [bookingNum, p.booking_id].filter(Boolean).join(' '),
       });
     });
 
@@ -150,6 +154,17 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
       const cancelledBookingCount = (lp.bookings || []).filter(
         (linkedBooking) => linkedBooking.booking?.status === 'CANCELLED'
       ).length;
+
+      // Bygg sökbart haystack från alla sub-bokningar så att sök på bokningsnummer/klient
+      // hittar det stora projektet trots att lp.name bara är projektets eget namn.
+      const subTokens: string[] = [];
+      (lp.bookings || []).forEach((b: any) => {
+        if (b.display_name) subTokens.push(b.display_name);
+        if (b.booking_id) subTokens.push(b.booking_id);
+        const nested = b.booking || b.bookings;
+        if (nested?.booking_number) subTokens.push(String(nested.booking_number));
+        if (nested?.client) subTokens.push(String(nested.client));
+      });
 
       items.push({
         id: lp.id,
@@ -165,6 +180,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
         cancelledBookingCount,
         bookingId: null,
         projectNumber: (lp as any).project_number || null,
+        searchExtra: [(lp as any).project_number, lp.location, ...subTokens].filter(Boolean).join(' '),
       });
     });
 
@@ -182,7 +198,8 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
         if (typeFilter !== 'all' && p.type !== typeFilter) return false;
         if (search) {
           const q = search.toLowerCase();
-          if (!p.name.toLowerCase().includes(q) && !(p.subtitle?.toLowerCase().includes(q))) return false;
+          const haystack = `${p.name} ${p.subtitle ?? ''} ${p.searchExtra ?? ''}`.toLowerCase();
+          if (!haystack.includes(q)) return false;
         }
         if (statusFilter === 'all') return true;
         if (statusFilter === 'all_active') return p.status !== 'completed' && p.status !== 'cancelled';
