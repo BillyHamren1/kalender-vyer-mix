@@ -1,55 +1,61 @@
-## Vad jag hittat i datan
+# Plan för att hitta varför Raivis får "Login failed"
 
-| Kontroll | Resultat |
-|---|---|
-| `staff_members` (Raivis Minalto) | Finns, org `Frans August AB` |
-| `staff_accounts` (lösenord-hash) | Finns, skapad 2026-04-15 ✅ |
-| `auth.users` rad | Saknas — men det krävs inte; mobil-login går via `staff_accounts` |
-| `active_mobile_session_id` | NULL → han har aldrig slutfört en login |
-| Edge-loggar `mobile-app-auth` | **0 anrop senaste timmen** |
-| Edge-loggar `mobile-app-api` | Många 200 OK (men från en annan staff, inte Raivis) |
+## Vad jag redan har verifierat
+- **Raivis finns** i `staff_members`.
+- Han har även en **`staff_accounts`-rad**.
+- Hans användarnamn/e-post är `raivisminalto457@gmail.com`.
+- Hans lösenordshash matchar exakt standardlösenordet **Frasse123**.
+- Han har dessutom ett **aktivt `active_mobile_session_id`**, vilket betyder att kontot åtminstone har lyckats logga in tidigare.
+- För **Billy** ser vi färska `mobile-app-auth`-loggar med lyckad login.
+- För **Raivis** ser vi **inga färska POST-loggar** i `mobile-app-auth` när felet rapporteras.
+- I edge-analytics syns i princip bara **OPTIONS/preflight**, inte själva login-anropet för Raivis.
 
-Han svarar att felet är "Login failed" på senaste TestFlight-build, med standardlösen Frasse123.
+## Trolig felbild
+Det starkaste spåret just nu är att **Raivis telefon/app inte når själva POST-loginet**, eller att frontend **maskerar det riktiga felet** och alltid visar den generiska texten "Login failed".
 
-**Slutsats:** Hans login-request når aldrig backend. Om e-post/lösen var fel skulle vi sett 401-poster i `mobile-app-auth`-loggen. Det gör vi inte. Något bryter mellan iOS-appen och Supabase.
+Det betyder att problemet sannolikt ligger i någon av dessa:
+1. **Nätverk / native fetch / CORS / timeout** på just hans enhet eller build.
+2. **Frontendens felhantering** i loginrutan visar fel text och döljer det riktiga orsaksmeddelandet.
+3. Mindre sannolikt: en edge-funktion svarar med ett fel som inte loggas tydligt nog.
 
-## Mest sannolika orsaker (i prioritetsordning)
+## Det jag föreslår att jag bygger
+### 1) Förbättrad felvisning i mobil-login
+Jag ändrar login-sidan så att den **visar det verkliga felmeddelandet** när vi får ett nätverksfel, timeout eller serversvar, istället för att nästan alltid översätta allt till "Login failed".
 
-1. **TestFlight-builden har inte rätt Supabase-URL/anon-key** — om `VITE_SUPABASE_URL` saknades vid native-build går fetch mot en tom/fel host → "Failed to fetch" → frontend visar "Login failed".
-2. **Nätverk på hans iPhone** — captive portal, företags-VPN eller IPv6-only carrier som blockar Supabase.
-3. **iOS ATS / cleartext** — om den aktiva `capacitor.time.config.ts` har `server.url` satt till en `http://`- eller preview-domän som inte längre svarar, blockar iOS requesten.
-4. **E-post stavfel i input-fältet** (autocorrect lägger till mellanslag / stor bokstav). Vi `ilike`-matchar men ledande blanksteg fångas inte alltid.
+Exempel:
+- fel användarnamn/lösen → "Fel e-post eller lösenord"
+- timeout → tydligt timeout-meddelande
+- nätverksfel → "Kunde inte nå servern..."
+- backend-svar 403/500 → visa backendens riktiga text
 
-## Plan — verifiera utan att gissa
+### 2) Tydligare diagnostik i loginflödet
+Jag lägger till **smal, riktad loggning** i frontend/loginflödet så vi kan skilja mellan:
+- request startad
+- preflight OK men POST saknas
+- POST svarar med statuskod
+- fetch dör innan svar
+- timeout på 30s
 
-### Steg 1: Bekräfta att requesten verkligen inte kommer fram
-Be Raivis försöka logga in **medan vi tittar live**, sedan kör jag en analytics-query mot `function_edge_logs` filtrerad på `mobile-app-auth` för senaste 5 min. Tre utfall:
+### 3) Verifiering i preview + tester
+Efter ändringen testar jag loginflödet direkt och kör relevanta tester så att vi vet att:
+- Billy fortsatt fungerar
+- fel credentials fortfarande ger rätt text
+- nätverks-/timeoutfel inte längre döljs bakom "Login failed"
 
-- **Inget anrop syns** → klientproblem (build-URL eller nät). Gå till steg 2.
-- **401 syns** → fel lösen/e-post. Gå till steg 3.
-- **500 syns** → serverbugg. Jag tittar på felet och fixar.
+## Förväntat resultat
+Efter denna ändring kommer vi kunna säga exakt vilket av dessa som gäller för Raivis:
+- **fel konto/lösen**
+- **nätverksproblem på enheten**
+- **native/TestFlight-build-problem**
+- **timeout/cold-start-problem**
+- **backendfel**
 
-### Steg 2: Klientproblem
-Be honom:
-- Öppna TestFlight-appen → kontrollera version + build-nummer (skickar mig en skärmdump).
-- Testa logga in på **WiFi** vs **mobilnät** — om bara ena funkar är det nätverket.
-- Försöka logga in med en *annan* användare på samma telefon — om det också faller är det 100 % build/nätverk, inte hans konto.
+## Teknisk not
+Det finns redan en konkret brist i koden:
+- `src/pages/mobile/MobileLogin.tsx` fångar fel och visar bara riktig text för exakt strängen **`Invalid email or password`**.
+- Alla andra fel — även tydliga nätverks- och timeoutfel — blir bara **`login.failed`**.
 
-Om alla användare faller på den TestFlight-builden behöver vi göra en ny iOS-build där `VITE_SUPABASE_URL` och `VITE_SUPABASE_PUBLISHABLE_KEY` garanterat är inbakade.
+Det är därför fullt möjligt att Raivis faktiskt får ett mycket mer specifikt fel bakom kulisserna, men UI:t gömmer det.
 
-### Steg 3: Lösenordsproblem
-Återställ hans `staff_accounts.password_hash` till hash av "Frasse123" via en liten migration (en rad UPDATE — jag visar SQL först och inväntar OK eftersom det rör en användares credentials).
-
-### Steg 4 (om steg 1–3 inte räcker): tillfällig diagnostik-logg
-Lägga till en `console.log('[mobile-app-auth] identifier=', normalizedIdentifier, 'matchedEmailStaff=', matchedEmailStaff)` i `supabase/functions/mobile-app-auth/index.ts` så vi ser exakt vilken identifier hans app skickar nästa gång han försöker. Tas bort efteråt.
-
-## Vad jag INTE gör utan grönt ljus
-
-- Skapar inte en `auth.users`-rad åt honom (mobil-login behöver det inte).
-- Rör inte några GPS-/time-tabeller.
-- Skriver inte över hans lösenord-hash förrän steg 1 sagt att det är ett 401-problem.
-
-## Vad jag behöver från dig nu
-
-1. Be Raivis trycka "Logga in" **just nu**, och säg till mig när han gjort det — jag kollar loggen direkt.
-2. Skicka gärna skärmdump på exakta felmeddelandet + TestFlight-versionen.
+## När planen är genomförd
+Om loggen efter detta fortfarande visar att **Raivis aldrig når POST-login**, då vet vi att felet ligger **utanför kontot** och sannolikt i hans TestFlight-build eller nätverksmiljö — inte i databasen.

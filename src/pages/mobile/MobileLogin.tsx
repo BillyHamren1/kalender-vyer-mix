@@ -31,19 +31,44 @@ const MobileLogin = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
+
     if (!email.trim() || !password.trim()) {
       setError(t('login.fillFields'));
       return;
     }
 
+    const isNative = typeof (window as any)?.Capacitor !== 'undefined';
+    console.log('[MobileLogin] submit', {
+      emailPrefix: email.trim().substring(0, 3) + '***',
+      isNative,
+      ua: navigator.userAgent?.substring(0, 80),
+    });
+
     setIsLoading(true);
     try {
       await login(email.trim(), password);
+      console.log('[MobileLogin] login ok');
     } catch (err: any) {
-      setError(err.message === 'Invalid email or password' 
-        ? t('login.wrongCredentials')
-        : t('login.failed'));
+      const raw = (err?.message || '').toString();
+      console.error('[MobileLogin] login error:', err?.name, raw, err?.code);
+
+      // Visa det RIKTIGA felet istället för bara "Login failed".
+      // Då kan vi i loggarna se exakt varför Raivis/Edvins inte kommer in.
+      let display: string;
+      if (/Invalid (email|username) or password/i.test(raw)) {
+        display = t('login.wrongCredentials');
+      } else if (/Kontot saknar inloggning/i.test(raw)) {
+        display = raw; // backend-svenska redan
+      } else if (/för lång tid|timeout/i.test(raw)) {
+        display = 'Anslutningen tog för lång tid. Försök igen.';
+      } else if (/Kunde inte nå servern|Failed to fetch|NetworkError|Load failed/i.test(raw)) {
+        display = 'Kunde inte nå servern. Kontrollera nätverket och försök igen.';
+      } else if (raw) {
+        display = raw;
+      } else {
+        display = t('login.failed');
+      }
+      setError(display);
     } finally {
       setIsLoading(false);
     }
