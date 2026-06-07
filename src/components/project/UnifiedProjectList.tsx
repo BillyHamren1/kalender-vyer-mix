@@ -198,7 +198,8 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
         if (typeFilter !== 'all' && p.type !== typeFilter) return false;
         if (search) {
           const q = search.toLowerCase();
-          if (!p.name.toLowerCase().includes(q) && !(p.subtitle?.toLowerCase().includes(q))) return false;
+          const haystack = `${p.name} ${p.subtitle ?? ''} ${p.searchExtra ?? ''}`.toLowerCase();
+          if (!haystack.includes(q)) return false;
         }
         if (statusFilter === 'all') return true;
         if (statusFilter === 'all_active') return p.status !== 'completed' && p.status !== 'cancelled';
