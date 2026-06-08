@@ -12,7 +12,7 @@ import { BookingPlacementDialog } from './BookingPlacementDialog';
 import ProjectUpdateDialog from './ProjectUpdateDialog';
 import { useUnplannedProjects } from '@/hooks/useUnplannedProjects';
 import { useUnseenBookingUpdates, useMarkBookingChangesSeen } from '@/hooks/useUnseenBookingUpdates';
-import { getBookingUpdatesBaseline } from '@/lib/bookingUpdatesBaseline';
+
 
 
 
