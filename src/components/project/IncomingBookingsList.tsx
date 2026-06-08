@@ -12,7 +12,7 @@ import { BookingPlacementDialog } from './BookingPlacementDialog';
 import ProjectUpdateDialog from './ProjectUpdateDialog';
 import { useUnplannedProjects } from '@/hooks/useUnplannedProjects';
 import { useUnseenBookingUpdates, useMarkBookingChangesSeen } from '@/hooks/useUnseenBookingUpdates';
-import { getBookingUpdatesBaseline } from '@/lib/bookingUpdatesBaseline';
+
 
 
 
@@ -151,17 +151,12 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
     }
   });
 
-  // Per-användare baseline: vi börjar räkna från och med första gången koden
-  // körs i denna browser. Allt som ändrades innan dess är osynligt för all
-  // framtid — ingen UI-knapp, ingen "markera alla", bara en ren cutoff.
-  // Klick på "Granska" hanteras separat (last_seen_at per booking).
-  const baselineMs = getBookingUpdatesBaseline();
-  const visibleUpdates = unseenUpdates.filter((u) => {
-    if (!u.last_change_at) return false;
-    const t = new Date(u.last_change_at).getTime();
-    if (isNaN(t)) return false;
-    return t > baselineMs;
-  });
+  // Tidigare hade vi en lokal "first-visit baseline" här som dolde alla
+  // ändringar äldre än första gången användaren öppnade sidan. Det gjorde
+  // att stora projekt (med mest historik) tappade bort osedda uppdateringar
+  // helt. Vi litar nu enbart på `booking_change_views.last_seen_at` som
+  // `get_unseen_booking_updates()` redan filtrerar på server-side.
+  const visibleUpdates = unseenUpdates;
 
 
   const totalNew = bookings.length + unplannedProjects.length;
