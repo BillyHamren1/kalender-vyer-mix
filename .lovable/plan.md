@@ -1,61 +1,25 @@
-# Plan för att hitta varför Raivis får "Login failed"
+# Plan: visa bara externa Booking-uppdateringar i granskningslistan
 
-## Vad jag redan har verifierat
-- **Raivis finns** i `staff_members`.
-- Han har även en **`staff_accounts`-rad**.
-- Hans användarnamn/e-post är `raivisminalto457@gmail.com`.
-- Hans lösenordshash matchar exakt standardlösenordet **Frasse123**.
-- Han har dessutom ett **aktivt `active_mobile_session_id`**, vilket betyder att kontot åtminstone har lyckats logga in tidigare.
-- För **Billy** ser vi färska `mobile-app-auth`-loggar med lyckad login.
-- För **Raivis** ser vi **inga färska POST-loggar** i `mobile-app-auth` när felet rapporteras.
-- I edge-analytics syns i princip bara **OPTIONS/preflight**, inte själva login-anropet för Raivis.
+## Mål
+Granskningslistan på `/projects` ska bara visa uppdateringar som faktiskt kommer från Booking-flödet, inte interna ändringar gjorda i Planning.
 
-## Trolig felbild
-Det starkaste spåret just nu är att **Raivis telefon/app inte når själva POST-loginet**, eller att frontend **maskerar det riktiga felet** och alltid visar den generiska texten "Login failed".
+## Vad jag ändrar
+1. Uppdatera SQL-funktionen `get_unseen_booking_updates()` så att den bara räknar `booking_changes` där `changed_by` är en extern källa:
+   - `service_role`
+   - `booking-import`
+   - `booking-webhook`
+2. Låta samma externa-källa-filter gälla både:
+   - senaste ändringstid (`last_change_at`)
+   - antal väntande ändringar (`change_count`)
+3. Lägga till ett kontraktstest som låser att `get_unseen_booking_updates()` fortsätter filtrera på extern källa, så att detta inte regressar igen.
+4. Verifiera i test att interna `authenticated`-ändringar inte längre kvalar in i granskningslistan.
 
-Det betyder att problemet sannolikt ligger i någon av dessa:
-1. **Nätverk / native fetch / CORS / timeout** på just hans enhet eller build.
-2. **Frontendens felhantering** i loginrutan visar fel text och döljer det riktiga orsaksmeddelandet.
-3. Mindre sannolikt: en edge-funktion svarar med ett fel som inte loggas tydligt nog.
+## Förväntad effekt
+- Listan “Uppdaterade · kräver granskning” visar bara förändringar från Booking/import/webhook.
+- Ändringar som görs lokalt i Planning fortsätter kunna loggas i `booking_changes`, men de dyker inte upp som något att granska.
+- Antalet uppdateringar på `/projects` ska falla tillbaka till det som faktiskt behöver granskas.
 
-## Det jag föreslår att jag bygger
-### 1) Förbättrad felvisning i mobil-login
-Jag ändrar login-sidan så att den **visar det verkliga felmeddelandet** när vi får ett nätverksfel, timeout eller serversvar, istället för att nästan alltid översätta allt till "Login failed".
-
-Exempel:
-- fel användarnamn/lösen → "Fel e-post eller lösenord"
-- timeout → tydligt timeout-meddelande
-- nätverksfel → "Kunde inte nå servern..."
-- backend-svar 403/500 → visa backendens riktiga text
-
-### 2) Tydligare diagnostik i loginflödet
-Jag lägger till **smal, riktad loggning** i frontend/loginflödet så vi kan skilja mellan:
-- request startad
-- preflight OK men POST saknas
-- POST svarar med statuskod
-- fetch dör innan svar
-- timeout på 30s
-
-### 3) Verifiering i preview + tester
-Efter ändringen testar jag loginflödet direkt och kör relevanta tester så att vi vet att:
-- Billy fortsatt fungerar
-- fel credentials fortfarande ger rätt text
-- nätverks-/timeoutfel inte längre döljs bakom "Login failed"
-
-## Förväntat resultat
-Efter denna ändring kommer vi kunna säga exakt vilket av dessa som gäller för Raivis:
-- **fel konto/lösen**
-- **nätverksproblem på enheten**
-- **native/TestFlight-build-problem**
-- **timeout/cold-start-problem**
-- **backendfel**
-
-## Teknisk not
-Det finns redan en konkret brist i koden:
-- `src/pages/mobile/MobileLogin.tsx` fångar fel och visar bara riktig text för exakt strängen **`Invalid email or password`**.
-- Alla andra fel — även tydliga nätverks- och timeoutfel — blir bara **`login.failed`**.
-
-Det är därför fullt möjligt att Raivis faktiskt får ett mycket mer specifikt fel bakom kulisserna, men UI:t gömmer det.
-
-## När planen är genomförd
-Om loggen efter detta fortfarande visar att **Raivis aldrig når POST-login**, då vet vi att felet ligger **utanför kontot** och sannolikt i hans TestFlight-build eller nätverksmiljö — inte i databasen.
+## Tekniska detaljer
+- Problemkällan sitter i databasen, inte främst i React-komponenten.
+- `track_booking_changes()` har redan logik för att skilja extern källa från intern, men `get_unseen_booking_updates()` använder idag alla `update/status_change` utan att filtrera på `changed_by`.
+- Lösningen blir därför en liten migration som skärper urvalet i RPC:n, plus ett Vitest-kontrakt som läser senaste migrationen och verifierar SQL-regeln.
