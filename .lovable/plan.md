@@ -1,25 +1,60 @@
-# Plan: visa bara externa Booking-uppdateringar i granskningslistan
+# Plan
 
-## Mål
-Granskningslistan på `/projects` ska bara visa uppdateringar som faktiskt kommer från Booking-flödet, inte interna ändringar gjorda i Planning.
+## Vad jag har konstaterat hittills
+- Previewn du pekar på visar ett stort, suddigt täckande lager ovanpå satellitbilden.
+- Webbkoden har i nuläget nästan ingen riktig terrängrendering i den vy jag hittade; flera ställen visar bara lagrade preview-/mesh-filer eller rena placeholders.
+- `/m/tools/measure` gav 404 i previewn, så den direkta live-verifieringen av mätvyn i webben är just nu bruten.
+- `BookingDrawingTab` är uttryckligen en placeholder och renderar inte någon riktig 3D-scen alls.
+- Det gör att felet mycket väl kan ligga i en av dessa tre nivåer:
+  1. felaktig genererad preview-bild,
+  2. felaktig mesh/heightmap som används som täcklager,
+  3. fel renderordning/material i den riktiga native- eller framtida canvasscenen.
 
-## Vad jag ändrar
-1. Uppdatera SQL-funktionen `get_unseen_booking_updates()` så att den bara räknar `booking_changes` där `changed_by` är en extern källa:
-   - `service_role`
-   - `booking-import`
-   - `booking-webhook`
-2. Låta samma externa-källa-filter gälla både:
-   - senaste ändringstid (`last_change_at`)
-   - antal väntande ändringar (`change_count`)
-3. Lägga till ett kontraktstest som låser att `get_unseen_booking_updates()` fortsätter filtrera på extern källa, så att detta inte regressar igen.
-4. Verifiera i test att interna `authenticated`-ändringar inte längre kvalar in i granskningslistan.
+## Det jag kommer göra
+1. **Identifiera den verkliga kanoniska terrängvyn**
+   - Fastställa exakt vilken route/komponent som användarna faktiskt använder när de ser den suddiga terrängmassan.
+   - Koppla den till rätt datakälla: `preview_image`, `heightmap`, `mesh`, `point_cloud` eller native SceneKit/AR-output.
 
-## Förväntad effekt
-- Listan “Uppdaterade · kräver granskning” visar bara förändringar från Booking/import/webhook.
-- Ändringar som görs lokalt i Planning fortsätter kunna loggas i `booking_changes`, men de dyker inte upp som något att granska.
-- Antalet uppdateringar på `/projects` ska falla tillbaka till det som faktiskt behöver granskas.
+2. **Spåra vilket lager som döljer terrängförändringarna**
+   - Gå igenom hela renderkedjan från `site_scans` / `booking_site_surfaces` till visning.
+   - Kontrollera om ett extra fill-/mesh-/masklager läggs ovanpå hela ytan.
+   - Kontrollera om fel assettyp används som primär visning, t.ex. en grov/suddig preview istället för riktig terrängdata.
+
+3. **Separera dataproblem från renderproblem**
+   - Verifiera om terrängförändringarna faktiskt finns korrekt i lagrade assets men döljs i UI.
+   - Om previewbilden redan är fel: fixa visningslogiken så att den inte använder den som “sanning”.
+   - Om meshen är fel: spåra var den skapas/länkas och säkra att rätt fil väljs.
+
+4. **Fixa den faktiska orsaken**
+   - Om problemet är overlay/material/renderordning: justera scenen så att täcklagret inte kan ligga över allt.
+   - Om problemet är fel previewkälla: byt prioritering så att skarpa terrängdata visas först.
+   - Om problemet är att webben saknar riktig terrängvisning: ersätta placeholdern med en riktig diagnostisk viewer så att terränglager kan granskas utan att ett dolt previewlager maskerar allt.
+
+5. **Lägga in hårda skydd mot regression**
+   - Skapa test/kontraktstest för asset-prioritering och val av terrängkälla.
+   - Lägga in tydlig fallback/debug-info i UI så det går att se vilken asset som faktiskt renderas.
+   - Testa direkt i preview efter ändring och köra testsviten efter större fixen.
+
+## Förväntat resultat
+- Den suddiga massan försvinner eller flyttas bort från primärvyn.
+- De verkliga terrängförändringarna blir synliga igen.
+- Det blir tydligt i UI vilken terrängkälla som visas, så samma fel inte kan gömma sig igen.
 
 ## Tekniska detaljer
-- Problemkällan sitter i databasen, inte främst i React-komponenten.
-- `track_booking_changes()` har redan logik för att skilja extern källa från intern, men `get_unseen_booking_updates()` använder idag alla `update/status_change` utan att filtrera på `changed_by`.
-- Lösningen blir därför en liten migration som skärper urvalet i RPC:n, plus ett Vitest-kontrakt som läser senaste migrationen och verifierar SQL-regeln.
+- Redan granskade filer visar att:
+  - `src/features/site-scans/pages/ScanDetail.tsx` visar signed `preview_image`, `mesh` och `point_cloud`.
+  - `src/features/site-scans/components/booking-details/BookingDrawingTab.tsx` är bara placeholder, inte riktig terrängcanvas.
+  - `src/features/site-scans/components/scan-detail/UsdzViewer.tsx` är också stub/placeholder.
+  - Native iOS-koden i `ios/App/App/SiteScanMeasure` verkar vara AR-mätning, inte den satellit-/terrängoverlay som syns i din bild.
+- Därför kommer jag i implementationen rikta in mig på både:
+  - fel asset-prioritering i site scan-visningen,
+  - samt eventuell separat terrängviewer som idag använder fel lager ovanpå kartan/canvasen.
+
+```text
+Data -> site_scans / booking_site_surfaces
+     -> preview_image / heightmap / mesh / point_cloud
+     -> viewer choice / render order
+     -> det suddiga lagret måste bort eller nedprioriteras
+```
+
+När du godkänner planen går jag vidare och fixar det på riktigt.
