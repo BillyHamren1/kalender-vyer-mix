@@ -944,6 +944,12 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           onBack();
         }}
       />
+
+      <PackingHistoryDialog
+        packingId={packingId}
+        open={showHistoryDialog}
+        onOpenChange={setShowHistoryDialog}
+      />
     </div>
   );
 };
