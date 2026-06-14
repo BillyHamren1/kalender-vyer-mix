@@ -6,7 +6,7 @@ export function openPdfPreviewShell(title: string): Window | null {
     previewWindow.document.title = title;
     previewWindow.document.body.innerHTML = `
       <div style="font-family: Arial, sans-serif; padding: 24px; color: #0f172a;">
-        Genererar PDF
+        Genererar PDF...
       </div>
     `;
   } catch {
