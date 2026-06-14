@@ -1,9 +1,11 @@
-import { Calendar, Trash2, CheckSquare } from "lucide-react";
+import { useState } from "react";
+import { Calendar, Trash2, CheckSquare, History } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PackingWithBooking, PACKING_STATUS_LABELS, PACKING_STATUS_COLORS } from "@/types/packing";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
+import { PackingHistoryDialog } from "@/components/packing/PackingHistoryDialog";
 
 interface PackingCardProps {
   packing: PackingWithBooking;
@@ -12,9 +14,16 @@ interface PackingCardProps {
 }
 
 const PackingCard = ({ packing, onClick, onDelete }: PackingCardProps) => {
+  const [showHistory, setShowHistory] = useState(false);
+
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     onDelete();
+  };
+
+  const handleHistory = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowHistory(true);
   };
 
   return (
