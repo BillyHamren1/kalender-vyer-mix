@@ -89,6 +89,14 @@ const PackingCard = ({ packing, onClick, onDelete }: PackingCardProps) => {
           </div>
         )}
       </div>
+
+      <div onClick={(e) => e.stopPropagation()}>
+        <PackingHistoryDialog
+          packingId={packing.id}
+          open={showHistory}
+          onOpenChange={setShowHistory}
+        />
+      </div>
     </div>
   );
 };
