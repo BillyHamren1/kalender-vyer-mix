@@ -121,16 +121,18 @@ export function openPrintablePackingList(
       border-bottom: 1px solid #888;
       padding: 6px 4px;
       background: #f6f6f6;
+      white-space: nowrap;
+      vertical-align: bottom;
     }
     tbody td {
       padding: 8px 4px;
       border-bottom: 1px solid #ddd;
-      vertical-align: top;
+      vertical-align: middle;
     }
-    .col-check { width: 44px; text-align: center; }
+    .col-check { width: 56px; text-align: center; white-space: nowrap; }
     .col-name  { }
     .col-qty   { width: 48px; text-align: center; font-weight: 600; }
-    .col-sign  { width: 70px; border-bottom: 1px solid #ddd; }
+    .col-sign  { width: 70px; }
     .name { font-weight: 600; }
     .sku { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
            font-size: 10px; color: #666; margin-top: 2px; }
