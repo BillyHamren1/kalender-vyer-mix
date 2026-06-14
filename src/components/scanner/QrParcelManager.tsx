@@ -12,6 +12,7 @@ interface QrParcelManagerProps {
   onOpenChange: (open: boolean) => void;
   packingId: string;
   verifierName: string;
+  activeSessionId: string | null;
 }
 
 /**
@@ -23,7 +24,7 @@ interface QrParcelManagerProps {
  * The same QR can be reused across bookings over time (per-packing unique only).
  */
 export const QrParcelManager: React.FC<QrParcelManagerProps> = ({
-  open, onOpenChange, packingId, verifierName,
+  open, onOpenChange, packingId, verifierName, activeSessionId,
 }) => {
   const [parcels, setParcels] = useState<QrParcel[]>([]);
   const [loading, setLoading] = useState(false);
@@ -53,7 +54,7 @@ export const QrParcelManager: React.FC<QrParcelManagerProps> = ({
     if (!trimmed) return;
     setSubmitting(true);
     try {
-      const res = await registerQrParcel(packingId, trimmed, verifierName);
+      const res = await registerQrParcel(packingId, trimmed, verifierName, activeSessionId);
       if (!res.success) {
         if (res.error === 'duplicate') {
           toast.warning(`QR-koden finns redan på denna packlista (#${res.parcel?.parcel_number})`);
@@ -72,18 +73,18 @@ export const QrParcelManager: React.FC<QrParcelManagerProps> = ({
     } finally {
       setSubmitting(false);
     }
-  }, [packingId, verifierName, refresh]);
+  }, [packingId, verifierName, activeSessionId, refresh]);
 
   const handleDelete = useCallback(async (parcelId: string, num: number) => {
     if (!confirm(`Ta bort QR-kolli #${num}?`)) return;
     try {
-      await deleteQrParcel(parcelId);
+      await deleteQrParcel(parcelId, activeSessionId);
       toast.success(`Kolli #${num} borttaget`);
       await refresh();
     } catch (err: any) {
       toast.error(err?.message || 'Kunde inte ta bort');
     }
-  }, [refresh]);
+  }, [refresh, activeSessionId]);
 
   return (
     <>
