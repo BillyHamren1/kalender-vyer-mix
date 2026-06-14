@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Calendar as CalendarIcon, MapPin, Phone, User, Package, ClipboardList, RefreshCw, CheckSquare, Layers, Scissors, LayoutList, FileText, Download } from "lucide-react";
+import { ArrowLeft, Calendar as CalendarIcon, MapPin, Phone, User, Package, ClipboardList, RefreshCw, CheckSquare, Layers, Scissors, LayoutList, FileText, Download, History } from "lucide-react";
+import { PackingHistoryDialog } from "@/components/packing/PackingHistoryDialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
