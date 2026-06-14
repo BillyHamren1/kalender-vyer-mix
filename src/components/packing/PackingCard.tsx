@@ -65,10 +65,28 @@ const PackingCard = ({ packing, onClick, onDelete, onControlCompleted }: Packing
           </div>
         </div>
 
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
           <Badge className={PACKING_STATUS_COLORS[packing.status]}>
             {PACKING_STATUS_LABELS[packing.status]}
           </Badge>
+          {packing.control_status === 'completed' && (
+            <Badge className="bg-emerald-100 text-emerald-800 gap-1">
+              <ShieldCheck className="h-3 w-3" />
+              Kontrollerad
+            </Badge>
+          )}
+          {packing.control_status === 'failed' && (
+            <Badge className="bg-rose-100 text-rose-800 gap-1">
+              <AlertTriangle className="h-3 w-3" />
+              Kontrollavvikelse
+            </Badge>
+          )}
+          {packing.control_status === 'in_progress' && (
+            <Badge className="bg-amber-100 text-amber-800 gap-1">
+              <ShieldCheck className="h-3 w-3" />
+              Kontroll pågår
+            </Badge>
+          )}
         </div>
 
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
