@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { startOfWeek, addDays, format, isSameWeek } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, LogOut } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, LogOut, Inbox } from 'lucide-react';
+import { useProjectInboxCount } from '@/hooks/useProjectInboxCount';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useInternalLagerCalendarEvents } from '@/hooks/useInternalLagerCalendarEvents';
