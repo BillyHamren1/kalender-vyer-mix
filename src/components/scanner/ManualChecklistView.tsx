@@ -199,16 +199,29 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
     setProgress({ total, verified, percentage });
   }, []);
 
-  // Handle increment — optimistic-first för snabb mobil-feedback
+  // Handle increment
   const handleIncrement = useCallback(async (itemId: string, quantityToPack: number, isParent: boolean) => {
     if (isParent) return;
     setTappedItemId(itemId);
     setTimeout(() => setTappedItemId(null), 200);
 
-    // 1) Optimistisk lokal uppdatering DIREKT
-    let snapshot: PackingItem[] = [];
+    const result = await togglePackingItemManually(itemId, false, quantityToPack, verifierName);
+    if (!result.success) {
+      console.warn('[manual-checkoff] bundle_sync_failed', {
+        itemId,
+        bundleErrorCode: (result as any).bundleErrorCode,
+        warning: result.warning,
+        error: result.error,
+      });
+      toast.error(result.error || result.warning || 'WMS nekade manuell avbockning');
+      return;
+    }
+    if (isKolliMode && activeParcel) {
+      await assignItemToParcel(itemId, activeParcel.id);
+      setItemParcelMap(prev => ({ ...prev, [itemId]: activeParcel.parcel_number }));
+    }
+    // Optimistic local update (only after WMS accepted)
     setItems(prev => {
-      snapshot = prev;
       const updated = prev.map(i =>
         i.id === itemId
           ? { ...i, quantity_packed: Math.min((i.quantity_packed || 0) + 1, i.quantity_to_pack) }
@@ -217,65 +230,28 @@ export const ManualChecklistView: React.FC<ManualChecklistViewProps> = ({
       recalcProgress(updated);
       return updated;
     });
-
-    // 2) Skicka till server i bakgrunden, rollback vid fel
-    try {
-      const result = await togglePackingItemManually(itemId, false, quantityToPack, verifierName);
-      if (!result.success) {
-        console.warn('[manual-checkoff] bundle_sync_failed', {
-          itemId,
-          bundleErrorCode: (result as any).bundleErrorCode,
-          warning: result.warning,
-          error: result.error,
-        });
-        toast.error(result.error || result.warning || 'WMS nekade manuell avbockning');
-        setItems(snapshot);
-        recalcProgress(snapshot);
-        return;
-      }
-      if (isKolliMode && activeParcel) {
-        await assignItemToParcel(itemId, activeParcel.id);
-        setItemParcelMap(prev => ({ ...prev, [itemId]: activeParcel.parcel_number }));
-      }
-      if (result.bundleSynced === false) {
-        toast.warning(result.warning || 'Packad lokalt men inte synkad till WMS');
-      }
-    } catch (err) {
-      console.error('[manual-checkoff] increment error', err);
-      toast.error('Kunde inte uppdatera');
-      setItems(snapshot);
-      recalcProgress(snapshot);
+    if (result.bundleSynced === false) {
+      toast.warning(result.warning || 'Packad lokalt men inte synkad till WMS');
     }
   }, [verifierName, isKolliMode, activeParcel, recalcProgress]);
 
-  // Handle decrement (subtract 1) — optimistic-first
+  // Handle decrement (subtract 1)
   const handleDecrement = useCallback(async (itemId: string, isParent: boolean) => {
     if (isParent) return;
-
-    let snapshot: PackingItem[] = [];
-    setItems(prev => {
-      snapshot = prev;
-      const updated = prev.map(i =>
-        i.id === itemId
-          ? { ...i, quantity_packed: Math.max((i.quantity_packed || 0) - 1, 0) }
-          : i
-      );
-      recalcProgress(updated);
-      return updated;
-    });
-
-    try {
-      const result = await decrementPackingItem(itemId, verifierName);
-      if (!result.success) {
-        toast.error(result.error || 'Could not update');
-        setItems(snapshot);
-        recalcProgress(snapshot);
-      }
-    } catch (err) {
-      console.error('[manual-checkoff] decrement error', err);
-      toast.error('Kunde inte uppdatera');
-      setItems(snapshot);
-      recalcProgress(snapshot);
+    const result = await decrementPackingItem(itemId, verifierName);
+    if (result.success) {
+      // Optimistic local update
+      setItems(prev => {
+        const updated = prev.map(i =>
+          i.id === itemId
+            ? { ...i, quantity_packed: Math.max((i.quantity_packed || 0) - 1, 0) }
+            : i
+        );
+        recalcProgress(updated);
+        return updated;
+      });
+    } else {
+      toast.error(result.error || 'Could not update');
     }
   }, [verifierName, recalcProgress]);
 

@@ -1,19 +1,10 @@
 /**
- * Generates a printable PDF packing list using jsPDF + autoTable.
- *
- * Bygger PDF:n direkt klient-sidigt (ingen window.print → ingen URL/sidnummer
- * från browser chrome). Öppnar i ny flik som blob så användaren kan spara/printa.
- *
- * Layout:
- *  - Modern header med projektnamn + meta-kolumn
- *  - Färgad accent-list
- *  - Kompakt tabell: Produkt | Antal | Check 1 | Sign | Check 2 | Sign
- *  - Group-headers per bokning
- *  - Footer-block för signaturer
+ * Generates a printable HTML version of the packing list with:
+ *  - a checkbox per product row (also per quantity unit)
+ *  - a signature line per row (initials)
+ *  - header with packing name, booking number, client, date
+ *  - opens in a new window and triggers print (user can "Save as PDF")
  */
-import jsPDF from 'jspdf';
-import autoTable, { RowInput } from 'jspdf-autotable';
-import { openPdfPreviewShell, presentPdfBlob } from './pdfPreviewWindow';
 
 export interface PrintablePackingRow {
   name: string;
@@ -30,88 +21,17 @@ export interface PrintablePackingMeta {
   rigDate?: string | null;
 }
 
-// Accent + ink color
-const INK: [number, number, number] = [17, 24, 39];        // slate-900
-const MUTED: [number, number, number] = [107, 114, 128];   // slate-500
-const ACCENT: [number, number, number] = [37, 99, 235];    // blue-600
-const GROUP_BG: [number, number, number] = [241, 245, 249]; // slate-100
-const ZEBRA: [number, number, number] = [249, 250, 251];    // slate-50
-const RULE: [number, number, number] = [226, 232, 240];     // slate-200
+const escapeHtml = (s: string): string =>
+  s.replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!)
+  );
+
 
 export function openPrintablePackingList(
   meta: PrintablePackingMeta,
   rows: PrintablePackingRow[]
 ): void {
-  const safeName = meta.packingName.replace(/[^a-z0-9-_åäöÅÄÖ ]+/gi, '_').trim();
-  const filename = `Packlista - ${safeName || 'lista'}.pdf`;
-  const previewWindow = openPdfPreviewShell(filename);
-
-  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-  const pageW = doc.internal.pageSize.getWidth();
-  const pageH = doc.internal.pageSize.getHeight();
-  const marginX = 14;
-
-  const today = new Date().toLocaleDateString('sv-SE', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-  const totalUnits = rows.reduce((sum, r) => sum + (r.quantity || 0), 0);
-
-  // ─── Header ────────────────────────────────────────────────────────────────
-  // Accent bar
-  doc.setFillColor(...ACCENT);
-  doc.rect(marginX, 14, 3, 18, 'F');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(18);
-  doc.setTextColor(...INK);
-  doc.text(meta.packingName, marginX + 7, 21);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(...MUTED);
-  doc.text('PACKLISTA', marginX + 7, 27);
-
-  // Meta block (right aligned)
-  const metaLines: Array<[string, string]> = [];
-  if (meta.client) metaLines.push(['Kund', meta.client]);
-  if (meta.bookingNumber) metaLines.push(['Bokning', `#${meta.bookingNumber}`]);
-  if (meta.rigDate) metaLines.push(['Riggdatum', meta.rigDate]);
-  metaLines.push(['Utskrivet', today]);
-
-  doc.setFontSize(9);
-  let metaY = 17;
-  metaLines.forEach(([label, value]) => {
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...MUTED);
-    const labelText = `${label}:`;
-    const labelW = doc.getTextWidth(labelText);
-    const valueW = doc.getTextWidth(value);
-    const lineX = pageW - marginX - valueW;
-    doc.text(labelText, lineX - 2 - labelW, metaY);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...INK);
-    doc.text(value, pageW - marginX, metaY, { align: 'right' });
-    metaY += 4.2;
-  });
-
-  // Divider
-  doc.setDrawColor(...RULE);
-  doc.setLineWidth(0.4);
-  doc.line(marginX, 36, pageW - marginX, 36);
-
-  // Summary chips
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(...MUTED);
-  doc.text(
-    `${rows.length} produktrader  ·  ${totalUnits} enheter totalt`,
-    marginX,
-    42
-  );
-
-  // ─── Bygg tabell-rader (med group headers som spann-rad) ──────────────────
+  // Group by groupLabel (booking) while preserving order.
   const groups = new Map<string, PrintablePackingRow[]>();
   for (const row of rows) {
     const key = row.groupLabel || '';
@@ -119,169 +39,260 @@ export function openPrintablePackingList(
     groups.get(key)!.push(row);
   }
 
-  const body: RowInput[] = [];
-  groups.forEach((groupRows, groupName) => {
-    if (groupName) {
-      body.push([
-        {
-          content: groupName,
-          colSpan: 6,
-          styles: {
-            fillColor: GROUP_BG,
-            textColor: INK,
-            fontStyle: 'bold',
-            fontSize: 10,
-            cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
-          },
-        },
-      ]);
+  const today = new Date().toLocaleDateString('sv-SE', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  const totalUnits = rows.reduce((sum, r) => sum + (r.quantity || 0), 0);
+
+  const groupsHtml = Array.from(groups.entries())
+    .map(([groupName, groupRows]) => {
+      const rowsHtml = groupRows
+        .map((row) => {
+          const sku = row.sku ? `<div class="sku">[${escapeHtml(row.sku)}]</div>` : '';
+          return `
+            <tr class="${row.isChild ? 'child-row' : ''}">
+              <td class="col-name">
+                <div class="name">${escapeHtml(row.name)}</div>
+                ${sku}
+              </td>
+              <td class="col-qty">${row.quantity}</td>
+              <td class="col-check"><span class="main-box"></span></td>
+              <td class="col-sign"></td>
+              <td class="col-check"><span class="main-box"></span></td>
+              <td class="col-sign"></td>
+            </tr>
+          `;
+        })
+        .join('');
+
+      const groupHeader = groupName
+        ? `<tr class="group-header"><td colspan="6">${escapeHtml(groupName)}</td></tr>`
+        : '';
+
+      return `${groupHeader}${rowsHtml}`;
+    })
+    .join('');
+
+  const html = `<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <title>Packlista — ${escapeHtml(meta.packingName)}</title>
+  <style>
+    @page { size: A4; margin: 14mm 12mm 16mm 12mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      color: #111;
+      font-size: 11px;
+      margin: 0;
+      padding: 16px;
+      background: #fff;
     }
-    groupRows.forEach((row) => {
-      const nameCell = row.sku
-        ? `${row.name}\n${row.sku}`
-        : row.name;
-      body.push([
-        {
-          content: nameCell,
-          styles: {
-            fontStyle: row.isChild ? 'normal' : 'bold',
-            cellPadding: { top: 2, bottom: 2, left: row.isChild ? 6 : 3, right: 2 },
-          },
-        },
-        { content: String(row.quantity), styles: { halign: 'center', fontStyle: 'bold' } },
-        '', // check 1
-        '', // sign 1
-        '', // check 2
-        '', // sign 2
-      ]);
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 2px solid #111;
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+    }
+    .header h1 { margin: 0; font-size: 18px; font-weight: 700; }
+    .header .meta { font-size: 11px; color: #444; text-align: right; }
+    .header .meta div { margin-top: 2px; }
+    .summary {
+      display: flex;
+      gap: 24px;
+      font-size: 11px;
+      margin-bottom: 10px;
+      color: #444;
+    }
+    .summary b { color: #111; }
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      text-align: left;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #555;
+      border-bottom: 1px solid #888;
+      padding: 6px 4px;
+      background: #f6f6f6;
+      white-space: nowrap;
+      vertical-align: bottom;
+    }
+    tbody td {
+      padding: 8px 4px;
+      border-bottom: 1px solid #ddd;
+      vertical-align: middle;
+    }
+    .col-check { width: 56px; text-align: center; white-space: nowrap; }
+    .col-name  { }
+    .col-qty   { width: 48px; text-align: center; font-weight: 600; }
+    .col-sign  { width: 70px; }
+    .name { font-weight: 600; }
+    .sku { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+           font-size: 10px; color: #666; margin-top: 2px; }
+    .child-row .name { font-weight: 400; padding-left: 14px; color: #333; }
+    .group-header td {
+      background: #eef3f5;
+      font-weight: 700;
+      padding: 6px 8px;
+      font-size: 12px;
+      border-top: 2px solid #111;
+      border-bottom: 1px solid #888;
+    }
+    .main-box {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 1.5px solid #111;
+      border-radius: 3px;
+      vertical-align: middle;
+    }
+    .col-sign::after {
+      content: "";
+      display: block;
+    }
+    .footer {
+      margin-top: 22px;
+      display: flex;
+      gap: 24px;
+      font-size: 11px;
+    }
+    .footer .sign-block {
+      flex: 1;
+      border-top: 1px solid #111;
+      padding-top: 4px;
+    }
+    .toolbar {
+      position: fixed;
+      top: 8px;
+      right: 8px;
+      display: flex;
+      gap: 8px;
+    }
+    .toolbar button {
+      font: inherit;
+      padding: 6px 12px;
+      border: 1px solid #111;
+      background: #111;
+      color: #fff;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .toolbar button.secondary {
+      background: #fff;
+      color: #111;
+    }
+    @media print {
+      .toolbar { display: none; }
+      body { padding: 0; }
+      tr { page-break-inside: avoid; }
+      thead { display: table-header-group; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button onclick="window.print()">Skriv ut / Spara som PDF</button>
+    <button class="secondary" onclick="window.close()">Stäng</button>
+  </div>
+
+  <div class="header">
+    <div>
+      <h1>${escapeHtml(meta.packingName)}</h1>
+      <div style="font-size:11px;color:#555;margin-top:4px;">Packlista</div>
+    </div>
+    <div class="meta">
+      ${meta.client ? `<div><b>Kund:</b> ${escapeHtml(meta.client)}</div>` : ''}
+      ${meta.bookingNumber ? `<div><b>Bokning:</b> #${escapeHtml(meta.bookingNumber)}</div>` : ''}
+      ${meta.rigDate ? `<div><b>Riggdatum:</b> ${escapeHtml(meta.rigDate)}</div>` : ''}
+      <div><b>Utskrivet:</b> ${escapeHtml(today)}</div>
+    </div>
+  </div>
+
+  <div class="summary">
+    <div><b>${rows.length}</b> produktrader</div>
+    <div><b>${totalUnits}</b> enheter totalt</div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th class="col-name">Produkt</th>
+        <th class="col-qty">Antal</th>
+        <th class="col-check">Check 1</th>
+        <th class="col-sign">Sign</th>
+        <th class="col-check">Check 2</th>
+        <th class="col-sign">Sign</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${groupsHtml}
+    </tbody>
+  </table>
+
+  <div class="footer">
+    <div class="sign-block">
+      <div><b>Packad av</b></div>
+      <div style="margin-top:18px;color:#666;">Namn / signatur</div>
+    </div>
+    <div class="sign-block">
+      <div><b>Kontrollerad av</b></div>
+      <div style="margin-top:18px;color:#666;">Namn / signatur</div>
+    </div>
+    <div class="sign-block">
+      <div><b>Datum</b></div>
+      <div style="margin-top:18px;color:#666;">_______________</div>
+    </div>
+  </div>
+
+  <script>
+    // Auto-open print dialog on load (user can cancel and use button).
+    window.addEventListener('load', () => {
+      setTimeout(() => { try { window.print(); } catch (e) {} }, 250);
     });
-  });
+  </script>
+</body>
+</html>`;
 
-  autoTable(doc, {
-    startY: 46,
-    head: [['Produkt', 'Antal', 'Check 1', 'Sign', 'Check 2', 'Sign']],
-    body,
-    margin: { left: marginX, right: marginX, bottom: 22 },
-    theme: 'plain',
-    styles: {
-      font: 'helvetica',
-      fontSize: 9,
-      textColor: INK,
-      cellPadding: { top: 2, bottom: 2, left: 3, right: 3 },
-      lineColor: RULE,
-      lineWidth: 0.1,
-      valign: 'middle',
-    },
-    headStyles: {
-      fontStyle: 'bold',
-      fontSize: 8,
-      textColor: MUTED,
-      fillColor: [255, 255, 255],
-      lineWidth: { top: 0, bottom: 0.5, left: 0, right: 0 },
-      lineColor: INK,
-      cellPadding: { top: 2, bottom: 3, left: 3, right: 3 },
-    },
-    alternateRowStyles: { fillColor: ZEBRA },
-    columnStyles: {
-      0: { cellWidth: 'auto' },
-      1: { cellWidth: 14, halign: 'center' },
-      2: { cellWidth: 16, halign: 'center' },
-      3: { cellWidth: 22 },
-      4: { cellWidth: 16, halign: 'center' },
-      5: { cellWidth: 22 },
-    },
-    didParseCell: (data) => {
-      // SKU subtle styling: jsPDF doesn't support per-line styling out of the box,
-      // so we keep SKU on its own line but use a tiny muted font for the whole cell
-      // only when name+sku — handled by simply showing both lines plainly.
-    },
-    didDrawCell: (data) => {
-      // Render checkbox squares in Check 1 / Check 2 cells (body only)
-      if (
-        data.section === 'body' &&
-        (data.column.index === 2 || data.column.index === 4) &&
-        // skip group-header spanned rows
-        typeof (data.row.raw as any)?.[0] !== 'object' || !((data.row.raw as any)?.[0]?.colSpan)
-      ) {
-        const isGroupRow =
-          Array.isArray(data.row.raw) &&
-          (data.row.raw as any)[0] &&
-          typeof (data.row.raw as any)[0] === 'object' &&
-          (data.row.raw as any)[0].colSpan;
-        if (isGroupRow) return;
+  // Use a hidden iframe — works reliably across browsers without popup blockers.
+  const existing = document.getElementById('packing-print-iframe');
+  if (existing) existing.remove();
 
-        const size = 4;
-        const cx = data.cell.x + data.cell.width / 2 - size / 2;
-        const cy = data.cell.y + data.cell.height / 2 - size / 2;
-        doc.setDrawColor(...INK);
-        doc.setLineWidth(0.4);
-        doc.roundedRect(cx, cy, size, size, 0.6, 0.6, 'S');
-      }
-      // Underline for signature columns
-      if (
-        data.section === 'body' &&
-        (data.column.index === 3 || data.column.index === 5)
-      ) {
-        const isGroupRow =
-          Array.isArray(data.row.raw) &&
-          (data.row.raw as any)[0] &&
-          typeof (data.row.raw as any)[0] === 'object' &&
-          (data.row.raw as any)[0].colSpan;
-        if (isGroupRow) return;
-        const y = data.cell.y + data.cell.height - 1.6;
-        doc.setDrawColor(...RULE);
-        doc.setLineWidth(0.2);
-        doc.line(data.cell.x + 1.5, y, data.cell.x + data.cell.width - 1.5, y);
-      }
-    },
-    didDrawPage: () => {
-      // Footer: page number + brand line (NO URL)
-      const pageCurrent = doc.getNumberOfPages();
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(...MUTED);
-      doc.text(
-        `Packlista · ${meta.packingName}`,
-        marginX,
-        pageH - 8
-      );
-      doc.text(`Sida ${pageCurrent}`, pageW - marginX, pageH - 8, { align: 'right' });
-    },
-  });
+  const iframe = document.createElement('iframe');
+  iframe.id = 'packing-print-iframe';
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(iframe);
 
-  // ─── Signatur-block (på sista sidan, under tabell om plats) ───────────────
-  const finalY = (doc as any).lastAutoTable?.finalY ?? 60;
-  let sigY = finalY + 10;
-  if (sigY > pageH - 40) {
-    doc.addPage();
-    sigY = 24;
-  }
+  const doc = iframe.contentDocument;
+  if (!doc) return;
+  doc.open();
+  doc.write(html);
+  doc.close();
 
-  const blockW = (pageW - marginX * 2 - 12) / 3;
-  const blocks: Array<[string, string]> = [
-    ['Packad av', 'Namn / signatur'],
-    ['Kontrollerad av', 'Namn / signatur'],
-    ['Datum', ''],
-  ];
-  blocks.forEach(([label, sub], i) => {
-    const x = marginX + i * (blockW + 6);
-    doc.setDrawColor(...INK);
-    doc.setLineWidth(0.4);
-    doc.line(x, sigY + 14, x + blockW, sigY + 14);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...INK);
-    doc.text(label, x, sigY + 19);
-    if (sub) {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(...MUTED);
-      doc.text(sub, x, sigY + 23);
+  const triggerPrint = () => {
+    try {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+    } catch (e) {
+      console.error('[printPackingList] print failed', e);
     }
-  });
+  };
 
-  // ─── Öppna PDF i ny flik (med download-fallback) ──────────────────────────
-  const blob = doc.output('blob');
-  presentPdfBlob(previewWindow, blob, filename);
+  // Wait for iframe content to load before printing.
+  if (iframe.contentWindow?.document.readyState === 'complete') {
+    setTimeout(triggerPrint, 200);
+  } else {
+    iframe.addEventListener('load', () => setTimeout(triggerPrint, 200), { once: true });
+  }
 }
-
