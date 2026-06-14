@@ -427,6 +427,30 @@ Deno.serve(async (req) => {
 
     const ORG_ID = auth.organizationId
 
+    // PACKING SESSION GUARD ===================================================
+    // För alla mutativa packnings-actions: kräv aktiv session från frontend.
+    // start_packing_session själv är undantaget.
+    let __sessionContext: { sessionId: string; packingId: string } | null = null
+    if (PACKING_MUTATING_ACTIONS.has(action)) {
+      try {
+        __sessionContext = await requireActivePackingSession(
+          supabase,
+          auth,
+          (params as any)?.activeSessionId,
+        )
+      } catch (sessionErr: any) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: sessionErr.message || 'PACKING_SESSION_REQUIRED',
+            code: sessionErr.reason || 'PACKING_SESSION_REQUIRED',
+          }),
+          { status: sessionErr.status || 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        )
+      }
+    }
+    const ACTIVE_SESSION_ID = __sessionContext?.sessionId ?? null
+
     switch (action) {
       case 'list_active_packings': {
         // Fetch packings that are actionable: planning, in_progress, packed
