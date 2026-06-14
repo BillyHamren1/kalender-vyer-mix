@@ -42,7 +42,7 @@ const OpsAttentionPanel = ({ items }: Props) => {
           return (
             <li
               key={it.id}
-              onClick={() => clickable && navigate(`/packing/${it.jobId}`)}
+              onClick={() => clickable && navigate(`/warehouse/packing/${it.jobId}`)}
               className={cn(
                 "flex items-center gap-3 px-4 py-2.5 text-sm transition-colors",
                 cfg.bg,
