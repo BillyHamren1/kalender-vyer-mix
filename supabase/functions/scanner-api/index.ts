@@ -1845,6 +1845,16 @@ Deno.serve(async (req) => {
         // multiple units in one call. Pass `parcelId: null` + `clearAllocations: true` to clear.
         const { itemId, parcelId, quantity, scannedBy, scannedByStaffId, clearAllocations } = params
 
+        // Hämta packing_id från item för logg
+        const { data: itemMeta } = await supabase
+          .from('packing_list_items')
+          .select('packing_id, booking_products(name)')
+          .eq('id', itemId)
+          .eq('organization_id', ORG_ID)
+          .maybeSingle()
+        const logPackingId = (itemMeta as any)?.packing_id || ACTIVE_SESSION_PACKING_ID
+        const logProductName = (itemMeta as any)?.booking_products?.name || null
+
         if (clearAllocations) {
           const { error } = await supabase
             .from('packing_list_item_allocations')
@@ -1854,6 +1864,11 @@ Deno.serve(async (req) => {
           if (error) throw error
           // Legacy column cleanup
           await supabase.from('packing_list_items').update({ parcel_id: null }).eq('id', itemId).eq('organization_id', ORG_ID)
+          await logPackingSessionEvent(supabase, auth, ACTIVE_SESSION_ID, {
+            packingId: logPackingId, itemId, eventType: 'parcel_remove',
+            productName: logProductName, source: 'parcel',
+            metadata: { cleared: true },
+          })
           return json({ success: true })
         }
 
@@ -1898,6 +1913,14 @@ Deno.serve(async (req) => {
 
         // Keep legacy parcel_id pointing at the most recent parcel for back-compat consumers.
         await supabase.from('packing_list_items').update({ parcel_id: parcelId }).eq('id', itemId).eq('organization_id', ORG_ID)
+
+        await logPackingSessionEvent(supabase, auth, ACTIVE_SESSION_ID, {
+          packingId: logPackingId, itemId, eventType: 'parcel_assign',
+          quantityDelta: finalQty,
+          productName: logProductName,
+          parcelId, source: 'parcel',
+          metadata: { quantityAllocated: finalQty },
+        })
 
         return json({ success: true, quantityAllocated: finalQty })
       }
