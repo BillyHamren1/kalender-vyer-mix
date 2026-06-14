@@ -275,19 +275,9 @@ export function openPrintablePackingList(
     }
   });
 
-  // ─── Öppna PDF:en (ny flik) ──────────────────────────────────────────────
-  const blob = doc.output('blob');
-  const url = URL.createObjectURL(blob);
-  const win = window.open(url, '_blank');
-  if (!win) {
-    // Popup blocked → fallback: trigga nedladdning
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${meta.packingName.replace(/[^a-z0-9-_]+/gi, '_')}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  }
-  // Frigör objekt-URL efter en stund
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  // ─── Spara PDF:en direkt (ny flik blockeras ofta av ad-blockers på blob:) ──
+  const safeName = meta.packingName.replace(/[^a-z0-9-_åäöÅÄÖ ]+/gi, '_').trim();
+  const filename = `Packlista - ${safeName || 'lista'}.pdf`;
+  doc.save(filename);
 }
+
