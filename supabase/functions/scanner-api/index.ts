@@ -1532,6 +1532,13 @@ Deno.serve(async (req) => {
           await checkIfAllPacked(supabase, currentItem.packing_id, ORG_ID)
         }
 
+        await logPackingSessionEvent(supabase, auth, ACTIVE_SESSION_ID, {
+          packingId: currentItem?.packing_id, itemId, eventType: 'decrement_pack',
+          quantityDelta: -1,
+          beforeQuantity: currentPacked, afterQuantity: newQty,
+          source: 'manual',
+        })
+
         return json({ success: true })
       }
 
