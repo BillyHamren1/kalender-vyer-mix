@@ -397,6 +397,120 @@ async function mirrorWmsAllocations(
   return payload.length
 }
 
+// ============================================================================
+// CONTROL COUNT (kontrollräkning) — separat flöde från packningssignering.
+// Använder samma countable-regel som computePackingProgress (paketheaders
+// kollapseras: produkter vars id refereras som parent_product_id av andra
+// rader i SAMMA packlista räknas inte själva).
+// ============================================================================
+
+interface ControlCountableRow {
+  id: string // packing_list_items.id
+  product_name: string
+  expected_quantity: number
+  parent_product_id: string | null
+  product_id: string | null
+}
+
+async function fetchControlCountableItems(
+  supabase: any,
+  packingId: string,
+  orgId: string,
+): Promise<ControlCountableRow[]> {
+  const { data: items, error } = await supabase
+    .from('packing_list_items')
+    .select(
+      'id, excluded, quantity_to_pack, manual_name, booking_products(id, name, parent_product_id)',
+    )
+    .eq('packing_id', packingId)
+    .eq('organization_id', orgId)
+  if (error || !items) return []
+
+  // Bygg headers-set från SAMMA packlista (mirror av computePackingProgress).
+  const headerProductIds = new Set<string>()
+  for (const it of items) {
+    const pid = (it as any)?.booking_products?.parent_product_id
+    if (pid) headerProductIds.add(pid)
+  }
+
+  const out: ControlCountableRow[] = []
+  for (const it of items) {
+    if ((it as any).excluded === true) continue
+    const bp = (it as any).booking_products
+    const productId: string | null = bp?.id ?? null
+    if (productId && headerProductIds.has(productId)) continue // paketheader
+    const qty = Math.max(0, (it as any).quantity_to_pack | 0)
+    if (qty <= 0) continue
+    out.push({
+      id: (it as any).id,
+      product_name:
+        (it as any).manual_name ||
+        bp?.name ||
+        'Okänd produkt',
+      expected_quantity: qty,
+      parent_product_id: bp?.parent_product_id ?? null,
+      product_id: productId,
+    })
+  }
+  // Stabil ordning: parent först, sedan barn, sedan namn.
+  out.sort((a, b) => {
+    if (!!a.parent_product_id !== !!b.parent_product_id) {
+      return a.parent_product_id ? 1 : -1
+    }
+    return a.product_name.localeCompare(b.product_name, 'sv')
+  })
+  return out
+}
+
+async function requireOwnedControlSession(
+  supabase: any,
+  auth: { staffId: string; organizationId: string },
+  sessionId: unknown,
+): Promise<any> {
+  if (!sessionId || typeof sessionId !== 'string') {
+    throw { status: 400, message: 'sessionId krävs', reason: 'CONTROL_SESSION_REQUIRED' }
+  }
+  const { data: session, error } = await supabase
+    .from('packing_control_sessions')
+    .select('*')
+    .eq('id', sessionId)
+    .maybeSingle()
+  if (error || !session) {
+    throw { status: 404, message: 'Kontrollsession hittades inte', reason: 'CONTROL_SESSION_NOT_FOUND' }
+  }
+  if (session.organization_id !== auth.organizationId) {
+    throw { status: 403, message: 'Tillhör annan organisation', reason: 'CONTROL_SESSION_FORBIDDEN' }
+  }
+  if (session.staff_id !== auth.staffId) {
+    throw { status: 403, message: 'Kontrollsessionen tillhör inte dig', reason: 'CONTROL_SESSION_FORBIDDEN' }
+  }
+  return session
+}
+
+async function getNextControlItem(
+  supabase: any,
+  session: any,
+): Promise<{ row: ControlCountableRow | null; index: number; total: number; answered: number }> {
+  const rows = await fetchControlCountableItems(
+    supabase,
+    session.packing_id,
+    session.organization_id,
+  )
+  // Vilka rader har redan svar i denna kontrollsession?
+  const { data: answers } = await supabase
+    .from('packing_control_session_items')
+    .select('packing_list_item_id')
+    .eq('organization_id', session.organization_id)
+    .eq('control_session_id', session.id)
+  const answeredIds = new Set<string>(
+    (answers || []).map((a: any) => a.packing_list_item_id),
+  )
+  const next = rows.find((r) => !answeredIds.has(r.id)) || null
+  const index = next ? rows.findIndex((r) => r.id === next.id) : rows.length
+  return { row: next, index, total: rows.length, answered: answeredIds.size }
+}
+
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -2817,6 +2931,318 @@ Deno.serve(async (req) => {
           success: true,
           sessions: sessions || [],
           events: events || [],
+        })
+      }
+
+      // ============== CONTROL COUNT (kontrollräkning) ==============
+
+      case 'start_control_count': {
+        const { packingId } = params
+        if (!packingId || typeof packingId !== 'string') {
+          return json({ success: false, error: 'packingId krävs' }, 400)
+        }
+        const { data: pack } = await supabase
+          .from('packing_projects')
+          .select('id, status, control_status, organization_id')
+          .eq('id', packingId)
+          .eq('organization_id', ORG_ID)
+          .maybeSingle()
+        if (!pack) {
+          return json({ success: false, error: 'Packlistan hittades inte' }, 404)
+        }
+        if (pack.status !== 'packed') {
+          return json(
+            { success: false, error: 'Packlistan måste vara färdigpackad (status=packed)', code: 'NOT_PACKED' },
+            409,
+          )
+        }
+        if (pack.control_status && pack.control_status !== 'not_started' && pack.control_status !== 'failed') {
+          // Återanvänd pågående om samma staff
+          if (pack.control_status === 'in_progress') {
+            const { data: existing } = await supabase
+              .from('packing_control_sessions')
+              .select('*')
+              .eq('organization_id', ORG_ID)
+              .eq('packing_id', packingId)
+              .eq('status', 'in_progress')
+              .order('started_at', { ascending: false })
+              .limit(1)
+              .maybeSingle()
+            if (existing && existing.staff_id === auth.staffId) {
+              const next = await getNextControlItem(supabase, existing)
+              return json({
+                success: true,
+                session: existing,
+                reused: true,
+                next_item: next.row,
+                progress: { answered: next.answered, total: next.total, index: next.index },
+              })
+            }
+            return json(
+              { success: false, error: 'Kontrollräkning pågår av annan person', code: 'CONTROL_IN_PROGRESS' },
+              409,
+            )
+          }
+          return json(
+            { success: false, error: 'Kontrollräkning är redan klar', code: 'CONTROL_ALREADY_COMPLETED' },
+            409,
+          )
+        }
+
+        // Skapa session + flippa packing_projects.control_status
+        const nowIso = new Date().toISOString()
+        const { data: created, error: insErr } = await supabase
+          .from('packing_control_sessions')
+          .insert({
+            organization_id: ORG_ID,
+            packing_id: packingId,
+            staff_id: auth.staffId,
+            staff_name: auth.staffName,
+            started_at: nowIso,
+            status: 'in_progress',
+          })
+          .select('*')
+          .single()
+        if (insErr || !created) {
+          console.error('[start_control_count] insert failed', insErr)
+          return json({ success: false, error: 'Kunde inte skapa kontrollsession' }, 500)
+        }
+
+        await supabase
+          .from('packing_projects')
+          .update({
+            control_status: 'in_progress',
+            control_started_at: nowIso,
+            updated_at: nowIso,
+          })
+          .eq('id', packingId)
+          .eq('organization_id', ORG_ID)
+
+        const next = await getNextControlItem(supabase, created)
+        return json({
+          success: true,
+          session: created,
+          reused: false,
+          next_item: next.row,
+          progress: { answered: next.answered, total: next.total, index: next.index },
+        })
+      }
+
+      case 'get_control_session': {
+        const { packingId, sessionId } = params
+        let session: any = null
+        if (sessionId && typeof sessionId === 'string') {
+          const { data } = await supabase
+            .from('packing_control_sessions')
+            .select('*')
+            .eq('id', sessionId)
+            .eq('organization_id', ORG_ID)
+            .maybeSingle()
+          session = data ?? null
+        } else if (packingId && typeof packingId === 'string') {
+          const { data } = await supabase
+            .from('packing_control_sessions')
+            .select('*')
+            .eq('organization_id', ORG_ID)
+            .eq('packing_id', packingId)
+            .order('started_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          session = data ?? null
+        } else {
+          return json({ success: false, error: 'packingId eller sessionId krävs' }, 400)
+        }
+        if (!session) return json({ success: true, session: null })
+
+        const { data: answers } = await supabase
+          .from('packing_control_session_items')
+          .select('*')
+          .eq('organization_id', ORG_ID)
+          .eq('control_session_id', session.id)
+          .order('confirmed_at', { ascending: true })
+        return json({ success: true, session, answers: answers || [] })
+      }
+
+      case 'get_control_next_item': {
+        const { sessionId } = params
+        let session: any
+        try {
+          session = await requireOwnedControlSession(supabase, auth, sessionId)
+        } catch (e: any) {
+          return json({ success: false, error: e.message, code: e.reason }, e.status || 400)
+        }
+        const next = await getNextControlItem(supabase, session)
+        return json({
+          success: true,
+          next_item: next.row,
+          progress: { answered: next.answered, total: next.total, index: next.index },
+          done: next.row === null,
+        })
+      }
+
+      case 'answer_control_item': {
+        const { sessionId, packingListItemId, answer, comment } = params
+        let session: any
+        try {
+          session = await requireOwnedControlSession(supabase, auth, sessionId)
+        } catch (e: any) {
+          return json({ success: false, error: e.message, code: e.reason }, e.status || 400)
+        }
+        if (session.status !== 'in_progress') {
+          return json({ success: false, error: 'Sessionen är avslutad', code: 'CONTROL_SESSION_CLOSED' }, 409)
+        }
+        if (!packingListItemId || typeof packingListItemId !== 'string') {
+          return json({ success: false, error: 'packingListItemId krävs' }, 400)
+        }
+        if (answer !== 'yes' && answer !== 'no') {
+          return json({ success: false, error: 'answer måste vara yes eller no' }, 400)
+        }
+        if (answer === 'no' && (!comment || typeof comment !== 'string' || !comment.trim())) {
+          return json(
+            { success: false, error: 'Kommentar krävs vid Nej', code: 'COMMENT_REQUIRED' },
+            400,
+          )
+        }
+        // Verifiera att raden tillhör samma packlista + är countable
+        const rows = await fetchControlCountableItems(
+          supabase,
+          session.packing_id,
+          session.organization_id,
+        )
+        const row = rows.find((r) => r.id === packingListItemId)
+        if (!row) {
+          return json({ success: false, error: 'Raden ingår inte i denna kontroll', code: 'ROW_NOT_COUNTABLE' }, 400)
+        }
+
+        // Upsert svaret (en rad per session+item).
+        const nowIso = new Date().toISOString()
+        const { error: upErr } = await supabase
+          .from('packing_control_session_items')
+          .upsert(
+            {
+              organization_id: session.organization_id,
+              control_session_id: session.id,
+              packing_id: session.packing_id,
+              packing_list_item_id: packingListItemId,
+              product_name: row.product_name,
+              expected_quantity: row.expected_quantity,
+              answer,
+              comment: answer === 'no' ? comment.trim() : (comment?.trim() || null),
+              staff_id: auth.staffId,
+              staff_name: auth.staffName,
+              confirmed_at: nowIso,
+            },
+            { onConflict: 'control_session_id,packing_list_item_id' },
+          )
+        if (upErr) {
+          console.error('[answer_control_item] upsert failed', upErr)
+          return json({ success: false, error: 'Kunde inte spara svar' }, 500)
+        }
+
+        const next = await getNextControlItem(supabase, session)
+        return json({
+          success: true,
+          next_item: next.row,
+          progress: { answered: next.answered, total: next.total, index: next.index },
+          done: next.row === null,
+        })
+      }
+
+      case 'complete_control_count': {
+        const { sessionId, signatureName } = params
+        let session: any
+        try {
+          session = await requireOwnedControlSession(supabase, auth, sessionId)
+        } catch (e: any) {
+          return json({ success: false, error: e.message, code: e.reason }, e.status || 400)
+        }
+        if (!signatureName || typeof signatureName !== 'string' || !signatureName.trim()) {
+          return json({ success: false, error: 'signatureName krävs' }, 400)
+        }
+        if (session.status === 'completed') {
+          return json({ success: false, error: 'Redan slutförd', code: 'CONTROL_ALREADY_COMPLETED' }, 409)
+        }
+
+        // Verifiera att alla countable items har svar
+        const rows = await fetchControlCountableItems(
+          supabase,
+          session.packing_id,
+          session.organization_id,
+        )
+        const { data: answers } = await supabase
+          .from('packing_control_session_items')
+          .select('packing_list_item_id, answer')
+          .eq('organization_id', session.organization_id)
+          .eq('control_session_id', session.id)
+        const answerMap = new Map<string, string>(
+          (answers || []).map((a: any) => [a.packing_list_item_id, a.answer]),
+        )
+        const missing = rows.filter((r) => !answerMap.has(r.id))
+        if (missing.length > 0) {
+          return json(
+            {
+              success: false,
+              error: `Det saknas svar på ${missing.length} rader`,
+              code: 'CONTROL_INCOMPLETE',
+              missing_count: missing.length,
+            },
+            409,
+          )
+        }
+
+        const anyNo = Array.from(answerMap.values()).some((a) => a === 'no')
+        const noCount = Array.from(answerMap.values()).filter((a) => a === 'no').length
+        const yesCount = Array.from(answerMap.values()).filter((a) => a === 'yes').length
+        const projectStatus: 'completed' | 'failed' = anyNo ? 'failed' : 'completed'
+        const nowIso = new Date().toISOString()
+
+        // Stäng kontrollsessionen
+        const { data: updatedSession, error: updErr } = await supabase
+          .from('packing_control_sessions')
+          .update({
+            completed_at: nowIso,
+            signed_at: nowIso,
+            signature_name: signatureName.trim(),
+            status: 'completed',
+            summary_json: { total: rows.length, yes: yesCount, no: noCount, result: projectStatus },
+            updated_at: nowIso,
+          })
+          .eq('id', session.id)
+          .eq('organization_id', session.organization_id)
+          .select('*')
+          .single()
+        if (updErr) {
+          console.error('[complete_control_count] update session failed', updErr)
+          return json({ success: false, error: 'Kunde inte stänga sessionen' }, 500)
+        }
+
+        // Uppdatera packing_projects (lämna status i fred — control är separat)
+        const projectPatch: Record<string, any> = {
+          control_status: projectStatus,
+          control_completed_at: nowIso,
+          updated_at: nowIso,
+        }
+        if (projectStatus === 'completed') {
+          projectPatch.control_signed_by = auth.staffName
+          projectPatch.control_signed_by_staff_id = auth.staffId
+          projectPatch.control_signed_at = nowIso
+        } else {
+          // failed → rensa signering så det inte ser klart ut
+          projectPatch.control_signed_by = null
+          projectPatch.control_signed_by_staff_id = null
+          projectPatch.control_signed_at = null
+        }
+        await supabase
+          .from('packing_projects')
+          .update(projectPatch)
+          .eq('id', session.packing_id)
+          .eq('organization_id', session.organization_id)
+
+        return json({
+          success: true,
+          session: updatedSession,
+          result: projectStatus,
+          totals: { total: rows.length, yes: yesCount, no: noCount },
         })
       }
 

@@ -113,6 +113,122 @@ export const getPackingHistory = async (
   return callScannerApi('get_packing_history', { packingId, limit });
 };
 
+// ============== CONTROL COUNT (kontrollräkning) ==============
+
+export interface ControlSession {
+  id: string;
+  organization_id: string;
+  packing_id: string;
+  staff_id: string;
+  staff_name: string;
+  status: 'in_progress' | 'completed' | string;
+  started_at: string;
+  completed_at: string | null;
+  signed_at: string | null;
+  signature_name: string | null;
+  summary_json: any | null;
+}
+
+export interface ControlNextItem {
+  id: string;
+  product_name: string;
+  expected_quantity: number;
+  parent_product_id: string | null;
+  product_id: string | null;
+}
+
+export interface ControlProgress {
+  answered: number;
+  total: number;
+  index: number;
+}
+
+export const startControlCount = async (
+  packingId: string,
+): Promise<{
+  success: boolean;
+  session?: ControlSession;
+  next_item?: ControlNextItem | null;
+  progress?: ControlProgress;
+  reused?: boolean;
+  error?: string;
+  code?: string;
+}> => {
+  try {
+    return await callScannerApi('start_control_count', { packingId });
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Kunde inte starta kontroll', code: err?.debugCode };
+  }
+};
+
+export const getControlSession = async (
+  packingId?: string,
+  sessionId?: string,
+): Promise<{ success: boolean; session: ControlSession | null; answers?: any[] }> => {
+  return callScannerApi('get_control_session', { packingId, sessionId });
+};
+
+export const getControlNextItem = async (
+  sessionId: string,
+): Promise<{
+  success: boolean;
+  next_item: ControlNextItem | null;
+  progress: ControlProgress;
+  done: boolean;
+}> => {
+  return callScannerApi('get_control_next_item', { sessionId });
+};
+
+export const answerControlItem = async (
+  sessionId: string,
+  packingListItemId: string,
+  answer: 'yes' | 'no',
+  comment?: string,
+): Promise<{
+  success: boolean;
+  next_item: ControlNextItem | null;
+  progress: ControlProgress;
+  done: boolean;
+  error?: string;
+  code?: string;
+}> => {
+  try {
+    return await callScannerApi('answer_control_item', {
+      sessionId,
+      packingListItemId,
+      answer,
+      comment,
+    });
+  } catch (err: any) {
+    return {
+      success: false,
+      next_item: null,
+      progress: { answered: 0, total: 0, index: 0 },
+      done: false,
+      error: err?.message || 'Kunde inte spara svar',
+      code: err?.debugCode,
+    };
+  }
+};
+
+export const completeControlCount = async (
+  sessionId: string,
+  signatureName: string,
+): Promise<{
+  success: boolean;
+  session?: ControlSession;
+  result?: 'completed' | 'failed';
+  totals?: { total: number; yes: number; no: number };
+  error?: string;
+  code?: string;
+}> => {
+  try {
+    return await callScannerApi('complete_control_count', { sessionId, signatureName });
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Kunde inte slutföra', code: err?.debugCode };
+  }
+};
+
 // ============== PARCEL (KOLLI) FUNCTIONS ==============
 
 export const createParcel = async (
