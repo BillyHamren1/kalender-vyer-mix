@@ -1792,6 +1792,12 @@ Deno.serve(async (req) => {
           .select()
           .single()
         if (error) throw error
+        await logPackingSessionEvent(supabase, auth, ACTIVE_SESSION_ID, {
+          packingId, eventType: 'parcel_create',
+          parcelId: (data as any)?.id ?? null,
+          scanValue: code, source: 'parcel',
+          metadata: { qr_code: code, is_qr_only: true, parcel_number: (data as any)?.parcel_number },
+        })
         return json({ success: true, parcel: data })
       }
 
