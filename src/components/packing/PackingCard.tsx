@@ -1,20 +1,23 @@
 import { useState } from "react";
-import { Calendar, Trash2, CheckSquare, History } from "lucide-react";
+import { Calendar, Trash2, CheckSquare, History, ShieldCheck, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PackingWithBooking, PACKING_STATUS_LABELS, PACKING_STATUS_COLORS } from "@/types/packing";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { PackingHistoryDialog } from "@/components/packing/PackingHistoryDialog";
+import { ControlCountDialog } from "@/components/packing/ControlCountDialog";
 
 interface PackingCardProps {
   packing: PackingWithBooking;
   onClick: () => void;
   onDelete: () => void;
+  onControlCompleted?: (packingId: string, result: "completed" | "failed") => void;
 }
 
-const PackingCard = ({ packing, onClick, onDelete }: PackingCardProps) => {
+const PackingCard = ({ packing, onClick, onDelete, onControlCompleted }: PackingCardProps) => {
   const [showHistory, setShowHistory] = useState(false);
+  const [showControl, setShowControl] = useState(false);
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
