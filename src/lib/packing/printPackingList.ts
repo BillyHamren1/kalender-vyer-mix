@@ -60,7 +60,6 @@ export function openPrintablePackingList(
                 ${sku}
               </td>
               <td class="col-qty">${row.quantity}</td>
-              <td class="col-units">${renderUnitBoxes(row.quantity)}</td>
               <td class="col-sign"></td>
             </tr>
           `;
@@ -68,7 +67,7 @@ export function openPrintablePackingList(
         .join('');
 
       const groupHeader = groupName
-        ? `<tr class="group-header"><td colspan="5">${escapeHtml(groupName)}</td></tr>`
+        ? `<tr class="group-header"><td colspan="4">${escapeHtml(groupName)}</td></tr>`
         : '';
 
       return `${groupHeader}${rowsHtml}`;
