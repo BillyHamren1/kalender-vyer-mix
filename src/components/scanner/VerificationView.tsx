@@ -8,8 +8,10 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X, Minus, List, QrCode } from 'lucide-react';
-import { getItemParcels } from '@/services/scannerService';
+import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X, Minus, List, QrCode, Loader2 } from 'lucide-react';
+import { getItemParcels, startPackingSession, type PackingWorkSession } from '@/services/scannerService';
+import { getStoredStaff } from '@/services/mobileApiService';
+import { useNavigate } from 'react-router-dom';
 import { QRScanner } from './QRScanner';
 import { ScannerModeIndicator } from './ScannerModeIndicator';
 import { RfidStatusBar } from './RfidStatusBar';
@@ -29,6 +31,7 @@ import { getDisplayedProgressForRow } from '@/lib/packing/progress';
 import { AddUnknownProductDialog } from './AddUnknownProductDialog';
 import { QrParcelManager } from './QrParcelManager';
 import { PackingPreflightPanel } from './PackingPreflightPanel';
+import { SignPackingSessionDialog } from './SignPackingSessionDialog';
 
 interface ScannerStateProps {
   currentMode: ScanMode;
@@ -74,11 +77,55 @@ const formatToTitleCase = (text: string): string => {
 export const VerificationView: React.FC<VerificationViewProps> = ({ 
   packingId, 
   onBack,
-  verifierName = 'Scanner',
+  verifierName: verifierNameProp,
   registerScanHandler,
   scannerState,
   rfidControls,
 }) => {
+  const navigate = useNavigate();
+
+  // ── Auth gate: packaren MÅSTE vara inloggad mobil-staff ──────────────
+  const storedStaff = useMemo(() => getStoredStaff(), []);
+  useEffect(() => {
+    if (!storedStaff) {
+      toast.error('Du måste vara inloggad för att packa');
+      navigate('/scanner/login', { replace: true });
+    }
+  }, [storedStaff, navigate]);
+
+  // verifierName följer alltid inloggad staff — aldrig "Scanner" / "Manual" / "Unknown"
+  const verifierName = storedStaff?.name || verifierNameProp || '';
+  const verifierStaffId = storedStaff?.id || null;
+
+  // ── Packningssession ─────────────────────────────────────────────────
+  const [activeSession, setActiveSession] = useState<PackingWorkSession | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [showSignDialog, setShowSignDialog] = useState(false);
+
+  const activeSessionIdRef = useRef<string | null>(null);
+  activeSessionIdRef.current = activeSession?.id ?? null;
+
+  const bootSession = useCallback(async () => {
+    if (!storedStaff) return;
+    setSessionLoading(true);
+    setSessionError(null);
+    try {
+      const res = await startPackingSession(packingId);
+      if (!res.success || !res.session) {
+        setSessionError(res.error || 'Kunde inte starta packningssession');
+      } else {
+        setActiveSession(res.session);
+      }
+    } catch (err: any) {
+      setSessionError(err?.message || 'Kunde inte starta packningssession');
+    } finally {
+      setSessionLoading(false);
+    }
+  }, [packingId, storedStaff]);
+
+  useEffect(() => { bootSession(); }, [bootSession]);
+
   const [isQRActive, setIsQRActive] = useState(false);
   const [isMinusMode, setIsMinusMode] = useState(false);
   const isMinusModeRef = useRef(isMinusMode);
@@ -93,7 +140,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const {
     isKolliMode, activeParcel, itemParcelMap, itemAllocations,
     startKolli, nextKolli, exitKolli, assignToKolli, setParcelMap,
-  } = useKolliManager(packingId);
+  } = useKolliManager(packingId, () => activeSessionIdRef.current);
 
   const activeParcelRef = useRef(activeParcel);
   activeParcelRef.current = activeParcel;
@@ -139,6 +186,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   } = useScanProcessor({
     packingId,
     verifierName,
+    verifierStaffId,
     getItems: () => itemsRef.current,
     getIsMinusMode: () => isMinusModeRef.current,
     onScanResult: setScanResult,
@@ -148,6 +196,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     onAssignToKolli: assignToKolli,
     getIsKolliMode: () => isKolliMode,
     getActiveParcelId: () => activeParcelRef.current?.id ?? null,
+    getActiveSessionId: () => activeSessionIdRef.current,
     onTriggerSync: triggerSync,
     onRfidTagResult: rfid.recordTagResult,
   });
@@ -209,6 +258,70 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     exitKolli();
     await loadData(false);
   }, [exitKolli, loadData]);
+
+  // ── Guarded back: alltid via signering om session är aktiv ──────────
+  const handleGuardedBack = useCallback(() => {
+    if (activeSession && activeSession.status === 'active') {
+      setShowSignDialog(true);
+      return;
+    }
+    onBack();
+  }, [activeSession, onBack]);
+
+  // beforeunload/popstate-skydd när aktiv session finns
+  useEffect(() => {
+    if (!activeSession || activeSession.status !== 'active') return;
+
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    const onPopState = () => {
+      // Push state back så vyn inte stängs, och öppna signering
+      window.history.pushState(null, '', window.location.href);
+      setShowSignDialog(true);
+    };
+
+    window.history.pushState(null, '', window.location.href);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    window.addEventListener('popstate', onPopState);
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      window.removeEventListener('popstate', onPopState);
+    };
+  }, [activeSession]);
+
+  // ── Sessions-gate: blockera packning helt om vi inte har en aktiv session ──
+  if (!storedStaff) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (sessionLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] gap-2">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Startar packningssession…</p>
+      </div>
+    );
+  }
+
+  if (!activeSession) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 p-6 text-center">
+        <AlertCircle className="h-8 w-8 text-destructive" />
+        <p className="text-sm font-semibold">Starta packningssession först</p>
+        {sessionError && <p className="text-xs text-muted-foreground">{sessionError}</p>}
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={onBack}>Tillbaka</Button>
+          <Button onClick={bootSession}>Försök igen</Button>
+        </div>
+      </div>
+    );
+  }
 
   // --- Rendering helpers ---
   const buildChildrenMap = (itemsList: PackingItem[]) => {
@@ -483,7 +596,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
       <div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-card border-b safe-area-top">
-        <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0 h-8 w-8">
+        <Button variant="ghost" size="icon" onClick={handleGuardedBack} className="shrink-0 h-8 w-8">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1 min-w-0">
@@ -494,6 +607,24 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         </div>
         <Button variant="ghost" size="icon" onClick={() => loadData(false)} className="shrink-0 h-8 w-8">
           <RefreshCw className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+      {/* Session banner — vem packar och när sessionen startade */}
+      <div className="shrink-0 px-3 py-1.5 bg-primary/10 border-b border-primary/20 flex items-center justify-between gap-2">
+        <p className="text-[11px] font-medium text-primary truncate">
+          Packar som <b>{verifierName}</b>
+          {activeSession?.started_at && (
+            <> • session startad {new Date(activeSession.started_at).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}</>
+          )}
+        </p>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 px-2 text-[10px] text-primary hover:bg-primary/15"
+          onClick={() => setShowSignDialog(true)}
+        >
+          Signera & stäng
         </Button>
       </div>
 
@@ -793,6 +924,19 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         onOpenChange={setShowQrParcels}
         packingId={packingId}
         verifierName={verifierName}
+        activeSessionId={activeSession?.id ?? null}
+      />
+
+      <SignPackingSessionDialog
+        open={showSignDialog}
+        onOpenChange={setShowSignDialog}
+        session={activeSession}
+        packingId={packingId}
+        staffName={verifierName}
+        onClosed={() => {
+          setActiveSession(null);
+          onBack();
+        }}
       />
     </div>
   );

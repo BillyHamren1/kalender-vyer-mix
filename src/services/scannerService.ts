@@ -62,19 +62,71 @@ const callScannerApi = async (action: string, params: Record<string, any> = {}) 
   return response.json();
 };
 
+// ============== PACKING WORK SESSION ==============
+
+export interface PackingWorkSession {
+  id: string;
+  organization_id: string;
+  packing_id: string;
+  staff_id: string;
+  staff_name: string;
+  status: 'active' | 'signed' | string;
+  started_at: string;
+  ended_at: string | null;
+  signed_at: string | null;
+  signature_name: string | null;
+  summary_json: any | null;
+}
+
+export const startPackingSession = async (
+  packingId: string,
+): Promise<{ success: boolean; session?: PackingWorkSession; reused?: boolean; error?: string }> => {
+  return callScannerApi('start_packing_session', { packingId });
+};
+
+export const getActivePackingSession = async (
+  packingId: string,
+): Promise<{ success: boolean; session: PackingWorkSession | null }> => {
+  return callScannerApi('get_active_packing_session', { packingId });
+};
+
+export const closePackingSession = async (
+  sessionId: string,
+  signatureName: string,
+  options?: { closeWithoutChanges?: boolean },
+): Promise<{ success: boolean; session?: PackingWorkSession; error?: string; code?: string }> => {
+  try {
+    return await callScannerApi('close_packing_session', {
+      sessionId,
+      signatureName,
+      closeWithoutChanges: options?.closeWithoutChanges === true,
+    });
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Kunde inte stänga session', code: err?.debugCode };
+  }
+};
+
+export const getPackingHistory = async (
+  packingId: string,
+  limit?: number,
+): Promise<{ success: boolean; sessions: any[]; events: any[] }> => {
+  return callScannerApi('get_packing_history', { packingId, limit });
+};
+
 // ============== PARCEL (KOLLI) FUNCTIONS ==============
 
 export const createParcel = async (
-  packingId: string, 
-  createdBy: string
+  packingId: string,
+  createdBy: string,
+  activeSessionId?: string | null,
 ): Promise<PackingParcel> => {
-  return callScannerApi('create_parcel', { packingId, createdBy });
+  return callScannerApi('create_parcel', { packingId, createdBy, activeSessionId: activeSessionId || null });
 };
 
 export const assignItemToParcel = async (
   itemId: string,
   parcelId: string | null,
-  options?: { quantity?: number; scannedBy?: string; clearAllocations?: boolean }
+  options?: { quantity?: number; scannedBy?: string; clearAllocations?: boolean; activeSessionId?: string | null }
 ): Promise<void> => {
   await callScannerApi('assign_item_to_parcel', {
     itemId,
@@ -82,6 +134,7 @@ export const assignItemToParcel = async (
     quantity: options?.quantity,
     scannedBy: options?.scannedBy,
     clearAllocations: options?.clearAllocations,
+    activeSessionId: options?.activeSessionId || null,
   });
 };
 
@@ -113,15 +166,16 @@ export const registerQrParcel = async (
   packingId: string,
   qrCode: string,
   createdBy?: string,
+  activeSessionId?: string | null,
 ): Promise<{ success: boolean; parcel?: QrParcel; error?: string }> => {
-  return callScannerApi('register_qr_parcel', { packingId, qrCode, createdBy });
+  return callScannerApi('register_qr_parcel', { packingId, qrCode, createdBy, activeSessionId: activeSessionId || null });
 };
 export const listQrParcels = async (packingId: string): Promise<QrParcel[]> => {
   const res = await callScannerApi('list_qr_parcels', { packingId });
   return res?.parcels || [];
 };
-export const deleteQrParcel = async (parcelId: string): Promise<void> => {
-  await callScannerApi('delete_qr_parcel', { parcelId });
+export const deleteQrParcel = async (parcelId: string, activeSessionId?: string | null): Promise<void> => {
+  await callScannerApi('delete_qr_parcel', { parcelId, activeSessionId: activeSessionId || null });
 };
 
 
@@ -306,7 +360,8 @@ export const verifyProductBySku = async (
   sku: string,
   verifiedBy: string,
   activeParcelId?: string | null,
-  verifiedByStaffId?: string | null
+  verifiedByStaffId?: string | null,
+  activeSessionId?: string | null,
 ): Promise<{
   success: boolean;
   productName?: string;
@@ -320,18 +375,15 @@ export const verifyProductBySku = async (
   scannedName?: string | null;
   bookingId?: string;
   alreadyScanned?: boolean;
-  // WMS debug fields (source of truth for the scanned QR)
   matchedBy?: 'item_type_id' | 'sku' | 'name_fallback' | null;
   wmsInstanceId?: string | null;
   wmsItemTypeId?: string | null;
   wmsSerialNumber?: string | null;
   wmsSku?: string | null;
 }> => {
-  return callScannerApi('verify_product', { packingId, sku, verifiedBy, activeParcelId: activeParcelId || null, verifiedByStaffId: verifiedByStaffId || null });
+  return callScannerApi('verify_product', { packingId, sku, verifiedBy, activeParcelId: activeParcelId || null, verifiedByStaffId: verifiedByStaffId || null, activeSessionId: activeSessionId || null });
 };
 
-// Add an unknown product (scanned but not in packing list) to both
-// the booking_products and packing_list_items, with 1 already packed.
 export interface UnknownProductWmsContext {
   wmsItemTypeId?: string | null;
   wmsSku?: string | null;
@@ -347,6 +399,7 @@ export const addUnknownProduct = async (
   verifiedBy: string,
   verifiedByStaffId?: string | null,
   wms?: UnknownProductWmsContext,
+  activeSessionId?: string | null,
 ): Promise<{ success: boolean; itemId?: string; bookingProductId?: string; productName?: string; error?: string }> => {
   return callScannerApi('add_unknown_product', {
     packingId,
@@ -355,24 +408,23 @@ export const addUnknownProduct = async (
     quantityToPack,
     verifiedBy,
     verifiedByStaffId: verifiedByStaffId || null,
-    // Preserve WMS identity so the new booking_products row stays linked to inventory.
     inventoryItemTypeId: wms?.wmsItemTypeId || null,
     wmsItemTypeId: wms?.wmsItemTypeId || null,
     wmsSku: wms?.wmsSku || null,
     wmsInstanceId: wms?.wmsInstanceId || null,
     wmsSerialNumber: wms?.wmsSerialNumber || null,
+    activeSessionId: activeSessionId || null,
   });
 };
 
-// Toggle a packing item manually (optionally allocate the increment to an active parcel).
-// On increment, scanner-api also pushes a manual-pack-scan to Bundle Builder.
 export const togglePackingItemManually = async (
   itemId: string,
   currentlyPacked: boolean,
   quantityToPack: number,
   verifiedBy: string,
   activeParcelId?: string | null,
-  verifiedByStaffId?: string | null
+  verifiedByStaffId?: string | null,
+  activeSessionId?: string | null,
 ): Promise<{
   success: boolean;
   error?: string;
@@ -381,29 +433,27 @@ export const togglePackingItemManually = async (
   warning?: string;
   productName?: string;
   newQuantity?: number;
-  // WMS rejection details — surfaced so UIs can show a clear, specific error
-  // and skip optimistic updates when the manual check-off was refused.
   bundleErrorCode?: string | null;
   bundleError?: string | null;
   hardWmsError?: boolean;
 }> => {
-  return callScannerApi('toggle_item', { itemId, currentlyPacked, quantityToPack, verifiedBy, activeParcelId: activeParcelId || null, verifiedByStaffId: verifiedByStaffId || null });
+  return callScannerApi('toggle_item', { itemId, currentlyPacked, quantityToPack, verifiedBy, activeParcelId: activeParcelId || null, verifiedByStaffId: verifiedByStaffId || null, activeSessionId: activeSessionId || null });
 };
 
-// Decrement a packing item by 1
 export const decrementPackingItem = async (
   itemId: string,
-  verifiedBy: string
+  verifiedBy: string,
+  activeSessionId?: string | null,
 ): Promise<{ success: boolean; error?: string }> => {
-  return callScannerApi('decrement_item', { itemId });
+  return callScannerApi('decrement_item', { itemId, activeSessionId: activeSessionId || null });
 };
 
-// Decrement by serial / RFID (looks up SKU via WMS first)
 export const decrementBySerial = async (
   packingId: string,
-  serialNumber: string
+  serialNumber: string,
+  activeSessionId?: string | null,
 ): Promise<{ success: boolean; error?: string; itemId?: string; newQuantity?: number; productName?: string }> => {
-  return callScannerApi('decrement_by_serial', { packingId, serialNumber });
+  return callScannerApi('decrement_by_serial', { packingId, serialNumber, activeSessionId: activeSessionId || null });
 };
 
 // Get verification progress
