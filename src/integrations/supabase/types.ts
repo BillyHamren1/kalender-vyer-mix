@@ -3746,6 +3746,146 @@ export type Database = {
           },
         ]
       }
+      packing_control_session_items: {
+        Row: {
+          answer: string
+          comment: string | null
+          confirmed_at: string
+          control_session_id: string | null
+          created_at: string
+          expected_quantity: number
+          id: string
+          organization_id: string
+          packing_id: string
+          packing_list_item_id: string | null
+          product_name: string
+          staff_id: string | null
+          staff_name: string
+        }
+        Insert: {
+          answer: string
+          comment?: string | null
+          confirmed_at?: string
+          control_session_id?: string | null
+          created_at?: string
+          expected_quantity: number
+          id?: string
+          organization_id: string
+          packing_id: string
+          packing_list_item_id?: string | null
+          product_name: string
+          staff_id?: string | null
+          staff_name: string
+        }
+        Update: {
+          answer?: string
+          comment?: string | null
+          confirmed_at?: string
+          control_session_id?: string | null
+          created_at?: string
+          expected_quantity?: number
+          id?: string
+          organization_id?: string
+          packing_id?: string
+          packing_list_item_id?: string | null
+          product_name?: string
+          staff_id?: string | null
+          staff_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packing_control_session_items_control_session_id_fkey"
+            columns: ["control_session_id"]
+            isOneToOne: false
+            referencedRelation: "packing_control_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_control_session_items_packing_id_fkey"
+            columns: ["packing_id"]
+            isOneToOne: false
+            referencedRelation: "packing_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_control_session_items_packing_list_item_id_fkey"
+            columns: ["packing_list_item_id"]
+            isOneToOne: false
+            referencedRelation: "packing_list_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_control_session_items_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      packing_control_sessions: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          organization_id: string
+          packing_id: string
+          signature_name: string | null
+          signed_at: string | null
+          staff_id: string | null
+          staff_name: string
+          started_at: string
+          status: string
+          summary_json: Json
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          organization_id: string
+          packing_id: string
+          signature_name?: string | null
+          signed_at?: string | null
+          staff_id?: string | null
+          staff_name: string
+          started_at?: string
+          status?: string
+          summary_json?: Json
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          organization_id?: string
+          packing_id?: string
+          signature_name?: string | null
+          signed_at?: string | null
+          staff_id?: string | null
+          staff_name?: string
+          started_at?: string
+          status?: string
+          summary_json?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packing_control_sessions_packing_id_fkey"
+            columns: ["packing_id"]
+            isOneToOne: false
+            referencedRelation: "packing_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_control_sessions_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       packing_files: {
         Row: {
           file_name: string
@@ -4192,6 +4332,12 @@ export type Database = {
         Row: {
           booking_id: string | null
           client_name: string | null
+          control_completed_at: string | null
+          control_signed_at: string | null
+          control_signed_by: string | null
+          control_signed_by_staff_id: string | null
+          control_started_at: string | null
+          control_status: string | null
           created_at: string
           delivery_address: string | null
           end_date: string | null
@@ -4214,6 +4360,12 @@ export type Database = {
         Insert: {
           booking_id?: string | null
           client_name?: string | null
+          control_completed_at?: string | null
+          control_signed_at?: string | null
+          control_signed_by?: string | null
+          control_signed_by_staff_id?: string | null
+          control_started_at?: string | null
+          control_status?: string | null
           created_at?: string
           delivery_address?: string | null
           end_date?: string | null
@@ -4236,6 +4388,12 @@ export type Database = {
         Update: {
           booking_id?: string | null
           client_name?: string | null
+          control_completed_at?: string | null
+          control_signed_at?: string | null
+          control_signed_by?: string | null
+          control_signed_by_staff_id?: string | null
+          control_started_at?: string | null
+          control_status?: string | null
           created_at?: string
           delivery_address?: string | null
           end_date?: string | null
@@ -4256,6 +4414,13 @@ export type Database = {
           warehouse_project_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "packing_projects_control_signed_by_staff_id_fkey"
+            columns: ["control_signed_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "packing_projects_large_project_id_fkey"
             columns: ["large_project_id"]
@@ -4548,6 +4713,165 @@ export type Database = {
             columns: ["packing_id"]
             isOneToOne: false
             referencedRelation: "packing_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      packing_work_session_events: {
+        Row: {
+          after_quantity: number | null
+          before_quantity: number | null
+          created_at: string
+          event_type: string
+          id: string
+          metadata: Json
+          organization_id: string
+          packing_id: string
+          packing_list_item_id: string | null
+          parcel_id: string | null
+          product_name: string | null
+          quantity_delta: number
+          scan_value: string | null
+          session_id: string | null
+          source: string | null
+          staff_id: string | null
+          staff_name: string
+        }
+        Insert: {
+          after_quantity?: number | null
+          before_quantity?: number | null
+          created_at?: string
+          event_type: string
+          id?: string
+          metadata?: Json
+          organization_id: string
+          packing_id: string
+          packing_list_item_id?: string | null
+          parcel_id?: string | null
+          product_name?: string | null
+          quantity_delta?: number
+          scan_value?: string | null
+          session_id?: string | null
+          source?: string | null
+          staff_id?: string | null
+          staff_name: string
+        }
+        Update: {
+          after_quantity?: number | null
+          before_quantity?: number | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          metadata?: Json
+          organization_id?: string
+          packing_id?: string
+          packing_list_item_id?: string | null
+          parcel_id?: string | null
+          product_name?: string | null
+          quantity_delta?: number
+          scan_value?: string | null
+          session_id?: string | null
+          source?: string | null
+          staff_id?: string | null
+          staff_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packing_work_session_events_packing_id_fkey"
+            columns: ["packing_id"]
+            isOneToOne: false
+            referencedRelation: "packing_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_work_session_events_packing_list_item_id_fkey"
+            columns: ["packing_list_item_id"]
+            isOneToOne: false
+            referencedRelation: "packing_list_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_work_session_events_parcel_id_fkey"
+            columns: ["parcel_id"]
+            isOneToOne: false
+            referencedRelation: "packing_parcels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_work_session_events_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "packing_work_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_work_session_events_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      packing_work_sessions: {
+        Row: {
+          created_at: string
+          ended_at: string | null
+          id: string
+          organization_id: string
+          packing_id: string
+          signature_name: string | null
+          signed_at: string | null
+          staff_id: string | null
+          staff_name: string
+          started_at: string
+          status: string
+          summary_json: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          organization_id: string
+          packing_id: string
+          signature_name?: string | null
+          signed_at?: string | null
+          staff_id?: string | null
+          staff_name: string
+          started_at?: string
+          status?: string
+          summary_json?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          organization_id?: string
+          packing_id?: string
+          signature_name?: string | null
+          signed_at?: string | null
+          staff_id?: string | null
+          staff_name?: string
+          started_at?: string
+          status?: string
+          summary_json?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packing_work_sessions_packing_id_fkey"
+            columns: ["packing_id"]
+            isOneToOne: false
+            referencedRelation: "packing_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "packing_work_sessions_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
             referencedColumns: ["id"]
           },
         ]
