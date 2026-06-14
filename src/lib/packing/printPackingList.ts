@@ -275,9 +275,20 @@ export function openPrintablePackingList(
     }
   });
 
-  // ─── Spara PDF:en direkt (ny flik blockeras ofta av ad-blockers på blob:) ──
+  // ─── Öppna PDF i ny flik (med download-fallback) ──────────────────────────
   const safeName = meta.packingName.replace(/[^a-z0-9-_åäöÅÄÖ ]+/gi, '_').trim();
   const filename = `Packlista - ${safeName || 'lista'}.pdf`;
-  doc.save(filename);
+  const blob = doc.output('blob');
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, '_blank');
+  if (!win) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
