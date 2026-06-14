@@ -1470,6 +1470,14 @@ Deno.serve(async (req) => {
 
         if (packingId) await checkIfAllPacked(supabase, packingId, ORG_ID)
 
+        await logPackingSessionEvent(supabase, auth, ACTIVE_SESSION_ID, {
+          packingId, itemId, eventType: 'manual_pack',
+          quantityDelta: newQty - currentQty, productName,
+          beforeQuantity: currentQty, afterQuantity: newQty,
+          parcelId: (params as any).activeParcelId ?? null,
+          source: 'manual',
+        })
+
         return json({
           success: true,
           manualScan: true,
