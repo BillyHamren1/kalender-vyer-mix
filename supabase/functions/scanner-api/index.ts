@@ -1697,6 +1697,15 @@ Deno.serve(async (req) => {
 
         await checkIfAllPacked(supabase, packingId, ORG_ID)
 
+        await logPackingSessionEvent(supabase, auth, ACTIVE_SESSION_ID, {
+          packingId, itemId: target.id, eventType: 'scan_unpack',
+          quantityDelta: -1,
+          productName: target.booking_products?.name || null,
+          beforeQuantity: (target.quantity_packed || 0), afterQuantity: newQty,
+          scanValue: serial, source: 'scan',
+          metadata: { matchedBy, wmsInstanceId, wmsItemTypeId, wmsSerialNumber, wmsSku },
+        })
+
         return json({
           success: true,
           itemId: target.id,
