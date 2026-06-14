@@ -37,6 +37,7 @@ const PersonalkalendernInner: React.FC = () => {
   const { events, isLoading, isMounted, refreshEvents } = useRealTimeCalendarEvents();
   const { teamResources } = useTeamResources();
   const { internalLagerEvents } = useInternalLagerCalendarEvents(weekStart, 'weekly');
+  const inboxCount = useProjectInboxCount();
 
   const mergedEvents = useMemo(() => {
     const filtered = events.filter((e: any) => e.resourceId !== 'transport');
