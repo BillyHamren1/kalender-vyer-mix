@@ -78,6 +78,7 @@ const WarehouseDashboard = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterKey>("active");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
 
   const anchorDate = useMemo(() => new Date(), []);
   const { data, isLoading, isFetching, refetch } = useWarehouseOpsRange(anchorDate, "next30");
@@ -96,10 +97,24 @@ const WarehouseDashboard = () => {
     return c;
   }, [jobs]);
 
+  const rangeActive = !!(dateRange?.from || dateRange?.to);
+
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const from = dateRange?.from ? startOfDay(dateRange.from) : null;
+    const to = dateRange?.to ? endOfDay(dateRange.to) : dateRange?.from ? endOfDay(dateRange.from) : null;
+
     return jobs
-      .filter((j) => matchFilter(j, filter))
+      .filter((j) => (rangeActive ? true : matchFilter(j, filter)))
+      .filter((j) => {
+        if (!rangeActive) return true;
+        if (!j.anchorDate) return false;
+        const a = parseISO(j.anchorDate);
+        if (from && to) return isWithinInterval(a, { start: from, end: to });
+        if (from) return a >= from;
+        if (to) return a <= to;
+        return true;
+      })
       .filter((j) => {
         if (!q) return true;
         return (
@@ -114,7 +129,16 @@ const WarehouseDashboard = () => {
         if (ad !== bd) return ad < bd ? -1 : 1;
         return (a.anchorTime ?? "99:99") < (b.anchorTime ?? "99:99") ? -1 : 1;
       });
-  }, [jobs, filter, query]);
+  }, [jobs, filter, query, dateRange, rangeActive]);
+
+  const dateLabel = (() => {
+    if (!dateRange?.from) return "Välj datum";
+    const f = format(dateRange.from, "d MMM", { locale: sv });
+    if (dateRange.to && dateRange.to.getTime() !== dateRange.from.getTime()) {
+      return `${f} – ${format(dateRange.to, "d MMM", { locale: sv })}`;
+    }
+    return f;
+  })();
 
   return (
     <div className="h-full overflow-y-auto overflow-x-hidden" style={{ background: "var(--gradient-page)" }}>
