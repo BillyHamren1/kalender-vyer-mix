@@ -221,7 +221,6 @@ export function openPrintablePackingList(
         <th class="col-check"></th>
         <th class="col-name">Produkt</th>
         <th class="col-qty">Antal</th>
-        <th class="col-units">Per enhet</th>
         <th class="col-sign">Signatur</th>
       </tr>
     </thead>
