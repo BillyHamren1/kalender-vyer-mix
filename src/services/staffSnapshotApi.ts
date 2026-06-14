@@ -81,7 +81,18 @@ export async function callStaffSnapshotFunction<T>(
   const viewAs = storedViewAs && (!bodyStaffId || bodyStaffId === storedViewAs)
     ? storedViewAs
     : null;
-  if (mobileToken) {
+
+  // Prefer Supabase JWT when a real web session exists. A stale mobile token
+  // in localStorage (e.g. from a previous mobile login on the same browser)
+  // otherwise hits single-device-per-staff revocation and returns 401
+  // "Sessionen avslutades – kontot är aktivt på en annan enhet." on admin web.
+  let hasWebSession = false;
+  try {
+    const { data } = await supabase.auth.getSession();
+    hasWebSession = !!data.session?.access_token;
+  } catch { /* noop */ }
+
+  if (mobileToken && !hasWebSession) {
     const base = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
     const apikey = (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
     if (!base) throw new Error('VITE_SUPABASE_URL not set');
