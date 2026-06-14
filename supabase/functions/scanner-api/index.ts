@@ -397,6 +397,120 @@ async function mirrorWmsAllocations(
   return payload.length
 }
 
+// ============================================================================
+// CONTROL COUNT (kontrollräkning) — separat flöde från packningssignering.
+// Använder samma countable-regel som computePackingProgress (paketheaders
+// kollapseras: produkter vars id refereras som parent_product_id av andra
+// rader i SAMMA packlista räknas inte själva).
+// ============================================================================
+
+interface ControlCountableRow {
+  id: string // packing_list_items.id
+  product_name: string
+  expected_quantity: number
+  parent_product_id: string | null
+  product_id: string | null
+}
+
+async function fetchControlCountableItems(
+  supabase: any,
+  packingId: string,
+  orgId: string,
+): Promise<ControlCountableRow[]> {
+  const { data: items, error } = await supabase
+    .from('packing_list_items')
+    .select(
+      'id, excluded, quantity_to_pack, manual_name, booking_products(id, name, parent_product_id)',
+    )
+    .eq('packing_id', packingId)
+    .eq('organization_id', orgId)
+  if (error || !items) return []
+
+  // Bygg headers-set från SAMMA packlista (mirror av computePackingProgress).
+  const headerProductIds = new Set<string>()
+  for (const it of items) {
+    const pid = (it as any)?.booking_products?.parent_product_id
+    if (pid) headerProductIds.add(pid)
+  }
+
+  const out: ControlCountableRow[] = []
+  for (const it of items) {
+    if ((it as any).excluded === true) continue
+    const bp = (it as any).booking_products
+    const productId: string | null = bp?.id ?? null
+    if (productId && headerProductIds.has(productId)) continue // paketheader
+    const qty = Math.max(0, (it as any).quantity_to_pack | 0)
+    if (qty <= 0) continue
+    out.push({
+      id: (it as any).id,
+      product_name:
+        (it as any).manual_name ||
+        bp?.name ||
+        'Okänd produkt',
+      expected_quantity: qty,
+      parent_product_id: bp?.parent_product_id ?? null,
+      product_id: productId,
+    })
+  }
+  // Stabil ordning: parent först, sedan barn, sedan namn.
+  out.sort((a, b) => {
+    if (!!a.parent_product_id !== !!b.parent_product_id) {
+      return a.parent_product_id ? 1 : -1
+    }
+    return a.product_name.localeCompare(b.product_name, 'sv')
+  })
+  return out
+}
+
+async function requireOwnedControlSession(
+  supabase: any,
+  auth: { staffId: string; organizationId: string },
+  sessionId: unknown,
+): Promise<any> {
+  if (!sessionId || typeof sessionId !== 'string') {
+    throw { status: 400, message: 'sessionId krävs', reason: 'CONTROL_SESSION_REQUIRED' }
+  }
+  const { data: session, error } = await supabase
+    .from('packing_control_sessions')
+    .select('*')
+    .eq('id', sessionId)
+    .maybeSingle()
+  if (error || !session) {
+    throw { status: 404, message: 'Kontrollsession hittades inte', reason: 'CONTROL_SESSION_NOT_FOUND' }
+  }
+  if (session.organization_id !== auth.organizationId) {
+    throw { status: 403, message: 'Tillhör annan organisation', reason: 'CONTROL_SESSION_FORBIDDEN' }
+  }
+  if (session.staff_id !== auth.staffId) {
+    throw { status: 403, message: 'Kontrollsessionen tillhör inte dig', reason: 'CONTROL_SESSION_FORBIDDEN' }
+  }
+  return session
+}
+
+async function getNextControlItem(
+  supabase: any,
+  session: any,
+): Promise<{ row: ControlCountableRow | null; index: number; total: number; answered: number }> {
+  const rows = await fetchControlCountableItems(
+    supabase,
+    session.packing_id,
+    session.organization_id,
+  )
+  // Vilka rader har redan svar i denna kontrollsession?
+  const { data: answers } = await supabase
+    .from('packing_control_session_items')
+    .select('packing_list_item_id')
+    .eq('organization_id', session.organization_id)
+    .eq('control_session_id', session.id)
+  const answeredIds = new Set<string>(
+    (answers || []).map((a: any) => a.packing_list_item_id),
+  )
+  const next = rows.find((r) => !answeredIds.has(r.id)) || null
+  const index = next ? rows.findIndex((r) => r.id === next.id) : rows.length
+  return { row: next, index, total: rows.length, answered: answeredIds.size }
+}
+
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
