@@ -259,6 +259,70 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     await loadData(false);
   }, [exitKolli, loadData]);
 
+  // ── Guarded back: alltid via signering om session är aktiv ──────────
+  const handleGuardedBack = useCallback(() => {
+    if (activeSession && activeSession.status === 'active') {
+      setShowSignDialog(true);
+      return;
+    }
+    onBack();
+  }, [activeSession, onBack]);
+
+  // beforeunload/popstate-skydd när aktiv session finns
+  useEffect(() => {
+    if (!activeSession || activeSession.status !== 'active') return;
+
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    const onPopState = () => {
+      // Push state back så vyn inte stängs, och öppna signering
+      window.history.pushState(null, '', window.location.href);
+      setShowSignDialog(true);
+    };
+
+    window.history.pushState(null, '', window.location.href);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    window.addEventListener('popstate', onPopState);
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      window.removeEventListener('popstate', onPopState);
+    };
+  }, [activeSession]);
+
+  // ── Sessions-gate: blockera packning helt om vi inte har en aktiv session ──
+  if (!storedStaff) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (sessionLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] gap-2">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Startar packningssession…</p>
+      </div>
+    );
+  }
+
+  if (!activeSession) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 p-6 text-center">
+        <AlertCircle className="h-8 w-8 text-destructive" />
+        <p className="text-sm font-semibold">Starta packningssession först</p>
+        {sessionError && <p className="text-xs text-muted-foreground">{sessionError}</p>}
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={onBack}>Tillbaka</Button>
+          <Button onClick={bootSession}>Försök igen</Button>
+        </div>
+      </div>
+    );
+  }
+
   // --- Rendering helpers ---
   const buildChildrenMap = (itemsList: PackingItem[]) => {
     const map: Record<string, PackingItem[]> = {};
