@@ -1240,6 +1240,21 @@ Deno.serve(async (req) => {
         }
 
 
+
+        await logPackingSessionEvent(supabase, auth, ACTIVE_SESSION_ID, {
+          packingId,
+          itemId: (selectedItem as any).id,
+          eventType: 'scan_pack',
+          quantityDelta: newQuantity - currentPacked,
+          productName,
+          beforeQuantity: currentPacked,
+          afterQuantity: newQuantity,
+          parcelId: activeParcelId ?? null,
+          scanValue: serialNumber,
+          source: 'scan',
+          metadata: { wmsItemTypeId, wmsInstanceId, wmsSerialNumber, wmsSku, matchedBy, alreadyAllocatedSerials, successfulAllocations },
+        })
+
         return json({
           success: true,
           overscan: isAlreadyFull,
