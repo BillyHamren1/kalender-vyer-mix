@@ -596,7 +596,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
       <div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-card border-b safe-area-top">
-        <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0 h-8 w-8">
+        <Button variant="ghost" size="icon" onClick={handleGuardedBack} className="shrink-0 h-8 w-8">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1 min-w-0">
@@ -607,6 +607,24 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         </div>
         <Button variant="ghost" size="icon" onClick={() => loadData(false)} className="shrink-0 h-8 w-8">
           <RefreshCw className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+      {/* Session banner — vem packar och när sessionen startade */}
+      <div className="shrink-0 px-3 py-1.5 bg-primary/10 border-b border-primary/20 flex items-center justify-between gap-2">
+        <p className="text-[11px] font-medium text-primary truncate">
+          Packar som <b>{verifierName}</b>
+          {activeSession?.started_at && (
+            <> • session startad {new Date(activeSession.started_at).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}</>
+          )}
+        </p>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 px-2 text-[10px] text-primary hover:bg-primary/15"
+          onClick={() => setShowSignDialog(true)}
+        >
+          Signera & stäng
         </Button>
       </div>
 
