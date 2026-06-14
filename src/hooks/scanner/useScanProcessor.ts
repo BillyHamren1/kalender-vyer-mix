@@ -139,7 +139,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         // Ask the backend to look it up via the WMS, then decrement.
         if (parsed.unique) {
           recordApiStart(scannedValue);
-          const result = await decrementBySerial(packingId, scannedValue);
+          const result = await decrementBySerial(packingId, scannedValue, optRef.current.getActiveSessionId());
           recordApiEnd(scannedValue, result.success ? 'success' : 'failed', result.productName);
           if (!result.success || !result.itemId) {
             scanLog('minus_serial_failed', { value: scannedValue, error: result.error });
@@ -173,7 +173,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         }
 
         recordApiStart(scannedValue);
-        await decrementPackingItem(matchingItem.id, verifierName);
+        await decrementPackingItem(matchingItem.id, verifierName, optRef.current.getActiveSessionId());
         recordApiEnd(scannedValue, 'success', matchingItem.booking_products?.name);
         const productName = matchingItem.booking_products?.name || scannedValue;
         scanLog('item_matched', { itemId: matchingItem.id, productName, mode: 'minus' });
@@ -188,7 +188,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         scanLog('verify_start', { packingId, sku: scannedValue });
         const activeParcelId = optRef.current.getActiveParcelId?.() ?? null;
         recordApiStart(scannedValue);
-        const result = await verifyProductBySku(packingId, scannedValue, verifierName, activeParcelId, verifierStaffId);
+        const result = await verifyProductBySku(packingId, scannedValue, verifierName, activeParcelId, verifierStaffId, optRef.current.getActiveSessionId());
         const apiStatus: ScanStatus = result.success
           ? ((result as any).alreadyScanned ? 'duplicate' : (result.overscan ? 'overscan' : 'success'))
           : (result.notInPackingList ? 'unknown_product' : 'failed');
@@ -355,7 +355,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         return;
       }
       try {
-        await decrementPackingItem(itemId, verifierName);
+        await decrementPackingItem(itemId, verifierName, optRef.current.getActiveSessionId());
         onOptimisticDecrement(itemId);
         onTriggerSync();
       } catch (err: any) {
@@ -368,7 +368,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     const items = getItems();
     const itemBefore = items.find(i => i.id === itemId);
     const productName = itemBefore?.booking_products?.name || 'Produkt';
-    const result = await togglePackingItemManually(itemId, isCurrentlyPacked, quantityToPack, verifierName, activeParcelId);
+    const result = await togglePackingItemManually(itemId, isCurrentlyPacked, quantityToPack, verifierName, activeParcelId, undefined, optRef.current.getActiveSessionId());
     if (result.success) {
       if (!isCurrentlyPacked) {
         onOptimisticIncrement(itemId);
@@ -437,6 +437,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
           wmsInstanceId: pendingUnknownProduct.wmsInstanceId ?? null,
           wmsSerialNumber: pendingUnknownProduct.wmsSerialNumber ?? null,
         },
+        optRef.current.getActiveSessionId(),
       );
       if (!result.success) {
         toast.error(result.error || 'Kunde inte lägga till produkten');
