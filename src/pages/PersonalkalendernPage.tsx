@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { startOfWeek, addDays, format, isSameWeek } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, LogOut } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, LogOut, Inbox } from 'lucide-react';
+import { useProjectInboxCount } from '@/hooks/useProjectInboxCount';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useInternalLagerCalendarEvents } from '@/hooks/useInternalLagerCalendarEvents';
@@ -36,6 +37,7 @@ const PersonalkalendernInner: React.FC = () => {
   const { events, isLoading, isMounted, refreshEvents } = useRealTimeCalendarEvents();
   const { teamResources } = useTeamResources();
   const { internalLagerEvents } = useInternalLagerCalendarEvents(weekStart, 'weekly');
+  const inboxCount = useProjectInboxCount();
 
   const mergedEvents = useMemo(() => {
     const filtered = events.filter((e: any) => e.resourceId !== 'transport');
@@ -103,6 +105,21 @@ const PersonalkalendernInner: React.FC = () => {
             </Button>
           </div>
         </header>
+
+        {/* Notis om nya bokningar som ska planeras */}
+        {inboxCount > 0 && (
+          <button
+            type="button"
+            onClick={() => navigate('/projects')}
+            className="mx-3 sm:mx-6 mt-2 flex items-center gap-3 rounded-md border border-primary/30 bg-primary/10 hover:bg-primary/15 transition-colors px-3 py-2 text-left"
+          >
+            <Inbox className="h-4 w-4 text-primary shrink-0" />
+            <span className="text-sm font-medium text-foreground">
+              {inboxCount} {inboxCount === 1 ? 'ny bokning' : 'nya bokningar'} att planera
+            </span>
+            <span className="text-xs text-muted-foreground ml-auto">Öppna projekt →</span>
+          </button>
+        )}
 
         {/* Kalender */}
         <main className="flex-1 overflow-hidden">
