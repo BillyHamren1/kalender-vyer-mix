@@ -52,6 +52,7 @@ const PackingDetail = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<string | undefined>(undefined);
   const [products, setProducts] = useState<BookingProduct[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSplitting, setIsSplitting] = useState(false);
