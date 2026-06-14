@@ -81,7 +81,7 @@ const OpsJobsTable = ({ jobs, mode, onPickDay }: Props) => {
                 return (a.anchorTime || "99:99") < (b.anchorTime || "99:99") ? -1 : 1;
               })
               .map((j) => (
-                <JobRow key={j.id} job={j} onClick={() => navigate(`/packing/${j.id}`)} />
+                <JobRow key={j.id} job={j} onClick={() => navigate(`/warehouse/packing/${j.id}`)} />
               ))}
           </ul>
         </div>

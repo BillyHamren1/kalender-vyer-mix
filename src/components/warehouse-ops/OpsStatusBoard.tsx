@@ -172,7 +172,7 @@ const OpsStatusBoard = ({ jobs }: Props) => {
               ) : (
                 <ul className="divide-y divide-border/40">
                   {list.map((j) => (
-                    <JobCard key={j.id} job={j} onClick={() => navigate(`/packing/${j.id}`)} />
+                    <JobCard key={j.id} job={j} onClick={() => navigate(`/warehouse/packing/${j.id}`)} />
                   ))}
                 </ul>
               )}
