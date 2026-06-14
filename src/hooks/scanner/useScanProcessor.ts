@@ -43,6 +43,8 @@ interface UseScanProcessorOptions {
   getIsKolliMode: () => boolean;
   /** Returns the currently active parcel id (or null) so allocations can be logged inside the API call. */
   getActiveParcelId?: () => string | null;
+  /** Returns the active packing session id — required for all mutating scanner-api calls. */
+  getActiveSessionId: () => string | null;
   onScanResult: (result: ScanResult) => void;
   onHighlight: (itemId: string) => void;
   onOptimisticIncrement: (itemId: string) => void;
