@@ -281,15 +281,40 @@ export function openPrintablePackingList(
 </body>
 </html>`;
 
-  const w = window.open('', '_blank', 'noopener,noreferrer,width=900,height=1100');
-  if (!w) {
-    // Popup blocked — fallback: open as data URL
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
-    return;
+  // Use a hidden iframe — works reliably across browsers without popup blockers.
+  const existing = document.getElementById('packing-print-iframe');
+  if (existing) existing.remove();
+
+  const iframe = document.createElement('iframe');
+  iframe.id = 'packing-print-iframe';
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentDocument;
+  if (!doc) return;
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  const triggerPrint = () => {
+    try {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+    } catch (e) {
+      console.error('[printPackingList] print failed', e);
+    }
+  };
+
+  // Wait for iframe content to load before printing.
+  if (iframe.contentWindow?.document.readyState === 'complete') {
+    setTimeout(triggerPrint, 200);
+  } else {
+    iframe.addEventListener('load', () => setTimeout(triggerPrint, 200), { once: true });
   }
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
 }
