@@ -1291,12 +1291,19 @@ Deno.serve(async (req) => {
         // ── DECREMENT / RESET PATH (currentlyPacked === true) ──
         // Local-first is fine here per spec; only increments require WMS-first.
         if (currentlyPacked) {
+          const beforeQty = (itemData as any)?.quantity_packed || 0
           await supabase.from('packing_list_items').update({
             quantity_packed: 0, packed_at: null, packed_by: null, packed_by_staff_id: null, verified_at: null, verified_by: null, verified_by_staff_id: null, parcel_id: null
           }).eq('id', itemId).eq('organization_id', ORG_ID)
           await supabase.from('packing_list_item_allocations').delete().eq('packing_list_item_id', itemId).eq('organization_id', ORG_ID)
           newQty = 0
           if (packingId) await checkIfAllPacked(supabase, packingId, ORG_ID)
+          await logPackingSessionEvent(supabase, auth, ACTIVE_SESSION_ID, {
+            packingId, itemId, eventType: 'manual_unpack',
+            quantityDelta: -beforeQty, productName,
+            beforeQuantity: beforeQty, afterQuantity: 0,
+            source: 'manual',
+          })
           return json({ success: true, manualScan: false, bundleSynced: false, productName, newQuantity: newQty })
         }
 
