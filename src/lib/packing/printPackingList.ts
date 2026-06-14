@@ -279,3 +279,5 @@ export function openPrintablePackingList(
   const safeName = meta.packingName.replace(/[^a-z0-9-_åäöÅÄÖ ]+/gi, '_').trim();
   const filename = `Packlista - ${safeName || 'lista'}.pdf`;
   doc.save(filename);
+}
+
