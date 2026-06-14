@@ -49,8 +49,16 @@ function matchFilter(job: OpsJob, key: FilterKey): boolean {
       return !!anchor && isToday(anchor);
     case "week":
       return !!anchor && isThisWeek(anchor, { weekStartsOn: 1 });
-    case "upcoming":
-      return !!anchor && isAfter(anchor, today);
+    case "upcoming": {
+      // En packning räknas som "Kommande" så länge den inte är aktiverad eller klar
+      // och dess sista nedriggsdag (eller anchor) är idag eller senare.
+      if (ACTIVE_STATUSES.has(status)) return false;
+      if (DONE_STATUSES.has(status)) return false;
+      const lastStr = job.endDate || job.anchorDate;
+      if (!lastStr) return false;
+      const last = startOfDay(parseISO(lastStr));
+      return !isAfter(today, last); // last >= today
+    }
     case "done":
       return DONE_STATUSES.has(status);
     case "all":

@@ -26,18 +26,6 @@ const escapeHtml = (s: string): string =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!)
   );
 
-const renderUnitBoxes = (qty: number): string => {
-  // Render one tiny check-box per unit, max 30 per row (then collapse).
-  const max = Math.min(qty, 30);
-  let html = '';
-  for (let i = 0; i < max; i++) {
-    html += '<span class="unit-box"></span>';
-  }
-  if (qty > max) {
-    html += `<span class="unit-extra">+${qty - max}</span>`;
-  }
-  return html;
-};
 
 export function openPrintablePackingList(
   meta: PrintablePackingMeta,
@@ -72,7 +60,6 @@ export function openPrintablePackingList(
                 ${sku}
               </td>
               <td class="col-qty">${row.quantity}</td>
-              <td class="col-units">${renderUnitBoxes(row.quantity)}</td>
               <td class="col-sign"></td>
             </tr>
           `;
@@ -80,7 +67,7 @@ export function openPrintablePackingList(
         .join('');
 
       const groupHeader = groupName
-        ? `<tr class="group-header"><td colspan="5">${escapeHtml(groupName)}</td></tr>`
+        ? `<tr class="group-header"><td colspan="4">${escapeHtml(groupName)}</td></tr>`
         : '';
 
       return `${groupHeader}${rowsHtml}`;
@@ -138,11 +125,10 @@ export function openPrintablePackingList(
       border-bottom: 1px solid #ddd;
       vertical-align: top;
     }
-    .col-check { width: 24px; }
+    .col-check { width: 28px; }
     .col-name  { }
-    .col-qty   { width: 36px; text-align: center; font-weight: 600; }
-    .col-units { width: 38%; }
-    .col-sign  { width: 22%; border-bottom: 1px solid #ddd; }
+    .col-qty   { width: 48px; text-align: center; font-weight: 600; }
+    .col-sign  { width: 40%; border-bottom: 1px solid #ddd; }
     .name { font-weight: 600; }
     .sku { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
            font-size: 10px; color: #666; margin-top: 2px; }
@@ -157,23 +143,10 @@ export function openPrintablePackingList(
     }
     .main-box {
       display: inline-block;
-      width: 14px; height: 14px;
+      width: 16px; height: 16px;
       border: 1.5px solid #111;
       border-radius: 3px;
       vertical-align: middle;
-    }
-    .unit-box {
-      display: inline-block;
-      width: 11px; height: 11px;
-      border: 1px solid #555;
-      border-radius: 2px;
-      margin: 1px 2px 1px 0;
-      vertical-align: middle;
-    }
-    .unit-extra {
-      font-size: 10px;
-      color: #555;
-      padding-left: 4px;
     }
     .col-sign::after {
       content: "";
@@ -248,7 +221,6 @@ export function openPrintablePackingList(
         <th class="col-check"></th>
         <th class="col-name">Produkt</th>
         <th class="col-qty">Antal</th>
-        <th class="col-units">Per enhet</th>
         <th class="col-sign">Signatur</th>
       </tr>
     </thead>

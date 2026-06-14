@@ -337,11 +337,21 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
         };
       });
 
-      // 7. Filtrera jobb till intervallet (eller alltid med om aktiva)
+      // 7. Filtrera jobb till intervallet (eller alltid med om aktiva eller kommande)
       const inRange = (d: string | null) => !!d && d >= startDay && d <= endDay;
       const isCurrentlyActive = (j: OpsJob) =>
         j.status === "in_progress" || j.status === "returning" || j.status === "back";
-      const filteredJobs = jobs.filter((j) => inRange(j.anchorDate) || isCurrentlyActive(j));
+      const DONE = new Set(["completed_out", "completed_in", "completed", "done"]);
+      const todayStr = format(new Date(), "yyyy-MM-dd");
+      // En packning räknas som "kommande" så länge den inte är klar och rigdown (eller anchor) ligger idag/framåt
+      const isUpcoming = (j: OpsJob) => {
+        if (DONE.has(j.status)) return false;
+        const last = j.endDate || j.anchorDate;
+        return !!last && last >= todayStr;
+      };
+      const filteredJobs = jobs.filter(
+        (j) => inRange(j.anchorDate) || isCurrentlyActive(j) || isUpcoming(j),
+      );
 
       // 8. Scan-events i intervallet
       const scans: OpsScanEvent[] = allocations
