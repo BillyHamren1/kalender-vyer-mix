@@ -2223,6 +2223,22 @@ Deno.serve(async (req) => {
         await transitionToInProgress(supabase, packingId, ORG_ID)
         await checkIfAllPacked(supabase, packingId, ORG_ID)
 
+        await logPackingSessionEvent(supabase, auth, ACTIVE_SESSION_ID, {
+          packingId, itemId: pli.id, eventType: 'unknown_product_added',
+          quantityDelta: 1, productName,
+          beforeQuantity: 0, afterQuantity: 1,
+          scanValue: resolvedWmsSerialNumber || finalSku || null,
+          source: 'scan',
+          metadata: {
+            bookingProductId: bookingProduct.id,
+            quantityToPack: qty,
+            wms_item_type_id: resolvedItemTypeId,
+            wms_sku: resolvedWmsSku,
+            wms_instance_id: resolvedWmsInstanceId,
+            wms_serial_number: resolvedWmsSerialNumber,
+          },
+        })
+
         return json({
           success: true,
           itemId: pli.id,
