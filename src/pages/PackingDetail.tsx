@@ -351,79 +351,90 @@ const PackingDetail = () => {
               </TabsList>
             </div>
 
-          {/* Booking info / event overview */}
-          {booking && !isLargeProject && !isMultiBooking && (
-            <BookingInfoExpanded
-              booking={booking}
-              bookingAttachments={bookingAttachments}
-              onBookingUpdated={() => refetchAll()}
-              packingStartDate={packing.start_date}
-              packingEndDate={packing.end_date}
-              onPackingDateChange={updatePackingDates}
-            />
-          )}
+          {(() => {
+            const currentTab = activeTab || (isLargeProject ? 'overview' : 'checklist');
+            const showBookingInfo = currentTab === 'overview' || currentTab === 'checklist';
+            if (!showBookingInfo) return null;
+            return (
+              <>
+                {/* Booking info / event overview */}
+                {booking && !isLargeProject && !isMultiBooking && (
+                  <BookingInfoExpanded
+                    booking={booking}
+                    bookingAttachments={bookingAttachments}
+                    onBookingUpdated={() => refetchAll()}
+                    packingStartDate={packing.start_date}
+                    packingEndDate={packing.end_date}
+                    onPackingDateChange={updatePackingDates}
+                  />
+                )}
 
-          {isMultiBooking && (
-            <MultiBookingScheduleCard
-              linkedBookingIds={linkedBookingIds}
-              packingStartDate={packing.start_date}
-              packingEndDate={packing.end_date}
-              onPackingDateChange={updatePackingDates}
-              onBookingUpdated={() => refetchAll()}
-            />
-          )}
+                {isMultiBooking && (
+                  <MultiBookingScheduleCard
+                    linkedBookingIds={linkedBookingIds}
+                    packingStartDate={packing.start_date}
+                    packingEndDate={packing.end_date}
+                    onPackingDateChange={updatePackingDates}
+                    onBookingUpdated={() => refetchAll()}
+                  />
+                )}
 
-          {/* Packing dates for large projects without linked bookings */}
-          {!booking && !isMultiBooking && (
-            <div className="mb-4">
-              <div className="rounded-2xl border border-border/40 shadow-2xl bg-card p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <div
-                    className="w-7 h-7 rounded-lg flex items-center justify-center"
-                    style={{ background: 'linear-gradient(135deg, hsl(38 92% 55%) 0%, hsl(32 95% 40%) 100%)' }}
-                  >
-                    <Package className="h-4 w-4 text-white" />
+                {/* Packing dates for large projects without linked bookings */}
+                {!booking && !isMultiBooking && (
+                  <div className="mb-4">
+                    <div className="rounded-2xl border border-border/40 shadow-2xl bg-card p-5">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div
+                          className="w-7 h-7 rounded-lg flex items-center justify-center"
+                          style={{ background: 'linear-gradient(135deg, hsl(38 92% 55%) 0%, hsl(32 95% 40%) 100%)' }}
+                        >
+                          <Package className="h-4 w-4 text-white" />
+                        </div>
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Packdatum</span>
+                      </div>
+                      <div className="flex items-center gap-x-6 gap-y-2 text-sm">
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5">
+                              <CalendarIcon className="h-3.5 w-3.5" />
+                              {packing.start_date ? format(new Date(packing.start_date), 'd MMM yyyy', { locale: sv }) : 'Startdatum'}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={packing.start_date ? new Date(packing.start_date) : undefined}
+                              onSelect={(date) => updatePackingDates({ start_date: date ? format(date, 'yyyy-MM-dd') : null })}
+                              className="p-3 pointer-events-auto"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <span className="text-muted-foreground">→</span>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5">
+                              <CalendarIcon className="h-3.5 w-3.5" />
+                              {packing.end_date ? format(new Date(packing.end_date), 'd MMM yyyy', { locale: sv }) : 'Slutdatum'}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={packing.end_date ? new Date(packing.end_date) : undefined}
+                              onSelect={(date) => updatePackingDates({ end_date: date ? format(date, 'yyyy-MM-dd') : null })}
+                              className="p-3 pointer-events-auto"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </div>
                   </div>
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Packdatum</span>
-                </div>
-                <div className="flex items-center gap-x-6 gap-y-2 text-sm">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5">
-                        <CalendarIcon className="h-3.5 w-3.5" />
-                        {packing.start_date ? format(new Date(packing.start_date), 'd MMM yyyy', { locale: sv }) : 'Startdatum'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={packing.start_date ? new Date(packing.start_date) : undefined}
-                        onSelect={(date) => updatePackingDates({ start_date: date ? format(date, 'yyyy-MM-dd') : null })}
-                        className="p-3 pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <span className="text-muted-foreground">→</span>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5">
-                        <CalendarIcon className="h-3.5 w-3.5" />
-                        {packing.end_date ? format(new Date(packing.end_date), 'd MMM yyyy', { locale: sv }) : 'Slutdatum'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={packing.end_date ? new Date(packing.end_date) : undefined}
-                        onSelect={(date) => updatePackingDates({ end_date: date ? format(date, 'yyyy-MM-dd') : null })}
-                        className="p-3 pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              </div>
-            </div>
-          )}
+                )}
+              </>
+            );
+          })()}
+
+
 
           <div className="rounded-2xl bg-card border border-border/40 shadow-2xl p-7">
 
