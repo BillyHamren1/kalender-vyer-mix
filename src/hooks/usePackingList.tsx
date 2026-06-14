@@ -142,6 +142,17 @@ const fullSyncMultiBooking = async (
   return { added: totalAdded, removed: totalRemoved, updated: totalUpdated };
 };
 
+const fetchBookingGroups = async (linkedBookingIds: string[]): Promise<Map<string, { id: string; client: string; booking_number: string | null }>> => {
+  if (linkedBookingIds.length === 0) return new Map();
+
+  const { data: bookings } = await supabase
+    .from('bookings')
+    .select('id, client, booking_number')
+    .in('id', linkedBookingIds);
+
+  return new Map((bookings || []).map(b => [b.id, b]));
+};
+
 export interface BookingGroup {
   bookingId: string;
   client: string;
@@ -212,13 +223,7 @@ const fetchPackingListItems = async (
   // Build booking groups if multi-booking
   let bookingGroups: BookingGroup[] = [];
   if (linkedBookingIds.length > 1) {
-    // Fetch booking info for group headers
-    const { data: bookings } = await supabase
-      .from('bookings')
-      .select('id, client, booking_number')
-      .in('id', linkedBookingIds);
-
-    const bookingInfoMap = new Map((bookings || []).map(b => [b.id, b]));
+    const bookingInfoMap = await fetchBookingGroups(linkedBookingIds);
 
     // Group items by their product's booking_id
     const groupMap = new Map<string, PackingListItem[]>();
