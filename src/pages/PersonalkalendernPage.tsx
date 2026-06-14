@@ -106,6 +106,21 @@ const PersonalkalendernInner: React.FC = () => {
           </div>
         </header>
 
+        {/* Notis om nya bokningar som ska planeras */}
+        {inboxCount > 0 && (
+          <button
+            type="button"
+            onClick={() => navigate('/projects')}
+            className="mx-3 sm:mx-6 mt-2 flex items-center gap-3 rounded-md border border-primary/30 bg-primary/10 hover:bg-primary/15 transition-colors px-3 py-2 text-left"
+          >
+            <Inbox className="h-4 w-4 text-primary shrink-0" />
+            <span className="text-sm font-medium text-foreground">
+              {inboxCount} {inboxCount === 1 ? 'ny bokning' : 'nya bokningar'} att planera
+            </span>
+            <span className="text-xs text-muted-foreground ml-auto">Öppna projekt →</span>
+          </button>
+        )}
+
         {/* Kalender */}
         <main className="flex-1 overflow-hidden">
           <div className="h-full w-full">
