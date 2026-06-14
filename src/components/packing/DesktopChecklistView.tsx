@@ -879,6 +879,12 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, 
           </Button>
         </ConfirmationDialog>
       )}
+
+      <PackingHistoryDialog
+        packingId={packingId}
+        open={showHistory}
+        onOpenChange={setShowHistory}
+      />
     </div>
   );
 };
