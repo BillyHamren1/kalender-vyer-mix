@@ -54,12 +54,14 @@ export function openPrintablePackingList(
           const sku = row.sku ? `<div class="sku">[${escapeHtml(row.sku)}]</div>` : '';
           return `
             <tr class="${row.isChild ? 'child-row' : ''}">
-              <td class="col-check"><span class="main-box"></span></td>
               <td class="col-name">
                 <div class="name">${escapeHtml(row.name)}</div>
                 ${sku}
               </td>
               <td class="col-qty">${row.quantity}</td>
+              <td class="col-check"><span class="main-box"></span></td>
+              <td class="col-sign"></td>
+              <td class="col-check"><span class="main-box"></span></td>
               <td class="col-sign"></td>
             </tr>
           `;
@@ -67,7 +69,7 @@ export function openPrintablePackingList(
         .join('');
 
       const groupHeader = groupName
-        ? `<tr class="group-header"><td colspan="4">${escapeHtml(groupName)}</td></tr>`
+        ? `<tr class="group-header"><td colspan="6">${escapeHtml(groupName)}</td></tr>`
         : '';
 
       return `${groupHeader}${rowsHtml}`;
@@ -125,10 +127,10 @@ export function openPrintablePackingList(
       border-bottom: 1px solid #ddd;
       vertical-align: top;
     }
-    .col-check { width: 28px; }
+    .col-check { width: 44px; text-align: center; }
     .col-name  { }
     .col-qty   { width: 48px; text-align: center; font-weight: 600; }
-    .col-sign  { width: 40%; border-bottom: 1px solid #ddd; }
+    .col-sign  { width: 70px; border-bottom: 1px solid #ddd; }
     .name { font-weight: 600; }
     .sku { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
            font-size: 10px; color: #666; margin-top: 2px; }
@@ -218,10 +220,12 @@ export function openPrintablePackingList(
   <table>
     <thead>
       <tr>
-        <th class="col-check"></th>
         <th class="col-name">Produkt</th>
         <th class="col-qty">Antal</th>
-        <th class="col-sign">Signatur</th>
+        <th class="col-check">Check 1</th>
+        <th class="col-sign">Sign</th>
+        <th class="col-check">Check 2</th>
+        <th class="col-sign">Sign</th>
       </tr>
     </thead>
     <tbody>
