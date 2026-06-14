@@ -568,6 +568,61 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, 
           Bocka av
         </h3>
         <div className="flex gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const clientName = packing?.booking?.client || bookingGroups[0]?.client || null;
+              const bookingNumber =
+                packing?.booking?.booking_number || bookingGroups[0]?.bookingNumber || null;
+              const rigDate = (packing?.booking as any)?.rigdaydate || null;
+
+              const printRows = activeItems.map((item) => {
+                const rawName = item.manual_name || item.booking_products?.name || 'Okänd produkt';
+                const cleanName = cleanProductName(rawName);
+                const isChildByRelation = !!(
+                  item.booking_products?.parent_product_id ||
+                  item.booking_products?.parent_package_id ||
+                  item.booking_products?.is_package_component
+                );
+                const trimmedName = rawName.trimStart();
+                const isChildByPrefix =
+                  trimmedName.startsWith('↳') ||
+                  trimmedName.startsWith('└') ||
+                  trimmedName.startsWith('L,') ||
+                  trimmedName.startsWith('⦿');
+                const isChild = isChildByRelation || isChildByPrefix;
+                const displayName = isChild ? formatToTitleCase(cleanName) : cleanName.toUpperCase();
+                const groupLabel = isMultiBooking
+                  ? (() => {
+                      const bid = item.booking_products?.booking_id;
+                      const g = bookingGroups.find((x) => x.bookingId === bid);
+                      return g ? `${g.client}${g.bookingNumber ? ` · #${g.bookingNumber}` : ''}` : null;
+                    })()
+                  : null;
+                return {
+                  name: displayName,
+                  sku: item.booking_products?.sku ?? null,
+                  quantity: item.quantity_to_pack,
+                  isChild,
+                  groupLabel,
+                };
+              });
+
+              openPrintablePackingList(
+                {
+                  packingName,
+                  bookingNumber,
+                  client: clientName,
+                  rigDate,
+                },
+                printRows,
+              );
+            }}
+          >
+            <Printer className="h-4 w-4 mr-2" />
+            Skriv ut
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setShowQR(!showQR)}>
             <QrCode className="h-4 w-4 mr-2" />
             {showQR ? 'Dölj QR' : 'Visa QR'}
