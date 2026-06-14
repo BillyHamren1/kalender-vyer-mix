@@ -180,14 +180,17 @@ const WarehouseDashboard = () => {
               className="pl-9 h-10"
             />
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {FILTERS.map((f) => (
               <button
                 key={f.key}
-                onClick={() => setFilter(f.key)}
+                onClick={() => {
+                  setFilter(f.key);
+                  setDateRange(undefined);
+                }}
                 className={cn(
                   "px-3 h-8 rounded-full text-sm font-medium border transition-colors flex items-center gap-2",
-                  filter === f.key
+                  !rangeActive && filter === f.key
                     ? "bg-foreground text-background border-foreground"
                     : "bg-background text-foreground border-border/60 hover:bg-accent/40",
                 )}
@@ -196,13 +199,53 @@ const WarehouseDashboard = () => {
                 <span
                   className={cn(
                     "px-1.5 rounded-full text-xs",
-                    filter === f.key ? "bg-background/20" : "bg-muted text-muted-foreground",
+                    !rangeActive && filter === f.key ? "bg-background/20" : "bg-muted text-muted-foreground",
                   )}
                 >
                   {counts[f.key]}
                 </span>
               </button>
             ))}
+
+            <div className="ml-auto flex items-center gap-1">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={rangeActive ? "default" : "outline"}
+                    size="sm"
+                    className={cn(
+                      "h-8 rounded-full px-3 gap-2",
+                      rangeActive && "bg-foreground text-background hover:bg-foreground/90",
+                    )}
+                  >
+                    <CalendarIcon className="h-4 w-4" />
+                    {dateLabel}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                  <Calendar
+                    mode="range"
+                    selected={dateRange}
+                    onSelect={setDateRange}
+                    numberOfMonths={2}
+                    initialFocus
+                    locale={sv}
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+              {rangeActive && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2"
+                  onClick={() => setDateRange(undefined)}
+                  aria-label="Rensa datumfilter"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 
