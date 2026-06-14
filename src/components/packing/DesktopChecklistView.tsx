@@ -625,6 +625,10 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, 
             <Printer className="h-4 w-4 mr-2" />
             Skriv ut
           </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowHistory(true)}>
+            <History className="h-4 w-4 mr-2" />
+            Historik
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setShowQR(!showQR)}>
             <QrCode className="h-4 w-4 mr-2" />
             {showQR ? 'Dölj QR' : 'Visa QR'}
