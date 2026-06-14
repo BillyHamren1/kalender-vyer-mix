@@ -20,7 +20,10 @@ import { PackingParcel } from '@/types/packing';
  * - `itemParcelMap` (legacy):  itemId -> single parcel number (highest)
  * - `itemAllocations` (new):   itemId -> [{ parcelId, parcelNumber, quantity }]
  */
-export const useKolliManager = (packingId: string) => {
+export const useKolliManager = (
+  packingId: string,
+  getActiveSessionId: () => string | null = () => null,
+) => {
   const [isKolliMode, setIsKolliMode] = useState(false);
   const [activeParcel, setActiveParcel] = useState<PackingParcel | null>(null);
   const [itemParcelMap, setItemParcelMap] = useState<Record<string, number>>({});
@@ -39,7 +42,7 @@ export const useKolliManager = (packingId: string) => {
 
   const startKolli = useCallback(async (verifierName: string) => {
     try {
-      const parcel = await createParcel(packingId, verifierName);
+      const parcel = await createParcel(packingId, verifierName, getActiveSessionId());
       setActiveParcel(parcel);
       setIsKolliMode(true);
       toast.success(`Parcel #${parcel.parcel_number} started`);
@@ -47,11 +50,11 @@ export const useKolliManager = (packingId: string) => {
       console.error('Error creating parcel:', err);
       toast.error('Could not create parcel');
     }
-  }, [packingId]);
+  }, [packingId, getActiveSessionId]);
 
   const nextKolli = useCallback(async (verifierName: string) => {
     try {
-      const parcel = await createParcel(packingId, verifierName);
+      const parcel = await createParcel(packingId, verifierName, getActiveSessionId());
       setActiveParcel(parcel);
       toast.success(`Parcel #${parcel.parcel_number} started`);
       await loadParcels();
@@ -59,7 +62,7 @@ export const useKolliManager = (packingId: string) => {
       console.error('Error creating next parcel:', err);
       toast.error('Could not create next parcel');
     }
-  }, [packingId, loadParcels]);
+  }, [packingId, loadParcels, getActiveSessionId]);
 
   const exitKolli = useCallback(() => {
     setIsKolliMode(false);
@@ -73,7 +76,7 @@ export const useKolliManager = (packingId: string) => {
    */
   const assignToKolli = useCallback(async (itemId: string, quantity: number = 1, scannedBy?: string) => {
     if (!activeParcel) return;
-    await assignItemToParcel(itemId, activeParcel.id, { quantity, scannedBy });
+    await assignItemToParcel(itemId, activeParcel.id, { quantity, scannedBy, activeSessionId: getActiveSessionId() });
 
     // Optimistic local update
     setItemAllocations(prev => {
@@ -87,7 +90,7 @@ export const useKolliManager = (packingId: string) => {
       ...prev,
       [itemId]: Math.max(prev[itemId] || 0, activeParcel.parcel_number),
     }));
-  }, [activeParcel]);
+  }, [activeParcel, getActiveSessionId]);
 
   const setParcelMap = useCallback((map: Record<string, number>) => {
     setItemParcelMap(map);
