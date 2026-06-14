@@ -1,9 +1,11 @@
-import { Calendar, Trash2, CheckSquare } from "lucide-react";
+import { useState } from "react";
+import { Calendar, Trash2, CheckSquare, History } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PackingWithBooking, PACKING_STATUS_LABELS, PACKING_STATUS_COLORS } from "@/types/packing";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
+import { PackingHistoryDialog } from "@/components/packing/PackingHistoryDialog";
 
 interface PackingCardProps {
   packing: PackingWithBooking;
@@ -12,9 +14,16 @@ interface PackingCardProps {
 }
 
 const PackingCard = ({ packing, onClick, onDelete }: PackingCardProps) => {
+  const [showHistory, setShowHistory] = useState(false);
+
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     onDelete();
+  };
+
+  const handleHistory = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowHistory(true);
   };
 
   return (
@@ -32,14 +41,25 @@ const PackingCard = ({ packing, onClick, onDelete }: PackingCardProps) => {
               </p>
             )}
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="opacity-0 group-hover:opacity-100 transition-opacity -mt-1 -mr-2"
-            onClick={handleDelete}
-          >
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity -mt-1 -mr-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={handleHistory}
+              title="Historik"
+            >
+              <History className="h-4 w-4 text-muted-foreground" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={handleDelete}
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 mb-3">
@@ -68,6 +88,14 @@ const PackingCard = ({ packing, onClick, onDelete }: PackingCardProps) => {
             <span>Skapad {format(new Date(packing.created_at), 'd MMM yyyy', { locale: sv })}</span>
           </div>
         )}
+      </div>
+
+      <div onClick={(e) => e.stopPropagation()}>
+        <PackingHistoryDialog
+          packingId={packing.id}
+          open={showHistory}
+          onOpenChange={setShowHistory}
+        />
       </div>
     </div>
   );

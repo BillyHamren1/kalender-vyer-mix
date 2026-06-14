@@ -5,7 +5,8 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
-import { Check, RefreshCw, AlertCircle, Package, ChevronRight, ChevronDown, X, Plus, Minus, PenLine, QrCode, EyeOff, Eye, Hash, Printer } from 'lucide-react';
+import { Check, RefreshCw, AlertCircle, Package, ChevronRight, ChevronDown, X, Plus, Minus, PenLine, QrCode, EyeOff, Eye, Hash, Printer, History } from 'lucide-react';
+import { PackingHistoryDialog } from '@/components/packing/PackingHistoryDialog';
 import { openPrintablePackingList } from '@/lib/packing/printPackingList';
 import ConfirmationDialog from '@/components/ConfirmationDialog';
 import { useAuth } from '@/contexts/AuthContext';
@@ -86,6 +87,7 @@ const formatToTitleCase = (text: string): string => {
 const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, packingName }) => {
   const { user } = useAuth();
   const [packing, setPacking] = useState<PackingWithBooking | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
   const [items, setItems] = useState<PackingItem[]>([]);
   const [progress, setProgress] = useState({ total: 0, verified: 0, percentage: 0 });
   const [isLoading, setIsLoading] = useState(true);
@@ -623,6 +625,10 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, 
             <Printer className="h-4 w-4 mr-2" />
             Skriv ut
           </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowHistory(true)}>
+            <History className="h-4 w-4 mr-2" />
+            Historik
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setShowQR(!showQR)}>
             <QrCode className="h-4 w-4 mr-2" />
             {showQR ? 'Dölj QR' : 'Visa QR'}
@@ -873,6 +879,12 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, 
           </Button>
         </ConfirmationDialog>
       )}
+
+      <PackingHistoryDialog
+        packingId={packingId}
+        open={showHistory}
+        onOpenChange={setShowHistory}
+      />
     </div>
   );
 };

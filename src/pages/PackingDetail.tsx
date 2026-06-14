@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Calendar as CalendarIcon, MapPin, Phone, User, Package, ClipboardList, RefreshCw, CheckSquare, Layers, Scissors, LayoutList, FileText, Download } from "lucide-react";
+import { ArrowLeft, Calendar as CalendarIcon, MapPin, Phone, User, Package, ClipboardList, RefreshCw, CheckSquare, Layers, Scissors, LayoutList, FileText, Download, History } from "lucide-react";
+import { PackingHistoryDialog } from "@/components/packing/PackingHistoryDialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,7 @@ const PackingDetail = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<string | undefined>(undefined);
   const [products, setProducts] = useState<BookingProduct[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSplitting, setIsSplitting] = useState(false);
@@ -287,6 +289,10 @@ const PackingDetail = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowHistory(true)} className="border-border/60">
+                <History className="h-4 w-4 mr-1.5" />
+                Historik
+              </Button>
               <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing} className="border-border/60">
                 <RefreshCw className={`h-4 w-4 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
                 Uppdatera
@@ -507,6 +513,14 @@ const PackingDetail = () => {
           </Tabs>
         </div>
       </div>
+
+      {packingId && (
+        <PackingHistoryDialog
+          packingId={packingId}
+          open={showHistory}
+          onOpenChange={setShowHistory}
+        />
+      )}
     </div>
   );
 };

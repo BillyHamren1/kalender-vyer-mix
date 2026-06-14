@@ -32,6 +32,8 @@ import { AddUnknownProductDialog } from './AddUnknownProductDialog';
 import { QrParcelManager } from './QrParcelManager';
 import { PackingPreflightPanel } from './PackingPreflightPanel';
 import { SignPackingSessionDialog } from './SignPackingSessionDialog';
+import { PackingHistoryDialog } from '@/components/packing/PackingHistoryDialog';
+import { History } from 'lucide-react';
 
 interface ScannerStateProps {
   currentMode: ScanMode;
@@ -102,6 +104,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const [sessionLoading, setSessionLoading] = useState(true);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [showSignDialog, setShowSignDialog] = useState(false);
+  const [showHistoryDialog, setShowHistoryDialog] = useState(false);
 
   const activeSessionIdRef = useRef<string | null>(null);
   activeSessionIdRef.current = activeSession?.id ?? null;
@@ -605,6 +608,9 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
             <p className="text-[11px] text-muted-foreground truncate">{packing.booking.client}</p>
           )}
         </div>
+        <Button variant="ghost" size="icon" onClick={() => setShowHistoryDialog(true)} className="shrink-0 h-8 w-8" title="Historik">
+          <History className="h-3.5 w-3.5" />
+        </Button>
         <Button variant="ghost" size="icon" onClick={() => loadData(false)} className="shrink-0 h-8 w-8">
           <RefreshCw className="h-3.5 w-3.5" />
         </Button>
@@ -937,6 +943,12 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           setActiveSession(null);
           onBack();
         }}
+      />
+
+      <PackingHistoryDialog
+        packingId={packingId}
+        open={showHistoryDialog}
+        onOpenChange={setShowHistoryDialog}
       />
     </div>
   );
