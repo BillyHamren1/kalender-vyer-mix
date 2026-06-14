@@ -13,6 +13,7 @@
  */
 import jsPDF from 'jspdf';
 import autoTable, { RowInput } from 'jspdf-autotable';
+import { openPdfPreviewShell, presentPdfBlob } from './pdfPreviewWindow';
 
 export interface PrintablePackingRow {
   name: string;
@@ -41,6 +42,10 @@ export function openPrintablePackingList(
   meta: PrintablePackingMeta,
   rows: PrintablePackingRow[]
 ): void {
+  const safeName = meta.packingName.replace(/[^a-z0-9-_åäöÅÄÖ ]+/gi, '_').trim();
+  const filename = `Packlista - ${safeName || 'lista'}.pdf`;
+  const previewWindow = openPdfPreviewShell(filename);
+
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
@@ -276,19 +281,7 @@ export function openPrintablePackingList(
   });
 
   // ─── Öppna PDF i ny flik (med download-fallback) ──────────────────────────
-  const safeName = meta.packingName.replace(/[^a-z0-9-_åäöÅÄÖ ]+/gi, '_').trim();
-  const filename = `Packlista - ${safeName || 'lista'}.pdf`;
   const blob = doc.output('blob');
-  const url = URL.createObjectURL(blob);
-  const win = window.open(url, '_blank');
-  if (!win) {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  }
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  presentPdfBlob(previewWindow, blob, filename);
 }
 
