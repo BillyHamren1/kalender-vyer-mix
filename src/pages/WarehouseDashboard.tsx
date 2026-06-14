@@ -1,13 +1,16 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Package, Plus, RefreshCw, Search, ArrowUpRight, ArrowDownLeft, Wrench } from "lucide-react";
-import { format, isToday, isThisWeek, isAfter, isBefore, startOfDay, parseISO } from "date-fns";
+import { Package, Plus, RefreshCw, Search, ArrowUpRight, ArrowDownLeft, Wrench, CalendarIcon, X } from "lucide-react";
+import { format, isToday, isThisWeek, isAfter, startOfDay, endOfDay, parseISO, isWithinInterval } from "date-fns";
 import { sv } from "date-fns/locale";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import type { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { useWarehouseOpsRange, type OpsJob } from "@/hooks/useWarehouseOpsRange";
 import CreateInternalTaskDialog from "@/components/warehouse/CreateInternalTaskDialog";
@@ -75,6 +78,7 @@ const WarehouseDashboard = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterKey>("active");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
 
   const anchorDate = useMemo(() => new Date(), []);
   const { data, isLoading, isFetching, refetch } = useWarehouseOpsRange(anchorDate, "next30");
@@ -93,10 +97,24 @@ const WarehouseDashboard = () => {
     return c;
   }, [jobs]);
 
+  const rangeActive = !!(dateRange?.from || dateRange?.to);
+
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const from = dateRange?.from ? startOfDay(dateRange.from) : null;
+    const to = dateRange?.to ? endOfDay(dateRange.to) : dateRange?.from ? endOfDay(dateRange.from) : null;
+
     return jobs
-      .filter((j) => matchFilter(j, filter))
+      .filter((j) => (rangeActive ? true : matchFilter(j, filter)))
+      .filter((j) => {
+        if (!rangeActive) return true;
+        if (!j.anchorDate) return false;
+        const a = parseISO(j.anchorDate);
+        if (from && to) return isWithinInterval(a, { start: from, end: to });
+        if (from) return a >= from;
+        if (to) return a <= to;
+        return true;
+      })
       .filter((j) => {
         if (!q) return true;
         return (
@@ -111,7 +129,16 @@ const WarehouseDashboard = () => {
         if (ad !== bd) return ad < bd ? -1 : 1;
         return (a.anchorTime ?? "99:99") < (b.anchorTime ?? "99:99") ? -1 : 1;
       });
-  }, [jobs, filter, query]);
+  }, [jobs, filter, query, dateRange, rangeActive]);
+
+  const dateLabel = (() => {
+    if (!dateRange?.from) return "Välj datum";
+    const f = format(dateRange.from, "d MMM", { locale: sv });
+    if (dateRange.to && dateRange.to.getTime() !== dateRange.from.getTime()) {
+      return `${f} – ${format(dateRange.to, "d MMM", { locale: sv })}`;
+    }
+    return f;
+  })();
 
   return (
     <div className="h-full overflow-y-auto overflow-x-hidden" style={{ background: "var(--gradient-page)" }}>
@@ -153,14 +180,17 @@ const WarehouseDashboard = () => {
               className="pl-9 h-10"
             />
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {FILTERS.map((f) => (
               <button
                 key={f.key}
-                onClick={() => setFilter(f.key)}
+                onClick={() => {
+                  setFilter(f.key);
+                  setDateRange(undefined);
+                }}
                 className={cn(
                   "px-3 h-8 rounded-full text-sm font-medium border transition-colors flex items-center gap-2",
-                  filter === f.key
+                  !rangeActive && filter === f.key
                     ? "bg-foreground text-background border-foreground"
                     : "bg-background text-foreground border-border/60 hover:bg-accent/40",
                 )}
@@ -169,13 +199,53 @@ const WarehouseDashboard = () => {
                 <span
                   className={cn(
                     "px-1.5 rounded-full text-xs",
-                    filter === f.key ? "bg-background/20" : "bg-muted text-muted-foreground",
+                    !rangeActive && filter === f.key ? "bg-background/20" : "bg-muted text-muted-foreground",
                   )}
                 >
                   {counts[f.key]}
                 </span>
               </button>
             ))}
+
+            <div className="ml-auto flex items-center gap-1">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={rangeActive ? "default" : "outline"}
+                    size="sm"
+                    className={cn(
+                      "h-8 rounded-full px-3 gap-2",
+                      rangeActive && "bg-foreground text-background hover:bg-foreground/90",
+                    )}
+                  >
+                    <CalendarIcon className="h-4 w-4" />
+                    {dateLabel}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                  <Calendar
+                    mode="range"
+                    selected={dateRange}
+                    onSelect={setDateRange}
+                    numberOfMonths={2}
+                    initialFocus
+                    locale={sv}
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+              {rangeActive && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2"
+                  onClick={() => setDateRange(undefined)}
+                  aria-label="Rensa datumfilter"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 
