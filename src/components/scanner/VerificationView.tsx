@@ -32,6 +32,8 @@ import { AddUnknownProductDialog } from './AddUnknownProductDialog';
 import { QrParcelManager } from './QrParcelManager';
 import { PackingPreflightPanel } from './PackingPreflightPanel';
 import { SignPackingSessionDialog } from './SignPackingSessionDialog';
+import { PackingHistoryDialog } from '@/components/packing/PackingHistoryDialog';
+import { History } from 'lucide-react';
 
 interface ScannerStateProps {
   currentMode: ScanMode;
