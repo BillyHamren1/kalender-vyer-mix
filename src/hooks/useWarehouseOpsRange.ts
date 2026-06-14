@@ -134,15 +134,28 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
       const startDay = format(start, "yyyy-MM-dd");
       const endDay = format(end, "yyyy-MM-dd");
 
-      // 1. Hämta aktiva packings + bookings för intervall-matchning
-      const ACTIVE = ["planning", "in_progress", "packed", "delivered", "back", "returning"];
+      // 1. Hämta packings (alla relevanta statusar) för intervall-matchning
+      const ACTIVE = [
+        "planning",
+        "in_progress",
+        "packed",
+        "delivered",
+        "back",
+        "returning",
+        "started_back",
+        "in_production",
+        "completed_out",
+        "completed_in",
+        "completed",
+        "done",
+      ];
       const { data: projects, error: projErr } = await supabase
         .from("packing_projects")
         .select(
           "id,name,status,client_name,booking_id,warehouse_project_id,large_project_id,start_date,end_date,signed_at,signed_by,signed_by_staff_id,updated_at"
         )
         .in("status", ACTIVE)
-        .limit(500);
+        .limit(2000);
       if (projErr) throw projErr;
       const list = (projects || []) as any[];
 
