@@ -26,18 +26,6 @@ const escapeHtml = (s: string): string =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!)
   );
 
-const renderUnitBoxes = (qty: number): string => {
-  // Render one tiny check-box per unit, max 30 per row (then collapse).
-  const max = Math.min(qty, 30);
-  let html = '';
-  for (let i = 0; i < max; i++) {
-    html += '<span class="unit-box"></span>';
-  }
-  if (qty > max) {
-    html += `<span class="unit-extra">+${qty - max}</span>`;
-  }
-  return html;
-};
 
 export function openPrintablePackingList(
   meta: PrintablePackingMeta,
