@@ -143,13 +143,6 @@ export function openPrintablePackingList(
     }
     .main-box {
       display: inline-block;
-      width: 14px; height: 14px;
-      border: 1.5px solid #111;
-      border-radius: 3px;
-      vertical-align: middle;
-    }
-    .main-box {
-      display: inline-block;
       width: 16px; height: 16px;
       border: 1.5px solid #111;
       border-radius: 3px;
