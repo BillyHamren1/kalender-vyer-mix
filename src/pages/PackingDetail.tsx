@@ -513,6 +513,14 @@ const PackingDetail = () => {
           </Tabs>
         </div>
       </div>
+
+      {packingId && (
+        <PackingHistoryDialog
+          packingId={packingId}
+          open={showHistory}
+          onOpenChange={setShowHistory}
+        />
+      )}
     </div>
   );
 };
