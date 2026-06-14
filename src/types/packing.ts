@@ -9,6 +9,12 @@ export type PackingStatus =
   | 'completed'
   | 'cancelled';
 
+export type ControlCountStatus =
+  | 'not_started'
+  | 'in_progress'
+  | 'completed'
+  | 'failed';
+
 export interface Packing {
   id: string;
   booking_id: string | null;
@@ -26,6 +32,13 @@ export interface Packing {
   end_date: string | null;
   delivery_address: string | null;
   notes: string | null;
+  // Control count (separate from packing signing)
+  control_status?: ControlCountStatus | null;
+  control_started_at?: string | null;
+  control_completed_at?: string | null;
+  control_signed_by?: string | null;
+  control_signed_by_staff_id?: string | null;
+  control_signed_at?: string | null;
 }
 
 export interface PackingTask {
