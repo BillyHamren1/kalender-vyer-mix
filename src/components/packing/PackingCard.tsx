@@ -109,6 +109,25 @@ const PackingCard = ({ packing, onClick, onDelete, onControlCompleted }: Packing
             <span>Skapad {format(new Date(packing.created_at), 'd MMM yyyy', { locale: sv })}</span>
           </div>
         )}
+
+        {packing.status === 'packed' && packing.control_status !== 'completed' && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="mt-3 w-full gap-2 border-primary/40 text-primary hover:bg-primary/10"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowControl(true);
+            }}
+          >
+            <ShieldCheck className="h-4 w-4" />
+            {packing.control_status === 'in_progress'
+              ? 'Fortsätt kontrollräkning'
+              : packing.control_status === 'failed'
+              ? 'Gör om kontrollräkning'
+              : 'Starta kontrollräkning'}
+          </Button>
+        )}
       </div>
 
       <div onClick={(e) => e.stopPropagation()}>
@@ -116,6 +135,13 @@ const PackingCard = ({ packing, onClick, onDelete, onControlCompleted }: Packing
           packingId={packing.id}
           open={showHistory}
           onOpenChange={setShowHistory}
+        />
+        <ControlCountDialog
+          packingId={packing.id}
+          packingName={packing.name}
+          open={showControl}
+          onOpenChange={setShowControl}
+          onCompleted={(result) => onControlCompleted?.(packing.id, result)}
         />
       </div>
     </div>
