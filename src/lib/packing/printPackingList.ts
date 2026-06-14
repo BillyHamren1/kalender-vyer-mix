@@ -148,18 +148,12 @@ export function openPrintablePackingList(
       border-radius: 3px;
       vertical-align: middle;
     }
-    .unit-box {
+    .main-box {
       display: inline-block;
-      width: 11px; height: 11px;
-      border: 1px solid #555;
-      border-radius: 2px;
-      margin: 1px 2px 1px 0;
+      width: 16px; height: 16px;
+      border: 1.5px solid #111;
+      border-radius: 3px;
       vertical-align: middle;
-    }
-    .unit-extra {
-      font-size: 10px;
-      color: #555;
-      padding-left: 4px;
     }
     .col-sign::after {
       content: "";
