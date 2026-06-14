@@ -842,6 +842,19 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         onOpenChange={setShowQrParcels}
         packingId={packingId}
         verifierName={verifierName}
+        activeSessionId={activeSession?.id ?? null}
+      />
+
+      <SignPackingSessionDialog
+        open={showSignDialog}
+        onOpenChange={setShowSignDialog}
+        session={activeSession}
+        packingId={packingId}
+        staffName={verifierName}
+        onClosed={() => {
+          setActiveSession(null);
+          onBack();
+        }}
       />
     </div>
   );
