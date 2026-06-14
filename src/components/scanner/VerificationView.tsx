@@ -8,8 +8,10 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X, Minus, List, QrCode } from 'lucide-react';
-import { getItemParcels } from '@/services/scannerService';
+import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X, Minus, List, QrCode, Loader2 } from 'lucide-react';
+import { getItemParcels, startPackingSession, type PackingWorkSession } from '@/services/scannerService';
+import { getStoredStaff } from '@/services/mobileApiService';
+import { useNavigate } from 'react-router-dom';
 import { QRScanner } from './QRScanner';
 import { ScannerModeIndicator } from './ScannerModeIndicator';
 import { RfidStatusBar } from './RfidStatusBar';
@@ -29,6 +31,7 @@ import { getDisplayedProgressForRow } from '@/lib/packing/progress';
 import { AddUnknownProductDialog } from './AddUnknownProductDialog';
 import { QrParcelManager } from './QrParcelManager';
 import { PackingPreflightPanel } from './PackingPreflightPanel';
+import { SignPackingSessionDialog } from './SignPackingSessionDialog';
 
 interface ScannerStateProps {
   currentMode: ScanMode;
