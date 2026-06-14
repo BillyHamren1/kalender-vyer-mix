@@ -125,11 +125,10 @@ export function openPrintablePackingList(
       border-bottom: 1px solid #ddd;
       vertical-align: top;
     }
-    .col-check { width: 24px; }
+    .col-check { width: 28px; }
     .col-name  { }
-    .col-qty   { width: 36px; text-align: center; font-weight: 600; }
-    .col-units { width: 38%; }
-    .col-sign  { width: 22%; border-bottom: 1px solid #ddd; }
+    .col-qty   { width: 48px; text-align: center; font-weight: 600; }
+    .col-sign  { width: 40%; border-bottom: 1px solid #ddd; }
     .name { font-weight: 600; }
     .sku { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
            font-size: 10px; color: #666; margin-top: 2px; }
