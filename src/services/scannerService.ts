@@ -62,19 +62,71 @@ const callScannerApi = async (action: string, params: Record<string, any> = {}) 
   return response.json();
 };
 
+// ============== PACKING WORK SESSION ==============
+
+export interface PackingWorkSession {
+  id: string;
+  organization_id: string;
+  packing_id: string;
+  staff_id: string;
+  staff_name: string;
+  status: 'active' | 'signed' | string;
+  started_at: string;
+  ended_at: string | null;
+  signed_at: string | null;
+  signature_name: string | null;
+  summary_json: any | null;
+}
+
+export const startPackingSession = async (
+  packingId: string,
+): Promise<{ success: boolean; session?: PackingWorkSession; reused?: boolean; error?: string }> => {
+  return callScannerApi('start_packing_session', { packingId });
+};
+
+export const getActivePackingSession = async (
+  packingId: string,
+): Promise<{ success: boolean; session: PackingWorkSession | null }> => {
+  return callScannerApi('get_active_packing_session', { packingId });
+};
+
+export const closePackingSession = async (
+  sessionId: string,
+  signatureName: string,
+  options?: { closeWithoutChanges?: boolean },
+): Promise<{ success: boolean; session?: PackingWorkSession; error?: string; code?: string }> => {
+  try {
+    return await callScannerApi('close_packing_session', {
+      sessionId,
+      signatureName,
+      closeWithoutChanges: options?.closeWithoutChanges === true,
+    });
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Kunde inte stänga session', code: err?.debugCode };
+  }
+};
+
+export const getPackingHistory = async (
+  packingId: string,
+  limit?: number,
+): Promise<{ success: boolean; sessions: any[]; events: any[] }> => {
+  return callScannerApi('get_packing_history', { packingId, limit });
+};
+
 // ============== PARCEL (KOLLI) FUNCTIONS ==============
 
 export const createParcel = async (
-  packingId: string, 
-  createdBy: string
+  packingId: string,
+  createdBy: string,
+  activeSessionId?: string | null,
 ): Promise<PackingParcel> => {
-  return callScannerApi('create_parcel', { packingId, createdBy });
+  return callScannerApi('create_parcel', { packingId, createdBy, activeSessionId: activeSessionId || null });
 };
 
 export const assignItemToParcel = async (
   itemId: string,
   parcelId: string | null,
-  options?: { quantity?: number; scannedBy?: string; clearAllocations?: boolean }
+  options?: { quantity?: number; scannedBy?: string; clearAllocations?: boolean; activeSessionId?: string | null }
 ): Promise<void> => {
   await callScannerApi('assign_item_to_parcel', {
     itemId,
@@ -82,6 +134,7 @@ export const assignItemToParcel = async (
     quantity: options?.quantity,
     scannedBy: options?.scannedBy,
     clearAllocations: options?.clearAllocations,
+    activeSessionId: options?.activeSessionId || null,
   });
 };
 
@@ -113,15 +166,16 @@ export const registerQrParcel = async (
   packingId: string,
   qrCode: string,
   createdBy?: string,
+  activeSessionId?: string | null,
 ): Promise<{ success: boolean; parcel?: QrParcel; error?: string }> => {
-  return callScannerApi('register_qr_parcel', { packingId, qrCode, createdBy });
+  return callScannerApi('register_qr_parcel', { packingId, qrCode, createdBy, activeSessionId: activeSessionId || null });
 };
 export const listQrParcels = async (packingId: string): Promise<QrParcel[]> => {
   const res = await callScannerApi('list_qr_parcels', { packingId });
   return res?.parcels || [];
 };
-export const deleteQrParcel = async (parcelId: string): Promise<void> => {
-  await callScannerApi('delete_qr_parcel', { parcelId });
+export const deleteQrParcel = async (parcelId: string, activeSessionId?: string | null): Promise<void> => {
+  await callScannerApi('delete_qr_parcel', { parcelId, activeSessionId: activeSessionId || null });
 };
 
 
