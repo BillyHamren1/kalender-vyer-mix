@@ -1,13 +1,16 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Package, Plus, RefreshCw, Search, ArrowUpRight, ArrowDownLeft, Wrench } from "lucide-react";
-import { format, isToday, isThisWeek, isAfter, isBefore, startOfDay, parseISO } from "date-fns";
+import { Package, Plus, RefreshCw, Search, ArrowUpRight, ArrowDownLeft, Wrench, CalendarIcon, X } from "lucide-react";
+import { format, isToday, isThisWeek, isAfter, startOfDay, endOfDay, parseISO, isWithinInterval } from "date-fns";
 import { sv } from "date-fns/locale";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import type { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { useWarehouseOpsRange, type OpsJob } from "@/hooks/useWarehouseOpsRange";
 import CreateInternalTaskDialog from "@/components/warehouse/CreateInternalTaskDialog";
