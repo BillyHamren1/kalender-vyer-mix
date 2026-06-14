@@ -186,6 +186,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   } = useScanProcessor({
     packingId,
     verifierName,
+    verifierStaffId,
     getItems: () => itemsRef.current,
     getIsMinusMode: () => isMinusModeRef.current,
     onScanResult: setScanResult,
@@ -195,6 +196,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     onAssignToKolli: assignToKolli,
     getIsKolliMode: () => isKolliMode,
     getActiveParcelId: () => activeParcelRef.current?.id ?? null,
+    getActiveSessionId: () => activeSessionIdRef.current,
     onTriggerSync: triggerSync,
     onRfidTagResult: rfid.recordTagResult,
   });
