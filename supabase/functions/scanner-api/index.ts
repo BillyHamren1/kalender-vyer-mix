@@ -60,6 +60,121 @@ async function authenticateRequest(supabase: any, token: string | undefined) {
   }
 }
 
+// ============================================================================
+// PACKING WORK SESSION — permanent historik för allt som händer i en packning.
+// Se mem://features/warehouse/desktop-packing-checklist (kontext) samt den nya
+// tabellen packing_work_sessions / packing_work_session_events.
+// ============================================================================
+
+// Mutativa actions som KRÄVER att frontend skickar activeSessionId och att
+// auth.staffId äger en aktiv packing_work_session.
+const PACKING_MUTATING_ACTIONS = new Set<string>([
+  'verify_product',
+  'toggle_item',
+  'decrement_item',
+  'decrement_by_serial',
+  'create_parcel',
+  'register_qr_parcel',
+  'assign_item_to_parcel',
+  'add_unknown_product',
+])
+
+/**
+ * Verifierar att activeSessionId är giltig och tillhör inloggad staff + org.
+ * Kastar { status, message, reason } vid problem.
+ */
+async function requireActivePackingSession(
+  supabase: any,
+  auth: { staffId: string; organizationId: string },
+  activeSessionId: unknown,
+): Promise<{ sessionId: string; packingId: string }> {
+  if (!activeSessionId || typeof activeSessionId !== 'string') {
+    throw {
+      status: 400,
+      message: 'En aktiv packningssession krävs för denna åtgärd.',
+      reason: 'PACKING_SESSION_REQUIRED',
+    }
+  }
+  const { data: session, error } = await supabase
+    .from('packing_work_sessions')
+    .select('id, packing_id, staff_id, organization_id, status')
+    .eq('id', activeSessionId)
+    .maybeSingle()
+  if (error || !session) {
+    throw {
+      status: 400,
+      message: 'Sessionen hittades inte.',
+      reason: 'PACKING_SESSION_NOT_FOUND',
+    }
+  }
+  if (session.organization_id !== auth.organizationId) {
+    throw { status: 403, message: 'Sessionen tillhör annan organisation.', reason: 'PACKING_SESSION_WRONG_ORG' }
+  }
+  if (session.staff_id !== auth.staffId) {
+    throw { status: 403, message: 'Sessionen tillhör annan användare.', reason: 'PACKING_SESSION_WRONG_STAFF' }
+  }
+  if (session.status !== 'active') {
+    throw { status: 409, message: 'Sessionen är inte längre aktiv.', reason: 'PACKING_SESSION_NOT_ACTIVE' }
+  }
+  return { sessionId: session.id, packingId: session.packing_id }
+}
+
+/**
+ * Loggar en händelse i packing_work_session_events. Ska EFTER att den faktiska
+ * ändringen i WMS/lokal databas lyckats. Slukar fel — loggning får aldrig
+ * fälla det riktiga API-svaret.
+ *
+ * Source-värden: 'scan' | 'manual' | 'parcel' | 'system'
+ * Event types: scan_pack | scan_unpack | manual_pack | manual_unpack
+ *              | increment_pack | decrement_pack | parcel_create
+ *              | parcel_assign | parcel_remove | unknown_product_added
+ */
+async function logPackingSessionEvent(
+  supabase: any,
+  auth: { staffId: string; staffName: string; organizationId: string },
+  sessionId: string | null,
+  args: {
+    packingId: string
+    itemId?: string | null
+    eventType: string
+    quantityDelta?: number
+    productName?: string | null
+    beforeQuantity?: number | null
+    afterQuantity?: number | null
+    parcelId?: string | null
+    scanValue?: string | null
+    source?: 'scan' | 'manual' | 'parcel' | 'system' | string | null
+    metadata?: Record<string, any> | null
+  },
+): Promise<void> {
+  try {
+    const row = {
+      organization_id: auth.organizationId,
+      session_id: sessionId,
+      packing_id: args.packingId,
+      packing_list_item_id: args.itemId ?? null,
+      event_type: args.eventType,
+      quantity_delta: Number.isFinite(args.quantityDelta as number) ? Math.trunc(args.quantityDelta as number) : 0,
+      product_name: args.productName ?? null,
+      before_quantity: args.beforeQuantity ?? null,
+      after_quantity: args.afterQuantity ?? null,
+      parcel_id: args.parcelId ?? null,
+      scan_value: args.scanValue ?? null,
+      source: args.source ?? null,
+      metadata: args.metadata ?? {},
+      staff_id: auth.staffId,
+      staff_name: auth.staffName,
+    }
+    const { error } = await supabase.from('packing_work_session_events').insert(row)
+    if (error) {
+      console.warn('[logPackingSessionEvent] insert failed', { event_type: args.eventType, error: error.message })
+    }
+  } catch (err) {
+    console.warn('[logPackingSessionEvent] exception', err)
+  }
+}
+
+
 // ============== STATUS FLOW LOGIC ==============
 // Allowed transitions: planning → in_progress → packed → delivered
 // Status is computed automatically based on packing state.
