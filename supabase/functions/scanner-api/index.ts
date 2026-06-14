@@ -2634,6 +2634,192 @@ Deno.serve(async (req) => {
         return json({ success: true })
       }
 
+      // ====== PACKING WORK SESSION ACTIONS =================================
+      case 'start_packing_session': {
+        const { packingId } = params
+        if (!packingId || typeof packingId !== 'string') {
+          return json({ success: false, error: 'packingId required' }, 400)
+        }
+        // Verifiera att packlistan finns i samma org
+        const { data: pack } = await supabase
+          .from('packing_projects')
+          .select('id, organization_id')
+          .eq('id', packingId)
+          .eq('organization_id', ORG_ID)
+          .maybeSingle()
+        if (!pack) {
+          return json({ success: false, error: 'Packlistan hittades inte' }, 404)
+        }
+
+        // Återanvänd aktiv session
+        const { data: existing } = await supabase
+          .from('packing_work_sessions')
+          .select('*')
+          .eq('organization_id', ORG_ID)
+          .eq('packing_id', packingId)
+          .eq('staff_id', auth.staffId)
+          .eq('status', 'active')
+          .order('started_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (existing) {
+          return json({ success: true, session: existing, reused: true })
+        }
+
+        const { data: created, error: insErr } = await supabase
+          .from('packing_work_sessions')
+          .insert({
+            organization_id: ORG_ID,
+            packing_id: packingId,
+            staff_id: auth.staffId,
+            staff_name: auth.staffName,
+            status: 'active',
+          })
+          .select('*')
+          .single()
+        if (insErr || !created) {
+          console.error('[start_packing_session] insert failed', insErr)
+          return json({ success: false, error: 'Kunde inte skapa session' }, 500)
+        }
+        return json({ success: true, session: created, reused: false })
+      }
+
+      case 'get_active_packing_session': {
+        const { packingId } = params
+        if (!packingId || typeof packingId !== 'string') {
+          return json({ success: false, error: 'packingId required' }, 400)
+        }
+        const { data: session } = await supabase
+          .from('packing_work_sessions')
+          .select('*')
+          .eq('organization_id', ORG_ID)
+          .eq('packing_id', packingId)
+          .eq('staff_id', auth.staffId)
+          .eq('status', 'active')
+          .order('started_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        return json({ success: true, session: session ?? null })
+      }
+
+      case 'close_packing_session': {
+        const { sessionId, signatureName, closeWithoutChanges } = params
+        if (!sessionId || typeof sessionId !== 'string') {
+          return json({ success: false, error: 'sessionId required' }, 400)
+        }
+        if (!signatureName || typeof signatureName !== 'string' || !signatureName.trim()) {
+          return json({ success: false, error: 'signatureName required' }, 400)
+        }
+
+        const { data: session, error: sessErr } = await supabase
+          .from('packing_work_sessions')
+          .select('*')
+          .eq('id', sessionId)
+          .maybeSingle()
+        if (sessErr || !session) {
+          return json({ success: false, error: 'Sessionen hittades inte' }, 404)
+        }
+        if (session.organization_id !== ORG_ID) {
+          return json({ success: false, error: 'Sessionen tillhör annan organisation' }, 403)
+        }
+        if (session.staff_id !== auth.staffId) {
+          return json({ success: false, error: 'Sessionen tillhör inte dig' }, 403)
+        }
+        if (session.status !== 'active') {
+          return json({ success: false, error: 'Sessionen är redan stängd' }, 409)
+        }
+
+        // Hämta events
+        const { data: events } = await supabase
+          .from('packing_work_session_events')
+          .select('event_type, quantity_delta, product_name, packing_list_item_id')
+          .eq('session_id', sessionId)
+          .eq('organization_id', ORG_ID)
+
+        const evList = events || []
+        if (evList.length === 0 && !closeWithoutChanges) {
+          return json({
+            success: false,
+            error: 'Sessionen saknar händelser. Skicka closeWithoutChanges=true för att stänga ändå.',
+            code: 'PACKING_SESSION_NO_EVENTS',
+          }, 409)
+        }
+
+        // Summera
+        const byEventType: Record<string, number> = {}
+        const byProduct: Record<string, { eventCount: number; netDelta: number }> = {}
+        let netDelta = 0
+        for (const ev of evList) {
+          byEventType[ev.event_type] = (byEventType[ev.event_type] || 0) + 1
+          const delta = Number(ev.quantity_delta) || 0
+          netDelta += delta
+          const key = (ev.product_name || ev.packing_list_item_id || '—') as string
+          const bucket = byProduct[key] || { eventCount: 0, netDelta: 0 }
+          bucket.eventCount += 1
+          bucket.netDelta += delta
+          byProduct[key] = bucket
+        }
+
+        const summary = {
+          totals: { events: evList.length, netDelta },
+          byEventType,
+          byProduct,
+        }
+
+        const nowIso = new Date().toISOString()
+        const { data: updated, error: updErr } = await supabase
+          .from('packing_work_sessions')
+          .update({
+            ended_at: nowIso,
+            signed_at: nowIso,
+            signature_name: signatureName.trim(),
+            status: 'signed',
+            summary_json: summary,
+          })
+          .eq('id', sessionId)
+          .eq('organization_id', ORG_ID)
+          .eq('staff_id', auth.staffId)
+          .eq('status', 'active')
+          .select('*')
+          .single()
+
+        if (updErr || !updated) {
+          console.error('[close_packing_session] update failed', updErr)
+          return json({ success: false, error: 'Kunde inte stänga session' }, 500)
+        }
+
+        return json({ success: true, session: updated })
+      }
+
+      case 'get_packing_history': {
+        const { packingId, limit } = params
+        if (!packingId || typeof packingId !== 'string') {
+          return json({ success: false, error: 'packingId required' }, 400)
+        }
+        const lim = Math.min(Math.max(1, Number(limit) || 500), 2000)
+
+        const { data: sessions } = await supabase
+          .from('packing_work_sessions')
+          .select('*')
+          .eq('organization_id', ORG_ID)
+          .eq('packing_id', packingId)
+          .order('started_at', { ascending: false })
+
+        const { data: events } = await supabase
+          .from('packing_work_session_events')
+          .select('*')
+          .eq('organization_id', ORG_ID)
+          .eq('packing_id', packingId)
+          .order('created_at', { ascending: false })
+          .limit(lim)
+
+        return json({
+          success: true,
+          sessions: sessions || [],
+          events: events || [],
+        })
+      }
+
       default:
         return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
