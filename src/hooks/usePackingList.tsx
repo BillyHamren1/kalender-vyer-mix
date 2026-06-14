@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { PackingListItem, PackingWithBooking } from "@/types/packing";
+import { isMultiBookingPacking, resolvePackingSyncBookingIds } from "@/lib/packing/resolvePackingSyncBookingIds";
 
 // Fetch packing with booking info
 const fetchPackingForList = async (packingId: string): Promise<PackingWithBooking | null> => {
@@ -298,12 +299,13 @@ export const usePackingList = (packingId: string) => {
   });
 
   const bookingId = packing?.booking_id || null;
-  const isMultiBooking = linkedBookingIds.length > 0;
-  const hasBookings = isMultiBooking || !!bookingId;
+  const bookingIdsToSync = resolvePackingSyncBookingIds(bookingId, linkedBookingIds);
+  const isMultiBooking = isMultiBookingPacking(bookingId, linkedBookingIds);
+  const hasBookings = bookingIdsToSync.length > 0;
 
   const { data: listData, isLoading: isLoadingItems } = useQuery({
     queryKey: ['packing-list-items', packingId, bookingId, linkedBookingIds],
-    queryFn: () => fetchPackingListItems(packingId, bookingId, linkedBookingIds),
+    queryFn: () => fetchPackingListItems(packingId, bookingId, bookingIdsToSync),
     enabled: !!packingId && !isLoadingPacking && hasBookings
   });
 
@@ -331,7 +333,7 @@ export const usePackingList = (packingId: string) => {
   const syncPackingListMutation = useMutation({
     mutationFn: () => {
       if (isMultiBooking) {
-        return fullSyncMultiBooking(packingId, linkedBookingIds);
+        return fullSyncMultiBooking(packingId, bookingIdsToSync);
       }
       if (!packing?.booking_id) throw new Error('No booking ID');
       return fullSyncPackingListItems(packingId, packing.booking_id);
