@@ -300,7 +300,7 @@ export const usePackingList = (packingId: string) => {
   const { data: linkedBookingIds = [] } = useQuery({
     queryKey: ['packing-linked-bookings', packingId],
     queryFn: () => fetchLinkedBookingIds(packingId),
-    enabled: !!packingId && !!packing?.large_project_id
+    enabled: !!packingId
   });
 
   const bookingId = packing?.booking_id || null;
