@@ -77,11 +77,55 @@ const formatToTitleCase = (text: string): string => {
 export const VerificationView: React.FC<VerificationViewProps> = ({ 
   packingId, 
   onBack,
-  verifierName = 'Scanner',
+  verifierName: verifierNameProp,
   registerScanHandler,
   scannerState,
   rfidControls,
 }) => {
+  const navigate = useNavigate();
+
+  // ── Auth gate: packaren MÅSTE vara inloggad mobil-staff ──────────────
+  const storedStaff = useMemo(() => getStoredStaff(), []);
+  useEffect(() => {
+    if (!storedStaff) {
+      toast.error('Du måste vara inloggad för att packa');
+      navigate('/scanner/login', { replace: true });
+    }
+  }, [storedStaff, navigate]);
+
+  // verifierName följer alltid inloggad staff — aldrig "Scanner" / "Manual" / "Unknown"
+  const verifierName = storedStaff?.name || verifierNameProp || '';
+  const verifierStaffId = storedStaff?.id || null;
+
+  // ── Packningssession ─────────────────────────────────────────────────
+  const [activeSession, setActiveSession] = useState<PackingWorkSession | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [showSignDialog, setShowSignDialog] = useState(false);
+
+  const activeSessionIdRef = useRef<string | null>(null);
+  activeSessionIdRef.current = activeSession?.id ?? null;
+
+  const bootSession = useCallback(async () => {
+    if (!storedStaff) return;
+    setSessionLoading(true);
+    setSessionError(null);
+    try {
+      const res = await startPackingSession(packingId);
+      if (!res.success || !res.session) {
+        setSessionError(res.error || 'Kunde inte starta packningssession');
+      } else {
+        setActiveSession(res.session);
+      }
+    } catch (err: any) {
+      setSessionError(err?.message || 'Kunde inte starta packningssession');
+    } finally {
+      setSessionLoading(false);
+    }
+  }, [packingId, storedStaff]);
+
+  useEffect(() => { bootSession(); }, [bootSession]);
+
   const [isQRActive, setIsQRActive] = useState(false);
   const [isMinusMode, setIsMinusMode] = useState(false);
   const isMinusModeRef = useRef(isMinusMode);
@@ -96,7 +140,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const {
     isKolliMode, activeParcel, itemParcelMap, itemAllocations,
     startKolli, nextKolli, exitKolli, assignToKolli, setParcelMap,
-  } = useKolliManager(packingId);
+  } = useKolliManager(packingId, () => activeSessionIdRef.current);
 
   const activeParcelRef = useRef(activeParcel);
   activeParcelRef.current = activeParcel;
