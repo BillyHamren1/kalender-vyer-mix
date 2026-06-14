@@ -450,6 +450,7 @@ Deno.serve(async (req) => {
       }
     }
     const ACTIVE_SESSION_ID = __sessionContext?.sessionId ?? null
+    const ACTIVE_SESSION_PACKING_ID = __sessionContext?.packingId ?? null
 
     switch (action) {
       case 'list_active_packings': {
