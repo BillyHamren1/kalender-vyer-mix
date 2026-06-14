@@ -87,6 +87,7 @@ const formatToTitleCase = (text: string): string => {
 const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, packingName }) => {
   const { user } = useAuth();
   const [packing, setPacking] = useState<PackingWithBooking | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
   const [items, setItems] = useState<PackingItem[]>([]);
   const [progress, setProgress] = useState({ total: 0, verified: 0, percentage: 0 });
   const [isLoading, setIsLoading] = useState(true);
