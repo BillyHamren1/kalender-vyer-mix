@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX IF NOT EXISTS idx_packing_control_session_items_unique_item
+  ON public.packing_control_session_items(control_session_id, packing_list_item_id);
