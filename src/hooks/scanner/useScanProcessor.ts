@@ -489,9 +489,68 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     if (queueRef.current.length > 0) processNext();
   }, [pendingUnknownProduct, addRecentScan, processNext]);
 
+  // Per-row manual +1 (alltid increment, oavsett minus-läge)
+  const handleManualIncrement = useCallback(async (
+    itemId: string,
+    quantityToPack: number,
+    isParent: boolean,
+  ) => {
+    const activeSessionId = optRef.current.getActiveSessionId();
+    if (!activeSessionId) {
+      console.warn('PACKING_SESSION_REQUIRED: Ingen aktiv packningssession', { itemId });
+      toast.error('Starta packningssession först');
+      return;
+    }
+    if (isParent) {
+      toast.info('Parent products are marked automatically when all parts are packed');
+      return;
+    }
+    const { verifierName, onOptimisticIncrement, onAssignToKolli, getIsKolliMode, onTriggerSync } = optRef.current;
+    const activeParcelId = optRef.current.getActiveParcelId?.() ?? null;
+    try {
+      const result = await togglePackingItemManually(
+        itemId, false, quantityToPack, verifierName, activeParcelId, undefined, activeSessionId,
+      );
+      if (result.success) {
+        onOptimisticIncrement(itemId);
+        if (getIsKolliMode()) await onAssignToKolli(itemId);
+        onTriggerSync();
+      } else {
+        toast.error(result.error || 'Kunde inte öka');
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Kunde inte öka');
+    }
+  }, []);
+
+  // Per-row manual -1 (alltid decrement, oavsett minus-läge)
+  const handleManualDecrement = useCallback(async (itemId: string) => {
+    const activeSessionId = optRef.current.getActiveSessionId();
+    if (!activeSessionId) {
+      console.warn('PACKING_SESSION_REQUIRED: Ingen aktiv packningssession', { itemId });
+      toast.error('Starta packningssession först');
+      return;
+    }
+    const { verifierName, onOptimisticDecrement, onTriggerSync, getItems } = optRef.current;
+    const item = getItems().find(i => i.id === itemId);
+    if (!item || (item.quantity_packed || 0) <= 0) {
+      toast.error('Inget att ta bort');
+      return;
+    }
+    try {
+      await decrementPackingItem(itemId, verifierName, activeSessionId);
+      onOptimisticDecrement(itemId);
+      onTriggerSync();
+    } catch (err: any) {
+      toast.error(err?.message || 'Kunde inte ta bort');
+    }
+  }, []);
+
   return {
     enqueueScan,
     handleManualToggle,
+    handleManualIncrement,
+    handleManualDecrement,
     recentScans,
     clearSessionDedup,
     pendingUnknownProduct,

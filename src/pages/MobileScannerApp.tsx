@@ -27,9 +27,9 @@ import { groupPackingEntries } from '@/lib/packing/groupPackingEntries';
 import { Layers, ArrowLeft } from 'lucide-react';
 import ReturnView from '@/components/scanner/ReturnView';
 
-// 'manual' borttagen — manuell avbockning sker numera i VerificationView
-// med session-vakt (activeSessionId). ManualChecklistView är deprekerad.
-type AppState = 'home' | 'verifying' | 'returning' | 'lp_picker';
+// 'manual' = VerificationView i avbocknings-läge (inga kameror, +/- per rad).
+// 'verifying' = VerificationView i scan-läge (kamera + RFID).
+type AppState = 'home' | 'verifying' | 'manual' | 'returning' | 'lp_picker';
 type Flow = 'out' | 'in';
 
 const REALTIME_TABLES = ['packing_projects', 'packing_list_items', 'bookings'];
@@ -269,9 +269,12 @@ const MobileScannerApp: React.FC = () => {
   // VerificationView, som har en aktiv packing_work_session och kan skicka
   // activeSessionId till scanner-api. Gamla callers som fortfarande skickar
   // mode='manual' mappas tyst till VerificationView.
+  // Handle packing selection with mode + flow direction.
+  // 'verifying' = scan/kamera-läge. 'manual' = avbockning med +/- (ingen kamera).
+  // Båda renderas av VerificationView som har aktiv packing_work_session.
   const handleSelectPacking = (
     packingId: string,
-    _mode: 'verifying' | 'manual',
+    mode: 'verifying' | 'manual',
     kind: 'out' | 'in' = 'out',
   ) => {
     setSelectedPackingId(packingId);
@@ -279,7 +282,7 @@ const MobileScannerApp: React.FC = () => {
     if (kind === 'in') {
       setState('returning');
     } else {
-      setState('verifying');
+      setState(mode === 'manual' ? 'manual' : 'verifying');
     }
   };
 
@@ -347,12 +350,13 @@ const MobileScannerApp: React.FC = () => {
 
 
   // Render based on state
-  if (state === 'verifying' && selectedPackingId) {
+  if ((state === 'verifying' || state === 'manual') && selectedPackingId) {
     return (
       <div className="h-[100dvh] bg-background overflow-hidden">
         <VerificationView 
           packingId={selectedPackingId}
           onBack={goHome}
+          initialMode={state === 'manual' ? 'manual' : 'verifying'}
           registerScanHandler={(handler) => {
             // VerificationView still consumes scan.value internally — wrap to preserve full event downstream
             activeScanHandler.current = (scan: ScanEvent) => handler(scan.value);

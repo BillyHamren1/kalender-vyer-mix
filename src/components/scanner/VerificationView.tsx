@@ -8,7 +8,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X, Minus, List, QrCode, Loader2 } from 'lucide-react';
+import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X, Minus, Plus, List, QrCode, Loader2 } from 'lucide-react';
 import { getItemParcels, startPackingSession, type PackingWorkSession } from '@/services/scannerService';
 import { getStoredStaff } from '@/services/mobileApiService';
 import { useNavigate } from 'react-router-dom';
@@ -56,6 +56,11 @@ interface VerificationViewProps {
   registerScanHandler?: (handler: (value: string) => void) => void;
   scannerState?: ScannerStateProps;
   rfidControls?: RfidControlsProps;
+  /**
+   * 'verifying' = scan-driven (kamera + RFID alltid på).
+   * 'manual'    = avbockning med +/-: ingen kamera startas, ingen scan-input registreras.
+   */
+  initialMode?: 'verifying' | 'manual';
 }
 
 // Remove prefix symbols from product names
@@ -83,8 +88,10 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   registerScanHandler,
   scannerState,
   rfidControls,
+  initialMode = 'verifying',
 }) => {
   const navigate = useNavigate();
+  const isManualMode = initialMode === 'manual';
 
   // ── Auth gate: packaren MÅSTE vara inloggad mobil-staff ──────────────
   const storedStaff = useMemo(() => getStoredStaff(), []);
@@ -181,6 +188,8 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const {
     enqueueScan,
     handleManualToggle,
+    handleManualIncrement,
+    handleManualDecrement,
     recentScans,
     clearSessionDedup,
     pendingUnknownProduct,
@@ -248,13 +257,18 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   // Cleanup
   useEffect(() => () => cleanupFeedback(), [cleanupFeedback]);
 
-  // Register scan handler with parent
+  // Register scan handler with parent — endast i scan-läge.
+  // I manual-läge (Check off) får INGEN scan-input mata in items.
   useEffect(() => {
-    if (registerScanHandler) {
-      console.log('[VerificationView] Registering scan handler');
-      registerScanHandler(enqueueScan);
+    if (!registerScanHandler) return;
+    if (isManualMode) {
+      console.log('[VerificationView] Manual mode — scan handler NOT registered');
+      registerScanHandler(() => {});
+      return;
     }
-  }, [enqueueScan, registerScanHandler]);
+    console.log('[VerificationView] Registering scan handler');
+    registerScanHandler(enqueueScan);
+  }, [enqueueScan, registerScanHandler, isManualMode]);
 
   // Handle exit kolli with data reload
   const handleExitKolli = useCallback(async () => {
@@ -391,28 +405,26 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const renderItemRow = (item: PackingItem, showParcelColumn = false) => {
     const info = getItemDisplayInfo(item, childrenByParent);
     const parcelNumber = itemParcelMap[item.id];
+    const rowDisabled = info.isParent || (showParcelColumn && info.isComplete);
 
-    return (
-      <button 
-        key={item.id}
-        onClick={() => handleManualToggle(item.id, info.isComplete, item.quantity_to_pack, info.isParent)}
-        disabled={info.isParent || (showParcelColumn && info.isComplete)}
-        className={`w-full flex items-center gap-2 text-left transition-all duration-300 ${
-          highlightedItemId === item.id
-            ? 'bg-green-200 ring-2 ring-green-400 scale-[1.01]'
-            : info.isOverscan
-              ? 'bg-red-100/80 border-l-4 border-red-500'
-              : info.isComplete 
-                ? 'bg-green-50/70' 
-                : info.isPartial 
-                  ? 'bg-amber-50/50' 
-                  : ''
-        } ${
-          info.isParent || (showParcelColumn && info.isComplete)
-            ? 'cursor-default opacity-60' 
-            : 'hover:bg-muted/40 active:bg-muted/60'
-        } ${info.isChild ? 'pl-6 pr-2 py-1.5' : 'px-2 py-2'}`}
-      >
+    const rowClasses = `w-full flex items-center gap-2 text-left transition-all duration-300 ${
+      highlightedItemId === item.id
+        ? 'bg-green-200 ring-2 ring-green-400 scale-[1.01]'
+        : info.isOverscan
+          ? 'bg-red-100/80 border-l-4 border-red-500'
+          : info.isComplete 
+            ? 'bg-green-50/70' 
+            : info.isPartial 
+              ? 'bg-amber-50/50' 
+              : ''
+    } ${
+      rowDisabled
+        ? 'cursor-default opacity-60' 
+        : isManualMode ? '' : 'hover:bg-muted/40 active:bg-muted/60'
+    } ${info.isChild ? 'pl-6 pr-2 py-1.5' : 'px-2 py-2'}`;
+
+    const innerContent = (
+      <>
         <div className={`shrink-0 rounded-full flex items-center justify-center ${
           info.isChild ? 'w-4 h-4' : 'w-5 h-5'
         } ${
@@ -489,22 +501,67 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           ) : null;
         })()}
         
-        {/* Quantity badge */}
+        {/* Quantity badge + (manual mode) +/- controls */}
         {!showParcelColumn && (
-          <div className={`shrink-0 min-w-[40px] flex items-center justify-center rounded px-1.5 py-0.5 ${
-            info.isOverscan ? 'bg-red-200 text-red-800'
-              : info.isComplete ? 'bg-green-100 text-green-700' 
-              : info.isPartial ? 'bg-amber-100 text-amber-700'
-              : 'bg-muted/60 text-muted-foreground'
-          }`}>
-            <span className={`font-mono font-bold ${info.isChild ? 'text-[10px]' : 'text-xs'}`}>
-              {info.packed}/{info.total}
-            </span>
+          <div className="shrink-0 flex items-center gap-1">
+            {isManualMode && !info.isParent && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); handleManualDecrement(item.id); }}
+                disabled={info.packed <= 0}
+                className="h-7 w-7 rounded border border-border bg-background hover:bg-muted active:bg-muted/80 flex items-center justify-center disabled:opacity-40"
+                aria-label="Minska 1"
+              >
+                <Minus className="h-3.5 w-3.5" />
+              </button>
+            )}
+            <div className={`min-w-[44px] flex items-center justify-center rounded px-1.5 py-0.5 ${
+              info.isOverscan ? 'bg-red-200 text-red-800'
+                : info.isComplete ? 'bg-green-100 text-green-700' 
+                : info.isPartial ? 'bg-amber-100 text-amber-700'
+                : 'bg-muted/60 text-muted-foreground'
+            }`}>
+              <span className={`font-mono font-bold ${info.isChild ? 'text-[10px]' : 'text-xs'}`}>
+                {info.packed}/{info.total}
+              </span>
+            </div>
+            {isManualMode && !info.isParent && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); handleManualIncrement(item.id, item.quantity_to_pack, info.isParent); }}
+                disabled={info.packed >= info.total}
+                className="h-7 w-7 rounded border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 active:bg-primary/30 flex items-center justify-center disabled:opacity-40"
+                aria-label="Öka 1"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         )}
+      </>
+    );
+
+    // I manuell-läge: rad är en <div> (för att +/- är knappar inuti).
+    // I scan-läge: rad är en <button> som togglar via handleManualToggle.
+    if (isManualMode) {
+      return (
+        <div key={item.id} className={rowClasses}>
+          {innerContent}
+        </div>
+      );
+    }
+    return (
+      <button 
+        key={item.id}
+        onClick={() => handleManualToggle(item.id, info.isComplete, item.quantity_to_pack, info.isParent)}
+        disabled={rowDisabled}
+        className={rowClasses}
+      >
+        {innerContent}
       </button>
     );
   };
+
 
   // --- Kolli Mode UI ---
   if (isKolliMode && activeParcel) {
@@ -756,18 +813,20 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         )}
       </div>
 
-      {/* Camera (always mounted, tight crop) */}
-      <div className="shrink-0 bg-black border-b">
-        <QRScanner
-          isActive={true}
-          onScan={enqueueScan}
-          onClose={() => { /* never closes — always mounted */ }}
-          compact
-          tight
-          cameraHeight="34dvh"
-          feedback={scannerFeedback}
-        />
-      </div>
+      {/* Camera — endast i scan-läge. I "Check off"-läget startas ingen kamera. */}
+      {!isManualMode && (
+        <div className="shrink-0 bg-black border-b">
+          <QRScanner
+            isActive={true}
+            onScan={enqueueScan}
+            onClose={() => { /* never closes — always mounted */ }}
+            compact
+            tight
+            cameraHeight="34dvh"
+            feedback={scannerFeedback}
+          />
+        </div>
+      )}
 
       {/* Live scan status — derived from scanTimeline (single source, anti-flicker) */}
       <LiveScanStatusBar showTiming={showScanDebug} />
