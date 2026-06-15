@@ -1,7 +1,21 @@
 import { supabase } from "@/integrations/supabase/client";
-import { PackingWithBooking, PackingParcel } from "@/types/packing";
+import { PackingWithBooking } from "@/types/packing";
 
-// ============== FETCH ==============
+// ============================================================================
+// READ-ONLY desktop packing service.
+//
+// SÄKERHETSREGEL: All packningsmuterande logik MÅSTE gå via scanner-api med
+// aktiv `packing_work_session` så att audit-historiken inte tappas. Tidigare
+// fanns lokala mutators här (decrement/createParcel/assign/sign) som gick förbi
+// scanner-api — de är nu neutraliserade och returnerar/kastar tydligt fel.
+//
+// Helpers som lever kvar är ENDAST läs-helpers för att hydrera UI:t.
+// ============================================================================
+
+const DESKTOP_PACKING_BLOCKED_MESSAGE =
+  'Packningsändringar måste gå via scanner-api med aktiv session.';
+
+// ============== FETCH (read-only) ==============
 
 export const fetchPackingForDesktop = async (id: string): Promise<PackingWithBooking | null> => {
   const { data: packing, error } = await supabase
@@ -35,108 +49,6 @@ export const fetchPackingListItemsForDesktop = async (packingId: string) => {
   return sortPackingItems(data || []);
 };
 
-// ============== TOGGLE / DECREMENT ==============
-
-/**
- * ⚠️ LEGACY ONLY — DO NOT USE for manual packing/checkoff.
- *
- * Manual packing must go through scanner-api `toggle_item`
- * (see `togglePackingItemManually` in `src/services/scannerService.ts`)
- * so Bundle Builder / WMS is the source of truth and must accept
- * the scan BEFORE local `packing_list_items.quantity_packed` is mutated.
- *
- * This helper previously did a local-first Supabase update which is
- * unsafe. It is kept exported under an explicit `legacy*LocalOnly`
- * name only so any forgotten import fails loudly instead of silently
- * bypassing WMS.
- */
-export const legacyTogglePackingItemDesktopLocalOnly = async (
-  _itemId: string,
-  _currentlyPacked: boolean,
-  _quantityToPack: number,
-  _verifiedBy: string
-): Promise<{ success: false; error: string }> => {
-  return {
-    success: false,
-    error:
-      'Desktop manual checkoff must use scanner-api toggle_item (togglePackingItemManually). Local-first packning är förbjuden.',
-  };
-};
-
-/**
- * @deprecated Renamed to `legacyTogglePackingItemDesktopLocalOnly` and
- * neutralised. Always returns an error. Do not call.
- */
-export const togglePackingItemDesktop = legacyTogglePackingItemDesktopLocalOnly;
-
-export const decrementPackingItemDesktop = async (
-  itemId: string
-): Promise<{ success: boolean; error?: string }> => {
-  try {
-    const { data: item, error: fetchErr } = await supabase
-      .from('packing_list_items')
-      .select('quantity_packed')
-      .eq('id', itemId)
-      .single();
-
-    if (fetchErr || !item) return { success: false, error: 'Kunde inte hämta artikel' };
-
-    const newQty = Math.max((item.quantity_packed || 0) - 1, 0);
-
-    const { error } = await supabase
-      .from('packing_list_items')
-      .update({ quantity_packed: newQty })
-      .eq('id', itemId);
-
-    if (error) return { success: false, error: error.message };
-    return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err.message };
-  }
-};
-
-// ============== PARCEL (KOLLI) ==============
-
-export const createParcelDesktop = async (
-  packingId: string,
-  createdBy: string
-): Promise<PackingParcel> => {
-  // Get max parcel_number for this packing
-  const { data: existing } = await supabase
-    .from('packing_parcels')
-    .select('parcel_number')
-    .eq('packing_id', packingId)
-    .order('parcel_number', { ascending: false })
-    .limit(1);
-
-  const nextNumber = (existing?.[0]?.parcel_number || 0) + 1;
-
-  const { data, error } = await supabase
-    .from('packing_parcels')
-    .insert({
-      packing_id: packingId,
-      parcel_number: nextNumber,
-      created_by: createdBy,
-    })
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data as PackingParcel;
-};
-
-export const assignItemToParcelDesktop = async (
-  itemId: string,
-  parcelId: string | null
-): Promise<void> => {
-  const { error } = await supabase
-    .from('packing_list_items')
-    .update({ parcel_id: parcelId })
-    .eq('id', itemId);
-
-  if (error) throw error;
-};
-
 export const getItemParcelsDesktop = async (
   packingId: string
 ): Promise<Record<string, number>> => {
@@ -166,22 +78,62 @@ export const getItemParcelsDesktop = async (
   return result;
 };
 
-// ============== SIGN ==============
+// ============================================================================
+// BLOCKED legacy mutators
+// ============================================================================
+// Dessa fyra funktioner är medvetet kvar för att gamla imports inte ska
+// krascha bygget. De gör INTE några ändringar — de returnerar/kastar fel med
+// exakt texten "Packningsändringar måste gå via scanner-api med aktiv session."
+//
+// Säkraste vägen är att helt sluta importera dem. Vid förändring → använd
+// scanner-api action `toggle_item` / `decrement_item` / `create_parcel` /
+// `assign_item_to_parcel` / `sign_packing` med activeSessionId.
+// ============================================================================
 
+/** @deprecated Använd scanner-api `toggle_item` (decrement-path) med activeSessionId. */
+export const legacyTogglePackingItemDesktopLocalOnly = async (
+  _itemId: string,
+  _currentlyPacked: boolean,
+  _quantityToPack: number,
+  _verifiedBy: string,
+): Promise<{ success: false; error: string }> => ({
+  success: false,
+  error: DESKTOP_PACKING_BLOCKED_MESSAGE,
+});
+
+/** @deprecated Renamed och neutraliserad. */
+export const togglePackingItemDesktop = legacyTogglePackingItemDesktopLocalOnly;
+
+/** @deprecated Använd scanner-api `decrement_item` med activeSessionId. */
+export const decrementPackingItemDesktop = async (
+  _itemId: string,
+): Promise<{ success: false; error: string }> => ({
+  success: false,
+  error: DESKTOP_PACKING_BLOCKED_MESSAGE,
+});
+
+/** @deprecated Använd scanner-api `create_parcel` med activeSessionId. */
+export const createParcelDesktop = async (
+  _packingId: string,
+  _createdBy: string,
+): Promise<never> => {
+  throw new Error(DESKTOP_PACKING_BLOCKED_MESSAGE);
+};
+
+/** @deprecated Använd scanner-api `assign_item_to_parcel` med activeSessionId. */
+export const assignItemToParcelDesktop = async (
+  _itemId: string,
+  _parcelId: string | null,
+): Promise<never> => {
+  throw new Error(DESKTOP_PACKING_BLOCKED_MESSAGE);
+};
+
+/** @deprecated Använd scanner-api `sign_packing` (när session-stödet finns där). */
 export const signPackingDesktop = async (
-  packingId: string,
-  signedBy: string
-): Promise<void> => {
-  const { error } = await supabase
-    .from('packing_projects')
-    .update({
-      signed_by: signedBy,
-      signed_at: new Date().toISOString(),
-      status: 'packed',
-    })
-    .eq('id', packingId);
-
-  if (error) throw error;
+  _packingId: string,
+  _signedBy: string,
+): Promise<never> => {
+  throw new Error(DESKTOP_PACKING_BLOCKED_MESSAGE);
 };
 
 // ============== SORT UTILITY ==============

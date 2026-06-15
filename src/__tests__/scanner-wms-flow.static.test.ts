@@ -4,29 +4,69 @@ import { resolve } from 'path';
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8');
 
-describe('Desktop checklist uses scannerService for manual checkoff (WMS-first)', () => {
+describe('DesktopChecklistView is read-only — no packing mutations', () => {
+  // SÄKERHETSREGEL: Packningsändringar MÅSTE gå via scanner-api med aktiv
+  // packing_work_session. Tills desktop får ett eget session-flöde får den
+  // här vyn inte importera muterande funktioner eller röra packing_list_items
+  // / packing_parcels direkt.
   const src = read('src/components/packing/DesktopChecklistView.tsx');
 
-  it('imports togglePackingItemManually from scannerService', () => {
-    expect(src).toMatch(
-      /import\s*\{[^}]*togglePackingItemManually[^}]*\}\s*from\s*['"]@\/services\/scannerService['"]/,
-    );
+  it('does NOT import any mutating scanner-api action helpers', () => {
+    expect(src).not.toMatch(/togglePackingItemManually/);
+    expect(src).not.toMatch(/decrementPackingItem\b/);
+    expect(src).not.toMatch(/createParcel\b/);
+    expect(src).not.toMatch(/assignItemToParcel\b/);
+    expect(src).not.toMatch(/signPacking\b/);
   });
 
-  it('does NOT import the legacy local-only desktop toggle', () => {
+  it('does NOT import the legacy desktop mutator helpers', () => {
     expect(src).not.toMatch(/togglePackingItemDesktop\b(?!Local)/);
     expect(src).not.toMatch(/legacyTogglePackingItemDesktopLocalOnly/);
+    expect(src).not.toMatch(/decrementPackingItemDesktop/);
+    expect(src).not.toMatch(/createParcelDesktop/);
+    expect(src).not.toMatch(/assignItemToParcelDesktop/);
+    expect(src).not.toMatch(/signPackingDesktop/);
   });
 
-  it('does NOT directly UPDATE packing_list_items.quantity_packed from the component', () => {
-    // Local toggle bypassing WMS is forbidden in DesktopChecklistView.
-    // The only allowed Supabase mutations here are "excluded" toggle and manual-row insert.
-    const updateMatches = src.match(/\.from\(['"]packing_list_items['"]\)\s*[\s\S]{0,200}?\.update\(([^)]*)\)/g) || [];
-    for (const m of updateMatches) {
-      expect(m).not.toMatch(/quantity_packed/);
+  it('does NOT perform any update/insert/delete against packing_list_items or packing_parcels', () => {
+    const forbidden = [
+      /\.from\(['"]packing_list_items['"]\)[\s\S]{0,200}?\.update\(/,
+      /\.from\(['"]packing_list_items['"]\)[\s\S]{0,200}?\.insert\(/,
+      /\.from\(['"]packing_list_items['"]\)[\s\S]{0,200}?\.delete\(/,
+      /\.from\(['"]packing_parcels['"]\)[\s\S]{0,200}?\.update\(/,
+      /\.from\(['"]packing_parcels['"]\)[\s\S]{0,200}?\.insert\(/,
+      /\.from\(['"]packing_parcels['"]\)[\s\S]{0,200}?\.delete\(/,
+    ];
+    for (const re of forbidden) {
+      expect(src).not.toMatch(re);
     }
   });
 });
+
+describe('desktopPackingService blocks legacy mutators', () => {
+  const src = read('src/services/desktopPackingService.ts');
+  const BLOCK_MSG = 'Packningsändringar måste gå via scanner-api med aktiv session.';
+
+  it('contains the exact block message', () => {
+    expect(src).toContain(BLOCK_MSG);
+  });
+
+  it('decrementPackingItemDesktop / createParcelDesktop / assignItemToParcelDesktop / signPackingDesktop are neutralized', () => {
+    for (const fn of [
+      'decrementPackingItemDesktop',
+      'createParcelDesktop',
+      'assignItemToParcelDesktop',
+      'signPackingDesktop',
+    ]) {
+      // Each function definition exists but no longer touches supabase tables.
+      const idx = src.indexOf(`export const ${fn}`);
+      expect(idx).toBeGreaterThan(-1);
+      const body = src.slice(idx, idx + 600);
+      expect(body).not.toMatch(/await supabase\s*\.from\(/);
+    }
+  });
+});
+
 
 describe('Desktop fetch hydrates inventory_item_type_id for WMS preflight', () => {
   it('desktopPackingService.fetchPackingListItemsForDesktop selects inventory_item_type_id on booking_products', () => {
