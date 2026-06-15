@@ -220,6 +220,14 @@ const MobileScannerApp: React.FC = () => {
     [filteredPackings],
   );
 
+  // Packlistor som ännu inte har startats (planning). Visas alltid ovanför
+  // kalendern så att användaren kan PÅBÖRJA en packning även om dess
+  // rigday inte är dagens datum — annars finns ingen ingång till "starta packning".
+  const notStartedPackings = useMemo(
+    () => filteredPackings.filter(p => p.status === 'planning'),
+    [filteredPackings],
+  );
+
   // Deep-link from Lager: /m/tools/scanner?packingId=...&mode=out|in
   // Also accepts packlistId (alias) and bookingId (resolved via loaded packings).
   const deepLinkHandled = useRef(false);
@@ -624,7 +632,40 @@ const MobileScannerApp: React.FC = () => {
                         onSelect={handleSelectPacking}
                       />
                     ),
+            )}
+
+            {/* Att påbörja — alla planning-packlistor (oavsett datum) så att
+                användaren alltid har en ingång för att STARTA en packning. */}
+            {notStartedPackings.length > 0 && (
+              <section>
+                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                  Att påbörja
+                </h2>
+                <div className="space-y-2">
+                  {groupPackingEntries(
+                    notStartedPackings.map(p => ({ packing: p, kind: 'out' as const })),
+                  ).map(group =>
+                    group.type === 'lp_group' ? (
+                      <LargeProjectPackingCard
+                        key={group.key}
+                        largeProjectId={group.largeProjectId}
+                        largeProjectName={group.largeProjectName}
+                        kind={group.kind}
+                        packings={group.packings}
+                        onOpen={handleOpenLargeProject}
+                      />
+                    ) : (
+                      <PackingCard
+                        key={group.key}
+                        packing={group.packing}
+                        kind={group.kind}
+                        onSelect={handleSelectPacking}
+                      />
+                    ),
                   )}
+                </div>
+              </section>
+            )}
                 </div>
               </section>
             )}
