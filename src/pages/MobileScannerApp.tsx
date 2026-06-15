@@ -307,16 +307,19 @@ const MobileScannerApp: React.FC = () => {
     );
   }
 
+  // 'manual' är deprekerad — visa den blockerande stubben så att gamla
+  // länkar inte tyst hamnar i en vy utan session/history.
   if (state === 'manual' && selectedPackingId) {
     return (
       <div className="min-h-screen bg-background p-4 pt-[max(1rem,env(safe-area-inset-top))]">
-        <ManualChecklistView 
+        <ManualChecklistView
           packingId={selectedPackingId}
           onBack={goHome}
         />
       </div>
     );
   }
+
 
   if (state === 'returning' && selectedPackingId) {
     return (
