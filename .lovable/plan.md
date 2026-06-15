@@ -1,60 +1,52 @@
-# Plan
+# Rensa Almedalen-dubbletten + förebygg nya
 
-## Vad jag har konstaterat hittills
-- Previewn du pekar på visar ett stort, suddigt täckande lager ovanpå satellitbilden.
-- Webbkoden har i nuläget nästan ingen riktig terrängrendering i den vy jag hittade; flera ställen visar bara lagrade preview-/mesh-filer eller rena placeholders.
-- `/m/tools/measure` gav 404 i previewn, så den direkta live-verifieringen av mätvyn i webben är just nu bruten.
-- `BookingDrawingTab` är uttryckligen en placeholder och renderar inte någon riktig 3D-scen alls.
-- Det gör att felet mycket väl kan ligga i en av dessa tre nivåer:
-  1. felaktig genererad preview-bild,
-  2. felaktig mesh/heightmap som används som täcklager,
-  3. fel renderordning/material i den riktiga native- eller framtida canvasscenen.
+## Bekräftat i DB
 
-## Det jag kommer göra
-1. **Identifiera den verkliga kanoniska terrängvyn**
-   - Fastställa exakt vilken route/komponent som användarna faktiskt använder när de ser den suddiga terrängmassan.
-   - Koppla den till rätt datakälla: `preview_image`, `heightmap`, `mesh`, `point_cloud` eller native SceneKit/AR-output.
+Två `large_projects` med samma namn:
 
-2. **Spåra vilket lager som döljer terrängförändringarna**
-   - Gå igenom hela renderkedjan från `site_scans` / `booking_site_surfaces` till visning.
-   - Kontrollera om ett extra fill-/mesh-/masklager läggs ovanpå hela ytan.
-   - Kontrollera om fel assettyp används som primär visning, t.ex. en grov/suddig preview istället för riktig terrängdata.
+| Skapat | project_number | id | Bokningar | warehouse_project | packing_project |
+|---|---|---|---|---|---|
+| 2026-04-20 | 260420-Projekt01 | `5c94ebcc…` | **0** | `b3bb02cb…` | `a2568c55…` (Hansa Event AB - 2026-06-22, planning) |
+| 2026-05-28 | 260528-Projekt01 | `a5d3f31b…` | **23** | `1a97c48a…` | `de0e56c5…` (Almedalenveckan 2026, planning) ← du tittar på denna |
 
-3. **Separera dataproblem från renderproblem**
-   - Verifiera om terrängförändringarna faktiskt finns korrekt i lagrade assets men döljs i UI.
-   - Om previewbilden redan är fel: fixa visningslogiken så att den inte använder den som “sanning”.
-   - Om meshen är fel: spåra var den skapas/länkas och säkra att rätt fil väljs.
+April-raden är tom och saknar motsvarighet i Planning som du säger. Den ska bort.
 
-4. **Fixa den faktiska orsaken**
-   - Om problemet är overlay/material/renderordning: justera scenen så att täcklagret inte kan ligga över allt.
-   - Om problemet är fel previewkälla: byt prioritering så att skarpa terrängdata visas först.
-   - Om problemet är att webben saknar riktig terrängvisning: ersätta placeholdern med en riktig diagnostisk viewer så att terränglager kan granskas utan att ett dolt previewlager maskerar allt.
+## Steg 1 — Engångsstädning (migration / insert tool)
 
-5. **Lägga in hårda skydd mot regression**
-   - Skapa test/kontraktstest för asset-prioritering och val av terrängkälla.
-   - Lägga in tydlig fallback/debug-info i UI så det går att se vilken asset som faktiskt renderas.
-   - Testa direkt i preview efter ändring och köra testsviten efter större fixen.
+Hårdradera i denna ordning (barn → förälder), scopat på de exakta id:n:
 
-## Förväntat resultat
-- Den suddiga massan försvinner eller flyttas bort från primärvyn.
-- De verkliga terrängförändringarna blir synliga igen.
-- Det blir tydligt i UI vilken terrängkälla som visas, så samma fel inte kan gömma sig igen.
+1. `packing_list_item_allocations`, `packing_list_items`, `packing_parcels`, `packing_control_session_items`, `packing_control_sessions`, `packing_work_session_events`, `packing_work_sessions`, `packing_tasks`, `packing_task_comments`, `packing_comments`, `packing_files`, `packing_invoices`, `packing_quotes`, `packing_budget`, `packing_labor_costs`, `packing_purchases`, `packing_project_bookings`, `packing_sync_log` för `packing_project_id = a2568c55…`
+2. `packing_projects` rad `a2568c55…`
+3. `warehouse_project_tasks`, `warehouse_project_changes`, `warehouse_staff_activations`, `warehouse_assignments`, `warehouse_calendar_events` för `warehouse_project_id = b3bb02cb…`
+4. `warehouse_projects` rad `b3bb02cb…`
+5. `warehouse_project_inbox` rader som pekar på `source_id = 5c94ebcc…`
+6. `large_project_*` (bookings/tasks/files/budget/purchases/staff/team_assignments/booking_plan_items/cost_lines/gantt_steps/view_config/budget) för `large_project_id = 5c94ebcc…` (alla bör vara 0 rader men kör för säkerhets skull)
+7. `large_projects` rad `5c94ebcc…`
 
-## Tekniska detaljer
-- Redan granskade filer visar att:
-  - `src/features/site-scans/pages/ScanDetail.tsx` visar signed `preview_image`, `mesh` och `point_cloud`.
-  - `src/features/site-scans/components/booking-details/BookingDrawingTab.tsx` är bara placeholder, inte riktig terrängcanvas.
-  - `src/features/site-scans/components/scan-detail/UsdzViewer.tsx` är också stub/placeholder.
-  - Native iOS-koden i `ios/App/App/SiteScanMeasure` verkar vara AR-mätning, inte den satellit-/terrängoverlay som syns i din bild.
-- Därför kommer jag i implementationen rikta in mig på både:
-  - fel asset-prioritering i site scan-visningen,
-  - samt eventuell separat terrängviewer som idag använder fel lager ovanpå kartan/canvasen.
+Allt körs i en transaktion. Säkerhetscheck före delete på `large_projects`: bekräfta `(SELECT COUNT(*) FROM large_project_bookings WHERE large_project_id='5c94ebcc…') = 0`.
 
-```text
-Data -> site_scans / booking_site_surfaces
-     -> preview_image / heightmap / mesh / point_cloud
-     -> viewer choice / render order
-     -> det suddiga lagret måste bort eller nedprioriteras
-```
+## Steg 2 — Kodlås mot nya dubbletter
 
-När du godkänner planen går jag vidare och fixar det på riktigt.
+Bara två små UI-ändringar, inget databasschema:
+
+**A. Planning — `CreateLargeProjectDialog` (eller motsvarande "Skapa stort projekt"-flöde)**
+Vid namnändring: kör en query mot `large_projects` (samma org) på `name ILIKE` och visa varning i dialogen:
+> "Det finns redan ett stort projekt med namnet 'X' (skapat YYYY-MM-DD, N bokningar). Vill du verkligen skapa ett till?"
+Knappar: "Öppna befintligt" / "Skapa ändå" / "Avbryt". Ingen hård spärr — bara medveten varning.
+
+**B. Warehouse — `WarehouseProjectInbox` (filen visad i context)**
+I `ConvertInboxDialog`: innan konvertering, kolla om det redan finns en `warehouse_projects`-rad med samma `client_name` (case-insensitive) i org. Om ja, visa:
+> "Lagerprojekt 'X' finns redan (skapat YYYY-MM-DD). Vill du länka inbox-raden till befintligt projekt eller skapa nytt?"
+Knappar: "Länka till befintligt" (sätter `warehouse_project_inbox.status='converted'` + `warehouse_project_id` till det gamla, inget nytt skapas) / "Skapa nytt ändå" / "Avbryt".
+
+## Inte med i denna plan
+- Trasig inbox-rad `260603-Projekt01` (pekar på borttagen LP) — separat fråga, hanteras i nästa runda
+- Per-bokning-vy inuti stora lagerprojekt — separat fråga
+- Schemaändring (unique index på `large_projects.name` per org) — varning räcker, hård spärr kräver mer diskussion
+
+## Filer som kommer ändras i Steg 2
+- `src/components/.../CreateLargeProjectDialog.tsx` (hittas i build-fasen)
+- `src/components/warehouse/ConvertInboxDialog.tsx`
+- Ev. ny helper `src/services/largeProjectDuplicateCheck.ts`
+
+Säg till om jag ska köra hela planen (Steg 1 + Steg 2) eller bara städningen först.
