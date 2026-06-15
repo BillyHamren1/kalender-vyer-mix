@@ -22,6 +22,9 @@ import PackingDayView from '@/components/scanner/calendar/PackingDayView';
 import PackingWeekView from '@/components/scanner/calendar/PackingWeekView';
 import PackingMonthView from '@/components/scanner/calendar/PackingMonthView';
 import PackingCard from '@/components/scanner/calendar/PackingCard';
+import LargeProjectPackingCard from '@/components/scanner/calendar/LargeProjectPackingCard';
+import { groupPackingEntries } from '@/lib/packing/groupPackingEntries';
+import { Layers, ArrowLeft } from 'lucide-react';
 import ReturnView from '@/components/scanner/ReturnView';
 
 type AppState = 'home' | 'verifying' | 'manual' | 'returning';
