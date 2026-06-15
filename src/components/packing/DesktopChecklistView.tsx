@@ -217,7 +217,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, 
         ...group,
         items: productItems.filter((i) => i.booking_products?.booking_id === group.bookingId),
       }))
-    : [{ bookingId: 'all', client: '', bookingNumber: null, items: productItems }];
+    : [{ bookingId: 'all', client: '', bookingNumber: null, eventdate: null, items: productItems }];
 
   const renderItem = (item: PackingItem) => {
     const rawName = item.manual_name || item.booking_products?.name || 'Okänd produkt';
