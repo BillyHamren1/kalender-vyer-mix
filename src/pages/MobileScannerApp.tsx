@@ -374,18 +374,11 @@ const MobileScannerApp: React.FC = () => {
     );
   }
 
-  // 'manual' är deprekerad — visa den blockerande stubben så att gamla
-  // länkar inte tyst hamnar i en vy utan session/history.
-  if (state === 'manual' && selectedPackingId) {
-    return (
-      <div className="min-h-screen bg-background p-4 pt-[max(1rem,env(safe-area-inset-top))]">
-        <ManualChecklistView
-          packingId={selectedPackingId}
-          onBack={goHome}
-        />
-      </div>
-    );
-  }
+  // 'manual'-state är borttagen. ManualChecklistView importeras inte längre
+  // i aktivt flöde. Filen finns kvar som blockerande stub men nås inte
+  // härifrån; alla `mode='manual'`-anrop mappas till VerificationView i
+  // handleSelectPacking ovan.
+
 
 
   if (state === 'returning' && selectedPackingId) {
