@@ -257,13 +257,18 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   // Cleanup
   useEffect(() => () => cleanupFeedback(), [cleanupFeedback]);
 
-  // Register scan handler with parent
+  // Register scan handler with parent — endast i scan-läge.
+  // I manual-läge (Check off) får INGEN scan-input mata in items.
   useEffect(() => {
-    if (registerScanHandler) {
-      console.log('[VerificationView] Registering scan handler');
-      registerScanHandler(enqueueScan);
+    if (!registerScanHandler) return;
+    if (isManualMode) {
+      console.log('[VerificationView] Manual mode — scan handler NOT registered');
+      registerScanHandler(() => {});
+      return;
     }
-  }, [enqueueScan, registerScanHandler]);
+    console.log('[VerificationView] Registering scan handler');
+    registerScanHandler(enqueueScan);
+  }, [enqueueScan, registerScanHandler, isManualMode]);
 
   // Handle exit kolli with data reload
   const handleExitKolli = useCallback(async () => {
