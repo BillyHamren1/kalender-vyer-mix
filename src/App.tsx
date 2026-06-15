@@ -447,8 +447,8 @@ const WebRoutes: React.FC = () => {
             </Route>
 
             {/* Scanner App (accessible via web) */}
-            <Route path="/scanner" element={<MobileAuthProvider><ScannerRouteGuard><MobileScannerApp /></ScannerRouteGuard></MobileAuthProvider>} />
-            <Route path="/scanner/login" element={<MobileAuthProvider><ScannerLogin /></MobileAuthProvider>} />
+            <Route path="/scanner" element={<LanguageProvider><MobileAuthProvider><ScannerRouteGuard><MobileScannerApp /></ScannerRouteGuard></MobileAuthProvider></LanguageProvider>} />
+            <Route path="/scanner/login" element={<LanguageProvider><MobileAuthProvider><ScannerLogin /></MobileAuthProvider></LanguageProvider>} />
 
             {/* Fallback */}
             <Route path="*" element={<NotFound />} />
