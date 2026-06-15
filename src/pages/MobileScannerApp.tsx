@@ -6,7 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { QrCode, Search, Package, Camera, Bug, Loader2, Tag, MapPin, CalendarDays } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { VerificationView } from '@/components/scanner/VerificationView';
-import { ManualChecklistView } from '@/components/scanner/ManualChecklistView';
+// ManualChecklistView är deprekerad — importeras inte längre i aktivt flöde.
 import { ScannerDebugPanel } from '@/components/scanner/ScannerDebugPanel';
 import { ScannerModeIndicator } from '@/components/scanner/ScannerModeIndicator';
 import { IdentifyScannerOverlay } from '@/components/scanner/IdentifyScannerOverlay';
