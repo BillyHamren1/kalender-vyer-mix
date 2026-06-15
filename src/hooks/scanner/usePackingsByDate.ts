@@ -1,6 +1,10 @@
 import { useMemo } from 'react';
 import { format, parseISO } from 'date-fns';
 import type { PackingWithBooking } from '@/types/packing';
+import {
+  groupPackingEntries,
+  type GroupedPackingEntry,
+} from '@/lib/packing/groupPackingEntries';
 
 export type PackingEntryKind = 'out' | 'in';
 
@@ -50,6 +54,16 @@ const dateKey = (d: Date) => format(d, 'yyyy-MM-dd');
 
 interface PackingsByDate {
   getForDate: (date: Date) => PackingEntry[];
+  /**
+   * Som getForDate, men packlistor från samma stora projekt kollapsas
+   * till EN `lp_group`-card i listan (per kind). Detta är vad UI ska visa.
+   */
+  getGroupsForDate: (date: Date) => GroupedPackingEntry[];
+  /**
+   * Räknar grupper för en dag — så att kalender-pricks och badges visar
+   * antalet "packjobb" (där ett stort projekt = 1) istället för antal
+   * underbokningar.
+   */
   getCountForDate: (date: Date) => number;
   /** Flat list of every (packing, kind) entry — useful for search results. */
   allEntries: PackingEntry[];
@@ -86,7 +100,10 @@ export const usePackingsByDate = (packings: PackingWithBooking[]): PackingsByDat
   return useMemo(
     () => ({
       getForDate: (date: Date) => map.get(dateKey(date)) ?? [],
-      getCountForDate: (date: Date) => map.get(dateKey(date))?.length ?? 0,
+      getGroupsForDate: (date: Date) =>
+        groupPackingEntries(map.get(dateKey(date)) ?? []),
+      getCountForDate: (date: Date) =>
+        groupPackingEntries(map.get(dateKey(date)) ?? []).length,
       allEntries: all,
     }),
     [map, all],

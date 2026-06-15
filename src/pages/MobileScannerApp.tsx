@@ -22,9 +22,12 @@ import PackingDayView from '@/components/scanner/calendar/PackingDayView';
 import PackingWeekView from '@/components/scanner/calendar/PackingWeekView';
 import PackingMonthView from '@/components/scanner/calendar/PackingMonthView';
 import PackingCard from '@/components/scanner/calendar/PackingCard';
+import LargeProjectPackingCard from '@/components/scanner/calendar/LargeProjectPackingCard';
+import { groupPackingEntries } from '@/lib/packing/groupPackingEntries';
+import { Layers, ArrowLeft } from 'lucide-react';
 import ReturnView from '@/components/scanner/ReturnView';
 
-type AppState = 'home' | 'verifying' | 'manual' | 'returning';
+type AppState = 'home' | 'verifying' | 'manual' | 'returning' | 'lp_picker';
 type Flow = 'out' | 'in';
 
 const REALTIME_TABLES = ['packing_projects', 'packing_list_items', 'bookings'];
@@ -35,6 +38,13 @@ const MobileScannerApp: React.FC = () => {
   const [state, setState] = useState<AppState>('home');
   const [selectedPackingId, setSelectedPackingId] = useState<string | null>(null);
   const [flow, setFlow] = useState<Flow>('out');
+  // När användaren öppnar ett "stort projekt"-kort: lista underbokningarnas packlistor.
+  const [lpPicker, setLpPicker] = useState<{
+    id: string;
+    name: string;
+    kind: 'out' | 'in';
+    packings: PackingWithBooking[];
+  } | null>(null);
   const [isQRActive, setIsQRActive] = useState(false);
   const [packings, setPackings] = useState<PackingWithBooking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -271,13 +281,67 @@ const MobileScannerApp: React.FC = () => {
   };
 
 
+  // Öppna underbokningarna i ett stort projekt-kort
+  const handleOpenLargeProject = (
+    largeProjectId: string,
+    largeProjectName: string,
+    kind: 'out' | 'in',
+    pickerPackings: PackingWithBooking[],
+  ) => {
+    setLpPicker({ id: largeProjectId, name: largeProjectName, kind, packings: pickerPackings });
+    setState('lp_picker');
+  };
+
   // Go back to home
   const goHome = () => {
     setState('home');
     setSelectedPackingId(null);
     setIsQRActive(false);
     setFlow('out');
+    setLpPicker(null);
   };
+
+  // Render large project booking picker
+  if (state === 'lp_picker' && lpPicker) {
+    const isReturn = lpPicker.kind === 'in';
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <header className="bg-primary text-primary-foreground p-3 flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-primary-foreground hover:bg-primary-foreground/10 h-8 w-8"
+            onClick={goHome}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] uppercase tracking-wider opacity-80 flex items-center gap-1">
+              <Layers className="h-3 w-3" />
+              Stort projekt · {isReturn ? 'IN · Retur' : 'UT · Pack'}
+            </p>
+            <h1 className="text-base font-semibold truncate">{lpPicker.name}</h1>
+            <p className="text-xs opacity-80">
+              {lpPicker.packings.length}{' '}
+              {lpPicker.packings.length === 1 ? 'bokning' : 'bokningar'} — välj
+              vilken du vill {isReturn ? 'returnera' : 'packa'}
+            </p>
+          </div>
+        </header>
+        <main className="flex-1 overflow-y-auto p-3 space-y-2">
+          {lpPicker.packings.map(p => (
+            <PackingCard
+              key={p.id}
+              packing={p}
+              kind={lpPicker.kind}
+              onSelect={(packingId, mode) => handleSelectPacking(packingId, mode, lpPicker.kind)}
+            />
+          ))}
+        </main>
+      </div>
+    );
+  }
+
 
   // Render based on state
   if (state === 'verifying' && selectedPackingId) {
@@ -501,29 +565,66 @@ const MobileScannerApp: React.FC = () => {
             </p>
           </div>
         ) : searchQuery.trim() ? (
-          // Search active → flat results, ignore date filter
+          // Search active → flat results, ignore date filter (men gruppera LP)
           <div className="space-y-2">
-            {filteredPackings.map(p => (
-              <PackingCard key={p.id} packing={p} onSelect={handleSelectPacking} />
-            ))}
+            {groupPackingEntries(
+              filteredPackings.map(p => ({
+                packing: p,
+                kind: (p.status === 'returning' || p.status === 'returned' || p.status === 'back' || p.status === 'delivered') ? 'in' : 'out',
+              })),
+            ).map(group =>
+              group.type === 'lp_group' ? (
+                <LargeProjectPackingCard
+                  key={group.key}
+                  largeProjectId={group.largeProjectId}
+                  largeProjectName={group.largeProjectName}
+                  kind={group.kind}
+                  packings={group.packings}
+                  onOpen={handleOpenLargeProject}
+                />
+              ) : (
+                <PackingCard
+                  key={group.key}
+                  packing={group.packing}
+                  kind={group.kind}
+                  onSelect={handleSelectPacking}
+                />
+              ),
+            )}
           </div>
         ) : (
           <>
-            {/* Pinned: in-progress jobs across all dates */}
+            {/* Pinned: in-progress jobs across all dates (grouped per LP) */}
             {inProgressPackings.length > 0 && (
               <section>
                 <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
                   Pågående nu
                 </h2>
                 <div className="space-y-2">
-                  {inProgressPackings.map(p => (
-                    <PackingCard
-                      key={p.id}
-                      packing={p}
-                      kind={p.status === 'returning' ? 'in' : 'out'}
-                      onSelect={handleSelectPacking}
-                    />
-                  ))}
+                  {groupPackingEntries(
+                    inProgressPackings.map(p => ({
+                      packing: p,
+                      kind: p.status === 'returning' ? 'in' : 'out',
+                    })),
+                  ).map(group =>
+                    group.type === 'lp_group' ? (
+                      <LargeProjectPackingCard
+                        key={group.key}
+                        largeProjectId={group.largeProjectId}
+                        largeProjectName={group.largeProjectName}
+                        kind={group.kind}
+                        packings={group.packings}
+                        onOpen={handleOpenLargeProject}
+                      />
+                    ) : (
+                      <PackingCard
+                        key={group.key}
+                        packing={group.packing}
+                        kind={group.kind}
+                        onSelect={handleSelectPacking}
+                      />
+                    ),
+                  )}
                 </div>
               </section>
             )}
@@ -541,6 +642,7 @@ const MobileScannerApp: React.FC = () => {
                   date={selectedDate}
                   packings={filteredPackings}
                   onSelect={handleSelectPacking}
+                  onOpenLargeProject={handleOpenLargeProject}
                   onShowWeek={() => setViewMode('week')}
                 />
               )}
@@ -550,6 +652,7 @@ const MobileScannerApp: React.FC = () => {
                   onSelectDate={setSelectedDate}
                   packings={filteredPackings}
                   onSelect={handleSelectPacking}
+                  onOpenLargeProject={handleOpenLargeProject}
                 />
               )}
               {viewMode === 'month' && (

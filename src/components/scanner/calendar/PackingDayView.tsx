@@ -7,6 +7,7 @@ import {
   type PackingEntryKind,
 } from '@/hooks/scanner/usePackingsByDate';
 import PackingCard from './PackingCard';
+import LargeProjectPackingCard from './LargeProjectPackingCard';
 
 interface Props {
   date: Date;
@@ -16,13 +17,25 @@ interface Props {
     mode: 'verifying' | 'manual',
     kind: PackingEntryKind,
   ) => void;
+  onOpenLargeProject: (
+    largeProjectId: string,
+    largeProjectName: string,
+    kind: PackingEntryKind,
+    packings: PackingWithBooking[],
+  ) => void;
   onShowWeek?: () => void;
 }
 
-const PackingDayView: React.FC<Props> = ({ date, packings, onSelect, onShowWeek }) => {
+const PackingDayView: React.FC<Props> = ({
+  date,
+  packings,
+  onSelect,
+  onOpenLargeProject,
+  onShowWeek,
+}) => {
   const { t } = useLanguage();
   const grouped = usePackingsByDate(packings);
-  const day = grouped.getForDate(date);
+  const day = grouped.getGroupsForDate(date);
 
   if (day.length === 0) {
     return (
@@ -48,14 +61,28 @@ const PackingDayView: React.FC<Props> = ({ date, packings, onSelect, onShowWeek 
 
   return (
     <div className="space-y-2">
-      {day.map(entry => (
-        <PackingCard
-          key={`${entry.packing.id}-${entry.kind}`}
-          packing={entry.packing}
-          kind={entry.kind}
-          onSelect={onSelect}
-        />
-      ))}
+      {day.map(entry => {
+        if (entry.type === 'lp_group') {
+          return (
+            <LargeProjectPackingCard
+              key={entry.key}
+              largeProjectId={entry.largeProjectId}
+              largeProjectName={entry.largeProjectName}
+              kind={entry.kind}
+              packings={entry.packings}
+              onOpen={onOpenLargeProject}
+            />
+          );
+        }
+        return (
+          <PackingCard
+            key={entry.key}
+            packing={entry.packing}
+            kind={entry.kind}
+            onSelect={onSelect}
+          />
+        );
+      })}
     </div>
   );
 };

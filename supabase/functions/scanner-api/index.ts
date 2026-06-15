@@ -692,21 +692,43 @@ Deno.serve(async (req) => {
 
         if (error) throw error
 
-        // Fetch booking data for all packings to enable date filtering
-        const packingsWithBookings = await Promise.all(
-          (allPackings || []).map(async (packing: any) => {
-            if (packing.booking_id) {
-              const { data: booking } = await supabase
-                .from('bookings')
-                .select('id, client, eventdate, rigdaydate, rigdowndate, deliveryaddress, contact_name, contact_phone, contact_email, booking_number')
-                .eq('id', packing.booking_id)
-                .eq('organization_id', ORG_ID)
-                .single()
-              return { ...packing, booking }
-            }
-            return packing
-          })
-        )
+        // Fetch booking data for all packings to enable date filtering.
+        // Inkluderar large_project_id så att klienten kan gruppera packlistor
+        // som tillhör samma stora projekt till EN packjob-card i listan.
+        const bookingIds = Array.from(new Set(
+          (allPackings || []).map((p: any) => p.booking_id).filter(Boolean)
+        )) as string[]
+
+        const bookingMap = new Map<string, any>()
+        if (bookingIds.length > 0) {
+          const { data: bookingRows } = await supabase
+            .from('bookings')
+            .select('id, client, eventdate, rigdaydate, rigdowndate, deliveryaddress, contact_name, contact_phone, contact_email, booking_number, large_project_id')
+            .in('id', bookingIds)
+            .eq('organization_id', ORG_ID)
+          ;(bookingRows || []).forEach((b: any) => bookingMap.set(b.id, b))
+        }
+
+        // Samla alla LP-ids (direkt på packing eller via booking) och hämta namn.
+        const lpIds = Array.from(new Set([
+          ...(allPackings || []).map((p: any) => p.large_project_id).filter(Boolean),
+          ...Array.from(bookingMap.values()).map((b: any) => b?.large_project_id).filter(Boolean),
+        ])) as string[]
+        const lpMap = new Map<string, { id: string; name: string }>()
+        if (lpIds.length > 0) {
+          const { data: lpRows } = await supabase
+            .from('large_projects')
+            .select('id, name')
+            .in('id', lpIds)
+          ;(lpRows || []).forEach((lp: any) => lpMap.set(lp.id, { id: lp.id, name: lp.name }))
+        }
+
+        const packingsWithBookings = (allPackings || []).map((packing: any) => {
+          const booking = packing.booking_id ? bookingMap.get(packing.booking_id) ?? null : null
+          const lpId = packing.large_project_id || booking?.large_project_id || null
+          const large_project = lpId ? lpMap.get(lpId) ?? null : null
+          return { ...packing, booking, large_project }
+        })
 
         // Filter rules:
         // - in_progress / packed / returning  → always shown (active work)

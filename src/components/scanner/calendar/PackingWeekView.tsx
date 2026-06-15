@@ -16,9 +16,21 @@ interface Props {
     mode: 'verifying' | 'manual',
     kind: import('@/hooks/scanner/usePackingsByDate').PackingEntryKind,
   ) => void;
+  onOpenLargeProject: (
+    largeProjectId: string,
+    largeProjectName: string,
+    kind: import('@/hooks/scanner/usePackingsByDate').PackingEntryKind,
+    packings: PackingWithBooking[],
+  ) => void;
 }
 
-const PackingWeekView: React.FC<Props> = ({ selectedDate, onSelectDate, packings, onSelect }) => {
+const PackingWeekView: React.FC<Props> = ({
+  selectedDate,
+  onSelectDate,
+  packings,
+  onSelect,
+  onOpenLargeProject,
+}) => {
   const { locale } = useLanguage();
   const dfLocale = locale === 'en' ? enUS : sv;
   const grouped = usePackingsByDate(packings);
@@ -74,7 +86,12 @@ const PackingWeekView: React.FC<Props> = ({ selectedDate, onSelectDate, packings
           );
         })}
       </div>
-      <PackingDayView date={selectedDate} packings={packings} onSelect={onSelect} />
+      <PackingDayView
+        date={selectedDate}
+        packings={packings}
+        onSelect={onSelect}
+        onOpenLargeProject={onOpenLargeProject}
+      />
     </div>
   );
 };
