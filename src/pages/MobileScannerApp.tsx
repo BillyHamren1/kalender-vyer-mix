@@ -350,12 +350,13 @@ const MobileScannerApp: React.FC = () => {
 
 
   // Render based on state
-  if (state === 'verifying' && selectedPackingId) {
+  if ((state === 'verifying' || state === 'manual') && selectedPackingId) {
     return (
       <div className="h-[100dvh] bg-background overflow-hidden">
         <VerificationView 
           packingId={selectedPackingId}
           onBack={goHome}
+          initialMode={state === 'manual' ? 'manual' : 'verifying'}
           registerScanHandler={(handler) => {
             // VerificationView still consumes scan.value internally — wrap to preserve full event downstream
             activeScanHandler.current = (scan: ScanEvent) => handler(scan.value);
