@@ -650,6 +650,14 @@ Deno.serve(async (req) => {
           auth,
           (params as any)?.activeSessionId,
         )
+        // Sessionens packing_id MÅSTE matcha åtgärdens mål.
+        await assertSessionMatchesTarget(
+          supabase,
+          ORG_ID,
+          __sessionContext.packingId,
+          action,
+          params,
+        )
       } catch (sessionErr: any) {
         return new Response(
           JSON.stringify({
@@ -663,6 +671,7 @@ Deno.serve(async (req) => {
     }
     const ACTIVE_SESSION_ID = __sessionContext?.sessionId ?? null
     const ACTIVE_SESSION_PACKING_ID = __sessionContext?.packingId ?? null
+
 
     switch (action) {
       case 'list_active_packings': {
