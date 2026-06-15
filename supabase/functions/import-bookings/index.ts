@@ -2770,6 +2770,9 @@ serve(async (req) => {
         const eventdate = allEventDates[0] || undefined;
         const rigdowndate = allRigdownDates[0] || undefined;
 
+        // DEBUG: log raw date arrays from external API to diagnose missing rig days
+        console.log(`[Date Arrays] Booking ${externalBooking.id} (${externalBooking.booking_number || ''}): raw rig_up_dates=${JSON.stringify(externalBooking.rig_up_dates)}, rig_dates=${JSON.stringify(externalBooking.rig_dates)}, rig_up_date=${JSON.stringify(externalBooking.rig_up_date)}, rigdaydate=${JSON.stringify(externalBooking.rigdaydate)}, rig_date=${JSON.stringify(externalBooking.rig_date)} → allRigDates=${JSON.stringify(allRigDates)} | event_dates=${JSON.stringify(externalBooking.event_dates)}, eventdate=${JSON.stringify(externalBooking.eventdate)} → allEventDates=${JSON.stringify(allEventDates)} | rig_down_dates=${JSON.stringify(externalBooking.rig_down_dates)}, rigdowndate=${JSON.stringify(externalBooking.rigdowndate)} → allRigdownDates=${JSON.stringify(allRigdownDates)}`);
+
         // ── Parse combined time-range fields from Booking export ─────────────
         // The external API may send "rig_up_time" / "rig_down_time" as combined
         // range strings like "08:00 - 12:00" instead of discrete start/end fields.
