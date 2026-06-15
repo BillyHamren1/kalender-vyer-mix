@@ -27,7 +27,7 @@ import { groupPackingEntries } from '@/lib/packing/groupPackingEntries';
 import { Layers, ArrowLeft } from 'lucide-react';
 import ReturnView from '@/components/scanner/ReturnView';
 
-type AppState = 'home' | 'verifying' | 'manual' | 'returning';
+type AppState = 'home' | 'verifying' | 'manual' | 'returning' | 'lp_picker';
 type Flow = 'out' | 'in';
 
 const REALTIME_TABLES = ['packing_projects', 'packing_list_items', 'bookings'];
