@@ -143,15 +143,8 @@ describe('usePackingList — direkta DB-writes är neutraliserade', () => {
   });
 });
 
-describe('MobileScannerApp — manual-state borttagen (session-vakt enforced)', () => {
+describe('MobileScannerApp — manual = VerificationView i avbocknings-läge (ingen kamera, +/-)', () => {
   const src = readFileSync(resolve(process.cwd(), 'src/pages/MobileScannerApp.tsx'), 'utf8');
-
-  it('AppState innehåller inte längre "manual"', () => {
-    // typdeklarationen får inte ha "manual" som AppState-alternativ
-    const match = src.match(/type AppState\s*=\s*([^;]+);/);
-    expect(match).toBeTruthy();
-    expect(match![1]).not.toMatch(/['"]manual['"]/);
-  });
 
   it('importerar inte ManualChecklistView i aktivt flöde', () => {
     expect(src).not.toMatch(/^import\s+\{\s*ManualChecklistView\s*\}/m);
@@ -161,13 +154,72 @@ describe('MobileScannerApp — manual-state borttagen (session-vakt enforced)', 
     expect(src).not.toMatch(/<ManualChecklistView\b/);
   });
 
-  it('handleSelectPacking mappar mode oavsett värde till verifying för out-flow', () => {
+  it('AppState innehåller "manual" igen (men routas till VerificationView)', () => {
+    const match = src.match(/type AppState\s*=\s*([^;]+);/);
+    expect(match).toBeTruthy();
+    expect(match![1]).toMatch(/['"]manual['"]/);
+    expect(match![1]).toMatch(/['"]verifying['"]/);
+  });
+
+  it('handleSelectPacking sätter state=manual när mode=manual för out-flow', () => {
     const idx = src.indexOf('const handleSelectPacking');
     expect(idx).toBeGreaterThan(-1);
-    const body = src.slice(idx, idx + 600);
-    // Får inte längre läsa mode för att välja verifying vs manual
-    expect(body).not.toMatch(/mode\s*===\s*['"]manual['"]/);
+    const body = src.slice(idx, idx + 800);
+    expect(body).toMatch(/mode\s*===\s*['"]manual['"]/);
+    expect(body).toMatch(/setState\(['"]manual['"]\)/);
     expect(body).toMatch(/setState\(['"]verifying['"]\)/);
+  });
+
+  it('båda manual- och verifying-state renderas av VerificationView med initialMode', () => {
+    expect(src).toMatch(/state\s*===\s*['"]verifying['"]\s*\|\|\s*state\s*===\s*['"]manual['"]/);
+    expect(src).toMatch(/initialMode=\{state\s*===\s*['"]manual['"]\s*\?\s*['"]manual['"]\s*:\s*['"]verifying['"]\}/);
+  });
+});
+
+describe('VerificationView — manual-läge döljer kamera och visar +/-', () => {
+  const src = readFileSync(resolve(process.cwd(), 'src/components/scanner/VerificationView.tsx'), 'utf8');
+
+  it('accepterar initialMode-prop', () => {
+    expect(src).toMatch(/initialMode\?\:\s*['"]verifying['"]\s*\|\s*['"]manual['"]/);
+    expect(src).toMatch(/const isManualMode\s*=\s*initialMode\s*===\s*['"]manual['"]/);
+  });
+
+  it('kameran (QRScanner always-mounted block) gates på !isManualMode', () => {
+    expect(src).toMatch(/!isManualMode\s*&&\s*\(\s*<div[^>]*>\s*<QRScanner/);
+  });
+
+  it('manual-läge registrerar INTE enqueueScan som scan-handler', () => {
+    expect(src).toMatch(/if\s*\(isManualMode\)\s*\{[\s\S]*?registerScanHandler\(\(\)\s*=>\s*\{\}\)/);
+  });
+
+  it('renderar +/- knappar (handleManualIncrement/Decrement) i manual-läge', () => {
+    expect(src).toMatch(/handleManualIncrement\(item\.id/);
+    expect(src).toMatch(/handleManualDecrement\(item\.id\)/);
+    expect(src).toMatch(/isManualMode\s*&&\s*!info\.isParent/);
+  });
+});
+
+describe('useScanProcessor — handleManualIncrement / handleManualDecrement med session-vakt', () => {
+  const src = readFileSync(resolve(process.cwd(), 'src/hooks/scanner/useScanProcessor.ts'), 'utf8');
+
+  it('exporterar handleManualIncrement och handleManualDecrement', () => {
+    expect(src).toMatch(/handleManualIncrement,/);
+    expect(src).toMatch(/handleManualDecrement,/);
+  });
+
+  it('båda har session-vakt före backend-anrop', () => {
+    const incIdx = src.indexOf('const handleManualIncrement');
+    const decIdx = src.indexOf('const handleManualDecrement');
+    expect(incIdx).toBeGreaterThan(-1);
+    expect(decIdx).toBeGreaterThan(-1);
+    const incGuard = src.indexOf('PACKING_SESSION_REQUIRED', incIdx);
+    const decGuard = src.indexOf('PACKING_SESSION_REQUIRED', decIdx);
+    const incCall = src.indexOf('togglePackingItemManually(', incIdx);
+    const decCall = src.indexOf('decrementPackingItem(', decIdx);
+    expect(incGuard).toBeGreaterThan(incIdx);
+    expect(incGuard).toBeLessThan(incCall);
+    expect(decGuard).toBeGreaterThan(decIdx);
+    expect(decGuard).toBeLessThan(decCall);
   });
 });
 
