@@ -3329,9 +3329,23 @@ Deno.serve(async (req) => {
       default:
         return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
-  } catch (err) {
+  } catch (err: any) {
+    // Packningshistorik som inte kunde skrivas → tydlig kod till klienten.
+    // Själva packningsändringen är redan utförd; servern flaggar att
+    // revisionsloggen saknas så att handpåläggning kan ske.
+    if (err instanceof PackingHistoryLogError) {
+      console.error('Scanner API — packing history log failed:', err, err.cause)
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: err.message,
+          code: err.code,
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
     console.error('Scanner API error:', err)
-    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    return new Response(JSON.stringify({ error: err?.message ?? String(err) }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 })
 
