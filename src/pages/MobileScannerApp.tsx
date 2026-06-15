@@ -269,9 +269,12 @@ const MobileScannerApp: React.FC = () => {
   // VerificationView, som har en aktiv packing_work_session och kan skicka
   // activeSessionId till scanner-api. Gamla callers som fortfarande skickar
   // mode='manual' mappas tyst till VerificationView.
+  // Handle packing selection with mode + flow direction.
+  // 'verifying' = scan/kamera-läge. 'manual' = avbockning med +/- (ingen kamera).
+  // Båda renderas av VerificationView som har aktiv packing_work_session.
   const handleSelectPacking = (
     packingId: string,
-    _mode: 'verifying' | 'manual',
+    mode: 'verifying' | 'manual',
     kind: 'out' | 'in' = 'out',
   ) => {
     setSelectedPackingId(packingId);
@@ -279,7 +282,7 @@ const MobileScannerApp: React.FC = () => {
     if (kind === 'in') {
       setState('returning');
     } else {
-      setState('verifying');
+      setState(mode === 'manual' ? 'manual' : 'verifying');
     }
   };
 
