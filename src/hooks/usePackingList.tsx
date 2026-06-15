@@ -142,12 +142,12 @@ const fullSyncMultiBooking = async (
   return { added: totalAdded, removed: totalRemoved, updated: totalUpdated };
 };
 
-const fetchBookingGroups = async (linkedBookingIds: string[]): Promise<Map<string, { id: string; client: string; booking_number: string | null }>> => {
+const fetchBookingGroups = async (linkedBookingIds: string[]): Promise<Map<string, { id: string; client: string; booking_number: string | null; eventdate: string | null; rigdaydate: string | null; rigdowndate: string | null }>> => {
   if (linkedBookingIds.length === 0) return new Map();
 
   const { data: bookings } = await supabase
     .from('bookings')
-    .select('id, client, booking_number')
+    .select('id, client, booking_number, eventdate, rigdaydate, rigdowndate')
     .in('id', linkedBookingIds);
 
   return new Map((bookings || []).map(b => [b.id, b]));
@@ -157,6 +157,9 @@ export interface BookingGroup {
   bookingId: string;
   client: string;
   bookingNumber: string | null;
+  eventdate: string | null;
+  rigdaydate: string | null;
+  rigdowndate: string | null;
   items: PackingListItem[];
 }
 
