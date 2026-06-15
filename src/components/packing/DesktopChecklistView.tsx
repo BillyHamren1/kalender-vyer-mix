@@ -494,17 +494,22 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, 
                     onClick={() => toggleGroupCollapse(group.bookingId)}
                     className="w-full flex items-center justify-between px-4 py-2.5 bg-muted/60 border-b hover:bg-muted/80 transition-colors"
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       {isCollapsed ? (
                         <ChevronRight className="h-4 w-4" />
                       ) : (
                         <ChevronDown className="h-4 w-4" />
                       )}
-                      <span className="font-medium text-sm">{group.client}</span>
                       {group.bookingNumber && (
-                        <span className="text-xs text-muted-foreground flex items-center gap-0.5">
+                        <span className="text-xs font-mono font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded flex items-center gap-0.5">
                           <Hash className="h-3 w-3" />
                           {group.bookingNumber}
+                        </span>
+                      )}
+                      <span className="font-medium text-sm">{group.client}</span>
+                      {group.eventdate && (
+                        <span className="text-xs text-muted-foreground">
+                          · {new Date(group.eventdate).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </span>
                       )}
                     </div>
