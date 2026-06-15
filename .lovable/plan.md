@@ -1,52 +1,32 @@
-# Rensa Almedalen-dubbletten + förebygg nya
+Jag hittade inte ett UI-cacheproblem först. Det lokala datalagret är faktiskt stale:
 
-## Bekräftat i DB
+- `2604-144` finns i Planning och har fått en kö-rad idag, men senaste registrerade ändringen var bara projektkopplingsfält, inte Booking-fält.
+- `2604-145` ligger kvar med `updated_at = 2026-06-03`, trots att den enligt dig är ändrad i Booking.
+- De senaste `import-bookings`-körningarna loggar `Fetched 0 bookings from external API`, och `sync_state` har ändå flyttat fram cursorn till `2026-06-15 19:18:12`.
+- Det betyder: Planning får inte in ändringspayloaden från Booking för de här bokningarna. Då finns inget i React/previewn att uppdatera.
 
-Två `large_projects` med samma namn:
+Plan för fix:
 
-| Skapat | project_number | id | Bokningar | warehouse_project | packing_project |
-|---|---|---|---|---|---|
-| 2026-04-20 | 260420-Projekt01 | `5c94ebcc…` | **0** | `b3bb02cb…` | `a2568c55…` (Hansa Event AB - 2026-06-22, planning) |
-| 2026-05-28 | 260528-Projekt01 | `a5d3f31b…` | **23** | `1a97c48a…` | `de0e56c5…` (Almedalenveckan 2026, planning) ← du tittar på denna |
+1. **Verifiera importkontraktet för specifika bokningar**
+   - Testa `import-bookings` med explicit `booking_id` för `2604-144` och `2604-145`.
+   - Kontrollera om externa Booking-exporten kräver UUID, bokningsnummer eller annat id-format.
+   - Bekräfta varför inkrementell sync returnerar 0 trots ändring i Booking.
 
-April-raden är tom och saknar motsvarighet i Planning som du säger. Den ska bort.
+2. **Stoppa tysta “lyckade” importer när inget faktiskt importerades**
+   - Ändra syncflödet så en kö-rad inte markeras som färdig om en explicit bokningsuppdatering inte gav någon extern bokningsrad och ingen lokal ändring applicerades.
+   - Logga tydligt: boknings-id, bokningsnummer, org, sync-läge och orsaken.
 
-## Steg 1 — Engångsstädning (migration / insert tool)
+3. **Lägg till robust fallback för webhook/incremental**
+   - Om webhook/kö bara har lokal UUID men externa API:t inte hittar den, slå upp lokalt `booking_number` och försök extern hämtning även via bokningsnummer om exporten stödjer det.
+   - Inkrementell sync ska inte flytta fram cursor på ett sätt som kan svälja ändringar när exporten returnerar 0 oväntat.
 
-Hårdradera i denna ordning (barn → förälder), scopat på de exakta id:n:
+4. **Se till att stora projekt invalidieras i UI när underbokningar ändras**
+   - När `booking_changes` eller `bookings` ändras för en underbokning i ett stort projekt ska queryn `large-project-bookings-full` och relevant `large-project` invalidieras.
+   - Det gör att Almedalen-vyn uppdateras utan manuell omladdning när datan väl kommit in.
 
-1. `packing_list_item_allocations`, `packing_list_items`, `packing_parcels`, `packing_control_session_items`, `packing_control_sessions`, `packing_work_session_events`, `packing_work_sessions`, `packing_tasks`, `packing_task_comments`, `packing_comments`, `packing_files`, `packing_invoices`, `packing_quotes`, `packing_budget`, `packing_labor_costs`, `packing_purchases`, `packing_project_bookings`, `packing_sync_log` för `packing_project_id = a2568c55…`
-2. `packing_projects` rad `a2568c55…`
-3. `warehouse_project_tasks`, `warehouse_project_changes`, `warehouse_staff_activations`, `warehouse_assignments`, `warehouse_calendar_events` för `warehouse_project_id = b3bb02cb…`
-4. `warehouse_projects` rad `b3bb02cb…`
-5. `warehouse_project_inbox` rader som pekar på `source_id = 5c94ebcc…`
-6. `large_project_*` (bookings/tasks/files/budget/purchases/staff/team_assignments/booking_plan_items/cost_lines/gantt_steps/view_config/budget) för `large_project_id = 5c94ebcc…` (alla bör vara 0 rader men kör för säkerhets skull)
-7. `large_projects` rad `5c94ebcc…`
+5. **Testa på de faktiska bokningarna**
+   - Kör riktad import för `2604-144` och `2604-145`.
+   - Läs DB efteråt och verifiera att `bookings`, `booking_changes` och stora projektets bokningslista visar nya värden.
+   - Kör automatisk test för importkontraktet så det inte kan återgå till “completed men ingen ändring”.
 
-Allt körs i en transaktion. Säkerhetscheck före delete på `large_projects`: bekräfta `(SELECT COUNT(*) FROM large_project_bookings WHERE large_project_id='5c94ebcc…') = 0`.
-
-## Steg 2 — Kodlås mot nya dubbletter
-
-Bara två små UI-ändringar, inget databasschema:
-
-**A. Planning — `CreateLargeProjectDialog` (eller motsvarande "Skapa stort projekt"-flöde)**
-Vid namnändring: kör en query mot `large_projects` (samma org) på `name ILIKE` och visa varning i dialogen:
-> "Det finns redan ett stort projekt med namnet 'X' (skapat YYYY-MM-DD, N bokningar). Vill du verkligen skapa ett till?"
-Knappar: "Öppna befintligt" / "Skapa ändå" / "Avbryt". Ingen hård spärr — bara medveten varning.
-
-**B. Warehouse — `WarehouseProjectInbox` (filen visad i context)**
-I `ConvertInboxDialog`: innan konvertering, kolla om det redan finns en `warehouse_projects`-rad med samma `client_name` (case-insensitive) i org. Om ja, visa:
-> "Lagerprojekt 'X' finns redan (skapat YYYY-MM-DD). Vill du länka inbox-raden till befintligt projekt eller skapa nytt?"
-Knappar: "Länka till befintligt" (sätter `warehouse_project_inbox.status='converted'` + `warehouse_project_id` till det gamla, inget nytt skapas) / "Skapa nytt ändå" / "Avbryt".
-
-## Inte med i denna plan
-- Trasig inbox-rad `260603-Projekt01` (pekar på borttagen LP) — separat fråga, hanteras i nästa runda
-- Per-bokning-vy inuti stora lagerprojekt — separat fråga
-- Schemaändring (unique index på `large_projects.name` per org) — varning räcker, hård spärr kräver mer diskussion
-
-## Filer som kommer ändras i Steg 2
-- `src/components/.../CreateLargeProjectDialog.tsx` (hittas i build-fasen)
-- `src/components/warehouse/ConvertInboxDialog.tsx`
-- Ev. ny helper `src/services/largeProjectDuplicateCheck.ts`
-
-Säg till om jag ska köra hela planen (Steg 1 + Steg 2) eller bara städningen först.
+Målet är att uppdateringar i Booking antingen synkas igenom direkt, eller fastnar som tydligt fel i kö/logg — aldrig “completed” utan att Planning faktiskt ändras.
