@@ -267,7 +267,12 @@ const PackingDetail = () => {
                 <Package className="h-6 w-6 text-white" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {booking?.booking_number && !isLargeProject && (
+                    <span className="text-sm font-mono font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">
+                      #{booking.booking_number}
+                    </span>
+                  )}
                   <h1 className="text-2xl font-bold tracking-tight text-[hsl(var(--heading))]">{packing.name}</h1>
                   {isLargeProject && (
                     <Badge variant="outline" className="text-xs gap-1">
@@ -278,12 +283,15 @@ const PackingDetail = () => {
                 </div>
                 {booking && !isLargeProject && (
                   <p className="text-muted-foreground text-[0.925rem]">
-                    Kopplat till bokning: {booking.booking_number || booking.id}
+                    {booking.client}
+                    {booking.eventdate && (
+                      <> · {new Date(booking.eventdate).toLocaleDateString('sv-SE', { day: 'numeric', month: 'long', year: 'numeric' })}</>
+                    )}
                   </p>
                 )}
                 {isMultiBooking && (
                   <p className="text-muted-foreground text-[0.925rem]">
-                    {linkedBookingIds.length} bokningar samlade
+                    {linkedBookingIds.length} bokningar samlade — bokningsnummer visas per grupp i listan
                   </p>
                 )}
               </div>
