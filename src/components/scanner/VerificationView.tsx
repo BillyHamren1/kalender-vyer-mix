@@ -88,8 +88,10 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   registerScanHandler,
   scannerState,
   rfidControls,
+  initialMode = 'verifying',
 }) => {
   const navigate = useNavigate();
+  const isManualMode = initialMode === 'manual';
 
   // ── Auth gate: packaren MÅSTE vara inloggad mobil-staff ──────────────
   const storedStaff = useMemo(() => getStoredStaff(), []);
