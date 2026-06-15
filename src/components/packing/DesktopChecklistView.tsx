@@ -609,8 +609,8 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, 
         open={showHistory}
         onOpenChange={setShowHistory}
         packingId={packingId}
-        packingName={packingName}
       />
+
     </div>
   );
 };
