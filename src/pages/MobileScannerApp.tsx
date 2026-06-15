@@ -38,6 +38,13 @@ const MobileScannerApp: React.FC = () => {
   const [state, setState] = useState<AppState>('home');
   const [selectedPackingId, setSelectedPackingId] = useState<string | null>(null);
   const [flow, setFlow] = useState<Flow>('out');
+  // När användaren öppnar ett "stort projekt"-kort: lista underbokningarnas packlistor.
+  const [lpPicker, setLpPicker] = useState<{
+    id: string;
+    name: string;
+    kind: 'out' | 'in';
+    packings: PackingWithBooking[];
+  } | null>(null);
   const [isQRActive, setIsQRActive] = useState(false);
   const [packings, setPackings] = useState<PackingWithBooking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
