@@ -702,33 +702,6 @@ Deno.serve(async (req) => {
 
           if (hasMismatch) {
             console.warn(`[packing-sync] Mismatch detected for packing ${packingId}: +${toInsert.length} ins, ${toUpdate.length} upd, -${toDelete.length} del`)
-            await supabase.from('packing_sync_log').insert({
-              packing_id: packingId,
-              action: 'packing_sync_mismatch',
-              details: {
-                inserted: toInsert.length,
-                updated: toUpdate.length,
-                deleted: toDelete.length,
-                inserted_products: toInsert.map((i: any) => i.booking_product_id),
-                updated_items: toUpdate.map((u: any) => ({ id: u.id, new_qty: u.quantity_to_pack })),
-                deleted_items: toDelete,
-              },
-              performed_by: 'system',
-              organization_id: ORG_ID,
-            })
-
-            return new Response(JSON.stringify({
-              error: 'Packlistan matchar inte längre bokningen. Öppna inte denna packning innan den har granskats.',
-              code: 'PACKING_SNAPSHOT_MISMATCH',
-              details: {
-                inserted: toInsert.length,
-                updated: toUpdate.length,
-                deleted: toDelete.length,
-              },
-            }), {
-              status: 409,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            })
           }
         }
 
