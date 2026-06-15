@@ -56,6 +56,11 @@ interface VerificationViewProps {
   registerScanHandler?: (handler: (value: string) => void) => void;
   scannerState?: ScannerStateProps;
   rfidControls?: RfidControlsProps;
+  /**
+   * 'verifying' = scan-driven (kamera + RFID alltid på).
+   * 'manual'    = avbockning med +/-: ingen kamera startas, ingen scan-input registreras.
+   */
+  initialMode?: 'verifying' | 'manual';
 }
 
 // Remove prefix symbols from product names
