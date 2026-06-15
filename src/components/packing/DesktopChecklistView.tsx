@@ -142,13 +142,14 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, 
         if (productBookingIds.size > 1) {
           const { data: bookings } = await supabase
             .from('bookings')
-            .select('id, client, booking_number')
+            .select('id, client, booking_number, eventdate')
             .in('id', Array.from(productBookingIds));
           setBookingGroups(
             (bookings || []).map((b) => ({
               bookingId: b.id,
               client: b.client,
               bookingNumber: b.booking_number,
+              eventdate: b.eventdate,
             })),
           );
         } else {
