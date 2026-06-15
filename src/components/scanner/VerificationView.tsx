@@ -813,18 +813,20 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         )}
       </div>
 
-      {/* Camera (always mounted, tight crop) */}
-      <div className="shrink-0 bg-black border-b">
-        <QRScanner
-          isActive={true}
-          onScan={enqueueScan}
-          onClose={() => { /* never closes — always mounted */ }}
-          compact
-          tight
-          cameraHeight="34dvh"
-          feedback={scannerFeedback}
-        />
-      </div>
+      {/* Camera — endast i scan-läge. I "Check off"-läget startas ingen kamera. */}
+      {!isManualMode && (
+        <div className="shrink-0 bg-black border-b">
+          <QRScanner
+            isActive={true}
+            onScan={enqueueScan}
+            onClose={() => { /* never closes — always mounted */ }}
+            compact
+            tight
+            cameraHeight="34dvh"
+            feedback={scannerFeedback}
+          />
+        </div>
+      )}
 
       {/* Live scan status — derived from scanTimeline (single source, anti-flicker) */}
       <LiveScanStatusBar showTiming={showScanDebug} />
