@@ -632,7 +632,40 @@ const MobileScannerApp: React.FC = () => {
                         onSelect={handleSelectPacking}
                       />
                     ),
+            )}
+
+            {/* Att påbörja — alla planning-packlistor (oavsett datum) så att
+                användaren alltid har en ingång för att STARTA en packning. */}
+            {notStartedPackings.length > 0 && (
+              <section>
+                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                  Att påbörja
+                </h2>
+                <div className="space-y-2">
+                  {groupPackingEntries(
+                    notStartedPackings.map(p => ({ packing: p, kind: 'out' as const })),
+                  ).map(group =>
+                    group.type === 'lp_group' ? (
+                      <LargeProjectPackingCard
+                        key={group.key}
+                        largeProjectId={group.largeProjectId}
+                        largeProjectName={group.largeProjectName}
+                        kind={group.kind}
+                        packings={group.packings}
+                        onOpen={handleOpenLargeProject}
+                      />
+                    ) : (
+                      <PackingCard
+                        key={group.key}
+                        packing={group.packing}
+                        kind={group.kind}
+                        onSelect={handleSelectPacking}
+                      />
+                    ),
                   )}
+                </div>
+              </section>
+            )}
                 </div>
               </section>
             )}
