@@ -1,6 +1,10 @@
 import { useMemo } from 'react';
 import { format, parseISO } from 'date-fns';
 import type { PackingWithBooking } from '@/types/packing';
+import {
+  groupPackingEntries,
+  type GroupedPackingEntry,
+} from '@/lib/packing/groupPackingEntries';
 
 export type PackingEntryKind = 'out' | 'in';
 
