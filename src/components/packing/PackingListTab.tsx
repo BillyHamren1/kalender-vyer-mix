@@ -128,9 +128,16 @@ const BookingSection = ({
         <div className="flex items-center gap-2 px-3 py-2.5 bg-muted/40 rounded-lg hover:bg-muted/60 transition-colors">
           {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
           <Package className="h-4 w-4 text-primary" />
-          <span className="font-medium text-sm">{group.client}</span>
           {group.bookingNumber && (
-            <span className="text-xs text-muted-foreground font-mono">#{group.bookingNumber}</span>
+            <span className="text-xs font-mono font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+              #{group.bookingNumber}
+            </span>
+          )}
+          <span className="font-medium text-sm">{group.client}</span>
+          {group.eventdate && (
+            <span className="text-xs text-muted-foreground">
+              · {new Date(group.eventdate).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </span>
           )}
           <span className="ml-auto text-xs text-muted-foreground">
             {grouped.progress.packed}/{grouped.progress.total} ({grouped.progress.percentage}%)

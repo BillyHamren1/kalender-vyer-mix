@@ -73,6 +73,7 @@ interface BookingGroupInfo {
   bookingId: string;
   client: string;
   bookingNumber: string | null;
+  eventdate: string | null;
 }
 
 const cleanProductName = (name: string): string =>
@@ -141,13 +142,14 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, 
         if (productBookingIds.size > 1) {
           const { data: bookings } = await supabase
             .from('bookings')
-            .select('id, client, booking_number')
+            .select('id, client, booking_number, eventdate')
             .in('id', Array.from(productBookingIds));
           setBookingGroups(
             (bookings || []).map((b) => ({
               bookingId: b.id,
               client: b.client,
               bookingNumber: b.booking_number,
+              eventdate: b.eventdate,
             })),
           );
         } else {
@@ -215,7 +217,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, 
         ...group,
         items: productItems.filter((i) => i.booking_products?.booking_id === group.bookingId),
       }))
-    : [{ bookingId: 'all', client: '', bookingNumber: null, items: productItems }];
+    : [{ bookingId: 'all', client: '', bookingNumber: null, eventdate: null, items: productItems }];
 
   const renderItem = (item: PackingItem) => {
     const rawName = item.manual_name || item.booking_products?.name || 'Okänd produkt';
@@ -492,17 +494,22 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, 
                     onClick={() => toggleGroupCollapse(group.bookingId)}
                     className="w-full flex items-center justify-between px-4 py-2.5 bg-muted/60 border-b hover:bg-muted/80 transition-colors"
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       {isCollapsed ? (
                         <ChevronRight className="h-4 w-4" />
                       ) : (
                         <ChevronDown className="h-4 w-4" />
                       )}
-                      <span className="font-medium text-sm">{group.client}</span>
                       {group.bookingNumber && (
-                        <span className="text-xs text-muted-foreground flex items-center gap-0.5">
+                        <span className="text-xs font-mono font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded flex items-center gap-0.5">
                           <Hash className="h-3 w-3" />
                           {group.bookingNumber}
+                        </span>
+                      )}
+                      <span className="font-medium text-sm">{group.client}</span>
+                      {group.eventdate && (
+                        <span className="text-xs text-muted-foreground">
+                          · {new Date(group.eventdate).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </span>
                       )}
                     </div>

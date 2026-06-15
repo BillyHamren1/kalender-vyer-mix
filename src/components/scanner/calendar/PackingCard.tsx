@@ -116,6 +116,11 @@ export const PackingCard: React.FC<Props> = ({ packing, kind = 'out', onSelect }
             >
               {flowLabel}
             </span>
+            {packing.booking?.booking_number && (
+              <span className="text-[10px] font-mono font-semibold text-primary tracking-wide">
+                #{packing.booking.booking_number}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2 mb-1">
             <Icon
