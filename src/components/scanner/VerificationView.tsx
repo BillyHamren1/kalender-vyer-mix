@@ -603,9 +603,21 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1 min-w-0">
-          <h1 className="text-sm font-semibold truncate">{packing?.name}</h1>
-          {packing?.booking?.client && (
-            <p className="text-[11px] text-muted-foreground truncate">{packing.booking.client}</p>
+          <div className="flex items-center gap-1.5">
+            {packing?.booking?.booking_number && (
+              <span className="text-[11px] font-mono font-semibold text-primary tracking-wide shrink-0">
+                #{packing.booking.booking_number}
+              </span>
+            )}
+            <h1 className="text-sm font-semibold truncate">{packing?.name}</h1>
+          </div>
+          {(packing?.booking?.client || packing?.booking?.eventdate) && (
+            <p className="text-[11px] text-muted-foreground truncate">
+              {packing?.booking?.client}
+              {packing?.booking?.client && packing?.booking?.eventdate && ' · '}
+              {packing?.booking?.eventdate &&
+                new Date(packing.booking.eventdate).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </p>
           )}
         </div>
         <Button variant="ghost" size="icon" onClick={() => setShowHistoryDialog(true)} className="shrink-0 h-8 w-8" title="Historik">
