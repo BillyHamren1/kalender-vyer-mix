@@ -351,18 +351,31 @@ async function syncPackingListItems(
     }
   }
 
-  // Update quantity_to_pack for existing items where product quantity changed
+  // Update quantity_to_pack for existing items where product quantity changed.
+  // Freeze targets after packing has started/completed to preserve the packing snapshot.
+  const { data: packingMeta } = await supabase
+    .from('packing_projects')
+    .select('status')
+    .eq('id', packingId)
+    .eq('organization_id', organizationId)
+    .maybeSingle()
+  const packingStatus = (packingMeta as any)?.status || null
+
   for (const product of packableProducts) {
     const existing = existingByProductId.get(product.id) as any
     if (existing && existing.quantity_to_pack !== product.quantity) {
-      const { error: updateError } = await supabase
-        .from('packing_list_items')
-        .update({ quantity_to_pack: product.quantity })
-        .eq('id', existing.id)
+      if (packingStatus === 'planning') {
+        const { error: updateError } = await supabase
+          .from('packing_list_items')
+          .update({ quantity_to_pack: product.quantity })
+          .eq('id', existing.id)
 
-      if (!updateError) {
-        synced++
-        console.log(`[sync-booking-to-packing] Updated quantity for product ${product.id}: ${existing.quantity_to_pack} → ${product.quantity}`)
+        if (!updateError) {
+          synced++
+          console.log(`[sync-booking-to-packing] Updated quantity for product ${product.id}: ${existing.quantity_to_pack} → ${product.quantity}`)
+        }
+      } else {
+        console.warn(`[sync-booking-to-packing] Frozen quantity_to_pack for packing ${packingId} item ${existing.id}: ${existing.quantity_to_pack} stays despite booking quantity ${product.quantity}`)
       }
     }
   }

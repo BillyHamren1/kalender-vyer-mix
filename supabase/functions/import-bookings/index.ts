@@ -1921,7 +1921,7 @@ const syncPackingListAfterExpansion = async (
 ): Promise<number> => {
   const { data: packingProject } = await supabase
     .from('packing_projects')
-    .select('id')
+    .select('id, status')
     .eq('booking_id', bookingId)
     .maybeSingle();
 
@@ -1931,6 +1931,7 @@ const syncPackingListAfterExpansion = async (
   }
 
   const packingId = packingProject.id;
+  const packingStatus = (packingProject as any)?.status || null;
 
   const { data: allProducts } = await supabase
     .from('booking_products')
@@ -1990,12 +1991,18 @@ const syncPackingListAfterExpansion = async (
     if (!deleteError) changes += orphanedItems.length;
   }
 
-  // 3. Update quantity_to_pack where product quantity changed
+  // 3. Update quantity_to_pack where product quantity changed.
+  // Freeze targets once packing has started or completed so a previously
+  // finished packning inte plötsligt ser ofullständig ut efter import.
   for (const [productId, item] of existingByProductId as any) {
     const product = productMap.get(productId);
     if (product && (product as any).quantity !== item.quantity_to_pack) {
-      await supabase.from('packing_list_items').update({ quantity_to_pack: (product as any).quantity }).eq('id', item.id);
-      changes++;
+      if (packingStatus === 'planning') {
+        await supabase.from('packing_list_items').update({ quantity_to_pack: (product as any).quantity }).eq('id', item.id);
+        changes++;
+      } else {
+        console.warn(`[Packing Sync] Frozen quantity_to_pack for packing ${packingId} item ${item.id}: ${item.quantity_to_pack} stays despite booking quantity ${(product as any).quantity}`);
+      }
     }
   }
 

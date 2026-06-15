@@ -659,7 +659,9 @@ Deno.serve(async (req) => {
           .eq('organization_id', ORG_ID)
           .single()
 
-        // Full validation & self-healing sync
+        // Validation only — get_packing_items MUST stay read-only.
+        // Do not rewrite quantity_to_pack / insert / delete here because that can
+        // make a fully packed list look incomplete after booking-side quantity edits.
         if (packing?.booking_id) {
           const [{ data: products }, { data: existingItems }] = await Promise.all([
             supabase.from('booking_products').select('id, quantity').eq('booking_id', packing.booking_id).eq('organization_id', ORG_ID),
@@ -700,35 +702,6 @@ Deno.serve(async (req) => {
 
           if (hasMismatch) {
             console.warn(`[packing-sync] Mismatch detected for packing ${packingId}: +${toInsert.length} ins, ${toUpdate.length} upd, -${toDelete.length} del`)
-
-            // Self-heal
-            const ops: Promise<any>[] = []
-            if (toInsert.length > 0) {
-              ops.push(supabase.from('packing_list_items').insert(toInsert))
-            }
-            for (const upd of toUpdate) {
-              ops.push(supabase.from('packing_list_items').update({ quantity_to_pack: upd.quantity_to_pack }).eq('id', upd.id).eq('organization_id', ORG_ID))
-            }
-            if (toDelete.length > 0) {
-              ops.push(supabase.from('packing_list_items').delete().in('id', toDelete).eq('organization_id', ORG_ID))
-            }
-            await Promise.all(ops)
-
-            // Log the sync event
-            await supabase.from('packing_sync_log').insert({
-              packing_id: packingId,
-              action: 'packing_sync_mismatch',
-              details: {
-                inserted: toInsert.length,
-                updated: toUpdate.length,
-                deleted: toDelete.length,
-                inserted_products: toInsert.map((i: any) => i.booking_product_id),
-                updated_items: toUpdate.map((u: any) => ({ id: u.id, new_qty: u.quantity_to_pack })),
-                deleted_items: toDelete,
-              },
-              performed_by: 'system',
-              organization_id: ORG_ID,
-            })
           }
         }
 

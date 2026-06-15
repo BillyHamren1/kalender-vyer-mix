@@ -51,3 +51,29 @@ describe('scannerService static contract', () => {
     expect(src).toMatch(/callScannerApi\(['"]verify_product['"]/);
   });
 });
+
+describe('packing snapshot integrity', () => {
+  it('scanner-api get_packing_items is read-only and never self-heals packing_list_items', () => {
+    const src = read('supabase/functions/scanner-api/index.ts');
+    const start = src.indexOf("case 'get_packing_items'");
+    const end = src.indexOf("case 'get_item_parcels'");
+    const section = src.slice(start, end);
+
+    expect(section).not.toMatch(/\.from\('packing_list_items'\)\.insert\(/);
+    expect(section).not.toMatch(/\.from\('packing_list_items'\)\.delete\(/);
+    expect(section).not.toMatch(/\.from\('packing_list_items'\)\.update\(\{ quantity_to_pack/);
+    expect(section).not.toMatch(/PACKING_SNAPSHOT_MISMATCH/);
+  });
+
+  it('import-bookings freezes quantity_to_pack after packing left planning', () => {
+    const src = read('supabase/functions/import-bookings/index.ts');
+    expect(src).toMatch(/if \(packingStatus === 'planning'\)/);
+    expect(src).toMatch(/Frozen quantity_to_pack/);
+  });
+
+  it('sync-booking-to-packing freezes quantity_to_pack after packing left planning', () => {
+    const src = read('supabase/functions/sync-booking-to-packing/index.ts');
+    expect(src).toMatch(/if \(packingStatus === 'planning'\)/);
+    expect(src).toMatch(/Frozen quantity_to_pack/);
+  });
+});
