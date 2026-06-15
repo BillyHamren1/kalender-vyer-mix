@@ -8,7 +8,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X, Minus, List, QrCode, Loader2 } from 'lucide-react';
+import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X, Minus, Plus, List, QrCode, Loader2 } from 'lucide-react';
 import { getItemParcels, startPackingSession, type PackingWorkSession } from '@/services/scannerService';
 import { getStoredStaff } from '@/services/mobileApiService';
 import { useNavigate } from 'react-router-dom';
