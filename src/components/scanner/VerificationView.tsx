@@ -188,6 +188,8 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const {
     enqueueScan,
     handleManualToggle,
+    handleManualIncrement,
+    handleManualDecrement,
     recentScans,
     clearSessionDedup,
     pendingUnknownProduct,
