@@ -73,6 +73,7 @@ interface BookingGroupInfo {
   bookingId: string;
   client: string;
   bookingNumber: string | null;
+  eventdate: string | null;
 }
 
 const cleanProductName = (name: string): string =>
