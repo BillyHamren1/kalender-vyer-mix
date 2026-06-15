@@ -120,6 +120,7 @@ export interface PackingWithBooking extends Packing {
     contact_phone: string | null;
     contact_email: string | null;
     booking_number: string | null;
+    large_project_id?: string | null;
     carry_more_than_10m?: boolean | null;
     ground_nails_allowed?: boolean | null;
     exact_time_needed?: boolean | null;
@@ -132,6 +133,11 @@ export interface PackingWithBooking extends Packing {
     rigdown_start_time?: string | null;
     rigdown_end_time?: string | null;
   } | null;
+  /**
+   * Resolverat via scanner-api (`list_active_packings`) eller `get_packing`.
+   * När satt → packlistan tillhör ett stort projekt och ska grupperas i listan.
+   */
+  large_project?: { id: string; name: string } | null;
 }
 
 export const PACKING_STATUS_LABELS: Record<PackingStatus, string> = {
