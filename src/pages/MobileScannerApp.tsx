@@ -281,13 +281,67 @@ const MobileScannerApp: React.FC = () => {
   };
 
 
+  // Öppna underbokningarna i ett stort projekt-kort
+  const handleOpenLargeProject = (
+    largeProjectId: string,
+    largeProjectName: string,
+    kind: 'out' | 'in',
+    pickerPackings: PackingWithBooking[],
+  ) => {
+    setLpPicker({ id: largeProjectId, name: largeProjectName, kind, packings: pickerPackings });
+    setState('lp_picker');
+  };
+
   // Go back to home
   const goHome = () => {
     setState('home');
     setSelectedPackingId(null);
     setIsQRActive(false);
     setFlow('out');
+    setLpPicker(null);
   };
+
+  // Render large project booking picker
+  if (state === 'lp_picker' && lpPicker) {
+    const isReturn = lpPicker.kind === 'in';
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <header className="bg-primary text-primary-foreground p-3 flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-primary-foreground hover:bg-primary-foreground/10 h-8 w-8"
+            onClick={goHome}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] uppercase tracking-wider opacity-80 flex items-center gap-1">
+              <Layers className="h-3 w-3" />
+              Stort projekt · {isReturn ? 'IN · Retur' : 'UT · Pack'}
+            </p>
+            <h1 className="text-base font-semibold truncate">{lpPicker.name}</h1>
+            <p className="text-xs opacity-80">
+              {lpPicker.packings.length}{' '}
+              {lpPicker.packings.length === 1 ? 'bokning' : 'bokningar'} — välj
+              vilken du vill {isReturn ? 'returnera' : 'packa'}
+            </p>
+          </div>
+        </header>
+        <main className="flex-1 overflow-y-auto p-3 space-y-2">
+          {lpPicker.packings.map(p => (
+            <PackingCard
+              key={p.id}
+              packing={p}
+              kind={lpPicker.kind}
+              onSelect={(packingId, mode) => handleSelectPacking(packingId, mode, lpPicker.kind)}
+            />
+          ))}
+        </main>
+      </div>
+    );
+  }
+
 
   // Render based on state
   if (state === 'verifying' && selectedPackingId) {
