@@ -565,29 +565,66 @@ const MobileScannerApp: React.FC = () => {
             </p>
           </div>
         ) : searchQuery.trim() ? (
-          // Search active → flat results, ignore date filter
+          // Search active → flat results, ignore date filter (men gruppera LP)
           <div className="space-y-2">
-            {filteredPackings.map(p => (
-              <PackingCard key={p.id} packing={p} onSelect={handleSelectPacking} />
-            ))}
+            {groupPackingEntries(
+              filteredPackings.map(p => ({
+                packing: p,
+                kind: (p.status === 'returning' || p.status === 'returned' || p.status === 'back' || p.status === 'delivered') ? 'in' : 'out',
+              })),
+            ).map(group =>
+              group.type === 'lp_group' ? (
+                <LargeProjectPackingCard
+                  key={group.key}
+                  largeProjectId={group.largeProjectId}
+                  largeProjectName={group.largeProjectName}
+                  kind={group.kind}
+                  packings={group.packings}
+                  onOpen={handleOpenLargeProject}
+                />
+              ) : (
+                <PackingCard
+                  key={group.key}
+                  packing={group.packing}
+                  kind={group.kind}
+                  onSelect={handleSelectPacking}
+                />
+              ),
+            )}
           </div>
         ) : (
           <>
-            {/* Pinned: in-progress jobs across all dates */}
+            {/* Pinned: in-progress jobs across all dates (grouped per LP) */}
             {inProgressPackings.length > 0 && (
               <section>
                 <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
                   Pågående nu
                 </h2>
                 <div className="space-y-2">
-                  {inProgressPackings.map(p => (
-                    <PackingCard
-                      key={p.id}
-                      packing={p}
-                      kind={p.status === 'returning' ? 'in' : 'out'}
-                      onSelect={handleSelectPacking}
-                    />
-                  ))}
+                  {groupPackingEntries(
+                    inProgressPackings.map(p => ({
+                      packing: p,
+                      kind: p.status === 'returning' ? 'in' : 'out',
+                    })),
+                  ).map(group =>
+                    group.type === 'lp_group' ? (
+                      <LargeProjectPackingCard
+                        key={group.key}
+                        largeProjectId={group.largeProjectId}
+                        largeProjectName={group.largeProjectName}
+                        kind={group.kind}
+                        packings={group.packings}
+                        onOpen={handleOpenLargeProject}
+                      />
+                    ) : (
+                      <PackingCard
+                        key={group.key}
+                        packing={group.packing}
+                        kind={group.kind}
+                        onSelect={handleSelectPacking}
+                      />
+                    ),
+                  )}
                 </div>
               </section>
             )}
@@ -605,6 +642,7 @@ const MobileScannerApp: React.FC = () => {
                   date={selectedDate}
                   packings={filteredPackings}
                   onSelect={handleSelectPacking}
+                  onOpenLargeProject={handleOpenLargeProject}
                   onShowWeek={() => setViewMode('week')}
                 />
               )}
@@ -614,6 +652,7 @@ const MobileScannerApp: React.FC = () => {
                   onSelectDate={setSelectedDate}
                   packings={filteredPackings}
                   onSelect={handleSelectPacking}
+                  onOpenLargeProject={handleOpenLargeProject}
                 />
               )}
               {viewMode === 'month' && (
