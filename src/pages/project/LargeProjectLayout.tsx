@@ -5,7 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { arrayToPeriod } from "@/services/largeProjectScheduleSync";
 import { writeProjectDates } from "@/services/projectDateAuthority";
 import { toast } from "sonner";
-import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, Pencil, Check, X, AlertTriangle, FolderKanban, ClipboardList, Package, Combine, Table2 } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, Pencil, Check, X, AlertTriangle, FolderKanban, ClipboardList, Package, Combine, Table2, RefreshCw } from "lucide-react";
+import { useRefreshLargeProjectBookings } from "@/hooks/useRefreshLargeProjectBookings";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -71,6 +72,8 @@ const LargeProjectLayout = () => {
     [bookings],
   );
   const { days: phaseDays } = useBookingPhaseDays(siblingBookingIds);
+  const { refreshAll, refreshOne, isRefreshingAll, refreshingId } =
+    useRefreshLargeProjectBookings(id || null, siblingBookingIds);
 
 
   // Times still come from booking columns (rig_start_time etc) — those are
@@ -441,6 +444,17 @@ const LargeProjectLayout = () => {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={refreshAll}
+                disabled={isRefreshingAll || siblingBookingIds.length === 0}
+                className="gap-1.5"
+                title="Tvångsynka alla bokningar från Booking-systemet"
+              >
+                <RefreshCw className={cn("h-4 w-4", isRefreshingAll && "animate-spin")} />
+                {isRefreshingAll ? "Uppdaterar…" : "Uppdatera bokningar"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setIsConsolidateOpen(true)}
                 className="gap-1.5"
               >
@@ -653,6 +667,19 @@ const LargeProjectLayout = () => {
                                   {b.deliveryaddress}
                                 </span>
                               )}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                title="Uppdatera bokning från Booking"
+                                disabled={refreshingId === lpb.booking_id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  refreshOne(lpb.booking_id);
+                                }}
+                              >
+                                <RefreshCw className={cn("h-3.5 w-3.5", refreshingId === lpb.booking_id && "animate-spin")} />
+                              </Button>
                               <Button
                                 variant="ghost"
                                 size="icon"
