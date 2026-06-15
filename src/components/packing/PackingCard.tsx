@@ -37,6 +37,11 @@ const PackingCard = ({ packing, onClick, onDelete, onControlCompleted }: Packing
       <div className="p-7">
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1 min-w-0">
+            {packing.booking?.booking_number && (
+              <p className="text-xs font-mono font-semibold text-primary tracking-wide">
+                #{packing.booking.booking_number}
+              </p>
+            )}
             <h3 className="font-semibold text-lg text-[hsl(var(--heading))] truncate tracking-tight">{packing.name}</h3>
             {packing.booking && (
               <p className="text-sm text-muted-foreground truncate mt-0.5">
