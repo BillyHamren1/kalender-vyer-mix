@@ -166,8 +166,8 @@ describe('MobileScannerApp — manual = VerificationView i avbocknings-läge (in
     expect(idx).toBeGreaterThan(-1);
     const body = src.slice(idx, idx + 800);
     expect(body).toMatch(/mode\s*===\s*['"]manual['"]/);
-    expect(body).toMatch(/setState\(['"]manual['"]\)/);
-    expect(body).toMatch(/setState\(['"]verifying['"]\)/);
+    expect(body).toMatch(/setState\([^)]*['"]manual['"][^)]*\)/);
+    expect(body).toMatch(/setState\([^)]*['"]verifying['"][^)]*\)/);
   });
 
   it('båda manual- och verifying-state renderas av VerificationView med initialMode', () => {
