@@ -68,6 +68,8 @@ async function authenticateRequest(supabase: any, token: string | undefined) {
 
 // Mutativa actions som KRÄVER att frontend skickar activeSessionId och att
 // auth.staffId äger en aktiv packing_work_session.
+// OBS: delete_qr_parcel ändrar packing_parcels och MÅSTE krävas — lades till
+// efter audit. sign_packing hanteras separat (se kommentar i sign_packing-case).
 const PACKING_MUTATING_ACTIONS = new Set<string>([
   'verify_product',
   'toggle_item',
@@ -75,9 +77,25 @@ const PACKING_MUTATING_ACTIONS = new Set<string>([
   'decrement_by_serial',
   'create_parcel',
   'register_qr_parcel',
+  'delete_qr_parcel',
   'assign_item_to_parcel',
   'add_unknown_product',
 ])
+
+/**
+ * KRITISK SÄKERHETSREGEL: packningshistorik är revisionsdata och får inte
+ * missas tyst. När `logPackingSessionEvent` misslyckas kastas denna special-
+ * klass; outer catch konverterar den till HTTP 500 med kod
+ * `PACKING_HISTORY_LOG_FAILED` så klienten ser tydligt att packningen har
+ * gjorts men historikraden saknas (manuell granskning krävs).
+ */
+class PackingHistoryLogError extends Error {
+  readonly code = 'PACKING_HISTORY_LOG_FAILED'
+  constructor(message: string, readonly cause?: unknown) {
+    super(message)
+    this.name = 'PackingHistoryLogError'
+  }
+}
 
 /**
  * Verifierar att activeSessionId är giltig och tillhör inloggad staff + org.
@@ -120,9 +138,72 @@ async function requireActivePackingSession(
 }
 
 /**
- * Loggar en händelse i packing_work_session_events. Ska EFTER att den faktiska
- * ändringen i WMS/lokal databas lyckats. Slukar fel — loggning får aldrig
- * fälla det riktiga API-svaret.
+ * Verifierar att den aktiva sessionens packing_id matchar målet för åtgärden.
+ * Tar params.packingId direkt, eller härleder från params.itemId
+ * (packing_list_items.packing_id) respektive params.parcelId
+ * (packing_parcels.packing_id).
+ *
+ * Kastar { status, message, reason: 'PACKING_SESSION_WRONG_PACKING' } om de
+ * inte matchar — så ingen användare kan packa i fel jobb via sin session.
+ */
+async function assertSessionMatchesTarget(
+  supabase: any,
+  orgId: string,
+  sessionPackingId: string,
+  action: string,
+  params: any,
+): Promise<void> {
+  const derived: Set<string> = new Set()
+  if (typeof params?.packingId === 'string' && params.packingId) {
+    derived.add(params.packingId)
+  }
+  if (typeof params?.itemId === 'string' && params.itemId) {
+    const { data } = await supabase
+      .from('packing_list_items')
+      .select('packing_id')
+      .eq('id', params.itemId)
+      .eq('organization_id', orgId)
+      .maybeSingle()
+    if ((data as any)?.packing_id) derived.add((data as any).packing_id)
+  }
+  if (typeof params?.parcelId === 'string' && params.parcelId) {
+    const { data } = await supabase
+      .from('packing_parcels')
+      .select('packing_id')
+      .eq('id', params.parcelId)
+      .eq('organization_id', orgId)
+      .maybeSingle()
+    if ((data as any)?.packing_id) derived.add((data as any).packing_id)
+  }
+  // assign_item_to_parcel may carry both itemId + parcelId; båda måste matcha.
+  if (action === 'assign_item_to_parcel' && typeof params?.parcelId === 'string' && params.parcelId) {
+    // Redan kollat ovan via parcelId-grenen.
+  }
+  if (derived.size === 0) {
+    // Ingen targetinfo i params — låt action-handlern hantera (vissa
+    // actions har egna lookup-vägar). Inget att jämföra mot.
+    return
+  }
+  for (const pid of derived) {
+    if (pid !== sessionPackingId) {
+      throw {
+        status: 409,
+        message: 'Sessionen tillhör en annan packlista.',
+        reason: 'PACKING_SESSION_WRONG_PACKING',
+      }
+    }
+  }
+}
+
+/**
+ * Loggar en händelse i packing_work_session_events. Ska köras EFTER att den
+ * faktiska ändringen i WMS/lokal databas lyckats.
+ *
+ * KRITISK SÄKERHETSREGEL: packningshistorik är revisionsdata och får inte
+ * missas tyst. Om inserten misslyckas kastas `PackingHistoryLogError` så att
+ * API:t returnerar 500 med kod `PACKING_HISTORY_LOG_FAILED`. Den faktiska
+ * packningsändringen är då redan utförd men klienten får tydlig signal om att
+ * historikraden saknas och måste utredas.
  *
  * Source-värden: 'scan' | 'manual' | 'parcel' | 'system'
  * Event types: scan_pack | scan_unpack | manual_pack | manual_unpack
@@ -147,30 +228,47 @@ async function logPackingSessionEvent(
     metadata?: Record<string, any> | null
   },
 ): Promise<void> {
+  const row = {
+    organization_id: auth.organizationId,
+    session_id: sessionId,
+    packing_id: args.packingId,
+    packing_list_item_id: args.itemId ?? null,
+    event_type: args.eventType,
+    quantity_delta: Number.isFinite(args.quantityDelta as number) ? Math.trunc(args.quantityDelta as number) : 0,
+    product_name: args.productName ?? null,
+    before_quantity: args.beforeQuantity ?? null,
+    after_quantity: args.afterQuantity ?? null,
+    parcel_id: args.parcelId ?? null,
+    scan_value: args.scanValue ?? null,
+    source: args.source ?? null,
+    metadata: args.metadata ?? {},
+    staff_id: auth.staffId,
+    staff_name: auth.staffName,
+  }
+  let inserted = false
+  let lastErr: unknown = null
   try {
-    const row = {
-      organization_id: auth.organizationId,
-      session_id: sessionId,
-      packing_id: args.packingId,
-      packing_list_item_id: args.itemId ?? null,
-      event_type: args.eventType,
-      quantity_delta: Number.isFinite(args.quantityDelta as number) ? Math.trunc(args.quantityDelta as number) : 0,
-      product_name: args.productName ?? null,
-      before_quantity: args.beforeQuantity ?? null,
-      after_quantity: args.afterQuantity ?? null,
-      parcel_id: args.parcelId ?? null,
-      scan_value: args.scanValue ?? null,
-      source: args.source ?? null,
-      metadata: args.metadata ?? {},
-      staff_id: auth.staffId,
-      staff_name: auth.staffName,
-    }
     const { error } = await supabase.from('packing_work_session_events').insert(row)
-    if (error) {
-      console.warn('[logPackingSessionEvent] insert failed', { event_type: args.eventType, error: error.message })
+    if (!error) {
+      inserted = true
+    } else {
+      lastErr = error
+      console.error('[logPackingSessionEvent] insert failed', {
+        event_type: args.eventType,
+        packing_id: args.packingId,
+        item_id: args.itemId ?? null,
+        error: (error as any)?.message ?? String(error),
+      })
     }
   } catch (err) {
-    console.warn('[logPackingSessionEvent] exception', err)
+    lastErr = err
+    console.error('[logPackingSessionEvent] exception', err)
+  }
+  if (!inserted) {
+    throw new PackingHistoryLogError(
+      'Packningsändringen utfördes men kunde inte loggas i historiken (revisionsdata).',
+      lastErr,
+    )
   }
 }
 
