@@ -245,6 +245,9 @@ const fetchPackingListItems = async (
           bookingId: bId,
           client: info?.client || 'Okänd',
           bookingNumber: info?.booking_number || null,
+          eventdate: info?.eventdate || null,
+          rigdaydate: info?.rigdaydate || null,
+          rigdowndate: info?.rigdowndate || null,
           items: groupMap.get(bId) || [],
         };
       });
