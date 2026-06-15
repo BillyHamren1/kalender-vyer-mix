@@ -6,7 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { QrCode, Search, Package, Camera, Bug, Loader2, Tag, MapPin, CalendarDays } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { VerificationView } from '@/components/scanner/VerificationView';
-import { ManualChecklistView } from '@/components/scanner/ManualChecklistView';
+// ManualChecklistView är deprekerad — importeras inte längre i aktivt flöde.
 import { ScannerDebugPanel } from '@/components/scanner/ScannerDebugPanel';
 import { ScannerModeIndicator } from '@/components/scanner/ScannerModeIndicator';
 import { IdentifyScannerOverlay } from '@/components/scanner/IdentifyScannerOverlay';
@@ -27,7 +27,9 @@ import { groupPackingEntries } from '@/lib/packing/groupPackingEntries';
 import { Layers, ArrowLeft } from 'lucide-react';
 import ReturnView from '@/components/scanner/ReturnView';
 
-type AppState = 'home' | 'verifying' | 'manual' | 'returning' | 'lp_picker';
+// 'manual' borttagen — manuell avbockning sker numera i VerificationView
+// med session-vakt (activeSessionId). ManualChecklistView är deprekerad.
+type AppState = 'home' | 'verifying' | 'returning' | 'lp_picker';
 type Flow = 'out' | 'in';
 
 const REALTIME_TABLES = ['packing_projects', 'packing_list_items', 'bookings'];
@@ -263,11 +265,13 @@ const MobileScannerApp: React.FC = () => {
   }, [isLoading, packings, searchParams, setSearchParams, state]);
 
   // Handle packing selection with mode + flow direction.
-  // OBS: 'manual' är deprekerad — all manuell avbockning sker numera i
-  // VerificationView med session-vakt. Vi mappar därför 'manual' → 'verifying'.
+  // OBS: 'manual' är borttagen — all manuell avbockning sker numera i
+  // VerificationView, som har en aktiv packing_work_session och kan skicka
+  // activeSessionId till scanner-api. Gamla callers som fortfarande skickar
+  // mode='manual' mappas tyst till VerificationView.
   const handleSelectPacking = (
     packingId: string,
-    mode: 'verifying' | 'manual',
+    _mode: 'verifying' | 'manual',
     kind: 'out' | 'in' = 'out',
   ) => {
     setSelectedPackingId(packingId);
@@ -275,8 +279,7 @@ const MobileScannerApp: React.FC = () => {
     if (kind === 'in') {
       setState('returning');
     } else {
-      // Force VerificationView even om gammal kod fortfarande skickar 'manual'.
-      setState(mode === 'manual' ? 'verifying' : mode);
+      setState('verifying');
     }
   };
 
@@ -371,18 +374,11 @@ const MobileScannerApp: React.FC = () => {
     );
   }
 
-  // 'manual' är deprekerad — visa den blockerande stubben så att gamla
-  // länkar inte tyst hamnar i en vy utan session/history.
-  if (state === 'manual' && selectedPackingId) {
-    return (
-      <div className="min-h-screen bg-background p-4 pt-[max(1rem,env(safe-area-inset-top))]">
-        <ManualChecklistView
-          packingId={selectedPackingId}
-          onBack={goHome}
-        />
-      </div>
-    );
-  }
+  // 'manual'-state är borttagen. ManualChecklistView importeras inte längre
+  // i aktivt flöde. Filen finns kvar som blockerande stub men nås inte
+  // härifrån; alla `mode='manual'`-anrop mappas till VerificationView i
+  // handleSelectPacking ovan.
+
 
 
   if (state === 'returning' && selectedPackingId) {

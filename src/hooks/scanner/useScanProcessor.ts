@@ -342,6 +342,16 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
   ) => {
     const { getItems, getIsMinusMode, getIsKolliMode, verifierName, onOptimisticIncrement, onOptimisticDecrement, onAssignToKolli, onTriggerSync } = optRef.current;
 
+    // Hard session guard — utan aktiv packing_work_session får INGA
+    // muterande actions skickas (backend kräver activeSessionId).
+    // Tystt fall är värre än felmeddelande → visa toast + console.warn.
+    const activeSessionId = optRef.current.getActiveSessionId();
+    if (!activeSessionId) {
+      console.warn('PACKING_SESSION_REQUIRED: Ingen aktiv packningssession', { itemId });
+      toast.error('Starta packningssession först');
+      return;
+    }
+
     if (isParent) {
       toast.info('Parent products are marked automatically when all parts are packed');
       return;

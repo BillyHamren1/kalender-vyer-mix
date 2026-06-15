@@ -142,3 +142,50 @@ describe('usePackingList — direkta DB-writes är neutraliserade', () => {
     expect(body).toMatch(/throw new Error\(PACKING_DIRECT_WRITE_ERROR\)/);
   });
 });
+
+describe('MobileScannerApp — manual-state borttagen (session-vakt enforced)', () => {
+  const src = readFileSync(resolve(process.cwd(), 'src/pages/MobileScannerApp.tsx'), 'utf8');
+
+  it('AppState innehåller inte längre "manual"', () => {
+    // typdeklarationen får inte ha "manual" som AppState-alternativ
+    const match = src.match(/type AppState\s*=\s*([^;]+);/);
+    expect(match).toBeTruthy();
+    expect(match![1]).not.toMatch(/['"]manual['"]/);
+  });
+
+  it('importerar inte ManualChecklistView i aktivt flöde', () => {
+    expect(src).not.toMatch(/^import\s+\{\s*ManualChecklistView\s*\}/m);
+  });
+
+  it('renderar inte ManualChecklistView (ingen JSX-användning)', () => {
+    expect(src).not.toMatch(/<ManualChecklistView\b/);
+  });
+
+  it('handleSelectPacking mappar mode oavsett värde till verifying för out-flow', () => {
+    const idx = src.indexOf('const handleSelectPacking');
+    expect(idx).toBeGreaterThan(-1);
+    const body = src.slice(idx, idx + 600);
+    // Får inte längre läsa mode för att välja verifying vs manual
+    expect(body).not.toMatch(/mode\s*===\s*['"]manual['"]/);
+    expect(body).toMatch(/setState\(['"]verifying['"]\)/);
+  });
+});
+
+describe('useScanProcessor.handleManualToggle — session-vakt', () => {
+  const src = readFileSync(resolve(process.cwd(), 'src/hooks/scanner/useScanProcessor.ts'), 'utf8');
+
+  it('avbryter manuell avbockning utan aktiv session med tydligt felmeddelande', () => {
+    expect(src).toMatch(/PACKING_SESSION_REQUIRED:\s*Ingen aktiv packningssession/);
+    expect(src).toMatch(/Starta packningssession först/);
+  });
+
+  it('guarden ligger före anrop till togglePackingItemManually/decrementPackingItem', () => {
+    const handlerIdx = src.indexOf('const handleManualToggle');
+    const guardIdx = src.indexOf('PACKING_SESSION_REQUIRED', handlerIdx);
+    const toggleIdx = src.indexOf('togglePackingItemManually(', handlerIdx);
+    const decrementIdx = src.indexOf('decrementPackingItem(', handlerIdx);
+    expect(guardIdx).toBeGreaterThan(handlerIdx);
+    expect(guardIdx).toBeLessThan(toggleIdx);
+    expect(guardIdx).toBeLessThan(decrementIdx);
+  });
+});
