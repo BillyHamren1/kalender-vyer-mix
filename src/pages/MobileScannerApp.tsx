@@ -220,6 +220,14 @@ const MobileScannerApp: React.FC = () => {
     [filteredPackings],
   );
 
+  // Packlistor som ännu inte har startats (planning). Visas alltid ovanför
+  // kalendern så att användaren kan PÅBÖRJA en packning även om dess
+  // rigday inte är dagens datum — annars finns ingen ingång till "starta packning".
+  const notStartedPackings = useMemo(
+    () => filteredPackings.filter(p => p.status === 'planning'),
+    [filteredPackings],
+  );
+
   // Deep-link from Lager: /m/tools/scanner?packingId=...&mode=out|in
   // Also accepts packlistId (alias) and bookingId (resolved via loaded packings).
   const deepLinkHandled = useRef(false);
