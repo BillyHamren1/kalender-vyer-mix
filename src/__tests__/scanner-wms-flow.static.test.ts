@@ -117,3 +117,28 @@ describe('packing snapshot integrity', () => {
     expect(src).toMatch(/Frozen quantity_to_pack/);
   });
 });
+
+describe('usePackingList — direkta DB-writes är neutraliserade', () => {
+  const src = read('src/hooks/usePackingList.tsx');
+  const BLOCK_MSG = 'Packningsändringar måste gå via skannerappen';
+
+  it('innehåller spärrmeddelandet', () => {
+    expect(src).toContain(BLOCK_MSG);
+  });
+
+  it('updatePackingListItem rör inte längre supabase', () => {
+    const idx = src.indexOf('const updatePackingListItem');
+    expect(idx).toBeGreaterThan(-1);
+    const body = src.slice(idx, idx + 400);
+    expect(body).not.toMatch(/supabase\s*\.from\(/);
+    expect(body).toMatch(/throw new Error\(PACKING_DIRECT_WRITE_ERROR\)/);
+  });
+
+  it('markAllItemsPacked rör inte längre supabase', () => {
+    const idx = src.indexOf('const markAllItemsPacked');
+    expect(idx).toBeGreaterThan(-1);
+    const body = src.slice(idx, idx + 400);
+    expect(body).not.toMatch(/supabase\s*\.from\(/);
+    expect(body).toMatch(/throw new Error\(PACKING_DIRECT_WRITE_ERROR\)/);
+  });
+});

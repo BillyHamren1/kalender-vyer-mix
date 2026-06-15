@@ -250,41 +250,25 @@ const fetchPackingListItems = async (
   return { items: itemsWithProducts, bookingGroups };
 };
 
-// Update a packing list item
-const updatePackingListItem = async (id: string, updates: Partial<PackingListItem>): Promise<void> => {
-  const { product, created_at, ...updateData } = updates as PackingListItem;
-  
-  const { error } = await supabase
-    .from('packing_list_items')
-    .update(updateData)
-    .eq('id', id);
+// DEPRECATED — direkta writes mot packing_list_items är förbjudna.
+// All packning går nu via scanner-api med aktiv packing_work_session så att
+// PACKING_MUTATING_ACTIONS-guarden och history-loggen kan garantera spårbarhet.
+// Stubs kvar så äldre call-sites failar tidigt istället för att muta tyst.
+const PACKING_DIRECT_WRITE_ERROR =
+  'Packningsändringar måste gå via skannerappen (scanner-api med aktiv session).';
 
-  if (error) throw error;
+const updatePackingListItem = async (
+  _id: string,
+  _updates: Partial<PackingListItem>,
+): Promise<void> => {
+  throw new Error(PACKING_DIRECT_WRITE_ERROR);
 };
 
-// Mark all items as packed
-const markAllItemsPacked = async (packingId: string, packedBy: string): Promise<void> => {
-  const { data: items, error: fetchError } = await supabase
-    .from('packing_list_items')
-    .select('id, quantity_to_pack')
-    .eq('packing_id', packingId);
-
-  if (fetchError) throw fetchError;
-
-  const updates = (items || []).map(item => ({
-    id: item.id,
-    quantity_packed: item.quantity_to_pack,
-    packed_by: packedBy,
-    packed_at: new Date().toISOString()
-  }));
-
-  for (const update of updates) {
-    const { id, ...data } = update;
-    await supabase
-      .from('packing_list_items')
-      .update(data)
-      .eq('id', id);
-  }
+const markAllItemsPacked = async (
+  _packingId: string,
+  _packedBy: string,
+): Promise<void> => {
+  throw new Error(PACKING_DIRECT_WRITE_ERROR);
 };
 
 export const usePackingList = (packingId: string) => {
