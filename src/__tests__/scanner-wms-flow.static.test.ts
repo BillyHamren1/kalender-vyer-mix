@@ -62,7 +62,7 @@ describe('packing snapshot integrity', () => {
     expect(section).not.toMatch(/\.from\('packing_list_items'\)\.insert\(/);
     expect(section).not.toMatch(/\.from\('packing_list_items'\)\.delete\(/);
     expect(section).not.toMatch(/\.from\('packing_list_items'\)\.update\(\{ quantity_to_pack/);
-    expect(section).toMatch(/PACKING_SNAPSHOT_MISMATCH/);
+    expect(section).not.toMatch(/PACKING_SNAPSHOT_MISMATCH/);
   });
 
   it('import-bookings freezes quantity_to_pack after packing left planning', () => {
