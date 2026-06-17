@@ -1,32 +1,34 @@
-Jag hittade inte ett UI-cacheproblem först. Det lokala datalagret är faktiskt stale:
+## Rotorsak
 
-- `2604-144` finns i Planning och har fått en kö-rad idag, men senaste registrerade ändringen var bara projektkopplingsfält, inte Booking-fält.
-- `2604-145` ligger kvar med `updated_at = 2026-06-03`, trots att den enligt dig är ändrad i Booking.
-- De senaste `import-bookings`-körningarna loggar `Fetched 0 bookings from external API`, och `sync_state` har ändå flyttat fram cursorn till `2026-06-15 19:18:12`.
-- Det betyder: Planning får inte in ändringspayloaden från Booking för de här bokningarna. Då finns inget i React/previewn att uppdatera.
+`gps-heartbeat-pulse` kraschar i produktion med:
 
-Plan för fix:
+```text
+column device_tokens.refreshed_at does not exist
+```
 
-1. **Verifiera importkontraktet för specifika bokningar**
-   - Testa `import-bookings` med explicit `booking_id` för `2604-144` och `2604-145`.
-   - Kontrollera om externa Booking-exporten kräver UUID, bokningsnummer eller annat id-format.
-   - Bekräfta varför inkrementell sync returnerar 0 trots ändring i Booking.
+Tabellen `device_tokens` har kolumnen `last_refreshed_at`, inte `refreshed_at`. Därför avbryts hela pulse-cronet innan silent push skickas till mobilerna. Då får stillastående/iOS-bakgrundade telefoner ingen `gps_pulse`, och inga nya pings laddas upp.
 
-2. **Stoppa tysta “lyckade” importer när inget faktiskt importerades**
-   - Ändra syncflödet så en kö-rad inte markeras som färdig om en explicit bokningsuppdatering inte gav någon extern bokningsrad och ingen lokal ändring applicerades.
-   - Logga tydligt: boknings-id, bokningsnummer, org, sync-läge och orsaken.
+## Plan
 
-3. **Lägg till robust fallback för webhook/incremental**
-   - Om webhook/kö bara har lokal UUID men externa API:t inte hittar den, slå upp lokalt `booking_number` och försök extern hämtning även via bokningsnummer om exporten stödjer det.
-   - Inkrementell sync ska inte flytta fram cursor på ett sätt som kan svälja ändringar när exporten returnerar 0 oväntat.
+1. **Fixa fel kolumn i `gps-heartbeat-pulse`**
+   - Byt queryn från `refreshed_at` till `last_refreshed_at`.
+   - Sortera på `last_refreshed_at`.
+   - Behåll samma multi-tenant- och stale-ping-logik.
 
-4. **Se till att stora projekt invalidieras i UI när underbokningar ändras**
-   - När `booking_changes` eller `bookings` ändras för en underbokning i ett stort projekt ska queryn `large-project-bookings-full` och relevant `large-project` invalidieras.
-   - Det gör att Almedalen-vyn uppdateras utan manuell omladdning när datan väl kommit in.
+2. **Lås felet med test**
+   - Lägg till kontraktstest som förbjuder `refreshed_at` i `gps-heartbeat-pulse`.
+   - Lägg till/uppdatera test som kräver `last_refreshed_at` i device token-queryn.
 
-5. **Testa på de faktiska bokningarna**
-   - Kör riktad import för `2604-144` och `2604-145`.
-   - Läs DB efteråt och verifiera att `bookings`, `booking_changes` och stora projektets bokningslista visar nya värden.
-   - Kör automatisk test för importkontraktet så det inte kan återgå till “completed men ingen ändring”.
+3. **Verifiera edge-funktionen**
+   - Kör Deno-testerna för `gps-heartbeat-pulse`.
+   - Deploya `gps-heartbeat-pulse`.
+   - Kör/calla funktionen och verifiera att den inte längre kraschar på kolumnfel.
+   - Kontrollera edge logs efteråt.
 
-Målet är att uppdateringar i Booking antingen synkas igenom direkt, eller fastnar som tydligt fel i kö/logg — aldrig “completed” utan att Planning faktiskt ändras.
+4. **Verifiera att servern börjar producera signal igen**
+   - Kontrollera `gps_pulse_log` efter körning.
+   - Kontrollera att funktionen returnerar antal tokens/pulser eller en rimlig no-op, inte 500.
+
+## Viktigt
+
+Jag ändrar inte Tid & Lön-filtret. Det ska vara som du säger. Felet som ska fixas är GPS-puls/uppladdning.
