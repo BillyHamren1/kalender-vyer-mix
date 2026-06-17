@@ -73,6 +73,24 @@ Deno.test('source: ingen Time Engine eller staff_day_report_cache', async () => 
   }
 })
 
+// Kontraktstest: device_tokens-kolumnen heter last_refreshed_at, INTE refreshed_at.
+// Felaktigt kolumnnamn kraschade hela pulse-cronet i prod 2026-06 och stoppade
+// alla GPS-uppladdningar — får aldrig återkomma.
+Deno.test('source: device_tokens-queryn använder last_refreshed_at, inte refreshed_at', async () => {
+  const src = await Deno.readTextFile(new URL('./index.ts', import.meta.url))
+  if (/\brefreshed_at\b/.test(src) && !/last_refreshed_at/.test(src)) {
+    throw new Error('gps-heartbeat-pulse refererar refreshed_at men inte last_refreshed_at')
+  }
+  // Hård spärr: rena "refreshed_at"-referenser (utan last_-prefix) får inte finnas
+  const stripped = src.replace(/last_refreshed_at/g, '')
+  if (/\brefreshed_at\b/.test(stripped)) {
+    throw new Error('gps-heartbeat-pulse innehåller fortfarande referenser till device_tokens.refreshed_at (kolumnen heter last_refreshed_at)')
+  }
+  if (!src.includes('last_refreshed_at')) {
+    throw new Error('gps-heartbeat-pulse måste läsa device_tokens.last_refreshed_at')
+  }
+})
+
 Deno.test('token utan last ping → kandidat (oavsett aktiv timer)', () => {
   const t = [{ id: 't1', staff_id: 's1', token: 'x', platform: 'ios', organization_id: 'o1' }]
   const out = pickPulseCandidates(t as any, new Map(), NOW, 30)

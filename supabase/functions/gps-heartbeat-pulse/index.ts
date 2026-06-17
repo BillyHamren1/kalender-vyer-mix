@@ -141,9 +141,9 @@ Deno.serve(async (req) => {
     //    recentPings — saknad ping = stale = ska pulsas.
     const { data: tokens, error: tokenErr } = await supabase
       .from('device_tokens')
-      .select('id, staff_id, token, platform, organization_id, refreshed_at, created_at')
+      .select('id, staff_id, token, platform, organization_id, last_refreshed_at, created_at')
       .not('staff_id', 'is', null)
-      .order('refreshed_at', { ascending: false, nullsFirst: false })
+      .order('last_refreshed_at', { ascending: false, nullsFirst: false })
       .limit(PULSE_MAX_BATCH * 5)
     if (tokenErr) throw new Error(`device_tokens fetch failed: ${tokenErr.message}`)
     if (!tokens || tokens.length === 0) {
