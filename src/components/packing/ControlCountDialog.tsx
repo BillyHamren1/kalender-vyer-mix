@@ -76,6 +76,30 @@ export const ControlCountDialog = ({
       setProgress(res.progress || { answered: 0, total: 0, index: 0 });
       if (!res.next_item) {
         setStage("signing");
+        return;
+      }
+      if (quickApprove) {
+        // Auto-svara Ja på alla återstående rader, sedan gå till signering.
+        let current: ControlNextItem | null = res.next_item;
+        let safety = 0;
+        while (current && safety < 1000) {
+          safety++;
+          const ans = await answerControlItem(res.session.id, current.id, "yes");
+          if (cancelled) return;
+          if (!ans.success) {
+            setError(ans.error || "Kunde inte godkänna alla rader");
+            setStage("error");
+            return;
+          }
+          setProgress(ans.progress);
+          if (ans.done || !ans.next_item) {
+            current = null;
+          } else {
+            current = ans.next_item;
+          }
+        }
+        setItem(null);
+        setStage("signing");
       } else {
         setItem(res.next_item);
         setStage("answering");
@@ -85,7 +109,7 @@ export const ControlCountDialog = ({
     return () => {
       cancelled = true;
     };
-  }, [open, packingId]);
+  }, [open, packingId, quickApprove]);
 
   const refreshNext = useCallback(async (sId: string) => {
     const res = await getControlNextItem(sId);
