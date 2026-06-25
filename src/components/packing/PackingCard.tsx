@@ -18,6 +18,7 @@ interface PackingCardProps {
 const PackingCard = ({ packing, onClick, onDelete, onControlCompleted }: PackingCardProps) => {
   const [showHistory, setShowHistory] = useState(false);
   const [showControl, setShowControl] = useState(false);
+  const [showQuickApprove, setShowQuickApprove] = useState(false);
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
