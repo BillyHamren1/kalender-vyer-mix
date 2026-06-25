@@ -30,6 +30,8 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   /** Called after successful completion (completed or failed) so parent can refresh */
   onCompleted?: (result: "completed" | "failed") => void;
+  /** Hoppa per-rad-frågorna och svara "Ja" på allt automatiskt — bara signering kvar. */
+  quickApprove?: boolean;
 }
 
 type Stage = "starting" | "answering" | "no_comment" | "signing" | "completed" | "error";
