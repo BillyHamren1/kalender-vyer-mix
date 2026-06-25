@@ -18,6 +18,7 @@ interface PackingCardProps {
 const PackingCard = ({ packing, onClick, onDelete, onControlCompleted }: PackingCardProps) => {
   const [showHistory, setShowHistory] = useState(false);
   const [showControl, setShowControl] = useState(false);
+  const [showQuickApprove, setShowQuickApprove] = useState(false);
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -116,22 +117,36 @@ const PackingCard = ({ packing, onClick, onDelete, onControlCompleted }: Packing
         )}
 
         {packing.status === 'packed' && packing.control_status !== 'completed' && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="mt-3 w-full gap-2 border-primary/40 text-primary hover:bg-primary/10"
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowControl(true);
-            }}
-          >
-            <ShieldCheck className="h-4 w-4" />
-            {packing.control_status === 'in_progress'
-              ? 'Fortsätt kontrollräkning'
-              : packing.control_status === 'failed'
-              ? 'Gör om kontrollräkning'
-              : 'Starta kontrollräkning'}
-          </Button>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full gap-2 border-primary/40 text-primary hover:bg-primary/10"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowControl(true);
+              }}
+            >
+              <ShieldCheck className="h-4 w-4" />
+              {packing.control_status === 'in_progress'
+                ? 'Fortsätt kontroll'
+                : packing.control_status === 'failed'
+                ? 'Gör om kontroll'
+                : 'Kontrollräkna'}
+            </Button>
+            <Button
+              size="sm"
+              className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowQuickApprove(true);
+              }}
+              title="Hoppa per-rad och markera hela packlistan som granskad"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              Markera granskad
+            </Button>
+          </div>
         )}
       </div>
 
@@ -147,6 +162,14 @@ const PackingCard = ({ packing, onClick, onDelete, onControlCompleted }: Packing
           open={showControl}
           onOpenChange={setShowControl}
           onCompleted={(result) => onControlCompleted?.(packing.id, result)}
+        />
+        <ControlCountDialog
+          packingId={packing.id}
+          packingName={packing.name}
+          open={showQuickApprove}
+          onOpenChange={setShowQuickApprove}
+          onCompleted={(result) => onControlCompleted?.(packing.id, result)}
+          quickApprove
         />
       </div>
     </div>
