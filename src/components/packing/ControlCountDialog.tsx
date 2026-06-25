@@ -42,6 +42,7 @@ export const ControlCountDialog = ({
   open,
   onOpenChange,
   onCompleted,
+  quickApprove = false,
 }: Props) => {
   const [stage, setStage] = useState<Stage>("starting");
   const [session, setSession] = useState<ControlSession | null>(null);
