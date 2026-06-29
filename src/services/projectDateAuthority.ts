@@ -19,7 +19,10 @@ export interface WriteProjectDatesInput {
   organizationId?: string;
   /** Dry-run: ingen skrivning, ingen extern push. Returnerar payload-preview. */
   dryRun?: boolean;
+  /** Begränsa körningen till specifika bokningar inom projektet (t.ex. nyligen inlänkad bokning). */
+  onlyBookingIds?: string[];
 }
+
 
 export interface WriteProjectDatesResult {
   ok: boolean;
