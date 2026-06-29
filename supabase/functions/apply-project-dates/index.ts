@@ -41,11 +41,16 @@ type RequestBody = {
   dates: Partial<Record<Phase, string[]>>;
   // Dry-run: ingen lokal UPDATE, ingen extern push, ingen calendar-rebuild. Endast payload-preview.
   dry_run?: boolean;
+  // Begränsa körningen till specifika bokningar inom projektet (snittas med projektets sub-bookings).
+  // Används t.ex. när en ny bokning länkas in i ett befintligt LP — vi behöver inte rebuilda syskonen.
+  only_booking_ids?: string[];
 };
 
 type ResolvedRequest = Required<Pick<RequestBody, 'project_id' | 'project_type' | 'organization_id' | 'dates'>> & {
   dry_run: boolean;
+  only_booking_ids?: string[];
 };
+
 
 type PerBookingResult = {
   booking_id: string;
