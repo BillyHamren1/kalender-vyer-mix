@@ -368,7 +368,11 @@ export const BookingPlacementDialog: React.FC<Props> = ({ open, onOpenChange, bo
             projectId: largeProjectId,
             projectType: 'large',
             dates: phaseDates,
+            // Endast den nyligen inlänkade bokningen behöver datum-propagering;
+            // syskonen är redan i synk. Drar ner tiden från O(n sub-bookings) till O(1).
+            onlyBookingIds: [booking.id],
           });
+
         }
         await supabase
           .from('large_projects')
