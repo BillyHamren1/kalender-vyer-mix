@@ -75,6 +75,30 @@ const LargeProjectLayout = () => {
   const { refreshAll, refreshOne, isRefreshingAll, refreshingId } =
     useRefreshLargeProjectBookings(id || null, siblingBookingIds);
 
+  // Sum total_price per booking → shown inline in the bookings list so the
+  // user sees rubrik + pris utan att behöva expandera varje rad.
+  const { data: bookingTotals = {} } = useQuery({
+    queryKey: ['large-project-booking-totals', id, siblingBookingIds.length],
+    enabled: siblingBookingIds.length > 0,
+    staleTime: 60_000,
+    queryFn: async (): Promise<Record<string, number>> => {
+      const { data, error } = await supabase
+        .from('booking_products')
+        .select('booking_id, total_price')
+        .in('booking_id', siblingBookingIds);
+      if (error) throw error;
+      const totals: Record<string, number> = {};
+      for (const row of (data || []) as any[]) {
+        const bid = row.booking_id as string;
+        const v = Number(row.total_price) || 0;
+        totals[bid] = (totals[bid] || 0) + v;
+      }
+      return totals;
+    },
+  });
+  const formatSek = (n: number) =>
+    new Intl.NumberFormat('sv-SE', { maximumFractionDigits: 0 }).format(Math.round(n)) + ' kr';
+
 
   // Times still come from booking columns (rig_start_time etc) — those are
   // the booking-level "Fast tid" defaults. Date arrays come from
