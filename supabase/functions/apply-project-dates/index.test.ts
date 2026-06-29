@@ -29,8 +29,23 @@ function validate(body: unknown): { ok: true; data: unknown } | { ok: false; err
     if (!arr.every(isIsoDate)) return { ok: false, error: `dates.${phase} must be YYYY-MM-DD strings` };
     cleaned[phase] = Array.from(new Set(arr as string[])).sort();
   }
-  return { ok: true, data: { ...b, dates: cleaned } };
+  let onlyBookingIds: string[] | undefined;
+  if (b.only_booking_ids !== undefined) {
+    if (!Array.isArray(b.only_booking_ids) || !b.only_booking_ids.every((x) => typeof x === 'string' && x.length > 0)) {
+      return { ok: false, error: 'only_booking_ids must be array of non-empty strings' };
+    }
+    onlyBookingIds = Array.from(new Set(b.only_booking_ids as string[]));
+  }
+  return { ok: true, data: { ...b, dates: cleaned, only_booking_ids: onlyBookingIds } };
 }
+
+// Speglar resolveBookingIds filter-logiken: snittar projektets bokningar med only_booking_ids.
+function filterBookingIds(projectIds: string[], onlyBookingIds?: string[]): string[] {
+  if (!onlyBookingIds || onlyBookingIds.length === 0) return projectIds;
+  const allow = new Set(onlyBookingIds);
+  return projectIds.filter((id) => allow.has(id));
+}
+
 
 Deno.test('validate: rejects missing project_id', () => {
   const r = validate({ project_type: 'medium', organization_id: 'org1', dates: {} });
