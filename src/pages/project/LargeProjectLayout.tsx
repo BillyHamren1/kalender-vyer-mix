@@ -680,11 +680,23 @@ const LargeProjectLayout = () => {
                                   AVBOKAD
                                 </Badge>
                               )}
-                              <span className={cn("text-sm font-medium truncate", isCancelled && "line-through text-muted-foreground")}>
-                                {getLargeProjectBookingLabel(lpb)}
-                              </span>
+                              <div className="flex flex-col min-w-0">
+                                <span className={cn("text-sm font-medium truncate", isCancelled && "line-through text-muted-foreground")}>
+                                  {getLargeProjectBookingLabel(lpb)}
+                                </span>
+                                {b?.title && (
+                                  <span className={cn("text-xs text-muted-foreground truncate", isCancelled && "line-through")}>
+                                    {b.title}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             <div className="flex items-center gap-3 shrink-0">
+                              {bookingTotals[lpb.booking_id] > 0 && (
+                                <span className={cn("text-xs font-semibold tabular-nums text-foreground/80", isCancelled && "line-through text-muted-foreground/70")}>
+                                  {formatSek(bookingTotals[lpb.booking_id])}
+                                </span>
+                              )}
                               {b?.deliveryaddress && (
                                 <span className={cn("text-xs text-muted-foreground flex items-center gap-1", isCancelled && "line-through text-muted-foreground/70")}>
                                   <MapPin className="h-3 w-3" />
