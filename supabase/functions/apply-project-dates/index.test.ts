@@ -83,3 +83,36 @@ Deno.test('validate: empty dates object is allowed (no-op call)', () => {
   const r = validate({ project_id: 'p', project_type: 'medium', organization_id: 'o', dates: {} });
   assertEquals(r.ok, true);
 });
+
+Deno.test('validate: rejects bad only_booking_ids', () => {
+  const r = validate({
+    project_id: 'p', project_type: 'large', organization_id: 'o',
+    dates: {}, only_booking_ids: [123],
+  });
+  assertEquals(r.ok, false);
+});
+
+Deno.test('validate: accepts only_booking_ids and dedups', () => {
+  const r = validate({
+    project_id: 'p', project_type: 'large', organization_id: 'o',
+    dates: {}, only_booking_ids: ['b1', 'b2', 'b1'],
+  });
+  assertEquals(r.ok, true);
+  if (r.ok) {
+    const data = r.data as { only_booking_ids: string[] };
+    assertEquals(data.only_booking_ids.sort(), ['b1', 'b2']);
+  }
+});
+
+Deno.test('filterBookingIds: utan filter returnerar allt', () => {
+  assertEquals(filterBookingIds(['a', 'b', 'c']), ['a', 'b', 'c']);
+});
+
+Deno.test('filterBookingIds: snittar mot projektets bokningar', () => {
+  // Främmande id (z) får INTE smyga in även om klienten skickar det.
+  assertEquals(filterBookingIds(['a', 'b', 'c'], ['b', 'z']), ['b']);
+});
+
+Deno.test('filterBookingIds: tom lista efter snitt → inga bokningar processas', () => {
+  assertEquals(filterBookingIds(['a', 'b'], ['x']), []);
+});
