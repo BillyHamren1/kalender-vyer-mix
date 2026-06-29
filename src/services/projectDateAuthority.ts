@@ -19,7 +19,10 @@ export interface WriteProjectDatesInput {
   organizationId?: string;
   /** Dry-run: ingen skrivning, ingen extern push. Returnerar payload-preview. */
   dryRun?: boolean;
+  /** Begränsa körningen till specifika bokningar inom projektet (t.ex. nyligen inlänkad bokning). */
+  onlyBookingIds?: string[];
 }
+
 
 export interface WriteProjectDatesResult {
   ok: boolean;
@@ -46,6 +49,10 @@ export async function writeProjectDates(
   };
   if (input.organizationId) body.organization_id = input.organizationId;
   if (input.dryRun) body.dry_run = true;
+  if (input.onlyBookingIds && input.onlyBookingIds.length > 0) {
+    body.only_booking_ids = input.onlyBookingIds;
+  }
+
 
   const { data, error } = await supabase.functions.invoke('apply-project-dates', { body });
   if (error) return { ok: false, error: error.message };

@@ -41,11 +41,16 @@ type RequestBody = {
   dates: Partial<Record<Phase, string[]>>;
   // Dry-run: ingen lokal UPDATE, ingen extern push, ingen calendar-rebuild. Endast payload-preview.
   dry_run?: boolean;
+  // Begränsa körningen till specifika bokningar inom projektet (snittas med projektets sub-bookings).
+  // Används t.ex. när en ny bokning länkas in i ett befintligt LP — vi behöver inte rebuilda syskonen.
+  only_booking_ids?: string[];
 };
 
 type ResolvedRequest = Required<Pick<RequestBody, 'project_id' | 'project_type' | 'organization_id' | 'dates'>> & {
   dry_run: boolean;
+  only_booking_ids?: string[];
 };
+
 
 type PerBookingResult = {
   booking_id: string;
@@ -89,6 +94,14 @@ function validate(body: unknown): { ok: true; data: RequestBody } | { ok: false;
     cleaned[phase] = Array.from(new Set(arr as string[])).sort();
   }
 
+  let onlyBookingIds: string[] | undefined;
+  if (b.only_booking_ids !== undefined) {
+    if (!Array.isArray(b.only_booking_ids) || !b.only_booking_ids.every((x) => typeof x === 'string' && x.length > 0)) {
+      return { ok: false, error: 'only_booking_ids must be array of non-empty strings' };
+    }
+    onlyBookingIds = Array.from(new Set(b.only_booking_ids as string[]));
+  }
+
   return {
     ok: true,
     data: {
@@ -97,6 +110,7 @@ function validate(body: unknown): { ok: true; data: RequestBody } | { ok: false;
       organization_id: b.organization_id as string | undefined,
       dates: cleaned,
       dry_run: b.dry_run === true,
+      only_booking_ids: onlyBookingIds,
     },
   };
 }
@@ -105,6 +119,7 @@ async function resolveBookingIds(
   supabase: ReturnType<typeof createClient>,
   body: ResolvedRequest,
 ): Promise<string[]> {
+  let ids: string[];
   if (body.project_type === 'medium') {
     const { data } = await supabase
       .from('projects')
@@ -112,14 +127,21 @@ async function resolveBookingIds(
       .eq('id', body.project_id)
       .eq('organization_id', body.organization_id)
       .maybeSingle();
-    return data?.booking_id ? [data.booking_id as string] : [];
+    ids = data?.booking_id ? [data.booking_id as string] : [];
+  } else {
+    const { data } = await supabase
+      .from('large_project_bookings')
+      .select('booking_id')
+      .eq('large_project_id', body.project_id);
+    ids = (data ?? []).map((r: { booking_id: string }) => r.booking_id).filter(Boolean);
   }
-  const { data } = await supabase
-    .from('large_project_bookings')
-    .select('booking_id')
-    .eq('large_project_id', body.project_id);
-  return (data ?? []).map((r: { booking_id: string }) => r.booking_id).filter(Boolean);
+  if (body.only_booking_ids && body.only_booking_ids.length > 0) {
+    const allow = new Set(body.only_booking_ids);
+    ids = ids.filter((id) => allow.has(id));
+  }
+  return ids;
 }
+
 
 async function processBooking(
   supabase: ReturnType<typeof createClient>,
@@ -249,6 +271,7 @@ Deno.serve(async (req) => {
     organization_id: resolvedOrgId,
     dates: parsed.data.dates,
     dry_run: parsed.data.dry_run === true,
+    only_booking_ids: parsed.data.only_booking_ids,
   };
 
   const bookingIds = await resolveBookingIds(supabase, effective);
@@ -288,10 +311,11 @@ Deno.serve(async (req) => {
     );
   }
 
-  const results: PerBookingResult[] = [];
-  for (const bid of bookingIds) {
-    results.push(await processBooking(supabase, bid, effective.organization_id, effective.dates));
-  }
+  // Parallellisera per bokning — varje processBooking är oberoende (egen booking_id, egna externa anrop).
+  const results: PerBookingResult[] = await Promise.all(
+    bookingIds.map((bid) => processBooking(supabase, bid, effective.organization_id, effective.dates)),
+  );
+
 
   const allOk = results.every((r) => r.local_updated && r.external_pushed && r.calendar_rebuilt);
   return new Response(

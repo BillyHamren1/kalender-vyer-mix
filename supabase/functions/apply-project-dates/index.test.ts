@@ -29,8 +29,23 @@ function validate(body: unknown): { ok: true; data: unknown } | { ok: false; err
     if (!arr.every(isIsoDate)) return { ok: false, error: `dates.${phase} must be YYYY-MM-DD strings` };
     cleaned[phase] = Array.from(new Set(arr as string[])).sort();
   }
-  return { ok: true, data: { ...b, dates: cleaned } };
+  let onlyBookingIds: string[] | undefined;
+  if (b.only_booking_ids !== undefined) {
+    if (!Array.isArray(b.only_booking_ids) || !b.only_booking_ids.every((x) => typeof x === 'string' && x.length > 0)) {
+      return { ok: false, error: 'only_booking_ids must be array of non-empty strings' };
+    }
+    onlyBookingIds = Array.from(new Set(b.only_booking_ids as string[]));
+  }
+  return { ok: true, data: { ...b, dates: cleaned, only_booking_ids: onlyBookingIds } };
 }
+
+// Speglar resolveBookingIds filter-logiken: snittar projektets bokningar med only_booking_ids.
+function filterBookingIds(projectIds: string[], onlyBookingIds?: string[]): string[] {
+  if (!onlyBookingIds || onlyBookingIds.length === 0) return projectIds;
+  const allow = new Set(onlyBookingIds);
+  return projectIds.filter((id) => allow.has(id));
+}
+
 
 Deno.test('validate: rejects missing project_id', () => {
   const r = validate({ project_type: 'medium', organization_id: 'org1', dates: {} });
@@ -67,4 +82,37 @@ Deno.test('validate: accepts valid input and dedups+sorts', () => {
 Deno.test('validate: empty dates object is allowed (no-op call)', () => {
   const r = validate({ project_id: 'p', project_type: 'medium', organization_id: 'o', dates: {} });
   assertEquals(r.ok, true);
+});
+
+Deno.test('validate: rejects bad only_booking_ids', () => {
+  const r = validate({
+    project_id: 'p', project_type: 'large', organization_id: 'o',
+    dates: {}, only_booking_ids: [123],
+  });
+  assertEquals(r.ok, false);
+});
+
+Deno.test('validate: accepts only_booking_ids and dedups', () => {
+  const r = validate({
+    project_id: 'p', project_type: 'large', organization_id: 'o',
+    dates: {}, only_booking_ids: ['b1', 'b2', 'b1'],
+  });
+  assertEquals(r.ok, true);
+  if (r.ok) {
+    const data = r.data as { only_booking_ids: string[] };
+    assertEquals(data.only_booking_ids.sort(), ['b1', 'b2']);
+  }
+});
+
+Deno.test('filterBookingIds: utan filter returnerar allt', () => {
+  assertEquals(filterBookingIds(['a', 'b', 'c']), ['a', 'b', 'c']);
+});
+
+Deno.test('filterBookingIds: snittar mot projektets bokningar', () => {
+  // Främmande id (z) får INTE smyga in även om klienten skickar det.
+  assertEquals(filterBookingIds(['a', 'b', 'c'], ['b', 'z']), ['b']);
+});
+
+Deno.test('filterBookingIds: tom lista efter snitt → inga bokningar processas', () => {
+  assertEquals(filterBookingIds(['a', 'b'], ['x']), []);
 });
