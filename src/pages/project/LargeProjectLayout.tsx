@@ -75,6 +75,30 @@ const LargeProjectLayout = () => {
   const { refreshAll, refreshOne, isRefreshingAll, refreshingId } =
     useRefreshLargeProjectBookings(id || null, siblingBookingIds);
 
+  // Sum total_price per booking → shown inline in the bookings list so the
+  // user sees rubrik + pris utan att behöva expandera varje rad.
+  const { data: bookingTotals = {} } = useQuery({
+    queryKey: ['large-project-booking-totals', id, siblingBookingIds.length],
+    enabled: siblingBookingIds.length > 0,
+    staleTime: 60_000,
+    queryFn: async (): Promise<Record<string, number>> => {
+      const { data, error } = await supabase
+        .from('booking_products')
+        .select('booking_id, total_price')
+        .in('booking_id', siblingBookingIds);
+      if (error) throw error;
+      const totals: Record<string, number> = {};
+      for (const row of (data || []) as any[]) {
+        const bid = row.booking_id as string;
+        const v = Number(row.total_price) || 0;
+        totals[bid] = (totals[bid] || 0) + v;
+      }
+      return totals;
+    },
+  });
+  const formatSek = (n: number) =>
+    new Intl.NumberFormat('sv-SE', { maximumFractionDigits: 0 }).format(Math.round(n)) + ' kr';
+
 
   // Times still come from booking columns (rig_start_time etc) — those are
   // the booking-level "Fast tid" defaults. Date arrays come from
@@ -656,11 +680,23 @@ const LargeProjectLayout = () => {
                                   AVBOKAD
                                 </Badge>
                               )}
-                              <span className={cn("text-sm font-medium truncate", isCancelled && "line-through text-muted-foreground")}>
-                                {getLargeProjectBookingLabel(lpb)}
-                              </span>
+                              <div className="flex flex-col min-w-0">
+                                <span className={cn("text-sm font-medium truncate", isCancelled && "line-through text-muted-foreground")}>
+                                  {getLargeProjectBookingLabel(lpb)}
+                                </span>
+                                {b?.title && (
+                                  <span className={cn("text-xs text-muted-foreground truncate", isCancelled && "line-through")}>
+                                    {b.title}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             <div className="flex items-center gap-3 shrink-0">
+                              {bookingTotals[lpb.booking_id] > 0 && (
+                                <span className={cn("text-xs font-semibold tabular-nums text-foreground/80", isCancelled && "line-through text-muted-foreground/70")}>
+                                  {formatSek(bookingTotals[lpb.booking_id])}
+                                </span>
+                              )}
                               {b?.deliveryaddress && (
                                 <span className={cn("text-xs text-muted-foreground flex items-center gap-1", isCancelled && "line-through text-muted-foreground/70")}>
                                   <MapPin className="h-3 w-3" />
