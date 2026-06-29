@@ -94,6 +94,14 @@ function validate(body: unknown): { ok: true; data: RequestBody } | { ok: false;
     cleaned[phase] = Array.from(new Set(arr as string[])).sort();
   }
 
+  let onlyBookingIds: string[] | undefined;
+  if (b.only_booking_ids !== undefined) {
+    if (!Array.isArray(b.only_booking_ids) || !b.only_booking_ids.every((x) => typeof x === 'string' && x.length > 0)) {
+      return { ok: false, error: 'only_booking_ids must be array of non-empty strings' };
+    }
+    onlyBookingIds = Array.from(new Set(b.only_booking_ids as string[]));
+  }
+
   return {
     ok: true,
     data: {
@@ -102,6 +110,7 @@ function validate(body: unknown): { ok: true; data: RequestBody } | { ok: false;
       organization_id: b.organization_id as string | undefined,
       dates: cleaned,
       dry_run: b.dry_run === true,
+      only_booking_ids: onlyBookingIds,
     },
   };
 }
@@ -110,6 +119,7 @@ async function resolveBookingIds(
   supabase: ReturnType<typeof createClient>,
   body: ResolvedRequest,
 ): Promise<string[]> {
+  let ids: string[];
   if (body.project_type === 'medium') {
     const { data } = await supabase
       .from('projects')
@@ -117,14 +127,21 @@ async function resolveBookingIds(
       .eq('id', body.project_id)
       .eq('organization_id', body.organization_id)
       .maybeSingle();
-    return data?.booking_id ? [data.booking_id as string] : [];
+    ids = data?.booking_id ? [data.booking_id as string] : [];
+  } else {
+    const { data } = await supabase
+      .from('large_project_bookings')
+      .select('booking_id')
+      .eq('large_project_id', body.project_id);
+    ids = (data ?? []).map((r: { booking_id: string }) => r.booking_id).filter(Boolean);
   }
-  const { data } = await supabase
-    .from('large_project_bookings')
-    .select('booking_id')
-    .eq('large_project_id', body.project_id);
-  return (data ?? []).map((r: { booking_id: string }) => r.booking_id).filter(Boolean);
+  if (body.only_booking_ids && body.only_booking_ids.length > 0) {
+    const allow = new Set(body.only_booking_ids);
+    ids = ids.filter((id) => allow.has(id));
+  }
+  return ids;
 }
+
 
 async function processBooking(
   supabase: ReturnType<typeof createClient>,
