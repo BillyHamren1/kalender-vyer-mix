@@ -271,6 +271,7 @@ Deno.serve(async (req) => {
     organization_id: resolvedOrgId,
     dates: parsed.data.dates,
     dry_run: parsed.data.dry_run === true,
+    only_booking_ids: parsed.data.only_booking_ids,
   };
 
   const bookingIds = await resolveBookingIds(supabase, effective);
@@ -310,10 +311,11 @@ Deno.serve(async (req) => {
     );
   }
 
-  const results: PerBookingResult[] = [];
-  for (const bid of bookingIds) {
-    results.push(await processBooking(supabase, bid, effective.organization_id, effective.dates));
-  }
+  // Parallellisera per bokning — varje processBooking är oberoende (egen booking_id, egna externa anrop).
+  const results: PerBookingResult[] = await Promise.all(
+    bookingIds.map((bid) => processBooking(supabase, bid, effective.organization_id, effective.dates)),
+  );
+
 
   const allOk = results.every((r) => r.local_updated && r.external_pushed && r.calendar_rebuilt);
   return new Response(
