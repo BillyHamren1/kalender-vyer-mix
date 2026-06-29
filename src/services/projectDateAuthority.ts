@@ -49,6 +49,10 @@ export async function writeProjectDates(
   };
   if (input.organizationId) body.organization_id = input.organizationId;
   if (input.dryRun) body.dry_run = true;
+  if (input.onlyBookingIds && input.onlyBookingIds.length > 0) {
+    body.only_booking_ids = input.onlyBookingIds;
+  }
+
 
   const { data, error } = await supabase.functions.invoke('apply-project-dates', { body });
   if (error) return { ok: false, error: error.message };
