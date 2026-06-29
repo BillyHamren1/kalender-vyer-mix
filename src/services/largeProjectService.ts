@@ -107,7 +107,7 @@ export async function fetchLargeProjectBookingsFull(bookingIds: string[]): Promi
   if (bookingIds.length === 0) return [];
   const { data, error } = await supabase
     .from('bookings')
-    .select('id, client, booking_number, deliveryaddress, eventdate, rigdaydate, rigdowndate, contact_name, contact_phone, contact_email, delivery_city, delivery_postal_code, carry_more_than_10m, ground_nails_allowed, exact_time_needed, exact_time_info, internalnotes, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, status')
+    .select('id, client, booking_number, title, deliveryaddress, eventdate, rigdaydate, rigdowndate, contact_name, contact_phone, contact_email, delivery_city, delivery_postal_code, carry_more_than_10m, ground_nails_allowed, exact_time_needed, exact_time_info, internalnotes, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, status')
     .in('id', bookingIds);
   if (error) throw error;
   return data || [];
