@@ -32,13 +32,20 @@ function loadLatestTrackBookingChangesSql(): string {
 describe('booking needs_review source contract', () => {
   const sql = loadLatestTrackBookingChangesSql();
 
-  it('beräknar resolved_changed_by + is_external_source', () => {
-    expect(sql).toMatch(/resolved_changed_by\s*:=/);
-    expect(sql).toMatch(/is_external_source\s*:=\s*resolved_changed_by\s+IN\s*\(\s*'service_role'\s*,\s*'booking-import'\s*,\s*'booking-webhook'\s*\)/);
+  it('läser explicit källa från request-header eller GUC', () => {
+    expect(sql).toMatch(/x-lovable-change-source/);
+    expect(sql).toMatch(/current_setting\(\s*'app\.current_user'/);
+  });
+
+  it('klassificerar ENDAST booking-import / booking-webhook som externt (service_role räknas inte)', () => {
+    expect(sql).toMatch(
+      /is_external_source\s*:=\s*COALESCE\(\s*header_source\s*,\s*guc_source\s*\)\s+IN\s*\(\s*'booking-import'\s*,\s*'booking-webhook'\s*\)/
+    );
+    // Regressionsvakt: den gamla regeln som inkluderade service_role får inte återuppstå.
+    expect(sql).not.toMatch(/is_external_source\s*:=[^;]*'service_role'/);
   });
 
   it('sätter NEW.needs_review := true ENDAST när is_external_source är sant', () => {
-    // Hela IF-blocket som sätter needs_review måste ha is_external_source som villkor.
     const match = sql.match(/IF\s+has_external_changes[\s\S]{0,400}NEW\.needs_review\s*:=\s*true/i);
     expect(match, 'needs_review-blocket saknas').toBeTruthy();
     expect(match![0]).toContain('is_external_source');
