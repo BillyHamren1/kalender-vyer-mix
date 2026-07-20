@@ -2018,9 +2018,19 @@ serve(async (req) => {
   }
 
   try {
+    // Header 'x-lovable-change-source' forwards to Postgres via PostgREST and
+    // is read by the `track_booking_changes` trigger to classify this write as
+    // an external Booking-source change (=> may set needs_review). Without it,
+    // service_role writes are treated as internal (see migration
+    // 20260720_needs_review_source_opt_in).
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      {
+        global: {
+          headers: { 'x-lovable-change-source': 'booking-import' },
+        },
+      }
     )
 
     const body = await req.json();
