@@ -11,7 +11,8 @@ import { toast } from 'sonner';
 import { BookingPlacementDialog } from './BookingPlacementDialog';
 import ProjectUpdateDialog from './ProjectUpdateDialog';
 import { useUnplannedProjects } from '@/hooks/useUnplannedProjects';
-import { useUnseenBookingUpdates, useMarkBookingChangesSeen } from '@/hooks/useUnseenBookingUpdates';
+import { useUnseenBookingUpdates, useMarkBookingChangesSeen, useMarkAllBookingChangesSeen } from '@/hooks/useUnseenBookingUpdates';
+import { CheckCheck } from 'lucide-react';
 
 
 
@@ -78,6 +79,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
   const { data: unplannedProjects = [], isLoading: isLoadingUnplannedProjects } = useUnplannedProjects();
   const { data: unseenUpdates = [], isLoading: isLoadingUpdates } = useUnseenBookingUpdates();
   const markSeen = useMarkBookingChangesSeen();
+  const markAllSeen = useMarkAllBookingChangesSeen();
 
   // Hämta bokningsmeta (klient, nummer, datum) för uppdaterade bokningar
   const updateBookingIds = unseenUpdates.map((u) => u.booking_id);
@@ -248,14 +250,32 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
       {/* === SEKTION 1: UPPDATERADE === */}
       {totalUpdates > 0 && (
         <section>
-          {showSectionHeaders && (
-            <div className="flex items-center gap-2.5 px-4 h-10 bg-yellow-100 border-y border-yellow-300">
-              <span className="h-2 w-2 rounded-full bg-yellow-500" />
-              <span className="text-xs font-bold uppercase tracking-[0.1em] text-yellow-900">
-                Uppdaterade · kräver granskning
+          <div className="flex items-center justify-between gap-2.5 px-4 h-11 bg-yellow-100 border-y border-yellow-300">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="h-2 w-2 rounded-full bg-yellow-500 shrink-0" />
+              <span className="text-xs font-bold uppercase tracking-[0.1em] text-yellow-900 truncate">
+                {showSectionHeaders ? 'Uppdaterade · kräver granskning' : `${totalUpdates} kräver granskning`}
               </span>
             </div>
-          )}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const ids = visibleUpdates.map((u) => u.booking_id);
+                markAllSeen.mutate(ids, {
+                  onSuccess: (n) => toast.success(`${n} bokningar markerade som granskade`),
+                  onError: () => toast.error('Kunde inte markera alla som granskade'),
+                });
+              }}
+              disabled={markAllSeen.isPending || visibleUpdates.length === 0}
+              className="h-8 px-3 text-xs gap-1.5 border-amber-400 text-amber-900 hover:bg-amber-200/70 bg-white/60"
+              title="Markera alla uppdaterade bokningar som granskade"
+            >
+              <CheckCheck className="w-3.5 h-3.5" />
+              <span>Markera alla som granskade</span>
+            </Button>
+          </div>
+
           <div className="divide-y divide-border/40">
             {visibleUpdates.map((update) => {
               const meta = updatedBookingsMeta.find((b) => b.id === update.booking_id);
