@@ -79,6 +79,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
   const { data: unplannedProjects = [], isLoading: isLoadingUnplannedProjects } = useUnplannedProjects();
   const { data: unseenUpdates = [], isLoading: isLoadingUpdates } = useUnseenBookingUpdates();
   const markSeen = useMarkBookingChangesSeen();
+  const markAllSeen = useMarkAllBookingChangesSeen();
 
   // Hämta bokningsmeta (klient, nummer, datum) för uppdaterade bokningar
   const updateBookingIds = unseenUpdates.map((u) => u.booking_id);
