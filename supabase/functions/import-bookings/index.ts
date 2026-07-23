@@ -1131,6 +1131,8 @@ async function reconcileCalendarEvents(
       booking_number: bookingData.booking_number || null,
       delivery_address: bookingData.deliveryaddress || null, date,
       isExplicitStart: start.isExplicit,
+      isExplicitEnd: end.isExplicit,
+      lockRequested: start.isExplicit && end.isExplicit,
       rentalOnly,
     });
   }
