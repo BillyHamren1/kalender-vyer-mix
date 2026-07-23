@@ -1193,6 +1193,11 @@ async function reconcileCalendarEvents(
         if (explicitTimeChanged) {
           updatePayload.start_time = desired.start_time;
           updatePayload.end_time = desired.end_time;
+          // Auto-lock when Booking sent explicit start+end. Never auto-unlock:
+          // users may have locked manually via QuickTimeEditPopover.
+          if (desired.lockRequested === true) {
+            updatePayload.times_locked = true;
+          }
         }
         const { error: updateErr } = await supabase
           .from('calendar_events')
