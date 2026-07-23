@@ -1108,6 +1108,8 @@ async function reconcileCalendarEvents(
       booking_number: bookingData.booking_number || null,
       delivery_address: bookingData.deliveryaddress || null, date,
       isExplicitStart: start.isExplicit,
+      isExplicitEnd: end.isExplicit,
+      lockRequested: start.isExplicit && end.isExplicit,
       rentalOnly,
     });
   }
@@ -1129,6 +1131,8 @@ async function reconcileCalendarEvents(
       booking_number: bookingData.booking_number || null,
       delivery_address: bookingData.deliveryaddress || null, date,
       isExplicitStart: start.isExplicit,
+      isExplicitEnd: end.isExplicit,
+      lockRequested: start.isExplicit && end.isExplicit,
       rentalOnly,
     });
   }
@@ -1189,6 +1193,11 @@ async function reconcileCalendarEvents(
         if (explicitTimeChanged) {
           updatePayload.start_time = desired.start_time;
           updatePayload.end_time = desired.end_time;
+          // Auto-lock when Booking sent explicit start+end. Never auto-unlock:
+          // users may have locked manually via QuickTimeEditPopover.
+          if (desired.lockRequested === true) {
+            updatePayload.times_locked = true;
+          }
         }
         const { error: updateErr } = await supabase
           .from('calendar_events')
@@ -1238,7 +1247,9 @@ async function reconcileCalendarEvents(
           delivery_address: desired.delivery_address,
           resource_id: placement.team,
           organization_id: bookingData.organization_id || organizationId,
-          source_date: desired.date
+          source_date: desired.date,
+          // Fast tid från Booking (explicit start + slut) → lås direkt.
+          times_locked: desired.lockRequested === true,
         });
 
       if (insertErr) {
