@@ -1247,7 +1247,9 @@ async function reconcileCalendarEvents(
           delivery_address: desired.delivery_address,
           resource_id: placement.team,
           organization_id: bookingData.organization_id || organizationId,
-          source_date: desired.date
+          source_date: desired.date,
+          // Fast tid från Booking (explicit start + slut) → lås direkt.
+          times_locked: desired.lockRequested === true,
         });
 
       if (insertErr) {
