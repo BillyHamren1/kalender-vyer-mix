@@ -235,6 +235,7 @@ const EventActionPopover: React.FC<Props> = ({
     setDeletingId(dayId);
     try {
       await deleteCalendarEvent(dayId);
+      removeDay(dayId);
       toast.success('Dag borttagen');
       if (onUpdate) await onUpdate();
       setRefreshKey(k => k + 1);
