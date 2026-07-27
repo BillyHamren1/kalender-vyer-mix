@@ -109,7 +109,7 @@ const EventActionPopover: React.FC<Props> = ({
       if (onUpdate) await onUpdate();
       setRefreshKey(k => k + 1);
     });
-  const { days } = useEventBookingDays(event, refreshKey);
+  const { days, removeDay } = useEventBookingDays(event, refreshKey);
 
   const startISO = typeof event.start === 'string' ? event.start : new Date(event.start).toISOString();
   const endISO   = typeof event.end   === 'string' ? event.end   : new Date(event.end).toISOString();
@@ -235,6 +235,7 @@ const EventActionPopover: React.FC<Props> = ({
     setDeletingId(dayId);
     try {
       await deleteCalendarEvent(dayId);
+      removeDay(dayId);
       toast.success('Dag borttagen');
       if (onUpdate) await onUpdate();
       setRefreshKey(k => k + 1);

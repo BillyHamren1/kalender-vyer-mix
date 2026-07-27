@@ -76,5 +76,7 @@ export function useEventBookingDays(event: CalendarEvent, refreshKey: number = 0
     return () => { active = false; };
   }, [bookingIds.join('|'), refreshKey]);
 
-  return { days, loading };
+  const removeDay = (id: string) => setDays(prev => prev.filter(d => d.id !== id));
+
+  return { days, loading, removeDay };
 }
