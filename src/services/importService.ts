@@ -435,7 +435,7 @@ export const quietImportBookings = async (filters: ImportFilters = {}): Promise<
     }
 
     // Determine sync mode intelligently
-    const syncMode = filters.syncMode || await getRecommendedSyncMode('booking_import');
+    const syncMode = filters.syncMode || await getRecommendedSyncMode('booking_import', organizationId);
     
     // Call the enhanced import with quiet flag
     const { data: resultData, error: functionError } = await supabase.functions.invoke(
