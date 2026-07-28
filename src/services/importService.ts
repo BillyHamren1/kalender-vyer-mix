@@ -384,7 +384,7 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
     console.error('Exception during import:', error);
     
     try {
-      await updateSyncState(syncType, {
+      await updateSyncState(syncType, preResolvedOrgId, {
         last_sync_status: 'failed',
         metadata: { 
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -392,6 +392,7 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
           duration_ms: Date.now() - startTime
         }
       });
+
     } catch (syncError) {
       console.error('Error updating sync state after failure:', syncError);
     }
