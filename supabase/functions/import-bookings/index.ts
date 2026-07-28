@@ -2345,7 +2345,7 @@ serve(async (req) => {
             cursor_advanced_to: nextSyncCursor,
           },
           updated_at: importCompletedAt,
-        }, { onConflict: 'sync_type' });
+        }, { onConflict: 'organization_id,sync_type' });
 
       console.log(`[import-bookings] ${queueEventType} batch queued for worker`, JSON.stringify({
         organization_id: organizationId,
