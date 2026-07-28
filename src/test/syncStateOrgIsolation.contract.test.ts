@@ -65,10 +65,13 @@ describe('syncStateService per-organization isolation', () => {
     const { updateSyncState } = await import('@/services/syncStateService');
     await updateSyncState('booking_import', 'org-42', { last_sync_status: 'success' });
     expect(upsertSpy).toHaveBeenCalledTimes(1);
-    const [payload, opts] = upsertSpy.mock.calls[0];
+    const call = upsertSpy.mock.calls[0]!;
+    const payload = call[0] as any;
+    const opts = call[1];
     expect(payload.organization_id).toBe('org-42');
     expect(payload.sync_type).toBe('booking_import');
     expect(opts).toEqual({ onConflict: 'organization_id,sync_type' });
+
   });
 
   it('updateSyncState skips DB when organizationId missing', async () => {
