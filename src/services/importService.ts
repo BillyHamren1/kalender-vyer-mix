@@ -311,7 +311,7 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
     };
     
     // Update sync state to success - this saves the timestamp for next incremental sync
-    await updateSyncState(syncType, {
+    await updateSyncState(syncType, organizationId, {
       last_sync_timestamp: new Date().toISOString(),
       last_sync_status: 'success',
       last_sync_mode: syncMode,
@@ -321,6 +321,7 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
         historical_mode: isHistoricalMode
       }
     });
+
     
     // Show appropriate success message
     const newCount = results.new_bookings?.length || 0;
