@@ -1,23 +1,50 @@
-# Auto-lås "Fast tid" vid import av bokning
 
 ## Problem
-När en bokning kommer in från Booking med explicit satta start/slut-tider (`rig_start_time`, `rig_end_time`, `rigdown_start_time`, `rigdown_end_time`) skapas kalenderraderna med rätt tid — men utan `times_locked=true`. Därför saknas röda ramen i planeringskalendern och användaren kan dra/resiza raden utan att låsa upp först.
 
-Låsmekaniken finns redan på plats i frontend (`times_locked` → `extendedProps.timeLocked` → röd ram i `BookingEvent`/`CustomEvent`, blockerad drag/resize, "Lås upp"-knapp i `QuickTimeEditPopover`/`EventActionPopover`). Det som fattas är att `import-bookings` faktiskt sätter flaggan.
+Bokning **2604-65** hade 0 produkter i planeringen trots att Booking hade dem. En manuell re-sync jag körde precis hämtade tillbaka 4 produkter — så produkterna finns i Booking, de var bara borttagna lokalt.
 
-## Lösning
-Reconcilern i `supabase/functions/import-bookings/index.ts` känner redan till om tiden är explicit (`isExplicitStart`) via `buildDateTimeFromPartsEx`. Vi utnyttjar den signalen — utökad till att också ta hänsyn till om slut-tiden är explicit — för att skriva `times_locked=true` på raden när tiden kommer explicit från Booking.
+## Rotorsak (verifierad i koden och i booking_changes)
 
-### Ändringar (endast `supabase/functions/import-bookings/index.ts`)
+`booking_changes` för 2604-65 visar:
+- 2026-07-26 15:32 — `status_change` OFFER → CONFIRMED (av `booking-import`)
 
-1. Utöka `desiredEvents`-objekten (rig och rigDown) med `isExplicitEnd` utöver `isExplicitStart`, och deriva en `lockRequested = isExplicitStart && isExplicitEnd` (dvs. Booking har satt både start och slut → äkta fast tid).
-2. **INSERT-vägen**: sätt `times_locked: lockRequested` i `.insert({...})` för nya calendar_events-rader.
-3. **UPDATE-vägen**: när `explicitTimeChanged` är true, ta med `times_locked: lockRequested` i `updatePayload` så en bokning som blir explicit i efterhand också blir låst. Om Booking däremot tar bort den explicita tiden (osannolikt, men) ska vi INTE tvinga upp en användarsatt lås — därför sätts flaggan enbart när `lockRequested === true`; annars rörs kolumnen inte.
+I `supabase/functions/import-bookings/index.ts` (rad 2395–2438) finns en "Status Demote"-gren som körs när ett single-booking-refresh från webhook får **0 träffar** från externa API:t för en lokalt CONFIRMED bokning. Den:
 
-### Vad som INTE ändras
-- Frontend-rendering, låsdialoger, drag/resize-blockering — allt fungerar redan när `times_locked=true` finns i DB.
-- Manuellt satta lås (via `QuickTimeEditPopover` "Fast tid") berörs inte — de skrivs mot samma kolumn men rörs inte vid en re-import där bokningen fortfarande har explicit tid (idempotent).
-- Ingen migration behövs — kolumnen `calendar_events.times_locked` finns redan.
+1. Flippar `status` till `OFFER`
+2. Raderar `calendar_events`, `warehouse_calendar_events`, `packing_projects`
+3. **Raderar även `booking_products`** ← detta är felet
 
-## Verifiering
-Efter deploy: kör en manuell re-import av en bokning som har både `rig_start_time` och `rig_end_time` satt i Booking, öppna projektets planering och bekräfta att rig-raden får röd ram + att drag blockeras med toast "Tiden är låst".
+När bokningen sedan flippas tillbaka till CONFIRMED är produkterna borta. Product-recovery-grenen (rad 2944–3008) återhämtar dem endast om nästa import faktiskt körs med produktpayload — mellan de körningarna är bokningen tom.
+
+Detta träffar godtycklig bokning i Booking som råkar hamna i ett kort webhook-fönster där externa API:t svarar med tom lista (draft-flip, snabb-spara, cache-glitch).
+
+## Åtgärd
+
+**En kirurgisk ändring i `supabase/functions/import-bookings/index.ts` (Status Demote-grenen, rad ~2428–2434):**
+
+Ta bort `booking_products`-raderingen ur `cleanupOps`. Kalender/warehouse/packing får fortsätta städas eftersom de återskapas deterministiskt vid nästa CONFIRMED-sync, men produkter är dyrbar data som inte alltid kommer tillbaka i webhook-payloaden.
+
+Behåll produkterna precis som `[Product Recovery GUARD]` och `[Merge GUARD]` på rad 3093 och 3876 redan gör i sina fall — "external returned 0" är per definition transient och får aldrig radera lokala produkter. Det är exakt samma princip.
+
+## Reparation av redan tömda bokningar
+
+Kör en engångsscan som listar alla CONFIRMED-bokningar med 0 lokala produkter, och trigga `import-bookings` (single-mode) på var och en så de återhämtar produkter från Booking. Ingen datadestruktion — bara backfill.
+
+För 2604-65 specifikt är det redan gjort i denna felsökning (4 produkter tillbaka).
+
+## Test
+
+- Lägg till kontraktstest i `supabase/functions/import-bookings/` som säkerställer att Status Demote-grenen aldrig innehåller `booking_products`-delete (statisk kontroll på källkoden, samma stil som befintliga contract-tester).
+- Kör `bash scripts/test-time-reporting.sh`-motsvarigheten för import-bookings om det finns; annars bara typecheck + de nya contract-testerna.
+
+## Filer som ändras
+
+- `supabase/functions/import-bookings/index.ts` — ta bort en rad i cleanupOps-arrayen
+- `supabase/functions/import-bookings/statusDemoteProductGuard.contract.test.ts` — ny fil, statisk kontroll
+
+## Vad ändras INTE
+
+- Ingen ändring i frontend
+- Ingen ändring av OFFER-statushanteringen i sig
+- Ingen ändring av calendar/warehouse/packing-städningen
+- Ingen ny kolumn/tabell/migration

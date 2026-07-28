@@ -2425,13 +2425,16 @@ serve(async (req) => {
           console.error(`[Status Demote] Failed to flip status to OFFER:`, statusUpdateErr);
         }
 
+        // GUARD: never delete booking_products here. "External returned 0" is per definition
+        // transient (draft-flip / snabb-spara / cache-glitch i Booking) och får aldrig radera
+        // dyrbar produktdata som inte alltid kommer tillbaka i nästa webhook-payload.
+        // Samma princip som [Product Recovery GUARD] och [Merge GUARD] längre ner.
         const cleanupOps = await Promise.allSettled([
           supabase.from('calendar_events').delete().eq('booking_id', localBooking.id),
           supabase.from('warehouse_calendar_events').delete().eq('booking_id', localBooking.id),
           supabase.from('projects').update({ status: 'cancelled', updated_at: nowIso }).eq('booking_id', localBooking.id),
           supabase.from('jobs').update({ status: 'cancelled', updated_at: nowIso }).eq('booking_id', localBooking.id),
           supabase.from('packing_projects').delete().eq('booking_id', localBooking.id),
-          supabase.from('booking_products').delete().eq('booking_id', localBooking.id),
         ]);
         cleanupOps.forEach((r, i) => {
           if (r.status === 'rejected') console.error(`[Status Demote] cleanup op ${i} failed:`, r.reason);
