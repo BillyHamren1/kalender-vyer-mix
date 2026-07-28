@@ -282,7 +282,7 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
       const details = resultData.details || '';
       const status = resultData.status || 0;
       
-      await updateSyncState(syncType, {
+      await updateSyncState(syncType, organizationId, {
         last_sync_status: 'failed',
         metadata: { 
           error: resultData.error,
@@ -293,6 +293,7 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
           historical_mode: isHistoricalMode
         }
       });
+
       
       return {
         success: false,
