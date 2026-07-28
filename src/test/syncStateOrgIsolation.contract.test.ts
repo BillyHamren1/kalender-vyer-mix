@@ -9,11 +9,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  * sync_type) och upserts använder onConflict='organization_id,sync_type'.
  */
 
-const eqSpy = vi.fn();
+const eqSpy = vi.fn<(col: string, val: unknown) => void>();
 const maybeSingleSpy = vi.fn(async () => ({ data: null, error: null }));
-const upsertSpy = vi.fn(() => ({
+const upsertSpy = vi.fn<(payload: any, opts: any) => any>(() => ({
   select: () => ({ maybeSingle: async () => ({ data: null, error: null }) }),
 }));
+
 
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
