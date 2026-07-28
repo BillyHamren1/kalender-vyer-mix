@@ -4104,7 +4104,7 @@ serve(async (req) => {
           last_sync_status: 'success',
           metadata: { results, cursor_advanced_to: nextSyncCursor },
           updated_at: finalTimestamp
-        }, { onConflict: 'sync_type' })
+        }, { onConflict: 'organization_id,sync_type' })
 
       if (syncError) {
         console.error('Error saving sync state:', syncError)
