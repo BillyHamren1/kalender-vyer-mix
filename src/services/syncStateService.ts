@@ -1,8 +1,19 @@
 import { supabase } from "@/integrations/supabase/client";
 
+/**
+ * Per-organisation sync-cursor för externa importer.
+ *
+ * VIKTIGT: alla operationer måste filtrera på (organization_id, sync_type).
+ * Den globala UNIQUE(sync_type)-nyckeln togs bort i migrationen
+ * `sync_state_org_sync_type_key` och ersattes med UNIQUE(organization_id, sync_type).
+ * Om `organizationId` saknas returnerar hjälparna null utan att röra DB — vi
+ * får aldrig läsa eller skriva en annan organisations cursor.
+ */
+
 export interface SyncState {
   id: string;
   sync_type: string;
+  organization_id: string;
   last_sync_timestamp: string | null;
   last_sync_mode: string | null;
   last_sync_status: string | null;
@@ -14,39 +25,52 @@ export interface SyncState {
 export type SyncMode = 'full' | 'incremental';
 export type SyncStatus = 'success' | 'failed' | 'in_progress' | 'pending';
 
+const normalizeMetadata = (meta: unknown): Record<string, any> => {
+  if (!meta) return {};
+  if (typeof meta === 'string') {
+    try { return JSON.parse(meta) as Record<string, any>; } catch { return {}; }
+  }
+  return meta as Record<string, any>;
+};
+
 /**
- * Get sync state for a specific sync type
+ * Get sync state for (organizationId, syncType).
  */
-export const getSyncState = async (syncType: string): Promise<SyncState | null> => {
+export const getSyncState = async (
+  syncType: string,
+  organizationId: string | null | undefined,
+): Promise<SyncState | null> => {
+  if (!organizationId) {
+    console.warn(`[syncState] getSyncState skipped for ${syncType}: missing organizationId`);
+    return null;
+  }
   try {
     const { data, error } = await supabase
       .from('sync_state')
       .select('*')
       .eq('sync_type', syncType)
+      .eq('organization_id', organizationId)
       .maybeSingle();
-      
+
     if (error) {
-      console.warn(`Could not fetch sync state for ${syncType}, continuing without it:`, error.message);
+      console.warn(`[syncState] read failed for ${syncType}/${organizationId}:`, error.message);
       return null;
     }
-    
     if (!data) return null;
-    
-    return {
-      ...data,
-      metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : (data.metadata as Record<string, any>) || {}
-    };
+    return { ...(data as any), metadata: normalizeMetadata((data as any).metadata) } as SyncState;
   } catch (error) {
-    console.warn(`Sync state unavailable for ${syncType}, continuing without it`);
+    console.warn(`[syncState] read exception for ${syncType}/${organizationId}`, error);
     return null;
   }
 };
 
 /**
- * Update sync state with new information
+ * Update sync state for (organizationId, syncType). Uses upsert on the
+ * per-org unique constraint so it is safe when the row doesn't exist yet.
  */
 export const updateSyncState = async (
-  syncType: string, 
+  syncType: string,
+  organizationId: string | null | undefined,
   updates: {
     last_sync_timestamp?: string;
     last_sync_mode?: SyncMode;
@@ -54,65 +78,50 @@ export const updateSyncState = async (
     metadata?: Record<string, any>;
   }
 ): Promise<SyncState | null> => {
+  if (!organizationId) {
+    console.warn(`[syncState] updateSyncState skipped for ${syncType}: missing organizationId`);
+    return null;
+  }
   try {
+    const nowIso = new Date().toISOString();
     const { data, error } = await supabase
       .from('sync_state')
-      .update({
+      .upsert({
+        sync_type: syncType,
+        organization_id: organizationId,
         ...updates,
-        updated_at: new Date().toISOString()
-      })
-      .eq('sync_type', syncType)
+        updated_at: nowIso,
+      }, { onConflict: 'organization_id,sync_type' })
       .select()
-      .single();
-      
+      .maybeSingle();
+
     if (error) {
-      console.warn(`Could not update sync state for ${syncType}:`, error.message);
+      console.warn(`[syncState] upsert failed for ${syncType}/${organizationId}:`, error.message);
       return null;
     }
-    
-    return {
-      ...data,
-      metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : (data.metadata as Record<string, any>) || {}
-    };
+    if (!data) return null;
+    return { ...(data as any), metadata: normalizeMetadata((data as any).metadata) } as SyncState;
   } catch (error) {
-    console.warn(`Sync state update failed for ${syncType}, continuing`);
+    console.warn(`[syncState] upsert exception for ${syncType}/${organizationId}`, error);
     return null;
   }
 };
 
 /**
- * Initialize sync state for a new sync type
+ * Initialize sync state for (organizationId, syncType). Backwards-compatible
+ * wrapper that just does an upsert; kept so existing call-sites still work.
  */
 export const initializeSyncState = async (
   syncType: string,
+  organizationId: string | null | undefined,
   initialMode: SyncMode = 'full',
   initialStatus: SyncStatus = 'pending'
 ): Promise<SyncState | null> => {
-  try {
-    const { data, error } = await supabase
-      .from('sync_state')
-      .insert({
-        sync_type: syncType,
-        last_sync_mode: initialMode,
-        last_sync_status: initialStatus,
-        metadata: {}
-      })
-      .select()
-      .single();
-      
-    if (error) {
-      console.warn(`Could not initialize sync state for ${syncType}:`, error.message);
-      return null;
-    }
-    
-    return {
-      ...data,
-      metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : (data.metadata as Record<string, any>) || {}
-    };
-  } catch (error) {
-    console.warn(`Sync state initialization failed for ${syncType}, continuing`);
-    return null;
-  }
+  return updateSyncState(syncType, organizationId, {
+    last_sync_mode: initialMode,
+    last_sync_status: initialStatus,
+    metadata: {},
+  });
 };
 
 /**
@@ -122,44 +131,30 @@ export const shouldUseIncrementalSync = (
   lastSyncTimestamp: string | null,
   incrementalThresholdHours: number = 24
 ): boolean => {
-  if (!lastSyncTimestamp) {
-    return false; // No previous sync, use full sync
-  }
-  
+  if (!lastSyncTimestamp) return false;
   const lastSync = new Date(lastSyncTimestamp);
-  const now = new Date();
-  const hoursSinceLastSync = (now.getTime() - lastSync.getTime()) / (1000 * 60 * 60);
-  
+  const hoursSinceLastSync = (Date.now() - lastSync.getTime()) / (1000 * 60 * 60);
   return hoursSinceLastSync < incrementalThresholdHours;
 };
 
 /**
- * Get recommended sync mode based on current state
+ * Recommend a sync mode for the given (organizationId, syncType).
  */
-export const getRecommendedSyncMode = async (syncType: string): Promise<SyncMode> => {
+export const getRecommendedSyncMode = async (
+  syncType: string,
+  organizationId: string | null | undefined,
+): Promise<SyncMode> => {
   try {
-    const syncState = await getSyncState(syncType);
-    
-    if (!syncState) {
-      // No sync state exists, recommend full sync
-      return 'full';
-    }
-    
-    // If last sync failed, recommend full sync
-    if (syncState.last_sync_status === 'failed') {
-      return 'full';
-    }
-    
-    // If it's been more than 24 hours since last successful sync, recommend full sync
-    if (syncState.last_sync_status === 'success' && 
+    const syncState = await getSyncState(syncType, organizationId);
+    if (!syncState) return 'full';
+    if (syncState.last_sync_status === 'failed') return 'full';
+    if (syncState.last_sync_status === 'success' &&
         !shouldUseIncrementalSync(syncState.last_sync_timestamp)) {
       return 'full';
     }
-    
-    // Otherwise, incremental sync should be fine
     return 'incremental';
   } catch (error) {
-    console.warn('Error determining sync mode, defaulting to full:', error);
+    console.warn('[syncState] getRecommendedSyncMode failed, defaulting to full:', error);
     return 'full';
   }
 };

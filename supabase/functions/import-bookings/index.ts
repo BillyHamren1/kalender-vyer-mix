@@ -2096,15 +2096,20 @@ serve(async (req) => {
         .from('sync_state')
         .select('last_sync_timestamp')
         .eq('sync_type', 'booking_import')
-        .single()
+        .eq('organization_id', organizationId)
+        .maybeSingle()
       
       lastSyncTimestamp = syncState?.last_sync_timestamp;
-      console.log(`Last sync timestamp: ${lastSyncTimestamp}`);
+      console.log(`[import-bookings] cursor read`, JSON.stringify({
+        organization_id: organizationId,
+        sync_type: 'booking_import',
+        last_sync_timestamp: lastSyncTimestamp,
+      }));
     } else if (isHistoricalImport) {
       console.log('HISTORICAL MODE: Ignoring last sync timestamp, will import all bookings');
     }
 
-    // Update sync state to "in_progress" using UPSERT to avoid constraint violations
+    // Update sync state to "in_progress" using UPSERT with per-org conflict target.
     const currentTimestamp = new Date().toISOString()
     const { error: syncStateError } = await supabase
       .from('sync_state')
@@ -2120,7 +2125,8 @@ serve(async (req) => {
           historical_mode: isHistoricalImport
         },
         updated_at: currentTimestamp
-      }, { onConflict: 'sync_type' })
+      }, { onConflict: 'organization_id,sync_type' })
+
 
     if (syncStateError) {
       console.error('Error updating sync state:', syncStateError)
@@ -2339,7 +2345,7 @@ serve(async (req) => {
             cursor_advanced_to: nextSyncCursor,
           },
           updated_at: importCompletedAt,
-        }, { onConflict: 'sync_type' });
+        }, { onConflict: 'organization_id,sync_type' });
 
       console.log(`[import-bookings] ${queueEventType} batch queued for worker`, JSON.stringify({
         organization_id: organizationId,
@@ -4098,7 +4104,7 @@ serve(async (req) => {
           last_sync_status: 'success',
           metadata: { results, cursor_advanced_to: nextSyncCursor },
           updated_at: finalTimestamp
-        }, { onConflict: 'sync_type' })
+        }, { onConflict: 'organization_id,sync_type' })
 
       if (syncError) {
         console.error('Error saving sync state:', syncError)

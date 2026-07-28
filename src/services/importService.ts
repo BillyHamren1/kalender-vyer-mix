@@ -169,12 +169,12 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
       syncMode = filters.syncMode;
       console.log(`Using manually specified sync mode: ${syncMode}`);
     } else if (!isHistoricalMode) {
-      syncMode = await getRecommendedSyncMode(syncType);
-      console.log(`Using recommended sync mode: ${syncMode}`);
+      syncMode = await getRecommendedSyncMode(syncType, organizationId);
+      console.log(`Using recommended sync mode: ${syncMode} for org ${organizationId}`);
     }
     
     // Update sync state to "in_progress" (non-blocking - sync state is optional)
-    const stateResult = await updateSyncState(syncType, {
+    const stateResult = await updateSyncState(syncType, organizationId, {
       last_sync_status: 'in_progress',
       metadata: { 
         started_at: new Date().toISOString(),
@@ -184,26 +184,27 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
       }
     });
     if (!stateResult) {
-      // Try to initialize if update found no rows
-      await initializeSyncState(syncType, syncMode!, 'in_progress');
+      // Try to initialize if upsert failed
+      await initializeSyncState(syncType, organizationId, syncMode!, 'in_progress');
     }
     
     // Adjust filters for incremental sync (but not for historical mode)
     const enhancedFilters = { ...filters };
     if (syncMode === 'incremental' && !isHistoricalMode) {
       try {
-        const syncState = await getSyncState(syncType);
+        const syncState = await getSyncState(syncType, organizationId);
         if (syncState?.last_sync_timestamp) {
           const lastSyncDate = new Date(syncState.last_sync_timestamp);
           lastSyncDate.setHours(lastSyncDate.getHours() - 1);
           enhancedFilters.startDate = lastSyncDate.toISOString().split('T')[0];
-          console.log(`Incremental sync: fetching bookings updated since ${enhancedFilters.startDate}`);
+          console.log(`Incremental sync: fetching bookings updated since ${enhancedFilters.startDate} for org ${organizationId}`);
         }
       } catch (error) {
         console.warn('Error setting up incremental sync, falling back to full sync:', error);
         syncMode = 'full';
       }
     }
+
     
     // For historical imports, remove any date restrictions
     if (isHistoricalMode) {
@@ -258,7 +259,7 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
       console.error('Error calling import-bookings function:', functionError);
 
 
-      await updateSyncState(syncType, {
+      await updateSyncState(syncType, organizationId, {
         last_sync_status: 'failed',
         metadata: {
           error: functionError.message,
@@ -267,6 +268,7 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
           historical_mode: isHistoricalMode
         }
       });
+
 
       return {
         success: false,
@@ -280,7 +282,7 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
       const details = resultData.details || '';
       const status = resultData.status || 0;
       
-      await updateSyncState(syncType, {
+      await updateSyncState(syncType, organizationId, {
         last_sync_status: 'failed',
         metadata: { 
           error: resultData.error,
@@ -291,6 +293,7 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
           historical_mode: isHistoricalMode
         }
       });
+
       
       return {
         success: false,
@@ -308,7 +311,7 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
     };
     
     // Update sync state to success - this saves the timestamp for next incremental sync
-    await updateSyncState(syncType, {
+    await updateSyncState(syncType, organizationId, {
       last_sync_timestamp: new Date().toISOString(),
       last_sync_status: 'success',
       last_sync_mode: syncMode,
@@ -318,6 +321,7 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
         historical_mode: isHistoricalMode
       }
     });
+
     
     // Show appropriate success message
     const newCount = results.new_bookings?.length || 0;
@@ -380,7 +384,7 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
     console.error('Exception during import:', error);
     
     try {
-      await updateSyncState(syncType, {
+      await updateSyncState(syncType, preResolvedOrgId, {
         last_sync_status: 'failed',
         metadata: { 
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -388,6 +392,7 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
           duration_ms: Date.now() - startTime
         }
       });
+
     } catch (syncError) {
       console.error('Error updating sync state after failure:', syncError);
     }
@@ -430,7 +435,7 @@ export const quietImportBookings = async (filters: ImportFilters = {}): Promise<
     }
 
     // Determine sync mode intelligently
-    const syncMode = filters.syncMode || await getRecommendedSyncMode('booking_import');
+    const syncMode = filters.syncMode || await getRecommendedSyncMode('booking_import', organizationId);
     
     // Call the enhanced import with quiet flag
     const { data: resultData, error: functionError } = await supabase.functions.invoke(
@@ -549,8 +554,10 @@ export const getSyncStatus = async (): Promise<{
   recommendedMode: SyncMode;
 }> => {
   try {
-    const syncState = await getSyncState('booking_import');
-    const recommendedMode = await getRecommendedSyncMode('booking_import');
+    const organizationId = await resolveImportOrganizationId();
+    const syncState = await getSyncState('booking_import', organizationId);
+    const recommendedMode = await getRecommendedSyncMode('booking_import', organizationId);
+
     
     return {
       lastSync: syncState?.last_sync_timestamp || null,
