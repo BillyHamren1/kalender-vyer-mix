@@ -554,8 +554,10 @@ export const getSyncStatus = async (): Promise<{
   recommendedMode: SyncMode;
 }> => {
   try {
-    const syncState = await getSyncState('booking_import');
-    const recommendedMode = await getRecommendedSyncMode('booking_import');
+    const organizationId = await resolveImportOrganizationId();
+    const syncState = await getSyncState('booking_import', organizationId);
+    const recommendedMode = await getRecommendedSyncMode('booking_import', organizationId);
+
     
     return {
       lastSync: syncState?.last_sync_timestamp || null,
