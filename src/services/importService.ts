@@ -259,7 +259,7 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
       console.error('Error calling import-bookings function:', functionError);
 
 
-      await updateSyncState(syncType, {
+      await updateSyncState(syncType, organizationId, {
         last_sync_status: 'failed',
         metadata: {
           error: functionError.message,
@@ -268,6 +268,7 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
           historical_mode: isHistoricalMode
         }
       });
+
 
       return {
         success: false,
