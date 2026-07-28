@@ -169,12 +169,12 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
       syncMode = filters.syncMode;
       console.log(`Using manually specified sync mode: ${syncMode}`);
     } else if (!isHistoricalMode) {
-      syncMode = await getRecommendedSyncMode(syncType);
-      console.log(`Using recommended sync mode: ${syncMode}`);
+      syncMode = await getRecommendedSyncMode(syncType, organizationId);
+      console.log(`Using recommended sync mode: ${syncMode} for org ${organizationId}`);
     }
     
     // Update sync state to "in_progress" (non-blocking - sync state is optional)
-    const stateResult = await updateSyncState(syncType, {
+    const stateResult = await updateSyncState(syncType, organizationId, {
       last_sync_status: 'in_progress',
       metadata: { 
         started_at: new Date().toISOString(),
@@ -184,26 +184,27 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
       }
     });
     if (!stateResult) {
-      // Try to initialize if update found no rows
-      await initializeSyncState(syncType, syncMode!, 'in_progress');
+      // Try to initialize if upsert failed
+      await initializeSyncState(syncType, organizationId, syncMode!, 'in_progress');
     }
     
     // Adjust filters for incremental sync (but not for historical mode)
     const enhancedFilters = { ...filters };
     if (syncMode === 'incremental' && !isHistoricalMode) {
       try {
-        const syncState = await getSyncState(syncType);
+        const syncState = await getSyncState(syncType, organizationId);
         if (syncState?.last_sync_timestamp) {
           const lastSyncDate = new Date(syncState.last_sync_timestamp);
           lastSyncDate.setHours(lastSyncDate.getHours() - 1);
           enhancedFilters.startDate = lastSyncDate.toISOString().split('T')[0];
-          console.log(`Incremental sync: fetching bookings updated since ${enhancedFilters.startDate}`);
+          console.log(`Incremental sync: fetching bookings updated since ${enhancedFilters.startDate} for org ${organizationId}`);
         }
       } catch (error) {
         console.warn('Error setting up incremental sync, falling back to full sync:', error);
         syncMode = 'full';
       }
     }
+
     
     // For historical imports, remove any date restrictions
     if (isHistoricalMode) {
