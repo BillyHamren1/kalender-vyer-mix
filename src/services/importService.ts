@@ -383,7 +383,10 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
     return {
       success: true,
       results,
-    };
+      queued: !!resultData?.queued,
+      completed: resultData?.queued ? !!resultData?.completed : true,
+      batch_id: resultData?.batch_id ?? null,
+    } as ImportResults;
   } catch (error) {
     console.error('Exception during import:', error);
     
