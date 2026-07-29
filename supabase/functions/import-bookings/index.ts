@@ -3182,8 +3182,14 @@ serve(async (req) => {
                 const name = (rawProduct.name || rawProduct.product_name || '').trim();
                 const parentId = rawProduct.parent_product_id || rawProduct.parent_package_id || rawProduct.inventory_package_id || 'root';
                 const isPkg = rawProduct.is_package_component === true;
-                const key = `${name}::${parentId}::${isPkg}`;
-                
+                const extId = getExternalProductId(rawProduct);
+                // Om Booking skickar ett externt id → varje rad är distinkt (två
+                // "Multiflex 6x6" med olika komponenter får INTE slås ihop).
+                // Endast rader UTAN externt id (äkta API-dubbletter) mergas.
+                const key = extId
+                  ? `extid::${extId}`
+                  : `${name}::${parentId}::${isPkg}`;
+
                 if (productKeyMap.has(key)) {
                   const existingIdx = productKeyMap.get(key)!;
                   deduplicatedProducts[existingIdx].quantity = 
@@ -3194,6 +3200,7 @@ serve(async (req) => {
                   deduplicatedProducts.push({ ...rawProduct, quantity: rawProduct.quantity || 1 });
                 }
               }
+
               
               console.log(`[Product Recovery] Processing ${deduplicatedProducts.length} deduplicated products`);
               
@@ -3729,8 +3736,14 @@ serve(async (req) => {
             const name = (product.name || product.product_name || '').trim();
             const parentId = product.parent_product_id || product.parent_package_id || product.inventory_package_id || 'root';
             const isPkg = product.is_package_component === true;
-            const key = `${name}::${parentId}::${isPkg}`;
-            
+            const extId = getExternalProductId(product);
+            // Se getExternalProductId: varje rad från Booking med eget id är
+            // en distinkt orderrad. Två "Multiflex 6x6" med olika
+            // package_components får INTE mergas till en qty=2-rad.
+            const key = extId
+              ? `extid::${extId}`
+              : `${name}::${parentId}::${isPkg}`;
+
             if (productKeyMap.has(key)) {
               // Merge: add quantities
               const existingIdx = productKeyMap.get(key)!;
@@ -3742,6 +3755,7 @@ serve(async (req) => {
               deduplicatedProducts.push({ ...product, quantity: product.quantity || 1 });
             }
           }
+
           
           console.log(`Processing ${deduplicatedProducts.length} deduplicated products for booking ${bookingData.id}`);
 
@@ -3838,8 +3852,13 @@ serve(async (req) => {
 
               // ── MERGE: UPDATE existing or INSERT new ────────────────────────────
               const nameKey = productName.trim().toLowerCase();
-              const existingMatch = existingProductsByName.get(nameKey);
-              
+              const nameMatch = existingProductsByName.get(nameKey);
+              // Om vi redan har återanvänt den befintliga raden (t.ex. två
+              // separata "Multiflex 6x6" med olika komponenter) måste den
+              // andra externa raden bli en ny INSERT — annars skrivs den
+              // första radens produkt/komponenter över.
+              const existingMatch = nameMatch && !seenExistingIds.has(nameMatch.id) ? nameMatch : null;
+
               let upsertedProductId: string | null = null;
               let productError: any = null;
 
@@ -3865,6 +3884,7 @@ serve(async (req) => {
                 if (!insertErr) console.log(`[Merge] Inserted new product "${productName}" (id=${upsertedProductId})`);
               }
               // ────────────────────────────────────────────────────────────────────
+
 
               if (productError) {
                 console.error(`Error upserting product for booking ${bookingData.id}:`, productError)
