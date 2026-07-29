@@ -2,20 +2,25 @@
 /**
  * Shared batch helpers for booking-import synk-flödet.
  *
- * Ansvar:
- * - createBatch: skapa en `sync_batches`-rad + returnera id.
- * - attachJobsToBatch: adoptera existerande pending/processing-jobb till batchen
- *   (så coalesced jobb räknas med) + räkna totalt antal jobb.
- * - finalizeBatchIfDone: kolla om alla jobb i batchen är terminala; om ja,
- *   avancera cursor endast om inga jobb misslyckades.
+ * ANSVAR
+ * - createBatch: skapar en `sync_batches`-rad + returnerar id.
+ * - attachJobsToBatch: säkerställer att det finns EXAKT ett aktivt jobb per
+ *   (org, booking) och kopplar det via `sync_batch_jobs` (many-to-many).
+ *   Samma jobb får tillhöra flera batcher samtidigt — batchen B som "hittar"
+ *   en bokning som redan har ett aktivt jobb i batch A kopplar sig till samma
+ *   jobb i stället för att skapa dubblettarbete.
+ * - finalizeBatchIfDone: delegerar till RPC:n `finalize_sync_batch` som kör
+ *   räkning + statusuppdatering + monoton cursor i EN transaktion med radlås.
  *
- * Cursor-policy:
- *   - ALLA jobb i batchen success  → sync_state.last_sync_timestamp = planned_cursor,
- *                                    last_sync_status = 'success'
- *   - ANY jobb i batchen failed    → sync_state.last_sync_status = 'partial',
- *                                    last_sync_timestamp lämnas orörd (kvar på
- *                                    föregående lyckade batch).
- *   - tomma batchar (total_jobs=0) → 'success' + avancera cursor direkt.
+ * CURSOR-POLICY (server-authoritative)
+ *   - Alla jobb success  → sync_state.last_sync_timestamp = planned_cursor
+ *                          (bara om planned_cursor > existing).
+ *   - Något jobb permanent failed → last_sync_status='partial',
+ *                          last_sync_timestamp lämnas orörd.
+ *   - Tom batch → success + cursor advances.
+ *   - Retriable failed räknas som "pending" (batchen väntar på retry).
+ *
+ * Cursor rör sig ALDRIG bakåt (garanterat av RPC:n).
  */
 
 export interface CreateBatchOpts {
@@ -31,8 +36,9 @@ export interface FinalizeResult {
   succeeded: number;
   failed: number;
   finalized: boolean;
-  status: "pending" | "success" | "partial" | "failed";
+  status: "pending" | "success" | "partial" | "failed" | "unknown";
   cursorAdvancedTo: string | null;
+  monotonicSkip: boolean;
 }
 
 export async function createBatch(
@@ -55,34 +61,110 @@ export async function createBatch(
 }
 
 /**
- * Adopt any pending/processing job for this org+booking set into the batch,
- * then recompute total_jobs on the batch row.
+ * För varje kandidat: (a) säkerställ att det finns ett aktivt jobb (pending/
+ * processing) via upsert med partial unique index; (b) koppla det jobbet till
+ * denna batch i `sync_batch_jobs`. Idempotent — säkert att anropa flera gånger
+ * per batch och tål concurrent race där två imports skapar jobb parallellt.
+ *
+ * @param eventType — sätts på nya jobb; ignoreras när jobbet redan fanns.
+ * @param batchIdForNewJobs — sätts som legacy `booking_sync_jobs.batch_id` för
+ *                             nya jobb (bakåtkompat), men finaliseringen läser
+ *                             ENDAST från `sync_batch_jobs`.
  */
 export async function attachJobsToBatch(
   supabase: any,
   batchId: string,
   organizationId: string,
   bookingIds: string[],
-): Promise<{ totalJobs: number }> {
-  if (bookingIds.length > 0) {
-    const { error: adoptErr } = await supabase
+  eventType: string | null = null,
+  batchIdForNewJobs: string | null = null,
+): Promise<{ totalJobs: number; adoptedExisting: number; createdNew: number }> {
+  let adopted = 0;
+  let created = 0;
+
+  for (const bookingId of bookingIds) {
+    let jobId: string | null = null;
+
+    // 1. Försök hitta befintligt aktivt jobb (pending eller processing).
+    const { data: existing, error: existingErr } = await supabase
       .from("booking_sync_jobs")
-      .update({ batch_id: batchId })
-      .is("batch_id", null)
+      .select("id")
       .eq("organization_id", organizationId)
-      .in("booking_id", bookingIds)
-      .in("status", ["pending", "processing"]);
-    if (adoptErr) {
+      .eq("booking_id", bookingId)
+      .in("status", ["pending", "processing"])
+      .maybeSingle();
+
+    if (existingErr) {
       console.warn(
-        `[syncBatch] attachJobsToBatch adopt failed for batch=${batchId}: ${adoptErr.message}`,
+        `[syncBatch] lookup existing job failed org=${organizationId} booking=${bookingId}: ${existingErr.message}`,
+      );
+    }
+
+    if (existing?.id) {
+      jobId = existing.id;
+      adopted++;
+    } else {
+      // 2. Ingen aktiv rad — försök skapa. Partial unique index kan avvisa
+      //    om en parallell import hann skapa raden mellan vår select och insert.
+      const { data: inserted, error: insertErr } = await supabase
+        .from("booking_sync_jobs")
+        .insert({
+          booking_id: bookingId,
+          organization_id: organizationId,
+          event_type: eventType ?? "booking.incremental",
+          status: "pending",
+          batch_id: batchIdForNewJobs, // legacy fält, ej auktoritativt
+        })
+        .select("id")
+        .single();
+
+      if (insertErr) {
+        // 23505 = unique_violation (race med annan importer)
+        const { data: retryExisting } = await supabase
+          .from("booking_sync_jobs")
+          .select("id")
+          .eq("organization_id", organizationId)
+          .eq("booking_id", bookingId)
+          .in("status", ["pending", "processing"])
+          .maybeSingle();
+
+        if (retryExisting?.id) {
+          jobId = retryExisting.id;
+          adopted++;
+        } else {
+          console.warn(
+            `[syncBatch] failed to insert or find active job for org=${organizationId} booking=${bookingId}: ${insertErr.message}`,
+          );
+          continue;
+        }
+      } else if (inserted?.id) {
+        jobId = inserted.id;
+        created++;
+      }
+    }
+
+    if (!jobId) continue;
+
+    // 3. Koppla jobbet till denna batch (idempotent).
+    const { error: linkErr } = await supabase
+      .from("sync_batch_jobs")
+      .upsert(
+        { batch_id: batchId, job_id: jobId },
+        { onConflict: "batch_id,job_id", ignoreDuplicates: true },
+      );
+    if (linkErr) {
+      console.warn(
+        `[syncBatch] link batch=${batchId} job=${jobId} failed: ${linkErr.message}`,
       );
     }
   }
 
+  // Räkna totalt antal jobb (via kopplingstabellen — samma källa som RPC).
   const { count, error: countErr } = await supabase
-    .from("booking_sync_jobs")
-    .select("id", { count: "exact", head: true })
+    .from("sync_batch_jobs")
+    .select("job_id", { count: "exact", head: true })
     .eq("batch_id", batchId);
+
   if (countErr) {
     console.warn(
       `[syncBatch] count failed for batch=${batchId}: ${countErr.message}`,
@@ -96,57 +178,29 @@ export async function attachJobsToBatch(
     .update({ total_jobs: totalJobs })
     .eq("id", batchId);
 
-  return { totalJobs };
+  console.log(
+    `[syncBatch] batch=${batchId} attached total=${totalJobs} adopted=${adopted} created=${created}`,
+  );
+
+  return { totalJobs, adoptedExisting: adopted, createdNew: created };
 }
 
 /**
- * Called by process-sync-jobs after each job flips to completed/failed.
- * Idempotent — safe to call from multiple workers; the final cursor write
- * uses an UPSERT with per-org conflict target.
+ * Delegerar till DB-RPC `finalize_sync_batch` som atomiskt låser batchraden,
+ * räknar jobb via `sync_batch_jobs`, uppdaterar batchen och driver monoton
+ * cursor. Två samtidiga workers blockeras av radlåset — endast en effekt.
  */
 export async function finalizeBatchIfDone(
   supabase: any,
   batchId: string,
 ): Promise<FinalizeResult> {
-  const { data: batchRow, error: batchErr } = await supabase
-    .from("sync_batches")
-    .select("id, organization_id, sync_type, planned_cursor, status")
-    .eq("id", batchId)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc("finalize_sync_batch", {
+    _batch_id: batchId,
+  });
 
-  if (batchErr || !batchRow) {
-    return {
-      batchId,
-      remaining: 0,
-      succeeded: 0,
-      failed: 0,
-      finalized: false,
-      status: "pending",
-      cursorAdvancedTo: null,
-    };
-  }
-
-  // If already finalized, no-op.
-  if (batchRow.status !== "pending") {
-    return {
-      batchId,
-      remaining: 0,
-      succeeded: 0,
-      failed: 0,
-      finalized: false,
-      status: batchRow.status,
-      cursorAdvancedTo: null,
-    };
-  }
-
-  const { data: jobs, error: jobsErr } = await supabase
-    .from("booking_sync_jobs")
-    .select("status")
-    .eq("batch_id", batchId);
-
-  if (jobsErr) {
+  if (error) {
     console.warn(
-      `[syncBatch] finalize count failed for batch=${batchId}: ${jobsErr.message}`,
+      `[syncBatch] finalize_sync_batch RPC failed for batch=${batchId}: ${error.message}`,
     );
     return {
       batchId,
@@ -156,136 +210,43 @@ export async function finalizeBatchIfDone(
       finalized: false,
       status: "pending",
       cursorAdvancedTo: null,
+      monotonicSkip: false,
     };
   }
 
-  let remaining = 0;
-  let succeeded = 0;
-  let failed = 0;
-  for (const j of jobs ?? []) {
-    if (j.status === "pending" || j.status === "processing") remaining++;
-    else if (j.status === "completed") succeeded++;
-    else if (j.status === "failed") failed++;
-  }
-
-  // Empty batches (total_jobs=0) finalize as success and advance cursor.
-  if ((jobs?.length ?? 0) === 0) {
-    await supabase
-      .from("sync_batches")
-      .update({
-        status: "success",
-        succeeded_jobs: 0,
-        failed_jobs: 0,
-        completed_at: new Date().toISOString(),
-      })
-      .eq("id", batchId)
-      .eq("status", "pending");
-
-    await supabase
-      .from("sync_state")
-      .upsert(
-        {
-          sync_type: batchRow.sync_type,
-          organization_id: batchRow.organization_id,
-          last_sync_timestamp: batchRow.planned_cursor,
-          last_sync_status: "success",
-          metadata: { batch_id: batchId, cursor_advanced_to: batchRow.planned_cursor, empty_batch: true },
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "organization_id,sync_type" },
-      );
-
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) {
     return {
       batchId,
       remaining: 0,
       succeeded: 0,
       failed: 0,
-      finalized: true,
-      status: "success",
-      cursorAdvancedTo: batchRow.planned_cursor,
-    };
-  }
-
-  if (remaining > 0) {
-    return {
-      batchId,
-      remaining,
-      succeeded,
-      failed,
       finalized: false,
-      status: "pending",
+      status: "unknown",
       cursorAdvancedTo: null,
+      monotonicSkip: false,
     };
   }
 
-  const finalStatus: "success" | "partial" = failed === 0 ? "success" : "partial";
-  const nowIso = new Date().toISOString();
+  const result: FinalizeResult = {
+    batchId,
+    remaining: Number(row.remaining ?? 0),
+    succeeded: Number(row.succeeded ?? 0),
+    failed: Number(row.failed ?? 0),
+    finalized: Boolean(row.finalized),
+    status: (row.status ?? "pending") as FinalizeResult["status"],
+    cursorAdvancedTo: row.cursor_advanced_to ?? null,
+    monotonicSkip: Boolean(row.monotonic_skip),
+  };
 
-  await supabase
-    .from("sync_batches")
-    .update({
-      status: finalStatus,
-      succeeded_jobs: succeeded,
-      failed_jobs: failed,
-      completed_at: nowIso,
-    })
-    .eq("id", batchId)
-    .eq("status", "pending"); // only finalize once
-
-  if (finalStatus === "success") {
-    await supabase
-      .from("sync_state")
-      .upsert(
-        {
-          sync_type: batchRow.sync_type,
-          organization_id: batchRow.organization_id,
-          last_sync_timestamp: batchRow.planned_cursor,
-          last_sync_status: "success",
-          metadata: {
-            batch_id: batchId,
-            cursor_advanced_to: batchRow.planned_cursor,
-            succeeded_jobs: succeeded,
-            failed_jobs: 0,
-          },
-          updated_at: nowIso,
-        },
-        { onConflict: "organization_id,sync_type" },
-      );
-
+  if (result.finalized) {
     console.log(
-      `[syncBatch] batch=${batchId} FINAL success — cursor advanced to ${batchRow.planned_cursor}`,
-    );
-  } else {
-    // DO NOT advance last_sync_timestamp on partial batches.
-    await supabase
-      .from("sync_state")
-      .upsert(
-        {
-          sync_type: batchRow.sync_type,
-          organization_id: batchRow.organization_id,
-          last_sync_status: "partial",
-          metadata: {
-            batch_id: batchId,
-            succeeded_jobs: succeeded,
-            failed_jobs: failed,
-            cursor_held_at_previous_success: true,
-          },
-          updated_at: nowIso,
-        },
-        { onConflict: "organization_id,sync_type" },
-      );
-    console.log(
-      `[syncBatch] batch=${batchId} FINAL partial — cursor HELD (succeeded=${succeeded} failed=${failed})`,
+      `[syncBatch] batch=${batchId} finalized status=${result.status} ` +
+        `succeeded=${result.succeeded} failed=${result.failed} ` +
+        `cursor_advanced_to=${result.cursorAdvancedTo ?? "HELD"} ` +
+        `monotonic_skip=${result.monotonicSkip}`,
     );
   }
 
-  return {
-    batchId,
-    remaining: 0,
-    succeeded,
-    failed,
-    finalized: true,
-    status: finalStatus,
-    cursorAdvancedTo: finalStatus === "success" ? batchRow.planned_cursor : null,
-  };
+  return result;
 }

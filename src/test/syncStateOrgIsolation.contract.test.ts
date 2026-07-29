@@ -63,7 +63,7 @@ describe('syncStateService per-organization isolation', () => {
 
   it('updateSyncState upserts with per-org conflict target', async () => {
     const { updateSyncState } = await import('@/services/syncStateService');
-    await updateSyncState('booking_import', 'org-42', { last_sync_status: 'success' });
+    await updateSyncState('booking_import', 'org-42', { metadata: { client_note: 'x' } });
     expect(upsertSpy).toHaveBeenCalledTimes(1);
     const call = upsertSpy.mock.calls[0]!;
     const payload = call[0] as any;
@@ -76,7 +76,7 @@ describe('syncStateService per-organization isolation', () => {
 
   it('updateSyncState skips DB when organizationId missing', async () => {
     const { updateSyncState } = await import('@/services/syncStateService');
-    const result = await updateSyncState('booking_import', undefined, { last_sync_status: 'success' });
+    const result = await updateSyncState('booking_import', undefined, { metadata: { client_note: 'x' } });
     expect(result).toBeNull();
     expect(upsertSpy).not.toHaveBeenCalled();
   });

@@ -1,98 +1,103 @@
 
-## Mål
+# Fix batch- & cursor-hantering i booking-importen
 
-Fixa de kvarvarande felen i sync-cursor för `booking_import` utan att röra kalender, produktsync eller UI. Servern äger cursorn. Cursor flyttas endast när HELA batchen är klar utan fel. Single-booking-syncar rör aldrig batch-cursor/status. Frontend skriver aldrig cursorn.
+Isolerad, kirurgisk uppdatering av batch/cursor-lagret. Ingen bokningsmappning, kalenderreconcile, produktimport eller cancellation-logik ändras.
 
-## Databasmigration
+## 1. Databasmigration (idempotent)
 
-**A. Bättre deduplicering per (org, sync_type)** (idempotent, ersätter den tidigare deduplicerings-migrationen — vi lämnar den gamla orörd men lägger en ny som återstädar rader som skulle sparats "fel" enligt ny prioritet):
+**Nya objekt:**
+- `sync_batch_jobs (batch_id uuid, job_id uuid, created_at timestamptz, PRIMARY KEY(batch_id, job_id))`, FK till `sync_batches(id)` och `booking_sync_jobs(id)`, index på `job_id`. `GRANT ALL` till `service_role`, RLS on + service-role-only-policy (samma som `sync_batches`).
+- Partial UNIQUE index på `booking_sync_jobs(organization_id, booking_id) WHERE status IN ('pending','processing')` — förhindrar race där två samtidiga imports skapar dubblettjobb.
+- Datamigrering: `INSERT INTO sync_batch_jobs SELECT batch_id, id FROM booking_sync_jobs WHERE batch_id IS NOT NULL ON CONFLICT DO NOTHING;` — bevarar befintliga kopplingar.
+- `booking_sync_jobs.batch_id` behålls i schemat men blir bakåtkompatibel/no-op (finaliseringen läser ENDAST från `sync_batch_jobs`).
 
-Prioritet vid dedup:
-1. `last_sync_status = 'success'` med störst `last_sync_timestamp`.
-2. Annars störst `last_sync_timestamp` oavsett status.
-3. Annars `updated_at` DESC.
+**Ny RPC `public.finalize_sync_batch(_batch_id uuid)` (SECURITY DEFINER, plpgsql):**
+Kör atomiskt i EN transaktion:
+1. `SELECT ... FROM sync_batches WHERE id=_batch_id FOR UPDATE` — låser batchraden.
+2. Om `status <> 'pending'` → returnera `{finalized:false, status, cursor_advanced_to:null}`.
+3. Läs alla jobb via join `sync_batch_jobs → booking_sync_jobs`. Räkna pending/processing/completed/failed (samt `permanently_failed = failed AND attempts >= max_attempts`).
+4. Om `pending+processing > 0` → returnera `{finalized:false, status:'pending', remaining}`.
+5. Om `permanently_failed > 0` → sätt batch `status='partial'`, `succeeded/failed_jobs`, `completed_at=now()`. Uppdatera `sync_state` (per (org, sync_type)) med `last_sync_status='partial'` + metadata — men rör INTE `last_sync_timestamp`.
+6. Om alla `completed` → sätt `status='success'`. Monoton cursor-uppdatering:
+   ```sql
+   UPDATE sync_state
+      SET last_sync_timestamp = _planned_cursor,
+          last_sync_status = 'success',
+          last_sync_mode = 'incremental',
+          metadata = jsonb_set(...),
+          updated_at = now()
+    WHERE organization_id = _org AND sync_type = _sync_type
+      AND (last_sync_timestamp IS NULL OR last_sync_timestamp < _planned_cursor);
+   ```
+   Om `ROW_COUNT=0` (befintlig cursor är nyare) → logga via `RAISE NOTICE`, returnera `cursor_advanced_to=null, monotonic_skip=true`.
+7. Om jobb finns i `failed` men fortfarande har `attempts < max_attempts` OCH `next_attempt_at` i framtiden → batch räknas som `pending` (retrying) — inte finaliseras än.
+8. Returnera `TABLE(finalized boolean, status text, succeeded int, failed int, remaining int, cursor_advanced_to timestamptz, monotonic_skip boolean)`.
 
-Använder `DISTINCT ON` + partiell `DELETE`. UNIQUE-constrainten `(organization_id, sync_type)` finns redan från förra migrationen.
+RPC `GRANT EXECUTE ... TO service_role`.
 
-**B. `booking_sync_jobs.batch_id`** (uuid, nullable, indexerad). Bakåtkompatibel — gamla rader har `NULL`.
+Retry-fält: `booking_sync_jobs` har redan `attempts, max_attempts`. Lägg till `next_attempt_at timestamptz` om det saknas. `claim_sync_jobs` filtrerar redan `status='pending' AND (next_attempt_at IS NULL OR next_attempt_at <= now())` — verifieras; annars justeras.
 
-**C. Ny tabell `sync_batches`** med:
-- `id uuid pk`, `organization_id uuid not null`, `sync_type text not null`
-- `planned_cursor timestamptz not null` (satts vid start = `importStartedAt`)
-- `total_jobs int`, `succeeded_jobs int`, `failed_jobs int`
-- `status text` (`pending` | `success` | `partial` | `failed`)
-- `started_at`, `completed_at`, standardstämplar
-- GRANTs enligt regel (endast `service_role` behöver skriva — edge functions kör med den; ingen `anon` eller `authenticated` access)
-- RLS enabled, en policy för `service_role` (via `has_role` behövs inte — service_role bypass:ar RLS ändå men vi ENABLAR RLS + tom policy för hygien).
+## 2. `supabase/functions/_shared/syncBatch.ts`
 
-## Edge Functions
+- `createBatch` oförändrad.
+- **`attachJobsToBatch` (omskriven):** för varje kandidat-`booking_id`:
+  1. Försök `INSERT INTO booking_sync_jobs (booking_id, organization_id, event_type, status='pending', batch_id) ON CONFLICT (organization_id, booking_id) WHERE status IN ('pending','processing') DO NOTHING RETURNING id`.
+  2. Om raden inte skapades (någon annan hade redan ett aktivt jobb) → `SELECT id FROM booking_sync_jobs WHERE organization_id=$1 AND booking_id=$2 AND status IN ('pending','processing') LIMIT 1`.
+  3. `INSERT INTO sync_batch_jobs (batch_id, job_id) VALUES (...) ON CONFLICT DO NOTHING` — idempotent koppling. Samma jobb kan tillhöra flera aktiva batcher.
+  4. Uppdatera `sync_batches.total_jobs` från `COUNT(*) FROM sync_batch_jobs WHERE batch_id=$1`.
+- **`finalizeBatchIfDone` (omskriven):** anropar endast `supabase.rpc('finalize_sync_batch', { _batch_id })` och returnerar resultatet. All logik ligger nu i DB — hindrar race mellan workers, ger atomisk cursor+status-skrivning, garanterar monotonicitet.
 
-### `supabase/functions/import-bookings/index.ts`
+## 3. `supabase/functions/import-bookings/index.ts`
 
-1. **Single-booking-refresh rör aldrig sync_state**: hoppa över `in_progress`-upserten på rad 2114 och final-upserten om `isSingleBookingRefresh`.
-2. **Batch-läge (incremental/full/historical, ej single)**:
-   - Skapa en `sync_batches`-rad före kön: `planned_cursor = importStartedAt`, `status='pending'`.
-   - Uppdatera `sync_state` till `in_progress` (metadata: `batch_id`, `planned_cursor`). **Rör INTE `last_sync_timestamp`.**
-   - `enqueueIncrementalSyncJobs` tar emot `batchId` och sätter `batch_id` på både nyinsertade och existerande pending/processing-jobb (`UPDATE ... SET batch_id = coalesce(batch_id, $1)`). Så coalesced jobb tillhör alltid nuvarande batch.
-   - Sätt `sync_batches.total_jobs = queued + alreadyQueued`. Om `total_jobs = 0` → markera batchen `success` direkt och flytta cursor.
-   - Ta bort rad 2333–2354 som idag skriver `last_sync_timestamp` vid kö.
-3. **Rensa den historiska "inline batch-completion"** vid rad 4090–4122 — vi kör inte längre batch inline i den vägen (kön äger den). Behåll för säkerhets skull men kringgärda med `!isSingleBookingRefresh && !enqueuedForWorker`. I praktiken alltid `enqueuedForWorker=true` på batch nu, så koden träffas inte längre.
-4. **Response-kontrakt** vid kö: `{ success: true, queued: true, completed: false, batch_id, results: { total, queued_jobs } }`. Vid single: som förut plus `queued: false, completed: true`.
+- `enqueueIncrementalSyncJobs`: skapa inte längre jobb via `insert` direkt; anropa `attachJobsToBatch` som gör upsert + koppling. Detta löser many-to-many när samma bokning redan är köad från tidigare batch. Fältet `batch_id` sätts på nya jobb för bakåtkompatibilitet men är inte längre auktoritativ.
+- Steg 4 (den inline `sync_state` upsert som skriver `last_sync_status='in_progress'` efter enqueue) BEHÅLLS men markeras "status only, cursor rörs aldrig". Ingen förändring av `last_sync_timestamp` — bekräftas.
+- Efter `attachJobsToBatch`: om `totalJobs === 0` anropa RPC:n för tom-batch-finalisering direkt (RPC:n hanterar även monoton cursor).
+- Inledande in_progress-upsert (raderna ~2122–2138) BEHÅLLS men verifieras att den inte skriver `last_sync_timestamp`.
+- Single-booking-refresh: `isSingleBookingRefresh` → rör aldrig `sync_state` (redan så, verifieras).
 
-### `supabase/functions/process-sync-jobs/index.ts`
+## 4. `supabase/functions/process-sync-jobs/index.ts`
 
-Ny post-processing i `runOne`:
-1. Efter att jobbraderna markerats `completed`/`failed`, hämta `batch_id` för de uppdaterade raderna (behåll listan i minnet — vi vet redan `group.batchId`? — vi läser `batch_id` från claimed job payload; utöka `ClaimedJob`).
-2. Anropa ny helper `finalizeBatchIfDone(supabase, batchId)`:
-   - `SELECT count(*) filter (where status='pending' or status='processing') AS remaining,
-              count(*) filter (where status='completed') AS ok,
-              count(*) filter (where status='failed') AS bad FROM booking_sync_jobs WHERE batch_id=$1`.
-   - Om `remaining=0`: uppdatera `sync_batches` (`completed_at`, `succeeded_jobs`, `failed_jobs`, `status`) OCH om `bad=0`, upsertsätt `sync_state.last_sync_timestamp = planned_cursor`, `last_sync_status='success'`. Om `bad>0`, sätt `sync_state.last_sync_status='partial'` och flytta **inte** cursor.
-3. Utökade strukturerade loggar med `batch_id`, `remaining`, `ok`, `bad`.
+- Uppdatera claim-loopen: när jobb blir `completed`/`failed` (permanent) → hitta alla batch-id via `sync_batch_jobs` för jobbet (inte bara `job.batch_id`) och trigga RPC-finalisering för varje. Ett jobb som tillhör flera batcher finaliserar då flera batcher korrekt.
+- Retry-hantering: vid retriable fel → sätt `status='pending', attempts=attempts+1, next_attempt_at=now()+INTERVAL '30s'*attempts`. Vid `attempts >= max_attempts` eller permanent fel → `status='failed'`. Nu släpper claim jobbet tillbaka och RPC:n behåller batchen som `pending` medan retries återstår.
 
-Uppdatera SQL-funktionen `claim_sync_jobs` (ny migration eller returnera `batch_id` via `SELECT *`) — den returnerar redan `SETOF booking_sync_jobs`, så när kolumnen finns kommer den med gratis. Bara type-uppdateringen på klienten (`ClaimedJob.batch_id`).
+## 5. Frontend
 
-### `_shared` helper
+**`src/services/syncStateService.ts`:**
+- `updateSyncState` skalas ner till ENDAST `metadata` (för lokal UI-metadata om det ens behövs). Ta bort `last_sync_status` och `last_sync_mode` från update-ytan.
+- Alternativt: exportera `readSyncState` (=`getSyncState`) och ta bort `updateSyncState/initializeSyncState` helt. Behåll endast läsning.
 
-Ny fil `supabase/functions/_shared/syncBatch.ts` med `createBatch`, `attachJobsToBatch`, `finalizeBatchIfDone` — så både `import-bookings` och `process-sync-jobs` delar logiken.
+**`src/services/importService.ts`:**
+- Ta bort ALLA `updateSyncState`-anrop (raderna 183, 268, 291, 323, 400). Ersätt med lokal `console.log` + toast.
+- `getSyncStatus` läser fortfarande från `sync_state` via `getSyncState` — det är läsning, tillåtet.
+- Behåll `queued`/`completed`/`batch_id` i returkontraktet.
 
-## Frontend
+**`src/services/__tests__/`** + `src/test/`: uppdatera befintliga tester som antog att `updateSyncState` fanns.
 
-### `src/services/syncStateService.ts`
-- Ta bort `last_sync_timestamp` ur `updateSyncState`-signaturen (typenivå + runtime strip). Alla frontend-anrop kan bara skriva `last_sync_status`/`last_sync_mode`/`metadata`.
-- Runtime-guard: om caller ändå skickar `last_sync_timestamp`, logga varning och droppa fältet.
+## 6. `reconcile-booking-status/index.ts`
 
-### `src/services/importService.ts`
-- Ta bort blocket vid rad 313–323 som skriver `last_sync_timestamp` — frontend rör aldrig cursorn.
-- Uppdatera post-response-hanteringen så att `queued: true` inte visar "sync completed" — ska visa "sync started" (finns delvis redan).
-- Behåll `updateSyncState(..., { last_sync_status: 'failed', metadata })` vid rena frontend-fel (server nåddes aldrig) — men helst logga bara. Vi behåller `failed` för att UI ska kunna visa senaste körning; det överskrivs sen av servern.
-- Returnera `completed: false` i `ImportResults` när servern svarar `queued: true`, `completed: true` annars.
+Rader 184–186 skriver `sync_state` direkt. Behålls (den funktionen kör sin egen reconcile och äger sin egen sync_type — inte `booking_import`), men verifieras att den använder en egen `sync_type` (t.ex. `'reconcile_booking_status'`) så den inte krockar med batch-cursorn. Om samma sync_type används → byt namn. **Ingen annan förändring av reconcile-logik.**
 
-### Tester
-Nya/uppdaterade Vitest-filer:
-- `src/test/syncCursorServerAuthority.contract.test.ts` — verifierar att `importService` **aldrig** skickar `last_sync_timestamp` till `updateSyncState`.
-- `src/test/syncStateOrgIsolation.contract.test.ts` — utöka: `updateSyncState` accepterar inte `last_sync_timestamp` (runtime droppas).
-- `supabase/functions/import-bookings/singleBookingCursorGuard.contract.test.ts` — enhetstest som mockar supabase och kör vägen `syncMode='single'`; asserta att `sync_state` INTE upsertas.
-- `supabase/functions/_shared/syncBatch.contract.test.ts` — `finalizeBatchIfDone` avancerar cursor endast när `remaining=0 && bad=0`.
+## 7. Tester (`src/test/` + `supabase/functions/_shared/`)
 
-## Filer som ändras
+Nya kontraktstester:
+- `batchManyToManyCoalescing.contract.test.ts` — TEST 1–4: två batcher delar samma jobb, båda får relation, båda finaliseras korrekt vid success, ingen får flytta cursor vid failure.
+- `batchCursorMonotonic.contract.test.ts` — TEST 5: äldre batch slutförs senare, cursor rör sig inte bakåt.
+- `batchFinalizeAtomic.contract.test.ts` — TEST 6: två workers finaliserar samma batch, endast en effekt (mockar RPC-idempotens).
+- `batchRetrySameBatch.contract.test.ts` — TEST 7 & 8: retriable→success, permanent failed→held cursor.
+- `frontendCannotWriteSyncState.contract.test.ts` — TEST 9: `syncStateService.updateSyncState` finns inte / rör inte kanoniska fält.
+- `batchOrgIsolation.contract.test.ts` — TEST 10: org A ↛ org B.
+- `batchMigrationBackfill.contract.test.ts` — TEST 11: befintliga `batch_id`-kopplingar bevaras i `sync_batch_jobs`.
 
-**Skapas:**
-- `supabase/migrations/<ts>_sync_batches_and_dedup.sql`
-- `supabase/functions/_shared/syncBatch.ts`
-- `supabase/functions/_shared/syncBatch.contract.test.ts`
-- `supabase/functions/import-bookings/singleBookingCursorGuard.contract.test.ts`
-- `src/test/syncCursorServerAuthority.contract.test.ts`
+RPC-logik (DB-sidan) täcks via mockad supabase-klient som simulerar `rpc('finalize_sync_batch',...)`. Renodlade SQL-tester är inte praktiska i vitest-miljön; RPC-koden verifieras genom att tester kontrollerar att `finalizeBatchIfDone` anropar `.rpc(...)` med rätt args och propagerar returvärdet, samt att `attachJobsToBatch` alltid gör `INSERT ... ON CONFLICT DO NOTHING` mot `sync_batch_jobs`.
 
-**Ändras:**
-- `supabase/functions/import-bookings/index.ts` (single-guard, batch skapas, cursor-writes bort)
-- `supabase/functions/process-sync-jobs/index.ts` (batch-finalisering, `batch_id` i claim)
-- `src/services/syncStateService.ts` (ta bort `last_sync_timestamp` från update-yta)
-- `src/services/importService.ts` (ta bort client cursor-write)
-- `src/test/syncStateOrgIsolation.contract.test.ts` (utöka)
+## 8. Verifiering
 
-## Vad som INTE ändras
+- `tsgo` typecheck.
+- `bunx vitest run src/test/ src/services/__tests__/ supabase/functions/_shared/` (batch- och sync-relaterade).
+- `supabase/functions/import-bookings/statusDemoteProductGuard.contract.test.ts` fortfarande grön.
 
-Kalender, bokningsstatus, produktsync, webhookkö-schema (utom kolumn `batch_id`), UI, RLS för `sync_state`/`booking_sync_jobs`.
+## Kvarvarande risker
 
-Vill du att jag går vidare och implementerar hela paketet?
+- Nya partial unique index på `booking_sync_jobs` kan konflikta med befintlig data om det redan finns dubbletter. Migrationen deduperar först (behåller senaste) och skapar sedan indexet.
+- Reconcile-funktionens sync_type-namn kontrolleras men logiken rörs inte i övrigt.
+- Retry-schemat använder enkel exponential backoff (30s * attempts) — kan justeras senare.
