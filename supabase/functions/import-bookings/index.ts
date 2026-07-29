@@ -3736,8 +3736,14 @@ serve(async (req) => {
             const name = (product.name || product.product_name || '').trim();
             const parentId = product.parent_product_id || product.parent_package_id || product.inventory_package_id || 'root';
             const isPkg = product.is_package_component === true;
-            const key = `${name}::${parentId}::${isPkg}`;
-            
+            const extId = getExternalProductId(product);
+            // Se getExternalProductId: varje rad från Booking med eget id är
+            // en distinkt orderrad. Två "Multiflex 6x6" med olika
+            // package_components får INTE mergas till en qty=2-rad.
+            const key = extId
+              ? `extid::${extId}`
+              : `${name}::${parentId}::${isPkg}`;
+
             if (productKeyMap.has(key)) {
               // Merge: add quantities
               const existingIdx = productKeyMap.get(key)!;
@@ -3749,6 +3755,7 @@ serve(async (req) => {
               deduplicatedProducts.push({ ...product, quantity: product.quantity || 1 });
             }
           }
+
           
           console.log(`Processing ${deduplicatedProducts.length} deduplicated products for booking ${bookingData.id}`);
 
