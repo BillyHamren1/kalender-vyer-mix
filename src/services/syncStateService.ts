@@ -65,14 +65,18 @@ export const getSyncState = async (
 };
 
 /**
- * Update sync state for (organizationId, syncType). Uses upsert on the
- * per-org unique constraint so it is safe when the row doesn't exist yet.
+ * Update sync state for (organizationId, syncType).
+ *
+ * IMPORTANT: `last_sync_timestamp` is intentionally NOT part of the update
+ * surface. The batch cursor is server-owned (advanced by process-sync-jobs
+ * via finalizeBatchIfDone in supabase/functions/_shared/syncBatch.ts). If a
+ * caller ever passes it in (e.g. legacy code), we strip it at runtime and log
+ * a warning — the frontend is never allowed to drive the cursor.
  */
 export const updateSyncState = async (
   syncType: string,
   organizationId: string | null | undefined,
   updates: {
-    last_sync_timestamp?: string;
     last_sync_mode?: SyncMode;
     last_sync_status?: SyncStatus;
     metadata?: Record<string, any>;
@@ -81,6 +85,13 @@ export const updateSyncState = async (
   if (!organizationId) {
     console.warn(`[syncState] updateSyncState skipped for ${syncType}: missing organizationId`);
     return null;
+  }
+  // Runtime guard: strip any accidental cursor write from a caller.
+  if ((updates as any).last_sync_timestamp !== undefined) {
+    console.warn(
+      `[syncState] updateSyncState dropped last_sync_timestamp from caller — cursor is server-owned (${syncType}/${organizationId})`,
+    );
+    delete (updates as any).last_sync_timestamp;
   }
   try {
     const nowIso = new Date().toISOString();
