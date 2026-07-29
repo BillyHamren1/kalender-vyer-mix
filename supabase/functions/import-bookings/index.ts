@@ -2114,26 +2114,31 @@ serve(async (req) => {
     }
 
     // Update sync state to "in_progress" using UPSERT with per-org conflict target.
-    const currentTimestamp = new Date().toISOString()
-    const { error: syncStateError } = await supabase
-      .from('sync_state')
-      .upsert({
-        sync_type: 'booking_import',
-        organization_id: organizationId,
-        last_sync_status: 'in_progress',
-        last_sync_mode: syncMode,
-        metadata: { 
-          started_at: currentTimestamp,
-          sync_mode: syncMode,
-          filters: { startDate, endDate },
-          historical_mode: isHistoricalImport
-        },
-        updated_at: currentTimestamp
-      }, { onConflict: 'organization_id,sync_type' })
+    // Single-booking refreshes must NEVER touch the batch cursor/status — they are
+    // per-booking side channels and would otherwise poison the incremental window.
+    if (!isSingleBookingRefresh) {
+      const currentTimestamp = new Date().toISOString()
+      const { error: syncStateError } = await supabase
+        .from('sync_state')
+        .upsert({
+          sync_type: 'booking_import',
+          organization_id: organizationId,
+          last_sync_status: 'in_progress',
+          last_sync_mode: syncMode,
+          metadata: {
+            started_at: currentTimestamp,
+            sync_mode: syncMode,
+            filters: { startDate, endDate },
+            historical_mode: isHistoricalImport
+          },
+          updated_at: currentTimestamp
+        }, { onConflict: 'organization_id,sync_type' })
 
-
-    if (syncStateError) {
-      console.error('Error updating sync state:', syncStateError)
+      if (syncStateError) {
+        console.error('Error updating sync state:', syncStateError)
+      }
+    } else {
+      console.log('[import-bookings] single-booking refresh — skipping sync_state in_progress upsert (cursor policy)')
     }
 
     // ── LOCAL-ONLY MODE ─────────────────────────────────────────────────
