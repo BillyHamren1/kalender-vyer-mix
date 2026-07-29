@@ -74,7 +74,8 @@ serve(async (req) => {
   // ── 2. Group claimed job IDs by (organization_id, booking_id) ───────
   // Multiple webhook rows for the same booking coalesce into ONE import call;
   // we still update all those job rows together at the end.
-  const groups = new Map<string, { organization_id: string; booking_id: string; event_type: string | null; jobIds: string[] }>()
+  const groups = new Map<string, { organization_id: string; booking_id: string; event_type: string | null; jobIds: string[]; batchIds: Set<string> }>()
+  const allBatchIds = new Set<string>()
   for (const job of jobs) {
     if (!job.booking_id || !job.organization_id) {
       // No booking_id/org → cannot refresh; mark as failed so it doesn't loop.
@@ -86,6 +87,7 @@ serve(async (req) => {
           processed_at: new Date().toISOString(),
         })
         .eq('id', job.id)
+      if (job.batch_id) allBatchIds.add(job.batch_id)
       continue
     }
     const key = `${job.organization_id}::${job.booking_id}`
@@ -94,10 +96,15 @@ serve(async (req) => {
       booking_id: job.booking_id,
       event_type: job.event_type ?? null,
       jobIds: [],
+      batchIds: new Set<string>(),
     }
     // Keep the most specific event_type if one of the coalesced jobs has it
     if (!entry.event_type && job.event_type) entry.event_type = job.event_type
     entry.jobIds.push(job.id)
+    if (job.batch_id) {
+      entry.batchIds.add(job.batch_id)
+      allBatchIds.add(job.batch_id)
+    }
     groups.set(key, entry)
   }
 
