@@ -1598,7 +1598,7 @@ const getProductsSignature = (products: any[]): string => {
  * Check if products have changed between external and existing data
  * Returns { changed: boolean, added: string[], removed: string[], updated: string[] }
  */
-const checkProductChanges = async (
+export const checkProductChanges = async (
   supabase: any, 
   bookingId: string, 
   externalProducts: any[]
@@ -1609,20 +1609,19 @@ const checkProductChanges = async (
   updated: string[];
   existingProducts: any[];
 }> => {
-  // Fetch existing products
+  // Fetch existing products (include price/notes/sku/vat/discount/tags to detect content changes,
+  // not just add/remove/quantity — otherwise price-only or notes-only edits in Booking never sync)
   const { data: existingProducts, error } = await supabase
     .from('booking_products')
-    .select('id, name, quantity')
+    .select('id, name, quantity, unit_price, total_price, notes, sku, vat_rate, discount, tags')
     .eq('booking_id', bookingId);
-  
+
   if (error) {
     console.error(`Error fetching existing products for ${bookingId}:`, error);
     return { changed: false, added: [], removed: [], updated: [], existingProducts: [] };
   }
 
   // GUARD: Treat empty external payload as transient/missing source, NOT as deletion intent.
-  // The upstream booking system can momentarily return products: [] during its own
-  // delete+reinsert cycle. We must NEVER wipe local products in that window.
   const externalCount = Array.isArray(externalProducts) ? externalProducts.length : 0;
   const localCount = (existingProducts || []).length;
   if (externalCount === 0 && localCount > 0) {
@@ -1645,36 +1644,62 @@ const checkProductChanges = async (
     return { changed: false, added: [], removed: [], updated: [], existingProducts: existingProducts || [] };
   }
 
+  const num = (v: any): number => {
+    const n = typeof v === 'number' ? v : parseFloat(v);
+    return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+  };
+  const str = (v: any): string => (v ?? '').toString().trim();
+  const tagsSig = (v: any): string => (Array.isArray(v) ? [...v].map(str).sort().join(',') : '');
+
   const existingMap = new Map((existingProducts || []).map((p: any) => [(p.name || '').trim().toLowerCase(), p]));
   const externalMap = new Map((externalProducts || []).map(p => [(p.name || p.product_name || '').trim().toLowerCase(), p]));
-  
+
   const added: string[] = [];
   const removed: string[] = [];
   const updated: string[] = [];
-  
-  // Check for added and updated products
+
+  // Check for added and updated products (name, quantity, price, notes, sku, vat, discount, tags)
   for (const [name, extProduct] of externalMap as Map<string, any>) {
     const existing = existingMap.get(name) as any;
     if (!existing) {
       added.push(extProduct.name || extProduct.product_name || 'Unknown');
-    } else if (existing.quantity !== (extProduct.quantity || 1)) {
-      updated.push(`${extProduct.name || extProduct.product_name}: ${existing.quantity} → ${extProduct.quantity || 1}`);
+      continue;
+    }
+
+    const extQty = extProduct.quantity ?? 1;
+    const extUnitPriceRaw = extProduct.unit_price ?? extProduct.price ?? extProduct.rental_price ?? extProduct.cost ?? null;
+    const extTotalPrice = extProduct.total ?? (extUnitPriceRaw != null ? extUnitPriceRaw * extQty : null);
+    const extNotes = extProduct.notes ?? extProduct.description ?? null;
+    const extSku = extProduct.sku ?? extProduct.article_number ?? null;
+
+    const diffs: string[] = [];
+    if ((existing.quantity ?? 0) !== extQty) diffs.push(`qty ${existing.quantity}→${extQty}`);
+    if (num(existing.unit_price) !== num(extUnitPriceRaw)) diffs.push(`unit ${existing.unit_price}→${extUnitPriceRaw}`);
+    if (num(existing.total_price) !== num(extTotalPrice)) diffs.push(`total ${existing.total_price}→${extTotalPrice}`);
+    if (str(existing.notes) !== str(extNotes)) diffs.push('notes');
+    if (str(existing.sku) !== str(extSku)) diffs.push('sku');
+    if (extProduct.vat_rate != null && num(existing.vat_rate) !== num(extProduct.vat_rate)) diffs.push('vat');
+    if (extProduct.discount != null && num(existing.discount) !== num(extProduct.discount)) diffs.push('discount');
+    if (extProduct.tags != null && tagsSig(existing.tags) !== tagsSig(extProduct.tags)) diffs.push('tags');
+
+    if (diffs.length > 0) {
+      updated.push(`${extProduct.name || extProduct.product_name}: ${diffs.join(', ')}`);
     }
   }
-  
+
   // Check for removed products
   for (const [name, existingProduct] of existingMap as Map<string, any>) {
     if (!externalMap.has(name)) {
       removed.push(existingProduct.name);
     }
   }
-  
+
   const changed = added.length > 0 || removed.length > 0 || updated.length > 0;
-  
+
   if (changed) {
     console.log(`[Product Changes] Booking ${bookingId}: +${added.length} added, -${removed.length} removed, ~${updated.length} updated`);
   }
-  
+
   return { changed, added, removed, updated, existingProducts: existingProducts || [] };
 };
 
