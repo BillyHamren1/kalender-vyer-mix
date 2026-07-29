@@ -373,6 +373,7 @@ async function enqueueIncrementalSyncJobs(
   bookings: any[],
   organizationId: string,
   eventTypeHint?: string | null,
+  batchId?: string | null,
 ) {
   const uniqueBookingIds = Array.from(new Set(
     (bookings || [])
@@ -381,7 +382,7 @@ async function enqueueIncrementalSyncJobs(
   ));
 
   if (uniqueBookingIds.length === 0) {
-    return { queued: 0, alreadyQueued: 0, totalCandidates: 0 };
+    return { queued: 0, alreadyQueued: 0, totalCandidates: 0, bookingIds: [] as string[] };
   }
 
   const { data: activeJobs, error: activeJobsError } = await supabase
@@ -403,6 +404,7 @@ async function enqueueIncrementalSyncJobs(
       organization_id: organizationId,
       event_type: eventTypeHint || 'booking.incremental',
       status: 'pending',
+      batch_id: batchId ?? null,
     }));
 
   const INSERT_BATCH_SIZE = 200;
@@ -421,6 +423,7 @@ async function enqueueIncrementalSyncJobs(
     queued: jobsToInsert.length,
     alreadyQueued: uniqueBookingIds.length - jobsToInsert.length,
     totalCandidates: uniqueBookingIds.length,
+    bookingIds: uniqueBookingIds,
   };
 }
 
