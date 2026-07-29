@@ -3182,8 +3182,14 @@ serve(async (req) => {
                 const name = (rawProduct.name || rawProduct.product_name || '').trim();
                 const parentId = rawProduct.parent_product_id || rawProduct.parent_package_id || rawProduct.inventory_package_id || 'root';
                 const isPkg = rawProduct.is_package_component === true;
-                const key = `${name}::${parentId}::${isPkg}`;
-                
+                const extId = getExternalProductId(rawProduct);
+                // Om Booking skickar ett externt id → varje rad är distinkt (två
+                // "Multiflex 6x6" med olika komponenter får INTE slås ihop).
+                // Endast rader UTAN externt id (äkta API-dubbletter) mergas.
+                const key = extId
+                  ? `extid::${extId}`
+                  : `${name}::${parentId}::${isPkg}`;
+
                 if (productKeyMap.has(key)) {
                   const existingIdx = productKeyMap.get(key)!;
                   deduplicatedProducts[existingIdx].quantity = 
@@ -3194,6 +3200,7 @@ serve(async (req) => {
                   deduplicatedProducts.push({ ...rawProduct, quantity: rawProduct.quantity || 1 });
                 }
               }
+
               
               console.log(`[Product Recovery] Processing ${deduplicatedProducts.length} deduplicated products`);
               
