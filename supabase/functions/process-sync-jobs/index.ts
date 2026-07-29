@@ -221,11 +221,36 @@ serve(async (req) => {
   }
   await Promise.all(workers)
 
+  // ── 4. Finalize any batches whose jobs are now all terminal ─────────
+  // We probe every batch touched by this worker run; finalizeBatchIfDone is
+  // idempotent and cheap (single count query).
+  const finalizations: Array<Awaited<ReturnType<typeof finalizeBatchIfDone>>> = []
+  for (const batchId of allBatchIds) {
+    try {
+      const res = await finalizeBatchIfDone(supabase, batchId)
+      finalizations.push(res)
+      if (res.finalized) {
+        console.log(
+          `[process-sync-jobs] batch=${batchId} finalized status=${res.status} ` +
+          `succeeded=${res.succeeded} failed=${res.failed} cursor_advanced_to=${res.cursorAdvancedTo ?? 'HELD'}`
+        )
+      } else {
+        console.log(
+          `[process-sync-jobs] batch=${batchId} not yet done remaining=${res.remaining}`
+        )
+      }
+    } catch (err: any) {
+      console.error(`[process-sync-jobs] finalize batch=${batchId} failed`, err?.message ?? err)
+    }
+  }
+
   return new Response(
     JSON.stringify({
       processed_jobs: jobs.length,
       unique_bookings: groups.size,
       results,
+      batches_probed: finalizations.length,
+      batches_finalized: finalizations.filter((f) => f.finalized).length,
     }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
