@@ -55,6 +55,12 @@ export interface ImportResults {
   error?: string;
   details?: string;
   status?: number;
+  /** True when the server enqueued the work to the background worker. */
+  queued?: boolean;
+  /** True when the sync is fully applied; false when still running in the worker. */
+  completed?: boolean;
+  /** Server-owned batch id (only for queued batch syncs). */
+  batch_id?: string | null;
 }
 
 // Enhanced type for filter options with historical support
