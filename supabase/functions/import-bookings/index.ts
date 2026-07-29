@@ -3,6 +3,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { normalizeBookingStatus } from '../_shared/booking-status.ts'
+import { createBatch, attachJobsToBatch } from '../_shared/syncBatch.ts'
 
 /**
  * Resolve the organization_id to use for all INSERTs.
