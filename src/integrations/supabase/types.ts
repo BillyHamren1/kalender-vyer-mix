@@ -905,6 +905,7 @@ export type Database = {
           event_type: string
           id: string
           max_attempts: number
+          next_attempt_at: string | null
           organization_id: string
           processed_at: string | null
           received_at: string
@@ -920,6 +921,7 @@ export type Database = {
           event_type?: string
           id?: string
           max_attempts?: number
+          next_attempt_at?: string | null
           organization_id: string
           processed_at?: string | null
           received_at?: string
@@ -935,6 +937,7 @@ export type Database = {
           event_type?: string
           id?: string
           max_attempts?: number
+          next_attempt_at?: string | null
           organization_id?: string
           processed_at?: string | null
           received_at?: string
@@ -7656,6 +7659,39 @@ export type Database = {
           },
         ]
       }
+      sync_batch_jobs: {
+        Row: {
+          batch_id: string
+          created_at: string
+          job_id: string
+        }
+        Insert: {
+          batch_id: string
+          created_at?: string
+          job_id: string
+        }
+        Update: {
+          batch_id?: string
+          created_at?: string
+          job_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sync_batch_jobs_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "sync_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sync_batch_jobs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "booking_sync_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sync_batches: {
         Row: {
           completed_at: string | null
@@ -10411,6 +10447,7 @@ export type Database = {
           event_type: string
           id: string
           max_attempts: number
+          next_attempt_at: string | null
           organization_id: string
           processed_at: string | null
           received_at: string
@@ -10459,6 +10496,18 @@ export type Database = {
       ensure_internal_warehouse_project: {
         Args: { _org_id: string }
         Returns: string
+      }
+      finalize_sync_batch: {
+        Args: { _batch_id: string }
+        Returns: {
+          cursor_advanced_to: string
+          failed: number
+          finalized: boolean
+          monotonic_skip: boolean
+          remaining: number
+          status: string
+          succeeded: number
+        }[]
       }
       get_job_chat_summary: {
         Args: { _booking_ids: string[]; _my_ids: string[]; _org_id: string }

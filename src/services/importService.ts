@@ -179,20 +179,17 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
       console.log(`Using recommended sync mode: ${syncMode} for org ${organizationId}`);
     }
     
-    // Update sync state to "in_progress" (non-blocking - sync state is optional)
-    const stateResult = await updateSyncState(syncType, organizationId, {
-      last_sync_status: 'in_progress',
-      metadata: { 
-        started_at: new Date().toISOString(),
-        sync_mode: syncMode,
-        filters,
-        historical_mode: isHistoricalMode
-      }
+    // Frontend får ALDRIG skriva last_sync_status/last_sync_mode/last_sync_timestamp.
+    // Server (createBatch/finalize_sync_batch) äger dessa. Vi loggar bara UI-hint
+    // i metadata så att admin ser att en import initierades härifrån.
+    await updateSyncState(syncType, organizationId, {
+      metadata: {
+        client_started_at: new Date().toISOString(),
+        client_intended_sync_mode: syncMode,
+        client_filters: filters,
+        client_historical_mode: isHistoricalMode,
+      },
     });
-    if (!stateResult) {
-      // Try to initialize if upsert failed
-      await initializeSyncState(syncType, organizationId, syncMode!, 'in_progress');
-    }
     
     // Adjust filters for incremental sync (but not for historical mode)
     const enhancedFilters = { ...filters };
@@ -266,12 +263,11 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
 
 
       await updateSyncState(syncType, organizationId, {
-        last_sync_status: 'failed',
         metadata: {
-          error: functionError.message,
-          sync_mode: syncMode,
-          duration_ms: syncDurationMs,
-          historical_mode: isHistoricalMode
+          client_error: functionError.message,
+          client_sync_mode: syncMode,
+          client_duration_ms: syncDurationMs,
+          client_historical_mode: isHistoricalMode,
         }
       });
 
@@ -289,14 +285,13 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
       const status = resultData.status || 0;
       
       await updateSyncState(syncType, organizationId, {
-        last_sync_status: 'failed',
-        metadata: { 
-          error: resultData.error,
-          details,
-          status,
-          sync_mode: syncMode,
-          duration_ms: syncDurationMs,
-          historical_mode: isHistoricalMode
+        metadata: {
+          client_error: resultData.error,
+          client_details: details,
+          client_status: status,
+          client_sync_mode: syncMode,
+          client_duration_ms: syncDurationMs,
+          client_historical_mode: isHistoricalMode,
         }
       });
 
@@ -321,14 +316,13 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
     // finishes without failures. We only mirror status/mode/metadata here for
     // UI feedback; the authoritative cursor comes from the server.
     await updateSyncState(syncType, organizationId, {
-      last_sync_status: resultData?.queued ? 'in_progress' : 'success',
-      last_sync_mode: syncMode,
       metadata: {
         ...results,
-        completed_at: new Date().toISOString(),
-        historical_mode: isHistoricalMode,
-        queued: !!resultData?.queued,
-        batch_id: resultData?.batch_id ?? null,
+        client_completed_at: new Date().toISOString(),
+        client_historical_mode: isHistoricalMode,
+        client_queued: !!resultData?.queued,
+        client_batch_id: resultData?.batch_id ?? null,
+        client_sync_mode: syncMode,
       }
     });
 
@@ -398,11 +392,10 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
     
     try {
       await updateSyncState(syncType, preResolvedOrgId, {
-        last_sync_status: 'failed',
-        metadata: { 
-          error: error instanceof Error ? error.message : 'Unknown error',
-          sync_mode: syncMode || 'unknown',
-          duration_ms: Date.now() - startTime
+        metadata: {
+          client_error: error instanceof Error ? error.message : 'Unknown error',
+          client_sync_mode: syncMode || 'unknown',
+          client_duration_ms: Date.now() - startTime,
         }
       });
 

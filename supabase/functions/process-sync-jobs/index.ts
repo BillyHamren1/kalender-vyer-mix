@@ -2,25 +2,17 @@
 /**
  * process-sync-jobs — Durable worker for booking sync queue.
  *
- * NEW MODEL (per-booking refresh):
- *   - Claim a batch of pending jobs.
- *   - For each unique booking_id, call import-bookings with
- *     syncMode='single' + booking_id so the external API is asked for that
- *     specific booking and the result is actually persisted to the local
- *     `bookings`/`calendar_events` tables.
- *   - Only mark a job as completed when the import actually applied
- *     (single-booking refresh path runs inline and writes to DB).
+ * BATCH-MODEL (server-authoritative cursor):
+ *   - Ett jobb kan tillhöra flera batcher samtidigt via `sync_batch_jobs`.
+ *   - När ett jobb blir terminalt (completed/failed) letar vi upp ALLA batcher
+ *     som pekar på jobbet och kör `finalize_sync_batch` för var och en.
+ *   - RPC:n låser batchen atomiskt och flyttar cursorn ENDAST framåt.
  *
- * Why we left the old "coalesced incremental per org" model behind:
- *   It used `syncMode='incremental'` with a `since` cursor. The cursor was
- *   advanced even when the external API returned 0 rows for the window,
- *   which silently dropped real webhook updates (the booking row in Planning
- *   stayed stale while the queue showed `completed`). See booking 2605-5
- *   (2026-06-04): multiple queue rows marked completed within minutes,
- *   bookings.updated_at unchanged from the previous evening.
- *
- * Manual single-booking refreshes (admin UI etc.) still go directly to
- * import-bookings with `booking_id` — they bypass this queue entirely.
+ * RETRY-POLICY:
+ *   - Retriable fel (nätverk/timeouts/5xx) → status='pending',
+ *     next_attempt_at = now() + 30s * attempts (exponential backoff).
+ *   - Permanent fel eller attempts >= max_attempts → status='failed'.
+ *   - Batchen håller cursorn så länge det finns retriable jobb kvar.
  */
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
@@ -40,6 +32,21 @@ interface ClaimedJob {
   organization_id: string
   event_type: string | null
   batch_id: string | null
+  attempts: number
+  max_attempts: number
+}
+
+/** Klassar felmeddelanden. Nätverks-/timeout-/5xx-fel är retriable. */
+function isRetriableError(errMsg: string): boolean {
+  const m = errMsg.toLowerCase()
+  if (m.includes('timeout') || m.includes('etimedout')) return true
+  if (m.includes('econnreset') || m.includes('econnrefused')) return true
+  if (m.includes('fetch failed') || m.includes('network')) return true
+  // 5xx från externa API:t
+  if (/\b5\d\d\b/.test(m)) return true
+  // 429 rate limit
+  if (m.includes('429') || m.includes('rate limit')) return true
+  return false
 }
 
 serve(async (req) => {
@@ -51,7 +58,7 @@ serve(async (req) => {
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   const supabase = createClient(supabaseUrl, serviceRoleKey)
 
-  // ── 1. Claim a batch of jobs (FOR UPDATE SKIP LOCKED) ───────────────
+  // ── 1. Claim en batch jobb (FOR UPDATE SKIP LOCKED) ───────────────
   const { data: claimedJobs, error: claimError } = await supabase
     .rpc('claim_sync_jobs', { batch_limit: BATCH_SIZE })
 
@@ -71,14 +78,19 @@ serve(async (req) => {
     )
   }
 
-  // ── 2. Group claimed job IDs by (organization_id, booking_id) ───────
-  // Multiple webhook rows for the same booking coalesce into ONE import call;
-  // we still update all those job rows together at the end.
-  const groups = new Map<string, { organization_id: string; booking_id: string; event_type: string | null; jobIds: string[]; batchIds: Set<string> }>()
-  const allBatchIds = new Set<string>()
+  // ── 2. Gruppera per (organization_id, booking_id) ───────────────────
+  const groups = new Map<string, {
+    organization_id: string
+    booking_id: string
+    event_type: string | null
+    jobIds: string[]
+    attempts: number
+    max_attempts: number
+  }>()
+
+  const jobIdList: string[] = []
   for (const job of jobs) {
     if (!job.booking_id || !job.organization_id) {
-      // No booking_id/org → cannot refresh; mark as failed so it doesn't loop.
       await supabase
         .from('booking_sync_jobs')
         .update({
@@ -87,7 +99,7 @@ serve(async (req) => {
           processed_at: new Date().toISOString(),
         })
         .eq('id', job.id)
-      if (job.batch_id) allBatchIds.add(job.batch_id)
+      jobIdList.push(job.id)
       continue
     }
     const key = `${job.organization_id}::${job.booking_id}`
@@ -96,15 +108,14 @@ serve(async (req) => {
       booking_id: job.booking_id,
       event_type: job.event_type ?? null,
       jobIds: [],
-      batchIds: new Set<string>(),
+      attempts: job.attempts ?? 0,
+      max_attempts: job.max_attempts ?? 3,
     }
-    // Keep the most specific event_type if one of the coalesced jobs has it
     if (!entry.event_type && job.event_type) entry.event_type = job.event_type
     entry.jobIds.push(job.id)
-    if (job.batch_id) {
-      entry.batchIds.add(job.batch_id)
-      allBatchIds.add(job.batch_id)
-    }
+    entry.attempts = Math.max(entry.attempts, job.attempts ?? 0)
+    entry.max_attempts = Math.max(entry.max_attempts, job.max_attempts ?? 3)
+    jobIdList.push(job.id)
     groups.set(key, entry)
   }
 
@@ -116,11 +127,10 @@ serve(async (req) => {
     booking_id: string
     organization_id: string
     job_count: number
-    status: 'completed' | 'failed'
+    status: 'completed' | 'failed' | 'retry'
     error?: string
   }> = []
 
-  // ── 3. Run per-booking single-refresh imports with bounded concurrency ─
   const entries = Array.from(groups.values())
   let cursor = 0
 
@@ -128,7 +138,7 @@ serve(async (req) => {
     console.log(
       `[process-sync-jobs] → import-bookings single booking=${group.booking_id} ` +
       `org=${group.organization_id} event_type=${group.event_type ?? 'null'} ` +
-      `coalesced_jobs=${group.jobIds.length}`
+      `coalesced_jobs=${group.jobIds.length} attempt=${group.attempts}`
     )
     try {
       const res = await fetch(`${supabaseUrl}/functions/v1/import-bookings`, {
@@ -138,7 +148,6 @@ serve(async (req) => {
           Authorization: `Bearer ${serviceRoleKey}`,
         },
         body: JSON.stringify({
-          // Single-booking refresh runs inline and writes to bookings/calendar_events.
           syncMode: 'single',
           booking_id: group.booking_id,
           organization_id: group.organization_id,
@@ -158,7 +167,6 @@ serve(async (req) => {
         )
       }
 
-      // Defensive: a successful single-refresh must NOT come back as "queued".
       let parsed: any = null
       try { parsed = JSON.parse(bodyText) } catch { /* ignore */ }
       if (parsed && parsed.queued === true) {
@@ -171,6 +179,7 @@ serve(async (req) => {
           status: 'completed',
           processed_at: new Date().toISOString(),
           error_message: null,
+          next_attempt_at: null,
         })
         .in('id', group.jobIds)
 
@@ -180,32 +189,53 @@ serve(async (req) => {
         job_count: group.jobIds.length,
         status: 'completed',
       })
-      console.log(
-        `[process-sync-jobs] ✓ completed booking=${group.booking_id} ` +
-        `org=${group.organization_id} jobs=${group.jobIds.length}`
-      )
     } catch (err: any) {
       const errMsg = String(err?.message || err).substring(0, 1000)
-      await supabase
-        .from('booking_sync_jobs')
-        .update({
-          status: 'failed',
-          error_message: errMsg,
-          processed_at: new Date().toISOString(),
-        })
-        .in('id', group.jobIds)
+      const retriable = isRetriableError(errMsg)
+      const canRetry = retriable && group.attempts < group.max_attempts
 
-      results.push({
-        booking_id: group.booking_id,
-        organization_id: group.organization_id,
-        job_count: group.jobIds.length,
-        status: 'failed',
-        error: errMsg,
-      })
-      console.error(
-        `[process-sync-jobs] booking=${group.booking_id} refresh failed:`,
-        errMsg
-      )
+      if (canRetry) {
+        const backoffSec = Math.min(30 * group.attempts, 300)
+        const nextAt = new Date(Date.now() + backoffSec * 1000).toISOString()
+        await supabase
+          .from('booking_sync_jobs')
+          .update({
+            status: 'pending',
+            error_message: `[retry ${group.attempts}/${group.max_attempts}] ${errMsg}`,
+            next_attempt_at: nextAt,
+          })
+          .in('id', group.jobIds)
+        results.push({
+          booking_id: group.booking_id,
+          organization_id: group.organization_id,
+          job_count: group.jobIds.length,
+          status: 'retry',
+          error: errMsg,
+        })
+        console.warn(
+          `[process-sync-jobs] booking=${group.booking_id} RETRY in ${backoffSec}s: ${errMsg}`
+        )
+      } else {
+        await supabase
+          .from('booking_sync_jobs')
+          .update({
+            status: 'failed',
+            error_message: errMsg,
+            processed_at: new Date().toISOString(),
+            next_attempt_at: null,
+          })
+          .in('id', group.jobIds)
+        results.push({
+          booking_id: group.booking_id,
+          organization_id: group.organization_id,
+          job_count: group.jobIds.length,
+          status: 'failed',
+          error: errMsg,
+        })
+        console.error(
+          `[process-sync-jobs] booking=${group.booking_id} FAILED (permanent): ${errMsg}`
+        )
+      }
     }
   }
 
@@ -221,24 +251,29 @@ serve(async (req) => {
   }
   await Promise.all(workers)
 
-  // ── 4. Finalize any batches whose jobs are now all terminal ─────────
-  // We probe every batch touched by this worker run; finalizeBatchIfDone is
-  // idempotent and cheap (single count query).
+  // ── 3. Hitta ALLA batcher som pekar på de bearbetade jobben ─────────
+  //    Ett jobb kan tillhöra flera aktiva batcher — vi måste finalisera alla.
+  const allBatchIds = new Set<string>()
+  if (jobIdList.length > 0) {
+    const { data: batchLinks, error: linkErr } = await supabase
+      .from('sync_batch_jobs')
+      .select('batch_id')
+      .in('job_id', jobIdList)
+    if (linkErr) {
+      console.warn('[process-sync-jobs] failed to lookup sync_batch_jobs:', linkErr.message)
+    } else {
+      for (const link of batchLinks ?? []) {
+        if (link?.batch_id) allBatchIds.add(link.batch_id)
+      }
+    }
+  }
+
+  // ── 4. Finalisera varje batch atomiskt via RPC ──────────────────────
   const finalizations: Array<Awaited<ReturnType<typeof finalizeBatchIfDone>>> = []
   for (const batchId of allBatchIds) {
     try {
       const res = await finalizeBatchIfDone(supabase, batchId)
       finalizations.push(res)
-      if (res.finalized) {
-        console.log(
-          `[process-sync-jobs] batch=${batchId} finalized status=${res.status} ` +
-          `succeeded=${res.succeeded} failed=${res.failed} cursor_advanced_to=${res.cursorAdvancedTo ?? 'HELD'}`
-        )
-      } else {
-        console.log(
-          `[process-sync-jobs] batch=${batchId} not yet done remaining=${res.remaining}`
-        )
-      }
     } catch (err: any) {
       console.error(`[process-sync-jobs] finalize batch=${batchId} failed`, err?.message ?? err)
     }
@@ -251,6 +286,8 @@ serve(async (req) => {
       results,
       batches_probed: finalizations.length,
       batches_finalized: finalizations.filter((f) => f.finalized).length,
+      cursors_advanced: finalizations.filter((f) => f.cursorAdvancedTo).length,
+      monotonic_skips: finalizations.filter((f) => f.monotonicSkip).length,
     }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )

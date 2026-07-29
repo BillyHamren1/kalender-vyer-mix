@@ -67,18 +67,16 @@ export const getSyncState = async (
 /**
  * Update sync state for (organizationId, syncType).
  *
- * IMPORTANT: `last_sync_timestamp` is intentionally NOT part of the update
- * surface. The batch cursor is server-owned (advanced by process-sync-jobs
- * via finalizeBatchIfDone in supabase/functions/_shared/syncBatch.ts). If a
- * caller ever passes it in (e.g. legacy code), we strip it at runtime and log
- * a warning — the frontend is never allowed to drive the cursor.
+ * SERVER-AUTHORITATIVE: frontend får ALDRIG skriva `last_sync_timestamp`,
+ * `last_sync_status` eller `last_sync_mode`. Alla tre är server-ägda och
+ * flyttas atomiskt av `finalize_sync_batch`-RPC:n efter en helt lyckad batch.
+ * Ett runtime-guard tvättar bort dessa fält om en gammal call-site skickar
+ * in dem — endast `metadata` får skrivas härifrån (för UI-hint).
  */
 export const updateSyncState = async (
   syncType: string,
   organizationId: string | null | undefined,
   updates: {
-    last_sync_mode?: SyncMode;
-    last_sync_status?: SyncStatus;
     metadata?: Record<string, any>;
   }
 ): Promise<SyncState | null> => {
@@ -86,12 +84,19 @@ export const updateSyncState = async (
     console.warn(`[syncState] updateSyncState skipped for ${syncType}: missing organizationId`);
     return null;
   }
-  // Runtime guard: strip any accidental cursor write from a caller.
-  if ((updates as any).last_sync_timestamp !== undefined) {
-    console.warn(
-      `[syncState] updateSyncState dropped last_sync_timestamp from caller — cursor is server-owned (${syncType}/${organizationId})`,
-    );
-    delete (updates as any).last_sync_timestamp;
+  const forbidden = ['last_sync_timestamp', 'last_sync_status', 'last_sync_mode'] as const;
+  for (const key of forbidden) {
+    if ((updates as any)[key] !== undefined) {
+      console.warn(
+        `[syncState] updateSyncState dropped ${key} from caller — server-owned only (${syncType}/${organizationId})`,
+      );
+      delete (updates as any)[key];
+    }
+  }
+  const safeMetadata = updates?.metadata;
+  if (!safeMetadata || Object.keys(safeMetadata).length === 0) {
+    // Ingenting frontend får skriva → gör inte ens ett anrop mot DB.
+    return null;
   }
   try {
     const nowIso = new Date().toISOString();
@@ -100,7 +105,7 @@ export const updateSyncState = async (
       .upsert({
         sync_type: syncType,
         organization_id: organizationId,
-        ...updates,
+        metadata: safeMetadata,
         updated_at: nowIso,
       }, { onConflict: 'organization_id,sync_type' })
       .select()
@@ -119,20 +124,16 @@ export const updateSyncState = async (
 };
 
 /**
- * Initialize sync state for (organizationId, syncType). Backwards-compatible
- * wrapper that just does an upsert; kept so existing call-sites still work.
+ * Deprecated: initialisering av sync_state sker uteslutande server-side
+ * (`createBatch` skapar raden vid behov). Kvar som no-op för bakåtkompat.
  */
 export const initializeSyncState = async (
-  syncType: string,
-  organizationId: string | null | undefined,
-  initialMode: SyncMode = 'full',
-  initialStatus: SyncStatus = 'pending'
+  _syncType: string,
+  _organizationId: string | null | undefined,
+  _initialMode: SyncMode = 'full',
+  _initialStatus: SyncStatus = 'pending'
 ): Promise<SyncState | null> => {
-  return updateSyncState(syncType, organizationId, {
-    last_sync_mode: initialMode,
-    last_sync_status: initialStatus,
-    metadata: {},
-  });
+  return null;
 };
 
 /**
