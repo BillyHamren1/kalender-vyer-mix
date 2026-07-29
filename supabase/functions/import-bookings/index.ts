@@ -1613,8 +1613,9 @@ export const checkProductChanges = async (
   // not just add/remove/quantity — otherwise price-only or notes-only edits in Booking never sync)
   const { data: existingProducts, error } = await supabase
     .from('booking_products')
-    .select('id, name, quantity, unit_price, total_price, notes, sku, vat_rate, discount, tags')
+    .select('id, name, quantity, unit_price, total_price, notes, sku, vat_rate, discount, tags, package_components')
     .eq('booking_id', bookingId);
+
 
   if (error) {
     console.error(`Error fetching existing products for ${bookingId}:`, error);
