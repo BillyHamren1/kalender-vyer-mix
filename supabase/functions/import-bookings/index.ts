@@ -1598,7 +1598,7 @@ const getProductsSignature = (products: any[]): string => {
  * Check if products have changed between external and existing data
  * Returns { changed: boolean, added: string[], removed: string[], updated: string[] }
  */
-const checkProductChanges = async (
+export const checkProductChanges = async (
   supabase: any, 
   bookingId: string, 
   externalProducts: any[]
