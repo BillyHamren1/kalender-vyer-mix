@@ -3852,8 +3852,13 @@ serve(async (req) => {
 
               // ── MERGE: UPDATE existing or INSERT new ────────────────────────────
               const nameKey = productName.trim().toLowerCase();
-              const existingMatch = existingProductsByName.get(nameKey);
-              
+              const nameMatch = existingProductsByName.get(nameKey);
+              // Om vi redan har återanvänt den befintliga raden (t.ex. två
+              // separata "Multiflex 6x6" med olika komponenter) måste den
+              // andra externa raden bli en ny INSERT — annars skrivs den
+              // första radens produkt/komponenter över.
+              const existingMatch = nameMatch && !seenExistingIds.has(nameMatch.id) ? nameMatch : null;
+
               let upsertedProductId: string | null = null;
               let productError: any = null;
 
@@ -3879,6 +3884,7 @@ serve(async (req) => {
                 if (!insertErr) console.log(`[Merge] Inserted new product "${productName}" (id=${upsertedProductId})`);
               }
               // ────────────────────────────────────────────────────────────────────
+
 
               if (productError) {
                 console.error(`Error upserting product for booking ${bookingData.id}:`, productError)
