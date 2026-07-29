@@ -1613,8 +1613,9 @@ export const checkProductChanges = async (
   // not just add/remove/quantity — otherwise price-only or notes-only edits in Booking never sync)
   const { data: existingProducts, error } = await supabase
     .from('booking_products')
-    .select('id, name, quantity, unit_price, total_price, notes, sku, vat_rate, discount, tags')
+    .select('id, name, quantity, unit_price, total_price, notes, sku, vat_rate, discount, tags, package_components')
     .eq('booking_id', bookingId);
+
 
   if (error) {
     console.error(`Error fetching existing products for ${bookingId}:`, error);
@@ -1650,6 +1651,14 @@ export const checkProductChanges = async (
   };
   const str = (v: any): string => (v ?? '').toString().trim();
   const tagsSig = (v: any): string => (Array.isArray(v) ? [...v].map(str).sort().join(',') : '');
+  const componentsSig = (v: any): string => {
+    if (!Array.isArray(v)) return '';
+    return v
+      .map((c: any) => `${str(c?.name).toLowerCase()}|${num(c?.quantity ?? 1)}|${str(c?.sku).toLowerCase()}`)
+      .sort()
+      .join(';');
+  };
+
 
   const existingMap = new Map((existingProducts || []).map((p: any) => [(p.name || '').trim().toLowerCase(), p]));
   const externalMap = new Map((externalProducts || []).map(p => [(p.name || p.product_name || '').trim().toLowerCase(), p]));
@@ -1681,6 +1690,8 @@ export const checkProductChanges = async (
     if (extProduct.vat_rate != null && num(existing.vat_rate) !== num(extProduct.vat_rate)) diffs.push('vat');
     if (extProduct.discount != null && num(existing.discount) !== num(extProduct.discount)) diffs.push('discount');
     if (extProduct.tags != null && tagsSig(existing.tags) !== tagsSig(extProduct.tags)) diffs.push('tags');
+    if (extProduct.package_components != null && componentsSig(existing.package_components) !== componentsSig(extProduct.package_components)) diffs.push('package_components');
+
 
     if (diffs.length > 0) {
       updated.push(`${extProduct.name || extProduct.product_name}: ${diffs.join(', ')}`);
