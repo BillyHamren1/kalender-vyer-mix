@@ -2327,45 +2327,88 @@ serve(async (req) => {
 
     // Queue ALL batch modes (incremental, full-sync, historical) to the worker
     // to avoid 150s edge function timeout. Only single-booking refresh runs inline.
+    //
+    // CURSOR POLICY: enqueue does NOT advance sync_state.last_sync_timestamp.
+    // The cursor is only moved by process-sync-jobs when the entire batch has
+    // finished successfully (via finalizeBatchIfDone). See _shared/syncBatch.ts.
     if (!isSingleBookingRefresh) {
       const queueEventType = isHistoricalImport
         ? 'booking.historical'
         : (isFullSync ? 'booking.full_sync' : (webhookEventType || 'booking.incremental'));
+
+      // 1. Create the batch row with planned_cursor = importStartedAt.
+      const batchId = await createBatch(supabase, {
+        organizationId,
+        syncType: 'booking_import',
+        plannedCursor: importStartedAt,
+        metadata: {
+          event_type: queueEventType,
+          sync_mode: syncMode,
+          historical_mode: isHistoricalImport,
+          filters: { startDate, endDate },
+          fetched_from_external: externalData.data.length,
+        },
+      });
+
+      // 2. Enqueue new jobs with batch_id set from the start.
       const queueSummary = await enqueueIncrementalSyncJobs(
         supabase,
         externalData.data,
         organizationId,
         queueEventType,
+        batchId,
       );
 
+      // 3. Adopt any coalesced pre-existing pending/processing jobs into this
+      //    batch so the finalizer waits for them too.
+      const { totalJobs } = await attachJobsToBatch(
+        supabase,
+        batchId,
+        organizationId,
+        queueSummary.bookingIds,
+      );
+
+      // 4. Mark sync_state as in_progress (no cursor movement).
       const importCompletedAt = new Date().toISOString();
-      const nextSyncCursor = importStartedAt;
       await supabase
         .from('sync_state')
         .upsert({
           sync_type: 'booking_import',
           organization_id: organizationId,
-          last_sync_timestamp: nextSyncCursor,
           last_sync_mode: syncMode,
-          last_sync_status: 'success',
+          last_sync_status: 'in_progress',
           metadata: {
             queued_for_worker: true,
+            batch_id: batchId,
+            planned_cursor: importStartedAt,
             queue_summary: queueSummary,
-            cursor_advanced_to: nextSyncCursor,
+            total_jobs_in_batch: totalJobs,
           },
           updated_at: importCompletedAt,
         }, { onConflict: 'organization_id,sync_type' });
 
+      // 5. If nothing to process at all, finalize the (empty) batch inline so
+      //    the cursor still advances (nothing to wait for).
+      if (totalJobs === 0) {
+        const { finalizeBatchIfDone } = await import('../_shared/syncBatch.ts');
+        const finalRes = await finalizeBatchIfDone(supabase, batchId);
+        console.log(`[import-bookings] empty batch finalized`, JSON.stringify(finalRes));
+      }
+
       console.log(`[import-bookings] ${queueEventType} batch queued for worker`, JSON.stringify({
         organization_id: organizationId,
+        batch_id: batchId,
+        planned_cursor: importStartedAt,
         queue_summary: queueSummary,
-        cursor_advanced_to: nextSyncCursor,
+        total_jobs_in_batch: totalJobs,
       }));
 
       return new Response(
         JSON.stringify({
           success: true,
           queued: true,
+          completed: totalJobs === 0,
+          batch_id: batchId,
           results: {
             total: queueSummary.totalCandidates,
             imported: 0,
@@ -2387,6 +2430,7 @@ serve(async (req) => {
             sync_mode: queueEventType,
             queued_jobs: queueSummary.queued,
             already_queued_jobs: queueSummary.alreadyQueued,
+            total_jobs_in_batch: totalJobs,
             team_distribution: {
               'team-1': 0,
               'team-2': 0,
