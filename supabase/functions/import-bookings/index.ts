@@ -1651,6 +1651,14 @@ export const checkProductChanges = async (
   };
   const str = (v: any): string => (v ?? '').toString().trim();
   const tagsSig = (v: any): string => (Array.isArray(v) ? [...v].map(str).sort().join(',') : '');
+  const componentsSig = (v: any): string => {
+    if (!Array.isArray(v)) return '';
+    return v
+      .map((c: any) => `${str(c?.name).toLowerCase()}|${num(c?.quantity ?? 1)}|${str(c?.sku).toLowerCase()}`)
+      .sort()
+      .join(';');
+  };
+
 
   const existingMap = new Map((existingProducts || []).map((p: any) => [(p.name || '').trim().toLowerCase(), p]));
   const externalMap = new Map((externalProducts || []).map(p => [(p.name || p.product_name || '').trim().toLowerCase(), p]));
