@@ -4136,42 +4136,13 @@ serve(async (req) => {
       }
     }
 
-    // SAVE SYNC TIMESTAMP conservatively to avoid skipping unseen changes.
-    // Only advance the cursor after a fully successful batch with at least one fetched booking,
-    // and advance it to the import start time (not "now") so changes made during the run
-    // are still included on the next incremental sync.
-    const finalTimestamp = new Date().toISOString()
-    const nextSyncCursor = importStartedAt
-    console.log(`Saving sync timestamp candidate: ${finalTimestamp}`)
+    // Inline path is single-booking only now — batch modes returned early after
+    // enqueue. The cursor is owned by process-sync-jobs via finalizeBatchIfDone;
+    // this path must NEVER write sync_state.last_sync_timestamp.
     console.log(`Team distribution summary:`, results.team_distribution)
     console.log(`Unchanged bookings skipped: ${results.unchanged_bookings_skipped.length}`)
-    
-    if (!isHistoricalImport && !isSingleBookingRefresh && results.failed === 0 && results.total > 0) {
-      const { error: syncError } = await supabase
-        .from('sync_state')
-        .upsert({
-          sync_type: 'booking_import',
-          organization_id: organizationId,
-          last_sync_timestamp: nextSyncCursor,
-          last_sync_mode: syncMode,
-          last_sync_status: 'success',
-          metadata: { results, cursor_advanced_to: nextSyncCursor },
-          updated_at: finalTimestamp
-        }, { onConflict: 'organization_id,sync_type' })
-
-      if (syncError) {
-        console.error('Error saving sync state:', syncError)
-      } else {
-        console.log(`Sync timestamp saved successfully at cursor: ${nextSyncCursor}`)
-      }
-    } else if (isSingleBookingRefresh) {
-      console.log('Single booking refresh: NOT updating sync timestamp to avoid moving incremental window')
-    } else if (isHistoricalImport) {
-      console.log('Historical import: NOT updating sync timestamp to preserve incremental sync state')
-    } else if (results.failed > 0) {
-      console.log('Incremental sync had failures: NOT updating sync timestamp to avoid skipping failed changes')
-    } else {
-      console.log('Incremental sync fetched 0 bookings: NOT updating sync timestamp to avoid skipping unseen changes')
+    if (isSingleBookingRefresh) {
+      console.log('[import-bookings] single-booking inline complete — sync_state untouched (cursor policy)')
     }
 
     const importCompletedAt = new Date().toISOString();
