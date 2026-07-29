@@ -24,6 +24,7 @@
  */
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
+import { finalizeBatchIfDone } from '../_shared/syncBatch.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -38,6 +39,7 @@ interface ClaimedJob {
   booking_id: string
   organization_id: string
   event_type: string | null
+  batch_id: string | null
 }
 
 serve(async (req) => {
@@ -72,7 +74,8 @@ serve(async (req) => {
   // ── 2. Group claimed job IDs by (organization_id, booking_id) ───────
   // Multiple webhook rows for the same booking coalesce into ONE import call;
   // we still update all those job rows together at the end.
-  const groups = new Map<string, { organization_id: string; booking_id: string; event_type: string | null; jobIds: string[] }>()
+  const groups = new Map<string, { organization_id: string; booking_id: string; event_type: string | null; jobIds: string[]; batchIds: Set<string> }>()
+  const allBatchIds = new Set<string>()
   for (const job of jobs) {
     if (!job.booking_id || !job.organization_id) {
       // No booking_id/org → cannot refresh; mark as failed so it doesn't loop.
@@ -84,6 +87,7 @@ serve(async (req) => {
           processed_at: new Date().toISOString(),
         })
         .eq('id', job.id)
+      if (job.batch_id) allBatchIds.add(job.batch_id)
       continue
     }
     const key = `${job.organization_id}::${job.booking_id}`
@@ -92,10 +96,15 @@ serve(async (req) => {
       booking_id: job.booking_id,
       event_type: job.event_type ?? null,
       jobIds: [],
+      batchIds: new Set<string>(),
     }
     // Keep the most specific event_type if one of the coalesced jobs has it
     if (!entry.event_type && job.event_type) entry.event_type = job.event_type
     entry.jobIds.push(job.id)
+    if (job.batch_id) {
+      entry.batchIds.add(job.batch_id)
+      allBatchIds.add(job.batch_id)
+    }
     groups.set(key, entry)
   }
 
@@ -212,11 +221,36 @@ serve(async (req) => {
   }
   await Promise.all(workers)
 
+  // ── 4. Finalize any batches whose jobs are now all terminal ─────────
+  // We probe every batch touched by this worker run; finalizeBatchIfDone is
+  // idempotent and cheap (single count query).
+  const finalizations: Array<Awaited<ReturnType<typeof finalizeBatchIfDone>>> = []
+  for (const batchId of allBatchIds) {
+    try {
+      const res = await finalizeBatchIfDone(supabase, batchId)
+      finalizations.push(res)
+      if (res.finalized) {
+        console.log(
+          `[process-sync-jobs] batch=${batchId} finalized status=${res.status} ` +
+          `succeeded=${res.succeeded} failed=${res.failed} cursor_advanced_to=${res.cursorAdvancedTo ?? 'HELD'}`
+        )
+      } else {
+        console.log(
+          `[process-sync-jobs] batch=${batchId} not yet done remaining=${res.remaining}`
+        )
+      }
+    } catch (err: any) {
+      console.error(`[process-sync-jobs] finalize batch=${batchId} failed`, err?.message ?? err)
+    }
+  }
+
   return new Response(
     JSON.stringify({
       processed_jobs: jobs.length,
       unique_bookings: groups.size,
       results,
+      batches_probed: finalizations.length,
+      batches_finalized: finalizations.filter((f) => f.finalized).length,
     }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )

@@ -898,6 +898,7 @@ export type Database = {
       booking_sync_jobs: {
         Row: {
           attempts: number
+          batch_id: string | null
           booking_id: string
           created_at: string
           error_message: string | null
@@ -912,6 +913,7 @@ export type Database = {
         }
         Insert: {
           attempts?: number
+          batch_id?: string | null
           booking_id: string
           created_at?: string
           error_message?: string | null
@@ -926,6 +928,7 @@ export type Database = {
         }
         Update: {
           attempts?: number
+          batch_id?: string | null
           booking_id?: string
           created_at?: string
           error_message?: string | null
@@ -938,7 +941,15 @@ export type Database = {
           started_at?: string | null
           status?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "booking_sync_jobs_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "sync_batches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       bookings: {
         Row: {
@@ -7645,6 +7656,54 @@ export type Database = {
           },
         ]
       }
+      sync_batches: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          failed_jobs: number
+          id: string
+          metadata: Json
+          organization_id: string
+          planned_cursor: string
+          started_at: string
+          status: string
+          succeeded_jobs: number
+          sync_type: string
+          total_jobs: number
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          failed_jobs?: number
+          id?: string
+          metadata?: Json
+          organization_id: string
+          planned_cursor: string
+          started_at?: string
+          status?: string
+          succeeded_jobs?: number
+          sync_type: string
+          total_jobs?: number
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          failed_jobs?: number
+          id?: string
+          metadata?: Json
+          organization_id?: string
+          planned_cursor?: string
+          started_at?: string
+          status?: string
+          succeeded_jobs?: number
+          sync_type?: string
+          total_jobs?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sync_state: {
         Row: {
           created_at: string
@@ -10345,6 +10404,7 @@ export type Database = {
         Args: { batch_limit?: number }
         Returns: {
           attempts: number
+          batch_id: string | null
           booking_id: string
           created_at: string
           error_message: string | null

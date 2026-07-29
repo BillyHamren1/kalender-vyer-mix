@@ -3,6 +3,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { normalizeBookingStatus } from '../_shared/booking-status.ts'
+import { createBatch, attachJobsToBatch } from '../_shared/syncBatch.ts'
 
 /**
  * Resolve the organization_id to use for all INSERTs.
@@ -373,6 +374,7 @@ async function enqueueIncrementalSyncJobs(
   bookings: any[],
   organizationId: string,
   eventTypeHint?: string | null,
+  batchId?: string | null,
 ) {
   const uniqueBookingIds = Array.from(new Set(
     (bookings || [])
@@ -381,7 +383,7 @@ async function enqueueIncrementalSyncJobs(
   ));
 
   if (uniqueBookingIds.length === 0) {
-    return { queued: 0, alreadyQueued: 0, totalCandidates: 0 };
+    return { queued: 0, alreadyQueued: 0, totalCandidates: 0, bookingIds: [] as string[] };
   }
 
   const { data: activeJobs, error: activeJobsError } = await supabase
@@ -403,6 +405,7 @@ async function enqueueIncrementalSyncJobs(
       organization_id: organizationId,
       event_type: eventTypeHint || 'booking.incremental',
       status: 'pending',
+      batch_id: batchId ?? null,
     }));
 
   const INSERT_BATCH_SIZE = 200;
@@ -421,6 +424,7 @@ async function enqueueIncrementalSyncJobs(
     queued: jobsToInsert.length,
     alreadyQueued: uniqueBookingIds.length - jobsToInsert.length,
     totalCandidates: uniqueBookingIds.length,
+    bookingIds: uniqueBookingIds,
   };
 }
 
@@ -2110,26 +2114,31 @@ serve(async (req) => {
     }
 
     // Update sync state to "in_progress" using UPSERT with per-org conflict target.
-    const currentTimestamp = new Date().toISOString()
-    const { error: syncStateError } = await supabase
-      .from('sync_state')
-      .upsert({
-        sync_type: 'booking_import',
-        organization_id: organizationId,
-        last_sync_status: 'in_progress',
-        last_sync_mode: syncMode,
-        metadata: { 
-          started_at: currentTimestamp,
-          sync_mode: syncMode,
-          filters: { startDate, endDate },
-          historical_mode: isHistoricalImport
-        },
-        updated_at: currentTimestamp
-      }, { onConflict: 'organization_id,sync_type' })
+    // Single-booking refreshes must NEVER touch the batch cursor/status — they are
+    // per-booking side channels and would otherwise poison the incremental window.
+    if (!isSingleBookingRefresh) {
+      const currentTimestamp = new Date().toISOString()
+      const { error: syncStateError } = await supabase
+        .from('sync_state')
+        .upsert({
+          sync_type: 'booking_import',
+          organization_id: organizationId,
+          last_sync_status: 'in_progress',
+          last_sync_mode: syncMode,
+          metadata: {
+            started_at: currentTimestamp,
+            sync_mode: syncMode,
+            filters: { startDate, endDate },
+            historical_mode: isHistoricalImport
+          },
+          updated_at: currentTimestamp
+        }, { onConflict: 'organization_id,sync_type' })
 
-
-    if (syncStateError) {
-      console.error('Error updating sync state:', syncStateError)
+      if (syncStateError) {
+        console.error('Error updating sync state:', syncStateError)
+      }
+    } else {
+      console.log('[import-bookings] single-booking refresh — skipping sync_state in_progress upsert (cursor policy)')
     }
 
     // ── LOCAL-ONLY MODE ─────────────────────────────────────────────────
@@ -2318,45 +2327,88 @@ serve(async (req) => {
 
     // Queue ALL batch modes (incremental, full-sync, historical) to the worker
     // to avoid 150s edge function timeout. Only single-booking refresh runs inline.
+    //
+    // CURSOR POLICY: enqueue does NOT advance sync_state.last_sync_timestamp.
+    // The cursor is only moved by process-sync-jobs when the entire batch has
+    // finished successfully (via finalizeBatchIfDone). See _shared/syncBatch.ts.
     if (!isSingleBookingRefresh) {
       const queueEventType = isHistoricalImport
         ? 'booking.historical'
         : (isFullSync ? 'booking.full_sync' : (webhookEventType || 'booking.incremental'));
+
+      // 1. Create the batch row with planned_cursor = importStartedAt.
+      const batchId = await createBatch(supabase, {
+        organizationId,
+        syncType: 'booking_import',
+        plannedCursor: importStartedAt,
+        metadata: {
+          event_type: queueEventType,
+          sync_mode: syncMode,
+          historical_mode: isHistoricalImport,
+          filters: { startDate, endDate },
+          fetched_from_external: externalData.data.length,
+        },
+      });
+
+      // 2. Enqueue new jobs with batch_id set from the start.
       const queueSummary = await enqueueIncrementalSyncJobs(
         supabase,
         externalData.data,
         organizationId,
         queueEventType,
+        batchId,
       );
 
+      // 3. Adopt any coalesced pre-existing pending/processing jobs into this
+      //    batch so the finalizer waits for them too.
+      const { totalJobs } = await attachJobsToBatch(
+        supabase,
+        batchId,
+        organizationId,
+        queueSummary.bookingIds,
+      );
+
+      // 4. Mark sync_state as in_progress (no cursor movement).
       const importCompletedAt = new Date().toISOString();
-      const nextSyncCursor = importStartedAt;
       await supabase
         .from('sync_state')
         .upsert({
           sync_type: 'booking_import',
           organization_id: organizationId,
-          last_sync_timestamp: nextSyncCursor,
           last_sync_mode: syncMode,
-          last_sync_status: 'success',
+          last_sync_status: 'in_progress',
           metadata: {
             queued_for_worker: true,
+            batch_id: batchId,
+            planned_cursor: importStartedAt,
             queue_summary: queueSummary,
-            cursor_advanced_to: nextSyncCursor,
+            total_jobs_in_batch: totalJobs,
           },
           updated_at: importCompletedAt,
         }, { onConflict: 'organization_id,sync_type' });
 
+      // 5. If nothing to process at all, finalize the (empty) batch inline so
+      //    the cursor still advances (nothing to wait for).
+      if (totalJobs === 0) {
+        const { finalizeBatchIfDone } = await import('../_shared/syncBatch.ts');
+        const finalRes = await finalizeBatchIfDone(supabase, batchId);
+        console.log(`[import-bookings] empty batch finalized`, JSON.stringify(finalRes));
+      }
+
       console.log(`[import-bookings] ${queueEventType} batch queued for worker`, JSON.stringify({
         organization_id: organizationId,
+        batch_id: batchId,
+        planned_cursor: importStartedAt,
         queue_summary: queueSummary,
-        cursor_advanced_to: nextSyncCursor,
+        total_jobs_in_batch: totalJobs,
       }));
 
       return new Response(
         JSON.stringify({
           success: true,
           queued: true,
+          completed: totalJobs === 0,
+          batch_id: batchId,
           results: {
             total: queueSummary.totalCandidates,
             imported: 0,
@@ -2378,6 +2430,7 @@ serve(async (req) => {
             sync_mode: queueEventType,
             queued_jobs: queueSummary.queued,
             already_queued_jobs: queueSummary.alreadyQueued,
+            total_jobs_in_batch: totalJobs,
             team_distribution: {
               'team-1': 0,
               'team-2': 0,
@@ -4083,42 +4136,13 @@ serve(async (req) => {
       }
     }
 
-    // SAVE SYNC TIMESTAMP conservatively to avoid skipping unseen changes.
-    // Only advance the cursor after a fully successful batch with at least one fetched booking,
-    // and advance it to the import start time (not "now") so changes made during the run
-    // are still included on the next incremental sync.
-    const finalTimestamp = new Date().toISOString()
-    const nextSyncCursor = importStartedAt
-    console.log(`Saving sync timestamp candidate: ${finalTimestamp}`)
+    // Inline path is single-booking only now — batch modes returned early after
+    // enqueue. The cursor is owned by process-sync-jobs via finalizeBatchIfDone;
+    // this path must NEVER write sync_state.last_sync_timestamp.
     console.log(`Team distribution summary:`, results.team_distribution)
     console.log(`Unchanged bookings skipped: ${results.unchanged_bookings_skipped.length}`)
-    
-    if (!isHistoricalImport && !isSingleBookingRefresh && results.failed === 0 && results.total > 0) {
-      const { error: syncError } = await supabase
-        .from('sync_state')
-        .upsert({
-          sync_type: 'booking_import',
-          organization_id: organizationId,
-          last_sync_timestamp: nextSyncCursor,
-          last_sync_mode: syncMode,
-          last_sync_status: 'success',
-          metadata: { results, cursor_advanced_to: nextSyncCursor },
-          updated_at: finalTimestamp
-        }, { onConflict: 'organization_id,sync_type' })
-
-      if (syncError) {
-        console.error('Error saving sync state:', syncError)
-      } else {
-        console.log(`Sync timestamp saved successfully at cursor: ${nextSyncCursor}`)
-      }
-    } else if (isSingleBookingRefresh) {
-      console.log('Single booking refresh: NOT updating sync timestamp to avoid moving incremental window')
-    } else if (isHistoricalImport) {
-      console.log('Historical import: NOT updating sync timestamp to preserve incremental sync state')
-    } else if (results.failed > 0) {
-      console.log('Incremental sync had failures: NOT updating sync timestamp to avoid skipping failed changes')
-    } else {
-      console.log('Incremental sync fetched 0 bookings: NOT updating sync timestamp to avoid skipping unseen changes')
+    if (isSingleBookingRefresh) {
+      console.log('[import-bookings] single-booking inline complete — sync_state untouched (cursor policy)')
     }
 
     const importCompletedAt = new Date().toISOString();

@@ -55,6 +55,12 @@ export interface ImportResults {
   error?: string;
   details?: string;
   status?: number;
+  /** True when the server enqueued the work to the background worker. */
+  queued?: boolean;
+  /** True when the sync is fully applied; false when still running in the worker. */
+  completed?: boolean;
+  /** Server-owned batch id (only for queued batch syncs). */
+  batch_id?: string | null;
 }
 
 // Enhanced type for filter options with historical support
@@ -310,15 +316,19 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
       sync_duration_ms: syncDurationMs
     };
     
-    // Update sync state to success - this saves the timestamp for next incremental sync
+    // NOTE: Frontend must NEVER write last_sync_timestamp — the cursor is
+    // server-owned and advanced by process-sync-jobs only when the batch
+    // finishes without failures. We only mirror status/mode/metadata here for
+    // UI feedback; the authoritative cursor comes from the server.
     await updateSyncState(syncType, organizationId, {
-      last_sync_timestamp: new Date().toISOString(),
-      last_sync_status: 'success',
+      last_sync_status: resultData?.queued ? 'in_progress' : 'success',
       last_sync_mode: syncMode,
-      metadata: { 
+      metadata: {
         ...results,
         completed_at: new Date().toISOString(),
-        historical_mode: isHistoricalMode
+        historical_mode: isHistoricalMode,
+        queued: !!resultData?.queued,
+        batch_id: resultData?.batch_id ?? null,
       }
     });
 
@@ -379,7 +389,10 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
     return {
       success: true,
       results,
-    };
+      queued: !!resultData?.queued,
+      completed: resultData?.queued ? !!resultData?.completed : true,
+      batch_id: resultData?.batch_id ?? null,
+    } as ImportResults;
   } catch (error) {
     console.error('Exception during import:', error);
     
