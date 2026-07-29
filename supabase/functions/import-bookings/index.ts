@@ -1690,6 +1690,8 @@ export const checkProductChanges = async (
     if (extProduct.vat_rate != null && num(existing.vat_rate) !== num(extProduct.vat_rate)) diffs.push('vat');
     if (extProduct.discount != null && num(existing.discount) !== num(extProduct.discount)) diffs.push('discount');
     if (extProduct.tags != null && tagsSig(existing.tags) !== tagsSig(extProduct.tags)) diffs.push('tags');
+    if (extProduct.package_components != null && componentsSig(existing.package_components) !== componentsSig(extProduct.package_components)) diffs.push('package_components');
+
 
     if (diffs.length > 0) {
       updated.push(`${extProduct.name || extProduct.product_name}: ${diffs.join(', ')}`);
