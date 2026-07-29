@@ -310,15 +310,19 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
       sync_duration_ms: syncDurationMs
     };
     
-    // Update sync state to success - this saves the timestamp for next incremental sync
+    // NOTE: Frontend must NEVER write last_sync_timestamp — the cursor is
+    // server-owned and advanced by process-sync-jobs only when the batch
+    // finishes without failures. We only mirror status/mode/metadata here for
+    // UI feedback; the authoritative cursor comes from the server.
     await updateSyncState(syncType, organizationId, {
-      last_sync_timestamp: new Date().toISOString(),
-      last_sync_status: 'success',
+      last_sync_status: resultData?.queued ? 'in_progress' : 'success',
       last_sync_mode: syncMode,
-      metadata: { 
+      metadata: {
         ...results,
         completed_at: new Date().toISOString(),
-        historical_mode: isHistoricalMode
+        historical_mode: isHistoricalMode,
+        queued: !!resultData?.queued,
+        batch_id: resultData?.batch_id ?? null,
       }
     });
 
