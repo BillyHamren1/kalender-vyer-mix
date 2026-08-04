@@ -288,8 +288,16 @@ export function parseLocalRevision(local: LocalAppliedRevision): ParsedRevision[
 }
 
 /**
- * Jämför tombstone mot lokalt applicerad revision av SAMMA typ.
- * Olika typer = fail-closed (`incomparable_source_revision`).
+ * Jämför tombstone mot lokalt applicerad canonical revision.
+ *
+ * STEG 2F – INGEN DELVIS JÄMFÖRBARHET:
+ *  - Lokalt finns endast timestamp → tombstonen MÅSTE ha giltig timestamp.
+ *  - Lokalt finns endast version → tombstonen MÅSTE ha giltig version.
+ *  - Lokalt finns BÅDA i samma canonical rad ('both') → tombstonen MÅSTE
+ *    innehålla BÅDA fälten, och båda måste klara ordningskontrollen.
+ *  - Lokala revisionstyper som kommer från OLIKA canonical rader är blandade
+ *    och ojämförbara → `mixed_incomparable_revision_history`.
+ * Det räcker alltså aldrig att EN av flera jämförelser lyckades.
  */
 export type RevisionComparison =
   | { ok: true; reason?: undefined }
@@ -301,28 +309,41 @@ export function compareRevisions(
   tombstoneStatus?: string | null,
 ): RevisionComparison {
   if (!local) return { ok: true }; // ingen tidigare revision → inget stale-skydd att tillämpa
-  const locals = Array.isArray(local) ? local : [local];
+  const locals = (Array.isArray(local) ? local : [local]).filter(
+    (e) => parseLocalRevision(e).length > 0,
+  );
   if (locals.length === 0) return { ok: true };
+
+  // Flera lokala poster får bara existera om de bär exakt samma revisionstyper
+  // (samma canonical händelse). Annars är historiken blandad → fail-closed.
+  const kindKey = (e: LocalAppliedRevision) =>
+    parseLocalRevision(e).map((r) => r.kind).sort().join('+');
+  const keys = new Set(locals.map(kindKey));
+  if (keys.size > 1) {
+    return { ok: false, reason: 'mixed_incomparable_revision_history' };
+  }
 
   const tombStatus = typeof tombstoneStatus === 'string' ? tombstoneStatus.trim().toUpperCase() : null;
 
-  let compared = false;
-  let anyLocalRevision = false;
   for (const entry of locals) {
     const localRevs = parseLocalRevision(entry);
-    if (localRevs.length === 0) continue;
-    anyLocalRevision = true;
+    const equalKinds: ParsedRevision['kind'][] = [];
+
     for (const lr of localRevs) {
       const tr = tombRevs.find((r) => r.kind === lr.kind);
-      if (!tr) continue;
-      compared = true;
+      // Obligatorisk typ saknas i tombstonen → aldrig destructive-safe.
+      if (!tr) return { ok: false, reason: 'incomparable_source_revision' };
+
       const tVal = tr.kind === 'timestamp' ? tr.ms : tr.value;
       const lVal = lr.kind === 'timestamp' ? lr.ms : lr.value;
 
       if (tVal < lVal) return { ok: false, reason: 'stale_tombstone_revision' };
-      if (tVal > lVal) continue; // nyare → tillåts (övrig validering avgör)
+      if (tVal === lVal) equalKinds.push(lr.kind);
+    }
 
-      // SAMMA revision: endast idempotent cancellation får passera.
+    // SAMMA revision (i minst en obligatorisk typ): endast idempotent
+    // cancellation får passera.
+    if (equalKinds.length > 0) {
       const localStatus = typeof entry.sourceStatus === 'string'
         ? entry.sourceStatus.trim().toUpperCase()
         : null;
@@ -336,10 +357,9 @@ export function compareRevisions(
       }
     }
   }
-  if (!anyLocalRevision) return { ok: true };
-  if (!compared) return { ok: false, reason: 'incomparable_source_revision' };
   return { ok: true };
 }
+
 
 
 /**

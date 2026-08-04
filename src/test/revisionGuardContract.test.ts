@@ -265,7 +265,10 @@ describe('normal canonical revision logging', () => {
       bookingId: BOOKING,
       organizationId: ORG,
       revision: '2026-05-01T00:00:00Z',
+      // STEG 2F: canonical status är obligatorisk för en säkerhetsbärande revision.
+      sourceStatus: 'CONFIRMED',
     });
+
     expect(r.ok).toBe(true);
     expect(log.inserts).toHaveLength(1);
     expect(log.inserts[0].row.change_type).toBe('source_revision');
