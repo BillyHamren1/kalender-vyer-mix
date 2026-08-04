@@ -61,22 +61,20 @@ describe('syncStateService per-organization isolation', () => {
     expect(eqSpy).toHaveBeenCalledWith('organization_id', 'org-42');
   });
 
-  it('updateSyncState upserts with per-org conflict target', async () => {
+  it('updateSyncState never touches the database (server-owned sync_state)', async () => {
     const { updateSyncState } = await import('@/services/syncStateService');
-    await updateSyncState('booking_import', 'org-42', { metadata: { client_note: 'x' } });
-    expect(upsertSpy).toHaveBeenCalledTimes(1);
-    const call = upsertSpy.mock.calls[0]!;
-    const payload = call[0] as any;
-    const opts = call[1];
-    expect(payload.organization_id).toBe('org-42');
-    expect(payload.sync_type).toBe('booking_import');
-    expect(opts).toEqual({ onConflict: 'organization_id,sync_type' });
-
+    const result = await (updateSyncState as any)('booking_import', 'org-42', {
+      metadata: { client_note: 'x' },
+    });
+    expect(result).toBeNull();
+    expect(upsertSpy).not.toHaveBeenCalled();
   });
 
-  it('updateSyncState skips DB when organizationId missing', async () => {
+  it('updateSyncState is a no-op when organizationId is missing', async () => {
     const { updateSyncState } = await import('@/services/syncStateService');
-    const result = await updateSyncState('booking_import', undefined, { metadata: { client_note: 'x' } });
+    const result = await (updateSyncState as any)('booking_import', undefined, {
+      metadata: { client_note: 'x' },
+    });
     expect(result).toBeNull();
     expect(upsertSpy).not.toHaveBeenCalled();
   });
