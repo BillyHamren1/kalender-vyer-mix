@@ -98,9 +98,8 @@ Deno.test("Test B — process-sync-jobs processes queued job", async () => {
     });
 
     const body = await res.json();
-    await res.text().catch(() => {}); // ensure consumed
     assertEquals(res.status, 200);
-    assert(body.processed >= 1, "Worker must process at least 1 job");
+    assert(body.processed_jobs >= 1, "Worker must process at least 1 job");
 
     // 3. Verify job status changed (completed or failed — both prove worker ran)
     const { data: updated } = await supabase
