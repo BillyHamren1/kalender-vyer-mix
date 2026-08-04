@@ -210,28 +210,112 @@ export interface LocalAppliedRevision {
   sourceVersion?: string | number | null;
 }
 
-function revisionIsStale(t: SourceTombstone, local?: LocalAppliedRevision): boolean {
-  if (!local) return false;
-  if (t.source_updated_at && local.sourceUpdatedAt) {
-    const tomb = Date.parse(t.source_updated_at);
-    const loc = Date.parse(local.sourceUpdatedAt);
-    if (Number.isFinite(tomb) && Number.isFinite(loc)) return tomb < loc;
+export type ParsedRevision =
+  | { kind: 'timestamp'; ms: number }
+  | { kind: 'version'; value: number };
+
+/** Strikt: endast ändligt, icke-negativt heltal eller strikt numerisk sträng. */
+export function parseSourceVersion(raw: unknown): number | null {
+  if (typeof raw === 'number') {
+    return Number.isFinite(raw) && Number.isInteger(raw) && raw >= 0 ? raw : null;
   }
-  const tv = typeof t.source_version === 'number' ? t.source_version : Number(t.source_version);
-  const lv = typeof local.sourceVersion === 'number' ? local.sourceVersion : Number(local.sourceVersion);
-  if (Number.isFinite(tv) && Number.isFinite(lv)) return tv < lv;
-  return false;
+  if (typeof raw === 'string' && /^\d+$/.test(raw.trim())) {
+    const n = Number(raw.trim());
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+/** Strikt: icke-tom sträng som parsas till ett ändligt tidsvärde. */
+export function parseSourceTimestamp(raw: unknown): number | null {
+  if (typeof raw !== 'string') return null;
+  const s = raw.trim();
+  if (!s) return null;
+  const t = Date.parse(s);
+  return Number.isFinite(t) ? t : null;
+}
+
+/**
+ * Validera tombstonens revision. Ogiltig revision är ALDRIG destructive-safe.
+ * Tom sträng, whitespace, null, undefined, "not-a-date", NaN, Infinity,
+ * negativa versioner och godtycklig text nekas.
+ */
+export type TombstoneRevisionCheck =
+  | { ok: true; revisions: ParsedRevision[]; reason?: undefined }
+  | { ok: false; revisions?: undefined; reason: string };
+
+export function validateTombstoneRevision(t: SourceTombstone): TombstoneRevisionCheck {
+  const revisions: ParsedRevision[] = [];
+
+  const rawTs = t.source_updated_at;
+  if (rawTs !== undefined && rawTs !== null) {
+    const ms = parseSourceTimestamp(rawTs);
+    if (ms === null) return { ok: false, reason: 'tombstone_invalid_source_revision' };
+    revisions.push({ kind: 'timestamp', ms });
+  }
+
+  const rawVer = t.source_version;
+  if (rawVer !== undefined && rawVer !== null) {
+    const v = parseSourceVersion(rawVer);
+    if (v === null) return { ok: false, reason: 'tombstone_invalid_source_revision' };
+    revisions.push({ kind: 'version', value: v });
+  }
+
+  if (revisions.length === 0) return { ok: false, reason: 'tombstone_missing_source_revision' };
+  return { ok: true, revisions };
+}
+
+/** Lokal revision → jämförbara former (endast giltiga värden räknas). */
+export function parseLocalRevision(local: LocalAppliedRevision): ParsedRevision[] {
+  const out: ParsedRevision[] = [];
+  const ms = parseSourceTimestamp(local.sourceUpdatedAt ?? null);
+  if (ms !== null) out.push({ kind: 'timestamp', ms });
+  const v = parseSourceVersion(local.sourceVersion ?? null);
+  if (v !== null) out.push({ kind: 'version', value: v });
+  return out;
+}
+
+/**
+ * Jämför tombstone mot lokalt applicerad revision av SAMMA typ.
+ * Olika typer = fail-closed (`incomparable_source_revision`).
+ */
+export type RevisionComparison =
+  | { ok: true; reason?: undefined }
+  | { ok: false; reason: string };
+
+export function compareRevisions(
+  tombRevs: ParsedRevision[],
+  local: LocalAppliedRevision | null | undefined,
+): RevisionComparison {
+  if (!local) return { ok: true }; // ingen tidigare revision → inget stale-skydd att tillämpa
+  const localRevs = parseLocalRevision(local);
+  if (localRevs.length === 0) return { ok: true };
+
+  let compared = false;
+  for (const lr of localRevs) {
+    const tr = tombRevs.find((r) => r.kind === lr.kind);
+    if (!tr) continue;
+    compared = true;
+    if (tr.kind === 'timestamp' && lr.kind === 'timestamp') {
+      if (tr.ms < lr.ms) return { ok: false, reason: 'stale_tombstone_revision' };
+    } else if (tr.kind === 'version' && lr.kind === 'version') {
+      if (tr.value < lr.value) return { ok: false, reason: 'stale_tombstone_revision' };
+    }
+  }
+  if (!compared) return { ok: false, reason: 'incomparable_source_revision' };
+  return { ok: true };
 }
 
 /**
  * ALLOWLIST för destruktiv cleanup.
  * Samtliga krav måste vara uppfyllda — annars nekas åtgärden.
- * `local` = redan applicerad canonical revision; en äldre tombstone nekas.
+ * `local` = redan applicerad canonical revision (måste vara framgångsrikt
+ * inläst av callern; ett läsfel får ALDRIG skickas in som `null`).
  */
 export function evaluateDestructiveAction(
   result: SingleBookingSourceResult,
   expected: { bookingId: string; organizationId: string },
-  local?: LocalAppliedRevision,
+  local?: LocalAppliedRevision | null,
 ): DestructiveDecision {
   if (result.kind === 'error') return { allowed: false, reason: `technical_error_${result.code}` };
   if (result.kind === 'found') return { allowed: false, reason: 'booking_found_no_cleanup' };
@@ -248,14 +332,15 @@ export function evaluateDestructiveAction(
     return { allowed: false, reason: 'tombstone_organization_id_mismatch' };
   }
   if (!t.source_status) return { allowed: false, reason: 'tombstone_missing_source_status' };
-  if (!t.source_updated_at && (t.source_version === null || t.source_version === undefined)) {
-    return { allowed: false, reason: 'tombstone_missing_source_revision' };
-  }
-  if (revisionIsStale(t, local)) {
-    return { allowed: false, reason: 'stale_tombstone_revision' };
-  }
+
+  const revCheck = validateTombstoneRevision(t);
+  if (revCheck.ok !== true) return { allowed: false, reason: revCheck.reason };
+
+  const cmp = compareRevisions(revCheck.revisions, local);
+  if (cmp.ok !== true) return { allowed: false, reason: cmp.reason };
 
   const status = t.source_status.toUpperCase();
+
   if (result.reason === 'cancelled') {
     if (status !== 'CANCELLED') return { allowed: false, reason: 'tombstone_status_reason_mismatch' };
     return { allowed: true, action: 'cancellation', tombstone: t };

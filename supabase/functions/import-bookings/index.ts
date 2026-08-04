@@ -13,7 +13,7 @@ import {
   evaluateDestructiveAction,
 } from '../_shared/singleBookingSource.ts'
 import { applyBookingCancellation } from '../_shared/cancellation-handler.ts'
-import { loadAppliedSourceRevision } from '../_shared/appliedSourceRevision.ts'
+import { loadAppliedSourceRevision, recordAppliedSourceRevision } from '../_shared/appliedSourceRevision.ts'
 
 /**
  * Resolve the organization_id to use for all INSERTs.
@@ -2497,16 +2497,32 @@ serve(async (req) => {
       );
 
       // Stale-skydd: läs redan applicerad canonical revision INNAN beslut.
-      const appliedRevision = await loadAppliedSourceRevision(
+      // Ett LÄSFEL får aldrig tolkas som "ingen revision" → retrybart fel.
+      const revisionLoad = await loadAppliedSourceRevision(
         supabase,
         normalizedSingleBookingId,
         organizationId,
       );
+      if (!revisionLoad.ok) {
+        console.error('[single-booking] applied revision load failed — no destructive action', JSON.stringify({
+          booking_id: normalizedSingleBookingId,
+          organization_id: organizationId,
+          error: revisionLoad.error,
+        }));
+        return new Response(JSON.stringify(buildSingleBookingEnvelope({
+          bookingId: normalizedSingleBookingId,
+          organizationId,
+          outcome: 'failed',
+          error: `applied_revision_load_failed:${revisionLoad.error}`,
+        })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+      }
+      const appliedRevision = revisionLoad.found ? revisionLoad.revision : null;
 
       const decision = evaluateDestructiveAction(parsedSource, {
         bookingId: normalizedSingleBookingId,
         organizationId,
       }, appliedRevision);
+
 
       if (decision.allowed && decision.action === 'cancellation') {
         // Enda centrala cancellation-vägen (idempotent i handlern).
@@ -4308,12 +4324,38 @@ serve(async (req) => {
 
     if (isSingleBookingRefresh) {
       const outcome = deriveSingleBookingOutcome(results as any);
+
+      // UPPGIFT D: logga senaste canonical revision även för NORMAL import
+      // (found:true), inte bara cancellation — annars kan stale-skyddet inte
+      // jämföra en cancellation-tombstone mot senaste vanliga Booking-import.
+      if ((outcome === 'applied' || outcome === 'already_current') && normalizedSingleBookingId) {
+        const canonicalRow: any = Array.isArray(externalData?.data) ? externalData.data[0] : null;
+        const canonicalRevision =
+          canonicalRow?.updated_at ?? canonicalRow?.source_updated_at ?? canonicalRow?.version ?? null;
+        const logged = await recordAppliedSourceRevision(supabase, {
+          bookingId: normalizedSingleBookingId,
+          organizationId,
+          revision: canonicalRevision,
+          sourceStatus: canonicalRow?.status ?? null,
+        });
+        if (!logged.ok) {
+          console.error('[import-bookings] source revision logging failed', logged.error);
+          return new Response(JSON.stringify(buildSingleBookingEnvelope({
+            bookingId: normalizedSingleBookingId,
+            organizationId,
+            outcome: 'partial',
+            error: `source_revision_log_failed:${logged.error}`,
+          })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+        }
+      }
+
       const envelope = buildSingleBookingEnvelope({
         bookingId: normalizedSingleBookingId,
         organizationId,
         outcome,
         results,
       });
+
       console.log('[import-bookings] single result contract', JSON.stringify({
         booking_id: envelope.booking_id,
         organization_id: envelope.organization_id,

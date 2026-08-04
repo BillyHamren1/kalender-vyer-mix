@@ -160,11 +160,23 @@ serve(async (req) => {
       continue;
     }
 
-    const appliedRevision = await loadAppliedSourceRevision(supabase, b.id, b.organization_id);
+    // Fail-closed: kan vi inte läsa lokalt applicerad revision görs ingen
+    // destructive mutation. Felet registreras i summary.errors.
+    const revisionLoad = await loadAppliedSourceRevision(supabase, b.id, b.organization_id);
+    if (!revisionLoad.ok) {
+      summary.errors.push({
+        booking_id: b.id,
+        org_id: b.organization_id,
+        error: `applied_revision_load_failed:${revisionLoad.error}`,
+      });
+      continue;
+    }
+    const appliedRevision = revisionLoad.found ? revisionLoad.revision : null;
     const decision = evaluateDestructiveAction(ext.parsed, {
       bookingId: b.id,
       organizationId: b.organization_id,
     }, appliedRevision);
+
 
     if (decision.allowed && decision.action === "cancellation" && b.status !== "CANCELLED") {
       summary.status_mismatches++;
