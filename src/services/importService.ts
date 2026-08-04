@@ -3,7 +3,6 @@ import { toast } from "sonner";
 import { isScannerApp } from "@/config/appMode";
 import { 
   getSyncState, 
-  updateSyncState, 
   getRecommendedSyncMode, 
   initializeSyncState,
   type SyncMode 
@@ -182,14 +181,6 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
     // Frontend får ALDRIG skriva last_sync_status/last_sync_mode/last_sync_timestamp.
     // Server (createBatch/finalize_sync_batch) äger dessa. Vi loggar bara UI-hint
     // i metadata så att admin ser att en import initierades härifrån.
-    await updateSyncState(syncType, organizationId, {
-      metadata: {
-        client_started_at: new Date().toISOString(),
-        client_intended_sync_mode: syncMode,
-        client_filters: filters,
-        client_historical_mode: isHistoricalMode,
-      },
-    });
     
     // Adjust filters for incremental sync (but not for historical mode)
     const enhancedFilters = { ...filters };
@@ -262,14 +253,6 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
       console.error('Error calling import-bookings function:', functionError);
 
 
-      await updateSyncState(syncType, organizationId, {
-        metadata: {
-          client_error: functionError.message,
-          client_sync_mode: syncMode,
-          client_duration_ms: syncDurationMs,
-          client_historical_mode: isHistoricalMode,
-        }
-      });
 
 
       return {
@@ -284,16 +267,6 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
       const details = resultData.details || '';
       const status = resultData.status || 0;
       
-      await updateSyncState(syncType, organizationId, {
-        metadata: {
-          client_error: resultData.error,
-          client_details: details,
-          client_status: status,
-          client_sync_mode: syncMode,
-          client_duration_ms: syncDurationMs,
-          client_historical_mode: isHistoricalMode,
-        }
-      });
 
       
       return {
@@ -315,16 +288,6 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
     // server-owned and advanced by process-sync-jobs only when the batch
     // finishes without failures. We only mirror status/mode/metadata here for
     // UI feedback; the authoritative cursor comes from the server.
-    await updateSyncState(syncType, organizationId, {
-      metadata: {
-        ...results,
-        client_completed_at: new Date().toISOString(),
-        client_historical_mode: isHistoricalMode,
-        client_queued: !!resultData?.queued,
-        client_batch_id: resultData?.batch_id ?? null,
-        client_sync_mode: syncMode,
-      }
-    });
 
     
     // Show appropriate success message
@@ -391,13 +354,6 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
     console.error('Exception during import:', error);
     
     try {
-      await updateSyncState(syncType, preResolvedOrgId, {
-        metadata: {
-          client_error: error instanceof Error ? error.message : 'Unknown error',
-          client_sync_mode: syncMode || 'unknown',
-          client_duration_ms: Date.now() - startTime,
-        }
-      });
 
     } catch (syncError) {
       console.error('Error updating sync state after failure:', syncError);

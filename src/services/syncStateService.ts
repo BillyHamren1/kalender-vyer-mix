@@ -65,62 +65,24 @@ export const getSyncState = async (
 };
 
 /**
- * Update sync state for (organizationId, syncType).
+ * DEPRECATED / NO-OP.
  *
- * SERVER-AUTHORITATIVE: frontend får ALDRIG skriva `last_sync_timestamp`,
- * `last_sync_status` eller `last_sync_mode`. Alla tre är server-ägda och
- * flyttas atomiskt av `finalize_sync_batch`-RPC:n efter en helt lyckad batch.
- * Ett runtime-guard tvättar bort dessa fält om en gammal call-site skickar
- * in dem — endast `metadata` får skrivas härifrån (för UI-hint).
+ * `sync_state` är helt server-ägd. Frontend får ALDRIG skriva någon kolumn där —
+ * varken cursor (`last_sync_timestamp`), status, mode eller metadata. Cursorn
+ * flyttas uteslutande av `finalize_sync_batch` efter en helt lyckad batch.
+ *
+ * Funktionen finns kvar som no-op för bakåtkompatibilitet med gamla call-sites
+ * och rör aldrig databasen.
  */
 export const updateSyncState = async (
   syncType: string,
   organizationId: string | null | undefined,
-  updates: {
-    metadata?: Record<string, any>;
-  }
-): Promise<SyncState | null> => {
-  if (!organizationId) {
-    console.warn(`[syncState] updateSyncState skipped for ${syncType}: missing organizationId`);
-    return null;
-  }
-  const forbidden = ['last_sync_timestamp', 'last_sync_status', 'last_sync_mode'] as const;
-  for (const key of forbidden) {
-    if ((updates as any)[key] !== undefined) {
-      console.warn(
-        `[syncState] updateSyncState dropped ${key} from caller — server-owned only (${syncType}/${organizationId})`,
-      );
-      delete (updates as any)[key];
-    }
-  }
-  const safeMetadata = updates?.metadata;
-  if (!safeMetadata || Object.keys(safeMetadata).length === 0) {
-    // Ingenting frontend får skriva → gör inte ens ett anrop mot DB.
-    return null;
-  }
-  try {
-    const nowIso = new Date().toISOString();
-    const { data, error } = await supabase
-      .from('sync_state')
-      .upsert({
-        sync_type: syncType,
-        organization_id: organizationId,
-        metadata: safeMetadata,
-        updated_at: nowIso,
-      }, { onConflict: 'organization_id,sync_type' })
-      .select()
-      .maybeSingle();
-
-    if (error) {
-      console.warn(`[syncState] upsert failed for ${syncType}/${organizationId}:`, error.message);
-      return null;
-    }
-    if (!data) return null;
-    return { ...(data as any), metadata: normalizeMetadata((data as any).metadata) } as SyncState;
-  } catch (error) {
-    console.warn(`[syncState] upsert exception for ${syncType}/${organizationId}`, error);
-    return null;
-  }
+  _updates?: Record<string, never>,
+): Promise<null> => {
+  console.warn(
+    `[syncState] updateSyncState is a no-op — sync_state is server-owned (${syncType}/${organizationId ?? 'no-org'})`,
+  );
+  return null;
 };
 
 /**
