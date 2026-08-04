@@ -14,6 +14,12 @@ import {
 } from '../_shared/singleBookingSource.ts'
 import { applyBookingCancellation } from '../_shared/cancellation-handler.ts'
 import { loadAppliedSourceRevision, recordAppliedSourceRevision } from '../_shared/appliedSourceRevision.ts'
+import {
+  normalizeIncomingRevision,
+  reserveCanonicalRevision,
+  commitCanonicalRevision,
+  releaseCanonicalRevision,
+} from '../_shared/canonicalRevisionGuard.ts'
 
 /**
  * Resolve the organization_id to use for all INSERTs.
@@ -2649,6 +2655,56 @@ serve(async (req) => {
         'team-4': 0,
         'team-5': 0,
         'team-11': 0
+      }
+    }
+
+    // ── STEG 2G: CANONICAL REVISION GUARD (före FÖRSTA canonical mutation) ──
+    // En äldre canonical source-revision får aldrig appliceras, loggas, bli
+    // applied/completed eller flytta batchcursorn. Kontrollen sker HÄR, innan
+    // booking-upsert, statusändring, datum, produkter, kalenderreconcile och
+    // projekt-/packingprojection.
+    let guardedIncomingRevision: any = null;
+    if (isSingleBookingRefresh && normalizedSingleBookingId && externalData.data.length > 0) {
+      const canonicalRow: any = externalData.data[0];
+      const incoming = {
+        sourceUpdatedAt: canonicalRow?.updated_at ?? canonicalRow?.source_updated_at ?? null,
+        sourceVersion: canonicalRow?.version ?? canonicalRow?.source_version ?? null,
+        sourceStatus: canonicalRow?.status ?? canonicalRow?.booking_status ?? (externalData as any)?.raw?.source_status ?? null,
+      };
+      if (normalizeIncomingRevision(incoming)) {
+        const reserved = await reserveCanonicalRevision(supabase, {
+          bookingId: normalizedSingleBookingId,
+          organizationId: organizationId,
+          incoming,
+        });
+        if (reserved.ok && reserved.decision === 'already_current') {
+          console.log('[import-bookings] revision already current — no mutation', JSON.stringify({
+            booking_id: normalizedSingleBookingId, organization_id: organizationId,
+          }));
+          return new Response(JSON.stringify(buildSingleBookingEnvelope({
+            bookingId: normalizedSingleBookingId,
+            organizationId,
+            outcome: 'already_current',
+            results: { total: 1, imported: 0, failed: 0, errors: [], sync_mode: 'revision_idempotent' },
+          })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+        }
+        if (!reserved.ok) {
+          console.error('[import-bookings] canonical revision guard blocked import', JSON.stringify({
+            booking_id: normalizedSingleBookingId,
+            organization_id: organizationId,
+            decision: reserved.decision,
+            error: reserved.error,
+          }));
+          return new Response(JSON.stringify(buildSingleBookingEnvelope({
+            bookingId: normalizedSingleBookingId,
+            organizationId,
+            outcome: 'failed',
+            error: reserved.decision === 'rpc_unavailable'
+              ? `revision_guard_unavailable:${reserved.error ?? 'unknown'}`
+              : String(reserved.decision),
+          })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+        }
+        guardedIncomingRevision = incoming;
       }
     }
 
