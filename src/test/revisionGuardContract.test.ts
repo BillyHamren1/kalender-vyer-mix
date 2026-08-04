@@ -57,6 +57,7 @@ function makeSupabase(tables: Record<string, TableBehavior>, log?: { inserts: an
         eq: () => selectChain,
         neq: () => selectChain,
         not: () => selectChain,
+        in: () => selectChain,
         order: () => selectChain,
         limit: () => {
           if (b.throwOnSelect) throw new Error('boom');
@@ -106,7 +107,7 @@ describe('loadAppliedSourceRevision — fail-closed load contract', () => {
   it('Test 2: ingen tidigare revision ger ok:true, found:false', async () => {
     const sb = makeSupabase({ booking_changes: { selectResult: { data: [], error: null } } });
     const res = await loadAppliedSourceRevision(sb, BOOKING, ORG);
-    expect(res).toEqual({ ok: true, found: false, revision: null });
+    expect(res).toEqual({ ok: true, found: false, revision: null, revisions: [] });
   });
 
   it('parsingfel i lagrad revision döljs inte', async () => {

@@ -171,7 +171,7 @@ serve(async (req) => {
       });
       continue;
     }
-    const appliedRevision = revisionLoad.found ? revisionLoad.revision : null;
+    const appliedRevision = revisionLoad.found ? revisionLoad.revisions : null;
     const decision = evaluateDestructiveAction(ext.parsed, {
       bookingId: b.id,
       organizationId: b.organization_id,

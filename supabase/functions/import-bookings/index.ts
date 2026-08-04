@@ -2516,7 +2516,7 @@ serve(async (req) => {
           error: `applied_revision_load_failed:${revisionLoad.error}`,
         })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
       }
-      const appliedRevision = revisionLoad.found ? revisionLoad.revision : null;
+      const appliedRevision = revisionLoad.found ? revisionLoad.revisions : null;
 
       const decision = evaluateDestructiveAction(parsedSource, {
         bookingId: normalizedSingleBookingId,
