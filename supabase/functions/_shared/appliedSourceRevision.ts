@@ -120,11 +120,97 @@ function entryKinds(e: RevisionEntry): Array<'timestamp' | 'version'> {
   return kinds;
 }
 
+/** Kolumnen på `bookings` som är dedikerad, authoritative revisionskälla. */
+export const DEDICATED_REVISION_COLUMN = 'last_applied_source_revision';
+
+type DedicatedRead =
+  | { ok: true; found: true; value: any }
+  | { ok: true; found: false }
+  | { ok: false; error: string; retriable: boolean };
+
+/**
+ * Läser det dedikerade fältet `bookings.last_applied_source_revision`.
+ * Saknas klient-stöd (t.ex. äldre mock/klient utan `maybeSingle`) eller
+ * kolumnen → `found:false` och callern faller tillbaka på booking_changes.
+ */
+async function readDedicatedRevision(
+  supabase: any,
+  bookingId: string,
+  organizationId: string,
+): Promise<DedicatedRead> {
+  try {
+    const q = supabase
+      .from('bookings')
+      .select(DEDICATED_REVISION_COLUMN)
+      .eq('id', bookingId)
+      .eq('organization_id', organizationId);
+    if (!q || typeof q.maybeSingle !== 'function') return { ok: true, found: false };
+    const res = await q.maybeSingle();
+    if (res?.error) {
+      // Okänd kolumn / äldre schema → fall tillbaka på historiken (fortsatt strikt).
+      return { ok: true, found: false };
+    }
+    const value = res?.data?.[DEDICATED_REVISION_COLUMN] ?? null;
+    if (value === null || value === undefined) return { ok: true, found: false };
+    return { ok: true, found: true, value };
+  } catch {
+    return { ok: true, found: false };
+  }
+}
+
+/** Bygger ett authoritative resultat direkt ur det dedikerade fältet. */
+function parseDedicatedRevision(value: any): AppliedRevisionLoadResult {
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    return { ok: false, error: 'dedicated_revision_unparseable', retriable: false };
+  }
+  let timestamp: string | null = null;
+  let version: number | null = null;
+
+  const rawTs = value.source_updated_at ?? null;
+  if (rawTs !== null && rawTs !== undefined && rawTs !== '') {
+    if (parseStrictTimestamp(rawTs) === null) {
+      return { ok: false, error: 'dedicated_revision_unparseable', retriable: false };
+    }
+    timestamp = String(rawTs).trim();
+  }
+  const rawVer = value.source_version ?? null;
+  if (rawVer !== null && rawVer !== undefined && rawVer !== '') {
+    const v = parseStrictVersion(rawVer);
+    if (v === null) {
+      return { ok: false, error: 'dedicated_revision_unparseable', retriable: false };
+    }
+    version = v;
+  }
+  if (timestamp === null && version === null) {
+    return { ok: false, error: 'dedicated_revision_unparseable', retriable: false };
+  }
+  const status = normStatus(value.source_status);
+  if (!status) {
+    return { ok: false, error: 'dedicated_revision_missing_source_status', retriable: false };
+  }
+  const revisionKind: RevisionKind =
+    timestamp !== null && version !== null ? 'both' : timestamp !== null ? 'timestamp' : 'version';
+  const revision: LocalAppliedRevision = {
+    sourceUpdatedAt: timestamp,
+    sourceVersion: version,
+    sourceStatus: status,
+    changeType: typeof value.change_type === 'string' ? value.change_type : null,
+  };
+  return { ok: true, found: true, revisionKind, revision, revisions: [revision] };
+}
+
 export async function loadAppliedSourceRevision(
   supabase: any,
   bookingId: string,
   organizationId: string,
 ): Promise<AppliedRevisionLoadResult> {
+  // 1) Dedikerat fält = authoritative. Inget historik-tak, 'both' är naturligt
+  //    och gamla rader utan source_status kan aldrig blockera.
+  const dedicated = await readDedicatedRevision(supabase, bookingId, organizationId);
+  if (!dedicated.ok) return dedicated;
+  if (dedicated.found) return parseDedicatedRevision(dedicated.value);
+
+  // 2) Fallback: legacy-historiken i booking_changes (oförändrat strikt).
   let data: any[] | null = null;
   try {
     const res = await supabase
