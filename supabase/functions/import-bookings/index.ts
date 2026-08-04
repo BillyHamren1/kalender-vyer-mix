@@ -881,7 +881,7 @@ async function reconcileCalendarEvents(
   // (establishment_tasks → calendar_events) and must NOT be touched by the reconciler.
   const { data: existingEvents } = await supabase
     .from('calendar_events')
-    .select('id, event_type, start_time, end_time, title, booking_number, delivery_address, resource_id, source_date')
+    .select('id, event_type, start_time, end_time, title, booking_number, delivery_address, resource_id, source_date, times_locked')
     .eq('booking_id', bookingData.id)
     .eq('organization_id', bookingData.organization_id || organizationId)
     .neq('event_type', 'activity');
@@ -1135,7 +1135,10 @@ async function reconcileCalendarEvents(
       // been placed by an earlier reconcile pass. The desired.start_time is just
       // a preference for *new* events. Only force a time update when the booking
       // now has an EXPLICIT time and that explicit time differs from existing.
-      const explicitTimeChanged = desired.isExplicitStart && (
+      // LOCK GUARD: en rad som är låst ("Fast tid") ägs av användaren/Booking-låset
+      // och får aldrig få sina tider omskrivna av en senare import.
+      const rowLocked = existing.times_locked === true;
+      const explicitTimeChanged = !rowLocked && desired.isExplicitStart && (
         existing.start_time !== desired.start_time ||
         existing.end_time !== desired.end_time
       );
@@ -1238,6 +1241,12 @@ async function reconcileCalendarEvents(
     if (matchedExistingIds.has(e.id)) return false;
     const evtDate = e.source_date || e.start_time?.split('T')[0] || '';
     const key = `${e.event_type}|${evtDate}`;
+    // LOCK GUARD: en låst dag ("Fast tid") är alltid användarens/Bookings beslut.
+    // Externa importen får aldrig radera den som "stale".
+    if (e.times_locked === true) {
+      console.log(`[Calendar Reconcile] KEEP-LOCKED ${e.event_type}@${evtDate} (times_locked)`);
+      return false;
+    }
     if (localAuthoritativeKeys.has(key)) {
       console.log(`[Calendar Reconcile] KEEP-LOCAL ${e.event_type}@${evtDate} (matches booking.${e.event_type === 'rig' ? 'rigdaydate' : 'rigdowndate'}; not in external desired but locally authoritative)`);
       return false;
@@ -2552,7 +2561,7 @@ serve(async (req) => {
     // Get existing bookings for comparison — ONLY within current tenant
     const { data: existingBookings } = await supabase
       .from('bookings')
-      .select('id, status, version, booking_number, client, rigdaydate, eventdate, rigdowndate, deliveryaddress, delivery_city, delivery_postal_code, organization_id, assigned_to_project, assigned_project_id, assigned_project_name, rig_start_time_external, rig_end_time_external, event_start_time_external, event_end_time_external, rigdown_start_time_external, rigdown_end_time_external, rig_time_locked, event_time_locked, rigdown_time_locked')
+      .select('id, status, version, booking_number, client, rigdaydate, eventdate, rigdowndate, deliveryaddress, delivery_city, delivery_postal_code, organization_id, assigned_to_project, assigned_project_id, assigned_project_name, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, rig_start_time_external, rig_end_time_external, event_start_time_external, event_end_time_external, rigdown_start_time_external, rigdown_end_time_external, rig_time_locked, event_time_locked, rigdown_time_locked')
       .eq('organization_id', organizationId)
     const existingBookingMap = new Map(existingBookings?.map(b => [b.id, b]) || [])
     const existingBookingNumberMap = new Map()
@@ -3507,6 +3516,29 @@ serve(async (req) => {
           delete (dbBookingData as any).rig_time_locked;
           delete (dbBookingData as any).event_time_locked;
           delete (dbBookingData as any).rigdown_time_locked;
+
+          // LOCKED PHASE TIMES: när en fas är låst lokalt ("Fast tid") och Booking
+          // inte skickar någon tid för fasen får importen ALDRIG nolla eller ändra
+          // de lokala tiderna — varken i bookings-raden eller i kalender-reconcilern.
+          const timePhases: Array<{ lock: string; start: string; end: string }> = [
+            { lock: 'rig_time_locked', start: 'rig_start_time', end: 'rig_end_time' },
+            { lock: 'event_time_locked', start: 'event_start_time', end: 'event_end_time' },
+            { lock: 'rigdown_time_locked', start: 'rigdown_start_time', end: 'rigdown_end_time' },
+          ];
+          for (const { lock, start, end } of timePhases) {
+            const isLocked = (existingBooking as any)[lock] === true;
+            if (!isLocked) continue;
+            const incomingStart = (dbBookingData as any)[start];
+            if (incomingStart) continue; // Booking skickade en tid → den vinner
+            const localStart = (existingBooking as any)[start];
+            const localEnd = (existingBooking as any)[end];
+            if (!localStart) continue;
+            delete (dbBookingData as any)[start];
+            delete (dbBookingData as any)[end];
+            (bookingData as any)[start] = localStart;
+            (bookingData as any)[end] = localEnd;
+            console.log(`[Locked Time Preserve] ${bookingData.id}: kept local ${start}=${localStart}`);
+          }
 
           const updateData: any = {
             ...dbBookingData,
