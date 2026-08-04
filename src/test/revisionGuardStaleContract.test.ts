@@ -217,16 +217,20 @@ describe('STEG 2E – recordAppliedSourceRevision', () => {
     expect(typeof inserts[0].new_values.logged_at).toBe('string');
   });
 
-  it('Test 14: samma revision loggas inte två gånger', async () => {
+  it('Test 14: samma revision + samma status loggas inte två gånger (idempotent)', async () => {
     const inserts: any[] = [];
-    const sb = makeSupabase([{ id: 1, new_values: { source_revision: '2026-07-01T00:00:00Z' } }], { inserts });
+    const sb = makeSupabase(
+      [{ id: 1, new_values: { source_revision: '2026-07-01T00:00:00Z', source_status: 'CANCELLED' } }],
+      { inserts },
+    );
     const res = await recordAppliedSourceRevision(sb, {
       bookingId: BOOKING, organizationId: ORG,
       revision: '2026-07-01T00:00:00Z', sourceStatus: 'CANCELLED', changeType: 'source_revision',
     });
-    expect(res).toEqual({ ok: true, logged: false });
+    expect(res).toEqual({ ok: true, logged: false, already_current: true });
     expect(inserts).toHaveLength(0);
   });
+
 
   it('Test 15c: insertfel ger ok:false (→ partial, inget completed jobb)', async () => {
     const sb = makeSupabase([], { insertError: { message: 'boom' } });
