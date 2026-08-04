@@ -353,11 +353,6 @@ const runImportBookings = async (filters: ImportFilters, silent: boolean, preRes
   } catch (error) {
     console.error('Exception during import:', error);
     
-    try {
-
-    } catch (syncError) {
-      console.error('Error updating sync state after failure:', syncError);
-    }
     
     return {
       success: false,
