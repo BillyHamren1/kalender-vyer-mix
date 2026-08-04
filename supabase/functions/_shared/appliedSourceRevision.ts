@@ -207,7 +207,9 @@ export async function loadAppliedSourceRevision(
   // 1) Dedikerat fält = authoritative. Inget historik-tak, 'both' är naturligt
   //    och gamla rader utan source_status kan aldrig blockera.
   const dedicated = await readDedicatedRevision(supabase, bookingId, organizationId);
-  if (!dedicated.ok) return dedicated;
+  if (dedicated.ok === false) {
+    return { ok: false, error: dedicated.error, retriable: dedicated.retriable };
+  }
   if (dedicated.found) return parseDedicatedRevision(dedicated.value);
 
   // 2) Fallback: legacy-historiken i booking_changes (oförändrat strikt).
