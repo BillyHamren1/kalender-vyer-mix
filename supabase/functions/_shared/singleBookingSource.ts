@@ -351,7 +351,7 @@ export function compareRevisions(
 export function evaluateDestructiveAction(
   result: SingleBookingSourceResult,
   expected: { bookingId: string; organizationId: string },
-  local?: LocalAppliedRevision | null,
+  local?: LocalAppliedRevision | LocalAppliedRevision[] | null,
 ): DestructiveDecision {
   if (result.kind === 'error') return { allowed: false, reason: `technical_error_${result.code}` };
   if (result.kind === 'found') return { allowed: false, reason: 'booking_found_no_cleanup' };
@@ -372,7 +372,7 @@ export function evaluateDestructiveAction(
   const revCheck = validateTombstoneRevision(t);
   if (revCheck.ok !== true) return { allowed: false, reason: revCheck.reason };
 
-  const cmp = compareRevisions(revCheck.revisions, local);
+  const cmp = compareRevisions(revCheck.revisions, local, t.source_status);
   if (cmp.ok !== true) return { allowed: false, reason: cmp.reason };
 
   const status = t.source_status.toUpperCase();
