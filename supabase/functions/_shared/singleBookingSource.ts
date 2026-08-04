@@ -300,8 +300,41 @@ export function compareRevisions(
   return { ok: true };
 }
 
+/**
+ * ALLOWLIST för destruktiv cleanup.
+ * Samtliga krav måste vara uppfyllda — annars nekas åtgärden.
+ * `local` = redan applicerad canonical revision (måste vara framgångsrikt
+ * inläst av callern; ett läsfel får ALDRIG skickas in som `null`).
+ */
+export function evaluateDestructiveAction(
+  result: SingleBookingSourceResult,
+  expected: { bookingId: string; organizationId: string },
+  local?: LocalAppliedRevision | null,
+): DestructiveDecision {
+  if (result.kind === 'error') return { allowed: false, reason: `technical_error_${result.code}` };
+  if (result.kind === 'found') return { allowed: false, reason: 'booking_found_no_cleanup' };
+
+  if (!(DESTRUCTIVE_REASONS as readonly string[]).includes(result.reason)) {
+    return { allowed: false, reason: `non_destructive_reason_${result.rawReason ?? 'missing'}` };
+  }
+  const t = result.tombstone;
+  if (!t) return { allowed: false, reason: 'missing_tombstone' };
+  if (!t.booking_id || t.booking_id !== expected.bookingId) {
+    return { allowed: false, reason: 'tombstone_booking_id_mismatch' };
+  }
+  if (!t.organization_id || t.organization_id !== expected.organizationId) {
+    return { allowed: false, reason: 'tombstone_organization_id_mismatch' };
+  }
+  if (!t.source_status) return { allowed: false, reason: 'tombstone_missing_source_status' };
+
+  const revCheck = validateTombstoneRevision(t);
+  if (!revCheck.ok) return { allowed: false, reason: revCheck.reason };
+
+  const cmp = compareRevisions(revCheck.revisions, local);
+  if (!cmp.ok) return { allowed: false, reason: cmp.reason };
 
   const status = t.source_status.toUpperCase();
+
   if (result.reason === 'cancelled') {
     if (status !== 'CANCELLED') return { allowed: false, reason: 'tombstone_status_reason_mismatch' };
     return { allowed: true, action: 'cancellation', tombstone: t };
