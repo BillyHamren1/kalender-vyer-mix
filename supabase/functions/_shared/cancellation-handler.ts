@@ -27,7 +27,7 @@ export interface CancellationSourceEvidence {
 }
 
 export interface CancellationResult {
-  status: 'cancelled' | 'skipped_already_cancelled' | 'error';
+  status: 'cancelled' | 'partial' | 'skipped_already_cancelled' | 'error';
   booking_id: string;
   calendar_events_deleted?: boolean;
   warehouse_events_deleted?: boolean;
@@ -46,15 +46,22 @@ export async function applyBookingCancellation(
 ): Promise<CancellationResult> {
   const bookingId = existingBooking.id;
   const result: CancellationResult = { status: 'cancelled', booking_id: bookingId };
+  const orgId = existingBooking.organization_id ?? source?.organization_id ?? null;
+  if (!orgId) {
+    result.status = 'error';
+    result.error = 'organization_id_required_for_cancellation';
+    return result;
+  }
+  const failures: string[] = [];
 
 
   try {
     // Decide whether to keep "manually hidden cancelled" state.
     const [{ data: cancelledProjects }, { data: cancelledJobs }, { data: anyCancelledProjects }, { data: anyCancelledJobs }] = await Promise.all([
-      supabase.from('projects').select('id').eq('booking_id', bookingId).neq('status', 'cancelled').limit(1),
-      supabase.from('jobs').select('id').eq('booking_id', bookingId).not('status', 'in', '("completed","cancelled")').limit(1),
-      supabase.from('projects').select('id').eq('booking_id', bookingId).eq('status', 'cancelled').limit(1),
-      supabase.from('jobs').select('id').eq('booking_id', bookingId).eq('status', 'cancelled').limit(1),
+      supabase.from('projects').select('id').eq('organization_id', orgId).eq('booking_id', bookingId).neq('status', 'cancelled').limit(1),
+      supabase.from('jobs').select('id').eq('organization_id', orgId).eq('booking_id', bookingId).not('status', 'in', '("completed","cancelled")').limit(1),
+      supabase.from('projects').select('id').eq('organization_id', orgId).eq('booking_id', bookingId).eq('status', 'cancelled').limit(1),
+      supabase.from('jobs').select('id').eq('organization_id', orgId).eq('booking_id', bookingId).eq('status', 'cancelled').limit(1),
     ]);
 
     const hasCancelledLink =
@@ -82,7 +89,8 @@ export async function applyBookingCancellation(
         version: (existingBooking.version || 1) + 1,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', bookingId);
+      .eq('id', bookingId)
+      .eq('organization_id', orgId);
 
     if (updateError) {
       result.status = 'error';
@@ -91,39 +99,47 @@ export async function applyBookingCancellation(
     }
 
     // Calendar events
-    const { error: deleteCalError } = await supabase.from('calendar_events').delete().eq('booking_id', bookingId);
+    const { error: deleteCalError } = await supabase.from('calendar_events').delete().eq('organization_id', orgId).eq('booking_id', bookingId);
     result.calendar_events_deleted = !deleteCalError;
+    if (deleteCalError) failures.push('calendar_events');
     if (deleteCalError) console.error(`[cancellation] calendar_events delete failed for ${bookingId}:`, deleteCalError);
 
     // Warehouse calendar events
-    const { error: deleteWhError } = await supabase.from('warehouse_calendar_events').delete().eq('booking_id', bookingId);
+    const { error: deleteWhError } = await supabase.from('warehouse_calendar_events').delete().eq('organization_id', orgId).eq('booking_id', bookingId);
     result.warehouse_events_deleted = !deleteWhError;
+    if (deleteWhError) failures.push('warehouse_calendar_events');
     if (deleteWhError) console.error(`[cancellation] warehouse_calendar_events delete failed for ${bookingId}:`, deleteWhError);
 
     // Projects → cancelled
     const { error: projectUpdateError } = await supabase
       .from('projects')
       .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-      .eq('booking_id', bookingId);
+      .eq('booking_id', bookingId)
+      .eq('organization_id', orgId);
     result.projects_updated = !projectUpdateError;
+    if (projectUpdateError) failures.push('projects');
     if (projectUpdateError) console.error(`[cancellation] projects update failed for ${bookingId}:`, projectUpdateError);
 
     // Jobs → cancelled
     const { error: jobUpdateError } = await supabase
       .from('jobs')
       .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-      .eq('booking_id', bookingId);
+      .eq('booking_id', bookingId)
+      .eq('organization_id', orgId);
     result.jobs_updated = !jobUpdateError;
+    if (jobUpdateError) failures.push('jobs');
     if (jobUpdateError) console.error(`[cancellation] jobs update failed for ${bookingId}:`, jobUpdateError);
 
     // Packing projects → delete
-    const { error: deletePackingError } = await supabase.from('packing_projects').delete().eq('booking_id', bookingId);
+    const { error: deletePackingError } = await supabase.from('packing_projects').delete().eq('organization_id', orgId).eq('booking_id', bookingId);
     result.packing_deleted = !deletePackingError;
+    if (deletePackingError) failures.push('packing_projects');
     if (deletePackingError) console.error(`[cancellation] packing_projects delete failed for ${bookingId}:`, deletePackingError);
 
     // Booking products → delete
-    const { error: deleteProductsError } = await supabase.from('booking_products').delete().eq('booking_id', bookingId);
+    const { error: deleteProductsError } = await supabase.from('booking_products').delete().eq('organization_id', orgId).eq('booking_id', bookingId);
     result.products_deleted = !deleteProductsError;
+    if (deleteProductsError) failures.push('booking_products');
     if (deleteProductsError) console.error(`[cancellation] booking_products delete failed for ${bookingId}:`, deleteProductsError);
 
     // Audit: lagra canonical source reason + revision EN gång per revision.
@@ -134,6 +150,7 @@ export async function applyBookingCancellation(
           .from('booking_changes')
           .select('id, new_values')
           .eq('booking_id', bookingId)
+          .eq('organization_id', orgId)
           .eq('change_type', 'cancellation_source')
           .limit(50);
         const alreadyLogged = (existingLogs ?? []).some(
@@ -142,7 +159,7 @@ export async function applyBookingCancellation(
         if (!alreadyLogged) {
           await supabase.from('booking_changes').insert({
             booking_id: bookingId,
-            organization_id: source.organization_id ?? existingBooking.organization_id ?? undefined,
+            organization_id: orgId,
             change_type: 'cancellation_source',
             changed_fields: ['status'],
             previous_values: { status: existingBooking.status ?? null },
@@ -161,6 +178,14 @@ export async function applyBookingCancellation(
       } catch (logErr) {
         console.error(`[cancellation] audit log failed for ${bookingId}:`, logErr);
       }
+    }
+
+    if (failures.length > 0) {
+      // Delvis misslyckad cleanup får ALDRIG rapporteras som full success.
+      result.status = 'partial';
+      result.error = `partial_cleanup_failed: ${failures.join(',')}`;
+      console.error(`[cancellation] partial cleanup for ${bookingId}: ${failures.join(',')}`);
+      return result;
     }
 
     console.log(`[cancellation] Fully processed CANCELLED booking ${bookingId}`);

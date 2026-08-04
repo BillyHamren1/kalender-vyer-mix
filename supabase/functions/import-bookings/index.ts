@@ -13,6 +13,7 @@ import {
   evaluateDestructiveAction,
 } from '../_shared/singleBookingSource.ts'
 import { applyBookingCancellation } from '../_shared/cancellation-handler.ts'
+import { loadAppliedSourceRevision } from '../_shared/appliedSourceRevision.ts'
 
 /**
  * Resolve the organization_id to use for all INSERTs.
@@ -2495,16 +2496,23 @@ serve(async (req) => {
         { ok: true, status: 200 },
       );
 
+      // Stale-skydd: läs redan applicerad canonical revision INNAN beslut.
+      const appliedRevision = await loadAppliedSourceRevision(
+        supabase,
+        normalizedSingleBookingId,
+        organizationId,
+      );
+
       const decision = evaluateDestructiveAction(parsedSource, {
         bookingId: normalizedSingleBookingId,
         organizationId,
-      });
+      }, appliedRevision);
 
       if (decision.allowed && decision.action === 'cancellation') {
         // Enda centrala cancellation-vägen (idempotent i handlern).
         const { data: existingBooking } = await supabase
           .from('bookings')
-          .select('id, version, assigned_to_project, assigned_project_id, assigned_project_name, status')
+          .select('id, version, assigned_to_project, assigned_project_id, assigned_project_name, status, organization_id')
           .eq('id', normalizedSingleBookingId)
           .eq('organization_id', organizationId)
           .maybeSingle();
@@ -2535,14 +2543,14 @@ serve(async (req) => {
         return new Response(JSON.stringify(buildSingleBookingEnvelope({
           bookingId: normalizedSingleBookingId,
           organizationId,
-          outcome: cancelResult.status === 'error' ? 'partial' : 'applied',
+          outcome: cancelResult.status === 'error' || cancelResult.status === 'partial' ? 'partial' : 'applied',
           error: cancelResult.error ?? null,
           results: {
             total: 1,
             imported: 0,
-            failed: cancelResult.status === 'error' ? 1 : 0,
-            status_changed_bookings: cancelResult.status === 'error' ? [] : [normalizedSingleBookingId],
-            errors: cancelResult.status === 'error' ? [{ booking_id: normalizedSingleBookingId, error: cancelResult.error }] : [],
+            failed: cancelResult.status === 'error' || cancelResult.status === 'partial' ? 1 : 0,
+            status_changed_bookings: cancelResult.status === 'error' || cancelResult.status === 'partial' ? [] : [normalizedSingleBookingId],
+            errors: cancelResult.status === 'error' || cancelResult.status === 'partial' ? [{ booking_id: normalizedSingleBookingId, error: cancelResult.error }] : [],
             sync_mode: 'canonical_cancellation',
           },
         })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });

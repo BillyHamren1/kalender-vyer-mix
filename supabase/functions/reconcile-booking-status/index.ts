@@ -19,6 +19,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { applyBookingCancellation } from "../_shared/cancellation-handler.ts";
+import { loadAppliedSourceRevision } from "../_shared/appliedSourceRevision.ts";
 import {
   parseSingleBookingSourceResponse,
   evaluateDestructiveAction,
@@ -159,10 +160,11 @@ serve(async (req) => {
       continue;
     }
 
+    const appliedRevision = await loadAppliedSourceRevision(supabase, b.id, b.organization_id);
     const decision = evaluateDestructiveAction(ext.parsed, {
       bookingId: b.id,
       organizationId: b.organization_id,
-    });
+    }, appliedRevision);
 
     if (decision.allowed && decision.action === "cancellation" && b.status !== "CANCELLED") {
       summary.status_mismatches++;
@@ -185,7 +187,7 @@ serve(async (req) => {
       });
       if (result.status === "cancelled") {
         summary.cancellations_applied++;
-      } else if (result.status === "error") {
+      } else if (result.status === "error" || result.status === "partial") {
         summary.errors.push({ booking_id: b.id, error: result.error || "unknown" });
       }
     }
