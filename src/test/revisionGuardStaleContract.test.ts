@@ -116,21 +116,16 @@ describe('STEG 2E – loader utan limit-50-lucka', () => {
     if (!res.ok) expect(res.error).toBe('conflicting_stored_source_revision');
   });
 
-  it('Test 11: högsta timestamp och högsta version på olika rader ger inga syntetiska revisioner', async () => {
+  it('Test 11: högsta timestamp och högsta version på olika rader → STEG 2F mixed (inga syntetiska revisioner)', async () => {
     const sb = makeSupabase([
       row('source_revision', '2026-03-01T00:00:00Z', 'CONFIRMED'),
       row('source_revision', 10, 'CONFIRMED'),
     ]);
     const res = await loadAppliedSourceRevision(sb, BOOKING, ORG);
-    expect(res.ok && res.found).toBe(true);
-    if (res.ok && res.found) {
-      expect(res.revisions).toHaveLength(2);
-      for (const r of res.revisions) {
-        // Ingen post bär både timestamp och version.
-        expect(!(r.sourceUpdatedAt && r.sourceVersion !== null)).toBe(true);
-      }
-    }
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toBe('mixed_incomparable_revision_history');
   });
+
 });
 
 describe('STEG 2E – jämförelsepolicy äldre/samma/nyare', () => {
