@@ -210,50 +210,96 @@ export interface LocalAppliedRevision {
   sourceVersion?: string | number | null;
 }
 
-function revisionIsStale(t: SourceTombstone, local?: LocalAppliedRevision): boolean {
-  if (!local) return false;
-  if (t.source_updated_at && local.sourceUpdatedAt) {
-    const tomb = Date.parse(t.source_updated_at);
-    const loc = Date.parse(local.sourceUpdatedAt);
-    if (Number.isFinite(tomb) && Number.isFinite(loc)) return tomb < loc;
+export type ParsedRevision =
+  | { kind: 'timestamp'; ms: number }
+  | { kind: 'version'; value: number };
+
+/** Strikt: endast ändligt, icke-negativt heltal eller strikt numerisk sträng. */
+export function parseSourceVersion(raw: unknown): number | null {
+  if (typeof raw === 'number') {
+    return Number.isFinite(raw) && Number.isInteger(raw) && raw >= 0 ? raw : null;
   }
-  const tv = typeof t.source_version === 'number' ? t.source_version : Number(t.source_version);
-  const lv = typeof local.sourceVersion === 'number' ? local.sourceVersion : Number(local.sourceVersion);
-  if (Number.isFinite(tv) && Number.isFinite(lv)) return tv < lv;
-  return false;
+  if (typeof raw === 'string' && /^\d+$/.test(raw.trim())) {
+    const n = Number(raw.trim());
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+/** Strikt: icke-tom sträng som parsas till ett ändligt tidsvärde. */
+export function parseSourceTimestamp(raw: unknown): number | null {
+  if (typeof raw !== 'string') return null;
+  const s = raw.trim();
+  if (!s) return null;
+  const t = Date.parse(s);
+  return Number.isFinite(t) ? t : null;
 }
 
 /**
- * ALLOWLIST för destruktiv cleanup.
- * Samtliga krav måste vara uppfyllda — annars nekas åtgärden.
- * `local` = redan applicerad canonical revision; en äldre tombstone nekas.
+ * Validera tombstonens revision. Ogiltig revision är ALDRIG destructive-safe.
+ * Tom sträng, whitespace, null, undefined, "not-a-date", NaN, Infinity,
+ * negativa versioner och godtycklig text nekas.
  */
-export function evaluateDestructiveAction(
-  result: SingleBookingSourceResult,
-  expected: { bookingId: string; organizationId: string },
-  local?: LocalAppliedRevision,
-): DestructiveDecision {
-  if (result.kind === 'error') return { allowed: false, reason: `technical_error_${result.code}` };
-  if (result.kind === 'found') return { allowed: false, reason: 'booking_found_no_cleanup' };
+export function validateTombstoneRevision(
+  t: SourceTombstone,
+): { ok: true; revisions: ParsedRevision[] } | { ok: false; reason: string } {
+  const revisions: ParsedRevision[] = [];
 
-  if (!(DESTRUCTIVE_REASONS as readonly string[]).includes(result.reason)) {
-    return { allowed: false, reason: `non_destructive_reason_${result.rawReason ?? 'missing'}` };
+  const rawTs = t.source_updated_at;
+  if (rawTs !== undefined && rawTs !== null) {
+    const ms = parseSourceTimestamp(rawTs);
+    if (ms === null) return { ok: false, reason: 'tombstone_invalid_source_revision' };
+    revisions.push({ kind: 'timestamp', ms });
   }
-  const t = result.tombstone;
-  if (!t) return { allowed: false, reason: 'missing_tombstone' };
-  if (!t.booking_id || t.booking_id !== expected.bookingId) {
-    return { allowed: false, reason: 'tombstone_booking_id_mismatch' };
+
+  const rawVer = t.source_version;
+  if (rawVer !== undefined && rawVer !== null) {
+    const v = parseSourceVersion(rawVer);
+    if (v === null) return { ok: false, reason: 'tombstone_invalid_source_revision' };
+    revisions.push({ kind: 'version', value: v });
   }
-  if (!t.organization_id || t.organization_id !== expected.organizationId) {
-    return { allowed: false, reason: 'tombstone_organization_id_mismatch' };
+
+  if (revisions.length === 0) return { ok: false, reason: 'tombstone_missing_source_revision' };
+  return { ok: true, revisions };
+}
+
+/** Lokal revision → jämförbara former (endast giltiga värden räknas). */
+export function parseLocalRevision(local: LocalAppliedRevision): ParsedRevision[] {
+  const out: ParsedRevision[] = [];
+  const ms = parseSourceTimestamp(local.sourceUpdatedAt ?? null);
+  if (ms !== null) out.push({ kind: 'timestamp', ms });
+  const v = parseSourceVersion(local.sourceVersion ?? null);
+  if (v !== null) out.push({ kind: 'version', value: v });
+  return out;
+}
+
+/**
+ * Jämför tombstone mot lokalt applicerad revision av SAMMA typ.
+ * Olika typer = fail-closed (`incomparable_source_revision`).
+ */
+export function compareRevisions(
+  tombRevs: ParsedRevision[],
+  local: LocalAppliedRevision | null | undefined,
+): { ok: true } | { ok: false; reason: string } {
+  if (!local) return { ok: true }; // ingen tidigare revision → inget stale-skydd att tillämpa
+  const localRevs = parseLocalRevision(local);
+  if (localRevs.length === 0) return { ok: true };
+
+  let compared = false;
+  for (const lr of localRevs) {
+    const tr = tombRevs.find((r) => r.kind === lr.kind);
+    if (!tr) continue;
+    compared = true;
+    if (tr.kind === 'timestamp' && lr.kind === 'timestamp') {
+      if (tr.ms < lr.ms) return { ok: false, reason: 'stale_tombstone_revision' };
+    } else if (tr.kind === 'version' && lr.kind === 'version') {
+      if (tr.value < lr.value) return { ok: false, reason: 'stale_tombstone_revision' };
+    }
   }
-  if (!t.source_status) return { allowed: false, reason: 'tombstone_missing_source_status' };
-  if (!t.source_updated_at && (t.source_version === null || t.source_version === undefined)) {
-    return { allowed: false, reason: 'tombstone_missing_source_revision' };
-  }
-  if (revisionIsStale(t, local)) {
-    return { allowed: false, reason: 'stale_tombstone_revision' };
-  }
+  if (!compared) return { ok: false, reason: 'incomparable_source_revision' };
+  return { ok: true };
+}
+
 
   const status = t.source_status.toUpperCase();
   if (result.reason === 'cancelled') {
