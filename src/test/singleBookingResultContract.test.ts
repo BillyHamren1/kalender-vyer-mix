@@ -120,7 +120,7 @@ describe('worker enforces the contract in source', () => {
     const src = fs.readFileSync('supabase/functions/process-sync-jobs/index.ts', 'utf8');
     expect(src).toContain('validateSingleBookingResult');
     const validateIdx = src.indexOf('validateSingleBookingResult(\n');
-    const completedIdx = src.indexOf("status: 'completed'");
+    const completedIdx = src.indexOf("          status: 'completed',");
     expect(validateIdx).toBeGreaterThan(-1);
     expect(completedIdx).toBeGreaterThan(validateIdx);
   });
