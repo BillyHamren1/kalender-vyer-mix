@@ -988,6 +988,7 @@ export type Database = {
           internalnotes: string | null
           is_internal: boolean
           large_project_id: string | null
+          last_applied_source_revision: Json | null
           last_calendar_sync: string | null
           map_drawing_url: string | null
           needs_review: boolean
@@ -1045,6 +1046,7 @@ export type Database = {
           internalnotes?: string | null
           is_internal?: boolean
           large_project_id?: string | null
+          last_applied_source_revision?: Json | null
           last_calendar_sync?: string | null
           map_drawing_url?: string | null
           needs_review?: boolean
@@ -1102,6 +1104,7 @@ export type Database = {
           internalnotes?: string | null
           is_internal?: boolean
           large_project_id?: string | null
+          last_applied_source_revision?: Json | null
           last_calendar_sync?: string | null
           map_drawing_url?: string | null
           needs_review?: boolean

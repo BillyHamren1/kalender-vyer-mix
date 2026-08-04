@@ -3,11 +3,14 @@
  * Används som stale-skydd: en tombstone med äldre, motsägelsefull eller
  * ojämförbar source-revision får aldrig skriva över nyare canonical data.
  *
- * KÄLLA:
- *   `bookings` saknar i dag ett dedikerat fält för senast applicerad canonical
- *   Booking-revision, därför är `booking_changes` primär källa. Loadern
- *   filtrerar server-side på REVISIONSBÄRANDE change_types — den läser aldrig
- *   "de N senaste raderna oavsett typ" (tidigare fail-open-lucka).
+ * KÄLLA (STEG 2G):
+ *   `bookings.last_applied_source_revision` (jsonb) är dedikerad, authoritative
+ *   revisionskälla. Den har inget historik-tak, gör 'both' naturligt (en rad bär
+ *   både timestamp och version) och kan aldrig blockeras av historiska rader
+ *   utan `source_status`. Saknas fältet (äldre bokning) faller loadern tillbaka
+ *   på `booking_changes`, som filtreras server-side på REVISIONSBÄRANDE
+ *   change_types — aldrig "de N senaste raderna oavsett typ".
+
  *
  * STEG 2F – EN AUTHORITATIVE REVISIONSTYP PER BOKNING:
  *   Den senast applicerade revisionsbärande raden (högst `created_at`) är
@@ -120,11 +123,99 @@ function entryKinds(e: RevisionEntry): Array<'timestamp' | 'version'> {
   return kinds;
 }
 
+/** Kolumnen på `bookings` som är dedikerad, authoritative revisionskälla. */
+export const DEDICATED_REVISION_COLUMN = 'last_applied_source_revision';
+
+type DedicatedRead =
+  | { ok: true; found: true; value: any }
+  | { ok: true; found: false }
+  | { ok: false; error: string; retriable: boolean };
+
+/**
+ * Läser det dedikerade fältet `bookings.last_applied_source_revision`.
+ * Saknas klient-stöd (t.ex. äldre mock/klient utan `maybeSingle`) eller
+ * kolumnen → `found:false` och callern faller tillbaka på booking_changes.
+ */
+async function readDedicatedRevision(
+  supabase: any,
+  bookingId: string,
+  organizationId: string,
+): Promise<DedicatedRead> {
+  try {
+    const q = supabase
+      .from('bookings')
+      .select(DEDICATED_REVISION_COLUMN)
+      .eq('id', bookingId)
+      .eq('organization_id', organizationId);
+    if (!q || typeof q.maybeSingle !== 'function') return { ok: true, found: false };
+    const res = await q.maybeSingle();
+    if (res?.error) {
+      // Okänd kolumn / äldre schema → fall tillbaka på historiken (fortsatt strikt).
+      return { ok: true, found: false };
+    }
+    const value = res?.data?.[DEDICATED_REVISION_COLUMN] ?? null;
+    if (value === null || value === undefined) return { ok: true, found: false };
+    return { ok: true, found: true, value };
+  } catch {
+    return { ok: true, found: false };
+  }
+}
+
+/** Bygger ett authoritative resultat direkt ur det dedikerade fältet. */
+function parseDedicatedRevision(value: any): AppliedRevisionLoadResult {
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    return { ok: false, error: 'dedicated_revision_unparseable', retriable: false };
+  }
+  let timestamp: string | null = null;
+  let version: number | null = null;
+
+  const rawTs = value.source_updated_at ?? null;
+  if (rawTs !== null && rawTs !== undefined && rawTs !== '') {
+    if (parseStrictTimestamp(rawTs) === null) {
+      return { ok: false, error: 'dedicated_revision_unparseable', retriable: false };
+    }
+    timestamp = String(rawTs).trim();
+  }
+  const rawVer = value.source_version ?? null;
+  if (rawVer !== null && rawVer !== undefined && rawVer !== '') {
+    const v = parseStrictVersion(rawVer);
+    if (v === null) {
+      return { ok: false, error: 'dedicated_revision_unparseable', retriable: false };
+    }
+    version = v;
+  }
+  if (timestamp === null && version === null) {
+    return { ok: false, error: 'dedicated_revision_unparseable', retriable: false };
+  }
+  const status = normStatus(value.source_status);
+  if (!status) {
+    return { ok: false, error: 'dedicated_revision_missing_source_status', retriable: false };
+  }
+  const revisionKind: RevisionKind =
+    timestamp !== null && version !== null ? 'both' : timestamp !== null ? 'timestamp' : 'version';
+  const revision: LocalAppliedRevision = {
+    sourceUpdatedAt: timestamp,
+    sourceVersion: version,
+    sourceStatus: status,
+    changeType: typeof value.change_type === 'string' ? value.change_type : null,
+  };
+  return { ok: true, found: true, revisionKind, revision, revisions: [revision] };
+}
+
 export async function loadAppliedSourceRevision(
   supabase: any,
   bookingId: string,
   organizationId: string,
 ): Promise<AppliedRevisionLoadResult> {
+  // 1) Dedikerat fält = authoritative. Inget historik-tak, 'both' är naturligt
+  //    och gamla rader utan source_status kan aldrig blockera.
+  const dedicated = await readDedicatedRevision(supabase, bookingId, organizationId);
+  if (dedicated.ok === false) {
+    return { ok: false, error: dedicated.error, retriable: dedicated.retriable };
+  }
+  if (dedicated.found) return parseDedicatedRevision(dedicated.value);
+
+  // 2) Fallback: legacy-historiken i booking_changes (oförändrat strikt).
   let data: any[] | null = null;
   try {
     const res = await supabase
@@ -278,6 +369,10 @@ export async function recordAppliedSourceRevision(
     revision: string | number | null | undefined;
     /** Canonical status från Booking-envelopen (aldrig lokalt härledd). */
     sourceStatus?: string | null;
+    /** Explicit tidsstämpel-revision (om envelopen bär både ts och version). */
+    sourceUpdatedAt?: string | null;
+    /** Explicit versionsrevision (om envelopen bär både ts och version). */
+    sourceVersion?: number | null;
     changeType?: string;
   },
 ): Promise<RecordRevisionResult> {
@@ -294,6 +389,37 @@ export async function recordAppliedSourceRevision(
   if (!sourceStatus) {
     return { ok: false, error: 'missing_canonical_source_status_for_revision' };
   }
+
+  // 1) Skriv det dedikerade authoritative fältet på bokningen.
+  const asVersion = parseStrictVersion(revision);
+  const asTs = asVersion === null ? parseStrictTimestamp(revision) : null;
+  const dedicatedPayload = {
+    source_updated_at: input.sourceUpdatedAt ?? (asTs !== null ? String(revision).trim() : null),
+    source_version: input.sourceVersion ?? asVersion,
+    source_status: sourceStatus,
+    change_type: changeType,
+    revision: String(revision),
+    logged_at: new Date().toISOString(),
+  };
+  let dedicatedWritten = false;
+  try {
+    const tbl = supabase.from('bookings');
+    if (tbl && typeof tbl.update === 'function') {
+      const upd = tbl
+        .update({ [DEDICATED_REVISION_COLUMN]: dedicatedPayload })
+        .eq('id', input.bookingId)
+        .eq('organization_id', input.organizationId);
+      const updRes = typeof upd?.then === 'function' ? await upd : null;
+      if (updRes?.error) {
+        return { ok: false, error: `bookings_revision_update:${updRes.error.message ?? 'unknown'}` };
+      }
+      dedicatedWritten = !!updRes;
+    }
+  } catch (err: any) {
+    return { ok: false, error: `bookings_revision_update_exception:${err?.message ?? String(err)}` };
+  }
+
+  // 2) Historikloggen (booking_changes) är nu enbart audit-spår.
   try {
     const readRes = await supabase
       .from('booking_changes')
@@ -312,6 +438,16 @@ export async function recordAppliedSourceRevision(
       for (const row of existing) {
         const storedStatus = normStatus(row?.new_values?.source_status);
         if (!storedStatus) {
+          // Historisk rad loggad före 2F saknar source_status. När det dedikerade
+          // fältet är skrivet är det authoritative → legacy-raden blockerar inte.
+          if (dedicatedWritten) {
+            console.warn('[appliedSourceRevision] legacy revision row without source_status ignored', JSON.stringify({
+              booking_id: input.bookingId,
+              organization_id: input.organizationId,
+              revision: String(revision),
+            }));
+            continue;
+          }
           return { ok: false, error: 'stored_revision_missing_source_status' };
         }
         if (storedStatus !== sourceStatus) {
@@ -320,6 +456,7 @@ export async function recordAppliedSourceRevision(
       }
       return { ok: true, logged: false, already_current: true };
     }
+
 
     const insertRes = await supabase.from('booking_changes').insert({
       booking_id: input.bookingId,
