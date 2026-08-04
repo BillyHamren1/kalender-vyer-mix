@@ -236,3 +236,90 @@ describe('source guarantees in edge function code', () => {
     expect(rec).toContain('applyBookingCancellation');
   });
 });
+
+// ── STEG 2B: skärpta kontraktskontroller ────────────────────────────────
+describe('STEG 2B parser hardening', () => {
+  const base = {
+    success: true,
+    mode: 'single',
+    booking_id: '2602-13',
+    organization_id: 'org-1',
+  };
+
+  it('2B-1: found:false utan reason nekas (kontraktsfel, aldrig cleanup)', () => {
+    const r = parseSingleBookingSourceResponse({ ...base, found: false }, expected, { ok: true, status: 200 });
+    expect(r).toMatchObject({ kind: 'error', retriable: false, code: 'contract_absent_without_reason' });
+    expect(evaluateDestructiveAction(r, expected).allowed).toBe(false);
+  });
+
+  it('2B-2: found:true med tombstone eller reason nekas som motsägelse', () => {
+    const withTomb = parseSingleBookingSourceResponse(
+      { ...base, found: true, booking: { id: '2602-13', organization_id: 'org-1' }, tombstone: { booking_id: '2602-13' } },
+      expected, { ok: true, status: 200 });
+    expect(withTomb).toMatchObject({ kind: 'error', code: 'contract_contradiction_found_with_tombstone' });
+    const withReason = parseSingleBookingSourceResponse(
+      { ...base, found: true, booking: { id: '2602-13', organization_id: 'org-1' }, reason: 'cancelled' },
+      expected, { ok: true, status: 200 });
+    expect(withReason).toMatchObject({ kind: 'error', code: 'contract_contradiction_found_with_reason' });
+  });
+
+  it('2B-3: found:false med booking-payload nekas som motsägelse', () => {
+    const r = parseSingleBookingSourceResponse(
+      { ...base, found: false, reason: 'cancelled', booking: { id: '2602-13' } },
+      expected, { ok: true, status: 200 });
+    expect(r).toMatchObject({ kind: 'error', code: 'contract_contradiction_absent_with_booking' });
+    expect(evaluateDestructiveAction(r, expected).allowed).toBe(false);
+  });
+
+  it('2B-4: okänd kontraktsversion nekas, känd version accepteras', () => {
+    const bad = parseSingleBookingSourceResponse(
+      { ...base, contract_version: '9', found: true, booking: { id: '2602-13', organization_id: 'org-1', status: 'CONFIRMED' } },
+      expected, { ok: true, status: 200 });
+    expect(bad).toMatchObject({ kind: 'error', code: 'contract_version_unsupported_9' });
+    const ok = parseSingleBookingSourceResponse(
+      { ...base, contract_version: 1, found: true, booking: { id: '2602-13', organization_id: 'org-1', status: 'CONFIRMED' } },
+      expected, { ok: true, status: 200 });
+    expect(ok.kind).toBe('found');
+  });
+
+  it('2B-5: OFFER-bokning importeras som found (ingen demotion-väg)', () => {
+    const r = parseSingleBookingSourceResponse(
+      { ...base, found: true, source_status: 'OFFER', booking: { id: '2602-13', organization_id: 'org-1', status: 'OFFER' } },
+      expected, { ok: true, status: 200 });
+    expect(r).toMatchObject({ kind: 'found', sourceStatus: 'OFFER' });
+    expect(evaluateDestructiveAction(r, expected)).toMatchObject({ allowed: false, reason: 'booking_found_no_cleanup' });
+  });
+
+  it('2B-6: cancellation-handlern loggar source reason + revision idempotent', async () => {
+    const inserts: any[] = [];
+    const logged: any[] = [];
+    const sb = {
+      from(table: string) {
+        const api: any = {
+          update: () => api, delete: () => api, eq: () => api, not: () => api, limit: () => api,
+          select: () => api,
+          insert: (row: any) => { inserts.push({ table, row }); logged.push(row); return Promise.resolve({ error: null }); },
+          then: (res: any) => res({ data: table === 'booking_changes' ? logged.map((r) => ({ id: 'x', new_values: r.new_values })) : [], error: null }),
+        };
+        return api;
+      },
+    };
+    const input = { id: '2602-13', version: 1, status: 'CONFIRMED', organization_id: 'org-1' };
+    const evidence = { reason: 'cancelled', source_status: 'CANCELLED', source_revision: 'rev-1', organization_id: 'org-1' };
+    const r1 = await applyBookingCancellation(sb as any, input, evidence);
+    const r2 = await applyBookingCancellation(sb as any, input, evidence);
+    expect(r1.source_logged).toBe(true);
+    expect(r2.source_logged).toBe(false); // idempotent: ingen dubbel cancellation-logg
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0].row.new_values).toMatchObject({ source_reason: 'cancelled', source_revision: 'rev-1' });
+  });
+
+  it('2B-7: import-bookings skickar canonical bevis till handlern', async () => {
+    const fs = await import('node:fs');
+    const imp = fs.readFileSync('supabase/functions/import-bookings/index.ts', 'utf8');
+    expect(imp).toContain('externalData.raw ?? externalData');
+    expect(imp).toMatch(/applyBookingCancellation\(supabase, existingBooking, \{/);
+    const rec = fs.readFileSync('supabase/functions/reconcile-booking-status/index.ts', 'utf8');
+    expect(rec).toContain('source_revision');
+  });
+});
