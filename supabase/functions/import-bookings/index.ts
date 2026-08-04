@@ -2542,6 +2542,24 @@ serve(async (req) => {
           })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
         }
 
+        // UPPGIFT F: idempotent cancellation — samma canonical revision som
+        // redan applicerats och bokningen är redan CANCELLED → ingen ny
+        // mutation, inga dubbla auditposter, ingen ny version.
+        if (String(existingBooking.status ?? '').toUpperCase() === 'CANCELLED') {
+          const tombRev = decision.tombstone.source_updated_at ?? decision.tombstone.source_version ?? null;
+          const alreadyApplied = (revisionLoad.found ? revisionLoad.revisions : []).some((r) =>
+            String(r.sourceUpdatedAt ?? r.sourceVersion ?? '') === String(tombRev ?? '')
+          );
+          if (alreadyApplied) {
+            return new Response(JSON.stringify(buildSingleBookingEnvelope({
+              bookingId: normalizedSingleBookingId,
+              organizationId,
+              outcome: 'already_current',
+              results: { total: 1, imported: 0, failed: 0, errors: [], sync_mode: 'cancellation_idempotent' },
+            })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+          }
+        }
+
         const cancelResult = await applyBookingCancellation(supabase, existingBooking, {
           reason: 'cancelled',
           source_status: decision.tombstone.source_status ?? 'CANCELLED',
@@ -4336,7 +4354,7 @@ serve(async (req) => {
           bookingId: normalizedSingleBookingId,
           organizationId,
           revision: canonicalRevision,
-          sourceStatus: canonicalRow?.status ?? null,
+          sourceStatus: canonicalRow?.status ?? canonicalRow?.booking_status ?? (externalData as any)?.raw?.source_status ?? null,
         });
         if (!logged.ok) {
           console.error('[import-bookings] source revision logging failed', logged.error);
