@@ -4324,12 +4324,38 @@ serve(async (req) => {
 
     if (isSingleBookingRefresh) {
       const outcome = deriveSingleBookingOutcome(results as any);
+
+      // UPPGIFT D: logga senaste canonical revision även för NORMAL import
+      // (found:true), inte bara cancellation — annars kan stale-skyddet inte
+      // jämföra en cancellation-tombstone mot senaste vanliga Booking-import.
+      if ((outcome === 'applied' || outcome === 'already_current') && normalizedSingleBookingId) {
+        const canonicalRow: any = Array.isArray(externalData?.data) ? externalData.data[0] : null;
+        const canonicalRevision =
+          canonicalRow?.updated_at ?? canonicalRow?.source_updated_at ?? canonicalRow?.version ?? null;
+        const logged = await recordAppliedSourceRevision(supabase, {
+          bookingId: normalizedSingleBookingId,
+          organizationId,
+          revision: canonicalRevision,
+          sourceStatus: canonicalRow?.status ?? null,
+        });
+        if (!logged.ok) {
+          console.error('[import-bookings] source revision logging failed', logged.error);
+          return new Response(JSON.stringify(buildSingleBookingEnvelope({
+            bookingId: normalizedSingleBookingId,
+            organizationId,
+            outcome: 'partial',
+            error: `source_revision_log_failed:${logged.error}`,
+          })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+        }
+      }
+
       const envelope = buildSingleBookingEnvelope({
         bookingId: normalizedSingleBookingId,
         organizationId,
         outcome,
         results,
       });
+
       console.log('[import-bookings] single result contract', JSON.stringify({
         booking_id: envelope.booking_id,
         organization_id: envelope.organization_id,
