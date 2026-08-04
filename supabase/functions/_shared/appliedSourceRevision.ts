@@ -251,7 +251,12 @@ export async function loadAppliedSourceRevision(
     const nv: any = row?.new_values ?? {};
     const changeType = typeof row?.change_type === 'string' ? row.change_type : null;
     const status = normStatus(nv.source_status ?? nv.status);
-    const createdAtMs = parseStrictTimestamp(row?.created_at) ?? 0;
+    // UPPGIFT D (2G): created_at styr vilken rad som är authoritative. En rad
+    // utan giltig loggtid får INTE bara nedprioriteras — den är fail-closed.
+    const createdAtMs = parseStrictTimestamp(row?.created_at);
+    if (createdAtMs === null) {
+      return { ok: false, error: 'stored_revision_created_at_invalid', retriable: false };
+    }
 
     let timestamp: string | null = null;
     let timestampMs: number | null = null;
