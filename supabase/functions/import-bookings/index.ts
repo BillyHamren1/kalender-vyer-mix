@@ -881,7 +881,7 @@ async function reconcileCalendarEvents(
   // (establishment_tasks → calendar_events) and must NOT be touched by the reconciler.
   const { data: existingEvents } = await supabase
     .from('calendar_events')
-    .select('id, event_type, start_time, end_time, title, booking_number, delivery_address, resource_id, source_date')
+    .select('id, event_type, start_time, end_time, title, booking_number, delivery_address, resource_id, source_date, times_locked')
     .eq('booking_id', bookingData.id)
     .eq('organization_id', bookingData.organization_id || organizationId)
     .neq('event_type', 'activity');
