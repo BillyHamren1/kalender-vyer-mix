@@ -140,18 +140,20 @@ describe('STEG 2G – dedikerat fält som revisionskälla', () => {
     const updates: any[] = [];
     const sb = makeSupabase({
       updates,
-      changeRows: [{ id: 1, new_values: { source_revision: 12 } }],
+      dedicated: { source_version: 12, source_status: 'CONFIRMED' },
+      changeRows: [{ id: 1, created_at: '2026-07-01T00:00:00Z', change_type: 'source_revision', new_values: { source_revision: 12 } }],
     });
     const res = await recordAppliedSourceRevision(sb, {
       bookingId: BOOKING, organizationId: ORG, revision: 12, sourceStatus: 'CONFIRMED',
     });
+    // STEG 2G: samma revision + samma status är idempotent redan i monotonikontrollen.
     expect(res).toEqual({ ok: true, logged: false, already_current: true });
-    expect(updates).toHaveLength(1);
+    expect(updates).toHaveLength(0);
   });
 
   it('motsägelsefull status på samma revision är fortfarande fail-closed', async () => {
     const sb = makeSupabase({
-      changeRows: [{ id: 1, new_values: { source_revision: 12, source_status: 'OFFER' } }],
+      changeRows: [{ id: 1, created_at: '2026-07-01T00:00:00Z', change_type: 'source_revision', new_values: { source_revision: 12, source_status: 'OFFER' } }],
     });
     const res = await recordAppliedSourceRevision(sb, {
       bookingId: BOOKING, organizationId: ORG, revision: 12, sourceStatus: 'CONFIRMED',

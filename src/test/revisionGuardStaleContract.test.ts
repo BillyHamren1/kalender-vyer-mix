@@ -220,7 +220,7 @@ describe('STEG 2E – recordAppliedSourceRevision', () => {
   it('Test 14: samma revision + samma status loggas inte två gånger (idempotent)', async () => {
     const inserts: any[] = [];
     const sb = makeSupabase(
-      [{ id: 1, new_values: { source_revision: '2026-07-01T00:00:00Z', source_status: 'CANCELLED' } }],
+      [{ id: 1, created_at: '2026-07-01T00:00:00Z', change_type: 'source_revision', new_values: { source_revision: '2026-07-01T00:00:00Z', source_status: 'CANCELLED' } }],
       { inserts },
     );
     const res = await recordAppliedSourceRevision(sb, {
