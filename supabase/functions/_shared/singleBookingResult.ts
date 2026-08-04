@@ -98,6 +98,19 @@ export function deriveSingleBookingOutcome(results: {
   return 'not_found';
 }
 
+/**
+ * Fel som ALDRIG blir bättre av en retry (STEG 2G – canonical revision guard).
+ * Jobbet failas direkt istället för att köras för alltid.
+ */
+export const NON_RETRIABLE_IMPORT_ERRORS: readonly string[] = [
+  'stale_source_revision',
+  'conflicting_source_status_for_revision',
+  'incomparable_source_revision',
+  'mixed_incomparable_revision_history',
+  'stored_revision_created_at_invalid',
+  'revision_history_truncated',
+];
+
 export interface ValidationOk {
   ok: true;
   outcome: SingleBookingOutcome;
@@ -189,8 +202,13 @@ export function validateSingleBookingResult(
       return { ok: false, permanent: false, reason: 'local_fallback_only' };
     case 'not_found':
       return { ok: false, permanent: true, reason: 'booking_not_found_in_source' };
-    case 'failed':
-      return { ok: false, permanent: false, reason: `import_failed:${String(r.error ?? '')}`.slice(0, 400) };
+    case 'failed': {
+      const errText = String(r.error ?? '');
+      // STEG 2G: stale/konflikt/ojämförbar revision är PERMANENT — jobbet får
+      // aldrig retryas i evighet och aldrig bli applied/completed.
+      const permanent = NON_RETRIABLE_IMPORT_ERRORS.some((code) => errText.includes(code));
+      return { ok: false, permanent, reason: `import_failed:${errText}`.slice(0, 400) };
+    }
     default:
       return { ok: false, permanent: true, reason: `contract_violation_unknown_outcome_${outcome}` };
   }
