@@ -1135,7 +1135,10 @@ async function reconcileCalendarEvents(
       // been placed by an earlier reconcile pass. The desired.start_time is just
       // a preference for *new* events. Only force a time update when the booking
       // now has an EXPLICIT time and that explicit time differs from existing.
-      const explicitTimeChanged = desired.isExplicitStart && (
+      // LOCK GUARD: en rad som är låst ("Fast tid") ägs av användaren/Booking-låset
+      // och får aldrig få sina tider omskrivna av en senare import.
+      const rowLocked = existing.times_locked === true;
+      const explicitTimeChanged = !rowLocked && desired.isExplicitStart && (
         existing.start_time !== desired.start_time ||
         existing.end_time !== desired.end_time
       );
