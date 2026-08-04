@@ -125,3 +125,55 @@ describe('worker enforces the contract in source', () => {
     expect(completedIdx).toBeGreaterThan(validateIdx);
   });
 });
+
+describe('defensive success validation', () => {
+  const base = (outcome: 'applied' | 'already_current', extra: Record<string, unknown>) => ({
+    ...okBody(outcome),
+    ...extra,
+  });
+
+  it('TEST A: applied + top-level error → permanent contract error', () => {
+    const res = validateSingleBookingResult(
+      base('applied', { error: 'boom' }),
+      expected,
+      { ok: true, status: 200 },
+    );
+    expect(res).toEqual({ ok: false, permanent: true, reason: 'contract_violation_top_level_error' });
+  });
+
+  it('TEST B: applied + results.errors → permanent contract error', () => {
+    const res = validateSingleBookingResult(
+      base('applied', { results: { errors: [{ message: 'x' }], failed: 0 } }),
+      expected,
+      { ok: true, status: 200 },
+    );
+    expect(res).toEqual({ ok: false, permanent: true, reason: 'contract_violation_results_errors' });
+  });
+
+  it('TEST C: already_current + results.failed = 1 → permanent contract error', () => {
+    const res = validateSingleBookingResult(
+      base('already_current', { results: { errors: [], failed: 1 } }),
+      expected,
+      { ok: true, status: 200 },
+    );
+    expect(res).toEqual({ ok: false, permanent: true, reason: 'contract_violation_results_failed' });
+  });
+
+  it('TEST D: applied with empty errors and failed = 0 → accepted', () => {
+    const res = validateSingleBookingResult(
+      base('applied', { results: { errors: [], failed: 0 } }),
+      expected,
+      { ok: true, status: 200 },
+    );
+    expect(res).toEqual({ ok: true, outcome: 'applied' });
+  });
+
+  it('TEST E: already_current without error field → accepted', () => {
+    const res = validateSingleBookingResult(
+      okBody('already_current'),
+      expected,
+      { ok: true, status: 200 },
+    );
+    expect(res).toEqual({ ok: true, outcome: 'already_current' });
+  });
+});
