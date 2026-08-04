@@ -2477,83 +2477,98 @@ serve(async (req) => {
       )
     }
 
-    // ── LOCAL-DATA FALLBACK for single-booking refresh ────────────────────
-    // When the external API returns 0 bookings for a webhook-triggered sync,
-    // fall back to local data so calendar reconciliation still runs.
+    // ── SAKNAD BOOKING I SINGLE-MODE — SÄKER HANTERING ────────────────────
+    // Ett tomt/negativt svar bevisar INGENTING. All tidigare status-demotion
+    // (CONFIRMED → OFFER) och cleanup av calendar_events / warehouse_events /
+    // projects / jobs / packing_projects vid "external returned 0" är BORTTAGEN.
+    // Destruktiv cleanup sker endast på en verifierad canonical tombstone.
     if (isSingleBookingRefresh && normalizedSingleBookingId && externalData.data.length === 0) {
-      console.log(`[Local Fallback] External API returned 0 for ${normalizedSingleBookingId}, checking local bookings table`);
-      const { data: localBooking, error: localErr } = await supabase
-        .from('bookings')
-        .select('*')
-        .eq('id', normalizedSingleBookingId)
-        .eq('organization_id', organizationId)
-        .maybeSingle();
+      const parsedSource = parseSingleBookingSourceResponse(
+        externalData,
+        { bookingId: normalizedSingleBookingId, organizationId },
+        { ok: true, status: 200 },
+      );
 
-      if (localErr) {
-        console.error(`[Local Fallback] Error fetching local booking:`, localErr.message);
-      } else if (localBooking && localBooking.status === 'CONFIRMED') {
-        // Externa API:t returnerar 0 träffar för en bokning som vi lokalt har som CONFIRMED.
-        // Detta betyder att bokningen inte längre är bekräftad externt (t.ex. flippad till
-        // DRAFT/UTKAST i bokningssystemet). Spegla detta lokalt: flippa status till 'OFFER'
-        // och städa kalendrar/projekt/jobb/packing/produkter — samma cleanup som i
-        // wasConfirmed && !isNowConfirmed-grenen längre ner.
-        console.log(`[Status Demote] External API returned 0 for locally CONFIRMED booking ${normalizedSingleBookingId} — treating as no longer confirmed, flipping to OFFER`);
+      const decision = evaluateDestructiveAction(parsedSource, {
+        bookingId: normalizedSingleBookingId,
+        organizationId,
+      });
 
-        const nowIso = new Date().toISOString();
-
-        const { error: statusUpdateErr } = await supabase
+      if (decision.allowed && decision.action === 'cancellation') {
+        // Enda centrala cancellation-vägen (idempotent i handlern).
+        const { data: existingBooking } = await supabase
           .from('bookings')
-          .update({
-            status: 'OFFER',
-            updated_at: nowIso,
-          })
-          .eq('id', localBooking.id)
-          .eq('organization_id', organizationId);
-        if (statusUpdateErr) {
-          console.error(`[Status Demote] Failed to flip status to OFFER:`, statusUpdateErr);
-        }
+          .select('id, version, assigned_to_project, assigned_project_id, assigned_project_name, status')
+          .eq('id', normalizedSingleBookingId)
+          .eq('organization_id', organizationId)
+          .maybeSingle();
 
-        // GUARD: never delete booking_products here. "External returned 0" is per definition
-        // transient (draft-flip / snabb-spara / cache-glitch i Booking) och får aldrig radera
-        // dyrbar produktdata som inte alltid kommer tillbaka i nästa webhook-payload.
-        // Samma princip som [Product Recovery GUARD] och [Merge GUARD] längre ner.
-        const cleanupOps = await Promise.allSettled([
-          supabase.from('calendar_events').delete().eq('booking_id', localBooking.id),
-          supabase.from('warehouse_calendar_events').delete().eq('booking_id', localBooking.id),
-          supabase.from('projects').update({ status: 'cancelled', updated_at: nowIso }).eq('booking_id', localBooking.id),
-          supabase.from('jobs').update({ status: 'cancelled', updated_at: nowIso }).eq('booking_id', localBooking.id),
-          supabase.from('packing_projects').delete().eq('booking_id', localBooking.id),
-        ]);
-        cleanupOps.forEach((r, i) => {
-          if (r.status === 'rejected') console.error(`[Status Demote] cleanup op ${i} failed:`, r.reason);
-        });
-
-        return new Response(
-          JSON.stringify(buildSingleBookingEnvelope({
+        if (!existingBooking) {
+          return new Response(JSON.stringify(buildSingleBookingEnvelope({
             bookingId: normalizedSingleBookingId,
             organizationId,
-            outcome: 'local_fallback',
-            results: {
-              total: 1,
-              imported: 0,
-              failed: 0,
-              calendar_events_created: 0,
-              warehouse_events_created: 0,
-              new_bookings: [],
-              updated_bookings: [],
-              status_changed_bookings: [normalizedSingleBookingId],
-              unchanged_bookings_skipped: [],
-              errors: [],
-              sync_mode: 'status_demote',
-              fallback_reason: 'external_api_returned_0_local_was_confirmed',
-            },
-          })),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
-        );
-      } else {
-        console.log(`[Local Fallback] Local booking ${normalizedSingleBookingId} not found or not CONFIRMED (status: ${localBooking?.status || 'NOT_FOUND'})`);
+            outcome: 'already_current',
+            results: { total: 1, imported: 0, failed: 0, errors: [], sync_mode: 'cancellation_noop' },
+          })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+        }
+
+        const cancelResult = await applyBookingCancellation(supabase, existingBooking);
+        console.log('[cancellation] canonical tombstone applied', JSON.stringify({
+          booking_id: normalizedSingleBookingId,
+          organization_id: organizationId,
+          source_status: decision.tombstone.source_status,
+          source_revision: decision.tombstone.source_updated_at ?? decision.tombstone.source_version,
+          result: cancelResult.status,
+        }));
+
+        return new Response(JSON.stringify(buildSingleBookingEnvelope({
+          bookingId: normalizedSingleBookingId,
+          organizationId,
+          outcome: cancelResult.status === 'error' ? 'partial' : 'applied',
+          error: cancelResult.error ?? null,
+          results: {
+            total: 1,
+            imported: 0,
+            failed: cancelResult.status === 'error' ? 1 : 0,
+            status_changed_bookings: cancelResult.status === 'error' ? [] : [normalizedSingleBookingId],
+            errors: cancelResult.status === 'error' ? [{ booking_id: normalizedSingleBookingId, error: cancelResult.error }] : [],
+            sync_mode: 'canonical_cancellation',
+          },
+        })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
       }
+
+      if (parsedSource.kind === 'error') {
+        console.warn('[single-booking] technical/contract error — no local changes', JSON.stringify({
+          booking_id: normalizedSingleBookingId,
+          organization_id: organizationId,
+          code: parsedSource.code,
+          retriable: parsedSource.retriable,
+        }));
+        return new Response(JSON.stringify(buildSingleBookingEnvelope({
+          bookingId: normalizedSingleBookingId,
+          organizationId,
+          outcome: parsedSource.retriable ? 'failed' : 'partial',
+          error: `source_contract:${parsedSource.code}`,
+        })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+      }
+
+      // Icke-destruktivt frånvaro-svar (not_found / not_exportable / archived /
+      // organization_mismatch / okänt reason / deletion utan giltig tombstone).
+      console.log('[single-booking] absent but non-destructive — no local changes', JSON.stringify({
+        booking_id: normalizedSingleBookingId,
+        organization_id: organizationId,
+        reason: parsedSource.kind === 'absent' ? parsedSource.rawReason : null,
+        blocked: decision.allowed ? 'deletion_not_supported' : decision.reason,
+      }));
+
+      return new Response(JSON.stringify(buildSingleBookingEnvelope({
+        bookingId: normalizedSingleBookingId,
+        organizationId,
+        outcome: 'not_found',
+        results: { total: 0, imported: 0, failed: 0, errors: [], sync_mode: 'source_absent_no_change' },
+      })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
     }
+
 
     const results = {
       total: 0,
