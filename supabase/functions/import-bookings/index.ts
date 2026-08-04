@@ -2296,15 +2296,21 @@ serve(async (req) => {
       }
 
       const payload = await externalResponse.json();
+      // Nytt explicit single-kontrakt: { success, mode:'single', found, booking?, reason?, tombstone? }
+      if (payload && typeof payload === 'object' && typeof payload.found === 'boolean') {
+        const rows = payload.found === true && payload.booking ? [payload.booking] : [];
+        return { data: rows, raw: payload };
+      }
       if (!payload?.data || !Array.isArray(payload.data)) {
         throw new Error('Invalid external API response format - expected data array')
       }
-      return payload;
+      return { ...payload, raw: payload };
     };
 
     // Paginated fetch for full-sync mode (not single-booking or incremental)
     const isFullSync = !isSingleBookingRefresh && syncMode !== 'incremental';
-    let externalData: { data: any[] };
+    let externalData: { data: any[]; raw?: any };
+
     
     if (isFullSync) {
       // Fetch ALL bookings with pagination
