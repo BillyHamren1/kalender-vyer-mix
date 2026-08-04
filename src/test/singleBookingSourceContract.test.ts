@@ -296,7 +296,7 @@ describe('STEG 2B parser hardening', () => {
     const sb = {
       from(table: string) {
         const api: any = {
-          update: () => api, delete: () => api, eq: () => api, not: () => api, limit: () => api,
+          update: () => api, delete: () => api, eq: () => api, neq: () => api, is: () => api, in: () => api, not: () => api, limit: () => api, order: () => api, maybeSingle: () => Promise.resolve({ data: null, error: null }),
           select: () => api,
           insert: (row: any) => { inserts.push({ table, row }); logged.push(row); return Promise.resolve({ error: null }); },
           then: (res: any) => res({ data: table === 'booking_changes' ? logged.map((r) => ({ id: 'x', new_values: r.new_values })) : [], error: null }),
