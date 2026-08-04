@@ -3,11 +3,14 @@
  * Används som stale-skydd: en tombstone med äldre, motsägelsefull eller
  * ojämförbar source-revision får aldrig skriva över nyare canonical data.
  *
- * KÄLLA:
- *   `bookings` saknar i dag ett dedikerat fält för senast applicerad canonical
- *   Booking-revision, därför är `booking_changes` primär källa. Loadern
- *   filtrerar server-side på REVISIONSBÄRANDE change_types — den läser aldrig
- *   "de N senaste raderna oavsett typ" (tidigare fail-open-lucka).
+ * KÄLLA (STEG 2G):
+ *   `bookings.last_applied_source_revision` (jsonb) är dedikerad, authoritative
+ *   revisionskälla. Den har inget historik-tak, gör 'both' naturligt (en rad bär
+ *   både timestamp och version) och kan aldrig blockeras av historiska rader
+ *   utan `source_status`. Saknas fältet (äldre bokning) faller loadern tillbaka
+ *   på `booking_changes`, som filtreras server-side på REVISIONSBÄRANDE
+ *   change_types — aldrig "de N senaste raderna oavsett typ".
+
  *
  * STEG 2F – EN AUTHORITATIVE REVISIONSTYP PER BOKNING:
  *   Den senast applicerade revisionsbärande raden (högst `created_at`) är
