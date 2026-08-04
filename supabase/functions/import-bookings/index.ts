@@ -4,6 +4,10 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { normalizeBookingStatus } from '../_shared/booking-status.ts'
 import { createBatch, attachJobsToBatch } from '../_shared/syncBatch.ts'
+import {
+  buildSingleBookingEnvelope,
+  deriveSingleBookingOutcome,
+} from '../_shared/singleBookingResult.ts'
 
 /**
  * Resolve the organization_id to use for all INSERTs.
@@ -2034,6 +2038,11 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders })
   }
 
+  // Kontraktskontext — behövs även i catch-blocket för single-booking-svar.
+  let ctxIsSingle = false
+  let ctxBookingId: string | null = null
+  let ctxOrgId: string | null = null
+
   try {
     // Header 'x-lovable-change-source' forwards to Postgres via PostgREST and
     // is read by the `track_booking_changes` trigger to classify this write as
@@ -2078,6 +2087,9 @@ serve(async (req) => {
 
     const isHistoricalImport = historicalMode || forceHistoricalImport;
     const isSingleBookingRefresh = !!normalizedSingleBookingId;
+    ctxIsSingle = isSingleBookingRefresh;
+    ctxBookingId = normalizedSingleBookingId;
+    ctxOrgId = organizationId;
 
     // ── Structured pipeline log ──────────────────────────────────────────
     console.log('[import-bookings] Pipeline started', JSON.stringify({
@@ -2159,7 +2171,12 @@ serve(async (req) => {
 
       if (localErr) {
         console.error(`[LocalOnly] Error fetching local booking:`, localErr.message);
-        return new Response(JSON.stringify({ error: `Local booking fetch failed: ${localErr.message}` }), {
+        return new Response(JSON.stringify(buildSingleBookingEnvelope({
+          bookingId: normalizedSingleBookingId,
+          organizationId,
+          outcome: 'failed',
+          error: `Local booking fetch failed: ${localErr.message}`,
+        })), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500,
         });
       }
@@ -2188,14 +2205,16 @@ serve(async (req) => {
         };
         await reconcileCalendarEvents(supabase, localBookingData, organizationId, fallbackResults, localBooking);
         console.log(`[LocalOnly] Reconciliation complete. Events created/updated: ${fallbackResults.calendar_events_created}`);
-        return new Response(JSON.stringify({
-          success: true,
+        return new Response(JSON.stringify(buildSingleBookingEnvelope({
+          bookingId: normalizedSingleBookingId,
+          organizationId,
+          outcome: 'local_fallback',
           results: {
             total: 1, imported: 0, failed: 0,
             calendar_events_created: fallbackResults.calendar_events_created,
             local_only: true,
           },
-        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+        })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
       }
 
       // No local booking found — fall through to normal flow
@@ -2505,8 +2524,10 @@ serve(async (req) => {
         });
 
         return new Response(
-          JSON.stringify({
-            success: true,
+          JSON.stringify(buildSingleBookingEnvelope({
+            bookingId: normalizedSingleBookingId,
+            organizationId,
+            outcome: 'local_fallback',
             results: {
               total: 1,
               imported: 0,
@@ -2520,8 +2541,8 @@ serve(async (req) => {
               errors: [],
               sync_mode: 'status_demote',
               fallback_reason: 'external_api_returned_0_local_was_confirmed',
-            }
-          }),
+            },
+          })),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
         );
       } else {
@@ -4246,6 +4267,26 @@ serve(async (req) => {
       }
     }
 
+    if (isSingleBookingRefresh) {
+      const outcome = deriveSingleBookingOutcome(results as any);
+      const envelope = buildSingleBookingEnvelope({
+        bookingId: normalizedSingleBookingId,
+        organizationId,
+        outcome,
+        results,
+      });
+      console.log('[import-bookings] single result contract', JSON.stringify({
+        booking_id: envelope.booking_id,
+        organization_id: envelope.organization_id,
+        outcome: envelope.outcome,
+        completed: envelope.completed,
+      }));
+      return new Response(JSON.stringify(envelope), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      })
+    }
+
     return new Response(
       JSON.stringify({ success: true, results }),
       {
@@ -4261,6 +4302,18 @@ serve(async (req) => {
       import_started: null,
       import_completed: new Date().toISOString(),
     }))
+    if (ctxIsSingle) {
+      return new Response(
+        JSON.stringify(buildSingleBookingEnvelope({
+          bookingId: ctxBookingId,
+          organizationId: ctxOrgId,
+          outcome: 'failed',
+          error: errMsg,
+        })),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 },
+      )
+    }
+
     return new Response(
       JSON.stringify({ 
         success: false, 
