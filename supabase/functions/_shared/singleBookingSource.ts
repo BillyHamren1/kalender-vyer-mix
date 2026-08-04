@@ -204,13 +204,34 @@ export type DestructiveDecision =
   | { allowed: true; action: 'cancellation' | 'deletion'; tombstone: SourceTombstone }
   | { allowed: false; reason: string };
 
+/** Lokalt redan applicerad source-revision (skydd mot stale tombstones). */
+export interface LocalAppliedRevision {
+  sourceUpdatedAt?: string | null;
+  sourceVersion?: string | number | null;
+}
+
+function revisionIsStale(t: SourceTombstone, local?: LocalAppliedRevision): boolean {
+  if (!local) return false;
+  if (t.source_updated_at && local.sourceUpdatedAt) {
+    const tomb = Date.parse(t.source_updated_at);
+    const loc = Date.parse(local.sourceUpdatedAt);
+    if (Number.isFinite(tomb) && Number.isFinite(loc)) return tomb < loc;
+  }
+  const tv = typeof t.source_version === 'number' ? t.source_version : Number(t.source_version);
+  const lv = typeof local.sourceVersion === 'number' ? local.sourceVersion : Number(local.sourceVersion);
+  if (Number.isFinite(tv) && Number.isFinite(lv)) return tv < lv;
+  return false;
+}
+
 /**
  * ALLOWLIST för destruktiv cleanup.
  * Samtliga krav måste vara uppfyllda — annars nekas åtgärden.
+ * `local` = redan applicerad canonical revision; en äldre tombstone nekas.
  */
 export function evaluateDestructiveAction(
   result: SingleBookingSourceResult,
   expected: { bookingId: string; organizationId: string },
+  local?: LocalAppliedRevision,
 ): DestructiveDecision {
   if (result.kind === 'error') return { allowed: false, reason: `technical_error_${result.code}` };
   if (result.kind === 'found') return { allowed: false, reason: 'booking_found_no_cleanup' };
@@ -230,13 +251,17 @@ export function evaluateDestructiveAction(
   if (!t.source_updated_at && (t.source_version === null || t.source_version === undefined)) {
     return { allowed: false, reason: 'tombstone_missing_source_revision' };
   }
+  if (revisionIsStale(t, local)) {
+    return { allowed: false, reason: 'stale_tombstone_revision' };
+  }
 
   const status = t.source_status.toUpperCase();
   if (result.reason === 'cancelled') {
     if (status !== 'CANCELLED') return { allowed: false, reason: 'tombstone_status_reason_mismatch' };
     return { allowed: true, action: 'cancellation', tombstone: t };
   }
-  // 'deleted'
+  // 'deleted' — ingen säker hard-delete-policy finns i Planning ännu.
   if (status !== 'DELETED') return { allowed: false, reason: 'tombstone_status_reason_mismatch' };
   return { allowed: true, action: 'deletion', tombstone: t };
 }
+
