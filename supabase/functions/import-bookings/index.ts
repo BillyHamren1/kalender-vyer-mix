@@ -13,7 +13,7 @@ import {
   evaluateDestructiveAction,
 } from '../_shared/singleBookingSource.ts'
 import { applyBookingCancellation } from '../_shared/cancellation-handler.ts'
-import { loadAppliedSourceRevision } from '../_shared/appliedSourceRevision.ts'
+import { loadAppliedSourceRevision, recordAppliedSourceRevision } from '../_shared/appliedSourceRevision.ts'
 
 /**
  * Resolve the organization_id to use for all INSERTs.
