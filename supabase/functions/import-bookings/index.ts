@@ -4414,6 +4414,13 @@ serve(async (req) => {
         });
         if (!logged.ok) {
           console.error('[import-bookings] source revision logging failed', logged.error);
+          if (guardedIncomingRevision) {
+            await releaseCanonicalRevision(supabase, {
+              bookingId: normalizedSingleBookingId,
+              organizationId,
+              incoming: guardedIncomingRevision,
+            });
+          }
           return new Response(JSON.stringify(buildSingleBookingEnvelope({
             bookingId: normalizedSingleBookingId,
             organizationId,
@@ -4421,6 +4428,31 @@ serve(async (req) => {
             error: `source_revision_log_failed:${logged.error}`,
           })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
         }
+        // STEG 2G: importen lyckades → pending revision blir applied (atomiskt).
+        if (guardedIncomingRevision) {
+          const committed = await commitCanonicalRevision(supabase, {
+            bookingId: normalizedSingleBookingId,
+            organizationId,
+            incoming: guardedIncomingRevision,
+          });
+          if (!committed.ok) {
+            console.error('[import-bookings] revision commit failed', JSON.stringify(committed));
+            return new Response(JSON.stringify(buildSingleBookingEnvelope({
+              bookingId: normalizedSingleBookingId,
+              organizationId,
+              outcome: 'partial',
+              error: `revision_commit_failed:${committed.decision}`,
+            })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+          }
+        }
+      } else if (guardedIncomingRevision && normalizedSingleBookingId) {
+        // Importen blev inte fullt applicerad → släpp reservationen så att
+        // SAMMA revision kan retryas (och aldrig rapporteras som applied).
+        await releaseCanonicalRevision(supabase, {
+          bookingId: normalizedSingleBookingId,
+          organizationId,
+          incoming: guardedIncomingRevision,
+        });
       }
 
       const envelope = buildSingleBookingEnvelope({
