@@ -126,6 +126,43 @@ export async function applyBookingCancellation(
     result.products_deleted = !deleteProductsError;
     if (deleteProductsError) console.error(`[cancellation] booking_products delete failed for ${bookingId}:`, deleteProductsError);
 
+    // Audit: lagra canonical source reason + revision EN gång per revision.
+    if (source) {
+      try {
+        const revision = source.source_revision ?? null;
+        const { data: existingLogs } = await supabase
+          .from('booking_changes')
+          .select('id, new_values')
+          .eq('booking_id', bookingId)
+          .eq('change_type', 'cancellation_source')
+          .limit(50);
+        const alreadyLogged = (existingLogs ?? []).some(
+          (row: any) => String(row?.new_values?.source_revision ?? '') === String(revision ?? ''),
+        );
+        if (!alreadyLogged) {
+          await supabase.from('booking_changes').insert({
+            booking_id: bookingId,
+            organization_id: source.organization_id ?? existingBooking.organization_id ?? undefined,
+            change_type: 'cancellation_source',
+            changed_fields: ['status'],
+            previous_values: { status: existingBooking.status ?? null },
+            new_values: {
+              status: 'CANCELLED',
+              source_reason: source.reason,
+              source_status: source.source_status,
+              source_revision: revision,
+            },
+            version: (existingBooking.version || 1) + 1,
+          });
+          result.source_logged = true;
+        } else {
+          result.source_logged = false;
+        }
+      } catch (logErr) {
+        console.error(`[cancellation] audit log failed for ${bookingId}:`, logErr);
+      }
+    }
+
     console.log(`[cancellation] Fully processed CANCELLED booking ${bookingId}`);
     return result;
   } catch (err: any) {
