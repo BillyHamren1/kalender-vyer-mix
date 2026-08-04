@@ -204,11 +204,23 @@ export type DestructiveDecision =
   | { allowed: true; action: 'cancellation' | 'deletion'; tombstone: SourceTombstone }
   | { allowed: false; reason: string };
 
-/** Lokalt redan applicerad source-revision (skydd mot stale tombstones). */
+/**
+ * Lokalt redan applicerad canonical source-revision (skydd mot stale
+ * tombstones). Varje instans kommer från EN verklig historikrad — värden från
+ * olika rader får aldrig slås ihop till en syntetisk revision.
+ */
 export interface LocalAppliedRevision {
   sourceUpdatedAt?: string | null;
   sourceVersion?: string | number | null;
+  /** Canonical status som revisionen representerade (uppercase), om känd. */
+  sourceStatus?: string | null;
+  /** Historikradens change_type (t.ex. 'source_revision'). */
+  changeType?: string | null;
 }
+
+/** Statusar som betyder att bokningen redan är canonical avbokad. */
+const CANCELLED_LIKE_STATUSES = ['CANCELLED', 'CANCELED', 'DELETED'];
+
 
 export type ParsedRevision =
   | { kind: 'timestamp'; ms: number }
