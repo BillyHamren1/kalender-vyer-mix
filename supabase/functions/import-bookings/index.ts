@@ -2518,7 +2518,12 @@ serve(async (req) => {
           })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
         }
 
-        const cancelResult = await applyBookingCancellation(supabase, existingBooking);
+        const cancelResult = await applyBookingCancellation(supabase, existingBooking, {
+          reason: 'cancelled',
+          source_status: decision.tombstone.source_status ?? 'CANCELLED',
+          source_revision: decision.tombstone.source_updated_at ?? decision.tombstone.source_version ?? null,
+          organization_id: organizationId,
+        });
         console.log('[cancellation] canonical tombstone applied', JSON.stringify({
           booking_id: normalizedSingleBookingId,
           organization_id: organizationId,
