@@ -16,6 +16,9 @@
  * Ren TypeScript utan Deno-API:er så att modulen kan enhetstestas i vitest.
  */
 
+/** Kontraktsversioner Planning kan tolka (valideras endast om Booking skickar en). */
+export const SUPPORTED_CONTRACT_VERSIONS = ['1', '1.0'] as const as readonly string[];
+
 export const DESTRUCTIVE_REASONS = ['cancelled', 'deleted'] as const;
 export type DestructiveReason = typeof DESTRUCTIVE_REASONS[number];
 
