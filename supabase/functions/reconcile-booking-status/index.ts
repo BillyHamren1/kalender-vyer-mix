@@ -172,9 +172,16 @@ serve(async (req) => {
       const result = await applyBookingCancellation(supabase, {
         id: b.id,
         version: b.version,
+        status: b.status,
+        organization_id: b.organization_id,
         assigned_to_project: b.assigned_to_project,
         assigned_project_id: b.assigned_project_id,
         assigned_project_name: b.assigned_project_name,
+      }, {
+        reason: 'cancelled',
+        source_status: decision.tombstone.source_status ?? 'CANCELLED',
+        source_revision: decision.tombstone.source_updated_at ?? decision.tombstone.source_version ?? null,
+        organization_id: b.organization_id,
       });
       if (result.status === "cancelled") {
         summary.cancellations_applied++;

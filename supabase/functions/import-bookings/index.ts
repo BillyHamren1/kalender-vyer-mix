@@ -2296,15 +2296,21 @@ serve(async (req) => {
       }
 
       const payload = await externalResponse.json();
+      // Nytt explicit single-kontrakt: { success, mode:'single', found, booking?, reason?, tombstone? }
+      if (payload && typeof payload === 'object' && typeof payload.found === 'boolean') {
+        const rows = payload.found === true && payload.booking ? [payload.booking] : [];
+        return { data: rows, raw: payload };
+      }
       if (!payload?.data || !Array.isArray(payload.data)) {
         throw new Error('Invalid external API response format - expected data array')
       }
-      return payload;
+      return { ...payload, raw: payload };
     };
 
     // Paginated fetch for full-sync mode (not single-booking or incremental)
     const isFullSync = !isSingleBookingRefresh && syncMode !== 'incremental';
-    let externalData: { data: any[] };
+    let externalData: { data: any[]; raw?: any };
+
     
     if (isFullSync) {
       // Fetch ALL bookings with pagination
@@ -2484,7 +2490,7 @@ serve(async (req) => {
     // Destruktiv cleanup sker endast på en verifierad canonical tombstone.
     if (isSingleBookingRefresh && normalizedSingleBookingId && externalData.data.length === 0) {
       const parsedSource = parseSingleBookingSourceResponse(
-        externalData,
+        externalData.raw ?? externalData,
         { bookingId: normalizedSingleBookingId, organizationId },
         { ok: true, status: 200 },
       );
@@ -2512,7 +2518,12 @@ serve(async (req) => {
           })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
         }
 
-        const cancelResult = await applyBookingCancellation(supabase, existingBooking);
+        const cancelResult = await applyBookingCancellation(supabase, existingBooking, {
+          reason: 'cancelled',
+          source_status: decision.tombstone.source_status ?? 'CANCELLED',
+          source_revision: decision.tombstone.source_updated_at ?? decision.tombstone.source_version ?? null,
+          organization_id: organizationId,
+        });
         console.log('[cancellation] canonical tombstone applied', JSON.stringify({
           booking_id: normalizedSingleBookingId,
           organization_id: organizationId,

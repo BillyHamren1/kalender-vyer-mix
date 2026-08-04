@@ -11,9 +11,19 @@
 export interface ExistingBookingForCancellation {
   id: string;
   version?: number | null;
+  status?: string | null;
+  organization_id?: string | null;
   assigned_to_project?: boolean | null;
   assigned_project_id?: string | null;
   assigned_project_name?: string | null;
+}
+
+/** Canonical bevis som ledde fram till cancellation (loggas för audit). */
+export interface CancellationSourceEvidence {
+  reason: string;
+  source_status: string;
+  source_revision: string | number | null;
+  organization_id?: string | null;
 }
 
 export interface CancellationResult {
@@ -25,15 +35,18 @@ export interface CancellationResult {
   jobs_updated?: boolean;
   packing_deleted?: boolean;
   products_deleted?: boolean;
+  source_logged?: boolean;
   error?: string;
 }
 
 export async function applyBookingCancellation(
   supabase: any,
   existingBooking: ExistingBookingForCancellation,
+  source?: CancellationSourceEvidence,
 ): Promise<CancellationResult> {
   const bookingId = existingBooking.id;
   const result: CancellationResult = { status: 'cancelled', booking_id: bookingId };
+
 
   try {
     // Decide whether to keep "manually hidden cancelled" state.
@@ -112,6 +125,43 @@ export async function applyBookingCancellation(
     const { error: deleteProductsError } = await supabase.from('booking_products').delete().eq('booking_id', bookingId);
     result.products_deleted = !deleteProductsError;
     if (deleteProductsError) console.error(`[cancellation] booking_products delete failed for ${bookingId}:`, deleteProductsError);
+
+    // Audit: lagra canonical source reason + revision EN gång per revision.
+    if (source) {
+      try {
+        const revision = source.source_revision ?? null;
+        const { data: existingLogs } = await supabase
+          .from('booking_changes')
+          .select('id, new_values')
+          .eq('booking_id', bookingId)
+          .eq('change_type', 'cancellation_source')
+          .limit(50);
+        const alreadyLogged = (existingLogs ?? []).some(
+          (row: any) => String(row?.new_values?.source_revision ?? '') === String(revision ?? ''),
+        );
+        if (!alreadyLogged) {
+          await supabase.from('booking_changes').insert({
+            booking_id: bookingId,
+            organization_id: source.organization_id ?? existingBooking.organization_id ?? undefined,
+            change_type: 'cancellation_source',
+            changed_fields: ['status'],
+            previous_values: { status: existingBooking.status ?? null },
+            new_values: {
+              status: 'CANCELLED',
+              source_reason: source.reason,
+              source_status: source.source_status,
+              source_revision: revision,
+            },
+            version: (existingBooking.version || 1) + 1,
+          });
+          result.source_logged = true;
+        } else {
+          result.source_logged = false;
+        }
+      } catch (logErr) {
+        console.error(`[cancellation] audit log failed for ${bookingId}:`, logErr);
+      }
+    }
 
     console.log(`[cancellation] Fully processed CANCELLED booking ${bookingId}`);
     return result;
