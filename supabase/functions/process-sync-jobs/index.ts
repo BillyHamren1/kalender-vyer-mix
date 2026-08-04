@@ -17,6 +17,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
 import { finalizeBatchIfDone } from '../_shared/syncBatch.ts'
+import { validateSingleBookingResult } from '../_shared/singleBookingResult.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -161,17 +162,27 @@ serve(async (req) => {
         `[process-sync-jobs] ← import-bookings booking=${group.booking_id} ` +
         `status=${res.status} body_preview=${bodyText.substring(0, 200)}`
       )
-      if (!res.ok) {
-        throw new Error(
-          `import-bookings returned ${res.status}: ${bodyText.substring(0, 500)}`
-        )
-      }
 
       let parsed: any = null
       try { parsed = JSON.parse(bodyText) } catch { /* ignore */ }
-      if (parsed && parsed.queued === true) {
-        throw new Error('import-bookings returned queued=true for single refresh (contract regression)')
+
+      // STRIKT KONTRAKTSVALIDERING: endast ett exakt matchande svar med
+      // outcome applied/already_current får markera jobbet som completed.
+      const validation = validateSingleBookingResult(
+        parsed,
+        { bookingId: group.booking_id, organizationId: group.organization_id },
+        { ok: res.ok, status: res.status },
+      )
+      if (!validation.ok) {
+        const err = new Error(
+          `import-bookings contract check failed (${validation.reason}) http=${res.status} body=${bodyText.substring(0, 300)}`
+        )
+        ;(err as any).permanent = validation.permanent
+        throw err
       }
+      console.log(
+        `[process-sync-jobs] contract ok booking=${group.booking_id} outcome=${validation.outcome}`
+      )
 
       await supabase
         .from('booking_sync_jobs')
@@ -191,7 +202,8 @@ serve(async (req) => {
       })
     } catch (err: any) {
       const errMsg = String(err?.message || err).substring(0, 1000)
-      const retriable = isRetriableError(errMsg)
+      const permanent = err?.permanent === true
+      const retriable = !permanent && (err?.permanent === false || isRetriableError(errMsg))
       const canRetry = retriable && group.attempts < group.max_attempts
 
       if (canRetry) {
