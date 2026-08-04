@@ -2497,16 +2497,32 @@ serve(async (req) => {
       );
 
       // Stale-skydd: läs redan applicerad canonical revision INNAN beslut.
-      const appliedRevision = await loadAppliedSourceRevision(
+      // Ett LÄSFEL får aldrig tolkas som "ingen revision" → retrybart fel.
+      const revisionLoad = await loadAppliedSourceRevision(
         supabase,
         normalizedSingleBookingId,
         organizationId,
       );
+      if (!revisionLoad.ok) {
+        console.error('[single-booking] applied revision load failed — no destructive action', JSON.stringify({
+          booking_id: normalizedSingleBookingId,
+          organization_id: organizationId,
+          error: revisionLoad.error,
+        }));
+        return new Response(JSON.stringify(buildSingleBookingEnvelope({
+          bookingId: normalizedSingleBookingId,
+          organizationId,
+          outcome: 'failed',
+          error: `applied_revision_load_failed:${revisionLoad.error}`,
+        })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+      }
+      const appliedRevision = revisionLoad.found ? revisionLoad.revision : null;
 
       const decision = evaluateDestructiveAction(parsedSource, {
         bookingId: normalizedSingleBookingId,
         organizationId,
       }, appliedRevision);
+
 
       if (decision.allowed && decision.action === 'cancellation') {
         // Enda centrala cancellation-vägen (idempotent i handlern).
