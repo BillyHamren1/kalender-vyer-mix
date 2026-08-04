@@ -11,9 +11,19 @@
 export interface ExistingBookingForCancellation {
   id: string;
   version?: number | null;
+  status?: string | null;
+  organization_id?: string | null;
   assigned_to_project?: boolean | null;
   assigned_project_id?: string | null;
   assigned_project_name?: string | null;
+}
+
+/** Canonical bevis som ledde fram till cancellation (loggas för audit). */
+export interface CancellationSourceEvidence {
+  reason: string;
+  source_status: string;
+  source_revision: string | number | null;
+  organization_id?: string | null;
 }
 
 export interface CancellationResult {
@@ -25,15 +35,18 @@ export interface CancellationResult {
   jobs_updated?: boolean;
   packing_deleted?: boolean;
   products_deleted?: boolean;
+  source_logged?: boolean;
   error?: string;
 }
 
 export async function applyBookingCancellation(
   supabase: any,
   existingBooking: ExistingBookingForCancellation,
+  source?: CancellationSourceEvidence,
 ): Promise<CancellationResult> {
   const bookingId = existingBooking.id;
   const result: CancellationResult = { status: 'cancelled', booking_id: bookingId };
+
 
   try {
     // Decide whether to keep "manually hidden cancelled" state.
