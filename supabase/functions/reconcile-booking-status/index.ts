@@ -19,7 +19,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { applyBookingCancellation } from "../_shared/cancellation-handler.ts";
-import { normalizeBookingStatus } from "../_shared/booking-status.ts";
+import {
+  parseSingleBookingSourceResponse,
+  evaluateDestructiveAction,
+  type SingleBookingSourceResult,
+} from "../_shared/singleBookingSource.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -44,7 +48,7 @@ async function fetchExternalStatus(
   bookingId: string,
   organizationId: string,
   importApiKey: string,
-): Promise<{ ok: true; status: string | null; raw: any } | { ok: false; error: string }> {
+): Promise<{ ok: true; parsed: SingleBookingSourceResult } | { ok: false; error: string }> {
   const params = new URLSearchParams({ organization_id: organizationId, booking_id: bookingId });
   const url = `${EXPORT_BASE}?${params.toString()}`;
   try {
@@ -64,15 +68,17 @@ async function fetchExternalStatus(
       return { ok: false, error: `HTTP ${resp.status}: ${text.substring(0, 200)}` };
     }
     const json = await resp.json();
-    // export_bookings returns either { data: [..] } or { data: {...} } depending on filter.
-    const row = Array.isArray(json?.data) ? json.data[0] : json?.data;
-    if (!row) {
-      // External API does not return the booking — most likely truly cancelled / hard-deleted.
-      // Treat as CANCELLED so local copy is cleaned up.
-      return { ok: true, status: "CANCELLED", raw: null };
-    }
-    const status = normalizeBookingStatus(row.status ?? row.booking_status ?? null);
-    return { ok: true, status, raw: row };
+    // Normalisera till single-booking-kontraktet. En tom lista / saknad payload
+    // är ALDRIG bevis för cancellation — den vägen är borttagen.
+    const normalized = Array.isArray(json?.data) || json?.found !== undefined
+      ? json
+      : { data: json?.data ? [json.data] : [] };
+    const parsed = parseSingleBookingSourceResponse(
+      normalized,
+      { bookingId, organizationId },
+      { ok: true, status: 200 },
+    );
+    return { ok: true, parsed };
   } catch (err: any) {
     return { ok: false, error: err?.message || String(err) };
   }
@@ -153,13 +159,15 @@ serve(async (req) => {
       continue;
     }
 
-    const externalStatus = ext.status;
-    const localStatus = b.status;
+    const decision = evaluateDestructiveAction(ext.parsed, {
+      bookingId: b.id,
+      organizationId: b.organization_id,
+    });
 
-    if (externalStatus === "CANCELLED" && localStatus !== "CANCELLED") {
+    if (decision.allowed && decision.action === "cancellation" && b.status !== "CANCELLED") {
       summary.status_mismatches++;
       console.log(
-        `[reconcile] Booking ${b.booking_number ?? b.id} (org ${b.organization_id}) — local=${localStatus} external=CANCELLED → applying cancellation`,
+        `[reconcile] Booking ${b.booking_number ?? b.id} (org ${b.organization_id}) — canonical cancellation tombstone (rev ${decision.tombstone.source_updated_at ?? decision.tombstone.source_version}) → applying cancellation`,
       );
       const result = await applyBookingCancellation(supabase, {
         id: b.id,
