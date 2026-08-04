@@ -3517,6 +3517,29 @@ serve(async (req) => {
           delete (dbBookingData as any).event_time_locked;
           delete (dbBookingData as any).rigdown_time_locked;
 
+          // LOCKED PHASE TIMES: när en fas är låst lokalt ("Fast tid") och Booking
+          // inte skickar någon tid för fasen får importen ALDRIG nolla eller ändra
+          // de lokala tiderna — varken i bookings-raden eller i kalender-reconcilern.
+          const timePhases: Array<{ lock: string; start: string; end: string }> = [
+            { lock: 'rig_time_locked', start: 'rig_start_time', end: 'rig_end_time' },
+            { lock: 'event_time_locked', start: 'event_start_time', end: 'event_end_time' },
+            { lock: 'rigdown_time_locked', start: 'rigdown_start_time', end: 'rigdown_end_time' },
+          ];
+          for (const { lock, start, end } of timePhases) {
+            const isLocked = (existingBooking as any)[lock] === true;
+            if (!isLocked) continue;
+            const incomingStart = (dbBookingData as any)[start];
+            if (incomingStart) continue; // Booking skickade en tid → den vinner
+            const localStart = (existingBooking as any)[start];
+            const localEnd = (existingBooking as any)[end];
+            if (!localStart) continue;
+            delete (dbBookingData as any)[start];
+            delete (dbBookingData as any)[end];
+            (bookingData as any)[start] = localStart;
+            (bookingData as any)[end] = localEnd;
+            console.log(`[Locked Time Preserve] ${bookingData.id}: kept local ${start}=${localStart}`);
+          }
+
           const updateData: any = {
             ...dbBookingData,
             ...lockingPatch,
