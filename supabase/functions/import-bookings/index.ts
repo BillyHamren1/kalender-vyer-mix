@@ -2490,7 +2490,7 @@ serve(async (req) => {
     // Destruktiv cleanup sker endast på en verifierad canonical tombstone.
     if (isSingleBookingRefresh && normalizedSingleBookingId && externalData.data.length === 0) {
       const parsedSource = parseSingleBookingSourceResponse(
-        externalData,
+        externalData.raw ?? externalData,
         { bookingId: normalizedSingleBookingId, organizationId },
         { ok: true, status: 200 },
       );
