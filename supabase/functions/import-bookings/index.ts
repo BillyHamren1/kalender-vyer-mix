@@ -2054,6 +2054,8 @@ serve(async (req) => {
   let ctxIsSingle = false
   let ctxBookingId: string | null = null
   let ctxOrgId: string | null = null
+  // STEG 2G: reserverad canonical revision (pending) — släpps om importen kraschar.
+  let guardedIncomingRevision: any = null
 
   try {
     // Header 'x-lovable-change-source' forwards to Postgres via PostgREST and
@@ -2663,7 +2665,6 @@ serve(async (req) => {
     // applied/completed eller flytta batchcursorn. Kontrollen sker HÄR, innan
     // booking-upsert, statusändring, datum, produkter, kalenderreconcile och
     // projekt-/packingprojection.
-    let guardedIncomingRevision: any = null;
     if (isSingleBookingRefresh && normalizedSingleBookingId && externalData.data.length > 0) {
       const canonicalRow: any = externalData.data[0];
       const incoming = {
@@ -4489,6 +4490,20 @@ serve(async (req) => {
       import_started: null,
       import_completed: new Date().toISOString(),
     }))
+    // STEG 2G: importen kraschade → släpp pending-reservationen så att SAMMA
+    // revision kan retryas. Reservationen blir aldrig applied av ett fel.
+    if (guardedIncomingRevision && ctxBookingId && ctxOrgId) {
+      try {
+        await releaseCanonicalRevision(supabase, {
+          bookingId: ctxBookingId,
+          organizationId: ctxOrgId,
+          incoming: guardedIncomingRevision,
+        });
+      } catch (relErr) {
+        console.error('[import-bookings] revision release failed after crash', relErr);
+      }
+    }
+
     if (ctxIsSingle) {
       return new Response(
         JSON.stringify(buildSingleBookingEnvelope({
