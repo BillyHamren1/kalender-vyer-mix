@@ -2561,7 +2561,7 @@ serve(async (req) => {
     // Get existing bookings for comparison — ONLY within current tenant
     const { data: existingBookings } = await supabase
       .from('bookings')
-      .select('id, status, version, booking_number, client, rigdaydate, eventdate, rigdowndate, deliveryaddress, delivery_city, delivery_postal_code, organization_id, assigned_to_project, assigned_project_id, assigned_project_name, rig_start_time_external, rig_end_time_external, event_start_time_external, event_end_time_external, rigdown_start_time_external, rigdown_end_time_external, rig_time_locked, event_time_locked, rigdown_time_locked')
+      .select('id, status, version, booking_number, client, rigdaydate, eventdate, rigdowndate, deliveryaddress, delivery_city, delivery_postal_code, organization_id, assigned_to_project, assigned_project_id, assigned_project_name, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, rig_start_time_external, rig_end_time_external, event_start_time_external, event_end_time_external, rigdown_start_time_external, rigdown_end_time_external, rig_time_locked, event_time_locked, rigdown_time_locked')
       .eq('organization_id', organizationId)
     const existingBookingMap = new Map(existingBookings?.map(b => [b.id, b]) || [])
     const existingBookingNumberMap = new Map()
