@@ -150,6 +150,7 @@ export async function applyBookingCancellation(
           .from('booking_changes')
           .select('id, new_values')
           .eq('booking_id', bookingId)
+          .eq('organization_id', orgId)
           .eq('change_type', 'cancellation_source')
           .limit(50);
         const alreadyLogged = (existingLogs ?? []).some(
@@ -158,7 +159,7 @@ export async function applyBookingCancellation(
         if (!alreadyLogged) {
           await supabase.from('booking_changes').insert({
             booking_id: bookingId,
-            organization_id: source.organization_id ?? existingBooking.organization_id ?? undefined,
+            organization_id: orgId,
             change_type: 'cancellation_source',
             changed_fields: ['status'],
             previous_values: { status: existingBooking.status ?? null },
