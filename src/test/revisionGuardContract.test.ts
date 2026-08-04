@@ -174,11 +174,14 @@ describe('tombstone revision validation', () => {
     expect((older as any).reason).toBe('stale_tombstone_revision');
   });
 
-  it('Test 6: numeriska versioner — äldre nekas, samma/nyare tillåts', () => {
+  it('Test 6: numeriska versioner — äldre nekas, nyare tillåts, samma kräver statuskontroll (2E)', () => {
     expect(evaluateDestructiveAction(absent(tomb({ source_version: 4 })), exp, { sourceVersion: 5 }).allowed).toBe(false);
-    expect(evaluateDestructiveAction(absent(tomb({ source_version: 5 })), exp, { sourceVersion: 5 }).allowed).toBe(true);
+    // Samma revision utan känd lokal status är fail-closed sedan STEG 2E.
+    expect(evaluateDestructiveAction(absent(tomb({ source_version: 5 })), exp, { sourceVersion: 5 }).allowed).toBe(false);
+    expect(evaluateDestructiveAction(absent(tomb({ source_version: 5 })), exp, { sourceVersion: 5, sourceStatus: 'CANCELLED' }).allowed).toBe(true);
     expect(evaluateDestructiveAction(absent(tomb({ source_version: 6 })), exp, { sourceVersion: 5 }).allowed).toBe(true);
   });
+
 
   it('Test 7: tombstone timestamp mot lokal version = inkomparabel', () => {
     const d = evaluateDestructiveAction(
