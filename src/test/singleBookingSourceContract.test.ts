@@ -198,7 +198,7 @@ function makeFakeSupabase(rows: Record<string, any[]>) {
 describe('central cancellation handler', () => {
   it('TEST 6/16: cancellation is idempotent and routed through one handler', async () => {
     const sb = makeFakeSupabase({});
-    const input = { id: '2602-13', version: 1 };
+    const input = { id: '2602-13', version: 1, organization_id: 'org-1' };
     const r1 = await applyBookingCancellation(sb, input);
     const opsAfterFirst = [...sb.ops];
     const r2 = await applyBookingCancellation(sb, input);
