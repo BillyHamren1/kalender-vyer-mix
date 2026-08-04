@@ -510,7 +510,7 @@ export async function recordAppliedSourceRevision(
       changeType,
       revision,
     });
-    if (!exact.ok) return { ok: false, error: exact.error };
+    if (exact.ok !== true) return { ok: false, error: (exact as { ok: false; error: string }).error };
     const existing = exact.rows;
     if (existing.length > 0) {
       for (const row of existing) {
