@@ -114,8 +114,22 @@ export function parseSingleBookingSourceResponse(
     if (payload.mode !== 'single') {
       return { kind: 'error', retriable: false, code: `contract_mode_${String(payload.mode)}` };
     }
+    // Kontraktsversion valideras endast om Booking skickar den.
+    const rawVersion = payload.contract_version ?? payload.contractVersion;
+    if (rawVersion !== undefined && rawVersion !== null) {
+      const v = String(rawVersion);
+      if (!SUPPORTED_CONTRACT_VERSIONS.includes(v)) {
+        return { kind: 'error', retriable: false, code: `contract_version_unsupported_${v}` };
+      }
+    }
 
     if (payload.found === true) {
+      if (payload.tombstone !== undefined && payload.tombstone !== null) {
+        return { kind: 'error', retriable: false, code: 'contract_contradiction_found_with_tombstone' };
+      }
+      if (str(payload.reason)) {
+        return { kind: 'error', retriable: false, code: 'contract_contradiction_found_with_reason' };
+      }
       const booking = isRecord(payload.booking) ? payload.booking : null;
       if (!booking) {
         return { kind: 'error', retriable: false, code: 'contract_found_without_booking' };
@@ -139,6 +153,13 @@ export function parseSingleBookingSourceResponse(
     }
 
     const rawReason = str(payload.reason);
+    if (!rawReason) {
+      // found:false utan reason är ett kontraktsbrott — aldrig cleanup.
+      return { kind: 'error', retriable: false, code: 'contract_absent_without_reason' };
+    }
+    if (payload.booking !== undefined && payload.booking !== null) {
+      return { kind: 'error', retriable: false, code: 'contract_contradiction_absent_with_booking' };
+    }
     return {
       kind: 'absent',
       reason: normalizeReason(rawReason),
