@@ -162,8 +162,24 @@ export function validateSingleBookingResult(
     if (r.success !== true || r.completed !== true) {
       return { ok: false, permanent: true, reason: 'contract_violation_success_flags' };
     }
+    // Defensivt: ett svar får aldrig hävda full framgång OCH bära på fel.
+    if (typeof r.error === 'string' && r.error.trim().length > 0) {
+      return { ok: false, permanent: true, reason: 'contract_violation_top_level_error' };
+    }
+    const res = (r.results && typeof r.results === 'object')
+      ? (r.results as Record<string, unknown>)
+      : null;
+    if (res) {
+      if (Array.isArray(res.errors) && res.errors.length > 0) {
+        return { ok: false, permanent: true, reason: 'contract_violation_results_errors' };
+      }
+      if (typeof res.failed === 'number' && res.failed > 0) {
+        return { ok: false, permanent: true, reason: 'contract_violation_results_failed' };
+      }
+    }
     return { ok: true, outcome };
   }
+
 
   // Icke-lyckade outcomes: retry-policy per typ.
   switch (outcome) {
