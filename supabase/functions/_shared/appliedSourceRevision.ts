@@ -364,6 +364,10 @@ export async function recordAppliedSourceRevision(
     revision: string | number | null | undefined;
     /** Canonical status från Booking-envelopen (aldrig lokalt härledd). */
     sourceStatus?: string | null;
+    /** Explicit tidsstämpel-revision (om envelopen bär både ts och version). */
+    sourceUpdatedAt?: string | null;
+    /** Explicit versionsrevision (om envelopen bär både ts och version). */
+    sourceVersion?: number | null;
     changeType?: string;
   },
 ): Promise<RecordRevisionResult> {
