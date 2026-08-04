@@ -14,6 +14,12 @@ import {
 } from '../_shared/singleBookingSource.ts'
 import { applyBookingCancellation } from '../_shared/cancellation-handler.ts'
 import { loadAppliedSourceRevision, recordAppliedSourceRevision } from '../_shared/appliedSourceRevision.ts'
+import {
+  normalizeIncomingRevision,
+  reserveCanonicalRevision,
+  commitCanonicalRevision,
+  releaseCanonicalRevision,
+} from '../_shared/canonicalRevisionGuard.ts'
 
 /**
  * Resolve the organization_id to use for all INSERTs.
@@ -2048,6 +2054,8 @@ serve(async (req) => {
   let ctxIsSingle = false
   let ctxBookingId: string | null = null
   let ctxOrgId: string | null = null
+  // STEG 2G: reserverad canonical revision (pending) — släpps om importen kraschar.
+  let guardedIncomingRevision: any = null
 
   try {
     // Header 'x-lovable-change-source' forwards to Postgres via PostgREST and
@@ -2649,6 +2657,55 @@ serve(async (req) => {
         'team-4': 0,
         'team-5': 0,
         'team-11': 0
+      }
+    }
+
+    // ── STEG 2G: CANONICAL REVISION GUARD (före FÖRSTA canonical mutation) ──
+    // En äldre canonical source-revision får aldrig appliceras, loggas, bli
+    // applied/completed eller flytta batchcursorn. Kontrollen sker HÄR, innan
+    // booking-upsert, statusändring, datum, produkter, kalenderreconcile och
+    // projekt-/packingprojection.
+    if (isSingleBookingRefresh && normalizedSingleBookingId && externalData.data.length > 0) {
+      const canonicalRow: any = externalData.data[0];
+      const incoming = {
+        sourceUpdatedAt: canonicalRow?.updated_at ?? canonicalRow?.source_updated_at ?? null,
+        sourceVersion: canonicalRow?.version ?? canonicalRow?.source_version ?? null,
+        sourceStatus: canonicalRow?.status ?? canonicalRow?.booking_status ?? (externalData as any)?.raw?.source_status ?? null,
+      };
+      if (normalizeIncomingRevision(incoming)) {
+        const reserved = await reserveCanonicalRevision(supabase, {
+          bookingId: normalizedSingleBookingId,
+          organizationId: organizationId,
+          incoming,
+        });
+        if (reserved.ok && reserved.decision === 'already_current') {
+          console.log('[import-bookings] revision already current — no mutation', JSON.stringify({
+            booking_id: normalizedSingleBookingId, organization_id: organizationId,
+          }));
+          return new Response(JSON.stringify(buildSingleBookingEnvelope({
+            bookingId: normalizedSingleBookingId,
+            organizationId,
+            outcome: 'already_current',
+            results: { total: 1, imported: 0, failed: 0, errors: [], sync_mode: 'revision_idempotent' },
+          })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+        }
+        if (!reserved.ok) {
+          console.error('[import-bookings] canonical revision guard blocked import', JSON.stringify({
+            booking_id: normalizedSingleBookingId,
+            organization_id: organizationId,
+            decision: reserved.decision,
+            error: reserved.error,
+          }));
+          return new Response(JSON.stringify(buildSingleBookingEnvelope({
+            bookingId: normalizedSingleBookingId,
+            organizationId,
+            outcome: 'failed',
+            error: reserved.decision === 'rpc_unavailable'
+              ? `revision_guard_unavailable:${reserved.error ?? 'unknown'}`
+              : String(reserved.decision),
+          })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+        }
+        guardedIncomingRevision = incoming;
       }
     }
 
@@ -4358,6 +4415,13 @@ serve(async (req) => {
         });
         if (!logged.ok) {
           console.error('[import-bookings] source revision logging failed', logged.error);
+          if (guardedIncomingRevision) {
+            await releaseCanonicalRevision(supabase, {
+              bookingId: normalizedSingleBookingId,
+              organizationId,
+              incoming: guardedIncomingRevision,
+            });
+          }
           return new Response(JSON.stringify(buildSingleBookingEnvelope({
             bookingId: normalizedSingleBookingId,
             organizationId,
@@ -4365,6 +4429,31 @@ serve(async (req) => {
             error: `source_revision_log_failed:${logged.error}`,
           })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
         }
+        // STEG 2G: importen lyckades → pending revision blir applied (atomiskt).
+        if (guardedIncomingRevision) {
+          const committed = await commitCanonicalRevision(supabase, {
+            bookingId: normalizedSingleBookingId,
+            organizationId,
+            incoming: guardedIncomingRevision,
+          });
+          if (!committed.ok) {
+            console.error('[import-bookings] revision commit failed', JSON.stringify(committed));
+            return new Response(JSON.stringify(buildSingleBookingEnvelope({
+              bookingId: normalizedSingleBookingId,
+              organizationId,
+              outcome: 'partial',
+              error: `revision_commit_failed:${committed.decision}`,
+            })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+          }
+        }
+      } else if (guardedIncomingRevision && normalizedSingleBookingId) {
+        // Importen blev inte fullt applicerad → släpp reservationen så att
+        // SAMMA revision kan retryas (och aldrig rapporteras som applied).
+        await releaseCanonicalRevision(supabase, {
+          bookingId: normalizedSingleBookingId,
+          organizationId,
+          incoming: guardedIncomingRevision,
+        });
       }
 
       const envelope = buildSingleBookingEnvelope({
@@ -4401,6 +4490,20 @@ serve(async (req) => {
       import_started: null,
       import_completed: new Date().toISOString(),
     }))
+    // STEG 2G: importen kraschade → släpp pending-reservationen så att SAMMA
+    // revision kan retryas. Reservationen blir aldrig applied av ett fel.
+    if (guardedIncomingRevision && ctxBookingId && ctxOrgId) {
+      try {
+        await releaseCanonicalRevision(supabase, {
+          bookingId: ctxBookingId,
+          organizationId: ctxOrgId,
+          incoming: guardedIncomingRevision,
+        });
+      } catch (relErr) {
+        console.error('[import-bookings] revision release failed after crash', relErr);
+      }
+    }
+
     if (ctxIsSingle) {
       return new Response(
         JSON.stringify(buildSingleBookingEnvelope({

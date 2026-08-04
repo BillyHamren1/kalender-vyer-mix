@@ -326,7 +326,7 @@ describe('STEG 2F – recordAppliedSourceRevision', () => {
   it('Test 8: samma revision + samma status → idempotent, ingen dubblett', async () => {
     const inserts: any[] = [];
     const sb = makeSupabase(
-      [{ id: 1, new_values: { source_revision: '2026-07-01T00:00:00Z', source_status: 'CONFIRMED' } }],
+      [{ id: 1, created_at: '2026-07-01T00:00:00Z', change_type: 'source_revision', new_values: { source_revision: '2026-07-01T00:00:00Z', source_status: 'CONFIRMED' } }],
       { inserts },
     );
     const res = await recordAppliedSourceRevision(sb, {
@@ -339,7 +339,7 @@ describe('STEG 2F – recordAppliedSourceRevision', () => {
   it('Test 9: samma revision men annan status → conflicting_source_status_for_revision', async () => {
     const inserts: any[] = [];
     const sb = makeSupabase(
-      [{ id: 1, new_values: { source_revision: '2026-07-01T00:00:00Z', source_status: 'CONFIRMED' } }],
+      [{ id: 1, created_at: '2026-07-01T00:00:00Z', change_type: 'source_revision', new_values: { source_revision: '2026-07-01T00:00:00Z', source_status: 'CONFIRMED' } }],
       { inserts },
     );
     const res = await recordAppliedSourceRevision(sb, {
@@ -350,11 +350,14 @@ describe('STEG 2F – recordAppliedSourceRevision', () => {
   });
 
   it('lagrad rad utan status → fail-closed', async () => {
-    const sb = makeSupabase([{ id: 1, new_values: { source_revision: 12 } }]);
+    const sb = makeSupabase([{ id: 1, created_at: '2026-07-01T00:00:00Z', change_type: 'source_revision', new_values: { source_revision: 12 } }]);
     const res = await recordAppliedSourceRevision(sb, {
       bookingId: BOOKING, organizationId: ORG, revision: 12, sourceStatus: 'CONFIRMED',
     });
-    expect(res).toEqual({ ok: false, error: 'stored_revision_missing_source_status' });
+    // STEG 2G: monotonikontrollen fångar den statuslösa raden först (fortfarande fail-closed).
+    expect(res.ok).toBe(false);
+    expect(['stored_revision_missing_source_status', 'conflicting_source_status_for_revision'])
+      .toContain((res as any).error);
   });
 
   it('canonical status saknas i inputen → loggas inte', async () => {

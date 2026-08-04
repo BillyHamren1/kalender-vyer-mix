@@ -120,7 +120,7 @@ describe('loadAppliedSourceRevision — fail-closed load contract', () => {
 
   it('hittad revision returneras som found:true', async () => {
     const sb = makeSupabase({
-      booking_changes: { selectResult: { data: [{ new_values: { source_revision: '2026-01-02T00:00:00Z' } }], error: null } },
+      booking_changes: { selectResult: { data: [{ created_at: '2026-05-01T00:00:00Z', change_type: 'source_revision', new_values: { source_revision: '2026-01-02T00:00:00Z' } }], error: null } },
     });
     const res = await loadAppliedSourceRevision(sb, BOOKING, ORG);
     expect(res.ok && res.found).toBe(true);
@@ -284,7 +284,7 @@ describe('normal canonical revision logging', () => {
     // Endast en vanlig source_revision-logg finns (ingen cancellation-logg alls).
     const sb = makeSupabase({
       booking_changes: {
-        selectResult: { data: [{ new_values: { source_revision: '2026-05-01T00:00:00Z' } }], error: null },
+        selectResult: { data: [{ created_at: '2026-05-01T00:00:00Z', change_type: 'source_revision', new_values: { source_revision: '2026-05-01T00:00:00Z' } }], error: null },
       },
     });
     const load = await loadAppliedSourceRevision(sb, BOOKING, ORG);

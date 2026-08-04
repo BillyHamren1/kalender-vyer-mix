@@ -851,6 +851,51 @@ export type Database = {
           },
         ]
       }
+      booking_source_state: {
+        Row: {
+          applied_source_status: string | null
+          applied_source_updated_at: string | null
+          applied_source_version: number | null
+          booking_id: string
+          created_at: string
+          organization_id: string
+          pending_source_status: string | null
+          pending_source_updated_at: string | null
+          pending_source_version: number | null
+          pending_started_at: string | null
+          revision_kind: string | null
+          updated_at: string
+        }
+        Insert: {
+          applied_source_status?: string | null
+          applied_source_updated_at?: string | null
+          applied_source_version?: number | null
+          booking_id: string
+          created_at?: string
+          organization_id: string
+          pending_source_status?: string | null
+          pending_source_updated_at?: string | null
+          pending_source_version?: number | null
+          pending_started_at?: string | null
+          revision_kind?: string | null
+          updated_at?: string
+        }
+        Update: {
+          applied_source_status?: string | null
+          applied_source_updated_at?: string | null
+          applied_source_version?: number | null
+          booking_id?: string
+          created_at?: string
+          organization_id?: string
+          pending_source_status?: string | null
+          pending_source_updated_at?: string | null
+          pending_source_version?: number | null
+          pending_started_at?: string | null
+          revision_kind?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       booking_staff_assignments: {
         Row: {
           assignment_date: string
@@ -10426,6 +10471,17 @@ export type Database = {
       }
     }
     Functions: {
+      advance_booking_source_revision: {
+        Args: {
+          p_booking_id: string
+          p_mode: string
+          p_organization_id: string
+          p_source_status: string
+          p_source_updated_at: string
+          p_source_version: number
+        }
+        Returns: Json
+      }
       archive_dm_thread: {
         Args: { _my_ids: string[]; _org_id: string; _partner_id: string }
         Returns: number
