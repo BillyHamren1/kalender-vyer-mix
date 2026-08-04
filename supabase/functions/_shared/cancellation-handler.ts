@@ -143,42 +143,60 @@ export async function applyBookingCancellation(
     if (deleteProductsError) console.error(`[cancellation] booking_products delete failed for ${bookingId}:`, deleteProductsError);
 
     // Audit: lagra canonical source reason + revision EN gång per revision.
+    // SÄKERHETSKRITISK: booking_changes är källan för stale-skyddet, därför är
+    // detta INTE en best-effort-logg. Läs- och skrivfel läggs i `failures` och
+    // gör resultatet `partial` (aldrig full cancelled).
     if (source) {
+      const revision = source.source_revision ?? null;
       try {
-        const revision = source.source_revision ?? null;
-        const { data: existingLogs } = await supabase
+        const readRes = await supabase
           .from('booking_changes')
           .select('id, new_values')
           .eq('booking_id', bookingId)
           .eq('organization_id', orgId)
           .eq('change_type', 'cancellation_source')
           .limit(50);
-        const alreadyLogged = (existingLogs ?? []).some(
-          (row: any) => String(row?.new_values?.source_revision ?? '') === String(revision ?? ''),
-        );
-        if (!alreadyLogged) {
-          await supabase.from('booking_changes').insert({
-            booking_id: bookingId,
-            organization_id: orgId,
-            change_type: 'cancellation_source',
-            changed_fields: ['status'],
-            previous_values: { status: existingBooking.status ?? null },
-            new_values: {
-              status: 'CANCELLED',
-              source_reason: source.reason,
-              source_status: source.source_status,
-              source_revision: revision,
-            },
-            version: (existingBooking.version || 1) + 1,
-          });
-          result.source_logged = true;
+
+        if (readRes?.error) {
+          failures.push('booking_changes_read');
+          console.error(`[cancellation] audit read failed for ${bookingId}:`, readRes.error);
         } else {
-          result.source_logged = false;
+          const alreadyLogged = (readRes?.data ?? []).some(
+            (row: any) => String(row?.new_values?.source_revision ?? '') === String(revision ?? ''),
+          );
+          if (!alreadyLogged) {
+            const insertRes = await supabase.from('booking_changes').insert({
+              booking_id: bookingId,
+              organization_id: orgId,
+              change_type: 'cancellation_source',
+              changed_fields: ['status'],
+              previous_values: { status: existingBooking.status ?? null },
+              new_values: {
+                status: 'CANCELLED',
+                source_reason: source.reason,
+                source_status: source.source_status,
+                source_revision: revision,
+              },
+              version: (existingBooking.version || 1) + 1,
+            });
+            if (insertRes?.error) {
+              failures.push('booking_changes_insert');
+              result.source_logged = false;
+              console.error(`[cancellation] audit insert failed for ${bookingId}:`, insertRes.error);
+            } else {
+              result.source_logged = true;
+            }
+          } else {
+            // Idempotent: revisionen är redan loggad, ingen dubblett skapas.
+            result.source_logged = false;
+          }
         }
-      } catch (logErr) {
+      } catch (logErr: any) {
+        failures.push('booking_changes_exception');
         console.error(`[cancellation] audit log failed for ${bookingId}:`, logErr);
       }
     }
+
 
     if (failures.length > 0) {
       // Delvis misslyckad cleanup får ALDRIG rapporteras som full success.
