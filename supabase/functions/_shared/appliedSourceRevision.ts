@@ -31,6 +31,7 @@
  *   revisionen kommer alltid från EN verklig rad.
  */
 import type { LocalAppliedRevision } from './singleBookingSource.ts';
+import { compareIncomingRevision } from './canonicalRevisionGuard.ts';
 
 /** Change-types som faktiskt kan bära en canonical source-revision. */
 export const REVISION_BEARING_CHANGE_TYPES = [
@@ -366,6 +367,62 @@ export type RecordRevisionResult =
   | { ok: true; logged: boolean; already_current?: boolean }
   | { ok: false; error: string };
 
+/**
+ * UPPGIFT E (2G): exakt revisionsuppslag utan limit-lucka.
+ * Filtrerar server-side på booking_id + organization_id + change_type + exakt
+ * `new_values->>source_revision`. Ingen godtycklig limit som kan dölja en
+ * motsägelsefull status längre bak i historiken.
+ * Klienter/mockar som saknar thenable-chain får en kompatibilitetsväg där
+ * filtreringen görs lokalt över hela det hämtade urvalet.
+ */
+async function findExactRevisionRows(
+  supabase: any,
+  input: { bookingId: string; organizationId: string; changeType: string; revision: string | number },
+): Promise<{ ok: true; rows: any[] } | { ok: false; error: string }> {
+  const base = supabase
+    .from('booking_changes')
+    .select('id, new_values, created_at')
+    .eq('booking_id', input.bookingId)
+    .eq('organization_id', input.organizationId)
+    .eq('change_type', input.changeType);
+
+  try {
+    const exact = typeof base.eq === 'function'
+      ? base.eq('new_values->>source_revision', String(input.revision))
+      : base;
+    if (exact && typeof exact.then === 'function') {
+      const res = await exact;
+      if (res?.error) return { ok: false, error: `booking_changes_read:${res.error.message ?? 'unknown'}` };
+      return { ok: true, rows: Array.isArray(res?.data) ? res.data : [] };
+    }
+    // Kompatibilitetsväg (mock/äldre klient): hämta urvalet och filtrera lokalt.
+    if (exact && typeof exact.limit === 'function') {
+      const res = await exact.limit(10000);
+      if (res?.error) return { ok: false, error: `booking_changes_read:${res.error.message ?? 'unknown'}` };
+      const rows = (Array.isArray(res?.data) ? res.data : []).filter(
+        (row: any) => String(row?.new_values?.source_revision ?? '') === String(input.revision),
+      );
+      return { ok: true, rows };
+    }
+    return { ok: false, error: 'booking_changes_read:unsupported_client' };
+  } catch (err: any) {
+    return { ok: false, error: `booking_changes_read_exception:${err?.message ?? String(err)}` };
+  }
+}
+
+/**
+ * Loggar en applicerad canonical Booking-revision (NORMAL import, found:true).
+ *
+ * STEG 2G – MONOTON:
+ *   Funktionen är INTE en ren append. Innan något skrivs läses current canonical
+ *   revision via den gemensamma loadern och jämförs med den gemensamma
+ *   policyn (canonicalRevisionGuard):
+ *     - äldre timestamp / lägre version → 'stale_source_revision' (ingen skrivning),
+ *     - samma revision + samma status  → idempotent already_current,
+ *     - samma revision + annan status  → 'conflicting_source_status_for_revision',
+ *     - ojämförbar typ                 → 'incomparable_source_revision',
+ *     - blandad/trasig historik        → loaderns fail-closed-fel.
+ */
 export async function recordAppliedSourceRevision(
   supabase: any,
   input: {
@@ -395,12 +452,33 @@ export async function recordAppliedSourceRevision(
     return { ok: false, error: 'missing_canonical_source_status_for_revision' };
   }
 
-  // 1) Skriv det dedikerade authoritative fältet på bokningen.
   const asVersion = parseStrictVersion(revision);
   const asTs = asVersion === null ? parseStrictTimestamp(revision) : null;
+  const incoming = {
+    sourceUpdatedAt: input.sourceUpdatedAt ?? (asTs !== null ? String(revision).trim() : null),
+    sourceVersion: input.sourceVersion ?? asVersion,
+    sourceStatus,
+  };
+
+  // 0) MONOTONI: läs current canonical revision och jämför FÖRE skrivning.
+  const current = await loadAppliedSourceRevision(supabase, input.bookingId, input.organizationId);
+  if (!current.ok) {
+    return { ok: false, error: current.error };
+  }
+  if (current.found) {
+    const decision = compareIncomingRevision(incoming, current.revision);
+    if (decision === 'already_current') {
+      return { ok: true, logged: false, already_current: true };
+    }
+    if (decision !== 'apply') {
+      return { ok: false, error: decision };
+    }
+  }
+
+  // 1) Skriv det dedikerade authoritative fältet på bokningen.
   const dedicatedPayload = {
-    source_updated_at: input.sourceUpdatedAt ?? (asTs !== null ? String(revision).trim() : null),
-    source_version: input.sourceVersion ?? asVersion,
+    source_updated_at: incoming.sourceUpdatedAt,
+    source_version: incoming.sourceVersion,
     source_status: sourceStatus,
     change_type: changeType,
     revision: String(revision),
@@ -426,19 +504,14 @@ export async function recordAppliedSourceRevision(
 
   // 2) Historikloggen (booking_changes) är nu enbart audit-spår.
   try {
-    const readRes = await supabase
-      .from('booking_changes')
-      .select('id, new_values')
-      .eq('booking_id', input.bookingId)
-      .eq('organization_id', input.organizationId)
-      .eq('change_type', changeType)
-      .limit(MAX_REVISION_ROWS);
-    if (readRes?.error) {
-      return { ok: false, error: `booking_changes_read:${readRes.error.message ?? 'unknown'}` };
-    }
-    const existing = (readRes?.data ?? []).filter(
-      (row: any) => String(row?.new_values?.source_revision ?? '') === String(revision),
-    );
+    const exact = await findExactRevisionRows(supabase, {
+      bookingId: input.bookingId,
+      organizationId: input.organizationId,
+      changeType,
+      revision,
+    });
+    if (!exact.ok) return { ok: false, error: exact.error };
+    const existing = exact.rows;
     if (existing.length > 0) {
       for (const row of existing) {
         const storedStatus = normStatus(row?.new_values?.source_status);
@@ -461,7 +534,6 @@ export async function recordAppliedSourceRevision(
       }
       return { ok: true, logged: false, already_current: true };
     }
-
 
     const insertRes = await supabase.from('booking_changes').insert({
       booking_id: input.bookingId,
