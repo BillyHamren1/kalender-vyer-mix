@@ -18,10 +18,31 @@
  */
 import type { LocalAppliedRevision } from './singleBookingSource.ts';
 
+export interface AppliedRevisionLoadFound {
+  ok: true;
+  found: true;
+  revision: LocalAppliedRevision;
+  error?: undefined;
+  retriable?: undefined;
+}
+export interface AppliedRevisionLoadEmpty {
+  ok: true;
+  found: false;
+  revision: null;
+  error?: undefined;
+  retriable?: undefined;
+}
+export interface AppliedRevisionLoadError {
+  ok: false;
+  found?: undefined;
+  revision?: undefined;
+  error: string;
+  retriable: true;
+}
 export type AppliedRevisionLoadResult =
-  | { ok: true; found: true; revision: LocalAppliedRevision }
-  | { ok: true; found: false; revision: null }
-  | { ok: false; error: string; retriable: true };
+  | AppliedRevisionLoadFound
+  | AppliedRevisionLoadEmpty
+  | AppliedRevisionLoadError;
 
 /** Strikt numerisk sträng (tillåter inte NaN/Infinity/decimaler/tecken). */
 function parseStrictVersion(raw: unknown): number | null {

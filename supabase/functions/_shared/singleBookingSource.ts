@@ -240,9 +240,11 @@ export function parseSourceTimestamp(raw: unknown): number | null {
  * Tom sträng, whitespace, null, undefined, "not-a-date", NaN, Infinity,
  * negativa versioner och godtycklig text nekas.
  */
-export function validateTombstoneRevision(
-  t: SourceTombstone,
-): { ok: true; revisions: ParsedRevision[] } | { ok: false; reason: string } {
+export type TombstoneRevisionCheck =
+  | { ok: true; revisions: ParsedRevision[]; reason?: undefined }
+  | { ok: false; revisions?: undefined; reason: string };
+
+export function validateTombstoneRevision(t: SourceTombstone): TombstoneRevisionCheck {
   const revisions: ParsedRevision[] = [];
 
   const rawTs = t.source_updated_at;
@@ -277,10 +279,14 @@ export function parseLocalRevision(local: LocalAppliedRevision): ParsedRevision[
  * Jämför tombstone mot lokalt applicerad revision av SAMMA typ.
  * Olika typer = fail-closed (`incomparable_source_revision`).
  */
+export type RevisionComparison =
+  | { ok: true; reason?: undefined }
+  | { ok: false; reason: string };
+
 export function compareRevisions(
   tombRevs: ParsedRevision[],
   local: LocalAppliedRevision | null | undefined,
-): { ok: true } | { ok: false; reason: string } {
+): RevisionComparison {
   if (!local) return { ok: true }; // ingen tidigare revision → inget stale-skydd att tillämpa
   const localRevs = parseLocalRevision(local);
   if (localRevs.length === 0) return { ok: true };
@@ -328,10 +334,10 @@ export function evaluateDestructiveAction(
   if (!t.source_status) return { allowed: false, reason: 'tombstone_missing_source_status' };
 
   const revCheck = validateTombstoneRevision(t);
-  if (!revCheck.ok) return { allowed: false, reason: revCheck.reason };
+  if (revCheck.ok !== true) return { allowed: false, reason: revCheck.reason };
 
   const cmp = compareRevisions(revCheck.revisions, local);
-  if (!cmp.ok) return { allowed: false, reason: cmp.reason };
+  if (cmp.ok !== true) return { allowed: false, reason: cmp.reason };
 
   const status = t.source_status.toUpperCase();
 
