@@ -1,24 +1,31 @@
 /**
  * Läser den senast APPLICERADE canonical source-revisionen för en bokning.
- * Används som stale-skydd: en tombstone med äldre (eller motsägelsefull)
- * source-revision än den redan applicerade får aldrig skriva över nyare
- * canonical data.
+ * Används som stale-skydd: en tombstone med äldre, motsägelsefull eller
+ * ojämförbar source-revision får aldrig skriva över nyare canonical data.
  *
  * KÄLLA:
  *   `bookings` saknar i dag ett dedikerat fält för senast applicerad canonical
- *   Booking-revision, därför är `booking_changes` primär källa. VIKTIGT:
- *   loadern filtrerar server-side på REVISIONSBÄRANDE change_types — den läser
- *   alltså aldrig "de 50 senaste raderna oavsett typ", vilket tidigare kunde
- *   dölja en giltig revision bakom orelaterade ändringar (fail-open).
+ *   Booking-revision, därför är `booking_changes` primär källa. Loadern
+ *   filtrerar server-side på REVISIONSBÄRANDE change_types — den läser aldrig
+ *   "de N senaste raderna oavsett typ" (tidigare fail-open-lucka).
+ *
+ * STEG 2F – EN AUTHORITATIVE REVISIONSTYP PER BOKNING:
+ *   Den senast applicerade revisionsbärande raden (högst `created_at`) är
+ *   authoritative. Dess revisionstyp ('timestamp', 'version' eller 'both' när
+ *   EN och samma rad bär båda värdena) styr all jämförelse. Om någon annan
+ *   revisionsbärande rad bär en revisionstyp som den authoritative raden inte
+ *   har → historiken är blandad och ojämförbar:
+ *     ok:false, error:'mixed_incomparable_revision_history' (permanent).
+ *   Ett typbyte gör alltså ALDRIG äldre historik automatiskt jämförbar.
  *
  * FAIL-CLOSED:
  *   Databasfel, oparsbar lagrad revision, motsägelsefull status på samma
- *   revision, eller ett historik-tak som slår i → `ok:false`. Callers MÅSTE
- *   hantera `ok:false` innan evaluateDestructiveAction anropas.
+ *   revision, blandad historik eller ett historik-tak som slår i → `ok:false`.
+ *   Callers MÅSTE hantera `ok:false` innan evaluateDestructiveAction anropas.
  *
  * INGA SYNTETISKA REVISIONER:
- *   Loadern slår aldrig ihop högsta timestamp från en rad med högsta version
- *   från en annan. Varje returnerad post kommer från EN verklig historikrad.
+ *   Värden från olika historikrader slås aldrig ihop. Den returnerade
+ *   revisionen kommer alltid från EN verklig rad.
  */
 import type { LocalAppliedRevision } from './singleBookingSource.ts';
 
@@ -28,15 +35,24 @@ export const REVISION_BEARING_CHANGE_TYPES = [
   'cancellation_source',
 ] as const;
 
-/** Hårt tak; slås det i är historiken osäker → fail-closed, aldrig "saknas". */
-const MAX_REVISION_ROWS = 1000;
+/**
+ * Säkerhetstak. Queryn är redan server-side-filtrerad på revisionsbärande
+ * change_types, så taket nås i praktiken bara vid onormal historik. Slås det i
+ * är resultatet fail-closed och PERMANENT (retriable:false) — en retry minskar
+ * inte historiken; det kräver operativ åtgärd (arkivering/dedikerat fält).
+ */
+const MAX_REVISION_ROWS = 200;
+
+export type RevisionKind = 'timestamp' | 'version' | 'both';
 
 export interface AppliedRevisionLoadFound {
   ok: true;
   found: true;
-  /** Primär post (föredragen ordning: timestamp före version). */
+  /** Authoritative revisionstyp för bokningen. */
+  revisionKind: RevisionKind;
+  /** Den verkliga historikrad som är senaste canonical revision. */
   revision: LocalAppliedRevision;
-  /** Senaste verkliga post per revisionstyp (aldrig sammanslagna). */
+  /** Bakåtkompatibel vy: alltid exakt den authoritative posten. */
   revisions: LocalAppliedRevision[];
   error?: undefined;
   retriable?: undefined;
@@ -44,6 +60,7 @@ export interface AppliedRevisionLoadFound {
 export interface AppliedRevisionLoadEmpty {
   ok: true;
   found: false;
+  revisionKind?: undefined;
   revision: null;
   revisions: [];
   error?: undefined;
@@ -52,17 +69,18 @@ export interface AppliedRevisionLoadEmpty {
 export interface AppliedRevisionLoadError {
   ok: false;
   found?: undefined;
+  revisionKind?: undefined;
   revision?: undefined;
   revisions?: undefined;
   error: string;
-  retriable: true;
+  retriable: boolean;
 }
 export type AppliedRevisionLoadResult =
   | AppliedRevisionLoadFound
   | AppliedRevisionLoadEmpty
   | AppliedRevisionLoadError;
 
-/** Strikt numerisk sträng (tillåter inte NaN/Infinity/decimaler/tecken). */
+/** Strikt numerisk version (inga NaN/Infinity/decimaler/negativa tal). */
 function parseStrictVersion(raw: unknown): number | null {
   if (typeof raw === 'number') {
     return Number.isFinite(raw) && Number.isInteger(raw) && raw >= 0 ? raw : null;
@@ -87,11 +105,19 @@ function normStatus(v: unknown): string | null {
 }
 
 interface RevisionEntry {
-  kind: 'timestamp' | 'version';
-  order: number;
-  raw: string | number;
+  timestamp: string | null;
+  timestampMs: number | null;
+  version: number | null;
   status: string | null;
   changeType: string | null;
+  createdAtMs: number;
+}
+
+function entryKinds(e: RevisionEntry): Array<'timestamp' | 'version'> {
+  const kinds: Array<'timestamp' | 'version'> = [];
+  if (e.timestampMs !== null) kinds.push('timestamp');
+  if (e.version !== null) kinds.push('version');
+  return kinds;
 }
 
 export async function loadAppliedSourceRevision(
@@ -119,61 +145,113 @@ export async function loadAppliedSourceRevision(
 
   if ((data?.length ?? 0) >= MAX_REVISION_ROWS) {
     // Historiken kan vara avklippt → vi vet inte om vi ser den senaste.
-    return { ok: false, error: 'revision_history_truncated', retriable: true };
+    // Permanent: en retry ger samma resultat, det krävs operativ åtgärd.
+    console.error('[appliedSourceRevision] revision history truncated — operational action required', JSON.stringify({
+      booking_id: bookingId,
+      organization_id: organizationId,
+      max_rows: MAX_REVISION_ROWS,
+      action: 'archive booking_changes revision rows or introduce dedicated last_applied_source_revision field',
+    }));
+    return { ok: false, error: 'revision_history_truncated', retriable: false };
   }
 
   const entries: RevisionEntry[] = [];
   for (const row of data ?? []) {
     const nv: any = row?.new_values ?? {};
-    const raw = nv.source_revision ?? nv.source_updated_at ?? null;
-    if (raw === null || raw === undefined || raw === '') continue;
-
-    const status = normStatus(nv.source_status ?? nv.status);
     const changeType = typeof row?.change_type === 'string' ? row.change_type : null;
+    const status = normStatus(nv.source_status ?? nv.status);
+    const createdAtMs = parseStrictTimestamp(row?.created_at) ?? 0;
 
-    const asVersion = parseStrictVersion(raw);
-    if (asVersion !== null) {
-      entries.push({ kind: 'version', order: asVersion, raw, status, changeType });
-      continue;
+    let timestamp: string | null = null;
+    let timestampMs: number | null = null;
+    let version: number | null = null;
+
+    // Explicita fält vinner; `source_revision` tolkas efter sin faktiska form.
+    const explicitTs = nv.source_updated_at ?? null;
+    if (explicitTs !== null && explicitTs !== undefined && explicitTs !== '') {
+      const ms = parseStrictTimestamp(explicitTs);
+      if (ms === null) {
+        return { ok: false, error: `stored_revision_unparseable:${String(explicitTs).slice(0, 60)}`, retriable: false };
+      }
+      timestamp = String(explicitTs).trim();
+      timestampMs = ms;
     }
-    const asTs = parseStrictTimestamp(raw);
-    if (asTs !== null) {
-      entries.push({ kind: 'timestamp', order: asTs, raw: String(raw).trim(), status, changeType });
-      continue;
+    const explicitVer = nv.source_version ?? null;
+    if (explicitVer !== null && explicitVer !== undefined && explicitVer !== '') {
+      const v = parseStrictVersion(explicitVer);
+      if (v === null) {
+        return { ok: false, error: `stored_revision_unparseable:${String(explicitVer).slice(0, 60)}`, retriable: false };
+      }
+      version = v;
     }
-    // Lagrad revision går inte att tolka — dölj inte felet, fail-closed.
-    return {
-      ok: false,
-      error: `stored_revision_unparseable:${String(raw).slice(0, 60)}`,
-      retriable: true,
-    };
+
+    const raw = nv.source_revision ?? null;
+    if (raw !== null && raw !== undefined && raw !== '') {
+      const asVersion = parseStrictVersion(raw);
+      const asTs = asVersion === null ? parseStrictTimestamp(raw) : null;
+      if (asVersion !== null) {
+        if (version === null) version = asVersion;
+      } else if (asTs !== null) {
+        if (timestampMs === null) {
+          timestamp = String(raw).trim();
+          timestampMs = asTs;
+        }
+      } else {
+        return { ok: false, error: `stored_revision_unparseable:${String(raw).slice(0, 60)}`, retriable: false };
+      }
+    }
+
+    if (timestampMs === null && version === null) continue;
+    entries.push({ timestamp, timestampMs, version, status, changeType, createdAtMs });
   }
 
   if (entries.length === 0) {
     return { ok: true, found: false, revision: null, revisions: [] };
   }
 
-  const picked: LocalAppliedRevision[] = [];
-  for (const kind of ['timestamp', 'version'] as const) {
-    const ofKind = entries.filter((e) => e.kind === kind);
-    if (ofKind.length === 0) continue;
-    const max = Math.max(...ofKind.map((e) => e.order));
-    const top = ofKind.filter((e) => e.order === max);
-    // Samma högsta revision men motsägelsefull status → fail-closed.
-    const statuses = new Set(top.map((e) => e.status));
-    if (statuses.size > 1) {
-      return { ok: false, error: 'conflicting_stored_source_revision', retriable: true };
+  // Motsägelsefull status på EXAKT samma revisionsvärde → fail-closed.
+  const statusByValue = new Map<string, string | null>();
+  for (const e of entries) {
+    const keys: string[] = [];
+    if (e.timestampMs !== null) keys.push(`t:${e.timestampMs}`);
+    if (e.version !== null) keys.push(`v:${e.version}`);
+    for (const k of keys) {
+      if (statusByValue.has(k)) {
+        if (statusByValue.get(k) !== e.status) {
+          return { ok: false, error: 'conflicting_stored_source_revision', retriable: false };
+        }
+      } else {
+        statusByValue.set(k, e.status);
+      }
     }
-    const winner = top[0];
-    picked.push({
-      sourceUpdatedAt: kind === 'timestamp' ? String(winner.raw) : null,
-      sourceVersion: kind === 'version' ? Number(winner.raw) : null,
-      sourceStatus: winner.status,
-      changeType: winner.changeType,
-    });
   }
 
-  return { ok: true, found: true, revision: picked[0], revisions: picked };
+  // Authoritative rad = senast APPLICERADE revisionsbärande rad (created_at).
+  // Aldrig "första i arrayen" och aldrig timestamp bara för att den finns.
+  const authoritative = entries.reduce((best, e) => (e.createdAtMs > best.createdAtMs ? e : best), entries[0]);
+  const authKinds = entryKinds(authoritative);
+
+  // Blandad historik: någon annan rad bär en revisionstyp som den
+  // authoritative raden inte har → ordningen kan inte fastställas säkert.
+  for (const e of entries) {
+    for (const kind of entryKinds(e)) {
+      if (!authKinds.includes(kind)) {
+        return { ok: false, error: 'mixed_incomparable_revision_history', retriable: false };
+      }
+    }
+  }
+
+  const revisionKind: RevisionKind =
+    authKinds.length === 2 ? 'both' : authKinds[0];
+
+  const revision: LocalAppliedRevision = {
+    sourceUpdatedAt: authoritative.timestamp,
+    sourceVersion: authoritative.version,
+    sourceStatus: authoritative.status,
+    changeType: authoritative.changeType,
+  };
+
+  return { ok: true, found: true, revisionKind, revision, revisions: [revision] };
 }
 
 /**
@@ -181,8 +259,17 @@ export async function loadAppliedSourceRevision(
  * Säkerhetskritiskt: utan denna logg kan stale-skyddet inte jämföra en
  * cancellation-tombstone mot senaste vanliga import.
  *
- * Idempotent: samma (change_type, revision) loggas bara en gång.
+ * STEG 2F:
+ *  - canonical status är OBLIGATORISK (en revision utan status kan inte
+ *    användas för säker jämförelse och får därför inte loggas),
+ *  - samma revision + samma status → idempotent (`already_current`),
+ *  - samma revision + annan status → `conflicting_source_status_for_revision`,
+ *  - samma revision där lagrad rad saknar status → fail-closed.
  */
+export type RecordRevisionResult =
+  | { ok: true; logged: boolean; already_current?: boolean }
+  | { ok: false; error: string };
+
 export async function recordAppliedSourceRevision(
   supabase: any,
   input: {
@@ -193,7 +280,7 @@ export async function recordAppliedSourceRevision(
     sourceStatus?: string | null;
     changeType?: string;
   },
-): Promise<{ ok: true; logged: boolean } | { ok: false; error: string }> {
+): Promise<RecordRevisionResult> {
   const revision = input.revision ?? null;
   if (revision === null || revision === '') return { ok: true, logged: false };
   if (parseStrictVersion(revision) === null && parseStrictTimestamp(revision) === null) {
@@ -204,6 +291,9 @@ export async function recordAppliedSourceRevision(
     return { ok: false, error: `non_revision_bearing_change_type:${changeType}` };
   }
   const sourceStatus = normStatus(input.sourceStatus);
+  if (!sourceStatus) {
+    return { ok: false, error: 'missing_canonical_source_status_for_revision' };
+  }
   try {
     const readRes = await supabase
       .from('booking_changes')
@@ -215,10 +305,21 @@ export async function recordAppliedSourceRevision(
     if (readRes?.error) {
       return { ok: false, error: `booking_changes_read:${readRes.error.message ?? 'unknown'}` };
     }
-    const already = (readRes?.data ?? []).some(
+    const existing = (readRes?.data ?? []).filter(
       (row: any) => String(row?.new_values?.source_revision ?? '') === String(revision),
     );
-    if (already) return { ok: true, logged: false };
+    if (existing.length > 0) {
+      for (const row of existing) {
+        const storedStatus = normStatus(row?.new_values?.source_status);
+        if (!storedStatus) {
+          return { ok: false, error: 'stored_revision_missing_source_status' };
+        }
+        if (storedStatus !== sourceStatus) {
+          return { ok: false, error: 'conflicting_source_status_for_revision' };
+        }
+      }
+      return { ok: true, logged: false, already_current: true };
+    }
 
     const insertRes = await supabase.from('booking_changes').insert({
       booking_id: input.bookingId,
