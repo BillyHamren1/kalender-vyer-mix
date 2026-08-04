@@ -53,8 +53,6 @@ export async function applyBookingCancellation(
     return result;
   }
   const failures: string[] = [];
-  /** Alla destruktiva queries MÅSTE vara organisationsisolerade. */
-  const scoped = (table: string) => supabase.from(table).eq('organization_id', orgId);
 
 
   try {
