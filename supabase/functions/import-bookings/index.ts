@@ -1241,6 +1241,12 @@ async function reconcileCalendarEvents(
     if (matchedExistingIds.has(e.id)) return false;
     const evtDate = e.source_date || e.start_time?.split('T')[0] || '';
     const key = `${e.event_type}|${evtDate}`;
+    // LOCK GUARD: en låst dag ("Fast tid") är alltid användarens/Bookings beslut.
+    // Externa importen får aldrig radera den som "stale".
+    if (e.times_locked === true) {
+      console.log(`[Calendar Reconcile] KEEP-LOCKED ${e.event_type}@${evtDate} (times_locked)`);
+      return false;
+    }
     if (localAuthoritativeKeys.has(key)) {
       console.log(`[Calendar Reconcile] KEEP-LOCAL ${e.event_type}@${evtDate} (matches booking.${e.event_type === 'rig' ? 'rigdaydate' : 'rigdowndate'}; not in external desired but locally authoritative)`);
       return false;
