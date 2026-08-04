@@ -204,11 +204,23 @@ export type DestructiveDecision =
   | { allowed: true; action: 'cancellation' | 'deletion'; tombstone: SourceTombstone }
   | { allowed: false; reason: string };
 
-/** Lokalt redan applicerad source-revision (skydd mot stale tombstones). */
+/**
+ * Lokalt redan applicerad canonical source-revision (skydd mot stale
+ * tombstones). Varje instans kommer från EN verklig historikrad — värden från
+ * olika rader får aldrig slås ihop till en syntetisk revision.
+ */
 export interface LocalAppliedRevision {
   sourceUpdatedAt?: string | null;
   sourceVersion?: string | number | null;
+  /** Canonical status som revisionen representerade (uppercase), om känd. */
+  sourceStatus?: string | null;
+  /** Historikradens change_type (t.ex. 'source_revision'). */
+  changeType?: string | null;
 }
+
+/** Statusar som betyder att bokningen redan är canonical avbokad. */
+const CANCELLED_LIKE_STATUSES = ['CANCELLED', 'CANCELED', 'DELETED'];
+
 
 export type ParsedRevision =
   | { kind: 'timestamp'; ms: number }
@@ -285,26 +297,50 @@ export type RevisionComparison =
 
 export function compareRevisions(
   tombRevs: ParsedRevision[],
-  local: LocalAppliedRevision | null | undefined,
+  local: LocalAppliedRevision | LocalAppliedRevision[] | null | undefined,
+  tombstoneStatus?: string | null,
 ): RevisionComparison {
   if (!local) return { ok: true }; // ingen tidigare revision → inget stale-skydd att tillämpa
-  const localRevs = parseLocalRevision(local);
-  if (localRevs.length === 0) return { ok: true };
+  const locals = Array.isArray(local) ? local : [local];
+  if (locals.length === 0) return { ok: true };
+
+  const tombStatus = typeof tombstoneStatus === 'string' ? tombstoneStatus.trim().toUpperCase() : null;
 
   let compared = false;
-  for (const lr of localRevs) {
-    const tr = tombRevs.find((r) => r.kind === lr.kind);
-    if (!tr) continue;
-    compared = true;
-    if (tr.kind === 'timestamp' && lr.kind === 'timestamp') {
-      if (tr.ms < lr.ms) return { ok: false, reason: 'stale_tombstone_revision' };
-    } else if (tr.kind === 'version' && lr.kind === 'version') {
-      if (tr.value < lr.value) return { ok: false, reason: 'stale_tombstone_revision' };
+  let anyLocalRevision = false;
+  for (const entry of locals) {
+    const localRevs = parseLocalRevision(entry);
+    if (localRevs.length === 0) continue;
+    anyLocalRevision = true;
+    for (const lr of localRevs) {
+      const tr = tombRevs.find((r) => r.kind === lr.kind);
+      if (!tr) continue;
+      compared = true;
+      const tVal = tr.kind === 'timestamp' ? tr.ms : tr.value;
+      const lVal = lr.kind === 'timestamp' ? lr.ms : lr.value;
+
+      if (tVal < lVal) return { ok: false, reason: 'stale_tombstone_revision' };
+      if (tVal > lVal) continue; // nyare → tillåts (övrig validering avgör)
+
+      // SAMMA revision: endast idempotent cancellation får passera.
+      const localStatus = typeof entry.sourceStatus === 'string'
+        ? entry.sourceStatus.trim().toUpperCase()
+        : null;
+      if (!localStatus) {
+        return { ok: false, reason: 'source_status_missing_for_equal_revision' };
+      }
+      const localIsCancelled = CANCELLED_LIKE_STATUSES.includes(localStatus);
+      const tombIsCancelled = tombStatus !== null && CANCELLED_LIKE_STATUSES.includes(tombStatus);
+      if (!localIsCancelled || !tombIsCancelled) {
+        return { ok: false, reason: 'conflicting_source_revision' };
+      }
     }
   }
+  if (!anyLocalRevision) return { ok: true };
   if (!compared) return { ok: false, reason: 'incomparable_source_revision' };
   return { ok: true };
 }
+
 
 /**
  * ALLOWLIST för destruktiv cleanup.
@@ -315,7 +351,7 @@ export function compareRevisions(
 export function evaluateDestructiveAction(
   result: SingleBookingSourceResult,
   expected: { bookingId: string; organizationId: string },
-  local?: LocalAppliedRevision | null,
+  local?: LocalAppliedRevision | LocalAppliedRevision[] | null,
 ): DestructiveDecision {
   if (result.kind === 'error') return { allowed: false, reason: `technical_error_${result.code}` };
   if (result.kind === 'found') return { allowed: false, reason: 'booking_found_no_cleanup' };
@@ -336,7 +372,7 @@ export function evaluateDestructiveAction(
   const revCheck = validateTombstoneRevision(t);
   if (revCheck.ok !== true) return { allowed: false, reason: revCheck.reason };
 
-  const cmp = compareRevisions(revCheck.revisions, local);
+  const cmp = compareRevisions(revCheck.revisions, local, t.source_status);
   if (cmp.ok !== true) return { allowed: false, reason: cmp.reason };
 
   const status = t.source_status.toUpperCase();
