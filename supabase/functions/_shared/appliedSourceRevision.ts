@@ -398,15 +398,17 @@ export async function recordAppliedSourceRevision(
   };
   let dedicatedWritten = false;
   try {
-    const upd = supabase
-      .from('bookings')
-      .update({ [DEDICATED_REVISION_COLUMN]: dedicatedPayload })
-      .eq('id', input.bookingId)
-      .eq('organization_id', input.organizationId);
-    const updRes = typeof upd?.then === 'function' ? await upd : null;
-    dedicatedWritten = !!updRes && !updRes.error;
-    if (updRes?.error) {
-      return { ok: false, error: `bookings_revision_update:${updRes.error.message ?? 'unknown'}` };
+    const tbl = supabase.from('bookings');
+    if (tbl && typeof tbl.update === 'function') {
+      const upd = tbl
+        .update({ [DEDICATED_REVISION_COLUMN]: dedicatedPayload })
+        .eq('id', input.bookingId)
+        .eq('organization_id', input.organizationId);
+      const updRes = typeof upd?.then === 'function' ? await upd : null;
+      if (updRes?.error) {
+        return { ok: false, error: `bookings_revision_update:${updRes.error.message ?? 'unknown'}` };
+      }
+      dedicatedWritten = !!updRes;
     }
   } catch (err: any) {
     return { ok: false, error: `bookings_revision_update_exception:${err?.message ?? String(err)}` };
