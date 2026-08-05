@@ -2662,11 +2662,12 @@ serve(async (req) => {
       }
     }
 
-    // ── STEG 2G: CANONICAL REVISION GUARD (före FÖRSTA canonical mutation) ──
+    // ── STEG 2G/2H: CANONICAL REVISION GUARD (före FÖRSTA canonical mutation) ──
     // En äldre canonical source-revision får aldrig appliceras, loggas, bli
     // applied/completed eller flytta batchcursorn. Kontrollen sker HÄR, innan
     // booking-upsert, statusändring, datum, produkter, kalenderreconcile och
-    // projekt-/packingprojection.
+    // projekt-/packingprojection. Reservationen tar dessutom ett exklusivt
+    // ägarlås (lease + token) som hålls under HELA importen.
     if (isSingleBookingRefresh && normalizedSingleBookingId && externalData.data.length > 0) {
       const canonicalRow: any = externalData.data[0];
       const incoming = {
@@ -2674,42 +2675,64 @@ serve(async (req) => {
         sourceVersion: canonicalRow?.version ?? canonicalRow?.source_version ?? null,
         sourceStatus: canonicalRow?.status ?? canonicalRow?.booking_status ?? (externalData as any)?.raw?.source_status ?? null,
       };
-      if (normalizeIncomingRevision(incoming)) {
-        const reserved = await reserveCanonicalRevision(supabase, {
+      // UPPGIFT E (2H): ogiltig inkommande revision är FAIL-CLOSED — guarden
+      // får aldrig hoppas över för ett found:true-resultat.
+      if (!normalizeIncomingRevision(incoming)) {
+        console.error('[import-bookings] invalid incoming canonical revision — import blocked', JSON.stringify({
+          booking_id: normalizedSingleBookingId, organization_id: organizationId,
+        }));
+        return new Response(JSON.stringify(buildSingleBookingEnvelope({
           bookingId: normalizedSingleBookingId,
-          organizationId: organizationId,
-          incoming,
-        });
-        if (reserved.ok && reserved.decision === 'already_current') {
-          console.log('[import-bookings] revision already current — no mutation', JSON.stringify({
-            booking_id: normalizedSingleBookingId, organization_id: organizationId,
-          }));
-          return new Response(JSON.stringify(buildSingleBookingEnvelope({
-            bookingId: normalizedSingleBookingId,
-            organizationId,
-            outcome: 'already_current',
-            results: { total: 1, imported: 0, failed: 0, errors: [], sync_mode: 'revision_idempotent' },
-          })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
-        }
-        if (!reserved.ok) {
-          console.error('[import-bookings] canonical revision guard blocked import', JSON.stringify({
-            booking_id: normalizedSingleBookingId,
-            organization_id: organizationId,
-            decision: reserved.decision,
-            error: reserved.error,
-          }));
-          return new Response(JSON.stringify(buildSingleBookingEnvelope({
-            bookingId: normalizedSingleBookingId,
-            organizationId,
-            outcome: 'failed',
-            error: reserved.decision === 'rpc_unavailable'
-              ? `revision_guard_unavailable:${reserved.error ?? 'unknown'}`
-              : String(reserved.decision),
-          })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
-        }
-        guardedIncomingRevision = incoming;
+          organizationId,
+          outcome: 'failed',
+          error: 'invalid_incoming_revision',
+        })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
       }
+
+      const reserved = await reserveCanonicalRevision(supabase, {
+        bookingId: normalizedSingleBookingId,
+        organizationId: organizationId,
+        incoming,
+        ownerJobId: `import-bookings:${crypto.randomUUID()}`,
+      });
+      if (reserved.ok && reserved.decision === 'already_current') {
+        console.log('[import-bookings] revision already current — no mutation', JSON.stringify({
+          booking_id: normalizedSingleBookingId, organization_id: organizationId,
+        }));
+        return new Response(JSON.stringify(buildSingleBookingEnvelope({
+          bookingId: normalizedSingleBookingId,
+          organizationId,
+          outcome: 'already_current',
+          results: { total: 1, imported: 0, failed: 0, errors: [], sync_mode: 'revision_idempotent' },
+        })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+      }
+      if (!reserved.ok) {
+        console.error('[import-bookings] canonical revision guard blocked import', JSON.stringify({
+          booking_id: normalizedSingleBookingId,
+          organization_id: organizationId,
+          decision: reserved.decision,
+          error: reserved.error,
+        }));
+        return new Response(JSON.stringify(buildSingleBookingEnvelope({
+          bookingId: normalizedSingleBookingId,
+          organizationId,
+          outcome: 'failed',
+          error: reserved.decision === 'rpc_unavailable'
+            ? `revision_guard_unavailable:${reserved.error ?? 'unknown'}`
+            : String(reserved.decision),
+        })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+      }
+      guardedIncomingRevision = incoming;
+      guardedReservationToken = reserved.reservationToken ?? null;
+      // UPPGIFT F: håll leasen vid liv under lång import.
+      stopLeaseRenewal = startLeaseRenewal(supabase, {
+        bookingId: normalizedSingleBookingId,
+        organizationId,
+        incoming,
+        reservationToken: guardedReservationToken,
+      });
     }
+
 
     // Get existing bookings for comparison — ONLY within current tenant
     const { data: existingBookings } = await supabase
