@@ -4425,42 +4425,20 @@ serve(async (req) => {
     if (isSingleBookingRefresh) {
       const outcome = deriveSingleBookingOutcome(results as any);
 
-      // UPPGIFT D: logga senaste canonical revision även för NORMAL import
-      // (found:true), inte bara cancellation — annars kan stale-skyddet inte
-      // jämföra en cancellation-tombstone mot senaste vanliga Booking-import.
+      // UPPGIFT C/D (2H): applied revision skrivs ENBART av commit-RPC:n, som
+      // atomiskt uppdaterar booking_source_state (authoritative current state),
+      // speglingen bookings.last_applied_source_revision och auditraden i
+      // booking_changes. Ingen revisionsskrivning sker före giltig commit.
       if ((outcome === 'applied' || outcome === 'already_current') && normalizedSingleBookingId) {
         const canonicalRow: any = Array.isArray(externalData?.data) ? externalData.data[0] : null;
-        const canonicalRevision =
-          canonicalRow?.updated_at ?? canonicalRow?.source_updated_at ?? canonicalRow?.version ?? null;
-        const logged = await recordAppliedSourceRevision(supabase, {
-          bookingId: normalizedSingleBookingId,
-          organizationId,
-          revision: canonicalRevision,
-          sourceStatus: canonicalRow?.status ?? canonicalRow?.booking_status ?? (externalData as any)?.raw?.source_status ?? null,
-        });
-        if (!logged.ok) {
-          console.error('[import-bookings] source revision logging failed', logged.error);
-          if (guardedIncomingRevision) {
-            await releaseCanonicalRevision(supabase, {
-              bookingId: normalizedSingleBookingId,
-              organizationId,
-              incoming: guardedIncomingRevision,
-            });
-          }
-          return new Response(JSON.stringify(buildSingleBookingEnvelope({
-            bookingId: normalizedSingleBookingId,
-            organizationId,
-            outcome: 'partial',
-            error: `source_revision_log_failed:${logged.error}`,
-          })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
-        }
-        // STEG 2G: importen lyckades → pending revision blir applied (atomiskt).
         if (guardedIncomingRevision) {
           const committed = await commitCanonicalRevision(supabase, {
             bookingId: normalizedSingleBookingId,
             organizationId,
             incoming: guardedIncomingRevision,
+            reservationToken: guardedReservationToken,
           });
+          if (stopLeaseRenewal) { stopLeaseRenewal(); stopLeaseRenewal = null; }
           if (!committed.ok) {
             console.error('[import-bookings] revision commit failed', JSON.stringify(committed));
             return new Response(JSON.stringify(buildSingleBookingEnvelope({
@@ -4470,14 +4448,37 @@ serve(async (req) => {
               error: `revision_commit_failed:${committed.decision}`,
             })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
           }
+          guardedIncomingRevision = null;
+          guardedReservationToken = null;
+        } else {
+          // Ingen guardad revision (icke-single/legacy-väg) → audit-only-logg.
+          const canonicalRevision =
+            canonicalRow?.updated_at ?? canonicalRow?.source_updated_at ?? canonicalRow?.version ?? null;
+          const logged = await recordAppliedSourceRevision(supabase, {
+            bookingId: normalizedSingleBookingId,
+            organizationId,
+            revision: canonicalRevision,
+            sourceStatus: canonicalRow?.status ?? canonicalRow?.booking_status ?? (externalData as any)?.raw?.source_status ?? null,
+          });
+          if (!logged.ok) {
+            console.error('[import-bookings] source revision logging failed', logged.error);
+            return new Response(JSON.stringify(buildSingleBookingEnvelope({
+              bookingId: normalizedSingleBookingId,
+              organizationId,
+              outcome: 'partial',
+              error: `source_revision_log_failed:${logged.error}`,
+            })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+          }
         }
       } else if (guardedIncomingRevision && normalizedSingleBookingId) {
         // Importen blev inte fullt applicerad → släpp reservationen så att
         // SAMMA revision kan retryas (och aldrig rapporteras som applied).
+        if (stopLeaseRenewal) { stopLeaseRenewal(); stopLeaseRenewal = null; }
         await releaseCanonicalRevision(supabase, {
           bookingId: normalizedSingleBookingId,
           organizationId,
           incoming: guardedIncomingRevision,
+          reservationToken: guardedReservationToken,
         });
       }
 
