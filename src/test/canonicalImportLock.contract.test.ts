@@ -155,7 +155,7 @@ describe('STEG 2H – exklusivt importlås per bokning', () => {
     expect(b.ok).toBe(false);
     if (!b.ok) {
       expect(b.decision).toBe('booking_import_locked');
-      expect(b.retriable).toBe(true);
+      expect((b as any).retriable).toBe(true);
     }
     // A:s pending är orörd
     expect(db.row.pendingVer).toBe(19);
