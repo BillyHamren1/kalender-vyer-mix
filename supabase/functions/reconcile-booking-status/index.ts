@@ -35,6 +35,10 @@ const EXPORT_BASE = "https://wpzhsmrbjmxglowyoyky.supabase.co/functions/v1/expor
 const PER_RUN_LIMIT_DEFAULT = 80;
 const WINDOW_PAST_DAYS = 7;
 const WINDOW_FUTURE_DAYS = 90;
+// BATCH GUARD: en enskild körning får aldrig massavboka. Systemfel (t.ex. nytt
+// kontrakt, API-regression) yttrar sig som "alla ser avbokade ut" — då stoppar
+// vi hellre körningen än raderar kalendern. Höj medvetet per request vid behov.
+const MAX_CANCELLATIONS_PER_RUN_DEFAULT = 5;
 
 interface RunSummary {
   organizations_checked: number;
@@ -42,6 +46,9 @@ interface RunSummary {
   external_fetch_failed: number;
   status_mismatches: number;
   cancellations_applied: number;
+  cancellations_blocked_by_guard: number;
+  batch_guard_tripped: boolean;
+  max_cancellations_per_run: number;
   errors: Array<{ booking_id?: string; org_id?: string; error: string }>;
 }
 
@@ -103,12 +110,16 @@ serve(async (req) => {
 
   // Allow narrowing per-request (manual trigger from admin tool).
   let limit = PER_RUN_LIMIT_DEFAULT;
+  let maxCancellations = MAX_CANCELLATIONS_PER_RUN_DEFAULT;
   let onlyOrgId: string | undefined;
   let onlyBookingId: string | undefined;
   try {
     if (req.method === "POST") {
       const body = await req.json().catch(() => ({}));
       if (typeof body?.limit === "number") limit = Math.max(1, Math.min(500, body.limit));
+      if (typeof body?.max_cancellations === "number") {
+        maxCancellations = Math.max(0, Math.min(100, body.max_cancellations));
+      }
       if (typeof body?.organization_id === "string") onlyOrgId = body.organization_id;
       if (typeof body?.booking_id === "string") onlyBookingId = body.booking_id;
     }
@@ -120,6 +131,9 @@ serve(async (req) => {
     external_fetch_failed: 0,
     status_mismatches: 0,
     cancellations_applied: 0,
+    cancellations_blocked_by_guard: 0,
+    batch_guard_tripped: false,
+    max_cancellations_per_run: maxCancellations,
     errors: [],
   };
 
@@ -180,6 +194,24 @@ serve(async (req) => {
 
     if (decision.allowed && decision.action === "cancellation" && b.status !== "CANCELLED") {
       summary.status_mismatches++;
+
+      // ── BATCH GUARD ────────────────────────────────────────────────────
+      // Fler avbokningar än taket i EN körning tyder på systemfel, inte på
+      // att kunderna avbokat. Stoppa körningen direkt — ingen mer radering.
+      if (summary.cancellations_applied >= maxCancellations) {
+        summary.batch_guard_tripped = true;
+        summary.cancellations_blocked_by_guard++;
+        summary.errors.push({
+          booking_id: b.id,
+          org_id: b.organization_id,
+          error: `batch_guard_tripped:max_${maxCancellations}_cancellations_per_run`,
+        });
+        console.error(
+          `[reconcile] BATCH GUARD: ${summary.cancellations_applied} avbokningar redan gjorda i denna körning — avbryter före ${b.booking_number ?? b.id}.`,
+        );
+        break;
+      }
+
       console.log(
         `[reconcile] Booking ${b.booking_number ?? b.id} (org ${b.organization_id}) — canonical cancellation tombstone (rev ${decision.tombstone.source_updated_at ?? decision.tombstone.source_version}) → applying cancellation`,
       );
