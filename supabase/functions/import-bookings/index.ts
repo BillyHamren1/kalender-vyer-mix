@@ -2054,8 +2054,10 @@ serve(async (req) => {
   let ctxIsSingle = false
   let ctxBookingId: string | null = null
   let ctxOrgId: string | null = null
-  // STEG 2G: reserverad canonical revision (pending) — släpps om importen kraschar.
+  // STEG 2G/2H: reserverad canonical revision (pending) + ägarlåsets token.
   let guardedIncomingRevision: any = null
+  let guardedReservationToken: string | null = null
+  let stopLeaseRenewal: (() => void) | null = null
 
   try {
     // Header 'x-lovable-change-source' forwards to Postgres via PostgREST and
