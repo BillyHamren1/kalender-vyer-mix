@@ -385,11 +385,9 @@ describe('STEG 2H – exklusivt importlås per bokning', () => {
         completed: false,
         error: err,
       } as any, { bookingId: BOOKING, organizationId: ORG });
-      expect(v.ok).toBe(true);
-      if (v.ok) {
-        expect(v.outcome).not.toBe('applied');
-        expect(v.outcome).toBe('failed');
-      }
+      // Aldrig applied och aldrig completed → jobbet får inte flytta cursorn.
+      expect(v.ok).toBe(false);
+      if (!v.ok) expect(typeof (v as any).permanent === 'boolean').toBe(true);
     }
   });
 });
