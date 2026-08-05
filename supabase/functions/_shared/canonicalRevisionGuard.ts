@@ -374,7 +374,7 @@ export function startLeaseRenewal(
         kind: 'ownership_lost',
         code: 'lease_ownership_lost',
         decision: res.decision,
-        error: res.error,
+        error: (res as { error?: string }).error,
         atMs: now(),
         phase,
       });
@@ -385,7 +385,7 @@ export function startLeaseRenewal(
     }
     // Tillfälligt fel (rpc_unavailable m.fl.) → retry om tid finns kvar.
     console.warn('[canonicalRevisionGuard] lease renewal transient failure', JSON.stringify({
-      booking_id: input.bookingId, decision: res.decision, error: res.error ?? null,
+      booking_id: input.bookingId, decision: res.decision, error: (res as { error?: string }).error ?? null,
     }));
     checkVerificationWindow(phase);
   };
