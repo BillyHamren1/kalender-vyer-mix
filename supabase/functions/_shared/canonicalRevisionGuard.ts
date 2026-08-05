@@ -248,23 +248,205 @@ export function releaseCanonicalRevision(supabase: any, input: AdvanceInput): Pr
   return callAdvance(supabase, 'release', input);
 }
 
+// ── STEG 2I: LEASE-ÄGARSKAPSKONTROLL ──────────────────────────────────────
+
+/** Renewal-beslut som betyder att jobbet definitivt förlorat låset. */
+export const LEASE_OWNERSHIP_LOST_DECISIONS = [
+  'reservation_lost',
+  'reservation_mismatch',
+  'not_lock_owner',
+  'booking_import_locked', // annat jobb har tagit över låset
+  'stale_source_revision', // vår pending revision har ersatts av en nyare
+] as const;
+
+export function isOwnershipLostDecision(decision: string): boolean {
+  return (LEASE_OWNERSHIP_LOST_DECISIONS as readonly string[]).includes(decision);
+}
+
+export type LeaseFailureKind = 'ownership_lost' | 'unverified';
+
+export interface LeaseFailure {
+  kind: LeaseFailureKind;
+  /** Stabil felkod som importen returnerar. */
+  code: 'lease_ownership_lost' | 'lease_renewal_unverified';
+  decision: string;
+  error?: string;
+  atMs: number;
+  /** Mutationsfas där förlusten upptäcktes (om känd). */
+  phase?: string;
+}
+
+export class LeaseOwnershipLostError extends Error {
+  readonly failure: LeaseFailure;
+  constructor(failure: LeaseFailure) {
+    super(`${failure.code}:${failure.decision}`);
+    this.name = 'LeaseOwnershipLostError';
+    this.failure = failure;
+  }
+}
+
+export interface LeaseControl {
+  /** Stoppar renewal-timern. Idempotent. */
+  stop(): void;
+  /** Kastar LeaseOwnershipLostError om ägarskapet är förlorat/overifierat. */
+  assertOwned(phase?: string): void;
+  hasLostOwnership(): boolean;
+  readonly failure: LeaseFailure | null;
+  /** Synkron renewal + ägarskapskontroll (används direkt före commit). */
+  renewNow(phase?: string): Promise<LeaseFailure | null>;
+  /** True om vi fortfarande äger token (safe att releasa). */
+  ownsToken(): boolean;
+  isStopped(): boolean;
+}
+
+export interface LeaseControlOptions {
+  intervalMs?: number;
+  /** Leasens längd (sekunder) — måste matcha reservationen. */
+  leaseSeconds?: number;
+  /** Säkerhetsmarginal före expiry då overifierat ägarskap = fail-closed. */
+  safetyMarginMs?: number;
+  now?: () => number;
+  /** Intern: kortare retry-intervall vid tillfälligt RPC-fel. */
+  retryIntervalMs?: number;
+}
+
 /**
- * Startar en lease-förnyare som håller låset vid liv under lång import.
- * Returnerar en stop-funktion.
+ * Startar en lease-förnyare som håller låset vid liv under lång import och
+ * exponerar förlorat ägarskap till importflödet (STEG 2I).
+ *
+ * - Definitivt förlorat lås → `lease_ownership_lost` omedelbart.
+ * - Tillfälligt RPC-/nätverksfel → snabbare retry, men om ägarskapet inte
+ *   kan verifieras innan leasen riskerar att löpa ut → `lease_renewal_unverified`
+ *   (fail-closed; importen stoppas innan expiry).
  */
 export function startLeaseRenewal(
   supabase: any,
   input: AdvanceInput,
-  intervalMs: number = LEASE_RENEW_INTERVAL_MS,
-): () => void {
-  const timer = setInterval(() => {
-    renewCanonicalRevisionLease(supabase, input).then((res) => {
-      if (!res.ok) {
-        console.warn('[canonicalRevisionGuard] lease renewal failed', JSON.stringify({
-          booking_id: input.bookingId, decision: res.decision,
-        }));
+  intervalMsOrOptions: number | LeaseControlOptions = LEASE_RENEW_INTERVAL_MS,
+): LeaseControl {
+  const opts: LeaseControlOptions =
+    typeof intervalMsOrOptions === 'number' ? { intervalMs: intervalMsOrOptions } : (intervalMsOrOptions ?? {});
+  const now = opts.now ?? (() => Date.now());
+  const intervalMs = opts.intervalMs ?? LEASE_RENEW_INTERVAL_MS;
+  const leaseMs = (opts.leaseSeconds ?? input.leaseSeconds ?? DEFAULT_LEASE_SECONDS) * 1000;
+  const safetyMarginMs = opts.safetyMarginMs ?? Math.min(60_000, Math.max(15_000, Math.floor(leaseMs * 0.2)));
+  const retryIntervalMs = opts.retryIntervalMs ?? Math.max(1_000, Math.floor(intervalMs / 3));
+
+  let failure: LeaseFailure | null = null;
+  let stopped = false;
+  let lastVerifiedAtMs = now();
+  let timer: any = null;
+
+  const stop = () => {
+    stopped = true;
+    if (timer !== null) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
+
+  const setFailure = (f: LeaseFailure) => {
+    if (!failure) failure = f;
+    stop();
+  };
+
+  /** Fail-closed: ägarskapet kan inte längre verifieras före expiry. */
+  const checkVerificationWindow = (phase?: string) => {
+    if (failure) return;
+    if (now() - lastVerifiedAtMs >= leaseMs - safetyMarginMs) {
+      setFailure({
+        kind: 'unverified',
+        code: 'lease_renewal_unverified',
+        decision: 'renewal_not_verified_before_expiry',
+        atMs: now(),
+        phase,
+      });
+    }
+  };
+
+  const recordResult = (res: AdvanceResult, phase?: string) => {
+    if (res.ok) {
+      lastVerifiedAtMs = now();
+      return;
+    }
+    if (isOwnershipLostDecision(res.decision)) {
+      setFailure({
+        kind: 'ownership_lost',
+        code: 'lease_ownership_lost',
+        decision: res.decision,
+        error: res.error,
+        atMs: now(),
+        phase,
+      });
+      console.error('[canonicalRevisionGuard] lease ownership lost', JSON.stringify({
+        booking_id: input.bookingId, decision: res.decision, phase: phase ?? null,
+      }));
+      return;
+    }
+    // Tillfälligt fel (rpc_unavailable m.fl.) → retry om tid finns kvar.
+    console.warn('[canonicalRevisionGuard] lease renewal transient failure', JSON.stringify({
+      booking_id: input.bookingId, decision: res.decision, error: res.error ?? null,
+    }));
+    checkVerificationWindow(phase);
+  };
+
+  const renew = async (phase?: string): Promise<LeaseFailure | null> => {
+    if (failure) return failure;
+    try {
+      const res = await renewCanonicalRevisionLease(supabase, input);
+      recordResult(res, phase);
+    } catch (err: any) {
+      recordResult(
+        { ok: false, decision: 'rpc_unavailable', error: String(err?.message ?? err), retriable: true },
+        phase,
+      );
+    }
+    if (!failure) checkVerificationWindow(phase);
+    return failure;
+  };
+
+  const schedule = (delayMs: number) => {
+    if (stopped) return;
+    timer = setTimeout(async () => {
+      timer = null;
+      if (stopped) return;
+      const before = lastVerifiedAtMs;
+      await renew('renewal_timer');
+      if (stopped || failure) return;
+      // Snabbare retry om senaste försöket inte kunde verifiera ägarskapet.
+      schedule(lastVerifiedAtMs === before ? retryIntervalMs : intervalMs);
+    }, delayMs);
+    // Låt aldrig timern hålla runtime vid liv.
+    if (timer && typeof timer.unref === 'function') timer.unref();
+  };
+  schedule(intervalMs);
+
+  const control: LeaseControl = {
+    stop,
+    hasLostOwnership() {
+      checkVerificationWindow();
+      return failure !== null;
+    },
+    get failure() {
+      return failure;
+    },
+    assertOwned(phase?: string) {
+      checkVerificationWindow(phase);
+      if (failure) {
+        if (!failure.phase) failure.phase = phase;
+        throw new LeaseOwnershipLostError(failure);
       }
-    }).catch(() => {});
-  }, intervalMs);
-  return () => clearInterval(timer);
+    },
+    renewNow(phase?: string) {
+      return renew(phase ?? 'explicit_check');
+    },
+    ownsToken() {
+      return failure === null || failure.kind === 'unverified';
+    },
+    isStopped() {
+      return stopped;
+    },
+  };
+  return control;
 }
+
