@@ -4517,14 +4517,16 @@ serve(async (req) => {
       import_started: null,
       import_completed: new Date().toISOString(),
     }))
-    // STEG 2G: importen kraschade → släpp pending-reservationen så att SAMMA
-    // revision kan retryas. Reservationen blir aldrig applied av ett fel.
+    // STEG 2G/2H: importen kraschade → stoppa lease-förnyaren och släpp
+    // pending-reservationen (med ägartoken) så att SAMMA revision kan retryas.
+    if (stopLeaseRenewal) { try { stopLeaseRenewal(); } catch { /* ignore */ } stopLeaseRenewal = null; }
     if (guardedIncomingRevision && ctxBookingId && ctxOrgId) {
       try {
         await releaseCanonicalRevision(supabase, {
           bookingId: ctxBookingId,
           organizationId: ctxOrgId,
           incoming: guardedIncomingRevision,
+          reservationToken: guardedReservationToken,
         });
       } catch (relErr) {
         console.error('[import-bookings] revision release failed after crash', relErr);
