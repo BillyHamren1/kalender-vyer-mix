@@ -19,6 +19,7 @@ import {
   reserveCanonicalRevision,
   commitCanonicalRevision,
   releaseCanonicalRevision,
+  startLeaseRenewal,
 } from '../_shared/canonicalRevisionGuard.ts'
 
 /**
