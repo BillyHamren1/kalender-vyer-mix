@@ -20,7 +20,9 @@ import {
   commitCanonicalRevision,
   releaseCanonicalRevision,
   startLeaseRenewal,
+  LeaseOwnershipLostError,
 } from '../_shared/canonicalRevisionGuard.ts'
+import type { LeaseControl } from '../_shared/canonicalRevisionGuard.ts'
 
 /**
  * Resolve the organization_id to use for all INSERTs.
@@ -2058,7 +2060,11 @@ serve(async (req) => {
   // STEG 2G/2H: reserverad canonical revision (pending) + ägarlåsets token.
   let guardedIncomingRevision: any = null
   let guardedReservationToken: string | null = null
-  let stopLeaseRenewal: (() => void) | null = null
+  // STEG 2I: lease-kontrollobjekt — exponerar förlorat ägarskap till flödet.
+  let leaseControl: LeaseControl | null = null
+  const stopLeaseRenewal = () => { try { leaseControl?.stop() } catch { /* ignore */ } }
+  /** Fail-closed ägarskapskontroll före varje mutationsfas. */
+  const assertLeaseOwned = (phase: string) => { leaseControl?.assertOwned(phase) }
 
   try {
     // Header 'x-lovable-change-source' forwards to Postgres via PostgREST and
@@ -2726,7 +2732,7 @@ serve(async (req) => {
       guardedIncomingRevision = incoming;
       guardedReservationToken = reserved.reservationToken ?? null;
       // UPPGIFT F: håll leasen vid liv under lång import.
-      stopLeaseRenewal = startLeaseRenewal(supabase, {
+      leaseControl = startLeaseRenewal(supabase, {
         bookingId: normalizedSingleBookingId,
         organizationId,
         incoming,
@@ -3295,6 +3301,7 @@ serve(async (req) => {
             }
 
             // Sync all attachments (products, files_metadata, tent_images) with shared dedup
+            assertLeaseOwned('attachments');
             await syncAllAttachments(
               supabase, bookingData.id,
               externalBooking.products || [],
@@ -3306,16 +3313,19 @@ serve(async (req) => {
             
             results.unchanged_bookings_skipped.push(bookingData.id)
             // Always reconcile calendar even for unchanged bookings
-            await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
+            assertLeaseOwned('calendar_reconcile');
+        await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
             continue; // SKIP UPDATE - NO CHANGES
           }
           
           // If only warehouse recovery is needed, sync now and continue
           if (!hasChanged && !statusChanged && !needsCalendarRecovery && needsWarehouseRecovery && !needsProductRecovery) {
             console.log(`Only warehouse recovery needed for ${bookingData.id}`);
+            assertLeaseOwned('warehouse_events');
             const warehouseEventsCreated = await syncWarehouseEventsForBooking(supabase, bookingData, organizationId);
             results.warehouse_events_created += warehouseEventsCreated;
             // Sync all attachments with shared dedup
+            assertLeaseOwned('attachments');
             await syncAllAttachments(
               supabase, bookingData.id,
               externalBooking.products || [],
@@ -3326,7 +3336,8 @@ serve(async (req) => {
             );
             results.imported++;
             // Always reconcile calendar even for warehouse-only recovery
-            await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
+            assertLeaseOwned('calendar_reconcile');
+        await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
             continue;
           }
           
@@ -3336,7 +3347,8 @@ serve(async (req) => {
             const recoveryExternalCount = Array.isArray(externalBooking.products) ? externalBooking.products.length : 0;
             if (recoveryExternalCount === 0) {
               console.warn(`[Product Recovery GUARD] Skipping recovery for booking ${bookingData.id}: external products array is empty (transient_empty_source). Keeping local products intact.`);
-              await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
+              assertLeaseOwned('calendar_reconcile');
+        await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
               continue;
             }
 
@@ -3529,12 +3541,13 @@ serve(async (req) => {
             }
             
             // SYNC packing list items for all products (including expanded components)
-            const recoveryPackingSynced = await syncPackingListAfterExpansion(supabase, existingBooking.id, organizationId);
+            const recoveryPackingSynced = await (async () => { assertLeaseOwned('packing_project'); return syncPackingListAfterExpansion(supabase, existingBooking.id, organizationId); })();
             if (recoveryPackingSynced > 0) {
               console.log(`[Product Recovery] Synced ${recoveryPackingSynced} packing list items for booking ${bookingData.id}`);
             }
             
             // Sync all attachments with shared dedup
+            assertLeaseOwned('attachments');
             await syncAllAttachments(
               supabase, bookingData.id,
               externalBooking.products || [],
@@ -3547,7 +3560,8 @@ serve(async (req) => {
             results.updated_bookings.push(existingBooking.id);
             console.log(`[Product Recovery] Completed for booking ${bookingData.id}`);
             // Always reconcile calendar even for product-only recovery
-            await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
+            assertLeaseOwned('calendar_reconcile');
+        await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
             continue;
           }
           
@@ -3817,6 +3831,7 @@ serve(async (req) => {
           // else: external only or both identical — bookingData value is fine
 
           // Update existing booking
+          assertLeaseOwned('booking_update');
           const { error: updateError } = await supabase
             .from('bookings')
             .update(updateData)
@@ -3900,6 +3915,7 @@ serve(async (req) => {
           dbInsertData.rig_time_locked = !!dbInsertData.rig_start_time_external;
           dbInsertData.event_time_locked = !!dbInsertData.event_start_time_external;
           dbInsertData.rigdown_time_locked = !!dbInsertData.rigdown_start_time_external;
+          assertLeaseOwned('booking_insert');
           const { error: insertError } = await supabase
             .from('bookings')
             .insert(dbInsertData)
@@ -4173,7 +4189,7 @@ serve(async (req) => {
           }
           
           // SYNC packing list items for expanded components
-          const mainPackingSynced = await syncPackingListAfterExpansion(supabase, bookingData.id, organizationId);
+          const mainPackingSynced = await (async () => { assertLeaseOwned('packing_project'); return syncPackingListAfterExpansion(supabase, bookingData.id, organizationId); })();
           if (mainPackingSynced > 0) {
             console.log(`[Main Flow] Synced ${mainPackingSynced} packing list items for booking ${bookingData.id}`);
           }
@@ -4327,6 +4343,7 @@ serve(async (req) => {
         // ═══════════════════════════════════════════════════════════════════
         // DETERMINISTIC CALENDAR RECONCILIATION (extracted to helper)
         // ═══════════════════════════════════════════════════════════════════
+        assertLeaseOwned('calendar_reconcile');
         await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
 
         if (bookingData.status === 'CONFIRMED') {
@@ -4340,6 +4357,7 @@ serve(async (req) => {
           if ((isNewBooking || needsWarehouseRecovery || justConfirmed) &&
               (bookingData.rigdaydate || bookingData.eventdate || bookingData.rigdowndate)) {
             console.log(`[Warehouse Sync] Syncing events for ${bookingData.id} (isNew=${isNewBooking}, needsRecovery=${needsWarehouseRecovery}, justConfirmed=${justConfirmed})`);
+            assertLeaseOwned('warehouse_events');
             const warehouseEventsCreated = await syncWarehouseEventsForBooking(supabase, bookingData, organizationId);
             results.warehouse_events_created += warehouseEventsCreated;
           } else {
@@ -4439,7 +4457,7 @@ serve(async (req) => {
             incoming: guardedIncomingRevision,
             reservationToken: guardedReservationToken,
           });
-          if (stopLeaseRenewal) { stopLeaseRenewal(); stopLeaseRenewal = null; }
+          stopLeaseRenewal();
           if (!committed.ok) {
             console.error('[import-bookings] revision commit failed', JSON.stringify(committed));
             return new Response(JSON.stringify(buildSingleBookingEnvelope({
@@ -4474,7 +4492,7 @@ serve(async (req) => {
       } else if (guardedIncomingRevision && normalizedSingleBookingId) {
         // Importen blev inte fullt applicerad → släpp reservationen så att
         // SAMMA revision kan retryas (och aldrig rapporteras som applied).
-        if (stopLeaseRenewal) { stopLeaseRenewal(); stopLeaseRenewal = null; }
+        stopLeaseRenewal();
         await releaseCanonicalRevision(supabase, {
           bookingId: normalizedSingleBookingId,
           organizationId,
@@ -4519,7 +4537,7 @@ serve(async (req) => {
     }))
     // STEG 2G/2H: importen kraschade → stoppa lease-förnyaren och släpp
     // pending-reservationen (med ägartoken) så att SAMMA revision kan retryas.
-    if (stopLeaseRenewal) { try { stopLeaseRenewal(); } catch { /* ignore */ } stopLeaseRenewal = null; }
+    stopLeaseRenewal();
     if (guardedIncomingRevision && ctxBookingId && ctxOrgId) {
       try {
         await releaseCanonicalRevision(supabase, {
