@@ -1,5 +1,5 @@
 /**
- * STEG 2G — CANONICAL REVISION GUARD
+ * STEG 2G/2H — CANONICAL REVISION GUARD MED EXKLUSIVT IMPORTLÅS
  *
  * En äldre canonical source-revision får ALDRIG:
  *  - appliceras på bokningen,
@@ -7,19 +7,18 @@
  *  - göra jobbet applied/completed,
  *  - påverka batchcursorn.
  *
- * Modulen har två delar:
- *  1) REN JÄMFÖRELSE (`compareIncomingRevision`) — samma policy som
- *     `compareRevisions` i singleBookingSource.ts (ingen delvis jämförbarhet,
- *     fail-closed vid blandade typer), fast för normal found:true-import.
- *  2) ATOMISK ADVANCEMENT (`reserveCanonicalRevision` / `commitCanonicalRevision`
- *     / `releaseCanonicalRevision`) via PostgreSQL-RPC
- *     `advance_booking_source_revision` mot tabellen `booking_source_state`
- *     (unik nyckel organization_id + booking_id, radlås med FOR UPDATE).
+ * MODELL (2H — lease-baserat ägarlås, Modell 1 i uppdraget):
+ *   reserve → (renew under lång import) → import → commit
+ *   `reserve` returnerar ett unikt `reservation_token`. Tokenet krävs vid
+ *   renew/commit/release. Så länge en lease är aktiv får INGEN annan revision
+ *   ersätta pending state — andra jobb får det retrybara beslutet
+ *   `booking_import_locked`. Först vid `commit` (samma DB-transaktion) skrivs
+ *   applied state i `booking_source_state`, spegling i
+ *   `bookings.last_applied_source_revision` och auditrad i `booking_changes`.
  *
- * MODELL FÖR PARTIAL IMPORT (Modell 1 – pending/applied):
- *   reserve → import → commit. Misslyckas importen görs release, revisionen
- *   är då INTE applied och kan retryas. En ÄLDRE revision kan aldrig ta över
- *   en pending nyare revision (RPC:n nekar den som stale).
+ * AUTHORITATIVE CURRENT STATE: `booking_source_state`.
+ *   `bookings.last_applied_source_revision` är en spegling skriven av samma
+ *   commit-RPC, `booking_changes` är enbart audit.
  */
 import type { LocalAppliedRevision } from './singleBookingSource.ts';
 import { parseSourceTimestamp, parseSourceVersion } from './singleBookingSource.ts';
@@ -30,7 +29,11 @@ export type RevisionGuardDecision =
   | 'stale_source_revision'
   | 'conflicting_source_status_for_revision'
   | 'incomparable_source_revision'
-  | 'invalid_incoming_revision';
+  | 'invalid_incoming_revision'
+  | 'booking_import_locked'
+  | 'reservation_lost'
+  | 'reservation_mismatch'
+  | 'not_lock_owner';
 
 export interface IncomingRevision {
   sourceUpdatedAt?: string | null;
@@ -44,6 +47,11 @@ export interface NormalizedIncomingRevision {
   sourceVersion: number | null;
   sourceStatus: string;
 }
+
+/** Standardlease för en canonical import (sekunder). */
+export const DEFAULT_LEASE_SECONDS = 300;
+/** Hur ofta ägaren bör förnya leasen under en lång import (ms). */
+export const LEASE_RENEW_INTERVAL_MS = 90_000;
 
 function normStatus(v: unknown): string | null {
   return typeof v === 'string' && v.trim().length > 0 ? v.trim().toUpperCase() : null;
@@ -122,18 +130,37 @@ export function compareIncomingRevision(
 
 // ── ATOMISK ADVANCEMENT VIA RPC ───────────────────────────────────────────
 
-export type AdvanceMode = 'reserve' | 'commit' | 'release';
+export type AdvanceMode = 'reserve' | 'renew' | 'commit' | 'release';
 
 export type AdvanceResult =
-  | { ok: true; decision: 'reserved' | 'applied' | 'already_current' | 'released' }
-  | { ok: false; decision: RevisionGuardDecision | 'rpc_unavailable' | 'invalid_input'; error?: string; retriable?: boolean };
+  | {
+      ok: true;
+      decision: 'reserved' | 'renewed' | 'applied' | 'already_current' | 'released';
+      reservationToken?: string | null;
+      lockExpiresAt?: string | null;
+    }
+  | {
+      ok: false;
+      decision: RevisionGuardDecision | 'rpc_unavailable' | 'invalid_input' | 'commit_without_reservation';
+      error?: string;
+      retriable?: boolean;
+    };
 
 export const ADVANCE_REVISION_RPC = 'advance_booking_source_revision';
+
+export interface AdvanceInput {
+  bookingId: string;
+  organizationId: string;
+  incoming: IncomingRevision;
+  reservationToken?: string | null;
+  ownerJobId?: string | null;
+  leaseSeconds?: number;
+}
 
 async function callAdvance(
   supabase: any,
   mode: AdvanceMode,
-  input: { bookingId: string; organizationId: string; incoming: IncomingRevision },
+  input: AdvanceInput,
 ): Promise<AdvanceResult> {
   const inc = normalizeIncomingRevision(input.incoming);
   if (!inc) return { ok: false, decision: 'invalid_incoming_revision', retriable: false };
@@ -151,6 +178,9 @@ async function callAdvance(
       p_source_version: inc.sourceVersion,
       p_source_status: inc.sourceStatus,
       p_mode: mode,
+      p_reservation_token: input.reservationToken ?? null,
+      p_owner_job_id: input.ownerJobId ?? null,
+      p_lease_seconds: input.leaseSeconds ?? DEFAULT_LEASE_SECONDS,
     });
   } catch (err: any) {
     return { ok: false, decision: 'rpc_unavailable', error: String(err?.message ?? err), retriable: true };
@@ -158,44 +188,83 @@ async function callAdvance(
   if (res?.error) {
     return { ok: false, decision: 'rpc_unavailable', error: res.error.message ?? 'unknown', retriable: true };
   }
-  const decision = String(res?.data?.decision ?? '');
+  const data = res?.data ?? {};
+  const decision = String(data?.decision ?? '');
   switch (decision) {
     case 'reserved':
+    case 'renewed':
+      return {
+        ok: true,
+        decision: decision as 'reserved' | 'renewed',
+        reservationToken: data?.reservation_token ?? input.reservationToken ?? null,
+        lockExpiresAt: data?.lock_expires_at ?? null,
+      };
     case 'applied':
     case 'already_current':
     case 'released':
       return { ok: true, decision: decision as any };
+    case 'booking_import_locked':
+      return { ok: false, decision: 'booking_import_locked', retriable: true };
+    case 'reservation_lost':
+    case 'reservation_mismatch':
+    case 'commit_without_reservation':
+      return { ok: false, decision: decision as any, retriable: true };
+    case 'not_lock_owner':
+      return { ok: false, decision: 'not_lock_owner', retriable: false };
     case 'stale_source_revision':
     case 'conflicting_source_status_for_revision':
     case 'incomparable_source_revision':
       return { ok: false, decision: decision as RevisionGuardDecision, retriable: false };
     case 'invalid_input':
-      return { ok: false, decision: 'invalid_input', error: res?.data?.error, retriable: false };
+      return { ok: false, decision: 'invalid_input', error: data?.error, retriable: false };
     default:
       return { ok: false, decision: 'rpc_unavailable', error: `unexpected_decision:${decision}`, retriable: false };
   }
 }
 
-/** Reservera revisionen (pending) INNAN någon canonical mutation sker. */
-export function reserveCanonicalRevision(
-  supabase: any,
-  input: { bookingId: string; organizationId: string; incoming: IncomingRevision },
-): Promise<AdvanceResult> {
+/**
+ * Reservera revisionen (pending) och ta det exklusiva importlåset INNAN
+ * någon canonical mutation sker. Returnerar `reservationToken`.
+ */
+export function reserveCanonicalRevision(supabase: any, input: AdvanceInput): Promise<AdvanceResult> {
   return callAdvance(supabase, 'reserve', input);
 }
 
-/** Markera reservationen som fullt applicerad EFTER lyckad import. */
-export function commitCanonicalRevision(
-  supabase: any,
-  input: { bookingId: string; organizationId: string; incoming: IncomingRevision },
-): Promise<AdvanceResult> {
+/** Förnya leasen under en lång import. Kräver samma token. */
+export function renewCanonicalRevisionLease(supabase: any, input: AdvanceInput): Promise<AdvanceResult> {
+  return callAdvance(supabase, 'renew', input);
+}
+
+/**
+ * Markera reservationen som fullt applicerad EFTER lyckad import.
+ * Kräver samma token; skriver applied state + spegling + audit atomiskt.
+ */
+export function commitCanonicalRevision(supabase: any, input: AdvanceInput): Promise<AdvanceResult> {
   return callAdvance(supabase, 'commit', input);
 }
 
-/** Släpp reservationen när importen misslyckats (revisionen kan retryas). */
-export function releaseCanonicalRevision(
-  supabase: any,
-  input: { bookingId: string; organizationId: string; incoming: IncomingRevision },
-): Promise<AdvanceResult> {
+/** Släpp reservationen när importen misslyckats. Kräver samma token. */
+export function releaseCanonicalRevision(supabase: any, input: AdvanceInput): Promise<AdvanceResult> {
   return callAdvance(supabase, 'release', input);
+}
+
+/**
+ * Startar en lease-förnyare som håller låset vid liv under lång import.
+ * Returnerar en stop-funktion.
+ */
+export function startLeaseRenewal(
+  supabase: any,
+  input: AdvanceInput,
+  intervalMs: number = LEASE_RENEW_INTERVAL_MS,
+): () => void {
+  const timer = setInterval(() => {
+    renewCanonicalRevisionLease(supabase, input).then((res) => {
+      if (!res.ok) {
+        console.warn('[canonicalRevisionGuard] lease renewal failed', JSON.stringify({
+          booking_id: input.bookingId, decision: res.decision,
+        }));
+      }
+    }).catch(() => {});
+  }, intervalMs);
+  return () => clearInterval(timer);
 }

@@ -203,13 +203,94 @@ function parseDedicatedRevision(value: any): AppliedRevisionLoadResult {
   return { ok: true, found: true, revisionKind, revision, revisions: [revision] };
 }
 
+/** STEG 2H: authoritative current-state-tabell. */
+export const CURRENT_STATE_TABLE = 'booking_source_state';
+
+type CurrentStateRead =
+  | { ok: true; found: true; row: any }
+  | { ok: true; found: false }
+  | { ok: true; unsupported: true; found: false }
+  | { ok: false; error: string; retriable: boolean };
+
+/**
+ * Läser atomiskt committat current state ur `booking_source_state`.
+ * Databasfel är FAIL-CLOSED — får aldrig tolkas som "ingen revision".
+ */
+async function readCurrentSourceState(
+  supabase: any,
+  bookingId: string,
+  organizationId: string,
+): Promise<CurrentStateRead> {
+  try {
+    const q = supabase
+      .from(CURRENT_STATE_TABLE)
+      .select('applied_source_updated_at, applied_source_version, applied_source_status, revision_kind')
+      .eq('booking_id', bookingId)
+      .eq('organization_id', organizationId);
+    if (!q || typeof q.maybeSingle !== 'function') return { ok: true, unsupported: true, found: false };
+    const res = await q.maybeSingle();
+    if (res?.error) {
+      return {
+        ok: false,
+        error: `booking_source_state_read:${res.error.message ?? 'unknown'}`,
+        retriable: true,
+      };
+    }
+    const row = res?.data ?? null;
+    if (!row) return { ok: true, found: false };
+    if (row.applied_source_updated_at === null && row.applied_source_version === null) {
+      return { ok: true, found: false };
+    }
+    return { ok: true, found: true, row };
+  } catch (err: any) {
+    return {
+      ok: false,
+      error: `booking_source_state_read_exception:${err?.message ?? String(err)}`,
+      retriable: true,
+    };
+  }
+}
+
+function parseCurrentSourceState(row: any): AppliedRevisionLoadResult {
+  const timestamp = row.applied_source_updated_at ? String(row.applied_source_updated_at) : null;
+  const version = row.applied_source_version === null || row.applied_source_version === undefined
+    ? null
+    : parseStrictVersion(row.applied_source_version);
+  if (timestamp !== null && parseStrictTimestamp(timestamp) === null) {
+    return { ok: false, error: 'current_state_revision_unparseable', retriable: false };
+  }
+  if (row.applied_source_version !== null && row.applied_source_version !== undefined && version === null) {
+    return { ok: false, error: 'current_state_revision_unparseable', retriable: false };
+  }
+  const status = normStatus(row.applied_source_status);
+  if (!status) {
+    return { ok: false, error: 'current_state_missing_source_status', retriable: false };
+  }
+  const revisionKind: RevisionKind =
+    timestamp !== null && version !== null ? 'both' : timestamp !== null ? 'timestamp' : 'version';
+  const revision: LocalAppliedRevision = {
+    sourceUpdatedAt: timestamp,
+    sourceVersion: version,
+    sourceStatus: status,
+    changeType: 'source_revision',
+  };
+  return { ok: true, found: true, revisionKind, revision, revisions: [revision] };
+}
+
 export async function loadAppliedSourceRevision(
   supabase: any,
   bookingId: string,
   organizationId: string,
 ): Promise<AppliedRevisionLoadResult> {
-  // 1) Dedikerat fält = authoritative. Inget historik-tak, 'both' är naturligt
-  //    och gamla rader utan source_status kan aldrig blockera.
+  // 0) STEG 2H: `booking_source_state` är ENDA authoritative current-state.
+  //    Fel här är fail-closed; fallback nedan används bara för migration/bootstrap.
+  const currentState = await readCurrentSourceState(supabase, bookingId, organizationId);
+  if (currentState.ok === false) {
+    return { ok: false, error: currentState.error, retriable: currentState.retriable };
+  }
+  if (currentState.found) return parseCurrentSourceState((currentState as any).row);
+
+  // 1) Bootstrap/migration: speglingen på bokningen.
   const dedicated = await readDedicatedRevision(supabase, bookingId, organizationId);
   if (dedicated.ok === false) {
     return { ok: false, error: dedicated.error, retriable: dedicated.retriable };

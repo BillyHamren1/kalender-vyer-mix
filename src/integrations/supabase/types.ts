@@ -858,12 +858,20 @@ export type Database = {
           applied_source_version: number | null
           booking_id: string
           created_at: string
+          highest_seen_source_updated_at: string | null
+          highest_seen_source_version: number | null
+          last_takeover_at: string | null
+          lock_acquired_at: string | null
+          lock_expires_at: string | null
+          lock_owner_job_id: string | null
+          lock_token: string | null
           organization_id: string
           pending_source_status: string | null
           pending_source_updated_at: string | null
           pending_source_version: number | null
           pending_started_at: string | null
           revision_kind: string | null
+          takeover_count: number
           updated_at: string
         }
         Insert: {
@@ -872,12 +880,20 @@ export type Database = {
           applied_source_version?: number | null
           booking_id: string
           created_at?: string
+          highest_seen_source_updated_at?: string | null
+          highest_seen_source_version?: number | null
+          last_takeover_at?: string | null
+          lock_acquired_at?: string | null
+          lock_expires_at?: string | null
+          lock_owner_job_id?: string | null
+          lock_token?: string | null
           organization_id: string
           pending_source_status?: string | null
           pending_source_updated_at?: string | null
           pending_source_version?: number | null
           pending_started_at?: string | null
           revision_kind?: string | null
+          takeover_count?: number
           updated_at?: string
         }
         Update: {
@@ -886,13 +902,48 @@ export type Database = {
           applied_source_version?: number | null
           booking_id?: string
           created_at?: string
+          highest_seen_source_updated_at?: string | null
+          highest_seen_source_version?: number | null
+          last_takeover_at?: string | null
+          lock_acquired_at?: string | null
+          lock_expires_at?: string | null
+          lock_owner_job_id?: string | null
+          lock_token?: string | null
           organization_id?: string
           pending_source_status?: string | null
           pending_source_updated_at?: string | null
           pending_source_version?: number | null
           pending_started_at?: string | null
           revision_kind?: string | null
+          takeover_count?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      booking_source_state_backfill_issues: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          id: string
+          organization_id: string | null
+          payload: Json | null
+          reason: string
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          id?: string
+          organization_id?: string | null
+          payload?: Json | null
+          reason: string
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          id?: string
+          organization_id?: string | null
+          payload?: Json | null
+          reason?: string
         }
         Relationships: []
       }
@@ -10474,8 +10525,11 @@ export type Database = {
       advance_booking_source_revision: {
         Args: {
           p_booking_id: string
+          p_lease_seconds?: number
           p_mode: string
           p_organization_id: string
+          p_owner_job_id?: string
+          p_reservation_token?: string
           p_source_status: string
           p_source_updated_at: string
           p_source_version: number
