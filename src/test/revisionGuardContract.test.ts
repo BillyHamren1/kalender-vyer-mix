@@ -214,27 +214,28 @@ describe('tombstone revision validation', () => {
   });
 });
 
-// ── Test 9–11: audit read/insert i cancellation ─────────────────────────
+// ── Test 9–11: cancellation-audit sker i samma DB-transaktion (STEG 2J) ──
 describe('applyBookingCancellation — audit är säkerhetskritisk', () => {
   const existing = { id: BOOKING, organization_id: ORG, version: 1, status: 'CONFIRMED' };
   const source = { reason: 'cancelled', source_status: 'CANCELLED', source_revision: '2026-03-01T00:00:00Z' };
 
-  it('Test 9: audit-read-fel → inte full cancelled', async () => {
+  function rpc(reply: any, error?: any) {
+    return { from() { throw new Error('no direct table access'); }, rpc: async () => ({ data: reply, error: error ?? null }) } as any;
+  }
+
+  it('Test 9: DB-fel i cancellation → aldrig cancelled (allt rullas tillbaka)', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const sb = makeSupabase({ booking_changes: { selectResult: { data: null, error: { message: 'rls' } } } });
-    const res = await applyBookingCancellation(sb, existing, source);
-    expect(res.status).toBe('partial');
-    expect(res.error).toContain('booking_changes_read');
+    const res = await applyBookingCancellation(rpc(null, { message: 'rls' }), existing, source);
+    expect(res.status).toBe('error');
+    expect(res.error).toContain('apply_booking_cancellation_atomic');
     spy.mockRestore();
   });
 
-  it('Test 10: audit-insert-fel → partial, jobbet blir inte completed', async () => {
+  it('Test 10: outcome failed → error, jobbet blir inte completed', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const sb = makeSupabase({ booking_changes: { selectResult: { data: [], error: null }, insertResult: { error: { message: 'insert failed' } } } });
-    const res = await applyBookingCancellation(sb, existing, source);
-    expect(res.status).toBe('partial');
+    const res = await applyBookingCancellation(rpc({ success: false, outcome: 'failed', error: 'insert failed' }), existing, source);
+    expect(res.status).toBe('error');
 
-    // Call chain: partial → envelope outcome partial → jobbet blir inte completed
     const validation = validateSingleBookingResult(
       { success: false, queued: false, completed: false, sync_mode: 'single', booking_id: BOOKING, organization_id: ORG, outcome: 'partial' },
       { bookingId: BOOKING, organizationId: ORG },
@@ -245,14 +246,9 @@ describe('applyBookingCancellation — audit är säkerhetskritisk', () => {
   });
 
   it('Test 11: revisionen finns redan → idempotent, ingen dubblett', async () => {
-    const log = { inserts: [] as any[] };
-    const sb = makeSupabase(
-      { booking_changes: { selectResult: { data: [{ id: 'x', new_values: { source_revision: source.source_revision } }], error: null } } },
-      log,
-    );
-    const res = await applyBookingCancellation(sb, existing, source);
-    expect(res.status).toBe('cancelled');
-    expect(log.inserts.filter((i) => i.table === 'booking_changes')).toHaveLength(0);
+    const res = await applyBookingCancellation(rpc({ success: true, outcome: 'already_cancelled', already_current: true }), existing, source);
+    expect(res.status).toBe('skipped_already_cancelled');
+    expect(res.source_logged).toBe(false);
   });
 });
 

@@ -2581,6 +2581,8 @@ serve(async (req) => {
           reason: 'cancelled',
           source_status: decision.tombstone.source_status ?? 'CANCELLED',
           source_revision: decision.tombstone.source_updated_at ?? decision.tombstone.source_version ?? null,
+          source_updated_at: decision.tombstone.source_updated_at ?? null,
+          source_version: decision.tombstone.source_version ?? null,
           organization_id: organizationId,
         });
         console.log('[cancellation] canonical tombstone applied', JSON.stringify({

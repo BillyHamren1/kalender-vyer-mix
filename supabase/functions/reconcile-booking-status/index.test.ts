@@ -1,95 +1,81 @@
 // Deno test for the cancellation handler shared by import-bookings and
-// reconcile-booking-status. We mock the supabase client to assert the
-// exact sequence of writes when an external CANCELLED is detected.
+// reconcile-booking-status. STEG 2J: handlern delegerar hela cleanup:en till
+// den atomiska RPC:n `apply_booking_cancellation_atomic` — inga egna
+// tabellmutationer får förekomma.
 
 import { assertEquals } from "https://deno.land/std@0.168.0/testing/asserts.ts";
 import { applyBookingCancellation } from "../_shared/cancellation-handler.ts";
 
-function createMockSupabase() {
-  const calls: string[] = [];
-
-  const builder = (table: string) => {
-    const state: any = { table, op: null, payload: null };
-    const chain: any = {
-      select: (_cols: string) => ({
-        eq: () => ({
-          eq: () => ({ limit: async () => ({ data: [], error: null }) }),
-          neq: () => ({ limit: async () => ({ data: [], error: null }) }),
-          not: () => ({ limit: async () => ({ data: [], error: null }) }),
-          limit: async () => ({ data: [], error: null }),
-        }),
-      }),
-      update: (payload: any) => {
-        state.op = "update";
-        state.payload = payload;
-        return {
-          eq: async (_col: string, _val: any) => {
-            calls.push(`${table}.update`);
-            return { error: null };
-          },
-        };
-      },
-      delete: () => ({
-        eq: async (_col: string, _val: any) => {
-          calls.push(`${table}.delete`);
-          return { error: null };
-        },
-      }),
-    };
-    return chain;
-  };
-
+function rpcClient(reply: unknown, error: unknown = null) {
+  const calls: Array<{ fn: string; args: any }> = [];
   return {
-    client: { from: (table: string) => builder(table) },
     calls,
+    client: {
+      from() {
+        throw new Error("handler must not touch tables directly");
+      },
+      rpc: (fn: string, args: any) => {
+        calls.push({ fn, args });
+        return Promise.resolve({ data: reply, error });
+      },
+    },
   };
 }
 
-Deno.test("applyBookingCancellation cleans calendar, projects, jobs, packing, products", async () => {
-  const { client, calls } = createMockSupabase();
+const evidence = {
+  reason: "cancelled",
+  source_status: "CANCELLED",
+  source_revision: "2026-08-01T10:00:00Z",
+  organization_id: "org-1",
+};
+
+Deno.test("applyBookingCancellation calls the atomic RPC exactly once", async () => {
+  const { client, calls } = rpcClient({
+    success: true,
+    outcome: "cancelled",
+    mutations: { bookings: 1, calendar_events: 2, audit: 1 },
+  });
 
   const result = await applyBookingCancellation(client as any, {
     id: "booking-1",
     version: 3,
+    organization_id: "org-1",
     assigned_to_project: false,
     assigned_project_id: null,
     assigned_project_name: null,
-  });
+  }, evidence);
 
   assertEquals(result.status, "cancelled");
   assertEquals(result.booking_id, "booking-1");
-  // All side-effects ran
-  assertEquals(calls.includes("bookings.update"), true);
-  assertEquals(calls.includes("calendar_events.delete"), true);
-  assertEquals(calls.includes("warehouse_calendar_events.delete"), true);
-  assertEquals(calls.includes("projects.update"), true);
-  assertEquals(calls.includes("jobs.update"), true);
-  assertEquals(calls.includes("packing_projects.delete"), true);
-  assertEquals(calls.includes("booking_products.delete"), true);
+  assertEquals(result.source_logged, true);
+  assertEquals(calls.length, 1);
+  assertEquals(calls[0].fn, "apply_booking_cancellation_atomic");
+  assertEquals(calls[0].args.p_organization_id, "org-1");
+  assertEquals(calls[0].args.p_booking_id, "booking-1");
 });
 
-Deno.test("applyBookingCancellation reports error when booking update fails", async () => {
-  const failingClient = {
-    from: (table: string) => {
-      if (table === "bookings") {
-        return {
-          update: () => ({ eq: async () => ({ error: { message: "boom" } }) }),
-          select: () => ({ eq: () => ({ eq: () => ({ limit: async () => ({ data: [], error: null }) }), neq: () => ({ limit: async () => ({ data: [], error: null }) }), not: () => ({ limit: async () => ({ data: [], error: null }) }), limit: async () => ({ data: [], error: null }) }) }),
-        };
-      }
-      return {
-        select: () => ({ eq: () => ({ eq: () => ({ limit: async () => ({ data: [], error: null }) }), neq: () => ({ limit: async () => ({ data: [], error: null }) }), not: () => ({ limit: async () => ({ data: [], error: null }) }), limit: async () => ({ data: [], error: null }) }) }),
-        update: () => ({ eq: async () => ({ error: null }) }),
-        delete: () => ({ eq: async () => ({ error: null }) }),
-      };
-    },
-  };
+Deno.test("applyBookingCancellation reports error when the transaction fails", async () => {
+  const { client } = rpcClient(null, { message: "boom" });
 
-  const result = await applyBookingCancellation(failingClient as any, {
+  const result = await applyBookingCancellation(client as any, {
     id: "booking-x",
     version: 1,
-  });
+    organization_id: "org-1",
+  }, evidence);
 
   assertEquals(result.status, "error");
   assertEquals(result.booking_id, "booking-x");
+});
+
+Deno.test("applyBookingCancellation is idempotent (already_cancelled)", async () => {
+  const { client } = rpcClient({ success: true, outcome: "already_cancelled", already_current: true });
+
+  const result = await applyBookingCancellation(client as any, {
+    id: "booking-1",
+    version: 3,
+    organization_id: "org-1",
+  }, evidence);
+
+  assertEquals(result.status, "skipped_already_cancelled");
+  assertEquals(result.source_logged, false);
 });

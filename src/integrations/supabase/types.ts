@@ -10536,6 +10536,18 @@ export type Database = {
         }
         Returns: Json
       }
+      apply_booking_cancellation_atomic: {
+        Args: {
+          p_booking_id: string
+          p_organization_id: string
+          p_reason?: string
+          p_reservation_token?: string
+          p_source_status: string
+          p_source_updated_at?: string
+          p_source_version?: number
+        }
+        Returns: Json
+      }
       archive_dm_thread: {
         Args: { _my_ids: string[]; _org_id: string; _partner_id: string }
         Returns: number

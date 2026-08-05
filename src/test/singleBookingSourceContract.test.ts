@@ -170,53 +170,39 @@ describe('worker outcome policy', () => {
   });
 });
 
-// ── Fake supabase client for cancellation idempotency ────────────────────
-function makeFakeSupabase(rows: Record<string, any[]>) {
-  const ops: string[] = [];
-  const builder = (table: string, kind: string) => {
-    const self: any = {
-      eq: () => self,
-      neq: () => self,
-      not: () => self,
-      limit: () => Promise.resolve({ data: rows[table] ?? [], error: null }),
-      select: () => self,
-      then: (res: any) => res({ data: rows[table] ?? [], error: null }),
-    };
-    if (kind !== 'select') ops.push(`${kind}:${table}`);
-    return self;
-  };
+// ── Fake supabase client for cancellation idempotency (STEG 2J: RPC) ─────
+function makeFakeSupabase(replies: any[]) {
+  const calls: any[] = [];
+  let i = 0;
   return {
-    ops,
-    from: (table: string) => ({
-      select: () => builder(table, 'select'),
-      update: () => builder(table, 'update'),
-      delete: () => builder(table, 'delete'),
-    }),
+    calls,
+    from: () => { throw new Error('handler must not touch tables directly'); },
+    rpc: async (fn: string, args: any) => {
+      calls.push({ fn, args });
+      const reply = replies[Math.min(i, replies.length - 1)];
+      i++;
+      return { data: reply, error: null };
+    },
   } as any;
 }
 
 describe('central cancellation handler', () => {
-  it('TEST 6/16: cancellation is idempotent and routed through one handler', async () => {
-    const sb = makeFakeSupabase({});
+  it('TEST 6/16: cancellation is idempotent and routed through one atomic RPC', async () => {
+    const sb = makeFakeSupabase([
+      { success: true, outcome: 'cancelled', mutations: { audit: 1 } },
+      { success: true, outcome: 'already_cancelled', already_current: true },
+    ]);
     const input = { id: '2602-13', version: 1, organization_id: 'org-1' };
-    const r1 = await applyBookingCancellation(sb, input);
-    const opsAfterFirst = [...sb.ops];
-    const r2 = await applyBookingCancellation(sb, input);
+    const evidence = { reason: 'cancelled', source_status: 'CANCELLED', source_revision: '2026-08-01T10:00:00Z' };
+    const r1 = await applyBookingCancellation(sb, input, evidence);
+    const r2 = await applyBookingCancellation(sb, input, evidence);
     expect(r1.status).toBe('cancelled');
-    expect(r2.status).toBe('cancelled');
-    // Second run performs the same bounded set of ops — no extra damage paths.
-    expect(sb.ops.length).toBe(opsAfterFirst.length * 2);
-    expect(new Set(opsAfterFirst)).toEqual(
-      new Set([
-        'update:bookings',
-        'delete:calendar_events',
-        'delete:warehouse_calendar_events',
-        'update:projects',
-        'update:jobs',
-        'delete:packing_projects',
-        'delete:booking_products',
-      ]),
-    );
+    // Andra körningen muterar ingenting — databasen svarar already_cancelled.
+    expect(r2.status).toBe('skipped_already_cancelled');
+    expect(sb.calls.map((c: any) => c.fn)).toEqual([
+      'apply_booking_cancellation_atomic',
+      'apply_booking_cancellation_atomic',
+    ]);
   });
 });
 
@@ -290,28 +276,29 @@ describe('STEG 2B parser hardening', () => {
     expect(evaluateDestructiveAction(r, expected)).toMatchObject({ allowed: false, reason: 'booking_found_no_cleanup' });
   });
 
-  it('2B-6: cancellation-handlern loggar source reason + revision idempotent', async () => {
-    const inserts: any[] = [];
-    const logged: any[] = [];
+  it('2B-6: cancellation-handlern skickar source reason + revision till RPC:n', async () => {
+    const calls: any[] = [];
+    const replies = [
+      { success: true, outcome: 'cancelled', mutations: { audit: 1 } },
+      { success: true, outcome: 'already_cancelled' },
+    ];
+    let i = 0;
     const sb = {
-      from(table: string) {
-        const api: any = {
-          update: () => api, delete: () => api, eq: () => api, neq: () => api, is: () => api, in: () => api, not: () => api, limit: () => api, order: () => api, maybeSingle: () => Promise.resolve({ data: null, error: null }),
-          select: () => api,
-          insert: (row: any) => { inserts.push({ table, row }); logged.push(row); return Promise.resolve({ error: null }); },
-          then: (res: any) => res({ data: table === 'booking_changes' ? logged.map((r) => ({ id: 'x', new_values: r.new_values })) : [], error: null }),
-        };
-        return api;
-      },
+      from() { throw new Error('no direct table access'); },
+      rpc: async (fn: string, args: any) => { calls.push({ fn, args }); return { data: replies[i++] ?? replies[1], error: null }; },
     };
     const input = { id: '2602-13', version: 1, status: 'CONFIRMED', organization_id: 'org-1' };
-    const evidence = { reason: 'cancelled', source_status: 'CANCELLED', source_revision: 'rev-1', organization_id: 'org-1' };
+    const evidence = { reason: 'cancelled', source_status: 'CANCELLED', source_revision: '2026-08-01T10:00:00Z', organization_id: 'org-1' };
     const r1 = await applyBookingCancellation(sb as any, input, evidence);
     const r2 = await applyBookingCancellation(sb as any, input, evidence);
     expect(r1.source_logged).toBe(true);
     expect(r2.source_logged).toBe(false); // idempotent: ingen dubbel cancellation-logg
-    expect(inserts).toHaveLength(1);
-    expect(inserts[0].row.new_values).toMatchObject({ source_reason: 'cancelled', source_revision: 'rev-1' });
+    expect(calls).toHaveLength(2);
+    expect(calls[0].args).toMatchObject({
+      p_reason: 'cancelled',
+      p_source_status: 'CANCELLED',
+      p_source_updated_at: '2026-08-01T10:00:00Z',
+    });
   });
 
   it('2B-7: import-bookings skickar canonical bevis till handlern', async () => {

@@ -149,84 +149,68 @@ describe('icke-destruktiva source-resultat', () => {
   });
 });
 
-describe('canonical cancellation — exakta mutationer', () => {
-  it('muterar endast definierade tabeller, alltid org-isolerat', async () => {
-    const { supabase, ops } = makeSupabase();
-    const res = await applyBookingCancellation(supabase, existing, {
-      reason: 'cancelled',
-      source_status: 'CANCELLED',
-      source_revision: '2026-08-01T10:00:00Z',
-      organization_id: ORG,
+describe('canonical cancellation — atomisk RPC (STEG 2J)', () => {
+  function rpcClient(reply: any, error?: any) {
+    const calls: any[] = [];
+    return {
+      calls,
+      supabase: {
+        from() { throw new Error('handler must not mutate tables directly'); },
+        rpc: async (fn: string, args: any) => {
+          calls.push({ fn, args });
+          return { data: reply, error: error ?? null };
+        },
+      } as any,
+    };
+  }
+
+  const evidence = {
+    reason: 'cancelled',
+    source_status: 'CANCELLED',
+    source_revision: '2026-08-01T10:00:00Z',
+    organization_id: ORG,
+  };
+
+  it('all cleanup går genom EN org-isolerad transaktion', async () => {
+    const { supabase, calls } = rpcClient({
+      success: true, outcome: 'cancelled',
+      mutations: { bookings: 1, calendar_events: 2, warehouse_events: 1, projects: 1, jobs: 1, packing_projects: 1, booking_products: 5, audit: 1 },
     });
+    const res = await applyBookingCancellation(supabase, existing, evidence);
 
     expect(res.status).toBe('cancelled');
-
-    const mutations = ops.filter((o) => o.kind !== 'select');
-    const mutatedTables = [...new Set(mutations.map((o) => o.table))].sort();
-    expect(mutatedTables).toEqual([
-      'booking_changes',
-      'booking_products',
-      'bookings',
-      'calendar_events',
-      'jobs',
-      'packing_projects',
-      'projects',
-      'warehouse_calendar_events',
-    ]);
-
-    // Varje läs- och skrivoperation är organisationsisolerad.
-    for (const op of ops) {
-      if (op.kind === 'insert') {
-        expect((op.payload as any).organization_id).toBe(ORG);
-      } else {
-        expect(op.filters.organization_id).toBe(ORG);
-      }
-    }
-
-    // Bokningen sätts till CANCELLED, historik/version bevaras.
-    const bookingUpdate = mutations.find((o) => o.table === 'bookings')!;
-    expect(bookingUpdate.payload).toMatchObject({ status: 'CANCELLED', version: 4 });
-
-    // Ingen bred delete utan booking-filter.
-    for (const op of mutations.filter((o) => o.kind === 'delete')) {
-      expect(op.filters.booking_id).toBe(BID);
-    }
+    expect(calls).toHaveLength(1);
+    expect(calls[0].fn).toBe('apply_booking_cancellation_atomic');
+    expect(calls[0].args).toMatchObject({ p_organization_id: ORG, p_booking_id: BID });
+    expect(res.mutations).toMatchObject({ bookings: 1, booking_products: 5 });
   });
 
   it('utan organization_id sker INGEN mutation', async () => {
-    const { supabase, ops } = makeSupabase();
-    const res = await applyBookingCancellation(supabase, { ...existing, organization_id: null });
+    const { supabase, calls } = rpcClient({ success: true, outcome: 'cancelled' });
+    const res = await applyBookingCancellation(supabase, { ...existing, organization_id: null }, { ...evidence, organization_id: null });
     expect(res.status).toBe('error');
     expect(res.error).toBe('organization_id_required_for_cancellation');
-    expect(ops).toHaveLength(0);
+    expect(calls).toHaveLength(0);
   });
 
-  it('misslyckad bookings-update avbryter före cleanup', async () => {
-    const { supabase, ops } = makeSupabase({ failTables: ['bookings'] });
-    const res = await applyBookingCancellation(supabase, existing);
+  it('DB-fel → error, inga delvis genomförda mutationer rapporteras', async () => {
+    const { supabase } = rpcClient(null, { message: 'bookings failed' });
+    const res = await applyBookingCancellation(supabase, existing, evidence);
     expect(res.status).toBe('error');
-    expect(ops.filter((o) => o.kind === 'delete')).toHaveLength(0);
+    expect(res.mutations).toBeUndefined();
   });
 
-  it('partiell cleanup rapporteras som partial, aldrig success', async () => {
-    const { supabase } = makeSupabase({ failTables: ['packing_projects'] });
-    const res = await applyBookingCancellation(supabase, existing);
-    expect(res.status).toBe('partial');
+  it('outcome failed rapporteras aldrig som success', async () => {
+    const { supabase } = rpcClient({ success: false, outcome: 'failed', error: 'packing_projects failed' });
+    const res = await applyBookingCancellation(supabase, existing, evidence);
+    expect(res.status).toBe('error');
     expect(res.error).toContain('packing_projects');
-    expect(res.packing_deleted).toBe(false);
   });
 
-  it('idempotens: audit loggas inte två gånger för samma revision', async () => {
-    const { supabase, ops } = makeSupabase({
-      rows: { booking_changes: [{ id: 'x', new_values: { source_revision: '2026-08-01T10:00:00Z' } }] },
-    });
-    const res = await applyBookingCancellation(supabase, existing, {
-      reason: 'cancelled',
-      source_status: 'CANCELLED',
-      source_revision: '2026-08-01T10:00:00Z',
-      organization_id: ORG,
-    });
+  it('idempotens: samma revision → already_cancelled, ingen ny audit', async () => {
+    const { supabase } = rpcClient({ success: true, outcome: 'already_cancelled', already_current: true });
+    const res = await applyBookingCancellation(supabase, existing, evidence);
+    expect(res.status).toBe('skipped_already_cancelled');
     expect(res.source_logged).toBe(false);
-    expect(ops.filter((o) => o.table === 'booking_changes' && o.kind === 'insert')).toHaveLength(0);
   });
 });
