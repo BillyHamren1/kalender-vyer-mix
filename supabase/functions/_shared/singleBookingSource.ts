@@ -17,7 +17,18 @@
  */
 
 /** Kontraktsversioner Planning kan tolka (valideras endast om Booking skickar en). */
-export const SUPPORTED_CONTRACT_VERSIONS = ['1', '1.0'] as const as readonly string[];
+export const SUPPORTED_CONTRACT_VERSIONS = ['1', '1.0', '1.1'] as const as readonly string[];
+
+/** Major-kompatibel kontraktskontroll: alla 1.x accepteras (bakåtkompatibla minors). */
+export const SUPPORTED_CONTRACT_MAJORS = ['1'] as const as readonly string[];
+
+export function isSupportedContractVersion(raw: unknown): boolean {
+  const v = String(raw).trim();
+  if (!v) return false;
+  if (SUPPORTED_CONTRACT_VERSIONS.includes(v)) return true;
+  const major = v.split('.')[0];
+  return SUPPORTED_CONTRACT_MAJORS.includes(major);
+}
 
 export const DESTRUCTIVE_REASONS = ['cancelled', 'deleted'] as const;
 export type DestructiveReason = typeof DESTRUCTIVE_REASONS[number];
@@ -121,7 +132,7 @@ export function parseSingleBookingSourceResponse(
     const rawVersion = payload.contract_version ?? payload.contractVersion;
     if (rawVersion !== undefined && rawVersion !== null) {
       const v = String(rawVersion);
-      if (!SUPPORTED_CONTRACT_VERSIONS.includes(v)) {
+      if (!isSupportedContractVersion(v)) {
         return { kind: 'error', retriable: false, code: `contract_version_unsupported_${v}` };
       }
     }

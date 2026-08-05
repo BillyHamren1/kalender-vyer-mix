@@ -643,7 +643,7 @@ export type Database = {
           new_values?: Json | null
           organization_id?: string
           previous_values?: Json | null
-          version: number
+          version?: number
         }
         Update: {
           booking_id?: string

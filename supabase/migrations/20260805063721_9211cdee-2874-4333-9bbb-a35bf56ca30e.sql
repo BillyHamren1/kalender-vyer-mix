@@ -1,0 +1,1 @@
+ALTER TABLE public.booking_changes ALTER COLUMN version SET DEFAULT 0;
