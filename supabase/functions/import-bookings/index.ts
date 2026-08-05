@@ -4634,5 +4634,9 @@ serve(async (req) => {
         status: 500,
       },
     )
+  } finally {
+    // STEG 2I: ingen renewal-timer får leva kvar efter att funktionen avslutas
+    // (success, partial, error, early return, already_current, låsfel, exception).
+    stopLeaseRenewal()
   }
 })
