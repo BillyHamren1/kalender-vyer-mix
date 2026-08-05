@@ -3951,6 +3951,7 @@ serve(async (req) => {
         if (externalBooking.products && Array.isArray(externalBooking.products)) {
         // Only re-process products if they have changed (prevents duplicates from parallel imports)
         if (needsProductUpdate || !existingBooking) {
+          assertLeaseOwned('product_sync');
           console.log(`Processing ${externalBooking.products.length} raw products for booking ${bookingData.id}`)
           
           // DEDUPLICATE: External API sometimes sends duplicate rows - merge by name + parent
@@ -4451,6 +4452,19 @@ serve(async (req) => {
       if ((outcome === 'applied' || outcome === 'already_current') && normalizedSingleBookingId) {
         const canonicalRow: any = Array.isArray(externalData?.data) ? externalData.data[0] : null;
         if (guardedIncomingRevision) {
+          // STEG 2I: verifiera ägarskapet SYNKRONT direkt före commit — commit
+          // får aldrig vara första ägarskapskontrollen efter lång mutation.
+          const preCommitFailure = leaseControl ? await leaseControl.renewNow('pre_commit') : null;
+          if (preCommitFailure) {
+            stopLeaseRenewal();
+            console.error('[import-bookings] lease lost before commit', JSON.stringify(preCommitFailure));
+            return new Response(JSON.stringify(buildSingleBookingEnvelope({
+              bookingId: normalizedSingleBookingId,
+              organizationId,
+              outcome: 'failed',
+              error: preCommitFailure.code,
+            })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+          }
           const committed = await commitCanonicalRevision(supabase, {
             bookingId: normalizedSingleBookingId,
             organizationId,
@@ -4529,6 +4543,35 @@ serve(async (req) => {
     )
 
   } catch (error) {
+    // STEG 2I: förlorat/overifierat lease-ägarskap → ingen commit, ingen
+    // applied/completed, ingen cursorförflyttning. Release endast om vi
+    // fortfarande äger token.
+    if (error instanceof LeaseOwnershipLostError) {
+      const failure = error.failure
+      stopLeaseRenewal()
+      console.error('[import-bookings] import aborted — lease ownership lost', JSON.stringify(failure))
+      if (failure.kind === 'unverified' && guardedIncomingRevision && ctxBookingId && ctxOrgId) {
+        try {
+          await releaseCanonicalRevision(supabase, {
+            bookingId: ctxBookingId,
+            organizationId: ctxOrgId,
+            incoming: guardedIncomingRevision,
+            reservationToken: guardedReservationToken,
+          })
+        } catch (relErr) {
+          console.error('[import-bookings] revision release failed after lease loss', relErr)
+        }
+      }
+      return new Response(
+        JSON.stringify(buildSingleBookingEnvelope({
+          bookingId: ctxBookingId,
+          organizationId: ctxOrgId,
+          outcome: 'failed',
+          error: failure.code,
+        })),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
+      )
+    }
     const errMsg = error instanceof Error ? error.message : String(error)
     console.error('[import-bookings] Pipeline failed', JSON.stringify({
       error: errMsg,
