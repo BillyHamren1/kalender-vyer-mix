@@ -22,8 +22,14 @@ export const useCalendarEvents = () => {
     return stored ? new Date(stored) : new Date();
   });
 
+  // Vilket datumfönster som just nu är laddat.
+  const loadedWindowRef = useRef<{ from: string; to: string } | null>(null);
+  const currentDateRef = useRef<Date>(currentDate);
+  currentDateRef.current = currentDate;
+
   // Memoize the loadEvents function to prevent recreations
-  const loadEvents = useCallback(async (force = false) => {
+  const loadEvents = useCallback(async (force = false, anchorOverride?: Date) => {
+    const anchorDate = anchorOverride ?? currentDateRef.current ?? new Date();
     // Skip if we've updated in the last 3 seconds and this isn't a forced refresh
     if (!force && lastUpdateRef.current) {
       const timeSinceLastUpdate = Date.now() - lastUpdateRef.current.getTime();
@@ -36,7 +42,10 @@ export const useCalendarEvents = () => {
     try {
       console.log(`📅 [useCalendarEvents] loadEvents(force=${force}) starting...`);
       setIsLoading(true);
-      const data = await fetchCalendarEvents();
+      const win = resolveCalendarWindow({ anchorDate });
+      loadedWindowRef.current = { from: win.windowFrom, to: win.windowTo };
+      const data = await fetchCalendarEvents({ anchorDate });
+
       if (activeRef.current) {
         // Anti-flicker guard: if a non-forced poll returns dramatically fewer
         // events than we previously had (e.g. sync mid-flight), keep the
