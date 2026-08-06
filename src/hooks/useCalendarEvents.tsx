@@ -120,7 +120,21 @@ export const useCalendarEvents = () => {
     };
   }, [loadEvents]);
 
+  // Navigering utanför laddat fönster → ladda den perioden.
+  useEffect(() => {
+    const win = loadedWindowRef.current;
+    if (!win) return;
+    const day = format(currentDate, 'yyyy-MM-dd');
+    const softFrom = format(addDays(new Date(win.from), 14), 'yyyy-MM-dd');
+    const softTo = format(subDays(new Date(win.to), 14), 'yyyy-MM-dd');
+    if (day < softFrom || day > softTo) {
+      console.log('[useCalendarEvents] Datum utanför laddat fönster — laddar om för', day);
+      void loadEvents(true, currentDate);
+    }
+  }, [currentDate, loadEvents]);
+
   // Optimized handleDatesSet to only trigger when date changes significantly (more than 1 day)
+
   const handleDatesSet = useCallback((dateInfo: any) => {
     const newDate = dateInfo.start;
     
