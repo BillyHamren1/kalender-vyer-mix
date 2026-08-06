@@ -19,6 +19,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { applyBookingCancellation } from "../_shared/cancellation-handler.ts";
+import {
+  isAutomaticDestructiveSyncEnabled,
+  logBlockedCancellation,
+  AUTOMATIC_DESTRUCTIVE_SYNC_DISABLED,
+  MAX_AUTOMATIC_CANCELLATIONS_PER_RUN,
+} from "../_shared/destructiveSyncFlag.ts";
 import { loadAppliedSourceRevision } from "../_shared/appliedSourceRevision.ts";
 import {
   parseSingleBookingSourceResponse,
@@ -38,7 +44,8 @@ const WINDOW_FUTURE_DAYS = 90;
 // BATCH GUARD: en enskild körning får aldrig massavboka. Systemfel (t.ex. nytt
 // kontrakt, API-regression) yttrar sig som "alla ser avbokade ut" — då stoppar
 // vi hellre körningen än raderar kalendern. Höj medvetet per request vid behov.
-const MAX_CANCELLATIONS_PER_RUN_DEFAULT = 5;
+// AKUT PRODUKTIONSSKYDD: hård servergräns. Kan ALDRIG höjas via request body.
+const MAX_CANCELLATIONS_PER_RUN_DEFAULT = MAX_AUTOMATIC_CANCELLATIONS_PER_RUN;
 
 interface RunSummary {
   organizations_checked: number;
@@ -47,6 +54,11 @@ interface RunSummary {
   status_mismatches: number;
   cancellations_applied: number;
   cancellations_blocked_by_guard: number;
+  cancellations_blocked_by_flag: number;
+  cancellation_candidates: Array<{ booking_id: string; org_id: string; source_revision: string | number | null }>;
+  dry_run: boolean;
+  live_apply: boolean;
+  automatic_destructive_sync_enabled: boolean;
   batch_guard_tripped: boolean;
   max_cancellations_per_run: number;
   errors: Array<{ booking_id?: string; org_id?: string; error: string }>;
@@ -110,20 +122,27 @@ serve(async (req) => {
 
   // Allow narrowing per-request (manual trigger from admin tool).
   let limit = PER_RUN_LIMIT_DEFAULT;
-  let maxCancellations = MAX_CANCELLATIONS_PER_RUN_DEFAULT;
+  // Hård servergräns — request body kan inte höja den.
+  const maxCancellations = MAX_CANCELLATIONS_PER_RUN;
   let onlyOrgId: string | undefined;
   let onlyBookingId: string | undefined;
+  let dryRunRequested = true;
+  let confirmed = false;
   try {
     if (req.method === "POST") {
       const body = await req.json().catch(() => ({}));
       if (typeof body?.limit === "number") limit = Math.max(1, Math.min(500, body.limit));
-      if (typeof body?.max_cancellations === "number") {
-        maxCancellations = Math.max(0, Math.min(100, body.max_cancellations));
-      }
       if (typeof body?.organization_id === "string") onlyOrgId = body.organization_id;
       if (typeof body?.booking_id === "string") onlyBookingId = body.booking_id;
+      if (body?.dry_run === false) dryRunRequested = false;
+      if (body?.confirm === true) confirmed = true;
     }
   } catch (_) {}
+
+  // Live-apply kräver SAMTLIGA: feature flag, dry_run=false, confirm=true och
+  // exakt EN uttryckligen angiven booking_id. Allt annat = ren rapport.
+  const flagEnabled = isAutomaticDestructiveSyncEnabled();
+  const liveApply = flagEnabled && dryRunRequested === false && confirmed === true && typeof onlyBookingId === "string" && onlyBookingId.length > 0;
 
   const summary: RunSummary = {
     organizations_checked: 0,
@@ -132,6 +151,11 @@ serve(async (req) => {
     status_mismatches: 0,
     cancellations_applied: 0,
     cancellations_blocked_by_guard: 0,
+    cancellations_blocked_by_flag: 0,
+    cancellation_candidates: [],
+    dry_run: !liveApply,
+    live_apply: liveApply,
+    automatic_destructive_sync_enabled: flagEnabled,
     batch_guard_tripped: false,
     max_cancellations_per_run: maxCancellations,
     errors: [],
@@ -194,6 +218,30 @@ serve(async (req) => {
 
     if (decision.allowed && decision.action === "cancellation" && b.status !== "CANCELLED") {
       summary.status_mismatches++;
+      const candidateRevision = decision.tombstone.source_updated_at ?? decision.tombstone.source_version ?? null;
+      summary.cancellation_candidates.push({
+        booking_id: b.id,
+        org_id: b.organization_id,
+        source_revision: candidateRevision,
+      });
+
+      // AKUT PRODUKTIONSSKYDD: dry-run som standard + feature flag. Ingen
+      // mutation, ingen RPC, ingen radering — bara rapport.
+      if (!liveApply) {
+        summary.cancellations_blocked_by_flag++;
+        logBlockedCancellation({
+          booking_id: b.id,
+          organization_id: b.organization_id,
+          source_revision: candidateRevision,
+          caller: "reconcile-booking-status",
+        });
+        summary.errors.push({
+          booking_id: b.id,
+          org_id: b.organization_id,
+          error: AUTOMATIC_DESTRUCTIVE_SYNC_DISABLED,
+        });
+        continue;
+      }
 
       // ── BATCH GUARD ────────────────────────────────────────────────────
       // Fler avbokningar än taket i EN körning tyder på systemfel, inte på
