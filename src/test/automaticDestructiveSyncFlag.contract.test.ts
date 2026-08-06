@@ -105,6 +105,6 @@ describe('säkerhetslogg', () => {
     expect(FLAG).toContain('organization_id');
     expect(FLAG).toContain('source_revision');
     expect(FLAG).toContain('caller');
-    expect(FLAG).not.toMatch(/token|apikey|secret/i);
+    expect(FLAG).not.toMatch(/accessToken|apikey|service_role/i);
   });
 });

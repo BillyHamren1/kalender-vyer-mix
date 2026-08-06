@@ -123,7 +123,7 @@ serve(async (req) => {
   // Allow narrowing per-request (manual trigger from admin tool).
   let limit = PER_RUN_LIMIT_DEFAULT;
   // Hård servergräns — request body kan inte höja den.
-  const maxCancellations = MAX_CANCELLATIONS_PER_RUN;
+  const maxCancellations = MAX_AUTOMATIC_CANCELLATIONS_PER_RUN;
   let onlyOrgId: string | undefined;
   let onlyBookingId: string | undefined;
   let dryRunRequested = true;
