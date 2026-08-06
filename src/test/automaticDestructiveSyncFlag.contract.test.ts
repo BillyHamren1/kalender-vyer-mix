@@ -108,3 +108,55 @@ describe('säkerhetslogg', () => {
     expect(FLAG).not.toMatch(/accessToken|apikey|service_role/i);
   });
 });
+
+// ── Runtime: handlern anropar aldrig RPC:n när flaggan inte är exakt "true" ──
+import { applyBookingCancellation } from '../../supabase/functions/_shared/cancellation-handler';
+
+const ORG = '11111111-1111-1111-1111-111111111111';
+const existing = { id: 'booking-1', version: 1, status: 'CONFIRMED', organization_id: ORG };
+const evidence = { reason: 'cancelled', source_status: 'CANCELLED', source_revision: '2026-08-01T10:00:00Z', organization_id: ORG };
+
+function spyClient() {
+  const calls: any[] = [];
+  return {
+    calls,
+    from() { throw new Error('no table mutations allowed'); },
+    rpc: async (fn: string, args: any) => { calls.push({ fn, args }); return { data: { success: true, outcome: 'cancelled' }, error: null }; },
+  } as any;
+}
+
+function setFlag(value: string | undefined) {
+  (globalThis as any).Deno = { env: { get: (k: string) => (k === 'AUTOMATIC_DESTRUCTIVE_SYNC_ENABLED' ? value : undefined) } };
+}
+
+describe('runtime-blockering av applyBookingCancellation', () => {
+  for (const [label, value] of [['flagga saknas', undefined], ['flagga är false', 'false'], ['flagga är TRUE (fel case)', 'TRUE'], ['flagga är tom', '']] as const) {
+    it(`${label} → ingen RPC, ingen mutation`, async () => {
+      setFlag(value as any);
+      const client = spyClient();
+      const res = await applyBookingCancellation(client, existing, evidence as any);
+      expect(client.calls).toHaveLength(0);
+      expect(res.status).toBe('error');
+      expect(res.outcome).toBe('automatic_destructive_sync_disabled');
+      delete (globalThis as any).Deno;
+    });
+  }
+
+  it('flagga exakt "true" → RPC anropas', async () => {
+    setFlag('true');
+    const client = spyClient();
+    const res = await applyBookingCancellation(client, existing, evidence as any);
+    expect(client.calls[0].fn).toBe('apply_booking_cancellation_atomic');
+    expect(res.status).toBe('cancelled');
+    delete (globalThis as any).Deno;
+  });
+});
+
+describe('cron-jobbet för cancellation', () => {
+  it('en migration unschedular reconcile-booking-status idempotent', async () => {
+    const fs = await import('fs');
+    const files = fs.readdirSync(resolve(process.cwd(), 'supabase/migrations'));
+    const hit = files.filter((f) => read(`supabase/migrations/${f}`).includes('reconcile-booking-status') && read(`supabase/migrations/${f}`).includes('cron.unschedule'));
+    expect(hit.length).toBeGreaterThan(0);
+  });
+});
