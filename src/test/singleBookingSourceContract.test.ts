@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
   parseSingleBookingSourceResponse,
   evaluateDestructiveAction,
@@ -6,6 +6,13 @@ import {
 } from '../../supabase/functions/_shared/singleBookingSource';
 import { applyBookingCancellation } from '../../supabase/functions/_shared/cancellation-handler';
 import { validateSingleBookingResult, buildSingleBookingEnvelope } from '../../supabase/functions/_shared/singleBookingResult';
+
+// Flaggan AUTOMATIC_DESTRUCTIVE_SYNC_ENABLED måste vara PÅ för dessa handler-tester.
+beforeAll(() => {
+  (globalThis as any).Deno = { env: { get: (k: string) => (k === 'AUTOMATIC_DESTRUCTIVE_SYNC_ENABLED' ? 'true' : undefined) } };
+});
+afterAll(() => { delete (globalThis as any).Deno; });
+
 
 const expected = { bookingId: '2602-13', organizationId: 'org-1' };
 
