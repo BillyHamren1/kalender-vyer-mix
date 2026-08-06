@@ -1,7 +1,8 @@
 
 import { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
-import { fetchCalendarEvents } from '@/services/eventService';
+import { fetchCalendarEvents, resolveCalendarWindow } from '@/services/eventService';
+import { addDays, subDays, format } from 'date-fns';
 import { toast } from 'sonner';
 import { CalendarContext } from '@/App';
 
