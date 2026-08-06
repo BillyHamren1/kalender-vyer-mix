@@ -3,7 +3,7 @@
  *
  * Täcker obligatoriska tester 1–13.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import {
   loadAppliedSourceRevision,
   recordAppliedSourceRevision,
@@ -15,6 +15,13 @@ import {
 } from '../../supabase/functions/_shared/singleBookingSource';
 import { applyBookingCancellation } from '../../supabase/functions/_shared/cancellation-handler';
 import { validateSingleBookingResult } from '../../supabase/functions/_shared/singleBookingResult';
+
+// Flaggan AUTOMATIC_DESTRUCTIVE_SYNC_ENABLED måste vara PÅ för dessa handler-tester.
+beforeAll(() => {
+  (globalThis as any).Deno = { env: { get: (k: string) => (k === 'AUTOMATIC_DESTRUCTIVE_SYNC_ENABLED' ? 'true' : undefined) } };
+});
+afterAll(() => { delete (globalThis as any).Deno; });
+
 
 const BOOKING = 'b-1';
 const ORG = 'org-1';

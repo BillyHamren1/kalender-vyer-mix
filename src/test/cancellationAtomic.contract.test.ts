@@ -4,13 +4,21 @@
  * Test 1–16: RPC-kontraktet (statisk SQL-granskning) + edge-handlerns
  * beteende när databasen svarar med olika outcomes.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
   applyBookingCancellation,
   splitSourceRevision,
 } from '../../supabase/functions/_shared/cancellation-handler';
+
+// Flaggan måste vara PÅ för att testa den atomiska handlerns beteende.
+// (Blockeringen när flaggan är AV testas i automaticDestructiveSyncFlag.contract.test.ts.)
+beforeAll(() => {
+  (globalThis as any).Deno = { env: { get: (k: string) => (k === 'AUTOMATIC_DESTRUCTIVE_SYNC_ENABLED' ? 'true' : undefined) } };
+});
+afterAll(() => { delete (globalThis as any).Deno; });
+
 
 const ORG = '11111111-1111-1111-1111-111111111111';
 const BID = 'booking-1';

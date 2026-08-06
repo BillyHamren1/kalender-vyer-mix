@@ -1,0 +1,162 @@
+import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+
+const read = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf-8');
+
+const FLAG = read('supabase/functions/_shared/destructiveSyncFlag.ts');
+const HANDLER = read('supabase/functions/_shared/cancellation-handler.ts');
+const RECONCILE = read('supabase/functions/reconcile-booking-status/index.ts');
+const IMPORT = read('supabase/functions/import-bookings/index.ts');
+
+// Ren funktion importeras statiskt via eval av modulen? Nej — enkel spegling:
+function isEnabled(raw: string | null | undefined) {
+  return raw === 'true';
+}
+
+describe('AUTOMATIC_DESTRUCTIVE_SYNC_ENABLED feature flag', () => {
+  it('endast exakt "true" aktiverar automation', () => {
+    expect(isEnabled('true')).toBe(true);
+    for (const v of [undefined, null, '', 'false', 'TRUE', '1', 'yes', ' true ']) {
+      expect(isEnabled(v as any)).toBe(false);
+    }
+    expect(FLAG).toContain("raw === 'true'");
+  });
+
+  it('hård gräns är 1 och definieras server-side', () => {
+    expect(FLAG).toContain('MAX_AUTOMATIC_CANCELLATIONS_PER_RUN = 1');
+  });
+});
+
+describe('cancellation-handler är låst (defense in depth)', () => {
+  it('kontrollerar flaggan innan RPC-anropet', () => {
+    const guardIdx = HANDLER.indexOf('isAutomaticDestructiveSyncEnabled()');
+    const rpcIdx = HANDLER.indexOf("supabase.rpc('apply_booking_cancellation_atomic'");
+    expect(guardIdx).toBeGreaterThan(-1);
+    expect(rpcIdx).toBeGreaterThan(-1);
+    expect(guardIdx).toBeLessThan(rpcIdx);
+  });
+
+  it('returnerar automatic_destructive_sync_disabled som error-outcome', () => {
+    expect(HANDLER).toContain("outcome: 'automatic_destructive_sync_disabled'");
+    expect(HANDLER).toMatch(/status: 'error',[\s\S]{0,200}automatic_destructive_sync_disabled/);
+  });
+});
+
+describe('reconcile-booking-status', () => {
+  it('kan inte höja maxgränsen via request body', () => {
+    expect(RECONCILE).not.toContain('body?.max_cancellations');
+    expect(RECONCILE).toContain('const maxCancellations = MAX_AUTOMATIC_CANCELLATIONS_PER_RUN');
+  });
+
+  it('dry-run är standard', () => {
+    expect(RECONCILE).toContain('let dryRunRequested = true');
+    expect(RECONCILE).toContain('let confirmed = false');
+  });
+
+  it('live-apply kräver flagga + dry_run=false + confirm + exakt en booking_id', () => {
+    const line = RECONCILE.split('\n').find((l) => l.includes('const liveApply ='))!;
+    expect(line).toContain('flagEnabled');
+    expect(line).toContain('dryRunRequested === false');
+    expect(line).toContain('confirmed === true');
+    expect(line).toContain('onlyBookingId');
+  });
+
+  it('bred körning utan booking_id kan aldrig live-avboka', () => {
+    // liveApply kräver onlyBookingId; utan den blir !liveApply → continue före mutation
+    expect(RECONCILE).toContain('if (!liveApply) {');
+    const blockIdx = RECONCILE.indexOf('if (!liveApply) {');
+    const applyIdx = RECONCILE.indexOf('await applyBookingCancellation(');
+    expect(blockIdx).toBeLessThan(applyIdx);
+  });
+
+  it('loggar blockerad kandidat strukturerat', () => {
+    expect(RECONCILE).toContain('logBlockedCancellation({');
+    expect(RECONCILE).toContain('caller: "reconcile-booking-status"');
+  });
+});
+
+describe('import-bookings cancellation-väg', () => {
+  it('blockerar innan handlern anropas', () => {
+    const guardIdx = IMPORT.indexOf('if (!isAutomaticDestructiveSyncEnabled()) {');
+    const applyIdx = IMPORT.indexOf('await applyBookingCancellation(');
+    expect(guardIdx).toBeGreaterThan(-1);
+    expect(guardIdx).toBeLessThan(applyIdx);
+  });
+
+  it('jobbet blir inte completed (outcome failed) och cursorn flyttas inte', () => {
+    const seg = IMPORT.slice(
+      IMPORT.indexOf('if (!isAutomaticDestructiveSyncEnabled()) {'),
+      IMPORT.indexOf('await applyBookingCancellation('),
+    );
+    expect(seg).toContain("outcome: 'failed'");
+    expect(seg).toContain('AUTOMATIC_DESTRUCTIVE_SYNC_DISABLED');
+  });
+
+  it('felet är permanent (ingen evig retry som flyttar cursor)', () => {
+    const contract = read('supabase/functions/_shared/singleBookingResult.ts');
+    expect(contract).toContain("'automatic_destructive_sync_disabled'");
+  });
+});
+
+describe('säkerhetslogg', () => {
+  it('loggar booking_id, organization_id, revision och caller utan secrets', () => {
+    expect(FLAG).toContain('booking_id');
+    expect(FLAG).toContain('organization_id');
+    expect(FLAG).toContain('source_revision');
+    expect(FLAG).toContain('caller');
+    expect(FLAG).not.toMatch(/accessToken|apikey|service_role/i);
+  });
+});
+
+// ── Runtime: handlern anropar aldrig RPC:n när flaggan inte är exakt "true" ──
+import { applyBookingCancellation } from '../../supabase/functions/_shared/cancellation-handler';
+
+const ORG = '11111111-1111-1111-1111-111111111111';
+const existing = { id: 'booking-1', version: 1, status: 'CONFIRMED', organization_id: ORG };
+const evidence = { reason: 'cancelled', source_status: 'CANCELLED', source_revision: '2026-08-01T10:00:00Z', organization_id: ORG };
+
+function spyClient() {
+  const calls: any[] = [];
+  return {
+    calls,
+    from() { throw new Error('no table mutations allowed'); },
+    rpc: async (fn: string, args: any) => { calls.push({ fn, args }); return { data: { success: true, outcome: 'cancelled' }, error: null }; },
+  } as any;
+}
+
+function setFlag(value: string | undefined) {
+  (globalThis as any).Deno = { env: { get: (k: string) => (k === 'AUTOMATIC_DESTRUCTIVE_SYNC_ENABLED' ? value : undefined) } };
+}
+
+describe('runtime-blockering av applyBookingCancellation', () => {
+  for (const [label, value] of [['flagga saknas', undefined], ['flagga är false', 'false'], ['flagga är TRUE (fel case)', 'TRUE'], ['flagga är tom', '']] as const) {
+    it(`${label} → ingen RPC, ingen mutation`, async () => {
+      setFlag(value as any);
+      const client = spyClient();
+      const res = await applyBookingCancellation(client, existing, evidence as any);
+      expect(client.calls).toHaveLength(0);
+      expect(res.status).toBe('error');
+      expect(res.outcome).toBe('automatic_destructive_sync_disabled');
+      delete (globalThis as any).Deno;
+    });
+  }
+
+  it('flagga exakt "true" → RPC anropas', async () => {
+    setFlag('true');
+    const client = spyClient();
+    const res = await applyBookingCancellation(client, existing, evidence as any);
+    expect(client.calls[0].fn).toBe('apply_booking_cancellation_atomic');
+    expect(res.status).toBe('cancelled');
+    delete (globalThis as any).Deno;
+  });
+});
+
+describe('cron-jobbet för cancellation', () => {
+  it('en migration unschedular reconcile-booking-status idempotent', async () => {
+    const fs = await import('fs');
+    const files = fs.readdirSync(resolve(process.cwd(), 'supabase/migrations'));
+    const hit = files.filter((f) => read(`supabase/migrations/${f}`).includes('reconcile-booking-status') && read(`supabase/migrations/${f}`).includes('cron.unschedule'));
+    expect(hit.length).toBeGreaterThan(0);
+  });
+});

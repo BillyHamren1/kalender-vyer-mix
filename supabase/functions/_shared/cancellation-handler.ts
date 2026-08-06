@@ -8,6 +8,12 @@
 // tabellmutationer längre — antingen genomförs allt, eller ingenting.
 // Revisions- och lease-kontrollen sker under radlås i samma transaktion.
 
+import {
+  isAutomaticDestructiveSyncEnabled,
+  logBlockedCancellation,
+  AUTOMATIC_DESTRUCTIVE_SYNC_DISABLED,
+} from './destructiveSyncFlag.ts';
+
 export interface ExistingBookingForCancellation {
   id: string;
   version?: number | null;
@@ -42,6 +48,7 @@ export type CancellationOutcome =
   | 'invalid_reservation_token'
   | 'not_found'
   | 'invalid_input'
+  | 'automatic_destructive_sync_disabled'
   | 'failed';
 
 export interface CancellationResult {
@@ -88,6 +95,23 @@ export async function applyBookingCancellation(
   const bookingId = existingBooking.id;
   const result: CancellationResult = { status: 'cancelled', booking_id: bookingId };
   const orgId = existingBooking.organization_id ?? source?.organization_id ?? null;
+
+  // AKUT PRODUKTIONSSKYDD (defense in depth): ingen RPC, ingen mutation när
+  // automatisk destruktiv sync är avstängd — även om en caller glömt kontrollen.
+  if (!isAutomaticDestructiveSyncEnabled()) {
+    logBlockedCancellation({
+      booking_id: bookingId,
+      organization_id: orgId,
+      source_revision: source?.source_revision ?? source?.source_updated_at ?? source?.source_version ?? null,
+      caller: 'applyBookingCancellation',
+    });
+    return {
+      status: 'error',
+      booking_id: bookingId,
+      outcome: 'automatic_destructive_sync_disabled',
+      error: AUTOMATIC_DESTRUCTIVE_SYNC_DISABLED,
+    };
+  }
 
   if (!orgId) {
     return { status: 'error', booking_id: bookingId, outcome: 'invalid_input', error: 'organization_id_required_for_cancellation' };

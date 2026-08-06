@@ -8,12 +8,20 @@
  *  - partiell cleanup rapporteras aldrig som full success
  *  - stale tombstone blockeras
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
   parseSingleBookingSourceResponse,
   evaluateDestructiveAction,
 } from '../../supabase/functions/_shared/singleBookingSource';
 import { applyBookingCancellation } from '../../supabase/functions/_shared/cancellation-handler';
+
+// Flaggan måste vara PÅ för att testa den atomiska handlerns beteende.
+// (Blockeringen när flaggan är AV testas i automaticDestructiveSyncFlag.contract.test.ts.)
+beforeAll(() => {
+  (globalThis as any).Deno = { env: { get: (k: string) => (k === 'AUTOMATIC_DESTRUCTIVE_SYNC_ENABLED' ? 'true' : undefined) } };
+});
+afterAll(() => { delete (globalThis as any).Deno; });
+
 
 const ORG = 'org-1';
 const OTHER_ORG = 'org-2';

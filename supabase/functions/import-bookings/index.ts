@@ -13,6 +13,11 @@ import {
   evaluateDestructiveAction,
 } from '../_shared/singleBookingSource.ts'
 import { applyBookingCancellation } from '../_shared/cancellation-handler.ts'
+import {
+  isAutomaticDestructiveSyncEnabled,
+  logBlockedCancellation,
+  AUTOMATIC_DESTRUCTIVE_SYNC_DISABLED,
+} from '../_shared/destructiveSyncFlag.ts'
 import { loadAppliedSourceRevision, recordAppliedSourceRevision } from '../_shared/appliedSourceRevision.ts'
 import {
   normalizeIncomingRevision,
@@ -2575,6 +2580,24 @@ serve(async (req) => {
               results: { total: 1, imported: 0, failed: 0, errors: [], sync_mode: 'cancellation_idempotent' },
             })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
           }
+        }
+
+        // AKUT PRODUKTIONSSKYDD: automation avstängd => logga kandidaten,
+        // kör INTE cancellation-handlern, jobbet blir inte completed och
+        // batchcursorn flyttas inte (outcome 'failed' + permanent felkod).
+        if (!isAutomaticDestructiveSyncEnabled()) {
+          logBlockedCancellation({
+            booking_id: normalizedSingleBookingId,
+            organization_id: organizationId,
+            source_revision: decision.tombstone.source_updated_at ?? decision.tombstone.source_version ?? null,
+            caller: 'import-bookings:single_booking_cancellation',
+          });
+          return new Response(JSON.stringify(buildSingleBookingEnvelope({
+            bookingId: normalizedSingleBookingId,
+            organizationId,
+            outcome: 'failed',
+            error: AUTOMATIC_DESTRUCTIVE_SYNC_DISABLED,
+          })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
         }
 
         const cancelResult = await applyBookingCancellation(supabase, existingBooking, {
