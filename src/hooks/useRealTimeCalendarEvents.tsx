@@ -3,7 +3,7 @@
 import { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { startOfWeek, endOfWeek, subDays, addDays, format } from 'date-fns';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
-import { fetchCalendarEvents } from '@/services/eventService';
+import { fetchCalendarEvents, resolveCalendarWindow } from '@/services/eventService';
 import { convertToISO8601 } from '@/utils/dateUtils';
 import { fixAllEventTitles } from '@/services/eventTitleFixService';
 import { toast } from 'sonner';
