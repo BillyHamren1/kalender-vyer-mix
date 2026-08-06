@@ -26,7 +26,15 @@ export const useRealTimeCalendarEvents = () => {
   });
 
   // Enhanced event loading with batch fetching (replaces N+1 queries)
-  const loadEvents = useCallback(async (force = false) => {
+  // Vilket datumfönster som just nu är laddat. Används för att avgöra om
+  // navigering (t.ex. två år bakåt) kräver en ny hämtning.
+  const loadedWindowRef = useRef<{ from: string; to: string } | null>(null);
+  const currentDateRef = useRef<Date>(currentDate);
+  currentDateRef.current = currentDate;
+
+  // Enhanced event loading with batch fetching (replaces N+1 queries)
+  const loadEvents = useCallback(async (force = false, anchorOverride?: Date) => {
+    const anchorDate = anchorOverride ?? currentDateRef.current ?? new Date();
     // Säkerhetsnät: oavsett vad som händer i finally-blocket ska UI:t
     // aldrig fastna i evig spinner. Vi släpper isLoading/isMounted efter
     // max 25s — kalendern visar då tom vy istället för låst skärm.
@@ -39,7 +47,12 @@ export const useRealTimeCalendarEvents = () => {
     try {
       setIsLoading(true);
 
-      const calendarEvents = await fetchCalendarEvents();
+      loadedWindowRef.current = (() => {
+        const w = resolveCalendarWindow({ anchorDate });
+        return { from: w.windowFrom, to: w.windowTo };
+      })();
+      const calendarEvents = await fetchCalendarEvents({ anchorDate });
+
 
 
 
