@@ -25,7 +25,6 @@ export const useRealTimeCalendarEvents = () => {
     return stored ? new Date(stored) : new Date();
   });
 
-  // Enhanced event loading with batch fetching (replaces N+1 queries)
   // Vilket datumfönster som just nu är laddat. Används för att avgöra om
   // navigering (t.ex. två år bakåt) kräver en ny hämtning.
   const loadedWindowRef = useRef<{ from: string; to: string } | null>(null);
