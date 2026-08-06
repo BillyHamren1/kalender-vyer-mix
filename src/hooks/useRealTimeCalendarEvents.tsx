@@ -3,7 +3,7 @@
 import { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { startOfWeek, endOfWeek, subDays, addDays, format } from 'date-fns';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
-import { fetchCalendarEvents } from '@/services/eventService';
+import { fetchCalendarEvents, resolveCalendarWindow } from '@/services/eventService';
 import { convertToISO8601 } from '@/utils/dateUtils';
 import { fixAllEventTitles } from '@/services/eventTitleFixService';
 import { toast } from 'sonner';
@@ -25,8 +25,15 @@ export const useRealTimeCalendarEvents = () => {
     return stored ? new Date(stored) : new Date();
   });
 
+  // Vilket datumfönster som just nu är laddat. Används för att avgöra om
+  // navigering (t.ex. två år bakåt) kräver en ny hämtning.
+  const loadedWindowRef = useRef<{ from: string; to: string } | null>(null);
+  const currentDateRef = useRef<Date>(currentDate);
+  currentDateRef.current = currentDate;
+
   // Enhanced event loading with batch fetching (replaces N+1 queries)
-  const loadEvents = useCallback(async (force = false) => {
+  const loadEvents = useCallback(async (force = false, anchorOverride?: Date) => {
+    const anchorDate = anchorOverride ?? currentDateRef.current ?? new Date();
     // Säkerhetsnät: oavsett vad som händer i finally-blocket ska UI:t
     // aldrig fastna i evig spinner. Vi släpper isLoading/isMounted efter
     // max 25s — kalendern visar då tom vy istället för låst skärm.
@@ -39,7 +46,12 @@ export const useRealTimeCalendarEvents = () => {
     try {
       setIsLoading(true);
 
-      const calendarEvents = await fetchCalendarEvents();
+      loadedWindowRef.current = (() => {
+        const w = resolveCalendarWindow({ anchorDate });
+        return { from: w.windowFrom, to: w.windowTo };
+      })();
+      const calendarEvents = await fetchCalendarEvents({ anchorDate });
+
 
 
 
@@ -295,7 +307,23 @@ export const useRealTimeCalendarEvents = () => {
     };
   }, [loadEvents, handleCalendarEventChange]);
 
+  // Navigering utanför det laddade fönstret (t.ex. två år bakåt) ska ladda
+  // den perioden istället för att visa en tom kalender.
+  useEffect(() => {
+    const win = loadedWindowRef.current;
+    if (!win) return;
+    const day = format(currentDate, 'yyyy-MM-dd');
+    // Marginal så att vi laddar om innan man bläddrar rakt ut ur fönstret.
+    const softFrom = format(addDays(new Date(win.from), 14), 'yyyy-MM-dd');
+    const softTo = format(subDays(new Date(win.to), 14), 'yyyy-MM-dd');
+    if (day < softFrom || day > softTo) {
+      console.log('[useRealTimeCalendarEvents] Datum utanför laddat fönster — laddar om för', day);
+      void loadEvents(true, currentDate);
+    }
+  }, [currentDate, loadEvents]);
+
   // Handle date changes
+
   const handleDatesSet = useCallback((dateInfo: any) => {
     const newDate = dateInfo.start;
 

@@ -75,7 +75,44 @@ const PRIMARY_QUERY_TIMEOUT_MS = 15_000;
 const SECONDARY_QUERY_TIMEOUT_MS = 10_000;
 
 
-export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
+export interface FetchCalendarEventsOptions {
+  /** Datum användaren tittar på i kalendern. Fönstret centreras kring detta. */
+  anchorDate?: Date | string | null;
+  /** Antal dagar bakåt från ankaret. */
+  daysBack?: number;
+  /** Antal dagar framåt från ankaret. */
+  daysForward?: number;
+}
+
+/**
+ * Fönstret centreras kring det datum användaren faktiskt tittar på, så att
+ * navigering två år bakåt laddar den veckans jobb. Fönstret unionas alltid med
+ * ett basfönster kring idag så att "nuet" aldrig försvinner när man bläddrar.
+ */
+export const CALENDAR_WINDOW_DAYS_BACK = 180;
+export const CALENDAR_WINDOW_DAYS_FORWARD = 180;
+
+export const resolveCalendarWindow = (options?: FetchCalendarEventsOptions) => {
+  const daysBack = options?.daysBack ?? CALENDAR_WINDOW_DAYS_BACK;
+  const daysForward = options?.daysForward ?? CALENDAR_WINDOW_DAYS_FORWARD;
+  const today = new Date();
+  const anchorRaw = options?.anchorDate ? new Date(options.anchorDate) : today;
+  const anchor = Number.isNaN(anchorRaw.getTime()) ? today : anchorRaw;
+
+  const candidatesFrom = [subDays(anchor, daysBack), subDays(today, 30)];
+  const candidatesTo = [addDays(anchor, daysForward), addDays(today, 90)];
+  const from = new Date(Math.min(...candidatesFrom.map(d => d.getTime())));
+  const to = new Date(Math.max(...candidatesTo.map(d => d.getTime())));
+
+  return {
+    windowFrom: format(from, 'yyyy-MM-dd'),
+    windowTo: format(to, 'yyyy-MM-dd'),
+  };
+};
+
+export const fetchCalendarEvents = async (
+  options?: FetchCalendarEventsOptions,
+): Promise<CalendarEvent[]> => {
   const t0 = performance.now();
   console.log('📅 [fetchCalendarEvents] Starting fetch...');
   
@@ -92,14 +129,8 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
   // Paginated fetch — PostgREST hard caps single requests at 1000 rows.
   // Loop with .range() until a partial page is returned.
   const PAGE_SIZE = 1000;
-  // Personalkalendern måste behålla historiska jobb när användaren navigerar
-  // bakåt. Den tidigare 30-dagarsgränsen gjorde att fullt intakta DB-rader i
-  // april–juni såg raderade ut i augusti. Pagineringen nedan håller även ett
-  // större fönster säkert från PostgRESTs 1000-radersgräns.
-  const CALENDAR_WINDOW_DAYS_BACK = 365;
-  const CALENDAR_WINDOW_DAYS_FORWARD = 180;
-  const windowFrom = format(subDays(new Date(), CALENDAR_WINDOW_DAYS_BACK), 'yyyy-MM-dd');
-  const windowTo = format(addDays(new Date(), CALENDAR_WINDOW_DAYS_FORWARD), 'yyyy-MM-dd');
+  const { windowFrom, windowTo } = resolveCalendarWindow(options);
+
 
   const realRows: any[] = [];
   let pageIndex = 0;

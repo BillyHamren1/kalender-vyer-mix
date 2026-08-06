@@ -1,7 +1,8 @@
 
 import { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
-import { fetchCalendarEvents } from '@/services/eventService';
+import { fetchCalendarEvents, resolveCalendarWindow } from '@/services/eventService';
+import { addDays, subDays, format } from 'date-fns';
 import { toast } from 'sonner';
 import { CalendarContext } from '@/App';
 
@@ -21,8 +22,14 @@ export const useCalendarEvents = () => {
     return stored ? new Date(stored) : new Date();
   });
 
+  // Vilket datumfönster som just nu är laddat.
+  const loadedWindowRef = useRef<{ from: string; to: string } | null>(null);
+  const currentDateRef = useRef<Date>(currentDate);
+  currentDateRef.current = currentDate;
+
   // Memoize the loadEvents function to prevent recreations
-  const loadEvents = useCallback(async (force = false) => {
+  const loadEvents = useCallback(async (force = false, anchorOverride?: Date) => {
+    const anchorDate = anchorOverride ?? currentDateRef.current ?? new Date();
     // Skip if we've updated in the last 3 seconds and this isn't a forced refresh
     if (!force && lastUpdateRef.current) {
       const timeSinceLastUpdate = Date.now() - lastUpdateRef.current.getTime();
@@ -35,7 +42,10 @@ export const useCalendarEvents = () => {
     try {
       console.log(`📅 [useCalendarEvents] loadEvents(force=${force}) starting...`);
       setIsLoading(true);
-      const data = await fetchCalendarEvents();
+      const win = resolveCalendarWindow({ anchorDate });
+      loadedWindowRef.current = { from: win.windowFrom, to: win.windowTo };
+      const data = await fetchCalendarEvents({ anchorDate });
+
       if (activeRef.current) {
         // Anti-flicker guard: if a non-forced poll returns dramatically fewer
         // events than we previously had (e.g. sync mid-flight), keep the
@@ -110,7 +120,21 @@ export const useCalendarEvents = () => {
     };
   }, [loadEvents]);
 
+  // Navigering utanför laddat fönster → ladda den perioden.
+  useEffect(() => {
+    const win = loadedWindowRef.current;
+    if (!win) return;
+    const day = format(currentDate, 'yyyy-MM-dd');
+    const softFrom = format(addDays(new Date(win.from), 14), 'yyyy-MM-dd');
+    const softTo = format(subDays(new Date(win.to), 14), 'yyyy-MM-dd');
+    if (day < softFrom || day > softTo) {
+      console.log('[useCalendarEvents] Datum utanför laddat fönster — laddar om för', day);
+      void loadEvents(true, currentDate);
+    }
+  }, [currentDate, loadEvents]);
+
   // Optimized handleDatesSet to only trigger when date changes significantly (more than 1 day)
+
   const handleDatesSet = useCallback((dateInfo: any) => {
     const newDate = dateInfo.start;
     
