@@ -92,11 +92,11 @@ export const fetchCalendarEvents = async (): Promise<CalendarEvent[]> => {
   // Paginated fetch — PostgREST hard caps single requests at 1000 rows.
   // Loop with .range() until a partial page is returned.
   const PAGE_SIZE = 1000;
-  // Smalare fönster = snabbare kalenderladdning. Tidigare 60d back / 365d
-  // forward var rotorsaken till att hela appen kändes seg när någon vy
-  // monterade kalenderhooken. Vi visar nu ~3 månader bakåt och 6 framåt;
-  // användaren kan navigera och i framtiden ska fönstret följa vyn.
-  const CALENDAR_WINDOW_DAYS_BACK = 30;
+  // Personalkalendern måste behålla historiska jobb när användaren navigerar
+  // bakåt. Den tidigare 30-dagarsgränsen gjorde att fullt intakta DB-rader i
+  // april–juni såg raderade ut i augusti. Pagineringen nedan håller även ett
+  // större fönster säkert från PostgRESTs 1000-radersgräns.
+  const CALENDAR_WINDOW_DAYS_BACK = 365;
   const CALENDAR_WINDOW_DAYS_FORWARD = 180;
   const windowFrom = format(subDays(new Date(), CALENDAR_WINDOW_DAYS_BACK), 'yyyy-MM-dd');
   const windowTo = format(addDays(new Date(), CALENDAR_WINDOW_DAYS_FORWARD), 'yyyy-MM-dd');
