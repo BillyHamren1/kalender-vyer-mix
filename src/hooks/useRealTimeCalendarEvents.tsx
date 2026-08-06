@@ -307,7 +307,23 @@ export const useRealTimeCalendarEvents = () => {
     };
   }, [loadEvents, handleCalendarEventChange]);
 
+  // Navigering utanför det laddade fönstret (t.ex. två år bakåt) ska ladda
+  // den perioden istället för att visa en tom kalender.
+  useEffect(() => {
+    const win = loadedWindowRef.current;
+    if (!win) return;
+    const day = format(currentDate, 'yyyy-MM-dd');
+    // Marginal så att vi laddar om innan man bläddrar rakt ut ur fönstret.
+    const softFrom = format(addDays(new Date(win.from), 14), 'yyyy-MM-dd');
+    const softTo = format(subDays(new Date(win.to), 14), 'yyyy-MM-dd');
+    if (day < softFrom || day > softTo) {
+      console.log('[useRealTimeCalendarEvents] Datum utanför laddat fönster — laddar om för', day);
+      void loadEvents(true, currentDate);
+    }
+  }, [currentDate, loadEvents]);
+
   // Handle date changes
+
   const handleDatesSet = useCallback((dateInfo: any) => {
     const newDate = dateInfo.start;
 
