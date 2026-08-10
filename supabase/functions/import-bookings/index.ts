@@ -3908,109 +3908,35 @@ serve(async (req) => {
             console.log(`Status changed for ${bookingData.id}: ${existingBooking.status} -> ${bookingData.status}`)
             results.status_changed_bookings.push(bookingData.id)
             
-            // If booking was confirmed but now isn't - REMOVE all calendar events
+            // STEG 3H: normal sync gör ALDRIG destructive lifecycle-cleanup vid
+            // statusändring. CONFIRMED → OFFER/annat uppdaterar endast det
+            // Booking-ägda statusfältet på själva booking-projectionen.
+            // Kalender, projects, jobs, packing och produkter rörs inte.
+            // Canonical CANCELLED hanteras enbart av den separata, skyddade
+            // cancellation-vägen (feature flag + revision + lease + atomisk RPC).
             if (wasConfirmed && !isNowConfirmed) {
-              console.log(`Booking ${bookingData.id} is no longer CONFIRMED - removing calendar events`);
-              
-              // Remove from calendar_events
-              const { error: deleteCalError } = await supabase
-                .from('calendar_events')
-                .delete()
-                .eq('booking_id', existingBooking.id);
-              
-              if (deleteCalError) {
-                console.error(`Error removing calendar events:`, deleteCalError);
-              } else {
-                console.log(`Removed calendar events for booking ${existingBooking.id}`);
-              }
-              
-              // Remove from warehouse_calendar_events
-              const { error: deleteWhError } = await supabase
-                .from('warehouse_calendar_events')
-                .delete()
-                .eq('booking_id', existingBooking.id);
-              
-              if (deleteWhError) {
-                console.error(`Error removing warehouse events:`, deleteWhError);
-              } else {
-                console.log(`Removed warehouse events for booking ${existingBooking.id}`);
-              }
-
-              // Cancel linked projects when booking is no longer confirmed
-              const { error: projCompleteErr } = await supabase
-                .from('projects')
-                .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-                .eq('booking_id', existingBooking.id);
-              
-              if (projCompleteErr) {
-                console.error(`Error cancelling projects for de-confirmed booking:`, projCompleteErr);
-              } else {
-                console.log(`Cancelled projects for de-confirmed booking ${existingBooking.id}`);
-              }
-
-              // Cancel linked jobs
-              const { error: jobCompleteErr } = await supabase
-                .from('jobs')
-                .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-                .eq('booking_id', existingBooking.id);
-              
-              if (jobCompleteErr) {
-                console.error(`Error cancelling jobs for de-confirmed booking:`, jobCompleteErr);
-              } else {
-                console.log(`Cancelled jobs for de-confirmed booking ${existingBooking.id}`);
-              }
-
-              // Remove packing projects
-              const { error: packingErr } = await supabase
-                .from('packing_projects')
-                .delete()
-                .eq('booking_id', existingBooking.id);
-              
-              if (packingErr) {
-                console.error(`Error removing packing projects for de-confirmed booking:`, packingErr);
-              }
-
-              // Remove booking products
-              const { error: productsErr } = await supabase
-                .from('booking_products')
-                .delete()
-                .eq('booking_id', existingBooking.id);
-              
-              if (productsErr) {
-                console.error(`Error removing products for de-confirmed booking:`, productsErr);
-              }
+              console.log('[steg3h] de-confirmation observed — no destructive cleanup in normal sync', JSON.stringify({
+                booking_id: bookingData.id,
+                organization_id: organizationId,
+                from_status: existingBooking.status,
+                to_status: bookingData.status,
+                destructive_cleanup: false,
+              }));
             }
-            
-            // If booking is now confirmed but wasn't before - calendar events will be created below
-            // Also reset viewed flag so it appears as a new booking in the dashboard
-            if (!wasConfirmed && isNowConfirmed) {
-              console.log(`Booking ${bookingData.id} is now CONFIRMED - calendar events will be created and viewed will be reset`);
-              
-              // Reactivate cancelled projects
-              const { error: reactivateProjErr } = await supabase
-                .from('projects')
-                .update({ status: 'planning', updated_at: new Date().toISOString() })
-                .eq('booking_id', existingBooking.id)
-                .eq('status', 'cancelled');
-              
-              if (reactivateProjErr) {
-                console.error(`Error reactivating projects for re-confirmed booking:`, reactivateProjErr);
-              } else {
-                console.log(`Reactivated cancelled projects for re-confirmed booking ${existingBooking.id}`);
-              }
 
-              // Reactivate cancelled jobs
-              const { error: reactivateJobErr } = await supabase
-                .from('jobs')
-                .update({ status: 'active', updated_at: new Date().toISOString() })
-                .eq('booking_id', existingBooking.id)
-                .eq('status', 'cancelled');
-              
-              if (reactivateJobErr) {
-                console.error(`Error reactivating jobs for re-confirmed booking:`, reactivateJobErr);
-              } else {
-                console.log(`Reactivated cancelled jobs for re-confirmed booking ${existingBooking.id}`);
-              }
+            if (bookingStatus === 'CANCELLED') {
+              console.log('[steg3h] cancelled source status in normal sync — routed to protected cancellation path only', JSON.stringify({
+                booking_id: bookingData.id,
+                organization_id: organizationId,
+                automatic_destructive_sync_enabled: isAutomaticDestructiveSyncEnabled(),
+                destructive_cleanup: false,
+              }));
+            }
+
+            // STEG 3H: ingen automatisk reactivation. Planning-ägd project/job-status
+            // ändras aldrig av Booking-status.
+            if (!wasConfirmed && isNowConfirmed) {
+              console.log(`Booking ${bookingData.id} is now CONFIRMED — Planning-owned project/job status left untouched`);
             }
           } else {
             console.log(`Data changed for ${bookingData.id}, updating`)
