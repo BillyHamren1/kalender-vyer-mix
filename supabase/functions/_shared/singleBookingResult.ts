@@ -27,6 +27,7 @@ export type SingleBookingOutcome =
   | 'already_current'  // Extern källa läst, inget att ändra
   | 'not_found'        // Bokningen finns inte externt (och ingen lokal spegling gjordes)
   | 'local_fallback'   // Endast lokal data användes (localOnly / status-demote)
+  | 'cancellation_requires_explicit_apply' // STEG 3L: kandidat, aldrig muterad av normal sync
   | 'partial'          // Något delsteg misslyckades
   | 'failed';          // Hela körningen misslyckades
 
