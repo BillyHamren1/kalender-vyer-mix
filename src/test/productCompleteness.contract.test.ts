@@ -104,7 +104,11 @@ describe('import-bookings destructive paths are gated', () => {
 
   it('merge-delete av booking_products är gated + tenant-filtrerad', () => {
     expect(importSrc).toContain('externalProductCount > 0 && productDeleteAllowed');
-    expect(importSrc).toMatch(/\.in\('id', idsToDelete\)[\s\S]{0,200}\.eq\('organization_id', organizationId\)/);
+    // STEG 3I: merge-delete går via guardedDeleteByIds med explicit ID-lista
+    // och tenant-filter (booking_id + organization_id) i filters.
+    expect(importSrc).toMatch(
+      /guardedDeleteByIds\(supabase, \{\s*table: 'booking_products',\s*ids: idsToDelete,[\s\S]{0,300}organization_id: organizationId/,
+    );
   });
 
   it('product recovery (clear + reimport) blockeras vid incomplete/unknown', () => {
