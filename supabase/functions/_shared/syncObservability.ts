@@ -374,6 +374,7 @@ export function createDryRunClient(
   return new Proxy(client, {
     get(target, prop, receiver) {
       if (prop === '__dryRun') return true;
+      if (prop === '__syncCounters') return counters ?? (target as any).__syncCounters;
       if (prop === 'from') {
         return (table: string) => {
           const builder = target.from(table);
@@ -586,6 +587,7 @@ export function createSafetyGuardedClient(
   return new Proxy(client, {
     get(target, prop, receiver) {
       if (prop === '__safetyGuarded') return true;
+      if (prop === '__syncCounters') return counters;
       if (prop === 'from') {
         return (table: string) => {
           const builder = target.from(table);
