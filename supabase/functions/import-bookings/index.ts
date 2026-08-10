@@ -57,6 +57,21 @@ import {
   PROJECTION_MUTATION_BLOCKED_LOG,
 } from '../_shared/projectionSourceAuthority.ts'
 import type { ProjectionSyncContext } from '../_shared/projectionSourceAuthority.ts'
+// STEG 3G — observability: audit, counters, circuit breaker, dry-run, anomalier.
+import {
+  createSyncCounters,
+  createDryRunClient,
+  createSafetyGuardedClient,
+  resolveDryRun,
+  logSyncAudit,
+  detectSyncAnomalies,
+  logAnomalies,
+  SafetyCircuitBreakerError,
+  SAFETY_LIMITS,
+  SAFETY_CIRCUIT_BREAKER,
+} from '../_shared/syncObservability.ts'
+
+
 
 /**
  * Resolve the organization_id to use for all INSERTs.
@@ -2253,6 +2268,14 @@ serve(async (req) => {
   const stopLeaseRenewal = () => { try { leaseControl?.stop() } catch { /* ignore */ } }
   /** Fail-closed ägarskapskontroll före varje mutationsfas. */
   const assertLeaseOwned = (phase: string) => { leaseControl?.assertOwned(phase) }
+  // STEG 3G: safety counters + dry-run-plan, tillgängliga även i catch.
+  const syncCounters = createSyncCounters()
+  const plannedMutations: Record<string, number> = {}
+  let isDryRun = false
+  const syncStartedMs = Date.now()
+  // Klienten deklareras utanför try så att catch-blocket (release av lease/
+  // revision) kan använda den.
+  let supabase: any = null
 
   try {
     // Header 'x-lovable-change-source' forwards to Postgres via PostgREST and
@@ -2260,7 +2283,7 @@ serve(async (req) => {
     // an external Booking-source change (=> may set needs_review). Without it,
     // service_role writes are treated as internal (see migration
     // 20260720_needs_review_source_opt_in).
-    const supabase = createClient(
+    const rawSupabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
       {
@@ -2269,8 +2292,24 @@ serve(async (req) => {
         },
       }
     )
+    supabase = createSafetyGuardedClient(rawSupabase, syncCounters, {});
 
     const body = await req.json();
+
+    // STEG 3G: dry-run kräver explicit dry_run:true + exakt ett booking_id.
+    // Gränserna i SAFETY_LIMITS läses aldrig från requesten.
+    const dryRunResolution = resolveDryRun(body);
+    isDryRun = dryRunResolution.dryRun;
+    if (dryRunResolution.reason) {
+      console.warn('[import-bookings] dry_run ignored', JSON.stringify({ reason: dryRunResolution.reason }));
+    }
+    // Alla skrivningar går genom en guardad klient (counters + circuit breaker).
+    // I dry-run går de dessutom genom en no-op-klient: noll DB-mutationer.
+    if (isDryRun) {
+      supabase = createDryRunClient(supabase, plannedMutations);
+    }
+
+
 
     const {
       quiet = false, 
@@ -4778,8 +4817,49 @@ serve(async (req) => {
       }
     }
 
+    // STEG 3G: dry-run — inga DB-mutationer har skett, ingen revision commit:as,
+    // ingen cursor flyttas och jobbet markeras aldrig completed.
+    if (isDryRun) {
+      stopLeaseRenewal();
+      if (guardedIncomingRevision && normalizedSingleBookingId) {
+        try {
+          await releaseCanonicalRevision(supabase, {
+            bookingId: normalizedSingleBookingId,
+            organizationId,
+            incoming: guardedIncomingRevision,
+            reservationToken: guardedReservationToken,
+          });
+        } catch (relErr) {
+          console.warn('[import-bookings] dry-run revision release failed', relErr);
+        }
+      }
+      const dryAnomalies = detectSyncAnomalies({ counters: syncCounters });
+      logAnomalies(dryAnomalies, { booking_id: normalizedSingleBookingId, organization_id: organizationId });
+      const dryAudit = logSyncAudit({
+        organization_id: organizationId,
+        booking_id: normalizedSingleBookingId,
+        outcome: 'dry_run',
+        duration_ms: Date.now() - syncStartedMs,
+        dry_run: true,
+        counters: syncCounters,
+        planned_mutations: plannedMutations,
+        anomalies: dryAnomalies,
+      });
+      return new Response(JSON.stringify({
+        dry_run: true,
+        completed: false,
+        cursor_moved: false,
+        booking_id: normalizedSingleBookingId,
+        organization_id: organizationId,
+        planned_mutations: plannedMutations,
+        safety_limits: SAFETY_LIMITS,
+        audit: dryAudit,
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+    }
+
     if (isSingleBookingRefresh) {
       const outcome = deriveSingleBookingOutcome(results as any);
+
 
       // UPPGIFT C/D (2H): applied revision skrivs ENBART av commit-RPC:n, som
       // atomiskt uppdaterar booking_source_state (authoritative current state),
@@ -4858,12 +4938,38 @@ serve(async (req) => {
         results,
       });
 
+      // STEG 3G: strukturerad sync-audit + anomalidetektering (aldrig secrets).
+      syncCounters.failures = results.failed ?? 0;
+      if (outcome === 'partial') syncCounters.partial_failures += 1;
+      const auditRow: any = Array.isArray(externalData?.data) ? externalData.data[0] : null;
+      const anomalies = detectSyncAnomalies({
+        counters: syncCounters,
+        sourceRevision: typeof auditRow?.version === 'number' ? auditRow.version : null,
+        recentPartialFailures: syncCounters.partial_failures,
+      });
+      logAnomalies(anomalies, { booking_id: normalizedSingleBookingId, organization_id: organizationId });
+      logSyncAudit({
+        organization_id: organizationId,
+        booking_id: normalizedSingleBookingId,
+        booking_number: auditRow?.booking_number ?? auditRow?.number ?? null,
+        source_revision: auditRow?.updated_at ?? auditRow?.source_updated_at ?? auditRow?.version ?? null,
+        previous_applied_revision: null,
+        outcome,
+        duration_ms: Date.now() - syncStartedMs,
+        worker_id: typeof body?.worker_id === 'string' ? body.worker_id : null,
+        batch_id: typeof body?.batch_id === 'string' ? body.batch_id : null,
+        dry_run: false,
+        counters: syncCounters,
+        anomalies,
+      });
+
       console.log('[import-bookings] single result contract', JSON.stringify({
         booking_id: envelope.booking_id,
         organization_id: envelope.organization_id,
         outcome: envelope.outcome,
         completed: envelope.completed,
       }));
+
       return new Response(JSON.stringify(envelope), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
@@ -4879,13 +4985,61 @@ serve(async (req) => {
     )
 
   } catch (error) {
+    // STEG 3G: circuit breaker — stoppade FÖRE mutationen. Aldrig completed,
+    // ingen commit, ingen cursor; reservationen släpps som vid krasch nedan.
+    if (error instanceof SafetyCircuitBreakerError) {
+      stopLeaseRenewal()
+      syncCounters.failures += 1
+      logSyncAudit({
+        organization_id: ctxOrgId,
+        booking_id: ctxBookingId,
+        outcome: 'failed',
+        duration_ms: Date.now() - syncStartedMs,
+        dry_run: isDryRun,
+        counters: syncCounters,
+        planned_mutations: isDryRun ? plannedMutations : null,
+        anomalies: [SAFETY_CIRCUIT_BREAKER],
+      })
+      if (guardedIncomingRevision && ctxBookingId && ctxOrgId && supabase) {
+        try {
+          await releaseCanonicalRevision(supabase, {
+            bookingId: ctxBookingId,
+            organizationId: ctxOrgId,
+            incoming: guardedIncomingRevision,
+            reservationToken: guardedReservationToken,
+          })
+        } catch (relErr) {
+          console.error('[import-bookings] revision release failed after circuit breaker', relErr)
+        }
+      }
+      return new Response(
+        JSON.stringify(buildSingleBookingEnvelope({
+          bookingId: ctxBookingId,
+          organizationId: ctxOrgId,
+          outcome: 'failed',
+          error: error.detail.reason ?? SAFETY_CIRCUIT_BREAKER,
+        })),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
+      )
+    }
     // STEG 2I: förlorat/overifierat lease-ägarskap → ingen commit, ingen
     // applied/completed, ingen cursorförflyttning. Release endast om vi
     // fortfarande äger token.
     if (error instanceof LeaseOwnershipLostError) {
       const failure = error.failure
       stopLeaseRenewal()
+      syncCounters.lease_losses += 1
+      logSyncAudit({
+        organization_id: ctxOrgId,
+        booking_id: ctxBookingId,
+        outcome: 'failed',
+        duration_ms: Date.now() - syncStartedMs,
+        dry_run: isDryRun,
+        counters: syncCounters,
+        anomalies: ['lease_takeover'],
+      })
       console.error('[import-bookings] import aborted — lease ownership lost', JSON.stringify(failure))
+
       if (failure.kind === 'unverified' && guardedIncomingRevision && ctxBookingId && ctxOrgId) {
         try {
           await releaseCanonicalRevision(supabase, {
