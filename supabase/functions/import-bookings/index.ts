@@ -2941,6 +2941,7 @@ serve(async (req) => {
       updated_bookings: [] as string[],
       status_changed_bookings: [] as string[],
       cancelled_bookings_skipped: [] as string[],
+      cancellation_candidates: [] as string[],
       duplicates_skipped: [] as string[],
       unchanged_bookings_skipped: [] as string[],
       products_updated_bookings: [] as string[],
