@@ -4817,8 +4817,49 @@ serve(async (req) => {
       }
     }
 
+    // STEG 3G: dry-run — inga DB-mutationer har skett, ingen revision commit:as,
+    // ingen cursor flyttas och jobbet markeras aldrig completed.
+    if (isDryRun) {
+      stopLeaseRenewal();
+      if (guardedIncomingRevision && normalizedSingleBookingId) {
+        try {
+          await releaseCanonicalRevision(supabase, {
+            bookingId: normalizedSingleBookingId,
+            organizationId,
+            incoming: guardedIncomingRevision,
+            reservationToken: guardedReservationToken,
+          });
+        } catch (relErr) {
+          console.warn('[import-bookings] dry-run revision release failed', relErr);
+        }
+      }
+      const dryAnomalies = detectSyncAnomalies({ counters: syncCounters });
+      logAnomalies(dryAnomalies, { booking_id: normalizedSingleBookingId, organization_id: organizationId });
+      const dryAudit = logSyncAudit({
+        organization_id: organizationId,
+        booking_id: normalizedSingleBookingId,
+        outcome: 'dry_run',
+        duration_ms: Date.now() - syncStartedMs,
+        dry_run: true,
+        counters: syncCounters,
+        planned_mutations: plannedMutations,
+        anomalies: dryAnomalies,
+      });
+      return new Response(JSON.stringify({
+        dry_run: true,
+        completed: false,
+        cursor_moved: false,
+        booking_id: normalizedSingleBookingId,
+        organization_id: organizationId,
+        planned_mutations: plannedMutations,
+        safety_limits: SAFETY_LIMITS,
+        audit: dryAudit,
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+    }
+
     if (isSingleBookingRefresh) {
       const outcome = deriveSingleBookingOutcome(results as any);
+
 
       // UPPGIFT C/D (2H): applied revision skrivs ENBART av commit-RPC:n, som
       // atomiskt uppdaterar booking_source_state (authoritative current state),
