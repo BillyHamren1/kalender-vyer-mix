@@ -12,11 +12,11 @@ import {
   parseSingleBookingSourceResponse,
   evaluateDestructiveAction,
 } from '../_shared/singleBookingSource.ts'
-import { applyBookingCancellation } from '../_shared/cancellation-handler.ts'
+// STEG 3L: import-bookings importerar MEDVETET INTE cancellation-handlern.
+// Normal sync får aldrig utföra destruktiv cancellation.
 import {
-  isAutomaticDestructiveSyncEnabled,
   logBlockedCancellation,
-  AUTOMATIC_DESTRUCTIVE_SYNC_DISABLED,
+  CANCELLATION_REQUIRES_EXPLICIT_APPLY,
 } from '../_shared/destructiveSyncFlag.ts'
 import { loadAppliedSourceRevision, recordAppliedSourceRevision } from '../_shared/appliedSourceRevision.ts'
 import {
