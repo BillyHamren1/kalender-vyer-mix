@@ -3317,6 +3317,31 @@ serve(async (req) => {
 
         // STEG 3D: explicit completeness från Booking-kontraktet (fail-closed).
         // 'complete' krävs för ALL destruktiv produkt-/packing-synk.
+        // STEG 3E: kalender-sync-kontext (ownership + revision + lease + completeness).
+        const calendarSyncCtx: CalendarSyncContext = {
+          sourceFound: true,
+          revisionValidated: true,
+          leaseOwned: true,
+          datesCompleteness: readDateSourceCompleteness(externalBooking),
+          datePresence: buildDatePresence(externalBooking),
+        };
+        const runCalendarReconcile = async () => {
+          try {
+            assertLeaseOwned('calendar_reconcile');
+          } catch (leaseErr) {
+            console.warn(`[Calendar Reconcile] ${CALENDAR_MUTATION_BLOCKED_LOG} booking ${bookingData.id}: lease_not_owned`);
+            throw leaseErr;
+          }
+          const res = await reconcileCalendarEvents(
+            supabase, bookingData, organizationId, results, existingBooking, calendarSyncCtx,
+          );
+          if (!res.ok) {
+            results.failed++;
+            results.errors.push({ booking_id: bookingData.id, error: res.error || 'calendar_reconcile_failed' });
+          }
+          return res;
+        };
+
         const productCompleteness: ProductSourceCompleteness = readProductSourceCompleteness(externalBooking);
         const productDeleteAllowed = canDeleteProducts(productCompleteness);
         if (!productDeleteAllowed) {
@@ -3491,8 +3516,7 @@ serve(async (req) => {
             
             results.unchanged_bookings_skipped.push(bookingData.id)
             // Always reconcile calendar even for unchanged bookings
-            assertLeaseOwned('calendar_reconcile');
-        await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
+            await runCalendarReconcile();
             continue; // SKIP UPDATE - NO CHANGES
           }
           
@@ -3514,8 +3538,7 @@ serve(async (req) => {
             );
             results.imported++;
             // Always reconcile calendar even for warehouse-only recovery
-            assertLeaseOwned('calendar_reconcile');
-        await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
+            await runCalendarReconcile();
             continue;
           }
           
@@ -3525,8 +3548,7 @@ serve(async (req) => {
             const recoveryExternalCount = Array.isArray(externalBooking.products) ? externalBooking.products.length : 0;
             if (recoveryExternalCount === 0) {
               console.warn(`[Product Recovery GUARD] Skipping recovery for booking ${bookingData.id}: external products array is empty (transient_empty_source). Keeping local products intact.`);
-              assertLeaseOwned('calendar_reconcile');
-        await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
+            await runCalendarReconcile();
               continue;
             }
 
@@ -3534,8 +3556,7 @@ serve(async (req) => {
             // Booking explicit rapporterar products_complete === true.
             if (!productDeleteAllowed) {
               console.warn(`[Product Recovery] ${PRODUCT_DESTRUCTIVE_BLOCKED_LOG} booking ${bookingData.id}: completeness=${productCompleteness} → no clear, no delete. Only safe add/update paths may run.`);
-              assertLeaseOwned('calendar_reconcile');
-        await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
+            await runCalendarReconcile();
               continue;
             }
 
@@ -3778,8 +3799,7 @@ serve(async (req) => {
             results.updated_bookings.push(existingBooking.id);
             console.log(`[Product Recovery] Completed for booking ${bookingData.id}`);
             // Always reconcile calendar even for product-only recovery
-            assertLeaseOwned('calendar_reconcile');
-        await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
+            await runCalendarReconcile();
             continue;
           }
           
@@ -4598,8 +4618,7 @@ serve(async (req) => {
         // ═══════════════════════════════════════════════════════════════════
         // DETERMINISTIC CALENDAR RECONCILIATION (extracted to helper)
         // ═══════════════════════════════════════════════════════════════════
-        assertLeaseOwned('calendar_reconcile');
-        await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
+            await runCalendarReconcile();
 
         if (bookingData.status === 'CONFIRMED') {
           // Sync warehouse calendar events for confirmed bookings with dates
