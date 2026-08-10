@@ -4938,12 +4938,38 @@ serve(async (req) => {
         results,
       });
 
+      // STEG 3G: strukturerad sync-audit + anomalidetektering (aldrig secrets).
+      syncCounters.failures = results.failed ?? 0;
+      if (outcome === 'partial') syncCounters.partial_failures += 1;
+      const auditRow: any = Array.isArray(externalData?.data) ? externalData.data[0] : null;
+      const anomalies = detectSyncAnomalies({
+        counters: syncCounters,
+        sourceRevision: typeof auditRow?.version === 'number' ? auditRow.version : null,
+        recentPartialFailures: syncCounters.partial_failures,
+      });
+      logAnomalies(anomalies, { booking_id: normalizedSingleBookingId, organization_id: organizationId });
+      logSyncAudit({
+        organization_id: organizationId,
+        booking_id: normalizedSingleBookingId,
+        booking_number: auditRow?.booking_number ?? auditRow?.number ?? null,
+        source_revision: auditRow?.updated_at ?? auditRow?.source_updated_at ?? auditRow?.version ?? null,
+        previous_applied_revision: null,
+        outcome,
+        duration_ms: Date.now() - syncStartedMs,
+        worker_id: typeof body?.worker_id === 'string' ? body.worker_id : null,
+        batch_id: typeof body?.batch_id === 'string' ? body.batch_id : null,
+        dry_run: false,
+        counters: syncCounters,
+        anomalies,
+      });
+
       console.log('[import-bookings] single result contract', JSON.stringify({
         booking_id: envelope.booking_id,
         organization_id: envelope.organization_id,
         outcome: envelope.outcome,
         completed: envelope.completed,
       }));
+
       return new Response(JSON.stringify(envelope), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
