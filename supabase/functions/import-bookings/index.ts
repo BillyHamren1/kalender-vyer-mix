@@ -28,6 +28,14 @@ import {
   LeaseOwnershipLostError,
 } from '../_shared/canonicalRevisionGuard.ts'
 import type { LeaseControl } from '../_shared/canonicalRevisionGuard.ts'
+import {
+  readProductSourceCompleteness,
+  canDeleteProducts,
+  diffProducts,
+  planPackingReconnect,
+  PRODUCT_DESTRUCTIVE_BLOCKED_LOG,
+} from '../_shared/productCompleteness.ts'
+import type { ProductSourceCompleteness } from '../_shared/productCompleteness.ts'
 
 /**
  * Resolve the organization_id to use for all INSERTs.
