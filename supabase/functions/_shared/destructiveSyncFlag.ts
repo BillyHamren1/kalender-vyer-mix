@@ -9,6 +9,10 @@
 export const AUTOMATIC_DESTRUCTIVE_SYNC_FLAG = 'AUTOMATIC_DESTRUCTIVE_SYNC_ENABLED';
 export const AUTOMATIC_DESTRUCTIVE_SYNC_DISABLED = 'automatic_destructive_sync_disabled';
 
+// STEG 3L: normal sync (import-bookings) får ALDRIG utföra cancellation.
+// CANCELLED i normal sync blir enbart en kandidat med detta outcome.
+export const CANCELLATION_REQUIRES_EXPLICIT_APPLY = 'cancellation_requires_explicit_apply';
+
 /** Hård servergräns när automation någon gång aktiveras. Kan ALDRIG höjas via request. */
 export const MAX_AUTOMATIC_CANCELLATIONS_PER_RUN = 1;
 

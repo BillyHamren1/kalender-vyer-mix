@@ -12,11 +12,11 @@ import {
   parseSingleBookingSourceResponse,
   evaluateDestructiveAction,
 } from '../_shared/singleBookingSource.ts'
-import { applyBookingCancellation } from '../_shared/cancellation-handler.ts'
+// STEG 3L: import-bookings importerar MEDVETET INTE cancellation-handlern.
+// Normal sync får aldrig utföra destruktiv cancellation.
 import {
-  isAutomaticDestructiveSyncEnabled,
   logBlockedCancellation,
-  AUTOMATIC_DESTRUCTIVE_SYNC_DISABLED,
+  CANCELLATION_REQUIRES_EXPLICIT_APPLY,
 } from '../_shared/destructiveSyncFlag.ts'
 import { loadAppliedSourceRevision, recordAppliedSourceRevision } from '../_shared/appliedSourceRevision.ts'
 import {
@@ -2834,7 +2834,10 @@ serve(async (req) => {
 
 
       if (decision.allowed && decision.action === 'cancellation') {
-        // Enda centrala cancellation-vägen (idempotent i handlern).
+        // STEG 3L: normal sync (single/batch/incremental/historical) utför
+        // ALDRIG destruktiv cancellation — inte ens när feature-flaggan är på.
+        // Här loggas endast en kandidat. Enda destruktiva vägen är den
+        // separata, explicit bekräftade reconcile/cancellation-vägen.
         const { data: existingBooking } = await supabase
           .from('bookings')
           .select('id, version, assigned_to_project, assigned_project_id, assigned_project_name, status, organization_id')
@@ -2851,73 +2854,46 @@ serve(async (req) => {
           })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
         }
 
-        // UPPGIFT F: idempotent cancellation — samma canonical revision som
-        // redan applicerats och bokningen är redan CANCELLED → ingen ny
-        // mutation, inga dubbla auditposter, ingen ny version.
+        // Redan avbokad lokalt → inget att göra, ingen kandidat.
         if (String(existingBooking.status ?? '').toUpperCase() === 'CANCELLED') {
-          const tombRev = decision.tombstone.source_updated_at ?? decision.tombstone.source_version ?? null;
-          const alreadyApplied = (revisionLoad.found ? revisionLoad.revisions : []).some((r) =>
-            String(r.sourceUpdatedAt ?? r.sourceVersion ?? '') === String(tombRev ?? '')
-          );
-          if (alreadyApplied) {
-            return new Response(JSON.stringify(buildSingleBookingEnvelope({
-              bookingId: normalizedSingleBookingId,
-              organizationId,
-              outcome: 'already_current',
-              results: { total: 1, imported: 0, failed: 0, errors: [], sync_mode: 'cancellation_idempotent' },
-            })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
-          }
-        }
-
-        // AKUT PRODUKTIONSSKYDD: automation avstängd => logga kandidaten,
-        // kör INTE cancellation-handlern, jobbet blir inte completed och
-        // batchcursorn flyttas inte (outcome 'failed' + permanent felkod).
-        if (!isAutomaticDestructiveSyncEnabled()) {
-          logBlockedCancellation({
-            booking_id: normalizedSingleBookingId,
-            organization_id: organizationId,
-            source_revision: decision.tombstone.source_updated_at ?? decision.tombstone.source_version ?? null,
-            caller: 'import-bookings:single_booking_cancellation',
-          });
           return new Response(JSON.stringify(buildSingleBookingEnvelope({
             bookingId: normalizedSingleBookingId,
             organizationId,
-            outcome: 'failed',
-            error: AUTOMATIC_DESTRUCTIVE_SYNC_DISABLED,
+            outcome: 'already_current',
+            results: { total: 1, imported: 0, failed: 0, errors: [], sync_mode: 'cancellation_idempotent' },
           })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
         }
 
-        const cancelResult = await applyBookingCancellation(supabase, existingBooking, {
-          reason: 'cancelled',
-          source_status: decision.tombstone.source_status ?? 'CANCELLED',
-          source_revision: decision.tombstone.source_updated_at ?? decision.tombstone.source_version ?? null,
-          source_updated_at: decision.tombstone.source_updated_at ?? null,
-          source_version: decision.tombstone.source_version ?? null,
+        logBlockedCancellation({
+          booking_id: normalizedSingleBookingId,
           organization_id: organizationId,
+          source_revision: decision.tombstone.source_updated_at ?? decision.tombstone.source_version ?? null,
+          caller: 'import-bookings:single_booking_cancellation_candidate',
         });
-        console.log('[cancellation] canonical tombstone applied', JSON.stringify({
+        console.log('[cancellation] candidate — requires explicit apply', JSON.stringify({
           booking_id: normalizedSingleBookingId,
           organization_id: organizationId,
           source_status: decision.tombstone.source_status,
           source_revision: decision.tombstone.source_updated_at ?? decision.tombstone.source_version,
-          result: cancelResult.status,
+          mutations: 0,
         }));
 
         return new Response(JSON.stringify(buildSingleBookingEnvelope({
           bookingId: normalizedSingleBookingId,
           organizationId,
-          outcome: cancelResult.status === 'error' || cancelResult.status === 'partial' ? 'partial' : 'applied',
-          error: cancelResult.error ?? null,
+          outcome: 'cancellation_requires_explicit_apply',
+          error: CANCELLATION_REQUIRES_EXPLICIT_APPLY,
           results: {
             total: 1,
             imported: 0,
-            failed: cancelResult.status === 'error' || cancelResult.status === 'partial' ? 1 : 0,
-            status_changed_bookings: cancelResult.status === 'error' || cancelResult.status === 'partial' ? [] : [normalizedSingleBookingId],
-            errors: cancelResult.status === 'error' || cancelResult.status === 'partial' ? [{ booking_id: normalizedSingleBookingId, error: cancelResult.error }] : [],
-            sync_mode: 'canonical_cancellation',
+            failed: 0,
+            errors: [],
+            cancellation_candidates: [normalizedSingleBookingId],
+            sync_mode: 'cancellation_candidate',
           },
         })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
       }
+
 
       if (parsedSource.kind === 'error') {
         console.warn('[single-booking] technical/contract error — no local changes', JSON.stringify({
@@ -2965,6 +2941,7 @@ serve(async (req) => {
       updated_bookings: [] as string[],
       status_changed_bookings: [] as string[],
       cancelled_bookings_skipped: [] as string[],
+      cancellation_candidates: [] as string[],
       duplicates_skipped: [] as string[],
       unchanged_bookings_skipped: [] as string[],
       products_updated_bookings: [] as string[],
@@ -3158,52 +3135,30 @@ serve(async (req) => {
           continue
         }
 
-        // Handle CANCELLED bookings - process if exists locally, skip if new
-          if (bookingStatus === 'CANCELLED' && !isHistoricalImport) {
+        // STEG 3L: CANCELLED i normal sync (batch/incremental/full OCH
+        // historical) blir ENDAST en kandidat — aldrig en mutation.
+        // Ingen destruktiv cleanup, ingen lokal statussättning via upsert.
+        if (bookingStatus === 'CANCELLED') {
           if (existingBooking) {
-            // STEG 3H: normal sync har INGEN egen cancellation-cleanup.
-            // Allt destruktivt går via den centrala, skyddade vägen.
-            if (!isAutomaticDestructiveSyncEnabled()) {
-              logBlockedCancellation({
-                booking_id: existingBooking.id,
-                organization_id: organizationId,
-                source_revision: (externalBooking as any).updated_at ?? (externalBooking as any).version ?? null,
-                caller: 'import-bookings:bulk_sync_cancelled_candidate',
-              });
-              results.cancelled_bookings_skipped.push(existingBooking.id);
-              continue;
-            }
-
-            const cancelResult = await applyBookingCancellation(supabase, existingBooking as any, {
-              reason: 'cancelled',
-              source_status: 'CANCELLED',
-              source_revision: (externalBooking as any).updated_at ?? (externalBooking as any).version ?? null,
-              source_updated_at: (externalBooking as any).updated_at ?? null,
-              source_version: typeof (externalBooking as any).version === 'number' ? (externalBooking as any).version : null,
+            logBlockedCancellation({
+              booking_id: existingBooking.id,
               organization_id: organizationId,
+              source_revision: (externalBooking as any).updated_at ?? (externalBooking as any).version ?? null,
+              caller: isHistoricalImport
+                ? 'import-bookings:historical_cancelled_candidate'
+                : 'import-bookings:bulk_sync_cancelled_candidate',
             });
-
-            if (cancelResult.status === 'error' || cancelResult.status === 'partial') {
-              results.errors.push({ booking_id: existingBooking.id, error: cancelResult.error ?? cancelResult.outcome ?? 'cancellation_failed' });
-              results.failed++;
-            } else {
-              results.status_changed_bookings.push(existingBooking.id);
-              results.imported++;
-            }
-            continue
-          } else {
-
-            // New CANCELLED booking - skip import
-            console.log(`CANCELLED booking ${externalBooking.id} does not exist locally → skipping`)
-            results.cancelled_bookings_skipped.push(externalBooking.id)
-            continue
+            results.cancellation_candidates.push(existingBooking.id);
+            results.cancelled_bookings_skipped.push(existingBooking.id);
+            continue;
           }
+
+          // New CANCELLED booking - skip import
+          console.log(`CANCELLED booking ${externalBooking.id} does not exist locally → skipping`)
+          results.cancelled_bookings_skipped.push(externalBooking.id)
+          continue
         }
 
-        // For historical imports, log but still process cancelled bookings
-        if (bookingStatus === 'CANCELLED' && isHistoricalImport) {
-          console.log(`Historical mode: Processing CANCELLED booking: ${externalBooking.id}`)
-        }
 
         // Extract client name
         let clientName = externalBooking.clientName

@@ -27,6 +27,7 @@ export type SingleBookingOutcome =
   | 'already_current'  // Extern källa läst, inget att ändra
   | 'not_found'        // Bokningen finns inte externt (och ingen lokal spegling gjordes)
   | 'local_fallback'   // Endast lokal data användes (localOnly / status-demote)
+  | 'cancellation_requires_explicit_apply' // STEG 3L: kandidat, aldrig muterad av normal sync
   | 'partial'          // Något delsteg misslyckades
   | 'failed';          // Hela körningen misslyckades
 
@@ -110,6 +111,7 @@ export const NON_RETRIABLE_IMPORT_ERRORS: readonly string[] = [
   'stored_revision_created_at_invalid',
   'revision_history_truncated',
   'automatic_destructive_sync_disabled',
+  'cancellation_requires_explicit_apply',
 ];
 
 export interface ValidationOk {
@@ -203,6 +205,10 @@ export function validateSingleBookingResult(
       return { ok: false, permanent: false, reason: 'local_fallback_only' };
     case 'not_found':
       return { ok: false, permanent: true, reason: 'booking_not_found_in_source' };
+    // STEG 3L: normal sync får aldrig applicera cancellation. Kandidaten
+    // ligger kvar för explicit hantering — aldrig completed, ingen cursor.
+    case 'cancellation_requires_explicit_apply':
+      return { ok: false, permanent: true, reason: 'cancellation_requires_explicit_apply' };
     case 'failed': {
       const errText = String(r.error ?? '');
       // STEG 2G: stale/konflikt/ojämförbar revision är PERMANENT — jobbet får

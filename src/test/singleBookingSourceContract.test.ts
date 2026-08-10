@@ -220,7 +220,8 @@ describe('source guarantees in edge function code', () => {
     expect(imp).not.toContain('[Status Demote]');
     expect(imp).not.toContain("status: 'OFFER',\n            updated_at: nowIso,");
     expect(imp).toContain('evaluateDestructiveAction');
-    expect(imp).toContain('applyBookingCancellation');
+    // STEG 3L: import-bookings får inte längre nå destruktiv cancellation.
+    expect(imp).not.toContain('applyBookingCancellation');
 
     const rec = fs.readFileSync('supabase/functions/reconcile-booking-status/index.ts', 'utf8');
     // Missing/empty external result must never be turned into CANCELLED.
@@ -312,7 +313,8 @@ describe('STEG 2B parser hardening', () => {
     const fs = await import('node:fs');
     const imp = fs.readFileSync('supabase/functions/import-bookings/index.ts', 'utf8');
     expect(imp).toContain('externalData.raw ?? externalData');
-    expect(imp).toMatch(/applyBookingCancellation\(supabase, existingBooking, \{/);
+    // STEG 3L: normal sync loggar kandidat istället för att applicera.
+    expect(imp).toContain('cancellation_requires_explicit_apply');
     const rec = fs.readFileSync('supabase/functions/reconcile-booking-status/index.ts', 'utf8');
     expect(rec).toContain('source_revision');
   });
