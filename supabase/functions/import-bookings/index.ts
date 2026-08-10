@@ -69,7 +69,19 @@ import {
   SafetyCircuitBreakerError,
   SAFETY_LIMITS,
   SAFETY_CIRCUIT_BREAKER,
+  guardedDeleteByIds,
+  guardedDeleteWhere,
+  UnknownDestructiveRowCountError,
+  UNKNOWN_DESTRUCTIVE_ROW_COUNT,
+  UNKNOWN_RPC_IN_DRY_RUN,
 } from '../_shared/syncObservability.ts'
+import type { SyncCounters } from '../_shared/syncObservability.ts'
+
+/**
+ * STEG 3I: counters hämtas från den guardade klienten så att varje
+ * destruktiv kodväg kan deklarera sitt VERKLIGA radantal före mutation.
+ */
+const countersOf = (client: any): SyncCounters => (client?.__syncCounters ?? createSyncCounters());
 
 
 
@@ -1139,15 +1151,18 @@ async function reconcileCalendarEvents(
             .filter((e: any) => isBookingGeneratedEvent(e, bookingData.id) && e.times_locked !== true)
             .map((e: any) => e.id);
           if (idsToDelete.length > 0) {
-            const { error: delErr } = await supabase
-              .from('calendar_events')
-              .delete()
-              .eq('organization_id', calendarOrgId)
-              .eq('booking_id', bookingData.id)
-              .in('id', idsToDelete);
-            if (delErr) {
-              console.error('[Calendar Reconcile] Failed to clean up non-rep LP phase events:', delErr);
-              return { ok: false, error: `calendar_delete_failed:${delErr.message || delErr}` };
+            // STEG 3I: exakt radantal + circuit breaker FÖRE mutation.
+            const del = await guardedDeleteByIds(supabase, {
+              table: 'calendar_events',
+              ids: idsToDelete,
+              kind: 'calendar_deletes',
+              counters: countersOf(supabase),
+              filters: { organization_id: calendarOrgId, booking_id: bookingData.id },
+              ctx: { booking_id: bookingData.id, organization_id: calendarOrgId },
+            });
+            if (del.error) {
+              console.error('[Calendar Reconcile] Failed to clean up non-rep LP phase events:', del.error);
+              return { ok: false, error: `calendar_delete_failed:${del.error}` };
             }
             console.log(`[Calendar Reconcile] Cleaned ${idsToDelete.length} stale non-rep LP phase events for booking ${bookingData.id}`);
           }
@@ -1410,16 +1425,18 @@ async function reconcileCalendarEvents(
   if (staleEvents.length > 0) {
     const staleIds = staleEvents.map((e: any) => e.id);
     console.log(`[Calendar Reconcile] DELETE ${staleEvents.length} stale events: ${staleEvents.map((e: any) => `${e.event_type}@${e.start_time?.split('T')[0]}`).join(', ')}`);
-    const { error: deleteErr } = await supabase
-      .from('calendar_events')
-      .delete()
-      .eq('organization_id', calendarOrgId)
-      .eq('booking_id', bookingData.id)
-      .in('id', staleIds);
+    const staleDel = await guardedDeleteByIds(supabase, {
+      table: 'calendar_events',
+      ids: staleIds,
+      kind: 'calendar_deletes',
+      counters: countersOf(supabase),
+      filters: { organization_id: calendarOrgId, booking_id: bookingData.id },
+      ctx: { booking_id: bookingData.id, organization_id: calendarOrgId },
+    });
 
-    if (deleteErr) {
-      console.error(`[Calendar Reconcile] Error deleting stale events:`, deleteErr);
-      calendarError = calendarError || `calendar_delete_failed:${deleteErr.message || deleteErr}`;
+    if (staleDel.error) {
+      console.error(`[Calendar Reconcile] Error deleting stale events:`, staleDel.error);
+      calendarError = calendarError || `calendar_delete_failed:${staleDel.error}`;
     }
   }
 
@@ -1939,14 +1956,16 @@ const reconnectPackingListItems = async (
   if (plan.deletes.length > 0) {
     // Destruktiv operation → lease måste ägas.
     assertLease?.('packing_item_delete');
-    const { error: deleteError } = await supabase
-      .from('packing_list_items')
-      .delete()
-      .in('id', plan.deletes)
-      .eq('packing_id', verifiedPackingId);
-    if (deleteError) {
-      console.error(`[Packing Reconnect] Error deleting orphaned items:`, deleteError);
-      firstError = firstError ?? (deleteError.message || String(deleteError));
+    const reconnectDel = await guardedDeleteByIds(supabase, {
+      table: 'packing_list_items',
+      ids: plan.deletes,
+      kind: 'product_deletes',
+      counters: countersOf(supabase),
+      filters: { packing_id: verifiedPackingId },
+    });
+    if (reconnectDel.error) {
+      console.error(`[Packing Reconnect] Error deleting orphaned items:`, reconnectDel.error);
+      firstError = firstError ?? reconnectDel.error;
     } else {
       orphaned += plan.deletes.length;
       console.log(`[Packing Reconnect] Removed ${plan.deletes.length} orphaned items (canonical complete source)`);
@@ -2152,11 +2171,16 @@ const syncPackingListAfterExpansion = async (
     }
     if (remaining && remaining.length > 0) {
       opts.assertLease?.('packing_item_clear');
-      const { error: clearError } = await supabase
-        .from('packing_list_items').delete().eq('packing_id', packingId);
-      if (clearError) {
-        console.error(`[Packing Sync] Error clearing packing list items:`, clearError);
-        return { changes: 0, error: clearError.message || String(clearError) };
+      const clearDel = await guardedDeleteByIds(supabase, {
+        table: 'packing_list_items',
+        ids: (remaining || []).map((r: any) => r.id),
+        kind: 'product_deletes',
+        counters: countersOf(supabase),
+        filters: { packing_id: packingId },
+      });
+      if (clearDel.error) {
+        console.error(`[Packing Sync] Error clearing packing list items:`, clearDel.error);
+        return { changes: 0, error: clearDel.error };
       }
       console.log(`[Packing Sync] Removed all ${remaining.length} packing list items (canonical empty product list)`);
       return { changes: remaining.length };
@@ -2209,11 +2233,16 @@ const syncPackingListAfterExpansion = async (
     } else {
       const orphanedIds = orphanedItems.map((i: any) => i.id);
       opts.assertLease?.('packing_item_delete');
-      const { error: deleteError } = await supabase
-        .from('packing_list_items').delete().in('id', orphanedIds).eq('packing_id', packingId);
-      if (deleteError) {
-        console.error(`[Packing Sync] Error deleting orphaned packing items:`, deleteError);
-        firstError = firstError ?? (deleteError.message || String(deleteError));
+      const orphanDel = await guardedDeleteByIds(supabase, {
+        table: 'packing_list_items',
+        ids: orphanedIds,
+        kind: 'product_deletes',
+        counters: countersOf(supabase),
+        filters: { packing_id: packingId },
+      });
+      if (orphanDel.error) {
+        console.error(`[Packing Sync] Error deleting orphaned packing items:`, orphanDel.error);
+        firstError = firstError ?? orphanDel.error;
       } else {
         changes += orphanedItems.length;
       }
@@ -2306,7 +2335,7 @@ serve(async (req) => {
     // Alla skrivningar går genom en guardad klient (counters + circuit breaker).
     // I dry-run går de dessutom genom en no-op-klient: noll DB-mutationer.
     if (isDryRun) {
-      supabase = createDryRunClient(supabase, plannedMutations);
+      supabase = createDryRunClient(supabase, plannedMutations, syncCounters);
     }
 
 
@@ -3559,11 +3588,17 @@ serve(async (req) => {
 
             if (packingForRecovery) {
               assertLeaseOwned('packing_item_clear');
-              const { error: clearItemsError } = await supabase
-                .from('packing_list_items').delete().eq('packing_id', packingForRecovery.id);
-              if (clearItemsError) {
-                console.error(`[Product Recovery] Error clearing packing list items:`, clearItemsError);
-                results.errors.push({ booking_id: existingBooking.id, error: `packing_items_clear_failed:${clearItemsError.message || clearItemsError}` });
+              // STEG 3I: ingen blind multi-row delete — exakta rader löses ut först.
+              const recoveryItemsDel = await guardedDeleteWhere(supabase, {
+                table: 'packing_list_items',
+                filters: { packing_id: packingForRecovery.id, organization_id: bookingData.organization_id },
+                kind: 'product_deletes',
+                counters: countersOf(supabase),
+                ctx: { booking_id: bookingData.id, organization_id: bookingData.organization_id },
+              });
+              if (recoveryItemsDel.error) {
+                console.error(`[Product Recovery] Error clearing packing list items:`, recoveryItemsDel.error);
+                results.errors.push({ booking_id: existingBooking.id, error: `packing_items_clear_failed:${recoveryItemsDel.error}` });
                 results.failed++;
                 continue;
               }
@@ -3571,14 +3606,16 @@ serve(async (req) => {
             }
 
             assertLeaseOwned('product_clear');
-            const { error: clearProductsError } = await supabase
-              .from('booking_products')
-              .delete()
-              .eq('booking_id', existingBooking.id)
-              .eq('organization_id', bookingData.organization_id);
-            if (clearProductsError) {
-              console.error(`[Product Recovery] Error clearing products:`, clearProductsError);
-              results.errors.push({ booking_id: existingBooking.id, error: `product_clear_failed:${clearProductsError.message || clearProductsError}` });
+            const clearProductsRes = await guardedDeleteWhere(supabase, {
+              table: 'booking_products',
+              filters: { booking_id: existingBooking.id, organization_id: bookingData.organization_id },
+              kind: 'product_deletes',
+              counters: countersOf(supabase),
+              ctx: { booking_id: bookingData.id, organization_id: bookingData.organization_id },
+            });
+            if (clearProductsRes.error) {
+              console.error(`[Product Recovery] Error clearing products:`, clearProductsRes.error);
+              results.errors.push({ booking_id: existingBooking.id, error: `product_clear_failed:${clearProductsRes.error}` });
               results.failed++;
               continue;
             }
@@ -4323,15 +4360,17 @@ serve(async (req) => {
               const idsToDelete = toDelete.map((p: any) => p.id);
               console.log(`[Merge] Deleting ${idsToDelete.length} products no longer in external API (external had ${externalProductCount})`);
               assertLeaseOwned('product_delete');
-              const { error: mergeDeleteError } = await supabase
-                .from('booking_products')
-                .delete()
-                .in('id', idsToDelete)
-                .eq('booking_id', bookingData.id)
-                .eq('organization_id', organizationId);
-              if (mergeDeleteError) {
-                console.error(`[Merge] Error deleting products for booking ${bookingData.id}:`, mergeDeleteError);
-                results.errors.push({ booking_id: bookingData.id, error: `product_delete_failed:${mergeDeleteError.message || mergeDeleteError}` });
+              const mergeDel = await guardedDeleteByIds(supabase, {
+                table: 'booking_products',
+                ids: idsToDelete,
+                kind: 'product_deletes',
+                counters: countersOf(supabase),
+                filters: { booking_id: bookingData.id, organization_id: organizationId },
+                ctx: { booking_id: bookingData.id, organization_id: organizationId },
+              });
+              if (mergeDel.error) {
+                console.error(`[Merge] Error deleting products for booking ${bookingData.id}:`, mergeDel.error);
+                results.errors.push({ booking_id: bookingData.id, error: `product_delete_failed:${mergeDel.error}` });
                 results.failed++;
                 continue;
               }
@@ -4794,6 +4833,32 @@ serve(async (req) => {
     )
 
   } catch (error) {
+    // STEG 3I: fail-closed när radantal inte kan fastställas eller okänd RPC
+    // körs i dry-run. Ingen mutation har skett; svar = failed.
+    if (error instanceof UnknownDestructiveRowCountError || (error as any)?.code === UNKNOWN_RPC_IN_DRY_RUN) {
+      stopLeaseRenewal()
+      syncCounters.failures += 1
+      const failCode = (error as any)?.code ?? UNKNOWN_DESTRUCTIVE_ROW_COUNT
+      logSyncAudit({
+        organization_id: ctxOrgId,
+        booking_id: ctxBookingId,
+        outcome: 'failed',
+        duration_ms: Date.now() - syncStartedMs,
+        dry_run: isDryRun,
+        counters: syncCounters,
+        planned_mutations: isDryRun ? plannedMutations : null,
+        anomalies: [failCode],
+      })
+      return new Response(
+        JSON.stringify(buildSingleBookingEnvelope({
+          bookingId: ctxBookingId,
+          organizationId: ctxOrgId,
+          outcome: 'failed',
+          error: failCode,
+        })),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
+      )
+    }
     // STEG 3G: circuit breaker — stoppade FÖRE mutationen. Aldrig completed,
     // ingen commit, ingen cursor; reservationen släpps som vid krasch nedan.
     if (error instanceof SafetyCircuitBreakerError) {

@@ -15,13 +15,13 @@ export const SYNC_ANOMALY_LOG = 'booking_sync_anomaly';
  * Överskridande => circuit breaker stoppar FÖRE mutationen.
  */
 export const SAFETY_LIMITS = Object.freeze({
-  /** Max antal destruktiva produktoperationer (delete-satser) per booking-sync. */
+  /** STEG 3I: Max antal RADER som får raderas i produkttabeller per booking-sync. */
   product_deletes: 25,
-  /** Max antal kalender-deletes per booking-sync. */
+  /** STEG 3I: Max antal kalender-RADER som får raderas per booking-sync. */
   calendar_deletes: 10,
-  /** Max antal projection-deletes (projects/jobs/packing_projects) per booking-sync. */
+  /** STEG 3I: Max antal projection-RADER (projects/jobs/packing_projects) som får raderas per booking-sync. */
   projection_deletes: 3,
-  /** Max antal destruktiva operationer totalt per booking-sync. */
+  /** STEG 3I: Max antal raderade RADER totalt per booking-sync. */
   total_deletes: 30,
   /** Max antal statusbyten per booking-sync. */
   status_changes: 2,
@@ -125,6 +125,43 @@ export class SafetyCircuitBreakerError extends Error {
   }
 }
 
+/**
+ * STEG 3I — Kastas när en destruktiv operation inte kan fastställa exakt
+ * antal rader den skulle påverka. Fail-closed: ingen delete får ske.
+ */
+export const UNKNOWN_DESTRUCTIVE_ROW_COUNT = 'unknown_destructive_row_count';
+
+export class UnknownDestructiveRowCountError extends Error {
+  readonly code = UNKNOWN_DESTRUCTIVE_ROW_COUNT;
+  constructor(public readonly table: string) {
+    super(`${UNKNOWN_DESTRUCTIVE_ROW_COUNT}:${table}`);
+    this.name = 'UnknownDestructiveRowCountError';
+  }
+}
+
+/**
+ * Pending row-deklaration per counters-instans. Sätts av
+ * enforceDestructiveLimit och konsumeras av nästa .delete() på klienten.
+ * Utan deklaration => fail-closed.
+ */
+interface PendingDeclaration { kind: DestructiveKind; rows: number }
+const PENDING_DELETE = new WeakMap<SyncCounters, PendingDeclaration>();
+
+export function declarePlannedDeleteRows(counters: SyncCounters, kind: DestructiveKind, rows: number): void {
+  PENDING_DELETE.set(counters, { kind, rows });
+}
+
+export function consumePlannedDeleteRows(counters: SyncCounters): PendingDeclaration | null {
+  const pending = PENDING_DELETE.get(counters) ?? null;
+  PENDING_DELETE.delete(counters);
+  return pending;
+}
+
+/**
+ * Kontroll FÖRE mutation. `planned` MÅSTE vara antalet RADER som operationen
+ * avser påverka (inte antal SQL-satser). Registrerar även en pending
+ * row-deklaration som klient-proxyn konsumerar.
+ */
 export function enforceDestructiveLimit(
   counters: SyncCounters,
   kind: DestructiveKind,
@@ -139,6 +176,7 @@ export function enforceDestructiveLimit(
       JSON.stringify({
         blocked: true,
         kind,
+        planned_rows: planned,
         reason: res.reason,
         limit: res.limit ?? null,
         attempted: res.attempted ?? null,
@@ -149,7 +187,89 @@ export function enforceDestructiveLimit(
     throw new SafetyCircuitBreakerError(res);
   }
   recordDestructive(counters, kind, planned);
+  if (kind !== 'status_changes') declarePlannedDeleteRows(counters, kind, planned);
 }
+
+// ── STEG 3I: tenant-scopad row resolution + guardad delete ──────────────────
+
+export interface DeleteFilters { [column: string]: string | number | null }
+
+/**
+ * Fastställer EXAKTA rad-ID:n för en destruktiv operation via en
+ * tenant-scopad select('id'). Fail-closed vid DB-fel.
+ */
+export async function resolveDeleteRowIds(
+  client: any,
+  table: string,
+  filters: DeleteFilters,
+): Promise<string[]> {
+  let q = client.from(table).select('id');
+  for (const [col, val] of Object.entries(filters)) {
+    if (val === null || val === undefined) continue;
+    q = q.eq(col, val);
+  }
+  const { data, error } = await q;
+  if (error) throw new UnknownDestructiveRowCountError(table);
+  if (!Array.isArray(data)) throw new UnknownDestructiveRowCountError(table);
+  return data.map((r: any) => r.id).filter(Boolean);
+}
+
+export interface GuardedDeleteResult { deleted: number; error: string | null }
+
+/**
+ * Enda tillåtna destruktiva vägen i normal sync:
+ * explicit ID-lista + tenant-filter + circuit breaker FÖRE mutation.
+ */
+export async function guardedDeleteByIds(
+  client: any,
+  opts: {
+    table: string;
+    ids: string[];
+    kind: DestructiveKind;
+    counters: SyncCounters;
+    filters?: DeleteFilters;
+    ctx?: { booking_id?: string | null; organization_id?: string | null };
+  },
+): Promise<GuardedDeleteResult> {
+  const ids = Array.from(new Set((opts.ids || []).filter(Boolean)));
+  if (ids.length === 0) return { deleted: 0, error: null };
+  // Circuit breaker FÖRE mutation — baserad på verkliga rader.
+  enforceDestructiveLimit(opts.counters, opts.kind, ids.length, opts.ctx);
+  let q = client.from(opts.table).delete();
+  for (const [col, val] of Object.entries(opts.filters ?? {})) {
+    if (val === null || val === undefined) continue;
+    q = q.eq(col, val);
+  }
+  const { error } = await q.in('id', ids);
+  if (error) return { deleted: 0, error: error.message || String(error) };
+  return { deleted: ids.length, error: null };
+}
+
+/**
+ * Blind `.delete().eq(...)` är förbjudet. Denna helper löser först ut exakta
+ * rader tenant-scopat och kör därefter guardedDeleteByIds.
+ */
+export async function guardedDeleteWhere(
+  client: any,
+  opts: {
+    table: string;
+    filters: DeleteFilters;
+    kind: DestructiveKind;
+    counters: SyncCounters;
+    ctx?: { booking_id?: string | null; organization_id?: string | null };
+  },
+): Promise<GuardedDeleteResult> {
+  const ids = await resolveDeleteRowIds(client, opts.table, opts.filters);
+  return guardedDeleteByIds(client, {
+    table: opts.table,
+    ids,
+    kind: opts.kind,
+    counters: opts.counters,
+    filters: opts.filters,
+    ctx: opts.ctx,
+  });
+}
+
 
 // ── Dry-run ────────────────────────────────────────────────────────────────
 
@@ -174,41 +294,103 @@ export function resolveDryRun(body: Record<string, unknown> | null | undefined):
 
 const MUTATION_METHODS = new Set(['insert', 'update', 'upsert', 'delete']);
 
+// ── STEG 3I: RPC-klassificering för dry-run ────────────────────────────────
+
+/** Read-only RPC:er som FÅR köras i dry-run (behövs för korrekt diff). */
+export const READ_ONLY_RPCS = Object.freeze([
+  'lp_rep_booking_id',
+  'get_user_organization_id',
+  'has_role',
+  'jsonb_object_keys_array',
+  'compute_workday_review_status',
+  'get_unseen_booking_updates',
+]);
+
+/** Muterande RPC:er som ALDRIG får köras i dry-run. */
+export const MUTATING_RPCS = Object.freeze([
+  'advance_booking_source_revision',
+  'apply_booking_cancellation_atomic',
+  'recompute_booking_staff_for_day',
+  'finalize_sync_batch',
+  'claim_sync_jobs',
+  'handle_booking_move',
+  'auto_create_project_for_orphan_booking',
+  'ensure_internal_project',
+  'ensure_internal_lager_booking',
+  'ensure_internal_lager_setup',
+  'ensure_internal_warehouse_project',
+  'cleanup_non_rep_lp_calendar_events',
+  'mark_booking_changes_seen',
+  'sync_all_phase_times',
+]);
+
+const READ_ONLY_RPC_SET = new Set<string>(READ_ONLY_RPCS as readonly string[]);
+const MUTATING_RPC_SET = new Set<string>(MUTATING_RPCS as readonly string[]);
+
+export type RpcClass = 'read_only' | 'mutating' | 'unknown';
+
+export function classifyRpc(fn: string): RpcClass {
+  if (READ_ONLY_RPC_SET.has(fn)) return 'read_only';
+  if (MUTATING_RPC_SET.has(fn)) return 'mutating';
+  return 'unknown';
+}
+
+export const UNKNOWN_RPC_IN_DRY_RUN = 'unknown_rpc_in_dry_run';
+
+export class UnknownRpcInDryRunError extends Error {
+  readonly code = UNKNOWN_RPC_IN_DRY_RUN;
+  constructor(public readonly fn: string) {
+    super(`${UNKNOWN_RPC_IN_DRY_RUN}:${fn}`);
+    this.name = 'UnknownRpcInDryRunError';
+  }
+}
+
 /**
  * Wrappar en Supabase-klient så att INGA skrivningar når databasen.
- * Läsningar (select/rpc-läsning) går igenom oförändrat. Planerade mutationer
- * räknas i `planned` per tabell+operation.
+ * Läsningar (select + read-only RPC) går igenom oförändrat. Planerade
+ * mutationer räknas i `planned` — deletes i RADER, inte satser.
  */
 export function createDryRunClient(
   client: any,
   planned: Record<string, number>,
+  counters?: SyncCounters,
 ): any {
-  const stub = (table: string, op: string): any => {
+  const stub = (table: string, op: string, rows: number): any => {
     const key = `${table}.${op}`;
-    planned[key] = (planned[key] ?? 0) + 1;
-    const thenable: any = {
-      then: (resolve: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve),
-      catch: () => thenable,
-      finally: (fn: () => void) => { fn(); return thenable; },
-    };
-    return new Proxy(thenable, {
-      get(target, prop) {
-        if (prop in target) return (target as any)[prop];
-        return () => new Proxy(target, { get: (t, p) => (p in t ? (t as any)[p] : () => target) });
+    planned[key] = (planned[key] ?? 0) + rows;
+    const result = { data: [], error: null };
+    const chain: any = new Proxy(function () { return chain; }, {
+      apply: () => chain,
+      get(_t, prop) {
+        if (prop === 'then') return (resolve: any, reject: any) => Promise.resolve(result).then(resolve, reject);
+        if (prop === 'catch') return () => chain;
+        if (prop === 'finally') return (fn: any) => { fn?.(); return chain; };
+        return () => chain;
       },
     });
+    return chain;
   };
 
   return new Proxy(client, {
     get(target, prop, receiver) {
       if (prop === '__dryRun') return true;
+      if (prop === '__syncCounters') return counters ?? (target as any).__syncCounters;
       if (prop === 'from') {
         return (table: string) => {
           const builder = target.from(table);
           return new Proxy(builder, {
             get(b, p) {
               if (typeof p === 'string' && MUTATION_METHODS.has(p)) {
-                return () => stub(table, p);
+                return (...args: unknown[]) => {
+                  if (p === 'delete') {
+                    // Rader måste vara deklarerade av enforceDestructiveLimit.
+                    const pending = counters ? consumePlannedDeleteRows(counters) : null;
+                    if (!pending) throw new UnknownDestructiveRowCountError(table);
+                    return stub(table, p, pending.rows);
+                  }
+                  const rows = Array.isArray(args[0]) ? (args[0] as unknown[]).length : 1;
+                  return stub(table, p, rows);
+                };
               }
               const v = (b as any)[p];
               return typeof v === 'function' ? v.bind(b) : v;
@@ -218,14 +400,24 @@ export function createDryRunClient(
       }
       if (prop === 'rpc') {
         return (fn: string, args?: unknown) => {
-          planned[`rpc.${fn}`] = (planned[`rpc.${fn}`] ?? 0) + 1;
-          return Promise.resolve({ data: null, error: null, __dryRun: true, __args: args ? true : false });
+          const cls = classifyRpc(fn);
+          if (cls === 'read_only') {
+            // Read-only RPC får köras: behövs för korrekt diff.
+            return target.rpc(fn, args as any);
+          }
+          if (cls === 'mutating') {
+            planned[`rpc.${fn}`] = (planned[`rpc.${fn}`] ?? 0) + 1;
+            return Promise.resolve({ data: null, error: null, __dryRun: true, __blocked: true });
+          }
+          // Fail-closed: okänd RPC får varken köras eller tyst no-opas.
+          throw new UnknownRpcInDryRunError(fn);
         };
       }
       const value = Reflect.get(target, prop, receiver);
       return typeof value === 'function' ? value.bind(target) : value;
     },
   });
+
 }
 
 // ── Audit ──────────────────────────────────────────────────────────────────
@@ -379,18 +571,23 @@ export function classifyTable(table: string): DestructiveKind | null {
 }
 
 /**
- * Wrappar en riktig Supabase-klient: räknar mutationer och kör circuit
- * breaker FÖRE varje delete. Kastar SafetyCircuitBreakerError vid
- * gränsöverskridande => outcome failed/partial, ingen commit, ingen cursor.
+ * STEG 3I: Wrappar en riktig Supabase-klient för audit/counters.
+ * Proxyn är INTE circuit breaker för deletes — den kan inte veta hur många
+ * rader en chained .delete().eq() påverkar. Varje delete måste därför ha
+ * deklarerat sitt planerade radantal via enforceDestructiveLimit
+ * (dvs. gå genom guardedDeleteByIds/guardedDeleteWhere). Saknas deklaration:
+ * fail-closed med unknown_destructive_row_count.
  */
 export function createSafetyGuardedClient(
   client: any,
   counters: SyncCounters,
   ctx: { booking_id?: string | null; organization_id?: string | null } = {},
 ): any {
+  void ctx;
   return new Proxy(client, {
     get(target, prop, receiver) {
       if (prop === '__safetyGuarded') return true;
+      if (prop === '__syncCounters') return counters;
       if (prop === 'from') {
         return (table: string) => {
           const builder = target.from(table);
@@ -400,27 +597,22 @@ export function createSafetyGuardedClient(
               if (typeof p === 'string' && MUTATION_METHODS.has(p) && typeof value === 'function') {
                 return (...args: unknown[]) => {
                   if (p === 'delete') {
-                    const kind = classifyTable(table);
-                    if (kind) {
-                      enforceDestructiveLimit(counters, kind, 1, ctx);
-                    } else {
-                      const res = checkDestructiveLimit(counters, 'projection_deletes', 0);
-                      if (counters.deletes + 1 > SAFETY_LIMITS.total_deletes) {
-                        counters.blocked_by_circuit_breaker += 1;
-                        throw new SafetyCircuitBreakerError({
-                          allowed: false,
-                          reason: `${SAFETY_CIRCUIT_BREAKER}:total_deletes`,
-                          limit: SAFETY_LIMITS.total_deletes,
-                          attempted: counters.deletes + 1,
-                        });
-                      }
-                      void res;
-                      counters.deletes += 1;
+                    const pending = consumePlannedDeleteRows(counters);
+                    if (!pending) {
+                      counters.blocked_by_circuit_breaker += 1;
+                      console.error(
+                        `[sync-safety] ${UNKNOWN_DESTRUCTIVE_ROW_COUNT}`,
+                        JSON.stringify({ blocked: true, table }),
+                      );
+                      throw new UnknownDestructiveRowCountError(table);
                     }
+                    // Rader är redan räknade och gränsprövade av
+                    // enforceDestructiveLimit FÖRE denna mutation.
                   } else if (p === 'insert' || p === 'upsert') {
-                    if (PRODUCT_TABLES.has(table)) counters.product_adds += 1;
-                    else if (CALENDAR_TABLES.has(table)) counters.calendar_adds += 1;
-                    else if (PROJECTION_TABLES.has(table)) counters.projection_mutations += 1;
+                    const rows = Array.isArray(args[0]) ? (args[0] as unknown[]).length : 1;
+                    if (PRODUCT_TABLES.has(table)) counters.product_adds += rows;
+                    else if (CALENDAR_TABLES.has(table)) counters.calendar_adds += rows;
+                    else if (PROJECTION_TABLES.has(table)) counters.projection_mutations += rows;
                   } else if (p === 'update') {
                     if (PRODUCT_TABLES.has(table)) counters.product_updates += 1;
                     else if (CALENDAR_TABLES.has(table)) counters.calendar_updates += 1;
@@ -439,3 +631,4 @@ export function createSafetyGuardedClient(
     },
   });
 }
+
