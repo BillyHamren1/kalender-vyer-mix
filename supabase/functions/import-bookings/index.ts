@@ -28,6 +28,14 @@ import {
   LeaseOwnershipLostError,
 } from '../_shared/canonicalRevisionGuard.ts'
 import type { LeaseControl } from '../_shared/canonicalRevisionGuard.ts'
+import {
+  readProductSourceCompleteness,
+  canDeleteProducts,
+  diffProducts,
+  planPackingReconnect,
+  PRODUCT_DESTRUCTIVE_BLOCKED_LOG,
+} from '../_shared/productCompleteness.ts'
+import type { ProductSourceCompleteness } from '../_shared/productCompleteness.ts'
 
 /**
  * Resolve the organization_id to use for all INSERTs.
@@ -1628,45 +1636,58 @@ const getProductsSignature = (products: any[]): string => {
 };
 
 /**
- * Check if products have changed between external and existing data
- * Returns { changed: boolean, added: string[], removed: string[], updated: string[] }
+ * Check if products have changed between external and existing data.
+ *
+ * STEG 3D: `completeness` MÅSTE skickas in. `removed` populeras endast när
+ * Booking explicit säger products_complete === true. Vid false/unknown
+ * returneras removed = [] även om externa listan är kortare än den lokala.
  */
 export const checkProductChanges = async (
-  supabase: any, 
-  bookingId: string, 
-  externalProducts: any[]
-): Promise<{ 
-  changed: boolean; 
-  added: string[]; 
-  removed: string[]; 
+  supabase: any,
+  bookingId: string,
+  externalProducts: any[],
+  completeness: ProductSourceCompleteness = 'unknown',
+  organizationId?: string | null,
+): Promise<{
+  changed: boolean;
+  added: string[];
+  removed: string[];
   updated: string[];
   existingProducts: any[];
+  completeness: ProductSourceCompleteness;
+  deleteAllowed: boolean;
+  blockedRemovals: string[];
+  error?: string | null;
 }> => {
   // Fetch existing products (include price/notes/sku/vat/discount/tags to detect content changes,
   // not just add/remove/quantity — otherwise price-only or notes-only edits in Booking never sync)
-  const { data: existingProducts, error } = await supabase
+  let query = supabase
     .from('booking_products')
     .select('id, name, quantity, unit_price, total_price, notes, sku, vat_rate, discount, tags, package_components')
     .eq('booking_id', bookingId);
-
+  if (organizationId) query = query.eq('organization_id', organizationId);
+  const { data: existingProducts, error } = await query;
 
   if (error) {
     console.error(`Error fetching existing products for ${bookingId}:`, error);
-    return { changed: false, added: [], removed: [], updated: [], existingProducts: [] };
+    return {
+      changed: false, added: [], removed: [], updated: [], existingProducts: [],
+      completeness, deleteAllowed: false, blockedRemovals: [], error: error.message || String(error),
+    };
   }
 
   // GUARD: Treat empty external payload as transient/missing source, NOT as deletion intent.
   const externalCount = Array.isArray(externalProducts) ? externalProducts.length : 0;
   const localCount = (existingProducts || []).length;
-  if (externalCount === 0 && localCount > 0) {
-    console.warn(`[Product Sync GUARD] booking ${bookingId}: external products is empty but ${localCount} exist locally — treating as transient_empty_source, skipping all product mutations`);
+  if (externalCount === 0 && localCount > 0 && !canDeleteProducts(completeness)) {
+    console.warn(`[Product Sync GUARD] ${PRODUCT_DESTRUCTIVE_BLOCKED_LOG} booking ${bookingId}: external products empty (completeness=${completeness}) but ${localCount} exist locally — skipping all product mutations`);
     try {
       await supabase.from('sync_audit_log').insert({
         booking_id: bookingId,
         sync_action: 'product_sync_skipped',
         booking_status: 'unknown',
         booking_dates: {},
-        expected_events: { external_count: 0, local_count: localCount, reason: 'transient_empty_source' },
+        expected_events: { external_count: 0, local_count: localCount, reason: 'transient_empty_source', completeness },
         actual_events: {},
         events_created: 0,
         events_updated: 0,
@@ -1675,152 +1696,141 @@ export const checkProductChanges = async (
         mismatch_details: 'external products empty while local has rows — destructive sync skipped',
       });
     } catch (_) { /* audit best-effort */ }
-    return { changed: false, added: [], removed: [], updated: [], existingProducts: existingProducts || [] };
+    return {
+      changed: false, added: [], removed: [], updated: [],
+      existingProducts: existingProducts || [],
+      completeness, deleteAllowed: false, blockedRemovals: (existingProducts || []).map((p: any) => p.name),
+    };
   }
 
-  const num = (v: any): number => {
-    const n = typeof v === 'number' ? v : parseFloat(v);
-    return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+  const diff = diffProducts(existingProducts || [], externalProducts || [], completeness);
+
+  if (diff.blockedRemovals.length > 0) {
+    console.warn(`[Product Sync] ${PRODUCT_DESTRUCTIVE_BLOCKED_LOG} booking ${bookingId}: ${diff.blockedRemovals.length} local products kept (completeness=${completeness})`);
+  }
+
+  if (diff.changed) {
+    console.log(`[Product Changes] Booking ${bookingId}: +${diff.added.length} added, -${diff.removed.length} removed, ~${diff.updated.length} updated (completeness=${completeness})`);
+  }
+
+  return {
+    changed: diff.changed,
+    added: diff.added,
+    removed: diff.removed,
+    updated: diff.updated,
+    existingProducts: existingProducts || [],
+    completeness,
+    deleteAllowed: diff.deleteAllowed,
+    blockedRemovals: diff.blockedRemovals,
   };
-  const str = (v: any): string => (v ?? '').toString().trim();
-  const tagsSig = (v: any): string => (Array.isArray(v) ? [...v].map(str).sort().join(',') : '');
-  const componentsSig = (v: any): string => {
-    if (!Array.isArray(v)) return '';
-    return v
-      .map((c: any) => `${str(c?.name).toLowerCase()}|${num(c?.quantity ?? 1)}|${str(c?.sku).toLowerCase()}`)
-      .sort()
-      .join(';');
-  };
-
-
-  const existingMap = new Map((existingProducts || []).map((p: any) => [(p.name || '').trim().toLowerCase(), p]));
-  const externalMap = new Map((externalProducts || []).map(p => [(p.name || p.product_name || '').trim().toLowerCase(), p]));
-
-  const added: string[] = [];
-  const removed: string[] = [];
-  const updated: string[] = [];
-
-  // Check for added and updated products (name, quantity, price, notes, sku, vat, discount, tags)
-  for (const [name, extProduct] of externalMap as Map<string, any>) {
-    const existing = existingMap.get(name) as any;
-    if (!existing) {
-      added.push(extProduct.name || extProduct.product_name || 'Unknown');
-      continue;
-    }
-
-    const extQty = extProduct.quantity ?? 1;
-    const extUnitPriceRaw = extProduct.unit_price ?? extProduct.price ?? extProduct.rental_price ?? extProduct.cost ?? null;
-    const extTotalPrice = extProduct.total ?? (extUnitPriceRaw != null ? extUnitPriceRaw * extQty : null);
-    const extNotes = extProduct.notes ?? extProduct.description ?? null;
-    const extSku = extProduct.sku ?? extProduct.article_number ?? null;
-
-    const diffs: string[] = [];
-    if ((existing.quantity ?? 0) !== extQty) diffs.push(`qty ${existing.quantity}→${extQty}`);
-    if (num(existing.unit_price) !== num(extUnitPriceRaw)) diffs.push(`unit ${existing.unit_price}→${extUnitPriceRaw}`);
-    if (num(existing.total_price) !== num(extTotalPrice)) diffs.push(`total ${existing.total_price}→${extTotalPrice}`);
-    if (str(existing.notes) !== str(extNotes)) diffs.push('notes');
-    if (str(existing.sku) !== str(extSku)) diffs.push('sku');
-    if (extProduct.vat_rate != null && num(existing.vat_rate) !== num(extProduct.vat_rate)) diffs.push('vat');
-    if (extProduct.discount != null && num(existing.discount) !== num(extProduct.discount)) diffs.push('discount');
-    if (extProduct.tags != null && tagsSig(existing.tags) !== tagsSig(extProduct.tags)) diffs.push('tags');
-    if (extProduct.package_components != null && componentsSig(existing.package_components) !== componentsSig(extProduct.package_components)) diffs.push('package_components');
-
-
-    if (diffs.length > 0) {
-      updated.push(`${extProduct.name || extProduct.product_name}: ${diffs.join(', ')}`);
-    }
-  }
-
-  // Check for removed products
-  for (const [name, existingProduct] of existingMap as Map<string, any>) {
-    if (!externalMap.has(name)) {
-      removed.push(existingProduct.name);
-    }
-  }
-
-  const changed = added.length > 0 || removed.length > 0 || updated.length > 0;
-
-  if (changed) {
-    console.log(`[Product Changes] Booking ${bookingId}: +${added.length} added, -${removed.length} removed, ~${updated.length} updated`);
-  }
-
-  return { changed, added, removed, updated, existingProducts: existingProducts || [] };
 };
 
+
 /**
- * Update packing_list_items to reconnect to new product IDs
- * Maps old products to new products by name and preserves packing status
+ * Update packing_list_items to reconnect to new product IDs.
+ *
+ * STEG 3D:
+ * - Parent packing_project verifieras alltid med organization_id + booking_id.
+ * - Orphaned items raderas ENDAST när products_complete === true.
+ * - Lease verifieras direkt före varje destruktiv mutation.
+ * - Alla DB-fel returneras (ingen tyst success).
  */
 const reconnectPackingListItems = async (
   supabase: any,
   packingId: string,
   oldProducts: any[],
-  newProducts: any[]
-): Promise<{ reconnected: number; orphaned: number }> => {
-  console.log(`[Packing Reconnect] Reconnecting packing list items for packing ${packingId}`);
-  
-  // Get existing packing_list_items
+  newProducts: any[],
+  opts: {
+    completeness: ProductSourceCompleteness;
+    organizationId: string;
+    bookingId: string;
+    assertLease?: (phase: string) => void;
+  },
+): Promise<{ reconnected: number; orphaned: number; blockedDeletes: number; error?: string | null }> => {
+  const { completeness, organizationId, bookingId, assertLease } = opts;
+  console.log(`[Packing Reconnect] Reconnecting packing list items for packing ${packingId} (completeness=${completeness})`);
+
+  // TENANT GUARD: verifiera parent packing_project via organization_id + booking_id.
+  const { data: parentPacking, error: parentError } = await supabase
+    .from('packing_projects')
+    .select('id')
+    .eq('id', packingId)
+    .eq('booking_id', bookingId)
+    .eq('organization_id', organizationId)
+    .maybeSingle();
+
+  if (parentError) {
+    console.error(`[Packing Reconnect] Error verifying parent packing ${packingId}:`, parentError);
+    return { reconnected: 0, orphaned: 0, blockedDeletes: 0, error: parentError.message || String(parentError) };
+  }
+  if (!parentPacking) {
+    console.warn(`[Packing Reconnect] Parent packing ${packingId} not verified for org ${organizationId} / booking ${bookingId} — skipping`);
+    return { reconnected: 0, orphaned: 0, blockedDeletes: 0 };
+  }
+  const verifiedPackingId = parentPacking.id;
+
   const { data: packingItems, error: fetchError } = await supabase
     .from('packing_list_items')
     .select('id, booking_product_id, quantity_packed, packed_by, packed_at, verified_by, verified_at')
-    .eq('packing_id', packingId);
-  
-  if (fetchError || !packingItems || packingItems.length === 0) {
-    console.log(`[Packing Reconnect] No packing items found for packing ${packingId}`);
-    return { reconnected: 0, orphaned: 0 };
+    .eq('packing_id', verifiedPackingId);
+
+  if (fetchError) {
+    console.error(`[Packing Reconnect] Error fetching items for packing ${verifiedPackingId}:`, fetchError);
+    return { reconnected: 0, orphaned: 0, blockedDeletes: 0, error: fetchError.message || String(fetchError) };
   }
-  
-  // Build maps: old product ID -> name, new product name -> ID
-  const oldIdToName = new Map(oldProducts.map(p => [p.id, (p.name || '').trim().toLowerCase()]));
-  const newNameToId = new Map(newProducts.map(p => [(p.name || '').trim().toLowerCase(), p.id]));
-  
+  if (!packingItems || packingItems.length === 0) {
+    console.log(`[Packing Reconnect] No packing items found for packing ${verifiedPackingId}`);
+    return { reconnected: 0, orphaned: 0, blockedDeletes: 0 };
+  }
+
+  const plan = planPackingReconnect(packingItems, oldProducts, newProducts, completeness);
+
   let reconnected = 0;
-  let orphaned = 0;
-  
-  for (const item of packingItems) {
-    const oldName = oldIdToName.get(item.booking_product_id);
-    
-    if (!oldName) {
-      // Old product not found - orphaned
+  let orphaned = plan.untouched.length;
+  let firstError: string | null = null;
+
+  for (const { itemId, newProductId } of plan.updates) {
+    const { error: updateError } = await supabase
+      .from('packing_list_items')
+      .update({ booking_product_id: newProductId })
+      .eq('id', itemId)
+      .eq('packing_id', verifiedPackingId);
+
+    if (updateError) {
+      console.error(`[Packing Reconnect] Error updating item ${itemId}:`, updateError);
+      firstError = firstError ?? (updateError.message || String(updateError));
       orphaned++;
-      console.log(`[Packing Reconnect] Orphaned item ${item.id} - old product ${item.booking_product_id} not found`);
-      continue;
-    }
-    
-    const newProductId = newNameToId.get(oldName);
-    
-    if (newProductId) {
-      // Update the packing_list_item to point to new product ID
-      const { error: updateError } = await supabase
-        .from('packing_list_items')
-        .update({ booking_product_id: newProductId })
-        .eq('id', item.id);
-      
-      if (updateError) {
-        console.error(`[Packing Reconnect] Error updating item ${item.id}:`, updateError);
-        orphaned++;
-      } else {
-        reconnected++;
-        console.log(`[Packing Reconnect] Reconnected item ${item.id}: ${item.booking_product_id} -> ${newProductId}`);
-      }
     } else {
-      // Product was removed - delete the packing_list_item
-      const { error: deleteError } = await supabase
-        .from('packing_list_items')
-        .delete()
-        .eq('id', item.id);
-      
-      if (deleteError) {
-        console.error(`[Packing Reconnect] Error deleting orphaned item ${item.id}:`, deleteError);
-      }
-      orphaned++;
-      console.log(`[Packing Reconnect] Removed orphaned item ${item.id} - product "${oldName}" no longer exists`);
+      reconnected++;
     }
   }
-  
-  console.log(`[Packing Reconnect] Completed: ${reconnected} reconnected, ${orphaned} orphaned/removed`);
-  return { reconnected, orphaned };
+
+  if (plan.deletes.length > 0) {
+    // Destruktiv operation → lease måste ägas.
+    assertLease?.('packing_item_delete');
+    const { error: deleteError } = await supabase
+      .from('packing_list_items')
+      .delete()
+      .in('id', plan.deletes)
+      .eq('packing_id', verifiedPackingId);
+    if (deleteError) {
+      console.error(`[Packing Reconnect] Error deleting orphaned items:`, deleteError);
+      firstError = firstError ?? (deleteError.message || String(deleteError));
+    } else {
+      orphaned += plan.deletes.length;
+      console.log(`[Packing Reconnect] Removed ${plan.deletes.length} orphaned items (canonical complete source)`);
+    }
+  }
+
+  if (plan.blockedDeletes.length > 0) {
+    orphaned += plan.blockedDeletes.length;
+    console.warn(`[Packing Reconnect] ${PRODUCT_DESTRUCTIVE_BLOCKED_LOG} packing ${verifiedPackingId}: kept ${plan.blockedDeletes.length} orphaned items (completeness=${completeness})`);
+  }
+
+  console.log(`[Packing Reconnect] Completed: ${reconnected} reconnected, ${orphaned} orphaned, ${plan.blockedDeletes.length} deletes blocked`);
+  return { reconnected, orphaned, blockedDeletes: plan.blockedDeletes.length, error: firstError };
 };
+
 
 /**
  * Check if booking data has meaningfully changed
@@ -1950,58 +1960,94 @@ const expandPackageComponents = async (
 };
 
 /**
- * Full sync packing list items to exactly match booking_products.
- * - Add items for new products
- * - Remove items for deleted products
+ * Full sync packing list items to match booking_products.
+ * - Add items for new products (alltid tillåtet)
+ * - Remove items for deleted products (ENDAST vid products_complete === true)
  * - Update quantity_to_pack for changed products
+ *
+ * Tenant-säkert: packing_projects verifieras med organization_id + booking_id,
+ * och alla item-mutationer scopeas till den verifierade parentens packing_id.
  */
 const syncPackingListAfterExpansion = async (
   supabase: any,
   bookingId: string,
-  orgId: string
-): Promise<number> => {
-  const { data: packingProject } = await supabase
+  orgId: string,
+  opts: { completeness: ProductSourceCompleteness; assertLease?: (phase: string) => void } = { completeness: 'unknown' },
+): Promise<{ changes: number; error?: string | null }> => {
+  const completeness = opts.completeness ?? 'unknown';
+  const deleteAllowed = canDeleteProducts(completeness);
+
+  const { data: packingProject, error: packingError } = await supabase
     .from('packing_projects')
     .select('id, status')
     .eq('booking_id', bookingId)
+    .eq('organization_id', orgId)
     .maybeSingle();
 
+  if (packingError) {
+    console.error(`[Packing Sync] Error loading packing project for booking ${bookingId}:`, packingError);
+    return { changes: 0, error: packingError.message || String(packingError) };
+  }
   if (!packingProject) {
-    console.log(`[Packing Sync] No packing project found for booking ${bookingId}`);
-    return 0;
+    console.log(`[Packing Sync] No packing project found for booking ${bookingId} in org ${orgId}`);
+    return { changes: 0 };
   }
 
   const packingId = packingProject.id;
   const packingStatus = (packingProject as any)?.status || null;
 
-  const { data: allProducts } = await supabase
+  const { data: allProducts, error: productsError } = await supabase
     .from('booking_products')
     .select('id, name, quantity')
-    .eq('booking_id', bookingId);
+    .eq('booking_id', bookingId)
+    .eq('organization_id', orgId);
+
+  if (productsError) {
+    console.error(`[Packing Sync] Error loading products for booking ${bookingId}:`, productsError);
+    return { changes: 0, error: productsError.message || String(productsError) };
+  }
 
   if (!allProducts || allProducts.length === 0) {
-    // No products → remove all packing list items
-    const { data: remaining } = await supabase
+    if (!deleteAllowed) {
+      console.warn(`[Packing Sync] ${PRODUCT_DESTRUCTIVE_BLOCKED_LOG} booking ${bookingId}: 0 products but completeness=${completeness} — keeping packing items`);
+      return { changes: 0 };
+    }
+    const { data: remaining, error: remainingError } = await supabase
       .from('packing_list_items')
       .select('id')
       .eq('packing_id', packingId);
-    if (remaining && remaining.length > 0) {
-      await supabase.from('packing_list_items').delete().eq('packing_id', packingId);
-      console.log(`[Packing Sync] Removed all ${remaining.length} packing list items (no products left)`);
-      return remaining.length;
+    if (remainingError) {
+      return { changes: 0, error: remainingError.message || String(remainingError) };
     }
-    return 0;
+    if (remaining && remaining.length > 0) {
+      opts.assertLease?.('packing_item_clear');
+      const { error: clearError } = await supabase
+        .from('packing_list_items').delete().eq('packing_id', packingId);
+      if (clearError) {
+        console.error(`[Packing Sync] Error clearing packing list items:`, clearError);
+        return { changes: 0, error: clearError.message || String(clearError) };
+      }
+      console.log(`[Packing Sync] Removed all ${remaining.length} packing list items (canonical empty product list)`);
+      return { changes: remaining.length };
+    }
+    return { changes: 0 };
   }
 
-  const { data: existingItems } = await supabase
+  const { data: existingItems, error: itemsError } = await supabase
     .from('packing_list_items')
     .select('id, booking_product_id, quantity_to_pack')
     .eq('packing_id', packingId);
+
+  if (itemsError) {
+    console.error(`[Packing Sync] Error loading packing items for packing ${packingId}:`, itemsError);
+    return { changes: 0, error: itemsError.message || String(itemsError) };
+  }
 
   const productMap = new Map(allProducts.map((p: any) => [p.id, p]));
   const existingByProductId = new Map((existingItems || []).map((i: any) => [i.booking_product_id, i]));
 
   let changes = 0;
+  let firstError: string | null = null;
 
   // 1. Add missing items
   const missingProducts = allProducts.filter((p: any) => !existingByProductId.has(p.id));
@@ -2018,18 +2064,29 @@ const syncPackingListAfterExpansion = async (
     const { error: insertError } = await supabase.from('packing_list_items').insert(newItems);
     if (insertError) {
       console.error(`[Packing Sync] Error creating packing list items:`, insertError);
+      firstError = firstError ?? (insertError.message || String(insertError));
     } else {
       changes += missingProducts.length;
     }
   }
 
-  // 2. Remove items for deleted products
+  // 2. Remove items for deleted products — endast vid verifierat komplett källa
   const orphanedItems = (existingItems || []).filter((i: any) => !productMap.has(i.booking_product_id));
   if (orphanedItems.length > 0) {
-    const orphanedIds = orphanedItems.map((i: any) => i.id);
-    console.log(`[Packing Sync] Removing ${orphanedItems.length} packing list items (products deleted)`);
-    const { error: deleteError } = await supabase.from('packing_list_items').delete().in('id', orphanedIds);
-    if (!deleteError) changes += orphanedItems.length;
+    if (!deleteAllowed) {
+      console.warn(`[Packing Sync] ${PRODUCT_DESTRUCTIVE_BLOCKED_LOG} packing ${packingId}: kept ${orphanedItems.length} orphaned items (completeness=${completeness})`);
+    } else {
+      const orphanedIds = orphanedItems.map((i: any) => i.id);
+      opts.assertLease?.('packing_item_delete');
+      const { error: deleteError } = await supabase
+        .from('packing_list_items').delete().in('id', orphanedIds).eq('packing_id', packingId);
+      if (deleteError) {
+        console.error(`[Packing Sync] Error deleting orphaned packing items:`, deleteError);
+        firstError = firstError ?? (deleteError.message || String(deleteError));
+      } else {
+        changes += orphanedItems.length;
+      }
+    }
   }
 
   // 3. Update quantity_to_pack where product quantity changed.
@@ -2039,8 +2096,17 @@ const syncPackingListAfterExpansion = async (
     const product = productMap.get(productId);
     if (product && (product as any).quantity !== item.quantity_to_pack) {
       if (packingStatus === 'planning') {
-        await supabase.from('packing_list_items').update({ quantity_to_pack: (product as any).quantity }).eq('id', item.id);
-        changes++;
+        const { error: qtyError } = await supabase
+          .from('packing_list_items')
+          .update({ quantity_to_pack: (product as any).quantity })
+          .eq('id', item.id)
+          .eq('packing_id', packingId);
+        if (qtyError) {
+          console.error(`[Packing Sync] Error updating quantity for item ${item.id}:`, qtyError);
+          firstError = firstError ?? (qtyError.message || String(qtyError));
+        } else {
+          changes++;
+        }
       } else {
         console.warn(`[Packing Sync] Frozen quantity_to_pack for packing ${packingId} item ${item.id}: ${item.quantity_to_pack} stays despite booking quantity ${(product as any).quantity}`);
       }
@@ -2050,8 +2116,9 @@ const syncPackingListAfterExpansion = async (
   if (changes > 0) {
     console.log(`[Packing Sync] Completed: ${changes} total changes for booking ${bookingId}`);
   }
-  return changes;
+  return { changes, error: firstError };
 };
+
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -3181,6 +3248,16 @@ serve(async (req) => {
         let needsWarehouseRecovery = false;
         let needsProductRecovery = false;
 
+        // STEG 3D: explicit completeness från Booking-kontraktet (fail-closed).
+        // 'complete' krävs för ALL destruktiv produkt-/packing-synk.
+        const productCompleteness: ProductSourceCompleteness = readProductSourceCompleteness(externalBooking);
+        const productDeleteAllowed = canDeleteProducts(productCompleteness);
+        if (!productDeleteAllowed) {
+          console.log(`[Product Sync] booking ${externalBooking.id}: products_complete=${productCompleteness} → destructive product sync disabled (add/update only)`);
+        }
+
+
+
         if (existingBooking) {
           // EXISTING BOOKING - UPDATE ONLY IF ACTUALLY DIFFERENT
           console.log(`Found existing booking ${existingBooking.id}, checking for changes...`)
@@ -3287,7 +3364,16 @@ serve(async (req) => {
           // Note: needsProductUpdate and productChanges are declared at the top of the loop
           
           if (externalBooking.products && Array.isArray(externalBooking.products)) {
-            productChanges = await checkProductChanges(supabase, existingBooking.id, externalBooking.products);
+            productChanges = await checkProductChanges(
+              supabase,
+              existingBooking.id,
+              externalBooking.products,
+              productCompleteness,
+              bookingData.organization_id,
+            );
+            if ((productChanges as any).error) {
+              results.errors.push({ booking_id: existingBooking.id, error: `product_changes_read_failed:${(productChanges as any).error}` });
+            }
             needsProductUpdate = (productChanges as any).changed;
             
             if (needsProductUpdate) {
@@ -3377,21 +3463,58 @@ serve(async (req) => {
               continue;
             }
 
+            // STEG 3D: recovery är destruktiv (clear + reimport) och kräver att
+            // Booking explicit rapporterar products_complete === true.
+            if (!productDeleteAllowed) {
+              console.warn(`[Product Recovery] ${PRODUCT_DESTRUCTIVE_BLOCKED_LOG} booking ${bookingData.id}: completeness=${productCompleteness} → no clear, no delete. Only safe add/update paths may run.`);
+              assertLeaseOwned('calendar_reconcile');
+        await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
+              continue;
+            }
+
             console.log(`Only product recovery needed for ${bookingData.id} - clearing and reimporting ${recoveryExternalCount} products`);
             
             // Delete packing list items BEFORE products to avoid FK constraint violations
-            const { data: packingForRecovery } = await supabase
+            const { data: packingForRecovery, error: packingForRecoveryError } = await supabase
               .from('packing_projects')
               .select('id')
               .eq('booking_id', existingBooking.id)
+              .eq('organization_id', bookingData.organization_id)
               .maybeSingle();
-            
+
+            if (packingForRecoveryError) {
+              console.error(`[Product Recovery] Error loading packing project:`, packingForRecoveryError);
+              results.errors.push({ booking_id: existingBooking.id, error: `product_recovery_packing_lookup_failed:${packingForRecoveryError.message || packingForRecoveryError}` });
+              results.failed++;
+              continue;
+            }
+
             if (packingForRecovery) {
-              await supabase.from('packing_list_items').delete().eq('packing_id', packingForRecovery.id);
+              assertLeaseOwned('packing_item_clear');
+              const { error: clearItemsError } = await supabase
+                .from('packing_list_items').delete().eq('packing_id', packingForRecovery.id);
+              if (clearItemsError) {
+                console.error(`[Product Recovery] Error clearing packing list items:`, clearItemsError);
+                results.errors.push({ booking_id: existingBooking.id, error: `packing_items_clear_failed:${clearItemsError.message || clearItemsError}` });
+                results.failed++;
+                continue;
+              }
               console.log(`[Product Recovery] Cleared packing list items for packing ${packingForRecovery.id}`);
             }
+
+            assertLeaseOwned('product_clear');
+            const { error: clearProductsError } = await supabase
+              .from('booking_products')
+              .delete()
+              .eq('booking_id', existingBooking.id)
+              .eq('organization_id', bookingData.organization_id);
+            if (clearProductsError) {
+              console.error(`[Product Recovery] Error clearing products:`, clearProductsError);
+              results.errors.push({ booking_id: existingBooking.id, error: `product_clear_failed:${clearProductsError.message || clearProductsError}` });
+              results.failed++;
+              continue;
+            }
             
-            await supabase.from('booking_products').delete().eq('booking_id', existingBooking.id);
             
             // Process products with parent-child relationship tracking
             if (externalBooking.products && Array.isArray(externalBooking.products)) {
@@ -3566,9 +3689,12 @@ serve(async (req) => {
             }
             
             // SYNC packing list items for all products (including expanded components)
-            const recoveryPackingSynced = await (async () => { assertLeaseOwned('packing_project'); return syncPackingListAfterExpansion(supabase, existingBooking.id, organizationId); })();
-            if (recoveryPackingSynced > 0) {
-              console.log(`[Product Recovery] Synced ${recoveryPackingSynced} packing list items for booking ${bookingData.id}`);
+            const recoveryPackingResult = await (async () => { assertLeaseOwned('packing_project'); return syncPackingListAfterExpansion(supabase, existingBooking.id, organizationId, { completeness: productCompleteness, assertLease: assertLeaseOwned }); })();
+            if (recoveryPackingResult.error) {
+              results.errors.push({ booking_id: existingBooking.id, error: `packing_sync_failed:${recoveryPackingResult.error}` });
+            }
+            if (recoveryPackingResult.changes > 0) {
+              console.log(`[Product Recovery] Synced ${recoveryPackingResult.changes} packing list items for booking ${bookingData.id}`);
             }
             
             // Sync all attachments with shared dedup
@@ -3887,14 +4013,17 @@ serve(async (req) => {
             .from('packing_projects')
             .select('id')
             .eq('booking_id', existingBooking.id)
-            .single();
+            .eq('organization_id', bookingData.organization_id)
+            .maybeSingle();
           
           // 2. Fetch existing products BEFORE deletion (for packing list reconnection)
           const { data: oldProductsData } = await supabase
             .from('booking_products')
             .select('id, name, quantity')
-            .eq('booking_id', existingBooking.id);
+            .eq('booking_id', existingBooking.id)
+            .eq('organization_id', bookingData.organization_id);
           oldProducts = oldProductsData || null;
+          
           
           // 3. Attachments: never delete existing ones during sync.
           // New attachments are added additively via dedup check (seenUrls) in insertAttachment().
@@ -4192,18 +4321,32 @@ serve(async (req) => {
           }
 
           // ── DELETE products no longer in the external API ─────────────────────
-          // GUARD: never delete based on an empty external payload — that's the upstream
-          // delete+reinsert race window, not a real deletion intent.
+          // STEG 3D: destruktiv delete kräver EXPLICIT products_complete === true.
+          // Fail-closed: unknown/false → 0 deletes, oavsett antal produkter.
           const externalProductCount = Array.isArray(externalBooking.products) ? externalBooking.products.length : 0;
-          if (oldProducts && oldProducts.length > 0 && externalProductCount > 0) {
+          if (oldProducts && oldProducts.length > 0 && externalProductCount > 0 && productDeleteAllowed) {
             const toDelete = oldProducts.filter((p: any) => !seenExistingIds.has(p.id));
             if (toDelete.length > 0) {
               const idsToDelete = toDelete.map((p: any) => p.id);
               console.log(`[Merge] Deleting ${idsToDelete.length} products no longer in external API (external had ${externalProductCount})`);
-              await supabase.from('booking_products').delete().in('id', idsToDelete);
+              assertLeaseOwned('product_delete');
+              const { error: mergeDeleteError } = await supabase
+                .from('booking_products')
+                .delete()
+                .in('id', idsToDelete)
+                .eq('booking_id', bookingData.id)
+                .eq('organization_id', organizationId);
+              if (mergeDeleteError) {
+                console.error(`[Merge] Error deleting products for booking ${bookingData.id}:`, mergeDeleteError);
+                results.errors.push({ booking_id: bookingData.id, error: `product_delete_failed:${mergeDeleteError.message || mergeDeleteError}` });
+                results.failed++;
+                continue;
+              }
             }
           } else if (oldProducts && oldProducts.length > 0 && externalProductCount === 0) {
             console.warn(`[Merge GUARD] Skipping delete of ${oldProducts.length} local products for booking ${bookingData.id}: external products array is empty (transient_empty_source)`);
+          } else if (oldProducts && oldProducts.length > 0 && !productDeleteAllowed) {
+            console.warn(`[Merge] ${PRODUCT_DESTRUCTIVE_BLOCKED_LOG} booking ${bookingData.id}: keeping all ${oldProducts.length} local products (completeness=${productCompleteness}, source had ${externalProductCount})`);
           }
           // ─────────────────────────────────────────────────────────────────────
           
@@ -4215,30 +4358,49 @@ serve(async (req) => {
           }
           
           // SYNC packing list items for expanded components
-          const mainPackingSynced = await (async () => { assertLeaseOwned('packing_project'); return syncPackingListAfterExpansion(supabase, bookingData.id, organizationId); })();
-          if (mainPackingSynced > 0) {
-            console.log(`[Main Flow] Synced ${mainPackingSynced} packing list items for booking ${bookingData.id}`);
+          const mainPackingResult = await (async () => { assertLeaseOwned('packing_project'); return syncPackingListAfterExpansion(supabase, bookingData.id, organizationId, { completeness: productCompleteness, assertLease: assertLeaseOwned }); })();
+          if (mainPackingResult.error) {
+            results.errors.push({ booking_id: bookingData.id, error: `packing_sync_failed:${mainPackingResult.error}` });
+          }
+          if (mainPackingResult.changes > 0) {
+            console.log(`[Main Flow] Synced ${mainPackingResult.changes} packing list items for booking ${bookingData.id}`);
           }
         } // end if (needsProductUpdate || !existingBooking)
         // RECONNECT PACKING LIST ITEMS after products have been created
         if (needsPackingReconnection && packingIdForReconnection) {
           console.log(`[Packing Reconnect] Starting packing list reconnection for booking ${bookingData.id}`);
           
-          // Fetch newly created products
-          const { data: newProducts } = await supabase
+          // Fetch newly created products (tenant-scoped)
+          const { data: newProducts, error: newProductsError } = await supabase
             .from('booking_products')
             .select('id, name, quantity')
-            .eq('booking_id', bookingData.id);
-          
+            .eq('booking_id', bookingData.id)
+            .eq('organization_id', organizationId);
+
+          if (newProductsError) {
+            console.error(`[Packing Reconnect] Error loading products:`, newProductsError);
+            results.errors.push({ booking_id: bookingData.id, error: `packing_reconnect_products_read_failed:${newProductsError.message || newProductsError}` });
+          }
+
           if (newProducts && newProducts.length > 0) {
             const reconnectResult = await reconnectPackingListItems(
               supabase,
               packingIdForReconnection,
               oldProductsForReconnection,
-              newProducts
+              newProducts,
+              {
+                completeness: productCompleteness,
+                organizationId,
+                bookingId: bookingData.id,
+                assertLease: assertLeaseOwned,
+              },
             );
-            
-            console.log(`[Packing Reconnect] Booking ${bookingData.id}: ${reconnectResult.reconnected} items reconnected, ${reconnectResult.orphaned} orphaned/removed`);
+
+            if (reconnectResult.error) {
+              results.errors.push({ booking_id: bookingData.id, error: `packing_reconnect_failed:${reconnectResult.error}` });
+            }
+
+            console.log(`[Packing Reconnect] Booking ${bookingData.id}: ${reconnectResult.reconnected} items reconnected, ${reconnectResult.orphaned} orphaned, ${reconnectResult.blockedDeletes} deletes blocked`);
             
             // Create packing list items for NEW products that didn't exist before
             const oldProductNames = new Set(oldProductsForReconnection.map((p: any) => (p.name || '').trim().toLowerCase()));
