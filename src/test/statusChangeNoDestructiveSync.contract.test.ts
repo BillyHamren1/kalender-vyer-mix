@@ -67,21 +67,17 @@ describe('STEG 3H — ingen destruktiv statushantering i normal sync', () => {
     expect(statusChangeBlock).toContain('destructive_cleanup: false');
   });
 
-  it('10. CANCELLED i normal sync routas till skyddad väg', () => {
-    expect(bulkCancelledBlock).toContain('isAutomaticDestructiveSyncEnabled()');
+  it('10. CANCELLED i normal sync blir endast kandidat (STEG 3L)', () => {
     expect(bulkCancelledBlock).toContain('logBlockedCancellation(');
-    expect(bulkCancelledBlock).toContain('applyBookingCancellation(');
+    expect(bulkCancelledBlock).toContain('results.cancellation_candidates.push(');
+    expect(bulkCancelledBlock).not.toContain('applyBookingCancellation(');
   });
 
-  it('11. CANCELLED med flagga AV: ingen mutation, ingen handler', () => {
-    const guardIdx = bulkCancelledBlock.indexOf('if (!isAutomaticDestructiveSyncEnabled())');
-    const applyIdx = bulkCancelledBlock.indexOf('applyBookingCancellation(');
-    expect(guardIdx).toBeGreaterThan(-1);
-    expect(applyIdx).toBeGreaterThan(guardIdx);
-    const guarded = bulkCancelledBlock.slice(guardIdx, applyIdx);
-    expect(guarded).toContain('continue;');
-    expect(guarded).not.toContain('.delete()');
-    expect(guarded).not.toContain('.update(');
+  it('11. CANCELLED muterar aldrig — oavsett feature flag', () => {
+    expect(bulkCancelledBlock).not.toContain('isAutomaticDestructiveSyncEnabled');
+    expect(bulkCancelledBlock).toContain('continue;');
+    expect(bulkCancelledBlock).not.toContain('.delete()');
+    expect(bulkCancelledBlock).not.toContain('.update(');
   });
 
   it('12. bulk-CANCELLED har ingen egen cleanup kvar', () => {
@@ -90,17 +86,19 @@ describe('STEG 3H — ingen destruktiv statushantering i normal sync', () => {
     expect(bulkCancelledBlock).not.toContain("from('warehouse_calendar_events')");
   });
 
-  it('13. fel i cancellation döljs inte som success', () => {
-    expect(bulkCancelledBlock).toContain('results.failed++');
-    expect(bulkCancelledBlock).toContain('results.errors.push(');
+  it('13. historical CANCELLED går samma icke-destruktiva väg', () => {
+    expect(bulkCancelledBlock).toContain('historical_cancelled_candidate');
+    expect(importSrc).not.toContain('Historical mode: Processing CANCELLED booking');
   });
 
-  it('14. endast EN central destruktiv cancellation-väg', () => {
-    const occurrences = importSrc.split('applyBookingCancellation(').length - 1;
-    expect(occurrences).toBeGreaterThanOrEqual(2); // single-booking + bulk, båda via handlern
+  it('14. import-bookings kan inte nå destruktiv cancellation alls', () => {
+    expect(importSrc).not.toContain('applyBookingCancellation');
+    expect(importSrc).not.toContain('apply_booking_cancellation_atomic');
+    expect(importSrc).not.toContain('cancellation-handler.ts\'');
     expect(importSrc).not.toContain('Removed booking products for CANCELLED booking');
     expect(importSrc).not.toContain('Removed packing project for CANCELLED booking');
   });
+
 
   it('15. cancellation är tenant-scoped', () => {
     expect(bulkCancelledBlock).toContain('organization_id: organizationId');
