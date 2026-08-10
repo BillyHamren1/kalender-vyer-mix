@@ -1960,58 +1960,94 @@ const expandPackageComponents = async (
 };
 
 /**
- * Full sync packing list items to exactly match booking_products.
- * - Add items for new products
- * - Remove items for deleted products
+ * Full sync packing list items to match booking_products.
+ * - Add items for new products (alltid tillåtet)
+ * - Remove items for deleted products (ENDAST vid products_complete === true)
  * - Update quantity_to_pack for changed products
+ *
+ * Tenant-säkert: packing_projects verifieras med organization_id + booking_id,
+ * och alla item-mutationer scopeas till den verifierade parentens packing_id.
  */
 const syncPackingListAfterExpansion = async (
   supabase: any,
   bookingId: string,
-  orgId: string
-): Promise<number> => {
-  const { data: packingProject } = await supabase
+  orgId: string,
+  opts: { completeness: ProductSourceCompleteness; assertLease?: (phase: string) => void } = { completeness: 'unknown' },
+): Promise<{ changes: number; error?: string | null }> => {
+  const completeness = opts.completeness ?? 'unknown';
+  const deleteAllowed = canDeleteProducts(completeness);
+
+  const { data: packingProject, error: packingError } = await supabase
     .from('packing_projects')
     .select('id, status')
     .eq('booking_id', bookingId)
+    .eq('organization_id', orgId)
     .maybeSingle();
 
+  if (packingError) {
+    console.error(`[Packing Sync] Error loading packing project for booking ${bookingId}:`, packingError);
+    return { changes: 0, error: packingError.message || String(packingError) };
+  }
   if (!packingProject) {
-    console.log(`[Packing Sync] No packing project found for booking ${bookingId}`);
-    return 0;
+    console.log(`[Packing Sync] No packing project found for booking ${bookingId} in org ${orgId}`);
+    return { changes: 0 };
   }
 
   const packingId = packingProject.id;
   const packingStatus = (packingProject as any)?.status || null;
 
-  const { data: allProducts } = await supabase
+  const { data: allProducts, error: productsError } = await supabase
     .from('booking_products')
     .select('id, name, quantity')
-    .eq('booking_id', bookingId);
+    .eq('booking_id', bookingId)
+    .eq('organization_id', orgId);
+
+  if (productsError) {
+    console.error(`[Packing Sync] Error loading products for booking ${bookingId}:`, productsError);
+    return { changes: 0, error: productsError.message || String(productsError) };
+  }
 
   if (!allProducts || allProducts.length === 0) {
-    // No products → remove all packing list items
-    const { data: remaining } = await supabase
+    if (!deleteAllowed) {
+      console.warn(`[Packing Sync] ${PRODUCT_DESTRUCTIVE_BLOCKED_LOG} booking ${bookingId}: 0 products but completeness=${completeness} — keeping packing items`);
+      return { changes: 0 };
+    }
+    const { data: remaining, error: remainingError } = await supabase
       .from('packing_list_items')
       .select('id')
       .eq('packing_id', packingId);
-    if (remaining && remaining.length > 0) {
-      await supabase.from('packing_list_items').delete().eq('packing_id', packingId);
-      console.log(`[Packing Sync] Removed all ${remaining.length} packing list items (no products left)`);
-      return remaining.length;
+    if (remainingError) {
+      return { changes: 0, error: remainingError.message || String(remainingError) };
     }
-    return 0;
+    if (remaining && remaining.length > 0) {
+      opts.assertLease?.('packing_item_clear');
+      const { error: clearError } = await supabase
+        .from('packing_list_items').delete().eq('packing_id', packingId);
+      if (clearError) {
+        console.error(`[Packing Sync] Error clearing packing list items:`, clearError);
+        return { changes: 0, error: clearError.message || String(clearError) };
+      }
+      console.log(`[Packing Sync] Removed all ${remaining.length} packing list items (canonical empty product list)`);
+      return { changes: remaining.length };
+    }
+    return { changes: 0 };
   }
 
-  const { data: existingItems } = await supabase
+  const { data: existingItems, error: itemsError } = await supabase
     .from('packing_list_items')
     .select('id, booking_product_id, quantity_to_pack')
     .eq('packing_id', packingId);
+
+  if (itemsError) {
+    console.error(`[Packing Sync] Error loading packing items for packing ${packingId}:`, itemsError);
+    return { changes: 0, error: itemsError.message || String(itemsError) };
+  }
 
   const productMap = new Map(allProducts.map((p: any) => [p.id, p]));
   const existingByProductId = new Map((existingItems || []).map((i: any) => [i.booking_product_id, i]));
 
   let changes = 0;
+  let firstError: string | null = null;
 
   // 1. Add missing items
   const missingProducts = allProducts.filter((p: any) => !existingByProductId.has(p.id));
@@ -2028,18 +2064,29 @@ const syncPackingListAfterExpansion = async (
     const { error: insertError } = await supabase.from('packing_list_items').insert(newItems);
     if (insertError) {
       console.error(`[Packing Sync] Error creating packing list items:`, insertError);
+      firstError = firstError ?? (insertError.message || String(insertError));
     } else {
       changes += missingProducts.length;
     }
   }
 
-  // 2. Remove items for deleted products
+  // 2. Remove items for deleted products — endast vid verifierat komplett källa
   const orphanedItems = (existingItems || []).filter((i: any) => !productMap.has(i.booking_product_id));
   if (orphanedItems.length > 0) {
-    const orphanedIds = orphanedItems.map((i: any) => i.id);
-    console.log(`[Packing Sync] Removing ${orphanedItems.length} packing list items (products deleted)`);
-    const { error: deleteError } = await supabase.from('packing_list_items').delete().in('id', orphanedIds);
-    if (!deleteError) changes += orphanedItems.length;
+    if (!deleteAllowed) {
+      console.warn(`[Packing Sync] ${PRODUCT_DESTRUCTIVE_BLOCKED_LOG} packing ${packingId}: kept ${orphanedItems.length} orphaned items (completeness=${completeness})`);
+    } else {
+      const orphanedIds = orphanedItems.map((i: any) => i.id);
+      opts.assertLease?.('packing_item_delete');
+      const { error: deleteError } = await supabase
+        .from('packing_list_items').delete().in('id', orphanedIds).eq('packing_id', packingId);
+      if (deleteError) {
+        console.error(`[Packing Sync] Error deleting orphaned packing items:`, deleteError);
+        firstError = firstError ?? (deleteError.message || String(deleteError));
+      } else {
+        changes += orphanedItems.length;
+      }
+    }
   }
 
   // 3. Update quantity_to_pack where product quantity changed.
@@ -2049,8 +2096,17 @@ const syncPackingListAfterExpansion = async (
     const product = productMap.get(productId);
     if (product && (product as any).quantity !== item.quantity_to_pack) {
       if (packingStatus === 'planning') {
-        await supabase.from('packing_list_items').update({ quantity_to_pack: (product as any).quantity }).eq('id', item.id);
-        changes++;
+        const { error: qtyError } = await supabase
+          .from('packing_list_items')
+          .update({ quantity_to_pack: (product as any).quantity })
+          .eq('id', item.id)
+          .eq('packing_id', packingId);
+        if (qtyError) {
+          console.error(`[Packing Sync] Error updating quantity for item ${item.id}:`, qtyError);
+          firstError = firstError ?? (qtyError.message || String(qtyError));
+        } else {
+          changes++;
+        }
       } else {
         console.warn(`[Packing Sync] Frozen quantity_to_pack for packing ${packingId} item ${item.id}: ${item.quantity_to_pack} stays despite booking quantity ${(product as any).quantity}`);
       }
@@ -2060,8 +2116,9 @@ const syncPackingListAfterExpansion = async (
   if (changes > 0) {
     console.log(`[Packing Sync] Completed: ${changes} total changes for booking ${bookingId}`);
   }
-  return changes;
+  return { changes, error: firstError };
 };
+
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
