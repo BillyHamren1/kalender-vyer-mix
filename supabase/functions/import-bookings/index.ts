@@ -36,6 +36,19 @@ import {
   PRODUCT_DESTRUCTIVE_BLOCKED_LOG,
 } from '../_shared/productCompleteness.ts'
 import type { ProductSourceCompleteness } from '../_shared/productCompleteness.ts'
+import {
+  buildDatePresence,
+  canDeleteCanonicalDateEvent,
+  canMutateCalendar,
+  dedupeDesiredEvents,
+  eventCanonicalDate,
+  fallbackCalendarContext,
+  isBookingGeneratedEvent,
+  readDateSourceCompleteness,
+  CALENDAR_DESTRUCTIVE_BLOCKED_LOG,
+  CALENDAR_MUTATION_BLOCKED_LOG,
+} from '../_shared/calendarSourceAuthority.ts'
+import type { CalendarSyncContext } from '../_shared/calendarSourceAuthority.ts'
 
 /**
  * Resolve the organization_id to use for all INSERTs.
@@ -850,8 +863,19 @@ async function reconcileCalendarEvents(
   organizationId: string,
   results: any,
   existingBooking?: any,
-) {
-  if (bookingData.status !== 'CONFIRMED') return;
+  calendarCtx: CalendarSyncContext = fallbackCalendarContext(),
+): Promise<{ ok: boolean; error?: string }> {
+  if (bookingData.status !== 'CONFIRMED') return { ok: true };
+
+  // ── STEG 3E: MUTATION GATE ──────────────────────────────────────────────
+  // Ingen kalendermutation innan kontrakt + revision + lease är validerade.
+  const mutationGate = canMutateCalendar(calendarCtx);
+  if (!mutationGate.allowed) {
+    console.warn(`[Calendar Reconcile] ${CALENDAR_MUTATION_BLOCKED_LOG} booking ${bookingData.id}: ${mutationGate.reason} → 0 calendar mutations`);
+    return { ok: true };
+  }
+  const calendarOrgId = bookingData.organization_id || organizationId;
+  let calendarError: string | null = null;
 
   // ── PLANNING-STATUS GUARD ──────────────────────────────────────────────
   // Nyskapade projekt börjar med planning_status='needs_planning' och hanteras
@@ -868,7 +892,7 @@ async function reconcileCalendarEvents(
       .maybeSingle();
     if (linkedProject?.planning_status === 'needs_planning') {
       console.log(`[Calendar Reconcile] SKIP booking ${bookingData.id}: linked project is needs_planning`);
-      return;
+      return { ok: true };
     }
     const { data: parentForLP } = await supabase
       .from('bookings')
@@ -883,7 +907,7 @@ async function reconcileCalendarEvents(
         .maybeSingle();
       if (lp?.planning_status === 'needs_planning') {
         console.log(`[Calendar Reconcile] SKIP booking ${bookingData.id}: large project ${parentForLP.large_project_id} is needs_planning`);
-        return;
+        return { ok: true };
       }
     }
 
@@ -900,7 +924,7 @@ async function reconcileCalendarEvents(
         .neq('event_type', 'activity');
       if (!existingCeCount || existingCeCount === 0) {
         console.log(`[Calendar Reconcile] SKIP booking ${bookingData.id}: no linked project/large_project and no existing events (awaiting manual planning)`);
-        return;
+        return { ok: true };
       }
     }
   } catch (planningGuardErr) {
