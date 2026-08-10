@@ -73,19 +73,27 @@ describe('diffProducts fail-closed', () => {
 describe('planPackingReconnect', () => {
   const old = [{ id: 'o1', name: 'Tält', quantity: 1 }, { id: 'o2', name: 'Bord', quantity: 1 }];
   const fresh = [{ id: 'n1', name: 'Tält', quantity: 1 }];
+  const items = [
+    { id: 'i1', booking_product_id: 'o1' },
+    { id: 'i2', booking_product_id: 'o2' },
+    { id: 'i3', booking_product_id: null },
+  ];
 
   it('unknown → inga deletes, bara remap', () => {
-    const plan = planPackingReconnect(old, fresh, 'unknown');
+    const plan = planPackingReconnect(items, old, fresh, 'unknown');
     expect(plan.deletes).toEqual([]);
-    expect(plan.blockedDeletes.length).toBeGreaterThan(0);
-    expect(plan.remaps.length).toBe(1);
+    expect(plan.blockedDeletes).toEqual(['i2']);
+    expect(plan.updates).toEqual([{ itemId: 'i1', newProductId: 'n1' }]);
+    expect(plan.untouched).toEqual(['i3']);
   });
 
   it('complete → orphans får raderas', () => {
-    const plan = planPackingReconnect(old, fresh, 'complete');
-    expect(plan.deletes.length).toBeGreaterThan(0);
+    const plan = planPackingReconnect(items, old, fresh, 'complete');
+    expect(plan.deletes).toEqual(['i2']);
     expect(plan.blockedDeletes).toEqual([]);
   });
+});
+
 });
 
 describe('import-bookings destructive paths are gated', () => {
