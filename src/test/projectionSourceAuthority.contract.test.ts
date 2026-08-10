@@ -162,7 +162,7 @@ describe('STEG 3F — import-bookings wiring', () => {
     expect(tail).not.toContain(".from('packing_projects')\n            .delete()");
   });
 
-  it('20. cancellation-safety orörd: cancellation-handler importeras fortfarande', () => {
-    expect(importSrc).toContain('cancellation-handler.ts');
+  it('20. cancellation-safety: STEG 3L — import-bookings når aldrig cancellation-handlern', () => {
+    expect(importSrc).not.toContain('applyBookingCancellation');
   });
 });
