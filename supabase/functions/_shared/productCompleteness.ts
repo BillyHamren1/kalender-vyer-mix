@@ -77,10 +77,24 @@ export function diffProducts(
   completeness: ProductSourceCompleteness,
 ): ProductDiffResult {
   const deleteAllowed = canDeleteProducts(completeness);
+
+  // GUARD: tom extern lista = transient/missing source, aldrig raderingsintention.
+  if ((externalProducts || []).length === 0) {
+    return {
+      changed: false,
+      added: [],
+      removed: [],
+      updated: [],
+      deleteAllowed: false,
+      blockedRemovals: (existingProducts || []).map((p: any) => p?.name).filter(Boolean),
+    };
+  }
+
   const existingMap = new Map((existingProducts || []).map((p: any) => [normName(p?.name), p]));
   const externalMap = new Map(
     (externalProducts || []).map((p: any) => [normName(p?.name ?? p?.product_name), p]),
   );
+
 
   const added: string[] = [];
   const updated: string[] = [];
