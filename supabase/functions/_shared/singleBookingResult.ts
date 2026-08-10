@@ -205,6 +205,10 @@ export function validateSingleBookingResult(
       return { ok: false, permanent: false, reason: 'local_fallback_only' };
     case 'not_found':
       return { ok: false, permanent: true, reason: 'booking_not_found_in_source' };
+    // STEG 3L: normal sync får aldrig applicera cancellation. Kandidaten
+    // ligger kvar för explicit hantering — aldrig completed, ingen cursor.
+    case 'cancellation_requires_explicit_apply':
+      return { ok: false, permanent: true, reason: 'cancellation_requires_explicit_apply' };
     case 'failed': {
       const errText = String(r.error ?? '');
       // STEG 2G: stale/konflikt/ojämförbar revision är PERMANENT — jobbet får
