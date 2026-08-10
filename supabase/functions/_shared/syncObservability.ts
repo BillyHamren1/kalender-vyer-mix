@@ -361,3 +361,81 @@ export function logAnomalies(
     }),
   );
 }
+
+// ── Safety-guarded client (circuit breaker + counters på riktiga skrivningar) ─
+
+const PRODUCT_TABLES = new Set(['booking_products', 'packing_list_items', 'packing_list_item_allocations', 'completion_products']);
+const CALENDAR_TABLES = new Set(['calendar_events', 'warehouse_calendar_events']);
+const PROJECTION_TABLES = new Set([
+  'projects', 'jobs', 'packing_projects', 'warehouse_projects',
+  'large_projects', 'large_project_bookings', 'booking_staff_assignments',
+]);
+
+export function classifyTable(table: string): DestructiveKind | null {
+  if (PRODUCT_TABLES.has(table)) return 'product_deletes';
+  if (CALENDAR_TABLES.has(table)) return 'calendar_deletes';
+  if (PROJECTION_TABLES.has(table)) return 'projection_deletes';
+  return null;
+}
+
+/**
+ * Wrappar en riktig Supabase-klient: räknar mutationer och kör circuit
+ * breaker FÖRE varje delete. Kastar SafetyCircuitBreakerError vid
+ * gränsöverskridande => outcome failed/partial, ingen commit, ingen cursor.
+ */
+export function createSafetyGuardedClient(
+  client: any,
+  counters: SyncCounters,
+  ctx: { booking_id?: string | null; organization_id?: string | null } = {},
+): any {
+  return new Proxy(client, {
+    get(target, prop, receiver) {
+      if (prop === '__safetyGuarded') return true;
+      if (prop === 'from') {
+        return (table: string) => {
+          const builder = target.from(table);
+          return new Proxy(builder, {
+            get(b, p) {
+              const value = (b as any)[p];
+              if (typeof p === 'string' && MUTATION_METHODS.has(p) && typeof value === 'function') {
+                return (...args: unknown[]) => {
+                  if (p === 'delete') {
+                    const kind = classifyTable(table);
+                    if (kind) {
+                      enforceDestructiveLimit(counters, kind, 1, ctx);
+                    } else {
+                      const res = checkDestructiveLimit(counters, 'projection_deletes', 0);
+                      if (counters.deletes + 1 > SAFETY_LIMITS.total_deletes) {
+                        counters.blocked_by_circuit_breaker += 1;
+                        throw new SafetyCircuitBreakerError({
+                          allowed: false,
+                          reason: `${SAFETY_CIRCUIT_BREAKER}:total_deletes`,
+                          limit: SAFETY_LIMITS.total_deletes,
+                          attempted: counters.deletes + 1,
+                        });
+                      }
+                      void res;
+                      counters.deletes += 1;
+                    }
+                  } else if (p === 'insert' || p === 'upsert') {
+                    if (PRODUCT_TABLES.has(table)) counters.product_adds += 1;
+                    else if (CALENDAR_TABLES.has(table)) counters.calendar_adds += 1;
+                    else if (PROJECTION_TABLES.has(table)) counters.projection_mutations += 1;
+                  } else if (p === 'update') {
+                    if (PRODUCT_TABLES.has(table)) counters.product_updates += 1;
+                    else if (CALENDAR_TABLES.has(table)) counters.calendar_updates += 1;
+                    else if (PROJECTION_TABLES.has(table)) counters.projection_mutations += 1;
+                  }
+                  return value.apply(b, args);
+                };
+              }
+              return typeof value === 'function' ? value.bind(b) : value;
+            },
+          });
+        };
+      }
+      const value = Reflect.get(target, prop, receiver);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+}
