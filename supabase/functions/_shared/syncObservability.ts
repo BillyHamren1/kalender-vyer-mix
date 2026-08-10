@@ -294,18 +294,70 @@ export function resolveDryRun(body: Record<string, unknown> | null | undefined):
 
 const MUTATION_METHODS = new Set(['insert', 'update', 'upsert', 'delete']);
 
+// ── STEG 3I: RPC-klassificering för dry-run ────────────────────────────────
+
+/** Read-only RPC:er som FÅR köras i dry-run (behövs för korrekt diff). */
+export const READ_ONLY_RPCS = Object.freeze([
+  'lp_rep_booking_id',
+  'get_user_organization_id',
+  'has_role',
+  'jsonb_object_keys_array',
+  'compute_workday_review_status',
+  'get_unseen_booking_updates',
+]);
+
+/** Muterande RPC:er som ALDRIG får köras i dry-run. */
+export const MUTATING_RPCS = Object.freeze([
+  'advance_booking_source_revision',
+  'apply_booking_cancellation_atomic',
+  'recompute_booking_staff_for_day',
+  'finalize_sync_batch',
+  'claim_sync_jobs',
+  'handle_booking_move',
+  'auto_create_project_for_orphan_booking',
+  'ensure_internal_project',
+  'ensure_internal_lager_booking',
+  'ensure_internal_lager_setup',
+  'ensure_internal_warehouse_project',
+  'cleanup_non_rep_lp_calendar_events',
+  'mark_booking_changes_seen',
+  'sync_all_phase_times',
+]);
+
+const READ_ONLY_RPC_SET = new Set<string>(READ_ONLY_RPCS as readonly string[]);
+const MUTATING_RPC_SET = new Set<string>(MUTATING_RPCS as readonly string[]);
+
+export type RpcClass = 'read_only' | 'mutating' | 'unknown';
+
+export function classifyRpc(fn: string): RpcClass {
+  if (READ_ONLY_RPC_SET.has(fn)) return 'read_only';
+  if (MUTATING_RPC_SET.has(fn)) return 'mutating';
+  return 'unknown';
+}
+
+export const UNKNOWN_RPC_IN_DRY_RUN = 'unknown_rpc_in_dry_run';
+
+export class UnknownRpcInDryRunError extends Error {
+  readonly code = UNKNOWN_RPC_IN_DRY_RUN;
+  constructor(public readonly fn: string) {
+    super(`${UNKNOWN_RPC_IN_DRY_RUN}:${fn}`);
+    this.name = 'UnknownRpcInDryRunError';
+  }
+}
+
 /**
  * Wrappar en Supabase-klient så att INGA skrivningar når databasen.
- * Läsningar (select/rpc-läsning) går igenom oförändrat. Planerade mutationer
- * räknas i `planned` per tabell+operation.
+ * Läsningar (select + read-only RPC) går igenom oförändrat. Planerade
+ * mutationer räknas i `planned` — deletes i RADER, inte satser.
  */
 export function createDryRunClient(
   client: any,
   planned: Record<string, number>,
+  counters?: SyncCounters,
 ): any {
-  const stub = (table: string, op: string): any => {
+  const stub = (table: string, op: string, rows: number): any => {
     const key = `${table}.${op}`;
-    planned[key] = (planned[key] ?? 0) + 1;
+    planned[key] = (planned[key] ?? 0) + rows;
     const thenable: any = {
       then: (resolve: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve),
       catch: () => thenable,
@@ -328,7 +380,16 @@ export function createDryRunClient(
           return new Proxy(builder, {
             get(b, p) {
               if (typeof p === 'string' && MUTATION_METHODS.has(p)) {
-                return () => stub(table, p);
+                return (...args: unknown[]) => {
+                  if (p === 'delete') {
+                    // Rader måste vara deklarerade av enforceDestructiveLimit.
+                    const pending = counters ? consumePlannedDeleteRows(counters) : null;
+                    if (!pending) throw new UnknownDestructiveRowCountError(table);
+                    return stub(table, p, pending.rows);
+                  }
+                  const rows = Array.isArray(args[0]) ? (args[0] as unknown[]).length : 1;
+                  return stub(table, p, rows);
+                };
               }
               const v = (b as any)[p];
               return typeof v === 'function' ? v.bind(b) : v;
@@ -338,14 +399,24 @@ export function createDryRunClient(
       }
       if (prop === 'rpc') {
         return (fn: string, args?: unknown) => {
-          planned[`rpc.${fn}`] = (planned[`rpc.${fn}`] ?? 0) + 1;
-          return Promise.resolve({ data: null, error: null, __dryRun: true, __args: args ? true : false });
+          const cls = classifyRpc(fn);
+          if (cls === 'read_only') {
+            // Read-only RPC får köras: behövs för korrekt diff.
+            return target.rpc(fn, args as any);
+          }
+          if (cls === 'mutating') {
+            planned[`rpc.${fn}`] = (planned[`rpc.${fn}`] ?? 0) + 1;
+            return Promise.resolve({ data: null, error: null, __dryRun: true, __blocked: true });
+          }
+          // Fail-closed: okänd RPC får varken köras eller tyst no-opas.
+          throw new UnknownRpcInDryRunError(fn);
         };
       }
       const value = Reflect.get(target, prop, receiver);
       return typeof value === 'function' ? value.bind(target) : value;
     },
   });
+
 }
 
 // ── Audit ──────────────────────────────────────────────────────────────────
