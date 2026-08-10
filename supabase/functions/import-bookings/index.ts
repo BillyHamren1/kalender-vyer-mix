@@ -4696,9 +4696,14 @@ serve(async (req) => {
             console.log(`[Warehouse Sync] Skipping for ${bookingData.id} - dates unchanged and not new/justConfirmed`);
           }
           
-          // Create packing project for confirmed bookings
-          const packingCreated = await createPackingForBooking(supabase, bookingData, organizationId);
-          if (packingCreated) {
+          // Create packing project for confirmed bookings (STEG 3F: gated + partial-safe)
+          assertLeaseOwned('packing_projection');
+          const packingResult = await createPackingForBooking(supabase, bookingData, organizationId, projectionSyncCtx);
+          if (packingResult.error) {
+            console.error(`[Packing] projection failed for ${bookingData.id}: ${packingResult.error}`);
+            results.errors.push({ booking_id: bookingData.id, error: `packing_projection_failed:${packingResult.error}` });
+            results.failed++;
+          } else if (packingResult.created) {
             results.packing_projects_created++;
           }
         }
