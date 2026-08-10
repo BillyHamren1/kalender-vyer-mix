@@ -57,6 +57,21 @@ import {
   PROJECTION_MUTATION_BLOCKED_LOG,
 } from '../_shared/projectionSourceAuthority.ts'
 import type { ProjectionSyncContext } from '../_shared/projectionSourceAuthority.ts'
+// STEG 3G — observability: audit, counters, circuit breaker, dry-run, anomalier.
+import {
+  createSyncCounters,
+  createDryRunClient,
+  createSafetyGuardedClient,
+  resolveDryRun,
+  logSyncAudit,
+  detectSyncAnomalies,
+  logAnomalies,
+  SafetyCircuitBreakerError,
+  SAFETY_LIMITS,
+  SAFETY_CIRCUIT_BREAKER,
+} from '../_shared/syncObservability.ts'
+
+
 
 /**
  * Resolve the organization_id to use for all INSERTs.
