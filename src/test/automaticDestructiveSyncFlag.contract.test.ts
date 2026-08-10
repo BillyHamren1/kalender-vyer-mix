@@ -76,26 +76,17 @@ describe('reconcile-booking-status', () => {
   });
 });
 
-describe('import-bookings cancellation-väg', () => {
-  it('blockerar innan handlern anropas', () => {
-    const guardIdx = IMPORT.indexOf('if (!isAutomaticDestructiveSyncEnabled()) {');
-    const applyIdx = IMPORT.indexOf('await applyBookingCancellation(');
-    expect(guardIdx).toBeGreaterThan(-1);
-    expect(guardIdx).toBeLessThan(applyIdx);
+describe('import-bookings cancellation-väg (STEG 3L)', () => {
+  it('innehåller inga cancellation-anrop alls', () => {
+    expect(IMPORT).not.toContain('applyBookingCancellation');
+    expect(IMPORT).not.toContain('apply_booking_cancellation_atomic');
   });
 
-  it('jobbet blir inte completed (outcome failed) och cursorn flyttas inte', () => {
-    const seg = IMPORT.slice(
-      IMPORT.indexOf('if (!isAutomaticDestructiveSyncEnabled()) {'),
-      IMPORT.indexOf('await applyBookingCancellation('),
-    );
-    expect(seg).toContain("outcome: 'failed'");
-    expect(seg).toContain('AUTOMATIC_DESTRUCTIVE_SYNC_DISABLED');
-  });
-
-  it('felet är permanent (ingen evig retry som flyttar cursor)', () => {
+  it('CANCELLED blir kandidat som varken är completed eller flyttar cursor', () => {
+    expect(IMPORT).toContain('cancellation_requires_explicit_apply');
     const contract = read('supabase/functions/_shared/singleBookingResult.ts');
-    expect(contract).toContain("'automatic_destructive_sync_disabled'");
+    expect(contract).toContain("'cancellation_requires_explicit_apply'");
+    expect(contract).not.toMatch(/SUCCESS_OUTCOMES[^\n]*cancellation_requires_explicit_apply/);
   });
 });
 
