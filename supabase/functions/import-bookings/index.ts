@@ -2382,6 +2382,24 @@ serve(async (req) => {
     const explicitOrgId = body?.organization_id;
     const organizationId = await resolveOrganizationId(supabase, explicitOrgId);
 
+    // STEG 3J: dry-run utan resolverbar organisation → fail-closed (aldrig live).
+    if (isDryRun && (typeof organizationId !== 'string' || organizationId.trim().length === 0)) {
+      console.error('[import-bookings] invalid dry_run request — unresolved organization');
+      return new Response(JSON.stringify({
+        success: false,
+        completed: false,
+        outcome: 'invalid_dry_run_request',
+        error: 'dry_run_requires_valid_organization_id',
+        dry_run: true,
+        mutations: 0,
+        planned_mutations: {},
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+
     const isHistoricalImport = historicalMode || forceHistoricalImport;
     const isSingleBookingRefresh = !!normalizedSingleBookingId;
     ctxIsSingle = isSingleBookingRefresh;
