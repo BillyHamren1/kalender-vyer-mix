@@ -49,6 +49,14 @@ import {
   CALENDAR_MUTATION_BLOCKED_LOG,
 } from '../_shared/calendarSourceAuthority.ts'
 import type { CalendarSyncContext } from '../_shared/calendarSourceAuthority.ts'
+import {
+  canMutateProjection,
+  buildProjectionPatch,
+  hasProjectionChanges,
+  assertNoProtectedFields,
+  PROJECTION_MUTATION_BLOCKED_LOG,
+} from '../_shared/projectionSourceAuthority.ts'
+import type { ProjectionSyncContext } from '../_shared/projectionSourceAuthority.ts'
 
 /**
  * Resolve the organization_id to use for all INSERTs.
@@ -593,43 +601,84 @@ const syncWarehouseEventsForBooking = async (supabase: any, booking: any, orgId:
 /**
  * Create packing project and tasks for a confirmed booking
  * Creates standard tasks with deadlines based on rig/event/rigdown dates
+ *
+ * STEG 3F:
+ * - Mutation gate (source found + revision + lease + org/booking) före all skrivning.
+ * - Explicit allowlist-patch: endast Booking-ägda fält skrivs, aldrig WMS-ägd packstatus.
+ * - Saknat fält i partial source-response nollar aldrig befintlig data.
+ * - Tenant-scoped queries (organization_id + booking_id) och strukturerade fel.
  */
-const createPackingForBooking = async (supabase: any, booking: any, orgId: string): Promise<boolean> => {
+const createPackingForBooking = async (
+  supabase: any,
+  booking: any,
+  orgId: string,
+  ctx?: ProjectionSyncContext,
+): Promise<{ created: boolean; error?: string }> => {
   console.log(`[Packing] Checking if packing exists for booking ${booking.id}`);
-  
+
+  const projectionCtx: ProjectionSyncContext = ctx ?? {
+    sourceFound: false,
+    revisionValidated: false,
+    leaseOwned: false,
+    organizationId: orgId,
+    bookingId: booking.id,
+  };
+  const gate = canMutateProjection(projectionCtx);
+  if (!gate.allowed) {
+    console.warn(`[Packing] ${PROJECTION_MUTATION_BLOCKED_LOG} booking ${booking.id}: ${gate.reason} → 0 projection mutations`);
+    return { created: false };
+  }
+
   const clientName = booking.client || 'Okänd kund';
   const eventDate = booking.eventdate ? new Date(booking.eventdate).toLocaleDateString('sv-SE') : '';
   const packingName = eventDate ? `${clientName} - ${eventDate}` : clientName;
 
-  const syncFields = {
+  // Allowlist: endast Booking-ägda fält. undefined = fältet saknas i källan → rör inte.
+  const bookingOwnedSource: Record<string, unknown> = {
     name: packingName,
-    client_name: booking.client || null,
-    start_date: booking.rigdaydate || null,
-    end_date: booking.rigdowndate || null,
-    delivery_address: booking.deliveryaddress || null,
-    notes: booking.internalnotes || null,
+    client_name: booking.client ?? undefined,
+    start_date: booking.rigdaydate ?? undefined,
+    end_date: booking.rigdowndate ?? undefined,
+    delivery_address: booking.deliveryaddress ?? undefined,
+    notes: booking.internalnotes ?? undefined,
   };
+  const { patch: syncFields, blockedProtected } = buildProjectionPatch('packing_projects', bookingOwnedSource);
+  if (blockedProtected.length > 0) {
+    console.warn(`[Packing] ${PROJECTION_MUTATION_BLOCKED_LOG} booking ${booking.id}: blocked fields ${blockedProtected.join(',')}`);
+  }
+  assertNoProtectedFields('packing_projects', syncFields);
 
-  // Check if packing already exists for this booking
+  // Check if packing already exists for this booking (tenant-scoped)
   const { data: existingPacking, error: checkError } = await supabase
     .from('packing_projects')
     .select('id')
     .eq('booking_id', booking.id)
+    .eq('organization_id', orgId)
     .limit(1);
   
   if (checkError) {
     console.error(`[Packing] Error checking existing packing:`, checkError);
-    return false;
+    return { created: false, error: checkError.message || String(checkError) };
   }
   
   if (existingPacking && existingPacking.length > 0) {
-    // Update existing packing with latest booking data
-    console.log(`[Packing] Updating existing packing for booking ${booking.id}`);
-    await supabase
+    // Idempotent update: endast Booking-ägda fält, WMS-ägd status/scan/kontroll rörs aldrig.
+    if (!hasProjectionChanges(syncFields)) {
+      console.log(`[Packing] No booking-owned changes for booking ${booking.id} — skipping update`);
+      return { created: false };
+    }
+    console.log(`[Packing] Updating existing packing for booking ${booking.id} (fields: ${Object.keys(syncFields).join(',')})`);
+    const { error: updateError } = await supabase
       .from('packing_projects')
       .update({ ...syncFields, updated_at: new Date().toISOString() })
-      .eq('id', existingPacking[0].id);
-    return false;
+      .eq('id', existingPacking[0].id)
+      .eq('booking_id', booking.id)
+      .eq('organization_id', orgId);
+    if (updateError) {
+      console.error(`[Packing] Error updating packing project:`, updateError);
+      return { created: false, error: updateError.message || String(updateError) };
+    }
+    return { created: false };
   }
   
   console.log(`[Packing] Creating packing project: ${packingName}`);
@@ -648,7 +697,7 @@ const createPackingForBooking = async (supabase: any, booking: any, orgId: strin
   
   if (insertError || !newPacking) {
     console.error(`[Packing] Error creating packing project:`, insertError);
-    return false;
+    return { created: false, error: insertError?.message || 'packing_project_insert_failed' };
   }
   
   console.log(`[Packing] Created packing project ${newPacking.id}`);
@@ -737,7 +786,7 @@ const createPackingForBooking = async (supabase: any, booking: any, orgId: strin
     }
   }
   
-  return true;
+  return { created: true };
 };
 
 interface ProductData {
@@ -3325,6 +3374,15 @@ serve(async (req) => {
           datesCompleteness: readDateSourceCompleteness(externalBooking),
           datePresence: buildDatePresence(externalBooking),
         };
+        // STEG 3F: projection-kontext (projects/jobs/packing_projects).
+        const projectionSyncCtx: ProjectionSyncContext = {
+          sourceFound: true,
+          revisionValidated: true,
+          leaseOwned: true,
+          projectionComplete: readDateSourceCompleteness(externalBooking) === 'complete',
+          organizationId,
+          bookingId: bookingData.id,
+        };
         const runCalendarReconcile = async () => {
           try {
             assertLeaseOwned('calendar_reconcile');
@@ -4638,9 +4696,14 @@ serve(async (req) => {
             console.log(`[Warehouse Sync] Skipping for ${bookingData.id} - dates unchanged and not new/justConfirmed`);
           }
           
-          // Create packing project for confirmed bookings
-          const packingCreated = await createPackingForBooking(supabase, bookingData, organizationId);
-          if (packingCreated) {
+          // Create packing project for confirmed bookings (STEG 3F: gated + partial-safe)
+          assertLeaseOwned('packing_projection');
+          const packingResult = await createPackingForBooking(supabase, bookingData, organizationId, projectionSyncCtx);
+          if (packingResult.error) {
+            console.error(`[Packing] projection failed for ${bookingData.id}: ${packingResult.error}`);
+            results.errors.push({ booking_id: bookingData.id, error: `packing_projection_failed:${packingResult.error}` });
+            results.failed++;
+          } else if (packingResult.created) {
             results.packing_projects_created++;
           }
         }
