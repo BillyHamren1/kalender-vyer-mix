@@ -1727,79 +1727,110 @@ export const checkProductChanges = async (
 
 
 /**
- * Update packing_list_items to reconnect to new product IDs
- * Maps old products to new products by name and preserves packing status
+ * Update packing_list_items to reconnect to new product IDs.
+ *
+ * STEG 3D:
+ * - Parent packing_project verifieras alltid med organization_id + booking_id.
+ * - Orphaned items raderas ENDAST när products_complete === true.
+ * - Lease verifieras direkt före varje destruktiv mutation.
+ * - Alla DB-fel returneras (ingen tyst success).
  */
 const reconnectPackingListItems = async (
   supabase: any,
   packingId: string,
   oldProducts: any[],
-  newProducts: any[]
-): Promise<{ reconnected: number; orphaned: number }> => {
-  console.log(`[Packing Reconnect] Reconnecting packing list items for packing ${packingId}`);
-  
-  // Get existing packing_list_items
+  newProducts: any[],
+  opts: {
+    completeness: ProductSourceCompleteness;
+    organizationId: string;
+    bookingId: string;
+    assertLease?: (phase: string) => void;
+  },
+): Promise<{ reconnected: number; orphaned: number; blockedDeletes: number; error?: string | null }> => {
+  const { completeness, organizationId, bookingId, assertLease } = opts;
+  console.log(`[Packing Reconnect] Reconnecting packing list items for packing ${packingId} (completeness=${completeness})`);
+
+  // TENANT GUARD: verifiera parent packing_project via organization_id + booking_id.
+  const { data: parentPacking, error: parentError } = await supabase
+    .from('packing_projects')
+    .select('id')
+    .eq('id', packingId)
+    .eq('booking_id', bookingId)
+    .eq('organization_id', organizationId)
+    .maybeSingle();
+
+  if (parentError) {
+    console.error(`[Packing Reconnect] Error verifying parent packing ${packingId}:`, parentError);
+    return { reconnected: 0, orphaned: 0, blockedDeletes: 0, error: parentError.message || String(parentError) };
+  }
+  if (!parentPacking) {
+    console.warn(`[Packing Reconnect] Parent packing ${packingId} not verified for org ${organizationId} / booking ${bookingId} — skipping`);
+    return { reconnected: 0, orphaned: 0, blockedDeletes: 0 };
+  }
+  const verifiedPackingId = parentPacking.id;
+
   const { data: packingItems, error: fetchError } = await supabase
     .from('packing_list_items')
     .select('id, booking_product_id, quantity_packed, packed_by, packed_at, verified_by, verified_at')
-    .eq('packing_id', packingId);
-  
-  if (fetchError || !packingItems || packingItems.length === 0) {
-    console.log(`[Packing Reconnect] No packing items found for packing ${packingId}`);
-    return { reconnected: 0, orphaned: 0 };
+    .eq('packing_id', verifiedPackingId);
+
+  if (fetchError) {
+    console.error(`[Packing Reconnect] Error fetching items for packing ${verifiedPackingId}:`, fetchError);
+    return { reconnected: 0, orphaned: 0, blockedDeletes: 0, error: fetchError.message || String(fetchError) };
   }
-  
-  // Build maps: old product ID -> name, new product name -> ID
-  const oldIdToName = new Map(oldProducts.map(p => [p.id, (p.name || '').trim().toLowerCase()]));
-  const newNameToId = new Map(newProducts.map(p => [(p.name || '').trim().toLowerCase(), p.id]));
-  
+  if (!packingItems || packingItems.length === 0) {
+    console.log(`[Packing Reconnect] No packing items found for packing ${verifiedPackingId}`);
+    return { reconnected: 0, orphaned: 0, blockedDeletes: 0 };
+  }
+
+  const plan = planPackingReconnect(packingItems, oldProducts, newProducts, completeness);
+
   let reconnected = 0;
-  let orphaned = 0;
-  
-  for (const item of packingItems) {
-    const oldName = oldIdToName.get(item.booking_product_id);
-    
-    if (!oldName) {
-      // Old product not found - orphaned
+  let orphaned = plan.untouched.length;
+  let firstError: string | null = null;
+
+  for (const { itemId, newProductId } of plan.updates) {
+    const { error: updateError } = await supabase
+      .from('packing_list_items')
+      .update({ booking_product_id: newProductId })
+      .eq('id', itemId)
+      .eq('packing_id', verifiedPackingId);
+
+    if (updateError) {
+      console.error(`[Packing Reconnect] Error updating item ${itemId}:`, updateError);
+      firstError = firstError ?? (updateError.message || String(updateError));
       orphaned++;
-      console.log(`[Packing Reconnect] Orphaned item ${item.id} - old product ${item.booking_product_id} not found`);
-      continue;
-    }
-    
-    const newProductId = newNameToId.get(oldName);
-    
-    if (newProductId) {
-      // Update the packing_list_item to point to new product ID
-      const { error: updateError } = await supabase
-        .from('packing_list_items')
-        .update({ booking_product_id: newProductId })
-        .eq('id', item.id);
-      
-      if (updateError) {
-        console.error(`[Packing Reconnect] Error updating item ${item.id}:`, updateError);
-        orphaned++;
-      } else {
-        reconnected++;
-        console.log(`[Packing Reconnect] Reconnected item ${item.id}: ${item.booking_product_id} -> ${newProductId}`);
-      }
     } else {
-      // Product was removed - delete the packing_list_item
-      const { error: deleteError } = await supabase
-        .from('packing_list_items')
-        .delete()
-        .eq('id', item.id);
-      
-      if (deleteError) {
-        console.error(`[Packing Reconnect] Error deleting orphaned item ${item.id}:`, deleteError);
-      }
-      orphaned++;
-      console.log(`[Packing Reconnect] Removed orphaned item ${item.id} - product "${oldName}" no longer exists`);
+      reconnected++;
     }
   }
-  
-  console.log(`[Packing Reconnect] Completed: ${reconnected} reconnected, ${orphaned} orphaned/removed`);
-  return { reconnected, orphaned };
+
+  if (plan.deletes.length > 0) {
+    // Destruktiv operation → lease måste ägas.
+    assertLease?.('packing_item_delete');
+    const { error: deleteError } = await supabase
+      .from('packing_list_items')
+      .delete()
+      .in('id', plan.deletes)
+      .eq('packing_id', verifiedPackingId);
+    if (deleteError) {
+      console.error(`[Packing Reconnect] Error deleting orphaned items:`, deleteError);
+      firstError = firstError ?? (deleteError.message || String(deleteError));
+    } else {
+      orphaned += plan.deletes.length;
+      console.log(`[Packing Reconnect] Removed ${plan.deletes.length} orphaned items (canonical complete source)`);
+    }
+  }
+
+  if (plan.blockedDeletes.length > 0) {
+    orphaned += plan.blockedDeletes.length;
+    console.warn(`[Packing Reconnect] ${PRODUCT_DESTRUCTIVE_BLOCKED_LOG} packing ${verifiedPackingId}: kept ${plan.blockedDeletes.length} orphaned items (completeness=${completeness})`);
+  }
+
+  console.log(`[Packing Reconnect] Completed: ${reconnected} reconnected, ${orphaned} orphaned, ${plan.blockedDeletes.length} deletes blocked`);
+  return { reconnected, orphaned, blockedDeletes: plan.blockedDeletes.length, error: firstError };
 };
+
 
 /**
  * Check if booking data has meaningfully changed
