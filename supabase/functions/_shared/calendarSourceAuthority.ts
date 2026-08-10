@@ -223,6 +223,7 @@ export function fallbackCalendarContext(): CalendarSyncContext {
     sourceFound: false,
     revisionValidated: false,
     leaseOwned: false,
+    localAuthority: true,
     datesCompleteness: 'unknown',
     datePresence: { rig: 'absent', event: 'absent', rigDown: 'absent' },
   };
