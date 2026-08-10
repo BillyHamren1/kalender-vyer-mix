@@ -778,7 +778,7 @@ const createPackingForBooking = async (
     }
   }
   
-  return true;
+  return { created: true };
 };
 
 interface ProductData {
