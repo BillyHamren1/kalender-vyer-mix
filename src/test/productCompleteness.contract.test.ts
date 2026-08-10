@@ -94,7 +94,7 @@ describe('planPackingReconnect', () => {
   });
 });
 
-});
+
 
 describe('import-bookings destructive paths are gated', () => {
   it('läser completeness från extern bokning', () => {
