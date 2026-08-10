@@ -2273,6 +2273,9 @@ serve(async (req) => {
   const plannedMutations: Record<string, number> = {}
   let isDryRun = false
   const syncStartedMs = Date.now()
+  // Klienten deklareras utanför try så att catch-blocket (release av lease/
+  // revision) kan använda den.
+  let supabase: any = null
 
   try {
     // Header 'x-lovable-change-source' forwards to Postgres via PostgREST and
@@ -2289,6 +2292,7 @@ serve(async (req) => {
         },
       }
     )
+    supabase = createSafetyGuardedClient(rawSupabase, syncCounters, {});
 
     const body = await req.json();
 
@@ -2301,12 +2305,10 @@ serve(async (req) => {
     }
     // Alla skrivningar går genom en guardad klient (counters + circuit breaker).
     // I dry-run går de dessutom genom en no-op-klient: noll DB-mutationer.
-    const supabase = isDryRun
-      ? createDryRunClient(
-          createSafetyGuardedClient(rawSupabase, syncCounters, {}),
-          plannedMutations,
-        )
-      : createSafetyGuardedClient(rawSupabase, syncCounters, {});
+    if (isDryRun) {
+      supabase = createDryRunClient(supabase, plannedMutations);
+    }
+
 
 
     const {
