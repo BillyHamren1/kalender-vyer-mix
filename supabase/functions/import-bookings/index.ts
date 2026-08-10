@@ -4013,14 +4013,17 @@ serve(async (req) => {
             .from('packing_projects')
             .select('id')
             .eq('booking_id', existingBooking.id)
-            .single();
+            .eq('organization_id', bookingData.organization_id)
+            .maybeSingle();
           
           // 2. Fetch existing products BEFORE deletion (for packing list reconnection)
           const { data: oldProductsData } = await supabase
             .from('booking_products')
             .select('id, name, quantity')
-            .eq('booking_id', existingBooking.id);
+            .eq('booking_id', existingBooking.id)
+            .eq('organization_id', bookingData.organization_id);
           oldProducts = oldProductsData || null;
+          
           
           // 3. Attachments: never delete existing ones during sync.
           // New attachments are added additively via dedup check (seenUrls) in insertAttachment().
