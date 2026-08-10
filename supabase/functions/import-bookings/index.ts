@@ -3364,7 +3364,16 @@ serve(async (req) => {
           // Note: needsProductUpdate and productChanges are declared at the top of the loop
           
           if (externalBooking.products && Array.isArray(externalBooking.products)) {
-            productChanges = await checkProductChanges(supabase, existingBooking.id, externalBooking.products);
+            productChanges = await checkProductChanges(
+              supabase,
+              existingBooking.id,
+              externalBooking.products,
+              productCompleteness,
+              bookingData.organization_id,
+            );
+            if ((productChanges as any).error) {
+              results.errors.push({ booking_id: existingBooking.id, error: `product_changes_read_failed:${(productChanges as any).error}` });
+            }
             needsProductUpdate = (productChanges as any).changed;
             
             if (needsProductUpdate) {
