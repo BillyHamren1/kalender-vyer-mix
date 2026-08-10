@@ -570,15 +570,19 @@ export function classifyTable(table: string): DestructiveKind | null {
 }
 
 /**
- * Wrappar en riktig Supabase-klient: räknar mutationer och kör circuit
- * breaker FÖRE varje delete. Kastar SafetyCircuitBreakerError vid
- * gränsöverskridande => outcome failed/partial, ingen commit, ingen cursor.
+ * STEG 3I: Wrappar en riktig Supabase-klient för audit/counters.
+ * Proxyn är INTE circuit breaker för deletes — den kan inte veta hur många
+ * rader en chained .delete().eq() påverkar. Varje delete måste därför ha
+ * deklarerat sitt planerade radantal via enforceDestructiveLimit
+ * (dvs. gå genom guardedDeleteByIds/guardedDeleteWhere). Saknas deklaration:
+ * fail-closed med unknown_destructive_row_count.
  */
 export function createSafetyGuardedClient(
   client: any,
   counters: SyncCounters,
   ctx: { booking_id?: string | null; organization_id?: string | null } = {},
 ): any {
+  void ctx;
   return new Proxy(client, {
     get(target, prop, receiver) {
       if (prop === '__safetyGuarded') return true;
@@ -591,27 +595,22 @@ export function createSafetyGuardedClient(
               if (typeof p === 'string' && MUTATION_METHODS.has(p) && typeof value === 'function') {
                 return (...args: unknown[]) => {
                   if (p === 'delete') {
-                    const kind = classifyTable(table);
-                    if (kind) {
-                      enforceDestructiveLimit(counters, kind, 1, ctx);
-                    } else {
-                      const res = checkDestructiveLimit(counters, 'projection_deletes', 0);
-                      if (counters.deletes + 1 > SAFETY_LIMITS.total_deletes) {
-                        counters.blocked_by_circuit_breaker += 1;
-                        throw new SafetyCircuitBreakerError({
-                          allowed: false,
-                          reason: `${SAFETY_CIRCUIT_BREAKER}:total_deletes`,
-                          limit: SAFETY_LIMITS.total_deletes,
-                          attempted: counters.deletes + 1,
-                        });
-                      }
-                      void res;
-                      counters.deletes += 1;
+                    const pending = consumePlannedDeleteRows(counters);
+                    if (!pending) {
+                      counters.blocked_by_circuit_breaker += 1;
+                      console.error(
+                        `[sync-safety] ${UNKNOWN_DESTRUCTIVE_ROW_COUNT}`,
+                        JSON.stringify({ blocked: true, table }),
+                      );
+                      throw new UnknownDestructiveRowCountError(table);
                     }
+                    // Rader är redan räknade och gränsprövade av
+                    // enforceDestructiveLimit FÖRE denna mutation.
                   } else if (p === 'insert' || p === 'upsert') {
-                    if (PRODUCT_TABLES.has(table)) counters.product_adds += 1;
-                    else if (CALENDAR_TABLES.has(table)) counters.calendar_adds += 1;
-                    else if (PROJECTION_TABLES.has(table)) counters.projection_mutations += 1;
+                    const rows = Array.isArray(args[0]) ? (args[0] as unknown[]).length : 1;
+                    if (PRODUCT_TABLES.has(table)) counters.product_adds += rows;
+                    else if (CALENDAR_TABLES.has(table)) counters.calendar_adds += rows;
+                    else if (PROJECTION_TABLES.has(table)) counters.projection_mutations += rows;
                   } else if (p === 'update') {
                     if (PRODUCT_TABLES.has(table)) counters.product_updates += 1;
                     else if (CALENDAR_TABLES.has(table)) counters.calendar_updates += 1;
@@ -630,3 +629,4 @@ export function createSafetyGuardedClient(
     },
   });
 }
+
