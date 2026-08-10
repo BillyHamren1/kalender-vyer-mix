@@ -1499,6 +1499,8 @@ async function reconcileCalendarEvents(
       if (auditErr) console.error(`[Sync Audit] Error writing audit log:`, auditErr);
     });
   }
+
+  return { ok: true };
 }
 
 /**
