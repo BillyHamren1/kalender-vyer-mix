@@ -3248,6 +3248,16 @@ serve(async (req) => {
         let needsWarehouseRecovery = false;
         let needsProductRecovery = false;
 
+        // STEG 3D: explicit completeness från Booking-kontraktet (fail-closed).
+        // 'complete' krävs för ALL destruktiv produkt-/packing-synk.
+        const productCompleteness: ProductSourceCompleteness = readProductSourceCompleteness(externalBooking);
+        const productDeleteAllowed = canDeleteProducts(productCompleteness);
+        if (!productDeleteAllowed) {
+          console.log(`[Product Sync] booking ${externalBooking.id}: products_complete=${productCompleteness} → destructive product sync disabled (add/update only)`);
+        }
+
+
+
         if (existingBooking) {
           // EXISTING BOOKING - UPDATE ONLY IF ACTUALLY DIFFERENT
           console.log(`Found existing booking ${existingBooking.id}, checking for changes...`)
