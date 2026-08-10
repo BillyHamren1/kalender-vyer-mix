@@ -274,23 +274,58 @@ export async function guardedDeleteWhere(
 // ── Dry-run ────────────────────────────────────────────────────────────────
 
 export interface DryRunResolution {
+  /** true endast när dry-run kan köras säkert. */
   dryRun: boolean;
+  /** true så snart klienten explicit bad om dry_run:true. */
+  requested: boolean;
+  /** true när dry_run begärdes men kontraktet är ogiltigt → FAIL-CLOSED. */
+  invalid: boolean;
   reason?: string;
 }
 
 /**
- * Dry-run kräver explicit `dry_run: true` OCH exakt ett booking_id.
- * Dry-run får aldrig flytta cursor eller markera jobb completed.
+ * STEG 3J: Dry-run kräver explicit `dry_run: true` OCH exakt ett booking_id
+ * (+ giltig organization_id om den skickas med).
+ *
+ * FAIL-CLOSED: om dry_run begärs men kontraktet är ogiltigt returneras
+ * `{ dryRun: false, requested: true, invalid: true }` — anroparen MÅSTE då
+ * avbryta requesten. Ogiltig dry-run får ALDRIG falla tillbaka till live-import.
  */
 export function resolveDryRun(body: Record<string, unknown> | null | undefined): DryRunResolution {
   const raw = body?.['dry_run'];
-  if (raw !== true) return { dryRun: false };
-  const bookingId = body?.['booking_id'];
-  if (typeof bookingId !== 'string' || bookingId.trim().length === 0) {
-    return { dryRun: false, reason: 'dry_run_requires_single_booking_id' };
+  if (raw !== true) return { dryRun: false, requested: false, invalid: false };
+
+  const invalid = (reason: string): DryRunResolution => ({
+    dryRun: false,
+    requested: true,
+    invalid: true,
+    reason,
+  });
+
+  // Multi-booking-varianter är aldrig tillåtna i dry-run.
+  const multiKeys = ['booking_ids', 'only_booking_ids', 'bookingIds'];
+  for (const key of multiKeys) {
+    if (body?.[key] !== undefined && body?.[key] !== null) {
+      return invalid('dry_run_requires_single_booking_id');
+    }
   }
-  return { dryRun: true };
+
+  const bookingId = body?.['booking_id'];
+  if (Array.isArray(bookingId)) return invalid('dry_run_requires_single_booking_id');
+  if (typeof bookingId !== 'string' || bookingId.trim().length === 0) {
+    return invalid('dry_run_requires_single_booking_id');
+  }
+
+  const orgId = body?.['organization_id'];
+  if (orgId !== undefined && orgId !== null) {
+    if (typeof orgId !== 'string' || orgId.trim().length === 0) {
+      return invalid('dry_run_requires_valid_organization_id');
+    }
+  }
+
+  return { dryRun: true, requested: true, invalid: false };
 }
+
 
 const MUTATION_METHODS = new Set(['insert', 'update', 'upsert', 'delete']);
 
