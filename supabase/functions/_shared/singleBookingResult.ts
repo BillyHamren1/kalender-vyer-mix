@@ -111,6 +111,7 @@ export const NON_RETRIABLE_IMPORT_ERRORS: readonly string[] = [
   'stored_revision_created_at_invalid',
   'revision_history_truncated',
   'automatic_destructive_sync_disabled',
+  'cancellation_requires_explicit_apply',
 ];
 
 export interface ValidationOk {
