@@ -3463,21 +3463,58 @@ serve(async (req) => {
               continue;
             }
 
+            // STEG 3D: recovery är destruktiv (clear + reimport) och kräver att
+            // Booking explicit rapporterar products_complete === true.
+            if (!productDeleteAllowed) {
+              console.warn(`[Product Recovery] ${PRODUCT_DESTRUCTIVE_BLOCKED_LOG} booking ${bookingData.id}: completeness=${productCompleteness} → no clear, no delete. Only safe add/update paths may run.`);
+              assertLeaseOwned('calendar_reconcile');
+        await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
+              continue;
+            }
+
             console.log(`Only product recovery needed for ${bookingData.id} - clearing and reimporting ${recoveryExternalCount} products`);
             
             // Delete packing list items BEFORE products to avoid FK constraint violations
-            const { data: packingForRecovery } = await supabase
+            const { data: packingForRecovery, error: packingForRecoveryError } = await supabase
               .from('packing_projects')
               .select('id')
               .eq('booking_id', existingBooking.id)
+              .eq('organization_id', bookingData.organization_id)
               .maybeSingle();
-            
+
+            if (packingForRecoveryError) {
+              console.error(`[Product Recovery] Error loading packing project:`, packingForRecoveryError);
+              results.errors.push({ booking_id: existingBooking.id, error: `product_recovery_packing_lookup_failed:${packingForRecoveryError.message || packingForRecoveryError}` });
+              results.failed++;
+              continue;
+            }
+
             if (packingForRecovery) {
-              await supabase.from('packing_list_items').delete().eq('packing_id', packingForRecovery.id);
+              assertLeaseOwned('packing_item_clear');
+              const { error: clearItemsError } = await supabase
+                .from('packing_list_items').delete().eq('packing_id', packingForRecovery.id);
+              if (clearItemsError) {
+                console.error(`[Product Recovery] Error clearing packing list items:`, clearItemsError);
+                results.errors.push({ booking_id: existingBooking.id, error: `packing_items_clear_failed:${clearItemsError.message || clearItemsError}` });
+                results.failed++;
+                continue;
+              }
               console.log(`[Product Recovery] Cleared packing list items for packing ${packingForRecovery.id}`);
             }
+
+            assertLeaseOwned('product_clear');
+            const { error: clearProductsError } = await supabase
+              .from('booking_products')
+              .delete()
+              .eq('booking_id', existingBooking.id)
+              .eq('organization_id', bookingData.organization_id);
+            if (clearProductsError) {
+              console.error(`[Product Recovery] Error clearing products:`, clearProductsError);
+              results.errors.push({ booking_id: existingBooking.id, error: `product_clear_failed:${clearProductsError.message || clearProductsError}` });
+              results.failed++;
+              continue;
+            }
             
-            await supabase.from('booking_products').delete().eq('booking_id', existingBooking.id);
             
             // Process products with parent-child relationship tracking
             if (externalBooking.products && Array.isArray(externalBooking.products)) {
