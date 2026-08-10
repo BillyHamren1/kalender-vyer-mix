@@ -134,6 +134,11 @@ export interface CalendarSyncContext {
   datePresence: Record<CalendarPhase, FieldPresence>;
   /** Tekniskt fel någonstans i hämtning/parse av datumdata. */
   hadSourceError?: boolean;
+  /**
+   * Lokal recovery-väg (ingen canonical källa): icke-destruktiv create/update
+   * från Plannings egna auktoritativa bokningsrad är tillåten, delete aldrig.
+   */
+  localAuthority?: boolean;
 }
 
 export interface GateResult {
@@ -141,13 +146,16 @@ export interface GateResult {
   reason: string;
 }
 
-/** Får kalendern muteras överhuvudtaget (create/update)? */
+/** Får kalendern muteras (create/update) överhuvudtaget? */
 export function canMutateCalendar(ctx: CalendarSyncContext): GateResult {
-  if (!ctx.sourceFound) return { allowed: false, reason: 'source_not_found_or_fallback' };
-  if (!ctx.revisionValidated) return { allowed: false, reason: 'invalid_or_stale_source_revision' };
-  if (!ctx.leaseOwned) return { allowed: false, reason: 'lease_not_owned' };
   if (ctx.hadSourceError) return { allowed: false, reason: 'source_error' };
-  return { allowed: true, reason: 'ok' };
+  if (ctx.sourceFound) {
+    if (!ctx.revisionValidated) return { allowed: false, reason: 'invalid_or_stale_source_revision' };
+    if (!ctx.leaseOwned) return { allowed: false, reason: 'lease_not_owned' };
+    return { allowed: true, reason: 'ok' };
+  }
+  if (ctx.localAuthority) return { allowed: true, reason: 'local_authority_non_destructive' };
+  return { allowed: false, reason: 'source_not_found_or_fallback' };
 }
 
 /**
@@ -159,8 +167,11 @@ export function canDeleteCanonicalDateEvent(
   ctx: CalendarSyncContext,
   opts: { bookingId?: string; canonicalDates: Record<CalendarPhase, string[]> },
 ): GateResult {
-  const gate = canMutateCalendar(ctx);
-  if (!gate.allowed) return { allowed: false, reason: gate.reason };
+  if (ctx.hadSourceError) return { allowed: false, reason: 'source_error' };
+  if (!ctx.sourceFound) return { allowed: false, reason: 'source_not_found_or_fallback' };
+  if (!ctx.revisionValidated) return { allowed: false, reason: 'invalid_or_stale_source_revision' };
+  if (!ctx.leaseOwned) return { allowed: false, reason: 'lease_not_owned' };
+
 
   if (!isBookingGeneratedEvent(event, opts.bookingId)) {
     return { allowed: false, reason: 'not_booking_generated' };
