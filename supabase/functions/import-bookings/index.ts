@@ -4318,18 +4318,32 @@ serve(async (req) => {
           }
 
           // ── DELETE products no longer in the external API ─────────────────────
-          // GUARD: never delete based on an empty external payload — that's the upstream
-          // delete+reinsert race window, not a real deletion intent.
+          // STEG 3D: destruktiv delete kräver EXPLICIT products_complete === true.
+          // Fail-closed: unknown/false → 0 deletes, oavsett antal produkter.
           const externalProductCount = Array.isArray(externalBooking.products) ? externalBooking.products.length : 0;
-          if (oldProducts && oldProducts.length > 0 && externalProductCount > 0) {
+          if (oldProducts && oldProducts.length > 0 && externalProductCount > 0 && productDeleteAllowed) {
             const toDelete = oldProducts.filter((p: any) => !seenExistingIds.has(p.id));
             if (toDelete.length > 0) {
               const idsToDelete = toDelete.map((p: any) => p.id);
               console.log(`[Merge] Deleting ${idsToDelete.length} products no longer in external API (external had ${externalProductCount})`);
-              await supabase.from('booking_products').delete().in('id', idsToDelete);
+              assertLeaseOwned('product_delete');
+              const { error: mergeDeleteError } = await supabase
+                .from('booking_products')
+                .delete()
+                .in('id', idsToDelete)
+                .eq('booking_id', bookingData.id)
+                .eq('organization_id', organizationId);
+              if (mergeDeleteError) {
+                console.error(`[Merge] Error deleting products for booking ${bookingData.id}:`, mergeDeleteError);
+                results.errors.push({ booking_id: bookingData.id, error: `product_delete_failed:${mergeDeleteError.message || mergeDeleteError}` });
+                results.failed++;
+                continue;
+              }
             }
           } else if (oldProducts && oldProducts.length > 0 && externalProductCount === 0) {
             console.warn(`[Merge GUARD] Skipping delete of ${oldProducts.length} local products for booking ${bookingData.id}: external products array is empty (transient_empty_source)`);
+          } else if (oldProducts && oldProducts.length > 0 && !productDeleteAllowed) {
+            console.warn(`[Merge] ${PRODUCT_DESTRUCTIVE_BLOCKED_LOG} booking ${bookingData.id}: keeping all ${oldProducts.length} local products (completeness=${productCompleteness}, source had ${externalProductCount})`);
           }
           // ─────────────────────────────────────────────────────────────────────
           
@@ -4341,30 +4355,49 @@ serve(async (req) => {
           }
           
           // SYNC packing list items for expanded components
-          const mainPackingSynced = await (async () => { assertLeaseOwned('packing_project'); return syncPackingListAfterExpansion(supabase, bookingData.id, organizationId); })();
-          if (mainPackingSynced > 0) {
-            console.log(`[Main Flow] Synced ${mainPackingSynced} packing list items for booking ${bookingData.id}`);
+          const mainPackingResult = await (async () => { assertLeaseOwned('packing_project'); return syncPackingListAfterExpansion(supabase, bookingData.id, organizationId, { completeness: productCompleteness, assertLease: assertLeaseOwned }); })();
+          if (mainPackingResult.error) {
+            results.errors.push({ booking_id: bookingData.id, error: `packing_sync_failed:${mainPackingResult.error}` });
+          }
+          if (mainPackingResult.changes > 0) {
+            console.log(`[Main Flow] Synced ${mainPackingResult.changes} packing list items for booking ${bookingData.id}`);
           }
         } // end if (needsProductUpdate || !existingBooking)
         // RECONNECT PACKING LIST ITEMS after products have been created
         if (needsPackingReconnection && packingIdForReconnection) {
           console.log(`[Packing Reconnect] Starting packing list reconnection for booking ${bookingData.id}`);
           
-          // Fetch newly created products
-          const { data: newProducts } = await supabase
+          // Fetch newly created products (tenant-scoped)
+          const { data: newProducts, error: newProductsError } = await supabase
             .from('booking_products')
             .select('id, name, quantity')
-            .eq('booking_id', bookingData.id);
-          
+            .eq('booking_id', bookingData.id)
+            .eq('organization_id', organizationId);
+
+          if (newProductsError) {
+            console.error(`[Packing Reconnect] Error loading products:`, newProductsError);
+            results.errors.push({ booking_id: bookingData.id, error: `packing_reconnect_products_read_failed:${newProductsError.message || newProductsError}` });
+          }
+
           if (newProducts && newProducts.length > 0) {
             const reconnectResult = await reconnectPackingListItems(
               supabase,
               packingIdForReconnection,
               oldProductsForReconnection,
-              newProducts
+              newProducts,
+              {
+                completeness: productCompleteness,
+                organizationId,
+                bookingId: bookingData.id,
+                assertLease: assertLeaseOwned,
+              },
             );
-            
-            console.log(`[Packing Reconnect] Booking ${bookingData.id}: ${reconnectResult.reconnected} items reconnected, ${reconnectResult.orphaned} orphaned/removed`);
+
+            if (reconnectResult.error) {
+              results.errors.push({ booking_id: bookingData.id, error: `packing_reconnect_failed:${reconnectResult.error}` });
+            }
+
+            console.log(`[Packing Reconnect] Booking ${bookingData.id}: ${reconnectResult.reconnected} items reconnected, ${reconnectResult.orphaned} orphaned, ${reconnectResult.blockedDeletes} deletes blocked`);
             
             // Create packing list items for NEW products that didn't exist before
             const oldProductNames = new Set(oldProductsForReconnection.map((p: any) => (p.name || '').trim().toLowerCase()));
