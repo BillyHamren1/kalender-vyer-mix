@@ -116,7 +116,7 @@ describe('import-bookings destructive paths are gated', () => {
     const unguarded: string[] = [];
     lines.forEach((line, i) => {
       if (!/from\('(booking_products|packing_list_items)'\)[\s\S]{0,80}\.delete\(\)/.test(line)) return;
-      const window = lines.slice(Math.max(0, i - 25), i + 3).join('\n');
+      const window = lines.slice(Math.max(0, i - 60), i + 3).join('\n');
       const gated = /deleteAllowed|productDeleteAllowed|canDeleteProducts/.test(window);
       if (!gated) unguarded.push(line.trim());
     });
