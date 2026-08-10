@@ -15,13 +15,13 @@ export const SYNC_ANOMALY_LOG = 'booking_sync_anomaly';
  * Överskridande => circuit breaker stoppar FÖRE mutationen.
  */
 export const SAFETY_LIMITS = Object.freeze({
-  /** Max antal destruktiva produktoperationer (delete-satser) per booking-sync. */
+  /** STEG 3I: Max antal RADER som får raderas i produkttabeller per booking-sync. */
   product_deletes: 25,
-  /** Max antal kalender-deletes per booking-sync. */
+  /** STEG 3I: Max antal kalender-RADER som får raderas per booking-sync. */
   calendar_deletes: 10,
-  /** Max antal projection-deletes (projects/jobs/packing_projects) per booking-sync. */
+  /** STEG 3I: Max antal projection-RADER (projects/jobs/packing_projects) som får raderas per booking-sync. */
   projection_deletes: 3,
-  /** Max antal destruktiva operationer totalt per booking-sync. */
+  /** STEG 3I: Max antal raderade RADER totalt per booking-sync. */
   total_deletes: 30,
   /** Max antal statusbyten per booking-sync. */
   status_changes: 2,
