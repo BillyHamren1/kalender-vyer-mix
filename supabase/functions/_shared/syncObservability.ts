@@ -358,17 +358,17 @@ export function createDryRunClient(
   const stub = (table: string, op: string, rows: number): any => {
     const key = `${table}.${op}`;
     planned[key] = (planned[key] ?? 0) + rows;
-    const thenable: any = {
-      then: (resolve: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve),
-      catch: () => thenable,
-      finally: (fn: () => void) => { fn(); return thenable; },
-    };
-    return new Proxy(thenable, {
-      get(target, prop) {
-        if (prop in target) return (target as any)[prop];
-        return () => new Proxy(target, { get: (t, p) => (p in t ? (t as any)[p] : () => target) });
+    const result = { data: [], error: null };
+    const chain: any = new Proxy(function () { return chain; }, {
+      apply: () => chain,
+      get(_t, prop) {
+        if (prop === 'then') return (resolve: any, reject: any) => Promise.resolve(result).then(resolve, reject);
+        if (prop === 'catch') return () => chain;
+        if (prop === 'finally') return (fn: any) => { fn?.(); return chain; };
+        return () => chain;
       },
     });
+    return chain;
   };
 
   return new Proxy(client, {
