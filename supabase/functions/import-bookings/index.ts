@@ -3134,52 +3134,30 @@ serve(async (req) => {
           continue
         }
 
-        // Handle CANCELLED bookings - process if exists locally, skip if new
-          if (bookingStatus === 'CANCELLED' && !isHistoricalImport) {
+        // STEG 3L: CANCELLED i normal sync (batch/incremental/full OCH
+        // historical) blir ENDAST en kandidat — aldrig en mutation.
+        // Ingen destruktiv cleanup, ingen lokal statussättning via upsert.
+        if (bookingStatus === 'CANCELLED') {
           if (existingBooking) {
-            // STEG 3H: normal sync har INGEN egen cancellation-cleanup.
-            // Allt destruktivt går via den centrala, skyddade vägen.
-            if (!isAutomaticDestructiveSyncEnabled()) {
-              logBlockedCancellation({
-                booking_id: existingBooking.id,
-                organization_id: organizationId,
-                source_revision: (externalBooking as any).updated_at ?? (externalBooking as any).version ?? null,
-                caller: 'import-bookings:bulk_sync_cancelled_candidate',
-              });
-              results.cancelled_bookings_skipped.push(existingBooking.id);
-              continue;
-            }
-
-            const cancelResult = await applyBookingCancellation(supabase, existingBooking as any, {
-              reason: 'cancelled',
-              source_status: 'CANCELLED',
-              source_revision: (externalBooking as any).updated_at ?? (externalBooking as any).version ?? null,
-              source_updated_at: (externalBooking as any).updated_at ?? null,
-              source_version: typeof (externalBooking as any).version === 'number' ? (externalBooking as any).version : null,
+            logBlockedCancellation({
+              booking_id: existingBooking.id,
               organization_id: organizationId,
+              source_revision: (externalBooking as any).updated_at ?? (externalBooking as any).version ?? null,
+              caller: isHistoricalImport
+                ? 'import-bookings:historical_cancelled_candidate'
+                : 'import-bookings:bulk_sync_cancelled_candidate',
             });
-
-            if (cancelResult.status === 'error' || cancelResult.status === 'partial') {
-              results.errors.push({ booking_id: existingBooking.id, error: cancelResult.error ?? cancelResult.outcome ?? 'cancellation_failed' });
-              results.failed++;
-            } else {
-              results.status_changed_bookings.push(existingBooking.id);
-              results.imported++;
-            }
-            continue
-          } else {
-
-            // New CANCELLED booking - skip import
-            console.log(`CANCELLED booking ${externalBooking.id} does not exist locally → skipping`)
-            results.cancelled_bookings_skipped.push(externalBooking.id)
-            continue
+            results.cancellation_candidates.push(existingBooking.id);
+            results.cancelled_bookings_skipped.push(existingBooking.id);
+            continue;
           }
+
+          // New CANCELLED booking - skip import
+          console.log(`CANCELLED booking ${externalBooking.id} does not exist locally → skipping`)
+          results.cancelled_bookings_skipped.push(externalBooking.id)
+          continue
         }
 
-        // For historical imports, log but still process cancelled bookings
-        if (bookingStatus === 'CANCELLED' && isHistoricalImport) {
-          console.log(`Historical mode: Processing CANCELLED booking: ${externalBooking.id}`)
-        }
 
         // Extract client name
         let clientName = externalBooking.clientName
