@@ -4985,13 +4985,61 @@ serve(async (req) => {
     )
 
   } catch (error) {
+    // STEG 3G: circuit breaker — stoppade FÖRE mutationen. Aldrig completed,
+    // ingen commit, ingen cursor; reservationen släpps som vid krasch nedan.
+    if (error instanceof SafetyCircuitBreakerError) {
+      stopLeaseRenewal()
+      syncCounters.failures += 1
+      logSyncAudit({
+        organization_id: ctxOrgId,
+        booking_id: ctxBookingId,
+        outcome: 'failed',
+        duration_ms: Date.now() - syncStartedMs,
+        dry_run: isDryRun,
+        counters: syncCounters,
+        planned_mutations: isDryRun ? plannedMutations : null,
+        anomalies: [SAFETY_CIRCUIT_BREAKER],
+      })
+      if (guardedIncomingRevision && ctxBookingId && ctxOrgId && supabase) {
+        try {
+          await releaseCanonicalRevision(supabase, {
+            bookingId: ctxBookingId,
+            organizationId: ctxOrgId,
+            incoming: guardedIncomingRevision,
+            reservationToken: guardedReservationToken,
+          })
+        } catch (relErr) {
+          console.error('[import-bookings] revision release failed after circuit breaker', relErr)
+        }
+      }
+      return new Response(
+        JSON.stringify(buildSingleBookingEnvelope({
+          bookingId: ctxBookingId,
+          organizationId: ctxOrgId,
+          outcome: 'failed',
+          error: error.detail.reason ?? SAFETY_CIRCUIT_BREAKER,
+        })),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
+      )
+    }
     // STEG 2I: förlorat/overifierat lease-ägarskap → ingen commit, ingen
     // applied/completed, ingen cursorförflyttning. Release endast om vi
     // fortfarande äger token.
     if (error instanceof LeaseOwnershipLostError) {
       const failure = error.failure
       stopLeaseRenewal()
+      syncCounters.lease_losses += 1
+      logSyncAudit({
+        organization_id: ctxOrgId,
+        booking_id: ctxBookingId,
+        outcome: 'failed',
+        duration_ms: Date.now() - syncStartedMs,
+        dry_run: isDryRun,
+        counters: syncCounters,
+        anomalies: ['lease_takeover'],
+      })
       console.error('[import-bookings] import aborted — lease ownership lost', JSON.stringify(failure))
+
       if (failure.kind === 'unverified' && guardedIncomingRevision && ctxBookingId && ctxOrgId) {
         try {
           await releaseCanonicalRevision(supabase, {
