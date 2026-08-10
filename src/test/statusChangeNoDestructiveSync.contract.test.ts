@@ -18,8 +18,10 @@ const statusChangeBlock = (() => {
 
 /** Bulk-loopens CANCELLED-hantering. */
 const bulkCancelledBlock = (() => {
-  const start = importSrc.indexOf("// Handle CANCELLED bookings");
-  const end = importSrc.indexOf('// For historical imports', start);
+  const start = importSrc.indexOf('// STEG 3L: CANCELLED i normal sync');
+  const end = importSrc.indexOf('// Extract client name', start);
+  expect(start).toBeGreaterThan(-1);
+  expect(end).toBeGreaterThan(start);
   return importSrc.slice(start, end);
 })();
 
