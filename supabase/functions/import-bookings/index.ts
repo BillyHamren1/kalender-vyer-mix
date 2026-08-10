@@ -3374,6 +3374,15 @@ serve(async (req) => {
           datesCompleteness: readDateSourceCompleteness(externalBooking),
           datePresence: buildDatePresence(externalBooking),
         };
+        // STEG 3F: projection-kontext (projects/jobs/packing_projects).
+        const projectionSyncCtx: ProjectionSyncContext = {
+          sourceFound: true,
+          revisionValidated: true,
+          leaseOwned: true,
+          projectionComplete: readDateSourceCompleteness(externalBooking) === 'complete',
+          organizationId,
+          bookingId: bookingData.id,
+        };
         const runCalendarReconcile = async () => {
           try {
             assertLeaseOwned('calendar_reconcile');
