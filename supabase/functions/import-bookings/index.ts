@@ -2325,18 +2325,36 @@ serve(async (req) => {
 
     const body = await req.json();
 
-    // STEG 3G: dry-run kräver explicit dry_run:true + exakt ett booking_id.
+    // STEG 3G/3J: dry-run kräver explicit dry_run:true + exakt ett booking_id.
     // Gränserna i SAFETY_LIMITS läses aldrig från requesten.
     const dryRunResolution = resolveDryRun(body);
     isDryRun = dryRunResolution.dryRun;
-    if (dryRunResolution.reason) {
-      console.warn('[import-bookings] dry_run ignored', JSON.stringify({ reason: dryRunResolution.reason }));
+    // STEG 3J FAIL-CLOSED: begärd men ogiltig dry-run får ALDRIG fortsätta live.
+    // Ingen mutation, ingen cursorflytt, inget jobb completed — vi returnerar
+    // ett klientfel innan någon som helst syncfas startar.
+    if (dryRunResolution.requested && !dryRunResolution.dryRun) {
+      console.error('[import-bookings] invalid dry_run request — aborting', JSON.stringify({
+        reason: dryRunResolution.reason,
+      }));
+      return new Response(JSON.stringify({
+        success: false,
+        completed: false,
+        outcome: 'invalid_dry_run_request',
+        error: dryRunResolution.reason ?? 'dry_run_contract_invalid',
+        dry_run: true,
+        mutations: 0,
+        planned_mutations: {},
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
     // Alla skrivningar går genom en guardad klient (counters + circuit breaker).
     // I dry-run går de dessutom genom en no-op-klient: noll DB-mutationer.
     if (isDryRun) {
       supabase = createDryRunClient(supabase, plannedMutations, syncCounters);
     }
+
 
 
 
@@ -2363,6 +2381,24 @@ serve(async (req) => {
     // Accept explicit organization_id from payload (sent by Hub/receive-booking)
     const explicitOrgId = body?.organization_id;
     const organizationId = await resolveOrganizationId(supabase, explicitOrgId);
+
+    // STEG 3J: dry-run utan resolverbar organisation → fail-closed (aldrig live).
+    if (isDryRun && (typeof organizationId !== 'string' || organizationId.trim().length === 0)) {
+      console.error('[import-bookings] invalid dry_run request — unresolved organization');
+      return new Response(JSON.stringify({
+        success: false,
+        completed: false,
+        outcome: 'invalid_dry_run_request',
+        error: 'dry_run_requires_valid_organization_id',
+        dry_run: true,
+        mutations: 0,
+        planned_mutations: {},
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
 
     const isHistoricalImport = historicalMode || forceHistoricalImport;
     const isSingleBookingRefresh = !!normalizedSingleBookingId;
