@@ -88,21 +88,30 @@ describe('circuit breaker', () => {
     expect(c.blocked_by_circuit_breaker).toBe(1);
   });
 
-  it('stoppar FÖRE delete i guardad klient', () => {
+  it('STEG 3I: odeklarerad delete i guardad klient är fail-closed', () => {
     const ops: string[] = [];
     const c = createSyncCounters();
     const db = createSafetyGuardedClient(fakeClient((op, t) => ops.push(`${op}:${t}`)), c);
-    for (let i = 0; i < SAFETY_LIMITS.calendar_deletes; i++) db.from('calendar_events').delete();
-    const before = ops.filter((o) => o.startsWith('delete')).length;
-    expect(() => db.from('calendar_events').delete()).toThrow(SafetyCircuitBreakerError);
-    expect(ops.filter((o) => o.startsWith('delete')).length).toBe(before); // ingen delete kördes
+    expect(() => db.from('calendar_events').delete()).toThrow(/unknown_destructive_row_count/);
+    expect(ops.filter((o) => o.startsWith('delete')).length).toBe(0);
   });
 
-  it('räknar adds/updates/deletes per kategori', () => {
+  it('STEG 3I: deklarerat radantal över gränsen stoppar FÖRE delete', () => {
+    const ops: string[] = [];
+    const c = createSyncCounters();
+    const db = createSafetyGuardedClient(fakeClient((op, t) => ops.push(`${op}:${t}`)), c);
+    expect(() => enforceDestructiveLimit(c, 'calendar_deletes', SAFETY_LIMITS.calendar_deletes + 1))
+      .toThrow(SafetyCircuitBreakerError);
+    expect(() => db.from('calendar_events').delete()).toThrow(/unknown_destructive_row_count/);
+    expect(ops.filter((o) => o.startsWith('delete')).length).toBe(0);
+  });
+
+  it('räknar adds/updates/deletes per kategori (rader)', () => {
     const c = createSyncCounters();
     const db = createSafetyGuardedClient(fakeClient(() => {}), c);
     db.from('booking_products').insert();
     db.from('booking_products').update();
+    enforceDestructiveLimit(c, 'product_deletes', 1);
     db.from('booking_products').delete();
     db.from('calendar_events').insert();
     db.from('projects').update();
@@ -134,7 +143,9 @@ describe('dry-run', () => {
   it('gör noll mutationer men räknar planerade', async () => {
     const ops: string[] = [];
     const planned: Record<string, number> = {};
-    const db = createDryRunClient(fakeClient((op, t) => ops.push(`${op}:${t}`)), planned);
+    const c = createSyncCounters();
+    const db = createDryRunClient(fakeClient((op, t) => ops.push(`${op}:${t}`)), planned, c);
+    enforceDestructiveLimit(c, 'product_deletes', 1);
     await db.from('booking_products').delete().eq('id', 1);
     await db.from('calendar_events').insert({});
     await db.from('projects').update({});
@@ -145,13 +156,13 @@ describe('dry-run', () => {
     expect(planned['projects.update']).toBe(1);
   });
 
-  it('rpc muteras inte i dry-run', async () => {
+  it('muterande rpc körs inte i dry-run (STEG 3I: klassificerad)', async () => {
     const ops: string[] = [];
     const planned: Record<string, number> = {};
     const db = createDryRunClient(fakeClient((op, t) => ops.push(`${op}:${t}`)), planned);
-    await db.rpc('commit_canonical_revision', {});
+    await db.rpc('advance_booking_source_revision', {});
     expect(ops.length).toBe(0);
-    expect(planned['rpc.commit_canonical_revision']).toBe(1);
+    expect(planned['rpc.advance_booking_source_revision']).toBe(1);
   });
 
   it('dry-run audit markerar completed=false-semantik (dry_run true, ingen cursor)', () => {
