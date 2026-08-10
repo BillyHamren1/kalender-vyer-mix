@@ -36,6 +36,19 @@ import {
   PRODUCT_DESTRUCTIVE_BLOCKED_LOG,
 } from '../_shared/productCompleteness.ts'
 import type { ProductSourceCompleteness } from '../_shared/productCompleteness.ts'
+import {
+  buildDatePresence,
+  canDeleteCanonicalDateEvent,
+  canMutateCalendar,
+  dedupeDesiredEvents,
+  eventCanonicalDate,
+  fallbackCalendarContext,
+  isBookingGeneratedEvent,
+  readDateSourceCompleteness,
+  CALENDAR_DESTRUCTIVE_BLOCKED_LOG,
+  CALENDAR_MUTATION_BLOCKED_LOG,
+} from '../_shared/calendarSourceAuthority.ts'
+import type { CalendarSyncContext } from '../_shared/calendarSourceAuthority.ts'
 
 /**
  * Resolve the organization_id to use for all INSERTs.
@@ -850,8 +863,19 @@ async function reconcileCalendarEvents(
   organizationId: string,
   results: any,
   existingBooking?: any,
-) {
-  if (bookingData.status !== 'CONFIRMED') return;
+  calendarCtx: CalendarSyncContext = fallbackCalendarContext(),
+): Promise<{ ok: boolean; error?: string }> {
+  if (bookingData.status !== 'CONFIRMED') return { ok: true };
+
+  // ── STEG 3E: MUTATION GATE ──────────────────────────────────────────────
+  // Ingen kalendermutation innan kontrakt + revision + lease är validerade.
+  const mutationGate = canMutateCalendar(calendarCtx);
+  if (!mutationGate.allowed) {
+    console.warn(`[Calendar Reconcile] ${CALENDAR_MUTATION_BLOCKED_LOG} booking ${bookingData.id}: ${mutationGate.reason} → 0 calendar mutations`);
+    return { ok: true };
+  }
+  const calendarOrgId = bookingData.organization_id || organizationId;
+  let calendarError: string | null = null;
 
   // ── PLANNING-STATUS GUARD ──────────────────────────────────────────────
   // Nyskapade projekt börjar med planning_status='needs_planning' och hanteras
@@ -868,7 +892,7 @@ async function reconcileCalendarEvents(
       .maybeSingle();
     if (linkedProject?.planning_status === 'needs_planning') {
       console.log(`[Calendar Reconcile] SKIP booking ${bookingData.id}: linked project is needs_planning`);
-      return;
+      return { ok: true };
     }
     const { data: parentForLP } = await supabase
       .from('bookings')
@@ -883,7 +907,7 @@ async function reconcileCalendarEvents(
         .maybeSingle();
       if (lp?.planning_status === 'needs_planning') {
         console.log(`[Calendar Reconcile] SKIP booking ${bookingData.id}: large project ${parentForLP.large_project_id} is needs_planning`);
-        return;
+        return { ok: true };
       }
     }
 
@@ -900,7 +924,7 @@ async function reconcileCalendarEvents(
         .neq('event_type', 'activity');
       if (!existingCeCount || existingCeCount === 0) {
         console.log(`[Calendar Reconcile] SKIP booking ${bookingData.id}: no linked project/large_project and no existing events (awaiting manual planning)`);
-        return;
+        return { ok: true };
       }
     }
   } catch (planningGuardErr) {
@@ -1046,22 +1070,25 @@ async function reconcileCalendarEvents(
         }
         // Remove any pre-existing phase rows owned by this non-rep booking.
         if ((existingEvents || []).length > 0) {
+          // STEG 3E: endast bevisligen Booking-genererade rader, aldrig manuella.
           const idsToDelete = (existingEvents || [])
-            .filter((e: any) => e.event_type === 'rig' || e.event_type === 'rigDown' || e.event_type === 'event')
+            .filter((e: any) => isBookingGeneratedEvent(e, bookingData.id) && e.times_locked !== true)
             .map((e: any) => e.id);
           if (idsToDelete.length > 0) {
             const { error: delErr } = await supabase
               .from('calendar_events')
               .delete()
+              .eq('organization_id', calendarOrgId)
+              .eq('booking_id', bookingData.id)
               .in('id', idsToDelete);
             if (delErr) {
               console.error('[Calendar Reconcile] Failed to clean up non-rep LP phase events:', delErr);
-            } else {
-              console.log(`[Calendar Reconcile] Cleaned ${idsToDelete.length} stale non-rep LP phase events for booking ${bookingData.id}`);
+              return { ok: false, error: `calendar_delete_failed:${delErr.message || delErr}` };
             }
+            console.log(`[Calendar Reconcile] Cleaned ${idsToDelete.length} stale non-rep LP phase events for booking ${bookingData.id}`);
           }
         }
-        return;
+        return { ok: true };
       }
 
       // REP path: use the LP's authoritative date arrays.
@@ -1140,8 +1167,16 @@ async function reconcileCalendarEvents(
   const nonActivityExisting = (existingEvents || []).filter((e: any) => e.event_type !== 'activity');
   if (desiredEvents.length === 0 && nonActivityExisting.length > 0 && bookingData.status === 'CONFIRMED') {
     console.warn(`[Calendar Reconcile] ⚠️ Booking ${bookingData.id} has ${nonActivityExisting.length} existing events but desired=0. Skipping to avoid mass-delete (likely transient empty payload from Booking API).`);
-    return;
+    return { ok: true };
   }
+
+  // STEG 3E: idempotens — en desired-rad per (event_type|date).
+  const dedupedDesired = dedupeDesiredEvents(desiredEvents as any[]);
+  if (dedupedDesired.length !== desiredEvents.length) {
+    console.log(`[Calendar Reconcile] Deduped desired events ${desiredEvents.length} → ${dedupedDesired.length} for booking ${bookingData.id}`);
+  }
+  desiredEvents.length = 0;
+  desiredEvents.push(...(dedupedDesired as any[]));
 
   const existingByKey = new Map<string, any>();
   for (const evt of (existingEvents || [])) {
@@ -1198,10 +1233,13 @@ async function reconcileCalendarEvents(
         const { error: updateErr } = await supabase
           .from('calendar_events')
           .update(updatePayload)
-          .eq('id', existing.id);
+          .eq('id', existing.id)
+          .eq('organization_id', calendarOrgId)
+          .eq('booking_id', bookingData.id);
 
         if (updateErr) {
           console.error(`[Calendar Reconcile] Error updating event ${existing.id}:`, updateErr);
+          calendarError = calendarError || `calendar_update_failed:${updateErr.message || updateErr}`;
         } else {
           results.calendar_events_created++;
         }
@@ -1250,6 +1288,7 @@ async function reconcileCalendarEvents(
 
       if (insertErr) {
         console.error(`[Calendar Reconcile] Error creating event:`, insertErr);
+        calendarError = calendarError || `calendar_insert_failed:${insertErr.message || insertErr}`;
       } else {
         results.calendar_events_created++;
       }
@@ -1269,10 +1308,28 @@ async function reconcileCalendarEvents(
   // event-days are intentionally NOT persisted (see line 1101-1104), so we
   // don't protect them here.
 
+  // STEG 3E: canonical dates som fortfarande finns efter reconcile.
+  const canonicalDatesForDelete = {
+    rig: [...rigDates],
+    event: [...eventDates],
+    rigDown: [...rigdownDates],
+  } as Record<'rig' | 'event' | 'rigDown', string[]>;
+
   const staleEvents = (existingEvents || []).filter((e: any) => {
     if (matchedExistingIds.has(e.id)) return false;
-    const evtDate = e.source_date || e.start_time?.split('T')[0] || '';
+    const evtDate = eventCanonicalDate(e);
     const key = `${e.event_type}|${evtDate}`;
+
+    // STEG 3E: fail-closed delete-gate (found:true + nyare revision + lease +
+    // komplett/canonical datumfält + datumet saknas + bevisligen Booking-genererat).
+    const deleteGate = canDeleteCanonicalDateEvent(e, calendarCtx, {
+      bookingId: bookingData.id,
+      canonicalDates: canonicalDatesForDelete,
+    });
+    if (!deleteGate.allowed) {
+      console.log(`[Calendar Reconcile] ${CALENDAR_DESTRUCTIVE_BLOCKED_LOG} keep ${e.event_type}@${evtDate} (${deleteGate.reason})`);
+      return false;
+    }
     // LOCK GUARD: en låst dag ("Fast tid") är alltid användarens/Bookings beslut.
     // Externa importen får aldrig radera den som "stale".
     if (e.times_locked === true) {
@@ -1292,11 +1349,19 @@ async function reconcileCalendarEvents(
     const { error: deleteErr } = await supabase
       .from('calendar_events')
       .delete()
+      .eq('organization_id', calendarOrgId)
+      .eq('booking_id', bookingData.id)
       .in('id', staleIds);
 
     if (deleteErr) {
       console.error(`[Calendar Reconcile] Error deleting stale events:`, deleteErr);
+      calendarError = calendarError || `calendar_delete_failed:${deleteErr.message || deleteErr}`;
     }
+  }
+
+  if (calendarError) {
+    console.error(`[Calendar Reconcile] ❌ Booking ${bookingData.id} reconciliation failed: ${calendarError}`);
+    return { ok: false, error: calendarError };
   }
 
   console.log(`[Calendar Reconcile] ✅ Booking ${bookingData.id} reconciliation complete`);
@@ -1434,6 +1499,8 @@ async function reconcileCalendarEvents(
       if (auditErr) console.error(`[Sync Audit] Error writing audit log:`, auditErr);
     });
   }
+
+  return { ok: true };
 }
 
 /**
@@ -3250,6 +3317,31 @@ serve(async (req) => {
 
         // STEG 3D: explicit completeness från Booking-kontraktet (fail-closed).
         // 'complete' krävs för ALL destruktiv produkt-/packing-synk.
+        // STEG 3E: kalender-sync-kontext (ownership + revision + lease + completeness).
+        const calendarSyncCtx: CalendarSyncContext = {
+          sourceFound: true,
+          revisionValidated: true,
+          leaseOwned: true,
+          datesCompleteness: readDateSourceCompleteness(externalBooking),
+          datePresence: buildDatePresence(externalBooking),
+        };
+        const runCalendarReconcile = async () => {
+          try {
+            assertLeaseOwned('calendar_reconcile');
+          } catch (leaseErr) {
+            console.warn(`[Calendar Reconcile] ${CALENDAR_MUTATION_BLOCKED_LOG} booking ${bookingData.id}: lease_not_owned`);
+            throw leaseErr;
+          }
+          const res = await reconcileCalendarEvents(
+            supabase, bookingData, organizationId, results, existingBooking, calendarSyncCtx,
+          );
+          if (!res.ok) {
+            results.failed++;
+            results.errors.push({ booking_id: bookingData.id, error: res.error || 'calendar_reconcile_failed' });
+          }
+          return res;
+        };
+
         const productCompleteness: ProductSourceCompleteness = readProductSourceCompleteness(externalBooking);
         const productDeleteAllowed = canDeleteProducts(productCompleteness);
         if (!productDeleteAllowed) {
@@ -3424,8 +3516,7 @@ serve(async (req) => {
             
             results.unchanged_bookings_skipped.push(bookingData.id)
             // Always reconcile calendar even for unchanged bookings
-            assertLeaseOwned('calendar_reconcile');
-        await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
+            await runCalendarReconcile();
             continue; // SKIP UPDATE - NO CHANGES
           }
           
@@ -3447,8 +3538,7 @@ serve(async (req) => {
             );
             results.imported++;
             // Always reconcile calendar even for warehouse-only recovery
-            assertLeaseOwned('calendar_reconcile');
-        await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
+            await runCalendarReconcile();
             continue;
           }
           
@@ -3458,8 +3548,7 @@ serve(async (req) => {
             const recoveryExternalCount = Array.isArray(externalBooking.products) ? externalBooking.products.length : 0;
             if (recoveryExternalCount === 0) {
               console.warn(`[Product Recovery GUARD] Skipping recovery for booking ${bookingData.id}: external products array is empty (transient_empty_source). Keeping local products intact.`);
-              assertLeaseOwned('calendar_reconcile');
-        await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
+            await runCalendarReconcile();
               continue;
             }
 
@@ -3467,8 +3556,7 @@ serve(async (req) => {
             // Booking explicit rapporterar products_complete === true.
             if (!productDeleteAllowed) {
               console.warn(`[Product Recovery] ${PRODUCT_DESTRUCTIVE_BLOCKED_LOG} booking ${bookingData.id}: completeness=${productCompleteness} → no clear, no delete. Only safe add/update paths may run.`);
-              assertLeaseOwned('calendar_reconcile');
-        await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
+            await runCalendarReconcile();
               continue;
             }
 
@@ -3711,8 +3799,7 @@ serve(async (req) => {
             results.updated_bookings.push(existingBooking.id);
             console.log(`[Product Recovery] Completed for booking ${bookingData.id}`);
             // Always reconcile calendar even for product-only recovery
-            assertLeaseOwned('calendar_reconcile');
-        await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
+            await runCalendarReconcile();
             continue;
           }
           
@@ -4531,8 +4618,7 @@ serve(async (req) => {
         // ═══════════════════════════════════════════════════════════════════
         // DETERMINISTIC CALENDAR RECONCILIATION (extracted to helper)
         // ═══════════════════════════════════════════════════════════════════
-        assertLeaseOwned('calendar_reconcile');
-        await reconcileCalendarEvents(supabase, bookingData, organizationId, results, existingBooking);
+            await runCalendarReconcile();
 
         if (bookingData.status === 'CONFIRMED') {
           // Sync warehouse calendar events for confirmed bookings with dates
