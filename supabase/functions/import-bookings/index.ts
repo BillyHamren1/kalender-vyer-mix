@@ -73,6 +73,7 @@ import {
   guardedDeleteWhere,
   UnknownDestructiveRowCountError,
   UNKNOWN_DESTRUCTIVE_ROW_COUNT,
+  UNKNOWN_RPC_IN_DRY_RUN,
 } from '../_shared/syncObservability.ts'
 import type { SyncCounters } from '../_shared/syncObservability.ts'
 
@@ -4832,6 +4833,32 @@ serve(async (req) => {
     )
 
   } catch (error) {
+    // STEG 3I: fail-closed när radantal inte kan fastställas eller okänd RPC
+    // körs i dry-run. Ingen mutation har skett; svar = failed.
+    if (error instanceof UnknownDestructiveRowCountError || (error as any)?.code === UNKNOWN_RPC_IN_DRY_RUN) {
+      stopLeaseRenewal()
+      syncCounters.failures += 1
+      const failCode = (error as any)?.code ?? UNKNOWN_DESTRUCTIVE_ROW_COUNT
+      logSyncAudit({
+        organization_id: ctxOrgId,
+        booking_id: ctxBookingId,
+        outcome: 'failed',
+        duration_ms: Date.now() - syncStartedMs,
+        dry_run: isDryRun,
+        counters: syncCounters,
+        planned_mutations: isDryRun ? plannedMutations : null,
+        anomalies: [failCode],
+      })
+      return new Response(
+        JSON.stringify(buildSingleBookingEnvelope({
+          bookingId: ctxBookingId,
+          organizationId: ctxOrgId,
+          outcome: 'failed',
+          error: failCode,
+        })),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
+      )
+    }
     // STEG 3G: circuit breaker — stoppade FÖRE mutationen. Aldrig completed,
     // ingen commit, ingen cursor; reservationen släpps som vid krasch nedan.
     if (error instanceof SafetyCircuitBreakerError) {
