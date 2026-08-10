@@ -2268,6 +2268,11 @@ serve(async (req) => {
   const stopLeaseRenewal = () => { try { leaseControl?.stop() } catch { /* ignore */ } }
   /** Fail-closed ägarskapskontroll före varje mutationsfas. */
   const assertLeaseOwned = (phase: string) => { leaseControl?.assertOwned(phase) }
+  // STEG 3G: safety counters + dry-run-plan, tillgängliga även i catch.
+  const syncCounters = createSyncCounters()
+  const plannedMutations: Record<string, number> = {}
+  let isDryRun = false
+  const syncStartedMs = Date.now()
 
   try {
     // Header 'x-lovable-change-source' forwards to Postgres via PostgREST and
@@ -2275,7 +2280,7 @@ serve(async (req) => {
     // an external Booking-source change (=> may set needs_review). Without it,
     // service_role writes are treated as internal (see migration
     // 20260720_needs_review_source_opt_in).
-    const supabase = createClient(
+    const rawSupabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
       {
@@ -2286,6 +2291,23 @@ serve(async (req) => {
     )
 
     const body = await req.json();
+
+    // STEG 3G: dry-run kräver explicit dry_run:true + exakt ett booking_id.
+    // Gränserna i SAFETY_LIMITS läses aldrig från requesten.
+    const dryRunResolution = resolveDryRun(body);
+    isDryRun = dryRunResolution.dryRun;
+    if (dryRunResolution.reason) {
+      console.warn('[import-bookings] dry_run ignored', JSON.stringify({ reason: dryRunResolution.reason }));
+    }
+    // Alla skrivningar går genom en guardad klient (counters + circuit breaker).
+    // I dry-run går de dessutom genom en no-op-klient: noll DB-mutationer.
+    const supabase = isDryRun
+      ? createDryRunClient(
+          createSafetyGuardedClient(rawSupabase, syncCounters, {}),
+          plannedMutations,
+        )
+      : createSafetyGuardedClient(rawSupabase, syncCounters, {});
+
 
     const {
       quiet = false, 
