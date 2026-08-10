@@ -1308,10 +1308,28 @@ async function reconcileCalendarEvents(
   // event-days are intentionally NOT persisted (see line 1101-1104), so we
   // don't protect them here.
 
+  // STEG 3E: canonical dates som fortfarande finns efter reconcile.
+  const canonicalDatesForDelete = {
+    rig: [...rigDates],
+    event: [...eventDates],
+    rigDown: [...rigdownDates],
+  } as Record<'rig' | 'event' | 'rigDown', string[]>;
+
   const staleEvents = (existingEvents || []).filter((e: any) => {
     if (matchedExistingIds.has(e.id)) return false;
-    const evtDate = e.source_date || e.start_time?.split('T')[0] || '';
+    const evtDate = eventCanonicalDate(e);
     const key = `${e.event_type}|${evtDate}`;
+
+    // STEG 3E: fail-closed delete-gate (found:true + nyare revision + lease +
+    // komplett/canonical datumfält + datumet saknas + bevisligen Booking-genererat).
+    const deleteGate = canDeleteCanonicalDateEvent(e, calendarCtx, {
+      bookingId: bookingData.id,
+      canonicalDates: canonicalDatesForDelete,
+    });
+    if (!deleteGate.allowed) {
+      console.log(`[Calendar Reconcile] ${CALENDAR_DESTRUCTIVE_BLOCKED_LOG} keep ${e.event_type}@${evtDate} (${deleteGate.reason})`);
+      return false;
+    }
     // LOCK GUARD: en låst dag ("Fast tid") är alltid användarens/Bookings beslut.
     // Externa importen får aldrig radera den som "stale".
     if (e.times_locked === true) {
@@ -1331,11 +1349,19 @@ async function reconcileCalendarEvents(
     const { error: deleteErr } = await supabase
       .from('calendar_events')
       .delete()
+      .eq('organization_id', calendarOrgId)
+      .eq('booking_id', bookingData.id)
       .in('id', staleIds);
 
     if (deleteErr) {
       console.error(`[Calendar Reconcile] Error deleting stale events:`, deleteErr);
+      calendarError = calendarError || `calendar_delete_failed:${deleteErr.message || deleteErr}`;
     }
+  }
+
+  if (calendarError) {
+    console.error(`[Calendar Reconcile] ❌ Booking ${bookingData.id} reconciliation failed: ${calendarError}`);
+    return { ok: false, error: calendarError };
   }
 
   console.log(`[Calendar Reconcile] ✅ Booking ${bookingData.id} reconciliation complete`);
