@@ -1070,22 +1070,25 @@ async function reconcileCalendarEvents(
         }
         // Remove any pre-existing phase rows owned by this non-rep booking.
         if ((existingEvents || []).length > 0) {
+          // STEG 3E: endast bevisligen Booking-genererade rader, aldrig manuella.
           const idsToDelete = (existingEvents || [])
-            .filter((e: any) => e.event_type === 'rig' || e.event_type === 'rigDown' || e.event_type === 'event')
+            .filter((e: any) => isBookingGeneratedEvent(e, bookingData.id) && e.times_locked !== true)
             .map((e: any) => e.id);
           if (idsToDelete.length > 0) {
             const { error: delErr } = await supabase
               .from('calendar_events')
               .delete()
+              .eq('organization_id', calendarOrgId)
+              .eq('booking_id', bookingData.id)
               .in('id', idsToDelete);
             if (delErr) {
               console.error('[Calendar Reconcile] Failed to clean up non-rep LP phase events:', delErr);
-            } else {
-              console.log(`[Calendar Reconcile] Cleaned ${idsToDelete.length} stale non-rep LP phase events for booking ${bookingData.id}`);
+              return { ok: false, error: `calendar_delete_failed:${delErr.message || delErr}` };
             }
+            console.log(`[Calendar Reconcile] Cleaned ${idsToDelete.length} stale non-rep LP phase events for booking ${bookingData.id}`);
           }
         }
-        return;
+        return { ok: true };
       }
 
       // REP path: use the LP's authoritative date arrays.
@@ -1164,8 +1167,16 @@ async function reconcileCalendarEvents(
   const nonActivityExisting = (existingEvents || []).filter((e: any) => e.event_type !== 'activity');
   if (desiredEvents.length === 0 && nonActivityExisting.length > 0 && bookingData.status === 'CONFIRMED') {
     console.warn(`[Calendar Reconcile] ⚠️ Booking ${bookingData.id} has ${nonActivityExisting.length} existing events but desired=0. Skipping to avoid mass-delete (likely transient empty payload from Booking API).`);
-    return;
+    return { ok: true };
   }
+
+  // STEG 3E: idempotens — en desired-rad per (event_type|date).
+  const dedupedDesired = dedupeDesiredEvents(desiredEvents as any[]);
+  if (dedupedDesired.length !== desiredEvents.length) {
+    console.log(`[Calendar Reconcile] Deduped desired events ${desiredEvents.length} → ${dedupedDesired.length} for booking ${bookingData.id}`);
+  }
+  desiredEvents.length = 0;
+  desiredEvents.push(...(dedupedDesired as any[]));
 
   const existingByKey = new Map<string, any>();
   for (const evt of (existingEvents || [])) {
@@ -1222,10 +1233,13 @@ async function reconcileCalendarEvents(
         const { error: updateErr } = await supabase
           .from('calendar_events')
           .update(updatePayload)
-          .eq('id', existing.id);
+          .eq('id', existing.id)
+          .eq('organization_id', calendarOrgId)
+          .eq('booking_id', bookingData.id);
 
         if (updateErr) {
           console.error(`[Calendar Reconcile] Error updating event ${existing.id}:`, updateErr);
+          calendarError = calendarError || `calendar_update_failed:${updateErr.message || updateErr}`;
         } else {
           results.calendar_events_created++;
         }
@@ -1274,6 +1288,7 @@ async function reconcileCalendarEvents(
 
       if (insertErr) {
         console.error(`[Calendar Reconcile] Error creating event:`, insertErr);
+        calendarError = calendarError || `calendar_insert_failed:${insertErr.message || insertErr}`;
       } else {
         results.calendar_events_created++;
       }
