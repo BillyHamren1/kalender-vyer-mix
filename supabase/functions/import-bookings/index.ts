@@ -49,6 +49,14 @@ import {
   CALENDAR_MUTATION_BLOCKED_LOG,
 } from '../_shared/calendarSourceAuthority.ts'
 import type { CalendarSyncContext } from '../_shared/calendarSourceAuthority.ts'
+import {
+  canMutateProjection,
+  buildProjectionPatch,
+  hasProjectionChanges,
+  assertNoProtectedFields,
+  PROJECTION_MUTATION_BLOCKED_LOG,
+} from '../_shared/projectionSourceAuthority.ts'
+import type { ProjectionSyncContext } from '../_shared/projectionSourceAuthority.ts'
 
 /**
  * Resolve the organization_id to use for all INSERTs.
