@@ -3689,9 +3689,12 @@ serve(async (req) => {
             }
             
             // SYNC packing list items for all products (including expanded components)
-            const recoveryPackingSynced = await (async () => { assertLeaseOwned('packing_project'); return syncPackingListAfterExpansion(supabase, existingBooking.id, organizationId); })();
-            if (recoveryPackingSynced > 0) {
-              console.log(`[Product Recovery] Synced ${recoveryPackingSynced} packing list items for booking ${bookingData.id}`);
+            const recoveryPackingResult = await (async () => { assertLeaseOwned('packing_project'); return syncPackingListAfterExpansion(supabase, existingBooking.id, organizationId, { completeness: productCompleteness, assertLease: assertLeaseOwned }); })();
+            if (recoveryPackingResult.error) {
+              results.errors.push({ booking_id: existingBooking.id, error: `packing_sync_failed:${recoveryPackingResult.error}` });
+            }
+            if (recoveryPackingResult.changes > 0) {
+              console.log(`[Product Recovery] Synced ${recoveryPackingResult.changes} packing list items for booking ${bookingData.id}`);
             }
             
             // Sync all attachments with shared dedup
