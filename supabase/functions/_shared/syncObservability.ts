@@ -125,6 +125,43 @@ export class SafetyCircuitBreakerError extends Error {
   }
 }
 
+/**
+ * STEG 3I — Kastas när en destruktiv operation inte kan fastställa exakt
+ * antal rader den skulle påverka. Fail-closed: ingen delete får ske.
+ */
+export const UNKNOWN_DESTRUCTIVE_ROW_COUNT = 'unknown_destructive_row_count';
+
+export class UnknownDestructiveRowCountError extends Error {
+  readonly code = UNKNOWN_DESTRUCTIVE_ROW_COUNT;
+  constructor(public readonly table: string) {
+    super(`${UNKNOWN_DESTRUCTIVE_ROW_COUNT}:${table}`);
+    this.name = 'UnknownDestructiveRowCountError';
+  }
+}
+
+/**
+ * Pending row-deklaration per counters-instans. Sätts av
+ * enforceDestructiveLimit och konsumeras av nästa .delete() på klienten.
+ * Utan deklaration => fail-closed.
+ */
+interface PendingDeclaration { kind: DestructiveKind; rows: number }
+const PENDING_DELETE = new WeakMap<SyncCounters, PendingDeclaration>();
+
+export function declarePlannedDeleteRows(counters: SyncCounters, kind: DestructiveKind, rows: number): void {
+  PENDING_DELETE.set(counters, { kind, rows });
+}
+
+export function consumePlannedDeleteRows(counters: SyncCounters): PendingDeclaration | null {
+  const pending = PENDING_DELETE.get(counters) ?? null;
+  PENDING_DELETE.delete(counters);
+  return pending;
+}
+
+/**
+ * Kontroll FÖRE mutation. `planned` MÅSTE vara antalet RADER som operationen
+ * avser påverka (inte antal SQL-satser). Registrerar även en pending
+ * row-deklaration som klient-proxyn konsumerar.
+ */
 export function enforceDestructiveLimit(
   counters: SyncCounters,
   kind: DestructiveKind,
@@ -139,6 +176,7 @@ export function enforceDestructiveLimit(
       JSON.stringify({
         blocked: true,
         kind,
+        planned_rows: planned,
         reason: res.reason,
         limit: res.limit ?? null,
         attempted: res.attempted ?? null,
@@ -149,7 +187,89 @@ export function enforceDestructiveLimit(
     throw new SafetyCircuitBreakerError(res);
   }
   recordDestructive(counters, kind, planned);
+  if (kind !== 'status_changes') declarePlannedDeleteRows(counters, kind, planned);
 }
+
+// ── STEG 3I: tenant-scopad row resolution + guardad delete ──────────────────
+
+export interface DeleteFilters { [column: string]: string | number | null }
+
+/**
+ * Fastställer EXAKTA rad-ID:n för en destruktiv operation via en
+ * tenant-scopad select('id'). Fail-closed vid DB-fel.
+ */
+export async function resolveDeleteRowIds(
+  client: any,
+  table: string,
+  filters: DeleteFilters,
+): Promise<string[]> {
+  let q = client.from(table).select('id');
+  for (const [col, val] of Object.entries(filters)) {
+    if (val === null || val === undefined) continue;
+    q = q.eq(col, val);
+  }
+  const { data, error } = await q;
+  if (error) throw new UnknownDestructiveRowCountError(table);
+  if (!Array.isArray(data)) throw new UnknownDestructiveRowCountError(table);
+  return data.map((r: any) => r.id).filter(Boolean);
+}
+
+export interface GuardedDeleteResult { deleted: number; error: string | null }
+
+/**
+ * Enda tillåtna destruktiva vägen i normal sync:
+ * explicit ID-lista + tenant-filter + circuit breaker FÖRE mutation.
+ */
+export async function guardedDeleteByIds(
+  client: any,
+  opts: {
+    table: string;
+    ids: string[];
+    kind: DestructiveKind;
+    counters: SyncCounters;
+    filters?: DeleteFilters;
+    ctx?: { booking_id?: string | null; organization_id?: string | null };
+  },
+): Promise<GuardedDeleteResult> {
+  const ids = Array.from(new Set((opts.ids || []).filter(Boolean)));
+  if (ids.length === 0) return { deleted: 0, error: null };
+  // Circuit breaker FÖRE mutation — baserad på verkliga rader.
+  enforceDestructiveLimit(opts.counters, opts.kind, ids.length, opts.ctx);
+  let q = client.from(opts.table).delete();
+  for (const [col, val] of Object.entries(opts.filters ?? {})) {
+    if (val === null || val === undefined) continue;
+    q = q.eq(col, val);
+  }
+  const { error } = await q.in('id', ids);
+  if (error) return { deleted: 0, error: error.message || String(error) };
+  return { deleted: ids.length, error: null };
+}
+
+/**
+ * Blind `.delete().eq(...)` är förbjudet. Denna helper löser först ut exakta
+ * rader tenant-scopat och kör därefter guardedDeleteByIds.
+ */
+export async function guardedDeleteWhere(
+  client: any,
+  opts: {
+    table: string;
+    filters: DeleteFilters;
+    kind: DestructiveKind;
+    counters: SyncCounters;
+    ctx?: { booking_id?: string | null; organization_id?: string | null };
+  },
+): Promise<GuardedDeleteResult> {
+  const ids = await resolveDeleteRowIds(client, opts.table, opts.filters);
+  return guardedDeleteByIds(client, {
+    table: opts.table,
+    ids,
+    kind: opts.kind,
+    counters: opts.counters,
+    filters: opts.filters,
+    ctx: opts.ctx,
+  });
+}
+
 
 // ── Dry-run ────────────────────────────────────────────────────────────────
 
