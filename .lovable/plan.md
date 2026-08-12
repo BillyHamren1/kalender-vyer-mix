@@ -15,24 +15,42 @@ Tre konkreta fel hittades:
 3. **Tysta 1000-radersgränser i stödfrågorna.**
    Flera följdfrågor (bemanning per bokning, projekt­kopplingar, bokningsdetaljer) hämtas utan sidindelning. Bemanningsfrågan omfattar idag ca 38 900 rader men kan som mest få tillbaka 1 000 — resten försvinner utan felmeddelande, och vilka 1 000 som kommer tillbaka är inte garanterat samma mellan två anrop.
 
+4. **Samma logik finns i två parallella kalenderhookar.**
+   `useCalendarEvents` och `useRealTimeCalendarEvents` innehåller var sin kopia av datumankare, fönsterberäkning, pollning och "skyddsfilter". Buggen finns alltså på två ställen och kan komma tillbaka i den ena även om vi lagar den andra.
+
+## Grundprincipen för det här arbetet
+
+Vi lappar inte ovanpå. Reglerna nedan gäller hela arbetet:
+
+- **En datumkälla.** Den vecka/dag användaren tittar på är enda ankaret. Inget parallellt ankare i sessionsminne, ingen egen lokal veckostate som lever vid sidan av datahämtningen.
+- **Inga maskerande filter.** Ingen kod får dölja, behålla eller "rätta" ett hämtat resultat. Det som hämtats visas; misslyckas hämtningen syns det som fel, inte som tom kalender.
+- **Fullständiga hämtningar.** Varje fråga som kan överstiga 1 000 rader sidindelas eller tas bort. Ingen tyst avkortning tillåts någonstans i kalenderkedjan.
+- **En implementation.** Kalenderdatan hämtas genom en gemensam väg; dubbletthooken avvecklas istället för att fixas parallellt.
+- **Låst med test.** Reglerna säkras med kontrakts-test så att de inte kan återinföras.
+
 ## Vad som ska göras
 
 ### 1. En enda datumkälla för kalendern
 - Personalkalenderns vecka blir styrande: när användaren byter vecka skickas datumet in i hämtningen och ett nytt fönster laddas vid behov.
-- Ta bort beroendet av sessionssparat datum som ankare vid start; utgå från den vecka som faktiskt visas.
+- Ta bort sessionssparat datum som ankare helt (inte bara kringgå det).
 - Fönstret behåller ±180 dagar runt visad vecka, men laddas om direkt när man bläddrar utanför.
 
-### 2. Ta bort de maskerande filtren
-- Ett tomt eller mindre resultat efter en färdig hämtning ska visas som det är.
-- Ersätt "göm resultatet"-logiken med en synlig indikator när en hämtning misslyckas (fel/timeout), så att tom vy aldrig kan förväxlas med lyckad hämtning.
+### 2. Radera de maskerande filtren
+- "Behåll förra resultatet"-logiken tas bort ur båda hookarna, inte inaktiveras.
+- Fel/timeout ger ett synligt feltillstånd i vyn, skilt från "inga bokningar denna vecka".
 
-### 3. Sidindela alla stödfrågor
-- Sidindela hämtning av bemanning, projekt­kopplingar, team-tilldelningar och bokningsdetaljer på samma sätt som kalenderraderna redan är (1 000 per sida tills sista sidan).
-- Ta bort den bemanningshämtning i kalenderhärledningen som redan är oanvänd, istället för att hämta 38 000 rader i onödan.
+### 3. Sidindela eller ta bort alla stödfrågor
+- Sidindela bemanning, projekt­kopplingar, team-tilldelningar och bokningsdetaljer (1 000 per sida tills sista sidan).
+- Ta bort bemanningshämtningen i kalenderhärledningen som redan är oanvänd, istället för att hämta 38 000 rader i onödan.
 
-### 4. Diagnostik + test
-- Logga tydligt vilket fönster som laddats och hur många rader varje delfråga gav, med varning när en fråga träffar sidgränsen.
-- Nya tester: veckobyte ger nytt fönster; hämtning utanför fönstret laddar om; tomt resultat visas inte som gammal data; sidindelning returnerar alla rader över 1 000.
+### 4. Konsolidera till en kalenderhook
+- `useCalendarEvents` avvecklas och dess anropare flyttas till `useRealTimeCalendarEvents` (efter att den städats), så att ankare/fönster/pollning bara finns på ett ställe.
+- Görs som ett separat sista steg efter att beteendet verifierats, så vi inte blandar ihop buggfix och flytt.
+
+### 5. Diagnostik + test
+- Logga vilket fönster som laddats och hur många rader varje delfråga gav, med varning när en fråga träffar sidgränsen.
+- Nya tester: veckobyte ger nytt fönster; hämtning utanför fönstret laddar om; tomt resultat visas som tomt (inte gammal data); sidindelning returnerar alla rader över 1 000; kontraktstest som förbjuder `sessionStorage`-ankare och shrink-guard i kalenderkoden.
+
 
 ## Tekniska detaljer
 
