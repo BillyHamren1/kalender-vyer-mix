@@ -5054,11 +5054,11 @@ serve(async (req) => {
             : outcome === 'cancellation_requires_explicit_apply' ? 'cancellation_candidate'
             : 'failed',
           retries: typeof body?.attempts === 'number' ? body.attempts : 0,
-          lease_losses: undefined,
-          circuit_breaker: syncCounters.circuit_breaker_trips > 0,
+          lease_loss: (syncCounters.lease_losses ?? 0) > 0,
+          circuit_breaker: (syncCounters.blocked_by_circuit_breaker ?? 0) > 0,
           product_delete_candidates: syncCounters.product_deletes ?? 0,
           calendar_delete_candidates: syncCounters.calendar_deletes ?? 0,
-        } as any);
+        });
         orgMetrics.flush();
       } catch (metricsErr) {
         console.warn('[sync_ops_metrics] failed to record metrics', (metricsErr as Error)?.message);
