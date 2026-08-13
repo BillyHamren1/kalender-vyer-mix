@@ -376,8 +376,7 @@ export function buildBookingRepairDiff(args: {
   );
 
   for (const phase of phases) {
-    const field = BOOKING_OWNED_DATE_FIELDS[phase];
-    const bookingDate = s(b[field]);
+    const bookingDate = readPhaseDate(b, phase);
     const matching = canonicalEvents.filter((e) => s(e.event_type) === phase);
     if (bookingDate && presence[phase] === 'present') {
       if (matching.length === 0) {
