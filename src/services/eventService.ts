@@ -74,6 +74,40 @@ const withTimeout = async <T,>(
 const PRIMARY_QUERY_TIMEOUT_MS = 15_000;
 const SECONDARY_QUERY_TIMEOUT_MS = 10_000;
 
+/**
+ * PostgREST kapar varje request vid 1000 rader. Alla frågor som kan överstiga
+ * det MÅSTE gå genom denna helper — annars försvinner rader tyst och kalendern
+ * visar olika data för olika användare.
+ */
+export const PAGE_SIZE = 1000;
+const MAX_PAGES = 50;
+
+export const fetchAllPages = async <T,>(
+  label: string,
+  buildQuery: (fromIdx: number, toIdx: number) => PromiseLike<{ data: T[] | null; error: any }>,
+  timeoutMs = SECONDARY_QUERY_TIMEOUT_MS,
+): Promise<{ data: T[]; error: any | null }> => {
+  const out: T[] = [];
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const fromIdx = page * PAGE_SIZE;
+    let res: { data: T[] | null; error: any };
+    try {
+      res = await withTimeout(buildQuery(fromIdx, fromIdx + PAGE_SIZE - 1), timeoutMs, label);
+    } catch (err) {
+      return { data: out, error: err };
+    }
+    if (res.error) return { data: out, error: res.error };
+    const rows = res.data || [];
+    out.push(...rows);
+    if (rows.length < PAGE_SIZE) return { data: out, error: null };
+    if (page === MAX_PAGES - 1) {
+      console.warn(`⚠️ [fetchAllPages] ${label} nådde MAX_PAGES (${MAX_PAGES}) — kan finnas fler rader än ${out.length}`);
+    }
+  }
+  return { data: out, error: null };
+};
+
+
 
 export interface FetchCalendarEventsOptions {
   /** Datum användaren tittar på i kalendern. Fönstret centreras kring detta. */
