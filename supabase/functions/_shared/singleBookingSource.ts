@@ -278,6 +278,12 @@ export function parseStrictIsoTimestamp(raw: string): number | null {
   const m = ISO_TIMESTAMP_RE.exec(s);
   if (!m) return null;
   const [, y, mo, d, hh, mi, ss, frac, offsetRaw] = m;
+  // Kalenderkontroll (Date.parse rullar över "2026-02-31" till mars).
+  const yi = Number(y), moi = Number(mo), di = Number(d);
+  if (moi < 1 || moi > 12 || di < 1) return null;
+  const daysInMonth = new Date(Date.UTC(yi, moi, 0)).getUTCDate();
+  if (di > daysInMonth) return null;
+  if (hh !== undefined && (Number(hh) > 23 || Number(mi) > 59 || Number(ss ?? '0') > 59)) return null;
   // Datum utan tid + explicit offset är motsägelsefullt → neka.
   if (hh === undefined && offsetRaw) return null;
   const time = hh === undefined ? '00:00:00' : `${hh}:${mi}:${ss ?? '00'}`;
