@@ -63,17 +63,16 @@ export const useRealTimeCalendarEvents = (
     }, 25_000);
     try {
       setIsLoading(true);
+      setLoadError(null);
 
       loadedWindowRef.current = (() => {
         const w = resolveCalendarWindow({ anchorDate });
         return { from: w.windowFrom, to: w.windowTo };
       })();
+      console.log(
+        `📅 [useRealTimeCalendarEvents] Laddar fönster ${loadedWindowRef.current.from} → ${loadedWindowRef.current.to} (ankare ${format(anchorDate, 'yyyy-MM-dd')})`,
+      );
       const calendarEvents = await fetchCalendarEvents({ anchorDate });
-
-
-
-
-
 
       if (activeRef.current) {
         // Collect all booking IDs for batch fetching (instead of N+1 queries)
@@ -84,12 +83,16 @@ export const useRealTimeCalendarEvents = (
         const uniqueBookingIds = [...new Set(bookingIds)];
 
 
-        // Single batch query for all bookings
+        // Batch query for all bookings — sidindelad så vi aldrig tystkapas
+        // vid PostgRESTs 1000-radersgräns.
         let bookingMap = new Map<string, any>();
         if (uniqueBookingIds.length > 0) {
-          const { data: bookings, error } = await supabase
-            .from('bookings')
-            .select(`
+          const { data: bookings, error } = await fetchAllPages<any>(
+            'useRealTimeCalendarEvents bookings',
+            (a, b) =>
+              supabase
+                .from('bookings')
+                .select(`
               id, client, booking_number, deliveryaddress, delivery_city, 
               delivery_postal_code, exact_time_needed, exact_time_info,
               internalnotes, carry_more_than_10m, ground_nails_allowed,
@@ -99,14 +102,17 @@ export const useRealTimeCalendarEvents = (
               rig_time_locked, event_time_locked, rigdown_time_locked,
               booking_products (name, quantity, notes)
             `)
-            .in('id', uniqueBookingIds);
+                .in('id', uniqueBookingIds)
+                .order('id', { ascending: true })
+                .range(a, b),
+          );
 
           if (error) {
             console.error('Error batch fetching bookings:', error);
-          } else {
-            bookingMap = new Map(bookings?.map(b => [b.id, b]) || []);
           }
+          bookingMap = new Map((bookings || []).map(b => [b.id, b]));
         }
+
 
         // Batch-fetch large project names
         const largeProjectIds = [...new Set(
