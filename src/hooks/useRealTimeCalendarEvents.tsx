@@ -123,17 +123,23 @@ export const useRealTimeCalendarEvents = (
 
         let largeProjectMap = new Map<string, string>();
         if (largeProjectIds.length > 0) {
-          const { data: projects, error: lpError } = await supabase
-            .from('large_projects')
-            .select('id, name')
-            .in('id', largeProjectIds);
+          const { data: projects, error: lpError } = await fetchAllPages<any>(
+            'useRealTimeCalendarEvents large_projects',
+            (a, b) =>
+              supabase
+                .from('large_projects')
+                .select('id, name')
+                .in('id', largeProjectIds)
+                .order('id', { ascending: true })
+                .range(a, b),
+          );
 
           if (lpError) {
             console.error('Error fetching large projects:', lpError);
-          } else {
-            largeProjectMap = new Map(projects?.map(p => [p.id, p.name]) || []);
           }
+          largeProjectMap = new Map((projects || []).map(p => [p.id, p.name]));
         }
+
 
         // fetchCalendarEvents() returns the authoritative planner tiles already
         // grouped on the correct identity. Do NOT re-consolidate large projects
