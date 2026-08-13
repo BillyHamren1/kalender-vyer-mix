@@ -2064,7 +2064,7 @@ const expandPackageComponents = async (
   supabase: any,
   bookingId: string,
   orgId?: string
-): Promise<number> => {
+): Promise<{ expanded: number; error?: string | null }> => {
   // Fetch all products for this booking (STEG 3N: tenant-isolerad read)
   let productQuery = supabase
     .from('booking_products')
@@ -2075,10 +2075,12 @@ const expandPackageComponents = async (
 
   if (error) {
     // Fail-closed: vi vet inte vilka komponenter som redan finns → expandera inte.
+    // STEG 3P: read-fel returneras explicit (får inte tolkas som expanded=0).
     console.error(`[expandPackageComponents] FAIL-CLOSED read error for booking ${bookingId}:`, error);
-    return 0;
+    return { expanded: 0, error: `package_components_read_failed:${error.message || String(error)}` };
   }
-  if (!products || products.length === 0) return 0;
+  if (!products || products.length === 0) return { expanded: 0 };
+
 
 
   // Find parents that have package_components JSONB
