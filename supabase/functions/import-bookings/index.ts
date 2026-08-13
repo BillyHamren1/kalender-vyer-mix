@@ -4775,6 +4775,10 @@ serve(async (req) => {
       }
     }
 
+    // STEG 4E: mätning (endast räknare/durationer, ingen känslig data).
+    perf.endBooking();
+    perf.logSummary('[import-bookings][perf]');
+
     // Inline path is single-booking only now — batch modes returned early after
     // enqueue. The cursor is owned by process-sync-jobs via finalizeBatchIfDone;
     // this path must NEVER write sync_state.last_sync_timestamp.
