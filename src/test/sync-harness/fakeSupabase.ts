@@ -106,7 +106,7 @@ export interface FakeSupabase {
 }
 
 export function createFakeSupabase(opts?: {
-  seed?: Record<string, Record<string, unknown>[]>;
+  seed?: Record<string, any[]>;
   revisions?: RevisionState[];
   failures?: FailureSpec[];
   now?: () => Date;

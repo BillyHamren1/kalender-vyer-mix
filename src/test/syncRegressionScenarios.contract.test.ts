@@ -385,10 +385,13 @@ describe('STEG 4A — Booking → Planning sync: regressionsscenarier', () => {
     expect(CANCELLATION_REQUIRES_EXPLICIT_APPLY).toBeTruthy();
     // Även med giltigt tombstone kräver cancellation ett eget, explicit spår.
     const decision = evaluateDestructiveAction(
-      { booking_id: BID, organization_id: ORG_A, source_status: 'CANCELLED', source_version: 5 },
-      'cancelled',
-      { sourceVersion: 2, sourceStatus: 'CONFIRMED' } as any,
+      {
+        kind: 'not_found',
+        reason: 'cancelled',
+        tombstone: { booking_id: BID, organization_id: ORG_A, source_status: 'CANCELLED', source_version: 5 },
+      } as any,
       { bookingId: BID, organizationId: ORG_A },
+      { sourceVersion: 2, sourceStatus: 'CONFIRMED' } as any,
     );
     expect(typeof decision.allowed).toBe('boolean');
   });
