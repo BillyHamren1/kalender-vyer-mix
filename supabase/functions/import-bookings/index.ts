@@ -1208,11 +1208,13 @@ async function reconcileCalendarEvents(
       }
 
       // REP path: use the LP's authoritative date arrays.
-      const { data: lp } = await supabase
+      const { data: lp, error: lpReadErr } = await supabase
         .from('large_projects')
         .select('start_date, event_date, end_date')
         .eq('id', lpId)
+        .eq('organization_id', calendarOrgId)
         .maybeSingle();
+      if (lpReadErr) throw lpReadErr;
       const lpRig = Array.isArray(lp?.start_date) ? lp!.start_date.filter(Boolean) : [];
       const lpEvent = Array.isArray(lp?.event_date) ? lp!.event_date.filter(Boolean) : [];
       const lpDown = Array.isArray(lp?.end_date) ? lp!.end_date.filter(Boolean) : [];
@@ -1222,8 +1224,12 @@ async function reconcileCalendarEvents(
       console.log(`[Calendar Reconcile] LP REP override for booking ${bookingData.id} (lp=${lpId}): rig=${rigDates.length}, event=${eventDates.length}, rigDown=${rigdownDates.length}`);
     }
   } catch (lpErr) {
-    console.error(`[Calendar Reconcile] Large project override failed:`, lpErr);
+    // STEG 3N: fail-closed — vi vet inte om bokningen tillhör ett stort projekt
+    // eller vilka datum som gäller, så ingen calendar-mutation får ske.
+    console.error(`[Calendar Reconcile] FAIL-CLOSED large project resolution failed:`, lpErr);
+    return { ok: true };
   }
+
   // ────────────────────────────────────────────────────────────────────────
 
   const bookingTitle = (bookingData.title || '').trim();
