@@ -95,6 +95,25 @@ export class SyncPerfTracker {
     this.perBooking.set(id, m);
   }
 
+  /** Registrerar en redan uppmätt fas-duration (ms). */
+  addPhaseMs(phase: SyncPhase, ms: number, bookingId?: string): void {
+    if (!this.enabled || !Number.isFinite(ms) || ms < 0) return;
+    this.phaseTotals[phase] = (this.phaseTotals[phase] ?? 0) + ms;
+    const id = bookingId ?? this.current;
+    if (!id) return;
+    const m = this.perBooking.get(id) ?? emptyMetrics(id);
+    m.phases[phase] = (m.phases[phase] ?? 0) + ms;
+    this.perBooking.set(id, m);
+  }
+
+  /** Startar en manuell fasmätning; returnerar en stop-funktion. */
+  startPhase(phase: SyncPhase, bookingId?: string): () => void {
+    if (!this.enabled) return () => {};
+    const start = now();
+    const id = bookingId ?? this.current ?? undefined;
+    return () => this.addPhaseMs(phase, now() - start, id);
+  }
+
   setCount(
     field: 'products_count' | 'calendar_events_count' | 'packing_items_count',
     value: number,
