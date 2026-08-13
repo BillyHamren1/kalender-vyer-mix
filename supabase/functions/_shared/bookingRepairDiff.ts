@@ -199,6 +199,22 @@ const eq = (a: unknown, b: unknown): boolean => {
   return String(a ?? '') === String(b ?? '');
 };
 
+/** Läser canonical datum för en fas (första icke-tomma kandidatfältet). */
+function readPhaseDate(source: Record<string, unknown>, phase: CalendarPhase): string | null {
+  for (const key of BOOKING_OWNED_DATE_FIELDS[phase]) {
+    if (!(key in source)) continue;
+    const value = source[key];
+    if (Array.isArray(value)) {
+      const first = value.find((v) => typeof v === 'string' && v.trim().length > 0);
+      if (first) return String(first).slice(0, 10);
+      continue;
+    }
+    const str = s(value);
+    if (str) return str.slice(0, 10);
+  }
+  return null;
+}
+
 const pick = (row: Record<string, unknown> | null | undefined, fields: readonly string[]) => {
   const out: Record<string, unknown> = {};
   if (!row) return out;
