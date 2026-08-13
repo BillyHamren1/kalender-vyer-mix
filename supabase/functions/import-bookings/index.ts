@@ -3740,7 +3740,7 @@ serve(async (req) => {
                   const existingIdx = productKeyMap.get(key)!;
                   deduplicatedProducts[existingIdx].quantity = 
                     (deduplicatedProducts[existingIdx].quantity || 1) + (rawProduct.quantity || 1);
-                  console.log(`[Product Recovery][Dedup] Merged duplicate "${name}" - new quantity: ${deduplicatedProducts[existingIdx].quantity}`);
+                  if (VERBOSE_PRODUCT_LOGS) console.log(`[Product Recovery][Dedup] Merged duplicate "${name}" - new quantity: ${deduplicatedProducts[existingIdx].quantity}`);
                 } else {
                   productKeyMap.set(key, deduplicatedProducts.length);
                   deduplicatedProducts.push({ ...rawProduct, quantity: rawProduct.quantity || 1 });
@@ -4304,7 +4304,7 @@ serve(async (req) => {
               const existingIdx = productKeyMap.get(key)!;
               deduplicatedProducts[existingIdx].quantity = 
                 (deduplicatedProducts[existingIdx].quantity || 1) + (product.quantity || 1);
-              console.log(`[Dedup] Merged duplicate "${name}" - new quantity: ${deduplicatedProducts[existingIdx].quantity}`);
+              if (VERBOSE_PRODUCT_LOGS) console.log(`[Dedup] Merged duplicate "${name}" - new quantity: ${deduplicatedProducts[existingIdx].quantity}`);
             } else {
               productKeyMap.set(key, deduplicatedProducts.length);
               deduplicatedProducts.push({ ...product, quantity: product.quantity || 1 });
@@ -4336,7 +4336,7 @@ serve(async (req) => {
           for (const product of deduplicatedProducts) {
             try {
               // Log raw product data to see all available fields from external API
-              console.log(`RAW PRODUCT DATA from external API for booking ${bookingData.id}:`, JSON.stringify(product, null, 2))
+              if (VERBOSE_PRODUCT_LOGS) console.log(`RAW PRODUCT DATA from external API for booking ${bookingData.id}:`, JSON.stringify(product, null, 2))
               
               // Extract price data - try multiple possible field names
               const unitPrice = product.price || product.unit_price || product.rental_price || product.cost || null;
@@ -4359,10 +4359,10 @@ serve(async (req) => {
               
               // Log package component detection
               if (isPkgComponent) {
-                console.log(`[PACKAGE COMPONENT] "${productName}": parent_package_id=${product.parent_package_id}`)
+                if (VERBOSE_PRODUCT_LOGS) console.log(`[PACKAGE COMPONENT] "${productName}": parent_package_id=${product.parent_package_id}`)
               }
               
-              console.log(`Product "${productName}": unit_price=${unitPrice}, quantity=${quantity}, total_price=${totalPrice}, isAccessory=${isAccessory}, isPkgComponent=${isPkgComponent}, externalId=${externalId}, externalParentId=${externalParentId}, resolvedParentId=${resolvedParentId}`)
+              if (VERBOSE_PRODUCT_LOGS) console.log(`Product "${productName}": unit_price=${unitPrice}, quantity=${quantity}, total_price=${totalPrice}, isAccessory=${isAccessory}, isPkgComponent=${isPkgComponent}, externalId=${externalId}, externalParentId=${externalParentId}, resolvedParentId=${resolvedParentId}`)
               
               // Extract cost data from external product
               const laborCost = product.labor_cost || product.work_cost || product.setup_cost || 0;
@@ -4427,7 +4427,7 @@ serve(async (req) => {
                   .eq('organization_id', organizationId);
                 productError = updateErr;
                 upsertedProductId = existingMatch.id;
-                if (!updateErr) console.log(`[Merge] Updated existing product "${productName}" (id=${existingMatch.id})`);
+                if (!updateErr && VERBOSE_PRODUCT_LOGS) console.log(`[Merge] Updated existing product "${productName}" (id=${existingMatch.id})`);
               } else {
                 // INSERT new product
                 const { data: insertedProduct, error: insertErr } = await supabase
@@ -4437,7 +4437,7 @@ serve(async (req) => {
                   .single();
                 productError = insertErr;
                 upsertedProductId = insertedProduct?.id ?? null;
-                if (!insertErr) console.log(`[Merge] Inserted new product "${productName}" (id=${upsertedProductId})`);
+                if (!insertErr && VERBOSE_PRODUCT_LOGS) console.log(`[Merge] Inserted new product "${productName}" (id=${upsertedProductId})`);
               }
               // ────────────────────────────────────────────────────────────────────
 
