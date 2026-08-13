@@ -4418,6 +4418,8 @@ serve(async (req) => {
 
               if (productError) {
                 console.error(`Error upserting product for booking ${bookingData.id}:`, productError)
+                results.errors.push({ booking_id: bookingData.id, error: `product_upsert_failed:${productError.message || productError}` });
+
               } else if (upsertedProductId) {
                 results.products_imported++
 
