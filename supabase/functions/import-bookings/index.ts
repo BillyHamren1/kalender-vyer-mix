@@ -4331,8 +4331,9 @@ serve(async (req) => {
           const pendingByExternalParentId = new Map<string, string[]>();
           const pendingSequentialAccessoryIds: string[] = [];
           let lastParentProductId: string | null = null;
-          
-          
+          // STEG 4E: mät produktfasen (ren mätning, ingen semantikändring).
+          const stopProductsPhase = perf.startPhase('products');
+          perf.setCount('products_count', deduplicatedProducts.length);
           for (const product of deduplicatedProducts) {
             try {
               // Log raw product data to see all available fields from external API
