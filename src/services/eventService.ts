@@ -412,7 +412,7 @@ export const fetchCalendarEvents = async (
       return allDates.some(date => date >= fromDate && date <= toDate);
     }),
     largeProjectBookings: largeProjectBookingsData || [],
-    bookingAssignments: bookingAssignmentsData || [],
+    bookingAssignments: [],
     largeProjectTeamAssignments: lptaData || [],
     fromDate,
     toDate,
