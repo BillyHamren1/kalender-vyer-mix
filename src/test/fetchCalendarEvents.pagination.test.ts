@@ -7,19 +7,31 @@ const lteMock = vi.fn(() => ({ order: orderMock }));
 const gteMock = vi.fn(() => ({ lte: lteMock }));
 const neqMock = vi.fn(() => ({ gte: gteMock }));
 const selectMock = vi.fn(() => ({ neq: neqMock }));
+// Sidindelade stödtabeller: varje tabell kan mata ut fler än 1000 rader.
+export const secondaryRows: Record<string, any[]> = {};
+const secondaryCalls: Record<string, number> = {};
+
+const makeChainable = (table: string) => {
+  const chain: any = {};
+  for (const m of ['select', 'or', 'is', 'in', 'eq', 'neq', 'gte', 'lte', 'order']) {
+    chain[m] = () => chain;
+  }
+  chain.range = (from: number, to: number) => {
+    secondaryCalls[table] = (secondaryCalls[table] ?? 0) + 1;
+    const rows = (secondaryRows[table] ?? []).slice(from, to + 1);
+    return Promise.resolve({ data: rows, error: null });
+  };
+  chain.then = (res: any) => Promise.resolve({ data: secondaryRows[table] ?? [], error: null }).then(res);
+  return chain;
+};
+
 const fromMock = vi.fn((table: string) => {
   if (table === 'calendar_events') {
     return { select: selectMock };
   }
-  // For all the follow-up tables (bookings, large_projects, etc.) return empty.
-  return {
-    select: () => ({
-      or: () => Promise.resolve({ data: [], error: null }),
-      is: () => Promise.resolve({ data: [], error: null }),
-      in: () => Promise.resolve({ data: [], error: null }),
-    }),
-  };
+  return makeChainable(table);
 });
+
 
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
@@ -57,7 +69,10 @@ describe('fetchCalendarEvents pagination', () => {
   beforeEach(() => {
     rangeMock.mockReset();
     selectMock.mockClear();
+    for (const k of Object.keys(secondaryCalls)) delete secondaryCalls[k];
+    for (const k of Object.keys(secondaryRows)) delete secondaryRows[k];
   });
+
 
   it('paginates through 2500 rows across 3 pages', async () => {
     const allRows = Array.from({ length: 2500 }, (_, i) => makeRow(i));
@@ -83,5 +98,21 @@ describe('fetchCalendarEvents pagination', () => {
 
     expect(rangeMock).toHaveBeenCalledTimes(1);
     expect(events.length).toBe(42);
+  });
+
+  it('paginerar stödtabellen bookings förbi 1000-radersgränsen', async () => {
+    rangeMock.mockResolvedValueOnce({ data: [makeRow(0)], error: null, status: 200, statusText: 'OK' });
+    secondaryRows.bookings = Array.from({ length: 1500 }, (_, i) => ({
+      id: `b-${i}`,
+      client: 'X',
+      large_project_id: null,
+      rigdaydate: '2026-05-05',
+    }));
+
+    await fetchCalendarEvents();
+
+    // 1500 rader ⇒ två sidor (1000 + 500).
+    expect(secondaryCalls.bookings).toBe(2);
+    delete secondaryRows.bookings;
   });
 });

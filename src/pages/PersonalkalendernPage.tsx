@@ -1,7 +1,8 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { startOfWeek, addDays, format, isSameWeek } from 'date-fns';
+import React, { useState, useMemo, useCallback } from 'react';
+import { startOfWeek, addDays, format } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, LogOut, Inbox } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, LogOut, Inbox, AlertTriangle } from 'lucide-react';
+
 import { useProjectInboxCount } from '@/hooks/useProjectInboxCount';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
@@ -22,19 +23,14 @@ const PersonalkalendernInner: React.FC = () => {
   const { user } = useAuth();
   const { staff, logout: mobileLogout } = useMobileAuth();
 
-  // Defaultvy: alltid veckovy med dagens dag synlig
+  // Defaultvy: alltid veckovy med dagens dag synlig.
+  // `weekStart` är ENDA datumkällan — den skickas in i hämtningen så att
+  // fönstret alltid följer den vecka användaren tittar på.
   const [weekStart, setWeekStart] = useState<Date>(() => monday(new Date()));
 
-  // Återställ till denna vecka om användaren laddar om dag senare
-  useEffect(() => {
-    const today = new Date();
-    if (!isSameWeek(weekStart, today, { weekStartsOn: 1 })) {
-      // Behåll val om användaren manuellt navigerat — initial mount only
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const { events, isLoading, isMounted, refreshEvents } = useRealTimeCalendarEvents();
+  const { events, isLoading, isMounted, loadError, refreshEvents } = useRealTimeCalendarEvents({
+    anchorDate: weekStart,
+  });
   const { teamResources } = useTeamResources();
   const { internalLagerEvents } = useInternalLagerCalendarEvents(weekStart, 'weekly');
   const inboxCount = useProjectInboxCount();
@@ -48,6 +44,7 @@ const PersonalkalendernInner: React.FC = () => {
   const isEventReadOnly = useCallback(() => true, []);
 
   const handleDateSet = useCallback(() => { /* no-op (read-only) */ }, []);
+
 
   const goPrev = () => setWeekStart((w) => addDays(w, -7));
   const goNext = () => setWeekStart((w) => addDays(w, 7));
@@ -120,6 +117,21 @@ const PersonalkalendernInner: React.FC = () => {
             <span className="text-xs text-muted-foreground ml-auto">Öppna projekt →</span>
           </button>
         )}
+
+        {/* Hämtningsfel ska ALDRIG förväxlas med "inga bokningar denna vecka" */}
+        {loadError && (
+          <div className="mx-3 sm:mx-6 mt-2 flex items-center gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2">
+            <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+            <span className="text-sm text-foreground">
+              Kalendern kunde inte laddas — visad vy kan vara ofullständig. ({loadError})
+            </span>
+            <Button variant="outline" size="sm" className="ml-auto" onClick={() => refreshEvents()}>
+              Försök igen
+            </Button>
+          </div>
+        )}
+
+
 
         {/* Kalender */}
         <main className="flex-1 overflow-hidden">

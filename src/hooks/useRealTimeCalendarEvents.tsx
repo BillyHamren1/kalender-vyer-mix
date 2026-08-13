@@ -1,35 +1,53 @@
 
 
 import { useState, useEffect, useContext, useCallback, useRef } from 'react';
-import { startOfWeek, endOfWeek, subDays, addDays, format } from 'date-fns';
+import { subDays, addDays, format } from 'date-fns';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
-import { fetchCalendarEvents, resolveCalendarWindow } from '@/services/eventService';
-import { convertToISO8601 } from '@/utils/dateUtils';
+import { fetchCalendarEvents, resolveCalendarWindow, fetchAllPages } from '@/services/eventService';
 import { fixAllEventTitles } from '@/services/eventTitleFixService';
 import { toast } from 'sonner';
 import { CalendarContext } from '@/App';
 import { supabase } from '@/integrations/supabase/client';
 
-export const useRealTimeCalendarEvents = () => {
+export interface UseRealTimeCalendarEventsOptions {
+  /**
+   * Datumet användaren faktiskt tittar på. ENDA ankaret för hämtfönstret.
+   * Skickas in av vyn (t.ex. personalkalenderns veckostart).
+   */
+  anchorDate?: Date | null;
+}
+
+export const useRealTimeCalendarEvents = (
+  options?: UseRealTimeCalendarEventsOptions,
+) => {
   const { lastViewedDate, setLastViewedDate } = useContext(CalendarContext);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const activeRef = useRef(true);
   const reloadTimerRef = useRef<number | null>(null);
 
-  // Initialize currentDate from context, sessionStorage, or default to today
-  const [currentDate, setCurrentDate] = useState<Date>(() => {
-    if (lastViewedDate) return lastViewedDate;
-    const stored = sessionStorage.getItem('calendarDate');
-    return stored ? new Date(stored) : new Date();
-  });
+  // EN datumkälla: vyns ankare (om det finns) → annars kontextens senast
+  // visade datum → annars idag. INGET sessionStorage-ankare (det gjorde att
+  // två användare i samma vy hämtade olika datumfönster).
+  const [currentDate, setCurrentDate] = useState<Date>(
+    () => options?.anchorDate ?? lastViewedDate ?? new Date(),
+  );
 
   // Vilket datumfönster som just nu är laddat. Används för att avgöra om
   // navigering (t.ex. två år bakåt) kräver en ny hämtning.
   const loadedWindowRef = useRef<{ from: string; to: string } | null>(null);
   const currentDateRef = useRef<Date>(currentDate);
   currentDateRef.current = currentDate;
+
+  // Vyns ankare styr alltid: byter användaren vecka följer hämtningen med.
+  const anchorMs = options?.anchorDate ? options.anchorDate.getTime() : null;
+  useEffect(() => {
+    if (anchorMs == null) return;
+    setCurrentDate(prev => (prev.getTime() === anchorMs ? prev : new Date(anchorMs)));
+  }, [anchorMs]);
+
 
   // Enhanced event loading with batch fetching (replaces N+1 queries)
   const loadEvents = useCallback(async (force = false, anchorOverride?: Date) => {
@@ -45,17 +63,16 @@ export const useRealTimeCalendarEvents = () => {
     }, 25_000);
     try {
       setIsLoading(true);
+      setLoadError(null);
 
       loadedWindowRef.current = (() => {
         const w = resolveCalendarWindow({ anchorDate });
         return { from: w.windowFrom, to: w.windowTo };
       })();
+      console.log(
+        `📅 [useRealTimeCalendarEvents] Laddar fönster ${loadedWindowRef.current.from} → ${loadedWindowRef.current.to} (ankare ${format(anchorDate, 'yyyy-MM-dd')})`,
+      );
       const calendarEvents = await fetchCalendarEvents({ anchorDate });
-
-
-
-
-
 
       if (activeRef.current) {
         // Collect all booking IDs for batch fetching (instead of N+1 queries)
@@ -66,12 +83,16 @@ export const useRealTimeCalendarEvents = () => {
         const uniqueBookingIds = [...new Set(bookingIds)];
 
 
-        // Single batch query for all bookings
+        // Batch query for all bookings — sidindelad så vi aldrig tystkapas
+        // vid PostgRESTs 1000-radersgräns.
         let bookingMap = new Map<string, any>();
         if (uniqueBookingIds.length > 0) {
-          const { data: bookings, error } = await supabase
-            .from('bookings')
-            .select(`
+          const { data: bookings, error } = await fetchAllPages<any>(
+            'useRealTimeCalendarEvents bookings',
+            (a, b) =>
+              supabase
+                .from('bookings')
+                .select(`
               id, client, booking_number, deliveryaddress, delivery_city, 
               delivery_postal_code, exact_time_needed, exact_time_info,
               internalnotes, carry_more_than_10m, ground_nails_allowed,
@@ -81,14 +102,17 @@ export const useRealTimeCalendarEvents = () => {
               rig_time_locked, event_time_locked, rigdown_time_locked,
               booking_products (name, quantity, notes)
             `)
-            .in('id', uniqueBookingIds);
+                .in('id', uniqueBookingIds)
+                .order('id', { ascending: true })
+                .range(a, b),
+          );
 
           if (error) {
             console.error('Error batch fetching bookings:', error);
-          } else {
-            bookingMap = new Map(bookings?.map(b => [b.id, b]) || []);
           }
+          bookingMap = new Map((bookings || []).map(b => [b.id, b]));
         }
+
 
         // Batch-fetch large project names
         const largeProjectIds = [...new Set(
@@ -99,17 +123,23 @@ export const useRealTimeCalendarEvents = () => {
 
         let largeProjectMap = new Map<string, string>();
         if (largeProjectIds.length > 0) {
-          const { data: projects, error: lpError } = await supabase
-            .from('large_projects')
-            .select('id, name')
-            .in('id', largeProjectIds);
+          const { data: projects, error: lpError } = await fetchAllPages<any>(
+            'useRealTimeCalendarEvents large_projects',
+            (a, b) =>
+              supabase
+                .from('large_projects')
+                .select('id, name')
+                .in('id', largeProjectIds)
+                .order('id', { ascending: true })
+                .range(a, b),
+          );
 
           if (lpError) {
             console.error('Error fetching large projects:', lpError);
-          } else {
-            largeProjectMap = new Map(projects?.map(p => [p.id, p.name]) || []);
           }
+          largeProjectMap = new Map((projects || []).map(p => [p.id, p.name]));
         }
+
 
         // fetchCalendarEvents() returns the authoritative planner tiles already
         // grouped on the correct identity. Do NOT re-consolidate large projects
@@ -163,28 +193,9 @@ export const useRealTimeCalendarEvents = () => {
           };
         });
 
-        setEvents(prev => {
-          if (
-            !force &&
-            prev.length > 0 &&
-            enhancedEvents.length === 0
-          ) {
-            console.warn(`[useRealTimeCalendarEvents] Ignoring empty reload while ${prev.length} events are already visible`);
-            return prev;
-          }
-
-          if (
-            !force &&
-            prev.length > 0 &&
-            enhancedEvents.length > 0 &&
-            enhancedEvents.length < prev.length * 0.5
-          ) {
-            console.warn(`[useRealTimeCalendarEvents] Ignoring suspicious shrink ${prev.length} → ${enhancedEvents.length}`);
-            return prev;
-          }
-
-          return enhancedEvents;
-        });
+        // Det som hämtats visas — punkt. Inga "behåll förra resultatet"-filter
+        // (de dolde riktiga tomma veckor och blockerade korrekta uppdateringar).
+        setEvents(enhancedEvents);
 
         // Check if we need to fix any titles (only run once per session)
         const titleFixKey = 'title-fix-attempted';
@@ -196,7 +207,7 @@ export const useRealTimeCalendarEvents = () => {
           if (hasUuidTitles) {
             try {
               await fixAllEventTitles();
-              const updatedEvents = await fetchCalendarEvents();
+              const updatedEvents = await fetchCalendarEvents({ anchorDate });
               if (activeRef.current) {
                 setEvents(updatedEvents);
               }
@@ -208,9 +219,11 @@ export const useRealTimeCalendarEvents = () => {
           sessionStorage.setItem(titleFixKey, 'true');
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading calendar events:', error);
       if (activeRef.current) {
+        // Fel ska synas som fel — aldrig som "inga bokningar denna vecka".
+        setLoadError(error?.message ? String(error.message) : 'Kunde inte ladda kalenderhändelser');
         toast.error('Kunde inte ladda kalenderhändelser');
       }
     } finally {
@@ -222,6 +235,7 @@ export const useRealTimeCalendarEvents = () => {
     }
 
   }, []);
+
 
   // Real-time calendar change handler.
   // IMPORTANT: The planner view renders CONSOLIDATED large-project rows, so
@@ -325,7 +339,8 @@ export const useRealTimeCalendarEvents = () => {
   // Handle date changes
 
   const handleDatesSet = useCallback((dateInfo: any) => {
-    const newDate = dateInfo.start;
+    const newDate = dateInfo?.start instanceof Date ? dateInfo.start : new Date(dateInfo?.start);
+    if (Number.isNaN(newDate.getTime())) return;
 
     const daysDifference = Math.abs(
       (newDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24)
@@ -337,7 +352,6 @@ export const useRealTimeCalendarEvents = () => {
 
     console.log('Calendar date change detected, difference:', daysDifference, 'days');
     setCurrentDate(newDate);
-    sessionStorage.setItem('calendarDate', newDate.toISOString());
     setLastViewedDate(newDate);
   }, [setLastViewedDate, currentDate]);
   
@@ -352,8 +366,10 @@ export const useRealTimeCalendarEvents = () => {
     setEvents,
     isLoading,
     isMounted,
+    loadError,
     currentDate,
     handleDatesSet,
     refreshEvents
   };
 };
+
