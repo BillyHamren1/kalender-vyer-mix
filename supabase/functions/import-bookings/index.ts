@@ -4588,7 +4588,9 @@ serve(async (req) => {
               
               if (insertError) {
                 console.error(`[Packing Reconnect] Error creating new packing list items:`, insertError);
+                results.errors.push({ booking_id: bookingData.id, error: `packing_item_insert_failed:${insertError.message || insertError}` });
               }
+
             }
           }
         }
