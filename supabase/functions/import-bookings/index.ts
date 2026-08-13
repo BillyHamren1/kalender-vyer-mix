@@ -3856,10 +3856,14 @@ serve(async (req) => {
             
             // EXPAND package_components JSONB into individual rows
             const recoveryExpanded = await expandPackageComponents(supabase, existingBooking.id, organizationId);
-            if (recoveryExpanded > 0) {
-              results.products_imported += recoveryExpanded;
-              console.log(`[Product Recovery] Expanded ${recoveryExpanded} package components for booking ${bookingData.id}`);
+            if (recoveryExpanded.error) {
+              results.errors.push({ booking_id: existingBooking.id, error: recoveryExpanded.error });
             }
+            if (recoveryExpanded.expanded > 0) {
+              results.products_imported += recoveryExpanded.expanded;
+              console.log(`[Product Recovery] Expanded ${recoveryExpanded.expanded} package components for booking ${bookingData.id}`);
+            }
+
             
             // SYNC packing list items for all products (including expanded components)
             const recoveryPackingResult = await (async () => { assertLeaseOwned('packing_project'); return syncPackingListAfterExpansion(supabase, existingBooking.id, organizationId, { completeness: productCompleteness, assertLease: assertLeaseOwned }); })();
