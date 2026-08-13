@@ -112,10 +112,9 @@ describe('STEG 4G — worker: ingen completion, ingen cursorflytt vid paus', () 
       { ok: true, status: 200 },
     );
     expect(res.ok).toBe(false);
-    if (!res.ok) {
-      expect(res.permanent).toBe(false);
-      expect(res.reason).toBe('mutating_sync_paused');
-    }
+    const fail = res as { ok: false; permanent: boolean; reason: string };
+    expect(fail.permanent).toBe(false);
+    expect(fail.reason).toBe('mutating_sync_paused');
   });
 
   it('ett pausat svar kan aldrig maskeras som applied', () => {
@@ -151,7 +150,7 @@ describe('STEG 4G — worker: ingen completion, ingen cursorflytt vid paus', () 
       { ok: true, status: 200 },
     );
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.permanent).toBe(true);
+    expect((res as { permanent: boolean }).permanent).toBe(true);
   });
 });
 
