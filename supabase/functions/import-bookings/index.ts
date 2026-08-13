@@ -5043,6 +5043,27 @@ serve(async (req) => {
         anomalies,
       });
 
+      // STEG 4G: per-organization safety metrics + anomaly flags (diagnostik).
+      try {
+        orgMetrics.record({
+          organization_id: organizationId,
+          booking_id: normalizedSingleBookingId,
+          outcome:
+            outcome === 'applied' || outcome === 'already_current' ? 'applied'
+            : outcome === 'partial' ? 'partial'
+            : outcome === 'cancellation_requires_explicit_apply' ? 'cancellation_candidate'
+            : 'failed',
+          retries: typeof body?.attempts === 'number' ? body.attempts : 0,
+          lease_losses: undefined,
+          circuit_breaker: syncCounters.circuit_breaker_trips > 0,
+          product_delete_candidates: syncCounters.product_deletes ?? 0,
+          calendar_delete_candidates: syncCounters.calendar_deletes ?? 0,
+        } as any);
+        orgMetrics.flush();
+      } catch (metricsErr) {
+        console.warn('[sync_ops_metrics] failed to record metrics', (metricsErr as Error)?.message);
+      }
+
       console.log('[import-bookings] single result contract', JSON.stringify({
         booking_id: envelope.booking_id,
         organization_id: envelope.organization_id,
