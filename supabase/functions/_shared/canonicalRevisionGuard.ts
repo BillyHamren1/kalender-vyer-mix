@@ -117,6 +117,11 @@ export function compareIncomingRevision(
     if ((inc.sourceVersion as number) > localVer) newer = true;
   }
 
+  // STEG 4C — 'both': exakt definierad jämförelse.
+  //   newer & newer/equal  → apply
+  //   older & older/equal  → stale
+  //   ETT fält äldre + ETT fält nyare → DIVERGENT, aldrig apply/stale.
+  if (older && newer) return 'incomparable_source_revision';
   if (older) return 'stale_source_revision';
   if (newer) return 'apply';
 

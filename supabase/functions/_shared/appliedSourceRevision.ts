@@ -32,6 +32,7 @@
  */
 import type { LocalAppliedRevision } from './singleBookingSource.ts';
 import { compareIncomingRevision } from './canonicalRevisionGuard.ts';
+import { parseSourceTimestamp } from './singleBookingSource.ts';
 
 /** Change-types som faktiskt kan bära en canonical source-revision. */
 export const REVISION_BEARING_CHANGE_TYPES = [
@@ -96,12 +97,9 @@ function parseStrictVersion(raw: unknown): number | null {
   return null;
 }
 
+/** STEG 4C: samma strikta, TZ-deterministiska parser som guarden använder. */
 function parseStrictTimestamp(raw: unknown): number | null {
-  if (typeof raw !== 'string') return null;
-  const s = raw.trim();
-  if (!s) return null;
-  const t = Date.parse(s);
-  return Number.isFinite(t) ? t : null;
+  return parseSourceTimestamp(raw);
 }
 
 function normStatus(v: unknown): string | null {
