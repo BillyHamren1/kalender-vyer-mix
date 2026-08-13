@@ -252,11 +252,44 @@ export function parseSourceVersion(raw: unknown): number | null {
 /** Strikt: icke-tom sträng som parsas till ett ändligt tidsvärde. */
 export function parseSourceTimestamp(raw: unknown): number | null {
   if (typeof raw !== 'string') return null;
+  return parseStrictIsoTimestamp(raw);
+}
+
+/**
+ * STEG 4C — STRIKT, TIDSZONS-DETERMINISTISK TIMESTAMP-PARSNING.
+ *
+ * `Date.parse` är implementations- och miljöberoende: naiva datetime-strängar
+ * ("2026-05-01T10:00:00") tolkas som LOKAL tid, medan datumsträngar
+ * ("2026-05-01") tolkas som UTC. Samma canonical revision kunde därför få
+ * olika ordning beroende på serverns tidszon. Nu gäller:
+ *   - Endast ISO-8601-liknande form YYYY-MM-DD[(T| )HH:MM[:SS[.frac]]][offset]
+ *     accepteras (offset = Z eller ±HH:MM / ±HHMM).
+ *   - Saknad offset tolkas ALLTID som UTC (aldrig serverns lokala tid).
+ *   - Allt annat ("not-a-date", "Jan 2 2026", epoch-siffror, skräp) → null.
+ * Två skrivsätt för samma instant (Z vs +00:00 vs " " som separator) ger
+ * exakt samma ms och är därmed EQUAL, inte newer/older.
+ */
+const ISO_TIMESTAMP_RE =
+  /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(\.\d{1,9})?)?)?\s*(Z|z|[+-]\d{2}:?\d{2})?$/;
+
+export function parseStrictIsoTimestamp(raw: string): number | null {
   const s = raw.trim();
   if (!s) return null;
-  const t = Date.parse(s);
+  const m = ISO_TIMESTAMP_RE.exec(s);
+  if (!m) return null;
+  const [, y, mo, d, hh, mi, ss, frac, offsetRaw] = m;
+  // Datum utan tid + explicit offset är motsägelsefullt → neka.
+  if (hh === undefined && offsetRaw) return null;
+  const time = hh === undefined ? '00:00:00' : `${hh}:${mi}:${ss ?? '00'}`;
+  let offset = 'Z';
+  if (offsetRaw && offsetRaw.toUpperCase() !== 'Z') {
+    offset = offsetRaw.length === 5 ? `${offsetRaw.slice(0, 3)}:${offsetRaw.slice(3)}` : offsetRaw;
+  }
+  const normalized = `${y}-${mo}-${d}T${time}${frac ?? ''}${offset}`;
+  const t = Date.parse(normalized);
   return Number.isFinite(t) ? t : null;
 }
+
 
 /**
  * Validera tombstonens revision. Ogiltig revision är ALDRIG destructive-safe.
