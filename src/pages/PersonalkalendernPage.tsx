@@ -22,19 +22,14 @@ const PersonalkalendernInner: React.FC = () => {
   const { user } = useAuth();
   const { staff, logout: mobileLogout } = useMobileAuth();
 
-  // Defaultvy: alltid veckovy med dagens dag synlig
+  // Defaultvy: alltid veckovy med dagens dag synlig.
+  // `weekStart` är ENDA datumkällan — den skickas in i hämtningen så att
+  // fönstret alltid följer den vecka användaren tittar på.
   const [weekStart, setWeekStart] = useState<Date>(() => monday(new Date()));
 
-  // Återställ till denna vecka om användaren laddar om dag senare
-  useEffect(() => {
-    const today = new Date();
-    if (!isSameWeek(weekStart, today, { weekStartsOn: 1 })) {
-      // Behåll val om användaren manuellt navigerat — initial mount only
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const { events, isLoading, isMounted, refreshEvents } = useRealTimeCalendarEvents();
+  const { events, isLoading, isMounted, loadError, refreshEvents } = useRealTimeCalendarEvents({
+    anchorDate: weekStart,
+  });
   const { teamResources } = useTeamResources();
   const { internalLagerEvents } = useInternalLagerCalendarEvents(weekStart, 'weekly');
   const inboxCount = useProjectInboxCount();
@@ -48,6 +43,7 @@ const PersonalkalendernInner: React.FC = () => {
   const isEventReadOnly = useCallback(() => true, []);
 
   const handleDateSet = useCallback(() => { /* no-op (read-only) */ }, []);
+
 
   const goPrev = () => setWeekStart((w) => addDays(w, -7));
   const goNext = () => setWeekStart((w) => addDays(w, 7));
