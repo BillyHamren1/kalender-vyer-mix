@@ -3572,10 +3572,13 @@ serve(async (req) => {
                 .eq('id', existingBooking.id)
                 .eq('organization_id', organizationId);
               if (econError) {
+                // STEG 3P: canonical fältprojection — fel måste synas i outcome.
                 console.error(`[Economics] Failed to backfill economics_data for ${bookingData.id}:`, econError.message);
+                results.errors.push({ booking_id: bookingData.id, error: `economics_backfill_failed:${econError.message}` });
               } else {
                 console.log(`[Economics] Successfully backfilled economics_data for ${bookingData.id}`);
               }
+
             }
 
             // Sync all attachments (products, files_metadata, tent_images) with shared dedup
