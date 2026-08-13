@@ -2993,6 +2993,9 @@ serve(async (req) => {
     }
 
 
+    // STEG 4E: ren mätning (inga beteendeändringar, ingen känslig data).
+    const perf = new SyncPerfTracker(true);
+
     const results = {
       total: 0,
       imported: 0,
