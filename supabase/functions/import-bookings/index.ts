@@ -76,6 +76,10 @@ import {
   UNKNOWN_RPC_IN_DRY_RUN,
 } from '../_shared/syncObservability.ts'
 import type { SyncCounters } from '../_shared/syncObservability.ts'
+import { SyncPerfTracker, verboseProductLogging } from '../_shared/syncPerf.ts'
+
+/** STEG 4E: verbose per-produkt-loggning är dyr → default AV (SYNC_DEBUG_PRODUCTS=true slår på). */
+const VERBOSE_PRODUCT_LOGS = verboseProductLogging();
 
 /**
  * STEG 3I: counters hämtas från den guardade klienten så att varje
@@ -2989,6 +2993,9 @@ serve(async (req) => {
     }
 
 
+    // STEG 4E: ren mätning (inga beteendeändringar, ingen känslig data).
+    const perf = new SyncPerfTracker(true);
+
     const results = {
       total: 0,
       imported: 0,
@@ -3091,11 +3098,28 @@ serve(async (req) => {
     }
 
 
-    // Get existing bookings for comparison — ONLY within current tenant
-    const { data: existingBookings, error: existingBookingsError } = await supabase
-      .from('bookings')
-      .select('id, status, version, booking_number, client, rigdaydate, eventdate, rigdowndate, deliveryaddress, delivery_city, delivery_postal_code, organization_id, assigned_to_project, assigned_project_id, assigned_project_name, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, rig_start_time_external, rig_end_time_external, event_start_time_external, event_end_time_external, rigdown_start_time_external, rigdown_end_time_external, rig_time_locked, event_time_locked, rigdown_time_locked')
-      .eq('organization_id', organizationId)
+    // Get existing bookings for comparison — ONLY within current tenant.
+    // STEG 4E: pagineras (PostgREST kapar annars tyst vid 1000 rader, vilket
+    // skulle få syncen att tro att befintliga bokningar saknas lokalt).
+    const EXISTING_BOOKINGS_PAGE_SIZE = 1000;
+    const EXISTING_BOOKINGS_SELECT = 'id, status, version, booking_number, client, rigdaydate, eventdate, rigdowndate, deliveryaddress, delivery_city, delivery_postal_code, organization_id, assigned_to_project, assigned_project_id, assigned_project_name, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, rig_start_time_external, rig_end_time_external, event_start_time_external, event_end_time_external, rigdown_start_time_external, rigdown_end_time_external, rig_time_locked, event_time_locked, rigdown_time_locked';
+    const existingBookings: any[] = [];
+    let existingBookingsError: any = null;
+    await perf.phase('existing_bookings_read', async () => {
+      for (let page = 0; ; page++) {
+        const from = page * EXISTING_BOOKINGS_PAGE_SIZE;
+        const { data: pageRows, error: pageError } = await supabase
+          .from('bookings')
+          .select(EXISTING_BOOKINGS_SELECT)
+          .eq('organization_id', organizationId)
+          .order('id', { ascending: true })
+          .range(from, from + EXISTING_BOOKINGS_PAGE_SIZE - 1);
+        if (pageError) { existingBookingsError = pageError; return; }
+        const rows = pageRows || [];
+        existingBookings.push(...rows);
+        if (rows.length < EXISTING_BOOKINGS_PAGE_SIZE) return;
+      }
+    });
 
     // STEG 3O: fail-closed — utan verifierad lokal bild får vi aldrig anta
     // "bokningen finns inte lokalt" (skulle ge felaktiga inserts/överskrivningar).
@@ -3159,6 +3183,8 @@ serve(async (req) => {
     };
 
     for (const externalBooking of externalData.data) {
+      perf.beginBooking(String(externalBooking?.id ?? 'unknown'));
+      perf.setCount('products_count', Array.isArray(externalBooking?.products) ? externalBooking.products.length : 0);
       // Skip bookings with only past dates (unless historical mode)
       if (!isHistoricalImport && !hasFutureDates(externalBooking)) {
         const allBookingDates: string[] = [];
@@ -3714,7 +3740,7 @@ serve(async (req) => {
                   const existingIdx = productKeyMap.get(key)!;
                   deduplicatedProducts[existingIdx].quantity = 
                     (deduplicatedProducts[existingIdx].quantity || 1) + (rawProduct.quantity || 1);
-                  console.log(`[Product Recovery][Dedup] Merged duplicate "${name}" - new quantity: ${deduplicatedProducts[existingIdx].quantity}`);
+                  if (VERBOSE_PRODUCT_LOGS) console.log(`[Product Recovery][Dedup] Merged duplicate "${name}" - new quantity: ${deduplicatedProducts[existingIdx].quantity}`);
                 } else {
                   productKeyMap.set(key, deduplicatedProducts.length);
                   deduplicatedProducts.push({ ...rawProduct, quantity: rawProduct.quantity || 1 });
@@ -4278,7 +4304,7 @@ serve(async (req) => {
               const existingIdx = productKeyMap.get(key)!;
               deduplicatedProducts[existingIdx].quantity = 
                 (deduplicatedProducts[existingIdx].quantity || 1) + (product.quantity || 1);
-              console.log(`[Dedup] Merged duplicate "${name}" - new quantity: ${deduplicatedProducts[existingIdx].quantity}`);
+              if (VERBOSE_PRODUCT_LOGS) console.log(`[Dedup] Merged duplicate "${name}" - new quantity: ${deduplicatedProducts[existingIdx].quantity}`);
             } else {
               productKeyMap.set(key, deduplicatedProducts.length);
               deduplicatedProducts.push({ ...product, quantity: product.quantity || 1 });
@@ -4305,12 +4331,13 @@ serve(async (req) => {
           const pendingByExternalParentId = new Map<string, string[]>();
           const pendingSequentialAccessoryIds: string[] = [];
           let lastParentProductId: string | null = null;
-          
-          
+          // STEG 4E: mät produktfasen (ren mätning, ingen semantikändring).
+          const stopProductsPhase = perf.startPhase('products');
+          perf.setCount('products_count', deduplicatedProducts.length);
           for (const product of deduplicatedProducts) {
             try {
               // Log raw product data to see all available fields from external API
-              console.log(`RAW PRODUCT DATA from external API for booking ${bookingData.id}:`, JSON.stringify(product, null, 2))
+              if (VERBOSE_PRODUCT_LOGS) console.log(`RAW PRODUCT DATA from external API for booking ${bookingData.id}:`, JSON.stringify(product, null, 2))
               
               // Extract price data - try multiple possible field names
               const unitPrice = product.price || product.unit_price || product.rental_price || product.cost || null;
@@ -4333,10 +4360,10 @@ serve(async (req) => {
               
               // Log package component detection
               if (isPkgComponent) {
-                console.log(`[PACKAGE COMPONENT] "${productName}": parent_package_id=${product.parent_package_id}`)
+                if (VERBOSE_PRODUCT_LOGS) console.log(`[PACKAGE COMPONENT] "${productName}": parent_package_id=${product.parent_package_id}`)
               }
               
-              console.log(`Product "${productName}": unit_price=${unitPrice}, quantity=${quantity}, total_price=${totalPrice}, isAccessory=${isAccessory}, isPkgComponent=${isPkgComponent}, externalId=${externalId}, externalParentId=${externalParentId}, resolvedParentId=${resolvedParentId}`)
+              if (VERBOSE_PRODUCT_LOGS) console.log(`Product "${productName}": unit_price=${unitPrice}, quantity=${quantity}, total_price=${totalPrice}, isAccessory=${isAccessory}, isPkgComponent=${isPkgComponent}, externalId=${externalId}, externalParentId=${externalParentId}, resolvedParentId=${resolvedParentId}`)
               
               // Extract cost data from external product
               const laborCost = product.labor_cost || product.work_cost || product.setup_cost || 0;
@@ -4401,7 +4428,7 @@ serve(async (req) => {
                   .eq('organization_id', organizationId);
                 productError = updateErr;
                 upsertedProductId = existingMatch.id;
-                if (!updateErr) console.log(`[Merge] Updated existing product "${productName}" (id=${existingMatch.id})`);
+                if (!updateErr && VERBOSE_PRODUCT_LOGS) console.log(`[Merge] Updated existing product "${productName}" (id=${existingMatch.id})`);
               } else {
                 // INSERT new product
                 const { data: insertedProduct, error: insertErr } = await supabase
@@ -4411,7 +4438,7 @@ serve(async (req) => {
                   .single();
                 productError = insertErr;
                 upsertedProductId = insertedProduct?.id ?? null;
-                if (!insertErr) console.log(`[Merge] Inserted new product "${productName}" (id=${upsertedProductId})`);
+                if (!insertErr && VERBOSE_PRODUCT_LOGS) console.log(`[Merge] Inserted new product "${productName}" (id=${upsertedProductId})`);
               }
               // ────────────────────────────────────────────────────────────────────
 
@@ -4478,6 +4505,9 @@ serve(async (req) => {
 
             }
           }
+          stopProductsPhase();
+
+
 
           // ── DELETE products no longer in the external API ─────────────────────
           // STEG 3D: destruktiv delete kräver EXPLICIT products_complete === true.
@@ -4748,6 +4778,10 @@ serve(async (req) => {
         results.failed++
       }
     }
+
+    // STEG 4E: mätning (endast räknare/durationer, ingen känslig data).
+    perf.endBooking();
+    perf.logSummary('[import-bookings][perf]');
 
     // Inline path is single-booking only now — batch modes returned early after
     // enqueue. The cursor is owned by process-sync-jobs via finalizeBatchIfDone;
