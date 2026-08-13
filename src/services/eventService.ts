@@ -267,23 +267,26 @@ export const fetchCalendarEvents = async (
     ? extractMaxDate(realRows.map(event => event.source_date || event.start_time))
     : format(addDays(new Date(), 45), 'yyyy-MM-dd');
 
+  const BOOKING_SELECT = 'id, client, title, booking_number, deliveryaddress, large_project_id, rigdaydate, eventdate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, status, rig_time_locked, event_time_locked, rigdown_time_locked, customer_pickup, calendar_color';
+  const LP_SELECT = 'id, name, project_number, address, start_date, event_date, end_date, deleted_at';
+
   const [bookingsRes, projectsRes] = await Promise.all([
-    withTimeout(
+    fetchAllPages<any>('bookings fallback window', (a, b) =>
       supabase
         .from('bookings')
-        .select('id, client, title, booking_number, deliveryaddress, large_project_id, rigdaydate, eventdate, rigdowndate, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, status, rig_time_locked, event_time_locked, rigdown_time_locked, customer_pickup, calendar_color')
-        .or(`and(rigdaydate.gte.${fromDate},rigdaydate.lte.${toDate}),and(eventdate.gte.${fromDate},eventdate.lte.${toDate}),and(rigdowndate.gte.${fromDate},rigdowndate.lte.${toDate})`),
-      SECONDARY_QUERY_TIMEOUT_MS,
-      'bookings fallback window',
-    ).catch(err => ({ data: null, error: err as any })),
-    withTimeout(
+        .select(BOOKING_SELECT)
+        .or(`and(rigdaydate.gte.${fromDate},rigdaydate.lte.${toDate}),and(eventdate.gte.${fromDate},eventdate.lte.${toDate}),and(rigdowndate.gte.${fromDate},rigdowndate.lte.${toDate})`)
+        .order('id', { ascending: true })
+        .range(a, b),
+    ),
+    fetchAllPages<any>('large_projects fallback', (a, b) =>
       supabase
         .from('large_projects')
-        .select('id, name, project_number, address, start_date, event_date, end_date, deleted_at')
-        .is('deleted_at', null),
-      SECONDARY_QUERY_TIMEOUT_MS,
-      'large_projects fallback',
-    ).catch(err => ({ data: null, error: err as any })),
+        .select(LP_SELECT)
+        .is('deleted_at', null)
+        .order('id', { ascending: true })
+        .range(a, b),
+    ),
   ]);
 
   const bookingsData = bookingsRes.data;
@@ -308,36 +311,24 @@ export const fetchCalendarEvents = async (
 
   // large_project_bookings is master — resolve by booking_id (not by large_project_id)
   // so events get classified as part of a large project even when bookings.large_project_id is null.
-  const [lpbRes, bsaRes] = await Promise.all([
-    allRelevantBookingIds.length > 0
-      ? withTimeout(
-          supabase
-            .from('large_project_bookings')
-            .select('large_project_id, booking_id')
-            .in('booking_id', allRelevantBookingIds),
-          SECONDARY_QUERY_TIMEOUT_MS,
-          'large_project_bookings',
-        ).catch(err => ({ data: null, error: err as any }))
-      : Promise.resolve({ data: [], error: null }),
-    bookingIds.length > 0
-      ? withTimeout(
-          supabase
-            .from('booking_staff_assignments')
-            .select('booking_id, team_id, assignment_date')
-            .in('booking_id', bookingIds),
-          SECONDARY_QUERY_TIMEOUT_MS,
-          'booking_staff_assignments',
-        ).catch(err => ({ data: null, error: err as any }))
-      : Promise.resolve({ data: [], error: null }),
-  ]);
+  //
+  // OBS: `booking_staff_assignments` hämtas INTE här. Den datan användes aldrig
+  // (buildPlannerCalendarEvents void:ar den) och tabellen har ~39 000 rader —
+  // hämtningen kapades tyst vid 1000 rader och kostade bara latens.
+  const lpbRes = allRelevantBookingIds.length > 0
+    ? await fetchAllPages<any>('large_project_bookings', (a, b) =>
+        supabase
+          .from('large_project_bookings')
+          .select('large_project_id, booking_id')
+          .in('booking_id', allRelevantBookingIds)
+          .order('booking_id', { ascending: true })
+          .range(a, b),
+      )
+    : { data: [] as any[], error: null };
 
   const largeProjectBookingsData = lpbRes.data;
-  const bookingAssignmentsData = bsaRes.data;
   if (lpbRes.error) {
     console.warn('⚠️ [fetchCalendarEvents] large_project_bookings fetch failed — fortsätter utan membership:', lpbRes.error);
-  }
-  if (bsaRes.error) {
-    console.warn('⚠️ [fetchCalendarEvents] booking_staff_assignments fetch failed — fortsätter utan team-fallback:', bsaRes.error);
   }
 
 
@@ -356,28 +347,36 @@ export const fetchCalendarEvents = async (
   const missingProjectIds = allProjectIds.filter(id => !loadedProjectIds.has(id));
   let extraProjects: any[] = [];
   if (missingProjectIds.length > 0) {
-    const { data: extra, error: extraErr } = await supabase
-      .from('large_projects')
-      .select('id, name, project_number, address, start_date, event_date, end_date, deleted_at')
-      .in('id', missingProjectIds)
-      .is('deleted_at', null);
+    const { data: extra, error: extraErr } = await fetchAllPages<any>('large_projects by membership', (a, b) =>
+      supabase
+        .from('large_projects')
+        .select(LP_SELECT)
+        .in('id', missingProjectIds)
+        .is('deleted_at', null)
+        .order('id', { ascending: true })
+        .range(a, b),
+    );
     if (extraErr) {
       console.warn('⚠️ [fetchCalendarEvents] Failed to fetch additional large_projects by membership:', extraErr);
-    } else {
-      extraProjects = extra || [];
     }
+    extraProjects = extra || [];
   }
 
   const { data: lptaData, error: lptaError } = allProjectIds.length > 0
-    ? await supabase
-        .from('large_project_team_assignments')
-        .select('large_project_id, phase, assignment_date, team_id')
-        .in('large_project_id', allProjectIds)
-    : { data: [], error: null };
+    ? await fetchAllPages<any>('large_project_team_assignments', (a, b) =>
+        supabase
+          .from('large_project_team_assignments')
+          .select('large_project_id, phase, assignment_date, team_id')
+          .in('large_project_id', allProjectIds)
+          .order('large_project_id', { ascending: true })
+          .range(a, b),
+      )
+    : { data: [] as any[], error: null };
 
   if (lptaError) {
     console.warn('⚠️ [fetchCalendarEvents] Failed to fetch large_project_team_assignments:', lptaError);
   }
+
 
   const combinedLargeProjects = [...(projectsData || []), ...extraProjects];
 
