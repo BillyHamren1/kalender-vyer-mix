@@ -3183,6 +3183,8 @@ serve(async (req) => {
     };
 
     for (const externalBooking of externalData.data) {
+      perf.beginBooking(String(externalBooking?.id ?? 'unknown'));
+      perf.setCount('products_count', Array.isArray(externalBooking?.products) ? externalBooking.products.length : 0);
       // Skip bookings with only past dates (unless historical mode)
       if (!isHistoricalImport && !hasFutureDates(externalBooking)) {
         const allBookingDates: string[] = [];
