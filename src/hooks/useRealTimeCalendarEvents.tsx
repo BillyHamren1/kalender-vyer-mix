@@ -1,35 +1,53 @@
 
 
 import { useState, useEffect, useContext, useCallback, useRef } from 'react';
-import { startOfWeek, endOfWeek, subDays, addDays, format } from 'date-fns';
+import { subDays, addDays, format } from 'date-fns';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
-import { fetchCalendarEvents, resolveCalendarWindow } from '@/services/eventService';
-import { convertToISO8601 } from '@/utils/dateUtils';
+import { fetchCalendarEvents, resolveCalendarWindow, fetchAllPages } from '@/services/eventService';
 import { fixAllEventTitles } from '@/services/eventTitleFixService';
 import { toast } from 'sonner';
 import { CalendarContext } from '@/App';
 import { supabase } from '@/integrations/supabase/client';
 
-export const useRealTimeCalendarEvents = () => {
+export interface UseRealTimeCalendarEventsOptions {
+  /**
+   * Datumet användaren faktiskt tittar på. ENDA ankaret för hämtfönstret.
+   * Skickas in av vyn (t.ex. personalkalenderns veckostart).
+   */
+  anchorDate?: Date | null;
+}
+
+export const useRealTimeCalendarEvents = (
+  options?: UseRealTimeCalendarEventsOptions,
+) => {
   const { lastViewedDate, setLastViewedDate } = useContext(CalendarContext);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const activeRef = useRef(true);
   const reloadTimerRef = useRef<number | null>(null);
 
-  // Initialize currentDate from context, sessionStorage, or default to today
-  const [currentDate, setCurrentDate] = useState<Date>(() => {
-    if (lastViewedDate) return lastViewedDate;
-    const stored = sessionStorage.getItem('calendarDate');
-    return stored ? new Date(stored) : new Date();
-  });
+  // EN datumkälla: vyns ankare (om det finns) → annars kontextens senast
+  // visade datum → annars idag. INGET sessionStorage-ankare (det gjorde att
+  // två användare i samma vy hämtade olika datumfönster).
+  const [currentDate, setCurrentDate] = useState<Date>(
+    () => options?.anchorDate ?? lastViewedDate ?? new Date(),
+  );
 
   // Vilket datumfönster som just nu är laddat. Används för att avgöra om
   // navigering (t.ex. två år bakåt) kräver en ny hämtning.
   const loadedWindowRef = useRef<{ from: string; to: string } | null>(null);
   const currentDateRef = useRef<Date>(currentDate);
   currentDateRef.current = currentDate;
+
+  // Vyns ankare styr alltid: byter användaren vecka följer hämtningen med.
+  const anchorMs = options?.anchorDate ? options.anchorDate.getTime() : null;
+  useEffect(() => {
+    if (anchorMs == null) return;
+    setCurrentDate(prev => (prev.getTime() === anchorMs ? prev : new Date(anchorMs)));
+  }, [anchorMs]);
+
 
   // Enhanced event loading with batch fetching (replaces N+1 queries)
   const loadEvents = useCallback(async (force = false, anchorOverride?: Date) => {
