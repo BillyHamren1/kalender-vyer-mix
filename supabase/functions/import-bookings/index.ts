@@ -4035,6 +4035,8 @@ serve(async (req) => {
               updateData.assigned_project_id = activeJob.id;
               updateData.assigned_project_name = `Jobb: ${activeJob.name}`;
             }
+            }
+
           } else {
             console.log(`[Skip Preserve] Booking ${bookingData.id} is being re-confirmed — skipping flag preservation to allow triage`);
           }
