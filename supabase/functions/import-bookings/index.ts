@@ -4489,10 +4489,14 @@ serve(async (req) => {
           
           // EXPAND package_components JSONB into individual rows (shared function)
           const mainExpanded = await expandPackageComponents(supabase, bookingData.id, organizationId);
-          if (mainExpanded > 0) {
-            results.products_imported += mainExpanded;
-            console.log(`[Main Flow] Expanded ${mainExpanded} package components for booking ${bookingData.id}`);
+          if (mainExpanded.error) {
+            results.errors.push({ booking_id: bookingData.id, error: mainExpanded.error });
           }
+          if (mainExpanded.expanded > 0) {
+            results.products_imported += mainExpanded.expanded;
+            console.log(`[Main Flow] Expanded ${mainExpanded.expanded} package components for booking ${bookingData.id}`);
+          }
+
           
           // SYNC packing list items for expanded components
           const mainPackingResult = await (async () => { assertLeaseOwned('packing_project'); return syncPackingListAfterExpansion(supabase, bookingData.id, organizationId, { completeness: productCompleteness, assertLease: assertLeaseOwned }); })();
