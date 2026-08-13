@@ -2098,6 +2098,8 @@ const expandPackageComponents = async (
   );
 
   let totalExpanded = 0;
+  const componentErrors: string[] = [];
+
 
   for (const parent of parentsWithComponents) {
     const parentId = parent.id;
