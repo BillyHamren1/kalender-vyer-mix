@@ -4436,7 +4436,9 @@ serve(async (req) => {
                       .eq('organization_id', organizationId);
                     if (pendingUpdateError) {
                       console.error(`Error attaching pending children to ${upsertedProductId}:`, pendingUpdateError);
+                      results.errors.push({ booking_id: bookingData.id, error: `product_parent_link_failed:${pendingUpdateError.message || pendingUpdateError}` });
                     }
+
                     pendingByExternalParentId.delete(externalId);
                   }
                 }
