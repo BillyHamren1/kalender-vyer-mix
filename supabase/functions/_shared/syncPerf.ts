@@ -69,6 +69,8 @@ export class SyncPerfTracker {
 
   beginBooking(bookingId: string): void {
     if (!this.enabled || !bookingId) return;
+    // Avslutar automatiskt föregående bokning (loopen kan avbrytas med `continue`).
+    if (this.current) this.endBooking();
     if (!this.perBooking.has(bookingId)) this.perBooking.set(bookingId, emptyMetrics(bookingId));
     this.current = bookingId;
     this.currentStart = now();
