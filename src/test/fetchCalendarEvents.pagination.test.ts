@@ -96,4 +96,20 @@ describe('fetchCalendarEvents pagination', () => {
     expect(rangeMock).toHaveBeenCalledTimes(1);
     expect(events.length).toBe(42);
   });
+
+  it('paginerar stödtabellen bookings förbi 1000-radersgränsen', async () => {
+    rangeMock.mockResolvedValueOnce({ data: [makeRow(0)], error: null, status: 200, statusText: 'OK' });
+    secondaryRows.bookings = Array.from({ length: 1500 }, (_, i) => ({
+      id: `b-${i}`,
+      client: 'X',
+      large_project_id: null,
+      rigdaydate: '2026-05-05',
+    }));
+
+    await fetchCalendarEvents();
+
+    // 1500 rader ⇒ två sidor (1000 + 500).
+    expect(secondaryCalls.bookings).toBe(2);
+    delete secondaryRows.bookings;
+  });
 });
