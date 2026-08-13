@@ -3851,6 +3851,7 @@ serve(async (req) => {
 
                         if (seqUpdateError) {
                           console.error(`[Product Recovery] Error attaching early accessories to ${lastParentProductId}:`, seqUpdateError);
+                          results.errors.push({ booking_id: existingBooking.id, error: `product_parent_link_failed:${seqUpdateError.message || seqUpdateError}` });
                         }
                         pendingSequentialAccessoryIds.length = 0;
                       }
@@ -3858,7 +3859,9 @@ serve(async (req) => {
                   }
                 } catch (productErr) {
                   console.error(`[Product Recovery] Error processing product:`, productErr)
+                  results.errors.push({ booking_id: existingBooking.id, error: `product_processing_failed:${productErr instanceof Error ? productErr.message : String(productErr)}` });
                 }
+
               }
             }
             
