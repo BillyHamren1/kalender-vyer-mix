@@ -270,7 +270,7 @@ export function parseSourceTimestamp(raw: unknown): number | null {
  * exakt samma ms och är därmed EQUAL, inte newer/older.
  */
 const ISO_TIMESTAMP_RE =
-  /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(\.\d{1,9})?)?)?\s*(Z|z|[+-]\d{2}:?\d{2})?$/;
+  /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(\.\d{1,9})?)?)?\s*(Z|z|[+-]\d{2}(?::?\d{2})?)?$/;
 
 export function parseStrictIsoTimestamp(raw: string): number | null {
   const s = raw.trim();
@@ -283,7 +283,9 @@ export function parseStrictIsoTimestamp(raw: string): number | null {
   const time = hh === undefined ? '00:00:00' : `${hh}:${mi}:${ss ?? '00'}`;
   let offset = 'Z';
   if (offsetRaw && offsetRaw.toUpperCase() !== 'Z') {
-    offset = offsetRaw.length === 5 ? `${offsetRaw.slice(0, 3)}:${offsetRaw.slice(3)}` : offsetRaw;
+    const sign = offsetRaw[0];
+    const digits = offsetRaw.slice(1).replace(':', '');
+    offset = `${sign}${digits.slice(0, 2)}:${digits.length > 2 ? digits.slice(2) : '00'}`;
   }
   const normalized = `${y}-${mo}-${d}T${time}${frac ?? ''}${offset}`;
   const t = Date.parse(normalized);
