@@ -3959,19 +3959,23 @@ serve(async (req) => {
           // BUT skip preservation when booking is being re-confirmed (from cancelled/non-confirmed → confirmed)
           // so it appears in triage for manual assignment
           if (!(!wasConfirmed && isNowConfirmed)) {
+            // STEG 3N: tenant-isolerade reads (booking_id + organization_id).
+            const preserveOrgId = existingBooking.organization_id || bookingData.organization_id || organizationId;
             // Check for existing active project
-            const { data: localProject } = await supabase
+            const { data: localProject, error: localProjectErr } = await supabase
               .from('projects')
               .select('id, name, status')
               .eq('booking_id', existingBooking.id)
+              .eq('organization_id', preserveOrgId)
               .neq('status', 'cancelled')
               .limit(1);
             
             // Check for existing job (small project)
-            const { data: localJob } = await supabase
+            const { data: localJob, error: localJobErr } = await supabase
               .from('jobs')
               .select('id, name, status')
               .eq('booking_id', existingBooking.id)
+              .eq('organization_id', preserveOrgId)
               .neq('status', 'completed')
               .limit(1);
             
@@ -3979,18 +3983,30 @@ serve(async (req) => {
             const activeJob = localJob && localJob.length > 0 ? localJob[0] : null;
 
             // Keep hidden if booking is CANCELLED and either was manually hidden, or has any cancelled project/job link
-            const { data: cancelledLinkProjects } = await supabase
+            const { data: cancelledLinkProjects, error: cancelledProjectsErr } = await supabase
               .from('projects')
               .select('id')
               .eq('booking_id', existingBooking.id)
+              .eq('organization_id', preserveOrgId)
               .eq('status', 'cancelled')
               .limit(1);
-            const { data: cancelledLinkJobs } = await supabase
+            const { data: cancelledLinkJobs, error: cancelledJobsErr } = await supabase
               .from('jobs')
               .select('id')
               .eq('booking_id', existingBooking.id)
+              .eq('organization_id', preserveOrgId)
               .eq('status', 'cancelled')
               .limit(1);
+
+            const preserveReadError = localProjectErr || localJobErr || cancelledProjectsErr || cancelledJobsErr;
+            if (preserveReadError) {
+              // STEG 3N: fail-closed — ett DB-fel får aldrig tolkas som
+              // "ingen lokal koppling finns". Behåll befintliga flaggor exakt.
+              console.error(`[Preserve Flags] FAIL-CLOSED booking ${bookingData.id}: local project/job read failed`, preserveReadError);
+              updateData.assigned_to_project = existingBooking.assigned_to_project ?? null;
+              updateData.assigned_project_id = existingBooking.assigned_project_id ?? null;
+              updateData.assigned_project_name = existingBooking.assigned_project_name ?? null;
+            } else {
             const hasCancelledLinkPreserve =
               (cancelledLinkProjects && cancelledLinkProjects.length > 0) ||
               (cancelledLinkJobs && cancelledLinkJobs.length > 0);
@@ -4000,6 +4016,8 @@ serve(async (req) => {
               !activeProject &&
               !activeJob &&
               (existingBooking.assigned_to_project === true || hasCancelledLinkPreserve);
+            
+
             
             if (keepManuallyHiddenCancelled) {
               console.log(`[Preserve Flags] Booking ${bookingData.id} is manually hidden cancelled booking - preserving hidden state`);
