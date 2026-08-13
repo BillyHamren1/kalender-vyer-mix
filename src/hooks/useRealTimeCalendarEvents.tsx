@@ -339,7 +339,8 @@ export const useRealTimeCalendarEvents = (
   // Handle date changes
 
   const handleDatesSet = useCallback((dateInfo: any) => {
-    const newDate = dateInfo.start;
+    const newDate = dateInfo?.start instanceof Date ? dateInfo.start : new Date(dateInfo?.start);
+    if (Number.isNaN(newDate.getTime())) return;
 
     const daysDifference = Math.abs(
       (newDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24)
@@ -351,7 +352,6 @@ export const useRealTimeCalendarEvents = (
 
     console.log('Calendar date change detected, difference:', daysDifference, 'days');
     setCurrentDate(newDate);
-    sessionStorage.setItem('calendarDate', newDate.toISOString());
     setLastViewedDate(newDate);
   }, [setLastViewedDate, currentDate]);
   
@@ -366,8 +366,10 @@ export const useRealTimeCalendarEvents = (
     setEvents,
     isLoading,
     isMounted,
+    loadError,
     currentDate,
     handleDatesSet,
     refreshEvents
   };
 };
+
