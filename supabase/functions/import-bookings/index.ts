@@ -3086,6 +3086,19 @@ serve(async (req) => {
       .from('bookings')
       .select('id, status, version, booking_number, client, rigdaydate, eventdate, rigdowndate, deliveryaddress, delivery_city, delivery_postal_code, organization_id, assigned_to_project, assigned_project_id, assigned_project_name, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, rig_start_time_external, rig_end_time_external, event_start_time_external, event_end_time_external, rigdown_start_time_external, rigdown_end_time_external, rig_time_locked, event_time_locked, rigdown_time_locked')
       .eq('organization_id', organizationId)
+
+    // STEG 3O: fail-closed — utan verifierad lokal bild får vi aldrig anta
+    // "bokningen finns inte lokalt" (skulle ge felaktiga inserts/överskrivningar).
+    if (existingBookingsError) {
+      console.error('[Import] FAIL-CLOSED existing bookings read failed:', existingBookingsError);
+      return new Response(JSON.stringify({
+        success: false,
+        completed: false,
+        outcome: 'failed',
+        error: `existing_bookings_read_failed:${existingBookingsError.message || existingBookingsError}`,
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 });
+    }
+
     const existingBookingMap = new Map(existingBookings?.map(b => [b.id, b]) || [])
     const existingBookingNumberMap = new Map()
     
