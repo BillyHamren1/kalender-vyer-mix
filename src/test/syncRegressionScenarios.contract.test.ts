@@ -460,13 +460,13 @@ describe('STEG 4A — Booking → Planning sync: regressionsscenarier', () => {
   it('22. Worker job completion: endast applied/already_current får completas', () => {
     const expected = { bookingId: BID, organizationId: ORG_A };
     const ok = validateSingleBookingResult(
-      { success: true, mode: 'single', booking_id: BID, organization_id: ORG_A, outcome: 'applied' },
+      { success: true, completed: true, sync_mode: 'single', booking_id: BID, organization_id: ORG_A, outcome: 'applied' },
       expected,
       { ok: true, status: 200 },
     );
     expect(ok.ok).toBe(true);
     const partial = validateSingleBookingResult(
-      { success: true, mode: 'single', booking_id: BID, organization_id: ORG_A, outcome: 'partial' },
+      { success: false, completed: false, sync_mode: 'single', booking_id: BID, organization_id: ORG_A, outcome: 'partial' },
       expected,
       { ok: true, status: 200 },
     );

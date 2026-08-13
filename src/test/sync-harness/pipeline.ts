@@ -133,6 +133,9 @@ export async function runCanonicalSync(sb: FakeSupabase, opts: RunOptions): Prom
       counters,
     });
   }
+  if (reserved.decision === 'already_current') {
+    return emptyResult({ outcome: 'already_current', reason: 'already_current', counters });
+  }
   const token = reserved.reservationToken ?? null;
 
   // Dry-run: inga mutationer alls, släpp reservationen direkt.
