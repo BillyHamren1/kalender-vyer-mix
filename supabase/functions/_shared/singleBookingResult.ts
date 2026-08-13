@@ -28,6 +28,7 @@ export type SingleBookingOutcome =
   | 'not_found'        // Bokningen finns inte externt (och ingen lokal spegling gjordes)
   | 'local_fallback'   // Endast lokal data användes (localOnly / status-demote)
   | 'cancellation_requires_explicit_apply' // STEG 3L: kandidat, aldrig muterad av normal sync
+  | 'mutating_sync_paused' // STEG 4G: kill switch — inga mutationer, ingen cursor, ingen completion
   | 'partial'          // Något delsteg misslyckades
   | 'failed';          // Hela körningen misslyckades
 
@@ -209,6 +210,11 @@ export function validateSingleBookingResult(
     // ligger kvar för explicit hantering — aldrig completed, ingen cursor.
     case 'cancellation_requires_explicit_apply':
       return { ok: false, permanent: true, reason: 'cancellation_requires_explicit_apply' };
+    // STEG 4G: normal muterande sync är pausad av server-side kill switch.
+    // Jobbet får ALDRIG bli completed — det ligger kvar för retry när pausen
+    // hävs av drift. Ingen cursorflytt, ingen mutation.
+    case 'mutating_sync_paused':
+      return { ok: false, permanent: false, reason: 'mutating_sync_paused' };
     case 'failed': {
       const errText = String(r.error ?? '');
       // STEG 2G: stale/konflikt/ojämförbar revision är PERMANENT — jobbet får
