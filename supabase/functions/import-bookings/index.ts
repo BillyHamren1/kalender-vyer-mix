@@ -76,6 +76,10 @@ import {
   UNKNOWN_RPC_IN_DRY_RUN,
 } from '../_shared/syncObservability.ts'
 import type { SyncCounters } from '../_shared/syncObservability.ts'
+import { SyncPerfTracker, verboseProductLogging } from '../_shared/syncPerf.ts'
+
+/** STEG 4E: verbose per-produkt-loggning är dyr → default AV (SYNC_DEBUG_PRODUCTS=true slår på). */
+const VERBOSE_PRODUCT_LOGS = verboseProductLogging();
 
 /**
  * STEG 3I: counters hämtas från den guardade klienten så att varje
