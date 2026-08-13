@@ -20,8 +20,6 @@ describe('STEG 3P – partial-safe canonical mutations', () => {
     'product_upsert_failed',
     'product_parent_link_failed',
     'product_processing_failed',
-    'package_components_read_failed',
-    'package_component_insert_failed',
     'packing_item_insert_failed',
     'map_drawing_update_failed',
   ];
@@ -34,6 +32,14 @@ describe('STEG 3P – partial-safe canonical mutations', () => {
       expect(window).toContain('results.errors.push');
     });
   }
+
+  it('package-expansion propagerar fel till results.errors via call-sites', () => {
+    expect(src).toContain('package_components_read_failed');
+    expect(src).toContain('package_component_insert_failed');
+    expect(src).toContain('results.errors.push({ booking_id: existingBooking.id, error: recoveryExpanded.error })');
+    expect(src).toContain('results.errors.push({ booking_id: bookingData.id, error: mainExpanded.error })');
+  });
+
 
   it('expandPackageComponents returnerar strukturerat resultat med error', () => {
     expect(src).toMatch(/expandPackageComponents[\s\S]{0,200}Promise<\{ expanded: number; error\?: string \| null \}>/);
