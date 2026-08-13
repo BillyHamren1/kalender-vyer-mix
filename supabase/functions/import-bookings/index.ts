@@ -3819,7 +3819,9 @@ serve(async (req) => {
 
                         if (pendingUpdateError) {
                           console.error(`[Product Recovery] Error attaching pending children to ${insertedProduct.id}:`, pendingUpdateError);
+                          results.errors.push({ booking_id: existingBooking.id, error: `product_parent_link_failed:${pendingUpdateError.message || pendingUpdateError}` });
                         }
+
                         pendingByExternalParentId.delete(externalId);
                       }
                     }
