@@ -2088,7 +2088,7 @@ const expandPackageComponents = async (
     (p: any) => p.package_components && Array.isArray(p.package_components) && p.package_components.length > 0 && p.is_package_component !== true
   );
 
-  if (parentsWithComponents.length === 0) return 0;
+  if (parentsWithComponents.length === 0) return { expanded: 0 };
 
   // Collect names of already-expanded components (strip leading "  -- " prefix)
   const existingComponentNames = new Set(
