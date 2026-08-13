@@ -4675,14 +4675,24 @@ serve(async (req) => {
               .eq('organization_id', organizationId);
             if (mdErr) {
               console.error(`[Map Drawing] Error updating map_drawing_url for booking ${bookingData.id}:`, mdErr);
+              results.errors.push({ booking_id: bookingData.id, error: `map_drawing_update_failed:${mdErr.message || mdErr}` });
             } else {
               console.log(`[Map Drawing] Updated map_drawing_url for booking ${bookingData.id}`);
             }
           }
         } else if (externalBooking.map_drawing_url && externalBooking.map_drawing_url !== bookingData.map_drawing_url) {
           // Legacy: map_drawing_url directly on the booking object
-          await supabase.from('bookings').update({ map_drawing_url: externalBooking.map_drawing_url }).eq('id', bookingData.id).eq('organization_id', organizationId);
+          const { error: legacyMdErr } = await supabase
+            .from('bookings')
+            .update({ map_drawing_url: externalBooking.map_drawing_url })
+            .eq('id', bookingData.id)
+            .eq('organization_id', organizationId);
+          if (legacyMdErr) {
+            console.error(`[Map Drawing] Legacy map_drawing_url update failed for ${bookingData.id}:`, legacyMdErr);
+            results.errors.push({ booking_id: bookingData.id, error: `map_drawing_update_failed:${legacyMdErr.message || legacyMdErr}` });
+          }
         }
+
 
         // Sync all attachments (products, files_metadata, tent_images) with shared dedup
         await syncAllAttachments(
