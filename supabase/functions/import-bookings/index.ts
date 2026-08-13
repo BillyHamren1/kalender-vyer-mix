@@ -75,6 +75,15 @@ import {
   UNKNOWN_DESTRUCTIVE_ROW_COUNT,
   UNKNOWN_RPC_IN_DRY_RUN,
 } from '../_shared/syncObservability.ts'
+// STEG 4G: global kill switch + per-org metrics (ren diagnostik).
+import {
+  resolveMutatingSyncPause,
+  logSyncBlock,
+  MUTATING_SYNC_PAUSED,
+} from '../_shared/syncKillSwitch.ts'
+import {
+  OrgMetricsRegistry,
+} from '../_shared/syncOpsMetrics.ts'
 import type { SyncCounters } from '../_shared/syncObservability.ts'
 import { SyncPerfTracker, verboseProductLogging } from '../_shared/syncPerf.ts'
 
@@ -2470,6 +2479,49 @@ serve(async (req) => {
     ctxIsSingle = isSingleBookingRefresh;
     ctxBookingId = normalizedSingleBookingId;
     ctxOrgId = organizationId;
+
+    // ── STEG 4G: GLOBAL KILL SWITCH ──────────────────────────────────────
+    // Server-side env-flagga (NORMAL_MUTATING_SYNC_PAUSED / ..._ORGS) kan pausa
+    // all normal MUTERANDE Booking→Planning-sync. Default = igång (oförändrat
+    // beteende). Requesten kan aldrig slå av/på flaggan. Dry-run (read-only
+    // diagnostik) släpps alltid igenom. Vid paus: 0 mutationer, ingen cursor-
+    // flytt, inget jobb completed, ingen revision commit.
+    const pauseDecision = resolveMutatingSyncPause({
+      organizationId,
+      dryRun: isDryRun,
+      body,
+    });
+    if (pauseDecision.paused) {
+      logSyncBlock({
+        organization_id: organizationId,
+        booking_id: normalizedSingleBookingId,
+        reason: pauseDecision.reason ?? MUTATING_SYNC_PAUSED,
+        scope: pauseDecision.scope,
+        job_id: (body?.job_id ?? null) as string | null,
+        batch_id: (body?.batch_id ?? null) as string | null,
+        caller: 'import-bookings',
+      });
+      if (isSingleBookingRefresh) {
+        return new Response(JSON.stringify(buildSingleBookingEnvelope({
+          bookingId: normalizedSingleBookingId,
+          organizationId,
+          outcome: 'mutating_sync_paused',
+          error: pauseDecision.reason ?? MUTATING_SYNC_PAUSED,
+        })), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({
+        success: false,
+        completed: false,
+        outcome: 'mutating_sync_paused',
+        error: pauseDecision.reason ?? MUTATING_SYNC_PAUSED,
+        scope: pauseDecision.scope,
+        mutations: 0,
+        cursor_moved: false,
+      }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    // Per-org metrics för denna körning (loggas i slutet, muterar inget).
+    const orgMetrics = new OrgMetricsRegistry();
+    void orgMetrics.for(organizationId);
 
     // ── Structured pipeline log ──────────────────────────────────────────
     console.log('[import-bookings] Pipeline started', JSON.stringify({
