@@ -960,27 +960,47 @@ async function reconcileCalendarEvents(
   // tider och team manuellt i ProjectPlanningSheet, vilket flippar status
   // till 'planned'. Befintliga projekt har redan satts till 'planned' av
   // migrationen, så detta påverkar bara nya projekt.
+  // STEG 3N: alla beslutsgrundade reads nedan är tenant-isolerade
+  // (booking_id/id + organization_id). Ingen global fallback tillåts, och ett
+  // DB-fel får aldrig tolkas som "ingen koppling finns" → fail-closed (skip).
   try {
-    const { data: linkedProject } = await supabase
+    const { data: linkedProject, error: linkedProjectErr } = await supabase
       .from('projects')
       .select('planning_status')
       .eq('booking_id', bookingData.id)
+      .eq('organization_id', calendarOrgId)
       .maybeSingle();
+    if (linkedProjectErr) {
+      console.error(`[Calendar Reconcile] FAIL-CLOSED booking ${bookingData.id}: project planning_status read failed`, linkedProjectErr);
+      return { ok: true };
+    }
     if (linkedProject?.planning_status === 'needs_planning') {
       console.log(`[Calendar Reconcile] SKIP booking ${bookingData.id}: linked project is needs_planning`);
       return { ok: true };
     }
-    const { data: parentForLP } = await supabase
+    const { data: parentForLP, error: parentForLPErr } = await supabase
       .from('bookings')
       .select('large_project_id')
       .eq('id', bookingData.id)
+      .eq('organization_id', calendarOrgId)
       .maybeSingle();
+    if (parentForLPErr) {
+      console.error(`[Calendar Reconcile] FAIL-CLOSED booking ${bookingData.id}: parent booking read failed`, parentForLPErr);
+      return { ok: true };
+    }
     if (parentForLP?.large_project_id) {
-      const { data: lp } = await supabase
+      // Parent-bokningen är redan tenant-verifierad ovan → LP-lookupen scopas
+      // dessutom på organization_id (kolumnen finns på large_projects).
+      const { data: lp, error: lpErr } = await supabase
         .from('large_projects')
         .select('planning_status')
         .eq('id', parentForLP.large_project_id)
+        .eq('organization_id', calendarOrgId)
         .maybeSingle();
+      if (lpErr) {
+        console.error(`[Calendar Reconcile] FAIL-CLOSED booking ${bookingData.id}: large_project planning_status read failed`, lpErr);
+        return { ok: true };
+      }
       if (lp?.planning_status === 'needs_planning') {
         console.log(`[Calendar Reconcile] SKIP booking ${bookingData.id}: large project ${parentForLP.large_project_id} is needs_planning`);
         return { ok: true };
@@ -993,19 +1013,26 @@ async function reconcileCalendarEvents(
     // skapar projektet asynkront (med default needs_planning), men reconcilern
     // kan hinna före. Skippa då tills någon koppling/planering finns.
     if (!linkedProject && !parentForLP?.large_project_id) {
-      const { count: existingCeCount } = await supabase
+      const { count: existingCeCount, error: ceCountErr } = await supabase
         .from('calendar_events')
         .select('id', { count: 'exact', head: true })
         .eq('booking_id', bookingData.id)
+        .eq('organization_id', calendarOrgId)
         .neq('event_type', 'activity');
+      if (ceCountErr) {
+        console.error(`[Calendar Reconcile] FAIL-CLOSED booking ${bookingData.id}: calendar_events count read failed`, ceCountErr);
+        return { ok: true };
+      }
       if (!existingCeCount || existingCeCount === 0) {
         console.log(`[Calendar Reconcile] SKIP booking ${bookingData.id}: no linked project/large_project and no existing events (awaiting manual planning)`);
         return { ok: true };
       }
     }
   } catch (planningGuardErr) {
-    console.error('[Calendar Reconcile] planning_status guard failed (continuing):', planningGuardErr);
+    console.error('[Calendar Reconcile] FAIL-CLOSED planning_status guard threw:', planningGuardErr);
+    return { ok: true };
   }
+
   // ────────────────────────────────────────────────────────────────────────
 
   // 1. Fetch ALL existing calendar events for this booking
