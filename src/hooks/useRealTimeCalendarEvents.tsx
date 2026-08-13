@@ -193,28 +193,9 @@ export const useRealTimeCalendarEvents = (
           };
         });
 
-        setEvents(prev => {
-          if (
-            !force &&
-            prev.length > 0 &&
-            enhancedEvents.length === 0
-          ) {
-            console.warn(`[useRealTimeCalendarEvents] Ignoring empty reload while ${prev.length} events are already visible`);
-            return prev;
-          }
-
-          if (
-            !force &&
-            prev.length > 0 &&
-            enhancedEvents.length > 0 &&
-            enhancedEvents.length < prev.length * 0.5
-          ) {
-            console.warn(`[useRealTimeCalendarEvents] Ignoring suspicious shrink ${prev.length} → ${enhancedEvents.length}`);
-            return prev;
-          }
-
-          return enhancedEvents;
-        });
+        // Det som hämtats visas — punkt. Inga "behåll förra resultatet"-filter
+        // (de dolde riktiga tomma veckor och blockerade korrekta uppdateringar).
+        setEvents(enhancedEvents);
 
         // Check if we need to fix any titles (only run once per session)
         const titleFixKey = 'title-fix-attempted';
@@ -226,7 +207,7 @@ export const useRealTimeCalendarEvents = (
           if (hasUuidTitles) {
             try {
               await fixAllEventTitles();
-              const updatedEvents = await fetchCalendarEvents();
+              const updatedEvents = await fetchCalendarEvents({ anchorDate });
               if (activeRef.current) {
                 setEvents(updatedEvents);
               }
@@ -238,9 +219,11 @@ export const useRealTimeCalendarEvents = (
           sessionStorage.setItem(titleFixKey, 'true');
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading calendar events:', error);
       if (activeRef.current) {
+        // Fel ska synas som fel — aldrig som "inga bokningar denna vecka".
+        setLoadError(error?.message ? String(error.message) : 'Kunde inte ladda kalenderhändelser');
         toast.error('Kunde inte ladda kalenderhändelser');
       }
     } finally {
@@ -252,6 +235,7 @@ export const useRealTimeCalendarEvents = (
     }
 
   }, []);
+
 
   // Real-time calendar change handler.
   // IMPORTANT: The planner view renders CONSOLIDATED large-project rows, so
