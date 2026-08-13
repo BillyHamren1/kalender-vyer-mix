@@ -3797,7 +3797,10 @@ serve(async (req) => {
                     .single()
 
                   if (productError) {
+                    // STEG 3P: produktprojection är canonical — fel måste ge partial.
                     console.error(`[Product Recovery] Error inserting product:`, productError)
+                    results.errors.push({ booking_id: existingBooking.id, error: `product_insert_failed:${productError.message || productError}` });
+
                   } else {
                     results.products_imported++
 
