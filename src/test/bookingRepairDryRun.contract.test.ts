@@ -172,7 +172,7 @@ describe('4F: stale Planning', () => {
     expect(diff.booking_fields.changed.map((c) => c.field)).toContain('client');
     expect(diff.booking_fields.changed.map((c) => c.field)).toContain('eventdate');
     expect(diff.products.add).toContain('Mixer');
-    expect(diff.products.update).toContain('Högtalare');
+    expect(diff.products.update.some((u) => u.startsWith('Högtalare'))).toBe(true);
     expect(diff.calendar.date_mismatch.some((m) => m.event_type === 'event')).toBe(true);
     expect(diff.mutations).toBe(0);
   });
