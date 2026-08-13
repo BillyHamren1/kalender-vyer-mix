@@ -611,7 +611,7 @@ const syncWarehouseEventsForBooking = async (supabase: any, booking: any, orgId:
     console.log(`[Warehouse] Upserting ${events.length} warehouse events for booking ${booking.id}`);
     const { error: upsertError } = await supabase
       .from('warehouse_calendar_events')
-      .upsert(events, { onConflict: 'booking_id,event_type', ignoreDuplicates: false });
+      .upsert(events, { onConflict: 'organization_id,booking_id,event_type', ignoreDuplicates: false });
     
     if (upsertError) {
       console.error(`[Warehouse] Error upserting events:`, upsertError);
@@ -3082,7 +3082,7 @@ serve(async (req) => {
 
 
     // Get existing bookings for comparison — ONLY within current tenant
-    const { data: existingBookings } = await supabase
+    const { data: existingBookings, error: existingBookingsError } = await supabase
       .from('bookings')
       .select('id, status, version, booking_number, client, rigdaydate, eventdate, rigdowndate, deliveryaddress, delivery_city, delivery_postal_code, organization_id, assigned_to_project, assigned_project_id, assigned_project_name, rig_start_time, rig_end_time, event_start_time, event_end_time, rigdown_start_time, rigdown_end_time, rig_start_time_external, rig_end_time_external, event_start_time_external, event_end_time_external, rigdown_start_time_external, rigdown_end_time_external, rig_time_locked, event_time_locked, rigdown_time_locked')
       .eq('organization_id', organizationId)
@@ -3546,7 +3546,8 @@ serve(async (req) => {
               const { error: econError } = await supabase
                 .from('bookings')
                 .update({ economics_data: bookingData.economics_data })
-                .eq('id', existingBooking.id);
+                .eq('id', existingBooking.id)
+                .eq('organization_id', organizationId);
               if (econError) {
                 console.error(`[Economics] Failed to backfill economics_data for ${bookingData.id}:`, econError.message);
               } else {
@@ -3784,7 +3785,8 @@ serve(async (req) => {
                         const { error: pendingUpdateError } = await supabase
                           .from('booking_products')
                           .update({ parent_product_id: insertedProduct.id })
-                          .in('id', pendingChildren);
+                          .in('id', pendingChildren)
+                          .eq('organization_id', organizationId);
 
                         if (pendingUpdateError) {
                           console.error(`[Product Recovery] Error attaching pending children to ${insertedProduct.id}:`, pendingUpdateError);
@@ -3813,7 +3815,8 @@ serve(async (req) => {
                         const { error: seqUpdateError } = await supabase
                           .from('booking_products')
                           .update({ parent_product_id: lastParentProductId })
-                          .in('id', pendingSequentialAccessoryIds);
+                          .in('id', pendingSequentialAccessoryIds)
+                          .eq('organization_id', organizationId);
 
                         if (seqUpdateError) {
                           console.error(`[Product Recovery] Error attaching early accessories to ${lastParentProductId}:`, seqUpdateError);
@@ -4079,6 +4082,7 @@ serve(async (req) => {
             .from('bookings')
             .update(updateData)
             .eq('id', existingBooking.id)
+            .eq('organization_id', organizationId)
 
           if (updateError) {
             console.error(`Error updating booking ${existingBooking.id}:`, updateError)
@@ -4093,7 +4097,8 @@ serve(async (req) => {
             await supabase
               .from('bookings')
               .update({ needs_review: false, needs_review_reason: null })
-              .eq('id', existingBooking.id);
+              .eq('id', existingBooking.id)
+              .eq('organization_id', organizationId);
           }
 
           // Calendar reconciliation is now handled deterministically below (lines ~2644+)
@@ -4130,7 +4135,7 @@ serve(async (req) => {
 
         } else {
           // NEW BOOKING - but first check if it exists in ANOTHER organization
-          const { data: crossOrgBooking } = await supabase
+          const { data: crossOrgBooking, error: crossOrgError } = await supabase
             .from('bookings')
             .select('id, organization_id')
             .eq('id', externalBooking.id)
@@ -4340,7 +4345,8 @@ serve(async (req) => {
                 const { error: updateErr } = await supabase
                   .from('booking_products')
                   .update({ ...productData, parent_product_id: resolvedParentId || undefined })
-                  .eq('id', existingMatch.id);
+                  .eq('id', existingMatch.id)
+                  .eq('organization_id', organizationId);
                 productError = updateErr;
                 upsertedProductId = existingMatch.id;
                 if (!updateErr) console.log(`[Merge] Updated existing product "${productName}" (id=${existingMatch.id})`);
@@ -4372,7 +4378,8 @@ serve(async (req) => {
                     const { error: pendingUpdateError } = await supabase
                       .from('booking_products')
                       .update({ parent_product_id: upsertedProductId })
-                      .in('id', pendingChildren);
+                      .in('id', pendingChildren)
+                      .eq('organization_id', organizationId);
                     if (pendingUpdateError) {
                       console.error(`Error attaching pending children to ${upsertedProductId}:`, pendingUpdateError);
                     }
@@ -4398,7 +4405,8 @@ serve(async (req) => {
                     const { error: seqUpdateError } = await supabase
                       .from('booking_products')
                       .update({ parent_product_id: lastParentProductId })
-                      .in('id', pendingSequentialAccessoryIds);
+                      .in('id', pendingSequentialAccessoryIds)
+                      .eq('organization_id', organizationId);
                     if (seqUpdateError) {
                       console.error(`Error attaching early accessories to ${lastParentProductId}:`, seqUpdateError);
                     }
@@ -4598,7 +4606,8 @@ serve(async (req) => {
             const { error: mdErr } = await supabase
               .from('bookings')
               .update({ map_drawing_url: mdUrl })
-              .eq('id', bookingData.id);
+              .eq('id', bookingData.id)
+              .eq('organization_id', organizationId);
             if (mdErr) {
               console.error(`[Map Drawing] Error updating map_drawing_url for booking ${bookingData.id}:`, mdErr);
             } else {
@@ -4607,7 +4616,7 @@ serve(async (req) => {
           }
         } else if (externalBooking.map_drawing_url && externalBooking.map_drawing_url !== bookingData.map_drawing_url) {
           // Legacy: map_drawing_url directly on the booking object
-          await supabase.from('bookings').update({ map_drawing_url: externalBooking.map_drawing_url }).eq('id', bookingData.id);
+          await supabase.from('bookings').update({ map_drawing_url: externalBooking.map_drawing_url }).eq('id', bookingData.id).eq('organization_id', organizationId);
         }
 
         // Sync all attachments (products, files_metadata, tent_images) with shared dedup
