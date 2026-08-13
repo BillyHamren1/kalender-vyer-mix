@@ -960,27 +960,47 @@ async function reconcileCalendarEvents(
   // tider och team manuellt i ProjectPlanningSheet, vilket flippar status
   // till 'planned'. Befintliga projekt har redan satts till 'planned' av
   // migrationen, så detta påverkar bara nya projekt.
+  // STEG 3N: alla beslutsgrundade reads nedan är tenant-isolerade
+  // (booking_id/id + organization_id). Ingen global fallback tillåts, och ett
+  // DB-fel får aldrig tolkas som "ingen koppling finns" → fail-closed (skip).
   try {
-    const { data: linkedProject } = await supabase
+    const { data: linkedProject, error: linkedProjectErr } = await supabase
       .from('projects')
       .select('planning_status')
       .eq('booking_id', bookingData.id)
+      .eq('organization_id', calendarOrgId)
       .maybeSingle();
+    if (linkedProjectErr) {
+      console.error(`[Calendar Reconcile] FAIL-CLOSED booking ${bookingData.id}: project planning_status read failed`, linkedProjectErr);
+      return { ok: true };
+    }
     if (linkedProject?.planning_status === 'needs_planning') {
       console.log(`[Calendar Reconcile] SKIP booking ${bookingData.id}: linked project is needs_planning`);
       return { ok: true };
     }
-    const { data: parentForLP } = await supabase
+    const { data: parentForLP, error: parentForLPErr } = await supabase
       .from('bookings')
       .select('large_project_id')
       .eq('id', bookingData.id)
+      .eq('organization_id', calendarOrgId)
       .maybeSingle();
+    if (parentForLPErr) {
+      console.error(`[Calendar Reconcile] FAIL-CLOSED booking ${bookingData.id}: parent booking read failed`, parentForLPErr);
+      return { ok: true };
+    }
     if (parentForLP?.large_project_id) {
-      const { data: lp } = await supabase
+      // Parent-bokningen är redan tenant-verifierad ovan → LP-lookupen scopas
+      // dessutom på organization_id (kolumnen finns på large_projects).
+      const { data: lp, error: lpErr } = await supabase
         .from('large_projects')
         .select('planning_status')
         .eq('id', parentForLP.large_project_id)
+        .eq('organization_id', calendarOrgId)
         .maybeSingle();
+      if (lpErr) {
+        console.error(`[Calendar Reconcile] FAIL-CLOSED booking ${bookingData.id}: large_project planning_status read failed`, lpErr);
+        return { ok: true };
+      }
       if (lp?.planning_status === 'needs_planning') {
         console.log(`[Calendar Reconcile] SKIP booking ${bookingData.id}: large project ${parentForLP.large_project_id} is needs_planning`);
         return { ok: true };
@@ -993,19 +1013,26 @@ async function reconcileCalendarEvents(
     // skapar projektet asynkront (med default needs_planning), men reconcilern
     // kan hinna före. Skippa då tills någon koppling/planering finns.
     if (!linkedProject && !parentForLP?.large_project_id) {
-      const { count: existingCeCount } = await supabase
+      const { count: existingCeCount, error: ceCountErr } = await supabase
         .from('calendar_events')
         .select('id', { count: 'exact', head: true })
         .eq('booking_id', bookingData.id)
+        .eq('organization_id', calendarOrgId)
         .neq('event_type', 'activity');
+      if (ceCountErr) {
+        console.error(`[Calendar Reconcile] FAIL-CLOSED booking ${bookingData.id}: calendar_events count read failed`, ceCountErr);
+        return { ok: true };
+      }
       if (!existingCeCount || existingCeCount === 0) {
         console.log(`[Calendar Reconcile] SKIP booking ${bookingData.id}: no linked project/large_project and no existing events (awaiting manual planning)`);
         return { ok: true };
       }
     }
   } catch (planningGuardErr) {
-    console.error('[Calendar Reconcile] planning_status guard failed (continuing):', planningGuardErr);
+    console.error('[Calendar Reconcile] FAIL-CLOSED planning_status guard threw:', planningGuardErr);
+    return { ok: true };
   }
+
   // ────────────────────────────────────────────────────────────────────────
 
   // 1. Fetch ALL existing calendar events for this booking
@@ -1097,27 +1124,37 @@ async function reconcileCalendarEvents(
   let isLargeProjectRep = false;
   let largeProjectIdForGuard: string | null = null;
   try {
-    const { data: parentBooking } = await supabase
+    // STEG 3N: parent-bokningen måste vara tenant-verifierad innan dess
+    // large_project_id får användas. Ingen global fallback.
+    const { data: parentBooking, error: parentBookingErr } = await supabase
       .from('bookings')
       .select('large_project_id')
       .eq('id', bookingData.id)
+      .eq('organization_id', calendarOrgId)
       .maybeSingle();
-    const lpId = parentBooking?.large_project_id
-      || (await supabase
+    if (parentBookingErr) throw parentBookingErr;
+    let lpId: string | null = parentBooking?.large_project_id ?? null;
+    if (!lpId) {
+      const { data: lpbRow, error: lpbErr } = await supabase
         .from('large_project_bookings')
         .select('large_project_id')
         .eq('booking_id', bookingData.id)
-        .maybeSingle()).data?.large_project_id
-      || null;
+        .eq('organization_id', calendarOrgId)
+        .maybeSingle();
+      if (lpbErr) throw lpbErr;
+      lpId = lpbRow?.large_project_id ?? null;
+    }
     if (lpId) {
       largeProjectIdForGuard = lpId;
       // Find ALL sibling booking_ids in this LP (master = large_project_bookings,
       // fallback = bookings.large_project_id) and pick the lexicographically
       // smallest UUID as the deterministic rep.
-      const [{ data: lpbRows }, { data: bRows }] = await Promise.all([
-        supabase.from('large_project_bookings').select('booking_id').eq('large_project_id', lpId),
-        supabase.from('bookings').select('id').eq('large_project_id', lpId),
+      const [{ data: lpbRows, error: lpbRowsErr }, { data: bRows, error: bRowsErr }] = await Promise.all([
+        supabase.from('large_project_bookings').select('booking_id').eq('large_project_id', lpId).eq('organization_id', calendarOrgId),
+        supabase.from('bookings').select('id').eq('large_project_id', lpId).eq('organization_id', calendarOrgId),
       ]);
+      if (lpbRowsErr || bRowsErr) throw (lpbRowsErr || bRowsErr);
+
       const siblingIds = new Set<string>([
         bookingData.id,
         ...((lpbRows || []).map((r: any) => r.booking_id).filter(Boolean)),
@@ -1171,11 +1208,13 @@ async function reconcileCalendarEvents(
       }
 
       // REP path: use the LP's authoritative date arrays.
-      const { data: lp } = await supabase
+      const { data: lp, error: lpReadErr } = await supabase
         .from('large_projects')
         .select('start_date, event_date, end_date')
         .eq('id', lpId)
+        .eq('organization_id', calendarOrgId)
         .maybeSingle();
+      if (lpReadErr) throw lpReadErr;
       const lpRig = Array.isArray(lp?.start_date) ? lp!.start_date.filter(Boolean) : [];
       const lpEvent = Array.isArray(lp?.event_date) ? lp!.event_date.filter(Boolean) : [];
       const lpDown = Array.isArray(lp?.end_date) ? lp!.end_date.filter(Boolean) : [];
@@ -1185,8 +1224,12 @@ async function reconcileCalendarEvents(
       console.log(`[Calendar Reconcile] LP REP override for booking ${bookingData.id} (lp=${lpId}): rig=${rigDates.length}, event=${eventDates.length}, rigDown=${rigdownDates.length}`);
     }
   } catch (lpErr) {
-    console.error(`[Calendar Reconcile] Large project override failed:`, lpErr);
+    // STEG 3N: fail-closed — vi vet inte om bokningen tillhör ett stort projekt
+    // eller vilka datum som gäller, så ingen calendar-mutation får ske.
+    console.error(`[Calendar Reconcile] FAIL-CLOSED large project resolution failed:`, lpErr);
+    return { ok: true };
   }
+
   // ────────────────────────────────────────────────────────────────────────
 
   const bookingTitle = (bookingData.title || '').trim();
@@ -2022,13 +2065,21 @@ const expandPackageComponents = async (
   bookingId: string,
   orgId?: string
 ): Promise<number> => {
-  // Fetch all products for this booking
-  const { data: products, error } = await supabase
+  // Fetch all products for this booking (STEG 3N: tenant-isolerad read)
+  let productQuery = supabase
     .from('booking_products')
     .select('id, name, package_components, sort_index, inventory_package_id, is_package_component')
     .eq('booking_id', bookingId);
+  if (orgId) productQuery = productQuery.eq('organization_id', orgId);
+  const { data: products, error } = await productQuery;
 
-  if (error || !products || products.length === 0) return 0;
+  if (error) {
+    // Fail-closed: vi vet inte vilka komponenter som redan finns → expandera inte.
+    console.error(`[expandPackageComponents] FAIL-CLOSED read error for booking ${bookingId}:`, error);
+    return 0;
+  }
+  if (!products || products.length === 0) return 0;
+
 
   // Find parents that have package_components JSONB
   const parentsWithComponents = products.filter(
@@ -3916,19 +3967,23 @@ serve(async (req) => {
           // BUT skip preservation when booking is being re-confirmed (from cancelled/non-confirmed → confirmed)
           // so it appears in triage for manual assignment
           if (!(!wasConfirmed && isNowConfirmed)) {
+            // STEG 3N: tenant-isolerade reads (booking_id + organization_id).
+            const preserveOrgId = existingBooking.organization_id || bookingData.organization_id || organizationId;
             // Check for existing active project
-            const { data: localProject } = await supabase
+            const { data: localProject, error: localProjectErr } = await supabase
               .from('projects')
               .select('id, name, status')
               .eq('booking_id', existingBooking.id)
+              .eq('organization_id', preserveOrgId)
               .neq('status', 'cancelled')
               .limit(1);
             
             // Check for existing job (small project)
-            const { data: localJob } = await supabase
+            const { data: localJob, error: localJobErr } = await supabase
               .from('jobs')
               .select('id, name, status')
               .eq('booking_id', existingBooking.id)
+              .eq('organization_id', preserveOrgId)
               .neq('status', 'completed')
               .limit(1);
             
@@ -3936,18 +3991,30 @@ serve(async (req) => {
             const activeJob = localJob && localJob.length > 0 ? localJob[0] : null;
 
             // Keep hidden if booking is CANCELLED and either was manually hidden, or has any cancelled project/job link
-            const { data: cancelledLinkProjects } = await supabase
+            const { data: cancelledLinkProjects, error: cancelledProjectsErr } = await supabase
               .from('projects')
               .select('id')
               .eq('booking_id', existingBooking.id)
+              .eq('organization_id', preserveOrgId)
               .eq('status', 'cancelled')
               .limit(1);
-            const { data: cancelledLinkJobs } = await supabase
+            const { data: cancelledLinkJobs, error: cancelledJobsErr } = await supabase
               .from('jobs')
               .select('id')
               .eq('booking_id', existingBooking.id)
+              .eq('organization_id', preserveOrgId)
               .eq('status', 'cancelled')
               .limit(1);
+
+            const preserveReadError = localProjectErr || localJobErr || cancelledProjectsErr || cancelledJobsErr;
+            if (preserveReadError) {
+              // STEG 3N: fail-closed — ett DB-fel får aldrig tolkas som
+              // "ingen lokal koppling finns". Behåll befintliga flaggor exakt.
+              console.error(`[Preserve Flags] FAIL-CLOSED booking ${bookingData.id}: local project/job read failed`, preserveReadError);
+              updateData.assigned_to_project = existingBooking.assigned_to_project ?? null;
+              updateData.assigned_project_id = existingBooking.assigned_project_id ?? null;
+              updateData.assigned_project_name = existingBooking.assigned_project_name ?? null;
+            } else {
             const hasCancelledLinkPreserve =
               (cancelledLinkProjects && cancelledLinkProjects.length > 0) ||
               (cancelledLinkJobs && cancelledLinkJobs.length > 0);
@@ -3957,6 +4024,8 @@ serve(async (req) => {
               !activeProject &&
               !activeJob &&
               (existingBooking.assigned_to_project === true || hasCancelledLinkPreserve);
+            
+
             
             if (keepManuallyHiddenCancelled) {
               console.log(`[Preserve Flags] Booking ${bookingData.id} is manually hidden cancelled booking - preserving hidden state`);
@@ -3974,6 +4043,8 @@ serve(async (req) => {
               updateData.assigned_project_id = activeJob.id;
               updateData.assigned_project_name = `Jobb: ${activeJob.name}`;
             }
+            }
+
           } else {
             console.log(`[Skip Preserve] Booking ${bookingData.id} is being re-confirmed — skipping flag preservation to allow triage`);
           }
