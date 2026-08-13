@@ -120,10 +120,14 @@ describe('worker enforces the contract in source', () => {
     const src = fs.readFileSync('supabase/functions/process-sync-jobs/index.ts', 'utf8');
     expect(src).toContain('validateSingleBookingResult');
     const validateIdx = src.indexOf('validateSingleBookingResult(\n');
-    const completedIdx = src.indexOf("          status: 'completed',");
+    // STEG 4B: completion sker via token-skyddad RPC, inte via direkt statusskrivning.
+    const completedIdx = src.indexOf("rpc('complete_sync_job'");
     expect(validateIdx).toBeGreaterThan(-1);
     expect(completedIdx).toBeGreaterThan(validateIdx);
+    // Direkt statusskrivning till 'completed' får inte finnas kvar i workern.
+    expect(src).not.toContain("status: 'completed',");
   });
+
 });
 
 describe('defensive success validation', () => {
