@@ -4505,6 +4505,9 @@ serve(async (req) => {
 
             }
           }
+          stopProductsPhase();
+
+
 
           // ── DELETE products no longer in the external API ─────────────────────
           // STEG 3D: destruktiv delete kräver EXPLICIT products_complete === true.
