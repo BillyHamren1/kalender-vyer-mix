@@ -2064,7 +2064,7 @@ const expandPackageComponents = async (
   supabase: any,
   bookingId: string,
   orgId?: string
-): Promise<number> => {
+): Promise<{ expanded: number; error?: string | null }> => {
   // Fetch all products for this booking (STEG 3N: tenant-isolerad read)
   let productQuery = supabase
     .from('booking_products')
@@ -2075,10 +2075,12 @@ const expandPackageComponents = async (
 
   if (error) {
     // Fail-closed: vi vet inte vilka komponenter som redan finns → expandera inte.
+    // STEG 3P: read-fel returneras explicit (får inte tolkas som expanded=0).
     console.error(`[expandPackageComponents] FAIL-CLOSED read error for booking ${bookingId}:`, error);
-    return 0;
+    return { expanded: 0, error: `package_components_read_failed:${error.message || String(error)}` };
   }
-  if (!products || products.length === 0) return 0;
+  if (!products || products.length === 0) return { expanded: 0 };
+
 
 
   // Find parents that have package_components JSONB
@@ -2086,7 +2088,7 @@ const expandPackageComponents = async (
     (p: any) => p.package_components && Array.isArray(p.package_components) && p.package_components.length > 0 && p.is_package_component !== true
   );
 
-  if (parentsWithComponents.length === 0) return 0;
+  if (parentsWithComponents.length === 0) return { expanded: 0 };
 
   // Collect names of already-expanded components (strip leading "  -- " prefix)
   const existingComponentNames = new Set(
@@ -2096,6 +2098,8 @@ const expandPackageComponents = async (
   );
 
   let totalExpanded = 0;
+  const componentErrors: string[] = [];
+
 
   for (const parent of parentsWithComponents) {
     const parentId = parent.id;
@@ -2148,7 +2152,9 @@ const expandPackageComponents = async (
         .insert(componentData);
 
       if (compError) {
+        // STEG 3P: komponent-expansion är canonical projection — fel får aldrig sväljas.
         console.error(`[Package Expand] Error inserting component "${comp.name}":`, compError);
+        componentErrors.push(`${comp.name || 'unknown'}:${compError.message || String(compError)}`);
       } else {
         totalExpanded++;
         existingComponentNames.add((comp.name || '').trim().toLowerCase());
@@ -2157,8 +2163,12 @@ const expandPackageComponents = async (
     }
   }
 
-  return totalExpanded;
+  return {
+    expanded: totalExpanded,
+    error: componentErrors.length > 0 ? `package_component_insert_failed:${componentErrors.join('|')}` : null,
+  };
 };
+
 
 /**
  * Full sync packing list items to match booking_products.
@@ -3562,10 +3572,13 @@ serve(async (req) => {
                 .eq('id', existingBooking.id)
                 .eq('organization_id', organizationId);
               if (econError) {
+                // STEG 3P: canonical fältprojection — fel måste synas i outcome.
                 console.error(`[Economics] Failed to backfill economics_data for ${bookingData.id}:`, econError.message);
+                results.errors.push({ booking_id: bookingData.id, error: `economics_backfill_failed:${econError.message}` });
               } else {
                 console.log(`[Economics] Successfully backfilled economics_data for ${bookingData.id}`);
               }
+
             }
 
             // Sync all attachments (products, files_metadata, tent_images) with shared dedup
@@ -3784,7 +3797,10 @@ serve(async (req) => {
                     .single()
 
                   if (productError) {
+                    // STEG 3P: produktprojection är canonical — fel måste ge partial.
                     console.error(`[Product Recovery] Error inserting product:`, productError)
+                    results.errors.push({ booking_id: existingBooking.id, error: `product_insert_failed:${productError.message || productError}` });
+
                   } else {
                     results.products_imported++
 
@@ -3803,7 +3819,9 @@ serve(async (req) => {
 
                         if (pendingUpdateError) {
                           console.error(`[Product Recovery] Error attaching pending children to ${insertedProduct.id}:`, pendingUpdateError);
+                          results.errors.push({ booking_id: existingBooking.id, error: `product_parent_link_failed:${pendingUpdateError.message || pendingUpdateError}` });
                         }
+
                         pendingByExternalParentId.delete(externalId);
                       }
                     }
@@ -3833,6 +3851,7 @@ serve(async (req) => {
 
                         if (seqUpdateError) {
                           console.error(`[Product Recovery] Error attaching early accessories to ${lastParentProductId}:`, seqUpdateError);
+                          results.errors.push({ booking_id: existingBooking.id, error: `product_parent_link_failed:${seqUpdateError.message || seqUpdateError}` });
                         }
                         pendingSequentialAccessoryIds.length = 0;
                       }
@@ -3840,16 +3859,22 @@ serve(async (req) => {
                   }
                 } catch (productErr) {
                   console.error(`[Product Recovery] Error processing product:`, productErr)
+                  results.errors.push({ booking_id: existingBooking.id, error: `product_processing_failed:${productErr instanceof Error ? productErr.message : String(productErr)}` });
                 }
+
               }
             }
             
             // EXPAND package_components JSONB into individual rows
             const recoveryExpanded = await expandPackageComponents(supabase, existingBooking.id, organizationId);
-            if (recoveryExpanded > 0) {
-              results.products_imported += recoveryExpanded;
-              console.log(`[Product Recovery] Expanded ${recoveryExpanded} package components for booking ${bookingData.id}`);
+            if (recoveryExpanded.error) {
+              results.errors.push({ booking_id: existingBooking.id, error: recoveryExpanded.error });
             }
+            if (recoveryExpanded.expanded > 0) {
+              results.products_imported += recoveryExpanded.expanded;
+              console.log(`[Product Recovery] Expanded ${recoveryExpanded.expanded} package components for booking ${bookingData.id}`);
+            }
+
             
             // SYNC packing list items for all products (including expanded components)
             const recoveryPackingResult = await (async () => { assertLeaseOwned('packing_project'); return syncPackingListAfterExpansion(supabase, existingBooking.id, organizationId, { completeness: productCompleteness, assertLease: assertLeaseOwned }); })();
@@ -4107,12 +4132,18 @@ serve(async (req) => {
           // If skip_review is set (Planning UI caller), reset needs_review to prevent
           // self-made changes from appearing as needing review
           if (skip_review) {
-            await supabase
+            const { error: reviewResetError } = await supabase
               .from('bookings')
               .update({ needs_review: false, needs_review_reason: null })
               .eq('id', existingBooking.id)
               .eq('organization_id', organizationId);
+            if (reviewResetError) {
+              // STEG 3P: reset ingår i syncoperationen — fel får inte tystas.
+              console.error(`[needs_review] reset failed for ${existingBooking.id}:`, reviewResetError);
+              results.errors.push({ booking_id: existingBooking.id, error: `needs_review_reset_failed:${reviewResetError.message || reviewResetError}` });
+            }
           }
+
 
           // Calendar reconciliation is now handled deterministically below (lines ~2644+)
           // No longer delete-and-recreate here — the reconciler handles create/update/delete
@@ -4387,6 +4418,8 @@ serve(async (req) => {
 
               if (productError) {
                 console.error(`Error upserting product for booking ${bookingData.id}:`, productError)
+                results.errors.push({ booking_id: bookingData.id, error: `product_upsert_failed:${productError.message || productError}` });
+
               } else if (upsertedProductId) {
                 results.products_imported++
 
@@ -4403,7 +4436,9 @@ serve(async (req) => {
                       .eq('organization_id', organizationId);
                     if (pendingUpdateError) {
                       console.error(`Error attaching pending children to ${upsertedProductId}:`, pendingUpdateError);
+                      results.errors.push({ booking_id: bookingData.id, error: `product_parent_link_failed:${pendingUpdateError.message || pendingUpdateError}` });
                     }
+
                     pendingByExternalParentId.delete(externalId);
                   }
                 }
@@ -4430,6 +4465,7 @@ serve(async (req) => {
                       .eq('organization_id', organizationId);
                     if (seqUpdateError) {
                       console.error(`Error attaching early accessories to ${lastParentProductId}:`, seqUpdateError);
+                      results.errors.push({ booking_id: bookingData.id, error: `product_parent_link_failed:${seqUpdateError.message || seqUpdateError}` });
                     }
                     pendingSequentialAccessoryIds.length = 0;
                   }
@@ -4437,7 +4473,9 @@ serve(async (req) => {
               }
             } catch (productErr) {
               console.error(`Error processing product for booking ${bookingData.id}:`, productErr)
+              results.errors.push({ booking_id: bookingData.id, error: `product_processing_failed:${productErr instanceof Error ? productErr.message : String(productErr)}` });
             }
+
             }
           }
 
@@ -4475,10 +4513,14 @@ serve(async (req) => {
           
           // EXPAND package_components JSONB into individual rows (shared function)
           const mainExpanded = await expandPackageComponents(supabase, bookingData.id, organizationId);
-          if (mainExpanded > 0) {
-            results.products_imported += mainExpanded;
-            console.log(`[Main Flow] Expanded ${mainExpanded} package components for booking ${bookingData.id}`);
+          if (mainExpanded.error) {
+            results.errors.push({ booking_id: bookingData.id, error: mainExpanded.error });
           }
+          if (mainExpanded.expanded > 0) {
+            results.products_imported += mainExpanded.expanded;
+            console.log(`[Main Flow] Expanded ${mainExpanded.expanded} package components for booking ${bookingData.id}`);
+          }
+
           
           // SYNC packing list items for expanded components
           const mainPackingResult = await (async () => { assertLeaseOwned('packing_project'); return syncPackingListAfterExpansion(supabase, bookingData.id, organizationId, { completeness: productCompleteness, assertLease: assertLeaseOwned }); })();
@@ -4546,7 +4588,9 @@ serve(async (req) => {
               
               if (insertError) {
                 console.error(`[Packing Reconnect] Error creating new packing list items:`, insertError);
+                results.errors.push({ booking_id: bookingData.id, error: `packing_item_insert_failed:${insertError.message || insertError}` });
               }
+
             }
           }
         }
@@ -4631,14 +4675,24 @@ serve(async (req) => {
               .eq('organization_id', organizationId);
             if (mdErr) {
               console.error(`[Map Drawing] Error updating map_drawing_url for booking ${bookingData.id}:`, mdErr);
+              results.errors.push({ booking_id: bookingData.id, error: `map_drawing_update_failed:${mdErr.message || mdErr}` });
             } else {
               console.log(`[Map Drawing] Updated map_drawing_url for booking ${bookingData.id}`);
             }
           }
         } else if (externalBooking.map_drawing_url && externalBooking.map_drawing_url !== bookingData.map_drawing_url) {
           // Legacy: map_drawing_url directly on the booking object
-          await supabase.from('bookings').update({ map_drawing_url: externalBooking.map_drawing_url }).eq('id', bookingData.id).eq('organization_id', organizationId);
+          const { error: legacyMdErr } = await supabase
+            .from('bookings')
+            .update({ map_drawing_url: externalBooking.map_drawing_url })
+            .eq('id', bookingData.id)
+            .eq('organization_id', organizationId);
+          if (legacyMdErr) {
+            console.error(`[Map Drawing] Legacy map_drawing_url update failed for ${bookingData.id}:`, legacyMdErr);
+            results.errors.push({ booking_id: bookingData.id, error: `map_drawing_update_failed:${legacyMdErr.message || legacyMdErr}` });
+          }
         }
+
 
         // Sync all attachments (products, files_metadata, tent_images) with shared dedup
         await syncAllAttachments(
