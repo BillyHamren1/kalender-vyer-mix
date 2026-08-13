@@ -4154,6 +4154,14 @@ serve(async (req) => {
             .eq('id', externalBooking.id)
             .maybeSingle();
 
+          if (crossOrgError) {
+            // STEG 3O: fail-closed — utan svar kan vi inte utesluta cross-tenant-krock.
+            console.error(`[CROSS-ORG BLOCK] FAIL-CLOSED read failed for ${externalBooking.id}:`, crossOrgError);
+            results.errors.push({ booking_id: externalBooking.id, error: `cross_org_check_failed:${crossOrgError.message || crossOrgError}` });
+            results.failed++;
+            continue;
+          }
+
           if (crossOrgBooking && crossOrgBooking.organization_id !== organizationId) {
             console.error(`[CROSS-ORG BLOCK] Booking ${externalBooking.id} already exists in org ${crossOrgBooking.organization_id}, current import is for org ${organizationId}. SKIPPING to prevent data theft.`);
             // Write audit record for the blocked attempt
