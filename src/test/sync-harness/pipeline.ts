@@ -135,10 +135,6 @@ export async function runCanonicalSync(sb: FakeSupabase, opts: RunOptions): Prom
   }
   const token = reserved.reservationToken ?? null;
 
-  if (opts.dryRunMutationsForbidden === true) {
-    // never reached — placeholder for type stability
-  }
-
   // Dry-run: inga mutationer alls, släpp reservationen direkt.
   if (dry.dryRun) {
     await releaseCanonicalRevision(sb as any, { bookingId, organizationId: orgId, incoming, reservationToken: token });
