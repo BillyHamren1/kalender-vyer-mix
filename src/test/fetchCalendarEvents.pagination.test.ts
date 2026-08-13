@@ -7,19 +7,31 @@ const lteMock = vi.fn(() => ({ order: orderMock }));
 const gteMock = vi.fn(() => ({ lte: lteMock }));
 const neqMock = vi.fn(() => ({ gte: gteMock }));
 const selectMock = vi.fn(() => ({ neq: neqMock }));
+// Sidindelade stödtabeller: varje tabell kan mata ut fler än 1000 rader.
+export const secondaryRows: Record<string, any[]> = {};
+const secondaryCalls: Record<string, number> = {};
+
+const makeChainable = (table: string) => {
+  const chain: any = {};
+  for (const m of ['select', 'or', 'is', 'in', 'eq', 'neq', 'gte', 'lte', 'order']) {
+    chain[m] = () => chain;
+  }
+  chain.range = (from: number, to: number) => {
+    secondaryCalls[table] = (secondaryCalls[table] ?? 0) + 1;
+    const rows = (secondaryRows[table] ?? []).slice(from, to + 1);
+    return Promise.resolve({ data: rows, error: null });
+  };
+  chain.then = (res: any) => Promise.resolve({ data: secondaryRows[table] ?? [], error: null }).then(res);
+  return chain;
+};
+
 const fromMock = vi.fn((table: string) => {
   if (table === 'calendar_events') {
     return { select: selectMock };
   }
-  // For all the follow-up tables (bookings, large_projects, etc.) return empty.
-  return {
-    select: () => ({
-      or: () => Promise.resolve({ data: [], error: null }),
-      is: () => Promise.resolve({ data: [], error: null }),
-      in: () => Promise.resolve({ data: [], error: null }),
-    }),
-  };
+  return makeChainable(table);
 });
+
 
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
