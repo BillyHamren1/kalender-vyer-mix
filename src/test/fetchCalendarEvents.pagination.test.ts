@@ -69,7 +69,10 @@ describe('fetchCalendarEvents pagination', () => {
   beforeEach(() => {
     rangeMock.mockReset();
     selectMock.mockClear();
+    for (const k of Object.keys(secondaryCalls)) delete secondaryCalls[k];
+    for (const k of Object.keys(secondaryRows)) delete secondaryRows[k];
   });
+
 
   it('paginates through 2500 rows across 3 pages', async () => {
     const allRows = Array.from({ length: 2500 }, (_, i) => makeRow(i));
