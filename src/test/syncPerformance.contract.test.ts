@@ -11,13 +11,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { SyncPerfTracker, verboseProductLogging } from '../../supabase/functions/_shared/syncPerf';
 import { createFakeSupabase } from './sync-harness/fakeSupabase';
 import { runCanonicalSync } from './sync-harness/pipeline';
-import {
-  ORG_A,
-  ORG_B,
-  makeBooking,
-  makeSourcePayload,
-  makeBookingSourceState,
-} from './sync-harness/factories';
+import { ORG_A, ORG_B, makeBooking, makeBookingSourceState } from './sync-harness/factories';
 
 const products = (n: number) =>
   Array.from({ length: n }, (_, i) => ({
@@ -28,29 +22,39 @@ const products = (n: number) =>
     total_price: 100,
   }));
 
-const world = (bookingId: string, orgId: string) => {
-  const sb = createFakeSupabase({
-    bookings: [makeBooking({ id: bookingId, organization_id: orgId })],
-    booking_source_state: [makeBookingSourceState({ booking_id: bookingId, organization_id: orgId })],
-  } as any);
-  return sb;
-};
-
-const payloadFor = (bookingId: string, productCount: number, over: Record<string, unknown> = {}) =>
-  makeSourcePayload({
-    booking: {
-      id: bookingId,
-      status: 'CONFIRMED',
-      source_version: 99,
-      customer_name: 'Kund AB',
-      rigdaydate: '2026-09-01',
-      eventdate: '2026-09-02',
-      rigdowndate: '2026-09-03',
-      products_complete: true,
-      products: products(productCount),
-      ...over,
+const world = (bookingId: string, orgId: string) =>
+  createFakeSupabase({
+    revisions: [],
+    seed: {
+      bookings: [makeBooking({ id: bookingId, organization_id: orgId })],
+      booking_products: [],
+      calendar_events: [],
+      booking_source_state: [makeBookingSourceState({ booking_id: bookingId, organization_id: orgId })],
     },
   });
+
+const payloadFor = (bookingId: string, orgId: string, productCount: number, over: Record<string, unknown> = {}) => ({
+  success: true,
+  mode: 'single',
+  contract_version: '1.1',
+  found: true,
+  booking_id: bookingId,
+  organization_id: orgId,
+  booking: {
+    id: bookingId,
+    organization_id: orgId,
+    status: 'CONFIRMED',
+    source_version: 2,
+    customer_name: 'Kund AB',
+    rigdaydate: '2026-09-01',
+    eventdate: '2026-09-02',
+    rigdowndate: '2026-09-03',
+    dates_complete: true,
+    products_complete: true,
+    products: products(productCount),
+    ...over,
+  },
+});
 
 describe('STEG 4E — SyncPerfTracker mätning', () => {
   it('räknar queries per bokning och skiljer read/write', () => {
@@ -163,7 +167,7 @@ describe('STEG 4E — semantiken oförändrad vid olika volymer', () => {
     const res = await runCanonicalSync(sb, {
       organizationId: ORG_A,
       bookingId,
-      payload: payloadFor(bookingId, count),
+      payload: payloadFor(bookingId, ORG_A, count),
     });
 
     expect(res.errors).toEqual([]);
@@ -177,7 +181,7 @@ describe('STEG 4E — semantiken oförändrad vid olika volymer', () => {
     const res = await runCanonicalSync(sb, {
       organizationId: ORG_A,
       bookingId,
-      payload: payloadFor(bookingId, 50, {
+      payload: payloadFor(bookingId, ORG_A, 50, {
         rig_up_dates: ['2026-09-01', '2026-09-02', '2026-09-03'],
         event_dates: ['2026-09-04', '2026-09-05'],
         rig_down_dates: ['2026-09-06', '2026-09-07'],
@@ -191,7 +195,7 @@ describe('STEG 4E — semantiken oförändrad vid olika volymer', () => {
   it('retry av samma revision är idempotent (already_current, inga fel)', async () => {
     const bookingId = 'bk-perf-retry';
     const sb = world(bookingId, ORG_A);
-    const payload = payloadFor(bookingId, 20);
+    const payload = payloadFor(bookingId, ORG_A, 20);
 
     const first = await runCanonicalSync(sb, { organizationId: ORG_A, bookingId, payload });
     const second = await runCanonicalSync(sb, { organizationId: ORG_A, bookingId, payload });
@@ -209,12 +213,12 @@ describe('STEG 4E — semantiken oförändrad vid olika volymer', () => {
     const a = await runCanonicalSync(sbA, {
       organizationId: ORG_A,
       bookingId,
-      payload: payloadFor(bookingId, 20),
+      payload: payloadFor(bookingId, ORG_A, 20),
     });
     const b = await runCanonicalSync(sbB, {
       organizationId: ORG_B,
       bookingId,
-      payload: payloadFor(bookingId, 200),
+      payload: payloadFor(bookingId, ORG_B, 200),
     });
 
     expect(a.errors).toEqual([]);
