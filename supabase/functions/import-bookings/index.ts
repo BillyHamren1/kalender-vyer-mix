@@ -1124,27 +1124,37 @@ async function reconcileCalendarEvents(
   let isLargeProjectRep = false;
   let largeProjectIdForGuard: string | null = null;
   try {
-    const { data: parentBooking } = await supabase
+    // STEG 3N: parent-bokningen måste vara tenant-verifierad innan dess
+    // large_project_id får användas. Ingen global fallback.
+    const { data: parentBooking, error: parentBookingErr } = await supabase
       .from('bookings')
       .select('large_project_id')
       .eq('id', bookingData.id)
+      .eq('organization_id', calendarOrgId)
       .maybeSingle();
-    const lpId = parentBooking?.large_project_id
-      || (await supabase
+    if (parentBookingErr) throw parentBookingErr;
+    let lpId: string | null = parentBooking?.large_project_id ?? null;
+    if (!lpId) {
+      const { data: lpbRow, error: lpbErr } = await supabase
         .from('large_project_bookings')
         .select('large_project_id')
         .eq('booking_id', bookingData.id)
-        .maybeSingle()).data?.large_project_id
-      || null;
+        .eq('organization_id', calendarOrgId)
+        .maybeSingle();
+      if (lpbErr) throw lpbErr;
+      lpId = lpbRow?.large_project_id ?? null;
+    }
     if (lpId) {
       largeProjectIdForGuard = lpId;
       // Find ALL sibling booking_ids in this LP (master = large_project_bookings,
       // fallback = bookings.large_project_id) and pick the lexicographically
       // smallest UUID as the deterministic rep.
-      const [{ data: lpbRows }, { data: bRows }] = await Promise.all([
-        supabase.from('large_project_bookings').select('booking_id').eq('large_project_id', lpId),
-        supabase.from('bookings').select('id').eq('large_project_id', lpId),
+      const [{ data: lpbRows, error: lpbRowsErr }, { data: bRows, error: bRowsErr }] = await Promise.all([
+        supabase.from('large_project_bookings').select('booking_id').eq('large_project_id', lpId).eq('organization_id', calendarOrgId),
+        supabase.from('bookings').select('id').eq('large_project_id', lpId).eq('organization_id', calendarOrgId),
       ]);
+      if (lpbRowsErr || bRowsErr) throw (lpbRowsErr || bRowsErr);
+
       const siblingIds = new Set<string>([
         bookingData.id,
         ...((lpbRows || []).map((r: any) => r.booking_id).filter(Boolean)),
