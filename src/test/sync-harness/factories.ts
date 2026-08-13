@@ -225,10 +225,17 @@ export interface SyncJobRow {
   organization_id: string;
   booking_id: string;
   event_type: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'retryable' | 'completed' | 'failed';
   attempts: number;
   max_attempts: number;
   batch_id: string | null;
+  received_at: string;
+  next_attempt_at: string | null;
+  worker_token: string | null;
+  worker_id: string | null;
+  lease_expires_at: string | null;
+  error_message: string | null;
+  processed_at: string | null;
 }
 export const makeSyncJob = (over: Partial<SyncJobRow> = {}): SyncJobRow => ({
   id: over.id ?? nextId('sjob'),
@@ -239,6 +246,13 @@ export const makeSyncJob = (over: Partial<SyncJobRow> = {}): SyncJobRow => ({
   attempts: 0,
   max_attempts: 5,
   batch_id: null,
+  received_at: '2026-08-01T10:00:00.000Z',
+  next_attempt_at: null,
+  worker_token: null,
+  worker_id: null,
+  lease_expires_at: null,
+  error_message: null,
+  processed_at: null,
   ...over,
 });
 

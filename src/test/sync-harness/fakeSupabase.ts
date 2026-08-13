@@ -338,12 +338,82 @@ export function createFakeSupabase(opts?: {
       return { data: { decision: 'invalid_input' }, error: null };
     }
 
+    // ── STEG 4B: jobbkö-RPC:er (speglar SQL-semantiken) ────────────────
+    if (name === 'claim_sync_jobs') {
+      const limit = Number(args.batch_limit ?? 10);
+      const perOrg = Number(args.p_max_per_org ?? limit);
+      const leaseSec = Math.max(30, Math.min(Number(args.p_lease_seconds ?? 300), 1800));
+      const nowMs = now().getTime();
+      const all = rows('booking_sync_jobs') as any[];
+      const claimable = all
+        .filter((j) => {
+          if ((j.attempts ?? 0) >= (j.max_attempts ?? 3)) return false;
+          const due = !j.next_attempt_at || Date.parse(j.next_attempt_at) <= nowMs;
+          if ((j.status === 'pending' || j.status === 'retryable') && due) return true;
+          if (j.status === 'processing' && j.lease_expires_at && Date.parse(j.lease_expires_at) <= nowMs) return true;
+          return false;
+        })
+        .sort((a, b) => String(a.received_at ?? '').localeCompare(String(b.received_at ?? '')));
+      const perOrgCount = new Map<string, number>();
+      const picked: any[] = [];
+      for (const j of claimable) {
+        const n = (perOrgCount.get(j.organization_id) ?? 0) + 1;
+        if (n > perOrg) continue;
+        perOrgCount.set(j.organization_id, n);
+        picked.push(j);
+        if (picked.length >= limit) break;
+      }
+      for (const j of picked) {
+        j.status = 'processing';
+        j.started_at = new Date(nowMs).toISOString();
+        j.attempts = (j.attempts ?? 0) + 1;
+        j.worker_token = `wt-${++idSeq}`;
+        j.worker_id = (args.p_worker_id as string | null) ?? null;
+        j.lease_expires_at = new Date(nowMs + leaseSec * 1000).toISOString();
+      }
+      return { data: picked.map((j) => ({ ...j })), error: null };
+    }
+
+    if (name === 'complete_sync_job') {
+      const job = (rows('booking_sync_jobs') as any[]).find((j) => j.id === args._job_id);
+      if (!job || job.status !== 'processing' || job.worker_token !== args._worker_token) {
+        return { data: false, error: null };
+      }
+      job.status = 'completed';
+      job.processed_at = new Date(now().getTime()).toISOString();
+      job.error_message = null;
+      job.next_attempt_at = null;
+      job.worker_token = null;
+      job.lease_expires_at = null;
+      return { data: true, error: null };
+    }
+
+    if (name === 'fail_sync_job') {
+      const job = (rows('booking_sync_jobs') as any[]).find((j) => j.id === args._job_id);
+      if (!job || job.status !== 'processing' || job.worker_token !== args._worker_token) {
+        return { data: [{ updated: false, new_status: null }], error: null };
+      }
+      const retriable = args._retriable === true;
+      const status = retriable && (job.attempts ?? 0) < (job.max_attempts ?? 3) ? 'retryable' : 'failed';
+      job.status = status;
+      job.error_message = String(args._error ?? '').slice(0, 1000);
+      job.next_attempt_at = status === 'retryable'
+        ? ((args._next_attempt_at as string | null) ?? new Date(now().getTime() + 30_000).toISOString())
+        : null;
+      job.processed_at = status === 'failed' ? new Date(now().getTime()).toISOString() : null;
+      job.worker_token = null;
+      job.lease_expires_at = null;
+      return { data: [{ updated: true, new_status: status }], error: null };
+    }
+
     if (name === 'finalize_sync_batch') {
       const batchId = String(args._batch_id ?? '');
       const batch = rows('sync_batches').find((b) => b.id === batchId) as any;
       if (!batch) return { data: null, error: null };
       const jobs = rows('booking_sync_jobs').filter((j: any) => j.batch_id === batchId) as any[];
-      const remaining = jobs.filter((j) => j.status === 'pending' || j.status === 'processing').length;
+      const remaining = jobs.filter(
+        (j) => j.status === 'pending' || j.status === 'processing' || j.status === 'retryable',
+      ).length;
       const succeeded = jobs.filter((j) => j.status === 'completed').length;
       const failed = jobs.filter((j) => j.status === 'failed').length;
       if (remaining > 0) {

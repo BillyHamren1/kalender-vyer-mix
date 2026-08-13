@@ -1000,6 +1000,7 @@ export type Database = {
           error_message: string | null
           event_type: string
           id: string
+          lease_expires_at: string | null
           max_attempts: number
           next_attempt_at: string | null
           organization_id: string
@@ -1007,6 +1008,8 @@ export type Database = {
           received_at: string
           started_at: string | null
           status: string
+          worker_id: string | null
+          worker_token: string | null
         }
         Insert: {
           attempts?: number
@@ -1016,6 +1019,7 @@ export type Database = {
           error_message?: string | null
           event_type?: string
           id?: string
+          lease_expires_at?: string | null
           max_attempts?: number
           next_attempt_at?: string | null
           organization_id: string
@@ -1023,6 +1027,8 @@ export type Database = {
           received_at?: string
           started_at?: string | null
           status?: string
+          worker_id?: string | null
+          worker_token?: string | null
         }
         Update: {
           attempts?: number
@@ -1032,6 +1038,7 @@ export type Database = {
           error_message?: string | null
           event_type?: string
           id?: string
+          lease_expires_at?: string | null
           max_attempts?: number
           next_attempt_at?: string | null
           organization_id?: string
@@ -1039,6 +1046,8 @@ export type Database = {
           received_at?: string
           started_at?: string | null
           status?: string
+          worker_id?: string | null
+          worker_token?: string | null
         }
         Relationships: [
           {
@@ -10561,31 +10570,68 @@ export type Database = {
         Args: { p_booking_id: string }
         Returns: string
       }
-      claim_sync_jobs: {
-        Args: { batch_limit?: number }
-        Returns: {
-          attempts: number
-          batch_id: string | null
-          booking_id: string
-          created_at: string
-          error_message: string | null
-          event_type: string
-          id: string
-          max_attempts: number
-          next_attempt_at: string | null
-          organization_id: string
-          processed_at: string | null
-          received_at: string
-          started_at: string | null
-          status: string
-        }[]
-        SetofOptions: {
-          from: "*"
-          to: "booking_sync_jobs"
-          isOneToOne: false
-          isSetofReturn: true
-        }
-      }
+      claim_sync_jobs:
+        | {
+            Args: { batch_limit?: number }
+            Returns: {
+              attempts: number
+              batch_id: string | null
+              booking_id: string
+              created_at: string
+              error_message: string | null
+              event_type: string
+              id: string
+              lease_expires_at: string | null
+              max_attempts: number
+              next_attempt_at: string | null
+              organization_id: string
+              processed_at: string | null
+              received_at: string
+              started_at: string | null
+              status: string
+              worker_id: string | null
+              worker_token: string | null
+            }[]
+            SetofOptions: {
+              from: "*"
+              to: "booking_sync_jobs"
+              isOneToOne: false
+              isSetofReturn: true
+            }
+          }
+        | {
+            Args: {
+              batch_limit?: number
+              p_lease_seconds?: number
+              p_max_per_org?: number
+              p_worker_id?: string
+            }
+            Returns: {
+              attempts: number
+              batch_id: string | null
+              booking_id: string
+              created_at: string
+              error_message: string | null
+              event_type: string
+              id: string
+              lease_expires_at: string | null
+              max_attempts: number
+              next_attempt_at: string | null
+              organization_id: string
+              processed_at: string | null
+              received_at: string
+              started_at: string | null
+              status: string
+              worker_id: string | null
+              worker_token: string | null
+            }[]
+            SetofOptions: {
+              from: "*"
+              to: "booking_sync_jobs"
+              isOneToOne: false
+              isSetofReturn: true
+            }
+          }
       cleanup_duplicate_calendar_events: {
         Args: never
         Returns: {
@@ -10605,6 +10651,10 @@ export type Database = {
           orphans_deleted: number
         }[]
       }
+      complete_sync_job: {
+        Args: { _job_id: string; _worker_token: string }
+        Returns: boolean
+      }
       compute_workday_review_status: {
         Args: { p_workday_id: string }
         Returns: Database["public"]["Enums"]["workday_review_status"]
@@ -10621,6 +10671,19 @@ export type Database = {
       ensure_internal_warehouse_project: {
         Args: { _org_id: string }
         Returns: string
+      }
+      fail_sync_job: {
+        Args: {
+          _error: string
+          _job_id: string
+          _next_attempt_at?: string
+          _retriable: boolean
+          _worker_token: string
+        }
+        Returns: {
+          new_status: string
+          updated: boolean
+        }[]
       }
       finalize_sync_batch: {
         Args: { _batch_id: string }

@@ -18,6 +18,12 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
 import { finalizeBatchIfDone } from '../_shared/syncBatch.ts'
 import { validateSingleBookingResult } from '../_shared/singleBookingResult.ts'
+import {
+  classifyJobFailure,
+  nextAttemptAtIso,
+  JOB_LEASE_SECONDS,
+  resolveMaxAttempts,
+} from '../_shared/syncJobLifecycle.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -26,6 +32,7 @@ const corsHeaders = {
 
 const BATCH_SIZE = 50
 const PER_BOOKING_CONCURRENCY = 3
+const MAX_JOBS_PER_ORG = 10
 
 interface ClaimedJob {
   id: string
@@ -35,6 +42,7 @@ interface ClaimedJob {
   batch_id: string | null
   attempts: number
   max_attempts: number
+  worker_token: string | null
 }
 
 /** Klassar felmeddelanden. Nätverks-/timeout-/5xx-fel är retriable. */
@@ -60,8 +68,15 @@ serve(async (req) => {
   const supabase = createClient(supabaseUrl, serviceRoleKey)
 
   // ── 1. Claim en batch jobb (FOR UPDATE SKIP LOCKED) ───────────────
+  const workerId = `worker-${crypto.randomUUID()}`
   const { data: claimedJobs, error: claimError } = await supabase
-    .rpc('claim_sync_jobs', { batch_limit: BATCH_SIZE })
+    .rpc('claim_sync_jobs', {
+      batch_limit: BATCH_SIZE,
+      p_worker_id: workerId,
+      p_lease_seconds: JOB_LEASE_SECONDS,
+      // Poison job-isolering: en enskild org får aldrig äta hela batchen.
+      p_max_per_org: MAX_JOBS_PER_ORG,
+    })
 
   if (claimError) {
     console.error('[process-sync-jobs] Failed to claim jobs', claimError.message)
@@ -85,6 +100,7 @@ serve(async (req) => {
     booking_id: string
     event_type: string | null
     jobIds: string[]
+    tokens: Record<string, string | null>
     attempts: number
     max_attempts: number
   }>()
@@ -109,11 +125,13 @@ serve(async (req) => {
       booking_id: job.booking_id,
       event_type: job.event_type ?? null,
       jobIds: [],
+      tokens: {},
       attempts: job.attempts ?? 0,
       max_attempts: job.max_attempts ?? 3,
     }
     if (!entry.event_type && job.event_type) entry.event_type = job.event_type
     entry.jobIds.push(job.id)
+    entry.tokens[job.id] = job.worker_token ?? null
     entry.attempts = Math.max(entry.attempts, job.attempts ?? 0)
     entry.max_attempts = Math.max(entry.max_attempts, job.max_attempts ?? 3)
     jobIdList.push(job.id)
@@ -128,8 +146,9 @@ serve(async (req) => {
     booking_id: string
     organization_id: string
     job_count: number
-    status: 'completed' | 'failed' | 'retry'
+    status: 'completed' | 'failed' | 'retry' | 'lease_lost'
     error?: string
+    reason?: string
   }> = []
 
   const entries = Array.from(groups.values())
@@ -184,69 +203,72 @@ serve(async (req) => {
         `[process-sync-jobs] contract ok booking=${group.booking_id} outcome=${validation.outcome}`
       )
 
-      await supabase
-        .from('booking_sync_jobs')
-        .update({
-          status: 'completed',
-          processed_at: new Date().toISOString(),
-          error_message: null,
-          next_attempt_at: null,
+      // Token-skyddad commit: en worker som förlorat sin lease kan inte skriva.
+      let committed = 0
+      for (const jobId of group.jobIds) {
+        const { data: ok, error: completeErr } = await supabase.rpc('complete_sync_job', {
+          _job_id: jobId,
+          _worker_token: group.tokens[jobId],
         })
-        .in('id', group.jobIds)
+        if (completeErr) {
+          console.error(`[process-sync-jobs] complete_sync_job failed job=${jobId}`, completeErr.message)
+          continue
+        }
+        if (ok === true) committed++
+        else console.warn(`[process-sync-jobs] lease lost, commit ignored job=${jobId}`)
+      }
 
       results.push({
         booking_id: group.booking_id,
         organization_id: group.organization_id,
         job_count: group.jobIds.length,
-        status: 'completed',
+        status: committed > 0 ? 'completed' : 'lease_lost',
       })
     } catch (err: any) {
       const errMsg = String(err?.message || err).substring(0, 1000)
       const permanent = err?.permanent === true
       const retriable = !permanent && (err?.permanent === false || isRetriableError(errMsg))
-      const canRetry = retriable && group.attempts < group.max_attempts
+      const outcome = classifyJobFailure({
+        permanent,
+        retriable,
+        attempts: group.attempts,
+        maxAttempts: group.max_attempts,
+      })
+      const nextAt = outcome.status === 'retryable' ? nextAttemptAtIso(group.attempts) : null
 
-      if (canRetry) {
-        const backoffSec = Math.min(30 * group.attempts, 300)
-        const nextAt = new Date(Date.now() + backoffSec * 1000).toISOString()
-        await supabase
-          .from('booking_sync_jobs')
-          .update({
-            status: 'pending',
-            error_message: `[retry ${group.attempts}/${group.max_attempts}] ${errMsg}`,
-            next_attempt_at: nextAt,
-          })
-          .in('id', group.jobIds)
-        results.push({
-          booking_id: group.booking_id,
-          organization_id: group.organization_id,
-          job_count: group.jobIds.length,
-          status: 'retry',
-          error: errMsg,
+      let finalStatus: string = outcome.status
+      for (const jobId of group.jobIds) {
+        const { data, error: failErr } = await supabase.rpc('fail_sync_job', {
+          _job_id: jobId,
+          _worker_token: group.tokens[jobId],
+          _error: `[attempt ${group.attempts}/${group.max_attempts}] ${errMsg}`,
+          _retriable: outcome.status === 'retryable',
+          _next_attempt_at: nextAt,
         })
-        console.warn(
-          `[process-sync-jobs] booking=${group.booking_id} RETRY in ${backoffSec}s: ${errMsg}`
-        )
+        if (failErr) {
+          console.error(`[process-sync-jobs] fail_sync_job failed job=${jobId}`, failErr.message)
+          continue
+        }
+        const row = Array.isArray(data) ? data[0] : data
+        if (row?.updated !== true) {
+          console.warn(`[process-sync-jobs] lease lost, failure write ignored job=${jobId}`)
+        } else if (row?.new_status) {
+          finalStatus = row.new_status
+        }
+      }
+
+      results.push({
+        booking_id: group.booking_id,
+        organization_id: group.organization_id,
+        job_count: group.jobIds.length,
+        status: finalStatus === 'retryable' ? 'retry' : 'failed',
+        error: errMsg,
+        reason: outcome.reason,
+      })
+      if (finalStatus === 'retryable') {
+        console.warn(`[process-sync-jobs] booking=${group.booking_id} RETRY at ${nextAt}: ${errMsg}`)
       } else {
-        await supabase
-          .from('booking_sync_jobs')
-          .update({
-            status: 'failed',
-            error_message: errMsg,
-            processed_at: new Date().toISOString(),
-            next_attempt_at: null,
-          })
-          .in('id', group.jobIds)
-        results.push({
-          booking_id: group.booking_id,
-          organization_id: group.organization_id,
-          job_count: group.jobIds.length,
-          status: 'failed',
-          error: errMsg,
-        })
-        console.error(
-          `[process-sync-jobs] booking=${group.booking_id} FAILED (permanent): ${errMsg}`
-        )
+        console.error(`[process-sync-jobs] booking=${group.booking_id} FAILED (${outcome.reason}): ${errMsg}`)
       }
     }
   }
