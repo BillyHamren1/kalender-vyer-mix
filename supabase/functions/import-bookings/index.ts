@@ -4465,6 +4465,7 @@ serve(async (req) => {
                       .eq('organization_id', organizationId);
                     if (seqUpdateError) {
                       console.error(`Error attaching early accessories to ${lastParentProductId}:`, seqUpdateError);
+                      results.errors.push({ booking_id: bookingData.id, error: `product_parent_link_failed:${seqUpdateError.message || seqUpdateError}` });
                     }
                     pendingSequentialAccessoryIds.length = 0;
                   }
@@ -4472,7 +4473,9 @@ serve(async (req) => {
               }
             } catch (productErr) {
               console.error(`Error processing product for booking ${bookingData.id}:`, productErr)
+              results.errors.push({ booking_id: bookingData.id, error: `product_processing_failed:${productErr instanceof Error ? productErr.message : String(productErr)}` });
             }
+
             }
           }
 
