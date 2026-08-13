@@ -2152,7 +2152,9 @@ const expandPackageComponents = async (
         .insert(componentData);
 
       if (compError) {
+        // STEG 3P: komponent-expansion är canonical projection — fel får aldrig sväljas.
         console.error(`[Package Expand] Error inserting component "${comp.name}":`, compError);
+        componentErrors.push(`${comp.name || 'unknown'}:${compError.message || String(compError)}`);
       } else {
         totalExpanded++;
         existingComponentNames.add((comp.name || '').trim().toLowerCase());
@@ -2161,8 +2163,12 @@ const expandPackageComponents = async (
     }
   }
 
-  return totalExpanded;
+  return {
+    expanded: totalExpanded,
+    error: componentErrors.length > 0 ? `package_component_insert_failed:${componentErrors.join('|')}` : null,
+  };
 };
+
 
 /**
  * Full sync packing list items to match booking_products.
