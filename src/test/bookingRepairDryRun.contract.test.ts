@@ -48,8 +48,8 @@ const canonicalBooking = (over: Record<string, unknown> = {}) => ({
   products_complete: true,
   dates_complete: true,
   products: [
-    { name: 'Högtalare', quantity: 2, unit_price: 100 },
-    { name: 'Mixer', quantity: 1, unit_price: 500 },
+    { name: 'Högtalare', quantity: 2, unit_price: 100, total_price: 200 },
+    { name: 'Mixer', quantity: 1, unit_price: 500, total_price: 500 },
   ],
   ...over,
 });
@@ -132,8 +132,8 @@ describe('4F: matching booking', () => {
         ...emptyPlanning(),
         booking: planningBooking(),
         products: [
-          { name: 'Högtalare', quantity: 2, unit_price: 100 },
-          { name: 'Mixer', quantity: 1, unit_price: 500 },
+          { name: 'Högtalare', quantity: 2, unit_price: 100, total_price: 200 },
+          { name: 'Mixer', quantity: 1, unit_price: 500, total_price: 500 },
         ],
         calendarEvents: events(),
         sourceState: sourceState(),
@@ -163,7 +163,7 @@ describe('4F: stale Planning', () => {
       planning: {
         ...emptyPlanning(),
         booking: planningBooking(),
-        products: [{ name: 'Högtalare', quantity: 1, unit_price: 100 }],
+        products: [{ name: 'Högtalare', quantity: 1, unit_price: 100, total_price: 100 }],
         calendarEvents: events(),
         sourceState: sourceState(),
       },
@@ -194,14 +194,14 @@ describe('4F: partial products', () => {
     const diff = run({
       sourcePayload: sourceEnvelope(canonicalBooking({
         products_complete: false,
-        products: [{ name: 'Högtalare', quantity: 2, unit_price: 100 }],
+        products: [{ name: 'Högtalare', quantity: 2, unit_price: 100, total_price: 200 }],
       })),
       planning: {
         ...emptyPlanning(),
         booking: planningBooking(),
         products: [
-          { name: 'Högtalare', quantity: 2, unit_price: 100 },
-          { name: 'Gammal produkt', quantity: 1, unit_price: 50 },
+          { name: 'Högtalare', quantity: 2, unit_price: 100, total_price: 200 },
+          { name: 'Gammal produkt', quantity: 1, unit_price: 50, total_price: 50 },
         ],
         sourceState: sourceState(),
       },
@@ -218,7 +218,7 @@ describe('4F: partial products', () => {
       planning: {
         ...emptyPlanning(),
         booking: planningBooking(),
-        products: [{ name: 'Högtalare', quantity: 2, unit_price: 100 }],
+        products: [{ name: 'Högtalare', quantity: 2, unit_price: 100, total_price: 200 }],
         sourceState: sourceState(),
       },
     });
