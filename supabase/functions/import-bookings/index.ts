@@ -1609,11 +1609,20 @@ async function reconcileCalendarEvents(
       }
     }
 
-    const { data: postReconcileEvents } = await supabase
+    // STEG 4J-KLASSNING: BEST-EFFORT AUDIT (observability).
+    // Denna read verifierar INTE projectionen canonicalt — den matar endast
+    // sync_audit_log/has_mismatch. Ett läsfel loggas som best-effort och
+    // påverkar aldrig canonical result (reconcile förblir ok:true).
+    const { data: postReconcileEvents, error: postReconcileError } = await supabase
       .from('calendar_events')
       .select('id, event_type, start_time, end_time, resource_id, source_date')
       .eq('booking_id', bookingData.id)
       .eq('organization_id', bookingData.organization_id || organizationId);
+
+    if (postReconcileError) {
+      console.warn(`[Sync Audit] BEST-EFFORT post-reconcile read failed for ${bookingData.id} (canonical result unaffected):`, postReconcileError);
+    }
+
 
     const actualEventsJson = (postReconcileEvents || []).map((e: any) => ({
       id: e.id, event_type: e.event_type,
