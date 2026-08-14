@@ -7,6 +7,7 @@ import { extractUTCTime, buildUTCDateTime } from '@/utils/dateUtils';
 import { moveLargeProjectDay, setLargeProjectDayTeam, type LargeProjectPhase } from '@/services/largeProjectPlannerService';
 import { resolveCalendarEventId } from '@/services/calendarEventResolver';
 import type { CalendarEvent } from '@/components/Calendar/ResourceData';
+import { recomputeBookingStaffForDay } from '@/lib/calendar/recomputeBookingStaff';
 
 // Serializable subset stored in dataTransfer
 export interface DraggedEventData {
@@ -230,10 +231,7 @@ export const useEventDragDrop = (
         const dates = Array.from(new Set([currentDateStr, targetDateStr]));
         await Promise.all(bookingIds.flatMap(bid =>
           dates.map(d =>
-            supabase.rpc('recompute_booking_staff_for_day' as any, {
-              p_booking_id: bid,
-              p_date: d,
-            }).then(() => {}, (err: any) => {
+            recomputeBookingStaffForDay(bid, d).then(() => {}, (err: any) => {
               console.warn('[useEventDragDrop] BSA recompute failed (non-fatal)', { bid, d, err });
             })
           )
@@ -264,10 +262,7 @@ export const useEventDragDrop = (
         await updateCalendarEvent(realEventId, { resourceId: targetTeamId });
 
         if (eventData.bookingId) {
-          await supabase.rpc('recompute_booking_staff_for_day' as any, {
-            p_booking_id: eventData.bookingId,
-            p_date: currentDateStr,
-          });
+          await recomputeBookingStaffForDay(eventData.bookingId, currentDateStr);
         }
 
         toast.success('Team uppdaterat');
@@ -374,18 +369,12 @@ export const useEventDragDrop = (
 
       tasks.push(
         Promise.resolve(
-          supabase.rpc('recompute_booking_staff_for_day' as any, {
-            p_booking_id: eventData.bookingId,
-            p_date: currentDateStr,
-          })
+          recomputeBookingStaffForDay(eventData.bookingId, currentDateStr)
         ).then(() => {}, (rpcErr: any) => {
           console.warn('[useEventDragDrop] BSA recompute (source) failed (non-fatal)', rpcErr);
         }),
         Promise.resolve(
-          supabase.rpc('recompute_booking_staff_for_day' as any, {
-            p_booking_id: eventData.bookingId,
-            p_date: targetDateStr,
-          })
+          recomputeBookingStaffForDay(eventData.bookingId, targetDateStr)
         ).then(() => {}, (rpcErr: any) => {
           console.warn('[useEventDragDrop] BSA recompute (target) failed (non-fatal)', rpcErr);
         }),

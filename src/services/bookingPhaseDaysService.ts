@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { findExistingDayRow, getStickyTeamForBooking } from '@/lib/calendar/projectTeamStickiness';
+import { recomputeBookingStaffForDay } from '@/lib/calendar/recomputeBookingStaff';
 
 export type Phase = 'rig' | 'event' | 'rigDown';
 
@@ -136,10 +137,7 @@ export async function syncBookingPhaseDays(params: {
       }
 
       try {
-        await supabase.rpc('recompute_booking_staff_for_day' as any, {
-          p_booking_id: bookingId,
-          p_date: date,
-        });
+        await recomputeBookingStaffForDay(bookingId, date, { organizationId: booking.organization_id, context: "syncBookingPhaseDays" });
       } catch (rpcErr) {
         console.warn('[syncBookingPhaseDays] BSA recompute failed (non-fatal)', rpcErr);
       }

@@ -30,13 +30,13 @@ function read(rel: string): string {
 describe('Calendar Team Model — contract', () => {
   it('useEventDragDrop calls recompute_booking_staff_for_day for source and target dates', () => {
     const src = read('src/hooks/useEventDragDrop.ts');
-    const matches = src.match(/recompute_booking_staff_for_day/g) ?? [];
+    const matches = src.match(/recomputeBookingStaffForDay\(/g) ?? [];
     expect(matches.length).toBeGreaterThanOrEqual(2);
   });
 
   it('useEventOperations calls recompute_booking_staff_for_day on move', () => {
     const src = read('src/hooks/useEventOperations.tsx');
-    expect(src).toMatch(/recompute_booking_staff_for_day/);
+    expect(src).toMatch(/recomputeBookingStaffForDay\(/);
   });
 
   it('useEventOperations saves large-project team moves via setLargeProjectDayTeam', () => {
@@ -52,7 +52,7 @@ describe('Calendar Team Model — contract', () => {
 
   it('MoveEventDateDialog calls recompute_booking_staff_for_day', () => {
     const src = read('src/components/Calendar/MoveEventDateDialog.tsx');
-    expect(src).toMatch(/recompute_booking_staff_for_day/);
+    expect(src).toMatch(/recomputeBookingStaffForDay\(/);
   });
 
   it('import-bookings reconciler invokes recompute_booking_staff_for_day after BSA changes', () => {

@@ -4,6 +4,7 @@ import { type LargeProjectPhase } from '@/services/largeProjectPlannerService';
 import { supabase } from '@/integrations/supabase/client';
 import { CalendarEvent, Resource } from '@/components/Calendar/ResourceData';
 import { toast } from 'sonner';
+import { recomputeBookingStaffForDay } from '@/lib/calendar/recomputeBookingStaff';
 
 export const useEventOperations = ({ 
   resources, 
@@ -155,10 +156,7 @@ export const useEventOperations = ({
           const dates = Array.from(new Set([oldDate, newDate].filter(Boolean))) as string[];
           await Promise.all(bookingIdCandidates.flatMap(bid =>
             dates.map(d =>
-              supabase.rpc('recompute_booking_staff_for_day' as any, {
-                p_booking_id: bid,
-                p_date: d,
-              })
+              recomputeBookingStaffForDay(bid, d)
             )
           ));
         }
