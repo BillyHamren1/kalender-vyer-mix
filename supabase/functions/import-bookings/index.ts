@@ -984,10 +984,12 @@ async function reconcileCalendarEvents(
       .eq('organization_id', calendarOrgId)
       .maybeSingle();
     if (linkedProjectErr) {
+      // STEG 4J: DB-fel ≠ legitim skip. Vi kan inte verifiera projectionen.
       console.error(`[Calendar Reconcile] FAIL-CLOSED booking ${bookingData.id}: project planning_status read failed`, linkedProjectErr);
-      return { ok: true };
+      return { ok: false, error: `calendar_project_guard_read_failed:${linkedProjectErr.message || linkedProjectErr}` };
     }
     if (linkedProject?.planning_status === 'needs_planning') {
+      // Legitim SKIP (read lyckades) → ok:true.
       console.log(`[Calendar Reconcile] SKIP booking ${bookingData.id}: linked project is needs_planning`);
       return { ok: true };
     }
@@ -999,7 +1001,7 @@ async function reconcileCalendarEvents(
       .maybeSingle();
     if (parentForLPErr) {
       console.error(`[Calendar Reconcile] FAIL-CLOSED booking ${bookingData.id}: parent booking read failed`, parentForLPErr);
-      return { ok: true };
+      return { ok: false, error: `calendar_parent_booking_read_failed:${parentForLPErr.message || parentForLPErr}` };
     }
     if (parentForLP?.large_project_id) {
       // Parent-bokningen är redan tenant-verifierad ovan → LP-lookupen scopas
@@ -1012,7 +1014,7 @@ async function reconcileCalendarEvents(
         .maybeSingle();
       if (lpErr) {
         console.error(`[Calendar Reconcile] FAIL-CLOSED booking ${bookingData.id}: large_project planning_status read failed`, lpErr);
-        return { ok: true };
+        return { ok: false, error: `calendar_large_project_guard_read_failed:${lpErr.message || lpErr}` };
       }
       if (lp?.planning_status === 'needs_planning') {
         console.log(`[Calendar Reconcile] SKIP booking ${bookingData.id}: large project ${parentForLP.large_project_id} is needs_planning`);
@@ -1034,16 +1036,16 @@ async function reconcileCalendarEvents(
         .neq('event_type', 'activity');
       if (ceCountErr) {
         console.error(`[Calendar Reconcile] FAIL-CLOSED booking ${bookingData.id}: calendar_events count read failed`, ceCountErr);
-        return { ok: true };
+        return { ok: false, error: `calendar_events_count_read_failed:${ceCountErr.message || ceCountErr}` };
       }
       if (!existingCeCount || existingCeCount === 0) {
         console.log(`[Calendar Reconcile] SKIP booking ${bookingData.id}: no linked project/large_project and no existing events (awaiting manual planning)`);
         return { ok: true };
       }
     }
-  } catch (planningGuardErr) {
+  } catch (planningGuardErr: any) {
     console.error('[Calendar Reconcile] FAIL-CLOSED planning_status guard threw:', planningGuardErr);
-    return { ok: true };
+    return { ok: false, error: `calendar_project_guard_read_failed:${planningGuardErr?.message || planningGuardErr}` };
   }
 
   // ────────────────────────────────────────────────────────────────────────
@@ -1051,14 +1053,22 @@ async function reconcileCalendarEvents(
   // 1. Fetch ALL existing calendar events for this booking
   // NOTE: Exclude event_type='activity' — those are user-created activity syncs
   // (establishment_tasks → calendar_events) and must NOT be touched by the reconciler.
-  const { data: existingEvents } = await supabase
+  // STEG 4J: ett läsfel får ALDRIG tolkas som "0 existing events" — det skulle
+  // leda till felaktiga inserts. Fail-closed före all mutation.
+  const { data: existingEvents, error: existingEventsError } = await supabase
     .from('calendar_events')
     .select('id, event_type, start_time, end_time, title, booking_number, delivery_address, resource_id, source_date, times_locked')
     .eq('booking_id', bookingData.id)
     .eq('organization_id', bookingData.organization_id || organizationId)
     .neq('event_type', 'activity');
 
+  if (existingEventsError) {
+    console.error(`[Calendar Reconcile] FAIL-CLOSED booking ${bookingData.id}: existing calendar_events read failed`, existingEventsError);
+    return { ok: false, error: `calendar_existing_events_read_failed:${existingEventsError.message || existingEventsError}` };
+  }
+
   console.log(`[Calendar Reconcile] Booking ${bookingData.id}: ${existingEvents?.length || 0} existing events`);
+
 
   // 2. Compute the DESIRED state from booking data
   const desiredEvents: Array<{
