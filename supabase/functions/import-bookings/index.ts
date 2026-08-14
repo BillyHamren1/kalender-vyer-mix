@@ -1397,19 +1397,28 @@ async function reconcileCalendarEvents(
     } else {
       // Rental-only: gå direkt till Lager-kolumnen (resource_id='transport'),
       // hoppa över team-1..5 round-robin helt.
-      const placement = desired.rentalOnly
-        ? { team: 'transport', start_time: desired.start_time, end_time: desired.end_time }
-        : await assignTeamAndTime(
-            supabase,
-            desired.event_type,
-            desired.date,
-            bookingData.id,
-            bookingData.organization_id || organizationId,
-            desired.start_time,
-            desired.end_time,
-            desired.isExplicitStart,
-            largeProjectIdForGuard,
-          );
+      const placement: { team: string; start_time: string; end_time: string; error?: string } =
+        desired.rentalOnly
+          ? { team: 'transport', start_time: desired.start_time, end_time: desired.end_time }
+          : await assignTeamAndTime(
+              supabase,
+              desired.event_type,
+              desired.date,
+              bookingData.id,
+              bookingData.organization_id || organizationId,
+              desired.start_time,
+              desired.end_time,
+              desired.isExplicitStart,
+              largeProjectIdForGuard,
+            );
+
+      // STEG 4J: osäker placering → ingen insert, reconcile blir partial.
+      if (placement.error) {
+        console.error(`[Calendar Reconcile] FAIL-CLOSED placement for ${desired.event_type}@${desired.date}: ${placement.error}`);
+        calendarError = calendarError || `calendar_placement_failed:${placement.error}`;
+        continue;
+      }
+
 
       if (results.team_distribution[placement.team] !== undefined) {
         results.team_distribution[placement.team]++;
