@@ -26,6 +26,7 @@ const FORBIDDEN_SERVICES = [
   'savePhaseDays',
   'moveLargeProjectDay',
   'recompute_booking_staff_for_day',
+  'recomputeBookingStaffForDay',
 ];
 
 describe('Planner popover + add-day dialog — strikt isolering', () => {
