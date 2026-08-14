@@ -8,8 +8,8 @@ import { toast } from 'sonner';
 import { format, parse } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
-import {
 import { recomputeBookingStaffForDay } from '@/lib/calendar/recomputeBookingStaff';
+import {
   findExistingDayRow,
   getStickyTeamForBooking,
 } from '@/lib/calendar/projectTeamStickiness';

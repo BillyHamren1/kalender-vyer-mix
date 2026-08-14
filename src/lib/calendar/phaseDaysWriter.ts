@@ -25,8 +25,8 @@
  *  - Skrivvägen är densamma för personalkalendern och stora projekt-planeraren.
  */
 import { supabase } from '@/integrations/supabase/client';
-import {
 import { recomputeBookingStaffForDay } from '@/lib/calendar/recomputeBookingStaff';
+import {
   findExistingDayRow,
   getStickyTeamForBooking,
   getStickyTeamForLargeProject,
