@@ -2617,12 +2617,29 @@ serve(async (req) => {
     // Get the last sync timestamp for incremental sync (but not for historical)
     let lastSyncTimestamp = null;
     if (syncMode === 'incremental' && !isHistoricalImport) {
-      const { data: syncState } = await supabase
+      // STEG 4K: KLASS A (canonical). Cursorn styr importfönstret — ett läsfel
+      // får inte tyst bli "ingen cursor" och därmed ett felaktigt fönster.
+      const { data: syncState, error: syncStateReadError } = await supabase
         .from('sync_state')
         .select('last_sync_timestamp')
         .eq('sync_type', 'booking_import')
         .eq('organization_id', organizationId)
         .maybeSingle()
+
+      if (syncStateReadError) {
+        console.error('[import-bookings] FAIL-CLOSED cursor read failed', JSON.stringify({
+          organization_id: organizationId,
+          error: syncStateReadError.message || String(syncStateReadError),
+        }));
+        return new Response(JSON.stringify({
+          success: false,
+          completed: false,
+          error: `sync_cursor_read_failed:${syncStateReadError.message || syncStateReadError}`,
+          results: { total: 0, imported: 0, failed: 0, errors: [{ error: 'sync_cursor_read_failed' }] },
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+      }
+
+
       
       lastSyncTimestamp = syncState?.last_sync_timestamp;
       console.log(`[import-bookings] cursor read`, JSON.stringify({
