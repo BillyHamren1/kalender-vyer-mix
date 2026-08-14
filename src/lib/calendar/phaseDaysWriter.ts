@@ -241,7 +241,7 @@ export async function savePhaseDays(input: SavePhaseDaysInput): Promise<SavePhas
 
       // Recompute BSA för dagen så personalen speglas från det valda teamet
       try {
-        await recomputeBookingStaffForDay(bookingId, spec.date);
+        await recomputeBookingStaffForDay(bookingId, spec.date, { organizationId: orgId, context: "savePhaseDays" });
       } catch (rpcErr) {
         console.warn('[savePhaseDays] BSA recompute failed (non-fatal)', rpcErr);
       }

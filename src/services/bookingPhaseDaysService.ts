@@ -137,7 +137,7 @@ export async function syncBookingPhaseDays(params: {
       }
 
       try {
-        await recomputeBookingStaffForDay(bookingId, date);
+        await recomputeBookingStaffForDay(bookingId, date, { organizationId: booking.organization_id, context: "syncBookingPhaseDays" });
       } catch (rpcErr) {
         console.warn('[syncBookingPhaseDays] BSA recompute failed (non-fatal)', rpcErr);
       }
