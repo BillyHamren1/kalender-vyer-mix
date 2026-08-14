@@ -77,6 +77,49 @@ describe('STEG 4I — recompute_booking_staff_for_day_v2', () => {
     expect(V2).not.toContain('INTO v_org');
   });
 
+  it('STEG 4M — ON CONFLICT är tenant-säker (organization_id först)', () => {
+    const ins = V2.slice(V2.indexOf('INSERT INTO public.booking_staff_assignments'));
+    expect(ins).toContain('ON CONFLICT (organization_id, booking_id, staff_id, assignment_date)');
+    // Global (tenant-osäker) conflict target får inte finnas kvar i V2
+    expect(ins).not.toMatch(/ON CONFLICT \(booking_id, staff_id, assignment_date\)/);
+  });
+
+  it('STEG 4M — tenant-säkert unique index finns och skapas idempotent utan datamutationer', () => {
+    const m4m = readdirSync(migDir)
+      .filter((f) => f.endsWith('.sql'))
+      .sort()
+      .map((f) => readFileSync(join(migDir, f), 'utf-8'))
+      .filter((sql) => sql.includes('booking_staff_assignments_org_booking_staff_date_uidx'))
+      .join('\n\n');
+
+    expect(m4m).toContain('CREATE UNIQUE INDEX IF NOT EXISTS booking_staff_assignments_org_booking_staff_date_uidx');
+    expect(m4m).toContain('(organization_id, booking_id, staff_id, assignment_date)');
+    expect(m4m).not.toMatch(/DELETE FROM public\.booking_staff_assignments/i);
+    expect(m4m).not.toMatch(/TRUNCATE/i);
+  });
+
+  it('STEG 4M — cross-tenant: samma booking/staff/datum i två orgs kollider inte under nya nyckeln', () => {
+    // Simulerar unikhetsnyckeln som index-definitionen ger.
+    const key = (r: { org: string; booking: string; staff: string; date: string }) =>
+      [r.org, r.booking, r.staff, r.date].join('|');
+
+    const orgA = { org: 'ORG_A', booking: '2604-144', staff: 'S1', date: '2026-08-14' };
+    const orgB = { org: 'ORG_B', booking: '2604-144', staff: 'S1', date: '2026-08-14' };
+
+    const rows = new Map<string, typeof orgA>();
+    rows.set(key(orgA), orgA);
+    expect(rows.has(key(orgB))).toBe(false); // ingen konflikt mellan tenants
+    rows.set(key(orgB), orgB);
+    expect(rows.size).toBe(2);
+
+    // Recompute i ORG_A får aldrig röra ORG_B (delete-filter innehåller organization_id)
+    const del = V2.slice(
+      V2.indexOf('DELETE FROM public.booking_staff_assignments'),
+      V2.indexOf('RETURNING 1'),
+    );
+    expect(del).toContain('bsa.organization_id = p_organization_id');
+  });
+
   it('behåller SECURITY DEFINER med strikt search_path och begränsade grants', () => {
     expect(V2).toContain('SECURITY DEFINER');
     expect(V2).toContain("SET search_path TO 'public'");
