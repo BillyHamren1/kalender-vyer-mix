@@ -3047,12 +3047,34 @@ serve(async (req) => {
         // ALDRIG destruktiv cancellation — inte ens när feature-flaggan är på.
         // Här loggas endast en kandidat. Enda destruktiva vägen är den
         // separata, explicit bekräftade reconcile/cancellation-vägen.
-        const { data: existingBooking } = await supabase
+        // STEG 4K: KLASS A (canonical decision read). Ett DB-fel får ALDRIG
+        // tolkas som "bokningen finns inte lokalt" → already_current.
+        // Endast en LYCKAD read som ger null betyder "saknas lokalt".
+        const { data: existingBooking, error: existingBookingReadError } = await supabase
           .from('bookings')
           .select('id, version, assigned_to_project, assigned_project_id, assigned_project_name, status, organization_id')
           .eq('id', normalizedSingleBookingId)
           .eq('organization_id', organizationId)
           .maybeSingle();
+
+        if (existingBookingReadError) {
+          console.error('[cancellation] FAIL-CLOSED local booking read failed — no cancellation, no cursor', JSON.stringify({
+            booking_id: normalizedSingleBookingId,
+            organization_id: organizationId,
+            error: existingBookingReadError.message || String(existingBookingReadError),
+          }));
+          return new Response(JSON.stringify(buildSingleBookingEnvelope({
+            bookingId: normalizedSingleBookingId,
+            organizationId,
+            outcome: 'failed',
+            error: `cancellation_local_booking_read_failed:${existingBookingReadError.message || existingBookingReadError}`,
+            results: {
+              total: 1, imported: 0, failed: 1,
+              errors: [{ booking_id: normalizedSingleBookingId, error: 'cancellation_local_booking_read_failed' }],
+              sync_mode: 'cancellation_candidate',
+            },
+          })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+        }
 
         if (!existingBooking) {
           return new Response(JSON.stringify(buildSingleBookingEnvelope({
@@ -3062,6 +3084,7 @@ serve(async (req) => {
             results: { total: 1, imported: 0, failed: 0, errors: [], sync_mode: 'cancellation_noop' },
           })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
         }
+
 
         // Redan avbokad lokalt → inget att göra, ingen kandidat.
         if (String(existingBooking.status ?? '').toUpperCase() === 'CANCELLED') {
