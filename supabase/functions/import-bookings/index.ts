@@ -373,7 +373,7 @@ async function syncAllAttachments(
 
   if (existingAttachmentsError) {
     console.error(`[Attachments] FAIL-CLOSED existing attachments read failed for ${bookingId}:`, existingAttachmentsError);
-    results.errors.push({ booking_id: bookingId, error: `attachments_existing_read_failed:${existingAttachmentsError.message || existingAttachmentsError}` });
+    results?.errors?.push({ booking_id: bookingId, error: `attachments_existing_read_failed:${existingAttachmentsError.message || existingAttachmentsError}` });
     return;
   }
 
