@@ -363,14 +363,24 @@ async function syncAllAttachments(
   orgId: string
 ) {
   // --- 1. Fetch all existing URLs for this booking ONCE ---
-  const { data: existingAttachments } = await supabase
+  // STEG 4K: KLASS A (dedup styr mutation). Ett läsfel får inte tolkas som
+  // "inga befintliga bilagor" → hoppa additiv insert helt istället för att
+  // gissa. Inga bilagor raderas någonsin här.
+  const { data: existingAttachments, error: existingAttachmentsError } = await supabase
     .from('booking_attachments')
     .select('url')
     .eq('booking_id', bookingId);
-  
+
+  if (existingAttachmentsError) {
+    console.error(`[Attachments] FAIL-CLOSED existing attachments read failed for ${bookingId}:`, existingAttachmentsError);
+    results?.errors?.push({ booking_id: bookingId, error: `attachments_existing_read_failed:${existingAttachmentsError.message || existingAttachmentsError}` });
+    return;
+  }
+
   // Strip query params for dedup comparison to avoid duplicates from cache-busting params
   const stripQueryParams = (url: string) => url.split('?')[0];
   const seenUrls = new Set<string>((existingAttachments || []).map((a: any) => stripQueryParams(a.url)));
+
 
   const insertAttachment = async (url: string, fileName: string, fileType: string) => {
     const baseUrl = stripQueryParams(url);
@@ -2617,12 +2627,29 @@ serve(async (req) => {
     // Get the last sync timestamp for incremental sync (but not for historical)
     let lastSyncTimestamp = null;
     if (syncMode === 'incremental' && !isHistoricalImport) {
-      const { data: syncState } = await supabase
+      // STEG 4K: KLASS A (canonical). Cursorn styr importfönstret — ett läsfel
+      // får inte tyst bli "ingen cursor" och därmed ett felaktigt fönster.
+      const { data: syncState, error: syncStateReadError } = await supabase
         .from('sync_state')
         .select('last_sync_timestamp')
         .eq('sync_type', 'booking_import')
         .eq('organization_id', organizationId)
         .maybeSingle()
+
+      if (syncStateReadError) {
+        console.error('[import-bookings] FAIL-CLOSED cursor read failed', JSON.stringify({
+          organization_id: organizationId,
+          error: syncStateReadError.message || String(syncStateReadError),
+        }));
+        return new Response(JSON.stringify({
+          success: false,
+          completed: false,
+          error: `sync_cursor_read_failed:${syncStateReadError.message || syncStateReadError}`,
+          results: { total: 0, imported: 0, failed: 0, errors: [{ error: 'sync_cursor_read_failed' }] },
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+      }
+
+
       
       lastSyncTimestamp = syncState?.last_sync_timestamp;
       console.log(`[import-bookings] cursor read`, JSON.stringify({
@@ -3047,12 +3074,34 @@ serve(async (req) => {
         // ALDRIG destruktiv cancellation — inte ens när feature-flaggan är på.
         // Här loggas endast en kandidat. Enda destruktiva vägen är den
         // separata, explicit bekräftade reconcile/cancellation-vägen.
-        const { data: existingBooking } = await supabase
+        // STEG 4K: KLASS A (canonical decision read). Ett DB-fel får ALDRIG
+        // tolkas som "bokningen finns inte lokalt" → already_current.
+        // Endast en LYCKAD read som ger null betyder "saknas lokalt".
+        const { data: existingBooking, error: existingBookingReadError } = await supabase
           .from('bookings')
           .select('id, version, assigned_to_project, assigned_project_id, assigned_project_name, status, organization_id')
           .eq('id', normalizedSingleBookingId)
           .eq('organization_id', organizationId)
           .maybeSingle();
+
+        if (existingBookingReadError) {
+          console.error('[cancellation] FAIL-CLOSED local booking read failed — no cancellation, no cursor', JSON.stringify({
+            booking_id: normalizedSingleBookingId,
+            organization_id: organizationId,
+            error: existingBookingReadError.message || String(existingBookingReadError),
+          }));
+          return new Response(JSON.stringify(buildSingleBookingEnvelope({
+            bookingId: normalizedSingleBookingId,
+            organizationId,
+            outcome: 'failed',
+            error: `cancellation_local_booking_read_failed:${existingBookingReadError.message || existingBookingReadError}`,
+            results: {
+              total: 1, imported: 0, failed: 1,
+              errors: [{ booking_id: normalizedSingleBookingId, error: 'cancellation_local_booking_read_failed' }],
+              sync_mode: 'cancellation_candidate',
+            },
+          })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+        }
 
         if (!existingBooking) {
           return new Response(JSON.stringify(buildSingleBookingEnvelope({
@@ -3062,6 +3111,7 @@ serve(async (req) => {
             results: { total: 1, imported: 0, failed: 0, errors: [], sync_mode: 'cancellation_noop' },
           })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
         }
+
 
         // Redan avbokad lokalt → inget att göra, ingen kandidat.
         if (String(existingBooking.status ?? '').toUpperCase() === 'CANCELLED') {
@@ -4319,21 +4369,39 @@ serve(async (req) => {
           // No longer delete-and-recreate here — the reconciler handles create/update/delete
 
           // PRODUCT UPDATE WITH PACKING LIST RECONNECTION
+          // STEG 4K: båda dessa reads är KLASS A (canonical). De styr om packing
+          // reconnection / product preservation sker. Ett DB-fel får ALDRIG bli
+          // "ingen packing project finns" eller "inga gamla produkter finns".
           // 1. Fetch packing project for this booking (if exists)
-          const { data: packingProject } = await supabase
+          const { data: packingProject, error: packingProjectReadError } = await supabase
             .from('packing_projects')
             .select('id')
             .eq('booking_id', existingBooking.id)
             .eq('organization_id', bookingData.organization_id)
             .maybeSingle();
-          
+
+          if (packingProjectReadError) {
+            console.error(`[Packing Reconnect] FAIL-CLOSED packing_projects read failed for ${existingBooking.id}:`, packingProjectReadError);
+            results.errors.push({ booking_id: existingBooking.id, error: `packing_project_read_failed:${packingProjectReadError.message || packingProjectReadError}` });
+            results.failed++;
+            continue;
+          }
+
           // 2. Fetch existing products BEFORE deletion (for packing list reconnection)
-          const { data: oldProductsData } = await supabase
+          const { data: oldProductsData, error: oldProductsReadError } = await supabase
             .from('booking_products')
             .select('id, name, quantity')
             .eq('booking_id', existingBooking.id)
             .eq('organization_id', bookingData.organization_id);
+
+          if (oldProductsReadError) {
+            console.error(`[Packing Reconnect] FAIL-CLOSED old booking_products read failed for ${existingBooking.id}:`, oldProductsReadError);
+            results.errors.push({ booking_id: existingBooking.id, error: `old_products_read_failed:${oldProductsReadError.message || oldProductsReadError}` });
+            results.failed++;
+            continue;
+          }
           oldProducts = oldProductsData || null;
+
           
           
           // 3. Attachments: never delete existing ones during sync.
