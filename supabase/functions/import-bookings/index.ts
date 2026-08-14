@@ -1798,9 +1798,13 @@ const assignTeamAndTime = async (
       );
       return { team: stickyTeam, start_time: startTime, end_time: endTime };
     }
-  } catch (stickyErr) {
-    console.warn('[Team Assignment] stickiness lookup failed, falling back to round-robin', stickyErr);
+  } catch (stickyErr: any) {
+    // STEG 4J: stickiness-läsningen styr team-placering. Ett DB-fel får inte
+    // tolkas som "ingen sticky team" → fail-closed innan mutation.
+    console.error('[Team Assignment] FAIL-CLOSED stickiness lookup failed', stickyErr);
+    return { ...fallback, error: `team_stickiness_read_failed:${stickyErr?.message || stickyErr}` };
   }
+
   // ────────────────────────────────────────────────────────────────────────
 
   try {
