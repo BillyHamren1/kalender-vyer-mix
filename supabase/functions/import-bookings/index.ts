@@ -1646,8 +1646,12 @@ async function reconcileCalendarEvents(
     const missingKeys = [...expectedKeys].filter((k: any) => !actualKeys.has(k));
     const extraKeys = [...actualKeys].filter((k: any) => !expectedKeys.has(k as string));
 
-    const hasMismatch = missingKeys.length > 0 || extraKeys.length > 0;
-    let mismatchDetails: string | null = null;
+    // Vid best-effort läsfel kan vi inte uttala oss om mismatch → rapportera
+    // inte falsk mismatch i audit-loggen.
+    const hasMismatch = !postReconcileError && (missingKeys.length > 0 || extraKeys.length > 0);
+    let mismatchDetails: string | null = postReconcileError
+      ? 'best_effort_audit_read_failed'
+      : null;
     if (hasMismatch) {
       const parts: string[] = [];
       if (missingKeys.length > 0) parts.push(`missing: ${missingKeys.join(', ')}`);
@@ -1655,6 +1659,7 @@ async function reconcileCalendarEvents(
       mismatchDetails = parts.join('; ');
       console.error(`[Sync Audit] ⚠️ MISMATCH for ${bookingData.id}: ${mismatchDetails}`);
     }
+
 
     supabase.from('sync_audit_log').insert({
       booking_id: bookingData.id,
