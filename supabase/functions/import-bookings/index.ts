@@ -1765,7 +1765,7 @@ const assignTeamAndTime = async (
   endTime: string,
   isExplicitStart: boolean,
   largeProjectId: string | null = null,
-): Promise<{ team: string; start_time: string; end_time: string }> => {
+): Promise<{ team: string; start_time: string; end_time: string; error?: string }> => {
   if (eventType === 'event') {
     console.warn(`[Team Assignment] Unexpected EVENT-type calendar request for booking ${bookingId}; Live column is removed. Falling back to round-robin.`);
   }
