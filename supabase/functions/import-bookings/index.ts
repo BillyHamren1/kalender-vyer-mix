@@ -2710,8 +2710,25 @@ serve(async (req) => {
           booking_number: localBooking.booking_number,
           organization_id: localBooking.organization_id,
         };
-        await reconcileCalendarEvents(supabase, localBookingData, organizationId, fallbackResults, localBooking);
+        const localRes = await reconcileCalendarEvents(supabase, localBookingData, organizationId, fallbackResults, localBooking);
+        if (!localRes.ok) {
+          // STEG 4J: kalenderprojectionen kunde inte verifieras → failed outcome,
+          // ingen revision commit, ingen cursor-förflyttning.
+          console.error(`[LocalOnly] FAIL-CLOSED calendar reconcile failed: ${localRes.error}`);
+          return new Response(JSON.stringify(buildSingleBookingEnvelope({
+            bookingId: normalizedSingleBookingId,
+            organizationId,
+            outcome: 'failed',
+            results: {
+              total: 1, imported: 0, failed: 1,
+              calendar_events_created: fallbackResults.calendar_events_created,
+              local_only: true,
+              errors: [{ booking_id: normalizedSingleBookingId, error: localRes.error || 'calendar_reconcile_failed' }],
+            },
+          })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+        }
         console.log(`[LocalOnly] Reconciliation complete. Events created/updated: ${fallbackResults.calendar_events_created}`);
+
         return new Response(JSON.stringify(buildSingleBookingEnvelope({
           bookingId: normalizedSingleBookingId,
           organizationId,
