@@ -1,6 +1,6 @@
 {
   "gate": "sync_sql_e2e",
-  "generated_at": "2026-08-14T12:09:28Z",
+  "generated_at": "2026-08-14T12:18:32Z",
   "safe_environment": "FAIL",
   "results": {
     "migrations": "NOT EXECUTED",
