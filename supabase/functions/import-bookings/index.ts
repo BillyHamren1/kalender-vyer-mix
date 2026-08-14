@@ -1521,17 +1521,27 @@ async function reconcileCalendarEvents(
   // härledd spegel av staff_assignments × calendar_events.resource_id.
   // Räkna om BSA för varje datum som har antingen en calendar_events-rad
   // ELLER befintliga BSA-rader (sistnämnda för att fånga "spöken" från äldre data).
+  //
+  // STEG 4J-KLASSNING: BSA ÄR en del av den Planning-projection denna sync
+  // ansvarar för → CANONICAL. Ett läs-/RPC-fel får aldrig döljas som lyckad
+  // recompute; det gör reconcile partial (ok:false).
+  let bsaError: string | null = null;
   try {
     const calendarDates = new Set<string>([
       ...desiredEvents.map((d: any) => d.date as string),
       ...((existingEvents || []) as any[]).map((e: any) => (e.source_date || (e.start_time as string)?.slice(0, 10)) as string).filter(Boolean),
     ]);
 
-    const { data: existingBsaDates } = await supabase
+    const { data: existingBsaDates, error: existingBsaError } = await supabase
       .from('booking_staff_assignments')
       .select('assignment_date')
       .eq('organization_id', calendarOrgId)
       .eq('booking_id', bookingData.id);
+
+    if (existingBsaError) {
+      console.error(`[BSA Recompute] FAIL-CLOSED booking ${bookingData.id}: existing BSA read failed`, existingBsaError);
+      return { ok: false, error: `bsa_existing_dates_read_failed:${existingBsaError.message || existingBsaError}` };
+    }
 
     const allDates = new Set<string>([
       ...calendarDates,
@@ -1549,24 +1559,33 @@ async function reconcileCalendarEvents(
           p_date: d,
         });
         if (rpcErr) {
-          console.warn(`[BSA Recompute] RPC error for ${bookingData.id}@${d}:`, rpcErr.message);
+          console.error(`[BSA Recompute] FAIL-CLOSED RPC error for ${bookingData.id}@${d}:`, rpcErr.message);
+          bsaError = bsaError || `bsa_recompute_rpc_failed:${d}:${rpcErr.message || rpcErr}`;
         } else if (rpcRes) {
           if ((rpcRes as any).ok === false) {
-            console.warn(`[BSA Recompute] FAIL-CLOSED ${bookingData.id}@${d}: ${(rpcRes as any).reason}`);
+            console.error(`[BSA Recompute] FAIL-CLOSED ${bookingData.id}@${d}: ${(rpcRes as any).reason}`);
+            bsaError = bsaError || `bsa_recompute_rejected:${d}:${(rpcRes as any).reason}`;
           }
           recomputedAdded += (rpcRes as any).added || 0;
           recomputedRemoved += (rpcRes as any).removed || 0;
         }
       } catch (e: any) {
-        console.warn(`[BSA Recompute] Threw for ${bookingData.id}@${d}:`, e?.message || e);
+        console.error(`[BSA Recompute] FAIL-CLOSED threw for ${bookingData.id}@${d}:`, e?.message || e);
+        bsaError = bsaError || `bsa_recompute_threw:${d}:${e?.message || e}`;
       }
     }
     if (recomputedAdded || recomputedRemoved) {
       console.log(`[BSA Recompute] Booking ${bookingData.id}: +${recomputedAdded} / -${recomputedRemoved} across ${allDates.size} day(s)`);
     }
   } catch (e: any) {
-    console.warn(`[BSA Recompute] Outer error for ${bookingData.id}:`, e?.message || e);
+    console.error(`[BSA Recompute] FAIL-CLOSED outer error for ${bookingData.id}:`, e?.message || e);
+    bsaError = bsaError || `bsa_recompute_failed:${e?.message || e}`;
   }
+
+  if (bsaError) {
+    return { ok: false, error: bsaError };
+  }
+
 
   // ── AUDIT LOG ──────────────────────────────
   {
