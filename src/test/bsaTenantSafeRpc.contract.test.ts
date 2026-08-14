@@ -94,8 +94,10 @@ describe('STEG 4I — recompute_booking_staff_for_day_v2', () => {
 
     expect(m4m).toContain('CREATE UNIQUE INDEX IF NOT EXISTS booking_staff_assignments_org_booking_staff_date_uidx');
     expect(m4m).toContain('(organization_id, booking_id, staff_id, assignment_date)');
-    expect(m4m).not.toMatch(/DELETE FROM public\.booking_staff_assignments/i);
     expect(m4m).not.toMatch(/TRUNCATE/i);
+    // Ingen data-cleanup på toppnivå (deletes existerar endast inuti RPC-kroppen)
+    expect(m4m).not.toMatch(/DELETE FROM public\.booking_staff_assignments\s*;/i);
+    expect(m4m).not.toMatch(/UPDATE public\.booking_staff_assignments/i);
   });
 
   it('STEG 4M — cross-tenant: samma booking/staff/datum i två orgs kollider inte under nya nyckeln', () => {
