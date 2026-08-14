@@ -4342,21 +4342,39 @@ serve(async (req) => {
           // No longer delete-and-recreate here — the reconciler handles create/update/delete
 
           // PRODUCT UPDATE WITH PACKING LIST RECONNECTION
+          // STEG 4K: båda dessa reads är KLASS A (canonical). De styr om packing
+          // reconnection / product preservation sker. Ett DB-fel får ALDRIG bli
+          // "ingen packing project finns" eller "inga gamla produkter finns".
           // 1. Fetch packing project for this booking (if exists)
-          const { data: packingProject } = await supabase
+          const { data: packingProject, error: packingProjectReadError } = await supabase
             .from('packing_projects')
             .select('id')
             .eq('booking_id', existingBooking.id)
             .eq('organization_id', bookingData.organization_id)
             .maybeSingle();
-          
+
+          if (packingProjectReadError) {
+            console.error(`[Packing Reconnect] FAIL-CLOSED packing_projects read failed for ${existingBooking.id}:`, packingProjectReadError);
+            results.errors.push({ booking_id: existingBooking.id, error: `packing_project_read_failed:${packingProjectReadError.message || packingProjectReadError}` });
+            results.failed++;
+            continue;
+          }
+
           // 2. Fetch existing products BEFORE deletion (for packing list reconnection)
-          const { data: oldProductsData } = await supabase
+          const { data: oldProductsData, error: oldProductsReadError } = await supabase
             .from('booking_products')
             .select('id, name, quantity')
             .eq('booking_id', existingBooking.id)
             .eq('organization_id', bookingData.organization_id);
+
+          if (oldProductsReadError) {
+            console.error(`[Packing Reconnect] FAIL-CLOSED old booking_products read failed for ${existingBooking.id}:`, oldProductsReadError);
+            results.errors.push({ booking_id: existingBooking.id, error: `old_products_read_failed:${oldProductsReadError.message || oldProductsReadError}` });
+            results.failed++;
+            continue;
+          }
           oldProducts = oldProductsData || null;
+
           
           
           // 3. Attachments: never delete existing ones during sync.
