@@ -1246,12 +1246,15 @@ async function reconcileCalendarEvents(
       if (lpDown.length > 0) rigdownDates = [...new Set(lpDown)].sort();
       console.log(`[Calendar Reconcile] LP REP override for booking ${bookingData.id} (lp=${lpId}): rig=${rigDates.length}, event=${eventDates.length}, rigDown=${rigdownDates.length}`);
     }
-  } catch (lpErr) {
-    // STEG 3N: fail-closed — vi vet inte om bokningen tillhör ett stort projekt
-    // eller vilka datum som gäller, så ingen calendar-mutation får ske.
+  } catch (lpErr: any) {
+    // STEG 3N/4J: fail-closed — vi vet inte om bokningen tillhör ett stort
+    // projekt eller vilka datum som gäller. DB-fel → ok:false (partial), inga
+    // calendar-mutationer. Legitimt "ingen large project" kastar inte alls och
+    // fortsätter i normal reconcile ovan.
     console.error(`[Calendar Reconcile] FAIL-CLOSED large project resolution failed:`, lpErr);
-    return { ok: true };
+    return { ok: false, error: `calendar_large_project_resolution_failed:${lpErr?.message || lpErr}` };
   }
+
 
   // ────────────────────────────────────────────────────────────────────────
 
