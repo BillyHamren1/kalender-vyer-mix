@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useTeamResources } from './useTeamResources';
 import type { CalendarEvent } from '@/components/Calendar/ResourceData';
+import { recomputeBookingStaffForDay } from '@/lib/calendar/recomputeBookingStaff';
 
 /**
  * Shared logic for moving a calendar event to another team.
@@ -25,10 +26,7 @@ export function useMoveEventToTeam(
 
   const recompute = useCallback(async (bookingId: string, sourceDate: string) => {
     try {
-      await supabase.rpc('recompute_booking_staff_for_day' as any, {
-        p_booking_id: bookingId,
-        p_date: sourceDate,
-      });
+      await recomputeBookingStaffForDay(bookingId, sourceDate);
     } catch (e) {
       console.warn('[useMoveEventToTeam] recompute failed:', e);
     }

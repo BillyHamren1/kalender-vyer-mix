@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import type { CalendarEvent } from './ResourceData';
+import { recomputeBookingStaffForDay } from '@/lib/calendar/recomputeBookingStaff';
 
 interface Props {
   event: CalendarEvent;
@@ -52,10 +53,7 @@ export const MoveDayPopover: React.FC<Props> = ({ event, setEvents, onUpdate }) 
 
   const recompute = async (bookingId: string, sourceDate: string) => {
     try {
-      await supabase.rpc('recompute_booking_staff_for_day' as any, {
-        p_booking_id: bookingId,
-        p_date: sourceDate,
-      });
+      await recomputeBookingStaffForDay(bookingId, sourceDate);
     } catch (e) {
       console.warn('[MoveDayPopover] recompute_booking_staff_for_day failed (continuing):', e);
     }

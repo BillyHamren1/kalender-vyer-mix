@@ -9,6 +9,7 @@ import { format, parse } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import {
+import { recomputeBookingStaffForDay } from '@/lib/calendar/recomputeBookingStaff';
   findExistingDayRow,
   getStickyTeamForBooking,
 } from '@/lib/calendar/projectTeamStickiness';
@@ -263,10 +264,7 @@ const AddRiggDayDialog: React.FC<AddRiggDayDialogProps> = ({
             // Recompute BSA för den nya dagen så personalen från det valda
             // teamet speglas in (per calendar-team-model-v1).
             try {
-              await supabase.rpc('recompute_booking_staff_for_day' as any, {
-                p_booking_id: event.bookingId,
-                p_date: dateStr,
-              });
+              await recomputeBookingStaffForDay(event.bookingId, dateStr);
             } catch (rpcErr) {
               console.warn('[AddRiggDayDialog] BSA recompute failed (non-fatal)', rpcErr);
             }

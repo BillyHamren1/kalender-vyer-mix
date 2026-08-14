@@ -26,6 +26,7 @@
  */
 import { supabase } from '@/integrations/supabase/client';
 import {
+import { recomputeBookingStaffForDay } from '@/lib/calendar/recomputeBookingStaff';
   findExistingDayRow,
   getStickyTeamForBooking,
   getStickyTeamForLargeProject,
@@ -240,10 +241,7 @@ export async function savePhaseDays(input: SavePhaseDaysInput): Promise<SavePhas
 
       // Recompute BSA för dagen så personalen speglas från det valda teamet
       try {
-        await supabase.rpc('recompute_booking_staff_for_day' as any, {
-          p_booking_id: bookingId,
-          p_date: spec.date,
-        });
+        await recomputeBookingStaffForDay(bookingId, spec.date);
       } catch (rpcErr) {
         console.warn('[savePhaseDays] BSA recompute failed (non-fatal)', rpcErr);
       }

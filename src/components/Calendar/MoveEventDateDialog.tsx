@@ -20,6 +20,7 @@ import AddRiggDayDialog from './AddRiggDayDialog';
 // handleBookingMove deprecated — BSA derives from staff_assignments × calendar_events via recompute_booking_staff_for_day RPC
 import { moveLargeProjectDay, setLargeProjectDayTeam, type LargeProjectPhase } from '@/services/largeProjectPlannerService';
 import { resolveCalendarEventId } from '@/services/calendarEventResolver';
+import { recomputeBookingStaffForDay } from '@/lib/calendar/recomputeBookingStaff';
 
 interface MoveEventDateDialogProps {
   open: boolean;
@@ -347,10 +348,7 @@ const MoveEventDateDialog: React.FC<MoveEventDateDialogProps> = ({
           try {
             const dates = Array.from(new Set([currentDateStr, newDateStr]));
             await Promise.all(dates.map(d =>
-              supabase.rpc('recompute_booking_staff_for_day' as any, {
-                p_booking_id: event.bookingId,
-                p_date: d,
-              })
+              recomputeBookingStaffForDay(event.bookingId, d)
             ));
             trace('BSA recompute OK', { dates });
           } catch (rpcErr) {
