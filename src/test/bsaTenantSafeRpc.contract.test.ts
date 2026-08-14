@@ -20,9 +20,9 @@ const MIGRATION = readdirSync(migDir)
 
 const IMPORT = readFileSync(join(root, 'supabase/functions/import-bookings/index.ts'), 'utf-8');
 
-/** Kroppen för V2-funktionen */
+/** Kroppen för SENASTE versionen av V2-funktionen */
 const V2 = (() => {
-  const i = MIGRATION.indexOf('FUNCTION public.recompute_booking_staff_for_day_v2');
+  const i = MIGRATION.lastIndexOf('FUNCTION public.recompute_booking_staff_for_day_v2(\n  p_organization_id');
   const j = MIGRATION.indexOf('$function$;', i);
   return MIGRATION.slice(i, j);
 })();
