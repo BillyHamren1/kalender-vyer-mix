@@ -45,8 +45,10 @@ describe('staff_assignments — single writer contract', () => {
       const idx = src.indexOf("from('staff_assignments')");
       const idx2 = src.indexOf('from("staff_assignments")');
       if (idx === -1 && idx2 === -1) continue;
-      // Any mutating call in the file referencing staff_assignments?
-      const re = /\.from\(['"]staff_assignments['"]\)[\s\S]{0,400}?\.(upsert|insert|update|delete)\s*\(/;
+      // Only count mutations in the SAME chain (no intervening `.from(` — otherwise
+      // a read on staff_assignments followed by an unrelated write elsewhere in the
+      // file gives a false positive).
+      const re = /\.from\(['"]staff_assignments['"]\)(?:(?!\.from\()[\s\S]){0,400}?\.(upsert|insert|update|delete)\s*\(/;
       if (re.test(src)) {
         offenders.push(file.replace(SRC + '/', 'src/'));
       }
