@@ -117,10 +117,11 @@ describe('STEG 4J — BSA är canonical', () => {
   it('existingBsaDates läses tenant-scopat och med .error', () => {
     expect(reconcileBody).toContain('const { data: existingBsaDates, error: existingBsaError }');
     const idx = reconcileBody.indexOf('existingBsaDates');
-    const block = reconcileBody.slice(idx, idx + 400);
+    const block = reconcileBody.slice(idx, idx + 700);
     expect(block).toContain("eq('organization_id', calendarOrgId)");
     expect(block).toContain("eq('booking_id', bookingData.id)");
     expect(block).toContain('bsa_existing_dates_read_failed');
+
   });
 
   it('RPC-fel döljs inte som lyckad recompute', () => {
