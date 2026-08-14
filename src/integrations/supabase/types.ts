@@ -10754,6 +10754,14 @@ export type Database = {
         Args: { p_booking_id: string; p_date: string }
         Returns: Json
       }
+      recompute_booking_staff_for_day_v2: {
+        Args: {
+          p_booking_id: string
+          p_date: string
+          p_organization_id: string
+        }
+        Returns: Json
+      }
       sync_all_phase_times: {
         Args: never
         Returns: {
