@@ -1517,6 +1517,7 @@ async function reconcileCalendarEvents(
     const { data: existingBsaDates } = await supabase
       .from('booking_staff_assignments')
       .select('assignment_date')
+      .eq('organization_id', calendarOrgId)
       .eq('booking_id', bookingData.id);
 
     const allDates = new Set<string>([
@@ -1528,13 +1529,18 @@ async function reconcileCalendarEvents(
     let recomputedRemoved = 0;
     for (const d of allDates) {
       try {
-        const { data: rpcRes, error: rpcErr } = await supabase.rpc('recompute_booking_staff_for_day', {
+        // STEG 4I: endast tenant-säker V2 i normal Booking → Planning-sync.
+        const { data: rpcRes, error: rpcErr } = await supabase.rpc('recompute_booking_staff_for_day_v2', {
+          p_organization_id: calendarOrgId,
           p_booking_id: bookingData.id,
           p_date: d,
         });
         if (rpcErr) {
           console.warn(`[BSA Recompute] RPC error for ${bookingData.id}@${d}:`, rpcErr.message);
         } else if (rpcRes) {
+          if ((rpcRes as any).ok === false) {
+            console.warn(`[BSA Recompute] FAIL-CLOSED ${bookingData.id}@${d}: ${(rpcRes as any).reason}`);
+          }
           recomputedAdded += (rpcRes as any).added || 0;
           recomputedRemoved += (rpcRes as any).removed || 0;
         }

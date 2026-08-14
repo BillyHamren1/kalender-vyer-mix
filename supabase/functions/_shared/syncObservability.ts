@@ -346,6 +346,7 @@ export const MUTATING_RPCS = Object.freeze([
   'advance_booking_source_revision',
   'apply_booking_cancellation_atomic',
   'recompute_booking_staff_for_day',
+  'recompute_booking_staff_for_day_v2',
   'finalize_sync_batch',
   'claim_sync_jobs',
   'handle_booking_move',
