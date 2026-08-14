@@ -1808,13 +1808,22 @@ const assignTeamAndTime = async (
   // ────────────────────────────────────────────────────────────────────────
 
   try {
-    const { data: existingEvents } = await supabase
+    // STEG 4J: team availability-read styr resource-placement. Ett DB-fel får
+    // ALDRIG tolkas som "inga events finns" → fail-closed före insert.
+    const { data: existingEvents, error: availabilityError } = await supabase
       .from('calendar_events')
       .select('resource_id, start_time, end_time')
       .eq('organization_id', organizationId)
       .in('resource_id', teams)
       .gte('start_time', `${eventDate}T00:00:00`)
       .lt('start_time', `${eventDate}T23:59:59`);
+
+    if (availabilityError) {
+      console.error('[Team Assignment] FAIL-CLOSED team availability read failed', availabilityError);
+      return { ...fallback, error: `team_availability_read_failed:${availabilityError.message || availabilityError}` };
+    }
+
+
 
     // Group events per team
     const perTeam = new Map<string, Array<{ start: Date; end: Date }>>();
