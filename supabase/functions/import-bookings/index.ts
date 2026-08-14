@@ -984,10 +984,12 @@ async function reconcileCalendarEvents(
       .eq('organization_id', calendarOrgId)
       .maybeSingle();
     if (linkedProjectErr) {
+      // STEG 4J: DB-fel ≠ legitim skip. Vi kan inte verifiera projectionen.
       console.error(`[Calendar Reconcile] FAIL-CLOSED booking ${bookingData.id}: project planning_status read failed`, linkedProjectErr);
-      return { ok: true };
+      return { ok: false, error: `calendar_project_guard_read_failed:${linkedProjectErr.message || linkedProjectErr}` };
     }
     if (linkedProject?.planning_status === 'needs_planning') {
+      // Legitim SKIP (read lyckades) → ok:true.
       console.log(`[Calendar Reconcile] SKIP booking ${bookingData.id}: linked project is needs_planning`);
       return { ok: true };
     }
@@ -999,7 +1001,7 @@ async function reconcileCalendarEvents(
       .maybeSingle();
     if (parentForLPErr) {
       console.error(`[Calendar Reconcile] FAIL-CLOSED booking ${bookingData.id}: parent booking read failed`, parentForLPErr);
-      return { ok: true };
+      return { ok: false, error: `calendar_parent_booking_read_failed:${parentForLPErr.message || parentForLPErr}` };
     }
     if (parentForLP?.large_project_id) {
       // Parent-bokningen är redan tenant-verifierad ovan → LP-lookupen scopas
@@ -1012,7 +1014,7 @@ async function reconcileCalendarEvents(
         .maybeSingle();
       if (lpErr) {
         console.error(`[Calendar Reconcile] FAIL-CLOSED booking ${bookingData.id}: large_project planning_status read failed`, lpErr);
-        return { ok: true };
+        return { ok: false, error: `calendar_large_project_guard_read_failed:${lpErr.message || lpErr}` };
       }
       if (lp?.planning_status === 'needs_planning') {
         console.log(`[Calendar Reconcile] SKIP booking ${bookingData.id}: large project ${parentForLP.large_project_id} is needs_planning`);
@@ -1034,16 +1036,16 @@ async function reconcileCalendarEvents(
         .neq('event_type', 'activity');
       if (ceCountErr) {
         console.error(`[Calendar Reconcile] FAIL-CLOSED booking ${bookingData.id}: calendar_events count read failed`, ceCountErr);
-        return { ok: true };
+        return { ok: false, error: `calendar_events_count_read_failed:${ceCountErr.message || ceCountErr}` };
       }
       if (!existingCeCount || existingCeCount === 0) {
         console.log(`[Calendar Reconcile] SKIP booking ${bookingData.id}: no linked project/large_project and no existing events (awaiting manual planning)`);
         return { ok: true };
       }
     }
-  } catch (planningGuardErr) {
+  } catch (planningGuardErr: any) {
     console.error('[Calendar Reconcile] FAIL-CLOSED planning_status guard threw:', planningGuardErr);
-    return { ok: true };
+    return { ok: false, error: `calendar_project_guard_read_failed:${planningGuardErr?.message || planningGuardErr}` };
   }
 
   // ────────────────────────────────────────────────────────────────────────
@@ -1051,14 +1053,22 @@ async function reconcileCalendarEvents(
   // 1. Fetch ALL existing calendar events for this booking
   // NOTE: Exclude event_type='activity' — those are user-created activity syncs
   // (establishment_tasks → calendar_events) and must NOT be touched by the reconciler.
-  const { data: existingEvents } = await supabase
+  // STEG 4J: ett läsfel får ALDRIG tolkas som "0 existing events" — det skulle
+  // leda till felaktiga inserts. Fail-closed före all mutation.
+  const { data: existingEvents, error: existingEventsError } = await supabase
     .from('calendar_events')
     .select('id, event_type, start_time, end_time, title, booking_number, delivery_address, resource_id, source_date, times_locked')
     .eq('booking_id', bookingData.id)
     .eq('organization_id', bookingData.organization_id || organizationId)
     .neq('event_type', 'activity');
 
+  if (existingEventsError) {
+    console.error(`[Calendar Reconcile] FAIL-CLOSED booking ${bookingData.id}: existing calendar_events read failed`, existingEventsError);
+    return { ok: false, error: `calendar_existing_events_read_failed:${existingEventsError.message || existingEventsError}` };
+  }
+
   console.log(`[Calendar Reconcile] Booking ${bookingData.id}: ${existingEvents?.length || 0} existing events`);
+
 
   // 2. Compute the DESIRED state from booking data
   const desiredEvents: Array<{
@@ -1236,12 +1246,15 @@ async function reconcileCalendarEvents(
       if (lpDown.length > 0) rigdownDates = [...new Set(lpDown)].sort();
       console.log(`[Calendar Reconcile] LP REP override for booking ${bookingData.id} (lp=${lpId}): rig=${rigDates.length}, event=${eventDates.length}, rigDown=${rigdownDates.length}`);
     }
-  } catch (lpErr) {
-    // STEG 3N: fail-closed — vi vet inte om bokningen tillhör ett stort projekt
-    // eller vilka datum som gäller, så ingen calendar-mutation får ske.
+  } catch (lpErr: any) {
+    // STEG 3N/4J: fail-closed — vi vet inte om bokningen tillhör ett stort
+    // projekt eller vilka datum som gäller. DB-fel → ok:false (partial), inga
+    // calendar-mutationer. Legitimt "ingen large project" kastar inte alls och
+    // fortsätter i normal reconcile ovan.
     console.error(`[Calendar Reconcile] FAIL-CLOSED large project resolution failed:`, lpErr);
-    return { ok: true };
+    return { ok: false, error: `calendar_large_project_resolution_failed:${lpErr?.message || lpErr}` };
   }
+
 
   // ────────────────────────────────────────────────────────────────────────
 
@@ -1384,19 +1397,28 @@ async function reconcileCalendarEvents(
     } else {
       // Rental-only: gå direkt till Lager-kolumnen (resource_id='transport'),
       // hoppa över team-1..5 round-robin helt.
-      const placement = desired.rentalOnly
-        ? { team: 'transport', start_time: desired.start_time, end_time: desired.end_time }
-        : await assignTeamAndTime(
-            supabase,
-            desired.event_type,
-            desired.date,
-            bookingData.id,
-            bookingData.organization_id || organizationId,
-            desired.start_time,
-            desired.end_time,
-            desired.isExplicitStart,
-            largeProjectIdForGuard,
-          );
+      const placement: { team: string; start_time: string; end_time: string; error?: string } =
+        desired.rentalOnly
+          ? { team: 'transport', start_time: desired.start_time, end_time: desired.end_time }
+          : await assignTeamAndTime(
+              supabase,
+              desired.event_type,
+              desired.date,
+              bookingData.id,
+              bookingData.organization_id || organizationId,
+              desired.start_time,
+              desired.end_time,
+              desired.isExplicitStart,
+              largeProjectIdForGuard,
+            );
+
+      // STEG 4J: osäker placering → ingen insert, reconcile blir partial.
+      if (placement.error) {
+        console.error(`[Calendar Reconcile] FAIL-CLOSED placement for ${desired.event_type}@${desired.date}: ${placement.error}`);
+        calendarError = calendarError || `calendar_placement_failed:${placement.error}`;
+        continue;
+      }
+
 
       if (results.team_distribution[placement.team] !== undefined) {
         results.team_distribution[placement.team]++;
@@ -1508,17 +1530,27 @@ async function reconcileCalendarEvents(
   // härledd spegel av staff_assignments × calendar_events.resource_id.
   // Räkna om BSA för varje datum som har antingen en calendar_events-rad
   // ELLER befintliga BSA-rader (sistnämnda för att fånga "spöken" från äldre data).
+  //
+  // STEG 4J-KLASSNING: BSA ÄR en del av den Planning-projection denna sync
+  // ansvarar för → CANONICAL. Ett läs-/RPC-fel får aldrig döljas som lyckad
+  // recompute; det gör reconcile partial (ok:false).
+  let bsaError: string | null = null;
   try {
     const calendarDates = new Set<string>([
       ...desiredEvents.map((d: any) => d.date as string),
       ...((existingEvents || []) as any[]).map((e: any) => (e.source_date || (e.start_time as string)?.slice(0, 10)) as string).filter(Boolean),
     ]);
 
-    const { data: existingBsaDates } = await supabase
+    const { data: existingBsaDates, error: existingBsaError } = await supabase
       .from('booking_staff_assignments')
       .select('assignment_date')
       .eq('organization_id', calendarOrgId)
       .eq('booking_id', bookingData.id);
+
+    if (existingBsaError) {
+      console.error(`[BSA Recompute] FAIL-CLOSED booking ${bookingData.id}: existing BSA read failed`, existingBsaError);
+      return { ok: false, error: `bsa_existing_dates_read_failed:${existingBsaError.message || existingBsaError}` };
+    }
 
     const allDates = new Set<string>([
       ...calendarDates,
@@ -1536,24 +1568,33 @@ async function reconcileCalendarEvents(
           p_date: d,
         });
         if (rpcErr) {
-          console.warn(`[BSA Recompute] RPC error for ${bookingData.id}@${d}:`, rpcErr.message);
+          console.error(`[BSA Recompute] FAIL-CLOSED RPC error for ${bookingData.id}@${d}:`, rpcErr.message);
+          bsaError = bsaError || `bsa_recompute_rpc_failed:${d}:${rpcErr.message || rpcErr}`;
         } else if (rpcRes) {
           if ((rpcRes as any).ok === false) {
-            console.warn(`[BSA Recompute] FAIL-CLOSED ${bookingData.id}@${d}: ${(rpcRes as any).reason}`);
+            console.error(`[BSA Recompute] FAIL-CLOSED ${bookingData.id}@${d}: ${(rpcRes as any).reason}`);
+            bsaError = bsaError || `bsa_recompute_rejected:${d}:${(rpcRes as any).reason}`;
           }
           recomputedAdded += (rpcRes as any).added || 0;
           recomputedRemoved += (rpcRes as any).removed || 0;
         }
       } catch (e: any) {
-        console.warn(`[BSA Recompute] Threw for ${bookingData.id}@${d}:`, e?.message || e);
+        console.error(`[BSA Recompute] FAIL-CLOSED threw for ${bookingData.id}@${d}:`, e?.message || e);
+        bsaError = bsaError || `bsa_recompute_threw:${d}:${e?.message || e}`;
       }
     }
     if (recomputedAdded || recomputedRemoved) {
       console.log(`[BSA Recompute] Booking ${bookingData.id}: +${recomputedAdded} / -${recomputedRemoved} across ${allDates.size} day(s)`);
     }
   } catch (e: any) {
-    console.warn(`[BSA Recompute] Outer error for ${bookingData.id}:`, e?.message || e);
+    console.error(`[BSA Recompute] FAIL-CLOSED outer error for ${bookingData.id}:`, e?.message || e);
+    bsaError = bsaError || `bsa_recompute_failed:${e?.message || e}`;
   }
+
+  if (bsaError) {
+    return { ok: false, error: bsaError };
+  }
+
 
   // ── AUDIT LOG ──────────────────────────────
   {
@@ -1577,11 +1618,20 @@ async function reconcileCalendarEvents(
       }
     }
 
-    const { data: postReconcileEvents } = await supabase
+    // STEG 4J-KLASSNING: BEST-EFFORT AUDIT (observability).
+    // Denna read verifierar INTE projectionen canonicalt — den matar endast
+    // sync_audit_log/has_mismatch. Ett läsfel loggas som best-effort och
+    // påverkar aldrig canonical result (reconcile förblir ok:true).
+    const { data: postReconcileEvents, error: postReconcileError } = await supabase
       .from('calendar_events')
       .select('id, event_type, start_time, end_time, resource_id, source_date')
       .eq('booking_id', bookingData.id)
       .eq('organization_id', bookingData.organization_id || organizationId);
+
+    if (postReconcileError) {
+      console.warn(`[Sync Audit] BEST-EFFORT post-reconcile read failed for ${bookingData.id} (canonical result unaffected):`, postReconcileError);
+    }
+
 
     const actualEventsJson = (postReconcileEvents || []).map((e: any) => ({
       id: e.id, event_type: e.event_type,
@@ -1605,8 +1655,12 @@ async function reconcileCalendarEvents(
     const missingKeys = [...expectedKeys].filter((k: any) => !actualKeys.has(k));
     const extraKeys = [...actualKeys].filter((k: any) => !expectedKeys.has(k as string));
 
-    const hasMismatch = missingKeys.length > 0 || extraKeys.length > 0;
-    let mismatchDetails: string | null = null;
+    // Vid best-effort läsfel kan vi inte uttala oss om mismatch → rapportera
+    // inte falsk mismatch i audit-loggen.
+    const hasMismatch = !postReconcileError && (missingKeys.length > 0 || extraKeys.length > 0);
+    let mismatchDetails: string | null = postReconcileError
+      ? 'best_effort_audit_read_failed'
+      : null;
     if (hasMismatch) {
       const parts: string[] = [];
       if (missingKeys.length > 0) parts.push(`missing: ${missingKeys.join(', ')}`);
@@ -1614,6 +1668,7 @@ async function reconcileCalendarEvents(
       mismatchDetails = parts.join('; ');
       console.error(`[Sync Audit] ⚠️ MISMATCH for ${bookingData.id}: ${mismatchDetails}`);
     }
+
 
     supabase.from('sync_audit_log').insert({
       booking_id: bookingData.id,
@@ -1719,7 +1774,7 @@ const assignTeamAndTime = async (
   endTime: string,
   isExplicitStart: boolean,
   largeProjectId: string | null = null,
-): Promise<{ team: string; start_time: string; end_time: string }> => {
+): Promise<{ team: string; start_time: string; end_time: string; error?: string }> => {
   if (eventType === 'event') {
     console.warn(`[Team Assignment] Unexpected EVENT-type calendar request for booking ${bookingId}; Live column is removed. Falling back to round-robin.`);
   }
@@ -1752,19 +1807,32 @@ const assignTeamAndTime = async (
       );
       return { team: stickyTeam, start_time: startTime, end_time: endTime };
     }
-  } catch (stickyErr) {
-    console.warn('[Team Assignment] stickiness lookup failed, falling back to round-robin', stickyErr);
+  } catch (stickyErr: any) {
+    // STEG 4J: stickiness-läsningen styr team-placering. Ett DB-fel får inte
+    // tolkas som "ingen sticky team" → fail-closed innan mutation.
+    console.error('[Team Assignment] FAIL-CLOSED stickiness lookup failed', stickyErr);
+    return { ...fallback, error: `team_stickiness_read_failed:${stickyErr?.message || stickyErr}` };
   }
+
   // ────────────────────────────────────────────────────────────────────────
 
   try {
-    const { data: existingEvents } = await supabase
+    // STEG 4J: team availability-read styr resource-placement. Ett DB-fel får
+    // ALDRIG tolkas som "inga events finns" → fail-closed före insert.
+    const { data: existingEvents, error: availabilityError } = await supabase
       .from('calendar_events')
       .select('resource_id, start_time, end_time')
       .eq('organization_id', organizationId)
       .in('resource_id', teams)
       .gte('start_time', `${eventDate}T00:00:00`)
       .lt('start_time', `${eventDate}T23:59:59`);
+
+    if (availabilityError) {
+      console.error('[Team Assignment] FAIL-CLOSED team availability read failed', availabilityError);
+      return { ...fallback, error: `team_availability_read_failed:${availabilityError.message || availabilityError}` };
+    }
+
+
 
     // Group events per team
     const perTeam = new Map<string, Array<{ start: Date; end: Date }>>();
@@ -1827,10 +1895,11 @@ const assignTeamAndTime = async (
       `(preferred ${startTime} → assigned ${newStartStr})`
     );
     return { team: bestTeam, start_time: newStartStr, end_time: newEndStr };
-  } catch (error) {
-    console.error('Error calculating team+time assignment, falling back:', error);
-    return fallback;
+  } catch (error: any) {
+    console.error('[Team Assignment] FAIL-CLOSED error calculating team+time assignment:', error);
+    return { ...fallback, error: `team_assignment_failed:${error?.message || error}` };
   }
+
 };
 
 /**
@@ -2641,8 +2710,25 @@ serve(async (req) => {
           booking_number: localBooking.booking_number,
           organization_id: localBooking.organization_id,
         };
-        await reconcileCalendarEvents(supabase, localBookingData, organizationId, fallbackResults, localBooking);
+        const localRes = await reconcileCalendarEvents(supabase, localBookingData, organizationId, fallbackResults, localBooking);
+        if (!localRes.ok) {
+          // STEG 4J: kalenderprojectionen kunde inte verifieras → failed outcome,
+          // ingen revision commit, ingen cursor-förflyttning.
+          console.error(`[LocalOnly] FAIL-CLOSED calendar reconcile failed: ${localRes.error}`);
+          return new Response(JSON.stringify(buildSingleBookingEnvelope({
+            bookingId: normalizedSingleBookingId,
+            organizationId,
+            outcome: 'failed',
+            results: {
+              total: 1, imported: 0, failed: 1,
+              calendar_events_created: fallbackResults.calendar_events_created,
+              local_only: true,
+              errors: [{ booking_id: normalizedSingleBookingId, error: localRes.error || 'calendar_reconcile_failed' }],
+            },
+          })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+        }
         console.log(`[LocalOnly] Reconciliation complete. Events created/updated: ${fallbackResults.calendar_events_created}`);
+
         return new Response(JSON.stringify(buildSingleBookingEnvelope({
           bookingId: normalizedSingleBookingId,
           organizationId,
