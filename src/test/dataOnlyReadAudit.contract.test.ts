@@ -54,7 +54,7 @@ describe('STEG 4K — global data-only read audit', () => {
 describe('STEG 4K — cancellation candidate local booking read', () => {
   const block = (() => {
     const i = SRC.indexOf("decision.action === 'cancellation'");
-    return SRC.slice(i, i + 3000);
+    return SRC.slice(i, i + 4500);
   })();
 
   it('destrukturerar .error', () => {
