@@ -1886,10 +1886,11 @@ const assignTeamAndTime = async (
       `(preferred ${startTime} → assigned ${newStartStr})`
     );
     return { team: bestTeam, start_time: newStartStr, end_time: newEndStr };
-  } catch (error) {
-    console.error('Error calculating team+time assignment, falling back:', error);
-    return fallback;
+  } catch (error: any) {
+    console.error('[Team Assignment] FAIL-CLOSED error calculating team+time assignment:', error);
+    return { ...fallback, error: `team_assignment_failed:${error?.message || error}` };
   }
+
 };
 
 /**
