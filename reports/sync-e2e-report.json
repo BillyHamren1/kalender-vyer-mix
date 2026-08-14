@@ -1,0 +1,18 @@
+{
+  "gate": "sync_sql_e2e",
+  "generated_at": "2026-08-14T12:09:28Z",
+  "safe_environment": "FAIL",
+  "results": {
+    "migrations": "NOT EXECUTED",
+    "bsa_tenant_identity": "NOT EXECUTED",
+    "bsa_v2_rpc": "NOT EXECUTED",
+    "security_definer": "NOT EXECUTED",
+    "revision_lease": "NOT EXECUTED",
+    "worker_jobs": "NOT EXECUTED",
+    "batch_cursor": "NOT EXECUTED",
+    "warehouse_uniqueness": "NOT EXECUTED",
+    "canonical_error_propagation": "NOT EXECUTED",
+    "destructive_cancellation_off": "NOT EXECUTED"
+  },
+  "final": "NOT EXECUTED"
+}
