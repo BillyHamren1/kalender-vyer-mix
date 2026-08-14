@@ -363,14 +363,24 @@ async function syncAllAttachments(
   orgId: string
 ) {
   // --- 1. Fetch all existing URLs for this booking ONCE ---
-  const { data: existingAttachments } = await supabase
+  // STEG 4K: KLASS A (dedup styr mutation). Ett läsfel får inte tolkas som
+  // "inga befintliga bilagor" → hoppa additiv insert helt istället för att
+  // gissa. Inga bilagor raderas någonsin här.
+  const { data: existingAttachments, error: existingAttachmentsError } = await supabase
     .from('booking_attachments')
     .select('url')
     .eq('booking_id', bookingId);
-  
+
+  if (existingAttachmentsError) {
+    console.error(`[Attachments] FAIL-CLOSED existing attachments read failed for ${bookingId}:`, existingAttachmentsError);
+    results.errors.push({ booking_id: bookingId, error: `attachments_existing_read_failed:${existingAttachmentsError.message || existingAttachmentsError}` });
+    return;
+  }
+
   // Strip query params for dedup comparison to avoid duplicates from cache-busting params
   const stripQueryParams = (url: string) => url.split('?')[0];
   const seenUrls = new Set<string>((existingAttachments || []).map((a: any) => stripQueryParams(a.url)));
+
 
   const insertAttachment = async (url: string, fileName: string, fileType: string) => {
     const baseUrl = stripQueryParams(url);
