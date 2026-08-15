@@ -142,7 +142,7 @@ run_section() {
   fi
 }
 
-# ── 2. MIGRATIONS (clean DB) ─────────────────────────────────────────────────
+# ── 2. MIGRATIONS (clean DB) – OBLIGATORISK för GREEN ────────────────────────
 if [ "${E2E_ALLOW_MIGRATION_RESET:-false}" = "true" ] && [ "${E2E_ENVIRONMENT}" = "local" ]; then
   if command -v supabase >/dev/null 2>&1 && supabase db reset --local >/dev/null 2>&1; then
     R_MIGRATIONS="PASS"
@@ -150,8 +150,11 @@ if [ "${E2E_ALLOW_MIGRATION_RESET:-false}" = "true" ] && [ "${E2E_ENVIRONMENT}" 
     R_MIGRATIONS="FAIL"
   fi
 else
+  # Migrations compile testades inte → gaten kan aldrig bli GREEN (fail-closed).
+  echo "── Migrations: NOT EXECUTED (E2E_ALLOW_MIGRATION_RESET != true eller ej lokal miljö) → gaten kan inte bli GREEN"
   R_MIGRATIONS="NOT EXECUTED"
 fi
+
 
 # ── 3. SEKTIONER ─────────────────────────────────────────────────────────────
 if run_section scripts/sync-e2e/01_bsa_tenant.sql "BSA tenant identity + V2 RPC"; then
