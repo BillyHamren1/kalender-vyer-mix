@@ -33,8 +33,40 @@ R_CANONICAL="NOT EXECUTED"
 R_CANCELLATION="NOT EXECUTED"
 LOG_DIR="$(mktemp -d)"
 
+results_json() {
+  cat <<EOF
+{
+  "safe_environment": "$SAFE_ENV",
+  "results": {
+    "migrations": "$R_MIGRATIONS",
+    "bsa_tenant_identity": "$R_BSA_IDENTITY",
+    "bsa_v2_rpc": "$R_BSA_RPC",
+    "security_definer": "$R_SECDEF",
+    "revision_lease": "$R_LEASE",
+    "worker_jobs": "$R_JOBS",
+    "batch_cursor": "$R_BATCH",
+    "warehouse_uniqueness": "$R_WAREHOUSE",
+    "canonical_error_propagation": "$R_CANONICAL",
+    "destructive_cancellation_off": "$R_CANCELLATION"
+  }
+}
+EOF
+}
+
+# Enda källan för final-beslutet: scripts/sync-e2e/gate.mjs (fail-closed).
+# Sätter globalt FINAL + GATE_EXIT + GATE_REASONS.
+compute_gate() {
+  local out
+  out="$(results_json | node scripts/sync-e2e/gate.mjs)"
+  GATE_EXIT=$?
+  FINAL="$(printf '%s' "$out" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).final)}catch{process.stdout.write("RED")}})')"
+  GATE_REASONS="$(printf '%s' "$out" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write((JSON.parse(s).reasons||[]).join("; "))}catch{process.stdout.write("gate parse error")}})')"
+  if [ -z "$FINAL" ]; then FINAL="RED"; GATE_EXIT=1; fi
+}
+
 emit_report() {
   local final="$1"
+
   cat <<EOF
 
 SYNC SQL/E2E GATE
