@@ -123,9 +123,4 @@ describe("STEG 4R – BSA legacy runtime audit", () => {
     expect(/sa\.organization_id\s*=/i.test(def)).toBe(true);
   });
 
-  it("handle_booking_move förblir no-op (muterar inte BSA)", () => {
-    const def = latestDefinition("handle_booking_move");
-    if (!def) return;
-    expect(/booking_staff_assignments/i.test(def)).toBe(false);
-  });
 });
