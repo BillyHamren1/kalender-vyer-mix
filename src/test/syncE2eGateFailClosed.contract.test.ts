@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-// @ts-expect-error – plain ESM script utan typer
 import { computeFinalGate, REQUIRED_SECTIONS } from "../../scripts/sync-e2e/gate.mjs";
 
 const allPass = (override: Record<string, string> = {}) => ({
