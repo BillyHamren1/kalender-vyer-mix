@@ -180,10 +180,7 @@ run_section scripts/sync-e2e/07_cancellation_flag_off.sql "Cancellation flag OFF
 psql "$E2E_DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/sync-e2e/99_cleanup.sql >/dev/null 2>&1 \
   && echo "── Cleanup: OK" || echo "── Cleanup: WARN (se testmiljön manuellt)"
 
-# ── 5. RAPPORT ───────────────────────────────────────────────────────────────
-FINAL="GREEN"
-for r in "$R_BSA_IDENTITY" "$R_BSA_RPC" "$R_SECDEF" "$R_LEASE" "$R_JOBS" "$R_BATCH" "$R_WAREHOUSE" "$R_CANONICAL" "$R_CANCELLATION" "$R_MIGRATIONS"; do
-  [ "$r" = "FAIL" ] && FINAL="RED"
-done
+# ── 5. RAPPORT (fail-closed gate, se scripts/sync-e2e/gate.mjs) ──────────────
+compute_gate
 emit_report "$FINAL"
-[ "$FINAL" = "GREEN" ] && exit 0 || exit 1
+exit "$GATE_EXIT"
