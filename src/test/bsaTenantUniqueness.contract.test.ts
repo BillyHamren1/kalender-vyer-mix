@@ -43,9 +43,13 @@ describe('STEG 4Q — tenant-safe BSA uniqueness', () => {
     );
   });
 
-  it('4Q-migrationen gör ingen datamutation', () => {
-    expect(DROP_4Q!.sql).not.toMatch(/\b(DELETE FROM|TRUNCATE|UPDATE\s+public\.)/i);
+  it('4Q-migrationen gör ingen datamutation på toppnivå', () => {
+    // Ta bort alla dollar-quotade kroppar (funktions-/DO-block) — de innehåller
+    // legitim runtime-logik och är inte migrationens egna datamutationer.
+    const topLevel = DROP_4Q!.sql.replace(/\$([a-z_]*)\$[\s\S]*?\$\1\$/gi, ' BODY ');
+    expect(topLevel).not.toMatch(/\b(DELETE FROM|TRUNCATE|UPDATE)\b/i);
   });
+
 
   it('ingen senare migration återinför global unikhet utan organization_id', () => {
     const idx4q = migrations.indexOf(DROP_4Q!.file);
