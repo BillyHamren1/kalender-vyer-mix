@@ -83,6 +83,7 @@ Canonical error propagation: $R_CANONICAL
 Destructive cancellation OFF: $R_CANCELLATION
 
 FINAL SQL/E2E GATE: $final
+${GATE_REASONS:+Orsak: $GATE_REASONS}
 EOF
   cat > "$REPORT_JSON" <<EOF
 {
@@ -101,9 +102,11 @@ EOF
     "canonical_error_propagation": "$R_CANONICAL",
     "destructive_cancellation_off": "$R_CANCELLATION"
   },
+  "reasons": "${GATE_REASONS:-}",
   "final": "$final"
 }
 EOF
+
   echo ""
   echo "Rapport skriven: $REPORT_JSON"
 }
