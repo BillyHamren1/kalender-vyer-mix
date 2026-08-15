@@ -33,8 +33,40 @@ R_CANONICAL="NOT EXECUTED"
 R_CANCELLATION="NOT EXECUTED"
 LOG_DIR="$(mktemp -d)"
 
+results_json() {
+  cat <<EOF
+{
+  "safe_environment": "$SAFE_ENV",
+  "results": {
+    "migrations": "$R_MIGRATIONS",
+    "bsa_tenant_identity": "$R_BSA_IDENTITY",
+    "bsa_v2_rpc": "$R_BSA_RPC",
+    "security_definer": "$R_SECDEF",
+    "revision_lease": "$R_LEASE",
+    "worker_jobs": "$R_JOBS",
+    "batch_cursor": "$R_BATCH",
+    "warehouse_uniqueness": "$R_WAREHOUSE",
+    "canonical_error_propagation": "$R_CANONICAL",
+    "destructive_cancellation_off": "$R_CANCELLATION"
+  }
+}
+EOF
+}
+
+# Enda källan för final-beslutet: scripts/sync-e2e/gate.mjs (fail-closed).
+# Sätter globalt FINAL + GATE_EXIT + GATE_REASONS.
+compute_gate() {
+  local out
+  out="$(results_json | node scripts/sync-e2e/gate.mjs)"
+  GATE_EXIT=$?
+  FINAL="$(printf '%s' "$out" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).final)}catch{process.stdout.write("RED")}})')"
+  GATE_REASONS="$(printf '%s' "$out" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write((JSON.parse(s).reasons||[]).join("; "))}catch{process.stdout.write("gate parse error")}})')"
+  if [ -z "$FINAL" ]; then FINAL="RED"; GATE_EXIT=1; fi
+}
+
 emit_report() {
   local final="$1"
+
   cat <<EOF
 
 SYNC SQL/E2E GATE
@@ -51,6 +83,7 @@ Canonical error propagation: $R_CANONICAL
 Destructive cancellation OFF: $R_CANCELLATION
 
 FINAL SQL/E2E GATE: $final
+${GATE_REASONS:+Orsak: $GATE_REASONS}
 EOF
   cat > "$REPORT_JSON" <<EOF
 {
@@ -69,22 +102,31 @@ EOF
     "canonical_error_propagation": "$R_CANONICAL",
     "destructive_cancellation_off": "$R_CANCELLATION"
   },
+  "reasons": "${GATE_REASONS:-}",
   "final": "$final"
 }
 EOF
+
   echo ""
   echo "Rapport skriven: $REPORT_JSON"
 }
 
 # ── 1. PRE-FLIGHT ────────────────────────────────────────────────────────────
+GATE_REASONS=""
+GATE_EXIT=1
 bash scripts/preflight-sync-e2e.sh
 PRE=$?
 if [ $PRE -ne 0 ]; then
   SAFE_ENV="FAIL"
-  emit_report "NOT EXECUTED"
-  exit 10
+  echo ""
+  echo "SAFE TEST CONFIGURATION NOT PROVIDED"
+  echo "NO MUTATIONS EXECUTED"
+  compute_gate
+  emit_report "$FINAL"
+  exit "$GATE_EXIT"
 fi
 SAFE_ENV="PASS"
+
 
 run_section() {
   local file="$1"; local name="$2"
@@ -100,7 +142,7 @@ run_section() {
   fi
 }
 
-# ── 2. MIGRATIONS (clean DB) ─────────────────────────────────────────────────
+# ── 2. MIGRATIONS (clean DB) – OBLIGATORISK för GREEN ────────────────────────
 if [ "${E2E_ALLOW_MIGRATION_RESET:-false}" = "true" ] && [ "${E2E_ENVIRONMENT}" = "local" ]; then
   if command -v supabase >/dev/null 2>&1 && supabase db reset --local >/dev/null 2>&1; then
     R_MIGRATIONS="PASS"
@@ -108,8 +150,11 @@ if [ "${E2E_ALLOW_MIGRATION_RESET:-false}" = "true" ] && [ "${E2E_ENVIRONMENT}" 
     R_MIGRATIONS="FAIL"
   fi
 else
+  # Migrations compile testades inte → gaten kan aldrig bli GREEN (fail-closed).
+  echo "── Migrations: NOT EXECUTED (E2E_ALLOW_MIGRATION_RESET != true eller ej lokal miljö) → gaten kan inte bli GREEN"
   R_MIGRATIONS="NOT EXECUTED"
 fi
+
 
 # ── 3. SEKTIONER ─────────────────────────────────────────────────────────────
 if run_section scripts/sync-e2e/01_bsa_tenant.sql "BSA tenant identity + V2 RPC"; then
@@ -135,10 +180,7 @@ run_section scripts/sync-e2e/07_cancellation_flag_off.sql "Cancellation flag OFF
 psql "$E2E_DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/sync-e2e/99_cleanup.sql >/dev/null 2>&1 \
   && echo "── Cleanup: OK" || echo "── Cleanup: WARN (se testmiljön manuellt)"
 
-# ── 5. RAPPORT ───────────────────────────────────────────────────────────────
-FINAL="GREEN"
-for r in "$R_BSA_IDENTITY" "$R_BSA_RPC" "$R_SECDEF" "$R_LEASE" "$R_JOBS" "$R_BATCH" "$R_WAREHOUSE" "$R_CANONICAL" "$R_CANCELLATION" "$R_MIGRATIONS"; do
-  [ "$r" = "FAIL" ] && FINAL="RED"
-done
+# ── 5. RAPPORT (fail-closed gate, se scripts/sync-e2e/gate.mjs) ──────────────
+compute_gate
 emit_report "$FINAL"
-[ "$FINAL" = "GREEN" ] && exit 0 || exit 1
+exit "$GATE_EXIT"
