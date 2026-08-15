@@ -112,14 +112,21 @@ EOF
 }
 
 # ── 1. PRE-FLIGHT ────────────────────────────────────────────────────────────
+GATE_REASONS=""
+GATE_EXIT=1
 bash scripts/preflight-sync-e2e.sh
 PRE=$?
 if [ $PRE -ne 0 ]; then
   SAFE_ENV="FAIL"
-  emit_report "NOT EXECUTED"
-  exit 10
+  echo ""
+  echo "SAFE TEST CONFIGURATION NOT PROVIDED"
+  echo "NO MUTATIONS EXECUTED"
+  compute_gate
+  emit_report "$FINAL"
+  exit "$GATE_EXIT"
 fi
 SAFE_ENV="PASS"
+
 
 run_section() {
   local file="$1"; local name="$2"
