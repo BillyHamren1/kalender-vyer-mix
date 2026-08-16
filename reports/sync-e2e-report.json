@@ -1,9 +1,9 @@
 {
   "gate": "sync_sql_e2e",
-  "generated_at": "2026-08-16T08:15:17Z",
+  "generated_at": "2026-08-16T08:16:25Z",
   "safe_environment": "PASS",
   "results": {
-    "migrations": "NOT EXECUTED",
+    "migrations": "FAIL",
     "bsa_tenant_identity": "PASS",
     "bsa_v2_rpc": "PASS",
     "security_definer": "PASS",
@@ -14,6 +14,6 @@
     "canonical_error_propagation": "PASS",
     "destructive_cancellation_off": "PASS"
   },
-  "reasons": "migrations: NOT EXECUTED efter godkänd preflight",
+  "reasons": "migrations: FAIL",
   "final": "RED"
 }
