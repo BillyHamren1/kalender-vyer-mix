@@ -81,6 +81,10 @@ for f in $FILES; do
       SQLSTATE="$(grep -oE 'SQLSTATE [0-9A-Z]{5}' "$ERRFILE" | head -1 | awk '{print $2}')"
     fi
     ERRMSG="$(grep -m1 'ERROR:' "$ERRFILE" | sed 's/.*ERROR:  *//')"
+    if [ -z "$SQLSTATE" ]; then
+      # psql --set=VERBOSITY=verbose prefixar meddelandet med SQLSTATE-koden
+      SQLSTATE="$(printf '%s' "$ERRMSG" | grep -oE '^[0-9A-Z]{5}(?=:)' 2>/dev/null || printf '%s' "$ERRMSG" | sed -nE 's/^([0-9A-Z]{5}): .*/\1/p')"
+    fi
     ERRLINE="$(grep -m1 -oE ':[0-9]+: ERROR' "$ERRFILE" | tr -d ':' | sed 's/ ERROR//')"
     {
       echo "=============================================================="
