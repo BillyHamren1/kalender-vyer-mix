@@ -1,19 +1,19 @@
 {
   "gate": "sync_sql_e2e",
-  "generated_at": "2026-08-15T19:44:35Z",
-  "safe_environment": "FAIL",
+  "generated_at": "2026-08-16T08:16:25Z",
+  "safe_environment": "PASS",
   "results": {
-    "migrations": "NOT EXECUTED",
-    "bsa_tenant_identity": "NOT EXECUTED",
-    "bsa_v2_rpc": "NOT EXECUTED",
-    "security_definer": "NOT EXECUTED",
-    "revision_lease": "NOT EXECUTED",
-    "worker_jobs": "NOT EXECUTED",
-    "batch_cursor": "NOT EXECUTED",
-    "warehouse_uniqueness": "NOT EXECUTED",
-    "canonical_error_propagation": "NOT EXECUTED",
-    "destructive_cancellation_off": "NOT EXECUTED"
+    "migrations": "FAIL",
+    "bsa_tenant_identity": "PASS",
+    "bsa_v2_rpc": "PASS",
+    "security_definer": "PASS",
+    "revision_lease": "PASS",
+    "worker_jobs": "PASS",
+    "batch_cursor": "PASS",
+    "warehouse_uniqueness": "PASS",
+    "canonical_error_propagation": "PASS",
+    "destructive_cancellation_off": "PASS"
   },
-  "reasons": "safe_environment != PASS – ingen säker testmiljö, inga mutationer utförda",
-  "final": "NOT EXECUTED"
+  "reasons": "migrations: FAIL",
+  "final": "RED"
 }
