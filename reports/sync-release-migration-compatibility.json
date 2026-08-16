@@ -1,14 +1,167 @@
 {
   "harness": "release_migration_compatibility",
+  "generated_at": "2026-08-16T21:50:21.794Z",
   "classification": "COMPATIBILITY_PASS",
+  "safe_environment": "PASS",
+  "environment": "local",
+  "mutations_executed": true,
+  "cleanup_status": "CLEANED",
   "scope_source": "src/test/syncReleaseMigrationScope.manifest.ts",
   "scope_size": 12,
+  "migrations_expected": 24,
   "migrations_executed": 24,
   "migrations_passed": 24,
   "migrations_failed": 0,
+  "migrations_not_executed": 0,
   "variants_executed": [
     "legacy_unique_as_constraint",
     "legacy_unique_as_index"
+  ],
+  "setup_steps": [
+    {
+      "step": "preflight_safe_environment",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "compat_local_only",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "compat_create_drop_flag",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "scope_manifest",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_constraint/create_database",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_constraint/supabase_shim",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_constraint/compat_fixture",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_constraint/verified_prestate_advance_booking_source_revision",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_constraint/verified_prestate_recompute_booking_staff_for_day",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_constraint/legacy_bsa_identity",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_constraint/legacy_variant_fixture",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_index/create_database",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_index/supabase_shim",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_index/compat_fixture",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_index/verified_prestate_advance_booking_source_revision",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_index/verified_prestate_recompute_booking_staff_for_day",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_index/legacy_bsa_identity",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_index/legacy_variant_fixture",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    }
   ],
   "migrations": [
     {
@@ -454,5 +607,6 @@
     ]
   },
   "disclaimer": "This compatibility harness does not prove historical migration replay or reconstruct the missing historical EventFlow baseline.",
-  "log": "reports/sync-release-migration-compatibility.log"
+  "log": "reports/sync-release-migration-compatibility.log",
+  "evidence_txt": "reports/sync-release-migration-compatibility.txt"
 }
