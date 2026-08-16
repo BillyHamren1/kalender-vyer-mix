@@ -103,9 +103,13 @@ EOF
     "destructive_cancellation_off": "$R_CANCELLATION"
   },
   "reasons": "${GATE_REASONS:-}",
+  "migration_first_failure": "${MIG_FIRST_FAILURE:-}",
+  "migration_error_summary": "${MIG_ERROR_SUMMARY:-}",
+  "migration_log": "reports/sync-e2e-migrations.log",
   "final": "$final"
 }
 EOF
+
 
   echo ""
   echo "Rapport skriven: $REPORT_JSON"
