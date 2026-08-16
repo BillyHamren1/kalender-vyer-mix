@@ -1,104 +1,18 @@
 release_migration_compatibility evidence
-generated: 2026-08-16T21:50:21Z
-classification:      COMPATIBILITY_PASS
-safe_environment:    PASS
+generated: 2026-08-16T21:51:40Z
+classification:      COMPATIBILITY_FAIL
+safe_environment:    FAIL
 environment:         local
-mutations_executed:  true
-cleanup_status:      CLEANED
-scope_size:          12
-migrations:          24 passed / 24 executed / 24 expected
-variants:            legacy_unique_as_constraint legacy_unique_as_index
-first_failure:       none
+mutations_executed:  false
+cleanup_status:      NOT_REQUIRED
+scope_size:          0
+migrations:          0 passed / 0 executed / 0 expected
+variants:            none
+first_failure:       E2E_ALLOW_COMPAT_DATABASE_CREATE_DROP != true – NO MUTATIONS EXECUTED
 sqlstate:            none
 disclaimer:          This compatibility harness does not prove historical migration replay or reconstruct the missing historical EventFlow baseline.
 --------------------------------------------------------------
 SAFE TEST ENVIRONMENT CONFIRMED
 environment: local
 migration reset allowed: false
-=== VARIANT legacy_unique_as_constraint (db=ef_sync_compat_mswc969xc4joyb_legacy_unique_as_constraint) ===
-check_name|status|detail
-batch_partial_no_cursor_move|PASS|status=partial
-bsa_legacy_global_unique_removed|PASS|legacy unique count=0
-bsa_tenant_unique_present|PASS|index count=1
-bsa_trigger_tenant_scoped_cleanup_task_bsa_on_delete|PASS|org-scoping + tenant-safe conflict target
-bsa_trigger_tenant_scoped_sync_bsa_on_new_project_staff|PASS|org-scoping + tenant-safe conflict target
-bsa_trigger_tenant_scoped_sync_location_project_bsa|PASS|org-scoping + tenant-safe conflict target
-bsa_trigger_tenant_scoped_sync_project_staff_on_new_booking|PASS|org-scoping + tenant-safe conflict target
-bsa_trigger_tenant_scoped_sync_task_assignments_to_bsa|PASS|org-scoping + tenant-safe conflict target
-bsa_trigger_tenant_scoped_sync_team_pool_to_booking_assignments|PASS|org-scoping + tenant-safe conflict target
-canonical_error_no_cursor_write|PASS|<null>
-destructive_cancellation_off|PASS|destruktiva cronjobb=0
-finalize_sync_batch_service_role_only|PASS|matchande funktioner=1
-jobs_claim_with_lease|PASS|claimade=2
-jobs_complete_with_token|PASS|rätt token
-jobs_permanent_fail|PASS|failed
-jobs_wrong_token_rejected|PASS|fel token
-legacy_bsa_delegates_to_v2|PASS|delegation
-legacy_bsa_rpc_not_client_executable|PASS|roller med EXECUTE=0
-revision_incomparable_guard|PASS|STEG 4C divergent-guard
-revision_millisecond_precision|PASS|ms i speglad revision
-secdef_claim_sync_jobs|PASS|true
-secdef_complete_sync_job|PASS|true
-secdef_fail_sync_job|PASS|true
-secdef_finalize_sync_batch|PASS|true
-secdef_recompute_booking_staff_for_day_v2|PASS|true
-sync_jobs_lease_columns|PASS|kolumner=3
-v2_fail_closed_booking_not_in_org|PASS|fail-closed
-v2_grants_match_release_contract|PASS|matchande funktioner=1
-v2_on_conflict_tenant_safe|PASS|on conflict target
-v2_reads_scoped_by_org|PASS|read/delete/insert-scoping
-v2_rpc_fail_closed_other_tenant|PASS|{"ok": false, "added": 0, "reason": "booking_not_in_organization", "removed": 0, "booking_id": "COMPAT-BOOK-1", "organization_id": "8cd1a1c0-eb71-4570-96c1-dfd747ed4c13"}
-v2_rpc_idempotent|PASS|rader=1
-v2_rpc_writes_tenant_rows|PASS|{"ok": true, "date": "2031-03-03", "team": "team-1", "added": 1, "removed": 0, "booking_id": "COMPAT-BOOK-1", "organization_id": "1eb68808-f4f7-4ada-96cf-d96c8758006c"}
-warehouse_assignments_tenant_unique|PASS|index count=1
-warehouse_cross_tenant_coexistence|PASS|två tenants kan samexistera
-warehouse_same_tenant_unique|PASS|dubblett stoppas inom tenant
-wce_cross_tenant_coexistence|PASS|två tenants kan samexistera
-wce_legacy_unique_removed|PASS|legacy index count=0
-wce_same_tenant_unique|PASS|dubblett stoppas inom tenant
-wce_tenant_unique_present|PASS|index count=1
-(40 rows)
-=== VARIANT legacy_unique_as_index (db=ef_sync_compat_mswc969xc4joyb_legacy_unique_as_index) ===
-check_name|status|detail
-batch_partial_no_cursor_move|PASS|status=partial
-bsa_legacy_global_unique_removed|PASS|legacy unique count=0
-bsa_tenant_unique_present|PASS|index count=1
-bsa_trigger_tenant_scoped_cleanup_task_bsa_on_delete|PASS|org-scoping + tenant-safe conflict target
-bsa_trigger_tenant_scoped_sync_bsa_on_new_project_staff|PASS|org-scoping + tenant-safe conflict target
-bsa_trigger_tenant_scoped_sync_location_project_bsa|PASS|org-scoping + tenant-safe conflict target
-bsa_trigger_tenant_scoped_sync_project_staff_on_new_booking|PASS|org-scoping + tenant-safe conflict target
-bsa_trigger_tenant_scoped_sync_task_assignments_to_bsa|PASS|org-scoping + tenant-safe conflict target
-bsa_trigger_tenant_scoped_sync_team_pool_to_booking_assignments|PASS|org-scoping + tenant-safe conflict target
-canonical_error_no_cursor_write|PASS|<null>
-destructive_cancellation_off|PASS|destruktiva cronjobb=0
-finalize_sync_batch_service_role_only|PASS|matchande funktioner=1
-jobs_claim_with_lease|PASS|claimade=2
-jobs_complete_with_token|PASS|rätt token
-jobs_permanent_fail|PASS|failed
-jobs_wrong_token_rejected|PASS|fel token
-legacy_bsa_delegates_to_v2|PASS|delegation
-legacy_bsa_rpc_not_client_executable|PASS|roller med EXECUTE=0
-revision_incomparable_guard|PASS|STEG 4C divergent-guard
-revision_millisecond_precision|PASS|ms i speglad revision
-secdef_claim_sync_jobs|PASS|true
-secdef_complete_sync_job|PASS|true
-secdef_fail_sync_job|PASS|true
-secdef_finalize_sync_batch|PASS|true
-secdef_recompute_booking_staff_for_day_v2|PASS|true
-sync_jobs_lease_columns|PASS|kolumner=3
-v2_fail_closed_booking_not_in_org|PASS|fail-closed
-v2_grants_match_release_contract|PASS|matchande funktioner=1
-v2_on_conflict_tenant_safe|PASS|on conflict target
-v2_reads_scoped_by_org|PASS|read/delete/insert-scoping
-v2_rpc_fail_closed_other_tenant|PASS|{"ok": false, "added": 0, "reason": "booking_not_in_organization", "removed": 0, "booking_id": "COMPAT-BOOK-1", "organization_id": "a6a4d9e8-cc01-44c4-8d76-14d66e364af5"}
-v2_rpc_idempotent|PASS|rader=1
-v2_rpc_writes_tenant_rows|PASS|{"ok": true, "date": "2031-03-03", "team": "team-1", "added": 1, "removed": 0, "booking_id": "COMPAT-BOOK-1", "organization_id": "3b9a86e2-bdaf-4872-a643-6f854e54fb2a"}
-warehouse_assignments_tenant_unique|PASS|index count=1
-warehouse_cross_tenant_coexistence|PASS|två tenants kan samexistera
-warehouse_same_tenant_unique|PASS|dubblett stoppas inom tenant
-wce_cross_tenant_coexistence|PASS|två tenants kan samexistera
-wce_legacy_unique_removed|PASS|legacy index count=0
-wce_same_tenant_unique|PASS|dubblett stoppas inom tenant
-wce_tenant_unique_present|PASS|index count=1
-(40 rows)
-cleanup_status: CLEANED (ef_sync_compat_mswc969xc4joyb_legacy_unique_as_constraint ef_sync_compat_mswc969xc4joyb_legacy_unique_as_index)
+E2E_ALLOW_COMPAT_DATABASE_CREATE_DROP != true – NO MUTATIONS EXECUTED
