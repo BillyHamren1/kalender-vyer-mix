@@ -147,8 +147,6 @@ run_section() {
 }
 
 # ── 2. MIGRATIONS (clean DB) – OBLIGATORISK för GREEN ────────────────────────
-if [ "${E2E_ALLOW_MIGRATION_RESET:-false}" = "true" ] && [ "${E2E_ENVIRONMENT}" = "local" ]; then
-# ── 2. MIGRATIONS (clean DB) – OBLIGATORISK för GREEN ────────────────────────
 MIG_FIRST_FAILURE=""
 MIG_ERROR_SUMMARY=""
 if [ "${E2E_ALLOW_MIGRATION_RESET:-false}" = "true" ] && [ "${E2E_ENVIRONMENT}" = "local" ]; then
