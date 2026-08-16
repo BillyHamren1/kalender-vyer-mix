@@ -1,6 +1,6 @@
 {
   "first_failure": "supabase/migrations/20251001055524_23107548-c261-4cea-a661-4967f5028dcd.sql",
-  "sqlstate": null,
+  "sqlstate": "42P01",
   "error_message": "42P01: relation \"public.staff_members\" does not exist",
   "statement_line": "14",
   "ok": 0,
