@@ -15,7 +15,12 @@ const runner = fs.readFileSync(
 const reportPath = path.resolve(root, 'reports/sync-release-migration-compatibility.json');
 const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
 
-const idx = (needle: string) => runner.indexOf(needle);
+// Kommentarsrader räknas inte som körbar SQL/mutation.
+const executable = runner
+  .split('\n')
+  .map((l) => (l.trim().startsWith('#') ? '' : l))
+  .join('\n');
+const idx = (needle: string) => executable.indexOf(needle);
 
 describe('STEG 5A — fail-closed safety före mutationer', () => {
   it('återanvänder befintlig preflight istället för egna production-markörer', () => {
