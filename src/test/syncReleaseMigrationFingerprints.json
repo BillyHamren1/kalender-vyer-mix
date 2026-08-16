@@ -1,0 +1,68 @@
+{
+  "note": "Godkänt fingerprint-manifest för 4Y-scopet. Ändras endast explicit; kräver ny provenance-audit och ny compatibility-körning.",
+  "algorithm": "sha256",
+  "generated_at": "2026-08-16T21:49:15.381Z",
+  "count": 12,
+  "migrations": [
+    {
+      "migration": "20260813214815_4f49979a-8ac0-466f-959b-0f9fac8ea0e7.sql",
+      "sha256": "26491166be0441f122dc54edf1c421f89cb58790f0844210369f2cfe0d1ba106",
+      "bytes": 379
+    },
+    {
+      "migration": "20260813224629_2143f24d-bb1a-4b06-b459-121ee69f1486.sql",
+      "sha256": "aa0905475b370747fec6f0e3df9875a57bcd5f47df156278c75e774043b6c180",
+      "bytes": 10469
+    },
+    {
+      "migration": "20260813225323_a121653b-529f-402b-bf34-73d141a611be.sql",
+      "sha256": "fdc6b7d79d8268914b6ca3a4b6a075bca8094635a1c3723d0e27db1bdb65ceed",
+      "bytes": 1168
+    },
+    {
+      "migration": "20260813225837_e5cb68e8-a74e-4685-a8a5-7d9e8ffae3dc.sql",
+      "sha256": "1932059908c628b5c1709e8d5c7cf1102f3c2d6ba379cd0ee1e9ee59b266bc8e",
+      "bytes": 2302
+    },
+    {
+      "migration": "20260814094528_cee710c4-0784-4b66-9ae4-86179ee1a1a7.sql",
+      "sha256": "30777111f288ab9b18f7471c927d598ebff365a9a79776e3c3cd89b1de48490a",
+      "bytes": 3528
+    },
+    {
+      "migration": "20260814115650_52304ea5-5aee-4cef-9883-9f73a086fedb.sql",
+      "sha256": "d2cf359bf3e4800b7337c5c5ccdfc533a5fc58a7e746bf421c05313dd9e41600",
+      "bytes": 3889
+    },
+    {
+      "migration": "20260814120056_e1872eb9-c729-4858-b8b4-5e5bbed5f2ff.sql",
+      "sha256": "97c730d46d45e4732bbf75bd63f23caea0a699a920556a07d44414a7b1aa5d6e",
+      "bytes": 1321
+    },
+    {
+      "migration": "20260815193400_82bfea28-51d8-4ad7-a124-845b96af0d1f.sql",
+      "sha256": "0ee57b5205109143cbf75fd7e0eace35753cebe29f14298291ee19d6178fc6fa",
+      "bytes": 14569
+    },
+    {
+      "migration": "20260815193913_f211bdb1-9dc0-405e-9139-c6f81c228ec2.sql",
+      "sha256": "2a6661306bc9947976922161b21aed18d3cdb5f25542f8ed996015d324052fac",
+      "bytes": 13269
+    },
+    {
+      "migration": "20260815193951_6d64a99b-07eb-405f-86e4-b85375907074.sql",
+      "sha256": "1f66cfeb55dda11126a9c74fc94c06a70791a0d6c4230ce79b0d15b80ef0ef3e",
+      "bytes": 653
+    },
+    {
+      "migration": "20260816081411_fb502ec8-39cf-4c6c-8fb4-0c2cf2aac152.sql",
+      "sha256": "02a64c5d7e08ebac88cb87a466680d41050614e1784c0d2f551661fbbaf9eef0",
+      "bytes": 3838
+    },
+    {
+      "migration": "20260816081439_b569f5a2-847e-460d-bf65-d18d90870b75.sql",
+      "sha256": "deab00fabd230e7d1f5e4b8dc95b73945523959fa8cc88a627c0b293b3cb4435",
+      "bytes": 236
+    }
+  ]
+}
