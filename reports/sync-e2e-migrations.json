@@ -5,5 +5,6 @@
   "statement_line": "14",
   "ok": 0,
   "total": 507,
-  "log": "reports/sync-e2e-migrations.log"
+  "log": "reports/sync-e2e-migrations.log",
+  "evidence_txt": "reports/sync-e2e-migrations.txt"
 }

@@ -1,0 +1,26 @@
+sync-e2e migrations evidence (mirror of reports/sync-e2e-migrations.log)
+generated: 2026-08-16T08:51:40Z
+first_failure: supabase/migrations/20251001055524_23107548-c261-4cea-a661-4967f5028dcd.sql
+sqlstate:      42P01
+line:          14
+error:         42P01: relation "public.staff_members" does not exist
+ok/total:      0/507
+--------------------------------------------------------------
+NOTICE:  database "sync_e2e_migtest" does not exist, skipping
+psql:scripts/sync-e2e/bootstrap_supabase_shim.sql:18: NOTICE:  role "authenticator" has already been granted membership in role "anon" by role "postgres"
+psql:scripts/sync-e2e/bootstrap_supabase_shim.sql:18: NOTICE:  role "authenticator" has already been granted membership in role "authenticated" by role "postgres"
+psql:scripts/sync-e2e/bootstrap_supabase_shim.sql:18: NOTICE:  role "authenticator" has already been granted membership in role "service_role" by role "postgres"
+psql:scripts/sync-e2e/bootstrap_supabase_shim.sql:96: WARNING:  "wal_level" is insufficient to publish logical changes
+HINT:  Set "wal_level" to "logical" before creating subscriptions.
+psql:supabase/migrations/20251001055524_23107548-c261-4cea-a661-4967f5028dcd.sql:14: ERROR:  42P01: relation "public.staff_members" does not exist
+LOCATION:  RangeVarGetRelidExtended, namespace.c:634
+==============================================================
+FIRST MIGRATION FAILURE (fail-fast, körningen avbryts här)
+file:      supabase/migrations/20251001055524_23107548-c261-4cea-a661-4967f5028dcd.sql
+sqlstate:  42P01
+line:      14
+error:     42P01: relation "public.staff_members" does not exist
+--- raw psql stderr ---
+psql:supabase/migrations/20251001055524_23107548-c261-4cea-a661-4967f5028dcd.sql:14: ERROR:  42P01: relation "public.staff_members" does not exist
+LOCATION:  RangeVarGetRelidExtended, namespace.c:634
+==============================================================
