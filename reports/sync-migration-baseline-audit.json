@@ -93,5 +93,23 @@
     "No production schema dump was used as a fake 2025 baseline",
     "No SQL error was allowlisted, no migration skipped, gate not weakened"
   ],
-  "migration_gate_status": "RED (unchanged): 0/507 migrations replay from an empty database; first failure 42P01 on public.staff_members"
+  "migration_gate_status": "RED (unchanged): 0/507 migrations replay from an empty database; first failure 42P01 on public.staff_members",
+  "step_4x_corrections": {
+    "corrected_at": "2026-08-16T08:55:00Z",
+    "classification_unchanged": "B — HISTORICAL BASELINE INCOMPLETE (no real historical DDL found; only the provenance of update_updated_at_column changed)",
+    "errors_fixed": [
+      "update_updated_at_column earliest definition was reported as 20260327125803 (2026-03-27) — the real earliest is 20260114092613 (2026-01-14, commit 98c7fbe5c)",
+      "The claim '18 months LATER than first use' was wrong — the actual gap is ~3.5 months (2025-10-01 → 2026-01-14)"
+    ],
+    "method": "rg over supabase/migrations for CREATE [OR REPLACE] FUNCTION public.update_updated_at_column + git pickaxe over --all; results verified, not taken from the prompt",
+    "evidence_regenerated": {
+      "run_at": "2026-08-16T08:52Z",
+      "environment": "isolated local PostgreSQL cluster 127.0.0.1:55432 (E2E_SAFE_TEST_ENV=true, E2E_ENVIRONMENT=local); production never touched",
+      "reports/sync-e2e-migrations.json": "present (contains evidence_txt)",
+      "reports/sync-e2e-migrations.txt": "present (1909 bytes)",
+      "reports/sync-e2e-report.json": "present",
+      "first_failure": "supabase/migrations/20251001055524_23107548-c261-4cea-a661-4967f5028dcd.sql, SQLSTATE 42P01, line 14, relation \"public.staff_members\" does not exist, ok 0/507"
+    }
+  }
 }
+
