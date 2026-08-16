@@ -1,0 +1,95 @@
+{
+  "step": "4W",
+  "mode": "read_only_provenance_audit",
+  "generated_at": "2026-08-16T08:45:00Z",
+  "classification": "B — HISTORICAL BASELINE INCOMPLETE",
+  "repository": {
+    "first_commit": { "hash": "851cbd144", "date": "2025-05-15", "subject": "Use tech stack vite_react_shadcn_ts" },
+    "total_commits_scanned": 20906,
+    "branches_or_tags_with_other_migration_history": "none found locally"
+  },
+  "migrations": {
+    "total_files": 507,
+    "oldest_migration_file": "supabase/migrations/20251001055524_23107548-c261-4cea-a661-4967f5028dcd.sql",
+    "oldest_migration_commit": { "hash": "639b3f1f2b40b3dacd6aa933ea7d58b8232de97a", "date": "2025-10-01", "subject": "Fix Supabase type errors" },
+    "gap": "Repo history starts 2025-05-15 but the first committed migration is 2025-10-01. No migration files, schema dump, baseline/init/schema.sql or seed DDL was ever committed for the period 2025-05-15 → 2025-10-01. Schema objects from that period were created directly against the hosted Supabase database without versioned SQL in this repository.",
+    "deleted_migration_files_in_history": [
+      "supabase/migrations/20260524162730_9643d860-db54-4ba4-9448-1c5ed84b36aa.sql (deleted b3805f01d 2026-05-25)",
+      "supabase/migrations/20260511104956_7e6b397f-06ba-482a-8d78-546f85073e21.sql (deleted fce98ef19 2026-05-11)",
+      "supabase/migrations/20260418104833_5f76bbb4-1b7c-4312-b0a3-3eabb7b5a047.sql (deleted b10550d1d 2026-04-18)",
+      "supabase/migrations/20260203220834_869ad982-4ec2-46d5-8649-b4879f0979e2.sql (deleted 68c65423f 2026-02-03)",
+      "supabase/migrations/20260203221010_07988895-dc10-4a90-94ca-f98f5850693a.sql (deleted 68c65423f 2026-02-03)",
+      "supabase/migrations/20260203221518_15168375-212c-4a7c-a416-34980b2b950d.sql (deleted 68c65423f 2026-02-03)"
+    ],
+    "deleted_files_relevance": "All deleted migration files are dated 2026 — none of them predates 2025-10-01 and none contains the missing baseline objects."
+  },
+  "search_method": {
+    "pickaxe": "git log --all -S'CREATE TABLE public.staff_members' -i -- supabase/*  → 0 hits",
+    "added_sql_files_outside_migrations": "git log --all --diff-filter=A --name-only -- '*.sql' → only scripts/sync-e2e/*.sql and supabase/diagnostics/*.sql (all created 2026, test/diagnostics only)",
+    "current_tree_grep": "rg 'create table (if not exists )?(public.)?<obj>' supabase/migrations → 0 hits for all four tables"
+  },
+  "missing_prerequisites": [
+    {
+      "object": "public.staff_members",
+      "object_type": "table",
+      "first_migration_using_it": "supabase/migrations/20251001055524_23107548-c261-4cea-a661-4967f5028dcd.sql",
+      "usage": "FK reference from staff_availability.staff_id (line 7) + ALTER TABLE ADD COLUMN is_active (line 17)",
+      "create_definition_found_in_git_history": false,
+      "source_commit": null,
+      "historically_verified": false,
+      "failure": "SQLSTATE 42P01: relation \"public.staff_members\" does not exist"
+    },
+    {
+      "object": "public.calendar_events",
+      "object_type": "table",
+      "first_migration_using_it": "supabase/migrations/20251006114101_8c9a2ea8-5c7f-49c0-a4e4-76ae83e0f91e.sql",
+      "create_definition_found_in_git_history": false,
+      "source_commit": null,
+      "historically_verified": false
+    },
+    {
+      "object": "public.staff_assignments",
+      "object_type": "table",
+      "first_migration_using_it": "supabase/migrations/20251010071310_02432e30-8261-406f-9d19-cfa4930e4356.sql",
+      "create_definition_found_in_git_history": false,
+      "source_commit": null,
+      "historically_verified": false
+    },
+    {
+      "object": "public.booking_staff_assignments",
+      "object_type": "table",
+      "first_migration_using_it": "supabase/migrations/20251010071310_02432e30-8261-406f-9d19-cfa4930e4356.sql",
+      "create_definition_found_in_git_history": false,
+      "source_commit": null,
+      "historically_verified": false
+    },
+    {
+      "object": "public.update_updated_at_column",
+      "object_type": "function",
+      "first_migration_using_it": "supabase/migrations/20251001055524_23107548-c261-4cea-a661-4967f5028dcd.sql",
+      "create_definition_found_in_git_history": true,
+      "source_commit": "first CREATE OR REPLACE in repo: supabase/migrations/20260327125803_528ceb17-04a6-442d-9344-c134e13f7104.sql (2026-03-27)",
+      "historically_verified": false,
+      "note": "A definition exists, but it is 18 months LATER than first use. It cannot be treated as the 2025-10-01 baseline definition without assumption."
+    },
+    {
+      "object": "public.bookings",
+      "object_type": "table",
+      "first_migration_using_it": "referenced by numerous 2025/2026 migrations; never created in any committed migration",
+      "create_definition_found_in_git_history": false,
+      "source_commit": null,
+      "historically_verified": false,
+      "note": "Not in the mandated list but confirmed missing by the same audit method."
+    }
+  ],
+  "can_build_historically_correct_baseline_without_assumptions": false,
+  "reason": "No historical DDL exists in the repository for the pre-2025-10-01 objects. Any baseline would have to be derived from today's production schema (2026-08), which is not the 2025-10-01 state and therefore constitutes fabrication relative to the migration history.",
+  "forbidden_shortcuts_not_taken": [
+    "EventFlow tables were NOT added to scripts/sync-e2e/bootstrap_supabase_shim.sql",
+    "No historical migration was modified",
+    "No new production migration was created",
+    "No production schema dump was used as a fake 2025 baseline",
+    "No SQL error was allowlisted, no migration skipped, gate not weakened"
+  ],
+  "migration_gate_status": "RED (unchanged): 0/507 migrations replay from an empty database; first failure 42P01 on public.staff_members"
+}
