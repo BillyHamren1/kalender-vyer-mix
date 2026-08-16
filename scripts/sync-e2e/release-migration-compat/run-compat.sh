@@ -56,9 +56,14 @@ write_report() { # classification
   local cls="$1"
   local not_executed=$(( EXPECTED_TOTAL - TOTAL_EXECUTED ))
   [ "$not_executed" -lt 0 ] && not_executed=0
-  node -e '
-    const [cls,env,safeEnv,mut,cleanup,scope,expected,executed,passed,failed,notExec,results,setup,postcond,firstFail,sqlstate,variants,disclaimer] = process.argv.slice(1);
-    const fs=require("fs");
+  local git_commit; git_commit="$(git rev-parse HEAD 2>/dev/null || echo "")"
+  node --input-type=module -e '
+    const [cls,env,safeEnv,mut,cleanup,scope,expected,executed,passed,failed,notExec,results,setup,postcond,firstFail,sqlstate,variants,disclaimer,gitCommit] = process.argv.slice(1);
+    const fs = await import("node:fs");
+    const binding = await import(process.cwd()+"/scripts/sync-e2e/releaseBinding.mjs");
+    const b = binding.computeReleaseBinding(process.cwd());
+    const fp = binding.verifyMigrationFingerprints(process.cwd());
+
     fs.writeFileSync("reports/sync-release-migration-compatibility.json", JSON.stringify({
       harness: "release_migration_compatibility",
       generated_at: new Date().toISOString(),
@@ -75,6 +80,16 @@ write_report() { # classification
       migrations_failed: Number(failed),
       migrations_not_executed: Number(notExec),
       variants_executed: variants.split(",").filter(Boolean),
+      evidence_binding: {
+        git_commit: gitCommit || null,
+        algorithm: b.algorithm,
+        files: b.files,
+        missing_files: b.missing,
+        scope_manifest_hash: b.scope_manifest_hash,
+        migration_fingerprint_manifest_hash: b.migration_fingerprint_manifest_hash,
+        release_content_binding: b.release_content_binding,
+        migration_fingerprint_verification: fp.status,
+      },
       setup_steps: JSON.parse(setup),
       migrations: JSON.parse(results),
       postconditions: JSON.parse(postcond),
@@ -85,10 +100,12 @@ write_report() { # classification
       log: "reports/sync-release-migration-compatibility.log",
       evidence_txt: "reports/sync-release-migration-compatibility.txt",
     }, null, 2) + "\n");
+
   ' "$cls" "${E2E_ENVIRONMENT:-}" "$SAFE_ENVIRONMENT" "$MUTATIONS_EXECUTED" "$CLEANUP_STATUS" \
     "$SCOPE_SIZE" "$EXPECTED_TOTAL" "$TOTAL_EXECUTED" "$TOTAL_PASSED" "$TOTAL_FAILED" "$not_executed" \
     "$RESULTS_JSON" "$SETUP_JSON" "$POSTCOND_JSON" "$FIRST_FAILURE" "$FIRST_SQLSTATE" \
-    "$(IFS=,; echo "${VARIANTS_RUN[*]:-}")" "$DISCLAIMER"
+    "$(IFS=,; echo "${VARIANTS_RUN[*]:-}")" "$DISCLAIMER" "$git_commit"
+
 
   # Exportbar evidens (ingen connection string / inga credentials skrivs någonsin
   # till loggen; psql-URL:er ekas aldrig av harnessen).
@@ -105,7 +122,10 @@ write_report() { # classification
     echo "variants:            ${VARIANTS_RUN[*]:-none}"
     echo "first_failure:       ${FIRST_FAILURE:-none}"
     echo "sqlstate:            ${FIRST_SQLSTATE:-none}"
+    echo "git_commit:          ${git_commit:-none}"
+    echo "content_binding:     $(node -e 'import("./scripts/sync-e2e/releaseBinding.mjs").then(m=>process.stdout.write(m.computeReleaseBinding().release_content_binding))' 2>/dev/null || echo unknown)"
     echo "disclaimer:          $DISCLAIMER"
+
     echo "--------------------------------------------------------------"
     cat "$LOG" 2>/dev/null
   } > "$EVIDENCE_TXT"

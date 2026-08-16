@@ -1,6 +1,6 @@
 {
   "harness": "release_migration_compatibility",
-  "generated_at": "2026-08-16T21:51:54.493Z",
+  "generated_at": "2026-08-16T22:14:47.184Z",
   "classification": "COMPATIBILITY_PASS",
   "safe_environment": "PASS",
   "environment": "local",
@@ -17,6 +17,16 @@
     "legacy_unique_as_constraint",
     "legacy_unique_as_index"
   ],
+  "evidence_binding": {
+    "git_commit": "d218bf4730c0ab0688ee19647afab9ecd21e18e0",
+    "algorithm": "sha256",
+    "files": 24,
+    "missing_files": [],
+    "scope_manifest_hash": "6c83eaad36ae13c3ce84963a5434b92b352d32b77367e4851a7b14dd006f4bca",
+    "migration_fingerprint_manifest_hash": "a34f334b80e3eef88da43bfb17b489e71af93e2f02ef7357c5fb119857b3bf77",
+    "release_content_binding": "27ba48eec1ed522ffdd87e13b6093339cdbb8f26c14f2059d31e0869ae816065",
+    "migration_fingerprint_verification": "PASS"
+  },
   "setup_steps": [
     {
       "step": "preflight_safe_environment",
