@@ -1,6 +1,6 @@
 {
   "gate": "sync_sql_e2e",
-  "generated_at": "2026-08-16T08:16:25Z",
+  "generated_at": "2026-08-16T08:34:38Z",
   "safe_environment": "PASS",
   "results": {
     "migrations": "FAIL",
@@ -15,5 +15,8 @@
     "destructive_cancellation_off": "PASS"
   },
   "reasons": "migrations: FAIL",
+  "migration_first_failure": "supabase/migrations/20251001055524_23107548-c261-4cea-a661-4967f5028dcd.sql",
+  "migration_error_summary": "SQLSTATE unknown @ line 14: 42P01: relation 'public.staff_members' does not exist (ok 0/507)",
+  "migration_log": "reports/sync-e2e-migrations.log",
   "final": "RED"
 }
