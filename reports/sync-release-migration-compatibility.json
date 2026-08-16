@@ -1,6 +1,6 @@
 {
   "harness": "release_migration_compatibility",
-  "classification": "COMPATIBILITY_FAIL",
+  "classification": "COMPATIBILITY_PASS",
   "scope_source": "src/test/syncReleaseMigrationScope.manifest.ts",
   "scope_size": 12,
   "migrations_executed": 24,
@@ -230,12 +230,12 @@
   ],
   "postconditions": {
     "legacy_unique_as_constraint": {
-      "status": "FAIL",
+      "status": "PASS",
       "checks": {
         "batch_partial_no_cursor_move": "PASS",
         "bsa_legacy_global_unique_removed": "PASS",
         "bsa_tenant_unique_present": "PASS",
-        "bsa_trigger_tenant_scoped_cleanup_task_bsa_on_delete": "FAIL",
+        "bsa_trigger_tenant_scoped_cleanup_task_bsa_on_delete": "PASS",
         "bsa_trigger_tenant_scoped_sync_bsa_on_new_project_staff": "PASS",
         "bsa_trigger_tenant_scoped_sync_location_project_bsa": "PASS",
         "bsa_trigger_tenant_scoped_sync_project_staff_on_new_booking": "PASS",
@@ -275,12 +275,12 @@
       }
     },
     "legacy_unique_as_index": {
-      "status": "FAIL",
+      "status": "PASS",
       "checks": {
         "batch_partial_no_cursor_move": "PASS",
         "bsa_legacy_global_unique_removed": "PASS",
         "bsa_tenant_unique_present": "PASS",
-        "bsa_trigger_tenant_scoped_cleanup_task_bsa_on_delete": "FAIL",
+        "bsa_trigger_tenant_scoped_cleanup_task_bsa_on_delete": "PASS",
         "bsa_trigger_tenant_scoped_sync_bsa_on_new_project_staff": "PASS",
         "bsa_trigger_tenant_scoped_sync_location_project_bsa": "PASS",
         "bsa_trigger_tenant_scoped_sync_project_staff_on_new_booking": "PASS",
@@ -320,7 +320,7 @@
       }
     }
   },
-  "first_failure": "postconditions",
+  "first_failure": null,
   "sqlstate": null,
   "fixture_objects": {
     "note": "Provenance per fixture-objekt i release_migration_compatibility. Detta är ett contract fixture, inte en historisk baseline.",
