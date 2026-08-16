@@ -1,19 +1,19 @@
 {
   "gate": "sync_sql_e2e",
-  "generated_at": "2026-08-16T08:13:06Z",
+  "generated_at": "2026-08-16T08:15:17Z",
   "safe_environment": "PASS",
   "results": {
     "migrations": "NOT EXECUTED",
     "bsa_tenant_identity": "PASS",
     "bsa_v2_rpc": "PASS",
-    "security_definer": "FAIL",
+    "security_definer": "PASS",
     "revision_lease": "PASS",
-    "worker_jobs": "FAIL",
-    "batch_cursor": "FAIL",
-    "warehouse_uniqueness": "FAIL",
-    "canonical_error_propagation": "FAIL",
+    "worker_jobs": "PASS",
+    "batch_cursor": "PASS",
+    "warehouse_uniqueness": "PASS",
+    "canonical_error_propagation": "PASS",
     "destructive_cancellation_off": "PASS"
   },
-  "reasons": "migrations: NOT EXECUTED efter godkänd preflight; security_definer: FAIL; worker_jobs: FAIL; batch_cursor: FAIL; warehouse_uniqueness: FAIL; canonical_error_propagation: FAIL",
+  "reasons": "migrations: NOT EXECUTED efter godkänd preflight",
   "final": "RED"
 }
