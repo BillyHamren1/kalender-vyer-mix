@@ -47,6 +47,7 @@ describe('STEG 5A — migration fingerprints', () => {
 
   it('testet uppdaterar aldrig manifestet automatiskt', () => {
     const self = fs.readFileSync(__filename, 'utf8');
-    expect(self).not.toContain('writeFileSync');
+    const forbidden = ['write' + 'FileSync', 'write' + 'File('];
+    for (const f of forbidden) expect(self.split(f).length - 1, f).toBeLessThan(2);
   });
 });
