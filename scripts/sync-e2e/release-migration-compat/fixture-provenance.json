@@ -1,0 +1,41 @@
+{
+  "note": "Provenance per fixture-objekt i release_migration_compatibility. Detta är ett contract fixture, inte en historisk baseline.",
+  "CURRENT_STATE_CONTRACT": [
+    { "object": "public.organizations", "assumption": "id/name/slug räcker; endast FK-mål och tenant-nyckel." },
+    { "object": "public.bookings", "assumption": "id text PK + client NOT NULL + organization_id + status/needs_review/hidden/fasdatum + last_applied_source_revision jsonb. Endast kolumner som release-scope läser/skriver." },
+    { "object": "public.booking_changes", "assumption": "auditmål för revisions- och cancellation-logik." },
+    { "object": "public.calendar_events", "assumption": "booking_id/event_type/source_date/resource_id/tider — läses av BSA V2-RPC." },
+    { "object": "public.booking_staff_assignments", "assumption": "kolumnform härledd ur V2-RPC:ns insert/on-conflict. Unik identitet sätts separat (se VERIFIED_EXISTENCE_ONLY)." },
+    { "object": "public.staff_assignments", "assumption": "staff_id/team_id/assignment_date/organization_id — teamkälla för BSA." },
+    { "object": "public.staff_members", "assumption": "id text + organization_id." },
+    { "object": "public.booking_products", "assumption": "endast org-scoping krävs av release-scope." },
+    { "object": "public.projects", "assumption": "booking_id/status/organization_id." },
+    { "object": "public.jobs", "assumption": "booking_id/status/organization_id." },
+    { "object": "public.packing_projects", "assumption": "booking-koppling." },
+    { "object": "public.packing_list_items", "assumption": "packing-koppling." },
+    { "object": "public.warehouse_calendar_events", "assumption": "organization_id/booking_id/event_type — mål för tenant-safe unikhet." },
+    { "object": "public.warehouse_assignments", "assumption": "organization_id/booking_id/staff_id/assignment_date/assignment_type/action — mål för tenant-safe unikhet." },
+    { "object": "public.booking_source_state", "assumption": "baskolumner för revision/pending; lease-kolumner tillkommer via VERIFIED_PRESTATE-migrationen." },
+    { "object": "public.sync_state", "assumption": "(organization_id, sync_type) unik + last_sync_timestamp som cursor." },
+    { "object": "public.booking_sync_jobs", "assumption": "status/attempts/max_attempts/next_attempt_at; lease-kolumner tillförs av release-migrationen." },
+    { "object": "public.sync_batches", "assumption": "planned_cursor + räknare, krävs av finalize_sync_batch." },
+    { "object": "public.sync_batch_jobs", "assumption": "kopplingstabell batch↔job." },
+    { "object": "public.large_projects", "assumption": "datumarrayer + deleted_at, läses av BSA-triggerfunktioner." },
+    { "object": "public.large_project_bookings", "assumption": "koppling large project ↔ booking." },
+    { "object": "public.large_project_staff", "assumption": "bemanning för stora projekt." },
+    { "object": "public.establishment_tasks", "assumption": "assigned_to_ids + datumintervall, läses av task→BSA-trigger." },
+    { "object": "public.organization_locations", "assumption": "is_active/show_as_project för location-BSA." },
+    { "object": "grants (anon/authenticated/service_role)", "assumption": "historisk grant-state är UNKNOWN_HISTORICAL; endast nuvarande kontrakt sätts, migrationernas avsedda slutläge verifieras som post-condition." }
+  ],
+  "VERIFIED_EXISTENCE_ONLY": [
+    { "object": "booking_staff_assignments_booking_id_staff_id_assignment_da_key", "assumption": "legacy global BSA-identitet (booking_id, staff_id, assignment_date). Existens belagd, exakt historisk CREATE-form okänd." },
+    { "object": "warehouse_calendar_events_booking_event_type_unique", "assumption": "legacy warehouse-unikhet. Testas som TVÅ varianter: table constraint respektive fristående unique index." }
+  ],
+  "VERIFIED_PRESTATE": [
+    { "object": "public.advance_booking_source_revision + booking_source_state lease-kolumner", "source": "supabase/migrations/20260805053328_85ea3d0f-e442-48da-b202-7abd2eccb8ff.sql" },
+    { "object": "public.recompute_booking_staff_for_day(text, date)", "source": "supabase/migrations/20260429183626_192dd820-b4ba-4ce3-9aef-3612c2c40a47.sql" }
+  ],
+  "UNKNOWN_HISTORICAL": [
+    { "object": "historiska EXECUTE-grants på legacy-RPC och sync-funktioner", "handling": "fabriceras inte; migrationernas avsedda slutläge verifieras som post-condition." }
+  ]
+}

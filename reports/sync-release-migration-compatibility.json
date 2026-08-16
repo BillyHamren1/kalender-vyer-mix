@@ -1,0 +1,458 @@
+{
+  "harness": "release_migration_compatibility",
+  "classification": "COMPATIBILITY_PASS",
+  "scope_source": "src/test/syncReleaseMigrationScope.manifest.ts",
+  "scope_size": 12,
+  "migrations_executed": 24,
+  "migrations_passed": 24,
+  "migrations_failed": 0,
+  "variants_executed": [
+    "legacy_unique_as_constraint",
+    "legacy_unique_as_index"
+  ],
+  "migrations": [
+    {
+      "variant": "legacy_unique_as_constraint",
+      "order": 1,
+      "migration": "20260813214815_4f49979a-8ac0-466f-959b-0f9fac8ea0e7.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_constraint",
+      "order": 2,
+      "migration": "20260813224629_2143f24d-bb1a-4b06-b459-121ee69f1486.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_constraint",
+      "order": 3,
+      "migration": "20260813225323_a121653b-529f-402b-bf34-73d141a611be.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_constraint",
+      "order": 4,
+      "migration": "20260813225837_e5cb68e8-a74e-4685-a8a5-7d9e8ffae3dc.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_constraint",
+      "order": 5,
+      "migration": "20260814094528_cee710c4-0784-4b66-9ae4-86179ee1a1a7.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_constraint",
+      "order": 6,
+      "migration": "20260814115650_52304ea5-5aee-4cef-9883-9f73a086fedb.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_constraint",
+      "order": 7,
+      "migration": "20260814120056_e1872eb9-c729-4858-b8b4-5e5bbed5f2ff.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_constraint",
+      "order": 8,
+      "migration": "20260815193400_82bfea28-51d8-4ad7-a124-845b96af0d1f.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_constraint",
+      "order": 9,
+      "migration": "20260815193913_f211bdb1-9dc0-405e-9139-c6f81c228ec2.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_constraint",
+      "order": 10,
+      "migration": "20260815193951_6d64a99b-07eb-405f-86e4-b85375907074.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_constraint",
+      "order": 11,
+      "migration": "20260816081411_fb502ec8-39cf-4c6c-8fb4-0c2cf2aac152.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_constraint",
+      "order": 12,
+      "migration": "20260816081439_b569f5a2-847e-460d-bf65-d18d90870b75.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_index",
+      "order": 1,
+      "migration": "20260813214815_4f49979a-8ac0-466f-959b-0f9fac8ea0e7.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_index",
+      "order": 2,
+      "migration": "20260813224629_2143f24d-bb1a-4b06-b459-121ee69f1486.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_index",
+      "order": 3,
+      "migration": "20260813225323_a121653b-529f-402b-bf34-73d141a611be.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_index",
+      "order": 4,
+      "migration": "20260813225837_e5cb68e8-a74e-4685-a8a5-7d9e8ffae3dc.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_index",
+      "order": 5,
+      "migration": "20260814094528_cee710c4-0784-4b66-9ae4-86179ee1a1a7.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_index",
+      "order": 6,
+      "migration": "20260814115650_52304ea5-5aee-4cef-9883-9f73a086fedb.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_index",
+      "order": 7,
+      "migration": "20260814120056_e1872eb9-c729-4858-b8b4-5e5bbed5f2ff.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_index",
+      "order": 8,
+      "migration": "20260815193400_82bfea28-51d8-4ad7-a124-845b96af0d1f.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_index",
+      "order": 9,
+      "migration": "20260815193913_f211bdb1-9dc0-405e-9139-c6f81c228ec2.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_index",
+      "order": 10,
+      "migration": "20260815193951_6d64a99b-07eb-405f-86e4-b85375907074.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_index",
+      "order": 11,
+      "migration": "20260816081411_fb502ec8-39cf-4c6c-8fb4-0c2cf2aac152.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_index",
+      "order": 12,
+      "migration": "20260816081439_b569f5a2-847e-460d-bf65-d18d90870b75.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    }
+  ],
+  "postconditions": {
+    "legacy_unique_as_constraint": {
+      "status": "PASS",
+      "checks": {
+        "batch_partial_no_cursor_move": "PASS",
+        "bsa_legacy_global_unique_removed": "PASS",
+        "bsa_tenant_unique_present": "PASS",
+        "bsa_trigger_tenant_scoped_cleanup_task_bsa_on_delete": "PASS",
+        "bsa_trigger_tenant_scoped_sync_bsa_on_new_project_staff": "PASS",
+        "bsa_trigger_tenant_scoped_sync_location_project_bsa": "PASS",
+        "bsa_trigger_tenant_scoped_sync_project_staff_on_new_booking": "PASS",
+        "bsa_trigger_tenant_scoped_sync_task_assignments_to_bsa": "PASS",
+        "bsa_trigger_tenant_scoped_sync_team_pool_to_booking_assignments": "PASS",
+        "canonical_error_no_cursor_write": "PASS",
+        "destructive_cancellation_off": "PASS",
+        "finalize_sync_batch_service_role_only": "PASS",
+        "jobs_claim_with_lease": "PASS",
+        "jobs_complete_with_token": "PASS",
+        "jobs_permanent_fail": "PASS",
+        "jobs_wrong_token_rejected": "PASS",
+        "legacy_bsa_delegates_to_v2": "PASS",
+        "legacy_bsa_rpc_not_client_executable": "PASS",
+        "revision_incomparable_guard": "PASS",
+        "revision_millisecond_precision": "PASS",
+        "secdef_claim_sync_jobs": "PASS",
+        "secdef_complete_sync_job": "PASS",
+        "secdef_fail_sync_job": "PASS",
+        "secdef_finalize_sync_batch": "PASS",
+        "secdef_recompute_booking_staff_for_day_v2": "PASS",
+        "sync_jobs_lease_columns": "PASS",
+        "v2_fail_closed_booking_not_in_org": "PASS",
+        "v2_grants_match_release_contract": "PASS",
+        "v2_on_conflict_tenant_safe": "PASS",
+        "v2_reads_scoped_by_org": "PASS",
+        "v2_rpc_fail_closed_other_tenant": "PASS",
+        "v2_rpc_idempotent": "PASS",
+        "v2_rpc_writes_tenant_rows": "PASS",
+        "warehouse_assignments_tenant_unique": "PASS",
+        "warehouse_cross_tenant_coexistence": "PASS",
+        "warehouse_same_tenant_unique": "PASS",
+        "wce_cross_tenant_coexistence": "PASS",
+        "wce_legacy_unique_removed": "PASS",
+        "wce_same_tenant_unique": "PASS",
+        "wce_tenant_unique_present": "PASS"
+      }
+    },
+    "legacy_unique_as_index": {
+      "status": "PASS",
+      "checks": {
+        "batch_partial_no_cursor_move": "PASS",
+        "bsa_legacy_global_unique_removed": "PASS",
+        "bsa_tenant_unique_present": "PASS",
+        "bsa_trigger_tenant_scoped_cleanup_task_bsa_on_delete": "PASS",
+        "bsa_trigger_tenant_scoped_sync_bsa_on_new_project_staff": "PASS",
+        "bsa_trigger_tenant_scoped_sync_location_project_bsa": "PASS",
+        "bsa_trigger_tenant_scoped_sync_project_staff_on_new_booking": "PASS",
+        "bsa_trigger_tenant_scoped_sync_task_assignments_to_bsa": "PASS",
+        "bsa_trigger_tenant_scoped_sync_team_pool_to_booking_assignments": "PASS",
+        "canonical_error_no_cursor_write": "PASS",
+        "destructive_cancellation_off": "PASS",
+        "finalize_sync_batch_service_role_only": "PASS",
+        "jobs_claim_with_lease": "PASS",
+        "jobs_complete_with_token": "PASS",
+        "jobs_permanent_fail": "PASS",
+        "jobs_wrong_token_rejected": "PASS",
+        "legacy_bsa_delegates_to_v2": "PASS",
+        "legacy_bsa_rpc_not_client_executable": "PASS",
+        "revision_incomparable_guard": "PASS",
+        "revision_millisecond_precision": "PASS",
+        "secdef_claim_sync_jobs": "PASS",
+        "secdef_complete_sync_job": "PASS",
+        "secdef_fail_sync_job": "PASS",
+        "secdef_finalize_sync_batch": "PASS",
+        "secdef_recompute_booking_staff_for_day_v2": "PASS",
+        "sync_jobs_lease_columns": "PASS",
+        "v2_fail_closed_booking_not_in_org": "PASS",
+        "v2_grants_match_release_contract": "PASS",
+        "v2_on_conflict_tenant_safe": "PASS",
+        "v2_reads_scoped_by_org": "PASS",
+        "v2_rpc_fail_closed_other_tenant": "PASS",
+        "v2_rpc_idempotent": "PASS",
+        "v2_rpc_writes_tenant_rows": "PASS",
+        "warehouse_assignments_tenant_unique": "PASS",
+        "warehouse_cross_tenant_coexistence": "PASS",
+        "warehouse_same_tenant_unique": "PASS",
+        "wce_cross_tenant_coexistence": "PASS",
+        "wce_legacy_unique_removed": "PASS",
+        "wce_same_tenant_unique": "PASS",
+        "wce_tenant_unique_present": "PASS"
+      }
+    }
+  },
+  "first_failure": null,
+  "sqlstate": null,
+  "fixture_objects": {
+    "note": "Provenance per fixture-objekt i release_migration_compatibility. Detta är ett contract fixture, inte en historisk baseline.",
+    "CURRENT_STATE_CONTRACT": [
+      {
+        "object": "public.organizations",
+        "assumption": "id/name/slug räcker; endast FK-mål och tenant-nyckel."
+      },
+      {
+        "object": "public.bookings",
+        "assumption": "id text PK + client NOT NULL + organization_id + status/needs_review/hidden/fasdatum + last_applied_source_revision jsonb. Endast kolumner som release-scope läser/skriver."
+      },
+      {
+        "object": "public.booking_changes",
+        "assumption": "auditmål för revisions- och cancellation-logik."
+      },
+      {
+        "object": "public.calendar_events",
+        "assumption": "booking_id/event_type/source_date/resource_id/tider — läses av BSA V2-RPC."
+      },
+      {
+        "object": "public.booking_staff_assignments",
+        "assumption": "kolumnform härledd ur V2-RPC:ns insert/on-conflict. Unik identitet sätts separat (se VERIFIED_EXISTENCE_ONLY)."
+      },
+      {
+        "object": "public.staff_assignments",
+        "assumption": "staff_id/team_id/assignment_date/organization_id — teamkälla för BSA."
+      },
+      {
+        "object": "public.staff_members",
+        "assumption": "id text + organization_id."
+      },
+      {
+        "object": "public.booking_products",
+        "assumption": "endast org-scoping krävs av release-scope."
+      },
+      {
+        "object": "public.projects",
+        "assumption": "booking_id/status/organization_id."
+      },
+      {
+        "object": "public.jobs",
+        "assumption": "booking_id/status/organization_id."
+      },
+      {
+        "object": "public.packing_projects",
+        "assumption": "booking-koppling."
+      },
+      {
+        "object": "public.packing_list_items",
+        "assumption": "packing-koppling."
+      },
+      {
+        "object": "public.warehouse_calendar_events",
+        "assumption": "organization_id/booking_id/event_type — mål för tenant-safe unikhet."
+      },
+      {
+        "object": "public.warehouse_assignments",
+        "assumption": "organization_id/booking_id/staff_id/assignment_date/assignment_type/action — mål för tenant-safe unikhet."
+      },
+      {
+        "object": "public.booking_source_state",
+        "assumption": "baskolumner för revision/pending; lease-kolumner tillkommer via VERIFIED_PRESTATE-migrationen."
+      },
+      {
+        "object": "public.sync_state",
+        "assumption": "(organization_id, sync_type) unik + last_sync_timestamp som cursor."
+      },
+      {
+        "object": "public.booking_sync_jobs",
+        "assumption": "status/attempts/max_attempts/next_attempt_at; lease-kolumner tillförs av release-migrationen."
+      },
+      {
+        "object": "public.sync_batches",
+        "assumption": "planned_cursor + räknare, krävs av finalize_sync_batch."
+      },
+      {
+        "object": "public.sync_batch_jobs",
+        "assumption": "kopplingstabell batch↔job."
+      },
+      {
+        "object": "public.large_projects",
+        "assumption": "datumarrayer + deleted_at, läses av BSA-triggerfunktioner."
+      },
+      {
+        "object": "public.large_project_bookings",
+        "assumption": "koppling large project ↔ booking."
+      },
+      {
+        "object": "public.large_project_staff",
+        "assumption": "bemanning för stora projekt."
+      },
+      {
+        "object": "public.establishment_tasks",
+        "assumption": "assigned_to_ids + datumintervall, läses av task→BSA-trigger."
+      },
+      {
+        "object": "public.organization_locations",
+        "assumption": "is_active/show_as_project för location-BSA."
+      },
+      {
+        "object": "grants (anon/authenticated/service_role)",
+        "assumption": "historisk grant-state är UNKNOWN_HISTORICAL; endast nuvarande kontrakt sätts, migrationernas avsedda slutläge verifieras som post-condition."
+      }
+    ],
+    "VERIFIED_EXISTENCE_ONLY": [
+      {
+        "object": "booking_staff_assignments_booking_id_staff_id_assignment_da_key",
+        "assumption": "legacy global BSA-identitet (booking_id, staff_id, assignment_date). Existens belagd, exakt historisk CREATE-form okänd."
+      },
+      {
+        "object": "warehouse_calendar_events_booking_event_type_unique",
+        "assumption": "legacy warehouse-unikhet. Testas som TVÅ varianter: table constraint respektive fristående unique index."
+      }
+    ],
+    "VERIFIED_PRESTATE": [
+      {
+        "object": "public.advance_booking_source_revision + booking_source_state lease-kolumner",
+        "source": "supabase/migrations/20260805053328_85ea3d0f-e442-48da-b202-7abd2eccb8ff.sql"
+      },
+      {
+        "object": "public.recompute_booking_staff_for_day(text, date)",
+        "source": "supabase/migrations/20260429183626_192dd820-b4ba-4ce3-9aef-3612c2c40a47.sql"
+      }
+    ],
+    "UNKNOWN_HISTORICAL": [
+      {
+        "object": "historiska EXECUTE-grants på legacy-RPC och sync-funktioner",
+        "handling": "fabriceras inte; migrationernas avsedda slutläge verifieras som post-condition."
+      }
+    ]
+  },
+  "disclaimer": "This compatibility harness does not prove historical migration replay or reconstruct the missing historical EventFlow baseline.",
+  "log": "reports/sync-release-migration-compatibility.log"
+}
