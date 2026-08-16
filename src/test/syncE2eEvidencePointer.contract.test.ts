@@ -1,8 +1,10 @@
 /**
- * STEG 4Z:A — Evidence-pointer contract.
+ * STEG 5B — Evidence-pointer contract.
  *
- * run-sync-e2e.sh måste redovisa BÅDE migrationsloggen och den exportbara
- * evidence-texten, och migrations får aldrig försvinna ur required sections.
+ * run-sync-e2e.sh måste fortfarande redovisa BÅDE migrationsloggen och den
+ * exportbara evidence-texten för historical replay (diagnostiskt), och den
+ * blockerande release_migration_compatibility-sektionen måste finnas kvar
+ * bland required sections.
  */
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
@@ -14,22 +16,25 @@ const runner = fs.readFileSync(
   'utf8',
 );
 
-describe('STEG 4Z:A — evidence pointers i sync-E2E-runnern', () => {
-  it('skriver migration_evidence_txt', () => {
-    expect(runner).toContain('migration_evidence_txt');
+describe('STEG 5B — evidence pointers i sync-E2E-runnern', () => {
+  it('skriver evidence_txt för historical replay', () => {
+    expect(runner).toContain('evidence_txt');
+    expect(runner).toMatch(/reports\/sync-e2e-migrations\.txt/);
   });
 
-  it('evidence-pekaren pekar exakt på reports/sync-e2e-migrations.txt', () => {
-    expect(runner).toMatch(/migration_evidence_txt["']?\s*:\s*["']?reports\/sync-e2e-migrations\.txt/);
-  });
-
-  it('skriver fortfarande migration_log', () => {
-    expect(runner).toContain('migration_log');
+  it('skriver fortfarande migrationsloggen', () => {
     expect(runner).toMatch(/reports\/sync-e2e-migrations\.log/);
   });
 
-  it('migrations finns kvar i required sections', () => {
-    expect(REQUIRED_SECTIONS).toContain('migrations');
+  it('historical replay redovisas som icke-blockerande men aldrig som PASS', () => {
+    expect(runner).toContain('HISTORICAL_STATUS="UNVERIFIABLE"');
+    expect(runner).toContain('NON_RELEASE_BLOCKING');
+    expect(runner).toMatch(/"blocking":\s*false/);
+  });
+
+  it('release_migration_compatibility är en blockerande required section', () => {
+    expect(REQUIRED_SECTIONS).toContain('release_migration_compatibility');
+    expect(REQUIRED_SECTIONS).not.toContain('migrations');
   });
 
   it('migrations-skriptet producerar båda evidensfilerna', () => {

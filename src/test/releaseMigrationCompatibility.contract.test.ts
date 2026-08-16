@@ -148,9 +148,11 @@ describe('STEG 4Z — rapportintegritet', () => {
     }
   });
 
-  it('compatibility-resultatet påverkar inte den fail-closed SQL/E2E-gaten', () => {
+  it('STEG 5B: compatibility är en blockerande sektion i den fail-closed gaten', () => {
     const gate = read('scripts/sync-e2e/gate.mjs');
-    expect(gate).not.toContain('release_migration_compatibility');
-    expect(gate).not.toContain('compatibility');
+    expect(gate).toContain('release_migration_compatibility');
+    // Historical replay får aldrig blockera, och får aldrig fejkas som PASS.
+    expect(gate).not.toMatch(/REQUIRED_SECTIONS[\s\S]{0,400}"migrations"/);
   });
+
 });

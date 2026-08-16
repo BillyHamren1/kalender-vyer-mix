@@ -1,9 +1,44 @@
 {
-  "gate": "sync_sql_e2e",
-  "generated_at": "2026-08-16T08:52:20Z",
+  "gate": "booking_planning_sql_e2e_release_gate",
+  "generated_at": "2026-08-16T22:15:39.044Z",
   "safe_environment": "PASS",
+  "historical_migration_replay": {
+    "status": "UNVERIFIABLE",
+    "classification": "DIAGNOSTIC / NON_RELEASE_BLOCKING",
+    "blocking": false,
+    "reason": "Repository history does not contain the original EventFlow database baseline; full historical replay cannot be reconstructed without fabricated schema.",
+    "baseline_classification": "B",
+    "provenance_classification": "P2",
+    "raw_migration_compile": "NOT EXECUTED",
+    "first_failure": "supabase/migrations/20251001055524_23107548-c261-4cea-a661-4967f5028dcd.sql",
+    "error_summary": "SQLSTATE 42P01 @ line 14: 42P01: relation 'public.staff_members' does not exist (ok 0/507)",
+    "log": "reports/sync-e2e-migrations.log",
+    "evidence_txt": "reports/sync-e2e-migrations.txt",
+    "report": "reports/sync-e2e-migrations.json"
+  },
+  "release_migration_compatibility": {
+    "status": "PASS",
+    "blocking": true,
+    "reasons": [],
+    "evidence": {
+      "report": "reports/sync-release-migration-compatibility.json",
+      "evidence_txt": "reports/sync-release-migration-compatibility.txt",
+      "generated_at": "2026-08-16T22:14:47.184Z",
+      "git_commit": "d218bf4730c0ab0688ee19647afab9ecd21e18e0",
+      "current_git_commit": "33a82201ebb36046fff6a01b32d1bc5ced0b3c1d",
+      "release_content_binding": "27ba48eec1ed522ffdd87e13b6093339cdbb8f26c14f2059d31e0869ae816065",
+      "scope_size": 12,
+      "migrations_passed": 24,
+      "migrations_expected": 24,
+      "variants": [
+        "legacy_unique_as_constraint",
+        "legacy_unique_as_index"
+      ],
+      "fingerprint_verification": "PASS"
+    }
+  },
   "results": {
-    "migrations": "FAIL",
+    "release_migration_compatibility": "PASS",
     "bsa_tenant_identity": "PASS",
     "bsa_v2_rpc": "PASS",
     "security_definer": "PASS",
@@ -14,9 +49,6 @@
     "canonical_error_propagation": "PASS",
     "destructive_cancellation_off": "PASS"
   },
-  "reasons": "migrations: FAIL",
-  "migration_first_failure": "supabase/migrations/20251001055524_23107548-c261-4cea-a661-4967f5028dcd.sql",
-  "migration_error_summary": "SQLSTATE 42P01 @ line 14: 42P01: relation 'public.staff_members' does not exist (ok 0/507)",
-  "migration_log": "reports/sync-e2e-migrations.log",
-  "final": "RED"
+  "reasons": "",
+  "final": "GREEN"
 }

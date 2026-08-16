@@ -150,8 +150,10 @@ describe('STEG 5A — rapportintegritet och evidens', () => {
     expect(blob).not.toMatch(/PGPASSWORD|password=/i);
   });
 
-  it('compatibility påverkar fortfarande inte den fail-closed SQL/E2E-gaten', () => {
+  it('STEG 5B: compatibility är blockerande men kräver bunden evidens', () => {
     const gate = fs.readFileSync(path.resolve(root, 'scripts/sync-e2e/gate.mjs'), 'utf8');
-    expect(gate).not.toContain('compatibility');
+    expect(gate).toContain('release_migration_compatibility');
+    expect(gate).toContain('release_content_binding');
   });
+
 });

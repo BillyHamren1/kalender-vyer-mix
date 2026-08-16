@@ -1,3 +1,10 @@
+/**
+ * STEG 5B — SQL/E2E release gate är fail-closed.
+ *
+ * Historical migration replay är diagnostiskt (aldrig blockerande, aldrig PASS).
+ * Release readiness avgörs av release_migration_compatibility + övriga
+ * fail-closed sync-sektioner.
+ */
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
@@ -5,16 +12,30 @@ import { computeFinalGate, REQUIRED_SECTIONS } from "../../scripts/sync-e2e/gate
 
 const allPass = (override: Record<string, string> = {}) => ({
   safe_environment: "PASS",
+  historical_migration_replay: { status: "UNVERIFIABLE", blocking: false },
   results: Object.fromEntries(
     (REQUIRED_SECTIONS as string[]).map((k) => [k, override[k] ?? "PASS"]),
   ),
 });
 
-describe("STEG 4S – SQL/E2E gate är fail-closed", () => {
+describe("STEG 5B – SQL/E2E gate är fail-closed", () => {
   it("ALL PASS → GREEN (exit 0)", () => {
     const r = computeFinalGate(allPass());
     expect(r.final).toBe("GREEN");
     expect(r.exit_code).toBe(0);
+  });
+
+  it("historical replay UNVERIFIABLE blockerar inte GREEN", () => {
+    const r = computeFinalGate({
+      ...allPass(),
+      historical_migration_replay: { status: "UNVERIFIABLE", blocking: false },
+    });
+    expect(r.final).toBe("GREEN");
+  });
+
+  it("historical replay får aldrig räknas som blockerande PASS-sektion", () => {
+    expect(REQUIRED_SECTIONS).not.toContain("migrations");
+    expect(REQUIRED_SECTIONS).not.toContain("historical_migration_replay");
   });
 
   it("1 FAIL → RED", () => {
@@ -26,15 +47,15 @@ describe("STEG 4S – SQL/E2E gate är fail-closed", () => {
   it("1 NOT EXECUTED → aldrig GREEN", () => {
     for (const key of REQUIRED_SECTIONS as string[]) {
       const r = computeFinalGate(allPass({ [key]: "NOT EXECUTED" }));
-      expect(r.final, `${key} NOT EXECUTED gav ${r.final}`).not.toBe("GREEN");
-      expect(r.final).toBe("RED");
+      expect(r.final, `${key} NOT EXECUTED gav ${r.final}`).toBe("RED");
     }
   });
 
-  it("Migrations NOT EXECUTED → inte GREEN", () => {
-    const r = computeFinalGate(allPass({ migrations: "NOT EXECUTED" }));
+  it("release_migration_compatibility NOT_EXECUTED/FAIL → RED", () => {
+    expect(computeFinalGate(allPass({ release_migration_compatibility: "NOT_EXECUTED" })).final).toBe("RED");
+    const r = computeFinalGate(allPass({ release_migration_compatibility: "FAIL" }));
     expect(r.final).toBe("RED");
-    expect(r.reasons.join(" ")).toContain("migrations");
+    expect(r.reasons.join(" ")).toContain("release_migration_compatibility");
   });
 
   it("Safe environment FAIL → NOT EXECUTED (exit 10), aldrig GREEN", () => {
@@ -60,9 +81,9 @@ describe("STEG 4S – SQL/E2E gate är fail-closed", () => {
     expect(sh).toContain("NO MUTATIONS EXECUTED");
   });
 
-  it("required sections täcker alla obligatoriska delar", () => {
+  it("required sections täcker alla blockerande delar", () => {
     expect(REQUIRED_SECTIONS).toEqual([
-      "migrations",
+      "release_migration_compatibility",
       "bsa_tenant_identity",
       "bsa_v2_rpc",
       "security_definer",

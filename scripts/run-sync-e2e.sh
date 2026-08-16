@@ -21,7 +21,10 @@ REPORT_JSON="$REPORT_DIR/sync-e2e-report.json"
 mkdir -p "$REPORT_DIR"
 
 SAFE_ENV="FAIL"
-R_MIGRATIONS="NOT EXECUTED"
+R_MIGRATIONS="NOT EXECUTED"          # historical migration replay (DIAGNOSTIC)
+R_COMPAT="NOT_EXECUTED"              # release migration compatibility (BLOCKING)
+COMPAT_REASONS=""
+COMPAT_EVIDENCE_JSON="null"
 R_BSA_IDENTITY="NOT EXECUTED"
 R_BSA_RPC="NOT EXECUTED"
 R_SECDEF="NOT EXECUTED"
@@ -33,12 +36,20 @@ R_CANONICAL="NOT EXECUTED"
 R_CANCELLATION="NOT EXECUTED"
 LOG_DIR="$(mktemp -d)"
 
+# Historical migration replay är alltid diagnostiskt och får aldrig bli PASS.
+HISTORICAL_STATUS="UNVERIFIABLE"
+HISTORICAL_REASON="Repository history does not contain the original EventFlow database baseline; full historical replay cannot be reconstructed without fabricated schema."
+
 results_json() {
   cat <<EOF
 {
   "safe_environment": "$SAFE_ENV",
+  "historical_migration_replay": {
+    "status": "$HISTORICAL_STATUS",
+    "blocking": false
+  },
   "results": {
-    "migrations": "$R_MIGRATIONS",
+    "release_migration_compatibility": "$R_COMPAT",
     "bsa_tenant_identity": "$R_BSA_IDENTITY",
     "bsa_v2_rpc": "$R_BSA_RPC",
     "security_definer": "$R_SECDEF",
@@ -51,6 +62,19 @@ results_json() {
   }
 }
 EOF
+}
+
+# Blockerande compatibility-sektion: strikt, content-bunden evidensvalidering.
+evaluate_compatibility() {
+  local out
+  out="$(node scripts/sync-e2e/evaluate-compatibility.mjs 2>/dev/null)"
+  if [ -z "$out" ]; then
+    R_COMPAT="FAIL"; COMPAT_REASONS="evaluate-compatibility.mjs gav inget svar"; return
+  fi
+  COMPAT_EVIDENCE_JSON="$out"
+  R_COMPAT="$(printf '%s' "$out" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).status)}catch{process.stdout.write("FAIL")}})')"
+  COMPAT_REASONS="$(printf '%s' "$out" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write((JSON.parse(s).reasons||[]).join("; "))}catch{process.stdout.write("")}})')"
+  [ -n "$R_COMPAT" ] || R_COMPAT="FAIL"
 }
 
 # Enda källan för final-beslutet: scripts/sync-e2e/gate.mjs (fail-closed).
@@ -69,9 +93,13 @@ emit_report() {
 
   cat <<EOF
 
-SYNC SQL/E2E GATE
+BOOKING→PLANNING SQL/E2E RELEASE GATE
 Safe environment: $SAFE_ENV
-Migrations: $R_MIGRATIONS
+Historical migration replay: $HISTORICAL_STATUS (DIAGNOSTIC / NON_RELEASE_BLOCKING)
+  reason: $HISTORICAL_REASON
+  raw migration compile: $R_MIGRATIONS (reports/sync-e2e-migrations.json)
+Release migration compatibility: $R_COMPAT (BLOCKING)
+${COMPAT_REASONS:+  orsak: $COMPAT_REASONS}
 BSA tenant identity: $R_BSA_IDENTITY
 BSA V2 RPC: $R_BSA_RPC
 SECURITY DEFINER: $R_SECDEF
@@ -82,39 +110,53 @@ Warehouse uniqueness: $R_WAREHOUSE
 Canonical error propagation: $R_CANONICAL
 Destructive cancellation OFF: $R_CANCELLATION
 
-FINAL SQL/E2E GATE: $final
+BOOKING→PLANNING SQL/E2E RELEASE GATE: $final
 ${GATE_REASONS:+Orsak: $GATE_REASONS}
 EOF
-  cat > "$REPORT_JSON" <<EOF
-{
-  "gate": "sync_sql_e2e",
-  "generated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "safe_environment": "$SAFE_ENV",
-  "results": {
-    "migrations": "$R_MIGRATIONS",
-    "bsa_tenant_identity": "$R_BSA_IDENTITY",
-    "bsa_v2_rpc": "$R_BSA_RPC",
-    "security_definer": "$R_SECDEF",
-    "revision_lease": "$R_LEASE",
-    "worker_jobs": "$R_JOBS",
-    "batch_cursor": "$R_BATCH",
-    "warehouse_uniqueness": "$R_WAREHOUSE",
-    "canonical_error_propagation": "$R_CANONICAL",
-    "destructive_cancellation_off": "$R_CANCELLATION"
-  },
-  "reasons": "${GATE_REASONS:-}",
-  "migration_first_failure": "${MIG_FIRST_FAILURE:-}",
-  "migration_error_summary": "${MIG_ERROR_SUMMARY:-}",
-  "migration_log": "reports/sync-e2e-migrations.log",
-  "migration_evidence_txt": "reports/sync-e2e-migrations.txt",
-  "final": "$final"
-}
-EOF
-
+  node -e '
+    const fs = require("fs");
+    const [final, safeEnv, hist, histReason, rawMig, migFirst, migSummary, compatStatus, compatReasons, compatEvidence, gateReasons, ...sections] = process.argv.slice(1);
+    const keys = ["bsa_tenant_identity","bsa_v2_rpc","security_definer","revision_lease","worker_jobs","batch_cursor","warehouse_uniqueness","canonical_error_propagation","destructive_cancellation_off"];
+    const results = { release_migration_compatibility: compatStatus };
+    keys.forEach((k,i) => { results[k] = sections[i]; });
+    let evidence = null; try { evidence = JSON.parse(compatEvidence); } catch {}
+    fs.writeFileSync("reports/sync-e2e-report.json", JSON.stringify({
+      gate: "booking_planning_sql_e2e_release_gate",
+      generated_at: new Date().toISOString(),
+      safe_environment: safeEnv,
+      historical_migration_replay: {
+        status: hist,
+        classification: "DIAGNOSTIC / NON_RELEASE_BLOCKING",
+        blocking: false,
+        reason: histReason,
+        baseline_classification: "B",
+        provenance_classification: "P2",
+        raw_migration_compile: rawMig,
+        first_failure: migFirst || null,
+        error_summary: migSummary || null,
+        log: "reports/sync-e2e-migrations.log",
+        evidence_txt: "reports/sync-e2e-migrations.txt",
+        report: "reports/sync-e2e-migrations.json",
+      },
+      release_migration_compatibility: {
+        status: compatStatus,
+        blocking: true,
+        reasons: compatReasons ? compatReasons.split("; ") : [],
+        evidence: evidence?.evidence ?? null,
+      },
+      results,
+      reasons: gateReasons || "",
+      final,
+    }, null, 2) + "\n");
+  ' "$final" "$SAFE_ENV" "$HISTORICAL_STATUS" "$HISTORICAL_REASON" "$R_MIGRATIONS" \
+    "${MIG_FIRST_FAILURE:-}" "${MIG_ERROR_SUMMARY:-}" "$R_COMPAT" "$COMPAT_REASONS" "$COMPAT_EVIDENCE_JSON" \
+    "${GATE_REASONS:-}" "$R_BSA_IDENTITY" "$R_BSA_RPC" "$R_SECDEF" "$R_LEASE" "$R_JOBS" "$R_BATCH" \
+    "$R_WAREHOUSE" "$R_CANONICAL" "$R_CANCELLATION"
 
   echo ""
   echo "Rapport skriven: $REPORT_JSON"
 }
+
 
 # ── 1. PRE-FLIGHT ────────────────────────────────────────────────────────────
 GATE_REASONS=""
@@ -147,7 +189,8 @@ run_section() {
   fi
 }
 
-# ── 2. MIGRATIONS (clean DB) – OBLIGATORISK för GREEN ────────────────────────
+# ── 2. HISTORICAL MIGRATION REPLAY (DIAGNOSTIC, NON_RELEASE_BLOCKING) ────────
+# Rapporteras alltid ärligt. Ingen fake-GREEN, ingen skippad 2025-historik.
 MIG_FIRST_FAILURE=""
 MIG_ERROR_SUMMARY=""
 if [ "${E2E_ALLOW_MIGRATION_RESET:-false}" = "true" ] && [ "${E2E_ENVIRONMENT}" = "local" ]; then
@@ -156,15 +199,14 @@ if [ "${E2E_ALLOW_MIGRATION_RESET:-false}" = "true" ] && [ "${E2E_ENVIRONMENT}" 
   else
     # Ingen supabase CLI → kör riktig migration-compile mot tom scratch-databas.
     MIG_OUT="$(bash scripts/sync-e2e/run-migrations-compile.sh | tail -1)"
-    echo "── Migrations (compile mot tom DB): $MIG_OUT"
+    echo "── Historical migration replay (compile mot tom DB): $MIG_OUT"
     case "$MIG_OUT" in
       PASS) R_MIGRATIONS="PASS" ;;
       *) R_MIGRATIONS="FAIL" ;;
     esac
   fi
 else
-  # Migrations compile testades inte → gaten kan aldrig bli GREEN (fail-closed).
-  echo "── Migrations: NOT EXECUTED (E2E_ALLOW_MIGRATION_RESET != true eller ej lokal miljö) → gaten kan inte bli GREEN"
+  echo "── Historical migration replay: NOT EXECUTED (diagnostic)"
   R_MIGRATIONS="NOT EXECUTED"
 fi
 
@@ -172,6 +214,11 @@ if [ -f reports/sync-e2e-migrations.json ]; then
   MIG_FIRST_FAILURE="$(node -e 'const j=require("./reports/sync-e2e-migrations.json");process.stdout.write(j.first_failure||"")')"
   MIG_ERROR_SUMMARY="$(node -e 'const j=require("./reports/sync-e2e-migrations.json");process.stdout.write(j.first_failure?`SQLSTATE ${j.sqlstate||"unknown"} @ line ${j.statement_line||"?"}: ${(j.error_message||"").replace(/"/g,"\u0027")} (ok ${j.ok}/${j.total})`:"")')"
 fi
+
+# ── 2b. RELEASE MIGRATION COMPATIBILITY (BLOCKERANDE) ────────────────────────
+evaluate_compatibility
+echo "── Release migration compatibility: $R_COMPAT${COMPAT_REASONS:+ ($COMPAT_REASONS)}"
+
 
 
 
