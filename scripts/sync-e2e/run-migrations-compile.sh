@@ -32,6 +32,7 @@ write_facts() {
       statement_line: l || null,
       ok: Number(ok), total: Number(total),
       log: "reports/sync-e2e-migrations.log",
+      evidence_txt: "reports/sync-e2e-migrations.txt",
     }, null, 2) + "\n");
   ' "$1" "$2" "$3" "$4" "$5" "$6" > "$FACTS"
 }
