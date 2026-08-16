@@ -43,11 +43,24 @@ exit 10. Inget fejkas någonsin som PASS.
 Varje sektion körs i en transaktion som alltid `ROLLBACK`:as – testet lämnar
 inga rader efter sig ens vid avbrott.
 
-## Kända förväntade fynd
+## Canonical identity för booking_staff_assignments
 
-`booking_staff_assignments` har fortfarande kvar det globala legacy-indexet
-`(booking_id, staff_id, assignment_date)` vid sidan av det tenant-scopade
-`(organization_id, booking_id, staff_id, assignment_date)`. Gaten kommer därför
-rapportera `bsa_cross_tenant_coexistence` och `bsa_legacy_global_index_removed`
-som FAIL tills legacy-indexet tas bort. Det är avsiktligt – gaten ska visa den
-verkliga skillnaden mellan kontraktstester och riktig SQL.
+Efter STEG 4Q är det gamla globala legacy-indexet
+`(booking_id, staff_id, assignment_date)` **borttaget**. Canonical identity är
+numera tenant-scopad:
+
+```
+(organization_id, booking_id, staff_id, assignment_date)
+```
+
+Gaten verifierar detta i `01_bsa_tenant.sql` via `bsa_cross_tenant_coexistence`
+och `bsa_legacy_global_index_removed` – båda ska vara PASS (verifierat i riktig
+SQL-körning 2026-08-16).
+
+## Migrationsgate
+
+`run-migrations-compile.sh` kör alla migrationer mot en tom scratch-databas och
+**failar direkt på första verkliga felet** (ingen kaskad). Bevis skrivs till
+`reports/sync-e2e-migrations.log` och `reports/sync-e2e-migrations.json`
+(first_failure, sqlstate, error_message, statement_line).
+
