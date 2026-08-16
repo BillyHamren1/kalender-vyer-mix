@@ -66,12 +66,14 @@
     {
       "object": "public.update_updated_at_column",
       "object_type": "function",
-      "first_migration_using_it": "supabase/migrations/20251001055524_23107548-c261-4cea-a661-4967f5028dcd.sql",
+      "first_migration_using_it": "supabase/migrations/20251001055524_23107548-c261-4cea-a661-4967f5028dcd.sql (2025-10-01)",
       "create_definition_found_in_git_history": true,
-      "source_commit": "first CREATE OR REPLACE in repo: supabase/migrations/20260327125803_528ceb17-04a6-442d-9344-c134e13f7104.sql (2026-03-27)",
+      "source_commit": "earliest CREATE OR REPLACE in repo: supabase/migrations/20260114092613_c2cf37b9-db75-4e9a-a5e1-2340fcacb584.sql line 152, added in commit 98c7fbe5cddffafe0ca9cbbaa1bce8569e2cda52 (2026-01-14, 'Changes')",
       "historically_verified": false,
-      "note": "A definition exists, but it is 18 months LATER than first use. It cannot be treated as the 2025-10-01 baseline definition without assumption."
+      "note": "CORRECTED in STEG 4X. The previous entry claimed the earliest definition was 20260327125803 and '18 months later'; both were wrong. Verified via `rg -l -i 'CREATE (OR REPLACE )?FUNCTION public.update_updated_at_column' supabase/migrations` (earliest: 2026-01-14) and git pickaxe `git log --all -S'CREATE OR REPLACE FUNCTION public.update_updated_at_column' -- supabase` (oldest commit 98c7fbe5c, 2026-01-14; next 0171d4fcb, 2026-02-21). The real gap to first use is ~3.5 months (2025-10-01 → 2026-01-14), not 18 months. It still cannot be treated as the 2025-10-01 baseline definition without assumption.",
+      "correction_step": "4X"
     },
+
     {
       "object": "public.bookings",
       "object_type": "table",
@@ -91,5 +93,23 @@
     "No production schema dump was used as a fake 2025 baseline",
     "No SQL error was allowlisted, no migration skipped, gate not weakened"
   ],
-  "migration_gate_status": "RED (unchanged): 0/507 migrations replay from an empty database; first failure 42P01 on public.staff_members"
+  "migration_gate_status": "RED (unchanged): 0/507 migrations replay from an empty database; first failure 42P01 on public.staff_members",
+  "step_4x_corrections": {
+    "corrected_at": "2026-08-16T08:55:00Z",
+    "classification_unchanged": "B — HISTORICAL BASELINE INCOMPLETE (no real historical DDL found; only the provenance of update_updated_at_column changed)",
+    "errors_fixed": [
+      "update_updated_at_column earliest definition was reported as 20260327125803 (2026-03-27) — the real earliest is 20260114092613 (2026-01-14, commit 98c7fbe5c)",
+      "The claim '18 months LATER than first use' was wrong — the actual gap is ~3.5 months (2025-10-01 → 2026-01-14)"
+    ],
+    "method": "rg over supabase/migrations for CREATE [OR REPLACE] FUNCTION public.update_updated_at_column + git pickaxe over --all; results verified, not taken from the prompt",
+    "evidence_regenerated": {
+      "run_at": "2026-08-16T08:52Z",
+      "environment": "isolated local PostgreSQL cluster 127.0.0.1:55432 (E2E_SAFE_TEST_ENV=true, E2E_ENVIRONMENT=local); production never touched",
+      "reports/sync-e2e-migrations.json": "present (contains evidence_txt)",
+      "reports/sync-e2e-migrations.txt": "present (1909 bytes)",
+      "reports/sync-e2e-report.json": "present",
+      "first_failure": "supabase/migrations/20251001055524_23107548-c261-4cea-a661-4967f5028dcd.sql, SQLSTATE 42P01, line 14, relation \"public.staff_members\" does not exist, ok 0/507"
+    }
+  }
 }
+
