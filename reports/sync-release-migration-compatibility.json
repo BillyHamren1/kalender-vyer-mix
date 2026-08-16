@@ -1,32 +1,479 @@
 {
   "harness": "release_migration_compatibility",
-  "generated_at": "2026-08-16T21:51:40.428Z",
-  "classification": "COMPATIBILITY_FAIL",
-  "safe_environment": "FAIL",
+  "generated_at": "2026-08-16T21:51:54.493Z",
+  "classification": "COMPATIBILITY_PASS",
+  "safe_environment": "PASS",
   "environment": "local",
-  "mutations_executed": false,
-  "cleanup_status": "NOT_REQUIRED",
+  "mutations_executed": true,
+  "cleanup_status": "CLEANED",
   "scope_source": "src/test/syncReleaseMigrationScope.manifest.ts",
-  "scope_size": 0,
-  "migrations_expected": 0,
-  "migrations_executed": 0,
-  "migrations_passed": 0,
+  "scope_size": 12,
+  "migrations_expected": 24,
+  "migrations_executed": 24,
+  "migrations_passed": 24,
   "migrations_failed": 0,
   "migrations_not_executed": 0,
-  "variants_executed": [],
+  "variants_executed": [
+    "legacy_unique_as_constraint",
+    "legacy_unique_as_index"
+  ],
   "setup_steps": [
+    {
+      "step": "preflight_safe_environment",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "compat_local_only",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
     {
       "step": "compat_create_drop_flag",
       "started": true,
       "completed": true,
-      "result": "FAIL",
+      "result": "PASS",
       "sqlstate": null,
-      "error": "E2E_ALLOW_COMPAT_DATABASE_CREATE_DROP != true"
+      "error": null
+    },
+    {
+      "step": "scope_manifest",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_constraint/create_database",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_constraint/supabase_shim",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_constraint/compat_fixture",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_constraint/verified_prestate_advance_booking_source_revision",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_constraint/verified_prestate_recompute_booking_staff_for_day",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_constraint/legacy_bsa_identity",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_constraint/legacy_variant_fixture",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_index/create_database",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_index/supabase_shim",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_index/compat_fixture",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_index/verified_prestate_advance_booking_source_revision",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_index/verified_prestate_recompute_booking_staff_for_day",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_index/legacy_bsa_identity",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
+    },
+    {
+      "step": "legacy_unique_as_index/legacy_variant_fixture",
+      "started": true,
+      "completed": true,
+      "result": "PASS",
+      "sqlstate": null,
+      "error": null
     }
   ],
-  "migrations": [],
-  "postconditions": {},
-  "first_failure": "E2E_ALLOW_COMPAT_DATABASE_CREATE_DROP != true – NO MUTATIONS EXECUTED",
+  "migrations": [
+    {
+      "variant": "legacy_unique_as_constraint",
+      "order": 1,
+      "migration": "20260813214815_4f49979a-8ac0-466f-959b-0f9fac8ea0e7.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_constraint",
+      "order": 2,
+      "migration": "20260813224629_2143f24d-bb1a-4b06-b459-121ee69f1486.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_constraint",
+      "order": 3,
+      "migration": "20260813225323_a121653b-529f-402b-bf34-73d141a611be.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_constraint",
+      "order": 4,
+      "migration": "20260813225837_e5cb68e8-a74e-4685-a8a5-7d9e8ffae3dc.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_constraint",
+      "order": 5,
+      "migration": "20260814094528_cee710c4-0784-4b66-9ae4-86179ee1a1a7.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_constraint",
+      "order": 6,
+      "migration": "20260814115650_52304ea5-5aee-4cef-9883-9f73a086fedb.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_constraint",
+      "order": 7,
+      "migration": "20260814120056_e1872eb9-c729-4858-b8b4-5e5bbed5f2ff.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_constraint",
+      "order": 8,
+      "migration": "20260815193400_82bfea28-51d8-4ad7-a124-845b96af0d1f.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_constraint",
+      "order": 9,
+      "migration": "20260815193913_f211bdb1-9dc0-405e-9139-c6f81c228ec2.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_constraint",
+      "order": 10,
+      "migration": "20260815193951_6d64a99b-07eb-405f-86e4-b85375907074.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_constraint",
+      "order": 11,
+      "migration": "20260816081411_fb502ec8-39cf-4c6c-8fb4-0c2cf2aac152.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_constraint",
+      "order": 12,
+      "migration": "20260816081439_b569f5a2-847e-460d-bf65-d18d90870b75.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_index",
+      "order": 1,
+      "migration": "20260813214815_4f49979a-8ac0-466f-959b-0f9fac8ea0e7.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_index",
+      "order": 2,
+      "migration": "20260813224629_2143f24d-bb1a-4b06-b459-121ee69f1486.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_index",
+      "order": 3,
+      "migration": "20260813225323_a121653b-529f-402b-bf34-73d141a611be.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_index",
+      "order": 4,
+      "migration": "20260813225837_e5cb68e8-a74e-4685-a8a5-7d9e8ffae3dc.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_index",
+      "order": 5,
+      "migration": "20260814094528_cee710c4-0784-4b66-9ae4-86179ee1a1a7.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_index",
+      "order": 6,
+      "migration": "20260814115650_52304ea5-5aee-4cef-9883-9f73a086fedb.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_index",
+      "order": 7,
+      "migration": "20260814120056_e1872eb9-c729-4858-b8b4-5e5bbed5f2ff.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_index",
+      "order": 8,
+      "migration": "20260815193400_82bfea28-51d8-4ad7-a124-845b96af0d1f.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_index",
+      "order": 9,
+      "migration": "20260815193913_f211bdb1-9dc0-405e-9139-c6f81c228ec2.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_index",
+      "order": 10,
+      "migration": "20260815193951_6d64a99b-07eb-405f-86e4-b85375907074.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_index",
+      "order": 11,
+      "migration": "20260816081411_fb502ec8-39cf-4c6c-8fb4-0c2cf2aac152.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    },
+    {
+      "variant": "legacy_unique_as_index",
+      "order": 12,
+      "migration": "20260816081439_b569f5a2-847e-460d-bf65-d18d90870b75.sql",
+      "started": true,
+      "completed": true,
+      "sqlstate": null,
+      "result": "PASS"
+    }
+  ],
+  "postconditions": {
+    "legacy_unique_as_constraint": {
+      "status": "PASS",
+      "checks": {
+        "batch_partial_no_cursor_move": "PASS",
+        "bsa_legacy_global_unique_removed": "PASS",
+        "bsa_tenant_unique_present": "PASS",
+        "bsa_trigger_tenant_scoped_cleanup_task_bsa_on_delete": "PASS",
+        "bsa_trigger_tenant_scoped_sync_bsa_on_new_project_staff": "PASS",
+        "bsa_trigger_tenant_scoped_sync_location_project_bsa": "PASS",
+        "bsa_trigger_tenant_scoped_sync_project_staff_on_new_booking": "PASS",
+        "bsa_trigger_tenant_scoped_sync_task_assignments_to_bsa": "PASS",
+        "bsa_trigger_tenant_scoped_sync_team_pool_to_booking_assignments": "PASS",
+        "canonical_error_no_cursor_write": "PASS",
+        "destructive_cancellation_off": "PASS",
+        "finalize_sync_batch_service_role_only": "PASS",
+        "jobs_claim_with_lease": "PASS",
+        "jobs_complete_with_token": "PASS",
+        "jobs_permanent_fail": "PASS",
+        "jobs_wrong_token_rejected": "PASS",
+        "legacy_bsa_delegates_to_v2": "PASS",
+        "legacy_bsa_rpc_not_client_executable": "PASS",
+        "revision_incomparable_guard": "PASS",
+        "revision_millisecond_precision": "PASS",
+        "secdef_claim_sync_jobs": "PASS",
+        "secdef_complete_sync_job": "PASS",
+        "secdef_fail_sync_job": "PASS",
+        "secdef_finalize_sync_batch": "PASS",
+        "secdef_recompute_booking_staff_for_day_v2": "PASS",
+        "sync_jobs_lease_columns": "PASS",
+        "v2_fail_closed_booking_not_in_org": "PASS",
+        "v2_grants_match_release_contract": "PASS",
+        "v2_on_conflict_tenant_safe": "PASS",
+        "v2_reads_scoped_by_org": "PASS",
+        "v2_rpc_fail_closed_other_tenant": "PASS",
+        "v2_rpc_idempotent": "PASS",
+        "v2_rpc_writes_tenant_rows": "PASS",
+        "warehouse_assignments_tenant_unique": "PASS",
+        "warehouse_cross_tenant_coexistence": "PASS",
+        "warehouse_same_tenant_unique": "PASS",
+        "wce_cross_tenant_coexistence": "PASS",
+        "wce_legacy_unique_removed": "PASS",
+        "wce_same_tenant_unique": "PASS",
+        "wce_tenant_unique_present": "PASS"
+      }
+    },
+    "legacy_unique_as_index": {
+      "status": "PASS",
+      "checks": {
+        "batch_partial_no_cursor_move": "PASS",
+        "bsa_legacy_global_unique_removed": "PASS",
+        "bsa_tenant_unique_present": "PASS",
+        "bsa_trigger_tenant_scoped_cleanup_task_bsa_on_delete": "PASS",
+        "bsa_trigger_tenant_scoped_sync_bsa_on_new_project_staff": "PASS",
+        "bsa_trigger_tenant_scoped_sync_location_project_bsa": "PASS",
+        "bsa_trigger_tenant_scoped_sync_project_staff_on_new_booking": "PASS",
+        "bsa_trigger_tenant_scoped_sync_task_assignments_to_bsa": "PASS",
+        "bsa_trigger_tenant_scoped_sync_team_pool_to_booking_assignments": "PASS",
+        "canonical_error_no_cursor_write": "PASS",
+        "destructive_cancellation_off": "PASS",
+        "finalize_sync_batch_service_role_only": "PASS",
+        "jobs_claim_with_lease": "PASS",
+        "jobs_complete_with_token": "PASS",
+        "jobs_permanent_fail": "PASS",
+        "jobs_wrong_token_rejected": "PASS",
+        "legacy_bsa_delegates_to_v2": "PASS",
+        "legacy_bsa_rpc_not_client_executable": "PASS",
+        "revision_incomparable_guard": "PASS",
+        "revision_millisecond_precision": "PASS",
+        "secdef_claim_sync_jobs": "PASS",
+        "secdef_complete_sync_job": "PASS",
+        "secdef_fail_sync_job": "PASS",
+        "secdef_finalize_sync_batch": "PASS",
+        "secdef_recompute_booking_staff_for_day_v2": "PASS",
+        "sync_jobs_lease_columns": "PASS",
+        "v2_fail_closed_booking_not_in_org": "PASS",
+        "v2_grants_match_release_contract": "PASS",
+        "v2_on_conflict_tenant_safe": "PASS",
+        "v2_reads_scoped_by_org": "PASS",
+        "v2_rpc_fail_closed_other_tenant": "PASS",
+        "v2_rpc_idempotent": "PASS",
+        "v2_rpc_writes_tenant_rows": "PASS",
+        "warehouse_assignments_tenant_unique": "PASS",
+        "warehouse_cross_tenant_coexistence": "PASS",
+        "warehouse_same_tenant_unique": "PASS",
+        "wce_cross_tenant_coexistence": "PASS",
+        "wce_legacy_unique_removed": "PASS",
+        "wce_same_tenant_unique": "PASS",
+        "wce_tenant_unique_present": "PASS"
+      }
+    }
+  },
+  "first_failure": null,
   "sqlstate": null,
   "fixture_objects": {
     "note": "Provenance per fixture-objekt i release_migration_compatibility. Detta är ett contract fixture, inte en historisk baseline.",
