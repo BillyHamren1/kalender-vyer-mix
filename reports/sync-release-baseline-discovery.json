@@ -1,0 +1,67 @@
+{
+  "step": "4X",
+  "mode": "read_only_release_baseline_discovery",
+  "generated_at": "2026-08-16T08:55:00Z",
+  "release_baseline_classification": "R2 — NO VERIFIED PRE-RELEASE BASELINE",
+  "production_used": false,
+  "sources_searched": [
+    {
+      "source": "local isolated PostgreSQL cluster 127.0.0.1:55432, database \"e2e\"",
+      "found": true,
+      "qualifies_as_pre_release_baseline": false,
+      "reason": "Schema was hand-built in STEG 4U from /tmp/e2epg/sql/baseline_tables.sql + baseline_functions.sql + baseline_grants.sql, which are a sync-relevant SUBSET mirrored from TODAY'S (2026-08) catalog. Only 12 public tables exist. It represents current-state objects, not a historically verified pre-release state.",
+      "supabase_migrations_schema_migrations": "does not exist in this database (to_regclass = NULL) — no record of which migrations are applied"
+    },
+    {
+      "source": "database backup / snapshot on disk",
+      "found": false,
+      "search": "find / -maxdepth 4 for *schema*.sql, *dump*.sql, *baseline*.sql, *.dump → only /tmp/e2epg/sql/baseline_*.sql (the hand-built 4U fixtures)"
+    },
+    { "source": "schema-only dump committed in repo", "found": false, "search": "no schema.sql / init.sql / dump in supabase/ or repo root" },
+    { "source": "previous staging schema", "found": false, "search": "no staging connection or staging artifact available in this environment" },
+    { "source": "CI artifact", "found": false, "search": ".github/workflows does not exist; no CI pipeline in repo" },
+    { "source": "Supabase branch / preview environment", "found": false, "search": "supabase/.branches does not exist; supabase/config.toml declares no branches" },
+    { "source": "verifiable commit + corresponding DB state", "found": false, "search": "git history contains no DB state artifact; first committed migration is 2025-10-01 while repo starts 2025-05-15" }
+  ],
+  "release_migrations_status_in_safe_test_env": {
+    "note": "Objects below EXIST in the safe test DB, but they were installed by the hand-written 4U baseline files (mirrored from current catalog) — NOT by replaying these migration files. There is no supabase_migrations.schema_migrations ledger, so no migration can be proven 'applied' there.",
+    "migration_files_considered_release_scope": [
+      "20260813214815 — warehouse_calendar_events unique index",
+      "20260813224629 — booking_sync_jobs indexes + enforce_sync_job_attempt_policy / enforce_sync_job_transition",
+      "20260813225323",
+      "20260813225837 — bookings/booking_products indexes",
+      "20260814094528 — recompute_booking_staff_for_day_v2",
+      "20260814115650 — booking_staff_assignments_org_booking_staff_date_uidx + v2 conflict target",
+      "20260814120056 — legacy global BSA index dropped / legacy RPC revoked",
+      "20260815193400 — BSA trigger functions org-scoped",
+      "20260815193913 — remaining BSA trigger functions org-scoped",
+      "20260815193951 — recompute_booking_staff_for_day legacy hardening",
+      "20260816081411 — finalize_sync_batch fix",
+      "20260816081439 — warehouse_assignments_org_booking_staff_date_type_uidx"
+    ],
+    "objects_present_in_test_db": [
+      "public.recompute_booking_staff_for_day",
+      "public.recompute_booking_staff_for_day_v2",
+      "public.claim_sync_jobs",
+      "public.complete_sync_job",
+      "public.fail_sync_job",
+      "public.finalize_sync_batch",
+      "index booking_staff_assignments_org_booking_staff_date_uidx",
+      "index warehouse_assignments_org_booking_staff_date_type_uidx"
+    ],
+    "objects_proven_applied_via_migration_replay": []
+  },
+  "conclusion": "No source exists that can be PROVEN to represent the schema state immediately before the latest Booking→Planning migrations. A dump of today's schema is explicitly NOT accepted as a historical/pre-release baseline.",
+  "gate_semantics_unchanged": true,
+  "forbidden_actions_not_taken": [
+    "migrations not removed from required sections",
+    "no FAIL turned into PASS",
+    "no 42P01 allowlist",
+    "no fake baseline created",
+    "no EventFlow tables added to bootstrap_supabase_shim.sql",
+    "no historical or new migration modified",
+    "no runtime change",
+    "no production schema or production connection used",
+    "cancellation flag left OFF"
+  ]
+}
