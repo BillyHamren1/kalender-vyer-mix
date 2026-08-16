@@ -103,9 +103,13 @@ EOF
     "destructive_cancellation_off": "$R_CANCELLATION"
   },
   "reasons": "${GATE_REASONS:-}",
+  "migration_first_failure": "${MIG_FIRST_FAILURE:-}",
+  "migration_error_summary": "${MIG_ERROR_SUMMARY:-}",
+  "migration_log": "reports/sync-e2e-migrations.log",
   "final": "$final"
 }
 EOF
+
 
   echo ""
   echo "Rapport skriven: $REPORT_JSON"
@@ -143,6 +147,8 @@ run_section() {
 }
 
 # ── 2. MIGRATIONS (clean DB) – OBLIGATORISK för GREEN ────────────────────────
+MIG_FIRST_FAILURE=""
+MIG_ERROR_SUMMARY=""
 if [ "${E2E_ALLOW_MIGRATION_RESET:-false}" = "true" ] && [ "${E2E_ENVIRONMENT}" = "local" ]; then
   if command -v supabase >/dev/null 2>&1 && supabase db reset --local >/dev/null 2>&1; then
     R_MIGRATIONS="PASS"
@@ -160,6 +166,13 @@ else
   echo "── Migrations: NOT EXECUTED (E2E_ALLOW_MIGRATION_RESET != true eller ej lokal miljö) → gaten kan inte bli GREEN"
   R_MIGRATIONS="NOT EXECUTED"
 fi
+
+if [ -f reports/sync-e2e-migrations.json ]; then
+  MIG_FIRST_FAILURE="$(node -e 'const j=require("./reports/sync-e2e-migrations.json");process.stdout.write(j.first_failure||"")')"
+  MIG_ERROR_SUMMARY="$(node -e 'const j=require("./reports/sync-e2e-migrations.json");process.stdout.write(j.first_failure?`SQLSTATE ${j.sqlstate||"unknown"} @ line ${j.statement_line||"?"}: ${(j.error_message||"").replace(/"/g,"\u0027")} (ok ${j.ok}/${j.total})`:"")')"
+fi
+
+
 
 
 
