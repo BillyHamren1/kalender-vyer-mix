@@ -32,6 +32,7 @@ write_facts() {
       statement_line: l || null,
       ok: Number(ok), total: Number(total),
       log: "reports/sync-e2e-migrations.log",
+      evidence_txt: "reports/sync-e2e-migrations.txt",
     }, null, 2) + "\n");
   ' "$1" "$2" "$3" "$4" "$5" "$6" > "$FACTS"
 }
@@ -103,6 +104,21 @@ for f in $FILES; do
 done
 
 psql "$ADMIN_URL" -q -c "DROP DATABASE IF EXISTS $SCRATCH_DB" >>"$LOG" 2>&1
+
+# Exportbart bevis: *.log är gitignorerad, därför speglas loggen till en .txt
+# som följer med i export/zip. Påverkar INTE vad som räknas som PASS/FAIL.
+EVIDENCE_TXT="reports/sync-e2e-migrations.txt"
+{
+  echo "sync-e2e migrations evidence (mirror of $LOG)"
+  echo "generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  echo "first_failure: ${FIRST_FAIL:-none}"
+  echo "sqlstate:      ${SQLSTATE:-none}"
+  echo "line:          ${ERRLINE:-none}"
+  echo "error:         ${ERRMSG:-none}"
+  echo "ok/total:      $OK/$TOTAL"
+  echo "--------------------------------------------------------------"
+  cat "$LOG" 2>/dev/null
+} > "$EVIDENCE_TXT"
 
 if [ -z "$FIRST_FAIL" ] && [ "$OK" -eq "$TOTAL" ] && [ "$TOTAL" -gt 0 ]; then
   write_facts "" "" "" "" "$OK" "$TOTAL"
