@@ -1,0 +1,658 @@
+{
+  "step": "4Y",
+  "title": "Targeted release migration provenance audit (Booking -> Planning)",
+  "generated_at": "2026-08-16T08:57:00Z",
+  "release_scope_cutoff": "2026-08-13T21:48:15Z",
+  "method": {
+    "sources": [
+      "supabase/migrations/* (495 filer före release scope)",
+      "git history (git log --diff-filter=A per migrationsfil)"
+    ],
+    "rules": [
+      "Dagens schema/testkluster accepteras aldrig som historiskt bevis",
+      "Ingen gissning: objekt utan verifierbar källa klassas MISSING",
+      "Destruktiva/ersättande operationer kräver verifierad pre-release-definition"
+    ],
+    "classifications": [
+      "VERIFIED_PRESTATE",
+      "VERIFIED_EXISTENCE_ONLY",
+      "CURRENT_STATE_ONLY",
+      "MISSING"
+    ]
+  },
+  "targeted_pre_state_classification": "P2 — TARGETED PRE-STATE INCOMPLETE",
+  "deterministic_targeted_gate_possible_without_fabricated_history": false,
+  "core_missing_objects": [
+    {
+      "object": "public.bookings",
+      "kind": "table",
+      "classification": "MISSING",
+      "reason": "Ingen CREATE TABLE finns någonstans i migrationshistoriken (bekräftat i 4W/4X). Tabellen skapades direkt i Supabase utan committad DDL."
+    },
+    {
+      "object": "public.calendar_events",
+      "kind": "table",
+      "classification": "MISSING",
+      "reason": "Ingen CREATE TABLE i historiken."
+    },
+    {
+      "object": "public.booking_staff_assignments",
+      "kind": "table",
+      "classification": "MISSING",
+      "reason": "Ingen CREATE TABLE i historiken. Kolumnuppsättning (organization_id, booking_id, staff_id, team_id, assignment_date, role) kan endast bevisas från dagens katalog."
+    },
+    {
+      "object": "public.staff_assignments",
+      "kind": "table",
+      "classification": "MISSING",
+      "reason": "Ingen CREATE TABLE i historiken."
+    },
+    {
+      "object": "public.staff_members",
+      "kind": "table",
+      "classification": "MISSING",
+      "reason": "Ingen CREATE TABLE i historiken."
+    },
+    {
+      "object": "public.booking_products",
+      "kind": "table",
+      "classification": "MISSING",
+      "reason": "Ingen CREATE TABLE i historiken."
+    },
+    {
+      "object": "public.sync_state",
+      "kind": "table",
+      "classification": "MISSING",
+      "reason": "Ingen CREATE TABLE i historiken; kolumnerna last_sync_timestamp/sync_type/organization_id kan endast bevisas från dagens katalog."
+    },
+    {
+      "object": "public.booking_staff_assignments_booking_id_staff_id_assignment_date (legacy unik identitet)",
+      "kind": "index",
+      "classification": "VERIFIED_EXISTENCE_ONLY",
+      "evidence": {
+        "file": "supabase/migrations/20260219090811_d0f89a6b-8083-4e23-b64a-5dad7082739a.sql",
+        "commit": "e69a4e40c",
+        "date": "2026-02-19"
+      },
+      "reason": "Referens finns i historiken, men ingen CREATE-sats för det ursprungliga indexet."
+    }
+  ],
+  "migrations": [
+    {
+      "migration": "20260813214815_4f49979a-8ac0-466f-959b-0f9fac8ea0e7.sql",
+      "intent": "Tenant-säker unik identitet för warehouse_calendar_events; drop av legacy constraint/index",
+      "modifies_existing_objects": true,
+      "touched_tables": ["public.warehouse_calendar_events"],
+      "required_columns": ["organization_id", "booking_id", "event_type"],
+      "functions": [],
+      "indexes_created": ["warehouse_calendar_events_org_booking_event_type_unique"],
+      "indexes_dropped": ["warehouse_calendar_events_booking_event_type_unique"],
+      "constraints_dropped": ["warehouse_calendar_events_booking_event_type_unique"],
+      "triggers": [],
+      "grants": [],
+      "prerequisites": [
+        {
+          "object": "public.warehouse_calendar_events",
+          "classification": "VERIFIED_PRESTATE",
+          "evidence": {
+            "file": "supabase/migrations/20260114100238_8a3b2003-a73d-441d-a1a3-6ae5ae2e466b.sql",
+            "commit": "7060eb0b8",
+            "date": "2026-01-14",
+            "definition": "CREATE TABLE public.warehouse_calendar_events (...)"
+          }
+        },
+        {
+          "object": "index/constraint warehouse_calendar_events_booking_event_type_unique",
+          "classification": "MISSING",
+          "reason": "Destruktiv DROP CONSTRAINT/DROP INDEX. Ingen CREATE av den legacy-unika identiteten finns i historiken före 2026-08-13, så pre-release-state (constraint vs index, kolumnordning, partial/where) kan inte verifieras."
+        }
+      ],
+      "result": "BLOCKED (MISSING pre-state för droppat unikt objekt)"
+    },
+    {
+      "migration": "20260813224629_2143f24d-bb1a-4b06-b459-121ee69f1486.sql",
+      "intent": "STEG 4B: lease-kolumner, attempt-policy, state machine, claim/complete/fail, finalize_sync_batch",
+      "modifies_existing_objects": true,
+      "touched_tables": [
+        "public.booking_sync_jobs",
+        "public.sync_batches",
+        "public.sync_batch_jobs",
+        "public.sync_state"
+      ],
+      "required_columns": [
+        "booking_sync_jobs.status",
+        "booking_sync_jobs.attempts",
+        "booking_sync_jobs.max_attempts",
+        "booking_sync_jobs.next_attempt_at",
+        "booking_sync_jobs.received_at",
+        "booking_sync_jobs.organization_id",
+        "sync_batches.planned_cursor",
+        "sync_batches.status",
+        "sync_state.last_sync_timestamp"
+      ],
+      "functions_replaced": [
+        "public.claim_sync_jobs",
+        "public.finalize_sync_batch"
+      ],
+      "functions_created": [
+        "public.enforce_sync_job_attempt_policy",
+        "public.enforce_sync_job_transition",
+        "public.complete_sync_job",
+        "public.fail_sync_job"
+      ],
+      "indexes_created": ["booking_sync_jobs_claimable_idx", "booking_sync_jobs_lease_idx"],
+      "triggers": ["trg_sync_job_attempt_policy", "trg_sync_job_transition"],
+      "grants": ["EXECUTE ... TO service_role (claim/complete/fail)"],
+      "prerequisites": [
+        {
+          "object": "public.booking_sync_jobs",
+          "classification": "VERIFIED_PRESTATE",
+          "evidence": {
+            "file": "supabase/migrations/20260327133559_3802bdba-aa05-4e35-af7e-2c7234a7781d.sql",
+            "commit": "eb4721e48",
+            "date": "2026-03-27"
+          }
+        },
+        {
+          "object": "public.sync_batches",
+          "classification": "VERIFIED_PRESTATE",
+          "evidence": {
+            "file": "supabase/migrations/20260729075302_4fc24d20-a9fd-4084-872b-2860397fbe93.sql",
+            "commit": "e99610f3f",
+            "date": "2026-07-29"
+          }
+        },
+        {
+          "object": "public.sync_batch_jobs",
+          "classification": "VERIFIED_PRESTATE",
+          "evidence": {
+            "file": "supabase/migrations/20260729081853_bfef00f8-0a1d-4d6d-9706-18c4495533a0.sql",
+            "commit": "ae27c1769",
+            "date": "2026-07-29"
+          }
+        },
+        {
+          "object": "public.claim_sync_jobs (pre-release definition)",
+          "classification": "VERIFIED_PRESTATE",
+          "evidence": {
+            "file": "supabase/migrations/20260729081853_bfef00f8-0a1d-4d6d-9706-18c4495533a0.sql",
+            "commit": "ae27c1769",
+            "date": "2026-07-29",
+            "definition": "CREATE OR REPLACE FUNCTION public.claim_sync_jobs(...)"
+          }
+        },
+        {
+          "object": "public.finalize_sync_batch (pre-release definition)",
+          "classification": "VERIFIED_PRESTATE",
+          "evidence": {
+            "file": "supabase/migrations/20260729081853_bfef00f8-0a1d-4d6d-9706-18c4495533a0.sql",
+            "commit": "ae27c1769",
+            "date": "2026-07-29"
+          }
+        },
+        {
+          "object": "public.sync_state (tabell + last_sync_timestamp)",
+          "classification": "MISSING",
+          "reason": "Ingen CREATE TABLE public.sync_state i historiken; finalize_sync_batch skriver till den."
+        }
+      ],
+      "result": "BLOCKED (MISSING: public.sync_state)"
+    },
+    {
+      "migration": "20260813225323_a121653b-529f-402b-bf34-73d141a611be.sql",
+      "intent": "STEG 4C: dynamisk patch av advance_booking_source_revision via pg_get_functiondef + EXECUTE",
+      "modifies_existing_objects": true,
+      "touched_tables": [],
+      "functions_dynamically_replaced": ["public.advance_booking_source_revision"],
+      "dynamic_sql": true,
+      "prerequisites": [
+        {
+          "object": "public.advance_booking_source_revision (exakt pre-release-definition, patch-ankare 'IF v_has_older THEN' och to_char-formatet)",
+          "classification": "VERIFIED_PRESTATE",
+          "evidence": {
+            "file": "supabase/migrations/20260805053328_85ea3d0f-e442-48da-b202-7abd2eccb8ff.sql",
+            "commit": "4c76bcb6d",
+            "date": "2026-08-05",
+            "definition_anchor_lines": [
+              "239: IF v_has_older THEN",
+              "169/173/184/185/188: to_char(..., 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"')"
+            ]
+          },
+          "note": "Senare dynamisk patch 20260805063634 (commit 0b8e118be) rör endast changed_fields-casten och påverkar inte 4C:s ankare."
+        },
+        {
+          "object": "public.booking_source_state",
+          "classification": "VERIFIED_PRESTATE",
+          "evidence": {
+            "file": "supabase/migrations/20260804215617_d58c4454-3d2e-4920-94da-c838a1406168.sql",
+            "commit": "68bc80775",
+            "date": "2026-08-04"
+          }
+        },
+        {
+          "object": "public.bookings (läses av funktionen)",
+          "classification": "MISSING",
+          "reason": "Ingen CREATE TABLE i historiken — funktionens pre-state kan inte återskapas deterministiskt utan tabellen."
+        }
+      ],
+      "result": "BLOCKED (funktionens pre-state verifierad, men beroendetabellen bookings är MISSING)"
+    },
+    {
+      "migration": "20260813225837_e5cb68e8-a74e-4685-a8a5-7d9e8ffae3dc.sql",
+      "intent": "STEG 4D: enbart idempotenta index (inga unika, ingen datamutation)",
+      "modifies_existing_objects": false,
+      "touched_tables": [
+        "public.bookings",
+        "public.booking_products",
+        "public.calendar_events",
+        "public.warehouse_calendar_events",
+        "public.projects",
+        "public.jobs",
+        "public.packing_projects",
+        "public.packing_list_items",
+        "public.booking_source_state",
+        "public.sync_state",
+        "public.booking_sync_jobs",
+        "public.sync_batches"
+      ],
+      "required_columns": [
+        "bookings.organization_id",
+        "bookings.status",
+        "bookings.needs_review",
+        "booking_products.booking_id/organization_id",
+        "calendar_events.organization_id/booking_id/source_date",
+        "warehouse_calendar_events.organization_id/start_time",
+        "projects.organization_id/booking_id/status",
+        "jobs.organization_id/booking_id",
+        "packing_projects.organization_id/booking_id",
+        "packing_list_items.organization_id/packing_id",
+        "booking_source_state.lock_expires_at/lock_token/revision_kind/pending_started_at/updated_at",
+        "sync_state.organization_id/sync_type",
+        "booking_sync_jobs.organization_id/status",
+        "sync_batches.organization_id/started_at"
+      ],
+      "functions": [],
+      "prerequisites": [
+        {
+          "object": "public.projects",
+          "classification": "VERIFIED_EXISTENCE_ONLY",
+          "evidence": {
+            "file": "supabase/migrations/20260113073614_d4bdcea2-0e3d-4b25-af1b-4ae241f18468.sql",
+            "commit": "bb7c69c43",
+            "date": "2026-01-13"
+          }
+        },
+        {
+          "object": "public.jobs",
+          "classification": "VERIFIED_EXISTENCE_ONLY",
+          "evidence": {
+            "file": "supabase/migrations/20260129210208_68e1d642-3225-4296-8935-898317f988ed.sql",
+            "commit": "64e44ad72",
+            "date": "2026-01-29"
+          }
+        },
+        {
+          "object": "public.packing_projects",
+          "classification": "VERIFIED_EXISTENCE_ONLY",
+          "evidence": {
+            "file": "supabase/migrations/20260114092613_c2cf37b9-db75-4e9a-a5e1-2340fcacb584.sql",
+            "commit": "98c7fbe5c",
+            "date": "2026-01-14"
+          }
+        },
+        {
+          "object": "public.packing_list_items",
+          "classification": "VERIFIED_EXISTENCE_ONLY",
+          "evidence": {
+            "file": "supabase/migrations/20260203151606_839e6ab1-7a4c-48d1-84e4-2ddc073b80c9.sql",
+            "commit": "3c5f1b6dc",
+            "date": "2026-02-03"
+          }
+        },
+        {
+          "object": "public.bookings (+ kolumnerna organization_id, status, needs_review)",
+          "classification": "MISSING",
+          "reason": "Ingen CREATE TABLE / ADD COLUMN-historik för needs_review kunde verifieras före release scope."
+        },
+        {
+          "object": "public.calendar_events (+ source_date)",
+          "classification": "MISSING",
+          "reason": "Ingen CREATE TABLE i historiken."
+        },
+        {
+          "object": "public.booking_products",
+          "classification": "MISSING",
+          "reason": "Ingen CREATE TABLE i historiken."
+        },
+        {
+          "object": "public.sync_state",
+          "classification": "MISSING",
+          "reason": "Ingen CREATE TABLE i historiken."
+        }
+      ],
+      "result": "BLOCKED (fyra MISSING prerequisites)"
+    },
+    {
+      "migration": "20260814094528_cee710c4-0784-4b66-9ae4-86179ee1a1a7.sql",
+      "intent": "STEG 4I/4K: tenant-säker recompute_booking_staff_for_day_v2",
+      "modifies_existing_objects": true,
+      "touched_tables": [
+        "public.bookings",
+        "public.calendar_events",
+        "public.booking_staff_assignments",
+        "public.staff_assignments"
+      ],
+      "functions_created": ["public.recompute_booking_staff_for_day_v2(uuid,text,date)"],
+      "functions_commented": ["public.recompute_booking_staff_for_day(text,date)"],
+      "on_conflict_identity": "(booking_id, staff_id, assignment_date)",
+      "grants": ["REVOKE ALL FROM PUBLIC", "GRANT EXECUTE TO authenticated, service_role"],
+      "prerequisites": [
+        {
+          "object": "public.recompute_booking_staff_for_day(text,date) (måste existera för COMMENT)",
+          "classification": "VERIFIED_PRESTATE",
+          "evidence": {
+            "file": "supabase/migrations/20260429183626_192dd820-b4ba-4ce3-9aef-3612c2c40a47.sql",
+            "commit": "aed14bbdd",
+            "date": "2026-04-29"
+          }
+        },
+        {
+          "object": "unik identitet (booking_id, staff_id, assignment_date) på booking_staff_assignments",
+          "classification": "VERIFIED_EXISTENCE_ONLY",
+          "evidence": {
+            "file": "supabase/migrations/20260219090811_d0f89a6b-8083-4e23-b64a-5dad7082739a.sql",
+            "commit": "e69a4e40c",
+            "date": "2026-02-19"
+          },
+          "reason": "ON CONFLICT-target refereras i historiken men ingen CREATE UNIQUE INDEX/CONSTRAINT finns — exakt pre-state ej verifierbar."
+        },
+        {
+          "object": "public.booking_staff_assignments / public.staff_assignments / public.calendar_events / public.bookings",
+          "classification": "MISSING",
+          "reason": "Ingen CREATE TABLE i historiken."
+        }
+      ],
+      "result": "BLOCKED"
+    },
+    {
+      "migration": "20260814115650_52304ea5-5aee-4cef-9883-9f73a086fedb.sql",
+      "intent": "STEG 4M: tenant-säkert unikt index + V2 RPC byter ON CONFLICT-identitet",
+      "modifies_existing_objects": true,
+      "touched_tables": ["public.booking_staff_assignments"],
+      "indexes_created": ["booking_staff_assignments_org_booking_staff_date_uidx"],
+      "functions_replaced": ["public.recompute_booking_staff_for_day_v2(uuid,text,date)"],
+      "on_conflict_identity": "(organization_id, booking_id, staff_id, assignment_date)",
+      "prerequisites": [
+        {
+          "object": "public.recompute_booking_staff_for_day_v2 (pre-state)",
+          "classification": "VERIFIED_PRESTATE",
+          "evidence": {
+            "file": "supabase/migrations/20260814094528_cee710c4-0784-4b66-9ae4-86179ee1a1a7.sql",
+            "note": "Inom release scope; pre-state kedjas internt."
+          }
+        },
+        {
+          "object": "public.booking_staff_assignments (+ organization_id NOT NULL-data)",
+          "classification": "MISSING",
+          "reason": "Ingen CREATE TABLE i historiken."
+        }
+      ],
+      "result": "BLOCKED"
+    },
+    {
+      "migration": "20260814120056_e1872eb9-c729-4858-b8b4-5e5bbed5f2ff.sql",
+      "intent": "STEG 4N: revoke på legacy BSA-RPC, grants på V2",
+      "modifies_existing_objects": true,
+      "touched_tables": [],
+      "functions_referenced": [
+        "public.recompute_booking_staff_for_day(text,date)",
+        "public.recompute_booking_staff_for_day_v2(uuid,text,date)"
+      ],
+      "grants": ["REVOKE ALL FROM PUBLIC/anon/authenticated/service_role (legacy)", "GRANT EXECUTE TO authenticated, service_role (v2)"],
+      "prerequisites": [
+        {
+          "object": "public.recompute_booking_staff_for_day(text,date)",
+          "classification": "VERIFIED_EXISTENCE_ONLY",
+          "evidence": {
+            "file": "supabase/migrations/20260429183626_192dd820-b4ba-4ce3-9aef-3612c2c40a47.sql",
+            "commit": "aed14bbdd",
+            "date": "2026-04-29"
+          },
+          "reason": "Migrationen kräver endast att signaturen existerar; endast grants ändras."
+        },
+        {
+          "object": "faktiska pre-release grants på legacy-RPC",
+          "classification": "CURRENT_STATE_ONLY",
+          "reason": "Vilka roller som faktiskt hade EXECUTE före 4N kan endast läsas ur dagens katalog; historiken innehåller ingen GRANT-sats för funktionen."
+        }
+      ],
+      "result": "BLOCKED (CURRENT_STATE_ONLY grants)"
+    },
+    {
+      "migration": "20260815193400_82bfea28-51d8-4ad7-a124-845b96af0d1f.sql",
+      "intent": "STEG 4Q: guard + flytt av alla ON CONFLICT-targets till tenant-säker nyckel i legacy BSA-funktioner",
+      "modifies_existing_objects": true,
+      "touched_tables": [
+        "public.booking_staff_assignments",
+        "public.calendar_events",
+        "public.staff_assignments",
+        "public.bookings",
+        "public.large_project_bookings",
+        "public.large_project_staff",
+        "public.organization_locations",
+        "public.staff_members"
+      ],
+      "functions_replaced": [
+        "public.recompute_booking_staff_for_day(text,date)",
+        "public.sync_booking_staff_assignments()",
+        "public.sync_bsa_on_new_project_staff()",
+        "public.sync_location_project_bsa()",
+        "public.sync_new_staff_to_location_projects()",
+        "public.sync_project_staff_on_new_booking()"
+      ],
+      "on_conflict_identity": "(organization_id, booking_id, staff_id, assignment_date)",
+      "prerequisites": [
+        {
+          "object": "public.sync_booking_staff_assignments()",
+          "classification": "VERIFIED_PRESTATE",
+          "evidence": {
+            "file": "supabase/migrations/20260427021051_72e63818-1702-4a94-9290-fe102595d993.sql",
+            "commit": "5b95f04a8",
+            "date": "2026-04-27"
+          }
+        },
+        {
+          "object": "public.sync_location_project_bsa() / public.sync_new_staff_to_location_projects()",
+          "classification": "VERIFIED_PRESTATE",
+          "evidence": {
+            "file": "supabase/migrations/20260414133224_a209b8ad-1248-47c3-bdfd-266d8e57b9e7.sql",
+            "commit": "15b637fcb",
+            "date": "2026-04-14"
+          }
+        },
+        {
+          "object": "public.sync_bsa_on_new_project_staff() / public.sync_project_staff_on_new_booking()",
+          "classification": "VERIFIED_PRESTATE",
+          "evidence": {
+            "file": "supabase/migrations/20260414145559_43d6cdbf-aafe-4a52-88c7-6c3ee108f92a.sql",
+            "commit": "970b98841",
+            "date": "2026-04-14"
+          }
+        },
+        {
+          "object": "public.booking_staff_assignments / staff_members / staff_assignments / calendar_events / bookings",
+          "classification": "MISSING",
+          "reason": "Ingen CREATE TABLE i historiken; guard-blocket läser dessutom faktiska rader (organization_id NOT NULL, inga dubbletter) som inte kan reproduceras historiskt."
+        }
+      ],
+      "result": "BLOCKED"
+    },
+    {
+      "migration": "20260815193913_f211bdb1-9dc0-405e-9139-c6f81c228ec2.sql",
+      "intent": "STEG 4R: tenant-säkra kvarvarande BSA-triggers",
+      "modifies_existing_objects": true,
+      "touched_tables": [
+        "public.booking_staff_assignments",
+        "public.calendar_events",
+        "public.bookings",
+        "public.large_projects",
+        "public.large_project_bookings",
+        "public.establishment_tasks",
+        "public.organization_locations",
+        "public.staff_members"
+      ],
+      "functions_replaced": [
+        "public.sync_team_pool_to_booking_assignments()",
+        "public.sync_task_assignments_to_bsa()",
+        "public.cleanup_task_bsa_on_delete()",
+        "public.sync_location_project_bsa()",
+        "public.sync_bsa_on_new_project_staff()"
+      ],
+      "prerequisites": [
+        {
+          "object": "public.sync_task_assignments_to_bsa() / public.cleanup_task_bsa_on_delete()",
+          "classification": "VERIFIED_PRESTATE",
+          "evidence": {
+            "file": "supabase/migrations/20260331195218_5886863f-1ee6-43b6-8483-8e64c3aabdd3.sql",
+            "commit": "b8071f508",
+            "date": "2026-03-31"
+          }
+        },
+        {
+          "object": "public.sync_team_pool_to_booking_assignments()",
+          "classification": "VERIFIED_EXISTENCE_ONLY",
+          "evidence": {
+            "files": [
+              "supabase/migrations/20260427051018_477caf75-a842-488b-a9ea-cf84ef9702bc.sql",
+              "supabase/migrations/20260427051251_2dfab2ac-ade6-42d6-a002-11dc16c73354.sql (commit 41ad3fbc3, 2026-04-27)"
+            ]
+          },
+          "reason": "Funktionen refereras/omdefinieras i historiken men den definition som gällde omedelbart före 4R kan inte fastställas entydigt (CREATE OR REPLACE-kedjan är ofullständig)."
+        },
+        {
+          "object": "public.large_projects.start_date/event_date/end_date (text[])",
+          "classification": "VERIFIED_PRESTATE",
+          "evidence": {
+            "file": "supabase/migrations/20260204084628_774d7d08-9cbb-49cd-a792-d4dc0a07a1cf.sql",
+            "commit": "78d62ed66",
+            "date": "2026-02-04"
+          }
+        },
+        {
+          "object": "public.establishment_tasks",
+          "classification": "VERIFIED_PRESTATE",
+          "evidence": {
+            "file": "supabase/migrations/20260327125803_528ceb17-04a6-442d-9344-c134e13f7104.sql",
+            "commit": "f3f574444",
+            "date": "2026-03-27"
+          }
+        },
+        {
+          "object": "public.booking_staff_assignments / calendar_events / bookings / staff_members",
+          "classification": "MISSING",
+          "reason": "Ingen CREATE TABLE i historiken."
+        }
+      ],
+      "result": "BLOCKED"
+    },
+    {
+      "migration": "20260815193951_6d64a99b-07eb-405f-86e4-b85375907074.sql",
+      "intent": "STEG 4R: legacy recompute_booking_staff_for_day görs no-op/fail-closed + revoke",
+      "modifies_existing_objects": true,
+      "functions_replaced": ["public.recompute_booking_staff_for_day(text,date)"],
+      "grants": ["REVOKE ALL FROM PUBLIC, anon, authenticated"],
+      "prerequisites": [
+        {
+          "object": "public.recompute_booking_staff_for_day(text,date) (pre-state)",
+          "classification": "VERIFIED_PRESTATE",
+          "evidence": {
+            "file": "supabase/migrations/20260815193400_82bfea28-51d8-4ad7-a124-845b96af0d1f.sql",
+            "note": "Direkt föregående version ligger inom release scope; kedjan är intern."
+          }
+        },
+        {
+          "object": "grants som gällde före reveoke",
+          "classification": "CURRENT_STATE_ONLY",
+          "reason": "Endast dagens katalog kan visa faktiska EXECUTE-grants."
+        }
+      ],
+      "result": "BLOCKED (CURRENT_STATE_ONLY grants)"
+    },
+    {
+      "migration": "20260816081411_fb502ec8-39cf-4c6c-8fb4-0c2cf2aac152.sql",
+      "intent": "Härdad finalize_sync_batch (batch + cursor) + grants",
+      "modifies_existing_objects": true,
+      "touched_tables": ["public.sync_batches", "public.sync_batch_jobs", "public.booking_sync_jobs", "public.sync_state"],
+      "functions_replaced": ["public.finalize_sync_batch(uuid)"],
+      "grants": ["REVOKE ALL FROM PUBLIC, anon, authenticated", "GRANT EXECUTE TO service_role"],
+      "prerequisites": [
+        {
+          "object": "public.finalize_sync_batch(uuid) (pre-state)",
+          "classification": "VERIFIED_PRESTATE",
+          "evidence": {
+            "file": "supabase/migrations/20260813224629_2143f24d-bb1a-4b06-b459-121ee69f1486.sql",
+            "note": "Föregående version inom release scope; ursprunglig version 20260729081853 (commit ae27c1769)."
+          }
+        },
+        {
+          "object": "public.sync_state",
+          "classification": "MISSING",
+          "reason": "Ingen CREATE TABLE i historiken."
+        }
+      ],
+      "result": "BLOCKED (MISSING: public.sync_state)"
+    },
+    {
+      "migration": "20260816081439_b569f5a2-847e-460d-bf65-d18d90870b75.sql",
+      "intent": "Tenant-säkert partiellt unikt index på warehouse_assignments",
+      "modifies_existing_objects": false,
+      "touched_tables": ["public.warehouse_assignments"],
+      "required_columns": [
+        "organization_id",
+        "booking_id",
+        "staff_id",
+        "assignment_date",
+        "assignment_type",
+        "action"
+      ],
+      "indexes_created": ["warehouse_assignments_org_booking_staff_date_type_uidx"],
+      "prerequisites": [
+        {
+          "object": "public.warehouse_assignments",
+          "classification": "VERIFIED_PRESTATE",
+          "evidence": {
+            "file": "supabase/migrations/20260510015648_b1832b89-a05f-48dc-be7f-7c1d7a3a178e.sql",
+            "date": "2026-05-10"
+          }
+        },
+        {
+          "object": "kolumnen action / assignment_type på warehouse_assignments",
+          "classification": "VERIFIED_EXISTENCE_ONLY",
+          "reason": "Kolumnernas existens framgår av senare migrationer, men exakt typ/default före release kan inte fastställas entydigt."
+        }
+      ],
+      "result": "CONDITIONAL PASS (enda migration utan MISSING/CURRENT_STATE_ONLY-blockering, men beroende av samma saknade baseline för att kunna köras i replay)"
+    }
+  ],
+  "summary": {
+    "migrations_in_scope": 12,
+    "migrations_with_fully_verified_prestate": 1,
+    "migrations_blocked": 11,
+    "blocking_reasons": [
+      "MISSING CREATE TABLE för bookings, calendar_events, booking_staff_assignments, staff_assignments, staff_members, booking_products, sync_state",
+      "MISSING pre-state för warehouse_calendar_events_booking_event_type_unique (destruktiv DROP)",
+      "VERIFIED_EXISTENCE_ONLY för legacy BSA unik identitet som används som ON CONFLICT-target",
+      "VERIFIED_EXISTENCE_ONLY för sync_team_pool_to_booking_assignments före CREATE OR REPLACE",
+      "CURRENT_STATE_ONLY för grants som revokeras i 4N och 4R"
+    ]
+  },
+  "conclusion": "P2 — TARGETED PRE-STATE INCOMPLETE. En deterministisk targeted migration gate kan inte byggas utan att fabricera historik.",
+  "no_changes_made": [
+    "gate.mjs oförändrad",
+    "inga release-migrationer ändrade",
+    "ingen baseline skapad",
+    "inga pre-state-fixtures skapade",
+    "ingen runtime-/BSA-ändring",
+    "ingen anslutning till produktion"
+  ]
+}
