@@ -106,6 +106,7 @@ EOF
   "migration_first_failure": "${MIG_FIRST_FAILURE:-}",
   "migration_error_summary": "${MIG_ERROR_SUMMARY:-}",
   "migration_log": "reports/sync-e2e-migrations.log",
+  "migration_evidence_txt": "reports/sync-e2e-migrations.txt",
   "final": "$final"
 }
 EOF
