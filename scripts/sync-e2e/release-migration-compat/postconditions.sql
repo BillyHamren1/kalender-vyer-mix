@@ -126,8 +126,12 @@ BEGIN
     INSERT INTO compat_results VALUES ('bsa_trigger_tenant_scoped_'||
       substring(def from 'FUNCTION public\.([a-z_]+)'),
       CASE WHEN def ILIKE '%organization_id%'
-            AND def ILIKE '%ON CONFLICT (organization_id, booking_id, staff_id, assignment_date)%'
+            -- ON CONFLICT-kravet gäller endast skrivande triggers; rena
+            -- cleanup-triggers (DELETE) har ingen conflict target.
+            AND (def NOT ILIKE '%ON CONFLICT%'
+                 OR def ILIKE '%ON CONFLICT (organization_id, booking_id, staff_id, assignment_date)%')
         THEN 'PASS' ELSE 'FAIL' END, 'org-scoping + tenant-safe conflict target');
+
   END LOOP;
 
   -- 9. warehouse_assignments tenant-safe uniqueness
