@@ -52,11 +52,14 @@ export const computeAutoVisibleTeamsForDay = ({
   events,
   date,
   persistedTeamIds,
+  staffTeamIdsForDay,
 }: {
   resources: Pick<Resource, 'id'>[] | null | undefined;
   events: Pick<CalendarEvent, 'resourceId' | 'start'>[] | null | undefined;
   date: Date | string;
   persistedTeamIds?: string[] | null | undefined;
+  /** Team-id:n som har personal tilldelad just denna dag. */
+  staffTeamIdsForDay?: string[] | null | undefined;
 }): string[] => {
   const dateKey = typeof date === 'string' ? date : format(date, 'yyyy-MM-dd');
   const resourceIds = new Set(
@@ -77,6 +80,12 @@ export const computeAutoVisibleTeamsForDay = ({
     includedIds.add(event.resourceId);
   }
 
+  // Personal på ett team gör alltid kolumnen synlig — även utan bokning.
+  for (const id of staffTeamIdsForDay ?? []) {
+    if (!id || !resourceIds.has(id)) continue;
+    includedIds.add(id);
+  }
+
   for (const id of persistedTeamIds ?? []) {
     if (!id || !resourceIds.has(id)) continue;
     includedIds.add(id);
@@ -86,3 +95,4 @@ export const computeAutoVisibleTeamsForDay = ({
     .map((resource) => resource?.id)
     .filter((id): id is string => Boolean(id) && id !== 'team-11' && includedIds.has(id));
 };
+
