@@ -14,7 +14,6 @@ import type { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { useWarehouseOpsRange, type OpsJob } from "@/hooks/useWarehouseOpsRange";
 import CreateInternalTaskDialog from "@/components/warehouse/CreateInternalTaskDialog";
-import WarehouseProjectInbox from "@/components/warehouse/WarehouseProjectInbox";
 
 type FilterKey = "active" | "today" | "week" | "upcoming" | "done" | "all";
 
@@ -321,7 +320,6 @@ const WarehouseDashboard = () => {
         )}
 
         {/* Inkommande projekt som behöver hanteras */}
-        <WarehouseProjectInbox />
       </div>
 
       <CreateInternalTaskDialog

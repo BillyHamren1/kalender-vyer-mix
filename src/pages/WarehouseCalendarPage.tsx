@@ -20,6 +20,7 @@ import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
 import WarehouseDayNavigationHeader from '@/components/Calendar/WarehouseDayNavigationHeader';
 import WarehouseEventFilter, { WarehouseEventTypeFilter, WAREHOUSE_EVENT_TYPE_FILTERS } from '@/components/Calendar/WarehouseEventFilter';
 import BookingProductsDialog from '@/components/Calendar/BookingProductsDialog';
+import WarehousePlanningInboxBar from '@/components/warehouse/WarehousePlanningInboxBar';
 import { startOfWeek, startOfMonth, endOfWeek, endOfMonth, format, parseISO } from 'date-fns';
 import {
   useWarehousePackingStats,
