@@ -1,14 +1,13 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Plus, FolderKanban, Archive, Search, RefreshCw } from "lucide-react";
+import { FolderKanban, Archive, Search, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { PageHeader } from "@/components/ui/PageHeader";
-import CreateTodoWizard from "@/components/todo/CreateTodoWizard";
 import CreateProjectWizard from "@/components/project/CreateProjectWizard";
 import { IncomingBookingsList } from "@/components/project/IncomingBookingsList";
 import { UpdatedBookingsList } from "@/components/project/UpdatedBookingsList";
@@ -36,8 +35,6 @@ const GLOBAL_STATUS_OPTIONS: Record<GlobalStatusFilter, string> = {
 const ProjectManagement = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
   const [createProjectBookingId, setCreateProjectBookingId] = useState<string | null>(null);
   const [largeProjectBookingId, setLargeProjectBookingId] = useState<string | null>(null);
@@ -142,7 +139,7 @@ const ProjectManagement = () => {
         <PageHeader
           icon={FolderKanban}
           title="Projekthantering"
-          subtitle="Hantera små, medelstora och stora projekt"
+          subtitle="Din arbetsyta för överlämning, planering, genomförande och avslut"
           variant="purple"
         >
           <Button
@@ -163,14 +160,6 @@ const ProjectManagement = () => {
           >
             <Archive className="h-4 w-4 mr-1.5" />
             Arkiv
-          </Button>
-          <Button 
-            onClick={() => { setSelectedBookingId(null); setIsCreateOpen(true); }}
-            size="sm"
-            className="rounded-lg h-8 shadow-sm bg-primary hover:bg-[hsl(var(--primary-hover))]"
-          >
-            <Plus className="h-4 w-4 mr-1.5" />
-            Skapa to do
           </Button>
         </PageHeader>
 
@@ -202,8 +191,8 @@ const ProjectManagement = () => {
             className="bg-muted/40 rounded-lg p-0.5"
           >
             <ToggleGroupItem value="all" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-card data-[state=on]:shadow-sm">Alla</ToggleGroupItem>
-            <ToggleGroupItem value="medium" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-[hsl(var(--project-medium))] data-[state=on]:text-[hsl(var(--project-medium-foreground))]">Medel</ToggleGroupItem>
-            <ToggleGroupItem value="large" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-[hsl(var(--project-large))] data-[state=on]:text-[hsl(var(--project-large-foreground))]">Stort</ToggleGroupItem>
+            <ToggleGroupItem value="medium" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-[hsl(var(--project-medium))] data-[state=on]:text-[hsl(var(--project-medium-foreground))]">Enskild bokning</ToggleGroupItem>
+            <ToggleGroupItem value="large" className="h-8 px-3 text-xs rounded-md data-[state=on]:bg-[hsl(var(--project-large))] data-[state=on]:text-[hsl(var(--project-large-foreground))]">Flera bokningar</ToggleGroupItem>
           </ToggleGroup>
         </div>
 
@@ -233,18 +222,6 @@ const ProjectManagement = () => {
           typeFilter={typeFilter}
         />
 
-
-        <CreateTodoWizard 
-          open={isCreateOpen} 
-          onOpenChange={setIsCreateOpen}
-          preselectedBookingId={selectedBookingId}
-          onSuccess={() => {
-            setIsCreateOpen(false);
-            setSelectedBookingId(null);
-            queryClient.invalidateQueries({ queryKey: ['projects'] });
-            queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
-          }}
-        />
 
         <CreateProjectWizard
           open={isCreateProjectOpen}
