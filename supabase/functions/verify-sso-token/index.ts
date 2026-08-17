@@ -81,12 +81,15 @@ Deno.serve(async (req) => {
     });
     const hubResult = await hubResponse.json().catch(() => ({}));
     if (!hubResponse.ok || hubResult?.valid !== true || !hubResult?.payload) {
+      failure('hub_verify', { status: hubResponse.status, code: hubResult?.error, message: hubResult?.message });
       return json(hubResponse.status || 401, {
         success: false,
         error_code: hubResult?.error || 'HUB_VERIFY_FAILED',
         message: hubResult?.message,
+        trace_id: traceId,
       });
     }
+    trace('hub_verify_ok', { status: hubResponse.status });
 
     // IMPORTANT: use Hub's revalidated payload, not the untrusted request object.
     const payload = hubResult.payload;
@@ -94,17 +97,33 @@ Deno.serve(async (req) => {
     const hubUserId = payload.user_id as string;
     const email = String(payload.email || '').trim().toLowerCase();
     const rolesToSync = mapRoles(payload.roles);
+    trace('claims', { hub_user_id: hubUserId, organization_id: organizationId, roles: rolesToSync, has_email: !!email });
     if (!organizationId || !hubUserId || !email || rolesToSync.length === 0) {
-      return json(403, { success: false, error_code: 'ROLE_OR_CLAIM_DENIED' });
+      failure('claims', { message: 'missing organization_id/user_id/email or no mappable role' });
+      return json(403, { success: false, error_code: 'ROLE_OR_CLAIM_DENIED', trace_id: traceId });
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    trace('env', { has_url: !!supabaseUrl, has_service_key: !!serviceRoleKey, has_anon_key: !!anonKey });
+    if (!supabaseUrl || !serviceRoleKey || !anonKey) {
+      failure('env', { message: 'missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY' });
+      return json(500, { success: false, error_code: 'ENV_MISCONFIGURED', trace_id: traceId });
+    }
     const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
     const { data: org, error: orgError } = await admin.from('organizations').select('id').eq('id', organizationId).maybeSingle();
-    if (orgError) return json(500, { success: false, error_code: 'ORG_LOOKUP_FAILED' });
-    if (!org) return json(404, { success: false, error_code: 'ORG_NOT_FOUND', message: 'Organization must be propagated from Hub first.' });
+    if (orgError) {
+      failure('org_lookup', orgError);
+      return json(500, { success: false, error_code: 'ORG_LOOKUP_FAILED', message: orgError.message, trace_id: traceId });
+    }
+    if (!org) {
+      failure('org_lookup', { message: 'organization not found: ' + organizationId });
+      return json(404, { success: false, error_code: 'ORG_NOT_FOUND', message: 'Organization must be propagated from Hub first.', trace_id: traceId });
+    }
+    trace('org_ok');
+
 
     // Canonical identity is the Hub UUID. Email is only a one-time legacy adoption fallback.
     let userId = hubUserId;
