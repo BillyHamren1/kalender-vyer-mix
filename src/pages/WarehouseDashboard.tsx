@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Package, Plus, RefreshCw, Search, ArrowUpRight, ArrowDownLeft, Wrench, CalendarIcon, X } from "lucide-react";
+import { Package, Plus, RefreshCw, Search, ArrowUpRight, ArrowDownLeft, Wrench, CalendarIcon, X, ChevronDown, LayoutTemplate } from "lucide-react";
 import { format, isToday, isThisWeek, isAfter, startOfDay, endOfDay, parseISO, isWithinInterval } from "date-fns";
 import { sv } from "date-fns/locale";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -14,6 +14,9 @@ import type { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { useWarehouseOpsRange, type OpsJob } from "@/hooks/useWarehouseOpsRange";
 import CreateInternalTaskDialog from "@/components/warehouse/CreateInternalTaskDialog";
+import WarehouseOverviewToday from "@/components/warehouse-ops/WarehouseOverviewToday";
+import WarehouseOverviewAttention from "@/components/warehouse-ops/WarehouseOverviewAttention";
+import WarehouseOverviewNext7Days from "@/components/warehouse-ops/WarehouseOverviewNext7Days";
 
 type FilterKey = "active" | "today" | "week" | "upcoming" | "done" | "all";
 
@@ -49,14 +52,12 @@ function matchFilter(job: OpsJob, key: FilterKey): boolean {
     case "week":
       return !!anchor && isThisWeek(anchor, { weekStartsOn: 1 });
     case "upcoming": {
-      // En packning räknas som "Kommande" så länge den inte är aktiverad eller klar
-      // och dess sista nedriggsdag (eller anchor) är idag eller senare.
       if (ACTIVE_STATUSES.has(status)) return false;
       if (DONE_STATUSES.has(status)) return false;
       const lastStr = job.endDate || job.anchorDate;
       if (!lastStr) return false;
       const last = startOfDay(parseISO(lastStr));
-      return !isAfter(today, last); // last >= today
+      return !isAfter(today, last);
     }
     case "done":
       return DONE_STATUSES.has(status);
@@ -83,12 +84,13 @@ function statusLabel(status: string): string {
 const WarehouseDashboard = () => {
   const navigate = useNavigate();
   const [showCreate, setShowCreate] = useState(false);
+  const [showAllJobs, setShowAllJobs] = useState(false);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterKey>("active");
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
 
   const anchorDate = useMemo(() => new Date(), []);
-  const { data, isLoading, isFetching, refetch } = useWarehouseOpsRange(anchorDate, "next30");
+  const { data, isLoading, isFetching, refetch } = useWarehouseOpsRange(anchorDate, "next7");
 
   const jobs = data?.jobs ?? [];
 
@@ -152,10 +154,28 @@ const WarehouseDashboard = () => {
       <div className="relative p-6 max-w-[1400px] mx-auto space-y-5">
         <PageHeader
           icon={Package}
-          title="Lager"
+          title="Lageröversikt"
           subtitle={format(new Date(), "EEEE d MMMM yyyy", { locale: sv })}
           variant="warehouse"
         >
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/warehouse/calendar')}
+            className="border-border/60 h-8 rounded-lg"
+          >
+            <CalendarIcon className="w-4 h-4 mr-2" />
+            Planera personal
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/warehouse/packing')}
+            className="border-border/60 h-8 rounded-lg"
+          >
+            <LayoutTemplate className="w-4 h-4 mr-2" />
+            Öppna packning
+          </Button>
           <Button
             onClick={() => setShowCreate(true)}
             size="sm"
@@ -176,150 +196,179 @@ const WarehouseDashboard = () => {
           </Button>
         </PageHeader>
 
-        {/* Sök + filter */}
-        <div className="rounded-xl border border-border/60 bg-card p-4 space-y-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Sök packning, kund eller bokningsnummer…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="pl-9 h-10"
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {FILTERS.map((f) => (
-              <button
-                key={f.key}
-                onClick={() => {
-                  setFilter(f.key);
-                  setDateRange(undefined);
-                }}
-                className={cn(
-                  "px-3 h-8 rounded-full text-sm font-medium border transition-colors flex items-center gap-2",
-                  !rangeActive && filter === f.key
-                    ? "bg-foreground text-background border-foreground"
-                    : "bg-background text-foreground border-border/60 hover:bg-accent/40",
-                )}
-              >
-                {f.label}
-                <span
-                  className={cn(
-                    "px-1.5 rounded-full text-xs",
-                    !rangeActive && filter === f.key ? "bg-background/20" : "bg-muted text-muted-foreground",
-                  )}
-                >
-                  {counts[f.key]}
-                </span>
-              </button>
-            ))}
-
-            <div className="ml-auto flex items-center gap-1">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant={rangeActive ? "default" : "outline"}
-                    size="sm"
-                    className={cn(
-                      "h-8 rounded-full px-3 gap-2",
-                      rangeActive && "bg-foreground text-background hover:bg-foreground/90",
-                    )}
-                  >
-                    <CalendarIcon className="h-4 w-4" />
-                    {dateLabel}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="end">
-                  <Calendar
-                    mode="range"
-                    selected={dateRange}
-                    onSelect={setDateRange}
-                    numberOfMonths={2}
-                    initialFocus
-                    locale={sv}
-                    className={cn("p-3 pointer-events-auto")}
-                  />
-                </PopoverContent>
-              </Popover>
-              {rangeActive && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2"
-                  onClick={() => setDateRange(undefined)}
-                  aria-label="Rensa datumfilter"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Lista */}
-        {isLoading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-16 rounded-lg" />
-            ))}
-          </div>
-        ) : visible.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border/60 bg-card/50 p-10 text-center text-sm text-muted-foreground">
-            Inga packningar matchar.
+        {isLoading || !data ? (
+          <div className="space-y-4">
+            <Skeleton className="h-24 rounded-xl" />
+            <Skeleton className="h-32 rounded-xl" />
+            <Skeleton className="h-28 rounded-xl" />
           </div>
         ) : (
-          <ul className="rounded-xl border border-border/60 bg-card divide-y divide-border/40 overflow-hidden">
-            {visible.map((j) => {
-              const dir = directionBadge(j.direction);
-              const DirIcon = dir.icon;
-              return (
-                <li
-                  key={j.id}
-                  onClick={() => navigate(`/warehouse/packing/${j.id}`)}
-                  className="px-4 py-3 flex items-center gap-4 hover:bg-accent/40 cursor-pointer transition-colors"
-                >
-                  <div className={cn("h-9 w-9 rounded-lg flex items-center justify-center shrink-0", dir.className)}>
-                    <DirIcon className="h-4 w-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="font-medium truncate">{j.name || "Packning"}</span>
-                      {j.bookingNumber && (
-                        <span className="text-xs text-muted-foreground shrink-0">#{j.bookingNumber}</span>
-                      )}
-                    </div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      {j.client || "—"}
-                      {j.anchorDate && (
-                        <>
-                          {" · "}
-                          {format(parseISO(j.anchorDate), "EEE d MMM", { locale: sv })}
-                          {j.anchorTime ? ` ${j.anchorTime}` : ""}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <div className="hidden sm:flex items-center gap-3 shrink-0">
-                    <div className="w-32">
-                      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className="h-full bg-warehouse"
-                          style={{ width: `${Math.min(100, Math.max(0, j.percent))}%` }}
-                        />
-                      </div>
-                      <div className="text-[11px] text-muted-foreground mt-1 text-right">
-                        {j.verifiedItems}/{j.totalItems}
-                      </div>
-                    </div>
-                    <Badge variant="secondary" className="text-xs">{statusLabel(j.status)}</Badge>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+          <>
+            <WarehouseOverviewToday data={data} />
+            <WarehouseOverviewAttention items={data.attention} maxItems={5} />
+            <WarehouseOverviewNext7Days data={data} />
+          </>
         )}
 
-        {/* Inkommande projekt som behöver hanteras */}
+        {/* Visa alla lagerjobb */}
+        <div className="rounded-xl border border-border/60 bg-card p-4">
+          {!showAllJobs ? (
+            <button
+              onClick={() => setShowAllJobs(true)}
+              className="flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+            >
+              <ChevronDown className="h-4 w-4" />
+              Visa alla lagerjobb ({jobs.length})
+            </button>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-[hsl(var(--heading))]">Alla lagerjobb</h3>
+                <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => setShowAllJobs(false)}>
+                  <X className="h-4 w-4 mr-1" />
+                  Dölj
+                </Button>
+              </div>
+
+              {/* Sök + filter */}
+              <div className="space-y-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Sök packning, kund eller bokningsnummer…"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    className="pl-9 h-10"
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {FILTERS.map((f) => (
+                    <button
+                      key={f.key}
+                      onClick={() => {
+                        setFilter(f.key);
+                        setDateRange(undefined);
+                      }}
+                      className={cn(
+                        "px-3 h-8 rounded-full text-sm font-medium border transition-colors flex items-center gap-2",
+                        !rangeActive && filter === f.key
+                          ? "bg-foreground text-background border-foreground"
+                          : "bg-background text-foreground border-border/60 hover:bg-accent/40",
+                      )}
+                    >
+                      {f.label}
+                      <span
+                        className={cn(
+                          "px-1.5 rounded-full text-xs",
+                          !rangeActive && filter === f.key ? "bg-background/20" : "bg-muted text-muted-foreground",
+                        )}
+                      >
+                        {counts[f.key]}
+                      </span>
+                    </button>
+                  ))}
+
+                  <div className="ml-auto flex items-center gap-1">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant={rangeActive ? "default" : "outline"}
+                          size="sm"
+                          className={cn(
+                            "h-8 rounded-full px-3 gap-2",
+                            rangeActive && "bg-foreground text-background hover:bg-foreground/90",
+                          )}
+                        >
+                          <CalendarIcon className="h-4 w-4" />
+                          {dateLabel}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="end">
+                        <Calendar
+                          mode="range"
+                          selected={dateRange}
+                          onSelect={setDateRange}
+                          numberOfMonths={2}
+                          initialFocus
+                          locale={sv}
+                          className={cn("p-3 pointer-events-auto")}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    {rangeActive && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2"
+                        onClick={() => setDateRange(undefined)}
+                        aria-label="Rensa datumfilter"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Lista */}
+              {visible.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border/60 bg-card/50 p-10 text-center text-sm text-muted-foreground">
+                  Inga packningar matchar.
+                </div>
+              ) : (
+                <ul className="rounded-xl border border-border/60 bg-card divide-y divide-border/40 overflow-hidden">
+                  {visible.map((j) => {
+                    const dir = directionBadge(j.direction);
+                    const DirIcon = dir.icon;
+                    return (
+                      <li
+                        key={j.id}
+                        onClick={() => navigate(`/warehouse/packing/${j.id}`)}
+                        className="px-4 py-3 flex items-center gap-4 hover:bg-accent/40 cursor-pointer transition-colors"
+                      >
+                        <div className={cn("h-9 w-9 rounded-lg flex items-center justify-center shrink-0", dir.className)}>
+                          <DirIcon className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-medium truncate">{j.name || "Packning"}</span>
+                            {j.bookingNumber && (
+                              <span className="text-xs text-muted-foreground shrink-0">#{j.bookingNumber}</span>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {j.client || "—"}
+                            {j.anchorDate && (
+                              <>
+                                {" · "}
+                                {format(parseISO(j.anchorDate), "EEE d MMM", { locale: sv })}
+                                {j.anchorTime ? ` ${j.anchorTime}` : ""}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <div className="hidden sm:flex items-center gap-3 shrink-0">
+                          <div className="w-32">
+                            <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                              <div
+                                className="h-full bg-warehouse"
+                                style={{ width: `${Math.min(100, Math.max(0, j.percent))}%` }}
+                              />
+                            </div>
+                            <div className="text-[11px] text-muted-foreground mt-1 text-right">
+                              {j.verifiedItems}/{j.totalItems}
+                            </div>
+                          </div>
+                          <Badge variant="secondary" className="text-xs">{statusLabel(j.status)}</Badge>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       <CreateInternalTaskDialog
