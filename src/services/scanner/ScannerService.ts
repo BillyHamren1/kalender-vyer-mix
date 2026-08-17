@@ -30,6 +30,7 @@ import {
 } from './ZebraRfidBridge';
 import { startKeyboardListener, stopKeyboardListener, isKeyboardListenerActive } from './KeyboardFallbackBridge';
 import { enqueueScan } from './ScanQueue';
+import { shouldUseLegacyScanQueue } from './operationQueueService';
 
 type ScanHandler = (scan: ScanEvent) => void;
 
@@ -57,7 +58,12 @@ const recentScans: ScanEvent[] = [];
 
 function handleIncomingScan(scan: ScanEvent): void {
 
-  enqueueScan(scan, 'received');
+  // STEG 9: legacy ScanQueue används ENDAST när SCANNER_TRANSACTION_V2 är OFF.
+  // När V2 är ON äger den durable operation queue scanningen — samma scan får
+  // aldrig ligga i båda köerna och riskera dubbel processning.
+  if (shouldUseLegacyScanQueue()) {
+    enqueueScan(scan, 'received');
+  }
 
   scanCount++;
   lastScan = scan;
