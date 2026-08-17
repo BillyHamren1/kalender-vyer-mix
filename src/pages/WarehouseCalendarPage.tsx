@@ -517,6 +517,11 @@ const WarehouseCalendarPage = () => {
           </div>
         </div>
 
+        {/* Att planera — kompakt inbox utanför kalendern */}
+        <WarehousePlanningInboxBar />
+
+
+
         {/* Content - flex-1 to fill remaining space */}
         <div className="flex-1 min-h-0 flex flex-col p-4 bg-card rounded-2xl mx-2 mb-2 shadow-sm">
           {viewMode === 'day' ? (
