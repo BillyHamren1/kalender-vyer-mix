@@ -126,6 +126,7 @@ Deno.serve(async (req) => {
 
 
     // Canonical identity is the Hub UUID. Email is only a one-time legacy adoption fallback.
+    trace('resolve_user');
     let userId = hubUserId;
     let localEmail = email;
     const { data: exact } = await admin.auth.admin.getUserById(hubUserId);
@@ -138,21 +139,27 @@ Deno.serve(async (req) => {
       });
       if (createError || !created?.user) {
         const legacy = await findLegacyUserByEmail(admin, email);
-        if (!legacy) return json(500, { success: false, error_code: 'USER_CREATE_FAILED', message: createError?.message });
+        if (!legacy) {
+          failure('user_create', createError);
+          return json(500, { success: false, error_code: 'USER_CREATE_FAILED', message: createError?.message, trace_id: traceId });
+        }
         userId = legacy.id;
         localEmail = legacy.email || email;
         await admin.auth.admin.updateUserById(userId, {
           user_metadata: { ...legacy.user_metadata, full_name: payload.full_name || '', organization_id: organizationId, sso_user: true, hub_user_id: hubUserId },
         });
+        trace('resolve_user_ok', { mode: 'legacy_adopt', user_id: userId });
       } else {
         userId = created.user.id;
         localEmail = created.user.email || email;
+        trace('resolve_user_ok', { mode: 'created', user_id: userId });
       }
     } else {
       localEmail = exact.user.email || email;
       await admin.auth.admin.updateUserById(userId, {
         user_metadata: { ...exact.user.user_metadata, full_name: payload.full_name || '', organization_id: organizationId, sso_user: true, hub_user_id: hubUserId },
       });
+      trace('resolve_user_ok', { mode: 'existing', user_id: userId });
     }
 
     // Profile organization remains the downstream runtime context, but Hub itself no longer mutates its profile.
@@ -162,30 +169,46 @@ Deno.serve(async (req) => {
       full_name: payload.full_name || null,
       organization_id: organizationId,
     }, { onConflict: 'user_id' });
-    if (profileError) return json(500, { success: false, error_code: 'PROFILE_SYNC_FAILED', message: profileError.message });
+    if (profileError) {
+      failure('profile_sync', profileError);
+      return json(500, { success: false, error_code: 'PROFILE_SYNC_FAILED', message: profileError.message, trace_id: traceId });
+    }
+    trace('profile_sync_ok');
 
     // Tenant-safe role sync: replace only rows for this organization, preserve every other tenant membership.
     const { error: deleteError } = await admin.from('user_roles').delete().eq('user_id', userId).eq('organization_id', organizationId);
-    if (deleteError) return json(500, { success: false, error_code: 'ROLE_DELETE_FAILED' });
+    if (deleteError) {
+      failure('role_delete', deleteError);
+      return json(500, { success: false, error_code: 'ROLE_DELETE_FAILED', message: deleteError.message, trace_id: traceId });
+    }
     const roleRows = rolesToSync.map((role) => ({ user_id: userId, role, organization_id: organizationId }));
     const { error: roleInsertError } = await admin.from('user_roles').insert(roleRows);
-    if (roleInsertError) return json(500, { success: false, error_code: 'ROLE_INSERT_FAILED', message: roleInsertError.message });
+    if (roleInsertError) {
+      failure('role_insert', roleInsertError);
+      return json(500, { success: false, error_code: 'ROLE_INSERT_FAILED', message: roleInsertError.message, trace_id: traceId });
+    }
+    trace('role_sync_ok', { roles: rolesToSync });
 
+    trace('generate_link', { email_domain: localEmail.split('@')[1] ?? null });
     const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({ type: 'magiclink', email: localEmail });
     if (linkError || !linkData?.properties?.hashed_token) {
-      return json(500, { success: false, error_code: 'LINK_GENERATION_FAILED', message: linkError?.message });
+      failure('generate_link', linkError ?? { message: 'no hashed_token in response' });
+      return json(500, { success: false, error_code: 'LINK_GENERATION_FAILED', message: linkError?.message, trace_id: traceId });
     }
+    trace('generate_link_ok');
 
-    const anon = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!);
+    const anon = createClient(supabaseUrl, anonKey);
     const { data: sessionData, error: verifyError } = await anon.auth.verifyOtp({
       token_hash: linkData.properties.hashed_token,
       type: 'magiclink',
     });
     if (verifyError || !sessionData?.session) {
-      return json(500, { success: false, error_code: 'SESSION_CREATE_FAILED', message: verifyError?.message });
+      failure('verify_otp', verifyError ?? { message: 'no session in verifyOtp response' });
+      return json(500, { success: false, error_code: 'SESSION_CREATE_FAILED', message: verifyError?.message, trace_id: traceId });
     }
+    trace('verify_otp_ok');
 
-    console.log('[SSO] SSO_SYNC', { hub_user_id: hubUserId, local_user_id: userId, organization_id: organizationId, target_view: targetView, roles: rolesToSync });
+    console.log('[SSO] SSO_SYNC', JSON.stringify({ trace_id: traceId, hub_user_id: hubUserId, local_user_id: userId, organization_id: organizationId, target_view: targetView, roles: rolesToSync }));
 
     return json(200, {
       success: true,
@@ -194,9 +217,11 @@ Deno.serve(async (req) => {
       user: { id: userId, email: localEmail, organization_id: organizationId, full_name: payload.full_name || null, sso_user: true },
       preferences: payload.preferences || null,
       roles: rolesToSync,
+      trace_id: traceId,
     });
   } catch (error) {
-    console.error('[SSO] Verify SSO error:', error);
-    return json(500, { success: false, error_code: 'INTERNAL_ERROR', message: String(error) });
+    failure(step, error);
+    return json(500, { success: false, error_code: 'INTERNAL_ERROR', failed_step: step, message: String(error), trace_id: traceId });
   }
+
 });
