@@ -117,3 +117,26 @@ export function useLagerCrewByDayTeam(start: Date, end: Date) {
     },
   });
 }
+
+/** Bokningstitel (rubrik) per booking_id — endast läsning, för kortets projektrad. */
+export function useWarehouseBookingTitles(bookingIds: string[]) {
+  const ids = [...new Set(bookingIds.filter(Boolean))].sort();
+
+  return useQuery({
+    queryKey: ['warehouse-card-booking-titles', ids.join(',')],
+    enabled: ids.length > 0,
+    staleTime: 60_000,
+    queryFn: async (): Promise<Map<string, string>> => {
+      const result = new Map<string, string>();
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('id, title')
+        .in('id', ids);
+      if (error || !data) return result;
+      data.forEach((b) => {
+        if (b.id && b.title) result.set(b.id, b.title as string);
+      });
+      return result;
+    },
+  });
+}
