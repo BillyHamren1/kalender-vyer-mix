@@ -1,0 +1,97 @@
+{
+  "gate": "booking_planning_final_release_gate",
+  "release_run_id": "rel-20260817T084822Z-cfdd4c250f42",
+  "generated_at": "2026-08-17T08:50:11.071Z",
+  "git_commit": "13734ccba402dbe0bc68a81935135b47e693afbf",
+  "final_release_content_binding": "a78d077ce3dedfe1ae20494e41fe18c35bf3a1b0f80bf505381ecaba350599bf",
+  "content_binding_files": 100,
+  "historical_migration_replay": {
+    "status": "UNVERIFIABLE",
+    "classification": "DIAGNOSTIC / NON_RELEASE_BLOCKING",
+    "blocking": false,
+    "reason": "Repository history does not contain the original EventFlow database baseline; full historical replay cannot be reconstructed without fabricated schema."
+  },
+  "safe_environment": {
+    "status": "PASS",
+    "reasons": []
+  },
+  "release_migration_compatibility": {
+    "status": "PASS",
+    "reasons": [],
+    "evidence": {
+      "report": "reports/sync-release-migration-compatibility.json",
+      "evidence_txt": "reports/sync-release-migration-compatibility.txt",
+      "generated_at": "2026-08-17T08:43:25.854Z",
+      "git_commit": "8c6128fa6532aac9cdd42d095bb166e3f7f66668",
+      "current_git_commit": "13734ccba402dbe0bc68a81935135b47e693afbf",
+      "release_content_binding": "5c90da8086580386ad1443a9208975e0c8305b926e36e18baf0bd88e16c93448",
+      "scope_size": 12,
+      "migrations_passed": 24,
+      "migrations_expected": 24,
+      "variants": [
+        "legacy_unique_as_constraint",
+        "legacy_unique_as_index"
+      ],
+      "fingerprint_verification": "PASS"
+    }
+  },
+  "sql_e2e_release_gate": {
+    "status": "PASS",
+    "reasons": [],
+    "report": "reports/sync-e2e-report.json",
+    "final": "GREEN",
+    "results": {
+      "release_migration_compatibility": "PASS",
+      "schema_provisioning": "PASS",
+      "bsa_tenant_identity": "PASS",
+      "bsa_v2_rpc": "PASS",
+      "security_definer": "PASS",
+      "revision_lease": "PASS",
+      "worker_jobs": "PASS",
+      "batch_cursor": "PASS",
+      "warehouse_uniqueness": "PASS",
+      "canonical_error_propagation": "PASS",
+      "destructive_cancellation_off": "PASS"
+    }
+  },
+  "contract_tests": {
+    "status": "PASS",
+    "reasons": [],
+    "command": "npx vitest run --reporter=verbose src/test/syncE2eGateFailClosed.contract.test.ts src/test/syncE2eEvidencePointer.contract.test.ts src/test/releaseMigrationCompatSafety.contract.test.ts src/test/releaseMigrationCompatibility.contract.test.ts src/test/compatibilityEvidenceNegative.contract.test.ts src/test/finalReleaseGate.contract.test.ts src/test/releaseBindingRuntimeCoverage.contract.test.ts src/test/syncReleaseMigrationFingerprints.contract.test.ts src/test/syncReleaseMigrationScope.contract.test.ts src/test/bsaTenantUniqueness.contract.test.ts src/test/bsaTenantSafeRpc.contract.test.ts src/test/bsaLegacyRuntimeAudit.contract.test.ts src/test/legacyBsaRpcRetired.contract.test.ts src/test/automaticDestructiveSyncFlag.contract.test.ts src/test/statusChangeNoDestructiveSync.contract.test.ts src/test/syncBatchLifecycle.contract.test.ts src/test/syncCursorServerAuthority.contract.test.ts src/test/syncJobRetryHardening.contract.test.ts src/test/syncObservability.contract.test.ts src/test/syncRowCountCircuitBreaker.contract.test.ts src/test/syncSafetyOperations.contract.test.ts src/test/syncStateOrgIsolation.contract.test.ts src/test/syncRegressionScenarios.contract.test.ts src/test/syncPerformance.contract.test.ts",
+    "expected_test_files": 24,
+    "executed_test_files": 24,
+    "test_files_passed": 24,
+    "tests_passed": 343,
+    "tests_failed": 0,
+    "exit_code": 0,
+    "evidence": "reports/booking-planning-contract-tests.txt"
+  },
+  "typecheck": {
+    "status": "PASS",
+    "reasons": [],
+    "command": "npx tsc --noEmit -p tsconfig.app.json",
+    "executed": true,
+    "exit_code": 0,
+    "evidence": "reports/booking-planning-typecheck.txt"
+  },
+  "build": {
+    "status": "PASS",
+    "reasons": [],
+    "command": "npm run build",
+    "executed": true,
+    "exit_code": 0,
+    "evidence": "reports/booking-planning-build.txt"
+  },
+  "required_sections": [
+    "safe_environment",
+    "release_migration_compatibility",
+    "sql_e2e_release_gate",
+    "contract_tests",
+    "typecheck",
+    "build",
+    "final_release_content_binding"
+  ],
+  "not_executed_sections": [],
+  "reasons": [],
+  "final": "GREEN"
+}

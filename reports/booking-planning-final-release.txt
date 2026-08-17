@@ -1,0 +1,17 @@
+BOOKING→PLANNING FINAL RELEASE GATE
+release_run_id:                   rel-20260817T084822Z-cfdd4c250f42
+generated_at:                     2026-08-17T08:50:11.071Z
+git_commit:                       13734ccba402dbe0bc68a81935135b47e693afbf
+final_release_content_binding:    a78d077ce3dedfe1ae20494e41fe18c35bf3a1b0f80bf505381ecaba350599bf
+historical_migration_replay:      UNVERIFIABLE (DIAGNOSTIC / NON_RELEASE_BLOCKING)
+safe_environment:                 PASS
+release_migration_compatibility:  PASS
+sql_e2e_release_gate:             PASS
+contract_tests:                   PASS
+typecheck:                        PASS
+build:                            PASS
+final_release_content_binding:    PASS
+
+Inga blockerande orsaker.
+
+FINAL RELEASE GATE: GREEN

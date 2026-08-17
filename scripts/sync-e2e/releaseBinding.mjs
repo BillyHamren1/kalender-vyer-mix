@@ -21,6 +21,49 @@ import crypto from 'node:crypto';
 
 const HARNESS = 'scripts/sync-e2e/release-migration-compat';
 
+/**
+ * STEG 5C – runtime-ytan är auditerad: exakt de production/runtime-filer som de
+ * obligatoriska Booking→Planning-contract-testerna läser eller importerar.
+ * Listan låses av src/test/releaseBindingRuntimeCoverage.contract.test.ts.
+ */
+export const RELEASE_RUNTIME_FILES = [
+  // Frontend BSA / kalender-runtime (legacyBsaRpcRetired, bsaLegacyRuntimeAudit)
+  'src/lib/calendar/recomputeBookingStaff.ts',
+  'src/lib/calendar/phaseDaysWriter.ts',
+  'src/services/bookingPhaseDaysService.ts',
+  'src/services/importService.ts',
+  'src/services/syncStateService.ts',
+  'src/hooks/useEventDragDrop.ts',
+  'src/hooks/useEventOperations.tsx',
+  'src/hooks/useMoveEventToTeam.ts',
+  'src/components/Calendar/AddRiggDayDialog.tsx',
+  'src/components/Calendar/MoveDayPopover.tsx',
+  'src/components/Calendar/MoveEventDateDialog.tsx',
+  // Kalenderläsning/visning som release-testerna skyddar (fönster, teams, self-healing)
+  'src/services/eventService.ts',
+  'src/services/calendarClearService.ts',
+  'src/services/largeProjectService.ts',
+  'src/lib/calendar/defaultVisibleTeams.ts',
+  'src/components/Calendar/ResourceData.ts',
+  'src/hooks/useTeamResources.tsx',
+  // Edge-runtime för Booking→Planning-syncen
+  'supabase/functions/import-bookings/index.ts',
+  'supabase/functions/reconcile-booking-status/index.ts',
+  'supabase/functions/_shared/destructiveSyncFlag.ts',
+  'supabase/functions/_shared/cancellation-handler.ts',
+  'supabase/functions/_shared/syncObservability.ts',
+  'supabase/functions/_shared/syncBatch.ts',
+  'supabase/functions/_shared/syncJobLifecycle.ts',
+  'supabase/functions/_shared/syncKillSwitch.ts',
+  'supabase/functions/_shared/syncOpsMetrics.ts',
+  'supabase/functions/_shared/singleBookingResult.ts',
+  'supabase/functions/_shared/singleBookingSource.ts',
+  'supabase/functions/_shared/projectionSourceAuthority.ts',
+  'supabase/functions/_shared/syncPerf.ts',
+  'supabase/functions/apply-project-dates/index.ts',
+  'supabase/functions/planning-api-proxy/index.ts',
+];
+
 export const RELEASE_BINDING_FILES = [
   `${HARNESS}/run-compat.sh`,
   `${HARNESS}/fixture.sql`,
@@ -30,11 +73,9 @@ export const RELEASE_BINDING_FILES = [
   `${HARNESS}/postconditions.sql`,
   'src/test/syncReleaseMigrationScope.manifest.ts',
   'src/test/syncReleaseMigrationFingerprints.json',
-  'src/lib/calendar/recomputeBookingStaff.ts',
-  'supabase/functions/_shared/destructiveSyncFlag.ts',
-  'supabase/functions/_shared/syncObservability.ts',
-  'supabase/functions/import-bookings/index.ts',
+  ...RELEASE_RUNTIME_FILES,
 ];
+
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 

@@ -1,6 +1,12 @@
 {
   "gate": "booking_planning_sql_e2e_release_gate",
-  "generated_at": "2026-08-16T22:15:39.044Z",
+  "generated_at": "2026-08-17T08:48:25.090Z",
+  "release_run_id": "rel-20260817T084822Z-cfdd4c250f42",
+  "schema_provisioning": {
+    "status": "PASS",
+    "method": "contract_fixture_plus_release_migrations",
+    "blocking": true
+  },
   "safe_environment": "PASS",
   "historical_migration_replay": {
     "status": "UNVERIFIABLE",
@@ -9,7 +15,7 @@
     "reason": "Repository history does not contain the original EventFlow database baseline; full historical replay cannot be reconstructed without fabricated schema.",
     "baseline_classification": "B",
     "provenance_classification": "P2",
-    "raw_migration_compile": "NOT EXECUTED",
+    "raw_migration_compile": "FAIL",
     "first_failure": "supabase/migrations/20251001055524_23107548-c261-4cea-a661-4967f5028dcd.sql",
     "error_summary": "SQLSTATE 42P01 @ line 14: 42P01: relation 'public.staff_members' does not exist (ok 0/507)",
     "log": "reports/sync-e2e-migrations.log",
@@ -23,10 +29,10 @@
     "evidence": {
       "report": "reports/sync-release-migration-compatibility.json",
       "evidence_txt": "reports/sync-release-migration-compatibility.txt",
-      "generated_at": "2026-08-16T22:14:47.184Z",
-      "git_commit": "d218bf4730c0ab0688ee19647afab9ecd21e18e0",
-      "current_git_commit": "33a82201ebb36046fff6a01b32d1bc5ced0b3c1d",
-      "release_content_binding": "27ba48eec1ed522ffdd87e13b6093339cdbb8f26c14f2059d31e0869ae816065",
+      "generated_at": "2026-08-17T08:43:25.854Z",
+      "git_commit": "8c6128fa6532aac9cdd42d095bb166e3f7f66668",
+      "current_git_commit": "13734ccba402dbe0bc68a81935135b47e693afbf",
+      "release_content_binding": "5c90da8086580386ad1443a9208975e0c8305b926e36e18baf0bd88e16c93448",
       "scope_size": 12,
       "migrations_passed": 24,
       "migrations_expected": 24,
@@ -39,6 +45,7 @@
   },
   "results": {
     "release_migration_compatibility": "PASS",
+    "schema_provisioning": "PASS",
     "bsa_tenant_identity": "PASS",
     "bsa_v2_rpc": "PASS",
     "security_definer": "PASS",

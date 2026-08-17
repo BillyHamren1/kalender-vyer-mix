@@ -1,0 +1,302 @@
+command: npm run build
+release_run_id: rel-20260817T084822Z-cfdd4c250f42
+--------------------------------------------------------------
+
+> vite_react_shadcn_ts@0.0.0 build
+> vite build
+
+vite v5.4.10 building for production...
+transforming...
+Browserslist: browsers data (caniuse-lite) is 22 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+✓ 4988 modules transformed.
+rendering chunks...
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /dev-server/src/services/projectHoursService.ts is dynamically imported by /dev-server/src/services/projectEconomyService.ts but also statically imported by /dev-server/src/hooks/useBillingInvoiceData.ts, /dev-server/src/hooks/useProjectEconomy.tsx, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /dev-server/src/lib/dayGaps.ts is dynamically imported by /dev-server/src/hooks/useDayReviewActions.ts, /dev-server/src/hooks/useDayReviewActions.ts but also statically imported by /dev-server/src/pages/mobile/MobileDayReview.tsx, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /dev-server/node_modules/sonner/dist/index.mjs is dynamically imported by /dev-server/src/contexts/MobileAuthContext.tsx, /dev-server/src/services/pushNotificationService.ts but also statically imported by /dev-server/src/components/Calendar/AddRiggDayDialog.tsx, /dev-server/src/components/Calendar/CopyEventDialog.tsx, /dev-server/src/components/Calendar/CustomEvent.tsx, /dev-server/src/components/Calendar/DeleteDayButton.tsx, /dev-server/src/components/Calendar/EventActionPopover.tsx, /dev-server/src/components/Calendar/MoveEventDateDialog.tsx, /dev-server/src/components/Calendar/SimpleStaffCurtain.tsx, /dev-server/src/components/Calendar/StaffBookingsList.tsx, /dev-server/src/components/analytics/AnalyticsExportPanel.tsx, /dev-server/src/components/booking/AttachmentsList.tsx, /dev-server/src/components/booking/FileUpload.tsx, /dev-server/src/components/booking/StatusChangeForm.tsx, /dev-server/src/components/booking/delivery/CoordinateControls.tsx, /dev-server/src/components/booking/detail/BookingTodosChecklist.tsx, /dev-server/src/components/dashboard/DashboardCancelledBookings.tsx, /dev-server/src/components/dashboard/DashboardNewBookings.tsx, /dev-server/src/components/dashboard/DashboardUpdatedBookings.tsx, /dev-server/src/components/economy/CompletedProjectsList.tsx, /dev-server/src/components/logistics/AddressFavorites.tsx, /dev-server/src/components/logistics/TransportBookingTab.tsx, /dev-server/src/components/maps/ProjectAddressMapDialog.tsx, /dev-server/src/components/mobile-app/job-tabs/JobCostsTab.tsx, /dev-server/src/components/mobile-app/job-tabs/JobInfoTab.tsx, /dev-server/src/components/mobile-app/job-tabs/JobPhotosTab.tsx, /dev-server/src/components/mobile-app/job-tabs/JobTeamTab.tsx, /dev-server/src/components/mobile-app/lager/LagerExpensesSection.tsx, /dev-server/src/components/mobile-app/lager/LagerPhotosSection.tsx, /dev-server/src/components/mobile-app/messages/ChatInput.tsx, /dev-server/src/components/mobile-app/messages/DmChatView.tsx, /dev-server/src/components/mobile-app/messages/JobChatView.tsx, /dev-server/src/components/mobile-app/time/MobileDaySubmitSheet.tsx, /dev-server/src/components/ops-control/OpsBroadcastDialog.tsx, /dev-server/src/components/ops-control/OpsDirectChat.tsx, /dev-server/src/components/ops-control/OpsJobChat.tsx, /dev-server/src/components/ops-control/OpsLiveMap.tsx, /dev-server/src/components/ops-control/OrganizationLocationsManager.tsx, /dev-server/src/components/packing/BulkCleanupDialog.tsx, /dev-server/src/components/packing/ControlCountDialog.tsx, /dev-server/src/components/packing/CreatePackingWizard.tsx, /dev-server/src/components/packing/DesktopChecklistView.tsx, /dev-server/src/components/packing/IncomingPackingList.tsx, /dev-server/src/components/packing/PackingHistoryDialog.tsx, /dev-server/src/components/packing/PackingProjectOverview.tsx, /dev-server/src/components/packing/PackingUpdatedBookings.tsx, /dev-server/src/components/project/AddToLargeProjectDialog.tsx, /dev-server/src/components/project/BookingPlacementDialog.tsx, /dev-server/src/components/project/BulkAiTagDialog.tsx, /dev-server/src/components/project/ClosingProjectsList.tsx, /dev-server/src/components/project/ConsolidateProjectsDialog.tsx, /dev-server/src/components/project/CreateProjectWizard.tsx, /dev-server/src/components/project/EstablishmentTaskDetailSheet.tsx, /dev-server/src/components/project/IncomingBookingsList.tsx, /dev-server/src/components/project/JobsListPanel.tsx, /dev-server/src/components/project/LargeProjectBookingEconomyBreakdown.tsx, /dev-server/src/components/project/LargeProjectExcelView.tsx, /dev-server/src/components/project/LargeProjectProductsOverview.tsx, /dev-server/src/components/project/LargeProjectsListPanel.tsx, /dev-server/src/components/project/MediumProjectsListPanel.tsx, /dev-server/src/components/project/PdfPreviewDialog.tsx, /dev-server/src/components/project/ProductCostsCard.tsx, /dev-server/src/components/project/ProductTagEditorDialog.tsx, /dev-server/src/components/project/ProjectEconomyTab.tsx, /dev-server/src/components/project/ProjectFiles.tsx, /dev-server/src/components/project/ProjectInternalNotes.tsx, /dev-server/src/components/project/ProjectProductsList.tsx, /dev-server/src/components/project/ProjectScheduleEditable.tsx, /dev-server/src/components/project/ProjectTransportBookingDialog.tsx, /dev-server/src/components/project/ProjectTrashPanel.tsx, /dev-server/src/components/project/SupplierInvoicesCard.tsx, /dev-server/src/components/project/UnifiedProjectList.tsx, /dev-server/src/components/project/UpdatedBookingsList.tsx, /dev-server/src/components/project/large-planner/InlinePhaseDateEditor.tsx, /dev-server/src/components/project/large-planner/InlineTodoDateEditor.tsx, /dev-server/src/components/project/large-planner/LargeProjectBookingPlannerCalendar.tsx, /dev-server/src/components/project/large-planner/LargeProjectPlannerCalendarView.tsx, /dev-server/src/components/project/large-planner/LargeProjectPlannerGanttView.tsx, /dev-server/src/components/project/large-planner/LargeProjectPlannerQuickEditDialog.tsx, /dev-server/src/components/project/large-planner/ManualProjectTaskDialog.tsx, /dev-server/src/components/project/large-planner/PlannerAddPhaseDayDialog.tsx, /dev-server/src/components/project/large-planner/PlannerEventActionPopover.tsx, /dev-server/src/components/project/large-planner/SplitBookingIntoTasksDialog.tsx, /dev-server/src/components/project/planning/PlanningTaskList.tsx, /dev-server/src/components/project/planning/TaskCommentThread.tsx, /dev-server/src/components/scanner/IdentifyScannerOverlay.tsx, /dev-server/src/components/scanner/PackingPreflightPanel.tsx, /dev-server/src/components/scanner/QrParcelManager.tsx, /dev-server/src/components/scanner/ReturnView.tsx, /dev-server/src/components/scanner/SignPackingSessionDialog.tsx, /dev-server/src/components/scanner/VerificationView.tsx, /dev-server/src/components/staff-payroll-month/PayrollMonthEmailDialog.tsx, /dev-server/src/components/staff-payroll-month/PayrollMonthReportPageContent.tsx, /dev-server/src/components/staff-time-approvals/StaffPayrollReport.tsx, /dev-server/src/components/staff-time-approvals/StaffPayrollReportSheet.tsx, /dev-server/src/components/staff-time-reports/PendingApprovalsTab.tsx, /dev-server/src/components/staff-time/StaffTimeWeekMatrixRow.tsx, /dev-server/src/components/staff/AddStaffDialog.tsx, /dev-server/src/components/staff/EditStaffDialog.tsx, /dev-server/src/components/staff/PayrollPeriodApprovalPanel.tsx, /dev-server/src/components/staff/PayrollPeriodReportTable.tsx, /dev-server/src/components/staff/PayrollPeriodSelector.tsx, /dev-server/src/components/staff/StaffAccountCard.tsx, /dev-server/src/components/staff/StaffAccountsPanel.tsx, /dev-server/src/components/staff/StaffAvailabilityDialog.tsx, /dev-server/src/components/staff/StaffDayReportRow.tsx, /dev-server/src/components/staff/StaffExportDialog.tsx, /dev-server/src/components/staff/StaffList.tsx, /dev-server/src/components/staff/TimeReportApprovalPanel.tsx, /dev-server/src/components/staff/WorkdayFlagsAdminSection.tsx, /dev-server/src/components/time-reports/TimeReportForm.tsx, /dev-server/src/components/todo/CreateTodoWizard.tsx, /dev-server/src/components/ui/sonner.tsx, /dev-server/src/components/warehouse/ConvertInboxDialog.tsx, /dev-server/src/components/warehouse/CreateInternalTaskDialog.tsx, /dev-server/src/components/warehouse/WarehouseProjectInbox.tsx, /dev-server/src/features/site-scans/pages/NativeMeasureLauncher.tsx, /dev-server/src/features/site-scans/pages/ScanDetail.tsx, /dev-server/src/hooks/admin/useResolveSuggestion.ts, /dev-server/src/hooks/booking/useBookingDates.tsx, /dev-server/src/hooks/booking/useBookingDelivery.tsx, /dev-server/src/hooks/booking/useBookingFetch.tsx, /dev-server/src/hooks/booking/useBookingInternalNotes.tsx, /dev-server/src/hooks/booking/useBookingLogistics.tsx, /dev-server/src/hooks/scanner/useKolliManager.ts, /dev-server/src/hooks/scanner/useScanProcessor.ts, /dev-server/src/hooks/useAiBlockReview.ts, /dev-server/src/hooks/useApproveTimeReport.ts, /dev-server/src/hooks/useCalendarImport.ts, /dev-server/src/hooks/useDayReviewActions.ts, /dev-server/src/hooks/useEventDragDrop.ts, /dev-server/src/hooks/useEventNavigation.tsx, /dev-server/src/hooks/useGeofencing.ts, /dev-server/src/hooks/useLargeProjectCostLines.ts, /dev-server/src/hooks/useLargeProjectDetail.tsx, /dev-server/src/hooks/useLargeProjectEconomy.tsx, /dev-server/src/hooks/useLargeProjectViewConfig.ts, /dev-server/src/hooks/useMoveEventToTeam.ts, /dev-server/src/hooks/useMyTodos.ts, /dev-server/src/hooks/useOptimisticMutation.ts, /dev-server/src/hooks/usePackingDetail.tsx, /dev-server/src/hooks/usePackingList.tsx, /dev-server/src/hooks/usePickupStops.ts, /dev-server/src/hooks/useProductGrouping.ts, /dev-server/src/hooks/useProjectBilling.ts, /dev-server/src/hooks/useProjectDetail.tsx, /dev-server/src/hooks/useProjectEconomy.tsx, /dev-server/src/hooks/useProjectFollowers.ts, /dev-server/src/hooks/useProjectStaff.tsx, /dev-server/src/hooks/useProjectTeam.ts, /dev-server/src/hooks/useRealTimeCalendarEvents.tsx, /dev-server/src/hooks/useRefreshBooking.ts, /dev-server/src/hooks/useRefreshLargeProjectBookings.ts, /dev-server/src/hooks/useSupplierInvoiceAttestation.ts, /dev-server/src/hooks/useTeamResources.tsx, /dev-server/src/hooks/useTeamVehiclesForDay.ts, /dev-server/src/hooks/useTimerStartFlow.ts, /dev-server/src/hooks/useTrafficCameras.ts, /dev-server/src/hooks/useTransportAssignments.ts, /dev-server/src/hooks/useUnifiedStaffOperations.tsx, /dev-server/src/hooks/useVehicles.ts, /dev-server/src/hooks/useWarehouseResources.tsx, /dev-server/src/hooks/useWarehouseStaffActivations.ts, /dev-server/src/pages/APIDocumentation.tsx, /dev-server/src/pages/AdminTimeReview.tsx, /dev-server/src/pages/AiLearnedRules.tsx, /dev-server/src/pages/BookingList.tsx, /dev-server/src/pages/CustomCalendarPage.tsx, /dev-server/src/pages/EconomyOverview.tsx, /dev-server/src/pages/JobDetail.tsx, /dev-server/src/pages/MobileScannerApp.tsx, /dev-server/src/pages/OpsControlCenter.tsx, /dev-server/src/pages/PackingDetail.tsx, /dev-server/src/pages/PackingManagement.tsx, /dev-server/src/pages/ProjectClosing.tsx, /dev-server/src/pages/ProjectEconomyDetail.tsx, /dev-server/src/pages/ProjectManagement.tsx, /dev-server/src/pages/StaffDetail.tsx, /dev-server/src/pages/StaffManagement.tsx, /dev-server/src/pages/SuppliersPage.tsx, /dev-server/src/pages/SyncReconciliation.tsx, /dev-server/src/pages/WarehouseProjectDetail.tsx, /dev-server/src/pages/admin/TimeIntelligenceDebug.tsx, /dev-server/src/pages/mobile/MobileCameraCapture.tsx, /dev-server/src/pages/mobile/MobileCompleteJob.tsx, /dev-server/src/pages/mobile/MobileEditTimeReport.tsx, /dev-server/src/pages/mobile/MobileExpenses.tsx, /dev-server/src/pages/mobile/MobileInbox.tsx, /dev-server/src/pages/mobile/MobileLagerPage.tsx, /dev-server/src/pages/mobile/MobileLocationDetail.tsx, /dev-server/src/pages/mobile/MobileMyFlags.tsx, /dev-server/src/pages/project/LargeProjectLayout.tsx, /dev-server/src/pages/project/ProjectEconomyPage.tsx, /dev-server/src/pages/project/ProjectLayout.tsx, /dev-server/src/services/eventTitleFixService.ts, /dev-server/src/services/importService.ts, /dev-server/src/services/staffImportService.ts, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /dev-server/src/integrations/supabase/client.ts is dynamically imported by /dev-server/src/lib/geofence/dismissCooldown.ts, /dev-server/src/services/mobileApiService.ts but also statically imported by /dev-server/src/components/Calendar/AddRiggDayDialog.tsx, /dev-server/src/components/Calendar/BookingProductsDialog.tsx, /dev-server/src/components/Calendar/DeleteDayButton.tsx, /dev-server/src/components/Calendar/MoveEventDateDialog.tsx, /dev-server/src/components/analytics/AnalyticsExportPanel.tsx, /dev-server/src/components/booking/AttachmentsList.tsx, /dev-server/src/components/booking/BookingChangesDetail.tsx, /dev-server/src/components/booking/DeliveryInformationCard.tsx, /dev-server/src/components/booking/FileUpload.tsx, /dev-server/src/components/booking/PackingStatusCard.tsx, /dev-server/src/components/booking/StaffAssignmentWarning.tsx, /dev-server/src/components/booking/detail/BookingTodosChecklist.tsx, /dev-server/src/components/dashboard/DashboardCancelledBookings.tsx, /dev-server/src/components/dashboard/DashboardNewBookings.tsx, /dev-server/src/components/dashboard/DashboardUpdatedBookings.tsx, /dev-server/src/components/economy/CompletedProjectsList.tsx, /dev-server/src/components/economy/StaffEconomyView.tsx, /dev-server/src/components/logistics/AddressAutocomplete.tsx, /dev-server/src/components/logistics/TransportBookingTab.tsx, /dev-server/src/components/logistics/widgets/LogisticsMapWidget.tsx, /dev-server/src/components/maps/ProjectsOverviewMapButton.tsx, /dev-server/src/components/mobile-app/ViewAsPicker.tsx, /dev-server/src/components/mobile-app/messages/DmChatView.tsx, /dev-server/src/components/mobile-app/messages/JobChatView.tsx, /dev-server/src/components/mobile-app/messages/useChatUpload.ts, /dev-server/src/components/ops-control/OpsLiveMap.tsx, /dev-server/src/components/packing/BulkCleanupDialog.tsx, /dev-server/src/components/packing/CreatePackingWizard.tsx, /dev-server/src/components/packing/DesktopChecklistView.tsx, /dev-server/src/components/packing/IncomingPackingList.tsx, /dev-server/src/components/packing/ManualPackingChecklist.tsx, /dev-server/src/components/packing/MultiBookingScheduleCard.tsx, /dev-server/src/components/packing/PackingProjectOverview.tsx, /dev-server/src/components/packing/PackingUpdatedBookings.tsx, /dev-server/src/components/project/BookingInfoHeader.tsx, /dev-server/src/components/project/BookingPlacementDialog.tsx, /dev-server/src/components/project/BulkAiTagDialog.tsx, /dev-server/src/components/project/ClosingProjectsList.tsx, /dev-server/src/components/project/CreateProjectWizard.tsx, /dev-server/src/components/project/EstablishmentTaskDetailSheet.tsx, /dev-server/src/components/project/IncomingBookingsList.tsx, /dev-server/src/components/project/LargeProjectExcelView.tsx, /dev-server/src/components/project/LargeProjectProductsOverview.tsx, /dev-server/src/components/project/LocationTimeSection.tsx, /dev-server/src/components/project/OrphanBookingsWarning.tsx, /dev-server/src/components/project/ProductTagEditorDialog.tsx, /dev-server/src/components/project/ProjectAutoTimeSection.tsx, /dev-server/src/components/project/ProjectEconomyTab.tsx, /dev-server/src/components/project/ProjectFollowersPanel.tsx, /dev-server/src/components/project/ProjectInternalNotes.tsx, /dev-server/src/components/project/ProjectProductsList.tsx, /dev-server/src/components/project/ProjectTeamPanel.tsx, /dev-server/src/components/project/ProjectTransportBookingDialog.tsx, /dev-server/src/components/project/UpdatedBookingsList.tsx, /dev-server/src/components/project/large-planner/InlinePhaseDateEditor.tsx, /dev-server/src/components/project/large-planner/largeProjectPlannerService.ts, /dev-server/src/components/project/planning/PeopleOverview.tsx, /dev-server/src/components/scanner/PreflightBatchDebugPanel.tsx, /dev-server/src/components/staff-dashboard/StaffMapView.tsx, /dev-server/src/components/staff-time-reports/PendingApprovalsTab.tsx, /dev-server/src/components/staff-time-reports/presenceUtils.ts, /dev-server/src/components/staff-time/week-flow/WeekFlowApproveButtons.tsx, /dev-server/src/components/staff/DailyOverviewDialog.tsx, /dev-server/src/components/staff/DayTimelineMap.tsx, /dev-server/src/components/staff/LiveStaffPositionsMap.tsx, /dev-server/src/components/staff/MoveSuggestionDialog.tsx, /dev-server/src/components/staff/StaffAccountCard.tsx, /dev-server/src/components/staff/StaffAccountsPanel.tsx, /dev-server/src/components/staff/StaffGpsSatelliteMap.tsx, /dev-server/src/components/staff/StaffMovementMap.tsx, /dev-server/src/components/staff/StaffTimeReportDetail.tsx, /dev-server/src/components/staff/TimeReportApprovalPanel.tsx, /dev-server/src/components/staff/WorkdayFlagsAdminSection.tsx, /dev-server/src/components/time-reports/StaffTimeReportAllMonths.tsx, /dev-server/src/components/time-reports/TimeReportForm.tsx, /dev-server/src/components/todo/CreateTodoWizard.tsx, /dev-server/src/components/warehouse/CreateInternalTaskDialog.tsx, /dev-server/src/contexts/AuthContext.tsx, /dev-server/src/features/site-scans/api/site-scans.ts, /dev-server/src/features/site-scans/lib/storage.ts, /dev-server/src/features/site-scans/pages/ScanDetail.tsx, /dev-server/src/hooks/admin/useDayPings.ts, /dev-server/src/hooks/admin/useDayTimeline.ts, /dev-server/src/hooks/admin/useResolveSuggestion.ts, /dev-server/src/hooks/scanner/useScannerRealtime.ts, /dev-server/src/hooks/staff-time/useUnknownPlaceLabel.ts, /dev-server/src/hooks/staff/useApprovePayrollPeriodDays.ts, /dev-server/src/hooks/staff/useApproveStaffDay.ts, /dev-server/src/hooks/staff/useMarkPayrollPeriodApproved.ts, /dev-server/src/hooks/staff/usePayrollMonthReport.ts, /dev-server/src/hooks/staff/usePayrollPeriods.ts, /dev-server/src/hooks/staff/useStaffDayRealtimeInvalidation.ts, /dev-server/src/hooks/staff/useStaffDaySubmissions.ts, /dev-server/src/hooks/staff/useStaffGpsPingsForDay.ts, /dev-server/src/hooks/staff/useUpdateStaffDaySubmissionStatus.ts, /dev-server/src/hooks/staffTimeFlow/useStaffTimeWeekMatrix.ts, /dev-server/src/hooks/useAiBlockReview.ts, /dev-server/src/hooks/useAllActiveProjectGeofences.ts, /dev-server/src/hooks/useApproveTimeReport.ts, /dev-server/src/hooks/useAvailableStaffWeek.tsx, /dev-server/src/hooks/useBillingInvoiceData.ts, /dev-server/src/hooks/useBookingPhaseDays.ts, /dev-server/src/hooks/useBookingProductsForPlanner.ts, /dev-server/src/hooks/useBookingTaskAnalytics.ts, /dev-server/src/hooks/useBookingsForTransport.ts, /dev-server/src/hooks/useCurrentOrg.ts, /dev-server/src/hooks/useCurrentStaffId.ts, /dev-server/src/hooks/useDashboardEvents.ts, /dev-server/src/hooks/useEconomyOverviewData.ts, /dev-server/src/hooks/useEventBookingDays.ts, /dev-server/src/hooks/useEventDragDrop.ts, /dev-server/src/hooks/useEventNavigation.tsx, /dev-server/src/hooks/useExternalSuppliers.ts, /dev-server/src/hooks/useInternalLagerCalendarEvents.ts, /dev-server/src/hooks/useLargeProjectDetail.tsx, /dev-server/src/hooks/useLargeProjectEconomy.tsx, /dev-server/src/hooks/useLargeProjectViewConfig.ts, /dev-server/src/hooks/useLivePackingFeed.ts, /dev-server/src/hooks/useMapboxToken.ts, /dev-server/src/hooks/useMobileStaffDayReport.ts, /dev-server/src/hooks/useMoveEventToTeam.ts, /dev-server/src/hooks/useMyCalendarItems.ts, /dev-server/src/hooks/useMyIdentity.ts, /dev-server/src/hooks/useMyTodos.ts, /dev-server/src/hooks/useOrganizationId.ts, /dev-server/src/hooks/useOrganizationLocations.ts, /dev-server/src/hooks/usePackingDetail.tsx, /dev-server/src/hooks/usePackingList.tsx, /dev-server/src/hooks/usePackingProgress.ts, /dev-server/src/hooks/usePickupStops.ts, /dev-server/src/hooks/useProductGrouping.ts, /dev-server/src/hooks/useProjectBilling.ts, /dev-server/src/hooks/useProjectCalendarDays.ts, /dev-server/src/hooks/useProjectDailyStaffTimeOverview.tsx, /dev-server/src/hooks/useProjectDetail.tsx, /dev-server/src/hooks/useProjectEconomy.tsx, /dev-server/src/hooks/useProjectFollowers.ts, /dev-server/src/hooks/useProjectInboxCount.ts, /dev-server/src/hooks/useProjectTaskCalendarEvents.ts, /dev-server/src/hooks/useProjectTeam.ts, /dev-server/src/hooks/useProjectTransport.tsx, /dev-server/src/hooks/useRealTimeCalendarEvents.tsx, /dev-server/src/hooks/useRealtimeInvalidation.ts, /dev-server/src/hooks/useRefreshBooking.ts, /dev-server/src/hooks/useRefreshLargeProjectBookings.ts, /dev-server/src/hooks/useScheduledShifts.ts, /dev-server/src/hooks/useSsoListener.ts, /dev-server/src/hooks/useStaffDaySubmissionsRange.ts, /dev-server/src/hooks/useStaffGanttMirror.ts, /dev-server/src/hooks/useStaffMonthStatus.ts, /dev-server/src/hooks/useStaffTimeReportPeriod.ts, /dev-server/src/hooks/useStaffWeekReports.ts, /dev-server/src/hooks/useSupplierInvoiceAttestation.ts, /dev-server/src/hooks/useTaskCalendarEvents.ts, /dev-server/src/hooks/useTeamVehiclesForDay.ts, /dev-server/src/hooks/useTodoTypes.ts, /dev-server/src/hooks/useTrafficCameras.ts, /dev-server/src/hooks/useTransportAssignments.ts, /dev-server/src/hooks/useTransportCalendarEvents.ts, /dev-server/src/hooks/useUnifiedStaffOperations.tsx, /dev-server/src/hooks/useUnplannedProjects.ts, /dev-server/src/hooks/useUnseenBookingUpdates.ts, /dev-server/src/hooks/useUserRoles.ts, /dev-server/src/hooks/useVehicleTracking.ts, /dev-server/src/hooks/useVehicles.ts, /dev-server/src/hooks/useWarehouseCalendarEvents.tsx, /dev-server/src/hooks/useWarehouseNotificationCount.ts, /dev-server/src/hooks/useWarehouseOpsRange.ts, /dev-server/src/hooks/useWarehouseStaffActivations.ts, /dev-server/src/hooks/useWorkDay.ts, /dev-server/src/lib/admin/timeReviewQueries.ts, /dev-server/src/lib/calendar/phaseDaysWriter.ts, /dev-server/src/lib/calendar/projectTeamStickiness.ts, /dev-server/src/lib/calendar/recomputeBookingStaff.ts, /dev-server/src/lib/largeProject/resolveLargeProjectMembership.ts, /dev-server/src/lib/mobile/recordAppHealthEvent.ts, /dev-server/src/pages/AdminTimeReview.tsx, /dev-server/src/pages/AiLearnedRules.tsx, /dev-server/src/pages/Auth.tsx, /dev-server/src/pages/AuthResetPassword.tsx, /dev-server/src/pages/CommunicationPage.tsx, /dev-server/src/pages/CustomCalendarPage.tsx, /dev-server/src/pages/EconomyOverview.tsx, /dev-server/src/pages/EconomyTimeReports.tsx, /dev-server/src/pages/LogisticsRoutes.tsx, /dev-server/src/pages/PackingDetail.tsx, /dev-server/src/pages/PersonalkalendernLogin.tsx, /dev-server/src/pages/PersonalkalendernPage.tsx, /dev-server/src/pages/ProjectEconomyDetail.tsx, /dev-server/src/pages/ProjectManagement.tsx, /dev-server/src/pages/StaffDetail.tsx, /dev-server/src/pages/StaffManagement.tsx, /dev-server/src/pages/StaffTimeReportDay.tsx, /dev-server/src/pages/StaffTimeReportMonth.tsx, /dev-server/src/pages/SyncReconciliation.tsx, /dev-server/src/pages/WarehouseEconomy.tsx, /dev-server/src/pages/admin/PresenceHub.tsx, /dev-server/src/pages/admin/StaffLiveDebug.tsx, /dev-server/src/pages/admin/StaffPresence.tsx, /dev-server/src/pages/admin/StaffPresenceDay.tsx, /dev-server/src/pages/admin/TargetPresence.tsx, /dev-server/src/pages/admin/TimeIntelligenceDebug.tsx, /dev-server/src/pages/admin/WarehouseAssignmentsDebug.tsx, /dev-server/src/pages/admin/presence/PresenceDayOverview.tsx, /dev-server/src/pages/mobile/MobileCameraCapture.tsx, /dev-server/src/pages/mobile/MobileMyFlags.tsx, /dev-server/src/pages/project/EstablishmentPage.tsx, /dev-server/src/pages/project/LargeEstablishmentPage.tsx, /dev-server/src/pages/project/LargeProjectLayout.tsx, /dev-server/src/pages/project/ProjectEconomyPage.tsx, /dev-server/src/pages/project/ProjectLayout.tsx, /dev-server/src/pages/project/ProjectViewPage.tsx, /dev-server/src/services/activityCalendarSyncService.ts, /dev-server/src/services/booking/bookingChangeService.ts, /dev-server/src/services/booking/bookingCreationService.ts, /dev-server/src/services/booking/bookingFetchService.ts, /dev-server/src/services/booking/bookingMutationService.ts, /dev-server/src/services/booking/bookingPackingSyncService.ts, /dev-server/src/services/booking/bookingStatusService.ts, /dev-server/src/services/bookingAssignmentService.ts, /dev-server/src/services/bookingCalendarService.ts, /dev-server/src/services/bookingCloseSyncService.ts, /dev-server/src/services/bookingColorService.ts, /dev-server/src/services/calendarEventResolver.ts, /dev-server/src/services/customerPickupService.ts, /dev-server/src/services/derivedAnalyticsService.ts, /dev-server/src/services/desktopPackingService.ts, /dev-server/src/services/establishmentSubtaskService.ts, /dev-server/src/services/establishmentTaskCommentService.ts, /dev-server/src/services/establishmentTaskService.ts, /dev-server/src/services/eventConsolidationResolver.ts, /dev-server/src/services/eventService.ts, /dev-server/src/services/eventTitleFixService.ts, /dev-server/src/services/importService.ts, /dev-server/src/services/jobCompletionAnalyticsService.ts, /dev-server/src/services/jobService.ts, /dev-server/src/services/largeProjectCostLines.ts, /dev-server/src/services/largeProjectPlannerService.ts, /dev-server/src/services/largeProjectService.ts, /dev-server/src/services/livePackingFeedService.ts, /dev-server/src/services/localProjectEconomyService.ts, /dev-server/src/services/locationTimeService.ts, /dev-server/src/services/myProjectsService.ts, /dev-server/src/services/opsControlService.ts, /dev-server/src/services/organizationLocationService.ts, /dev-server/src/services/packingService.ts, /dev-server/src/services/planningApiService.ts, /dev-server/src/services/planningDashboardService.ts, /dev-server/src/services/productCostOverrideService.ts, /dev-server/src/services/projectActivityService.ts, /dev-server/src/services/projectAnalyticsService.ts, /dev-server/src/services/projectCalendarService.ts, /dev-server/src/services/projectConsolidationService.ts, /dev-server/src/services/projectConversionService.ts, /dev-server/src/services/projectDateAuthority.ts, /dev-server/src/services/projectEconomyService.ts, /dev-server/src/services/projectHoursService.ts, /dev-server/src/services/projectService.ts, /dev-server/src/services/projectStaffService.ts, /dev-server/src/services/projectStaffTimeCostLinesService.ts, /dev-server/src/services/projectTaskBridgeService.ts, /dev-server/src/services/scannerService.ts, /dev-server/src/services/staffAssignmentCore.ts, /dev-server/src/services/staffAvailabilityService.ts, /dev-server/src/services/staffDashboardService.ts, /dev-server/src/services/staffImportService.ts, /dev-server/src/services/staffRevenueService.ts, /dev-server/src/services/staffRouteService.ts, /dev-server/src/services/staffService.ts, /dev-server/src/services/staffSnapshotApi.ts, /dev-server/src/services/supplierRegistry.ts, /dev-server/src/services/syncStateService.ts, /dev-server/src/services/teamService.ts, /dev-server/src/services/timeSync.ts, /dev-server/src/services/unifiedStaffService.ts, /dev-server/src/services/warehouseAssignmentsSync.ts, /dev-server/src/services/warehouseCalendarService.ts, /dev-server/src/services/warehouseProjectService.ts, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /dev-server/src/hooks/useOrganizationId.ts is dynamically imported by /dev-server/src/contexts/AuthContext.tsx, /dev-server/src/pages/ProjectManagement.tsx, /dev-server/src/services/importService.ts but also statically imported by /dev-server/src/hooks/useBackgroundImport.ts, /dev-server/src/hooks/useRefreshBooking.ts, /dev-server/src/hooks/useRefreshLargeProjectBookings.ts, /dev-server/src/lib/calendar/recomputeBookingStaff.ts, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /dev-server/src/lib/mobile/getAppBuildInfo.ts is dynamically imported by /dev-server/src/services/mobileApiService.ts but also statically imported by /dev-server/src/components/mobile-app/GpsHealthDebugPanel.tsx, /dev-server/src/lib/mobile/recordAppHealthEvent.ts, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /dev-server/src/lib/mobile/recordAppHealthEvent.ts is dynamically imported by /dev-server/src/hooks/useBackgroundLocationReporter.ts but also statically imported by /dev-server/src/hooks/useAppHealthReporter.ts, /dev-server/src/hooks/useBackgroundLocationReporter.ts, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /dev-server/src/pages/mobile/MobileLogin.tsx is dynamically imported by /dev-server/src/App.tsx but also statically imported by /dev-server/src/shells/TimeAppShell.tsx, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /dev-server/src/pages/mobile/MobileJobs.tsx is dynamically imported by /dev-server/src/App.tsx but also statically imported by /dev-server/src/shells/TimeAppShell.tsx, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /dev-server/src/pages/mobile/MobileJobDetail.tsx is dynamically imported by /dev-server/src/App.tsx but also statically imported by /dev-server/src/shells/TimeAppShell.tsx, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /dev-server/src/pages/mobile/MobileProjectDetail.tsx is dynamically imported by /dev-server/src/App.tsx but also statically imported by /dev-server/src/shells/TimeAppShell.tsx, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /dev-server/src/pages/mobile/MobileLocationDetail.tsx is dynamically imported by /dev-server/src/App.tsx but also statically imported by /dev-server/src/shells/TimeAppShell.tsx, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /dev-server/src/services/staffSnapshotApi.ts is dynamically imported by /dev-server/src/services/mobileApiService.ts, /dev-server/src/services/mobileApiService.ts but also statically imported by /dev-server/src/hooks/staff/useMobileStaffDayPings.ts, /dev-server/src/hooks/staff/useStaffGpsWeekSummary.ts, /dev-server/src/hooks/staffTimeFlow/useStaffSelfWeekMatrix.ts, /dev-server/src/hooks/useActiveTimerStatus.ts, /dev-server/src/hooks/useMobileStaffDayReport.ts, /dev-server/src/hooks/useStaffGanttMirror.ts, /dev-server/src/hooks/useStaffGpsWeekSuggestion.ts, /dev-server/src/hooks/useStaffMonthStatus.ts, /dev-server/src/hooks/useStaffTimeReportPeriod.ts, /dev-server/src/hooks/useSubmitStaffDayReport.ts, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /dev-server/src/pages/mobile/MobileTimeReport.tsx is dynamically imported by /dev-server/src/App.tsx but also statically imported by /dev-server/src/shells/TimeAppShell.tsx, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /dev-server/src/pages/mobile/MobileExpenses.tsx is dynamically imported by /dev-server/src/App.tsx but also statically imported by /dev-server/src/shells/TimeAppShell.tsx, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /dev-server/src/pages/mobile/MobileProfile.tsx is dynamically imported by /dev-server/src/App.tsx but also statically imported by /dev-server/src/shells/TimeAppShell.tsx, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /dev-server/src/pages/mobile/MobileInbox.tsx is dynamically imported by /dev-server/src/App.tsx but also statically imported by /dev-server/src/shells/TimeAppShell.tsx, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /dev-server/src/pages/mobile/MobileCompleteJob.tsx is dynamically imported by /dev-server/src/App.tsx but also statically imported by /dev-server/src/shells/TimeAppShell.tsx, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /dev-server/src/pages/MobileScannerApp.tsx is dynamically imported by /dev-server/src/App.tsx but also statically imported by /dev-server/src/shells/ScannerAppShell.tsx, /dev-server/src/shells/TimeAppShell.tsx, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /dev-server/src/pages/mobile/MobileOverview.tsx is dynamically imported by /dev-server/src/App.tsx but also statically imported by /dev-server/src/shells/TimeAppShell.tsx, dynamic import will not move module into another chunk.
+
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /dev-server/src/pages/scanner/ScannerLogin.tsx is dynamically imported by /dev-server/src/App.tsx but also statically imported by /dev-server/src/shells/ScannerAppShell.tsx, dynamic import will not move module into another chunk.
+
+computing gzip size...
+dist/index.html                                               1.67 kB │ gzip:   0.68 kB
+dist/assets/pdf.worker.min-iDqQPrd3.mjs                   1,232.30 kB
+dist/assets/ProjectManagement-0vGsPjh0.css                    0.21 kB │ gzip:   0.16 kB
+dist/assets/StaffTimeApprovalsPageContent-BHhvtaeR.css        0.86 kB │ gzip:   0.32 kB
+dist/assets/ProjectCalendarView--vmgzR5i.css                  1.48 kB │ gzip:   0.47 kB
+dist/assets/LargeEstablishmentPage-BIivO6mA.css               1.76 kB │ gzip:   0.58 kB
+dist/assets/circleToPolygon-DjM7mR0C.css                      4.14 kB │ gzip:   1.22 kB
+dist/assets/useRealTimeCalendarEvents-40Cb0LWd.css            7.47 kB │ gzip:   1.67 kB
+dist/assets/TimeGrid-C6zh0Spv.css                            13.19 kB │ gzip:   3.00 kB
+dist/assets/App-Bh_1FTD-.css                                 36.43 kB │ gzip:   4.88 kB
+dist/assets/index-Cpm5y0Uh.css                              253.11 kB │ gzip:  38.28 kB
+dist/assets/breakPolicy-D6IzHOeJ.js                           0.06 kB │ gzip:   0.08 kB
+dist/assets/isSameWeek-k_ve9eJk.js                            0.11 kB │ gzip:   0.12 kB
+dist/assets/largeProject-EyC0oKTZ.js                          0.11 kB │ gzip:   0.12 kB
+dist/assets/project-JZsDior8.js                               0.14 kB │ gzip:   0.13 kB
+dist/assets/isWithinInterval-BAhPvewu.js                      0.15 kB │ gzip:   0.15 kB
+dist/assets/useWeekDays-DAttXbKM.js                           0.20 kB │ gzip:   0.17 kB
+dist/assets/bookingMutationService-SyQ9IZf9.js                0.21 kB │ gzip:   0.18 kB
+dist/assets/LargeCollaborationPage-CgpH9ElG.js                0.27 kB │ gzip:   0.21 kB
+dist/assets/eachDayOfInterval-Be-ZZ-sI.js                     0.27 kB │ gzip:   0.21 kB
+dist/assets/browser-0n4MQ_d4.js                               0.30 kB │ gzip:   0.24 kB
+dist/assets/InvoicingPage-cdnomY0V.js                         0.30 kB │ gzip:   0.22 kB
+dist/assets/staffColors-BRMFa_Uj.js                           0.33 kB │ gzip:   0.24 kB
+dist/assets/arrow-down-DzIr9KQH.js                            0.33 kB │ gzip:   0.27 kB
+dist/assets/index-CvOtESCD.js                                 0.33 kB │ gzip:   0.23 kB
+dist/assets/workdayState-Bn5vhW_D.js                          0.34 kB │ gzip:   0.26 kB
+dist/assets/ban-BPXUYHBk.js                                   0.34 kB │ gzip:   0.27 kB
+dist/assets/index-DrvSjXMZ.js                                 0.34 kB │ gzip:   0.24 kB
+dist/assets/index-CT3TD4GP.js                                 0.34 kB │ gzip:   0.24 kB
+dist/assets/circle-play-Lmbl4R1n.js                           0.36 kB │ gzip:   0.27 kB
+dist/assets/lock-DgluRMkQ.js                                  0.37 kB │ gzip:   0.29 kB
+dist/assets/trending-down-DzbG63uO.js                         0.37 kB │ gzip:   0.28 kB
+dist/assets/bell-F7VVQ9nG.js                                  0.38 kB │ gzip:   0.29 kB
+dist/assets/lock-open-B6pn6zo4.js                             0.38 kB │ gzip:   0.30 kB
+dist/assets/web-W9tG4ajw.js                                   0.38 kB │ gzip:   0.25 kB
+dist/assets/warehouseProject-BCNzCJbi.js                      0.38 kB │ gzip:   0.25 kB
+dist/assets/paperclip-DefLyH3P.js                             0.39 kB │ gzip:   0.30 kB
+dist/assets/ellipsis-CYVGvjFZ.js                              0.39 kB │ gzip:   0.27 kB
+dist/assets/target-DAJlqq3i.js                                0.39 kB │ gzip:   0.26 kB
+dist/assets/pen-DSRSfgIY.js                                   0.40 kB │ gzip:   0.31 kB
+dist/assets/circle-help-a291QjG5.js                           0.41 kB │ gzip:   0.30 kB
+dist/assets/database-DgQl3xYo.js                              0.41 kB │ gzip:   0.30 kB
+dist/assets/banknote-DUBbdSOr.js                              0.41 kB │ gzip:   0.31 kB
+dist/assets/arrow-right-left-CnSYRmoG.js                      0.41 kB │ gzip:   0.30 kB
+dist/assets/settings-2-4UJn85Br.js                            0.42 kB │ gzip:   0.30 kB
+dist/assets/projectDateAuthority-D62Wbdpp.js                  0.42 kB │ gzip:   0.28 kB
+dist/assets/user-check-CUJABNKS.js                            0.42 kB │ gzip:   0.32 kB
+dist/assets/upload-BybYsXG5.js                                0.42 kB │ gzip:   0.32 kB
+dist/assets/weight-DZPUTvCC.js                                0.43 kB │ gzip:   0.32 kB
+dist/assets/key-DW2QnMV9.js                                   0.43 kB │ gzip:   0.31 kB
+dist/assets/pen-line-CB68nsVd.js                              0.44 kB │ gzip:   0.32 kB
+dist/assets/house-Bqo23E6x.js                                 0.46 kB │ gzip:   0.32 kB
+dist/assets/hash-DSwkNBtj.js                                  0.46 kB │ gzip:   0.29 kB
+dist/assets/coffee-BdYaeSoh.js                                0.47 kB │ gzip:   0.31 kB
+dist/assets/calendar-check-BjZLm9id.js                        0.47 kB │ gzip:   0.32 kB
+dist/assets/plane-D9u1P9Ja.js                                 0.47 kB │ gzip:   0.35 kB
+dist/assets/user-plus-DJk7zt-x.js                             0.48 kB │ gzip:   0.33 kB
+dist/assets/satellite-DgGdQkO8.js                             0.48 kB │ gzip:   0.32 kB
+dist/assets/printer-DwA1IR-a.js                               0.49 kB │ gzip:   0.34 kB
+dist/assets/save-DOMJXdUN.js                                  0.49 kB │ gzip:   0.33 kB
+dist/assets/UsdzViewer-fCbYp6N0.js                            0.51 kB │ gzip:   0.35 kB
+dist/assets/calendar-plus-dD3Snhk1.js                         0.52 kB │ gzip:   0.33 kB
+dist/assets/hourglass-BF5BUPZK.js                             0.53 kB │ gzip:   0.34 kB
+dist/assets/crown-C4vl_30S.js                                 0.53 kB │ gzip:   0.36 kB
+dist/assets/staffAssignmentCore-EV84tg1P.js                   0.54 kB │ gzip:   0.32 kB
+dist/assets/file-spreadsheet-Ws-kFiuk.js                      0.54 kB │ gzip:   0.33 kB
+dist/assets/projectActivityService-QDHAD4dj.js                0.56 kB │ gzip:   0.34 kB
+dist/assets/ConfirmationDialog-CTOp8sTg.js                    0.57 kB │ gzip:   0.33 kB
+dist/assets/packing-CpEh_3bk.js                               0.58 kB │ gzip:   0.30 kB
+dist/assets/clipboard-list-CCe5Dulc.js                        0.58 kB │ gzip:   0.36 kB
+dist/assets/sunrise-CMQPkVzi.js                               0.59 kB │ gzip:   0.36 kB
+dist/assets/map-4o8p2j-6.js                                   0.59 kB │ gzip:   0.37 kB
+dist/assets/combine-N2L9YqbL.js                               0.60 kB │ gzip:   0.36 kB
+dist/assets/staffRouteService-H53LKjk8.js                     0.64 kB │ gzip:   0.42 kB
+dist/assets/productCostOverrideService-CquMZMj6.js            0.67 kB │ gzip:   0.34 kB
+dist/assets/wand-sparkles-DljYnEIE.js                         0.68 kB │ gzip:   0.39 kB
+dist/assets/appMeta-C82MDIGm.js                               0.68 kB │ gzip:   0.39 kB
+dist/assets/bookingPackingSyncService-DBBR-wV_.js             0.70 kB │ gzip:   0.39 kB
+dist/assets/building-MIASmEHS.js                              0.71 kB │ gzip:   0.37 kB
+dist/assets/StaffTimeApprovalsPage-DHq13BGz.js                0.73 kB │ gzip:   0.43 kB
+dist/assets/circle-dashed-DYwBJ3d1.js                         0.74 kB │ gzip:   0.39 kB
+dist/assets/web-DOoiSahL.js                                   0.84 kB │ gzip:   0.40 kB
+dist/assets/party-popper-DXU5NVhW.js                          0.90 kB │ gzip:   0.52 kB
+dist/assets/useBookingProductsForPlanner-BAgxwpsd.js          0.94 kB │ gzip:   0.52 kB
+dist/assets/useOptimisticMutation-DTMGmLbS.js                 1.08 kB │ gzip:   0.53 kB
+dist/assets/WarehouseInventoryPlaceholder-CCASda3K.js         1.26 kB │ gzip:   0.66 kB
+dist/assets/WarehouseServicePlaceholder-DlOdqBPp.js           1.27 kB │ gzip:   0.67 kB
+dist/assets/useInternalLagerCalendarEvents-CLN_26p9.js        1.34 kB │ gzip:   0.79 kB
+dist/assets/TransportResponse-DM3ok1Xm.js                     1.48 kB │ gzip:   0.75 kB
+dist/assets/table-DNEYKn5N.js                                 1.52 kB │ gzip:   0.54 kB
+dist/assets/useApproveTimeReport-Ci8tHCWT.js                  1.58 kB │ gzip:   0.73 kB
+dist/assets/projectConversionService-DmB7WLjG.js              1.65 kB │ gzip:   0.85 kB
+dist/assets/bookingCloseSyncService-JIY1aAt-.js               1.85 kB │ gzip:   0.69 kB
+dist/assets/staffAvailabilityService-Dmt826ej.js              1.85 kB │ gzip:   0.76 kB
+dist/assets/useVehicles-CFPag3Ch.js                           1.85 kB │ gzip:   0.88 kB
+dist/assets/PremiumCard-DfPKer0y.js                           1.87 kB │ gzip:   0.84 kB
+dist/assets/useProjectTeam-BIm1Vc8m.js                        2.11 kB │ gzip:   0.94 kB
+dist/assets/LargeProjectScheduleEditable-CgsuIKnU.js          2.36 kB │ gzip:   1.21 kB
+dist/assets/web-DN3GTydL.js                                   2.37 kB │ gzip:   0.93 kB
+dist/assets/switch-DFQ78XKz.js                                2.38 kB │ gzip:   1.21 kB
+dist/assets/web-B9c18OKV.js                                   2.44 kB │ gzip:   1.08 kB
+dist/assets/FileUpload-9wtgKmc1.js                            2.45 kB │ gzip:   1.28 kB
+dist/assets/web-D2o4ItMr.js                                   2.65 kB │ gzip:   1.16 kB
+dist/assets/EditDateDialog-D8cznG45.js                        2.67 kB │ gzip:   1.22 kB
+dist/assets/staffService-DeZ6JAOT.js                          2.70 kB │ gzip:   0.82 kB
+dist/assets/warehouseAssignmentsSync-BUXDAxd4.js              3.02 kB │ gzip:   1.17 kB
+dist/assets/AddressFavorites-CRo48Aqp.js                      3.08 kB │ gzip:   1.54 kB
+dist/assets/PersonalkalendernLogin-Bjo_xC8B.js                3.11 kB │ gzip:   1.27 kB
+dist/assets/web-BchsuA2f.js                                   3.46 kB │ gzip:   1.11 kB
+dist/assets/ProjectEconomyDetail-BUELiZCY.js                  3.53 kB │ gzip:   1.60 kB
+dist/assets/packingService-BeuiTmi1.js                        3.53 kB │ gzip:   1.03 kB
+dist/assets/AiLearnedRules-WY7vRJdw.js                        3.54 kB │ gzip:   1.54 kB
+dist/assets/useTransportAssignments-DuT5omri.js               3.73 kB │ gzip:   1.46 kB
+dist/assets/LogisticsHub-Bst1UgFi.js                          3.89 kB │ gzip:   1.51 kB
+dist/assets/timeSync-CvjAwzEu.js                              4.00 kB │ gzip:   1.43 kB
+dist/assets/accordion-DxNvCceY.js                             4.54 kB │ gzip:   1.82 kB
+dist/assets/projectStaffTimeCostLinesService-BLnPZqz8.js      4.54 kB │ gzip:   1.64 kB
+dist/assets/PersonalkalendernPage-JDxkEAPG.js                 4.80 kB │ gzip:   2.05 kB
+dist/assets/StaffPresence-DSfriwBq.js                         5.03 kB │ gzip:   1.85 kB
+dist/assets/pushNotificationService-Ba-H60rh.js               5.22 kB │ gzip:   1.95 kB
+dist/assets/usePackingList-dmBHyoGT.js                        5.27 kB │ gzip:   1.90 kB
+dist/assets/MoveProductDialog-CZSn5e7t.js                     5.41 kB │ gzip:   2.24 kB
+dist/assets/PackingVerify-CtWLHL7X.js                         5.42 kB │ gzip:   1.86 kB
+dist/assets/EconomyTimeReports-B--4SOMY.js                    5.68 kB │ gzip:   2.13 kB
+dist/assets/TargetPresence-bKGyJA9U.js                        5.72 kB │ gzip:   2.09 kB
+dist/assets/WarehouseProjectDetail-BIYiv3ol.js                5.83 kB │ gzip:   1.97 kB
+dist/assets/BookingEconomicsCard-DhmNb8xg.js                  5.90 kB │ gzip:   1.55 kB
+dist/assets/WarehouseAssignmentsDebug-Dya3k0rj.js             6.00 kB │ gzip:   2.05 kB
+dist/assets/StaffDashboard-KnCJCkcJ.js                        6.25 kB │ gzip:   2.65 kB
+dist/assets/StaffTimeReportMonth-Rklj6aB5.js                  6.28 kB │ gzip:   2.29 kB
+dist/assets/useUnifiedStaffOperations-ys_PzK7T.js             6.42 kB │ gzip:   2.38 kB
+dist/assets/SuppliersPage-CFt6D9FD.js                         6.51 kB │ gzip:   2.36 kB
+dist/assets/establishmentTaskService-zoNhrl1m.js              6.55 kB │ gzip:   2.24 kB
+dist/assets/StaffLiveDebug-Cgn0U1Eg.js                        6.71 kB │ gzip:   2.40 kB
+dist/assets/ProductsList-BMo4lVRg.js                          7.90 kB │ gzip:   2.96 kB
+dist/assets/StaffGpsSatelliteMap-C-dCfxP1.js                  8.23 kB │ gzip:   3.29 kB
+dist/assets/MobileMyFlags-DonyKVNY.js                         8.33 kB │ gzip:   2.79 kB
+dist/assets/WarehouseProjectInbox-CNxRY6Pr.js                 8.50 kB │ gzip:   3.08 kB
+dist/assets/StaffPingDetailPanel-BprEoEXb.js                  8.62 kB │ gzip:   3.34 kB
+dist/assets/LegacyIncomingPackingDebug-DEXq9E8s.js            8.63 kB │ gzip:   2.93 kB
+dist/assets/LogisticsRoutes-DZOTiQ9A.js                       8.77 kB │ gzip:   3.48 kB
+dist/assets/MobileEditTimeReport-CxsrFltk.js                  8.81 kB │ gzip:   2.65 kB
+dist/assets/StaffDayReportsAdmin-D4o_zgwg.js                  9.38 kB │ gzip:   3.35 kB
+dist/assets/DayApprovalAction-B_Uigyk7.js                     9.49 kB │ gzip:   3.56 kB
+dist/assets/ConsolidateProjectsDialog-kPs-WnMv.js             9.56 kB │ gzip:   3.52 kB
+dist/assets/projectTaskBridgeService-BbNNNcoY.js              9.61 kB │ gzip:   3.98 kB
+dist/assets/largeProjectPlannerService-BZvFpyLM.js            9.70 kB │ gzip:   3.18 kB
+dist/assets/ProjectViewPage-CgXqadvA.js                      10.00 kB │ gzip:   3.88 kB
+dist/assets/WarehouseEconomy-3hEkEE0F.js                     10.44 kB │ gzip:   3.12 kB
+dist/assets/CommunicationPage-DYyTLgPA.js                    10.85 kB │ gzip:   3.26 kB
+dist/assets/OpsDirectChat-BIWA3Lmn.js                        10.89 kB │ gzip:   3.73 kB
+dist/assets/BookingInfoExpanded-B6w_C7f8.js                  11.06 kB │ gzip:   3.91 kB
+dist/assets/PackingCard-iLN6KF3M.js                          11.08 kB │ gzip:   3.33 kB
+dist/assets/LargeProjectViewPage-DwARWFDE.js                 11.67 kB │ gzip:   3.76 kB
+dist/assets/warehouseProjectService-zrr6dGQr.js              11.99 kB │ gzip:   3.69 kB
+dist/assets/CustomCalendarPage-u-MNux7W.js                   13.01 kB │ gzip:   5.13 kB
+dist/assets/BookingList-BTasHMRh.js                          14.41 kB │ gzip:   3.97 kB
+dist/assets/StaffPayrollPeriods-Bvl_IHab.js                  15.10 kB │ gzip:   4.55 kB
+dist/assets/StaffRevenueOverview-h1PKuOWE.js                 15.41 kB │ gzip:   4.05 kB
+dist/assets/LargeProjectExcelView-BxQOWbH3.js                17.71 kB │ gzip:   6.17 kB
+dist/assets/useRealTimeCalendarEvents-Dcv-Qrus.js            17.86 kB │ gzip:   6.73 kB
+dist/assets/JobDetail-uKiJgrf6.js                            18.02 kB │ gzip:   4.32 kB
+dist/assets/ProjectLayout-Ck7GG9yL.js                        18.32 kB │ gzip:   6.15 kB
+dist/assets/LargeProjectProductsOverview-pDim88UL.js         18.43 kB │ gzip:   6.46 kB
+dist/assets/ProjectArchive-C-yYWnd3.js                       19.11 kB │ gzip:   4.16 kB
+dist/assets/ProjectClosing-CZj8xiil.js                       19.39 kB │ gzip:   5.15 kB
+dist/assets/WarehouseDashboard-AiZl5zPu.js                   20.69 kB │ gzip:   7.39 kB
+dist/assets/TimeReportApprovals-DFMGS_Fb.js                  20.78 kB │ gzip:   5.86 kB
+dist/assets/WeekTabsNavigation-DtWzQT1I.js                   20.80 kB │ gzip:   6.59 kB
+dist/assets/StaffPresenceDay-B9rW0c3V.js                     21.13 kB │ gzip:   6.19 kB
+dist/assets/LogisticsVehicles-NPjSfXUl.js                    21.66 kB │ gzip:   5.37 kB
+dist/assets/StaffTimeReports-Detli_br.js                     22.14 kB │ gzip:   6.89 kB
+dist/assets/StaffTimeAndPayrollPage-ZeLRomC8.js              23.46 kB │ gzip:   7.17 kB
+dist/assets/AdminTimeReview-BvI1if_V.js                      24.19 kB │ gzip:   8.07 kB
+dist/assets/purify.es-dhnUglUx.js                            24.29 kB │ gzip:   9.13 kB
+dist/assets/index.esm--E2NclZI.js                            24.47 kB │ gzip:   9.25 kB
+dist/assets/RawGpsSatelliteMap-B-rhcB0u.js                   24.67 kB │ gzip:   7.88 kB
+dist/assets/projectEconomyStatus-CDRIfvcF.js                 25.67 kB │ gzip:   7.63 kB
+dist/assets/StaffPayrollMonthReport-C8kxfyNR.js              26.49 kB │ gzip:   8.27 kB
+dist/assets/WarehouseCalendarPage-BDheSvKw.js                27.44 kB │ gzip:   8.92 kB
+dist/assets/APIDocumentation-CAuaxDeq.js                     29.40 kB │ gzip:   8.05 kB
+dist/assets/StaffGpsSatelliteMap-DMiX2BqK.js                 31.38 kB │ gzip:   9.69 kB
+dist/assets/LargeProjectLayout-DatMX7ac.js                   31.51 kB │ gzip:   9.81 kB
+dist/assets/ProjectCalendarView-BO_bmpfw.js                  32.23 kB │ gzip:   8.72 kB
+dist/assets/ProjectEconomyPage-D0UsMtAd.js                   32.26 kB │ gzip:   8.60 kB
+dist/assets/analyticsExportService-B6fofhBo.js               32.34 kB │ gzip:   7.88 kB
+dist/assets/StaffTimeApprovalsPageContent-DKvN7zm8.js        32.97 kB │ gzip:   9.92 kB
+dist/assets/PresenceHub-Ct7Fg6KW.js                          35.06 kB │ gzip:   9.74 kB
+dist/assets/SyncReconciliation-D196lXMn.js                   35.15 kB │ gzip:   8.21 kB
+dist/assets/PackingManagement-CpGporsf.js                    37.15 kB │ gzip:  10.81 kB
+dist/assets/MobileDayReview-C4MDyCMR.js                      38.78 kB │ gzip:  11.96 kB
+dist/assets/StaffDetail-BkPW0lWB.js                          39.02 kB │ gzip:   9.94 kB
+dist/assets/StaffTimeReportDay-DmFM4D5E.js                   39.03 kB │ gzip:  12.01 kB
+dist/assets/StaffManagement-DeAmXXMV.js                      44.86 kB │ gzip:  11.88 kB
+dist/assets/EstablishmentPage-CREaUnYA.js                    46.88 kB │ gzip:  13.18 kB
+dist/assets/BookingDetail-DsOqIFRY.js                        52.73 kB │ gzip:  14.85 kB
+dist/assets/LargeProjectEconomyPage-BApXHCTg.js              54.19 kB │ gzip:  14.11 kB
+dist/assets/circleToPolygon-CQkf0qMQ.js                      58.33 kB │ gzip:  15.61 kB
+dist/assets/DailyOverviewDialog-LC1wVdc0.js                  69.36 kB │ gzip:  20.58 kB
+dist/assets/TimeIntelligenceDebug-CPHsTgWW.js                70.38 kB │ gzip:  16.74 kB
+dist/assets/PackingDetail-D9rKcJri.js                        74.27 kB │ gzip:  23.00 kB
+dist/assets/LogisticsPlanning-5F-_2t-o.js                    79.35 kB │ gzip:  17.84 kB
+dist/assets/ProjectManagement-DkgmFgMN.js                    82.68 kB │ gzip:  22.94 kB
+dist/assets/MobileTimeHistory-BAZvt6Vv.js                    86.41 kB │ gzip:  24.42 kB
+dist/assets/ProjectEconomyTab-kMWCzA09.js                    87.08 kB │ gzip:  20.73 kB
+dist/assets/LargeEstablishmentPage-xEACUQuf.js              100.49 kB │ gzip:  25.90 kB
+dist/assets/EconomyOverview-CGHFBDEk.js                     104.16 kB │ gzip:  26.53 kB
+dist/assets/AnalyticsDashboard-CAIvw9DO.js                  109.28 kB │ gzip:  22.76 kB
+dist/assets/OpsControlCenter-DugNHzJY.js                    123.79 kB │ gzip:  35.35 kB
+dist/assets/TimeGrid-CN5ANfCC.js                            147.97 kB │ gzip:  42.30 kB
+dist/assets/index.es-CtEXceSv.js                            151.05 kB │ gzip:  51.45 kB
+dist/assets/index-DeIipOvi.js                               163.47 kB │ gzip:  53.98 kB
+dist/assets/html2canvas.esm-CBrSDip1.js                     201.42 kB │ gzip:  47.70 kB
+dist/assets/BarChart-w6h56hfC.js                            373.54 kB │ gzip: 102.72 kB
+dist/assets/useProjectTransport-BS6li8z1.js                 529.68 kB │ gzip: 154.35 kB
+dist/assets/jspdf.plugin.autotable-sgMJzWVf.js              733.53 kB │ gzip: 238.79 kB
+dist/assets/App-BAWycjSY.js                               3,167.01 kB │ gzip: 883.10 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 31.10s
+exit_code: 0
