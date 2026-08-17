@@ -21,6 +21,7 @@ import WarehouseDayNavigationHeader from '@/components/Calendar/WarehouseDayNavi
 import WarehouseEventFilter, { WarehouseEventTypeFilter, WAREHOUSE_EVENT_TYPE_FILTERS } from '@/components/Calendar/WarehouseEventFilter';
 import BookingProductsDialog from '@/components/Calendar/BookingProductsDialog';
 import WarehousePlanningInboxBar from '@/components/warehouse/WarehousePlanningInboxBar';
+import WarehouseStaffingOverview from '@/components/warehouse/WarehouseStaffingOverview';
 import { startOfWeek, startOfMonth, endOfWeek, endOfMonth, format, parseISO } from 'date-fns';
 import {
   useWarehousePackingStats,
@@ -521,7 +522,13 @@ const WarehouseCalendarPage = () => {
         {/* Att planera — kompakt inbox utanför kalendern */}
         <WarehousePlanningInboxBar />
 
-
+        {/* Bemanningsläge — kompakt översikt över obemannade lagerjobb */}
+        <WarehouseStaffingOverview
+          events={combinedEvents}
+          crewByDayTeam={crewByDayTeam}
+          currentDate={currentWeekStart}
+          viewMode={viewMode}
+        />
 
         {/* Content - flex-1 to fill remaining space */}
         <div className="flex-1 min-h-0 flex flex-col p-4 bg-card rounded-2xl mx-2 mb-2 shadow-sm">

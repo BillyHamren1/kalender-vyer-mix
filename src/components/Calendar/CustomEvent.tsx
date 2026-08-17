@@ -417,7 +417,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
                   </span>
                 </div>
               )}
-              {crewLabel && (
+              {crewLabel ? (
                 <div
                   style={{
                     color: '#000000',
@@ -430,6 +430,19 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
                   title={crewLabel}
                 >
                   {crewLabel}
+                </div>
+              ) : (
+                <div
+                  style={{
+                    color: '#B45309',
+                    fontSize: '9.5px',
+                    fontWeight: 500,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  Obemannad
                 </div>
               )}
             </div>
