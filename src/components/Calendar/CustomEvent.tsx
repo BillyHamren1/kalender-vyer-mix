@@ -274,6 +274,18 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             Kund hämtar
           </div>
         )}
+        {/* Lageraktivitet: Packning / Retur / Lageruppgift */}
+        {isWarehouseEvent && (event.extendedProps as any)?.warehouseActivityLabel && (
+          <div
+            className="text-[7px] font-bold uppercase tracking-wide rounded px-1 py-px mb-0.5 w-fit"
+            style={{
+              backgroundColor: 'rgba(0,0,0,0.10)',
+              color: '#000000',
+            }}
+          >
+            {(event.extendedProps as any).warehouseActivityLabel}
+          </div>
+        )}
         {!(event.extendedProps as any)?.isPlannerItem && (
           <div className={`event-title ${isCancelled ? 'line-through' : ''}`} style={{ color: isCancelled ? '#991B1B' : '#000000' }}>
             {displayTitle}
