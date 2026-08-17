@@ -25,7 +25,9 @@ import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
 
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { startOfWeek, startOfMonth, format } from 'date-fns';
+import { startOfWeek, startOfMonth, subDays, format } from 'date-fns';
+import { resetCalendarViewStorage } from '@/components/Calendar/ResourceData';
+
 import { sv } from 'date-fns/locale';
 import { Calendar, ListChecks } from 'lucide-react';
 
