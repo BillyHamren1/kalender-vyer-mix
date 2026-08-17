@@ -130,6 +130,11 @@ verify_jwt = false
 [functions.scanner-api]
 verify_jwt = false
 
+[functions.scanner-operation-v2]
+verify_jwt = false
+
+
+
 [functions.send-push-notification]
 verify_jwt = false
 
