@@ -119,8 +119,8 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
                     <ArrowRight className="h-3.5 w-3.5 text-primary" />
                   </div>
                   <div>
-                    <span className="text-xs font-semibold text-primary">Öppna Utförande</span>
-                    <p className="text-[10px] text-muted-foreground leading-tight">Hantera alla operativa uppgifter</p>
+                    <span className="text-xs font-semibold text-primary">Öppna Planering</span>
+                    <p className="text-[10px] text-muted-foreground leading-tight">Fördjupa aktivitetens operativa planering</p>
                   </div>
                 </div>
                 <ArrowRight className="h-4 w-4 text-primary opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
@@ -130,7 +130,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
             {/* Header */}
             <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pt-2 pb-1.5 shrink-0">
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <span className="text-sm font-semibold text-muted-foreground tracking-tight">Koordinering</span>
+                <span className="text-sm font-semibold text-muted-foreground tracking-tight">Projektaktiviteter</span>
                 {totalRegular > 0 && (
                   <span className="text-xs text-muted-foreground tabular-nums">
                     {doneCount}/{totalRegular}
@@ -144,7 +144,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
 
             {/* Explanatory subtitle */}
             <p className="px-4 pb-2 text-[11px] text-muted-foreground leading-snug">
-              Enklare samordningsuppgifter. Full operativ planering hanteras under <strong>Utförande</strong>.
+              Projektets gemensamma aktivitetslista. Aktiviteter som behöver operativ detalj kan öppnas och följas vidare under <strong>Planering</strong>.
             </p>
 
             {/* Progress bar */}
@@ -161,7 +161,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
             <CardContent className="p-0 pb-1 flex-1 overflow-y-auto flex flex-col">
               {tasks.length === 0 ? (
                 <p className="text-muted-foreground text-center text-xs py-4 px-4">
-                  Inga uppgifter ännu.
+                  Inga aktiviteter ännu.
                 </p>
               ) : (
                 <div className="divide-y divide-border/30 flex-1">
@@ -195,7 +195,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
                   value={quickAddValue}
                   onChange={(e) => setQuickAddValue(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") handleQuickAdd(); }}
-                  placeholder="Lägg till uppgift..."
+                  placeholder="Lägg till aktivitet..."
                   className="flex-1 text-sm bg-transparent outline-none placeholder:text-muted-foreground text-foreground"
                 />
                 {quickAddValue.trim() && (
@@ -240,7 +240,7 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Ta bort uppgift</AlertDialogTitle>
+            <AlertDialogTitle>Ta bort aktivitet</AlertDialogTitle>
             <AlertDialogDescription>
               Är du säker på att du vill ta bort "{deleteTarget?.title}"? Detta kan inte ångras.
             </AlertDialogDescription>

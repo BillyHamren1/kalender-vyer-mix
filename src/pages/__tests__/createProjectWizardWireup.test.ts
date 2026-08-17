@@ -22,11 +22,13 @@ describe('Create-project wireup from incoming bookings', () => {
     expect(src).not.toMatch(/<CreateTodoWizard/);
   });
 
-  it('ProjectManagement uses CreateProjectWizard for Medel and CreateTodoWizard only for the header to-do button', () => {
+  it('ProjectManagement uses CreateProjectWizard for Medel and no longer mounts CreateTodoWizard', () => {
     const src = read('src/pages/ProjectManagement.tsx');
     expect(src).toContain('<CreateProjectWizard');
-    expect(src).toContain('<CreateTodoWizard');
+    // To do-wizarden är borttagen från projekthanteringen (projektaktiviteter skapas i projektet)
+    expect(src).not.toMatch(/<CreateTodoWizard/);
     // handleCreateProject ska binda till project-state, inte to do-state
+
     expect(src).toMatch(/handleCreateProject\s*=\s*\(bookingId[^)]*\)\s*=>\s*{[^}]*setIsCreateProjectOpen\(true\)/s);
     expect(src).toMatch(/handleCreateProject\s*=\s*\(bookingId[^)]*\)\s*=>\s*{[^}]*setCreateProjectBookingId\(bookingId\)/s);
   });
