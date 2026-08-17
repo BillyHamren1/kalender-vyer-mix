@@ -2270,9 +2270,11 @@ const expandPackageComponents = async (
 
 /**
  * Full sync packing list items to match booking_products.
- * - Add items for new products (alltid tillåtet)
- * - Remove items for deleted products (ENDAST vid products_complete === true)
- * - Update quantity_to_pack for changed products
+ * - Operational rows may change ONLY while packing status is planning
+ * - Add items for new products while planning
+ * - Remove items for deleted products while planning AND products_complete === true
+ * - Update quantity_to_pack for changed products while planning
+ * - After packing starts: preserve the snapshot and flag drift for review
  *
  * Tenant-säkert: packing_projects verifieras med organization_id + booking_id,
  * och alla item-mutationer scopeas till den verifierade parentens packing_id.
@@ -2314,6 +2316,48 @@ const syncPackingListAfterExpansion = async (
   if (productsError) {
     console.error(`[Packing Sync] Error loading products for booking ${bookingId}:`, productsError);
     return { changes: 0, error: productsError.message || String(productsError) };
+  }
+
+  // FROZEN SNAPSHOT: once warehouse work has started, an import may update the
+  // booking source but must never rewrite packing_list_items. Detect drift,
+  // mark the packing for review, and leave the operational evidence untouched.
+  if (packingStatus !== 'planning') {
+    const { data: frozenItems, error: frozenItemsError } = await supabase
+      .from('packing_list_items')
+      .select('id, booking_product_id, quantity_to_pack')
+      .eq('packing_id', packingId);
+
+    if (frozenItemsError) {
+      return { changes: 0, error: frozenItemsError.message || String(frozenItemsError) };
+    }
+
+    const frozenProductMap = new Map((allProducts || []).map((p: any) => [p.id, p]));
+    const frozenByProductId = new Map((frozenItems || []).map((i: any) => [i.booking_product_id, i]));
+    const frozenMissing = (allProducts || []).filter((p: any) => !frozenByProductId.has(p.id));
+    const frozenOrphans = (frozenItems || []).filter((i: any) => i.booking_product_id && !frozenProductMap.has(i.booking_product_id));
+    const frozenQuantityDrift = (frozenItems || []).filter((i: any) => {
+      const product = frozenProductMap.get(i.booking_product_id) as any;
+      return product && product.quantity !== i.quantity_to_pack;
+    });
+    const driftCount = frozenMissing.length + frozenOrphans.length + frozenQuantityDrift.length;
+
+    if (driftCount > 0) {
+      console.warn(`[Packing Sync] Frozen packing snapshot ${packingId}: ${driftCount} source drift(s) detected; no packing rows changed`);
+      const { error: reviewError } = await supabase
+        .from('packing_projects')
+        .update({
+          needs_packing_review: true,
+          needs_packing_review_reason: 'booking_changed_after_packing_started',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', packingId)
+        .eq('organization_id', orgId);
+      if (reviewError) {
+        return { changes: 0, error: reviewError.message || String(reviewError) };
+      }
+    }
+
+    return { changes: 0 };
   }
 
   if (!allProducts || allProducts.length === 0) {

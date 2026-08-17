@@ -385,7 +385,7 @@ Deno.serve(async (req) => {
     packingId,
     bookingNumber,
     summary,
-    canStartScanning: summary.blocked === 0,
+    canStartScanning: summary.blocked === 0 && summary.warning === 0,
     items: rows,
   })
 })

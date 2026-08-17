@@ -11,6 +11,7 @@ import CreateInternalTaskDialog from "@/components/warehouse/CreateInternalTaskD
 import WarehouseOverviewToday from "@/components/warehouse-ops/WarehouseOverviewToday";
 import WarehouseOverviewAttention from "@/components/warehouse-ops/WarehouseOverviewAttention";
 import WarehouseOverviewNext7Days from "@/components/warehouse-ops/WarehouseOverviewNext7Days";
+import WarehouseBookingQuickOpen from "@/components/warehouse/WarehouseBookingQuickOpen";
 
 /**
  * Lageröversikt = kort översikt, inte arbetslista.
@@ -75,6 +76,8 @@ const WarehouseDashboard = () => {
             Uppdatera
           </Button>
         </PageHeader>
+
+        <WarehouseBookingQuickOpen />
 
         {isLoading || !data ? (
           <div className="space-y-4">

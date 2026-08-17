@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,8 @@ interface Props {
   packingId: string;
   bookingNumber?: string | null;
   className?: string;
+  autoRun?: boolean;
+  onResult?: (result: PreflightResult | null, state: 'checking' | 'pass' | 'warning' | 'blocked' | 'error') => void;
 }
 
 const statusBadge = (status: PreflightItem['status']) => {
@@ -19,31 +21,56 @@ const statusBadge = (status: PreflightItem['status']) => {
   return <Badge variant="destructive">BLOCKED</Badge>;
 };
 
-export const PackingPreflightPanel: React.FC<Props> = ({ packingId, bookingNumber, className }) => {
+export const PackingPreflightPanel: React.FC<Props> = ({
+  packingId,
+  bookingNumber,
+  className,
+  autoRun = false,
+  onResult,
+}) => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<PreflightResult | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showDebug, setShowDebug] = useState(false);
+  const onResultRef = useRef(onResult);
 
-  const run = async () => {
+  useEffect(() => {
+    onResultRef.current = onResult;
+  }, [onResult]);
+
+  const run = useCallback(async (silent = false) => {
     setLoading(true);
+    setErrorMessage(null);
+    onResultRef.current?.(null, 'checking');
     try {
       const res = await runPackingPreflightCheck(packingId, bookingNumber);
       setResult(res);
-      if (res.summary.blocked === 0) {
-        toast.success('Packlistan är redo för scanning');
-      } else {
-        toast.error(`${res.summary.blocked} produkter matchar inte WMS säkert`);
+      const state = res.summary.blocked > 0 ? 'blocked' : res.summary.warning > 0 ? 'warning' : 'pass';
+      onResultRef.current?.(res, state);
+      if (!silent) {
+        if (state === 'pass') toast.success('Packlistan är fullt verifierad mot WMS');
+        else if (state === 'warning') toast.warning(`${res.summary.warning} WMS-varning(ar) måste lösas för full verifiering`);
+        else toast.error(`${res.summary.blocked} produkter matchar inte WMS säkert`);
       }
     } catch (e: any) {
-      toast.error(e?.message || 'Preflight misslyckades');
+      setResult(null);
+      setErrorMessage(e?.message || 'WMS-kontrollen kunde inte genomföras');
+      onResultRef.current?.(null, 'error');
+      if (!silent) toast.error(e?.message || 'Preflight misslyckades');
     } finally {
       setLoading(false);
     }
-  };
+  }, [bookingNumber, packingId]);
+
+  useEffect(() => {
+    if (!autoRun || !packingId) return;
+    void run(true);
+  }, [autoRun, bookingNumber, packingId, run]);
 
   const blocked = result?.summary.blocked ?? 0;
   const warnings = result?.summary.warning ?? 0;
-  const ok = result && blocked === 0;
+  const ok = result && blocked === 0 && warnings === 0;
+  const warningOnly = result && blocked === 0 && warnings > 0;
   const problems = (result?.items || []).filter((r) => r.status !== 'PASS');
 
   return (
@@ -54,11 +81,21 @@ export const PackingPreflightPanel: React.FC<Props> = ({ packingId, bookingNumbe
             <ShieldCheck className="h-4 w-4 text-muted-foreground shrink-0" />
             <span className="text-sm font-medium truncate">WMS-koppling</span>
           </div>
-          <Button size="sm" variant="outline" onClick={run} disabled={loading} className="h-8 gap-1.5">
+          <Button size="sm" variant="outline" onClick={() => void run(false)} disabled={loading} className="h-8 gap-1.5">
             {loading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
             <span className="text-xs">Kontrollera WMS-koppling</span>
           </Button>
         </div>
+
+        {errorMessage && (
+          <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-2.5">
+            <ShieldAlert className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+            <div className="text-xs">
+              <p className="font-semibold text-destructive">WMS-kontrollen misslyckades</p>
+              <p className="text-destructive/80 mt-0.5">{errorMessage}. Packlistan räknas inte som verifierad.</p>
+            </div>
+          </div>
+        )}
 
         {result && (
           <>
@@ -66,10 +103,19 @@ export const PackingPreflightPanel: React.FC<Props> = ({ packingId, bookingNumbe
               <div className="flex items-start gap-2 rounded-md border border-green-200 bg-green-50 p-2.5">
                 <CheckCircle2 className="h-4 w-4 text-green-700 shrink-0 mt-0.5" />
                 <div className="text-xs">
-                  <p className="font-semibold text-green-800">Packlistan är redo för scanning</p>
+                  <p className="font-semibold text-green-800">Packlistan är fullt verifierad mot WMS</p>
                   <p className="text-green-700 mt-0.5">
-                    {result.summary.pass}/{result.summary.total} rader matchar WMS
-                    {warnings > 0 ? ` · ${warnings} varningar` : ''}
+                    {result.summary.pass}/{result.summary.total} rader har entydig WMS-koppling utan varningar.
+                  </p>
+                </div>
+              </div>
+            ) : warningOnly ? (
+              <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-2.5 dark:bg-amber-950/20">
+                <AlertTriangle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
+                <div className="text-xs">
+                  <p className="font-semibold text-amber-900 dark:text-amber-200">WMS-kopplingen är inte fullt verifierad</p>
+                  <p className="text-amber-800 dark:text-amber-200/80 mt-0.5">
+                    {warnings} varning{warnings === 1 ? '' : 'ar'} måste lösas innan listan räknas som 100 % verifierad.
                   </p>
                 </div>
               </div>

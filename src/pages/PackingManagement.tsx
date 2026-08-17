@@ -50,9 +50,15 @@ const PackingManagement = () => {
 
   const searching = search.trim().length > 0 || statusFilter !== "all";
 
+  const normalizedSearch = search.trim().toLowerCase();
   const filteredPackings = packings.filter(packing => {
-    const matchesSearch = packing.name.toLowerCase().includes(search.toLowerCase()) ||
-      packing.booking?.client?.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = !normalizedSearch || [
+      packing.name,
+      packing.booking?.client,
+      packing.booking?.booking_number,
+      packing.booking?.deliveryaddress,
+      packing.booking?.delivery_city,
+    ].some((value) => value?.toLowerCase().includes(normalizedSearch));
     const matchesStatus = statusFilter === "all" || packing.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -72,7 +78,7 @@ const PackingManagement = () => {
     deleteMutation.mutate(packingId);
   };
 
-  const showList = showAllPackings || searching;
+  const showList = showAllPackings && !searching;
 
   return (
     <div className="h-full overflow-y-auto" style={{ background: 'var(--gradient-page)' }}>
@@ -136,24 +142,57 @@ const PackingManagement = () => {
             ))}
           </p>
 
-          {/* 1. Kräver åtgärd */}
-          <div id="actions" className="scroll-mt-4">
-            <PackingActionCenter packings={packings} />
-          </div>
+          {searching ? (
+            <section className="mb-6 rounded-2xl border border-border/60 bg-card/70 p-4 sm:p-5 shadow-sm">
+              <div className="flex items-end justify-between gap-3 mb-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-[hsl(var(--heading))]">Sökresultat</h2>
+                  <p className="text-xs text-muted-foreground">Öppna packlistan genom att klicka på kortet, eller gå direkt till lagerbokningen.</p>
+                </div>
+                <span className="text-xs text-muted-foreground shrink-0">{filteredPackings.length} träffar</span>
+              </div>
+              {isLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[1, 2, 3].map(i => <div key={i} className="h-48 bg-muted animate-pulse rounded-2xl" />)}
+                </div>
+              ) : filteredPackings.length === 0 ? (
+                <div className="text-center py-10 text-sm text-muted-foreground">Ingen packning hittades. Prova bokningsnummer, kund eller leveransadress.</div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredPackings.map(packing => (
+                    <PackingCard
+                      key={packing.id}
+                      packing={packing}
+                      onClick={() => handlePackingClick(packing.id)}
+                      onDelete={() => handleDelete(packing.id)}
+                      onOpenBooking={packing.booking?.id ? () => navigate(`/warehouse/bookings/${packing.booking!.id}`) : undefined}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          ) : (
+            <>
+              {/* 1. Kräver åtgärd */}
+              <div id="actions" className="scroll-mt-4">
+                <PackingActionCenter packings={packings} />
+              </div>
 
-          {/* 2. Packningskalender (låst komponent) */}
-          <div className="mb-6">
-            <PackingCalendarView packings={packings} />
-          </div>
+              {/* 2. Packningskalender (låst komponent) */}
+              <div className="mb-6">
+                <PackingCalendarView packings={packings} />
+              </div>
 
-          {/* 3. Pågående arbete */}
-          <div id="active-work" className="scroll-mt-4">
-            <PackingActiveWork packings={packings} />
-          </div>
+              {/* 3. Pågående arbete */}
+              <div id="active-work" className="scroll-mt-4">
+                <PackingActiveWork packings={packings} />
+              </div>
+            </>
+          )}
 
           {/* Alla packningar — dolt bakom "Visa alla packningar" */}
           <div className="mt-6">
-            {!showList && (
+            {!searching && !showList && (
               <Button
                 variant="outline"
                 className="rounded-xl"
@@ -195,6 +234,7 @@ const PackingManagement = () => {
                       packing={packing}
                       onClick={() => handlePackingClick(packing.id)}
                       onDelete={() => handleDelete(packing.id)}
+                      onOpenBooking={packing.booking?.id ? () => navigate(`/warehouse/bookings/${packing.booking!.id}`) : undefined}
                     />
                   ))}
                 </div>

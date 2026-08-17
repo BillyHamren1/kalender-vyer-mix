@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Calendar as CalendarIcon, MapPin, Phone, User, Package, ClipboardList, RefreshCw, CheckSquare, Layers, Scissors, LayoutList, FileText, Download, History } from "lucide-react";
+import { ArrowLeft, Calendar as CalendarIcon, Package, ClipboardList, RefreshCw, CheckSquare, Layers, Scissors, LayoutList, History, ExternalLink } from "lucide-react";
 import { PackingHistoryDialog } from "@/components/packing/PackingHistoryDialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -55,6 +55,7 @@ const PackingDetail = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRepairingPackingList, setIsRepairingPackingList] = useState(false);
   const [isSplitting, setIsSplitting] = useState(false);
   const previousProductsRef = useRef<BookingProduct[]>([]);
   const loadRequestIdRef = useRef(0);
@@ -76,14 +77,10 @@ const PackingDetail = () => {
   } = usePackingDetail(packingId || '');
 
   const {
-    items: packingListItems,
-    bookingGroups,
     isMultiBooking,
     linkedBookingIds,
-    isLoading: isLoadingPackingList,
-    updateItem: updatePackingListItem,
-    markAllPacked,
-    syncPackingList,
+    integrity: packingIntegrity,
+    integrityError: packingIntegrityError,
     refetchItems
   } = usePackingList(packingId || '');
 
@@ -130,8 +127,8 @@ const PackingDetail = () => {
         const newSignature = makeProductsSignature(allProducts);
         if (changes && newSignature !== lastNotifiedSignatureRef.current) {
           lastNotifiedSignatureRef.current = newSignature;
-          toast.info(`Produktlistan uppdaterad`, { duration: 5000 });
-          syncPackingList();
+          toast.warning('Bokningen har ändrats. Packlistan ändras inte automatiskt – kontrollera avvikelsen innan fortsatt arbete.', { duration: 7000 });
+          refetchItems();
         }
       }
       previousProductsRef.current = allProducts;
@@ -141,7 +138,7 @@ const PackingDetail = () => {
     } finally {
       if (requestId === loadRequestIdRef.current) setIsLoadingProducts(false);
     }
-  }, [detectProductChanges, makeProductsSignature, packing?.booking_id, syncPackingList, isMultiBooking, linkedBookingIds]);
+  }, [detectProductChanges, makeProductsSignature, packing?.booking_id, refetchItems, isMultiBooking, linkedBookingIds]);
 
   useEffect(() => { loadProducts(false); }, [packing?.booking_id, linkedBookingIds.length]);
 
@@ -154,6 +151,51 @@ const PackingDetail = () => {
     } catch (error) {
       toast.error("Kunde inte uppdatera data");
     } finally { setIsRefreshing(false); }
+  };
+
+  const handleRepairPackingList = async () => {
+    if (!packing || packing.status !== 'planning') {
+      toast.error('Packlistan är låst när packningen har lämnat planeringsläget.');
+      return;
+    }
+
+    const bookingIds = isMultiBooking
+      ? linkedBookingIds
+      : packing.booking_id
+        ? [packing.booking_id]
+        : [];
+    if (bookingIds.length === 0) {
+      toast.error('Ingen bokning är kopplad till packlistan.');
+      return;
+    }
+
+    setIsRepairingPackingList(true);
+    try {
+      const { data: bookingSources, error } = await supabase
+        .from('bookings')
+        .select('id, organization_id')
+        .in('id', bookingIds);
+      if (error) throw error;
+      if (!bookingSources || bookingSources.length !== bookingIds.length) {
+        throw new Error('Alla bokningskällor kunde inte verifieras.');
+      }
+
+      for (const source of bookingSources) {
+        await syncBookingToPacking(source.id, source.organization_id, {
+          throwOnError: true,
+          targetPackingId: packing.id,
+        });
+      }
+
+      await Promise.all([refetchAll(), refetchItems()]);
+      await loadProducts(false);
+      toast.success('Packlistan är uppdaterad från aktuell bokning. Kontrollera integritetsstatus innan användning.');
+    } catch (error) {
+      console.error('[PackingDetail] Repair packing list failed', error);
+      toast.error('Packlistan kunde inte uppdateras säkert. Inga fler försök görs automatiskt.');
+    } finally {
+      setIsRepairingPackingList(false);
+    }
   };
 
   useEffect(() => {
@@ -301,10 +343,47 @@ const PackingDetail = () => {
                 <History className="h-4 w-4 mr-1.5" />
                 Historik
               </Button>
+              {booking?.id && !isLargeProject && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate(`/warehouse/bookings/${booking.id}`)}
+                  className="border-border/60"
+                >
+                  <ExternalLink className="h-4 w-4 mr-1.5" />
+                  Lagerbokning
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing} className="border-border/60">
                 <RefreshCw className={`h-4 w-4 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
                 Uppdatera
               </Button>
+              {packing.status === 'planning' && packingIntegrity?.sourceAvailable && !packingIntegrity.isExactMatch && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" size="sm" disabled={isRepairingPackingList} className="border-amber-400/70 text-amber-800 dark:text-amber-300">
+                      <RefreshCw className={`h-4 w-4 mr-1.5 ${isRepairingPackingList ? 'animate-spin' : ''}`} />
+                      Uppdatera packlista från bokning
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Uppdatera den operativa packlistan?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Detta gäller endast denna packlista och är bara tillåtet medan status är Planering.
+                        Packrader kan läggas till, få nytt antal eller tas bort för att exakt spegla aktuell bokning.
+                        När packningen har startat låses snapshoten och den här åtgärden är inte längre tillgänglig.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Avbryt</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => void handleRepairPackingList()}>
+                        Uppdatera denna packlista
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
               {isMultiBooking && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -346,7 +425,7 @@ const PackingDetail = () => {
                 )}
                 <TabsTrigger value="checklist" className={tabTriggerClass}>
                   <CheckSquare className="h-3.5 w-3.5 mr-1.5" />
-                  Checklista
+                  Arbetschecklista
                 </TabsTrigger>
                 {(booking || isMultiBooking) && (
                   <>
@@ -471,8 +550,13 @@ const PackingDetail = () => {
 
               <TabsContent value="checklist">
                 <div className="rounded-xl border border-border/30 bg-background/60 backdrop-blur-sm p-5">
-                  <h3 className="font-semibold text-lg text-[hsl(var(--heading))] mb-4">Manuell packlista</h3>
-                  <ManualPackingChecklist packingId={packingId || ''} />
+                  <h3 className="font-semibold text-lg text-[hsl(var(--heading))] mb-4">Arbetschecklista</h3>
+                  <ManualPackingChecklist
+                    packingId={packingId || ''}
+                    packingName={packing.name}
+                    bookingNumber={booking?.booking_number || null}
+                    client={booking?.client || null}
+                  />
                 </div>
               </TabsContent>
 
@@ -483,6 +567,9 @@ const PackingDetail = () => {
                       <DesktopChecklistView
                         packingId={packingId || ''}
                         packingName={packing.name}
+                        integrity={packingIntegrity}
+                        integrityError={packingIntegrityError}
+                        onRefreshIntegrity={refetchItems}
                       />
                     </div>
                   </TabsContent>
