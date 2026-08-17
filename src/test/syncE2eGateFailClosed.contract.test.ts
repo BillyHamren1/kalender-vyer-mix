@@ -84,6 +84,7 @@ describe("STEG 5B – SQL/E2E gate är fail-closed", () => {
   it("required sections täcker alla blockerande delar", () => {
     expect(REQUIRED_SECTIONS).toEqual([
       "release_migration_compatibility",
+      "schema_provisioning",
       "bsa_tenant_identity",
       "bsa_v2_rpc",
       "security_definer",
