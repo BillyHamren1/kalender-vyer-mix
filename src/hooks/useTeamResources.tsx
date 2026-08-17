@@ -1,15 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Resource } from '@/components/Calendar/ResourceData';
 import { saveResourcesToStorage, loadResourcesFromStorage } from '@/components/Calendar/ResourceData';
 import { saveResources, renameTeam } from '@/services/teamService';
 import { toast } from 'sonner';
 
-export const useTeamResources = () => {
+/**
+ * @param knownTeamIds Team-id:n som faktiskt förekommer i databasen
+ * (bokningar/personaltilldelningar). Saknas de i den lokala kolumnlistan
+ * läggs de till automatiskt — annars blir rader osynliga utan felmeddelande.
+ */
+export const useTeamResources = (knownTeamIds: string[] = []) => {
   const [resources, setResources] = useState<Resource[]>([]);
   const [teamCount, setTeamCount] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [initialSetupComplete, setInitialSetupComplete] = useState(false);
   const [cleanupDone, setCleanupDone] = useState(false);
+
   
   // Default required teams (Team 1-10). The "Live" column (team-11) is deprecated and removed.
   const defaultTeams: Resource[] = [
