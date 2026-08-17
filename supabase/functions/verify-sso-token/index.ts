@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
       step: name,
       status: e?.status ?? null,
       code: e?.code ?? e?.name ?? null,
-      message: e?.message ?? String(e ?? ''),
+      message: typeof e?.message === 'string' ? e.message : JSON.stringify(e?.message ?? e ?? null),
     }));
   };
 
