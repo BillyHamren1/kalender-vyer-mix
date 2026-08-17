@@ -30,6 +30,7 @@ import {
 } from './ZebraRfidBridge';
 import { startKeyboardListener, stopKeyboardListener, isKeyboardListenerActive } from './KeyboardFallbackBridge';
 import { enqueueScan } from './ScanQueue';
+import { shouldUseLegacyScanQueue } from './operationQueueService';
 
 type ScanHandler = (scan: ScanEvent) => void;
 
