@@ -8,6 +8,7 @@ import {
   Clock3,
   ExternalLink,
   MapPin,
+  Pencil,
   Truck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -82,7 +83,7 @@ const TransportEventCard = ({ assignment, onSelect }: { assignment: TransportAss
   );
 };
 
-const TransportDetailDialog = ({ assignment, open, onClose }: { assignment: TransportAssignment | null; open: boolean; onClose: () => void }) => {
+const TransportDetailDialog = ({ assignment, open, onClose, onEdit }: { assignment: TransportAssignment | null; open: boolean; onClose: () => void; onEdit?: (assignment: TransportAssignment) => void }) => {
   const navigate = useNavigate();
   if (!assignment) return null;
 
@@ -166,6 +167,19 @@ const TransportDetailDialog = ({ assignment, open, onClose }: { assignment: Tran
             </div>
           )}
 
+          {onEdit && (
+            <Button
+              className="w-full"
+              onClick={() => {
+                onClose();
+                onEdit(assignment);
+              }}
+            >
+              <Pencil className="mr-2 h-4 w-4" />
+              Redigera transport
+            </Button>
+          )}
+
           <Button
             variant="outline"
             className="w-full"
@@ -238,9 +252,10 @@ interface LogisticsWeekViewProps {
   isLoading: boolean;
   currentDate: Date;
   onDateChange: (date: Date) => void;
+  onEditAssignment?: (assignment: TransportAssignment) => void;
 }
 
-const LogisticsWeekView: React.FC<LogisticsWeekViewProps> = ({ assignments, isLoading, currentDate, onDateChange }) => {
+const LogisticsWeekView: React.FC<LogisticsWeekViewProps> = ({ assignments, isLoading, currentDate, onDateChange, onEditAssignment }) => {
   const [selectedAssignment, setSelectedAssignment] = useState<TransportAssignment | null>(null);
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
@@ -295,7 +310,7 @@ const LogisticsWeekView: React.FC<LogisticsWeekViewProps> = ({ assignments, isLo
         )}
       </div>
 
-      <TransportDetailDialog assignment={selectedAssignment} open={!!selectedAssignment} onClose={() => setSelectedAssignment(null)} />
+      <TransportDetailDialog assignment={selectedAssignment} open={!!selectedAssignment} onClose={() => setSelectedAssignment(null)} onEdit={onEditAssignment} />
     </section>
   );
 };

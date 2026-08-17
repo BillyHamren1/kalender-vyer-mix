@@ -72,7 +72,7 @@ const InnerLogin = () => {
       <div className="flex-1 flex flex-col items-center justify-center px-6 pb-8">
         <div className="flex items-center gap-2 mb-2">
           <Calendar className="h-7 w-7 text-primary" />
-          <h1 className="text-2xl font-bold text-foreground">Personalkalendern</h1>
+          <h1 className="text-2xl font-bold text-foreground">Bemanningskalender</h1>
         </div>
         <p className="text-sm text-muted-foreground mb-8">
           Logga in med samma e-post och lösenord som i appen.

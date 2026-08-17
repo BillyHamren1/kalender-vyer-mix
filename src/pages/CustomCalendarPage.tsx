@@ -8,6 +8,7 @@ import { useTeamResources } from '@/hooks/useTeamResources';
 import { computeAutoVisibleTeamsForDay, computeDefaultVisibleTeams, isRequiredTeam } from '@/lib/calendar/defaultVisibleTeams';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { useTaskCalendarEvents } from '@/hooks/useTaskCalendarEvents';
+import { useTransportCalendarProjection } from '@/hooks/useTransportCalendarProjection';
 
 import { useInternalLagerCalendarEvents } from '@/hooks/useInternalLagerCalendarEvents';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -25,7 +26,7 @@ import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
 
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { startOfWeek, startOfMonth, subDays, format } from 'date-fns';
+import { startOfWeek, startOfMonth, endOfWeek, endOfMonth, subDays, format } from 'date-fns';
 import { resetCalendarViewStorage } from '@/components/Calendar/ResourceData';
 
 import { sv } from 'date-fns/locale';
@@ -219,14 +220,43 @@ const CustomCalendarPage = () => {
   const lagerAnchorDate = viewMode === 'monthly' ? monthlyDate : currentWeekStart;
   const { internalLagerEvents } = useInternalLagerCalendarEvents(lagerAnchorDate, viewMode);
 
+  // Read-only logistics projection. Transportdata owns its own truth in
+  // transport_assignments and is only rendered as context on matching booking/day.
+  const transportRangeStart = viewMode === 'monthly' ? startOfMonth(monthlyDate) : currentWeekStart;
+  const transportRangeEnd = viewMode === 'monthly'
+    ? endOfMonth(monthlyDate)
+    : endOfWeek(currentWeekStart, { weekStartsOn: 1 });
+  const { byBookingAndDate: transportByBookingAndDate } = useTransportCalendarProjection(
+    transportRangeStart,
+    transportRangeEnd
+  );
+
   // Merge calendar events + task overlay + internal lager.
   // Filtrera bort allt övrigt som råkar peka på 'transport'-resursen.
   const mergedEvents = useMemo(() => {
-    const filteredEvents = events.filter((e: any) => e.resourceId !== 'transport');
+    const filteredEvents = events
+      .filter((e: any) => e.resourceId !== 'transport')
+      .map((event: any) => {
+        const bookingId = event.bookingId || event.extendedProps?.bookingId || event.extendedProps?.booking_id;
+        const eventDate = typeof event.start === 'string' ? event.start.slice(0, 10) : '';
+        if (!bookingId || !eventDate) return event;
+
+        const transports = transportByBookingAndDate.get(`${bookingId}|${eventDate}`) || [];
+        if (transports.length === 0) return event;
+
+        return {
+          ...event,
+          extendedProps: {
+            ...(event.extendedProps || {}),
+            logisticsTransports: transports,
+          },
+        };
+      });
+
     const base = [...filteredEvents, ...internalLagerEvents];
     if (!showTasks || taskEvents.length === 0) return base;
     return [...base, ...taskEvents];
-  }, [events, taskEvents, internalLagerEvents, showTasks]);
+  }, [events, taskEvents, internalLagerEvents, showTasks, transportByBookingAndDate]);
 
   // Visible teams state - per day { [dateString]: teamIds[] }
   // Default = ALLA aktuella team + Lager (transport). Tidigare hårdkodades

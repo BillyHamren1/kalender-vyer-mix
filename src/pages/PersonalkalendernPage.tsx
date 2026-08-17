@@ -67,7 +67,7 @@ const PersonalkalendernInner: React.FC = () => {
           <div className="px-3 sm:px-6 py-2 flex items-center gap-2 sm:gap-4 flex-wrap">
             <div className="flex items-center gap-2 mr-2">
               <CalendarIcon className="h-5 w-5 text-primary" />
-              <h1 className="text-base sm:text-lg font-semibold text-foreground">Personalkalendern</h1>
+              <h1 className="text-base sm:text-lg font-semibold text-foreground">Bemanningskalender</h1>
               <span className="hidden sm:inline text-xs text-muted-foreground ml-1 px-1.5 py-0.5 rounded bg-muted">
                 Read-only
               </span>
