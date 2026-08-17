@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, MapPin, Users, Briefcase, Navigation, MessageCircle, Camera, Maximize2, Minimize2, Map as MapIcon, Satellite, Clock, Wifi, Building2, Crosshair, LocateFixed, X as XIcon, ZoomIn } from 'lucide-react';
+import { Loader2, MapPin, Users, Briefcase, Navigation, MessageCircle, Camera, Maximize2, Minimize2, Map as MapIcon, Satellite, Clock, Wifi, Building2, Crosshair, LocateFixed, X as XIcon, ZoomIn, ZoomOut, Search, ListFilter, Locate, ChevronRight } from 'lucide-react';
 import { StaffLocation } from '@/services/planningDashboardService';
 import { OpsMapJob } from '@/services/opsControlService';
 import { useNavigate } from 'react-router-dom';
@@ -104,6 +104,9 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
   const [showOrgLocations, setShowOrgLocations] = useState(false);
   const [showStaff, setShowStaff] = useState(true);
   const [showJobs, setShowJobs] = useState(false);
+  const [showStaffOverview, setShowStaffOverview] = useState(true);
+  const [staffSearch, setStaffSearch] = useState('');
+  const [staffStatusFilter, setStaffStatusFilter] = useState<'all' | StaffStatus>('all');
   const [followStaffId, setFollowStaffId] = useState<string | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const hasInitialFitRef = useRef(false);
@@ -163,7 +166,8 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
             touchZoomRotate: true,
           });
         }
-        map.current.addControl(new mapboxgl.NavigationControl({ showCompass: false, visualizePitch: false }), 'top-right');
+        // Native navigation sits bottom-right so it can never be covered by the OPS toolbar.
+        map.current.addControl(new mapboxgl.NavigationControl({ showCompass: false, visualizePitch: false }), 'bottom-right');
         map.current.on('dragstart', () => { userInteractedRef.current = true; });
         map.current.on('zoomstart', () => { userInteractedRef.current = true; });
         map.current.on('load', () => {
@@ -906,6 +910,52 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
   const totalOnMap = locations.filter(l => l.latitude && l.longitude).length;
   const jobsOnMap = mapJobs.filter(j => j.latitude && j.longitude).length;
 
+  const staffOverview = locations
+    .map(loc => ({ loc, status: getStaffStatus(loc, mapJobs) }))
+    .filter(({ loc, status }) => {
+      if (staffStatusFilter !== 'all' && status !== staffStatusFilter) return false;
+      const q = staffSearch.trim().toLowerCase();
+      if (!q) return true;
+      return [loc.name, loc.teamName, loc.bookingClient, loc.deliveryAddress]
+        .filter(Boolean)
+        .some(value => String(value).toLowerCase().includes(q));
+    })
+    .sort((a, b) => {
+      const order: Record<StaffStatus, number> = { on_site: 0, on_way: 1, planned: 2, stale: 3, idle: 4, offline: 5 };
+      return order[a.status] - order[b.status] || a.loc.name.localeCompare(b.loc.name, 'sv');
+    });
+
+  const staffStatusCounts = (Object.keys(statusStyles) as StaffStatus[]).reduce((acc, status) => {
+    acc[status] = locations.filter(loc => getStaffStatus(loc, mapJobs) === status).length;
+    return acc;
+  }, {} as Record<StaffStatus, number>);
+
+  const fitOperationalBounds = useCallback(() => {
+    if (!map.current) return;
+    const coords: [number, number][] = [
+      ...locations.filter(l => l.latitude && l.longitude).map(l => [l.longitude!, l.latitude!] as [number, number]),
+      ...mapJobs.filter(j => j.latitude && j.longitude).map(j => [j.longitude!, j.latitude!] as [number, number]),
+    ];
+    if (coords.length === 0) return;
+    userInteractedRef.current = true;
+    if (coords.length === 1) {
+      map.current.flyTo({ center: coords[0], zoom: 15, duration: 550 });
+      return;
+    }
+    const bounds = new mapboxgl.LngLatBounds();
+    coords.forEach(c => bounds.extend(c));
+    map.current.fitBounds(bounds, { padding: { top: 90, right: showStaffOverview ? 390 : 70, bottom: 70, left: 70 }, maxZoom: 15, duration: 650 });
+  }, [locations, mapJobs, showStaffOverview]);
+
+  const focusStaff = useCallback((loc: StaffLocation) => {
+    setStaffPanel(loc);
+    setSelectedJob(null);
+    setClusterPicker(null);
+    if (!map.current || !loc.latitude || !loc.longitude) return;
+    userInteractedRef.current = true;
+    map.current.flyTo({ center: [loc.longitude, loc.latitude], zoom: loc.isGps ? 17 : 15, duration: 650 });
+  }, []);
+
   const toggleFullscreen = useCallback(() => {
     const m = map.current;
     const savedCenter = m?.getCenter();
@@ -1028,30 +1078,109 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
         </div>
       )}
 
-      {/* Map style + Fullscreen toggles */}
-      <div className="absolute top-2 right-2 z-20 flex gap-1">
-        <button
-          onClick={toggleMapStyle}
-          className="w-8 h-8 rounded-lg bg-card/90 backdrop-blur-sm shadow-md border border-border flex items-center justify-center hover:bg-card transition-colors"
-          title={mapStyle === 'streets' ? 'Visa satellit' : 'Visa karta'}
-        >
-          {mapStyle === 'streets' ? (
-            <Satellite className="w-4 h-4 text-muted-foreground" />
-          ) : (
-            <MapIcon className="w-4 h-4 text-foreground" />
-          )}
-        </button>
-        <button
-          onClick={toggleFullscreen}
-          className="w-8 h-8 rounded-lg bg-card/90 backdrop-blur-sm shadow-md border border-border flex items-center justify-center hover:bg-card transition-colors"
-          title={isFullscreen ? 'Stäng helskärm' : 'Helskärm'}
-        >
-          {isFullscreen ? (
-            <Minimize2 className="w-4 h-4 text-foreground" />
-          ) : (
-            <Maximize2 className="w-4 h-4 text-muted-foreground" />
-          )}
-        </button>
+      {/* Map controls — explicit and never covered by Mapbox controls */}
+      <div className="absolute top-2 right-2 z-30 flex gap-1">
+        <div className="flex items-center gap-0.5 rounded-xl border border-border bg-card/95 p-1 shadow-lg backdrop-blur-xl">
+          <button onClick={() => map.current?.zoomIn({ duration: 250 })} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-muted transition-colors" title="Zooma in">
+            <ZoomIn className="w-4 h-4" />
+          </button>
+          <button onClick={() => map.current?.zoomOut({ duration: 250 })} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-muted transition-colors" title="Zooma ut">
+            <ZoomOut className="w-4 h-4" />
+          </button>
+          <button onClick={fitOperationalBounds} className="h-8 px-2 rounded-lg flex items-center gap-1.5 text-[10px] font-semibold hover:bg-muted transition-colors" title="Visa all personal och alla jobb">
+            <Locate className="w-3.5 h-3.5" /> Översikt
+          </button>
+          <span className="mx-0.5 h-5 w-px bg-border" />
+          <button onClick={toggleMapStyle} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-muted transition-colors" title={mapStyle === 'streets' ? 'Visa satellit' : 'Visa karta'}>
+            {mapStyle === 'streets' ? <Satellite className="w-4 h-4 text-muted-foreground" /> : <MapIcon className="w-4 h-4 text-foreground" />}
+          </button>
+          <button onClick={toggleFullscreen} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-muted transition-colors" title={isFullscreen ? 'Stäng helskärm' : 'Helskärm'}>
+            {isFullscreen ? <Minimize2 className="w-4 h-4 text-foreground" /> : <Maximize2 className="w-4 h-4 text-muted-foreground" />}
+          </button>
+        </div>
+      </div>
+
+      {/* Personalöversikt — operativ roster direkt i kartan */}
+      <div className={`absolute z-20 top-14 right-2 transition-all duration-200 ${showStaffOverview ? 'w-[360px]' : 'w-auto'}`}>
+        {!showStaffOverview ? (
+          <button
+            onClick={() => setShowStaffOverview(true)}
+            className="flex items-center gap-2 rounded-xl border border-border bg-card/95 px-3 py-2 text-xs font-semibold shadow-lg backdrop-blur-xl hover:bg-card"
+          >
+            <Users className="h-4 w-4 text-primary" /> Personalöversikt <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        ) : (
+          <div className="overflow-hidden rounded-2xl border border-border bg-card/95 shadow-2xl backdrop-blur-xl">
+            <div className="flex items-start justify-between border-b border-border px-3.5 py-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-primary" />
+                  <h3 className="text-xs font-bold text-foreground">Personal live</h3>
+                  <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-bold tabular-nums text-muted-foreground">{locations.length}</span>
+                </div>
+                <p className="mt-1 text-[10px] text-muted-foreground">Klicka en person för exakt kartposition och status.</p>
+              </div>
+              <button onClick={() => setShowStaffOverview(false)} className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground" title="Dölj personalöversikt">
+                <XIcon className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            <div className="space-y-2 border-b border-border p-3">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={staffSearch}
+                  onChange={e => setStaffSearch(e.target.value)}
+                  placeholder="Sök person, team, jobb eller plats…"
+                  className="h-8 w-full rounded-lg border border-border bg-background pl-8 pr-3 text-[11px] outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div className="flex flex-wrap gap-1">
+                <button onClick={() => setStaffStatusFilter('all')} className={`rounded-md px-2 py-1 text-[9px] font-semibold ${staffStatusFilter === 'all' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>Alla {locations.length}</button>
+                {(Object.keys(statusStyles) as StaffStatus[]).map(status => (
+                  <button key={status} onClick={() => setStaffStatusFilter(status)} className={`flex items-center gap-1 rounded-md px-2 py-1 text-[9px] font-semibold ${staffStatusFilter === status ? 'bg-slate-900 text-white' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>
+                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: statusStyles[status].color }} />
+                    {statusStyles[status].label} {staffStatusCounts[status]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="max-h-[360px] overflow-y-auto">
+              {staffOverview.length === 0 ? (
+                <div className="px-4 py-8 text-center text-[11px] text-muted-foreground">Ingen personal matchar filtret.</div>
+              ) : staffOverview.map(({ loc, status }) => (
+                <button
+                  key={loc.id}
+                  onClick={() => focusStaff(loc)}
+                  className={`w-full border-b border-border/50 px-3.5 py-2.5 text-left transition-colors last:border-0 hover:bg-muted/70 ${staffPanel?.id === loc.id ? 'bg-primary/5' : ''}`}
+                >
+                  <div className="flex items-start gap-2.5">
+                    <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-background" style={{ background: statusStyles[status].color, opacity: loc.isOffline ? 0.55 : 1 }} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-[11px] font-bold text-foreground">{loc.name}</span>
+                        <span className={`shrink-0 text-[9px] font-semibold ${loc.isGps && !loc.isOffline ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+                          {loc.isGps && !loc.isOffline ? 'GPS live' : loc.latitude && loc.longitude ? 'Adressposition' : 'Ingen position'}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 flex items-center gap-1.5 text-[9px] text-muted-foreground">
+                        <span>{statusStyles[status].label}</span>
+                        {loc.teamName && <><span>·</span><span className="truncate">{loc.teamName}</span></>}
+                      </div>
+                      {(loc.bookingClient || loc.deliveryAddress) && (
+                        <div className="mt-1 truncate text-[9px] text-foreground/70">{loc.bookingClient || loc.deliveryAddress}</div>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <button onClick={fitOperationalBounds} className="flex w-full items-center justify-center gap-1.5 border-t border-border bg-muted/30 px-3 py-2 text-[10px] font-semibold text-foreground hover:bg-muted">
+              <Locate className="h-3.5 w-3.5" /> Visa all personal på kartan
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Premium Legend */}
@@ -1305,7 +1434,23 @@ const OpsLiveMap = ({ locations, mapJobs, isLoading, focusCoords, onOpenDM, rout
             {staffPanel.deliveryAddress && (
               <div className="flex items-start gap-1 text-[10px] text-muted-foreground">
                 <MapPin className="w-3 h-3 mt-0.5 shrink-0" />
-                <span className="truncate">{staffPanel.deliveryAddress}</span>
+                <span className="break-words">{staffPanel.deliveryAddress}</span>
+              </div>
+            )}
+            {staffPanel.latitude && staffPanel.longitude && (
+              <div className="rounded-md border border-border/60 bg-muted/35 px-2 py-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground">Position</span>
+                  <span className={`text-[9px] font-bold ${staffPanel.isGps && !staffPanel.isOffline ? 'text-emerald-600' : 'text-amber-600'}`}>
+                    {staffPanel.isGps && !staffPanel.isOffline ? 'LIVE GPS' : 'ADRESSBASERAD'}
+                  </span>
+                </div>
+                <div className="mt-0.5 font-mono text-[10px] tabular-nums text-foreground">
+                  {staffPanel.latitude.toFixed(6)}, {staffPanel.longitude.toFixed(6)}
+                </div>
+                {!staffPanel.isGps && (
+                  <div className="mt-0.5 text-[9px] leading-snug text-muted-foreground">Detta är jobbets/adressens position, inte personens uppmätta GPS-position.</div>
+                )}
               </div>
             )}
 
