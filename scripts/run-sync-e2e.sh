@@ -120,7 +120,7 @@ EOF
     const fs = require("fs");
     const [final, safeEnv, hist, histReason, rawMig, migFirst, migSummary, compatStatus, compatReasons, compatEvidence, gateReasons, schemaStatus, ...sections] = process.argv.slice(1);
     const keys = ["bsa_tenant_identity","bsa_v2_rpc","security_definer","revision_lease","worker_jobs","batch_cursor","warehouse_uniqueness","canonical_error_propagation","destructive_cancellation_off"];
-    const results = { release_migration_compatibility: compatStatus };
+    const results = { release_migration_compatibility: compatStatus, schema_provisioning: schemaStatus };
     keys.forEach((k,i) => { results[k] = sections[i]; });
     let evidence = null; try { evidence = JSON.parse(compatEvidence); } catch {}
     fs.writeFileSync("reports/sync-e2e-report.json", JSON.stringify({
