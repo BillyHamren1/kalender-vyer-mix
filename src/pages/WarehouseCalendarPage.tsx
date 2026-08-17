@@ -293,7 +293,7 @@ const WarehouseCalendarPage = () => {
   const allUnassigned = [...filteredWarehouseEvents];
   const distributedEvents: CalendarEvent[] = distributeWarehouseEvents(allUnassigned, warehouseTeamResources);
 
-  // ---- READ-ONLY kort-metadata (packstatus, brister, bemanning, rubrik) ----
+  // ---- READ-ONLY kort-metadata (packstatus, bemanning, rubrik) ----
   const cardBookingIds = useMemo(
     () => filteredWarehouseEvents.map(e => e.bookingId).filter(Boolean) as string[],
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -322,7 +322,6 @@ const WarehouseCalendarPage = () => {
         bookingTitle: rubrik ?? (event.extendedProps as any)?.bookingTitle,
         timeLabel: `${format(new Date(event.start), 'HH:mm')}–${format(new Date(event.end), 'HH:mm')}`,
         packedLabel: stat && stat.total > 0 ? `${stat.packed} / ${stat.total} klara` : undefined,
-        shortfallCount: stat?.shortfallRows ?? 0,
         crewLabel: crew.length ? crew.join(', ') : undefined,
       },
     };
