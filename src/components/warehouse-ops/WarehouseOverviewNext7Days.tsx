@@ -32,7 +32,7 @@ const WarehouseOverviewNext7Days: React.FC<Props> = ({ data }) => {
       const jobsForDay = data.jobs.filter((j) => {
         if (!j.anchorDate) return false;
         const d = parseISO(j.anchorDate);
-        return isWithinInterval(d, { start, end: addDays(end, -1) });
+        return isWithinInterval(d, { start, end });
       });
 
       result.push({
