@@ -17,19 +17,20 @@ describe('Lagerkalenderns kortinnehåll (presentation only)', () => {
     expect(card).toContain('phaseContext');
   });
 
-  it('kortet berikas med aktivitet, rubrik, tid, packstatus, brister och bemanning', () => {
+  it('kortet berikas med aktivitet, rubrik, tid, packstatus och bemanning', () => {
     for (const key of [
       'warehouseActivityLabel',
       'bookingTitle',
       'timeLabel',
       'packedLabel',
-      'shortfallCount',
       'crewLabel',
     ]) {
       expect(page).toContain(key);
       expect(card).toContain(key);
     }
-    expect(card).toContain('brister');
+    // "Brister" får inte visas utan verklig shortage-data; opackade rader är inte brister.
+    expect(card).not.toContain('brister');
+    expect(page).not.toContain('shortfallCount');
   });
 
   it('metadata-hämtningen är read-only', () => {
