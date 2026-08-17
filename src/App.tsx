@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
+import { containsNonJsonSafeData } from "@/lib/query/mapCache";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { useBackgroundImport } from "@/hooks/useBackgroundImport";
 import { useSsoListener } from "@/hooks/useSsoListener";
