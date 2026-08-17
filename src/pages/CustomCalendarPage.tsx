@@ -29,7 +29,7 @@ import { startOfWeek, startOfMonth, subDays, format } from 'date-fns';
 import { resetCalendarViewStorage } from '@/components/Calendar/ResourceData';
 
 import { sv } from 'date-fns/locale';
-import { Calendar, ListChecks } from 'lucide-react';
+import { Calendar, ListChecks, RotateCcw } from 'lucide-react';
 
 // Wrapper component to handle async loading of staff with status
 const SimpleStaffCurtainWrapper: React.FC<{
