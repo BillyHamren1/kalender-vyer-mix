@@ -263,15 +263,10 @@ const WarehouseCalendarPage = () => {
     return eventTypeFilters.includes(eventType);
   });
   
-  // Filter calendar events (rig, event, rigdown) based on selected event types
-  const filteredCalendarEvents = calendarEvents.filter(event => {
-    const eventType = event.eventType as WarehouseEventTypeFilter;
-    return eventTypeFilters.includes(eventType);
-  });
-  
-  // Distribute ALL events (calendar + warehouse) across lager resources using round-robin
-  // Transport events are excluded from distribution — they already target resourceId 'transport'
-  const allUnassigned = [...filteredCalendarEvents, ...filteredWarehouseEvents];
+  // Planning-faser (rig/event/rigDown) renderas INTE längre som egna
+  // lagerkalenderposter. Deras datum finns kvar i datan och visas som
+  // kontextrad inuti lageraktivitetens kort (extendedProps.phaseContext).
+  const allUnassigned = [...filteredWarehouseEvents];
   const distributedEvents: CalendarEvent[] = distributeWarehouseEvents(allUnassigned, warehouseTeamResources);
   const combinedEvents: CalendarEvent[] = [...distributedEvents, ...transportEvents];
 
