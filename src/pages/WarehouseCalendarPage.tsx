@@ -522,7 +522,13 @@ const WarehouseCalendarPage = () => {
         {/* Att planera — kompakt inbox utanför kalendern */}
         <WarehousePlanningInboxBar />
 
-
+        {/* Bemanningsläge — kompakt översikt över obemannade lagerjobb */}
+        <WarehouseStaffingOverview
+          events={combinedEvents}
+          crewByDayTeam={crewByDayTeam}
+          currentDate={currentWeekStart}
+          viewMode={viewMode}
+        />
 
         {/* Content - flex-1 to fill remaining space */}
         <div className="flex-1 min-h-0 flex flex-col p-4 bg-card rounded-2xl mx-2 mb-2 shadow-sm">
