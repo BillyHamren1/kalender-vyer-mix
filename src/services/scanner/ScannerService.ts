@@ -31,6 +31,7 @@ import {
 import { startKeyboardListener, stopKeyboardListener, isKeyboardListenerActive } from './KeyboardFallbackBridge';
 import { enqueueScan } from './ScanQueue';
 import { shouldUseLegacyScanQueue } from './operationQueueService';
+import { deriveHardwareHealth, type HardwareHealth } from '@/lib/scanner/hardwareHealth';
 
 type ScanHandler = (scan: ScanEvent) => void;
 
@@ -240,4 +241,29 @@ export function getRecentScanList(): ScanEvent[] {
 
 export function isInitialized(): boolean {
   return initialized;
+}
+
+/**
+ * STEG 11: verifierad hårdvarustatus. `isBarcodeReady` (legacy) betyder bara
+ * "någon input-listener finns" — använd denna för att avgöra om UI får påstå
+ * att Zebra-scannern är redo.
+ */
+export function getHardwareHealth(): HardwareHealth {
+  const platform = detectPlatform();
+  return deriveHardwareHealth({
+    online: typeof navigator === 'undefined' ? true : navigator.onLine !== false,
+    isNative: platform.isCapacitor,
+    isAndroid: platform.isAndroid,
+    isZebraDevice: platform.isZebraDevice,
+    dataWedgeListenerActive: isDataWedgeActive(),
+    dataWedgeInitSent: wasInitCommandsSent(),
+    dataWedgeProfileSwitchOk: profileSwitchSucceeded(),
+    dataWedgeScannerInputOk: scannerInputEnabledSucceeded(),
+    dataWedgeLastScanTime: getLastScanTimestamp(),
+    keyboardListenerActive: isKeyboardListenerActive(),
+    cameraAvailable: typeof navigator !== 'undefined' && 'mediaDevices' in navigator,
+    rfidListenerActive: isRfidListening(),
+    rfidNativeAvailable: isNativeRfidPlatform(),
+    rfidReaderConnected: isReaderConnected(),
+  });
 }
