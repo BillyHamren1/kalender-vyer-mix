@@ -40,6 +40,8 @@ export interface ScannerOperationInput {
   performedBy?: string | null;
   /** Sätt vid retry för att behålla idempotens. */
   operationId?: string;
+  /** STEG 11: komplett scan-metadata (source/symbology/device/timestamp). */
+  scanEvent?: import('@/lib/scanner/scanEventFidelity').ScanEventMeta | null;
 }
 
 export const buildScannerCommand = (input: ScannerOperationInput): ScannerCommand => ({
@@ -54,6 +56,7 @@ export const buildScannerCommand = (input: ScannerOperationInput): ScannerComman
   parcelId: input.parcelId ?? null,
   sessionId: input.sessionId ?? null,
   performedBy: input.performedBy ?? null,
+  scanEvent: input.scanEvent ?? null,
 });
 
 export const isScannerV2Active = (): boolean => Boolean(SCANNER_TRANSACTION_V2);

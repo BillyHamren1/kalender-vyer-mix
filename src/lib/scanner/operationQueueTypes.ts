@@ -48,6 +48,11 @@ export interface QueuedOperation {
   device_id: string | null;
   scan_source: 'camera' | 'hardware' | 'manual' | 'rfid' | 'unknown';
   scan_value: string | null;
+  /**
+   * STEG 11: komplett scan-metadata. Operationen får aldrig reduceras till
+   * enbart scan_value — symbology, device, timestamp och RFID-fält följer med.
+   */
+  scan_event: import('./scanEventFidelity').ScanEventMeta | null;
   created_at: string;
   attempt_count: number;
   last_attempt_at: string | null;

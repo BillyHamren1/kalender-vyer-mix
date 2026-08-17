@@ -69,6 +69,8 @@ export interface ScannerCommand {
   parcelId?: string | null;
   sessionId?: string | null;
   performedBy?: string | null;
+  /** STEG 11: komplett scan-metadata följer med kommandot till WMS. */
+  scanEvent?: import('./scanEventFidelity').ScanEventMeta | null;
 }
 
 export type ScannerCommandStatus =

@@ -50,7 +50,15 @@ export {
   getState,
   getRecentScanList,
   isInitialized,
+  getHardwareHealth,
 } from './ScannerService';
+
+// STEG 11: hardware readiness + event fidelity + kontextmedveten RFID-dedupe
+export { deriveHardwareHealth, canClaimScannerReady } from '@/lib/scanner/hardwareHealth';
+export type { HardwareHealth, ScannerHealthState, BarcodeInputMode } from '@/lib/scanner/hardwareHealth';
+export { toScanEventMeta, hasFullFidelity, queueScanSource } from '@/lib/scanner/scanEventFidelity';
+export type { ScanEventMeta } from '@/lib/scanner/scanEventFidelity';
+export { RfidDedupeTracker, rfidDedupeKey } from '@/lib/scanner/rfidDedupe';
 
 // Queue
 export {
