@@ -94,7 +94,7 @@ describe('4./5. WMS och lokal mutation är inte atomiska', () => {
   it('toggle_item: WMS accepteras FÖRE lokal skrivning (WMS kan lyckas, lokalt misslyckas)', () => {
     const block = apiCase('toggle_item');
     const wmsIdx = block.search(/WMS accepted/);
-    const localIdx = block.indexOf("from('packing_list_items').update");
+    const localIdx = block.lastIndexOf("from('packing_list_items').update");
     expect(wmsIdx).toBeGreaterThan(-1);
     expect(localIdx).toBeGreaterThan(wmsIdx);
     // Ingen transaktion/rollback/kompensation kring den lokala skrivningen.
