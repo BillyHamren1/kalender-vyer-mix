@@ -381,6 +381,23 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             {locationLine}
           </div>
         )}
+        {/* Planning-faser (Rigg/Event/Riv) som kontext i lageraktivitetens kort */}
+        {(event.extendedProps as any)?.phaseContext && (
+          <div
+            className="event-phase-context"
+            style={{
+              color: '#000000',
+              fontSize: '9.5px',
+              opacity: 0.7,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+            title={(event.extendedProps as any).phaseContext}
+          >
+            {(event.extendedProps as any).phaseContext}
+          </div>
+        )}
         {/* Trash icon for cancelled events */}
         {isCancelled && (
           <button

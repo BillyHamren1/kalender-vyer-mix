@@ -2,10 +2,13 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Filter, Package, Truck, Calendar, RotateCcw, ClipboardList, PackageOpen, Wrench, PartyPopper, PackageMinus, ListTodo } from 'lucide-react';
+import { Filter, Package, Truck, RotateCcw, ClipboardList, PackageOpen, ListTodo } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export type WarehouseEventTypeFilter = 'packing' | 'delivery' | 'event' | 'return' | 'inventory' | 'unpacking' | 'rig' | 'rigDown' | 'internal_task';
+// Endast verkliga lageraktiviteter är filtrerbara. Planning-faserna
+// (rig/event/rigDown) renderas inte längre som egna lagerkalenderposter —
+// de visas som kontext inuti lageraktivitetens kort.
+export type WarehouseEventTypeFilter = 'packing' | 'delivery' | 'return' | 'inventory' | 'unpacking' | 'internal_task';
 
 interface WarehouseEventFilterProps {
   activeFilters: WarehouseEventTypeFilter[];
@@ -13,11 +16,6 @@ interface WarehouseEventFilterProps {
 }
 
 const EVENT_TYPES: { id: WarehouseEventTypeFilter; label: string; icon: React.ElementType; color: string }[] = [
-  // Planning events (shown read-only in warehouse)
-  { id: 'rig', label: 'Rigg', icon: Wrench, color: 'text-green-600' },
-  { id: 'event', label: 'Event', icon: PartyPopper, color: 'text-yellow-600' },
-  { id: 'rigDown', label: 'Riv', icon: PackageMinus, color: 'text-red-600' },
-  // Warehouse-specific events (NO green/yellow/red)
   { id: 'packing', label: 'Packning', icon: Package, color: 'text-purple-600' },
   { id: 'delivery', label: 'Utleverans', icon: Truck, color: 'text-blue-600' },
   { id: 'return', label: 'Retur', icon: RotateCcw, color: 'text-violet-600' },
@@ -25,6 +23,8 @@ const EVENT_TYPES: { id: WarehouseEventTypeFilter; label: string; icon: React.El
   { id: 'unpacking', label: 'Uppackning', icon: PackageOpen, color: 'text-slate-500' },
   { id: 'internal_task', label: 'Lageruppgift', icon: ListTodo, color: 'text-amber-600' },
 ];
+
+export const WAREHOUSE_EVENT_TYPE_FILTERS: WarehouseEventTypeFilter[] = EVENT_TYPES.map(t => t.id);
 
 const WarehouseEventFilter: React.FC<WarehouseEventFilterProps> = ({
   activeFilters,

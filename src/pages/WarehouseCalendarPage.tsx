@@ -18,7 +18,7 @@ import MobileCalendarView from '@/components/mobile/MobileCalendarView';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
 import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
 import WarehouseDayNavigationHeader from '@/components/Calendar/WarehouseDayNavigationHeader';
-import WarehouseEventFilter, { WarehouseEventTypeFilter } from '@/components/Calendar/WarehouseEventFilter';
+import WarehouseEventFilter, { WarehouseEventTypeFilter, WAREHOUSE_EVENT_TYPE_FILTERS } from '@/components/Calendar/WarehouseEventFilter';
 import BookingProductsDialog from '@/components/Calendar/BookingProductsDialog';
 import { startOfWeek, startOfMonth, format, parseISO } from 'date-fns';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
@@ -43,6 +43,26 @@ const mapWarehouseEventType = (warehouseType: string): CalendarEvent['eventType'
   }
 };
 
+// Rigg/Event/Riv visas inte längre som egna lagerposter — de renderas som
+// kontextrad inuti lageraktivitetens kort ("Rigg: 21 aug · Event: 22 aug").
+const formatPhaseDate = (value: string | null | undefined): string | null => {
+  if (!value) return null;
+  const d = parseISO(value);
+  if (isNaN(d.getTime())) return null;
+  return format(d, 'd MMM');
+};
+
+const buildPhaseContext = (we: WarehouseEvent): string | undefined => {
+  const parts = [
+    ['Rigg', formatPhaseDate(we.source_rig_date)],
+    ['Event', formatPhaseDate(we.source_event_date)],
+    ['Riv', formatPhaseDate(we.source_rigdown_date)],
+  ]
+    .filter(([, v]) => !!v)
+    .map(([label, v]) => `${label}: ${v}`);
+  return parts.length ? parts.join(' · ') : undefined;
+};
+
 // Map warehouse events to CalendarEvent format
 const mapWarehouseEventsToCalendarEvents = (warehouseEvents: WarehouseEvent[]): CalendarEvent[] => {
   return warehouseEvents.map(we => ({
@@ -65,7 +85,11 @@ const mapWarehouseEventsToCalendarEvents = (warehouseEvents: WarehouseEvent[]): 
       deliveryCity: we.delivery_address?.split(',')[0] || undefined,
       has_source_changes: we.has_source_changes,
       manually_adjusted: we.manually_adjusted,
-      change_details: we.change_details || undefined
+      change_details: we.change_details || undefined,
+      phaseContext: buildPhaseContext(we),
+      sourceRigDate: we.source_rig_date || undefined,
+      sourceEventDate: we.source_event_date || undefined,
+      sourceRigDownDate: we.source_rigdown_date || undefined,
     }
   }));
 };
@@ -130,9 +154,18 @@ const WarehouseCalendarPage = () => {
   const [eventTypeFilters, setEventTypeFilters] = useState<WarehouseEventTypeFilter[]>(() => {
     const stored = localStorage.getItem('warehouseEventTypeFilters');
     if (stored) {
-      return JSON.parse(stored);
+      try {
+        const parsed = JSON.parse(stored) as string[];
+        // Rensa bort legacy planning-typer (rig/event/rigDown) ur sparade filter.
+        const sanitized = Array.isArray(parsed)
+          ? (parsed.filter(f => (WAREHOUSE_EVENT_TYPE_FILTERS as string[]).includes(f)) as WarehouseEventTypeFilter[])
+          : [];
+        if (sanitized.length > 0) return sanitized;
+      } catch {
+        // ignore corrupt storage
+      }
     }
-    return ['rig', 'event', 'rigDown', 'packing', 'delivery', 'return', 'inventory', 'unpacking', 'internal_task'];
+    return [...WAREHOUSE_EVENT_TYPE_FILTERS];
   });
 
   // Save event type filters to localStorage
@@ -239,15 +272,10 @@ const WarehouseCalendarPage = () => {
     return eventTypeFilters.includes(eventType);
   });
   
-  // Filter calendar events (rig, event, rigdown) based on selected event types
-  const filteredCalendarEvents = calendarEvents.filter(event => {
-    const eventType = event.eventType as WarehouseEventTypeFilter;
-    return eventTypeFilters.includes(eventType);
-  });
-  
-  // Distribute ALL events (calendar + warehouse) across lager resources using round-robin
-  // Transport events are excluded from distribution — they already target resourceId 'transport'
-  const allUnassigned = [...filteredCalendarEvents, ...filteredWarehouseEvents];
+  // Planning-faser (rig/event/rigDown) renderas INTE längre som egna
+  // lagerkalenderposter. Deras datum finns kvar i datan och visas som
+  // kontextrad inuti lageraktivitetens kort (extendedProps.phaseContext).
+  const allUnassigned = [...filteredWarehouseEvents];
   const distributedEvents: CalendarEvent[] = distributeWarehouseEvents(allUnassigned, warehouseTeamResources);
   const combinedEvents: CalendarEvent[] = [...distributedEvents, ...transportEvents];
 
