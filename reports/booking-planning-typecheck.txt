@@ -1,0 +1,4 @@
+command: npx tsc --noEmit -p tsconfig.app.json
+release_run_id: rel-20260817T084822Z-cfdd4c250f42
+--------------------------------------------------------------
+exit_code: 0

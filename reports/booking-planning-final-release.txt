@@ -1,21 +1,17 @@
 BOOKING→PLANNING FINAL RELEASE GATE
-release_run_id:                   rel-20260817T084739Z-7ea5566d01ca
-generated_at:                     2026-08-17T08:47:54.495Z
-git_commit:                       4726287c4fb244ebce80b897d5f6665e8a028085
-final_release_content_binding:    5fb8d6958db031c8909f8044cfdbc074395aee5b09d2025ddc479e1119a4d045
+release_run_id:                   rel-20260817T084822Z-cfdd4c250f42
+generated_at:                     2026-08-17T08:50:11.071Z
+git_commit:                       13734ccba402dbe0bc68a81935135b47e693afbf
+final_release_content_binding:    a78d077ce3dedfe1ae20494e41fe18c35bf3a1b0f80bf505381ecaba350599bf
 historical_migration_replay:      UNVERIFIABLE (DIAGNOSTIC / NON_RELEASE_BLOCKING)
 safe_environment:                 PASS
 release_migration_compatibility:  PASS
 sql_e2e_release_gate:             PASS
-contract_tests:                   FAIL
-typecheck:                        NOT_EXECUTED
-build:                            NOT_EXECUTED
+contract_tests:                   PASS
+typecheck:                        PASS
+build:                            PASS
 final_release_content_binding:    PASS
 
-Orsaker:
-  - contract_tests: FAIL (test files passed 0/24; inga tester passerade)
-  - typecheck: NOT_EXECUTED (typecheck ej körd)
-  - build: NOT_EXECUTED (build ej körd)
-  - final_release_content_binding: NOT_EXECUTED (binding ej verifierad)
+Inga blockerande orsaker.
 
-FINAL RELEASE GATE: RED
+FINAL RELEASE GATE: GREEN
