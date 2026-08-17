@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowUpRight, ArrowDownLeft, Wrench, Users, Activity } from 'lucide-react';
-import { format, startOfDay, parseISO, isToday } from 'date-fns';
+import { format, parseISO, isToday } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import type { OpsRangeData, OpsJob } from '@/hooks/useWarehouseOpsRange';
@@ -41,7 +41,6 @@ const WarehouseOverviewToday: React.FC<Props> = ({ data }) => {
       tone: 'text-blue-600',
       bg: 'bg-blue-500/5',
       border: 'border-blue-500/20',
-      onClick: () => {},
     },
     {
       key: 'in',
@@ -51,7 +50,6 @@ const WarehouseOverviewToday: React.FC<Props> = ({ data }) => {
       tone: 'text-emerald-600',
       bg: 'bg-emerald-500/5',
       border: 'border-emerald-500/20',
-      onClick: () => {},
     },
     {
       key: 'active',
@@ -61,7 +59,7 @@ const WarehouseOverviewToday: React.FC<Props> = ({ data }) => {
       tone: 'text-amber-600',
       bg: 'bg-amber-500/5',
       border: 'border-amber-500/20',
-      onClick: () => navigate('/warehouse/packing'),
+      clickable: true,
     },
     {
       key: 'people',
@@ -71,7 +69,6 @@ const WarehouseOverviewToday: React.FC<Props> = ({ data }) => {
       tone: 'text-warehouse',
       bg: 'bg-warehouse/5',
       border: 'border-warehouse/20',
-      onClick: () => {},
     },
   ];
 
@@ -86,15 +83,14 @@ const WarehouseOverviewToday: React.FC<Props> = ({ data }) => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {cards.map((c) => {
           const Icon = c.icon;
-          const clickable = c.key === 'active';
           return (
             <div
               key={c.key}
-              onClick={c.onClick}
+              onClick={c.clickable ? () => navigate('/warehouse/packing') : undefined}
               className={cn(
                 'rounded-xl border bg-card p-3 flex items-center gap-3',
                 c.border,
-                clickable && 'cursor-pointer hover:bg-accent/40'
+                c.clickable && 'cursor-pointer hover:bg-accent/40'
               )}
             >
               <div className={cn('h-9 w-9 rounded-lg flex items-center justify-center shrink-0', c.bg)}>
