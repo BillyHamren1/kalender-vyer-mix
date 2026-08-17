@@ -216,7 +216,9 @@ TEST_EXIT=$?
 TESTS_EVAL="$(node --input-type=module -e '
   const fs = await import("node:fs");
   const g = await import(process.cwd() + "/scripts/sync-e2e/finalReleaseGate.mjs");
-  const out = fs.readFileSync("reports/booking-planning-contract-tests.txt","utf8");
+  const raw = fs.readFileSync("reports/booking-planning-contract-tests.txt","utf8");
+  // Strippa ANSI-koder så att summeringsraderna kan parsas deterministiskt.
+  const out = raw.replace(/\u001b\[[0-9;]*m/g, "");
   const manifest = g.readReleaseTestManifest();
   const missing = manifest.files.filter(f => !fs.existsSync(f));
   const executed = manifest.files.filter(f => out.includes(f));
@@ -233,7 +235,9 @@ TESTS_EVAL="$(node --input-type=module -e '
     testFilesPassed: filesPassed,
     testsPassed, testsFailed,
     exitCode: Number(process.argv[1]),
-    noTestFilesFound: /No test files found/i.test(out),
+    // Endast vitests egen summeringsrad räknas – inte testnamn som råkar
+    // innehålla frasen.
+    noTestFilesFound: /^\s*No test files found/im.test(out),
     executed: true,
   });
   const detail = {

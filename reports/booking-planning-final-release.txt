@@ -1,8 +1,8 @@
 BOOKING→PLANNING FINAL RELEASE GATE
-release_run_id:                   rel-20260817T084709Z-fdab74041e66
-generated_at:                     2026-08-17T08:47:24.938Z
-git_commit:                       2bd4773997826fde34c274ec6fc46e199359eef9
-final_release_content_binding:    b31524102fbddbe998c634d575f9e3ccced6dae15d74c12acfd13d8bfb2408b4
+release_run_id:                   rel-20260817T084739Z-7ea5566d01ca
+generated_at:                     2026-08-17T08:47:54.495Z
+git_commit:                       4726287c4fb244ebce80b897d5f6665e8a028085
+final_release_content_binding:    5fb8d6958db031c8909f8044cfdbc074395aee5b09d2025ddc479e1119a4d045
 historical_migration_replay:      UNVERIFIABLE (DIAGNOSTIC / NON_RELEASE_BLOCKING)
 safe_environment:                 PASS
 release_migration_compatibility:  PASS
@@ -13,7 +13,7 @@ build:                            NOT_EXECUTED
 final_release_content_binding:    PASS
 
 Orsaker:
-  - contract_tests: FAIL (vitest: No test files found; test files passed 0/24; inga tester passerade)
+  - contract_tests: FAIL (test files passed 0/24; inga tester passerade)
   - typecheck: NOT_EXECUTED (typecheck ej körd)
   - build: NOT_EXECUTED (build ej körd)
   - final_release_content_binding: NOT_EXECUTED (binding ej verifierad)
