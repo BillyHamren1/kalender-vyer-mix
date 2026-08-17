@@ -22,6 +22,7 @@
 /** Release-blockerande sektioner (utöver safe_environment). */
 export const REQUIRED_SECTIONS = [
   "release_migration_compatibility",
+  "schema_provisioning",
   "bsa_tenant_identity",
   "bsa_v2_rpc",
   "security_definer",

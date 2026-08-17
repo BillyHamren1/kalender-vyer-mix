@@ -1,5 +1,5 @@
 sync-e2e migrations evidence (mirror of reports/sync-e2e-migrations.log)
-generated: 2026-08-16T08:52:19Z
+generated: 2026-08-17T08:45:12Z
 first_failure: supabase/migrations/20251001055524_23107548-c261-4cea-a661-4967f5028dcd.sql
 sqlstate:      42P01
 line:          14

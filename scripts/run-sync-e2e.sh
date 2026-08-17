@@ -25,6 +25,7 @@ R_MIGRATIONS="NOT EXECUTED"          # historical migration replay (DIAGNOSTIC)
 R_COMPAT="NOT_EXECUTED"              # release migration compatibility (BLOCKING)
 COMPAT_REASONS=""
 COMPAT_EVIDENCE_JSON="null"
+R_SCHEMA="NOT EXECUTED"              # schema provisioning (BLOCKING)
 R_BSA_IDENTITY="NOT EXECUTED"
 R_BSA_RPC="NOT EXECUTED"
 R_SECDEF="NOT EXECUTED"
@@ -50,6 +51,7 @@ results_json() {
   },
   "results": {
     "release_migration_compatibility": "$R_COMPAT",
+    "schema_provisioning": "$R_SCHEMA",
     "bsa_tenant_identity": "$R_BSA_IDENTITY",
     "bsa_v2_rpc": "$R_BSA_RPC",
     "security_definer": "$R_SECDEF",
@@ -100,6 +102,7 @@ Historical migration replay: $HISTORICAL_STATUS (DIAGNOSTIC / NON_RELEASE_BLOCKI
   raw migration compile: $R_MIGRATIONS (reports/sync-e2e-migrations.json)
 Release migration compatibility: $R_COMPAT (BLOCKING)
 ${COMPAT_REASONS:+  orsak: $COMPAT_REASONS}
+Schema provisioning: $R_SCHEMA (BLOCKING, contract fixture + release migrations)
 BSA tenant identity: $R_BSA_IDENTITY
 BSA V2 RPC: $R_BSA_RPC
 SECURITY DEFINER: $R_SECDEF
@@ -115,7 +118,7 @@ ${GATE_REASONS:+Orsak: $GATE_REASONS}
 EOF
   node -e '
     const fs = require("fs");
-    const [final, safeEnv, hist, histReason, rawMig, migFirst, migSummary, compatStatus, compatReasons, compatEvidence, gateReasons, ...sections] = process.argv.slice(1);
+    const [final, safeEnv, hist, histReason, rawMig, migFirst, migSummary, compatStatus, compatReasons, compatEvidence, gateReasons, schemaStatus, ...sections] = process.argv.slice(1);
     const keys = ["bsa_tenant_identity","bsa_v2_rpc","security_definer","revision_lease","worker_jobs","batch_cursor","warehouse_uniqueness","canonical_error_propagation","destructive_cancellation_off"];
     const results = { release_migration_compatibility: compatStatus };
     keys.forEach((k,i) => { results[k] = sections[i]; });
@@ -123,6 +126,12 @@ EOF
     fs.writeFileSync("reports/sync-e2e-report.json", JSON.stringify({
       gate: "booking_planning_sql_e2e_release_gate",
       generated_at: new Date().toISOString(),
+      release_run_id: process.env.BOOKING_PLANNING_RELEASE_RUN_ID || null,
+      schema_provisioning: {
+        status: schemaStatus,
+        method: "contract_fixture_plus_release_migrations",
+        blocking: true,
+      },
       safe_environment: safeEnv,
       historical_migration_replay: {
         status: hist,
@@ -150,7 +159,7 @@ EOF
     }, null, 2) + "\n");
   ' "$final" "$SAFE_ENV" "$HISTORICAL_STATUS" "$HISTORICAL_REASON" "$R_MIGRATIONS" \
     "${MIG_FIRST_FAILURE:-}" "${MIG_ERROR_SUMMARY:-}" "$R_COMPAT" "$COMPAT_REASONS" "$COMPAT_EVIDENCE_JSON" \
-    "${GATE_REASONS:-}" "$R_BSA_IDENTITY" "$R_BSA_RPC" "$R_SECDEF" "$R_LEASE" "$R_JOBS" "$R_BATCH" \
+    "${GATE_REASONS:-}" "$R_SCHEMA" "$R_BSA_IDENTITY" "$R_BSA_RPC" "$R_SECDEF" "$R_LEASE" "$R_JOBS" "$R_BATCH" \
     "$R_WAREHOUSE" "$R_CANONICAL" "$R_CANCELLATION"
 
   echo ""
@@ -219,9 +228,62 @@ fi
 evaluate_compatibility
 echo "── Release migration compatibility: $R_COMPAT${COMPAT_REASONS:+ ($COMPAT_REASONS)}"
 
+# ── 2c. SCHEMA PROVISIONING (BLOCKERANDE) ────────────────────────────────────
+# SQL/E2E-sektionerna kräver ett schema. Historisk replay är UNVERIFIABLE, så
+# schemat byggs från det verifierade compatibility-kontraktet:
+#   supabase-shim + contract fixture + verified prestate + de 12 release-
+#   migrationerna. Exakt samma filer som release_migration_compatibility PASS
+#   bevisar. Ingen mutation sker utan lokal miljö + explicit flagga.
+provision_schema() {
+  local HERE="scripts/sync-e2e/release-migration-compat"
+  local plog="$LOG_DIR/schema-provisioning.log"
 
+  if [ "${E2E_ENVIRONMENT}" != "local" ]; then
+    R_SCHEMA="NOT EXECUTED"
+    echo "── Schema provisioning: NOT EXECUTED (endast local)"
+    return 1
+  fi
+  if [ "${E2E_ALLOW_SCHEMA_PROVISION:-}" != "true" ]; then
+    R_SCHEMA="NOT EXECUTED"
+    echo "── Schema provisioning: NOT EXECUTED (E2E_ALLOW_SCHEMA_PROVISION != true)"
+    return 1
+  fi
 
+  local files=(
+    scripts/sync-e2e/bootstrap_supabase_shim.sql
+    "$HERE/fixture.sql"
+    "$HERE/fixture_bsa_legacy_identity.sql"
+    "$HERE/variant_wce_legacy_constraint.sql"
+  )
+  mapfile -t REL_MIGRATIONS < <(node -e '
+    const fs = require("fs");
+    const src = fs.readFileSync("src/test/syncReleaseMigrationScope.manifest.ts","utf8");
+    const body = src.split("SYNC_RELEASE_MIGRATIONS")[1] || "";
+    for (const m of body.matchAll(/'"'"'([0-9]{14}_[0-9a-f-]+\.sql)'"'"'/g)) console.log(m[1]);
+  ')
+  for m in "${REL_MIGRATIONS[@]}"; do files+=("supabase/migrations/$m"); done
 
+  : > "$plog"
+  for f in "${files[@]}"; do
+    if ! psql "$E2E_DATABASE_URL" -v ON_ERROR_STOP=1 -q -f "$f" >>"$plog" 2>&1; then
+      R_SCHEMA="FAIL"
+      echo "── Schema provisioning: FAIL vid $f"
+      tail -20 "$plog"
+      return 1
+    fi
+  done
+  R_SCHEMA="PASS"
+  echo "── Schema provisioning: PASS (${#files[@]} filer, ${#REL_MIGRATIONS[@]} release-migrationer)"
+  return 0
+}
+
+provision_schema
+if [ "$R_SCHEMA" != "PASS" ]; then
+  # Fail-closed: utan schema körs INGA sektioner och inget rapporteras som PASS.
+  compute_gate
+  emit_report "$FINAL"
+  exit "$GATE_EXIT"
+fi
 
 
 # ── 3. SEKTIONER ─────────────────────────────────────────────────────────────
