@@ -40,15 +40,14 @@ export function useWarehousePackingStats(bookingIds: string[]) {
         .select('packing_id, quantity_to_pack, quantity_packed, excluded')
         .in('packing_id', packingIds);
 
-      const agg = new Map<string, { total: number; packed: number; shortfallRows: number }>();
+      const agg = new Map<string, { total: number; packed: number }>();
       (items || []).forEach((item) => {
         if (item.excluded) return;
-        const entry = agg.get(item.packing_id) || { total: 0, packed: 0, shortfallRows: 0 };
+        const entry = agg.get(item.packing_id) || { total: 0, packed: 0 };
         const toPack = Number(item.quantity_to_pack || 0);
         const packed = Math.min(Number(item.quantity_packed || 0), toPack);
         entry.total += toPack;
         entry.packed += packed;
-        if (packed < toPack) entry.shortfallRows += 1;
         agg.set(item.packing_id, entry);
       });
 
