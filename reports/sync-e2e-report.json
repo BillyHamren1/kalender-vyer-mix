@@ -1,9 +1,9 @@
 {
   "gate": "booking_planning_sql_e2e_release_gate",
-  "generated_at": "2026-08-17T08:45:13.940Z",
+  "generated_at": "2026-08-17T08:45:47.466Z",
   "release_run_id": null,
   "schema_provisioning": {
-    "status": "FAIL",
+    "status": "PASS",
     "method": "contract_fixture_plus_release_migrations",
     "blocking": true
   },
@@ -31,7 +31,7 @@
       "evidence_txt": "reports/sync-release-migration-compatibility.txt",
       "generated_at": "2026-08-17T08:43:25.854Z",
       "git_commit": "8c6128fa6532aac9cdd42d095bb166e3f7f66668",
-      "current_git_commit": "8fed41cd8b009699593d8e644e5995cd69e2f1d8",
+      "current_git_commit": "78e3c2e56d1031b17f993661d8de9c64019fdf0a",
       "release_content_binding": "5c90da8086580386ad1443a9208975e0c8305b926e36e18baf0bd88e16c93448",
       "scope_size": 12,
       "migrations_passed": 24,
@@ -45,16 +45,16 @@
   },
   "results": {
     "release_migration_compatibility": "PASS",
-    "bsa_tenant_identity": "NOT EXECUTED",
-    "bsa_v2_rpc": "NOT EXECUTED",
-    "security_definer": "NOT EXECUTED",
-    "revision_lease": "NOT EXECUTED",
-    "worker_jobs": "NOT EXECUTED",
-    "batch_cursor": "NOT EXECUTED",
-    "warehouse_uniqueness": "NOT EXECUTED",
-    "canonical_error_propagation": "NOT EXECUTED",
-    "destructive_cancellation_off": "NOT EXECUTED"
+    "bsa_tenant_identity": "PASS",
+    "bsa_v2_rpc": "PASS",
+    "security_definer": "FAIL",
+    "revision_lease": "PASS",
+    "worker_jobs": "PASS",
+    "batch_cursor": "PASS",
+    "warehouse_uniqueness": "PASS",
+    "canonical_error_propagation": "PASS",
+    "destructive_cancellation_off": "PASS"
   },
-  "reasons": "schema_provisioning: FAIL; bsa_tenant_identity: NOT EXECUTED efter godkänd preflight; bsa_v2_rpc: NOT EXECUTED efter godkänd preflight; security_definer: NOT EXECUTED efter godkänd preflight; revision_lease: NOT EXECUTED efter godkänd preflight; worker_jobs: NOT EXECUTED efter godkänd preflight; batch_cursor: NOT EXECUTED efter godkänd preflight; warehouse_uniqueness: NOT EXECUTED efter godkänd preflight; canonical_error_propagation: NOT EXECUTED efter godkänd preflight; destructive_cancellation_off: NOT EXECUTED efter godkänd preflight",
+  "reasons": "security_definer: FAIL",
   "final": "RED"
 }
