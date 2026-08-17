@@ -393,14 +393,13 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             {locationLine}
           </div>
         )}
-        {/* Lagerkortets nyckelinfo: tid · packstatus · brister · bemanning */}
+        {/* Lagerkortets nyckelinfo: tid · packstatus · bemanning */}
         {isWarehouseEvent && (() => {
           const ep = event.extendedProps as any;
           const timeLabel: string | undefined = ep?.timeLabel;
           const packedLabel: string | undefined = ep?.packedLabel;
-          const shortfall: number = Number(ep?.shortfallCount ?? 0);
           const crewLabel: string | undefined = ep?.crewLabel;
-          if (!timeLabel && !packedLabel && !shortfall && !crewLabel) return null;
+          if (!timeLabel && !packedLabel && !crewLabel) return null;
           return (
             <div className="flex flex-col gap-px" style={{ marginTop: 1 }}>
               {timeLabel && (
@@ -408,24 +407,14 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
                   {timeLabel}
                 </div>
               )}
-              {(packedLabel || shortfall > 0) && (
+              {packedLabel && (
                 <div className="flex flex-wrap items-center gap-1">
-                  {packedLabel && (
-                    <span
-                      className="inline-block rounded px-1 tabular-nums"
-                      style={{ backgroundColor: 'rgba(0,0,0,0.08)', color: '#000000', fontSize: '9.5px', fontWeight: 600 }}
-                    >
-                      {packedLabel}
-                    </span>
-                  )}
-                  {shortfall > 0 && (
-                    <span
-                      className="inline-block rounded px-1 tabular-nums"
-                      style={{ backgroundColor: 'rgba(220,38,38,0.15)', color: '#991B1B', fontSize: '9.5px', fontWeight: 700 }}
-                    >
-                      {shortfall} brister
-                    </span>
-                  )}
+                  <span
+                    className="inline-block rounded px-1 tabular-nums"
+                    style={{ backgroundColor: 'rgba(0,0,0,0.08)', color: '#000000', fontSize: '9.5px', fontWeight: 600 }}
+                  >
+                    {packedLabel}
+                  </span>
                 </div>
               )}
               {crewLabel && (
