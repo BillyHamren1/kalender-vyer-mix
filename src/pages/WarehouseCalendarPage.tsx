@@ -316,6 +316,12 @@ const WarehouseCalendarPage = () => {
     const rubrik = event.bookingId ? bookingTitles?.get(event.bookingId) : undefined;
     const dayKey = format(new Date(event.start), 'yyyy-MM-dd');
     const crew = crewByDayTeam?.get(`${dayKey}|${event.resourceId}`) ?? [];
+    // Kompakt bemanningsrad: "Anna · Raivis · +1" (inga uppskattade behov skapas).
+    const crewLabel = crew.length
+      ? crew.length > 2
+        ? `${crew.slice(0, 2).join(' · ')} · +${crew.length - 2}`
+        : crew.join(' · ')
+      : undefined;
     return {
       ...event,
       extendedProps: {
@@ -324,7 +330,9 @@ const WarehouseCalendarPage = () => {
         bookingTitle: rubrik ?? (event.extendedProps as any)?.bookingTitle,
         timeLabel: `${format(new Date(event.start), 'HH:mm')}–${format(new Date(event.end), 'HH:mm')}`,
         packedLabel: stat && stat.total > 0 ? `${stat.packed} / ${stat.total} klara` : undefined,
-        crewLabel: crew.length ? crew.join(', ') : undefined,
+        crewLabel,
+        crewFullLabel: crew.length ? crew.join(', ') : undefined,
+        crewCount: crew.length,
       },
     };
   });
