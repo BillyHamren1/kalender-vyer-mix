@@ -231,8 +231,21 @@ const CustomCalendarPage = () => {
   // detta till team-1..4 + transport + team-11, vilket dolde Team 5–10 även
   // när de hade planerade jobb. Se .lovable/plan.md (2026-05-16).
   const [visibleTeamsByDay, setVisibleTeamsByDay] = useState<{ [key: string]: string[] }>(() => {
-    const stored = localStorage.getItem('visibleTeamsByDay');
-    return stored ? JSON.parse(stored) : {};
+    try {
+      const stored = localStorage.getItem('visibleTeamsByDay');
+      const parsed = stored ? JSON.parse(stored) : {};
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+      // Rensa datum äldre än 30 dagar så gamla "dolda team"-beslut inte lever kvar.
+      const cutoff = format(subDays(new Date(), 30), 'yyyy-MM-dd');
+      const cleaned: { [key: string]: string[] } = {};
+      for (const [key, value] of Object.entries(parsed)) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || key < cutoff) continue;
+        if (Array.isArray(value)) cleaned[key] = value.filter((v): v is string => typeof v === 'string');
+      }
+      return cleaned;
+    } catch {
+      return {};
+    }
   });
 
   // Save visible teams to localStorage whenever it changes
@@ -245,6 +258,18 @@ const CustomCalendarPage = () => {
     [teamResources],
   );
 
+  // Team-id:n som har personal per dag (gör kolumnen synlig även utan bokning)
+  const staffTeamIdsByDay = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const a of staffOps.assignments ?? []) {
+      if (!a?.date || !a?.teamId) continue;
+      const list = map.get(a.date) ?? [];
+      if (!list.includes(a.teamId)) list.push(a.teamId);
+      map.set(a.date, list);
+    }
+    return map;
+  }, [staffOps.assignments]);
+
   // Get visible teams for a specific day
   const getVisibleTeamsForDay = (date: Date): string[] => {
     const dateKey = format(date, 'yyyy-MM-dd');
@@ -254,6 +279,7 @@ const CustomCalendarPage = () => {
       events: mergedEvents,
       date,
       persistedTeamIds: stored,
+      staffTeamIdsForDay: staffTeamIdsByDay.get(dateKey),
     });
   };
 
@@ -280,8 +306,13 @@ const CustomCalendarPage = () => {
     });
   };
 
-  // Use the unified staff operations hook
-  const staffOps = useUnifiedStaffOperations(currentWeekStart, 'weekly', 'Montage');
+  // Nollställ lokal kalendervy (kolumner + per-dag-synlighet) och ladda om.
+  const handleResetCalendarView = () => {
+    resetCalendarViewStorage();
+    toast.success('Kalendervyn återställd', { description: 'Laddar om…' });
+    setTimeout(() => window.location.reload(), 400);
+  };
+
 
   // Staff curtain state - simplified with position
   const [staffCurtainOpen, setStaffCurtainOpen] = useState(false);
