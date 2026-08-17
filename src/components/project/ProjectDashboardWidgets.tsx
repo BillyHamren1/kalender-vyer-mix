@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
-import { FolderKanban, Clock, CalendarClock, CheckCircle2, ChevronRight, AlertCircle, CalendarDays, Layers, Search } from 'lucide-react';
+import { FolderKanban, Clock, CalendarClock, CheckCircle2, ChevronRight, AlertCircle, CalendarDays, Layers, Search, ShieldCheck } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { fetchJobs } from '@/services/jobService';
 import { fetchProjects } from '@/services/projectService';
@@ -94,9 +94,20 @@ const ProjectDashboardWidgets = () => {
   const today = new Date().toISOString().split('T')[0];
   const closingCount = nonCancelled.filter(p => p.status !== 'completed' && p.date && p.date < today).length;
 
-  const recentlyCreated = useMemo(() =>
-    [...nonCancelled].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5),
-    [nonCancelled]
+  const horizon14 = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0];
+  const attentionProjects = useMemo(() =>
+    nonCancelled
+      .filter(p => p.status !== 'completed' && p.date && p.date < today)
+      .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+      .slice(0, 6),
+    [nonCancelled, today]
+  );
+  const upcomingProjects = useMemo(() =>
+    nonCancelled
+      .filter(p => p.status !== 'completed' && p.rigDate && p.rigDate >= today && p.rigDate <= horizon14)
+      .sort((a, b) => (a.rigDate || '').localeCompare(b.rigDate || ''))
+      .slice(0, 6),
+    [nonCancelled, today, horizon14]
   );
 
   const recentlyUpdated = useMemo(() =>
@@ -221,36 +232,51 @@ const ProjectDashboardWidgets = () => {
         </Card>
       )}
 
-      {/* Senaste projekt och förändringar */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
+      {/* Projektledarens prioritering – vad behöver göras och vad kommer närmast? */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card className={attentionProjects.length ? "border-amber-300/60" : undefined}>
           <CardContent className="p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold">Nya projekt</h3>
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <div className="flex items-center gap-2"><AlertCircle className={attentionProjects.length ? "h-4 w-4 text-amber-600" : "h-4 w-4 text-emerald-600"} /><h3 className="text-sm font-semibold">Behöver uppmärksamhet</h3></div>
+                <p className="text-xs text-muted-foreground mt-1">Projekt där eventdatum passerat men projektet fortfarande är öppet.</p>
+              </div>
+              <Badge variant="outline" className="text-[10px]">{attentionProjects.length}</Badge>
             </div>
             <div className="divide-y divide-border/50">
-              {recentlyCreated.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">Inga projekt ännu</p>
-              ) : recentlyCreated.map(item => <ProjectRow key={`recent-${item.id}-${item.type}`} item={item} />)}
+              {attentionProjects.length === 0 ? (
+                <div className="py-5 text-center"><ShieldCheck className="h-5 w-5 mx-auto text-emerald-600 mb-1.5" /><p className="text-sm font-medium">Inget släpar efter</p><p className="text-xs text-muted-foreground">Inga passerade projekt väntar på avslut.</p></div>
+              ) : attentionProjects.map(item => <ProjectRow key={`attention-${item.id}-${item.type}`} item={item} />)}
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <CalendarClock className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold">Senast ändrade</h3>
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <div className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-primary" /><h3 className="text-sm font-semibold">Kommande 14 dagar</h3></div>
+                <p className="text-xs text-muted-foreground mt-1">Aktiva projekt sorterade efter närmaste rigg/start.</p>
+              </div>
+              <Badge variant="outline" className="text-[10px]">{upcomingProjects.length}</Badge>
             </div>
             <div className="divide-y divide-border/50">
-              {recentlyUpdated.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">Inga uppdaterade projekt</p>
-              ) : recentlyUpdated.map(item => <ProjectRow key={`updated-${item.id}-${item.type}`} item={item} />)}
+              {upcomingProjects.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-5 text-center">Ingen rigg/start inom 14 dagar</p>
+              ) : upcomingProjects.map(item => <ProjectRow key={`upcoming-${item.id}-${item.type}`} item={item} />)}
             </div>
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardContent className="p-5">
+          <div className="flex items-center gap-2 mb-3"><CalendarClock className="h-4 w-4 text-muted-foreground" /><h3 className="text-sm font-semibold">Senast ändrade</h3></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 divide-y md:divide-y-0 md:[&>*:nth-child(n+3)]:border-t md:[&>*:nth-child(n+3)]:border-border/50">
+            {recentlyUpdated.length === 0 ? <p className="text-sm text-muted-foreground py-4 text-center">Inga uppdaterade projekt</p> : recentlyUpdated.map(item => <ProjectRow key={`updated-${item.id}-${item.type}`} item={item} compact />)}
+          </div>
+        </CardContent>
+      </Card>
 
       <LargeProjectsList items={unified.filter(i => i.type === 'large' && i.status !== 'cancelled')} ProjectRow={ProjectRow} />
     </div>

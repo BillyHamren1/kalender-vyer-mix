@@ -1,5 +1,9 @@
 import { useOutletContext } from "react-router-dom";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FileText, Info, MessageSquare, Package, Truck, Users } from "lucide-react";
 import ProjectOverviewHeader from "@/components/project/ProjectOverviewHeader";
 import ProjectTaskList from "@/components/project/ProjectTaskList";
 
@@ -9,23 +13,32 @@ import LargeProjectLogisticsWorkspace from "@/components/project/LargeProjectLog
 import ProjectContactCard from "@/components/project/ProjectContactCard";
 import LargeProjectProductsOverview from "@/components/project/LargeProjectProductsOverview";
 import ProjectFollowersPanel from "@/components/project/ProjectFollowersPanel";
+import LargeProjectTeam from "@/components/project/LargeProjectTeam";
 
 
 
 import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
-import { useProjectTransport } from "@/hooks/useProjectTransport";
-
-const tabTriggerClass =
-  "relative px-4 py-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent text-muted-foreground data-[state=active]:text-primary font-medium transition-colors hover:text-foreground";
 
 const LargeProjectViewPage = () => {
   const detail = useOutletContext<ReturnType<typeof useLargeProjectDetail>>();
 
   const { project, tasks, files } = detail;
 
-  // Get first booking ID for transport (large projects may have multiple)
-  const bookingId = (project as any)?.bookings?.[0]?.booking_id || null;
-  const { assignments: transportAssignments } = useProjectTransport(bookingId);
+  const bookingIds = useMemo(() => ((project as any)?.bookings || []).map((b: any) => b.booking_id).filter(Boolean), [project]);
+  const primaryBookingId = bookingIds[0] || null;
+  const { data: transportAssignments = [] } = useQuery({
+    queryKey: ["large-project-overview-transport", project?.id, bookingIds.join(",")],
+    queryFn: async () => {
+      if (!bookingIds.length) return [];
+      const { data, error } = await supabase
+        .from("transport_assignments")
+        .select("id, booking_id, status, partner_response")
+        .in("booking_id", bookingIds);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: bookingIds.length > 0,
+  });
 
   // Hitta första underbokning som har kontaktinfo (leverans-kontakt följer med från importen)
   const contactBooking = ((project as any)?.bookings || [])
@@ -48,6 +61,7 @@ const LargeProjectViewPage = () => {
         rigDownDate={(project as any).end_date?.[0] || null}
         deliveryAddress={(project as any).address}
         bookingCount={(project as any)?.bookings?.length || 0}
+        transportCount={transportAssignments.length}
       />
 
       {/* Same project-activity model as standard projects. The hook maps
@@ -68,74 +82,65 @@ const LargeProjectViewPage = () => {
             onAddTask={detail.addTask}
             onUpdateTask={detail.updateTask}
             onDeleteTask={detail.deleteTask}
-            bookingId={bookingId}
+            bookingId={primaryBookingId}
             executionHref="../establishment"
           />
         </div>
       </section>
 
 
-      {/* Anslagstavla — interna anteckningar (ETT enhetligt fält) */}
-      <ProjectInternalNotes
-        bookingId={bookingId}
-        currentNotes={(project as any).internalnotes}
-        projectId={project.id}
-      />
+      {/* Gemensam sekundär arbetsyta – samma informationsarkitektur som för enskilda projekt. */}
+      <Tabs defaultValue="info" className="space-y-4">
+        <TabsList className="h-auto w-full justify-start rounded-xl border border-border/50 bg-card p-1 overflow-x-auto">
+          <TabsTrigger value="info" className="gap-2"><Info className="h-4 w-4" />Projektinfo</TabsTrigger>
+          <TabsTrigger value="team" className="gap-2"><Users className="h-4 w-4" />Team & kommunikation</TabsTrigger>
+          <TabsTrigger value="logistics" className="gap-2"><Truck className="h-4 w-4" />Logistik</TabsTrigger>
+          <TabsTrigger value="products" className="gap-2"><Package className="h-4 w-4" />Material</TabsTrigger>
+          <TabsTrigger value="files" className="gap-2"><FileText className="h-4 w-4" />Dokument {files.length > 0 && `(${files.length})`}</TabsTrigger>
+        </TabsList>
 
-      <ProjectFollowersPanel projectId={project.id} projectType="large" />
-
-      {/* Leveranskontakt från bokningen */}
-      {contactBooking && (
-        <ProjectContactCard
-          contactName={contactBooking.contact_name}
-          contactPhone={contactBooking.contact_phone}
-          contactEmail={contactBooking.contact_email}
-        />
-      )}
-
-      {/* Tabbed content */}
-      <Tabs defaultValue="files" className="space-y-6">
-        <div className="border-b border-border/40 overflow-x-auto">
-          <TabsList className="h-auto p-0 bg-transparent gap-0">
-            <TabsTrigger value="files" className={tabTriggerClass}>
-              Filer
-              {files.length > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
-                  {files.length}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="products" className={tabTriggerClass}>
-              Produkter
-            </TabsTrigger>
-            <TabsTrigger value="transport" className={tabTriggerClass}>
-              Transport
-              {transportAssignments.length > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
-                  {transportAssignments.length}
-                </span>
-              )}
-            </TabsTrigger>
-          </TabsList>
-        </div>
-
-        <TabsContent value="files">
-          <ProjectFiles
-            files={files}
-            onUpload={detail.uploadFile}
-            onDelete={detail.deleteFile}
-            isUploading={detail.isUploadingFile}
-          />
+        <TabsContent value="info" className="mt-0">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+            <div className="rounded-xl border border-border/50 bg-card p-5">
+              <h3 className="text-sm font-semibold">Projektets omfattning</h3>
+              <p className="text-xs text-muted-foreground mt-1">Det här projektet samlar {(project as any)?.bookings?.length || 0} leveranser/bokningar i en gemensam projektledning. Detaljer per leverans hanteras utan att projektets helhet tappas.</p>
+              <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-lg border border-border/50 p-3"><span className="text-muted-foreground">Leveranser</span><p className="text-lg font-semibold mt-1">{(project as any)?.bookings?.length || 0}</p></div>
+                <div className="rounded-lg border border-border/50 p-3"><span className="text-muted-foreground">Transporter</span><p className="text-lg font-semibold mt-1">{transportAssignments.length}</p></div>
+              </div>
+            </div>
+            {contactBooking ? (
+              <ProjectContactCard contactName={contactBooking.contact_name} contactPhone={contactBooking.contact_phone} contactEmail={contactBooking.contact_email} />
+            ) : (
+              <div className="rounded-xl border border-dashed border-border p-5 text-sm text-muted-foreground">Ingen leveranskontakt hittades i projektets underbokningar.</div>
+            )}
+          </div>
         </TabsContent>
 
-        <TabsContent value="products">
-          <LargeProjectProductsOverview bookings={(project as any)?.bookings || []} largeProjectId={project.id} />
+        <TabsContent value="team" className="mt-0">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+            <div className="space-y-4">
+              <LargeProjectTeam largeProjectId={project.id} />
+              <ProjectFollowersPanel projectId={project.id} projectType="large" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-3"><MessageSquare className="h-4 w-4 text-primary" /><h3 className="text-sm font-semibold">Interna anteckningar</h3></div>
+              <ProjectInternalNotes bookingId={primaryBookingId} currentNotes={(project as any).internalnotes} projectId={project.id} />
+            </div>
+          </div>
         </TabsContent>
 
-        <TabsContent value="transport">
+        <TabsContent value="logistics" className="mt-0">
           <LargeProjectLogisticsWorkspace largeProjectId={project.id} bookings={(project as any)?.bookings || []} />
         </TabsContent>
 
+        <TabsContent value="products" className="mt-0">
+          <LargeProjectProductsOverview bookings={(project as any)?.bookings || []} largeProjectId={project.id} />
+        </TabsContent>
+
+        <TabsContent value="files" className="mt-0">
+          <ProjectFiles files={files} onUpload={detail.uploadFile} onDelete={detail.deleteFile} isUploading={detail.isUploadingFile} />
+        </TabsContent>
       </Tabs>
 
     </div>

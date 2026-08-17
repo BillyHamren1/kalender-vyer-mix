@@ -147,7 +147,7 @@ const ProjectTaskItem = ({ task, onToggle, onClick, onDelete, onRenameTask, onOp
               </Badge>
             </TooltipTrigger>
             <TooltipContent side="top" className="text-xs">
-              {onOpenInExecution ? "Öppna i Utförande" : "Uppgiften finns i Utförande-vyn"}
+              {onOpenInExecution ? "Öppna i Planering" : "Uppgiften finns i Planering-vyn"}
             </TooltipContent>
           </Tooltip>
         )}
@@ -188,7 +188,7 @@ const ProjectTaskItem = ({ task, onToggle, onClick, onDelete, onRenameTask, onOp
             </Button>
           </TooltipTrigger>
           <TooltipContent side="top" className="text-xs">
-            Öppna i Utförande
+            Öppna i Planering
           </TooltipContent>
         </Tooltip>
       )}

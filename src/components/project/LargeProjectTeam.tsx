@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Users, Plus, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import ProjectTeamRoleSummary from "./ProjectTeamRoleSummary";
 
 interface Props {
   largeProjectId: string;
@@ -94,6 +95,12 @@ const LargeProjectTeam = ({ largeProjectId }: Props) => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        <ProjectTeamRoleSummary members={teamMembers} />
+
+        <div className="space-y-1">
+          <p className="text-xs font-medium">Lägg till i projektteamet</p>
+          <p className="text-[11px] text-muted-foreground">Här definieras projektets fasta ansvar. Operativ bemanning per dag fortsätter att hanteras i befintlig personalplanering.</p>
+        </div>
         {/* Add member */}
         <div className="flex gap-2">
           <Select value={selectedStaffId} onValueChange={setSelectedStaffId}>
