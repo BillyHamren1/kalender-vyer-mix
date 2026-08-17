@@ -1,7 +1,7 @@
 {
   "gate": "booking_planning_sql_e2e_release_gate",
-  "generated_at": "2026-08-17T08:46:33.719Z",
-  "release_run_id": "rel-20260817T084631Z-5e4d7c7523c2",
+  "generated_at": "2026-08-17T08:47:12.306Z",
+  "release_run_id": "rel-20260817T084709Z-fdab74041e66",
   "schema_provisioning": {
     "status": "PASS",
     "method": "contract_fixture_plus_release_migrations",
@@ -31,7 +31,7 @@
       "evidence_txt": "reports/sync-release-migration-compatibility.txt",
       "generated_at": "2026-08-17T08:43:25.854Z",
       "git_commit": "8c6128fa6532aac9cdd42d095bb166e3f7f66668",
-      "current_git_commit": "bf5c19b10aa565b69bcf3d1b344fd89c107e521e",
+      "current_git_commit": "2bd4773997826fde34c274ec6fc46e199359eef9",
       "release_content_binding": "5c90da8086580386ad1443a9208975e0c8305b926e36e18baf0bd88e16c93448",
       "scope_size": 12,
       "migrations_passed": 24,
