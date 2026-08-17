@@ -20,7 +20,22 @@ import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
 import WarehouseDayNavigationHeader from '@/components/Calendar/WarehouseDayNavigationHeader';
 import WarehouseEventFilter, { WarehouseEventTypeFilter, WAREHOUSE_EVENT_TYPE_FILTERS } from '@/components/Calendar/WarehouseEventFilter';
 import BookingProductsDialog from '@/components/Calendar/BookingProductsDialog';
-import { startOfWeek, startOfMonth, format, parseISO } from 'date-fns';
+import { startOfWeek, startOfMonth, endOfWeek, endOfMonth, format, parseISO } from 'date-fns';
+import {
+  useWarehousePackingStats,
+  useWarehouseBookingTitles,
+  useLagerCrewByDayTeam,
+} from '@/hooks/useWarehouseCardMeta';
+
+// Aktivitetsetiketter för lagerkortets översta rad.
+const WAREHOUSE_ACTIVITY_LABELS: Record<string, string> = {
+  packing: 'Packning',
+  return: 'Retur',
+  delivery: 'Utleverans',
+  unpacking: 'Uppackning',
+  inventory: 'Inventering',
+  internal_task: 'Lageruppgift',
+};
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 
 // Map warehouse event types to CalendarEvent eventType
