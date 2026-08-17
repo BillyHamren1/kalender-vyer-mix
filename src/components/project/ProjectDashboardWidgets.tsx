@@ -26,7 +26,7 @@ interface UnifiedItem {
   createdAt: string;
 }
 
-const TYPE_LABELS: Record<string, string> = { small: 'Litet', medium: 'Medel', large: 'Stort' };
+const TYPE_LABELS: Record<string, string> = { small: 'Jobb', medium: 'Projekt', large: 'Projektgrupp' };
 const TYPE_BADGE_CLASSES: Record<string, string> = {
   small: 'bg-[hsl(var(--project-small))] text-[hsl(var(--project-small-foreground))] ring-1 ring-[hsl(var(--project-small-border))]',
   medium: 'bg-[hsl(var(--project-medium))] text-[hsl(var(--project-medium-foreground))] ring-1 ring-[hsl(var(--project-medium-border))]',
@@ -191,14 +191,43 @@ const ProjectDashboardWidgets = () => {
 
   return (
     <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {statItems.map(({ label, value, icon: Icon, color, bgColor }) => (
+          <Card key={label} className={label === 'Slutförande' && value > 0 ? 'border-amber-300/70' : undefined}>
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${bgColor}`}>
+                <Icon className={`h-4 w-4 ${color}`} />
+              </div>
+              <div>
+                <p className="text-xl font-semibold leading-none">{value}</p>
+                <p className="text-xs text-muted-foreground mt-1">{label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
-      {/* Two Widget Cards */}
+      {closingCount > 0 && (
+        <Card className="border-amber-300/70 bg-amber-50/50 dark:bg-amber-950/10">
+          <CardContent className="p-4 flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-amber-700 dark:text-amber-400 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-semibold">Behöver uppmärksamhet</h3>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                {closingCount} projekt har passerat eventdatum men är inte avslutade. Kontrollera efterarbete, ekonomi och avslut.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Senaste projekt och förändringar */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center gap-2 mb-3">
               <Clock className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold">Senast skapade projekt</h3>
+              <h3 className="text-sm font-semibold">Nya projekt</h3>
             </div>
             <div className="divide-y divide-border/50">
               {recentlyCreated.length === 0 ? (
@@ -212,7 +241,7 @@ const ProjectDashboardWidgets = () => {
           <CardContent className="p-5">
             <div className="flex items-center gap-2 mb-3">
               <CalendarClock className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold">Senast uppdaterade projekt</h3>
+              <h3 className="text-sm font-semibold">Senast ändrade</h3>
             </div>
             <div className="divide-y divide-border/50">
               {recentlyUpdated.length === 0 ? (

@@ -29,9 +29,9 @@ import LargeProjectExcelView from "@/components/project/LargeProjectExcelView";
 import ConsolidateProjectsDialog from "@/components/project/ConsolidateProjectsDialog";
 
 const navItems = [
-  { key: "overview", label: "Projektvy", icon: LayoutDashboard, path: "/overview" },
+  { key: "overview", label: "Översikt", icon: LayoutDashboard, path: "/overview" },
   { key: "establishment", label: "Planering", icon: HardHat, path: "/establishment" },
-  { key: "economy", label: "Projektöversikt", icon: Wallet, path: "/economy" },
+  { key: "economy", label: "Ekonomi", icon: Wallet, path: "/economy" },
 ];
 
 const LargeProjectLayout = () => {
@@ -515,7 +515,7 @@ const LargeProjectLayout = () => {
           </div>
         </div>
 
-        {/* 3-page navigation */}
+        {/* Gemensam projektworkspace: samma huvudnavigation oavsett projektstorlek */}
         <nav className="mb-6">
           <div className="bg-card rounded-2xl border border-border/40 shadow-2xl p-1.5 flex gap-1.5">
             {navItems.map((item) => {

@@ -52,7 +52,7 @@ const LargeProjectViewPage = () => {
           className="rounded-lg h-8 shadow-sm bg-primary hover:bg-[hsl(var(--primary-hover))]"
         >
           <Plus className="h-4 w-4 mr-1.5" />
-          Skapa to do
+          Ny aktivitet
         </Button>
       </div>
 
