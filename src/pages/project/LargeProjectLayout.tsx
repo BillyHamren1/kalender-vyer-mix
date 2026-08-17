@@ -428,7 +428,7 @@ const LargeProjectLayout = () => {
                       <Pencil className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                     </h1>
                   )}
-                  <Badge variant="outline" className="text-xs">Stort projekt</Badge>
+                  <Badge variant="outline" className="text-xs">Flera bokningar</Badge>
                 </div>
                 <div className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5 leading-none">
                   {project.project_number && (

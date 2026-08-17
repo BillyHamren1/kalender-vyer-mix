@@ -16,6 +16,7 @@ import { CalendarDays, Table as TableIcon, ClipboardList, Layers, Building2 } fr
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
 import LargeProjectExcelView from "@/components/project/LargeProjectExcelView";
 import LargeProjectBookingPlannerCalendar from "@/components/project/large-planner/LargeProjectBookingPlannerCalendar";
+import ProjectPlanningHeader from "@/components/project/ProjectPlanningHeader";
 import { supabase } from "@/integrations/supabase/client";
 import type { useLargeProjectDetail } from "@/hooks/useLargeProjectDetail";
 import { getLargeProjectBookingLabel } from "@/lib/largeProjectBookingLabel";
@@ -78,7 +79,7 @@ const LargeEstablishmentPage = () => {
 
   const tabs: Array<{ id: "calendar" | "excel"; label: string; icon: typeof CalendarDays; hint: string }> = [
     { id: "calendar", label: "Kalender & planering", icon: CalendarDays, hint: "Tidsöversikt" },
-    { id: "excel", label: "Excel-vy", icon: TableIcon, hint: "Tabell & produkter" },
+    { id: "excel", label: "Tabellvy", icon: TableIcon, hint: "Detaljer & produkter" },
   ];
 
   const bookingsCount = (project as any)?.bookings?.length ?? 0;
@@ -87,7 +88,13 @@ const LargeEstablishmentPage = () => {
 
   return (
     <div className="space-y-4">
-      {/* Minimal segmented control — header finns redan högst upp på sidan */}
+      <ProjectPlanningHeader
+        title="Planering"
+        description="Samordna projektets leveranser i en gemensam tidsbild. Varje underbokning behåller sin tekniska planeringssanning, medan projektledaren arbetar i ett sammanhållet gränssnitt."
+        bookingCount={bookingsCount}
+        modeLabel="Flera leveranser"
+      />
+      {/* Vyval inom samma planeringsarbetsyta */}
       <div
         role="tablist"
         aria-label="Vyläge"

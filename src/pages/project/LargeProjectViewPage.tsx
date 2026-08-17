@@ -5,10 +5,9 @@ import ProjectTaskList from "@/components/project/ProjectTaskList";
 
 import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectInternalNotes from "@/components/project/ProjectInternalNotes";
-import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
+import LargeProjectLogisticsWorkspace from "@/components/project/LargeProjectLogisticsWorkspace";
 import ProjectContactCard from "@/components/project/ProjectContactCard";
 import LargeProjectProductsOverview from "@/components/project/LargeProjectProductsOverview";
-import PickupStopsSection from "@/components/pickup/PickupStopsSection";
 import ProjectFollowersPanel from "@/components/project/ProjectFollowersPanel";
 
 
@@ -43,6 +42,12 @@ const LargeProjectViewPage = () => {
         filesCount={files.length}
         commentsCount={0}
         activities={[]}
+        projectLeader={(project as any).project_leader}
+        rigDate={(project as any).start_date?.[0] || null}
+        eventDate={(project as any).event_date?.[0] || null}
+        rigDownDate={(project as any).end_date?.[0] || null}
+        deliveryAddress={(project as any).address}
+        bookingCount={(project as any)?.bookings?.length || 0}
       />
 
       {/* Same project-activity model as standard projects. The hook maps
@@ -111,9 +116,6 @@ const LargeProjectViewPage = () => {
                 </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="pickup" className={tabTriggerClass}>
-              Materialhämtning
-            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -131,12 +133,9 @@ const LargeProjectViewPage = () => {
         </TabsContent>
 
         <TabsContent value="transport">
-          <ProjectTransportWidget bookingId={bookingId} />
+          <LargeProjectLogisticsWorkspace largeProjectId={project.id} bookings={(project as any)?.bookings || []} />
         </TabsContent>
 
-        <TabsContent value="pickup">
-          <PickupStopsSection parent={{ type: "large_project", id: project.id }} />
-        </TabsContent>
       </Tabs>
 
     </div>
