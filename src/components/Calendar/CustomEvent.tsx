@@ -393,6 +393,36 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             {locationLine}
           </div>
         )}
+        {!isWarehouseEvent && Array.isArray((event.extendedProps as any)?.logisticsTransports) &&
+          (event.extendedProps as any).logisticsTransports.length > 0 && (
+            <div className="mt-1 flex flex-col gap-0.5">
+              {(event.extendedProps as any).logisticsTransports.slice(0, 2).map((transport: any) => {
+                const time = transport.transportTime?.slice(0, 5) || 'Tid saknas';
+                const duration = transport.estimatedDuration
+                  ? `${Math.floor(transport.estimatedDuration / 60) > 0 ? `${Math.floor(transport.estimatedDuration / 60)}h ` : ''}${transport.estimatedDuration % 60 ? `${transport.estimatedDuration % 60}m` : ''}`.trim()
+                  : null;
+                return (
+                  <div
+                    key={transport.id}
+                    className="flex min-w-0 items-center gap-1 rounded px-1 py-0.5"
+                    style={{ backgroundColor: 'rgba(59,130,246,0.12)', color: '#1E3A8A', fontSize: '9.5px', fontWeight: 600 }}
+                    title={`${time} · ${transport.vehicleName}${duration ? ` · ${duration}` : ''}${transport.driverNotes ? ` · ${transport.driverNotes}` : ''}`}
+                  >
+                    <span aria-hidden="true">🚚</span>
+                    <span className="tabular-nums shrink-0">{time}</span>
+                    <span aria-hidden="true">·</span>
+                    <span className="truncate">{transport.vehicleName}</span>
+                    {duration && <span className="shrink-0 opacity-70">· {duration}</span>}
+                  </div>
+                );
+              })}
+              {(event.extendedProps as any).logisticsTransports.length > 2 && (
+                <div style={{ color: '#1E3A8A', fontSize: '9px', fontWeight: 600 }}>
+                  +{(event.extendedProps as any).logisticsTransports.length - 2} transport
+                </div>
+              )}
+            </div>
+          )}
         {/* Lagerkortets nyckelinfo: tid · packstatus. Bemanning visas endast om den är aktivitetsspecifik. */}
         {isWarehouseEvent && (() => {
           const ep = event.extendedProps as any;
