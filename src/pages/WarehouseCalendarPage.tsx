@@ -18,7 +18,7 @@ import MobileCalendarView from '@/components/mobile/MobileCalendarView';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
 import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
 import WarehouseDayNavigationHeader from '@/components/Calendar/WarehouseDayNavigationHeader';
-import WarehouseEventFilter, { WarehouseEventTypeFilter } from '@/components/Calendar/WarehouseEventFilter';
+import WarehouseEventFilter, { WarehouseEventTypeFilter, WAREHOUSE_EVENT_TYPE_FILTERS } from '@/components/Calendar/WarehouseEventFilter';
 import BookingProductsDialog from '@/components/Calendar/BookingProductsDialog';
 import { startOfWeek, startOfMonth, format, parseISO } from 'date-fns';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
