@@ -11,7 +11,6 @@ import PackingUpdatedBookings from "@/components/packing/PackingUpdatedBookings"
 import PackingCalendarView from "@/components/packing/PackingCalendarView";
 import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
 import BulkCleanupDialog from "@/components/packing/BulkCleanupDialog";
-import WarehouseProjectInbox from "@/components/warehouse/WarehouseProjectInbox";
 import PreflightBatchDebugPanel from "@/components/scanner/PreflightBatchDebugPanel";
 import { fetchPackings, deletePacking } from "@/services/packingService";
 import { PackingStatus, PACKING_STATUS_LABELS } from "@/types/packing";
@@ -121,7 +120,6 @@ const PackingManagement = () => {
               för normala användare — för att eliminera dubbel UX där
               samma bokning kunde behandlas från två olika listor. */}
           <div className="mb-6">
-            <WarehouseProjectInbox search={search} />
           </div>
 
           {/* Packing Calendar */}
