@@ -224,7 +224,7 @@ TESTS_EVAL="$(node --input-type=module -e '
   const executed = manifest.files.filter(f => out.includes(f));
   const filesLine = out.match(/Test Files\s+(.*)/)?.[1] ?? "";
   const testsLine = out.match(/\n\s+Tests\s+(.*)/)?.[1] ?? "";
-  const num = (line, word) => Number(line.match(new RegExp(`(\\\\d+) ${word}`))?.[1] ?? 0);
+  const num = (line, word) => Number(line.match(new RegExp(`([0-9]+) ${word}`))?.[1] ?? 0);
   const filesPassed = num(filesLine, "passed");
   const testsPassed = num(testsLine, "passed");
   const testsFailed = num(testsLine, "failed");
