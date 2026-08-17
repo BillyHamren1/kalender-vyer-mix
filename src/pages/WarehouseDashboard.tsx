@@ -14,15 +14,15 @@ import WarehouseOverviewNext7Days from "@/components/warehouse-ops/WarehouseOver
 
 /**
  * Lageröversikt = kort översikt, inte arbetslista.
- * Arbetslistor bor i /warehouse/calendar (Att planera) och /warehouse/packing (Kräver åtgärd).
+ * Arbetslistor bor i /warehouse/packing (inkommande + packning) och /warehouse/calendar (personalplanering).
  */
 const NEXT_STEPS = [
   {
     key: "planning",
     icon: ClipboardList,
-    title: "Öppna lagerplanering",
-    detail: "Vad ska lagret göra och när?",
-    route: "/warehouse/calendar",
+    title: "Hantera inkommande",
+    detail: "Nya projekt som behöver lagerplaneras.",
+    route: "/warehouse/packing#actions",
   },
   {
     key: "staffing",
@@ -36,7 +36,7 @@ const NEXT_STEPS = [
     icon: LayoutTemplate,
     title: "Öppna packning",
     detail: "Genomför och följ upp packning.",
-    route: "/warehouse/packing",
+    route: "/warehouse/packing#active-work",
   },
 ] as const;
 

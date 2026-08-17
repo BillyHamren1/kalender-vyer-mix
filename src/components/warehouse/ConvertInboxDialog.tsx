@@ -155,7 +155,7 @@ export const ConvertInboxDialog: React.FC<ConvertInboxDialogProps> = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Skapa lagerprojekt</DialogTitle>
+          <DialogTitle>Planera lagerprojekt</DialogTitle>
           <DialogDescription>
             Justera datumen vid behov. Packa och Returnera skapas som moment.
           </DialogDescription>
@@ -238,7 +238,7 @@ export const ConvertInboxDialog: React.FC<ConvertInboxDialogProps> = ({
           </Button>
           <Button onClick={handleSubmit} disabled={!isValid || submitting || loadingDates}>
             {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            Skapa lagerprojekt
+            Planera
           </Button>
         </DialogFooter>
       </DialogContent>

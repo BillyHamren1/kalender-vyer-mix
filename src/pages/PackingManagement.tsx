@@ -137,7 +137,9 @@ const PackingManagement = () => {
           </p>
 
           {/* 1. Kräver åtgärd */}
-          <PackingActionCenter packings={packings} />
+          <div id="actions" className="scroll-mt-4">
+            <PackingActionCenter packings={packings} />
+          </div>
 
           {/* 2. Packningskalender (låst komponent) */}
           <div className="mb-6">
@@ -145,7 +147,9 @@ const PackingManagement = () => {
           </div>
 
           {/* 3. Pågående arbete */}
-          <PackingActiveWork packings={packings} />
+          <div id="active-work" className="scroll-mt-4">
+            <PackingActiveWork packings={packings} />
+          </div>
 
           {/* Alla packningar — dolt bakom "Visa alla packningar" */}
           <div className="mt-6">

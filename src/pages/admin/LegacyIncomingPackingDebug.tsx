@@ -6,7 +6,7 @@
  * ----------
  * Historically there were TWO parallel paths from a Planning project to a
  * packing list:
- *   1. NEW (official): WarehouseProjectInbox → ConvertInboxDialog →
+ *   1. NEW (official): Packning → Kräver åtgärd → Nya → ConvertInboxDialog →
  *      warehouse_projects → packing_projects → packing_list_items.
  *   2. LEGACY: IncomingPackingList scanned bookings without a packing
  *      and created packing_projects directly — bypassing the
@@ -32,7 +32,7 @@ const LegacyIncomingPackingDebug = () => {
         <PageHeader
           icon={AlertTriangle}
           title="Legacy: Inkommande packning (debug)"
-          subtitle="Avvecklad väg — använd Lager → Inbox för nya projekt"
+          subtitle="Avvecklad väg — använd Lager → Planera packning → Kräver åtgärd → Nya"
           variant="warehouse"
         />
 
@@ -42,7 +42,7 @@ const LegacyIncomingPackingDebug = () => {
             Detta är den gamla vägen som skapar packlistor direkt från bokningar utan att
             gå via <code className="font-mono">warehouse_project_inbox</code>. Det officiella
             flödet är{' '}
-            <strong>Planning → Inbox (Nya projekt från Planning) → Skapa lagerprojekt</strong>.
+            <strong>Planning → Kräver åtgärd → Nya → Planera lagerprojekt</strong>.
             Sidan finns kvar bara för att kunna fånga gamla bokningar som aldrig hamnade i
             Inbox-tabellen.
           </p>

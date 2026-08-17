@@ -1,12 +1,11 @@
 /**
  * useWarehouseCardMeta — READ-ONLY presentationsdata för lagerkalenderns kort.
  *
- * Hämtar enbart befintlig data (packstatus + bemanning) för att kunna visa
+ * Hämtar enbart befintlig data (packstatus + projektrubrik) för att kunna visa
  * mer information i de kalenderkort som redan renderas. Skriver aldrig något,
  * rör inte datamodell eller sync.
  */
 import { useQuery } from '@tanstack/react-query';
-import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { toMap } from '@/lib/query/mapCache';
 
@@ -62,54 +61,6 @@ export function useWarehousePackingStats(bookingIds: string[]) {
           total: a.total,
           packed: a.packed,
         });
-      });
-
-      return result;
-    },
-  });
-}
-
-/** Bemanning per dag + lagerkolumn: `${yyyy-MM-dd}|${teamId}` → förnamn[]. */
-export function useLagerCrewByDayTeam(start: Date, end: Date) {
-  const startKey = format(start, 'yyyy-MM-dd');
-  const endKey = format(end, 'yyyy-MM-dd');
-
-  return useQuery({
-    queryKey: ['warehouse-card-crew', startKey, endKey],
-    staleTime: 30_000,
-    select: (d: unknown) => toMap<string[]>(d),
-    queryFn: async (): Promise<Map<string, string[]>> => {
-      const result = new Map<string, string[]>();
-
-      const { data: assignments, error } = await supabase
-        .from('staff_assignments')
-        .select('staff_id, assignment_date, team_id')
-        .gte('assignment_date', startKey)
-        .lte('assignment_date', endKey);
-
-      if (error || !assignments?.length) return result;
-
-      const lager = assignments.filter(
-        (a) => typeof a.team_id === 'string' && (a.team_id.startsWith('lager-') || a.team_id === 'transport'),
-      );
-      if (!lager.length) return result;
-
-      const staffIds = [...new Set(lager.map((a) => a.staff_id).filter(Boolean))] as string[];
-      const { data: staff } = await supabase
-        .from('staff_members')
-        .select('id, name')
-        .in('id', staffIds);
-
-      const nameById = new Map<string, string>();
-      (staff || []).forEach((s) => nameById.set(s.id, (s.name || '').split(' ')[0] || ''));
-
-      lager.forEach((a) => {
-        const key = `${a.assignment_date}|${a.team_id}`;
-        const name = nameById.get(a.staff_id as string);
-        if (!name) return;
-        const list = result.get(key) || [];
-        if (!list.includes(name)) list.push(name);
-        result.set(key, list);
       });
 
       return result;

@@ -393,7 +393,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             {locationLine}
           </div>
         )}
-        {/* Lagerkortets nyckelinfo: tid · packstatus · bemanning */}
+        {/* Lagerkortets nyckelinfo: tid · packstatus. Bemanning visas endast om den är aktivitetsspecifik. */}
         {isWarehouseEvent && (() => {
           const ep = event.extendedProps as any;
           const timeLabel: string | undefined = ep?.timeLabel;
@@ -417,7 +417,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
                   </span>
                 </div>
               )}
-              {crewLabel ? (
+              {crewLabel && (
                 <div
                   style={{
                     color: '#000000',
@@ -430,19 +430,6 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
                   title={ep?.crewFullLabel ?? crewLabel}
                 >
                   {crewLabel}
-                </div>
-              ) : (
-                <div
-                  style={{
-                    color: '#B45309',
-                    fontSize: '9.5px',
-                    fontWeight: 500,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}
-                >
-                  Obemannad
                 </div>
               )}
             </div>
