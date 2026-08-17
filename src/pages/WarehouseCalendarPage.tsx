@@ -154,9 +154,18 @@ const WarehouseCalendarPage = () => {
   const [eventTypeFilters, setEventTypeFilters] = useState<WarehouseEventTypeFilter[]>(() => {
     const stored = localStorage.getItem('warehouseEventTypeFilters');
     if (stored) {
-      return JSON.parse(stored);
+      try {
+        const parsed = JSON.parse(stored) as string[];
+        // Rensa bort legacy planning-typer (rig/event/rigDown) ur sparade filter.
+        const sanitized = Array.isArray(parsed)
+          ? (parsed.filter(f => (WAREHOUSE_EVENT_TYPE_FILTERS as string[]).includes(f)) as WarehouseEventTypeFilter[])
+          : [];
+        if (sanitized.length > 0) return sanitized;
+      } catch {
+        // ignore corrupt storage
+      }
     }
-    return ['rig', 'event', 'rigDown', 'packing', 'delivery', 'return', 'inventory', 'unpacking', 'internal_task'];
+    return [...WAREHOUSE_EVENT_TYPE_FILTERS];
   });
 
   // Save event type filters to localStorage
