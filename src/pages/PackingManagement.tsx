@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, Package, Trash2 } from "lucide-react";
+import { Plus, Search, Package, Trash2, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import PackingCard from "@/components/packing/PackingCard";
-import PackingDashboard from "@/components/packing/PackingDashboard";
-import PackingUpdatedBookings from "@/components/packing/PackingUpdatedBookings";
+import PackingActionCenter from "@/components/packing/PackingActionCenter";
+import PackingActiveWork from "@/components/packing/PackingActiveWork";
 import PackingCalendarView from "@/components/packing/PackingCalendarView";
 import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
 import BulkCleanupDialog from "@/components/packing/BulkCleanupDialog";
@@ -25,6 +25,7 @@ const PackingManagement = () => {
   const [statusFilter, setStatusFilter] = useState<PackingStatus | "all">("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCleanupOpen, setIsCleanupOpen] = useState(false);
+  const [showAllPackings, setShowAllPackings] = useState(false);
   const [preselectedBookingId, setPreselectedBookingId] = useState<string | undefined>();
 
   useRealtimeInvalidation({
@@ -47,12 +48,21 @@ const PackingManagement = () => {
     onError: () => toast.error('Kunde inte ta bort packning')
   });
 
+  const searching = search.trim().length > 0 || statusFilter !== "all";
+
   const filteredPackings = packings.filter(packing => {
     const matchesSearch = packing.name.toLowerCase().includes(search.toLowerCase()) ||
       packing.booking?.client?.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === "all" || packing.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  const statusSummary = [
+    { label: 'planerade', value: packings.filter(p => p.status === 'planning').length },
+    { label: 'pågående', value: packings.filter(p => p.status === 'in_progress').length },
+    { label: 'i produktion', value: packings.filter(p => p.status === 'delivered').length },
+    { label: 'klara', value: packings.filter(p => p.status === 'completed').length },
+  ];
 
   const handlePackingClick = (packingId: string) => {
     navigate(`/warehouse/packing/${packingId}`);
@@ -61,6 +71,8 @@ const PackingManagement = () => {
   const handleDelete = (packingId: string) => {
     deleteMutation.mutate(packingId);
   };
+
+  const showList = showAllPackings || searching;
 
   return (
     <div className="h-full overflow-y-auto" style={{ background: 'var(--gradient-page)' }}>
@@ -82,7 +94,7 @@ const PackingManagement = () => {
           />
 
           {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="flex flex-col sm:flex-row gap-4 mb-3">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -114,60 +126,77 @@ const PackingManagement = () => {
             </Button>
           </div>
 
-          {/* OFFICIELL ENDA INGÅNG: nya projekt från Planning.
-              Den gamla "IncomingPackingList" har flyttats till
-              /admin/legacy-incoming-packing och är inte längre synlig
-              för normala användare — för att eliminera dubbel UX där
-              samma bokning kunde behandlas från två olika listor. */}
-          <div className="mb-6">
-          </div>
+          {/* Kompakt statusrad (ersätter de fyra stora KPI-korten) */}
+          <p className="mb-5 text-xs text-muted-foreground">
+            {statusSummary.map((s, i) => (
+              <span key={s.label}>
+                {i > 0 && ' · '}
+                <span className="font-medium text-foreground">{s.value}</span> {s.label}
+              </span>
+            ))}
+          </p>
 
-          {/* Packing Calendar */}
+          {/* 1. Kräver åtgärd */}
+          <PackingActionCenter packings={packings} />
+
+          {/* 2. Packningskalender (låst komponent) */}
           <div className="mb-6">
             <PackingCalendarView packings={packings} />
           </div>
 
-          {/* Updated packings needing review */}
-          <PackingUpdatedBookings />
+          {/* 3. Pågående arbete */}
+          <PackingActiveWork packings={packings} />
 
-          {/* Dashboard */}
-          <PackingDashboard packings={packings} onDelete={handleDelete} />
+          {/* Alla packningar — dolt bakom "Visa alla packningar" */}
+          <div className="mt-6">
+            {!showList && (
+              <Button
+                variant="outline"
+                className="rounded-xl"
+                onClick={() => setShowAllPackings(true)}
+              >
+                <ChevronDown className="h-4 w-4 mr-2" />
+                Visa alla packningar ({packings.length})
+              </Button>
+            )}
 
-          {/* Packing Grid */}
-          {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="h-48 bg-card animate-pulse rounded-2xl border border-border/40" />
-              ))}
-            </div>
-          ) : filteredPackings.length === 0 ? (
-            <div className="text-center py-16 rounded-2xl bg-card border border-border/40 shadow-2xl">
-              <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-[hsl(var(--heading))] mb-2">Inga packningar hittades</h3>
-              <p className="text-muted-foreground mb-4 text-[0.925rem]">
-                {search || statusFilter !== "all" 
-                  ? "Prova att ändra dina filter" 
-                  : "Skapa din första packning för att komma igång"}
-              </p>
-              {!search && statusFilter === "all" && (
-                <Button className="bg-warehouse hover:bg-warehouse-hover shadow-xl shadow-warehouse/25 font-semibold" onClick={() => setIsCreateOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Skapa packning
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredPackings.map(packing => (
-                <PackingCard
-                  key={packing.id}
-                  packing={packing}
-                  onClick={() => handlePackingClick(packing.id)}
-                  onDelete={() => handleDelete(packing.id)}
-                />
-              ))}
-            </div>
-          )}
+            {showList && (
+              isLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="h-48 bg-card animate-pulse rounded-2xl border border-border/40" />
+                  ))}
+                </div>
+              ) : filteredPackings.length === 0 ? (
+                <div className="text-center py-16 rounded-2xl bg-card border border-border/40 shadow-2xl">
+                  <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-[hsl(var(--heading))] mb-2">Inga packningar hittades</h3>
+                  <p className="text-muted-foreground mb-4 text-[0.925rem]">
+                    {searching
+                      ? "Prova att ändra dina filter"
+                      : "Skapa din första packning för att komma igång"}
+                  </p>
+                  {!searching && (
+                    <Button className="bg-warehouse hover:bg-warehouse-hover shadow-xl shadow-warehouse/25 font-semibold" onClick={() => setIsCreateOpen(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Skapa packning
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredPackings.map(packing => (
+                    <PackingCard
+                      key={packing.id}
+                      packing={packing}
+                      onClick={() => handlePackingClick(packing.id)}
+                      onDelete={() => handleDelete(packing.id)}
+                    />
+                  ))}
+                </div>
+              )
+            )}
+          </div>
 
           <BulkCleanupDialog
             open={isCleanupOpen}
