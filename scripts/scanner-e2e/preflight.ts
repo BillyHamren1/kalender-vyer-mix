@@ -39,6 +39,8 @@ export interface PreflightEnv {
   SCANNER_E2E_FIXTURE_ORG_ID?: string;
   SCANNER_E2E_ENABLE_V2_FOR_RUN?: string;
   SCANNER_E2E_RUN_ID?: string;
+  SCANNER_E2E_AUTH_TOKEN?: string;
+  SCANNER_E2E_FIXTURES_JSON?: string;
 }
 
 const containsProdMarker = (value: string | undefined): string | null => {
@@ -96,6 +98,18 @@ export const runPreflight = (env: PreflightEnv): PreflightResult => {
     'Test organization är fixture-org',
     Boolean(env.SCANNER_E2E_FIXTURE_ORG_ID?.startsWith('fixture-')),
     env.SCANNER_E2E_FIXTURE_ORG_ID ?? 'saknas',
+  );
+  add(
+    'auth_token',
+    'Aktiv mobile test-session token finns',
+    Boolean(env.SCANNER_E2E_AUTH_TOKEN?.trim()),
+    env.SCANNER_E2E_AUTH_TOKEN ? 'satt' : 'saknas',
+  );
+  add(
+    'fixtures_json',
+    '15A fixture-konfiguration finns',
+    Boolean(env.SCANNER_E2E_FIXTURES_JSON?.trim().startsWith('{')),
+    env.SCANNER_E2E_FIXTURES_JSON ? 'satt' : 'saknas',
   );
 
   const prodHit =

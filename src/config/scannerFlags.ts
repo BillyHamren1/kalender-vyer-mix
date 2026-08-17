@@ -1,14 +1,14 @@
 /**
- * Scanner hardening feature flags.
+ * Scanner transaction V2 feature flag.
  *
- * STEG 1B (baseline): inga beteendeändringar. Flaggan finns endast för att
- * senare steg ska kunna aktivera transaktionell scanning (WMS + lokal mutation
- * som en enhet, med replaybar operationskö).
- *
- * SCANNER_TRANSACTION_V2 = OFF betyder att nuvarande (dubbel sanning) flöde
- * gäller oförändrat. Ingen kod får läsa flaggan för att slå på ny funktionalitet
- * i detta steg.
+ * Safety contract:
+ * - Default is OFF when the env value is missing/invalid.
+ * - Only the exact string "true" enables V2.
+ * - Production must never be enabled by source-code edits.
+ * - Test/local builds can explicitly set VITE_SCANNER_TRANSACTION_V2=true.
  */
-export const SCANNER_TRANSACTION_V2 = false as const;
+const rawScannerV2Flag = (import.meta as any).env?.VITE_SCANNER_TRANSACTION_V2;
+
+export const SCANNER_TRANSACTION_V2: boolean = rawScannerV2Flag === 'true';
 
 export const isScannerTransactionV2Enabled = (): boolean => SCANNER_TRANSACTION_V2;

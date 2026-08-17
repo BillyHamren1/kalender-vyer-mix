@@ -15,7 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import { QRScanner } from './QRScanner';
 import { ScannerModeIndicator } from './ScannerModeIndicator';
 import { RfidStatusBar } from './RfidStatusBar';
-import { ScanMode } from '@/services/scanner/types';
+import { ScanMode, type ScanEvent } from '@/services/scanner/types';
 import { useOptimisticPacking, PackingItem } from '@/hooks/scanner/useOptimisticPacking';
 import { usePackingSync } from '@/hooks/scanner/usePackingSync';
 import { useScanFeedback } from '@/hooks/scanner/useScanFeedback';
@@ -53,7 +53,7 @@ interface VerificationViewProps {
   packingId: string;
   onBack: () => void;
   verifierName?: string;
-  registerScanHandler?: (handler: (value: string) => void) => void;
+  registerScanHandler?: (handler: (scan: ScanEvent) => void) => void;
   scannerState?: ScannerStateProps;
   rfidControls?: RfidControlsProps;
   /**
@@ -144,7 +144,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   // --- Hooks ---
   const {
     packing, items, progress, isLoading, loadData,
-    recalcProgress, applyOptimisticIncrement, applyOptimisticDecrement, setItems,
+    recalcProgress, applyOptimisticIncrement, applyOptimisticSet, applyOptimisticDecrement, setItems,
   } = useOptimisticPacking(packingId);
 
   const {
@@ -164,9 +164,13 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   useEffect(() => {
     if (!lastScanResult) return;
     scanNonceRef.current += 1;
+    if (lastScanResult.pending) {
+      setScannerFeedback(null);
+      return;
+    }
     setScannerFeedback({
       nonce: scanNonceRef.current,
-      success: !!lastScanResult.success && !lastScanResult.isMinusScan,
+      success: !!lastScanResult.success,
       message: lastScanResult.productName || lastScanResult.value,
       subMessage: lastScanResult.result,
     });
@@ -199,12 +203,15 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     packingId,
     verifierName,
     verifierStaffId,
+    organizationId: storedStaff?.organization_id ?? null,
+    bookingNumber: packing?.booking?.booking_number ?? null,
     getItems: () => itemsRef.current,
     getIsMinusMode: () => isMinusModeRef.current,
     onScanResult: setScanResult,
     onHighlight: highlightRow,
     onOptimisticIncrement: applyOptimisticIncrement,
     onOptimisticDecrement: applyOptimisticDecrement,
+    onAuthoritativeSet: applyOptimisticSet,
     onAssignToKolli: assignToKolli,
     getIsKolliMode: () => isKolliMode,
     getActiveParcelId: () => activeParcelRef.current?.id ?? null,
@@ -582,13 +589,13 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
 
         {lastScanResult && (
           <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-            lastScanResult.isMinusScan
-              ? 'bg-orange-100 text-orange-800 border border-orange-300'
-              : lastScanResult.success 
-                ? 'bg-green-100 text-green-800 border border-green-300' 
+            lastScanResult.pending
+              ? 'bg-amber-100 text-amber-900 border border-amber-300'
+              : lastScanResult.success
+                ? 'bg-green-100 text-green-800 border border-green-300'
                 : 'bg-red-100 text-red-800 border border-red-300'
           }`}>
-            <span className="text-lg">{lastScanResult.isMinusScan ? '➖' : lastScanResult.success ? '✅' : '❌'}</span>
+            <span className="text-lg">{lastScanResult.pending ? '⏳' : lastScanResult.isMinusScan ? '➖' : lastScanResult.success ? '✅' : '❌'}</span>
             <div className="flex-1 min-w-0">
               <span className="block truncate font-semibold">{lastScanResult.productName || lastScanResult.value}</span>
               <span className="text-xs opacity-80">{lastScanResult.result}</span>
@@ -631,7 +638,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
           </Button>
         </div>
 
-        <QRScanner isActive={isQRActive} onScan={enqueueScan} onClose={() => setIsQRActive(false)} feedback={scannerFeedback} />
+        <QRScanner isActive={isQRActive} onScan={(value) => enqueueScan({ id: `camera-${Date.now()}-${Math.random().toString(16).slice(2)}`, type: 'barcode', source: 'camera', value, timestamp: Date.now(), isDuplicate: false })} onClose={() => setIsQRActive(false)} feedback={scannerFeedback} />
 
         <AddUnknownProductDialog
           pending={pendingUnknownProduct}

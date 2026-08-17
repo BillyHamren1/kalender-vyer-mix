@@ -14,7 +14,7 @@ import { simulateRfidTag, simulateReaderStatus } from '@/services/scanner/ZebraR
 import { getQueueStats } from '@/services/scanner/ScanQueue';
 
 interface UseScannerControllerOptions {
-  /** Called for every new (non-duplicate) scan */
+  /** Called for scanner events. In V2, duplicate RFID reads reach runtime for contextual dedupe. */
   onScan?: (scan: ScanEvent) => void;
   /** Initial scan mode */
   initialMode?: ScanMode;

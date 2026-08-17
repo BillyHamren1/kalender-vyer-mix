@@ -70,9 +70,11 @@ describe('2. Lokala +1/-1 i stället för authoritative server result', () => {
   it('useOptimisticPacking gör klientsidig +1/-1 i stället för att sätta serverns värde', () => {
     expect(optimistic).toContain("(item.quantity_packed || 0) + 1");
     expect(optimistic).toContain("Math.max(0, (item.quantity_packed || 0) - 1)");
-    // applyOptimisticSet (authoritative) finns men används inte av scanflödet.
+    // Legacy optimistic helpers finns kvar för flag OFF, men V2 har en separat
+    // authoritative setter och tar V2-grenen före legacy mutationerna.
     expect(optimistic).toContain('applyOptimisticSet');
-    expect(scanProcessor).not.toContain('applyOptimisticSet');
+    expect(scanProcessor).toContain('onAuthoritativeSet');
+    expect(scanProcessor).toContain('enqueueAndProcessScanOperation');
     expect(scanProcessor).toContain('onOptimisticIncrement');
     expect(scanProcessor).toContain('onOptimisticDecrement');
   });
@@ -128,22 +130,24 @@ describe('6. Persistent ScanQueue är inte kopplad till operation replay', () =>
   });
 });
 
-describe('7. In-memory kö kan tappa operationer vid reload/crash', () => {
-  it('useScanProcessor-kön är en ref av strängar utan persistens', () => {
-    expect(scanProcessor).toContain('const queueRef = useRef<string[]>([])');
-    expect(scanProcessor).not.toContain('localStorage');
-    expect(scanProcessor).not.toContain('indexedDB');
+describe('7. Legacy dispatch-kö finns kvar men V2 har durable operation replay', () => {
+  it('useScanProcessor kan bära full ScanEvent och lämnar V2-operationen till den persistenta kön', () => {
+    expect(scanProcessor).toContain('const queueRef = useRef<ProcessorQueueEntry[]>([])');
+    expect(scanProcessor).toContain('enqueueScanOperation');
+    expect(scanProcessor).toContain('processPersistedScanOperation');
+    expect(scanProcessor).toContain('resumeAndDrain');
   });
 });
 
-describe('8. Komplett ScanEvent reduceras till scan.value', () => {
-  it('MobileScannerApp skickar endast scan.value vidare till processorn', () => {
+describe('8. Komplett ScanEvent bevaras i det muterande scannerflödet', () => {
+  it('Verification/Return får full ScanEvent; home-identifikation får fortfarande använda value', () => {
     expect(mobileScannerApp).toContain('handleBarcodeScan(scan.value)');
-    expect(mobileScannerApp).toContain('handler(scan.value)');
+    expect(mobileScannerApp).toContain('activeScanHandler.current = handler');
+    expect(mobileScannerApp).not.toContain('handler(scan.value)');
   });
 
-  it('useScanProcessor.enqueueScan tar en sträng, inte ett ScanEvent', () => {
-    expect(scanProcessor).toContain('const enqueueScan = useCallback((value: string)');
-    expect(scanProcessor).not.toContain('ScanEvent');
+  it('useScanProcessor.enqueueScan accepterar full ScanEvent', () => {
+    expect(scanProcessor).toContain('const enqueueScan = useCallback((input: string | ScanEvent)');
+    expect(scanProcessor).toContain("const scanEvent: ScanEvent | null = typeof rawInput === 'string' ? null : rawInput");
   });
 });

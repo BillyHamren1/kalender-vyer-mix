@@ -58,7 +58,7 @@ describe('STEG 9 – operation payload', () => {
     for (const key of [
       'operation_id', 'organization_id', 'command', 'intended_action', 'packing_id',
       'packing_session_id', 'booking_number', 'reservation_id', 'performed_by',
-      'device_id', 'scan_source', 'scan_value', 'created_at', 'attempt_count',
+      'device_id', 'scan_source', 'scan_value', 'created_at', 'queue_sequence', 'attempt_count',
       'last_attempt_at', 'state',
     ]) {
       expect(o, key).toHaveProperty(key);
@@ -155,6 +155,16 @@ describe('STEG 9 – retry med samma operation_id', () => {
     expect(await resumed.get('op-fixed')).toBeNull(); // terminal → ur kön
   });
 
+  it('generic duplicate utan replay-bevis får aldrig bli COMMITTED', async () => {
+    await store.enqueue(op());
+    await drainQueue(store, (async (queued: any) => ({
+      status: 'duplicate', operationId: queued.operation_id, itemId: 'item-1', packedQuantity: 1,
+      replayed: false,
+    })) as any);
+    expect(await store.get('op-fixed')).toBeNull();
+    expect(await store.resumable()).toHaveLength(0);
+  });
+
   it('rejected tas ur retry-loopen', async () => {
     await store.enqueue(op());
     const send = async (queued: any): Promise<ScannerCommandResult> => ({
@@ -187,6 +197,20 @@ describe('STEG 9 – ordning och dubbelkö-spärr', () => {
       .not.toBe(queueLaneKey({ packing_id: 'p2', packing_session_id: 's1' }));
   });
 
+  it('UNKNOWN i samma lane blockerar senare operationer tills den tidigare är terminal', async () => {
+    await store.enqueue(op({ operation_id: 'first', queue_sequence: 1 }));
+    await store.enqueue(op({ operation_id: 'second', queue_sequence: 2 }));
+    const order: string[] = [];
+    await drainQueue(store, (async (q: any) => {
+      order.push(q.operation_id);
+      if (q.operation_id === 'first') throw new OperationTimeoutError('response lost');
+      return { status: 'accepted', operationId: q.operation_id, itemId: 'item-1', packedQuantity: 2, requiredQuantity: 10 };
+    }) as any);
+    expect(order).toEqual(['first']);
+    expect((await store.get('first'))?.state).toBe('UNKNOWN');
+    expect((await store.get('second'))?.state).toBe('PENDING');
+  });
+
   it('operationer i samma lane körs sekventiellt i created_at-ordning', async () => {
     await store.enqueue(op({ operation_id: 'a', created_at: '2026-01-01T10:00:00.000Z' }));
     await store.enqueue(op({ operation_id: 'b', created_at: '2026-01-01T10:00:01.000Z' }));
@@ -206,9 +230,11 @@ describe('STEG 9 – ordning och dubbelkö-spärr', () => {
     expect(/if \(shouldUseLegacyScanQueue\(\)\) \{\s*\n\s*enqueueScan/.test(src)).toBe(true);
   });
 
-  it('V2-kön använder IndexedDB, inte localStorage', () => {
+  it('V2-kön använder IndexedDB, inte localStorage eller runtime RAM-fallback', () => {
     const src = readFileSync(resolve(process.cwd(), 'src/lib/scanner/operationQueueStore.ts'), 'utf8');
     expect(src).toContain('indexedDB');
     expect(src.includes('localStorage.setItem')).toBe(false);
+    expect(src).toContain('SCANNER_DURABLE_QUEUE_UNAVAILABLE');
+    expect(src).not.toContain('faller tillbaka på minneskö');
   });
 });

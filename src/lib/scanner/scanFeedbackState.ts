@@ -10,7 +10,7 @@
  * - Rejection reason codes översätts till tydlig svensk text.
  */
 
-import type { ScannerCommandResult } from './commandTypes';
+import { isAcceptedResult, type ScannerCommandResult } from './commandTypes';
 import type { OperationState, QueuedOperation } from './operationQueueTypes';
 
 export type ScanFeedbackState =
@@ -150,12 +150,13 @@ export const deriveScanFeedback = (input: FeedbackInput): ScanFeedback => {
       feedbackState = 'CHECKING';
   }
 
-  // Success endast när WMS bekräftat exakt denna operation_id
-  // (accepted = COMMITTED, duplicate/replayed = ALREADY_COMMITTED).
-  const sameOperation = !result?.operationId || result.operationId === operationId;
-  const playSuccess = feedbackState === 'CONFIRMED' && sameOperation;
+  // Success endast när WMS bekräftat exakt denna operation_id. Ett malformed
+  // COMMITTED-state utan operationId/resultat, eller en generisk duplicate utan
+  // replay-bevis, får aldrig ge grönt ljud/vibration.
+  const exactOperation = Boolean(result?.operationId) && result?.operationId === operationId;
+  const playSuccess = feedbackState === 'CONFIRMED' && exactOperation && Boolean(result && isAcceptedResult(result));
 
-  if (feedbackState === 'CONFIRMED' && result?.status === 'duplicate') {
+  if (feedbackState === 'CONFIRMED' && result?.status === 'duplicate' && result.replayed === true) {
     detail = 'Redan registrerad';
   }
 

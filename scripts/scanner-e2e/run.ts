@@ -17,6 +17,7 @@ import {
   notExecutedResults,
   type ScenarioResult,
 } from './scenarios';
+import { executeScenarios } from './execute';
 
 const REPORT_PATH = path.resolve(
   process.cwd(),
@@ -86,13 +87,11 @@ const renderReport = (
   return lines.join('\n');
 };
 
-const main = () => {
+const main = async () => {
   const preflight = runPreflight(process.env as never);
 
   if (!preflight.ok) {
-    const results = notExecutedResults(
-      `preflight abort: ${preflight.abortReason}`,
-    );
+    const results = notExecutedResults(`preflight abort: ${preflight.abortReason}`);
     const report = renderReport(preflight, results, false);
     fs.mkdirSync(path.dirname(REPORT_PATH), { recursive: true });
     fs.writeFileSync(REPORT_PATH, report);
@@ -102,14 +101,7 @@ const main = () => {
     process.exit(preflight.exitCode);
   }
 
-  // Godkänd testmiljö finns. Scenarioexekvering körs av driver-lagret
-  // (scripts/scanner-e2e/driver.ts) mot den godkända WMS-testmiljön.
-  console.error(
-    'Preflight OK, men scenarioexekvering kräver 15A-fixtures i den godkända testmiljön.',
-  );
-  const results: ScenarioResult[] = notExecutedResults(
-    '15A test-WMS-fixtures ej tillgängliga i denna körning',
-  );
+  const results = await executeScenarios(process.env, preflight.runId!);
   const green = isGreen(results);
   fs.mkdirSync(path.dirname(REPORT_PATH), { recursive: true });
   fs.writeFileSync(REPORT_PATH, renderReport(preflight, results, green));
@@ -117,4 +109,7 @@ const main = () => {
   process.exit(green ? 0 : 1);
 };
 
-main();
+main().catch((err) => {
+  console.error('SCANNER E2E FATAL', err);
+  process.exit(1);
+});

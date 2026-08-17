@@ -165,13 +165,16 @@ export function getState(): ScannerState {
   // och att listenern är registrerad. Det betyder INTE att läsaren är ansluten
   // eller att inventory faktiskt kör.
   const isRfidSubsystemAvailable = rfidListenerActive && rfidOnNative;
+  const hardwareHealth = getHardwareHealth();
 
   return {
     isInitialized: initialized,
     isScannerReady: initialized,
-    isBarcodeReady: isDataWedgeActive() || isKeyboardListenerActive(),
-    // Bakåtkompatibilitet för befintlig UI/logik
-    isRfidReady: isRfidSubsystemAvailable,
+    // HARDENING: 'ready' means verified scanner hardware, not merely an input listener.
+    // Keyboard/camera fallback remains available through debug/health state but may not
+    // masquerade as a healthy Zebra DataWedge scanner.
+    isBarcodeReady: hardwareHealth.barcodeScannerReady,
+    isRfidReady: hardwareHealth.rfidReaderReady,
     // Tydligare semantik för ny kod
     isRfidSubsystemAvailable,
     isReaderConnected: rfidReaderConnected,
@@ -222,7 +225,7 @@ function getDebugInfo(platform: ReturnType<typeof detectPlatform>): ScannerDebug
     dataWedgeProfileSwitchOk: profileSwitchSucceeded(),
     dataWedgeScannerInputOk: scannerInputEnabledSucceeded(),
     rfidListenerActive: isRfidListening(),
-    cameraAvailable: 'mediaDevices' in navigator,
+    cameraAvailable: typeof navigator !== 'undefined' && 'mediaDevices' in navigator,
     lastDataWedgeEvent: null,
     lastRfidEvent: null,
     lastError: getLastRfidError(),
@@ -244,9 +247,9 @@ export function isInitialized(): boolean {
 }
 
 /**
- * STEG 11: verifierad hårdvarustatus. `isBarcodeReady` (legacy) betyder bara
- * "någon input-listener finns" — använd denna för att avgöra om UI får påstå
- * att Zebra-scannern är redo.
+ * STEG 11: verifierad hårdvarustatus. `getState().isBarcodeReady` och
+ * `getState().isRfidReady` härleds från denna modell, så UI kan inte längre
+ * kalla hårdvaran redo enbart för att en keyboard/listener är registrerad.
  */
 export function getHardwareHealth(): HardwareHealth {
   const platform = detectPlatform();
