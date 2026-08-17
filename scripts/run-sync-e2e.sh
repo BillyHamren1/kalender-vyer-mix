@@ -254,6 +254,8 @@ provision_schema() {
     "$HERE/fixture.sql"
     supabase/migrations/20260805053328_85ea3d0f-e442-48da-b202-7abd2eccb8ff.sql
     supabase/migrations/20260429183626_192dd820-b4ba-4ce3-9aef-3612c2c40a47.sql
+    supabase/migrations/20260805055923_b0402469-2381-4c60-bd09-5ede6cd64da3.sql
+    supabase/migrations/20260805061359_8a10ed67-991c-47cc-adf2-25d83eee41b8.sql
     "$HERE/fixture_bsa_legacy_identity.sql"
     "$HERE/variant_wce_legacy_constraint.sql"
   )

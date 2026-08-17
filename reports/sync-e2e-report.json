@@ -1,6 +1,6 @@
 {
   "gate": "booking_planning_sql_e2e_release_gate",
-  "generated_at": "2026-08-17T08:45:47.466Z",
+  "generated_at": "2026-08-17T08:46:08.960Z",
   "release_run_id": null,
   "schema_provisioning": {
     "status": "PASS",
@@ -31,7 +31,7 @@
       "evidence_txt": "reports/sync-release-migration-compatibility.txt",
       "generated_at": "2026-08-17T08:43:25.854Z",
       "git_commit": "8c6128fa6532aac9cdd42d095bb166e3f7f66668",
-      "current_git_commit": "78e3c2e56d1031b17f993661d8de9c64019fdf0a",
+      "current_git_commit": "83d024406e5141346f6641658597b3cc2f08b1ee",
       "release_content_binding": "5c90da8086580386ad1443a9208975e0c8305b926e36e18baf0bd88e16c93448",
       "scope_size": 12,
       "migrations_passed": 24,
@@ -47,7 +47,7 @@
     "release_migration_compatibility": "PASS",
     "bsa_tenant_identity": "PASS",
     "bsa_v2_rpc": "PASS",
-    "security_definer": "FAIL",
+    "security_definer": "PASS",
     "revision_lease": "PASS",
     "worker_jobs": "PASS",
     "batch_cursor": "PASS",
@@ -55,6 +55,6 @@
     "canonical_error_propagation": "PASS",
     "destructive_cancellation_off": "PASS"
   },
-  "reasons": "security_definer: FAIL",
-  "final": "RED"
+  "reasons": "",
+  "final": "GREEN"
 }
