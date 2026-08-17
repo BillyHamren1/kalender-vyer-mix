@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { toMap } from '@/lib/query/mapCache';
 
 export interface PackingProgress {
   packingId: string;
@@ -107,7 +108,8 @@ export function usePackingProgressBatch(bookingIds: string[]) {
   }, [dedupedIds.length > 0, queryClient]);
 
   return {
-    progressMap: query.data || new Map<string, PackingProgress>(),
+    // Persisterad cache kan ge tillbaka ett vanligt objekt i stället för Map.
+    progressMap: toMap<PackingProgress>(query.data),
     isLoading: query.isLoading,
   };
 }

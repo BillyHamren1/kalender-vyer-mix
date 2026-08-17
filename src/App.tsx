@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
+import { containsNonJsonSafeData } from "@/lib/query/mapCache";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { useBackgroundImport } from "@/hooks/useBackgroundImport";
 import { useSsoListener } from "@/hooks/useSsoListener";
@@ -165,7 +166,7 @@ const queryPersister = typeof window !== "undefined"
   : undefined;
 
 // Bumpa när cache-shape ändras så gamla entries kastas.
-const PERSIST_BUSTER = "v2026-05-28";
+const PERSIST_BUSTER = "v2026-08-17";
 
 // Pause all polling/refetching while the tab is hidden. Resume on visibility.
 // This stops dashboards (planning/ops/warehouse) from hammering the network in the background
@@ -250,6 +251,8 @@ const AppContent = () => {
                   // Skippa realtime-känsliga "live"-queries om de explicit
                   // markeras med meta.persist === false.
                   if (q.meta && q.meta.persist === false) return false;
+                  // Map/Set överlever inte JSON-serialisering — persistera aldrig.
+                  if (containsNonJsonSafeData(q.state.data)) return false;
                   return true;
                 },
               },

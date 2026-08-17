@@ -8,6 +8,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
+import { toMap } from '@/lib/query/mapCache';
 
 export interface WarehousePackingStat {
   bookingId: string;
@@ -24,6 +25,7 @@ export function useWarehousePackingStats(bookingIds: string[]) {
     queryKey: ['warehouse-card-packing-stats', ids.join(',')],
     enabled: ids.length > 0,
     staleTime: 30_000,
+    select: (d: unknown) => toMap<WarehousePackingStat>(d),
     queryFn: async (): Promise<Map<string, WarehousePackingStat>> => {
       const result = new Map<string, WarehousePackingStat>();
 
@@ -75,6 +77,7 @@ export function useLagerCrewByDayTeam(start: Date, end: Date) {
   return useQuery({
     queryKey: ['warehouse-card-crew', startKey, endKey],
     staleTime: 30_000,
+    select: (d: unknown) => toMap<string[]>(d),
     queryFn: async (): Promise<Map<string, string[]>> => {
       const result = new Map<string, string[]>();
 
@@ -122,6 +125,7 @@ export function useWarehouseBookingTitles(bookingIds: string[]) {
     queryKey: ['warehouse-card-booking-titles', ids.join(',')],
     enabled: ids.length > 0,
     staleTime: 60_000,
+    select: (d: unknown) => toMap<string>(d),
     queryFn: async (): Promise<Map<string, string>> => {
       const result = new Map<string, string>();
       const { data, error } = await supabase
