@@ -1,0 +1,497 @@
+command: npx vitest run --reporter=verbose src/test/syncE2eGateFailClosed.contract.test.ts src/test/syncE2eEvidencePointer.contract.test.ts src/test/releaseMigrationCompatSafety.contract.test.ts src/test/releaseMigrationCompatibility.contract.test.ts src/test/compatibilityEvidenceNegative.contract.test.ts src/test/finalReleaseGate.contract.test.ts src/test/releaseBindingRuntimeCoverage.contract.test.ts src/test/syncReleaseMigrationFingerprints.contract.test.ts src/test/syncReleaseMigrationScope.contract.test.ts src/test/bsaTenantUniqueness.contract.test.ts src/test/bsaTenantSafeRpc.contract.test.ts src/test/bsaLegacyRuntimeAudit.contract.test.ts src/test/legacyBsaRpcRetired.contract.test.ts src/test/automaticDestructiveSyncFlag.contract.test.ts src/test/statusChangeNoDestructiveSync.contract.test.ts src/test/syncBatchLifecycle.contract.test.ts src/test/syncCursorServerAuthority.contract.test.ts src/test/syncJobRetryHardening.contract.test.ts src/test/syncObservability.contract.test.ts src/test/syncRowCountCircuitBreaker.contract.test.ts src/test/syncSafetyOperations.contract.test.ts src/test/syncStateOrgIsolation.contract.test.ts src/test/syncRegressionScenarios.contract.test.ts src/test/syncPerformance.contract.test.ts
+release_run_id: rel-20260817T084631Z-5e4d7c7523c2
+--------------------------------------------------------------
+
+ RUN  v3.2.4 /dev-server
+
+ ✓ src/test/syncE2eEvidencePointer.contract.test.ts > STEG 5B — evidence pointers i sync-E2E-runnern > skriver evidence_txt för historical replay 2ms
+ ✓ src/test/syncE2eEvidencePointer.contract.test.ts > STEG 5B — evidence pointers i sync-E2E-runnern > skriver fortfarande migrationsloggen 0ms
+ ✓ src/test/syncE2eEvidencePointer.contract.test.ts > STEG 5B — evidence pointers i sync-E2E-runnern > historical replay redovisas som icke-blockerande men aldrig som PASS 0ms
+ ✓ src/test/syncE2eEvidencePointer.contract.test.ts > STEG 5B — evidence pointers i sync-E2E-runnern > release_migration_compatibility är en blockerande required section 1ms
+ ✓ src/test/syncE2eEvidencePointer.contract.test.ts > STEG 5B — evidence pointers i sync-E2E-runnern > migrations-skriptet producerar båda evidensfilerna 0ms
+stdout | src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 1. attachJobsToBatch skapar exakt ett aktivt jobb per ny (org,booking)
+[syncBatch] batch=batch-1 attached total=3 adopted=0 created=3
+
+stdout | src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 2. attachJobsToBatch adopterar aktivt jobb från tidigare batch (coalescing)
+[syncBatch] batch=batch-1 attached total=1 adopted=0 created=1
+
+stdout | src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 2. attachJobsToBatch adopterar aktivt jobb från tidigare batch (coalescing)
+[syncBatch] batch=batch-3 attached total=1 adopted=1 created=0
+
+stdout | src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 3. Ett coalescat jobb tillhör BÅDA batcherna via sync_batch_jobs
+[syncBatch] batch=batch-1 attached total=1 adopted=0 created=1
+
+stdout | src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 3. Ett coalescat jobb tillhör BÅDA batcherna via sync_batch_jobs
+[syncBatch] batch=batch-3 attached total=1 adopted=1 created=0
+
+stdout | src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 4. finalizeBatchIfDone är no-op medan jobb är pending
+[syncBatch] batch=batch-1 attached total=2 adopted=0 created=2
+
+stdout | src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 5. Alla jobb success → batch=success + cursor flyttas till planned_cursor
+[syncBatch] batch=batch-1 attached total=2 adopted=0 created=2
+
+stdout | src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 5. Alla jobb success → batch=success + cursor flyttas till planned_cursor
+[syncBatch] batch=batch-1 finalized status=success succeeded=2 failed=0 cursor_advanced_to=2026-07-29T10:00:00Z monotonic_skip=false
+
+stdout | src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 6. Något jobb failed → batch=partial + cursor rörs INTE
+[syncBatch] batch=batch-1 attached total=2 adopted=0 created=2
+
+stdout | src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 6. Något jobb failed → batch=partial + cursor rörs INTE
+[syncBatch] batch=batch-1 finalized status=partial succeeded=1 failed=1 cursor_advanced_to=HELD monotonic_skip=false
+
+stdout | src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 7. Cursor är monoton — äldre planned_cursor flyttar den ALDRIG bakåt
+[syncBatch] batch=batch-1 attached total=1 adopted=0 created=1
+
+stdout | src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 7. Cursor är monoton — äldre planned_cursor flyttar den ALDRIG bakåt
+[syncBatch] batch=batch-1 finalized status=success succeeded=1 failed=0 cursor_advanced_to=HELD monotonic_skip=true
+
+stdout | src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 8. Tom batch → success + cursor flyttas (inget att vänta på)
+[syncBatch] batch=batch-1 attached total=0 adopted=0 created=0
+
+stdout | src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 8. Tom batch → success + cursor flyttas (inget att vänta på)
+[syncBatch] batch=batch-1 finalized status=success succeeded=0 failed=0 cursor_advanced_to=2026-07-29T10:00:00Z monotonic_skip=false
+
+stdout | src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 9. Organisationer isoleras — org-B ser aldrig org-A jobb
+[syncBatch] batch=batch-1 attached total=1 adopted=0 created=1
+
+stdout | src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 9. Organisationer isoleras — org-B ser aldrig org-A jobb
+[syncBatch] batch=batch-3 attached total=1 adopted=0 created=1
+
+stdout | src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 9. Organisationer isoleras — org-B ser aldrig org-A jobb
+[syncBatch] batch=batch-1 finalized status=success succeeded=1 failed=0 cursor_advanced_to=2026-07-29T10:00:00Z monotonic_skip=false
+
+stdout | src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 10. Coalescing: när det coalescede jobbet blir completed finaliseras BÅDA batcherna
+[syncBatch] batch=batch-1 attached total=1 adopted=0 created=1
+
+stdout | src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 10. Coalescing: när det coalescede jobbet blir completed finaliseras BÅDA batcherna
+[syncBatch] batch=batch-3 attached total=1 adopted=1 created=0
+
+stdout | src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 10. Coalescing: när det coalescede jobbet blir completed finaliseras BÅDA batcherna
+[syncBatch] batch=batch-1 finalized status=success succeeded=1 failed=0 cursor_advanced_to=2026-07-29T10:00:00Z monotonic_skip=false
+
+stdout | src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 10. Coalescing: när det coalescede jobbet blir completed finaliseras BÅDA batcherna
+[syncBatch] batch=batch-3 finalized status=success succeeded=1 failed=0 cursor_advanced_to=2026-07-29T11:00:00Z monotonic_skip=false
+
+stdout | src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 11. Atomicitet: två samtidiga finalize-anrop på samma batch ger EN cursor-flytt
+[syncBatch] batch=batch-1 attached total=1 adopted=0 created=1
+
+stdout | src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 11. Atomicitet: två samtidiga finalize-anrop på samma batch ger EN cursor-flytt
+[syncBatch] batch=batch-1 finalized status=success succeeded=1 failed=0 cursor_advanced_to=2026-07-29T10:00:00Z monotonic_skip=false
+[syncBatch] batch=batch-1 finalized status=success succeeded=1 failed=0 cursor_advanced_to=HELD monotonic_skip=true
+
+ ✓ src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 1. attachJobsToBatch skapar exakt ett aktivt jobb per ny (org,booking) 47ms
+ ✓ src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 2. attachJobsToBatch adopterar aktivt jobb från tidigare batch (coalescing) 1ms
+ ✓ src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 3. Ett coalescat jobb tillhör BÅDA batcherna via sync_batch_jobs 2ms
+ ✓ src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 4. finalizeBatchIfDone är no-op medan jobb är pending 4ms
+ ✓ src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 5. Alla jobb success → batch=success + cursor flyttas till planned_cursor 1ms
+ ✓ src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 6. Något jobb failed → batch=partial + cursor rörs INTE 2ms
+ ✓ src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 7. Cursor är monoton — äldre planned_cursor flyttar den ALDRIG bakåt 1ms
+ ✓ src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 8. Tom batch → success + cursor flyttas (inget att vänta på) 1ms
+ ✓ src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 9. Organisationer isoleras — org-B ser aldrig org-A jobb 1ms
+ ✓ src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 10. Coalescing: när det coalescede jobbet blir completed finaliseras BÅDA batcherna 1ms
+ ✓ src/test/syncBatchLifecycle.contract.test.ts > syncBatch lifecycle contracts (11) > 11. Atomicitet: två samtidiga finalize-anrop på samma batch ger EN cursor-flytt 2ms
+ ✓ src/test/statusChangeNoDestructiveSync.contract.test.ts > STEG 3H — ingen destruktiv statushantering i normal sync > 1. CONFIRMED → OFFER: 0 calendar deletes i statusändringsvägen 1ms
+ ✓ src/test/statusChangeNoDestructiveSync.contract.test.ts > STEG 3H — ingen destruktiv statushantering i normal sync > 2. CONFIRMED → OFFER: 0 warehouse deletes 0ms
+ ✓ src/test/statusChangeNoDestructiveSync.contract.test.ts > STEG 3H — ingen destruktiv statushantering i normal sync > 3. project.status ändras inte av statusändring 0ms
+ ✓ src/test/statusChangeNoDestructiveSync.contract.test.ts > STEG 3H — ingen destruktiv statushantering i normal sync > 4. job.status ändras inte av statusändring 0ms
+ ✓ src/test/statusChangeNoDestructiveSync.contract.test.ts > STEG 3H — ingen destruktiv statushantering i normal sync > 5. packing project (WMS-owned) raderas inte 0ms
+ ✓ src/test/statusChangeNoDestructiveSync.contract.test.ts > STEG 3H — ingen destruktiv statushantering i normal sync > 6. produkter raderas aldrig av statusändring 0ms
+ ✓ src/test/statusChangeNoDestructiveSync.contract.test.ts > STEG 3H — ingen destruktiv statushantering i normal sync > 7. inga .delete() alls i statusändringsvägen 0ms
+ ✓ src/test/statusChangeNoDestructiveSync.contract.test.ts > STEG 3H — ingen destruktiv statushantering i normal sync > 8. OFFER → CONFIRMED: ingen automatisk reactivation 0ms
+ ✓ src/test/statusChangeNoDestructiveSync.contract.test.ts > STEG 3H — ingen destruktiv statushantering i normal sync > 9. de-confirmation loggas men muterar inget 0ms
+ ✓ src/test/statusChangeNoDestructiveSync.contract.test.ts > STEG 3H — ingen destruktiv statushantering i normal sync > 10. CANCELLED i normal sync blir endast kandidat (STEG 3L) 0ms
+ ✓ src/test/statusChangeNoDestructiveSync.contract.test.ts > STEG 3H — ingen destruktiv statushantering i normal sync > 11. CANCELLED muterar aldrig — oavsett feature flag 0ms
+ ✓ src/test/statusChangeNoDestructiveSync.contract.test.ts > STEG 3H — ingen destruktiv statushantering i normal sync > 12. bulk-CANCELLED har ingen egen cleanup kvar 0ms
+ ✓ src/test/statusChangeNoDestructiveSync.contract.test.ts > STEG 3H — ingen destruktiv statushantering i normal sync > 13. historical CANCELLED går samma icke-destruktiva väg 0ms
+ ✓ src/test/statusChangeNoDestructiveSync.contract.test.ts > STEG 3H — ingen destruktiv statushantering i normal sync > 14. import-bookings kan inte nå destruktiv cancellation alls 1ms
+ ✓ src/test/statusChangeNoDestructiveSync.contract.test.ts > STEG 3H — ingen destruktiv statushantering i normal sync > 15. cancellation är tenant-scoped 0ms
+stderr | src/test/syncCursorServerAuthority.contract.test.ts > sync_state is server-authoritative > updateSyncState never writes to the database
+[syncState] updateSyncState is a no-op — sync_state is server-owned (booking_import/org-1)
+
+stderr | src/test/syncCursorServerAuthority.contract.test.ts > sync_state is server-authoritative > updateSyncState always resolves to null
+[syncState] updateSyncState is a no-op — sync_state is server-owned (booking_import/org-1)
+
+ ✓ src/test/syncCursorServerAuthority.contract.test.ts > sync_state is server-authoritative > updateSyncState never writes to the database 68ms
+ ✓ src/test/syncCursorServerAuthority.contract.test.ts > sync_state is server-authoritative > updateSyncState always resolves to null 1ms
+ ✓ src/test/syncCursorServerAuthority.contract.test.ts > sync_state is server-authoritative > importService contains no sync_state writes 3ms
+stderr | src/test/automaticDestructiveSyncFlag.contract.test.ts > runtime-blockering av applyBookingCancellation > flagga saknas → ingen RPC, ingen mutation
+[destructive-sync-guard] cancellation BLOCKED {"blocked":true,"reason":"automatic_destructive_sync_disabled","flag":"AUTOMATIC_DESTRUCTIVE_SYNC_ENABLED","booking_id":"booking-1","organization_id":"11111111-1111-1111-1111-111111111111","source_revision":"2026-08-01T10:00:00Z","caller":"applyBookingCancellation"}
+
+stderr | src/test/automaticDestructiveSyncFlag.contract.test.ts > runtime-blockering av applyBookingCancellation > flagga är false → ingen RPC, ingen mutation
+[destructive-sync-guard] cancellation BLOCKED {"blocked":true,"reason":"automatic_destructive_sync_disabled","flag":"AUTOMATIC_DESTRUCTIVE_SYNC_ENABLED","booking_id":"booking-1","organization_id":"11111111-1111-1111-1111-111111111111","source_revision":"2026-08-01T10:00:00Z","caller":"applyBookingCancellation"}
+
+stderr | src/test/automaticDestructiveSyncFlag.contract.test.ts > runtime-blockering av applyBookingCancellation > flagga är TRUE (fel case) → ingen RPC, ingen mutation
+[destructive-sync-guard] cancellation BLOCKED {"blocked":true,"reason":"automatic_destructive_sync_disabled","flag":"AUTOMATIC_DESTRUCTIVE_SYNC_ENABLED","booking_id":"booking-1","organization_id":"11111111-1111-1111-1111-111111111111","source_revision":"2026-08-01T10:00:00Z","caller":"applyBookingCancellation"}
+
+stderr | src/test/automaticDestructiveSyncFlag.contract.test.ts > runtime-blockering av applyBookingCancellation > flagga är tom → ingen RPC, ingen mutation
+[destructive-sync-guard] cancellation BLOCKED {"blocked":true,"reason":"automatic_destructive_sync_disabled","flag":"AUTOMATIC_DESTRUCTIVE_SYNC_ENABLED","booking_id":"booking-1","organization_id":"11111111-1111-1111-1111-111111111111","source_revision":"2026-08-01T10:00:00Z","caller":"applyBookingCancellation"}
+
+stdout | src/test/automaticDestructiveSyncFlag.contract.test.ts > runtime-blockering av applyBookingCancellation > flagga exakt "true" → RPC anropas
+[cancellation] Fully processed CANCELLED booking booking-1 (atomic) {}
+
+ ✓ src/test/syncRowCountCircuitBreaker.contract.test.ts > STEG 3I — radbaserad circuit breaker > blockerar 30 product rows mot limit 25 FÖRE mutation 5ms
+ ✓ src/test/syncRowCountCircuitBreaker.contract.test.ts > STEG 3I — radbaserad circuit breaker > ett delete-anrop med 2 IDs räknas som 2 rader 2ms
+ ✓ src/test/syncRowCountCircuitBreaker.contract.test.ts > STEG 3I — radbaserad circuit breaker > två delete-anrop med 10 + 10 IDs = 20 rader totalt 1ms
+ ✓ src/test/syncRowCountCircuitBreaker.contract.test.ts > STEG 3I — radbaserad circuit breaker > blind .delete().eq() utan känt radantal får inte köras 1ms
+ ✓ src/test/syncRowCountCircuitBreaker.contract.test.ts > STEG 3I — radbaserad circuit breaker > guardedDeleteWhere löser ut exakta rader tenant-scopat och raderar dem 1ms
+ ✓ src/test/syncRowCountCircuitBreaker.contract.test.ts > STEG 3I — radbaserad circuit breaker > calendar delete med 11 rader mot limit 10 raderar 0 rader 1ms
+ ✓ src/test/syncRowCountCircuitBreaker.contract.test.ts > STEG 3I — radbaserad circuit breaker > request kan aldrig höja gränserna 0ms
+ ✓ src/test/syncRowCountCircuitBreaker.contract.test.ts > STEG 3I — radbaserad circuit breaker > totalgräns räknas i rader över kinds 0ms
+ ✓ src/test/syncRowCountCircuitBreaker.contract.test.ts > STEG 3I — radbaserad circuit breaker > circuit breaker-reason nämner kind 0ms
+ ✓ src/test/syncRowCountCircuitBreaker.contract.test.ts > STEG 3I — dry-run RPC-klassificering > read-only RPC körs och ger data 1ms
+ ✓ src/test/syncRowCountCircuitBreaker.contract.test.ts > STEG 3I — dry-run RPC-klassificering > muterande RPC körs inte men registreras som planerad mutation 1ms
+ ✓ src/test/syncRowCountCircuitBreaker.contract.test.ts > STEG 3I — dry-run RPC-klassificering > okänd RPC i dry-run är fail-closed 1ms
+ ✓ src/test/syncRowCountCircuitBreaker.contract.test.ts > STEG 3I — dry-run RPC-klassificering > read-only allowlist och mutating blocklist överlappar inte 0ms
+ ✓ src/test/syncRowCountCircuitBreaker.contract.test.ts > STEG 3I — dry-run gör noll mutationer men verklig diff > inga DB-mutationer, planerade rader räknas 1ms
+ ✓ src/test/syncRowCountCircuitBreaker.contract.test.ts > STEG 3I — dry-run gör noll mutationer men verklig diff > dry-run flyttar aldrig cursor eller markerar completed 0ms
+ ✓ src/test/syncRowCountCircuitBreaker.contract.test.ts > STEG 3I — dry-run gör noll mutationer men verklig diff > dry-run delete utan deklarerat radantal är fail-closed 0ms
+ ✓ src/test/syncRowCountCircuitBreaker.contract.test.ts > STEG 3I — audit räknar rader > adds räknas i rader vid array-insert 0ms
+ ✓ src/test/syncRowCountCircuitBreaker.contract.test.ts > STEG 3I — audit räknar rader > deletes i counters är rader, inte satser 0ms
+ ✓ src/test/syncJobRetryHardening.contract.test.ts > STEG 4B — job state machine > tillåter dokumenterade transitions 2ms
+ ✓ src/test/syncJobRetryHardening.contract.test.ts > STEG 4B — job state machine > blockerar ogiltiga och terminala transitions 1ms
+ ✓ src/test/syncJobRetryHardening.contract.test.ts > STEG 4B — job state machine > terminala states har inga utgångar 1ms
+ ✓ src/test/syncJobRetryHardening.contract.test.ts > STEG 4B — job state machine > endast completed räknas som success för batchen 0ms
+ ✓ src/test/syncJobRetryHardening.contract.test.ts > STEG 4B — max retries > request kan aldrig höja max_attempts 0ms
+ ✓ src/test/syncJobRetryHardening.contract.test.ts > STEG 4B — max retries > max attempts ger explicit terminalt fel, inte evig retry 0ms
+ ✓ src/test/syncJobRetryHardening.contract.test.ts > STEG 4B — retry delay > bounded exponential backoff 0ms
+ ✓ src/test/syncJobRetryHardening.contract.test.ts > STEG 4B — retry delay > next_attempt_at ligger alltid i framtiden och ökar med försöken 0ms
+ ✓ src/test/syncJobRetryHardening.contract.test.ts > STEG 4B — claim, lease och takeover > claim sätter lease + token och räknar upp attempts 2ms
+ ✓ src/test/syncJobRetryHardening.contract.test.ts > STEG 4B — claim, lease och takeover > worker crash: processing med levande lease får INTE tas över 0ms
+ ✓ src/test/syncJobRetryHardening.contract.test.ts > STEG 4B — claim, lease och takeover > lease expiry: utgånget processing-jobb återtas med nytt token 0ms
+ ✓ src/test/syncJobRetryHardening.contract.test.ts > STEG 4B — claim, lease och takeover > gammal worker kan inte commit:a efter takeover 0ms
+ ✓ src/test/syncJobRetryHardening.contract.test.ts > STEG 4B — claim, lease och takeover > duplicate delivery: upprepad complete på samma jobb är idempotent 0ms
+ ✓ src/test/syncJobRetryHardening.contract.test.ts > STEG 4B — claim, lease och takeover > max retries: sista misslyckandet blir failed, inte retryable, och claim:as ej mer 0ms
+ ✓ src/test/syncJobRetryHardening.contract.test.ts > STEG 4B — claim, lease och takeover > retryable jobb plockas upp igen först när next_attempt_at passerat 0ms
+ ✓ src/test/syncJobRetryHardening.contract.test.ts > STEG 4B — claim, lease och takeover > poison job i org A blockerar inte org B (fair share per org) 9ms
+ ✓ src/test/syncJobRetryHardening.contract.test.ts > STEG 4B — claim, lease och takeover > två organisationer: fel i org A rör inte org B:s jobb 0ms
+ ✓ src/test/syncJobRetryHardening.contract.test.ts > STEG 4B — batch finalization och cursor > retryable jobb blockerar finalisering och cursor 0ms
+ ✓ src/test/syncJobRetryHardening.contract.test.ts > STEG 4B — batch finalization och cursor > mixed success/failed batch blir partial utan cursorflytt 0ms
+ ✓ src/test/syncJobRetryHardening.contract.test.ts > STEG 4B — batch finalization och cursor > endast helt lyckad batch flyttar cursorn 0ms
+ ✓ src/test/syncJobRetryHardening.contract.test.ts > STEG 4B — batch finalization och cursor > cursor monotonicitet: äldre planned_cursor flyttar aldrig bakåt 0ms
+ ✓ src/test/syncJobRetryHardening.contract.test.ts > STEG 4B — batch finalization och cursor > partial job (jobbet retryas) → batch stannar pending tills terminalt 0ms
+ ✓ src/test/compatibilityEvidenceNegative.contract.test.ts > compatibility evidence – fail-closed grundfall > saknad evidens ⇒ NOT_EXECUTED, aldrig PASS 2ms
+ ✓ src/test/compatibilityEvidenceNegative.contract.test.ts > compatibility evidence – fail-closed grundfall > malformed evidens ⇒ FAIL 0ms
+ ✓ src/test/compatibilityEvidenceNegative.contract.test.ts > compatibility evidence – fail-closed grundfall > tomt objekt ⇒ FAIL 0ms
+ ✓ src/test/compatibilityEvidenceNegative.contract.test.ts > compatibility evidence – mutationer av giltig rapport > baslinjen (rapporten på disk) utvärderas utan att kasta 2ms
+ ✓ src/test/compatibilityEvidenceNegative.contract.test.ts > compatibility evidence – mutationer av giltig rapport > klassificering eller harness-namn manipulerat ⇒ FAIL 1ms
+ ✓ src/test/compatibilityEvidenceNegative.contract.test.ts > compatibility evidence – mutationer av giltig rapport > production-miljö eller osäker miljö ⇒ FAIL 1ms
+ ✓ src/test/compatibilityEvidenceNegative.contract.test.ts > compatibility evidence – mutationer av giltig rapport > inga mutationer körda eller cleanup saknas ⇒ FAIL 1ms
+ ✓ src/test/compatibilityEvidenceNegative.contract.test.ts > compatibility evidence – mutationer av giltig rapport > för få migrationer eller failade migrationer ⇒ FAIL 1ms
+ ✓ src/test/compatibilityEvidenceNegative.contract.test.ts > compatibility evidence – mutationer av giltig rapport > saknad variant ⇒ FAIL (båda legacy-varianterna krävs) 1ms
+ ✓ src/test/compatibilityEvidenceNegative.contract.test.ts > compatibility evidence – mutationer av giltig rapport > en enskild migration med annat resultat än PASS ⇒ FAIL 1ms
+ ✓ src/test/compatibilityEvidenceNegative.contract.test.ts > compatibility evidence – mutationer av giltig rapport > postconditions saknade eller failade ⇒ FAIL 0ms
+ ✓ src/test/compatibilityEvidenceNegative.contract.test.ts > compatibility evidence – mutationer av giltig rapport > stale evidens: content-binding matchar inte aktuell kod ⇒ FAIL 0ms
+ ✓ src/test/compatibilityEvidenceNegative.contract.test.ts > compatibility evidence – mutationer av giltig rapport > stale evidens: scope- eller fingerprint-hash mismatch ⇒ FAIL 0ms
+ ✓ src/test/compatibilityEvidenceNegative.contract.test.ts > compatibility evidence – mutationer av giltig rapport > evidence_binding eller git_commit saknas ⇒ FAIL 1ms
+ ✓ src/test/compatibilityEvidenceNegative.contract.test.ts > compatibility evidence – mutationer av giltig rapport > saknad .txt-evidens eller ej verifierade fingerprints ⇒ FAIL 1ms
+ ✓ src/test/compatibilityEvidenceNegative.contract.test.ts > evaluatorn reparerar aldrig själv > kör aldrig harnessen eller migrationer – bara git rev-parse 1ms
+ ✓ src/test/compatibilityEvidenceNegative.contract.test.ts > evaluatorn reparerar aldrig själv > exit-koden är fail-closed (endast PASS ger 0) 0ms
+ ✓ src/test/syncObservability.contract.test.ts > safety limits > gränserna är frysta och kan inte höjas via request 4ms
+ ✓ src/test/syncObservability.contract.test.ts > safety limits > product destructive limit kan inte höjas via request-payload 1ms
+ ✓ src/test/syncObservability.contract.test.ts > safety limits > calendar destructive limit kan inte höjas via request-payload 1ms
+ ✓ src/test/syncObservability.contract.test.ts > safety limits > total_deletes fångar summan över kategorier 0ms
+ ✓ src/test/syncObservability.contract.test.ts > safety limits > ogiltigt planerat antal blockeras (fail-closed) 0ms
+ ✓ src/test/syncObservability.contract.test.ts > circuit breaker > kastar och räknar block 1ms
+ ✓ src/test/syncObservability.contract.test.ts > circuit breaker > STEG 3I: odeklarerad delete i guardad klient är fail-closed 1ms
+ ✓ src/test/syncObservability.contract.test.ts > circuit breaker > STEG 3I: deklarerat radantal över gränsen stoppar FÖRE delete 0ms
+ ✓ src/test/syncObservability.contract.test.ts > circuit breaker > räknar adds/updates/deletes per kategori (rader) 1ms
+ ✓ src/test/syncObservability.contract.test.ts > circuit breaker > klassificerar tabeller 0ms
+ ✓ src/test/syncObservability.contract.test.ts > dry-run > kräver explicit dry_run + booking_id 0ms
+ ✓ src/test/syncObservability.contract.test.ts > dry-run > gör noll mutationer men räknar planerade 1ms
+ ✓ src/test/syncObservability.contract.test.ts > dry-run > muterande rpc körs inte i dry-run (STEG 3I: klassificerad) 0ms
+ ✓ src/test/syncObservability.contract.test.ts > dry-run > dry-run audit markerar completed=false-semantik (dry_run true, ingen cursor) 1ms
+ ✓ src/test/syncObservability.contract.test.ts > audit > innehåller alla obligatoriska fält 1ms
+ ✓ src/test/syncObservability.contract.test.ts > audit > innehåller aldrig secrets eller tokens 0ms
+ ✓ src/test/syncObservability.contract.test.ts > audit > exponerar inte data mellan organisationer 0ms
+ ✓ src/test/syncObservability.contract.test.ts > anomaly detection > flaggar kraftigt tapp i produktantal 1ms
+ ✓ src/test/syncObservability.contract.test.ts > anomaly detection > flaggar många calendar deletes 0ms
+ ✓ src/test/syncObservability.contract.test.ts > anomaly detection > flaggar oväntat statushopp, bakåtgående revision, partials, lease takeover och retries 1ms
+ ✓ src/test/syncObservability.contract.test.ts > anomaly detection > inga falsklarm vid normal sync 0ms
+ ✓ src/test/syncObservability.contract.test.ts > cancellation production safety orörd > observability rör inte cancellation-flaggan 20ms
+ ✓ src/test/syncReleaseMigrationFingerprints.contract.test.ts > STEG 5A — migration fingerprints > manifestet täcker exakt 4Y-scopet i samma ordning 2ms
+ ✓ src/test/syncReleaseMigrationFingerprints.contract.test.ts > STEG 5A — migration fingerprints > varje migrationsfil på disk matchar godkänd SHA-256 4ms
+ ✓ src/test/syncReleaseMigrationFingerprints.contract.test.ts > STEG 5A — migration fingerprints > inga hashes är tomma eller duplicerade 1ms
+ ✓ src/test/syncReleaseMigrationFingerprints.contract.test.ts > STEG 5A — migration fingerprints > testet uppdaterar aldrig manifestet automatiskt 1ms
+ ✓ src/test/automaticDestructiveSyncFlag.contract.test.ts > AUTOMATIC_DESTRUCTIVE_SYNC_ENABLED feature flag > endast exakt "true" aktiverar automation 2ms
+ ✓ src/test/automaticDestructiveSyncFlag.contract.test.ts > AUTOMATIC_DESTRUCTIVE_SYNC_ENABLED feature flag > hård gräns är 1 och definieras server-side 0ms
+ ✓ src/test/automaticDestructiveSyncFlag.contract.test.ts > cancellation-handler är låst (defense in depth) > kontrollerar flaggan innan RPC-anropet 0ms
+ ✓ src/test/automaticDestructiveSyncFlag.contract.test.ts > cancellation-handler är låst (defense in depth) > returnerar automatic_destructive_sync_disabled som error-outcome 0ms
+ ✓ src/test/automaticDestructiveSyncFlag.contract.test.ts > reconcile-booking-status > kan inte höja maxgränsen via request body 0ms
+ ✓ src/test/automaticDestructiveSyncFlag.contract.test.ts > reconcile-booking-status > dry-run är standard 0ms
+ ✓ src/test/automaticDestructiveSyncFlag.contract.test.ts > reconcile-booking-status > live-apply kräver flagga + dry_run=false + confirm + exakt en booking_id 0ms
+ ✓ src/test/automaticDestructiveSyncFlag.contract.test.ts > reconcile-booking-status > bred körning utan booking_id kan aldrig live-avboka 0ms
+ ✓ src/test/automaticDestructiveSyncFlag.contract.test.ts > reconcile-booking-status > loggar blockerad kandidat strukturerat 0ms
+ ✓ src/test/automaticDestructiveSyncFlag.contract.test.ts > import-bookings cancellation-väg (STEG 3L) > innehåller inga cancellation-anrop alls 0ms
+ ✓ src/test/automaticDestructiveSyncFlag.contract.test.ts > import-bookings cancellation-väg (STEG 3L) > CANCELLED blir kandidat som varken är completed eller flyttar cursor 0ms
+ ✓ src/test/automaticDestructiveSyncFlag.contract.test.ts > säkerhetslogg > loggar booking_id, organization_id, revision och caller utan secrets 0ms
+ ✓ src/test/automaticDestructiveSyncFlag.contract.test.ts > runtime-blockering av applyBookingCancellation > flagga saknas → ingen RPC, ingen mutation 3ms
+ ✓ src/test/automaticDestructiveSyncFlag.contract.test.ts > runtime-blockering av applyBookingCancellation > flagga är false → ingen RPC, ingen mutation 1ms
+ ✓ src/test/automaticDestructiveSyncFlag.contract.test.ts > runtime-blockering av applyBookingCancellation > flagga är TRUE (fel case) → ingen RPC, ingen mutation 0ms
+ ✓ src/test/automaticDestructiveSyncFlag.contract.test.ts > runtime-blockering av applyBookingCancellation > flagga är tom → ingen RPC, ingen mutation 0ms
+ ✓ src/test/automaticDestructiveSyncFlag.contract.test.ts > runtime-blockering av applyBookingCancellation > flagga exakt "true" → RPC anropas 1ms
+ ✓ src/test/automaticDestructiveSyncFlag.contract.test.ts > cron-jobbet för cancellation > en migration unschedular reconcile-booking-status idempotent 121ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > GREEN endast när samtliga blockerande sektioner är PASS 2ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > RED när safe_environment är FAIL 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > RED när release_migration_compatibility är FAIL 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > RED när sql_e2e_release_gate är FAIL 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > RED när contract_tests är FAIL 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > RED när typecheck är FAIL 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > RED när build är FAIL 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > RED när final_release_content_binding är FAIL 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > RED när safe_environment är NOT EXECUTED 1ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > RED när release_migration_compatibility är NOT EXECUTED 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > RED när sql_e2e_release_gate är NOT EXECUTED 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > RED när contract_tests är NOT EXECUTED 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > RED när typecheck är NOT EXECUTED 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > RED när build är NOT EXECUTED 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > RED när final_release_content_binding är NOT EXECUTED 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > RED när safe_environment saknas helt 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > RED när release_migration_compatibility saknas helt 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > RED när sql_e2e_release_gate saknas helt 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > RED när contract_tests saknas helt 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > RED när typecheck saknas helt 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > RED när build saknas helt 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > RED när final_release_content_binding saknas helt 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > RED på tom rapport (fail-closed default) 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > historical_migration_replay får aldrig vara PASS/GREEN och är aldrig blockerande 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > STEG 5C – FINAL RELEASE GATE semantik > RED om historical replay markeras som blocking 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > contract-test-sektionen > PASS när alla manifest-filer kördes och passerade 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > contract-test-sektionen > NOT_EXECUTED när sviten aldrig kördes 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > contract-test-sektionen > FAIL vid "No test files found" trots exit 0 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > contract-test-sektionen > FAIL när en manifest-fil inte exekverades 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > contract-test-sektionen > FAIL när en manifest-fil saknas på disk 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > contract-test-sektionen > FAIL vid failade tester eller nollskilt exit code 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > typecheck/build-sektionerna > PASS endast vid exit 0 och faktisk körning 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > SQL/E2E-evidens > PASS för GREEN rapport från samma release-run 1ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > SQL/E2E-evidens > FAIL för rapport från en annan (stale) körning 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > SQL/E2E-evidens > NOT_EXECUTED när rapporten saknas, FAIL när den är malformed 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > SQL/E2E-evidens > FAIL när en obligatorisk SQL-sektion inte är PASS 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > SQL/E2E-evidens > FAIL när compat inte är PASS i SQL-rapporten 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > final content-binding > PASS bara när inspelad binding matchar aktuell disk 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > final content-binding > bindningen täcker migrationer, harness, runtime och tester utan saknade filer 71ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > final content-binding > bindningen ändras när en bunden fil ändras (deterministisk men känslig) 119ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > runner-kontrakt > finns och är fail-closed med defaults NOT_EXECUTED 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > runner-kontrakt > kör alla obligatoriska steg i ordning 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > runner-kontrakt > genererar ett unikt release_run_id per körning 0ms
+ ✓ src/test/finalReleaseGate.contract.test.ts > runner-kontrakt > manifestet driver testurvalet (ingen hårdkodad testlista i runnern) 1ms
+ ✓ src/test/releaseMigrationCompatibility.contract.test.ts > STEG 4Z — harness-integritet > alla harness-filer finns 3ms
+ ✓ src/test/releaseMigrationCompatibility.contract.test.ts > STEG 4Z — harness-integritet > scope läses från 4Y-manifestet, inte en duplicerad lista 1ms
+ ✓ src/test/releaseMigrationCompatibility.contract.test.ts > STEG 4Z — harness-integritet > harnessen är fail-fast och hoppar inte över migrationer 0ms
+ ✓ src/test/releaseMigrationCompatibility.contract.test.ts > STEG 4Z — harness-integritet > harnessen kör båda legacy-varianterna 0ms
+ ✓ src/test/releaseMigrationCompatibility.contract.test.ts > STEG 4Z — harness-integritet > fixturen beskrivs aldrig som historisk baseline eller replay 1ms
+ ✓ src/test/releaseMigrationCompatibility.contract.test.ts > STEG 4Z — harness-integritet > varje CURRENT_STATE_CONTRACT-objekt har ett dokumenterat antagande 2ms
+ ✓ src/test/releaseMigrationCompatibility.contract.test.ts > STEG 4Z — harness-integritet > VERIFIED_PRESTATE-källor finns faktiskt på disk 1ms
+ ✓ src/test/releaseMigrationCompatibility.contract.test.ts > STEG 4Z — rapportintegritet > rapporten finns och har rätt harness-namn 2ms
+ ✓ src/test/releaseMigrationCompatibility.contract.test.ts > STEG 4Z — rapportintegritet > disclaimer är ordagrann 1ms
+ ✓ src/test/releaseMigrationCompatibility.contract.test.ts > STEG 4Z — rapportintegritet > rapportens scope matchar manifestet exakt (ordning + storlek) 2ms
+ ✓ src/test/releaseMigrationCompatibility.contract.test.ts > STEG 4Z — rapportintegritet > COMPATIBILITY_PASS kräver att varje migration i varje variant är PASS 5ms
+ ✓ src/test/releaseMigrationCompatibility.contract.test.ts > STEG 4Z — rapportintegritet > postconditions täcker de obligatoriska releasekontrakten 2ms
+ ✓ src/test/releaseMigrationCompatibility.contract.test.ts > STEG 4Z — rapportintegritet > STEG 5B: compatibility är en blockerande sektion i den fail-closed gaten 3ms
+ ✓ src/test/syncReleaseMigrationScope.contract.test.ts > STEG 4Y — targeted release migration scope > scope är exakt 12 migrationer och inte tomt 5ms
+ ✓ src/test/syncReleaseMigrationScope.contract.test.ts > STEG 4Y — targeted release migration scope > inga dubbletter i scope 0ms
+ ✓ src/test/syncReleaseMigrationScope.contract.test.ts > STEG 4Y — targeted release migration scope > varje release-migration finns på disk och är icke-tom 19ms
+ ✓ src/test/syncReleaseMigrationScope.contract.test.ts > STEG 4Y — targeted release migration scope > scope är sorterat kronologiskt (timestamp-prefix) 0ms
+ ✓ src/test/syncReleaseMigrationScope.contract.test.ts > STEG 4Y — targeted release migration scope > alla release-migrationer ligger inom releasefönstret 2026-08-13..2026-08-16 1ms
+ ✓ src/test/syncReleaseMigrationScope.contract.test.ts > STEG 4Y — targeted release migration scope > provenance-rapporten täcker exakt samma scope 6ms
+ ✓ src/test/syncSafetyOperations.contract.test.ts > STEG 4G — global kill switch > default (ingen flagga) = sync körs, oförändrat beteende 2ms
+ ✓ src/test/syncSafetyOperations.contract.test.ts > STEG 4G — global kill switch > endast exakt "true" pausar globalt 1ms
+ ✓ src/test/syncSafetyOperations.contract.test.ts > STEG 4G — global kill switch > global paus blockerar muterande sync 0ms
+ ✓ src/test/syncSafetyOperations.contract.test.ts > STEG 4G — global kill switch > org-scoped paus träffar endast angiven organisation 0ms
+ ✓ src/test/syncSafetyOperations.contract.test.ts > STEG 4G — global kill switch > parsePausedOrgs hanterar komma, semikolon och whitespace 1ms
+ ✓ src/test/syncSafetyOperations.contract.test.ts > STEG 4G — global kill switch > dry-run / read-only diagnostik fungerar under paus 0ms
+ ✓ src/test/syncSafetyOperations.contract.test.ts > STEG 4G — global kill switch > request kan ALDRIG slå av pausen 1ms
+ ✓ src/test/syncSafetyOperations.contract.test.ts > STEG 4G — global kill switch > request kan ALDRIG slå på pausen för andras räkning heller (fail-closed) 0ms
+ ✓ src/test/syncSafetyOperations.contract.test.ts > STEG 4G — global kill switch > tamper-check gäller även i dry-run 0ms
+ ✓ src/test/syncSafetyOperations.contract.test.ts > STEG 4G — worker: ingen completion, ingen cursorflytt vid paus > outcome mutating_sync_paused ger completed=false och retriable 1ms
+ ✓ src/test/syncSafetyOperations.contract.test.ts > STEG 4G — worker: ingen completion, ingen cursorflytt vid paus > ett pausat svar kan aldrig maskeras som applied 0ms
+ ✓ src/test/syncSafetyOperations.contract.test.ts > STEG 4G — worker: ingen completion, ingen cursorflytt vid paus > paus-svar för fel organisation avvisas (org isolation) 0ms
+ ✓ src/test/syncSafetyOperations.contract.test.ts > STEG 4G — per-organization safety metrics > räknar imports/applied/partial/failed/stale/conflicts/lease/retries/breaker/candidates 1ms
+ ✓ src/test/syncSafetyOperations.contract.test.ts > STEG 4G — per-organization safety metrics > paus räknas som import men aldrig som fel 0ms
+ ✓ src/test/syncSafetyOperations.contract.test.ts > STEG 4G — per-organization safety metrics > organisationer hålls strikt isolerade 1ms
+ ✓ src/test/syncSafetyOperations.contract.test.ts > STEG 4G — anomaly flags > high_failure_rate kräver minst min_sample importer 1ms
+ ✓ src/test/syncSafetyOperations.contract.test.ts > STEG 4G — anomaly flags > många product/calendar delete candidates flaggas 0ms
+ ✓ src/test/syncSafetyOperations.contract.test.ts > STEG 4G — anomaly flags > repeated_retry_same_booking flaggas per bokning 0ms
+ ✓ src/test/syncSafetyOperations.contract.test.ts > STEG 4G — anomaly flags > revision_went_backwards flaggas 0ms
+ ✓ src/test/syncSafetyOperations.contract.test.ts > STEG 4G — anomaly flags > sudden_source_count_drop flaggas vid halverat källantal 0ms
+ ✓ src/test/syncSafetyOperations.contract.test.ts > STEG 4G — anomaly flags > anomali pausar aldrig automatiskt — endast rekommendation 0ms
+ ✓ src/test/syncSafetyOperations.contract.test.ts > STEG 4G — blockeringsaudit > loggar org, booking, reason, job, batch och revision 1ms
+ ✓ src/test/syncSafetyOperations.contract.test.ts > STEG 4G — blockeringsaudit > innehåller aldrig tokens eller secrets 0ms
+ ✓ src/test/syncSafetyOperations.contract.test.ts > STEG 4G — blockeringsaudit > metrics-loggen innehåller endast räknare och flaggor 1ms
+stderr | src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 20. Circuit breaker: verkliga rader räknas före mutation
+[sync-safety] safety_circuit_breaker {"blocked":true,"kind":"product_deletes","planned_rows":26,"reason":"safety_circuit_breaker:product_deletes","limit":25,"attempted":26,"booking_id":null,"organization_id":null}
+
+stderr | src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 20. Circuit breaker: verkliga rader räknas före mutation
+[sync-safety] safety_circuit_breaker {"blocked":true,"kind":"product_deletes","planned_rows":26,"reason":"safety_circuit_breaker:product_deletes","limit":25,"attempted":26,"booking_id":null,"organization_id":null}
+
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 1. New booking: canonical projection appliceras och revision committas 9ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 2. Existing booking update: uppdaterar bokning utan att radera något 2ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 3. Stale revision: 0 booking-, produkt-, kalender- och revisionsändringar 1ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 4. Equal revision: idempotent, ingen mutation, ingen commit 0ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 5. Same revision conflicting status: fail-closed, ingen mutation 1ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 6. Lease collision: andra jobbet blockeras av booking_import_locked 1ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 7. Lease loss under import: stoppar direkt, inga mutationer, ingen commit 1ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 8. Partial product source: inga produkt-deletes, blockedRemovals loggas 3ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 9. Complete product source: delete tillåts endast då 2ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 10. Empty complete product source: tom lista raderar aldrig 1ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 11. Calendar date update: event vars datum försvunnit raderas kontrollerat 1ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 12. Missing calendar field: absent datum raderar inget 1ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 13. Manual event preservation: Planning-ägda event raderas aldrig 1ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 14. Product insert failure → partial, ingen revision commit 1ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 15. Packing item failure → partial 1ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 16. Project read failure → partial, projekt oförändrat 1ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 17. Cross-tenant same booking id: endast org A muteras 1ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 18. Cancellation candidate: normal sync gör aldrig destruktiv cancellation 1ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 19. Invalid dry-run: fail-closed, aldrig live-fallback 1ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 20. Circuit breaker: verkliga rader räknas före mutation 3ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 21. Retry after partial: nästa körning utan fel committar 1ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 22. Worker job completion: endast applied/already_current får completas 0ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 23. Batch finalization: batch stängs först när alla jobb är terminala 0ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 24. Cursor advancement: cursor flyttas endast vid full success 0ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > 25. Cursor blocked after failure: failed jobb stoppar cursorn 0ms
+ ✓ src/test/syncRegressionScenarios.contract.test.ts > STEG 4A — Booking → Planning sync: regressionsscenarier > bonus: normal sync får aldrig destruera projections 0ms
+ ✓ src/test/releaseMigrationCompatSafety.contract.test.ts > STEG 5A — fail-closed safety före mutationer > återanvänder befintlig preflight istället för egna production-markörer 2ms
+ ✓ src/test/releaseMigrationCompatSafety.contract.test.ts > STEG 5A — fail-closed safety före mutationer > preflight körs FÖRE all CREATE/DROP DATABASE och all SQL 1ms
+ ✓ src/test/releaseMigrationCompatSafety.contract.test.ts > STEG 5A — fail-closed safety före mutationer > kräver E2E_ENVIRONMENT=local och stannar före mutation annars 1ms
+ ✓ src/test/releaseMigrationCompatSafety.contract.test.ts > STEG 5A — fail-closed safety före mutationer > kräver explicit E2E_ALLOW_COMPAT_DATABASE_CREATE_DROP=true 0ms
+ ✓ src/test/releaseMigrationCompatSafety.contract.test.ts > STEG 5A — fail-closed safety före mutationer > test/staging/prod kan aldrig nå create/drop (endast local passerar) 0ms
+ ✓ src/test/releaseMigrationCompatSafety.contract.test.ts > STEG 5A — fail-closed safety före mutationer > vid failad preflight: mutations_executed=false och non-zero exit 0ms
+ ✓ src/test/releaseMigrationCompatSafety.contract.test.ts > STEG 5A — scratch-databaser och cleanup > inga fasta databasnamn kvar 0ms
+ ✓ src/test/releaseMigrationCompatSafety.contract.test.ts > STEG 5A — scratch-databaser och cleanup > unikt run-id med strikt prefix 0ms
+ ✓ src/test/releaseMigrationCompatSafety.contract.test.ts > STEG 5A — scratch-databaser och cleanup > ingen DROP DATABASE före CREATE och ingen prefix-wide cleanup 1ms
+ ✓ src/test/releaseMigrationCompatSafety.contract.test.ts > STEG 5A — scratch-databaser och cleanup > cleanup droppar endast databaser skapade av denna run 0ms
+ ✓ src/test/releaseMigrationCompatSafety.contract.test.ts > STEG 5A — scratch-databaser och cleanup > trap-baserad cleanup för exit, INT och TERM 0ms
+ ✓ src/test/releaseMigrationCompatSafety.contract.test.ts > STEG 5A — rapportintegritet och evidens > rapporten har all körmetadata 2ms
+ ✓ src/test/releaseMigrationCompatSafety.contract.test.ts > STEG 5A — rapportintegritet och evidens > PASS kräver safe_environment=PASS och full räkning 1ms
+ ✓ src/test/releaseMigrationCompatSafety.contract.test.ts > STEG 5A — rapportintegritet och evidens > FAIL kräver en icke-null first_failure 0ms
+ ✓ src/test/releaseMigrationCompatSafety.contract.test.ts > STEG 5A — rapportintegritet och evidens > exporterbar .txt-evidens finns och pekas ut från JSON 2ms
+ ✓ src/test/releaseMigrationCompatSafety.contract.test.ts > STEG 5A — rapportintegritet och evidens > inga credentials i rapport eller evidens 1ms
+ ✓ src/test/releaseMigrationCompatSafety.contract.test.ts > STEG 5A — rapportintegritet och evidens > STEG 5B: compatibility är blockerande men kräver bunden evidens 0ms
+stderr | src/test/legacyBsaRpcRetired.contract.test.ts > STEG 4N — wrapper beteende > saknad organization → ingen RPC alls (fail-closed)
+[recomputeBookingStaffForDay] BSA recompute skipped — organization_id saknas (fail-closed) { bookingId: [32m'B-3'[39m, date: [32m'2026-08-16'[39m }
+
+stderr | src/test/legacyBsaRpcRetired.contract.test.ts > STEG 4N — wrapper beteende > saknade argument → ingen RPC
+[recomputeBookingStaffForDay] BSA recompute skipped — saknar bookingId/date { bookingId: [32m''[39m, date: [32m'2026-08-16'[39m }
+
+ ✓ src/test/legacyBsaRpcRetired.contract.test.ts > STEG 4N — inga aktiva legacy-callers > ingen aktiv caller anropar legacy-RPC direkt 8ms
+ ✓ src/test/legacyBsaRpcRetired.contract.test.ts > STEG 4N — inga aktiva legacy-callers > import-bookings använder bara V2 3ms
+ ✓ src/test/legacyBsaRpcRetired.contract.test.ts > STEG 4N — inga aktiva legacy-callers > wrappern innehåller ingen legacy-fallback 1ms
+ ✓ src/test/legacyBsaRpcRetired.contract.test.ts > STEG 4N — wrapper beteende > frontend caller A (phaseDaysWriter-stil, explicit org) använder V2 + org 1ms
+ ✓ src/test/legacyBsaRpcRetired.contract.test.ts > STEG 4N — wrapper beteende > frontend caller B (kalender-flytt, härledd org) använder V2 + org 1ms
+ ✓ src/test/legacyBsaRpcRetired.contract.test.ts > STEG 4N — wrapper beteende > saknad organization → ingen RPC alls (fail-closed) 4ms
+ ✓ src/test/legacyBsaRpcRetired.contract.test.ts > STEG 4N — wrapper beteende > saknade argument → ingen RPC 1ms
+ ✓ src/test/legacyBsaRpcRetired.contract.test.ts > STEG 4N — wrapper beteende > Org A flytt skickar aldrig Org B:s organization_id 0ms
+ ✓ src/test/legacyBsaRpcRetired.contract.test.ts > STEG 4N — RPC-permissions > migrationen återkallar EXECUTE på legacy-RPC 1ms
+ ✓ src/test/legacyBsaRpcRetired.contract.test.ts > STEG 4N — RPC-permissions > migrationen droppar inte legacy-funktionen 0ms
+ ✓ src/test/legacyBsaRpcRetired.contract.test.ts > STEG 4N — RPC-permissions > migrationen gör ingen datamutation 0ms
+ ✓ src/test/legacyBsaRpcRetired.contract.test.ts > STEG 4N — RPC-permissions > V2 är körbar för authenticated + service_role men inte anon 0ms
+ ✓ src/test/syncPerformance.contract.test.ts > STEG 4E — SyncPerfTracker mätning > räknar queries per bokning och skiljer read/write 2ms
+ ✓ src/test/syncPerformance.contract.test.ts > STEG 4E — SyncPerfTracker mätning > avslutar föregående bokning automatiskt vid ny beginBooking (continue i loopen) 0ms
+ ✓ src/test/syncPerformance.contract.test.ts > STEG 4E — SyncPerfTracker mätning > registrerar produkt-, kalender- och packningsantal per bokning 0ms
+ ✓ src/test/syncPerformance.contract.test.ts > STEG 4E — SyncPerfTracker mätning > mäter faser via phase() och startPhase() och summerar dem 1ms
+ ✓ src/test/syncPerformance.contract.test.ts > STEG 4E — SyncPerfTracker mätning > phase() ändrar inte semantik — fel kastas vidare oförändrat 1ms
+ ✓ src/test/syncPerformance.contract.test.ts > STEG 4E — SyncPerfTracker mätning > är helt passiv när den är avstängd (ingen loggning, tomma mätvärden) 1ms
+ ✓ src/test/syncPerformance.contract.test.ts > STEG 4E — SyncPerfTracker mätning > logSummary loggar bara aggregat — ingen känslig data 1ms
+ ✓ src/test/syncPerformance.contract.test.ts > STEG 4E — SyncPerfTracker mätning > verbose produktloggning är AV som standard 0ms
+ ✓ src/test/syncPerformance.contract.test.ts > STEG 4E — semantiken oförändrad vid olika volymer > bokning med 0 produkter ger commit och inga fel 7ms
+ ✓ src/test/syncPerformance.contract.test.ts > STEG 4E — semantiken oförändrad vid olika volymer > bokning med 20 produkter ger commit och inga fel 2ms
+ ✓ src/test/syncPerformance.contract.test.ts > STEG 4E — semantiken oförändrad vid olika volymer > bokning med 200 produkter ger commit och inga fel 3ms
+ ✓ src/test/syncPerformance.contract.test.ts > STEG 4E — semantiken oförändrad vid olika volymer > stort datumset påverkar inte utfallet 1ms
+ ✓ src/test/syncPerformance.contract.test.ts > STEG 4E — semantiken oförändrad vid olika volymer > retry av samma revision är idempotent (already_current, inga fel) 1ms
+ ✓ src/test/syncPerformance.contract.test.ts > STEG 4E — semantiken oförändrad vid olika volymer > två organisationer med samma booking-id hålls isolerade 4ms
+ ✓ src/test/releaseBindingRuntimeCoverage.contract.test.ts > release binding – runtime-täckning > alla bundna runtime-filer finns på disk 3ms
+ ✓ src/test/releaseBindingRuntimeCoverage.contract.test.ts > release binding – runtime-täckning > runtime-ytan täcker både frontend och edge functions 1ms
+ ✓ src/test/releaseBindingRuntimeCoverage.contract.test.ts > release binding – runtime-täckning > kritiska sync-filer är bundna 2ms
+ ✓ src/test/releaseBindingRuntimeCoverage.contract.test.ts > release binding – runtime-täckning > RELEASE_BINDING_FILES innehåller hela runtime-ytan 2ms
+ ✓ src/test/releaseBindingRuntimeCoverage.contract.test.ts > release binding – runtime-täckning > release-bindningen är deterministisk och komplett 82ms
+ ✓ src/test/releaseBindingRuntimeCoverage.contract.test.ts > test-manifestet > varje manifest-test finns på disk 1ms
+ ✓ src/test/releaseBindingRuntimeCoverage.contract.test.ts > test-manifestet > varje obligatoriskt release-område har minst ett test 0ms
+ ✓ src/test/releaseBindingRuntimeCoverage.contract.test.ts > test-manifestet > inga dubbletter i manifestet 0ms
+ ✓ src/test/releaseBindingRuntimeCoverage.contract.test.ts > test-manifestet > mjs-läsaren ser samma testlista som TS-manifestet 2ms
+ ✓ src/test/releaseBindingRuntimeCoverage.contract.test.ts > final release binding > täcker de 12 release-migrationerna 1ms
+ ✓ src/test/releaseBindingRuntimeCoverage.contract.test.ts > final release binding > täcker harness, SQL-sektioner, gate-kod och byggkonfiguration 1ms
+ ✓ src/test/releaseBindingRuntimeCoverage.contract.test.ts > final release binding > täcker samtliga obligatoriska kontraktstester 2ms
+ ✓ src/test/releaseBindingRuntimeCoverage.contract.test.ts > final release binding > inga saknade filer och deterministisk hash 132ms
+ ✓ src/test/syncE2eGateFailClosed.contract.test.ts > STEG 5B – SQL/E2E gate är fail-closed > ALL PASS → GREEN (exit 0) 2ms
+ ✓ src/test/syncE2eGateFailClosed.contract.test.ts > STEG 5B – SQL/E2E gate är fail-closed > historical replay UNVERIFIABLE blockerar inte GREEN 0ms
+ ✓ src/test/syncE2eGateFailClosed.contract.test.ts > STEG 5B – SQL/E2E gate är fail-closed > historical replay får aldrig räknas som blockerande PASS-sektion 1ms
+ ✓ src/test/syncE2eGateFailClosed.contract.test.ts > STEG 5B – SQL/E2E gate är fail-closed > 1 FAIL → RED 0ms
+ ✓ src/test/syncE2eGateFailClosed.contract.test.ts > STEG 5B – SQL/E2E gate är fail-closed > 1 NOT EXECUTED → aldrig GREEN 1ms
+ ✓ src/test/syncE2eGateFailClosed.contract.test.ts > STEG 5B – SQL/E2E gate är fail-closed > release_migration_compatibility NOT_EXECUTED/FAIL → RED 0ms
+ ✓ src/test/syncE2eGateFailClosed.contract.test.ts > STEG 5B – SQL/E2E gate är fail-closed > Safe environment FAIL → NOT EXECUTED (exit 10), aldrig GREEN 0ms
+ ✓ src/test/syncE2eGateFailClosed.contract.test.ts > STEG 5B – SQL/E2E gate är fail-closed > okänt/tomt sektionsvärde → RED (fail-closed) 0ms
+ ✓ src/test/syncE2eGateFailClosed.contract.test.ts > STEG 5B – SQL/E2E gate är fail-closed > runnern använder gate.mjs och har ingen egen GREEN-default kvar 1ms
+ × src/test/syncE2eGateFailClosed.contract.test.ts > STEG 5B – SQL/E2E gate är fail-closed > required sections täcker alla blockerande delar 14ms
+   → expected [ …(11) ] to deeply equal [ …(10) ]
+ ✓ src/test/bsaTenantUniqueness.contract.test.ts > STEG 4Q — tenant-safe BSA uniqueness > 4Q-migrationen finns och droppar legacy-nyckeln 2ms
+ ✓ src/test/bsaTenantUniqueness.contract.test.ts > STEG 4Q — tenant-safe BSA uniqueness > 4Q-migrationen gör ingen datamutation på toppnivå 1ms
+ ✓ src/test/bsaTenantUniqueness.contract.test.ts > STEG 4Q — tenant-safe BSA uniqueness > ingen senare migration återinför global unikhet utan organization_id 3ms
+ ✓ src/test/bsaTenantUniqueness.contract.test.ts > STEG 4Q — tenant-safe BSA uniqueness > ingen migration efter 4Q använder legacy ON CONFLICT-target 1ms
+ ✓ src/test/bsaTenantUniqueness.contract.test.ts > STEG 4Q — tenant-safe BSA uniqueness > tenant-safe index skapas i repo-historiken 2ms
+stderr | src/test/syncStateOrgIsolation.contract.test.ts > syncStateService per-organization isolation > getSyncState returns null and does not touch DB when organizationId missing
+[syncState] getSyncState skipped for booking_import: missing organizationId
+
+stderr | src/test/syncStateOrgIsolation.contract.test.ts > syncStateService per-organization isolation > updateSyncState never touches the database (server-owned sync_state)
+[syncState] updateSyncState is a no-op — sync_state is server-owned (booking_import/org-42)
+
+stderr | src/test/syncStateOrgIsolation.contract.test.ts > syncStateService per-organization isolation > updateSyncState is a no-op when organizationId is missing
+[syncState] updateSyncState is a no-op — sync_state is server-owned (booking_import/no-org)
+
+ ✓ src/test/syncStateOrgIsolation.contract.test.ts > syncStateService per-organization isolation > getSyncState returns null and does not touch DB when organizationId missing 21ms
+ ✓ src/test/syncStateOrgIsolation.contract.test.ts > syncStateService per-organization isolation > getSyncState filters by both sync_type AND organization_id 3ms
+ ✓ src/test/syncStateOrgIsolation.contract.test.ts > syncStateService per-organization isolation > updateSyncState never touches the database (server-owned sync_state) 1ms
+ ✓ src/test/syncStateOrgIsolation.contract.test.ts > syncStateService per-organization isolation > updateSyncState is a no-op when organizationId is missing 1ms
+ ✓ src/test/bsaLegacyRuntimeAudit.contract.test.ts > STEG 4R – BSA legacy runtime audit > varje BSA-funktion har en aktuell definition i migrationshistoriken 1266ms
+ ✓ src/test/bsaTenantSafeRpc.contract.test.ts > STEG 4I — recompute_booking_staff_for_day_v2 > finns och tar organization_id som första parameter 2ms
+ ✓ src/test/bsaTenantSafeRpc.contract.test.ts > STEG 4I — recompute_booking_staff_for_day_v2 > E — fail-closed när bokningen inte tillhör organisationen (0 mutations) 1ms
+ ✓ src/test/bsaTenantSafeRpc.contract.test.ts > STEG 4I — recompute_booking_staff_for_day_v2 > D — saknade argument ger 0 mutations 0ms
+ ✓ src/test/bsaTenantSafeRpc.contract.test.ts > STEG 4I — recompute_booking_staff_for_day_v2 > B — calendar_events-read är tenant-scopad på org + booking + datum 0ms
+ ✓ src/test/bsaTenantSafeRpc.contract.test.ts > STEG 4I — recompute_booking_staff_for_day_v2 > C — DELETE mot BSA innehåller alltid organization_id 0ms
+ ✓ src/test/bsaTenantSafeRpc.contract.test.ts > STEG 4I — recompute_booking_staff_for_day_v2 > F — staff_assignments-läsning är tenant-scopad (både delete-subquery och insert) 0ms
+ ✓ src/test/bsaTenantSafeRpc.contract.test.ts > STEG 4I — recompute_booking_staff_for_day_v2 > A — INSERT sätter organization_id från parametern, aldrig härledd från annan rad 0ms
+ ✓ src/test/bsaTenantSafeRpc.contract.test.ts > STEG 4I — recompute_booking_staff_for_day_v2 > STEG 4M — ON CONFLICT är tenant-säker (organization_id först) 0ms
+ ✓ src/test/bsaTenantSafeRpc.contract.test.ts > STEG 4I — recompute_booking_staff_for_day_v2 > STEG 4M — tenant-säkert unique index finns och skapas idempotent utan datamutationer 23ms
+ ✓ src/test/bsaTenantSafeRpc.contract.test.ts > STEG 4I — recompute_booking_staff_for_day_v2 > STEG 4M — cross-tenant: samma booking/staff/datum i två orgs kollider inte under nya nyckeln 0ms
+ ✓ src/test/bsaTenantSafeRpc.contract.test.ts > STEG 4I — recompute_booking_staff_for_day_v2 > behåller SECURITY DEFINER med strikt search_path och begränsade grants 0ms
+ ✓ src/test/bsaTenantSafeRpc.contract.test.ts > STEG 4I — recompute_booking_staff_for_day_v2 > legacy-RPC:n raderas inte utan markeras deprecated 0ms
+ ✓ src/test/bsaTenantSafeRpc.contract.test.ts > STEG 4I — recompute_booking_staff_for_day_v2 > G — import-bookings använder endast V2 och skickar org, booking och datum 1ms
+ ✓ src/test/bsaTenantSafeRpc.contract.test.ts > STEG 4I — recompute_booking_staff_for_day_v2 > BSA-datumread i syncen är org-scopad 0ms
+ ✓ src/test/bsaLegacyRuntimeAudit.contract.test.ts > STEG 4R – BSA legacy runtime audit > alla DELETE mot booking_staff_assignments är org-scopade 249ms
+ ✓ src/test/bsaLegacyRuntimeAudit.contract.test.ts > STEG 4R – BSA legacy runtime audit > alla ON CONFLICT-identiteter mot BSA innehåller organization_id 167ms
+ ✓ src/test/bsaLegacyRuntimeAudit.contract.test.ts > STEG 4R – BSA legacy runtime audit > ingen aktiv funktion anropar legacy recompute_booking_staff_for_day(booking, date) för mutation 108ms
+ ✓ src/test/bsaLegacyRuntimeAudit.contract.test.ts > STEG 4R – BSA legacy runtime audit > legacy recompute delegerar till v2 och muterar inte BSA själv 16ms
+ ✓ src/test/bsaLegacyRuntimeAudit.contract.test.ts > STEG 4R – BSA legacy runtime audit > legacy sync_booking_staff_assignments läser kalender/staff_assignments org-scopat 19ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/test/syncE2eGateFailClosed.contract.test.ts > STEG 5B – SQL/E2E gate är fail-closed > required sections täcker alla blockerande delar
+AssertionError: expected [ …(11) ] to deeply equal [ …(10) ]
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[33m@@ -1,7 +1,8 @@[39m
+[2m  [[22m
+[2m    "release_migration_compatibility",[22m
+[31m+   "schema_provisioning",[39m
+[2m    "bsa_tenant_identity",[22m
+[2m    "bsa_v2_rpc",[22m
+[2m    "security_definer",[22m
+[2m    "revision_lease",[22m
+[2m    "worker_jobs",[22m
+
+ ❯ src/test/syncE2eGateFailClosed.contract.test.ts:85:31
+     83| 
+     84|   it("required sections täcker alla blockerande delar", () => {
+     85|     expect(REQUIRED_SECTIONS).toEqual([
+       |                               ^
+     86|       "release_migration_compatibility",
+     87|       "bsa_tenant_identity",
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 23 passed (24)
+      Tests  1 failed | 342 passed (343)
+   Start at  08:46:35
+   Duration  9.11s (transform 1.22s, setup 11.98s, collect 4.37s, tests 2.93s, environment 91.20s, prepare 10.72s)
+

@@ -1,9 +1,9 @@
 {
   "gate": "booking_planning_final_release_gate",
-  "release_run_id": "rel-20260817T084616Z-6a4a1920d9b2",
-  "generated_at": "2026-08-17T08:46:19.467Z",
-  "git_commit": "0b3f93ded85178f879baaaf0446b2bd688dddff9",
-  "final_release_content_binding": "43c48d9cc1e84a4822f4fdd0f476562dcad67259211d2e02e65a06a36b18b8fa",
+  "release_run_id": "rel-20260817T084631Z-5e4d7c7523c2",
+  "generated_at": "2026-08-17T08:46:45.671Z",
+  "git_commit": "bf5c19b10aa565b69bcf3d1b344fd89c107e521e",
+  "final_release_content_binding": "b0d6872682aae12726bcc1e7478d1c9eb2cd2fcd0c8b7de3b2b95f3c08f006ab",
   "content_binding_files": 100,
   "historical_migration_replay": {
     "status": "UNVERIFIABLE",
@@ -23,7 +23,7 @@
       "evidence_txt": "reports/sync-release-migration-compatibility.txt",
       "generated_at": "2026-08-17T08:43:25.854Z",
       "git_commit": "8c6128fa6532aac9cdd42d095bb166e3f7f66668",
-      "current_git_commit": "0b3f93ded85178f879baaaf0446b2bd688dddff9",
+      "current_git_commit": "bf5c19b10aa565b69bcf3d1b344fd89c107e521e",
       "release_content_binding": "5c90da8086580386ad1443a9208975e0c8305b926e36e18baf0bd88e16c93448",
       "scope_size": 12,
       "migrations_passed": 24,
@@ -36,14 +36,13 @@
     }
   },
   "sql_e2e_release_gate": {
-    "status": "FAIL",
-    "reasons": [
-      "sql_e2e schema_provisioning: saknas"
-    ],
+    "status": "PASS",
+    "reasons": [],
     "report": "reports/sync-e2e-report.json",
     "final": "GREEN",
     "results": {
       "release_migration_compatibility": "PASS",
+      "schema_provisioning": "PASS",
       "bsa_tenant_identity": "PASS",
       "bsa_v2_rpc": "PASS",
       "security_definer": "PASS",
@@ -56,10 +55,21 @@
     }
   },
   "contract_tests": {
-    "status": "NOT_EXECUTED",
+    "status": "FAIL",
     "reasons": [
-      "contract tests ej körda"
-    ]
+      "vitest: No test files found",
+      "vitest exit_code=1",
+      "test files passed 0/24",
+      "inga tester passerade"
+    ],
+    "command": "npx vitest run --reporter=verbose src/test/syncE2eGateFailClosed.contract.test.ts src/test/syncE2eEvidencePointer.contract.test.ts src/test/releaseMigrationCompatSafety.contract.test.ts src/test/releaseMigrationCompatibility.contract.test.ts src/test/compatibilityEvidenceNegative.contract.test.ts src/test/finalReleaseGate.contract.test.ts src/test/releaseBindingRuntimeCoverage.contract.test.ts src/test/syncReleaseMigrationFingerprints.contract.test.ts src/test/syncReleaseMigrationScope.contract.test.ts src/test/bsaTenantUniqueness.contract.test.ts src/test/bsaTenantSafeRpc.contract.test.ts src/test/bsaLegacyRuntimeAudit.contract.test.ts src/test/legacyBsaRpcRetired.contract.test.ts src/test/automaticDestructiveSyncFlag.contract.test.ts src/test/statusChangeNoDestructiveSync.contract.test.ts src/test/syncBatchLifecycle.contract.test.ts src/test/syncCursorServerAuthority.contract.test.ts src/test/syncJobRetryHardening.contract.test.ts src/test/syncObservability.contract.test.ts src/test/syncRowCountCircuitBreaker.contract.test.ts src/test/syncSafetyOperations.contract.test.ts src/test/syncStateOrgIsolation.contract.test.ts src/test/syncRegressionScenarios.contract.test.ts src/test/syncPerformance.contract.test.ts",
+    "expected_test_files": 24,
+    "executed_test_files": 24,
+    "test_files_passed": 0,
+    "tests_passed": 0,
+    "tests_failed": 0,
+    "exit_code": 1,
+    "evidence": "reports/booking-planning-contract-tests.txt"
   },
   "typecheck": {
     "status": "NOT_EXECUTED",
@@ -83,14 +93,12 @@
     "final_release_content_binding"
   ],
   "not_executed_sections": [
-    "contract_tests",
     "typecheck",
     "build",
     "final_release_content_binding"
   ],
   "reasons": [
-    "sql_e2e_release_gate: FAIL (sql_e2e schema_provisioning: saknas)",
-    "contract_tests: NOT_EXECUTED (contract tests ej körda)",
+    "contract_tests: FAIL (vitest: No test files found; vitest exit_code=1; test files passed 0/24; inga tester passerade)",
     "typecheck: NOT_EXECUTED (typecheck ej körd)",
     "build: NOT_EXECUTED (build ej körd)",
     "final_release_content_binding: NOT_EXECUTED (binding ej verifierad)"
