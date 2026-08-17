@@ -274,6 +274,18 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             Kund hämtar
           </div>
         )}
+        {/* Lageraktivitet: Packning / Retur / Lageruppgift */}
+        {isWarehouseEvent && (event.extendedProps as any)?.warehouseActivityLabel && (
+          <div
+            className="text-[7px] font-bold uppercase tracking-wide rounded px-1 py-px mb-0.5 w-fit"
+            style={{
+              backgroundColor: 'rgba(0,0,0,0.10)',
+              color: '#000000',
+            }}
+          >
+            {(event.extendedProps as any).warehouseActivityLabel}
+          </div>
+        )}
         {!(event.extendedProps as any)?.isPlannerItem && (
           <div className={`event-title ${isCancelled ? 'line-through' : ''}`} style={{ color: isCancelled ? '#991B1B' : '#000000' }}>
             {displayTitle}
@@ -381,6 +393,59 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             {locationLine}
           </div>
         )}
+        {/* Lagerkortets nyckelinfo: tid · packstatus · brister · bemanning */}
+        {isWarehouseEvent && (() => {
+          const ep = event.extendedProps as any;
+          const timeLabel: string | undefined = ep?.timeLabel;
+          const packedLabel: string | undefined = ep?.packedLabel;
+          const shortfall: number = Number(ep?.shortfallCount ?? 0);
+          const crewLabel: string | undefined = ep?.crewLabel;
+          if (!timeLabel && !packedLabel && !shortfall && !crewLabel) return null;
+          return (
+            <div className="flex flex-col gap-px" style={{ marginTop: 1 }}>
+              {timeLabel && (
+                <div className="tabular-nums" style={{ color: '#000000', fontSize: '10px', fontWeight: 600 }}>
+                  {timeLabel}
+                </div>
+              )}
+              {(packedLabel || shortfall > 0) && (
+                <div className="flex flex-wrap items-center gap-1">
+                  {packedLabel && (
+                    <span
+                      className="inline-block rounded px-1 tabular-nums"
+                      style={{ backgroundColor: 'rgba(0,0,0,0.08)', color: '#000000', fontSize: '9.5px', fontWeight: 600 }}
+                    >
+                      {packedLabel}
+                    </span>
+                  )}
+                  {shortfall > 0 && (
+                    <span
+                      className="inline-block rounded px-1 tabular-nums"
+                      style={{ backgroundColor: 'rgba(220,38,38,0.15)', color: '#991B1B', fontSize: '9.5px', fontWeight: 700 }}
+                    >
+                      {shortfall} brister
+                    </span>
+                  )}
+                </div>
+              )}
+              {crewLabel && (
+                <div
+                  style={{
+                    color: '#000000',
+                    fontSize: '9.5px',
+                    opacity: 0.8,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                  title={crewLabel}
+                >
+                  {crewLabel}
+                </div>
+              )}
+            </div>
+          );
+        })()}
         {/* Planning-faser (Rigg/Event/Riv) som kontext i lageraktivitetens kort */}
         {(event.extendedProps as any)?.phaseContext && (
           <div
