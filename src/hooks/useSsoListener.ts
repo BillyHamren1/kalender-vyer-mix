@@ -1,6 +1,26 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
+
+const HUB_ALLOWED_ORIGINS = [
+  'https://619bc35d-e2d6-4874-822e-21a151f48315.lovableproject.com',
+  'https://id-preview--619bc35d-e2d6-4874-822e-21a151f48315.lovable.app',
+  'https://preview--eventflow-hub.lovable.app',
+  'https://eventflow-hub.lovable.app',
+  'http://localhost:5173',
+  'http://localhost:8080',
+  'http://localhost:3000',
+];
+
+function getHubParentOrigin(): string | null {
+  try {
+    const origin = document.referrer ? new URL(document.referrer).origin : null;
+    return origin && HUB_ALLOWED_ORIGINS.includes(origin) ? origin : null;
+  } catch {
+    return null;
+  }
+}
+
 interface SsoPreferences {
   language?: string;
   timezone?: string;
@@ -45,6 +65,14 @@ interface SsoResult {
   message?: string;
 }
 
+function decodeUtf8Base64(input: string): string {
+  const normalized = decodeURIComponent(input).replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+  const binary = atob(padded);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
 // Generate a fingerprint from the token signature for deduplication
 function getTokenFingerprint(signature: string): string {
   return signature.slice(0, 32); // First 32 chars of signature is unique enough
@@ -59,7 +87,9 @@ function sendSsoResponse(success: boolean, error?: SsoError) {
     : { type: 'SSO_ERROR', success: false, status: error?.status, error_code: error?.code, message: error?.message };
   
   try {
-    window.parent.postMessage(message, '*');
+    const targetOrigin = getHubParentOrigin();
+    if (!targetOrigin) return;
+    window.parent.postMessage(message, targetOrigin);
     console.log('[SSO] Sent response to parent:', message);
   } catch (e) {
     console.error('[SSO] Failed to send postMessage:', e);
@@ -207,7 +237,7 @@ export function useSsoListener() {
       const tokenB64 = hash.split('sso_token=')[1]?.split('&')[0];
       if (tokenB64) {
         try {
-          const tokenJson = atob(tokenB64);
+          const tokenJson = decodeUtf8Base64(tokenB64);
           const ssoToken = JSON.parse(tokenJson) as SsoToken;
           // Rensa hashen från URL
           window.history.replaceState(null, '', window.location.pathname + window.location.search);
@@ -221,6 +251,12 @@ export function useSsoListener() {
 
     // 2. Lyssna på postMessage
     function handleMessage(event: MessageEvent) {
+      if (!HUB_ALLOWED_ORIGINS.includes(event.origin)) {
+        if (event.data?.type === 'SSO_TOKEN' || event.data?.type === 'PREFERENCES_UPDATE') {
+          console.warn('[SSO] Blocked message from untrusted origin:', event.origin);
+        }
+        return;
+      }
       const data = event.data;
       
       // Handle SSO_TOKEN message
@@ -233,7 +269,7 @@ export function useSsoListener() {
         // Format 1: event.data.sso_token_b64 (base64-kodat)
         if (data.sso_token_b64) {
           try {
-            ssoToken = JSON.parse(atob(data.sso_token_b64));
+            ssoToken = JSON.parse(decodeUtf8Base64(data.sso_token_b64));
           } catch (e) {
             console.error('[SSO] Failed to parse base64 token:', e);
           }
