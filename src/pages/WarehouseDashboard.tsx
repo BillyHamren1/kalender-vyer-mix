@@ -1,181 +1,61 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Package, Plus, RefreshCw, Search, ArrowUpRight, ArrowDownLeft, Wrench, CalendarIcon, X, ChevronDown, LayoutTemplate } from "lucide-react";
-import { format, isToday, isThisWeek, isAfter, startOfDay, endOfDay, parseISO, isWithinInterval } from "date-fns";
+import { Package, Plus, RefreshCw, CalendarIcon, LayoutTemplate, ClipboardList, ChevronRight } from "lucide-react";
+import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { DateRange } from "react-day-picker";
-import { cn } from "@/lib/utils";
-import { useWarehouseOpsRange, type OpsJob } from "@/hooks/useWarehouseOpsRange";
+import { useWarehouseOpsRange } from "@/hooks/useWarehouseOpsRange";
 import CreateInternalTaskDialog from "@/components/warehouse/CreateInternalTaskDialog";
 import WarehouseOverviewToday from "@/components/warehouse-ops/WarehouseOverviewToday";
 import WarehouseOverviewAttention from "@/components/warehouse-ops/WarehouseOverviewAttention";
 import WarehouseOverviewNext7Days from "@/components/warehouse-ops/WarehouseOverviewNext7Days";
 
-type FilterKey = "active" | "today" | "week" | "upcoming" | "done" | "all";
-
-const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: "active", label: "Aktiva nu" },
-  { key: "today", label: "Idag" },
-  { key: "week", label: "Denna vecka" },
-  { key: "upcoming", label: "Kommande" },
-  { key: "done", label: "Klara" },
-  { key: "all", label: "Alla" },
-];
-
-const ACTIVE_STATUSES = new Set([
-  "in_progress",
-  "packing",
-  "returning",
-  "back",
-  "started_back",
-  "in_production",
-]);
-const DONE_STATUSES = new Set(["completed_out", "completed_in", "completed", "done"]);
-
-function matchFilter(job: OpsJob, key: FilterKey): boolean {
-  const status = (job.status || "").toLowerCase();
-  const anchor = job.anchorDate ? parseISO(job.anchorDate) : null;
-  const today = startOfDay(new Date());
-
-  switch (key) {
-    case "active":
-      return ACTIVE_STATUSES.has(status);
-    case "today":
-      return !!anchor && isToday(anchor);
-    case "week":
-      return !!anchor && isThisWeek(anchor, { weekStartsOn: 1 });
-    case "upcoming": {
-      if (ACTIVE_STATUSES.has(status)) return false;
-      if (DONE_STATUSES.has(status)) return false;
-      const lastStr = job.endDate || job.anchorDate;
-      if (!lastStr) return false;
-      const last = startOfDay(parseISO(lastStr));
-      return !isAfter(today, last);
-    }
-    case "done":
-      return DONE_STATUSES.has(status);
-    case "all":
-    default:
-      return true;
-  }
-}
-
-function directionBadge(dir: OpsJob["direction"]) {
-  if (dir === "out") return { icon: ArrowUpRight, label: "UT", className: "bg-blue-500/10 text-blue-700 dark:text-blue-300" };
-  if (dir === "in") return { icon: ArrowDownLeft, label: "IN", className: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" };
-  return { icon: Wrench, label: "Intern", className: "bg-amber-500/10 text-amber-700 dark:text-amber-300" };
-}
-
-function statusLabel(status: string): string {
-  const s = (status || "").toLowerCase();
-  if (ACTIVE_STATUSES.has(s)) return "Pågår";
-  if (DONE_STATUSES.has(s)) return "Klar";
-  if (s === "planning" || s === "planned" || s === "pending") return "Planerad";
-  return status || "—";
-}
+/**
+ * Lageröversikt = kort översikt, inte arbetslista.
+ * Arbetslistor bor i /warehouse/calendar (Att planera) och /warehouse/packing (Kräver åtgärd).
+ */
+const NEXT_STEPS = [
+  {
+    key: "planning",
+    icon: ClipboardList,
+    title: "Öppna lagerplanering",
+    detail: "Vad ska lagret göra och när?",
+    route: "/warehouse/calendar",
+  },
+  {
+    key: "staffing",
+    icon: CalendarIcon,
+    title: "Planera personal",
+    detail: "Vem ska göra arbetet?",
+    route: "/warehouse/calendar",
+  },
+  {
+    key: "packing",
+    icon: LayoutTemplate,
+    title: "Öppna packning",
+    detail: "Genomför och följ upp packning.",
+    route: "/warehouse/packing",
+  },
+] as const;
 
 const WarehouseDashboard = () => {
   const navigate = useNavigate();
   const [showCreate, setShowCreate] = useState(false);
-  const [showAllJobs, setShowAllJobs] = useState(false);
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<FilterKey>("active");
-  const [dateRange, setDateRange] = useState<DateRange | undefined>();
 
   const anchorDate = useMemo(() => new Date(), []);
   const { data, isLoading, isFetching, refetch } = useWarehouseOpsRange(anchorDate, "next7");
 
-  const jobs = data?.jobs ?? [];
-
-  const counts = useMemo(() => {
-    const c: Record<FilterKey, number> = { active: 0, today: 0, week: 0, upcoming: 0, done: 0, all: jobs.length };
-    for (const j of jobs) {
-      if (matchFilter(j, "active")) c.active++;
-      if (matchFilter(j, "today")) c.today++;
-      if (matchFilter(j, "week")) c.week++;
-      if (matchFilter(j, "upcoming")) c.upcoming++;
-      if (matchFilter(j, "done")) c.done++;
-    }
-    return c;
-  }, [jobs]);
-
-  const rangeActive = !!(dateRange?.from || dateRange?.to);
-
-  const visible = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const from = dateRange?.from ? startOfDay(dateRange.from) : null;
-    const to = dateRange?.to ? endOfDay(dateRange.to) : dateRange?.from ? endOfDay(dateRange.from) : null;
-
-    return jobs
-      .filter((j) => (rangeActive ? true : matchFilter(j, filter)))
-      .filter((j) => {
-        if (!rangeActive) return true;
-        if (!j.anchorDate) return false;
-        const a = parseISO(j.anchorDate);
-        if (from && to) return isWithinInterval(a, { start: from, end: to });
-        if (from) return a >= from;
-        if (to) return a <= to;
-        return true;
-      })
-      .filter((j) => {
-        if (!q) return true;
-        return (
-          j.name?.toLowerCase().includes(q) ||
-          j.client?.toLowerCase().includes(q) ||
-          j.bookingNumber?.toLowerCase().includes(q)
-        );
-      })
-      .sort((a, b) => {
-        const ad = a.anchorDate ?? "9999";
-        const bd = b.anchorDate ?? "9999";
-        if (ad !== bd) return ad < bd ? -1 : 1;
-        return (a.anchorTime ?? "99:99") < (b.anchorTime ?? "99:99") ? -1 : 1;
-      });
-  }, [jobs, filter, query, dateRange, rangeActive]);
-
-  const dateLabel = (() => {
-    if (!dateRange?.from) return "Välj datum";
-    const f = format(dateRange.from, "d MMM", { locale: sv });
-    if (dateRange.to && dateRange.to.getTime() !== dateRange.from.getTime()) {
-      return `${f} – ${format(dateRange.to, "d MMM", { locale: sv })}`;
-    }
-    return f;
-  })();
-
   return (
     <div className="h-full overflow-y-auto overflow-x-hidden" style={{ background: "var(--gradient-page)" }}>
-      <div className="relative p-6 max-w-[1400px] mx-auto space-y-5">
+      <div className="relative p-6 max-w-[1200px] mx-auto space-y-5">
         <PageHeader
           icon={Package}
           title="Lageröversikt"
           subtitle={format(new Date(), "EEEE d MMMM yyyy", { locale: sv })}
           variant="warehouse"
         >
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate('/warehouse/calendar')}
-            className="border-border/60 h-8 rounded-lg"
-          >
-            <CalendarIcon className="w-4 h-4 mr-2" />
-            Planera personal
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate('/warehouse/packing')}
-            className="border-border/60 h-8 rounded-lg"
-          >
-            <LayoutTemplate className="w-4 h-4 mr-2" />
-            Öppna packning
-          </Button>
           <Button
             onClick={() => setShowCreate(true)}
             size="sm"
@@ -205,170 +85,38 @@ const WarehouseDashboard = () => {
         ) : (
           <>
             <WarehouseOverviewToday data={data} />
-            <WarehouseOverviewAttention items={data.attention} maxItems={5} />
+            <WarehouseOverviewAttention items={data.attention} maxItems={4} />
             <WarehouseOverviewNext7Days data={data} />
           </>
         )}
 
-        {/* Visa alla lagerjobb */}
-        <div className="rounded-xl border border-border/60 bg-card p-4">
-          {!showAllJobs ? (
-            <button
-              onClick={() => setShowAllJobs(true)}
-              className="flex items-center gap-2 text-sm font-medium text-primary hover:underline"
-            >
-              <ChevronDown className="h-4 w-4" />
-              Visa alla lagerjobb ({jobs.length})
-            </button>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-sm font-semibold text-[hsl(var(--heading))]">Alla lagerjobb</h3>
-                <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => setShowAllJobs(false)}>
-                  <X className="h-4 w-4 mr-1" />
-                  Dölj
-                </Button>
-              </div>
-
-              {/* Sök + filter */}
-              <div className="space-y-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Sök packning, kund eller bokningsnummer…"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    className="pl-9 h-10"
-                  />
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {FILTERS.map((f) => (
-                    <button
-                      key={f.key}
-                      onClick={() => {
-                        setFilter(f.key);
-                        setDateRange(undefined);
-                      }}
-                      className={cn(
-                        "px-3 h-8 rounded-full text-sm font-medium border transition-colors flex items-center gap-2",
-                        !rangeActive && filter === f.key
-                          ? "bg-foreground text-background border-foreground"
-                          : "bg-background text-foreground border-border/60 hover:bg-accent/40",
-                      )}
-                    >
-                      {f.label}
-                      <span
-                        className={cn(
-                          "px-1.5 rounded-full text-xs",
-                          !rangeActive && filter === f.key ? "bg-background/20" : "bg-muted text-muted-foreground",
-                        )}
-                      >
-                        {counts[f.key]}
-                      </span>
-                    </button>
-                  ))}
-
-                  <div className="ml-auto flex items-center gap-1">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant={rangeActive ? "default" : "outline"}
-                          size="sm"
-                          className={cn(
-                            "h-8 rounded-full px-3 gap-2",
-                            rangeActive && "bg-foreground text-background hover:bg-foreground/90",
-                          )}
-                        >
-                          <CalendarIcon className="h-4 w-4" />
-                          {dateLabel}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="end">
-                        <Calendar
-                          mode="range"
-                          selected={dateRange}
-                          onSelect={setDateRange}
-                          numberOfMonths={2}
-                          initialFocus
-                          locale={sv}
-                          className={cn("p-3 pointer-events-auto")}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    {rangeActive && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 px-2"
-                        onClick={() => setDateRange(undefined)}
-                        aria-label="Rensa datumfilter"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
+        {/* Vart går jag för att agera? */}
+        <section>
+          <h2 className="text-sm font-semibold text-[hsl(var(--heading))] mb-3">Gå vidare</h2>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {NEXT_STEPS.map((step) => {
+              const Icon = step.icon;
+              return (
+                <button
+                  key={step.key}
+                  onClick={() => navigate(step.route)}
+                  className="rounded-xl border border-border/60 bg-card p-4 text-left hover:bg-accent/40 transition-colors flex items-start gap-3"
+                >
+                  <div className="h-9 w-9 rounded-lg bg-warehouse/10 flex items-center justify-center shrink-0">
+                    <Icon className="h-4 w-4 text-warehouse" />
                   </div>
-                </div>
-              </div>
-
-              {/* Lista */}
-              {visible.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border/60 bg-card/50 p-10 text-center text-sm text-muted-foreground">
-                  Inga packningar matchar.
-                </div>
-              ) : (
-                <ul className="rounded-xl border border-border/60 bg-card divide-y divide-border/40 overflow-hidden">
-                  {visible.map((j) => {
-                    const dir = directionBadge(j.direction);
-                    const DirIcon = dir.icon;
-                    return (
-                      <li
-                        key={j.id}
-                        onClick={() => navigate(`/warehouse/packing/${j.id}`)}
-                        className="px-4 py-3 flex items-center gap-4 hover:bg-accent/40 cursor-pointer transition-colors"
-                      >
-                        <div className={cn("h-9 w-9 rounded-lg flex items-center justify-center shrink-0", dir.className)}>
-                          <DirIcon className="h-4 w-4" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="font-medium truncate">{j.name || "Packning"}</span>
-                            {j.bookingNumber && (
-                              <span className="text-xs text-muted-foreground shrink-0">#{j.bookingNumber}</span>
-                            )}
-                          </div>
-                          <div className="text-xs text-muted-foreground truncate">
-                            {j.client || "—"}
-                            {j.anchorDate && (
-                              <>
-                                {" · "}
-                                {format(parseISO(j.anchorDate), "EEE d MMM", { locale: sv })}
-                                {j.anchorTime ? ` ${j.anchorTime}` : ""}
-                              </>
-                            )}
-                          </div>
-                        </div>
-                        <div className="hidden sm:flex items-center gap-3 shrink-0">
-                          <div className="w-32">
-                            <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                              <div
-                                className="h-full bg-warehouse"
-                                style={{ width: `${Math.min(100, Math.max(0, j.percent))}%` }}
-                              />
-                            </div>
-                            <div className="text-[11px] text-muted-foreground mt-1 text-right">
-                              {j.verifiedItems}/{j.totalItems}
-                            </div>
-                          </div>
-                          <Badge variant="secondary" className="text-xs">{statusLabel(j.status)}</Badge>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          )}
-        </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-[hsl(var(--heading))] flex items-center gap-1">
+                      {step.title}
+                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">{step.detail}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
       </div>
 
       <CreateInternalTaskDialog
