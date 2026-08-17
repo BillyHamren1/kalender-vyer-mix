@@ -277,7 +277,43 @@ const WarehouseCalendarPage = () => {
   // kontextrad inuti lageraktivitetens kort (extendedProps.phaseContext).
   const allUnassigned = [...filteredWarehouseEvents];
   const distributedEvents: CalendarEvent[] = distributeWarehouseEvents(allUnassigned, warehouseTeamResources);
-  const combinedEvents: CalendarEvent[] = [...distributedEvents, ...transportEvents];
+
+  // ---- READ-ONLY kort-metadata (packstatus, brister, bemanning, rubrik) ----
+  const cardBookingIds = useMemo(
+    () => filteredWarehouseEvents.map(e => e.bookingId).filter(Boolean) as string[],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filteredWarehouseEvents.map(e => e.bookingId).join(',')],
+  );
+  const { data: packingStats } = useWarehousePackingStats(cardBookingIds);
+  const { data: bookingTitles } = useWarehouseBookingTitles(cardBookingIds);
+  const crewRange = useMemo(() => {
+    if (viewMode === 'day') return { start: currentWeekStart, end: currentWeekStart };
+    if (viewMode === 'monthly') return { start: startOfMonth(monthlyDate), end: endOfMonth(monthlyDate) };
+    const s = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
+    return { start: s, end: endOfWeek(currentWeekStart, { weekStartsOn: 1 }) };
+  }, [viewMode, currentWeekStart, monthlyDate]);
+  const { data: crewByDayTeam } = useLagerCrewByDayTeam(crewRange.start, crewRange.end);
+
+  const enrichedWarehouseEvents: CalendarEvent[] = distributedEvents.map(event => {
+    const stat = event.bookingId ? packingStats?.get(event.bookingId) : undefined;
+    const rubrik = event.bookingId ? bookingTitles?.get(event.bookingId) : undefined;
+    const dayKey = format(new Date(event.start), 'yyyy-MM-dd');
+    const crew = crewByDayTeam?.get(`${dayKey}|${event.resourceId}`) ?? [];
+    return {
+      ...event,
+      extendedProps: {
+        ...event.extendedProps,
+        warehouseActivityLabel: WAREHOUSE_ACTIVITY_LABELS[event.eventType as string] ?? undefined,
+        bookingTitle: rubrik ?? (event.extendedProps as any)?.bookingTitle,
+        timeLabel: `${format(new Date(event.start), 'HH:mm')}–${format(new Date(event.end), 'HH:mm')}`,
+        packedLabel: stat && stat.total > 0 ? `${stat.packed} / ${stat.total} klara` : undefined,
+        shortfallCount: stat?.shortfallRows ?? 0,
+        crewLabel: crew.length ? crew.join(', ') : undefined,
+      },
+    };
+  });
+
+  const combinedEvents: CalendarEvent[] = [...enrichedWarehouseEvents, ...transportEvents];
 
   const dayEvents = useMemo(() => {
     if (viewMode !== 'day') return combinedEvents;
