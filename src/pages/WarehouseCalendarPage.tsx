@@ -20,13 +20,10 @@ import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
 import WarehouseDayNavigationHeader from '@/components/Calendar/WarehouseDayNavigationHeader';
 import WarehouseEventFilter, { WarehouseEventTypeFilter, WAREHOUSE_EVENT_TYPE_FILTERS } from '@/components/Calendar/WarehouseEventFilter';
 import BookingProductsDialog from '@/components/Calendar/BookingProductsDialog';
-import WarehousePlanningInboxBar from '@/components/warehouse/WarehousePlanningInboxBar';
-import WarehouseStaffingOverview from '@/components/warehouse/WarehouseStaffingOverview';
-import { startOfWeek, startOfMonth, endOfWeek, endOfMonth, format, parseISO } from 'date-fns';
+import { startOfWeek, startOfMonth, format, parseISO } from 'date-fns';
 import {
   useWarehousePackingStats,
   useWarehouseBookingTitles,
-  useLagerCrewByDayTeam,
 } from '@/hooks/useWarehouseCardMeta';
 
 // Aktivitetsetiketter för lagerkortets översta rad.
@@ -295,7 +292,7 @@ const WarehouseCalendarPage = () => {
   const allUnassigned = [...filteredWarehouseEvents];
   const distributedEvents: CalendarEvent[] = distributeWarehouseEvents(allUnassigned, warehouseTeamResources);
 
-  // ---- READ-ONLY kort-metadata (packstatus, bemanning, rubrik) ----
+  // ---- READ-ONLY kort-metadata (packstatus och projektrubrik) ----
   const cardBookingIds = useMemo(
     () => filteredWarehouseEvents.map(e => e.bookingId).filter(Boolean) as string[],
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -303,25 +300,9 @@ const WarehouseCalendarPage = () => {
   );
   const { data: packingStats } = useWarehousePackingStats(cardBookingIds);
   const { data: bookingTitles } = useWarehouseBookingTitles(cardBookingIds);
-  const crewRange = useMemo(() => {
-    if (viewMode === 'day') return { start: currentWeekStart, end: currentWeekStart };
-    if (viewMode === 'monthly') return { start: startOfMonth(monthlyDate), end: endOfMonth(monthlyDate) };
-    const s = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
-    return { start: s, end: endOfWeek(currentWeekStart, { weekStartsOn: 1 }) };
-  }, [viewMode, currentWeekStart, monthlyDate]);
-  const { data: crewByDayTeam } = useLagerCrewByDayTeam(crewRange.start, crewRange.end);
-
   const enrichedWarehouseEvents: CalendarEvent[] = distributedEvents.map(event => {
     const stat = event.bookingId ? packingStats?.get(event.bookingId) : undefined;
     const rubrik = event.bookingId ? bookingTitles?.get(event.bookingId) : undefined;
-    const dayKey = format(new Date(event.start), 'yyyy-MM-dd');
-    const crew = crewByDayTeam?.get(`${dayKey}|${event.resourceId}`) ?? [];
-    // Kompakt bemanningsrad: "Anna · Raivis · +1" (inga uppskattade behov skapas).
-    const crewLabel = crew.length
-      ? crew.length > 2
-        ? `${crew.slice(0, 2).join(' · ')} · +${crew.length - 2}`
-        : crew.join(' · ')
-      : undefined;
     return {
       ...event,
       extendedProps: {
@@ -330,9 +311,6 @@ const WarehouseCalendarPage = () => {
         bookingTitle: rubrik ?? (event.extendedProps as any)?.bookingTitle,
         timeLabel: `${format(new Date(event.start), 'HH:mm')}–${format(new Date(event.end), 'HH:mm')}`,
         packedLabel: stat && stat.total > 0 ? `${stat.packed} / ${stat.total} klara` : undefined,
-        crewLabel,
-        crewFullLabel: crew.length ? crew.join(', ') : undefined,
-        crewCount: crew.length,
       },
     };
   });
@@ -526,17 +504,6 @@ const WarehouseCalendarPage = () => {
             />
           </div>
         </div>
-
-        {/* Att planera — kompakt inbox utanför kalendern */}
-        <WarehousePlanningInboxBar />
-
-        {/* Bemanningsläge — kompakt översikt över obemannade lagerjobb */}
-        <WarehouseStaffingOverview
-          events={combinedEvents}
-          crewByDayTeam={crewByDayTeam}
-          currentDate={currentWeekStart}
-          viewMode={viewMode}
-        />
 
         {/* Content - flex-1 to fill remaining space */}
         <div className="flex-1 min-h-0 flex flex-col p-4 bg-card rounded-2xl mx-2 mb-2 shadow-sm">

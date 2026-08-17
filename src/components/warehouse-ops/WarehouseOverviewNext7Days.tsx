@@ -1,17 +1,15 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CalendarDays, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
-import { format, addDays, startOfDay, parseISO, isWithinInterval } from 'date-fns';
+import { format, addDays, startOfDay } from 'date-fns';
 import { sv } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
-import type { OpsRangeData, OpsJob } from '@/hooks/useWarehouseOpsRange';
+import type { OpsRangeData } from '@/hooks/useWarehouseOpsRange';
 
 interface Props {
   data: OpsRangeData;
 }
 
 interface DayLoad {
-  date: Date;
   label: string;
   out: number;
   in: number;
@@ -26,17 +24,10 @@ const WarehouseOverviewNext7Days: React.FC<Props> = ({ data }) => {
 
     for (let i = 0; i < 7; i++) {
       const date = addDays(today, i);
-      const start = startOfDay(date);
-      const end = addDays(start, 1);
-
-      const jobsForDay = data.jobs.filter((j) => {
-        if (!j.anchorDate) return false;
-        const d = parseISO(j.anchorDate);
-        return isWithinInterval(d, { start, end });
-      });
+      const dayKey = format(date, 'yyyy-MM-dd');
+      const jobsForDay = data.jobs.filter((j) => j.anchorDate?.slice(0, 10) === dayKey);
 
       result.push({
-        date,
         label: format(date, 'EEE d MMM', { locale: sv }),
         out: jobsForDay.filter((j) => j.direction === 'out').length,
         in: jobsForDay.filter((j) => j.direction === 'in').length,
@@ -64,7 +55,7 @@ const WarehouseOverviewNext7Days: React.FC<Props> = ({ data }) => {
           {days.map((d) => (
             <button
               key={d.label}
-              onClick={() => navigate('/warehouse/calendar')}
+              onClick={() => navigate('/warehouse/packing')}
               className="rounded-lg border border-border/40 bg-background p-2 text-left hover:bg-accent/40 transition-colors"
             >
               <div className="text-xs font-medium text-muted-foreground mb-1.5">{d.label}</div>

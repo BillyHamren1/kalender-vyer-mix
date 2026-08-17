@@ -1,13 +1,19 @@
 import React, { useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Clock, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Clock, RefreshCw, Inbox, Layers, Package, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format, differenceInDays, isPast } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { PackingWithBooking } from '@/types/packing';
+import type { WarehouseProjectInboxItem } from '@/types/warehouseProject';
 import PackingChangedList, { useChangedPackings } from './PackingChangedList';
+import { fetchInbox, dismissInboxItem } from '@/services/warehouseProjectService';
+import { ConvertInboxDialog } from '@/components/warehouse/ConvertInboxDialog';
+import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
+import { toast } from 'sonner';
 
-type CategoryKey = 'changed' | 'urgent' | 'overdue';
+type CategoryKey = 'new' | 'changed' | 'urgent' | 'overdue';
 
 interface Props {
   packings: PackingWithBooking[];
@@ -15,15 +21,37 @@ interface Props {
 
 const PREVIEW = 5;
 
+const formatInboxEventDate = (value: string | null) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return format(date, 'd MMM', { locale: sv });
+};
+
 /**
  * "Kräver åtgärd" — operativ startpunkt på /warehouse/packing.
- * Visar endast befintliga packningar som behöver åtgärd.
- * Nya Planning-projekt hanteras enbart via /warehouse/calendar → Att planera.
+ * Samlar nya Planning-projekt och befintliga packningar som behöver åtgärd.
+ * Ingen kalender-/personalplaneringslogik bor här.
  */
 const PackingActionCenter: React.FC<Props> = ({ packings }) => {
   const navigate = useNavigate();
-  const [active, setActive] = useState<CategoryKey>('changed');
+  const queryClient = useQueryClient();
+  const [active, setActive] = useState<CategoryKey>('new');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [activeInboxItem, setActiveInboxItem] = useState<WarehouseProjectInboxItem | null>(null);
+  const [busyInboxId, setBusyInboxId] = useState<string | null>(null);
+
+  useRealtimeInvalidation({
+    channelName: 'packing-action-center-inbox',
+    tables: ['warehouse_project_inbox'],
+    queryKeys: [['warehouse-project-inbox']],
+  });
+
+  const { data: inboxItems = [], isError: inboxError } = useQuery({
+    queryKey: ['warehouse-project-inbox'],
+    queryFn: () => fetchInbox('new'),
+    retry: 1,
+  });
 
   const { data: changed = [] } = useChangedPackings();
 
@@ -49,6 +77,7 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
   }, [packings]);
 
   const categories: Array<{ key: CategoryKey; label: string; count: number; icon: React.ElementType; tone: string }> = [
+    { key: 'new', label: 'Nya', count: inboxItems.length, icon: Inbox, tone: 'text-warehouse' },
     { key: 'changed', label: 'Ändrade', count: changed.length, icon: RefreshCw, tone: 'text-amber-600' },
     { key: 'urgent', label: 'Brådskande', count: urgent.length, icon: Clock, tone: 'text-warehouse' },
     { key: 'overdue', label: 'Försenade', count: overdue.length, icon: AlertTriangle, tone: 'text-destructive' },
@@ -67,6 +96,79 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
         Visa alla {total} →
       </button>
     ) : null;
+
+  const handleDismissInbox = async (id: string) => {
+    setBusyInboxId(id);
+    try {
+      await dismissInboxItem(id);
+      await queryClient.invalidateQueries({ queryKey: ['warehouse-project-inbox'] });
+      toast.success('Avfärdat');
+    } catch (error) {
+      console.error(error);
+      toast.error('Kunde inte avfärda');
+    } finally {
+      setBusyInboxId(null);
+    }
+  };
+
+  const renderInboxList = () => {
+    if (inboxError) {
+      return <p className="text-sm text-destructive py-3">Kunde inte hämta nya projekt från Planning.</p>;
+    }
+    if (inboxItems.length === 0) {
+      return <p className="text-sm text-muted-foreground py-3">Inga nya projekt väntar på lagerplanering.</p>;
+    }
+
+    const visible = inboxItems.slice(0, limitFor('new', inboxItems.length));
+    return (
+      <div className="divide-y divide-border/30">
+        {visible.map(item => {
+          const isLarge = item.source_type === 'large_project';
+          const eventDate = formatInboxEventDate(item.event_date);
+          return (
+            <div key={item.id} className="flex items-center gap-3 py-2.5">
+              {isLarge
+                ? <Layers className="h-3.5 w-3.5 text-primary shrink-0" />
+                : <Package className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium truncate">{item.client_name || 'Okänt projekt'}</span>
+                  {item.source_project_number && (
+                    <span className="text-[11px] font-mono text-muted-foreground/70 shrink-0">#{item.source_project_number}</span>
+                  )}
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {eventDate ? `Event ${eventDate} · behöver lagerplaneras` : 'Behöver lagerplaneras'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-3 text-xs"
+                  disabled={busyInboxId === item.id}
+                  onClick={() => setActiveInboxItem(item)}
+                >
+                  Planera
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 hover:bg-destructive/10 hover:text-destructive"
+                  title="Avfärda"
+                  disabled={busyInboxId === item.id}
+                  onClick={() => handleDismissInbox(item.id)}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+        {showAllRow('new', inboxItems.length, visible.length)}
+      </div>
+    );
+  };
 
   const renderPackingList = (key: CategoryKey, list: PackingWithBooking[], subtitle: (p: PackingWithBooking) => string) => {
     if (list.length === 0) {
@@ -109,7 +211,7 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
         <span className="text-xs text-muted-foreground">{totalActions} poster</span>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-3">
         {categories.map(c => {
           const isActive = active === c.key;
           return (
@@ -131,6 +233,7 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
       </div>
 
       <div className="px-5 pb-3">
+        {active === 'new' && renderInboxList()}
         {active === 'changed' && (
           <PackingChangedList
             limit={limitFor('changed', changed.length)}
@@ -146,6 +249,17 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
           return `${days} dagar försenad · rigg ${format(new Date(p.booking!.rigdaydate!), 'd MMM yyyy', { locale: sv })}`;
         })}
       </div>
+
+      <ConvertInboxDialog
+        item={activeInboxItem}
+        open={!!activeInboxItem}
+        onOpenChange={(open) => !open && setActiveInboxItem(null)}
+        onSuccess={async () => {
+          await queryClient.invalidateQueries({ queryKey: ['warehouse-project-inbox'] });
+          await queryClient.invalidateQueries({ queryKey: ['warehouse-projects'] });
+          await queryClient.invalidateQueries({ queryKey: ['packings'] });
+        }}
+      />
     </section>
   );
 };
