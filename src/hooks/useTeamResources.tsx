@@ -1,15 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Resource } from '@/components/Calendar/ResourceData';
 import { saveResourcesToStorage, loadResourcesFromStorage } from '@/components/Calendar/ResourceData';
 import { saveResources, renameTeam } from '@/services/teamService';
 import { toast } from 'sonner';
 
-export const useTeamResources = () => {
+/**
+ * @param knownTeamIds Team-id:n som faktiskt förekommer i databasen
+ * (bokningar/personaltilldelningar). Saknas de i den lokala kolumnlistan
+ * läggs de till automatiskt — annars blir rader osynliga utan felmeddelande.
+ */
+export const useTeamResources = (knownTeamIds: string[] = []) => {
   const [resources, setResources] = useState<Resource[]>([]);
   const [teamCount, setTeamCount] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [initialSetupComplete, setInitialSetupComplete] = useState(false);
   const [cleanupDone, setCleanupDone] = useState(false);
+
   
   // Default required teams (Team 1-10). The "Live" column (team-11) is deprecated and removed.
   const defaultTeams: Resource[] = [
@@ -56,14 +62,11 @@ export const useTeamResources = () => {
       }
     });
     
-    // If we made changes, save them
+    // If we made changes, save them (tyst — detta är självläkning, inte en användaråtgärd)
     if (resourcesChanged) {
       saveResourcesToStorage(updatedResources);
       saveResources(updatedResources);
-      
-      toast.success('Default teams restored', {
-        description: 'Missing teams have been added to your calendar'
-      });
+      console.log('[useTeamResources] Team-kolumner självläkta:', updatedResources.map(r => r.id));
     }
     
     setResources(updatedResources);
@@ -81,12 +84,40 @@ export const useTeamResources = () => {
     
     setInitialSetupComplete(true);
   }, []);
+
+  // Självläkning mot databasen: team-id:n som används av bokningar/personal
+  // men saknas i den lokala kolumnlistan läggs till automatiskt.
+  const knownKey = useMemo(
+    () => Array.from(new Set(knownTeamIds.filter(Boolean))).sort().join(','),
+    [knownTeamIds],
+  );
+  useEffect(() => {
+    if (!initialSetupComplete || !knownKey) return;
+    const ids = knownKey.split(',');
+    setResources(prev => {
+      const existing = new Set(prev.map(r => r.id));
+      const missing = ids.filter(
+        id => id.startsWith('team-') && id !== 'team-11' && !existing.has(id),
+      );
+      if (missing.length === 0) return prev;
+      console.log('[useTeamResources] Lägger till saknade team-kolumner från DB:', missing);
+      return [
+        ...prev,
+        ...missing.map(id => ({
+          id,
+          title: `Team ${id.replace('team-', '')}`,
+          eventColor: '#9b87f5',
+        })),
+      ];
+    });
+  }, [knownKey, initialSetupComplete]);
   
   // Mark cleanup as done (no longer performing cleanup)
   useEffect(() => {
     if (!initialSetupComplete || cleanupDone) return;
     setCleanupDone(true);
   }, [initialSetupComplete, cleanupDone]);
+
   
   // Save resources whenever they change
   useEffect(() => {

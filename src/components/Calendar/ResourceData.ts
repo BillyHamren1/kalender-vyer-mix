@@ -143,21 +143,60 @@ export const generateEventId = (): string => {
   return `event-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 };
 
+// ── Team-resurser i localStorage ─────────────────────────────────────────────
+// Kolumnlistan lagras per webbläsare. En trasig/ofullständig lista gjorde
+// tidigare att hela team-kolumner (och all personal på dem) försvann utan fel.
+// Därför: versionerad nyckel + sanering vid inläsning.
+export const RESOURCES_STORAGE_KEY = 'calendarResources';
+export const RESOURCES_STORAGE_VERSION_KEY = 'calendarResources.version';
+export const RESOURCES_STORAGE_VERSION = '2';
+
+const isValidResource = (r: unknown): r is Resource =>
+  !!r &&
+  typeof r === 'object' &&
+  typeof (r as Resource).id === 'string' &&
+  (r as Resource).id.length > 0 &&
+  typeof (r as Resource).title === 'string';
+
 // Save resources to localStorage
 export const saveResourcesToStorage = (resources: Resource[]): void => {
-  localStorage.setItem('calendarResources', JSON.stringify(resources));
+  try {
+    localStorage.setItem(RESOURCES_STORAGE_KEY, JSON.stringify(resources.filter(isValidResource)));
+    localStorage.setItem(RESOURCES_STORAGE_VERSION_KEY, RESOURCES_STORAGE_VERSION);
+  } catch (error) {
+    console.error('Error saving resources to storage:', error);
+  }
+};
+
+/** Nollställer den lokala kalendervyn (kolumner + per-dag-synlighet). */
+export const resetCalendarViewStorage = (): void => {
+  try {
+    localStorage.removeItem(RESOURCES_STORAGE_KEY);
+    localStorage.removeItem(RESOURCES_STORAGE_VERSION_KEY);
+    localStorage.removeItem('visibleTeamsByDay');
+  } catch (error) {
+    console.error('Error resetting calendar view storage:', error);
+  }
 };
 
 // Load resources from localStorage
 export const loadResourcesFromStorage = (): Resource[] => {
   try {
-    const storedResources = localStorage.getItem('calendarResources');
-    if (storedResources) {
-      return JSON.parse(storedResources);
+    const version = localStorage.getItem(RESOURCES_STORAGE_VERSION_KEY);
+    if (version !== RESOURCES_STORAGE_VERSION) {
+      // Engångsmigrering: gammal/oversionerad cache kan sakna team-kolumner.
+      localStorage.removeItem(RESOURCES_STORAGE_KEY);
+      localStorage.setItem(RESOURCES_STORAGE_VERSION_KEY, RESOURCES_STORAGE_VERSION);
+      return [];
     }
-    return [];
+    const storedResources = localStorage.getItem(RESOURCES_STORAGE_KEY);
+    if (!storedResources) return [];
+    const parsed = JSON.parse(storedResources);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(isValidResource);
   } catch (error) {
     console.error('Error loading resources from storage:', error);
     return [];
   }
 };
+

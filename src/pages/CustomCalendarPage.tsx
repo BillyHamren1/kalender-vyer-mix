@@ -25,9 +25,11 @@ import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
 
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { startOfWeek, startOfMonth, format } from 'date-fns';
+import { startOfWeek, startOfMonth, subDays, format } from 'date-fns';
+import { resetCalendarViewStorage } from '@/components/Calendar/ResourceData';
+
 import { sv } from 'date-fns/locale';
-import { Calendar, ListChecks } from 'lucide-react';
+import { Calendar, ListChecks, RotateCcw } from 'lucide-react';
 
 // Wrapper component to handle async loading of staff with status
 const SimpleStaffCurtainWrapper: React.FC<{
@@ -159,8 +161,6 @@ const CustomCalendarPage = () => {
     }
   };
 
-  const { teamResources } = useTeamResources();
-
   // STORE SYNC: Bridge local state → central PlannerStore (legacy compatibility)
   const syncToStore = usePlannerSync();
 
@@ -175,6 +175,21 @@ const CustomCalendarPage = () => {
   const [currentMonthStart, setCurrentMonthStart] = useState(() => {
     return startOfMonth(new Date(hookCurrentDate));
   });
+
+  // Use the unified staff operations hook (deklareras tidigt: team-kolumnerna
+  // självläker utifrån vilka team som faktiskt har personal i databasen).
+  const staffOps = useUnifiedStaffOperations(currentWeekStart, 'weekly', 'Montage');
+
+  // Team-id:n som faktiskt används i DB (personal + bokningar).
+  const knownTeamIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const a of staffOps.assignments ?? []) if (a?.teamId) ids.add(a.teamId);
+    for (const e of (events as any[]) ?? []) if (e?.resourceId) ids.add(e.resourceId);
+    return Array.from(ids);
+  }, [staffOps.assignments, events]);
+
+  const { teamResources } = useTeamResources(knownTeamIds);
+
 
   // When switching to monthly mode, sync the month with current week
   useEffect(() => {
@@ -218,8 +233,21 @@ const CustomCalendarPage = () => {
   // detta till team-1..4 + transport + team-11, vilket dolde Team 5–10 även
   // när de hade planerade jobb. Se .lovable/plan.md (2026-05-16).
   const [visibleTeamsByDay, setVisibleTeamsByDay] = useState<{ [key: string]: string[] }>(() => {
-    const stored = localStorage.getItem('visibleTeamsByDay');
-    return stored ? JSON.parse(stored) : {};
+    try {
+      const stored = localStorage.getItem('visibleTeamsByDay');
+      const parsed = stored ? JSON.parse(stored) : {};
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+      // Rensa datum äldre än 30 dagar så gamla "dolda team"-beslut inte lever kvar.
+      const cutoff = format(subDays(new Date(), 30), 'yyyy-MM-dd');
+      const cleaned: { [key: string]: string[] } = {};
+      for (const [key, value] of Object.entries(parsed)) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || key < cutoff) continue;
+        if (Array.isArray(value)) cleaned[key] = value.filter((v): v is string => typeof v === 'string');
+      }
+      return cleaned;
+    } catch {
+      return {};
+    }
   });
 
   // Save visible teams to localStorage whenever it changes
@@ -232,6 +260,18 @@ const CustomCalendarPage = () => {
     [teamResources],
   );
 
+  // Team-id:n som har personal per dag (gör kolumnen synlig även utan bokning)
+  const staffTeamIdsByDay = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const a of staffOps.assignments ?? []) {
+      if (!a?.date || !a?.teamId) continue;
+      const list = map.get(a.date) ?? [];
+      if (!list.includes(a.teamId)) list.push(a.teamId);
+      map.set(a.date, list);
+    }
+    return map;
+  }, [staffOps.assignments]);
+
   // Get visible teams for a specific day
   const getVisibleTeamsForDay = (date: Date): string[] => {
     const dateKey = format(date, 'yyyy-MM-dd');
@@ -241,6 +281,7 @@ const CustomCalendarPage = () => {
       events: mergedEvents,
       date,
       persistedTeamIds: stored,
+      staffTeamIdsForDay: staffTeamIdsByDay.get(dateKey),
     });
   };
 
@@ -267,8 +308,13 @@ const CustomCalendarPage = () => {
     });
   };
 
-  // Use the unified staff operations hook
-  const staffOps = useUnifiedStaffOperations(currentWeekStart, 'weekly', 'Montage');
+  // Nollställ lokal kalendervy (kolumner + per-dag-synlighet) och ladda om.
+  const handleResetCalendarView = () => {
+    resetCalendarViewStorage();
+    toast.success('Kalendervyn återställd', { description: 'Laddar om…' });
+    setTimeout(() => window.location.reload(), 400);
+  };
+
 
   // Staff curtain state - simplified with position
   const [staffCurtainOpen, setStaffCurtainOpen] = useState(false);
@@ -350,7 +396,17 @@ const CustomCalendarPage = () => {
               />
             </div>
             <div className="flex items-center gap-2 ml-4 shrink-0">
+              <button
+                type="button"
+                onClick={handleResetCalendarView}
+                title="Nollställ sparade kolumn- och synlighetsinställningar i denna webbläsare"
+                className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Återställ vy
+              </button>
               <ProjectsOverviewMapButton weekStart={currentWeekStart} />
+
               <ListChecks className="h-4 w-4 text-muted-foreground" />
               <Label htmlFor="show-tasks" className="text-xs text-muted-foreground cursor-pointer whitespace-nowrap">
                 Visa uppgifter
