@@ -79,6 +79,7 @@ export const sendQueuedOperation: SendOperation = (op) =>
     bookingNumber: op.booking_number,
     sessionId: op.packing_session_id,
     performedBy: op.performed_by,
+    scanEvent: op.scan_event,
   });
 
 export const enqueueScanOperation = async (input: EnqueueScanOperationInput): Promise<QueuedOperation> =>
