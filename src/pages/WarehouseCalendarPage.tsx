@@ -43,6 +43,26 @@ const mapWarehouseEventType = (warehouseType: string): CalendarEvent['eventType'
   }
 };
 
+// Rigg/Event/Riv visas inte längre som egna lagerposter — de renderas som
+// kontextrad inuti lageraktivitetens kort ("Rigg: 21 aug · Event: 22 aug").
+const formatPhaseDate = (value: string | null | undefined): string | null => {
+  if (!value) return null;
+  const d = parseISO(value);
+  if (isNaN(d.getTime())) return null;
+  return format(d, 'd MMM');
+};
+
+const buildPhaseContext = (we: WarehouseEvent): string | undefined => {
+  const parts = [
+    ['Rigg', formatPhaseDate(we.source_rig_date)],
+    ['Event', formatPhaseDate(we.source_event_date)],
+    ['Riv', formatPhaseDate(we.source_rigdown_date)],
+  ]
+    .filter(([, v]) => !!v)
+    .map(([label, v]) => `${label}: ${v}`);
+  return parts.length ? parts.join(' · ') : undefined;
+};
+
 // Map warehouse events to CalendarEvent format
 const mapWarehouseEventsToCalendarEvents = (warehouseEvents: WarehouseEvent[]): CalendarEvent[] => {
   return warehouseEvents.map(we => ({
@@ -65,7 +85,11 @@ const mapWarehouseEventsToCalendarEvents = (warehouseEvents: WarehouseEvent[]): 
       deliveryCity: we.delivery_address?.split(',')[0] || undefined,
       has_source_changes: we.has_source_changes,
       manually_adjusted: we.manually_adjusted,
-      change_details: we.change_details || undefined
+      change_details: we.change_details || undefined,
+      phaseContext: buildPhaseContext(we),
+      sourceRigDate: we.source_rig_date || undefined,
+      sourceEventDate: we.source_event_date || undefined,
+      sourceRigDownDate: we.source_rigdown_date || undefined,
     }
   }));
 };
