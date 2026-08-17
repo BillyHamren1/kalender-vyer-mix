@@ -17,6 +17,7 @@ import ProjectCalendarView from "@/components/project/ProjectCalendarView";
 import PlanningTaskList from "@/components/project/planning/PlanningTaskList";
 import PlanningFilterBar, { applyFilters, hasActiveFilters, EMPTY_FILTERS, type PlanningFilters } from "@/components/project/planning/PlanningFilterBar";
 import PeopleOverview from "@/components/project/planning/PeopleOverview";
+import ProjectPlanningHeader from "@/components/project/ProjectPlanningHeader";
 import { useBookingTaskAnalytics } from "@/hooks/useBookingTaskAnalytics";
 import { supabase } from "@/integrations/supabase/client";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
@@ -187,8 +188,19 @@ const EstablishmentPage = () => {
     </Card>
   );
 
+  const totalTasks = analytics.tasks.length;
+  const completedTasks = analytics.tasks.filter((task) => task.completed).length;
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      <ProjectPlanningHeader
+        title="Planering"
+        description="Projektets operativa arbetsyta. Kalendern och aktivitetslistan visar samma genomförande ur två perspektiv utan att ändra kalenderns befintliga funktioner."
+        bookingCount={1}
+        taskCount={totalTasks}
+        completedCount={completedTasks}
+        modeLabel="Enskild leverans"
+      />
       <ProjectCalendarView
         projectId={project.id}
         bookingId={bookingId}

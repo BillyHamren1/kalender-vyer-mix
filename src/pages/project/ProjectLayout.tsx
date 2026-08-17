@@ -277,7 +277,7 @@ const ProjectLayout = () => {
                   >
                     {project.name}
                   </h1>
-                  <Badge variant="outline" className="text-xs">Medelprojekt</Badge>
+                  <Badge variant="outline" className="text-xs">Enskild bokning</Badge>
                 </div>
                 <div className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1 leading-none">
                   {isEditingSubtitle ? (

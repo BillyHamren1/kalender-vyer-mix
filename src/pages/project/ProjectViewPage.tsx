@@ -6,9 +6,10 @@ import ProjectOverviewHeader from "@/components/project/ProjectOverviewHeader";
 import ProjectTaskList from "@/components/project/ProjectTaskList";
 import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectInternalNotes from "@/components/project/ProjectInternalNotes";
-import ProjectTransportBookingDialog from "@/components/project/ProjectTransportBookingDialog";
 import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
 import PickupStopsSection from "@/components/pickup/PickupStopsSection";
+import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import ProjectTeamPanel from "@/components/project/ProjectTeamPanel";
 import ProjectFollowersPanel from "@/components/project/ProjectFollowersPanel";
@@ -16,7 +17,7 @@ import ProjectFollowersPanel from "@/components/project/ProjectFollowersPanel";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
 import { useRefreshBooking } from "@/hooks/useRefreshBooking";
-import { FileText, MessageSquare, RefreshCw, ListChecks } from "lucide-react";
+import { FileText, MessageSquare, RefreshCw, ListChecks, Users, Truck, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const SectionHeader = ({ icon: Icon, title, count }: { icon: React.ElementType; title: string; count?: number }) => (
@@ -35,11 +36,10 @@ const SectionHeader = ({ icon: Icon, title, count }: { icon: React.ElementType; 
 
 const ProjectViewPage = () => {
   const detail = useOutletContext<ReturnType<typeof useProjectDetail>>();
-  const [transportBookingOpen, setTransportBookingOpen] = useState(false);
 
   const { project, tasks, files, activities, bookingAttachments } = detail;
   const bookingId = project?.booking_id || project?.booking?.id || null;
-  const { assignments: transportAssignments, refetch: refetchTransport } = useProjectTransport(bookingId);
+  const { assignments: transportAssignments } = useProjectTransport(bookingId);
   const { refreshBooking, isRefreshing } = useRefreshBooking(bookingId, project?.id ?? '');
 
   // Auto-complete Transportbokning task if transport assignments exist
@@ -121,6 +121,13 @@ const ProjectViewPage = () => {
         filesCount={files.length}
         commentsCount={0}
         activities={activities}
+        projectLeader={projectLeaderDisplay}
+        rigDate={project.rigdaydate || booking?.rigdaydate}
+        eventDate={project.eventdate || booking?.eventdate}
+        rigDownDate={project.rigdowndate || booking?.rigdowndate}
+        deliveryAddress={project.deliveryaddress || booking?.deliveryaddress}
+        transportCount={transportAssignments.length}
+        bookingCount={1}
       />
 
       {/* One activity model for the project leader. project_tasks remains the source
@@ -140,85 +147,46 @@ const ProjectViewPage = () => {
       </section>
 
 
-      {/* Two-column layout: Booking info + Tasks & Transport */}
-      <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6 items-start">
-        {/* Left: Booking/Project info – scrolls if content overflows */}
-        {displayBooking && (
-          <div className="relative h-[560px] overflow-y-auto rounded-2xl">
-            {bookingId && (
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={refreshBooking}
-                disabled={isRefreshing}
-                className="absolute top-3 right-3 z-10 h-8 w-8"
-                title="Uppdatera bokning"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-              </Button>
-            )}
-            <BookingInfoExpanded
-              booking={displayBooking}
-              projectLeader={projectLeaderDisplay}
-              bookingAttachments={bookingAttachments}
-            />
+      {/* Secondary project workspace: information is grouped by PM intent instead of long scrolling panels. */}
+      <Tabs defaultValue="info" className="space-y-4">
+        <TabsList className="h-auto w-full justify-start rounded-xl border border-border/50 bg-card p-1">
+          <TabsTrigger value="info" className="gap-2"><Info className="h-4 w-4" />Projektinfo</TabsTrigger>
+          <TabsTrigger value="team" className="gap-2"><Users className="h-4 w-4" />Team & kommunikation</TabsTrigger>
+          <TabsTrigger value="logistics" className="gap-2"><Truck className="h-4 w-4" />Logistik</TabsTrigger>
+          <TabsTrigger value="files" className="gap-2"><FileText className="h-4 w-4" />Dokument {files.length > 0 && `(${files.length})`}</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="info" className="mt-0">
+          {displayBooking && (
+            <div className="relative max-h-[680px] overflow-y-auto rounded-2xl">
+              {bookingId && <Button variant="outline" size="icon" onClick={refreshBooking} disabled={isRefreshing} className="absolute top-3 right-3 z-10 h-8 w-8" title="Uppdatera bokning"><RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} /></Button>}
+              <BookingInfoExpanded booking={displayBooking} projectLeader={projectLeaderDisplay} bookingAttachments={bookingAttachments} />
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="team" className="mt-0">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+            <div className="space-y-4">
+              <ProjectTeamPanel bookingId={bookingId} projectLeader={projectLeaderDisplay} onChangeLeader={(name) => detail.updateProject({ project_leader: name })} projectStartDate={project.rigdaydate || project.eventdate} projectEndDate={project.rigdowndate || project.eventdate} />
+              <ProjectFollowersPanel projectId={project.id} projectType="standard" />
+            </div>
+            <div>
+              <SectionHeader icon={MessageSquare} title="Interna anteckningar" />
+              <ProjectInternalNotes bookingId={bookingId} currentNotes={booking?.internalnotes || project.internalnotes} projectId={project.id} />
+            </div>
           </div>
-        )}
+        </TabsContent>
 
-        {/* Right: Team + Internal notes */}
-        <div className="flex flex-col gap-4 h-[560px] overflow-y-auto">
-          <ProjectTeamPanel
-            bookingId={bookingId}
-            projectLeader={projectLeaderDisplay}
-            onChangeLeader={(name) => detail.updateProject({ project_leader: name })}
-            projectStartDate={project.rigdaydate || project.eventdate}
-            projectEndDate={project.rigdowndate || project.eventdate}
-          />
-          <ProjectFollowersPanel projectId={project.id} projectType="standard" />
-          <SectionHeader icon={MessageSquare} title="Interna anteckningar" />
-          <ProjectInternalNotes
-            bookingId={bookingId}
-            currentNotes={booking?.internalnotes || project.internalnotes}
-            projectId={project.id}
-            className="h-full"
-          />
-        </div>
-      </div>
+        <TabsContent value="logistics" className="mt-0 space-y-5">
+          <ProjectTransportWidget bookingId={bookingId} />
+          <PickupStopsSection parent={{ type: "project", id: project.id }} />
+        </TabsContent>
 
-      {/* Filer */}
-      <div className="grid grid-cols-1 gap-6 items-stretch">
-        <div className="flex flex-col h-full min-h-[480px]">
-          <SectionHeader icon={FileText} title="Filer" count={files.length} />
-          <ProjectFiles
-            files={files}
-            onUpload={detail.uploadFile}
-            onDelete={detail.deleteFile}
-            isUploading={detail.isUploadingFile}
-            bookingAttachments={bookingAttachments}
-            className="h-full"
-          />
-        </div>
-      </div>
-
-      {/* Materialhämtning från externa leverantörer */}
-      <PickupStopsSection parent={{ type: "project", id: project.id }} />
-
-
-
-      {bookingId && (
-        <ProjectTransportBookingDialog
-          bookingId={bookingId}
-          open={transportBookingOpen}
-          onOpenChange={setTransportBookingOpen}
-          onComplete={() => {
-            refetchTransport();
-            const transportTask = tasks.find(t => t.title === 'Transportbokning' && !t.completed);
-            if (transportTask) {
-              detail.updateTask({ id: transportTask.id, updates: { completed: true } });
-            }
-          }}
-        />
-      )}
+        <TabsContent value="files" className="mt-0">
+          <ProjectFiles files={files} onUpload={detail.uploadFile} onDelete={detail.deleteFile} isUploading={detail.isUploadingFile} bookingAttachments={bookingAttachments} />
+        </TabsContent>
+      </Tabs>
 
     </div>
   );
