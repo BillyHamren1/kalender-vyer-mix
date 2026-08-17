@@ -396,7 +396,17 @@ const CustomCalendarPage = () => {
               />
             </div>
             <div className="flex items-center gap-2 ml-4 shrink-0">
+              <button
+                type="button"
+                onClick={handleResetCalendarView}
+                title="Nollställ sparade kolumn- och synlighetsinställningar i denna webbläsare"
+                className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Återställ vy
+              </button>
               <ProjectsOverviewMapButton weekStart={currentWeekStart} />
+
               <ListChecks className="h-4 w-4 text-muted-foreground" />
               <Label htmlFor="show-tasks" className="text-xs text-muted-foreground cursor-pointer whitespace-nowrap">
                 Visa uppgifter
