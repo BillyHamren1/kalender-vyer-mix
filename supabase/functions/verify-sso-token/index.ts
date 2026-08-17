@@ -44,10 +44,31 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
   if (req.method !== 'POST') return json(405, { success: false, error_code: 'METHOD_NOT_ALLOWED' });
 
+  // Trace id so every step of one login attempt can be followed in the logs.
+  const traceId = crypto.randomUUID().slice(0, 8);
+  let step = 'init';
+  const trace = (name: string, extra: Record<string, unknown> = {}) => {
+    step = name;
+    console.log('[SSO] step', JSON.stringify({ trace_id: traceId, step: name, ...extra }));
+  };
+  const failure = (name: string, err: unknown) => {
+    const e = err as any;
+    console.error('[SSO] step_failed', JSON.stringify({
+      trace_id: traceId,
+      step: name,
+      status: e?.status ?? null,
+      code: e?.code ?? e?.name ?? null,
+      message: e?.message ?? String(e ?? ''),
+    }));
+  };
+
   try {
     const { payload: incomingPayload, signature, target_view } = await req.json();
     const targetView: TargetView = target_view === 'warehouse' ? 'warehouse' : 'planning';
-    if (!incomingPayload || !signature) return json(400, { success: false, error_code: 'MISSING_DATA' });
+    if (!incomingPayload || !signature) return json(400, { success: false, error_code: 'MISSING_DATA', trace_id: traceId });
+
+    trace('hub_verify_request', { target_view: targetView, expected_module: expectedModule(targetView) });
+
 
     const hubResponse = await fetch(HUB_VERIFY_URL, {
       method: 'POST',
