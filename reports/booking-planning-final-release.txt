@@ -1,8 +1,8 @@
 BOOKING→PLANNING FINAL RELEASE GATE
-release_run_id:                   rel-20260817T084335Z-9b90037a512c
-generated_at:                     2026-08-17T08:43:38.062Z
-git_commit:                       3081bd9e6d89e90217ab482ed7c4c32c8bd8f212
-final_release_content_binding:    49c5c881f64a17b7ffc9d4cdbbdc6094ca78096dab05d3515fb4486d5eaddb06
+release_run_id:                   rel-20260817T084616Z-6a4a1920d9b2
+generated_at:                     2026-08-17T08:46:19.467Z
+git_commit:                       0b3f93ded85178f879baaaf0446b2bd688dddff9
+final_release_content_binding:    43c48d9cc1e84a4822f4fdd0f476562dcad67259211d2e02e65a06a36b18b8fa
 historical_migration_replay:      UNVERIFIABLE (DIAGNOSTIC / NON_RELEASE_BLOCKING)
 safe_environment:                 PASS
 release_migration_compatibility:  PASS
@@ -13,7 +13,7 @@ build:                            NOT_EXECUTED
 final_release_content_binding:    PASS
 
 Orsaker:
-  - sql_e2e_release_gate: FAIL (sync-e2e-rapporten saknar release_run_id; sql_e2e final=RED; sql_e2e bsa_tenant_identity: FAIL; sql_e2e bsa_v2_rpc: FAIL; sql_e2e security_definer: FAIL; sql_e2e revision_lease: FAIL; sql_e2e worker_jobs: FAIL; sql_e2e batch_cursor: FAIL; sql_e2e warehouse_uniqueness: FAIL; sql_e2e canonical_error_propagation: FAIL; sql_e2e destructive_cancellation_off: FAIL; run-sync-e2e.sh exit_code=1)
+  - sql_e2e_release_gate: FAIL (sql_e2e schema_provisioning: saknas)
   - contract_tests: NOT_EXECUTED (contract tests ej körda)
   - typecheck: NOT_EXECUTED (typecheck ej körd)
   - build: NOT_EXECUTED (build ej körd)
