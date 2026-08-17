@@ -1,11 +1,7 @@
-import { useState } from "react";
-import { useOutletContext, useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useOutletContext } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ProjectOverviewHeader from "@/components/project/ProjectOverviewHeader";
-import CreateTodoWizard from "@/components/todo/CreateTodoWizard";
+import ProjectTaskList from "@/components/project/ProjectTaskList";
 
 import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectInternalNotes from "@/components/project/ProjectInternalNotes";
@@ -25,9 +21,6 @@ const tabTriggerClass =
 
 const LargeProjectViewPage = () => {
   const detail = useOutletContext<ReturnType<typeof useLargeProjectDetail>>();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [createTodoOpen, setCreateTodoOpen] = useState(false);
 
   const { project, tasks, files } = detail;
 
@@ -44,18 +37,6 @@ const LargeProjectViewPage = () => {
 
   return (
     <div className="space-y-6">
-      {/* Quick actions */}
-      <div className="flex justify-end">
-        <Button
-          size="sm"
-          onClick={() => setCreateTodoOpen(true)}
-          className="rounded-lg h-8 shadow-sm bg-primary hover:bg-[hsl(var(--primary-hover))]"
-        >
-          <Plus className="h-4 w-4 mr-1.5" />
-          Ny aktivitet
-        </Button>
-      </div>
-
       {/* Overview dashboard */}
       <ProjectOverviewHeader
         tasks={tasks}
@@ -63,6 +44,30 @@ const LargeProjectViewPage = () => {
         commentsCount={0}
         activities={[]}
       />
+
+      {/* Same project-activity model as standard projects. The hook maps
+          large_project_tasks to the shared ProjectTask shape and bridges to execution. */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold tracking-tight">Aktiviteter</h2>
+            <p className="text-xs text-muted-foreground">Projektledarens gemensamma aktiviteter, oavsett antal underbokningar.</p>
+          </div>
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {tasks.filter(t => !t.completed && !t.is_info_only).length} öppna
+          </span>
+        </div>
+        <div className="min-h-[360px]">
+          <ProjectTaskList
+            tasks={tasks}
+            onAddTask={detail.addTask}
+            onUpdateTask={detail.updateTask}
+            onDeleteTask={detail.deleteTask}
+            bookingId={bookingId}
+            executionHref="../establishment"
+          />
+        </div>
+      </section>
 
 
       {/* Anslagstavla — interna anteckningar (ETT enhetligt fält) */}
@@ -134,17 +139,6 @@ const LargeProjectViewPage = () => {
         </TabsContent>
       </Tabs>
 
-      <CreateTodoWizard
-        open={createTodoOpen}
-        onOpenChange={setCreateTodoOpen}
-        preselectedBookingId={bookingId}
-        onSuccess={() => {
-          setCreateTodoOpen(false);
-          queryClient.invalidateQueries({ queryKey: ['large-project-detail', project.id] });
-          queryClient.invalidateQueries({ queryKey: ['projects'] });
-          queryClient.invalidateQueries({ queryKey: ['planner-calendar-events'] });
-        }}
-      />
     </div>
   );
 };

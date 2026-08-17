@@ -88,9 +88,9 @@ const AddTaskDialog = ({ open, onOpenChange, onSubmit, bookingId }: AddTaskDialo
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Lägg till koordineringsuppgift</DialogTitle>
+          <DialogTitle>Ny projektaktivitet</DialogTitle>
           <p className="text-xs text-muted-foreground leading-snug mt-1">
-            Enkel samordning inom projektet. Operativa fältuppgifter hanteras under <strong>Utförande</strong>.
+            Skapa aktiviteten en gång här. Den kan sedan följas och fördjupas under <strong>Planering</strong> utan att projektledaren behöver välja mellan olika uppgiftstyper.
           </p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -100,7 +100,7 @@ const AddTaskDialog = ({ open, onOpenChange, onSubmit, bookingId }: AddTaskDialo
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Vad ska göras?"
+              placeholder="Vad behöver göras?"
               autoFocus
             />
           </div>
@@ -167,7 +167,7 @@ const AddTaskDialog = ({ open, onOpenChange, onSubmit, bookingId }: AddTaskDialo
               Avbryt
             </Button>
             <Button type="submit" disabled={!title.trim()}>
-              Lägg till
+              Skapa aktivitet
             </Button>
           </DialogFooter>
         </form>

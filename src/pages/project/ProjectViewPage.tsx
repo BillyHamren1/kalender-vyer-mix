@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,26 +6,18 @@ import ProjectOverviewHeader from "@/components/project/ProjectOverviewHeader";
 import ProjectTaskList from "@/components/project/ProjectTaskList";
 import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectInternalNotes from "@/components/project/ProjectInternalNotes";
-import ProjectActivityLog from "@/components/project/ProjectActivityLog";
-import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
 import ProjectTransportBookingDialog from "@/components/project/ProjectTransportBookingDialog";
 import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
-import ProjectContactCard from "@/components/project/ProjectContactCard";
-import ProjectSuppliersTab from "@/components/project/suppliers/ProjectSuppliersTab";
-import ProjectTimeline from "@/components/project/timeline/ProjectTimeline";
 import PickupStopsSection from "@/components/pickup/PickupStopsSection";
 
-import ProjectStatusPanel from "@/components/project/ProjectStatusPanel";
 import ProjectTeamPanel from "@/components/project/ProjectTeamPanel";
 import ProjectFollowersPanel from "@/components/project/ProjectFollowersPanel";
 
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
 import { useRefreshBooking } from "@/hooks/useRefreshBooking";
-import { FileText, MessageSquare, History, RefreshCw, ArrowRight, Plus } from "lucide-react";
+import { FileText, MessageSquare, RefreshCw, ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import CreateTodoWizard from "@/components/todo/CreateTodoWizard";
-import { useQueryClient } from "@tanstack/react-query";
 
 const SectionHeader = ({ icon: Icon, title, count }: { icon: React.ElementType; title: string; count?: number }) => (
   <div className="flex items-center gap-2 mb-3">
@@ -44,8 +36,6 @@ const SectionHeader = ({ icon: Icon, title, count }: { icon: React.ElementType; 
 const ProjectViewPage = () => {
   const detail = useOutletContext<ReturnType<typeof useProjectDetail>>();
   const [transportBookingOpen, setTransportBookingOpen] = useState(false);
-  const [createTodoOpen, setCreateTodoOpen] = useState(false);
-  const queryClient = useQueryClient();
 
   const { project, tasks, files, activities, bookingAttachments } = detail;
   const bookingId = project?.booking_id || project?.booking?.id || null;
@@ -125,18 +115,6 @@ const ProjectViewPage = () => {
 
   return (
     <div className="space-y-6">
-      {/* Quick actions */}
-      <div className="flex justify-end">
-        <Button
-          size="sm"
-          onClick={() => setCreateTodoOpen(true)}
-          className="rounded-lg h-8 shadow-sm bg-primary hover:bg-[hsl(var(--primary-hover))]"
-        >
-          <Plus className="h-4 w-4 mr-1.5" />
-          Ny aktivitet
-        </Button>
-      </div>
-
       {/* Overview dashboard */}
       <ProjectOverviewHeader
         tasks={tasks}
@@ -144,6 +122,22 @@ const ProjectViewPage = () => {
         commentsCount={0}
         activities={activities}
       />
+
+      {/* One activity model for the project leader. project_tasks remains the source
+          for coordination; the existing soft bridge mirrors these into Planering. */}
+      <section className="space-y-3">
+        <SectionHeader icon={ListChecks} title="Aktiviteter" count={tasks.filter(t => !t.completed && !t.is_info_only).length} />
+        <div className="min-h-[360px]">
+          <ProjectTaskList
+            tasks={tasks}
+            onAddTask={detail.addTask}
+            onUpdateTask={detail.updateTask}
+            onDeleteTask={detail.deleteTask}
+            bookingId={bookingId}
+            executionHref="execution"
+          />
+        </div>
+      </section>
 
 
       {/* Two-column layout: Booking info + Tasks & Transport */}
@@ -226,17 +220,6 @@ const ProjectViewPage = () => {
         />
       )}
 
-      <CreateTodoWizard
-        open={createTodoOpen}
-        onOpenChange={setCreateTodoOpen}
-        preselectedBookingId={bookingId}
-        onSuccess={() => {
-          setCreateTodoOpen(false);
-          queryClient.invalidateQueries({ queryKey: ['projects'] });
-          queryClient.invalidateQueries({ queryKey: ['project-detail', project.id] });
-          queryClient.invalidateQueries({ queryKey: ['planner-calendar-events'] });
-        }}
-      />
     </div>
   );
 };
