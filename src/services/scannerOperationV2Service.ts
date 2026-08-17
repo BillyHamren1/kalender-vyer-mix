@@ -56,7 +56,7 @@ export const buildScannerCommand = (input: ScannerOperationInput): ScannerComman
   performedBy: input.performedBy ?? null,
 });
 
-export const isScannerV2Active = (): boolean => SCANNER_TRANSACTION_V2 === true;
+export const isScannerV2Active = (): boolean => Boolean(SCANNER_TRANSACTION_V2);
 
 export const submitScannerOperation = async (
   input: ScannerOperationInput,
