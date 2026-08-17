@@ -12,6 +12,7 @@ interface LogisticsUnplannedQueueProps {
   bookings: BookingForTransport[];
   isLoading: boolean;
   onOpenTransport: () => void;
+  onSelectBooking?: (booking: BookingForTransport) => void;
 }
 
 const bookingMatchesWeek = (booking: BookingForTransport, start: Date, end: Date) => (
@@ -41,6 +42,7 @@ const LogisticsUnplannedQueue: React.FC<LogisticsUnplannedQueueProps> = ({
   bookings,
   isLoading,
   onOpenTransport,
+  onSelectBooking,
 }) => {
   const start = startOfWeek(currentDate, { weekStartsOn: 1 });
   const end = endOfWeek(currentDate, { weekStartsOn: 1 });
@@ -83,7 +85,7 @@ const LogisticsUnplannedQueue: React.FC<LogisticsUnplannedQueueProps> = ({
               <button
                 key={booking.id}
                 type="button"
-                onClick={onOpenTransport}
+                onClick={() => onSelectBooking ? onSelectBooking(booking) : onOpenTransport()}
                 className="group flex w-full items-center gap-3 px-5 py-3.5 text-left transition-colors hover:bg-muted/40"
               >
                 <div className="min-w-0 flex-1">

@@ -420,7 +420,7 @@ const OpsControlCenter = () => {
 
               <section className="planning-card overflow-hidden flex flex-col" style={{ padding: 0 }}>
                 <CollapsibleHeader
-                  title="Personalkalender"
+                  title="Bemanningskalender"
                   open={staffCalendarOpen}
                   onToggle={() => setStaffCalendarOpen((v) => !v)}
                 />

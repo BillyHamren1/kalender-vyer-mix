@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Map, Maximize2, Truck } from 'lucide-react';
+import { Map, Maximize2, Plus, Truck } from 'lucide-react';
 import { addMonths, addWeeks, endOfMonth, endOfWeek, format, startOfMonth, startOfWeek, subMonths, subWeeks } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { useTransportAssignments } from '@/hooks/useTransportAssignments';
@@ -14,6 +14,7 @@ import LogisticsWeekView from '@/components/logistics/LogisticsWeekView';
 import TransportBookingTab from '@/components/logistics/TransportBookingTab';
 import LogisticsOperationsOverview from '@/components/logistics/LogisticsOperationsOverview';
 import LogisticsUnplannedQueue from '@/components/logistics/LogisticsUnplannedQueue';
+import QuickTransportDialog from '@/components/logistics/QuickTransportDialog';
 
 type ExpandedWidget = 'transport' | 'map' | null;
 
@@ -24,6 +25,9 @@ const LogisticsPlanning: React.FC = () => {
   const [widgetMonthOffset, setWidgetMonthOffset] = useState(0);
   const [widgetCustomRange, setWidgetCustomRange] = useState<{ from: Date; to: Date } | null>(null);
   const [weekViewDate, setWeekViewDate] = useState(new Date());
+  const [quickTransportOpen, setQuickTransportOpen] = useState(false);
+  const [quickEditAssignment, setQuickEditAssignment] = useState<import('@/hooks/useTransportAssignments').TransportAssignment | null>(null);
+  const [quickBookingId, setQuickBookingId] = useState<string | null>(null);
 
   const combinedRange = useMemo(() => {
     const now = new Date();
@@ -67,7 +71,7 @@ const LogisticsPlanning: React.FC = () => {
   }, [weekViewDate, widgetDateMode, widgetWeekOffset, widgetMonthOffset, widgetCustomRange]);
 
   const { assignments, isLoading } = useTransportAssignments(combinedRange.start, combinedRange.end);
-  const { withoutTransport, isLoading: bookingsLoading } = useBookingsForTransport();
+  const { bookings, withoutTransport, isLoading: bookingsLoading, refetch: refetchBookings } = useBookingsForTransport();
   const { vehicles, activeVehicles, isLoading: vehiclesLoading } = useVehicles();
 
   const weekAssignments = useMemo(
@@ -97,6 +101,10 @@ const LogisticsPlanning: React.FC = () => {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => { setQuickEditAssignment(null); setQuickBookingId(null); setQuickTransportOpen(true); }}>
+              <Plus className="mr-2 h-4 w-4" />
+              Registrera transport
+            </Button>
             <Button variant="outline" onClick={() => setExpanded('map')}>
               <Map className="mr-2 h-4 w-4" />
               Öppna karta
@@ -123,6 +131,7 @@ const LogisticsPlanning: React.FC = () => {
         isLoading={isLoading}
         currentDate={weekViewDate}
         onDateChange={setWeekViewDate}
+        onEditAssignment={(assignment) => { setQuickEditAssignment(assignment); setQuickBookingId(assignment.booking_id); setQuickTransportOpen(true); }}
       />
 
       <div className="grid gap-5 xl:grid-cols-[minmax(360px,0.8fr)_minmax(0,1.4fr)]">
@@ -131,6 +140,7 @@ const LogisticsPlanning: React.FC = () => {
           bookings={withoutTransport}
           isLoading={bookingsLoading}
           onOpenTransport={() => setExpanded('transport')}
+          onSelectBooking={(booking) => { setQuickEditAssignment(null); setQuickBookingId(booking.id); setQuickTransportOpen(true); }}
         />
 
         <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
@@ -179,6 +189,18 @@ const LogisticsPlanning: React.FC = () => {
           />
         </div>
       </section>
+
+      {quickTransportOpen && (
+        <QuickTransportDialog
+          open={quickTransportOpen}
+          onOpenChange={(open) => { setQuickTransportOpen(open); if (!open) { setQuickEditAssignment(null); setQuickBookingId(null); } }}
+          bookings={bookings}
+          vehicles={vehicles}
+          assignment={quickEditAssignment}
+          defaultBookingId={quickBookingId}
+          onSaved={async () => { await refetchBookings(); }}
+        />
+      )}
 
       <Dialog open={expanded === 'transport'} onOpenChange={(open) => !open && setExpanded(null)}>
         <DialogContent className="flex h-[90vh] w-[96vw] max-w-[96vw] flex-col overflow-hidden bg-card p-0">

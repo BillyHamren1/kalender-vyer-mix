@@ -23,7 +23,7 @@ interface NavItem {
 
 const navigationItems: NavItem[] = [
   { title: "Dashboard", url: "/warehouse", icon: LayoutDashboard, exact: true },
-  { title: "Personalplanering", url: "/warehouse/calendar", icon: Calendar },
+  { title: "Bemanningsplanering", url: "/warehouse/calendar", icon: Calendar },
   { title: "Planera packning", url: "/warehouse/packing", icon: Package },
   { title: "Lagerekonomi", url: "/warehouse/economy", icon: TrendingUp },
   { title: "Inventarier", url: "/warehouse/inventory", icon: Boxes },

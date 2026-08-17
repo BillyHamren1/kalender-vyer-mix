@@ -73,7 +73,7 @@ const baseNavigationItems: NavItem[] = [
     icon: MapPin,
   },
   {
-    title: "Personalplanering",
+    title: "Bemanningsplanering",
     url: "/calendar",
     icon: Calendar,
   },
@@ -88,8 +88,8 @@ const baseNavigationItems: NavItem[] = [
     icon: Users,
     children: [
       { title: "Personalöversikt", url: "/staff-management", icon: Users },
-      { title: "Personalplanering", url: "/calendar", icon: Calendar },
-      { title: "Personalkalendern (publik)", url: "/personalkalendern", icon: ExternalLink },
+      { title: "Bemanningsplanering", url: "/calendar", icon: Calendar },
+      { title: "Bemanningskalender (publik)", url: "/personalkalendern", icon: ExternalLink },
       { title: "Tid & Lön", url: "/staff-management/time", icon: CalendarClock },
     ],
   },

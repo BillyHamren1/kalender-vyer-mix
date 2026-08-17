@@ -29,7 +29,7 @@ describe('Personalkalendern — registrering', () => {
 
   it('Sidebar har länk', () => {
     const sb = fs.readFileSync(path.join(root, 'src/components/Sidebar3D.tsx'), 'utf8');
-    expect(sb).toMatch(/Personalkalendern \(publik\)/);
+    expect(sb).toMatch(/Bemanningskalender \(publik\)/);
     expect(sb).toMatch(/url: "\/personalkalendern"/);
   });
 });
