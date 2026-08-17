@@ -165,7 +165,7 @@ const queryPersister = typeof window !== "undefined"
   : undefined;
 
 // Bumpa när cache-shape ändras så gamla entries kastas.
-const PERSIST_BUSTER = "v2026-05-28";
+const PERSIST_BUSTER = "v2026-08-17";
 
 // Pause all polling/refetching while the tab is hidden. Resume on visibility.
 // This stops dashboards (planning/ops/warehouse) from hammering the network in the background
