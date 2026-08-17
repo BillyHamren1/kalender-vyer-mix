@@ -52,14 +52,13 @@ export function useWarehousePackingStats(bookingIds: string[]) {
       });
 
       packings.forEach((p) => {
-        const a = agg.get(p.id) || { total: 0, packed: 0, shortfallRows: 0 };
+        const a = agg.get(p.id) || { total: 0, packed: 0 };
         if (!p.booking_id) return;
         result.set(p.booking_id, {
           bookingId: p.booking_id,
           status: p.status ?? null,
           total: a.total,
           packed: a.packed,
-          shortfallRows: a.shortfallRows,
         });
       });
 
