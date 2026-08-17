@@ -427,7 +427,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                   }}
-                  title={crewLabel}
+                  title={ep?.crewFullLabel ?? crewLabel}
                 >
                   {crewLabel}
                 </div>
