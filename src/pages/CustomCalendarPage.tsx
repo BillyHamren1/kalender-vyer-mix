@@ -159,8 +159,6 @@ const CustomCalendarPage = () => {
     }
   };
 
-  const { teamResources } = useTeamResources();
-
   // STORE SYNC: Bridge local state → central PlannerStore (legacy compatibility)
   const syncToStore = usePlannerSync();
 
@@ -175,6 +173,21 @@ const CustomCalendarPage = () => {
   const [currentMonthStart, setCurrentMonthStart] = useState(() => {
     return startOfMonth(new Date(hookCurrentDate));
   });
+
+  // Use the unified staff operations hook (deklareras tidigt: team-kolumnerna
+  // självläker utifrån vilka team som faktiskt har personal i databasen).
+  const staffOps = useUnifiedStaffOperations(currentWeekStart, 'weekly', 'Montage');
+
+  // Team-id:n som faktiskt används i DB (personal + bokningar).
+  const knownTeamIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const a of staffOps.assignments ?? []) if (a?.teamId) ids.add(a.teamId);
+    for (const e of (events as any[]) ?? []) if (e?.resourceId) ids.add(e.resourceId);
+    return Array.from(ids);
+  }, [staffOps.assignments, events]);
+
+  const { teamResources } = useTeamResources(knownTeamIds);
+
 
   // When switching to monthly mode, sync the month with current week
   useEffect(() => {
