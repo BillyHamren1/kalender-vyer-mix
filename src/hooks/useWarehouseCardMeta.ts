@@ -14,8 +14,6 @@ export interface WarehousePackingStat {
   status: string | null;
   total: number;
   packed: number;
-  /** Antal rader som inte är fullt packade (brister). */
-  shortfallRows: number;
 }
 
 /** Batch-hämtar packstatus per booking_id. */
