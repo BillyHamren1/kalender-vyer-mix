@@ -153,11 +153,13 @@ describe('STEG 8 – V2-koden innehåller ingen lokal aritmetik', () => {
   it('gatewayen anropar WMS före all lokal skrivning', () => {
     const src = read('supabase/functions/scanner-operation-v2/index.ts');
     const wmsIdx = src.indexOf('fetch(gatewayUrl');
-    const writeIdx = src.indexOf(".from('packing_list_items')");
+    // Endast skrivningen (update) får ligga efter WMS; scope-läsningar sker före.
+    const writeIdx = src.indexOf('.update(');
     expect(wmsIdx).toBeGreaterThan(0);
     expect(writeIdx).toBeGreaterThan(wmsIdx);
     expect(src).toContain("status === 'accepted'");
   });
+
 
   it('gatewayen skriver endast WMS packed_quantity som projection', () => {
     const src = read('supabase/functions/scanner-operation-v2/index.ts');
