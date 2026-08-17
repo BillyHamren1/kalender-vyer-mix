@@ -3,7 +3,7 @@
  *  - a checkbox per product row (also per quantity unit)
  *  - a signature line per row (initials)
  *  - header with packing name, booking number, client, date
- *  - opens in a new window and triggers print (user can "Save as PDF")
+ *  - opens the native print dialog once (user can "Save as PDF")
  */
 
 export interface PrintablePackingRow {
@@ -167,28 +167,7 @@ export function openPrintablePackingList(
       border-top: 1px solid #111;
       padding-top: 4px;
     }
-    .toolbar {
-      position: fixed;
-      top: 8px;
-      right: 8px;
-      display: flex;
-      gap: 8px;
-    }
-    .toolbar button {
-      font: inherit;
-      padding: 6px 12px;
-      border: 1px solid #111;
-      background: #111;
-      color: #fff;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    .toolbar button.secondary {
-      background: #fff;
-      color: #111;
-    }
     @media print {
-      .toolbar { display: none; }
       body { padding: 0; }
       tr { page-break-inside: avoid; }
       thead { display: table-header-group; }
@@ -196,11 +175,6 @@ export function openPrintablePackingList(
   </style>
 </head>
 <body>
-  <div class="toolbar">
-    <button onclick="window.print()">Skriv ut / Spara som PDF</button>
-    <button class="secondary" onclick="window.close()">Stäng</button>
-  </div>
-
   <div class="header">
     <div>
       <h1>${escapeHtml(meta.packingName)}</h1>
@@ -250,12 +224,6 @@ export function openPrintablePackingList(
     </div>
   </div>
 
-  <script>
-    // Auto-open print dialog on load (user can cancel and use button).
-    window.addEventListener('load', () => {
-      setTimeout(() => { try { window.print(); } catch (e) {} }, 250);
-    });
-  </script>
 </body>
 </html>`;
 

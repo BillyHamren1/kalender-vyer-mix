@@ -325,9 +325,17 @@ async function syncPackingListItems(
   )
   const productIds = new Set(packableProducts.map((p: any) => p.id))
 
-  let synced = 0
+  // The operational packing snapshot is mutable ONLY while the packing is in
+  // planning. Once floor work has started, booking edits may flag drift but
+  // must never silently add/remove/re-target rows behind the warehouse team.
+  const { data: packingMeta } = await supabase
+    .from('packing_projects')
+    .select('status')
+    .eq('id', packingId)
+    .eq('organization_id', organizationId)
+    .maybeSingle()
+  const packingStatus = (packingMeta as any)?.status || null
 
-  // Add missing items
   const newItems = packableProducts
     .filter((p: any) => !existingByProductId.has(p.id))
     .map((p: any) => ({
@@ -337,7 +345,34 @@ async function syncPackingListItems(
       quantity_packed: 0,
       organization_id: organizationId
     }))
+  const orphanedItems = itemsForThisBooking.filter(
+    (item: any) => item.booking_product_id && !productIds.has(item.booking_product_id)
+  )
+  const quantityDrift = packableProducts.filter((product: any) => {
+    const existing = existingByProductId.get(product.id) as any
+    return existing && existing.quantity_to_pack !== product.quantity
+  })
 
+  if (packingStatus !== 'planning') {
+    const frozenDriftCount = newItems.length + orphanedItems.length + quantityDrift.length
+    if (frozenDriftCount > 0) {
+      console.warn(`[sync-booking-to-packing] Frozen packing snapshot ${packingId}: ${frozenDriftCount} booking drift(s) detected; no operational rows changed`)
+      await supabase
+        .from('packing_projects')
+        .update({
+          needs_packing_review: true,
+          needs_packing_review_reason: 'booking_changed_after_packing_started',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', packingId)
+        .eq('organization_id', organizationId)
+    }
+    return 0
+  }
+
+  let synced = 0
+
+  // Add missing items (planning only; guarded above).
   if (newItems.length > 0) {
     const { error: insertError } = await supabase
       .from('packing_list_items')
@@ -351,16 +386,7 @@ async function syncPackingListItems(
     }
   }
 
-  // Update quantity_to_pack for existing items where product quantity changed.
-  // Freeze targets after packing has started/completed to preserve the packing snapshot.
-  const { data: packingMeta } = await supabase
-    .from('packing_projects')
-    .select('status')
-    .eq('id', packingId)
-    .eq('organization_id', organizationId)
-    .maybeSingle()
-  const packingStatus = (packingMeta as any)?.status || null
-
+  // Update quantity_to_pack for existing items (planning only; guarded above).
   for (const product of packableProducts) {
     const existing = existingByProductId.get(product.id) as any
     if (existing && existing.quantity_to_pack !== product.quantity) {
@@ -380,11 +406,8 @@ async function syncPackingListItems(
     }
   }
 
-  // Remove orphaned items — ONLY among items belonging to this booking.
-  const orphanedItems = itemsForThisBooking.filter(
-    (item: any) => item.booking_product_id && !productIds.has(item.booking_product_id)
-  )
-
+  // Remove orphaned items — ONLY among items belonging to this booking and
+  // only while planning (the frozen-state guard above already returned).
   if (orphanedItems.length > 0) {
     const orphanedIds = orphanedItems.map((item: any) => item.id)
     const { error: deleteError } = await supabase

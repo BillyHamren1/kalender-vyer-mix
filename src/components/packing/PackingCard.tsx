@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Calendar, Trash2, CheckSquare, History, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Calendar, Trash2, CheckSquare, History, ShieldCheck, AlertTriangle, Warehouse } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PackingWithBooking, PACKING_STATUS_LABELS, PACKING_STATUS_COLORS } from "@/types/packing";
@@ -12,10 +12,11 @@ interface PackingCardProps {
   packing: PackingWithBooking;
   onClick: () => void;
   onDelete: () => void;
+  onOpenBooking?: () => void;
   onControlCompleted?: (packingId: string, result: "completed" | "failed") => void;
 }
 
-const PackingCard = ({ packing, onClick, onDelete, onControlCompleted }: PackingCardProps) => {
+const PackingCard = ({ packing, onClick, onDelete, onOpenBooking, onControlCompleted }: PackingCardProps) => {
   const [showHistory, setShowHistory] = useState(false);
   const [showControl, setShowControl] = useState(false);
   const [showQuickApprove, setShowQuickApprove] = useState(false);
@@ -114,6 +115,22 @@ const PackingCard = ({ packing, onClick, onDelete, onControlCompleted }: Packing
             <CheckSquare className="h-4 w-4" />
             <span>Skapad {format(new Date(packing.created_at), 'd MMM yyyy', { locale: sv })}</span>
           </div>
+        )}
+
+        {packing.booking?.id && onOpenBooking && (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="w-full mt-4 gap-2"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenBooking();
+            }}
+          >
+            <Warehouse className="h-4 w-4" />
+            Öppna bokning i lager
+          </Button>
         )}
 
         {packing.status === 'packed' && packing.control_status !== 'completed' && (

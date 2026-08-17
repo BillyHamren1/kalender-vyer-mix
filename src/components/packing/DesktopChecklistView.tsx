@@ -29,6 +29,9 @@ import {
 import { PackingWithBooking } from '@/types/packing';
 import PackingQRCode from './PackingQRCode';
 import { computePackingProgress } from '@/lib/packing/progress';
+import type { PackingIntegrityResult } from '@/lib/packing/packingIntegrity';
+import PackingIntegrityBanner from './PackingIntegrityBanner';
+import PackingPreflightPanel from '@/components/scanner/PackingPreflightPanel';
 
 // ============================================================================
 // READ-ONLY desktop checklist.
@@ -44,6 +47,9 @@ import { computePackingProgress } from '@/lib/packing/progress';
 interface DesktopChecklistViewProps {
   packingId: string;
   packingName: string;
+  integrity?: PackingIntegrityResult | null;
+  integrityError?: Error | null;
+  onRefreshIntegrity?: () => void | Promise<void>;
 }
 
 interface PackingItem {
@@ -96,7 +102,13 @@ const formatToTitleCase = (text: string): string => {
     .join(' ');
 };
 
-const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, packingName }) => {
+const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
+  packingId,
+  packingName,
+  integrity = null,
+  integrityError = null,
+  onRefreshIntegrity,
+}) => {
   const [packing, setPacking] = useState<PackingWithBooking | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [items, setItems] = useState<PackingItem[]>([]);
@@ -110,6 +122,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, 
   const [bookingGroups, setBookingGroups] = useState<BookingGroupInfo[]>([]);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [itemParcelMap, setItemParcelMap] = useState<Record<string, number>>({});
+  const [wmsPreflightState, setWmsPreflightState] = useState<'not_run' | 'checking' | 'pass' | 'warning' | 'blocked' | 'error'>('not_run');
 
   const recalcProgress = useCallback((updatedItems: PackingItem[]) => {
     const { total, verified, percentage } = computePackingProgress(updatedItems);
@@ -218,6 +231,21 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, 
         items: productItems.filter((i) => i.booking_products?.booking_id === group.bookingId),
       }))
     : [{ bookingId: 'all', client: '', bookingNumber: null, eventdate: null, items: productItems }];
+
+  const integrityPending = !integrity && !integrityError;
+  const integrityBlocked = Boolean(integrityError || integrityPending || (integrity?.sourceAvailable && !integrity?.isExactMatch));
+  const requiresWmsPreflight = Boolean(packing?.id);
+  const wmsBlocked = requiresWmsPreflight && wmsPreflightState !== 'pass';
+  const printBlocked = integrityBlocked || wmsBlocked;
+  const printBlockedReason = integrityError
+    ? 'Utskrift är blockerad eftersom packlistans integritet inte kunde verifieras.'
+    : integrityPending
+    ? 'Utskrift är blockerad medan packlistans integritet kontrolleras.'
+    : integrityBlocked
+      ? 'Utskrift är blockerad tills avvikelsen mellan bokning och packlista är utredd.'
+    : wmsBlocked
+      ? 'Utskrift är blockerad tills WMS-kopplingen har kontrollerats och godkänts.'
+      : 'Skriv ut packlistan eller spara som PDF';
 
   const renderItem = (item: PackingItem) => {
     const rawName = item.manual_name || item.booking_products?.name || 'Okänd produkt';
@@ -358,6 +386,8 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, 
           <Button
             variant="outline"
             size="sm"
+            disabled={printBlocked}
+            title={printBlockedReason}
             onClick={() => {
               const clientName = packing?.booking?.client || bookingGroups[0]?.client || null;
               const bookingNumber =
@@ -428,6 +458,26 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({ packingId, 
           </Button>
         </div>
       </div>
+
+      <PackingIntegrityBanner
+        integrity={integrity}
+        error={integrityError}
+        packingStatus={packing?.status}
+        onRefresh={async () => {
+          await onRefreshIntegrity?.();
+          await loadData(true);
+        }}
+      />
+
+      {packing && (
+        <PackingPreflightPanel
+          packingId={packingId}
+          bookingNumber={packing.booking?.booking_number || bookingGroups[0]?.bookingNumber || null}
+          className="border-border/60 shadow-none"
+          autoRun
+          onResult={(_result, state) => setWmsPreflightState(state)}
+        />
+      )}
 
       {/* Read-only banner */}
       <Card className="border-amber-500/40 bg-amber-50/60 dark:bg-amber-950/20">
