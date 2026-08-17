@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, ArrowRight } from "lucide-react";
+import { Plus, ArrowRight, AlertTriangle, CalendarClock, CalendarDays, Inbox } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -42,6 +42,20 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
   const incompleteTasks = regularTasks.filter(t => !t.completed);
   const completedTasks = regularTasks.filter(t => t.completed);
 
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const inFourteenDays = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+  const taskDate = (task: ProjectTask) => (task.deadline || task.start_date || task.end_date)?.slice(0, 10) || null;
+  const overdueTasks = incompleteTasks
+    .filter((task) => taskDate(task) && taskDate(task)! < todayKey)
+    .sort((a, b) => taskDate(a)!.localeCompare(taskDate(b)!));
+  const nextTasks = incompleteTasks
+    .filter((task) => { const date = taskDate(task); return !!date && date >= todayKey && date <= inFourteenDays; })
+    .sort((a, b) => taskDate(a)!.localeCompare(taskDate(b)!));
+  const laterTasks = incompleteTasks
+    .filter((task) => { const date = taskDate(task); return !!date && date > inFourteenDays; })
+    .sort((a, b) => taskDate(a)!.localeCompare(taskDate(b)!));
+  const undatedTasks = incompleteTasks.filter((task) => !taskDate(task));
+
   const totalRegular = regularTasks.length;
   const doneCount = completedTasks.length;
   const progress = totalRegular > 0 ? Math.round((doneCount / totalRegular) * 100) : 0;
@@ -82,6 +96,20 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
   const handleOpenInExecution = (task: ProjectTask) => {
     if (!task.execution_task_id || !executionHref) return;
     navigate(executionHref, { state: { highlightTaskId: task.execution_task_id } });
+  };
+
+  const TaskGroup = ({ title, icon: Icon, items, tone = "default" }: { title: string; icon: React.ElementType; items: ProjectTask[]; tone?: "default" | "danger" | "muted" }) => {
+    if (!items.length) return null;
+    return (
+      <div>
+        <div className="flex items-center gap-1.5 px-3 pt-3 pb-1.5">
+          <Icon className={tone === "danger" ? "h-3.5 w-3.5 text-destructive" : "h-3.5 w-3.5 text-muted-foreground"} />
+          <span className={tone === "danger" ? "text-[10px] font-semibold text-destructive uppercase tracking-widest" : "text-[10px] font-semibold text-muted-foreground uppercase tracking-widest"}>{title}</span>
+          <span className="text-[10px] text-muted-foreground tabular-nums">{items.length}</span>
+        </div>
+        {items.map((task, i) => renderTaskItem(task, i, items))}
+      </div>
+    );
   };
 
   const renderTaskItem = (task: ProjectTask, index: number, list: ProjectTask[]) => (
@@ -165,7 +193,10 @@ const ProjectTaskList = ({ tasks, onAddTask, onUpdateTask, onDeleteTask, onTaskA
                 </p>
               ) : (
                 <div className="divide-y divide-border/30 flex-1">
-                  {incompleteTasks.map((task, i) => renderTaskItem(task, i, incompleteTasks))}
+                  <TaskGroup title="Försenade" icon={AlertTriangle} items={overdueTasks} tone="danger" />
+                  <TaskGroup title="Nästa 14 dagar" icon={CalendarClock} items={nextTasks} />
+                  <TaskGroup title="Planerade senare" icon={CalendarDays} items={laterTasks} />
+                  <TaskGroup title="Utan datum" icon={Inbox} items={undatedTasks} tone="muted" />
 
                   {infoTasks.length > 0 && (
                     <>

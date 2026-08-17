@@ -270,7 +270,7 @@ const TaskDetailPanel = ({ task, onClose, onUpdateTask, onDeleteTask, onAction, 
           className="flex items-center gap-2 px-4 py-2 bg-primary/5 border-b border-border/30 text-xs text-primary font-medium hover:bg-primary/10 transition-colors shrink-0 w-full text-left"
         >
           <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
-          <span>Hantera uppgiften i Utförande-vyn →</span>
+          <span>Hantera uppgiften i Planering →</span>
         </button>
       )}
       {onOpenInChat && (

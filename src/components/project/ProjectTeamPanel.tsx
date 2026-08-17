@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Plus, X, Crown, Users, Loader2 } from 'lucide-react';
 import { useProjectTeam } from '@/hooks/useProjectTeam';
 import { format, eachDayOfInterval, parseISO } from 'date-fns';
+import ProjectTeamRoleSummary from './ProjectTeamRoleSummary';
 
 interface ProjectTeamPanelProps {
   bookingId: string | null;
@@ -105,6 +106,12 @@ const ProjectTeamPanel = ({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        <ProjectTeamRoleSummary members={teamMembers} hasProjectLeader={!!projectLeader} />
+
+        <div className="space-y-1">
+          <p className="text-xs font-medium">Lägg till i projektteamet</p>
+          <p className="text-[11px] text-muted-foreground">Projektteamet beskriver projektets ansvar och ska inte blandas ihop med den dagliga bemanningen i personalkalendern.</p>
+        </div>
         {/* Add member */}
         <div className="flex gap-2">
           <Select value={selectedStaffId} onValueChange={setSelectedStaffId}>
