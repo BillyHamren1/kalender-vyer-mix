@@ -8,6 +8,8 @@
 import { SCANNER_TRANSACTION_V2 } from '@/config/scannerFlags';
 import { commandForOperation, type ScannerOperationKind } from '@/lib/scanner/commandTypes';
 import type { QueuedOperation } from '@/lib/scanner/operationQueueTypes';
+import { queueScanSource, toScanEventMeta, type ScanEventMeta } from '@/lib/scanner/scanEventFidelity';
+import type { ScanEvent } from '@/services/scanner/types';
 import { OperationQueueStore } from '@/lib/scanner/operationQueueStore';
 import { drainQueue, type SendOperation } from '@/lib/scanner/operationQueueRunner';
 import { submitScannerOperation, newOperationId } from '@/services/scannerOperationV2Service';
@@ -25,6 +27,9 @@ export interface EnqueueScanOperationInput {
   deviceId?: string | null;
   scanSource?: QueuedOperation['scan_source'];
   scanValue?: string | null;
+  /** STEG 11: hela scan-eventet, inte bara värdet. */
+  scanEvent?: ScanEvent | null;
+  scanEventMeta?: ScanEventMeta | null;
 }
 
 export const buildQueuedOperation = (
@@ -44,8 +49,11 @@ export const buildQueuedOperation = (
   quantity_delta: input.quantityDelta ?? null,
   performed_by: input.performedBy ?? null,
   device_id: input.deviceId ?? null,
-  scan_source: input.scanSource ?? 'unknown',
-  scan_value: input.scanValue ?? null,
+  scan_source:
+    input.scanSource ?? (input.scanEvent ? queueScanSource(input.scanEvent.source) : 'unknown'),
+  scan_value: input.scanValue ?? input.scanEvent?.value ?? null,
+  scan_event:
+    input.scanEventMeta ?? (input.scanEvent ? toScanEventMeta(input.scanEvent) : null),
   created_at: createdAt,
   attempt_count: 0,
   last_attempt_at: null,
