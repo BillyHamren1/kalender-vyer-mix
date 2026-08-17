@@ -10,7 +10,7 @@
  * - Saknar svaret packedQuantity lämnas raden orörd (ingen gissning).
  */
 
-import type { ScannerCommandResult } from './commandTypes';
+import { isAcceptedResult, type ScannerCommandResult } from './commandTypes';
 
 export interface ItemProjection {
   itemId: string;
@@ -35,8 +35,7 @@ export const applyAuthoritativeResult = (
   state: ScannerProjectionState,
   result: ScannerCommandResult,
 ): ScannerProjectionState => {
-  const accepted = result.status === 'accepted' || result.status === 'duplicate';
-  if (!accepted) return state;
+  if (!isAcceptedResult(result)) return state;
 
   if (result.operationId && state.appliedOperationIds.includes(result.operationId)) {
     // Retry av redan projicerad operation → idempotent no-op.

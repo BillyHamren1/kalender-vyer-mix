@@ -41,8 +41,10 @@ export interface QueuedOperation {
   packing_id: string;
   packing_session_id: string | null;
   item_id: string | null;
+  sku: string | null;
   booking_number: string | null;
   reservation_id: string | null;
+  parcel_id: string | null;
   quantity_delta: number | null;
   performed_by: string | null;
   device_id: string | null;
@@ -54,6 +56,8 @@ export interface QueuedOperation {
    */
   scan_event: import('./scanEventFidelity').ScanEventMeta | null;
   created_at: string;
+  /** Monotonic client-side ordering token for rapid scans in the same millisecond. */
+  queue_sequence: number;
   attempt_count: number;
   last_attempt_at: string | null;
   state: OperationState;

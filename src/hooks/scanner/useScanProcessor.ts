@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   verifyProductBySku,
@@ -12,6 +12,18 @@ import { PackingItem } from './useOptimisticPacking';
 import { ScanResult } from './useScanFeedback';
 import { scanLog } from './scanLog';
 import { recordReceived, recordApiStart, recordApiEnd, ScanStatus } from './scanTimeline';
+import { isScannerTransactionV2Enabled } from '@/config/scannerFlags';
+import {
+  enqueueAndProcessScanOperation,
+  enqueueScanOperation,
+  nextOperationQueueSequence,
+  processPersistedScanOperation,
+  resumeAndDrain,
+} from '@/services/scanner/operationQueueService';
+import type { EnqueueScanOperationInput } from '@/services/scanner/operationQueueService';
+import type { ScanEvent } from '@/services/scanner/types';
+import { isAcceptedResult, type ScannerCommandResult, type ScannerOperationKind } from '@/lib/scanner/commandTypes';
+import { RfidDedupeTracker } from '@/lib/scanner/rfidDedupe';
 
 export interface RecentScanEntry {
   value: string;
@@ -20,6 +32,14 @@ export interface RecentScanEntry {
   timestamp: number;
   /** Why this scan was ignored (if not successful) */
   reason?: 'duplicate' | 'packing_id' | 'error' | 'not_found' | 'overscan' | 'unknown_product';
+}
+
+interface ProcessorQueueEntry {
+  input: string | ScanEvent;
+  /** V2 operations are persisted before they enter the in-memory processor. */
+  persistedOperationId?: string;
+  /** RFID hardware duplicate filtering already ran before durable enqueue. */
+  v2DedupeChecked?: boolean;
 }
 
 export interface PendingUnknownProductState {
@@ -38,6 +58,8 @@ interface UseScanProcessorOptions {
   packingId: string;
   verifierName: string;
   verifierStaffId?: string | null;
+  organizationId?: string | null;
+  bookingNumber?: string | null;
   getItems: () => PackingItem[];
   getIsMinusMode: () => boolean;
   getIsKolliMode: () => boolean;
@@ -49,6 +71,8 @@ interface UseScanProcessorOptions {
   onHighlight: (itemId: string) => void;
   onOptimisticIncrement: (itemId: string) => void;
   onOptimisticDecrement: (itemId: string) => void;
+  /** V2: set exact WMS-authoritative quantity. Never arithmetic. */
+  onAuthoritativeSet?: (itemId: string, quantity: number) => void;
   onAssignToKolli: (itemId: string) => Promise<void>;
   onTriggerSync: () => void;
   onRfidTagResult?: (epc: string, matched: boolean, productName?: string, sku?: string) => void;
@@ -59,8 +83,10 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
   const optRef = useRef(options);
   optRef.current = options;
 
-  const queueRef = useRef<string[]>([]);
+  const queueRef = useRef<ProcessorQueueEntry[]>([]);
+  const persistChainRef = useRef<Promise<void>>(Promise.resolve());
   const isProcessingRef = useRef(false);
+  const rfidDedupeRef = useRef(new RfidDedupeTracker(5000));
   // Removed: scannedThisSessionRef. Lagersystemet (WMS) is the single source of
   // truth for duplicate / minus / overscan detection. No local cache.
   const [recentScans, setRecentScans] = useState<RecentScanEntry[]>([]);
@@ -75,11 +101,27 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     setRecentScans(prev => [entry, ...prev].slice(0, 100));
   }, []);
 
+  const runV2ManualOperation = useCallback(async (input: EnqueueScanOperationInput) => {
+    try {
+      return await enqueueAndProcessScanOperation(input);
+    } catch (err: any) {
+      console.error('[scanner-v2] manual operation blocked before safe commit', err);
+      const msg = String(err?.message || err).includes('SCANNER_DURABLE_QUEUE_UNAVAILABLE')
+        ? 'Säker scannerlagring saknas – åtgärden genomfördes inte'
+        : 'Åtgärden kunde inte sparas säkert – inget skickades till WMS';
+      toast.error(msg);
+      return null;
+    }
+  }, []);
+
   const processNext = useCallback(async () => {
     if (isProcessingRef.current || isPausedRef.current || queueRef.current.length === 0) return;
     isProcessingRef.current = true;
 
-    const rawValue = queueRef.current.shift()!;
+    const queueEntry = queueRef.current.shift()!;
+    const rawInput = queueEntry.input;
+    const scanEvent: ScanEvent | null = typeof rawInput === 'string' ? null : rawInput;
+    const rawValue = typeof rawInput === 'string' ? rawInput : rawInput.value;
     // Normalize: trim whitespace/control chars that hardware scanners may append
     const scannedValue = rawValue.trim();
 
@@ -102,9 +144,9 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     scanLog('scan_received', { value: scannedValue, type: parsed.type, unique: parsed.unique });
 
     const {
-      packingId, verifierName, verifierStaffId, getItems, getIsMinusMode, getIsKolliMode,
+      packingId, verifierName, verifierStaffId, organizationId, bookingNumber, getItems, getIsMinusMode, getIsKolliMode,
       onScanResult, onHighlight, onOptimisticIncrement,
-      onOptimisticDecrement, onAssignToKolli, onTriggerSync,
+      onOptimisticDecrement, onAuthoritativeSet, onAssignToKolli, onTriggerSync,
     } = optRef.current;
 
     const notifyRfid = (value: string, matched: boolean, productName?: string, sku?: string) => {
@@ -128,6 +170,120 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
           timestamp: Date.now(),
           reason: 'packing_id',
         });
+        return;
+      }
+
+      // === TRANSACTIONAL V2 RUNTIME ===
+      // When enabled, this branch owns the scan completely. Legacy API calls,
+      // in-memory mutation arithmetic and the old ScanQueue are bypassed.
+      if (isScannerTransactionV2Enabled()) {
+        const activeSessionId = optRef.current.getActiveSessionId();
+        if (!activeSessionId) {
+          onScanResult({ value: scannedValue, result: 'Starta packningssession först', success: false });
+          toast.error('Starta packningssession först');
+          return;
+        }
+
+        const items = getItems();
+        const matchingItem = parsed.unique
+          ? undefined
+          : items.find(i => i.booking_products?.sku?.trim().toLowerCase() === normalised);
+        const minus = getIsMinusMode();
+        const operation: ScannerOperationKind = parsed.unique
+          ? (minus ? 'unpack_instance' : 'pack_instance')
+          : (minus ? 'unpack_quantity' : 'pack_quantity');
+
+        if (!queueEntry.v2DedupeChecked && scanEvent && (scanEvent.type === 'rfid' || scanEvent.source === 'zebra_rfid')) {
+          const dedupe = rfidDedupeRef.current.evaluate({
+            epc: scannedValue,
+            action: operation,
+            packingId,
+            sessionId: activeSessionId,
+            parcelId: optRef.current.getActiveParcelId?.() ?? null,
+          }, scanEvent.timestamp);
+          if (dedupe.isDuplicate) {
+            scanLog('v2_rfid_duplicate_read_ignored', { value: scannedValue, operation, reason: dedupe.reason });
+            onScanResult({ value: scannedValue, result: 'RFID-dubbelläsning ignorerad – inget ändrat', success: false, pending: true });
+            addRecentScan({ value: scannedValue, productName: scannedValue, success: false, timestamp: Date.now(), reason: 'duplicate' });
+            return;
+          }
+        }
+
+        const processed = queueEntry.persistedOperationId
+          ? await processPersistedScanOperation(queueEntry.persistedOperationId)
+          : await enqueueAndProcessScanOperation({
+              operation,
+              packingId,
+              packingSessionId: activeSessionId,
+              organizationId: organizationId ?? null,
+              itemId: matchingItem?.id ?? null,
+              sku: parsed.unique ? null : scannedValue,
+              bookingNumber: bookingNumber ?? null,
+              parcelId: optRef.current.getActiveParcelId?.() ?? null,
+              quantityDelta: parsed.unique ? null : (minus ? -1 : 1),
+              performedBy: verifierStaffId ?? verifierName,
+              deviceId: scanEvent?.deviceInfo ?? null,
+              scanValue: scannedValue,
+              scanSource: scanEvent ? undefined : 'manual',
+              scanEvent,
+            });
+
+        if (!processed) {
+          // Another safe replay/drain may have finalized the durable row between
+          // persistence and UI processing. Never invent success; refresh from WMS.
+          onScanResult({ value: scannedValue, result: 'Scannen har behandlats i bakgrunden – verifierar WMS-läget', success: false, pending: true });
+          onTriggerSync();
+          return;
+        }
+
+        const result = (processed.result ?? null) as ScannerCommandResult | null;
+
+        if (processed.state === 'UNKNOWN' || processed.state === 'PENDING' || processed.state === 'SENDING') {
+          scanLog('v2_scan_outcome_unknown', { operationId: processed.operation_id, value: scannedValue, state: processed.state });
+          onScanResult({
+            value: scannedValue,
+            result: navigator.onLine === false ? 'Offline – väntar på säker synk' : 'Kontrollerar scan – inget nytt försök skapas',
+            success: false,
+            pending: true,
+          });
+          addRecentScan({ value: scannedValue, productName: result?.productName || scannedValue, success: false, timestamp: Date.now(), reason: 'error' });
+          return;
+        }
+
+        if (processed.state === 'COMMITTED' && result && isAcceptedResult(result)) {
+          const itemId = result.itemId ?? matchingItem?.id ?? null;
+          const productName = result.productName || matchingItem?.booking_products?.name || scannedValue;
+          if (itemId && typeof result.packedQuantity === 'number') {
+            onAuthoritativeSet?.(itemId, result.packedQuantity);
+            onHighlight(itemId);
+          }
+          if (!minus && itemId && getIsKolliMode()) await onAssignToKolli(itemId);
+          onTriggerSync();
+          const replayed = result.status === 'duplicate' || result.replayed;
+          onScanResult({
+            value: scannedValue,
+            result: replayed
+              ? `↩️ Redan registrerad: ${productName}`
+              : minus ? `➖ Bekräftad: ${productName}` : `✅ Bekräftad: ${productName}`,
+            success: true,
+            productName,
+            isMinusScan: minus,
+          });
+          addRecentScan({ value: scannedValue, productName, success: true, timestamp: Date.now(), reason: replayed ? 'duplicate' : undefined });
+          notifyRfid(scannedValue, true, productName, matchingItem?.booking_products?.sku || undefined);
+          return;
+        }
+
+        const message = result?.message || (
+          result?.status === 'wrong_booking' ? 'Fel bokning – inget ändrat' :
+          result?.status === 'over_capacity' ? 'Fullpackad – inget ändrat' :
+          result?.status === 'not_found' ? 'Artikeln hittades inte – inget ändrat' :
+          'Scannen avvisades – inget ändrat'
+        );
+        onScanResult({ value: scannedValue, result: message, success: false, productName: result?.productName || undefined });
+        toast.error(message);
+        addRecentScan({ value: scannedValue, productName: result?.productName || scannedValue, success: false, timestamp: Date.now(), reason: result?.status === 'over_capacity' ? 'overscan' : 'error' });
+        notifyRfid(scannedValue, false, result?.productName || undefined, matchingItem?.booking_products?.sku || undefined);
         return;
       }
 
@@ -320,19 +476,132 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     }
   }, [addRecentScan]); // No deps that change — reads everything from optRef
 
-  const enqueueScan = useCallback((value: string) => {
-    if (!value || !value.trim()) {
-      scanLog('scan_ignored_empty');
-      return;
+  const enqueueScan = useCallback((input: string | ScanEvent) => {
+    const inputs: Array<string | ScanEvent> = typeof input === 'string'
+      ? input.split(/\r?\n/).map(v => v.trim()).filter(Boolean)
+      : [input];
+
+    for (const entry of inputs) {
+      const value = typeof entry === 'string' ? entry : entry.value;
+      if (!value || !value.trim()) {
+        scanLog('scan_ignored_empty');
+        continue;
+      }
+
+      if (!isScannerTransactionV2Enabled()) {
+        queueRef.current.push({ input: entry });
+        scanLog('scan_enqueued', { value, queueLength: queueRef.current.length });
+        processNext();
+        continue;
+      }
+
+      const scannedValue = value.trim();
+      const parsed = parseScanResult(scannedValue);
+
+      // Non-mutating/navigation input and missing-session feedback can still use
+      // the processor directly. Every mutation, however, is persisted FIRST.
+      if (parsed.type === 'packing_id' || !optRef.current.getActiveSessionId()) {
+        queueRef.current.push({ input: entry });
+        processNext();
+        continue;
+      }
+
+      const activeSessionId = optRef.current.getActiveSessionId()!;
+      const normalised = scannedValue.toLowerCase();
+      const minus = optRef.current.getIsMinusMode();
+      const items = optRef.current.getItems();
+      const matchingItem = parsed.unique
+        ? undefined
+        : items.find(i => i.booking_products?.sku?.trim().toLowerCase() === normalised);
+      const operation: ScannerOperationKind = parsed.unique
+        ? (minus ? 'unpack_instance' : 'pack_instance')
+        : (minus ? 'unpack_quantity' : 'pack_quantity');
+      const scanEvent = typeof entry === 'string' ? null : entry;
+
+      if (scanEvent && (scanEvent.type === 'rfid' || scanEvent.source === 'zebra_rfid')) {
+        const dedupe = rfidDedupeRef.current.evaluate({
+          epc: scannedValue,
+          action: operation,
+          packingId: optRef.current.packingId,
+          sessionId: activeSessionId,
+          parcelId: optRef.current.getActiveParcelId?.() ?? null,
+        }, scanEvent.timestamp);
+        if (dedupe.isDuplicate) {
+          scanLog('v2_rfid_duplicate_read_ignored_before_persist', { value: scannedValue, operation, reason: dedupe.reason });
+          optRef.current.onScanResult({ value: scannedValue, result: 'RFID-dubbelläsning ignorerad – inget ändrat', success: false, pending: true });
+          addRecentScan({ value: scannedValue, productName: scannedValue, success: false, timestamp: Date.now(), reason: 'duplicate' });
+          if (parsed.type === 'rfid_tag') optRef.current.onRfidTagResult?.(scannedValue, false);
+          continue;
+        }
+      }
+
+      // Assign ordering synchronously at physical receipt, then persist operations
+      // serially. Network processing is NOT part of this chain, so rapid scans are
+      // durably stored without waiting for the previous WMS response.
+      const queueSequence = nextOperationQueueSequence(scanEvent?.timestamp ?? Date.now());
+      const persist = async () => {
+        try {
+          const persisted = await enqueueScanOperation({
+            operation,
+            packingId: optRef.current.packingId,
+            packingSessionId: activeSessionId,
+            organizationId: optRef.current.organizationId ?? null,
+            itemId: matchingItem?.id ?? null,
+            sku: parsed.unique ? null : scannedValue,
+            bookingNumber: optRef.current.bookingNumber ?? null,
+            parcelId: optRef.current.getActiveParcelId?.() ?? null,
+            quantityDelta: parsed.unique ? null : (minus ? -1 : 1),
+            performedBy: optRef.current.verifierStaffId ?? optRef.current.verifierName,
+            deviceId: scanEvent?.deviceInfo ?? null,
+            scanValue: scannedValue,
+            scanSource: scanEvent ? undefined : 'manual',
+            scanEvent,
+            queueSequence,
+          });
+          queueRef.current.push({ input: entry, persistedOperationId: persisted.operation_id, v2DedupeChecked: true });
+          scanLog('v2_operation_durably_enqueued', { value: scannedValue, operationId: persisted.operation_id, queueSequence });
+          processNext();
+        } catch (err: any) {
+          const message = String(err?.message || err);
+          console.error('[scanner-v2] durable enqueue failed; mutation blocked', err);
+          const userMessage = message.includes('SCANNER_DURABLE_QUEUE_UNAVAILABLE')
+            ? 'Säker scannerlagring saknas – scannen genomfördes inte'
+            : 'Scannen kunde inte sparas säkert – ingen ändring skickades';
+          optRef.current.onScanResult({ value: scannedValue, result: userMessage, success: false });
+          toast.error(userMessage);
+          addRecentScan({ value: scannedValue, productName: scannedValue, success: false, timestamp: Date.now(), reason: 'error' });
+        }
+      };
+      persistChainRef.current = persistChainRef.current.then(persist, persist);
     }
-    // Split on newlines in case RFID/scanner sends multiple values at once
-    const values = value.split(/\r?\n/).map(v => v.trim()).filter(Boolean);
-    for (const v of values) {
-      queueRef.current.push(v);
-      scanLog('scan_enqueued', { value: v, queueLength: queueRef.current.length });
-    }
-    processNext();
-  }, [processNext]);
+  }, [addRecentScan, processNext]);
+
+  // Durable replay on app start / reconnect. Same operation_id is always reused.
+  useEffect(() => {
+    if (!isScannerTransactionV2Enabled()) return;
+    let cancelled = false;
+    const drain = async () => {
+      try {
+        const processed = await resumeAndDrain();
+        if (!cancelled && processed > 0) optRef.current.onTriggerSync();
+      } catch (err) {
+        console.warn('[scanner-v2] background queue drain failed', err);
+      }
+    };
+    void drain();
+    const onOnline = () => void drain();
+    window.addEventListener('online', onOnline);
+    // Online does not guarantee that WMS answered. Retry UNKNOWN/PENDING with
+    // the SAME operation_id on a bounded cadence while this scanner is open.
+    const recoveryTimer = window.setInterval(() => {
+      if (navigator.onLine !== false) void drain();
+    }, 10000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(recoveryTimer);
+      window.removeEventListener('online', onOnline);
+    };
+  }, []);
 
   const handleManualToggle = useCallback(async (
     itemId: string,
@@ -354,6 +623,35 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
 
     if (isParent) {
       toast.info('Parent products are marked automatically when all parts are packed');
+      return;
+    }
+
+    if (isScannerTransactionV2Enabled()) {
+      const operation: ScannerOperationKind = getIsMinusMode() || isCurrentlyPacked ? 'unpack_quantity' : 'pack_quantity';
+      const processed = await runV2ManualOperation({
+        operation,
+        packingId: optRef.current.packingId,
+        packingSessionId: activeSessionId,
+        organizationId: optRef.current.organizationId ?? null,
+        itemId,
+        bookingNumber: optRef.current.bookingNumber ?? null,
+        parcelId: optRef.current.getActiveParcelId?.() ?? null,
+        quantityDelta: operation === 'pack_quantity' ? 1 : -1,
+        performedBy: optRef.current.verifierStaffId ?? verifierName,
+        scanValue: `MANUAL:${itemId}`,
+        scanSource: 'manual',
+      });
+      if (!processed) return;
+      const result = processed.result as ScannerCommandResult | null;
+      if (processed.state === 'COMMITTED' && result && isAcceptedResult(result)) {
+        if (typeof result.packedQuantity === 'number') optRef.current.onAuthoritativeSet?.(itemId, result.packedQuantity);
+        if (operation === 'pack_quantity' && getIsKolliMode()) await onAssignToKolli(itemId);
+        onTriggerSync();
+      } else if (processed.state === 'UNKNOWN' || processed.state === 'PENDING' || processed.state === 'SENDING') {
+        toast.info('Åtgärden väntar på säker WMS-bekräftelse – tryck inte igen');
+      } else {
+        toast.error(result?.message || 'WMS nekade ändringen');
+      }
       return;
     }
 
@@ -423,9 +721,10 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       });
       toast.error(result.error || result.warning || 'WMS nekade manuell avbockning');
     }
-  }, [addRecentScan]); // reads rest from optRef
+  }, [addRecentScan, runV2ManualOperation]); // reads rest from optRef
 
   const clearSessionDedup = useCallback(() => {
+    rfidDedupeRef.current.reset();
     scanLog('session_dedup_cleared');
   }, []);
 
@@ -505,6 +804,25 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       toast.info('Parent products are marked automatically when all parts are packed');
       return;
     }
+    if (isScannerTransactionV2Enabled()) {
+      const processed = await runV2ManualOperation({
+        operation: 'pack_quantity', packingId: optRef.current.packingId,
+        packingSessionId: activeSessionId, organizationId: optRef.current.organizationId ?? null,
+        itemId, bookingNumber: optRef.current.bookingNumber ?? null,
+        parcelId: optRef.current.getActiveParcelId?.() ?? null, quantityDelta: 1,
+        performedBy: optRef.current.verifierStaffId ?? optRef.current.verifierName,
+        scanValue: `MANUAL_PLUS:${itemId}`, scanSource: 'manual',
+      });
+      if (!processed) return;
+      const result = processed.result as ScannerCommandResult | null;
+      if (processed.state === 'COMMITTED' && result && isAcceptedResult(result)) {
+        if (typeof result.packedQuantity === 'number') optRef.current.onAuthoritativeSet?.(itemId, result.packedQuantity);
+        if (optRef.current.getIsKolliMode()) await optRef.current.onAssignToKolli(itemId);
+        optRef.current.onTriggerSync();
+      } else if (processed.state === 'UNKNOWN') toast.info('Åtgärden kontrolleras – tryck inte igen');
+      else toast.error(result?.message || 'Kunde inte öka');
+      return;
+    }
     const { verifierName, onOptimisticIncrement, onAssignToKolli, getIsKolliMode, onTriggerSync } = optRef.current;
     const activeParcelId = optRef.current.getActiveParcelId?.() ?? null;
     try {
@@ -521,7 +839,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     } catch (err: any) {
       toast.error(err?.message || 'Kunde inte öka');
     }
-  }, []);
+  }, [runV2ManualOperation]);
 
   // Per-row manual -1 (alltid decrement, oavsett minus-läge)
   const handleManualDecrement = useCallback(async (itemId: string) => {
@@ -537,6 +855,23 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       toast.error('Inget att ta bort');
       return;
     }
+    if (isScannerTransactionV2Enabled()) {
+      const processed = await runV2ManualOperation({
+        operation: 'unpack_quantity', packingId: optRef.current.packingId,
+        packingSessionId: activeSessionId, organizationId: optRef.current.organizationId ?? null,
+        itemId, bookingNumber: optRef.current.bookingNumber ?? null, quantityDelta: -1,
+        performedBy: optRef.current.verifierStaffId ?? optRef.current.verifierName,
+        scanValue: `MANUAL_MINUS:${itemId}`, scanSource: 'manual',
+      });
+      if (!processed) return;
+      const result = processed.result as ScannerCommandResult | null;
+      if (processed.state === 'COMMITTED' && result && isAcceptedResult(result)) {
+        if (typeof result.packedQuantity === 'number') optRef.current.onAuthoritativeSet?.(itemId, result.packedQuantity);
+        optRef.current.onTriggerSync();
+      } else if (processed.state === 'UNKNOWN') toast.info('Åtgärden kontrolleras – tryck inte igen');
+      else toast.error(result?.message || 'Kunde inte ta bort');
+      return;
+    }
     try {
       await decrementPackingItem(itemId, verifierName, activeSessionId);
       onOptimisticDecrement(itemId);
@@ -544,7 +879,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     } catch (err: any) {
       toast.error(err?.message || 'Kunde inte ta bort');
     }
-  }, []);
+  }, [runV2ManualOperation]);
 
   return {
     enqueueScan,

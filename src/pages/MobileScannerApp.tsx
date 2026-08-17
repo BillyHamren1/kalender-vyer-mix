@@ -14,6 +14,7 @@ import { parseScanResult, fetchActivePackings, identifyProduct } from '@/service
 import { PackingWithBooking } from '@/types/packing';
 import { useScannerController } from '@/hooks/scanner/useScannerController';
 import { ScanEvent } from '@/services/scanner/types';
+import { isScannerTransactionV2Enabled } from '@/config/scannerFlags';
 import { toast } from 'sonner';
 import { useScannerRealtime } from '@/hooks/scanner/useScannerRealtime';
 import CalendarViewToggle, { type CalendarViewMode } from '@/components/mobile-app/calendar/CalendarViewToggle';
@@ -77,7 +78,10 @@ const MobileScannerApp: React.FC = () => {
   // Central scanner controller — ALWAYS active, single instance for entire app
   const scanner = useScannerController({
     onScan: useCallback((scan: ScanEvent) => {
-      if (scan.isDuplicate) return;
+      // Legacy keeps bridge-level EPC/time dedupe. V2 must see repeated RFID reads
+      // so the active view can dedupe by EPC + intended action + packing context.
+      // Otherwise a legitimate PACK → quick UNPACK can be swallowed here.
+      if (scan.isDuplicate && !isScannerTransactionV2Enabled()) return;
 
       console.log('[SCAN] scanner_event_received', {
         source: scan.source,
@@ -366,8 +370,8 @@ const MobileScannerApp: React.FC = () => {
           onBack={goHome}
           initialMode={state === 'manual' ? 'manual' : 'verifying'}
           registerScanHandler={(handler) => {
-            // VerificationView still consumes scan.value internally — wrap to preserve full event downstream
-            activeScanHandler.current = (scan: ScanEvent) => handler(scan.value);
+            // V2 preserves the complete ScanEvent through the durable operation queue.
+            activeScanHandler.current = handler;
           }}
           scannerState={{
             currentMode: scanner.currentMode,

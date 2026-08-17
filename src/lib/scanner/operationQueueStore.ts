@@ -3,8 +3,8 @@
  *
  * IndexedDB är primär store (överlever reload, WebView-crash, app-restart).
  * localStorage-arrayen i legacy ScanQueue är INTE transaktionskö för V2.
- * En in-memory-adapter används endast som sista utväg (t.ex. test/SSR) och
- * loggar varning — den är aldrig ett tyst tapp av operationer.
+ * En in-memory-adapter finns endast för explicita tester. Runtime V2 failar
+ * stängt om IndexedDB saknas, eftersom en RAM-kö kan tappa accepterade scans.
  */
 
 import type { QueuedOperation, OperationState } from './operationQueueTypes';
@@ -24,7 +24,7 @@ export const createMemoryAdapter = (): OperationQueueAdapter => {
   return {
     kind: 'memory',
     async getAll() {
-      return [...map.values()].sort((a, b) => a.created_at.localeCompare(b.created_at));
+      return [...map.values()].sort((a, b) => (a.queue_sequence ?? Date.parse(a.created_at) * 1000) - (b.queue_sequence ?? Date.parse(b.created_at) * 1000));
     },
     async get(id) {
       return map.get(id) ?? null;
@@ -73,7 +73,7 @@ export const createIndexedDbAdapter = (indexedDb: IDBFactory): OperationQueueAda
     async getAll() {
       const store = await tx('readonly');
       const rows = (await promisify(store.getAll())) as QueuedOperation[];
-      return rows.sort((a, b) => a.created_at.localeCompare(b.created_at));
+      return rows.sort((a, b) => (a.queue_sequence ?? Date.parse(a.created_at) * 1000) - (b.queue_sequence ?? Date.parse(b.created_at) * 1000));
     },
     async get(id) {
       const store = await tx('readonly');
@@ -97,8 +97,7 @@ export const createIndexedDbAdapter = (indexedDb: IDBFactory): OperationQueueAda
 export const resolveDefaultAdapter = (): OperationQueueAdapter => {
   const idb = typeof globalThis !== 'undefined' ? (globalThis as any).indexedDB : undefined;
   if (idb) return createIndexedDbAdapter(idb as IDBFactory);
-  console.warn('[operationQueue] IndexedDB saknas — faller tillbaka på minneskö (ej durable)');
-  return createMemoryAdapter();
+  throw new Error('SCANNER_DURABLE_QUEUE_UNAVAILABLE: IndexedDB saknas; Scanner V2 mutation blockeras');
 };
 
 /**

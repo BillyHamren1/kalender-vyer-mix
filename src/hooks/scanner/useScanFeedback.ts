@@ -6,6 +6,8 @@ export interface ScanResult {
   success: boolean;
   productName?: string;
   isMinusScan?: boolean;
+  /** Transport outcome is not terminal; UI must not show red or green. */
+  pending?: boolean;
 }
 
 export const useScanFeedback = () => {

@@ -50,10 +50,11 @@ export type ScanMode =
 export interface ScannerState {
   isInitialized: boolean;
   isScannerReady: boolean;
+  /** Verified Zebra/DataWedge barcode hardware readiness; keyboard fallback alone is false. */
   isBarcodeReady: boolean;
-  /** RFID subsystem available (native platform + listeners registered). NOT "reader connected". */
+  /** Verified RFID reader hardware readiness (native listener + connected reader). */
   isRfidReady: boolean;
-  /** Alias for isRfidReady with clearer semantics for new code */
+  /** RFID subsystem/listener availability, independent of physical reader connection. */
   isRfidSubsystemAvailable: boolean;
   /** RFID reader hardware is physically connected */
   isReaderConnected: boolean;

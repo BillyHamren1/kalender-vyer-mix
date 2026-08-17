@@ -14,13 +14,15 @@ import {
 const safeEnv = {
   SCANNER_E2E_SAFE_TEST_ENV: 'true',
   SCANNER_E2E_ENVIRONMENT: 'local',
-  SCANNER_E2E_WMS_URL: 'http://localhost:54321/functions/v1/scanner-operation-v2',
+  SCANNER_E2E_WMS_URL: 'http://localhost:54322/functions/v1/scanner-e2e-control',
   SCANNER_E2E_WMS_APPROVED_TEST_TARGET: 'true',
-  SCANNER_E2E_PLANNING_URL: 'http://localhost:54321',
+  SCANNER_E2E_PLANNING_URL: 'http://localhost:54321/functions/v1/scanner-operation-v2',
   SCANNER_E2E_ENABLE_V2_FOR_RUN: 'true',
   SCANNER_E2E_ALLOW_MUTATIONS: 'true',
   SCANNER_E2E_FIXTURE_ORG_ID: 'fixture-org-a',
   SCANNER_E2E_RUN_ID: 'scanner-e2e-abc123',
+  SCANNER_E2E_AUTH_TOKEN: 'test-mobile-token',
+  SCANNER_E2E_FIXTURES_JSON: '{"packingId":"fixture-packing","packingSessionId":"fixture-session"}',
 };
 
 describe('STEG 15B – fail-closed preflight', () => {
@@ -43,6 +45,8 @@ describe('STEG 15B – fail-closed preflight', () => {
     'SCANNER_E2E_ALLOW_MUTATIONS',
     'SCANNER_E2E_FIXTURE_ORG_ID',
     'SCANNER_E2E_RUN_ID',
+    'SCANNER_E2E_AUTH_TOKEN',
+    'SCANNER_E2E_FIXTURES_JSON',
   ])('saknad %s blockerar körningen', (key) => {
     const env = { ...safeEnv } as Record<string, string>;
     delete env[key];

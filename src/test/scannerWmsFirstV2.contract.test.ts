@@ -11,7 +11,7 @@ import {
   type ScannerProjectionState,
 } from '@/lib/scanner/authoritativeProjection';
 import { OPERATION_TO_COMMAND, commandForOperation } from '@/lib/scanner/commandTypes';
-import { buildScannerCommand } from '@/services/scannerOperationV2Service';
+import { buildScannerCommand, newOperationId } from '@/services/scannerOperationV2Service';
 import { SCANNER_TRANSACTION_V2 } from '@/config/scannerFlags';
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8');
@@ -38,13 +38,17 @@ describe('STEG 8 – command mapping', () => {
     expect(commandForOperation('return_quantity')).toBe('RETURN_QUANTITY');
   });
 
-  it('increment/decrement/toggle/reset/verify har egna kommandon', () => {
+  it('legacy aliases mappar endast till canonical pack/unpack commands', () => {
     expect(commandForOperation('increment')).toBe('PACK_QUANTITY');
     expect(commandForOperation('decrement')).toBe('UNPACK_QUANTITY');
     expect(commandForOperation('decrement_item')).toBe('UNPACK_QUANTITY');
     expect(commandForOperation('toggle')).toBe('PACK_QUANTITY');
-    expect(commandForOperation('reset')).toBe('RESET_ITEM');
-    expect(commandForOperation('verify_product')).toBe('VERIFY_PRODUCT');
+    expect(Object.values(OPERATION_TO_COMMAND)).not.toContain('RESET_ITEM' as any);
+    expect(Object.values(OPERATION_TO_COMMAND)).not.toContain('VERIFY_PRODUCT' as any);
+  });
+
+  it('operation_id är alltid UUID-format även utan servergenererat id', () => {
+    expect(newOperationId()).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
   });
 
   it('kommandot bär delta, aldrig en lokalt beräknad ny total', () => {
@@ -108,6 +112,14 @@ describe('STEG 8 – authoritative projection', () => {
     expect(applyAuthoritativeResult(before, { status: 'not_found', operationId: 'op7', itemId: 'i1', packedQuantity: 5 })).toBe(before);
   });
 
+  it('generic duplicate utan replay-bevis projiceras aldrig som success', () => {
+    const before = stateWith('i1', 3, 10);
+    const next = applyAuthoritativeResult(before, {
+      status: 'duplicate', operationId: 'new-op', replayed: false, itemId: 'i1', packedQuantity: 4, requiredQuantity: 10,
+    });
+    expect(next).toBe(before);
+  });
+
   it('retry med samma operationId ger ingen dubbel increment', () => {
     const result = { status: 'accepted' as const, operationId: 'op8', itemId: 'i1', packedQuantity: 4, requiredQuantity: 10 };
     const once = applyAuthoritativeResult(stateWith('i1', 3, 10), result);
@@ -140,7 +152,7 @@ describe('STEG 8 – V2-koden innehåller ingen lokal aritmetik', () => {
 
   it('gatewayen anropar WMS före all lokal skrivning', () => {
     const src = read('supabase/functions/scanner-operation-v2/index.ts');
-    const wmsIdx = src.indexOf('fetch(WMS_GATEWAY_URL');
+    const wmsIdx = src.indexOf('fetch(gatewayUrl');
     const writeIdx = src.indexOf(".from('packing_list_items')");
     expect(wmsIdx).toBeGreaterThan(0);
     expect(writeIdx).toBeGreaterThan(wmsIdx);
@@ -149,7 +161,40 @@ describe('STEG 8 – V2-koden innehåller ingen lokal aritmetik', () => {
 
   it('gatewayen skriver endast WMS packed_quantity som projection', () => {
     const src = read('supabase/functions/scanner-operation-v2/index.ts');
-    expect(src).toContain('quantity_packed: packedQuantity');
+    expect(src).toContain('patch.quantity_packed = packedQuantity');
+    expect(src).toContain('patch.quantity_returned = returnedQuantity');
+  });
+
+
+
+  it('gatewayen autentiserar via shared staff-auth och tenant-scope:ar service-role projection', () => {
+    const src = read('supabase/functions/scanner-operation-v2/index.ts');
+    expect(src).toContain("authenticateStaffRequest(req)");
+    expect(src).toContain("authResult.auth.mode !== 'mobile'");
+    expect(src).toContain(".eq('packing_id', command.packingId)");
+    expect(src).toContain(".eq('organization_id', auth.organizationId)");
+    expect(src).not.toContain("const { token, command }");
+  });
+
+  it('generic WMS duplicate kräver explicit same-operation replay proof', () => {
+    const src = read('supabase/functions/scanner-operation-v2/index.ts');
+    expect(src).toContain('DUPLICATE_WITHOUT_REPLAY_PROOF');
+    expect(src).toContain('wmsBody?.same_operation');
+    expect(src).not.toContain("replayed: Boolean(wmsBody?.replayed || status === 'duplicate')");
+  });
+
+  it('accepted utan authoritative state får aldrig bli grönt utan blir UNKNOWN', () => {
+    const src = read('supabase/functions/scanner-operation-v2/index.ts');
+    expect(src).toContain('AUTHORITATIVE_STATE_MISSING');
+    expect(src).toContain('missingAuthoritativeState');
+  });
+
+  it('gatewayen har ingen hårdkodad WMS fallback och transportfel blir UNKNOWN', () => {
+    const src = read('supabase/functions/scanner-operation-v2/index.ts');
+    expect(src).toContain("Deno.env.get('WMS_COMMAND_GATEWAY_URL')");
+    expect(src).toContain("status: 'unknown'");
+    expect(src).toContain('WMS_OUTCOME_UNKNOWN');
+    expect(src).not.toMatch(/https:\/\/[^'"]+\/functions\/v1\/scanner-command-gateway/);
   });
 
   it('V2 använder inte checkin-scan för unpack', () => {

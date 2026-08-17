@@ -28,6 +28,11 @@ import {
 import type { PackingWithBooking } from '@/types/packing';
 import type { ScanEvent } from '@/services/scanner/types';
 import { useScannerRealtime } from '@/hooks/scanner/useScannerRealtime';
+import { isScannerTransactionV2Enabled } from '@/config/scannerFlags';
+import { enqueueAndProcessScanOperation, resumeAndDrain } from '@/services/scanner/operationQueueService';
+import { isAcceptedResult, type ScannerCommandResult } from '@/lib/scanner/commandTypes';
+import { RfidDedupeTracker } from '@/lib/scanner/rfidDedupe';
+import { getStoredStaff } from '@/services/mobileApiService';
 
 interface Item {
   id: string;
@@ -61,6 +66,8 @@ const ReturnView: React.FC<Props> = ({
   returnedBy = 'Scanner',
 }) => {
   const [packing, setPacking] = useState<PackingWithBooking | null>(null);
+  const storedStaff = useMemo(() => getStoredStaff(), []);
+  const returnRfidDedupeRef = useRef(new RfidDedupeTracker(5000));
   const [items, setItems] = useState<Item[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [scanInput, setScanInput] = useState('');
@@ -183,6 +190,96 @@ const ReturnView: React.FC<Props> = ({
     [loadData],
   );
 
+  const handleV2Return = useCallback(async (scan: ScanEvent | null, rawValue: string) => {
+    const value = rawValue.trim();
+    const parsed = parseScanResult(value);
+    const isPhysical = (!!scan && (scan.source === 'zebra_rfid' || scan.type === 'rfid')) || parsed.unique;
+    if (scan && (scan.source === 'zebra_rfid' || scan.type === 'rfid')) {
+      const dedupe = returnRfidDedupeRef.current.evaluate({ epc: value, action: 'RETURN_INSTANCE', packingId }, scan.timestamp);
+      if (dedupe.isDuplicate) {
+        setLastResult({ level: 'warning', text: 'RFID-dubbelläsning ignorerad – inget ändrat', productName: value });
+        return;
+      }
+    }
+    const matchingItem = isPhysical ? undefined : items.find(it => it.booking_products?.sku?.trim().toLowerCase() === value.toLowerCase());
+    let processed;
+    try {
+      processed = await enqueueAndProcessScanOperation({
+        operation: isPhysical ? 'physical_return_scan' : 'return_quantity',
+        packingId,
+        organizationId: storedStaff?.organization_id ?? null,
+        itemId: matchingItem?.id ?? null,
+        sku: isPhysical ? null : value,
+        bookingNumber: packing?.booking?.booking_number ?? null,
+        quantityDelta: isPhysical ? null : 1,
+        performedBy: storedStaff?.id ?? returnedBy,
+        deviceId: scan?.deviceInfo ?? null,
+        scanValue: value,
+        scanSource: scan ? undefined : 'manual',
+        scanEvent: scan,
+      });
+    } catch (err: any) {
+      const msg = String(err?.message || err).includes('SCANNER_DURABLE_QUEUE_UNAVAILABLE')
+        ? 'Säker scannerlagring saknas – returen genomfördes inte'
+        : 'Returen kunde inte sparas säkert – inget skickades till WMS';
+      setLastResult({ level: 'error', text: msg, productName: value });
+      toast.error(msg);
+      return;
+    }
+    const result = processed.result as ScannerCommandResult | null;
+    if (processed.state === 'UNKNOWN' || processed.state === 'PENDING' || processed.state === 'SENDING') {
+      setLastResult({ level: 'warning', text: 'Kontrollerar retur – scanna inte samma artikel igen', productName: value });
+      return;
+    }
+    if (processed.state === 'COMMITTED' && result && isAcceptedResult(result)) {
+      const itemId = result.itemId ?? matchingItem?.id ?? null;
+      setLastResult({
+        level: result.status === 'duplicate' ? 'warning' : 'success',
+        text: result.status === 'duplicate'
+          ? 'Returen var redan registrerad'
+          : `Returnerad (${result.returnedQuantity ?? '–'}/${result.packedQuantity ?? '–'})`,
+        productName: result.productName || matchingItem?.booking_products?.name || value,
+      });
+      if (itemId) {
+        flashHighlight(itemId);
+        if (typeof result.returnedQuantity === 'number') {
+          setItems(prev => prev.map(it => it.id === itemId ? { ...it, quantity_returned: result.returnedQuantity! } : it));
+        }
+      }
+      void loadData();
+      return;
+    }
+    const message = result?.status === 'wrong_booking'
+      ? 'Fel bokning – inget ändrat'
+      : result?.message || 'Returen avvisades – inget ändrat';
+    setLastResult({ level: 'error', text: message, productName: result?.productName || value });
+    toast.error(message);
+  }, [items, packingId, packing?.booking?.booking_number, returnedBy, storedStaff, loadData]);
+
+  useEffect(() => {
+    if (!isScannerTransactionV2Enabled()) return;
+    const drain = async () => {
+      try {
+        const processed = await resumeAndDrain();
+        if (processed > 0) void loadData();
+      } catch (err: any) {
+        if (String(err?.message || err).includes('SCANNER_DURABLE_QUEUE_UNAVAILABLE')) {
+          setLastResult({ level: 'error', text: 'Säker scannerlagring saknas – Scanner V2 är blockerad på denna enhet' });
+        }
+      }
+    };
+    void drain();
+    const onOnline = () => void drain();
+    window.addEventListener('online', onOnline);
+    const recoveryTimer = window.setInterval(() => {
+      if (navigator.onLine !== false) void drain();
+    }, 10000);
+    return () => {
+      window.clearInterval(recoveryTimer);
+      window.removeEventListener('online', onOnline);
+    };
+  }, [loadData]);
+
   const handleHardwareScan = useCallback(
     async (scan: ScanEvent) => {
       const value = (scan.value || '').trim();
@@ -193,6 +290,10 @@ const ReturnView: React.FC<Props> = ({
       const isPhysical = scan.source === 'zebra_rfid' || scan.type === 'rfid' || parsed.unique;
 
       try {
+        if (isScannerTransactionV2Enabled()) {
+          await handleV2Return(scan, value);
+          return;
+        }
         if (isPhysical) {
           console.log('[SCAN] return_scan_physical_detected', { source: scan.source, parsedType: parsed.type });
           const res = await physicalReturnScan(packingId, value, returnedBy);
@@ -210,7 +311,7 @@ const ReturnView: React.FC<Props> = ({
         console.error('[SCAN] return_scan_failed', err);
       }
     },
-    [packingId, returnedBy, applyScanResult],
+    [packingId, returnedBy, applyScanResult, handleV2Return],
   );
 
   const handleManualSubmit = useCallback(
@@ -219,10 +320,14 @@ const ReturnView: React.FC<Props> = ({
       if (!value) return;
       setScanInput('');
       console.log('[SCAN] return_scan_sku_fallback', { value, manual: true });
+      if (isScannerTransactionV2Enabled()) {
+        await handleV2Return(null, value);
+        return;
+      }
       const res = await returnScanSku(packingId, value, returnedBy);
       applyScanResult(res, value);
     },
-    [packingId, returnedBy, applyScanResult],
+    [packingId, returnedBy, applyScanResult, handleV2Return],
   );
 
   // Wire scanner hardware → physical (WMS-backed) flow
@@ -233,7 +338,31 @@ const ReturnView: React.FC<Props> = ({
   const handleManualPlus = async (it: Item) => {
     const sent = it.quantity_packed ?? 0;
     if ((it.quantity_returned ?? 0) >= sent) return;
-    // Optimistic
+    if (isScannerTransactionV2Enabled()) {
+      let processed;
+      try {
+        processed = await enqueueAndProcessScanOperation({
+          operation: 'return_quantity', packingId,
+          organizationId: storedStaff?.organization_id ?? null,
+          itemId: it.id, bookingNumber: packing?.booking?.booking_number ?? null,
+          quantityDelta: 1, performedBy: storedStaff?.id ?? returnedBy,
+          scanValue: `MANUAL_RETURN_PLUS:${it.id}`, scanSource: 'manual',
+        });
+      } catch (err: any) {
+        toast.error(String(err?.message || err).includes('SCANNER_DURABLE_QUEUE_UNAVAILABLE')
+          ? 'Säker scannerlagring saknas – returen genomfördes inte'
+          : 'Returen kunde inte sparas säkert – inget skickades till WMS');
+        return;
+      }
+      const result = processed.result as ScannerCommandResult | null;
+      if (processed.state === 'COMMITTED' && result && isAcceptedResult(result)) {
+        if (typeof result.returnedQuantity === 'number') setItems(prev => prev.map(x => x.id === it.id ? { ...x, quantity_returned: result.returnedQuantity! } : x));
+        flashHighlight(it.id);
+      } else if (processed.state === 'UNKNOWN' || processed.state === 'PENDING' || processed.state === 'SENDING') toast.info('Returen väntar på säker WMS-bekräftelse – tryck inte igen');
+      else toast.error(result?.message || 'Kunde inte uppdatera retur');
+      return;
+    }
+    // Legacy optimistic path (V2 OFF only)
     setItems(prev =>
       prev.map(x =>
         x.id === it.id
@@ -251,6 +380,10 @@ const ReturnView: React.FC<Props> = ({
 
   const handleManualMinus = async (it: Item) => {
     if ((it.quantity_returned ?? 0) <= 0) return;
+    if (isScannerTransactionV2Enabled()) {
+      toast.error('Ångra retur är spärrad i Scanner V2 tills WMS har ett explicit UNRETURN-kommando');
+      return;
+    }
     setItems(prev =>
       prev.map(x =>
         x.id === it.id
@@ -266,6 +399,10 @@ const ReturnView: React.FC<Props> = ({
   };
 
   const handleResetRow = async (it: Item) => {
+    if (isScannerTransactionV2Enabled()) {
+      toast.error('Nollställ retur är spärrad i Scanner V2 – använd WMS-korrigering med revisionsspår');
+      return;
+    }
     setItems(prev =>
       prev.map(x => (x.id === it.id ? { ...x, quantity_returned: 0 } : x)),
     );

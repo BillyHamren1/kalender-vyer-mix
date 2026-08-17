@@ -76,6 +76,18 @@ describe('scan feedback state machine', () => {
     expect(f.detail).toBe('Redan registrerad');
   });
 
+  it('generic duplicate utan replay-bevis ger aldrig success-signal', () => {
+    const result: ScannerCommandResult = { status: 'duplicate', operationId: OP, replayed: false, packedQuantity: 3 };
+    const f = deriveScanFeedback({ operationId: OP, state: 'COMMITTED', result });
+    expect(f.playSuccess).toBe(false);
+    expect(feedbackEffects(f).sound).toBe('none');
+  });
+
+  it('COMMITTED utan explicit result/operation_id ger aldrig success-signal', () => {
+    const f = deriveScanFeedback({ operationId: OP, state: 'COMMITTED', result: null });
+    expect(f.playSuccess).toBe(false);
+  });
+
   it('COMMITTED med ANNAT operation_id ger INTE success-signal', () => {
     const result: ScannerCommandResult = { status: 'accepted', operationId: 'other-op' };
     const f = deriveScanFeedback({ operationId: OP, state: 'COMMITTED', result });

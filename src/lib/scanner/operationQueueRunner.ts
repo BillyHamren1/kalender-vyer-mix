@@ -8,7 +8,7 @@
  * - Kön serialiseras per packningskontext (lane) så ordningen bevaras.
  */
 
-import type { ScannerCommandResult } from './commandTypes';
+import { isAcceptedResult, type ScannerCommandResult } from './commandTypes';
 import type { QueuedOperation } from './operationQueueTypes';
 import { queueLaneKey } from './operationQueueTypes';
 import type { OperationQueueStore } from './operationQueueStore';
@@ -67,10 +67,19 @@ export const processOperation = async (
 
   opts.onResult?.(op, result);
 
-  if (result.status === 'accepted' || result.status === 'duplicate') {
+  if (isAcceptedResult(result)) {
     const committed = await store.transition(op.operation_id, 'COMMITTED', { result, last_error: null });
     await store.finalize(op.operation_id);
     return committed;
+  }
+
+  if (result.status === 'duplicate' && result.replayed !== true) {
+    const rejected = await store.transition(op.operation_id, 'REJECTED', {
+      result,
+      last_error: 'Duplicate response lacked same-operation replay proof',
+    });
+    await store.finalize(op.operation_id);
+    return rejected;
   }
 
   if (result.status === 'rejected' || result.status === 'wrong_booking' ||
@@ -96,7 +105,10 @@ export const drainQueue = async (
   opts: RunnerOptions = {},
 ): Promise<number> => {
   const maxPerRun = opts.maxPerRun ?? 25;
-  const maxAttempts = opts.maxAttempts ?? 8;
+  // Never silently park an unresolved physical scan after an arbitrary retry count.
+  // Callers may set a bounded maxAttempts for controlled tests, but production
+  // keeps UNKNOWN operations resumable until a terminal server answer exists.
+  const maxAttempts = opts.maxAttempts ?? Number.POSITIVE_INFINITY;
   const pending = (await store.resumable())
     .filter((o) => o.attempt_count < maxAttempts)
     .slice(0, maxPerRun);
@@ -115,8 +127,11 @@ export const drainQueue = async (
       for (const op of laneOps) {
         const fresh = await store.get(op.operation_id);
         if (!fresh) continue;
-        await processOperation(store, fresh, send, opts);
+        const outcome = await processOperation(store, fresh, send, opts);
         processed += 1;
+        // Preserve user intent ordering. If an earlier operation is still
+        // ambiguous, later operations in the same packing lane must wait.
+        if (outcome && (outcome.state === 'UNKNOWN' || outcome.state === 'PENDING' || outcome.state === 'SENDING')) break;
       }
     }),
   );
