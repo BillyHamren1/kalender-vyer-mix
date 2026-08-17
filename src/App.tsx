@@ -250,6 +250,8 @@ const AppContent = () => {
                   // Skippa realtime-känsliga "live"-queries om de explicit
                   // markeras med meta.persist === false.
                   if (q.meta && q.meta.persist === false) return false;
+                  // Map/Set överlever inte JSON-serialisering — persistera aldrig.
+                  if (containsNonJsonSafeData(q.state.data)) return false;
                   return true;
                 },
               },
