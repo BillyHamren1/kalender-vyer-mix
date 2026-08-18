@@ -92,17 +92,10 @@ const ProjectDashboardWidgets = () => {
   const completedCount = nonCancelled.filter(p => p.status === 'completed').length;
   
   const today = new Date().toISOString().split('T')[0];
-  const closingCount = nonCancelled.filter(p => p.status !== 'completed' && p.date && p.date < today).length;
 
   const horizon14 = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0];
-  const attentionProjects = useMemo(() =>
-    nonCancelled
-      .filter(p => p.status !== 'completed' && p.date && p.date < today)
-      .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
-      .slice(0, 6),
-    [nonCancelled, today]
-  );
   const upcomingProjects = useMemo(() =>
+
     nonCancelled
       .filter(p => p.status !== 'completed' && p.rigDate && p.rigDate >= today && p.rigDate <= horizon14)
       .sort((a, b) => (a.rigDate || '').localeCompare(b.rigDate || ''))
