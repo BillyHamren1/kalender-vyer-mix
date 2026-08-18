@@ -213,38 +213,42 @@ const ProjectDashboardWidgets = () => {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        {statItems.map(({ label, value, icon: Icon, color, bgColor }) => (
-          <Card key={label} className={label === 'Slutförande' && value > 0 ? 'border-amber-300/70' : undefined}>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${bgColor}`}>
-                <Icon className={`h-4 w-4 ${color}`} />
-              </div>
-              <div>
-                <p className="text-xl font-semibold leading-none">{value}</p>
-                <p className="text-xs text-muted-foreground mt-1">{label}</p>
-              </div>
-            </CardContent>
-          </Card>
+        {statItems.map(({ label, value, icon: Icon, color, bgColor, hint }) => (
+          <TooltipProvider key={label} delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Card>
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${bgColor}`}>
+                      <Icon className={`h-4 w-4 ${color}`} />
+                    </div>
+                    <div>
+                      <p className="text-xl font-semibold leading-none">{value}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{label}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[220px] text-xs">{hint}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         ))}
       </div>
 
-
-
-
-      {/* Projektledarens prioritering – vad behöver göras och vad kommer närmast? */}
+      {/* Översikt: vad väntar på avslut och vad ligger närmast i tiden */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className={attentionProjects.length ? "border-amber-300/60" : undefined}>
+        <Card>
           <CardContent className="p-5">
             <div className="flex items-start justify-between gap-3 mb-3">
               <div>
-                <div className="flex items-center gap-2"><AlertCircle className={attentionProjects.length ? "h-4 w-4 text-amber-600" : "h-4 w-4 text-emerald-600"} /><h3 className="text-sm font-semibold">Behöver uppmärksamhet</h3></div>
-                <p className="text-xs text-muted-foreground mt-1">Projekt där eventdatum passerat men projektet fortfarande är öppet.</p>
+                <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-muted-foreground" /><h3 className="text-sm font-semibold">Väntar på avslut</h3></div>
+                <p className="text-xs text-muted-foreground mt-1">Genomförda projekt som fortfarande är öppna.</p>
               </div>
               <Badge variant="outline" className="text-[10px]">{attentionProjects.length}</Badge>
             </div>
             <div className="divide-y divide-border/50">
               {attentionProjects.length === 0 ? (
-                <div className="py-5 text-center"><ShieldCheck className="h-5 w-5 mx-auto text-emerald-600 mb-1.5" /><p className="text-sm font-medium">Inget släpar efter</p><p className="text-xs text-muted-foreground">Inga passerade projekt väntar på avslut.</p></div>
+                <div className="py-5 text-center"><ShieldCheck className="h-5 w-5 mx-auto text-muted-foreground mb-1.5" /><p className="text-sm font-medium">Inga öppna genomförda projekt</p></div>
               ) : attentionProjects.map(item => <ProjectRow key={`attention-${item.id}-${item.type}`} item={item} />)}
             </div>
           </CardContent>
@@ -255,14 +259,14 @@ const ProjectDashboardWidgets = () => {
             <div className="flex items-start justify-between gap-3 mb-3">
               <div>
                 <div className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-primary" /><h3 className="text-sm font-semibold">Kommande 14 dagar</h3></div>
-                <p className="text-xs text-muted-foreground mt-1">Aktiva projekt sorterade efter närmaste rigg/start.</p>
+                <p className="text-xs text-muted-foreground mt-1">Aktiva projekt sorterade efter närmaste rigg-/startdatum.</p>
               </div>
               <Badge variant="outline" className="text-[10px]">{upcomingProjects.length}</Badge>
             </div>
             <div className="divide-y divide-border/50">
               {upcomingProjects.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-5 text-center">Ingen rigg/start inom 14 dagar</p>
-              ) : upcomingProjects.map(item => <ProjectRow key={`upcoming-${item.id}-${item.type}`} item={item} />)}
+              ) : upcomingProjects.map(item => <ProjectRow key={`upcoming-${item.id}-${item.type}`} item={item} showRigDate />)}
             </div>
           </CardContent>
         </Card>
@@ -270,12 +274,19 @@ const ProjectDashboardWidgets = () => {
 
       <Card>
         <CardContent className="p-5">
-          <div className="flex items-center gap-2 mb-3"><CalendarClock className="h-4 w-4 text-muted-foreground" /><h3 className="text-sm font-semibold">Senast ändrade</h3></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 divide-y md:divide-y-0 md:[&>*:nth-child(n+3)]:border-t md:[&>*:nth-child(n+3)]:border-border/50">
-            {recentlyUpdated.length === 0 ? <p className="text-sm text-muted-foreground py-4 text-center">Inga uppdaterade projekt</p> : recentlyUpdated.map(item => <ProjectRow key={`updated-${item.id}-${item.type}`} item={item} compact />)}
+          <div className="flex items-center gap-2 mb-1"><CalendarClock className="h-4 w-4 text-muted-foreground" /><h3 className="text-sm font-semibold">Projektbelastning framåt</h3></div>
+          <p className="text-xs text-muted-foreground mb-3">Aktiva projekt fördelade efter närmaste rigg-/startdatum.</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {workload.map(({ label, value }) => (
+              <div key={label} className="rounded-lg border border-border/60 p-3">
+                <p className="text-lg font-semibold leading-none">{value}</p>
+                <p className="text-xs text-muted-foreground mt-1">{label}</p>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
+
 
       <LargeProjectsList items={unified.filter(i => i.type === 'large' && i.status !== 'cancelled')} ProjectRow={ProjectRow} />
     </div>
