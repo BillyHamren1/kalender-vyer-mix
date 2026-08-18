@@ -1,5 +1,11 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  clearPersistedTenantState,
+  getLastKnownOrganizationId,
+  setLastKnownOrganizationId,
+} from '@/lib/tenant/tenantCacheGuard';
+
 
 
 const HUB_ALLOWED_ORIGINS = [
@@ -137,13 +143,40 @@ export function useSsoListener() {
   }, []);
 
   const verifySsoToken = useCallback(async (ssoToken: SsoToken) => {
-    const fingerprint = getTokenFingerprint(ssoToken.signature);
-    
+    const requestedOrgId = ssoToken.payload?.organization_id ?? null;
+    // Fingerprinten MÅSTE innehålla organisationen. Annars kan HUB skicka
+    // "samma" token-signatur för en annan organisation och dedupe-logiken
+    // hoppar över verifieringen – kvar blir föregående organisations context.
+    const fingerprint = `${getTokenFingerprint(ssoToken.signature)}:${requestedOrgId ?? 'none'}`;
+
+    // TENANT SWITCH: HUB begär en annan organisation än den aktiva.
+    // Då får ingen dedupe-check stoppa oss, och all tidigare tenant-state
+    // (session + cache) måste bort INNAN den nya sessionen etableras.
+    const activeOrgId = getLastKnownOrganizationId();
+    const isTenantSwitch = !!requestedOrgId && !!activeOrgId && requestedOrgId !== activeOrgId;
+    if (isTenantSwitch) {
+      console.warn('[SSO] Organisationsbyte begärt av HUB – rensar tidigare tenant-context', {
+        from: activeOrgId,
+        to: requestedOrgId,
+      });
+      lastProcessedRef.current = null;
+      sessionStorage.removeItem(SSO_PROCESSED_KEY);
+      sessionStorage.removeItem(SSO_PROCESSING_KEY);
+      try {
+        await supabase.auth.signOut();
+      } catch (e) {
+        console.warn('[SSO] signOut vid tenant-byte misslyckades', e);
+      }
+      clearPersistedTenantState();
+      setLastKnownOrganizationId(null);
+    }
+
     // Check 1: Already processed this exact token (in-memory)
-    if (lastProcessedRef.current === fingerprint) {
+    if (!isTenantSwitch && lastProcessedRef.current === fingerprint) {
       console.log('[SSO] Token already processed (memory), skipping:', fingerprint);
       return;
     }
+
     
     // Check 2: Already processed this token (sessionStorage - survives React Strict Mode double-mount)
     const storedFingerprint = sessionStorage.getItem(SSO_PROCESSED_KEY);
@@ -207,7 +240,11 @@ export function useSsoListener() {
       // Mark user as SSO user in sessionStorage (for ProtectedRoute to skip role check)
       sessionStorage.setItem('isSsoUser', 'true');
       sessionStorage.setItem('skipRoleCheck', 'true');
-      
+
+      // Canonical aktiv organisation = den HUB/edge-funktionen verifierade.
+      const verifiedOrgId = data.user?.organization_id ?? requestedOrgId;
+      if (verifiedOrgId) setLastKnownOrganizationId(verifiedOrgId);
+
       // Apply preferences from SSO token
       if (data.preferences) {
         applyPreferences(data.preferences);
@@ -216,6 +253,7 @@ export function useSsoListener() {
       // Mark as successfully processed AFTER session is established
       lastProcessedRef.current = fingerprint;
       sessionStorage.setItem(SSO_PROCESSED_KEY, fingerprint);
+
       
       console.log('[SSO] Session established successfully for:', data.user?.email, 'roles:', data.roles);
       sendSsoResponse(true);

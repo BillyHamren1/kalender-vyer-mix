@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import {
   enforceTenantCacheBoundary,
   setLastKnownOrganizationId,
@@ -95,5 +95,24 @@ describe('P0 – tenant-isolerad klientcache', () => {
     expect(window.localStorage.getItem('calendar-resources-v2')).toBeNull();
     expect(window.localStorage.getItem('eventflow-planning-auth')).toBe('session');
     expect(window.localStorage.getItem('app_language')).toBe('sv');
+  });
+});
+
+// --- P0: SSO får aldrig återanvända föregående organisations context ---
+describe('P0 – SSO tenant switch', () => {
+  const src = readFileSync(resolve(process.cwd(), 'src/hooks/useSsoListener.ts'), 'utf8');
+
+  it('inkluderar organisationen i dedupe-fingerprinten', () => {
+    expect(src).toMatch(/getTokenFingerprint\(ssoToken\.signature\)\}:\$\{requestedOrgId/);
+  });
+
+  it('rensar session och cache när HUB begär en annan organisation', () => {
+    expect(src).toContain('isTenantSwitch');
+    expect(src).toContain('clearPersistedTenantState()');
+    expect(src).toContain('supabase.auth.signOut()');
+  });
+
+  it('sätter aktiv organisation från verifierat svar', () => {
+    expect(src).toContain('setLastKnownOrganizationId(verifiedOrgId)');
   });
 });
