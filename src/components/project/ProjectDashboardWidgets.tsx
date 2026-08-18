@@ -169,7 +169,7 @@ const ProjectDashboardWidgets = () => {
     navigate('/calendar');
   };
 
-  const ProjectRow = ({ item, compact = false }: { item: UnifiedItem; compact?: boolean }) => {
+  const ProjectRow = ({ item, compact = false, showRigDate = false }: { item: UnifiedItem; compact?: boolean; showRigDate?: boolean }) => {
     const calendarTarget = item.rigDate ?? item.date;
     return (
       <div
