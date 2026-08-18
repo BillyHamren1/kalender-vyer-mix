@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import {
   enforceTenantCacheBoundary,
   setLastKnownOrganizationId,
