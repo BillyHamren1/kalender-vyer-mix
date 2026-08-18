@@ -110,19 +110,29 @@ const ProjectDashboardWidgets = () => {
     [nonCancelled, today, horizon14]
   );
 
-  const recentlyUpdated = useMemo(() =>
-    [...nonCancelled]
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-      .slice(0, 6),
-    [nonCancelled]
-  );
+  /** Framåtblickande fördelning – ersätter tidigare "Senast ändrade". */
+  const workload = useMemo(() => {
+    const iso = (days: number) => new Date(Date.now() + days * 86400000).toISOString().split('T')[0];
+    const d30 = iso(30);
+    const d60 = iso(60);
+    const d90 = iso(90);
+    const planned = nonCancelled.filter(p => p.status !== 'completed' && (p.rigDate ?? p.date));
+    const key = (p: UnifiedItem) => (p.rigDate ?? p.date) as string;
+    const within = (from: string, to: string) => planned.filter(p => key(p) >= from && key(p) <= to).length;
+    return [
+      { label: '0–30 dagar', value: within(today, d30) },
+      { label: '31–60 dagar', value: within(d30, d60) - planned.filter(p => key(p) === d30).length },
+      { label: '61–90 dagar', value: within(d60, d90) - planned.filter(p => key(p) === d60).length },
+      { label: 'Senare än 90 dagar', value: planned.filter(p => key(p) > d90).length },
+    ];
+  }, [nonCancelled, today]);
 
   const statItems = [
-    { label: 'Aktiva', value: activeCount, icon: FolderKanban, color: 'text-primary', bgColor: 'bg-primary/10' },
-    { label: 'Planering', value: planningCount, icon: Clock, color: 'text-primary', bgColor: 'bg-primary/5' },
-    { label: 'Pågående', value: inProgressCount, icon: CalendarClock, color: 'text-primary', bgColor: 'bg-primary/10' },
-    { label: 'Slutförande', value: closingCount, icon: AlertCircle, color: closingCount > 0 ? 'text-amber-600' : 'text-muted-foreground', bgColor: closingCount > 0 ? 'bg-amber-50' : 'bg-muted' },
-    { label: 'Avslutade', value: completedCount, icon: CheckCircle2, color: 'text-muted-foreground', bgColor: 'bg-muted' },
+    { label: 'Aktiva totalt', value: activeCount, icon: FolderKanban, color: 'text-primary', bgColor: 'bg-primary/10', hint: 'Alla projekt som inte är avslutade eller avbokade. Korten till höger är delmängder av detta.' },
+    { label: 'varav Planering', value: planningCount, icon: Clock, color: 'text-primary', bgColor: 'bg-primary/5', hint: 'Aktiva projekt med status Planering.' },
+    { label: 'varav Pågående', value: inProgressCount, icon: CalendarClock, color: 'text-primary', bgColor: 'bg-primary/10', hint: 'Aktiva projekt med status Pågående.' },
+    { label: 'varav Väntar på avslut', value: closingCount, icon: AlertCircle, color: 'text-muted-foreground', bgColor: 'bg-muted', hint: 'Genomförda projekt (eventdatum passerat) som fortfarande är öppna.' },
+    { label: 'Avslutade', value: completedCount, icon: CheckCircle2, color: 'text-muted-foreground', bgColor: 'bg-muted', hint: 'Projekt med status Avslutat. Ingår inte i Aktiva totalt.' },
   ];
 
   if (isLoading) {
