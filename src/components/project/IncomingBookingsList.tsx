@@ -85,7 +85,8 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
 
   // Avbokade i bokningssystemet men fortfarande aktiva lokalt.
   // Scan = ren läsning mot Booking; ingen automatisk destruktiv sync.
-  const { data: cancellationCandidates = [] } = useCancellationCandidates();
+  const cancellationCandidatesQuery = useCancellationCandidates();
+  const { data: cancellationCandidates = [] } = cancellationCandidatesQuery;
   const applyCancellation = useApplyCancellation();
   const scanIds = React.useMemo(() => {
     const ids = new Set<string>();
@@ -93,7 +94,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
     unplannedProjects.forEach((p) => { if (p.bookingId) ids.add(p.bookingId); });
     return Array.from(ids);
   }, [bookings, unplannedProjects]);
-  useScanCancellationCandidates(scanIds);
+  const cancellationScan = useScanCancellationCandidates(scanIds);
   const cancelledIds = React.useMemo(
     () => new Set(cancellationCandidates.map((c) => c.booking_id)),
     [cancellationCandidates],
@@ -186,6 +187,10 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
   const totalNew = newBookings.length + newUnplanned.length;
   const totalUpdates = visibleUpdates.length;
   const totalCancelled = cancellationCandidates.length;
+  const cancellationCheckPending = scanIds.length > 0 && (
+    cancellationScan.isPending || cancellationScan.isFetching || cancellationCandidatesQuery.isFetching
+  );
+  const cancellationCheckFailed = cancellationScan.isError;
   const hasIncomingItems = totalNew + totalUpdates + totalCancelled > 0;
 
 
@@ -275,6 +280,14 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
       </div>
 
       {/* === SEKTION 0: AVBOKADE I BOKNINGSSYSTEMET === */}
+      {(cancellationCheckPending || cancellationCheckFailed) && totalNew > 0 && (
+        <div className="flex items-center gap-2 px-4 py-3 border-y border-border bg-muted text-sm text-muted-foreground">
+          <RefreshCw className={`h-4 w-4 shrink-0 ${cancellationCheckPending ? 'animate-spin' : ''}`} />
+          {cancellationCheckPending
+            ? 'Kontrollerar bokningsstatus innan placering…'
+            : 'Bokningsstatus kunde inte verifieras. Placering är spärrad tills kontrollen lyckas.'}
+        </div>
+      )}
       {totalCancelled > 0 && (
         <section>
           <div className="flex items-center gap-2.5 px-4 h-11 bg-red-100 border-y border-red-300">
@@ -432,7 +445,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
       )}
 
       {/* === SEKTION 2: NYA === */}
-      {totalNew > 0 && (
+      {totalNew > 0 && !cancellationCheckPending && !cancellationCheckFailed && (
         <section>
           {showSectionHeaders && (
             <div className="flex items-center gap-2.5 px-4 h-10 bg-green-100 border-y border-green-300">

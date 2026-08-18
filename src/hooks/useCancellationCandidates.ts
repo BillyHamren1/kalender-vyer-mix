@@ -78,9 +78,10 @@ export function useScanCancellationCandidates(bookingIds: string[]) {
       });
       if (error) {
         console.error('[cancellation-scan]', error);
-        return null;
+        throw error;
       }
-      qc.invalidateQueries({ queryKey: ['cancellation-candidates', organizationId] });
+      if (data?.error) throw new Error(data.error);
+      await qc.invalidateQueries({ queryKey: ['cancellation-candidates', organizationId] });
       return data;
     },
   });
