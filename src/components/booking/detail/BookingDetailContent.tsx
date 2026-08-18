@@ -13,7 +13,7 @@ import { InternalNotes } from '../InternalNotes';
 import { MapDrawingCard } from '../MapDrawingCard';
 import BookingEconomicsCard from '../BookingEconomicsCard';
 import PackingStatusCard from '../PackingStatusCard';
-import StaffAssignmentWarning from '../StaffAssignmentWarning';
+
 import BookingTodosChecklist from './BookingTodosChecklist';
 
 interface BookingDetailContentProps {
