@@ -9,6 +9,7 @@ const WATCH = read('supabase/functions/booking-cancellation-watch/index.ts');
 const IMPORT = read('supabase/functions/import-bookings/index.ts');
 const RECONCILE = read('supabase/functions/reconcile-booking-status/index.ts');
 const LIST = read('src/components/project/IncomingBookingsList.tsx');
+const REVISION = read('supabase/functions/_shared/appliedSourceRevision.ts');
 
 describe('manuell avbokning (människa bekräftar)', () => {
   it('endast manualApproval=true kringgår automatikspärren', () => {
@@ -27,6 +28,12 @@ describe('manuell avbokning (människa bekräftar)', () => {
 });
 
 describe('booking-cancellation-watch', () => {
+  it('läser booking_changes med tabellens verkliga tidskolumn', () => {
+    expect(REVISION).toContain(".select('change_type, new_values, changed_at')");
+    expect(REVISION).toContain(".order('changed_at', { ascending: false })");
+    expect(REVISION).not.toContain(".select('change_type, new_values, created_at')");
+  });
+
   it('scan muterar aldrig bokningar — bara kandidattabellen', () => {
     const scanStart = WATCH.indexOf("if (action === \"scan\")");
     const scanEnd = WATCH.indexOf("if (action === \"dismiss\")");
@@ -66,5 +73,11 @@ describe('inkorgen visar avbokningar separat', () => {
   it('egen röd sektion med bekräfta-knapp', () => {
     expect(LIST).toContain('Avbokade i bokningssystemet');
     expect(LIST).toContain('Bekräfta avbokning');
+  });
+
+  it('spärrar Placera tills Booking-status har verifierats', () => {
+    expect(LIST).toContain('cancellationCheckPending');
+    expect(LIST).toContain('cancellationCheckFailed');
+    expect(LIST).toContain('Placering är spärrad tills kontrollen lyckas.');
   });
 });

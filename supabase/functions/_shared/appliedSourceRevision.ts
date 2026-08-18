@@ -13,7 +13,7 @@
 
  *
  * STEG 2F – EN AUTHORITATIVE REVISIONSTYP PER BOKNING:
- *   Den senast applicerade revisionsbärande raden (högst `created_at`) är
+ *   Den senast applicerade revisionsbärande raden (högst `changed_at`) är
  *   authoritative. Dess revisionstyp ('timestamp', 'version' eller 'both' när
  *   EN och samma rad bär båda värdena) styr all jämförelse. Om någon annan
  *   revisionsbärande rad bär en revisionstyp som den authoritative raden inte
@@ -300,11 +300,11 @@ export async function loadAppliedSourceRevision(
   try {
     const res = await supabase
       .from('booking_changes')
-      .select('change_type, new_values, created_at')
+      .select('change_type, new_values, changed_at')
       .eq('booking_id', bookingId)
       .eq('organization_id', organizationId)
       .in('change_type', REVISION_BEARING_CHANGE_TYPES as unknown as string[])
-      .order('created_at', { ascending: false })
+      .order('changed_at', { ascending: false })
       .limit(MAX_REVISION_ROWS);
     if (res?.error) {
       return { ok: false, error: `booking_changes_read:${res.error.message ?? 'unknown'}`, retriable: true };
@@ -331,9 +331,9 @@ export async function loadAppliedSourceRevision(
     const nv: any = row?.new_values ?? {};
     const changeType = typeof row?.change_type === 'string' ? row.change_type : null;
     const status = normStatus(nv.source_status ?? nv.status);
-    // UPPGIFT D (2G): created_at styr vilken rad som är authoritative. En rad
+    // UPPGIFT D (2G): changed_at styr vilken rad som är authoritative. En rad
     // utan giltig loggtid får INTE bara nedprioriteras — den är fail-closed.
-    const createdAtMs = parseStrictTimestamp(row?.created_at);
+    const createdAtMs = parseStrictTimestamp(row?.changed_at);
     if (createdAtMs === null) {
       return { ok: false, error: 'stored_revision_created_at_invalid', retriable: false };
     }
@@ -402,7 +402,7 @@ export async function loadAppliedSourceRevision(
     }
   }
 
-  // Authoritative rad = senast APPLICERADE revisionsbärande rad (created_at).
+  // Authoritative rad = senast APPLICERADE revisionsbärande rad (changed_at).
   // Aldrig "första i arrayen" och aldrig timestamp bara för att den finns.
   const authoritative = entries.reduce((best, e) => (e.createdAtMs > best.createdAtMs ? e : best), entries[0]);
   const authKinds = entryKinds(authoritative);
@@ -460,7 +460,7 @@ async function findExactRevisionRows(
 ): Promise<{ ok: true; rows: any[] } | { ok: false; error: string }> {
   const base = supabase
     .from('booking_changes')
-    .select('id, new_values, created_at')
+    .select('id, new_values, changed_at')
     .eq('booking_id', input.bookingId)
     .eq('organization_id', input.organizationId)
     .eq('change_type', input.changeType);
