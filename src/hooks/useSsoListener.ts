@@ -138,6 +138,16 @@ function applyPreferences(preferences: SsoPreferences) {
 // Use sessionStorage key for cross-render deduplication
 const SSO_PROCESSED_KEY = 'sso_last_processed_fingerprint';
 const SSO_PROCESSING_KEY = 'sso_currently_processing';
+export const PLANNING_SSO_START_EVENT = 'eventflow-planning-sso-start';
+export const PLANNING_SSO_SETTLED_EVENT = 'eventflow-planning-sso-settled';
+
+function notifySsoStart() {
+  window.dispatchEvent(new CustomEvent(PLANNING_SSO_START_EVENT));
+}
+
+function notifySsoSettled(success: boolean) {
+  window.dispatchEvent(new CustomEvent(PLANNING_SSO_SETTLED_EVENT, { detail: { success } }));
+}
 
 export function useSsoListener() {
   const isProcessingRef = useRef(false);
@@ -180,30 +190,49 @@ export function useSsoListener() {
       setLastKnownOrganizationId(null);
     }
 
-    // Check 1: Already processed this exact token (in-memory)
-    if (!isTenantSwitch && lastProcessedRef.current === fingerprint) {
-      console.log('[SSO] Token already processed (memory), skipping:', fingerprint);
-      return;
+    notifySsoStart();
+
+    // A repeated HUB token must never disappear silently. If the matching session
+    // is already established, re-ACK it. If storage is stale, clear it and verify again.
+    const ackExistingMatchingSession = async (): Promise<boolean> => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const activeSession = sessionData.session;
+      const activeTenant = getLastKnownOrganizationId();
+      const tenantMatches = !requestedOrgId || !activeTenant || activeTenant === requestedOrgId;
+      if (activeSession && tenantMatches) {
+        sessionStorage.setItem('isSsoUser', 'true');
+        sessionStorage.setItem('skipRoleCheck', 'true');
+        lastProcessedRef.current = fingerprint;
+        sessionStorage.setItem(SSO_PROCESSED_KEY, fingerprint);
+        sendSsoResponse(true);
+        notifySsoSettled(true);
+        return true;
+      }
+      lastProcessedRef.current = null;
+      sessionStorage.removeItem(SSO_PROCESSED_KEY);
+      return false;
+    };
+
+    // Check 1 + 2: already processed. Re-ACK only if a real session still exists.
+    const storedFingerprint = sessionStorage.getItem(SSO_PROCESSED_KEY);
+    if (!isTenantSwitch && (lastProcessedRef.current === fingerprint || storedFingerprint === fingerprint)) {
+      console.log('[SSO] Token already processed, validating existing session before ACK:', fingerprint);
+      if (await ackExistingMatchingSession()) return;
     }
 
-    
-    // Check 2: Already processed this token (sessionStorage - survives React Strict Mode double-mount)
-    const storedFingerprint = sessionStorage.getItem(SSO_PROCESSED_KEY);
-    if (storedFingerprint === fingerprint) {
-      console.log('[SSO] Token already processed (storage), skipping:', fingerprint);
-      return;
-    }
-    
-    // Check 3: Another tab/instance is currently processing
+    // A processing key without our in-memory lock is stale (e.g. React remount/crash).
     const currentlyProcessing = sessionStorage.getItem(SSO_PROCESSING_KEY);
     if (currentlyProcessing === fingerprint) {
-      console.log('[SSO] Token currently being processed elsewhere, skipping:', fingerprint);
-      return;
+      if (isProcessingRef.current) {
+        console.log('[SSO] Token is already being verified; the active attempt will ACK it');
+        return;
+      }
+      console.warn('[SSO] Removing stale processing lock:', fingerprint);
+      sessionStorage.removeItem(SSO_PROCESSING_KEY);
     }
-    
-    // Check 4: In-memory processing flag
+
     if (isProcessingRef.current) {
-      console.log('[SSO] Already processing a token, skipping');
+      console.log('[SSO] Another token is being processed; ignoring parallel attempt');
       return;
     }
     
@@ -215,20 +244,18 @@ export function useSsoListener() {
     console.log('[SSO] Starting verification for:', ssoToken.payload.email, 'fingerprint:', fingerprint, 'target_view:', targetView);
 
     try {
-      const response = await fetch(`https://pihrhltinhewhoxefjxv.supabase.co/functions/v1/verify-sso-token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke<SsoResult>('verify-sso-token', {
+        body: {
           ...ssoToken,
           target_view: targetView,
-        }),
+        },
       });
 
-      const data: SsoResult = await response.json();
-
-      if (!response.ok || !data.success) {
-        console.error('[SSO] Verification failed:', data);
-        sendSsoResponse(false, { status: response.status, code: data.error_code, message: data.message });
+      if (error || !data?.success) {
+        const status = (error as any)?.context?.status as number | undefined;
+        console.error('[SSO] Verification failed:', { error, data, status });
+        sendSsoResponse(false, { status, code: data?.error_code ?? 'VERIFY_FAILED', message: data?.message ?? error?.message });
+        notifySsoSettled(false);
         return;
       }
 
@@ -243,6 +270,7 @@ export function useSsoListener() {
       if (sessionError) {
         console.error('[SSO] Session set failed:', sessionError);
         sendSsoResponse(false, { status: 500, code: 'SESSION_SET_FAILED', message: sessionError.message });
+        notifySsoSettled(false);
         return;
       }
 
@@ -266,10 +294,12 @@ export function useSsoListener() {
       
       console.log('[SSO] Session established successfully for:', data.user?.email, 'roles:', data.roles);
       sendSsoResponse(true);
+      notifySsoSettled(true);
 
     } catch (err) {
       console.error('[SSO] Exception during verification:', err);
       sendSsoResponse(false, { status: 500, code: 'NETWORK_ERROR', message: String(err) });
+      notifySsoSettled(false);
     } finally {
       isProcessingRef.current = false;
       sessionStorage.removeItem(SSO_PROCESSING_KEY);
