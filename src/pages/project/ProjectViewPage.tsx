@@ -1,9 +1,8 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import ProjectOverviewHeader from "@/components/project/ProjectOverviewHeader";
-import ProjectTaskList from "@/components/project/ProjectTaskList";
+import ProjectOverviewWorkspace from "@/components/project/ProjectOverviewWorkspace";
 import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectInternalNotes from "@/components/project/ProjectInternalNotes";
 import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
@@ -17,7 +16,7 @@ import ProjectFollowersPanel from "@/components/project/ProjectFollowersPanel";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
 import { useRefreshBooking } from "@/hooks/useRefreshBooking";
-import { FileText, MessageSquare, RefreshCw, ListChecks, Users, Truck, Info } from "lucide-react";
+import { FileText, MessageSquare, RefreshCw, Users, Truck, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const SectionHeader = ({ icon: Icon, title, count }: { icon: React.ElementType; title: string; count?: number }) => (
@@ -37,7 +36,7 @@ const SectionHeader = ({ icon: Icon, title, count }: { icon: React.ElementType; 
 const ProjectViewPage = () => {
   const detail = useOutletContext<ReturnType<typeof useProjectDetail>>();
 
-  const { project, tasks, files, activities, bookingAttachments } = detail;
+  const { project, tasks, files, bookingAttachments } = detail;
   const bookingId = project?.booking_id || project?.booking?.id || null;
   const { assignments: transportAssignments } = useProjectTransport(bookingId);
   const { refreshBooking, isRefreshing } = useRefreshBooking(bookingId, project?.id ?? '');
@@ -115,36 +114,14 @@ const ProjectViewPage = () => {
 
   return (
     <div className="space-y-6">
-      {/* Overview dashboard */}
-      <ProjectOverviewHeader
+      {/* Simple operational overview: real dates, todos and establishment schedule. */}
+      <ProjectOverviewWorkspace
+        project={project}
         tasks={tasks}
-        filesCount={files.length}
-        commentsCount={0}
-        activities={activities}
-        projectLeader={projectLeaderDisplay}
-        rigDate={project.rigdaydate || booking?.rigdaydate}
-        eventDate={project.eventdate || booking?.eventdate}
-        rigDownDate={project.rigdowndate || booking?.rigdowndate}
-        deliveryAddress={project.deliveryaddress || booking?.deliveryaddress}
-        transportCount={transportAssignments.length}
-        bookingCount={1}
+        bookingId={bookingId}
+        onAddTask={detail.addTask}
+        onUpdateTask={detail.updateTask}
       />
-
-      {/* One activity model for the project leader. project_tasks remains the source
-          for coordination; the existing soft bridge mirrors these into Planering. */}
-      <section className="space-y-3">
-        <SectionHeader icon={ListChecks} title="Aktiviteter" count={tasks.filter(t => !t.completed && !t.is_info_only).length} />
-        <div className="min-h-[360px]">
-          <ProjectTaskList
-            tasks={tasks}
-            onAddTask={detail.addTask}
-            onUpdateTask={detail.updateTask}
-            onDeleteTask={detail.deleteTask}
-            bookingId={bookingId}
-            executionHref="execution"
-          />
-        </div>
-      </section>
 
 
       {/* Secondary project workspace: information is grouped by PM intent instead of long scrolling panels. */}
