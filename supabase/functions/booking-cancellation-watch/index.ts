@@ -48,7 +48,7 @@ async function resolveCaller(req: Request, admin: any) {
   const { data: profile, error: profileErr } = await admin
     .from("profiles")
     .select("organization_id")
-    .eq("id", userId)
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (profileErr) return { error: "profile_read_failed" as const };
