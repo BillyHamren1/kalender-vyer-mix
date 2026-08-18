@@ -228,19 +228,16 @@ function buildMessagePreview(
 }
 
 async function resolveOrganizationId(supabase: any, explicitOrgId?: string): Promise<string> {
-  if (explicitOrgId) {
-    const { data } = await supabase.from('organizations').select('id').eq('id', explicitOrgId).single()
-    if (!data) throw new Error(`Organization not found: ${explicitOrgId}`)
-    return data.id
+  // Tenant guard: fail-closed. Ingen fallback till "första organisationen" —
+  // det gav cross-tenant-skrivningar för nya/tomma organisationer.
+  if (!explicitOrgId) {
+    throw new Error('organization_id saknas – fail-closed (ingen fallback till annan organisation)')
   }
-  console.warn('[mobile-app-api] DEPRECATION WARNING: organization_id not provided, falling back to first org.')
-  const { data } = await supabase
-    .from('organizations')
-    .select('id')
-    .limit(1)
-    .single()
-  return data?.id
+  const { data } = await supabase.from('organizations').select('id').eq('id', explicitOrgId).maybeSingle()
+  if (!data) throw new Error(`Organization not found: ${explicitOrgId}`)
+  return data.id
 }
+
 
 /**
  * ensureOpenWorkdayForTimer — workday-first guarantee for ALL server-side
