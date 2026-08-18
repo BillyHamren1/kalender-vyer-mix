@@ -97,3 +97,22 @@ describe('P0 – tenant-isolerad klientcache', () => {
     expect(window.localStorage.getItem('app_language')).toBe('sv');
   });
 });
+
+// --- P0: SSO får aldrig återanvända föregående organisations context ---
+describe('P0 – SSO tenant switch', () => {
+  const src = readFileSync(resolve(process.cwd(), 'src/hooks/useSsoListener.ts'), 'utf8');
+
+  it('inkluderar organisationen i dedupe-fingerprinten', () => {
+    expect(src).toMatch(/getTokenFingerprint\(ssoToken\.signature\)\}:\$\{requestedOrgId/);
+  });
+
+  it('rensar session och cache när HUB begär en annan organisation', () => {
+    expect(src).toContain('isTenantSwitch');
+    expect(src).toContain('clearPersistedTenantState()');
+    expect(src).toContain('supabase.auth.signOut()');
+  });
+
+  it('sätter aktiv organisation från verifierat svar', () => {
+    expect(src).toContain('setLastKnownOrganizationId(verifiedOrgId)');
+  });
+});
