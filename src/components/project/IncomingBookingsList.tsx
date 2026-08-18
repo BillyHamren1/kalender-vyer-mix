@@ -13,6 +13,7 @@ import ProjectUpdateDialog from './ProjectUpdateDialog';
 import { useUnplannedProjects } from '@/hooks/useUnplannedProjects';
 import { useUnseenBookingUpdates, useMarkBookingChangesSeen, useMarkAllBookingChangesSeen } from '@/hooks/useUnseenBookingUpdates';
 import { useCancellationCandidates, useScanCancellationCandidates, useApplyCancellation } from '@/hooks/useCancellationCandidates';
+import { useBookingStatusChanges, useRefreshSingleBooking, bookingStatusLabel } from '@/hooks/useBookingStatusChanges';
 import { CheckCheck } from 'lucide-react';
 
 
@@ -109,7 +110,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
       if (updateBookingIds.length === 0) return [];
       const { data, error } = await supabase
         .from('bookings')
-        .select('id, client, booking_number, eventdate, deliveryaddress, assigned_project_id, large_project_id')
+        .select('id, client, status, booking_number, eventdate, deliveryaddress, assigned_project_id, large_project_id')
         .in('id', updateBookingIds);
       if (error) {
         console.error('[updated-bookings-meta]', error);
@@ -120,6 +121,11 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
     enabled: updateBookingIds.length > 0,
     staleTime: 30_000,
   });
+
+  const { data: statusChanges = {} } = useBookingStatusChanges(updateBookingIds);
+  const refreshSingle = useRefreshSingleBooking();
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
+
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
@@ -384,6 +390,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
             {visibleUpdates.map((update) => {
               const meta = updatedBookingsMeta.find((b) => b.id === update.booking_id);
               if (!meta) return null;
+              const statusChange = statusChanges[update.booking_id];
               return (
                 <div
                   key={`update-${update.booking_id}`}
@@ -395,9 +402,19 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                     className="flex-1 min-w-0 cursor-pointer"
                     onClick={() => handleReviewUpdate(meta)}
                   >
-                    <h4 className="text-sm font-semibold truncate text-foreground group-hover:text-primary transition-colors">
-                      {meta.client}
-                    </h4>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <h4 className="text-sm font-semibold truncate text-foreground group-hover:text-primary transition-colors">
+                        {meta.client}
+                      </h4>
+                      <span className="inline-flex items-center h-5 px-1.5 rounded-md bg-foreground/5 text-foreground/70 text-[10.5px] font-medium shrink-0">
+                        {bookingStatusLabel(meta.status)}
+                      </span>
+                    </div>
+                    {statusChange && statusChange.from !== statusChange.to && (
+                      <div className="mt-1 text-[11.5px] font-semibold text-amber-800">
+                        Status: {bookingStatusLabel(statusChange.from)} → {bookingStatusLabel(statusChange.to)}
+                      </div>
+                    )}
                     <div className="flex items-center gap-3 mt-1 text-[11.5px] text-muted-foreground">
                       <span className="flex items-center gap-1.5">
                         <Calendar className="w-3 h-3" />
@@ -418,6 +435,25 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                         #{meta.booking_number}
                       </span>
                     )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-3 text-xs gap-1.5 order-2 sm:order-1 bg-white/60 border-amber-300 text-amber-900 hover:bg-amber-100"
+                      title="Hämta senaste status från bokningssystemet"
+                      disabled={refreshingId === meta.id && refreshSingle.isPending}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRefreshingId(meta.id);
+                        refreshSingle.mutate(meta.id, {
+                          onSuccess: () => toast.success('Status hämtad från bokningssystemet'),
+                          onError: (err: any) => toast.error(err?.message || 'Kunde inte hämta status'),
+                          onSettled: () => setRefreshingId(null),
+                        });
+                      }}
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${refreshingId === meta.id && refreshSingle.isPending ? 'animate-spin' : ''}`} />
+                      <span>Hämta status nu</span>
+                    </Button>
                     <div className="flex flex-col items-end gap-0.5 order-1 sm:order-2">
                       <Button
                         size="sm"
@@ -431,12 +467,15 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
                       </Button>
                       {update.change_count > 0 && (
                         <span className="text-xs text-amber-700/80 font-medium">
-                          {update.change_count} {update.change_count === 1 ? 'ändring väntar' : 'ändringar väntar'}
+                          {statusChange && statusChange.from !== statusChange.to
+                            ? 'Statusändring väntar'
+                            : `${update.change_count} ${update.change_count === 1 ? 'ändring väntar' : 'ändringar väntar'}`}
                         </span>
                       )}
                     </div>
                     <ChevronRight className="h-4 w-4 text-muted-foreground/40 order-3" />
                   </div>
+
                 </div>
               );
             })}
