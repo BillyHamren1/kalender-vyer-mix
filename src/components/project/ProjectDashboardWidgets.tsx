@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
-import { FolderKanban, Clock, CalendarClock, CheckCircle2, ChevronRight, AlertCircle, CalendarDays, Layers, Search, ShieldCheck } from 'lucide-react';
+import { FolderKanban, Clock, CalendarClock, CheckCircle2, ChevronRight, CalendarDays, Layers, Search } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { fetchJobs } from '@/services/jobService';
 import { fetchProjects } from '@/services/projectService';
@@ -92,17 +92,10 @@ const ProjectDashboardWidgets = () => {
   const completedCount = nonCancelled.filter(p => p.status === 'completed').length;
   
   const today = new Date().toISOString().split('T')[0];
-  const closingCount = nonCancelled.filter(p => p.status !== 'completed' && p.date && p.date < today).length;
 
   const horizon14 = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0];
-  const attentionProjects = useMemo(() =>
-    nonCancelled
-      .filter(p => p.status !== 'completed' && p.date && p.date < today)
-      .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
-      .slice(0, 6),
-    [nonCancelled, today]
-  );
   const upcomingProjects = useMemo(() =>
+
     nonCancelled
       .filter(p => p.status !== 'completed' && p.rigDate && p.rigDate >= today && p.rigDate <= horizon14)
       .sort((a, b) => (a.rigDate || '').localeCompare(b.rigDate || ''))
@@ -131,14 +124,14 @@ const ProjectDashboardWidgets = () => {
     { label: 'Aktiva totalt', value: activeCount, icon: FolderKanban, color: 'text-primary', bgColor: 'bg-primary/10', hint: 'Alla projekt som inte är avslutade eller avbokade. Korten till höger är delmängder av detta.' },
     { label: 'varav Planering', value: planningCount, icon: Clock, color: 'text-primary', bgColor: 'bg-primary/5', hint: 'Aktiva projekt med status Planering.' },
     { label: 'varav Pågående', value: inProgressCount, icon: CalendarClock, color: 'text-primary', bgColor: 'bg-primary/10', hint: 'Aktiva projekt med status Pågående.' },
-    { label: 'varav Väntar på avslut', value: closingCount, icon: AlertCircle, color: 'text-muted-foreground', bgColor: 'bg-muted', hint: 'Genomförda projekt (eventdatum passerat) som fortfarande är öppna.' },
+
     { label: 'Avslutade', value: completedCount, icon: CheckCircle2, color: 'text-muted-foreground', bgColor: 'bg-muted', hint: 'Projekt med status Avslutat. Ingår inte i Aktiva totalt.' },
   ];
 
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
             <Card key={i}><CardContent className="p-4"><Skeleton className="h-12 w-full" /></CardContent></Card>
           ))}
@@ -212,7 +205,7 @@ const ProjectDashboardWidgets = () => {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {statItems.map(({ label, value, icon: Icon, color, bgColor, hint }) => (
           <TooltipProvider key={label} delayDuration={200}>
             <Tooltip>
@@ -235,24 +228,9 @@ const ProjectDashboardWidgets = () => {
         ))}
       </div>
 
-      {/* Översikt: vad väntar på avslut och vad ligger närmast i tiden */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between gap-3 mb-3">
-              <div>
-                <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-muted-foreground" /><h3 className="text-sm font-semibold">Väntar på avslut</h3></div>
-                <p className="text-xs text-muted-foreground mt-1">Genomförda projekt som fortfarande är öppna.</p>
-              </div>
-              <Badge variant="outline" className="text-[10px]">{attentionProjects.length}</Badge>
-            </div>
-            <div className="divide-y divide-border/50">
-              {attentionProjects.length === 0 ? (
-                <div className="py-5 text-center"><ShieldCheck className="h-5 w-5 mx-auto text-muted-foreground mb-1.5" /><p className="text-sm font-medium">Inga öppna genomförda projekt</p></div>
-              ) : attentionProjects.map(item => <ProjectRow key={`attention-${item.id}-${item.type}`} item={item} />)}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Översikt: vad ligger närmast i tiden */}
+      <div className="grid grid-cols-1 gap-4">
+
 
         <Card>
           <CardContent className="p-5">
