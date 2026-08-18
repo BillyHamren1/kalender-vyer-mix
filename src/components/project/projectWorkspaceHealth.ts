@@ -49,7 +49,7 @@ export const getWorkspaceHealth = ({
     .sort((a, b) => (dayKey(a.deadline || a.start_date || a.end_date) || "9999").localeCompare(dayKey(b.deadline || b.start_date || b.end_date) || "9999"));
 
   const attention: WorkspaceAttentionItem[] = [];
-  if (!projectLeader) attention.push({ id: "leader", label: "Projektledare saknas", level: "risk" });
+  // Projektledare saknas är inte kritiskt – ingen varning visas för detta.
   if (!eventDate) attention.push({ id: "event-date", label: "Eventdatum saknas", level: "risk" });
   if (!deliveryAddress) attention.push({ id: "address", label: "Leveransadress saknas", level: "attention" });
   if (overdue.length) attention.push({ id: "overdue", label: `${overdue.length} försenad${overdue.length === 1 ? " aktivitet" : "e aktiviteter"}`, detail: "Prioritera eller planera om", level: "risk" });
