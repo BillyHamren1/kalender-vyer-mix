@@ -4760,8 +4760,10 @@ serve(async (req) => {
             }
 
             }
+            stopProductsPhase();
           }
-          stopProductsPhase();
+
+
 
 
 
