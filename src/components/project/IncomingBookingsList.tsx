@@ -12,7 +12,9 @@ import { BookingPlacementDialog } from './BookingPlacementDialog';
 import ProjectUpdateDialog from './ProjectUpdateDialog';
 import { useUnplannedProjects } from '@/hooks/useUnplannedProjects';
 import { useUnseenBookingUpdates, useMarkBookingChangesSeen, useMarkAllBookingChangesSeen } from '@/hooks/useUnseenBookingUpdates';
+import { useCancellationCandidates, useScanCancellationCandidates, useApplyCancellation } from '@/hooks/useCancellationCandidates';
 import { CheckCheck } from 'lucide-react';
+
 
 
 
@@ -80,6 +82,23 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
   const { data: unseenUpdates = [], isLoading: isLoadingUpdates } = useUnseenBookingUpdates();
   const markSeen = useMarkBookingChangesSeen();
   const markAllSeen = useMarkAllBookingChangesSeen();
+
+  // Avbokade i bokningssystemet men fortfarande aktiva lokalt.
+  // Scan = ren läsning mot Booking; ingen automatisk destruktiv sync.
+  const { data: cancellationCandidates = [] } = useCancellationCandidates();
+  const applyCancellation = useApplyCancellation();
+  const scanIds = React.useMemo(() => {
+    const ids = new Set<string>();
+    bookings.forEach((b) => ids.add(b.id));
+    unplannedProjects.forEach((p) => { if (p.bookingId) ids.add(p.bookingId); });
+    return Array.from(ids);
+  }, [bookings, unplannedProjects]);
+  useScanCancellationCandidates(scanIds);
+  const cancelledIds = React.useMemo(
+    () => new Set(cancellationCandidates.map((c) => c.booking_id)),
+    [cancellationCandidates],
+  );
+
 
   // Hämta bokningsmeta (klient, nummer, datum) för uppdaterade bokningar
   const updateBookingIds = unseenUpdates.map((u) => u.booking_id);
@@ -160,10 +179,15 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
   // `get_unseen_booking_updates()` redan filtrerar på server-side.
   const visibleUpdates = unseenUpdates;
 
+  // Avbokade bokningar får ALDRIG ligga kvar bland "Nya · ska placeras".
+  const newBookings = bookings.filter((b) => !cancelledIds.has(b.id));
+  const newUnplanned = unplannedProjects.filter((p) => !p.bookingId || !cancelledIds.has(p.bookingId));
 
-  const totalNew = bookings.length + unplannedProjects.length;
+  const totalNew = newBookings.length + newUnplanned.length;
   const totalUpdates = visibleUpdates.length;
-  const hasIncomingItems = totalNew + totalUpdates > 0;
+  const totalCancelled = cancellationCandidates.length;
+  const hasIncomingItems = totalNew + totalUpdates + totalCancelled > 0;
+
 
   if ((isLoading && isLoadingUnplannedProjects && isLoadingUpdates) || !hasIncomingItems) {
     return null;
@@ -214,8 +238,11 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
     ? 'Inkommande bokningar'
     : totalUpdates > 0
       ? 'Uppdaterade bokningar'
-      : 'Nya bokningar';
-  const showSectionHeaders = hasBoth;
+      : totalNew > 0
+        ? 'Nya bokningar'
+        : 'Avbokade bokningar';
+  const showSectionHeaders = hasBoth || totalCancelled > 0;
+
 
   // Konsekvent design: alla rad-CTA är `size="sm"` (h-8 px-3) outline/default.
   // Färg används sparsamt — endast som 2px vänsteraccent + dot-badge.
@@ -247,8 +274,72 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
 
       </div>
 
+      {/* === SEKTION 0: AVBOKADE I BOKNINGSSYSTEMET === */}
+      {totalCancelled > 0 && (
+        <section>
+          <div className="flex items-center gap-2.5 px-4 h-11 bg-red-100 border-y border-red-300">
+            <span className="h-2 w-2 rounded-full bg-red-600 shrink-0" />
+            <span className="text-xs font-bold uppercase tracking-[0.1em] text-red-900 truncate">
+              Avbokade i bokningssystemet · kräver bekräftelse
+            </span>
+          </div>
+          <div className="divide-y divide-border/40">
+            {cancellationCandidates.map((c) => (
+              <div
+                key={`cancel-${c.booking_id}`}
+                className="group relative flex items-center gap-3 pl-6 pr-3 py-3 bg-red-50 hover:bg-red-100/70 transition-colors"
+              >
+                <span className="absolute left-0 top-0 bottom-0 w-1.5 bg-destructive" aria-hidden />
+                <div
+                  className="flex-1 min-w-0 cursor-pointer"
+                  onClick={() => navigate(`/booking/${c.booking_id}`)}
+                >
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-semibold truncate text-destructive line-through">
+                      {c.client || 'Bokning'}
+                    </h4>
+                    <span className="inline-flex items-center gap-1 h-5 px-1.5 rounded-md bg-destructive/10 text-destructive text-[10.5px] font-medium shrink-0">
+                      <XCircle className="w-2.5 h-2.5" />
+                      Avbokad i booking
+                    </span>
+                  </div>
+                  <div className="mt-1 text-[11.5px] text-muted-foreground">
+                    Bokningen är avbokad i bokningssystemet. Bekräfta för att avboka den här också.
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 shrink-0 pl-4 border-l border-destructive/20">
+                  {c.booking_number && (
+                    <span className="text-sm font-mono text-slate-400 order-2 sm:order-1">
+                      #{c.booking_number}
+                    </span>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={applyCancellation.isPending}
+                    onClick={() =>
+                      applyCancellation.mutate(c.booking_id, {
+                        onSuccess: () => toast.success('Bokningen är avbokad i planeringen'),
+                        onError: (e: any) => toast.error(e?.message || 'Kunde inte avboka bokningen'),
+                      })
+                    }
+                    className="h-10 px-5 text-sm gap-2 font-semibold rounded-xl shadow-sm whitespace-nowrap order-1 sm:order-2"
+                    title="Bekräfta avbokningen och städa upp lokalt"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    Bekräfta avbokning
+                  </Button>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground/40 order-3" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* === SEKTION 1: UPPDATERADE === */}
       {totalUpdates > 0 && (
+
         <section>
           <div className="flex items-center justify-between gap-2.5 px-4 h-11 bg-yellow-100 border-y border-yellow-300">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -352,7 +443,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
             </div>
           )}
           <div className="divide-y divide-border/40">
-            {unplannedProjects.map((project) => (
+            {newUnplanned.map((project) => (
               <div
                 key={`${project.kind}-${project.id}`}
                 className="group relative flex items-center gap-3 pl-6 pr-3 py-3 bg-green-50 hover:bg-green-100/70 transition-colors"
@@ -402,7 +493,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
             ))}
 
 
-            {bookings.map(booking => {
+            {newBookings.map(booking => {
               const isCancelled = booking.status === 'CANCELLED';
               return (
                 <div
