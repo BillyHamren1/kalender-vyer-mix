@@ -145,8 +145,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Clear shared org-id cache so the next user doesn't inherit it
     const { clearOrganizationIdCache } = await import('@/hooks/useOrganizationId');
     clearOrganizationIdCache();
+    // Tenant isolation: never let the next organisation hydrate this org's cache
+    const { clearPersistedTenantState, setLastKnownOrganizationId } = await import('@/lib/tenant/tenantCacheGuard');
+    clearPersistedTenantState();
+    setLastKnownOrganizationId(null);
     await supabase.auth.signOut();
   };
+
 
   const value = {
     user,

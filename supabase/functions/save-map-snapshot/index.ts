@@ -2,6 +2,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { requireOrganizationId, TenantResolutionError } from '../_shared/tenantGuard.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,19 +21,19 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Resolve organization_id for multi-tenant
+    // Tenant guard: organisationen MÅSTE anges och verifieras. Ingen fallback.
     const bodyJson = await req.json();
     const { image, bookingId, bookingNumber, organization_id: explicitOrgId } = bodyJson;
-    let organizationId: string | undefined
-    if (explicitOrgId) {
-      const { data: orgCheck } = await supabase.from('organizations').select('id').eq('id', explicitOrgId).single()
-      organizationId = orgCheck?.id
+    let organizationId: string
+    try {
+      organizationId = await requireOrganizationId(supabase, explicitOrgId, 'save-map-snapshot')
+    } catch (e) {
+      const err = e as TenantResolutionError
+      return new Response(JSON.stringify({ error: err.message, code: err.code ?? 'TENANT_UNRESOLVED' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: err.status ?? 400
+      })
     }
-    if (!organizationId) {
-      console.warn('[save-map-snapshot] DEPRECATION WARNING: organization_id not provided, falling back to first org.')
-      const { data: orgData } = await supabase.from('organizations').select('id').limit(1).single()
-      organizationId = orgData?.id
-    }
+
 
     // image, bookingId, bookingNumber already extracted above
 

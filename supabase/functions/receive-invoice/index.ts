@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { requireOrganizationId, TenantResolutionError } from '../_shared/tenantGuard.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -53,22 +54,18 @@ serve(async (req) => {
 
     const payload: InvoicePayload & { organization_id?: string } = await req.json();
 
-    // Resolve organization_id for multi-tenant
-    let organizationId: string | undefined;
-    if (payload.organization_id) {
-      const { data: orgCheck } = await supabase.from('organizations').select('id').eq('id', payload.organization_id).single();
-      if (!orgCheck) {
-        return new Response(
-          JSON.stringify({ error: `Organization not found: ${payload.organization_id}` }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      organizationId = orgCheck.id;
-    } else {
-      console.warn('[receive-invoice] DEPRECATION WARNING: organization_id not provided, falling back to first org.');
-      const { data: orgData } = await supabase.from('organizations').select('id').limit(1).single();
-      organizationId = orgData?.id;
+    // Tenant guard: organisationen MÅSTE anges och verifieras. Ingen fallback.
+    let organizationId: string;
+    try {
+      organizationId = await requireOrganizationId(supabase, payload.organization_id, 'receive-invoice');
+    } catch (e) {
+      const err = e as TenantResolutionError;
+      return new Response(
+        JSON.stringify({ error: err.message, code: err.code ?? 'TENANT_UNRESOLVED' }),
+        { status: err.status ?? 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+
     console.log('[receive-invoice] Received payload:', JSON.stringify(payload, null, 2));
 
     // Validate required fields

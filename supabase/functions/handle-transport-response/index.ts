@@ -235,9 +235,7 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Resolve organization_id for multi-tenant
-    const { data: orgData } = await supabase.from('organizations').select('id').limit(1).single();
-    const organizationId = orgData?.id;
+    // Tenant guard: organisationen härleds per assignment nedan – aldrig "första org".
 
     const resendKey = Deno.env.get("RESEND_API_KEY");
     if (!resendKey) {
@@ -256,6 +254,7 @@ Deno.serve(async (req) => {
       bookingNumber: string | null;
       assignmentId: string;
       bookingId: string;
+      organizationId: string;
     }
 
     const results: ProcessedResult[] = [];
@@ -265,7 +264,7 @@ Deno.serve(async (req) => {
       const { data: assignment, error: fetchError } = await supabase
         .from("transport_assignments")
         .select(`
-          id, partner_response, transport_date, transport_time, booking_id,
+          id, organization_id, partner_response, transport_date, transport_time, booking_id,
           booking:bookings!booking_id (client, booking_number, deliveryaddress),
           vehicle:vehicles!vehicle_id (name, contact_person, contact_email)
         `)
@@ -309,6 +308,7 @@ Deno.serve(async (req) => {
         bookingNumber: (assignment.booking as any)?.booking_number || null,
         assignmentId: assignment.id,
         bookingId: assignment.booking_id,
+        organizationId: (assignment as any).organization_id,
       });
     }
 
@@ -379,7 +379,7 @@ Deno.serve(async (req) => {
               subject,
               email_type: "transport_confirmation",
               sent_by: "system",
-              organization_id: organizationId,
+              organization_id: r.organizationId,
             });
           }
         }

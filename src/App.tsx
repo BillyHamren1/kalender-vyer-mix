@@ -14,6 +14,8 @@ import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { APP_MODE, getDefaultRoute } from "@/config/appMode";
 import { LanguageProvider } from "@/i18n/LanguageContext";
 import { lazyWithRecovery } from "@/utils/lazyWithRecovery";
+import { useTenantCacheGuard } from "@/hooks/useTenantCacheGuard";
+
 
 
 
@@ -199,7 +201,13 @@ export const CalendarContext = createContext<CalendarContextType>({
  * Runs hooks that require auth/org context — only for web & time modes.
  * Scanner mode must boot cleanly without these.
  */
+const TenantCacheGuardMount: React.FC = () => {
+  useTenantCacheGuard();
+  return null;
+};
+
 const WebTimeBootstrap: React.FC = () => {
+
   useBackgroundImport();
   useSsoListener();
   return null;
@@ -356,7 +364,9 @@ const WebRoutes: React.FC = () => {
       {/* Main System Routes - Protected (wrapped in AuthProvider) */}
       <Route path="/*" element={
         <AuthProvider>
+          <TenantCacheGuardMount />
           <Routes>
+
             {/* Persistent main-system layout: AuthProvider + ProtectedRoute + Sidebar/FloatingInbox
                 stay mounted across navigation between these children. */}
             <Route element={<ProtectedMainLayout />}>

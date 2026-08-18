@@ -43,10 +43,6 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Resolve organization_id for multi-tenant
-    const { data: orgData } = await supabase.from('organizations').select('id').limit(1).single();
-    const organizationId = orgData?.id;
-
     const { vehicle_id, lat, lng, heading, speed_kmh }: GpsUpdate = await req.json();
 
     if (!vehicle_id || lat === undefined || lng === undefined) {
@@ -55,6 +51,21 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Tenant guard: organisationen härleds från fordonet – aldrig "första org".
+    const { data: vehicleRow } = await supabase
+      .from('vehicles')
+      .select('organization_id')
+      .eq('id', vehicle_id)
+      .maybeSingle();
+    const organizationId = vehicleRow?.organization_id;
+    if (!organizationId) {
+      return new Response(
+        JSON.stringify({ error: 'Vehicle not found or missing organization_id', code: 'TENANT_UNRESOLVED' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
 
     console.log(`GPS update for vehicle ${vehicle_id}: ${lat}, ${lng}`);
 
@@ -67,7 +78,8 @@ serve(async (req) => {
         current_heading: heading || null,
         last_gps_update: new Date().toISOString()
       })
-      .eq('id', vehicle_id);
+      .eq('id', vehicle_id)
+      .eq('organization_id', organizationId);
 
     if (updateError) {
       throw new Error(`Failed to update vehicle position: ${updateError.message}`);
@@ -96,6 +108,7 @@ serve(async (req) => {
       .from('transport_assignments')
       .select('id, booking_id, status')
       .eq('vehicle_id', vehicle_id)
+      .eq('organization_id', organizationId)
       .eq('transport_date', today)
       .in('status', ['pending', 'in_transit'])
       .order('stop_order', { ascending: true })
