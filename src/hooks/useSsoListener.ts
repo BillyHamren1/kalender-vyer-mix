@@ -240,7 +240,11 @@ export function useSsoListener() {
       // Mark user as SSO user in sessionStorage (for ProtectedRoute to skip role check)
       sessionStorage.setItem('isSsoUser', 'true');
       sessionStorage.setItem('skipRoleCheck', 'true');
-      
+
+      // Canonical aktiv organisation = den HUB/edge-funktionen verifierade.
+      const verifiedOrgId = data.user?.organization_id ?? requestedOrgId;
+      if (verifiedOrgId) setLastKnownOrganizationId(verifiedOrgId);
+
       // Apply preferences from SSO token
       if (data.preferences) {
         applyPreferences(data.preferences);
@@ -249,6 +253,7 @@ export function useSsoListener() {
       // Mark as successfully processed AFTER session is established
       lastProcessedRef.current = fingerprint;
       sessionStorage.setItem(SSO_PROCESSED_KEY, fingerprint);
+
       
       console.log('[SSO] Session established successfully for:', data.user?.email, 'roles:', data.roles);
       sendSsoResponse(true);
