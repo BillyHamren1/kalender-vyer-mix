@@ -602,6 +602,54 @@ export type Database = {
           },
         ]
       }
+      booking_cancellation_candidates: {
+        Row: {
+          booking_id: string
+          booking_number: string | null
+          client: string | null
+          created_at: string
+          detected_at: string
+          id: string
+          organization_id: string
+          resolved_at: string | null
+          resolved_by: string | null
+          source_revision: string | null
+          source_status: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          booking_id: string
+          booking_number?: string | null
+          client?: string | null
+          created_at?: string
+          detected_at?: string
+          id?: string
+          organization_id: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          source_revision?: string | null
+          source_status?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          booking_id?: string
+          booking_number?: string | null
+          client?: string | null
+          created_at?: string
+          detected_at?: string
+          id?: string
+          organization_id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          source_revision?: string | null
+          source_status?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       booking_change_views: {
         Row: {
           booking_id: string

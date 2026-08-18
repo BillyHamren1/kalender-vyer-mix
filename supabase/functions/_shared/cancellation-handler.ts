@@ -87,18 +87,33 @@ export function splitSourceRevision(source?: CancellationSourceEvidence): {
   return { sourceUpdatedAt, sourceVersion };
 }
 
+/**
+ * Options för den MANUELLA vägen.
+ * `manualApproval` betyder: en inloggad människa har uttryckligen bekräftat
+ * EN specifik avbokning i UI:t, och servern har verifierat mot Booking att
+ * bokningen faktiskt är avbokad. Det är inte "automatisk destruktiv sync" och
+ * omfattas därför inte av AUTOMATIC_DESTRUCTIVE_SYNC_ENABLED-spärren.
+ * Automatiska callers skickar ALDRIG detta.
+ */
+export interface ApplyCancellationOptions {
+  manualApproval?: boolean;
+  approvedBy?: string | null;
+}
+
 export async function applyBookingCancellation(
   supabase: any,
   existingBooking: ExistingBookingForCancellation,
   source?: CancellationSourceEvidence,
+  options?: ApplyCancellationOptions,
 ): Promise<CancellationResult> {
   const bookingId = existingBooking.id;
   const result: CancellationResult = { status: 'cancelled', booking_id: bookingId };
   const orgId = existingBooking.organization_id ?? source?.organization_id ?? null;
+  const manualApproval = options?.manualApproval === true;
 
   // AKUT PRODUKTIONSSKYDD (defense in depth): ingen RPC, ingen mutation när
   // automatisk destruktiv sync är avstängd — även om en caller glömt kontrollen.
-  if (!isAutomaticDestructiveSyncEnabled()) {
+  if (!manualApproval && !isAutomaticDestructiveSyncEnabled()) {
     logBlockedCancellation({
       booking_id: bookingId,
       organization_id: orgId,
@@ -112,6 +127,15 @@ export async function applyBookingCancellation(
       error: AUTOMATIC_DESTRUCTIVE_SYNC_DISABLED,
     };
   }
+
+  if (manualApproval) {
+    console.log('[cancellation] manual approval path', JSON.stringify({
+      booking_id: bookingId,
+      organization_id: orgId,
+      approved_by: options?.approvedBy ?? null,
+    }));
+  }
+
 
   if (!orgId) {
     return { status: 'error', booking_id: bookingId, outcome: 'invalid_input', error: 'organization_id_required_for_cancellation' };
