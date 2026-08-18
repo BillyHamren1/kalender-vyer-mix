@@ -21,11 +21,11 @@ import { useMemo, useState } from "react";
 import { addDays, addWeeks, format, parseISO, startOfWeek, subWeeks } from "date-fns";
 import { sv } from "date-fns/locale";
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Plus } from "lucide-react";
 import { useStaffSelfWeekMatrix } from "@/hooks/staffTimeFlow/useStaffSelfWeekMatrix";
 import { useMobileAuth } from "@/contexts/MobileAuthContext";
 import MobileDaySubmitSheet from "./MobileDaySubmitSheet";
+import QuickTimeEntrySheet from "./QuickTimeEntrySheet";
 import WeekFlowDayCard from "@/components/staff-time/week-flow/WeekFlowDayCard";
 import type { WeekFlowDay, WeekFlowStatus } from "@/lib/staffTimeFlow/types";
 import type { StaffTimeMatrixCell } from "@/hooks/staffTimeFlow/useStaffTimeWeekMatrix";
@@ -72,11 +72,11 @@ function cellToWeekFlowDay(cell: StaffTimeMatrixCell): WeekFlowDay {
 
 export default function WeekFlowMobilePanel() {
   const qc = useQueryClient();
-  const navigate = useNavigate();
   const { effectiveStaffId, isLoading: authLoading } = useMobileAuth();
   const staffId = effectiveStaffId ?? null;
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [openDate, setOpenDate] = useState<string | null>(null);
+  const [quickEntryOpen, setQuickEntryOpen] = useState(false);
 
   const weekDates = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
@@ -124,6 +124,15 @@ export default function WeekFlowMobilePanel() {
 
   return (
     <div className="space-y-3 p-3">
+      <button
+        type="button"
+        onClick={() => setQuickEntryOpen(true)}
+        className="w-full min-h-14 rounded-2xl bg-primary text-primary-foreground px-4 py-3 flex items-center justify-center gap-2 font-semibold text-base shadow-sm active:scale-[0.99] transition-transform"
+      >
+        <Plus className="h-5 w-5" />
+        Rapportera tid
+      </button>
+
       <div className="flex items-center justify-between gap-2 px-1">
         <button
           onClick={() => setWeekStart(subWeeks(weekStart, 1))}
@@ -160,6 +169,16 @@ export default function WeekFlowMobilePanel() {
         />
       ))}
 
+
+      <QuickTimeEntrySheet
+        open={quickEntryOpen}
+        onOpenChange={setQuickEntryOpen}
+        defaultDate={format(new Date(), "yyyy-MM-dd")}
+        onSaved={() => {
+          qc.invalidateQueries({ queryKey: ["staff-self-week-matrix"] });
+          qc.invalidateQueries({ queryKey: ["staff-time-week-matrix"] });
+        }}
+      />
 
       <MobileDaySubmitSheet
         date={openDate}

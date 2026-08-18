@@ -186,6 +186,14 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  // Den frysta submission-snapshoten ska motsvara den tidslinje som faktiskt
+  // skickades in. När användaren har gjort explicita redigeringar använder vi
+  // därför Time Engines applicerade resultat, inte pre-edit-snapshoten.
+  // user_edits_json behåller samtidigt hela revisionsspåret.
+  const effectiveSnapshotBlocks = userEditsResult
+    ? userEditsResult.editedBlocks
+    : snapshotBlocks;
+
   const payload = {
     organization_id: orgId,
     staff_id: staffId,
@@ -208,7 +216,7 @@ Deno.serve(async (req: Request) => {
           diagnostics: userEditsResult.diagnostics,
         }
       : null,
-    display_timeline_snapshot_json: snapshotBlocks.length > 0 ? snapshotBlocks : null,
+    display_timeline_snapshot_json: effectiveSnapshotBlocks.length > 0 ? effectiveSnapshotBlocks : null,
     ai_validation_json: null,
     submitted_at: new Date().toISOString(),
     reviewed_at: null,
