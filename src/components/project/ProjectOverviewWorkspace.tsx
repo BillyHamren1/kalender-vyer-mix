@@ -1,16 +1,12 @@
 import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { sv } from "date-fns/locale";
 import {
   CalendarDays,
   Check,
-  ChevronRight,
-  Clock3,
   HardHat,
   MapPin,
-  PackagePlus,
   Plus,
   ListTodo,
 } from "lucide-react";
@@ -20,11 +16,6 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { ProjectTask } from "@/types/project";
 import type { ProjectWithBooking } from "@/types/project";
-import QuickPlanningItemDialog, { type QuickPlanningMode } from "@/components/project/planning/QuickPlanningItemDialog";
-import ActivityPlannerSheet from "@/components/project/ActivityPlannerSheet";
-import { useBookingTaskAnalytics } from "@/hooks/useBookingTaskAnalytics";
-import { fetchEstablishmentBookingData } from "@/services/establishmentPlanningService";
-import { supabase } from "@/integrations/supabase/client";
 
 interface ProjectOverviewWorkspaceProps {
   project: ProjectWithBooking;
@@ -43,14 +34,10 @@ const dateLabel = (value?: string | null) => {
   }
 };
 
-const ProjectOverviewWorkspace = ({ project, tasks, bookingId, onAddTask, onUpdateTask }: ProjectOverviewWorkspaceProps) => {
+const ProjectOverviewWorkspace = ({ project, tasks, onAddTask, onUpdateTask }: ProjectOverviewWorkspaceProps) => {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const quickInput = useRef<HTMLInputElement>(null);
   const [todoTitle, setTodoTitle] = useState("");
-  const [quickDialogOpen, setQuickDialogOpen] = useState(false);
-  const [quickMode, setQuickMode] = useState<QuickPlanningMode>("moment");
-  const [plannerOpen, setPlannerOpen] = useState(false);
 
   const booking = project.booking;
   const rigDate = project.rigdaydate || booking?.rigdaydate || null;
@@ -67,45 +54,6 @@ const ProjectOverviewWorkspace = ({ project, tasks, bookingId, onAddTask, onUpda
     [tasks],
   );
 
-  const { analytics } = useBookingTaskAnalytics(bookingId);
-
-  const { data: staffPool = [] } = useQuery({
-    queryKey: ["booking-staff-pool", bookingId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("booking_staff_assignments")
-        .select("staff_id")
-        .eq("booking_id", bookingId!);
-      const ids = [...new Set((data || []).map((row) => row.staff_id))];
-      if (!ids.length) return [];
-      const { data: staff } = await supabase
-        .from("staff_members")
-        .select("id, name")
-        .in("id", ids)
-        .order("name");
-      return staff || [];
-    },
-    enabled: !!bookingId,
-  });
-
-  const { data: bookingPlanningData } = useQuery({
-    queryKey: ["establishment-booking-data", bookingId],
-    queryFn: () => fetchEstablishmentBookingData(bookingId!),
-    enabled: !!bookingId,
-    staleTime: 60_000,
-  });
-
-  const planningTasks = useMemo(
-    () => [...analytics.tasks].sort((a, b) => {
-      const av = `${a.start_date || "9999-12-31"}T${a.start_time || "23:59"}`;
-      const bv = `${b.start_date || "9999-12-31"}T${b.start_time || "23:59"}`;
-      return av.localeCompare(bv) || a.sort_order - b.sort_order;
-    }),
-    [analytics.tasks],
-  );
-
-  const planningPreview = planningTasks.slice(0, 6);
-
   const addTodo = () => {
     const title = todoTitle.trim();
     if (!title) return;
@@ -114,23 +62,6 @@ const ProjectOverviewWorkspace = ({ project, tasks, bookingId, onAddTask, onUpda
     requestAnimationFrame(() => quickInput.current?.focus());
   };
 
-  const openQuick = (mode: QuickPlanningMode) => {
-    setQuickMode(mode);
-    setQuickDialogOpen(true);
-  };
-
-  const refreshPlanning = () => {
-    queryClient.invalidateQueries({ queryKey: ["establishment-tasks-analytics-booking", bookingId] });
-    queryClient.invalidateQueries({ queryKey: ["establishment-tasks", bookingId] });
-    queryClient.invalidateQueries({ queryKey: ["project-task-calendar-events"] });
-    queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
-  };
-
-  const staffName = (ids?: string[] | null, fallback?: string | null) => {
-    const id = ids?.[0] || fallback;
-    if (!id) return null;
-    return staffPool.find((person) => person.id === id)?.name || null;
-  };
 
   return (
     <div className="space-y-4">
