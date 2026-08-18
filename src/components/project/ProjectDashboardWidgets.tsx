@@ -203,7 +203,7 @@ const ProjectDashboardWidgets = () => {
               </Tooltip>
             </TooltipProvider>
           )}
-          <span className="text-xs text-muted-foreground">{formatDate(item.date)}</span>
+          <span className="text-xs text-muted-foreground">{formatDate(showRigDate ? (item.rigDate ?? item.date) : item.date)}</span>
           <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
         </div>
       </div>
