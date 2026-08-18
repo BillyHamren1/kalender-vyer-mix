@@ -318,7 +318,7 @@ Deno.serve(async (req) => {
         pass,
         warning,
         blocked,
-        canStartScanning: blocked === 0 && warning === 0,
+        canStartScanning: blocked === 0,
         worstStatus: worst,
         blockedItems,
       })
