@@ -135,7 +135,9 @@ function classifyRow(args: {
     if (byItemTypeId.length > 1) {
       return { status: 'BLOCKED', reason: 'WMS returnerade flera item_types för detta inventory_item_type_id.', suggestedFix: 'Rensa duplicerade item_types i WMS innan scanning.', wmsMatches }
     }
-    return { status: 'BLOCKED', reason: 'inventory_item_type_id finns men matchar inget item_type i WMS.', suggestedFix: 'Ompara produkten mot rätt WMS item_type eller rensa felaktigt id.', wmsMatches }
+    return bySku.length === 1
+      ? { status: 'WARNING', reason: 'Sparat item_type_id är gammalt, men SKU matchar entydigt i WMS.', suggestedFix: `Reparera canonical item_type_id till ${bySku[0].id ?? '<wms-id>'}. Packning behöver inte blockeras.`, wmsMatches }
+      : { status: 'WARNING', reason: 'Sparat item_type_id finns inte längre i WMS. Detta är en identitetsreparation, inte en fysisk lagerkonflikt.', suggestedFix: 'Reparera WMS-kopplingen. Manuell avbockning får fortsätta med tydlig varning.', wmsMatches }
   }
 
   if (sku) {
@@ -146,15 +148,15 @@ function classifyRow(args: {
       return { status: 'BLOCKED', reason: 'sku matchar flera WMS item_types — kan inte avgöra rätt produkt.', suggestedFix: 'Manuell mappning krävs: välj rätt WMS item_type och sätt inventory_item_type_id.', wmsMatches }
     }
     if (name && byName.length >= 1) {
-      return { status: 'BLOCKED', reason: 'inventory_item_type_id och sku saknar match — endast namnmatch finns (otillförlitligt).', suggestedFix: 'Mappa produkten manuellt mot rätt WMS item_type.', wmsMatches }
+      return { status: 'WARNING', reason: 'Endast namnmatch finns. WMS-identiteten behöver repareras; namn används aldrig som canonical identitet.', suggestedFix: 'Mappa produkten mot rätt WMS item_type. Packning får fortsätta manuellt under varning.', wmsMatches }
     }
-    return { status: 'BLOCKED', reason: 'Ingen WMS item_type hittades för sku.', suggestedFix: 'Skapa/koppla rätt WMS item_type och sätt inventory_item_type_id.', wmsMatches }
+    return { status: 'WARNING', reason: 'Ingen WMS item_type hittades för sparad SKU. Detta kräver datakvalitetsreparation.', suggestedFix: 'Koppla rätt WMS item_type. Packning får fortsätta manuellt under varning.', wmsMatches }
   }
 
   if (name && byName.length >= 1) {
-    return { status: 'BLOCKED', reason: 'Saknar både inventory_item_type_id och sku — endast osäker namnmatch finns.', suggestedFix: 'Lägg in sku och inventory_item_type_id på produkten.', wmsMatches }
+    return { status: 'WARNING', reason: 'Legacy-rad utan WMS-ID/SKU. Endast namnmatch finns och används inte för automatisk identitet.', suggestedFix: 'Reparera WMS-kopplingen. Manuell avbockning är tillåten med varning.', wmsMatches }
   }
-  return { status: 'BLOCKED', reason: 'Saknar både inventory_item_type_id och sku.', suggestedFix: 'Lägg till sku och inventory_item_type_id, eller koppla rätt WMS item_type.', wmsMatches }
+  return { status: 'WARNING', reason: 'Legacy-rad saknar canonical WMS-identitet.', suggestedFix: 'Reparera WMS-kopplingen. Manuell avbockning är tillåten med varning.', wmsMatches }
 }
 
 const worstOf = (a: RowStatus, b: RowStatus): RowStatus => {
@@ -260,6 +262,9 @@ Deno.serve(async (req) => {
           quantity_to_pack,
           excluded,
           manual_name,
+          wms_item_type_id,
+          wms_sku,
+          wms_identity_needs_repair,
           booking_products (
             id, name, sku, inventory_item_type_id, quantity
           )
@@ -274,8 +279,8 @@ Deno.serve(async (req) => {
       for (const it of items || []) {
         if ((it as any).excluded) continue
         const bp = (it as any).booking_products || null
-        const inventoryItemTypeId: string | null = bp?.inventory_item_type_id ?? null
-        const sku: string | null = bp?.sku ?? null
+        const inventoryItemTypeId: string | null = (it as any).wms_item_type_id ?? bp?.inventory_item_type_id ?? null
+        const sku: string | null = (it as any).wms_sku ?? bp?.sku ?? null
         const name: string | null = bp?.name ?? (it as any).manual_name ?? null
         const [byItemTypeId, bySku, byName] = await Promise.all([
           inventoryItemTypeId ? wmsLookupByItemTypeId(inventoryItemTypeId, PRICELIST_API_KEY, orgId) : Promise.resolve([]),
@@ -313,7 +318,7 @@ Deno.serve(async (req) => {
         pass,
         warning,
         blocked,
-        canStartScanning: blocked === 0 && warning === 0,
+        canStartScanning: blocked === 0,
         worstStatus: worst,
         blockedItems,
       })

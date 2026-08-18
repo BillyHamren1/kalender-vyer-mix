@@ -1493,6 +1493,9 @@ Deno.serve(async (req) => {
           .select(`
             packing_id,
             quantity_packed,
+            wms_item_type_id,
+            wms_sku,
+            wms_identity_needs_repair,
             booking_products ( id, name, sku, inventory_item_type_id, parent_product_id )
           `)
           .eq('id', itemId)
@@ -1531,20 +1534,52 @@ Deno.serve(async (req) => {
           return json({ success: true, manualScan: false, bundleSynced: false, productName, newQuantity: currentQty })
         }
 
-        const sku = product?.sku || null
-        const itemTypeId = product?.inventory_item_type_id || null
+        // Packing-row snapshot is canonical for floor work. Booking fields are
+        // retained as a backwards-compatible fallback for rows created before
+        // the snapshot migration.
+        const sku = (itemData as any)?.wms_sku || product?.sku || null
+        const itemTypeId = (itemData as any)?.wms_item_type_id || product?.inventory_item_type_id || null
 
-        // 1) Block rows without any WMS coupling — never tyst lokalt
+        // Legacy rows without WMS identity are a data-quality problem, not a
+        // physical warehouse conflict. Allow an explicitly manual local checkoff
+        // while marking the packing for review; never pretend it was WMS-synced.
         if (!sku && !itemTypeId) {
-          console.warn('[toggle_item] increment blocked — no WMS coupling', { itemId })
+          console.warn('[toggle_item] legacy local-only checkoff — WMS identity missing', { itemId })
+          if (packingId) {
+            await supabase.from('packing_projects').update({
+              needs_packing_review: true,
+              needs_packing_review_reason: 'packing_item_missing_wms_identity',
+              updated_at: now,
+            }).eq('id', packingId).eq('organization_id', ORG_ID)
+          }
+          newQty = Math.min(currentQty + 1, quantityToPack)
+          const isFull = newQty >= quantityToPack
+          await supabase.from('packing_list_items').update({
+            quantity_packed: newQty,
+            packed_at: now,
+            packed_by: verifiedBy,
+            packed_by_staff_id: verifiedByStaffId || null,
+            wms_identity_needs_repair: true,
+            ...(isFull ? { verified_at: now, verified_by: verifiedBy, verified_by_staff_id: verifiedByStaffId || null } : {}),
+          }).eq('id', itemId).eq('organization_id', ORG_ID)
+          if (packingId) {
+            await transitionToInProgress(supabase, packingId, ORG_ID)
+            await checkIfAllPacked(supabase, packingId, ORG_ID)
+          }
+          await logPackingSessionEvent(supabase, auth, ACTIVE_SESSION_ID, {
+            packingId, itemId, eventType: 'manual_pack', quantityDelta: 1,
+            productName, beforeQuantity: currentQty, afterQuantity: newQty,
+            source: 'manual', metadata: { wmsSync: false, identityRepairRequired: true },
+          })
           return json({
-            success: false,
+            success: true,
             manualScan: true,
             bundleSynced: false,
+            localOnly: true,
+            identityRepairRequired: true,
             productName,
-            newQuantity: currentQty,
-            error: 'Artikeln saknar WMS-koppling och kan inte bockas av som godkänd scan',
-            bundleErrorCode: 'no_wms_coupling',
+            newQuantity: newQty,
+            warning: 'Avbockad manuellt. WMS-kopplingen behöver repareras.',
           })
         }
 
@@ -1587,6 +1622,9 @@ Deno.serve(async (req) => {
           'line_already_fully_packed',
           'manual_quantity_exceeds_remaining',
           'ambiguous_scan_code',
+          'ambiguous_item_identity',
+          'type_mismatch',
+          'unknown_item_type_id',
         ])
 
         let wmsOk = false
@@ -1644,6 +1682,9 @@ Deno.serve(async (req) => {
               : bundleErrorCode === 'ambiguous_scan_code' ? 'Dublett QR/serial i WMS'
               : bundleErrorCode === 'line_not_in_reservation' ? 'Artikeln finns inte i WMS-reservationen'
               : bundleErrorCode === 'manual_quantity_exceeds_remaining' ? 'Antal överstiger kvarvarande i WMS'
+              : bundleErrorCode === 'ambiguous_item_identity' ? 'SKU är tvetydig i WMS – artikelkopplingen måste repareras'
+              : bundleErrorCode === 'type_mismatch' ? 'WMS-ID och SKU pekar på olika artiklar'
+              : bundleErrorCode === 'unknown_item_type_id' ? 'Sparat WMS-ID finns inte längre i WMS'
               : (bundleError || 'WMS nekade scan'))
           return json({
             success: false,
@@ -2423,6 +2464,10 @@ Deno.serve(async (req) => {
             organization_id: ORG_ID,
             quantity_to_pack: qty,
             quantity_packed: 1,
+            wms_item_type_id: resolvedItemTypeId || null,
+            wms_sku: finalSku || null,
+            wms_identity_source: resolvedItemTypeId ? 'scanner_wms' : (finalSku ? 'scanner_sku' : 'missing'),
+            wms_identity_needs_repair: !resolvedItemTypeId,
             packed_at: now,
             packed_by: verifiedBy,
             packed_by_staff_id: verifiedByStaffId || null,

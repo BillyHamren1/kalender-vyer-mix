@@ -313,6 +313,9 @@ Deno.serve(async (req) => {
       quantity_to_pack,
       excluded,
       manual_name,
+      wms_item_type_id,
+      wms_sku,
+      wms_identity_needs_repair,
       booking_products (
         id,
         name,
@@ -338,8 +341,8 @@ Deno.serve(async (req) => {
   for (const it of items || []) {
     if (it.excluded) continue
     const bp = (it as any).booking_products || null
-    const inventoryItemTypeId: string | null = bp?.inventory_item_type_id ?? null
-    const sku: string | null = bp?.sku ?? null
+    const inventoryItemTypeId: string | null = (it as any).wms_item_type_id ?? bp?.inventory_item_type_id ?? null
+    const sku: string | null = (it as any).wms_sku ?? bp?.sku ?? null
     const name: string | null = bp?.name ?? it.manual_name ?? null
 
     const [byItemTypeId, bySku, byName] = await Promise.all([
@@ -385,7 +388,7 @@ Deno.serve(async (req) => {
     packingId,
     bookingNumber,
     summary,
-    canStartScanning: summary.blocked === 0 && summary.warning === 0,
+    canStartScanning: summary.blocked === 0,
     items: rows,
   })
 })

@@ -284,7 +284,7 @@ async function syncPackingListItems(
   // Fetch current booking products (exclude package headers - only actual packable items)
   const { data: products, error: prodError } = await supabase
     .from('booking_products')
-    .select('id, name, quantity, parent_product_id, is_package_component, sku')
+    .select('id, name, quantity, parent_product_id, is_package_component, sku, inventory_item_type_id')
     .eq('booking_id', bookingId)
     .eq('organization_id', organizationId)
 
@@ -343,7 +343,11 @@ async function syncPackingListItems(
       booking_product_id: p.id,
       quantity_to_pack: p.quantity || 1,
       quantity_packed: 0,
-      organization_id: organizationId
+      organization_id: organizationId,
+      wms_item_type_id: p.inventory_item_type_id || null,
+      wms_sku: p.sku || null,
+      wms_identity_source: p.inventory_item_type_id ? 'booking_item_type_id' : (p.sku ? 'booking_sku_legacy' : 'missing'),
+      wms_identity_needs_repair: !p.inventory_item_type_id
     }))
   const orphanedItems = itemsForThisBooking.filter(
     (item: any) => item.booking_product_id && !productIds.has(item.booking_product_id)
@@ -403,6 +407,26 @@ async function syncPackingListItems(
       } else {
         console.warn(`[sync-booking-to-packing] Frozen quantity_to_pack for packing ${packingId} item ${existing.id}: ${existing.quantity_to_pack} stays despite booking quantity ${product.quantity}`)
       }
+    }
+  }
+
+  // Refresh WMS identity snapshot while the packing is still in planning.
+  // Once floor work starts, the snapshot is frozen together with the operational rows.
+  for (const product of packableProducts) {
+    const existing = existingByProductId.get(product.id) as any
+    if (!existing) continue
+    const { error: identityError } = await supabase
+      .from('packing_list_items')
+      .update({
+        wms_item_type_id: product.inventory_item_type_id || null,
+        wms_sku: product.sku || null,
+        wms_identity_source: product.inventory_item_type_id ? 'booking_item_type_id' : (product.sku ? 'booking_sku_legacy' : 'missing'),
+        wms_identity_needs_repair: !product.inventory_item_type_id,
+      })
+      .eq('id', existing.id)
+      .eq('organization_id', organizationId)
+    if (identityError) {
+      console.error(`[sync-booking-to-packing] Failed to refresh WMS identity snapshot for ${existing.id}:`, identityError)
     }
   }
 

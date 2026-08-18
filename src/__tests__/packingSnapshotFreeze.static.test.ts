@@ -45,11 +45,13 @@ describe('packing snapshot — fail closed', () => {
     expect(fn).toContain("needs_packing_review_reason: 'booking_changed_after_packing_started'");
   });
 
-  it('WMS preflight kräver både noll blocked och noll warning', () => {
+  it('WMS preflight blockerar endast på blocked (identitetsvarningar stoppar inte packning)', () => {
     const single = read('supabase/functions/packing-preflight-check/index.ts');
     const batch = read('supabase/functions/packing-preflight-batch/index.ts');
-    expect(single).toContain('canStartScanning: summary.blocked === 0 && summary.warning === 0');
-    expect(batch).toContain('canStartScanning: blocked === 0 && warning === 0');
+    expect(single).toContain('canStartScanning: summary.blocked === 0');
+    expect(single).not.toContain('summary.blocked === 0 && summary.warning === 0');
+    expect(batch).toContain('canStartScanning: blocked === 0');
+    expect(batch).not.toContain('blocked === 0 && warning === 0');
   });
 
   it('packlisteutskrift har en enda automatisk print-trigger', () => {
