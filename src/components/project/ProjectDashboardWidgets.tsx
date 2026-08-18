@@ -235,24 +235,9 @@ const ProjectDashboardWidgets = () => {
         ))}
       </div>
 
-      {/* Översikt: vad väntar på avslut och vad ligger närmast i tiden */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between gap-3 mb-3">
-              <div>
-                <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-muted-foreground" /><h3 className="text-sm font-semibold">Väntar på avslut</h3></div>
-                <p className="text-xs text-muted-foreground mt-1">Genomförda projekt som fortfarande är öppna.</p>
-              </div>
-              <Badge variant="outline" className="text-[10px]">{attentionProjects.length}</Badge>
-            </div>
-            <div className="divide-y divide-border/50">
-              {attentionProjects.length === 0 ? (
-                <div className="py-5 text-center"><ShieldCheck className="h-5 w-5 mx-auto text-muted-foreground mb-1.5" /><p className="text-sm font-medium">Inga öppna genomförda projekt</p></div>
-              ) : attentionProjects.map(item => <ProjectRow key={`attention-${item.id}-${item.type}`} item={item} />)}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Översikt: vad ligger närmast i tiden */}
+      <div className="grid grid-cols-1 gap-4">
+
 
         <Card>
           <CardContent className="p-5">
