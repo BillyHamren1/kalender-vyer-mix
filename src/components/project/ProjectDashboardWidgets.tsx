@@ -131,7 +131,7 @@ const ProjectDashboardWidgets = () => {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
             <Card key={i}><CardContent className="p-4"><Skeleton className="h-12 w-full" /></CardContent></Card>
           ))}
@@ -205,7 +205,7 @@ const ProjectDashboardWidgets = () => {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {statItems.map(({ label, value, icon: Icon, color, bgColor, hint }) => (
           <TooltipProvider key={label} delayDuration={200}>
             <Tooltip>
