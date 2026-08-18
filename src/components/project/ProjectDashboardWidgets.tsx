@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
-import { FolderKanban, Clock, CalendarClock, CheckCircle2, ChevronRight, AlertCircle, CalendarDays, Layers, Search, ShieldCheck } from 'lucide-react';
+import { FolderKanban, Clock, CalendarClock, CheckCircle2, ChevronRight, CalendarDays, Layers, Search } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { fetchJobs } from '@/services/jobService';
 import { fetchProjects } from '@/services/projectService';
