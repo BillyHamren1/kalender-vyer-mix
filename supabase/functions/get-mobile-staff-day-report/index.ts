@@ -148,6 +148,12 @@ Deno.serve(async (req: Request) => {
     workdayAllocationSegments: Array.isArray((cache as any)?.workday_allocation_segments_json)
       ? (cache as any).workday_allocation_segments_json
       : null,
+    // Fryst, redan redigerad tidslinje från senaste submission. Den behövs
+    // av Quick Time Entry för att kunna lägga till ännu ett manuellt pass
+    // utan att skriva över tidigare manuella pass på samma dag.
+    submissionTimelineSnapshot: Array.isArray((resolved.rawSubmission as any)?.display_timeline_snapshot_json)
+      ? (resolved.rawSubmission as any).display_timeline_snapshot_json
+      : null,
     debug,
   });
 });

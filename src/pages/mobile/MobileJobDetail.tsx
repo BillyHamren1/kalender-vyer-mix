@@ -165,7 +165,7 @@ const MobileJobDetail = () => {
         {activeTab === 'Team' && <JobTeamTab bookingId={booking.id} />}
         {activeTab === 'Photos' && <JobPhotosTab bookingId={booking.id} />}
         {activeTab === 'Costs' && <JobCostsTab bookingId={booking.id} />}
-        {activeTab === 'Time' && <JobTimeTab bookingId={booking.id} timeReports={bookingData?.my_time_reports} />}
+        {activeTab === 'Time' && <JobTimeTab bookingId={booking.id} bookingLabel={booking.client || booking.booking_number || 'Det här jobbet'} timeReports={bookingData?.my_time_reports} />}
       </div>
 
       <div className="px-4 pb-4">

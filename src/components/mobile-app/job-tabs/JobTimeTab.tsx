@@ -1,34 +1,43 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { MobileTimeReport } from '@/services/mobileApiService';
 import { format, parseISO } from 'date-fns';
-import { Clock, Loader2 } from 'lucide-react';
+import { Clock, Plus } from 'lucide-react';
 import { formatHoursMinutes } from '@/utils/formatHours';
+import { Button } from '@/components/ui/button';
+import QuickTimeEntrySheet from '@/components/mobile-app/time/QuickTimeEntrySheet';
 
 interface JobTimeTabProps {
   bookingId: string;
+  bookingLabel?: string;
   timeReports?: any[];
 }
 
-const JobTimeTab = ({ bookingId, timeReports }: JobTimeTabProps) => {
+const JobTimeTab = ({ bookingId, bookingLabel = 'Det här jobbet', timeReports }: JobTimeTabProps) => {
+  const [quickEntryOpen, setQuickEntryOpen] = useState(false);
   const reports: MobileTimeReport[] = (timeReports || []).filter(
     (r: any) => r.booking_id === bookingId
   );
-  const isLoading = false;
-
-  if (reports.length === 0) {
-    return (
-      <div className="text-center py-12">
-        <Clock className="w-10 h-10 mx-auto text-muted-foreground/20 mb-2" />
-        <p className="text-sm text-muted-foreground">Inga tidrapporter för det här jobbet</p>
-      </div>
-    );
-  }
-
   const totalHours = reports.reduce((sum, r) => sum + r.hours_worked, 0);
   const totalOvertime = reports.reduce((sum, r) => sum + r.overtime_hours, 0);
 
   return (
     <div className="space-y-3">
+      <Button
+        type="button"
+        onClick={() => setQuickEntryOpen(true)}
+        className="w-full h-12 rounded-xl text-sm font-semibold"
+      >
+        <Plus className="w-4 h-4 mr-2" />
+        Rapportera tid på jobbet
+      </Button>
+
+      {reports.length === 0 ? (
+        <div className="text-center py-8 rounded-xl border border-dashed">
+          <Clock className="w-9 h-9 mx-auto text-muted-foreground/20 mb-2" />
+          <p className="text-sm text-muted-foreground">Ingen rapporterad tid ännu</p>
+        </div>
+      ) : (
+        <>
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded-xl border bg-primary/5 border-primary/20 p-3 text-center">
           <p className="text-xs text-muted-foreground">Totalt</p>
@@ -64,6 +73,14 @@ const JobTimeTab = ({ bookingId, timeReports }: JobTimeTabProps) => {
           )}
         </div>
       ))}
+        </>
+      )}
+
+      <QuickTimeEntrySheet
+        open={quickEntryOpen}
+        onOpenChange={setQuickEntryOpen}
+        fixedTarget={{ type: 'booking', id: bookingId, label: bookingLabel }}
+      />
     </div>
   );
 };

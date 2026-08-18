@@ -37,6 +37,7 @@ import {
 } from '@/hooks/useSubmitStaffDayReport';
 import { useMobileBookings } from '@/hooks/useMobileData';
 import { formatStockholmHm } from '@/lib/staff/formatStockholmTime';
+import { stockholmLocalIsoFromHhmm } from '@/lib/staff/stockholmLocalIso';
 import type { MobileSegment } from '@/types/mobileDayReport';
 
 interface Props {
@@ -67,8 +68,7 @@ function hhmmFromIso(iso: string | null): string {
 }
 
 function isoFromHhmm(date: string, hhmm: string): string | null {
-  if (!/^\d{2}:\d{2}$/.test(hhmm)) return null;
-  return `${date}T${hhmm}:00`;
+  return stockholmLocalIsoFromHhmm(date, hhmm);
 }
 
 function durMinutes(startIso: string | null, endIso: string | null): number {
@@ -86,7 +86,7 @@ function uuid(): string {
 }
 
 // ── lokal vy-modell för redigering ──────────────────────────────────
-type TargetType = 'booking' | 'project' | 'large_project' | 'location' | null;
+export type TargetType = 'booking' | 'project' | 'large_project' | 'location' | null;
 
 interface EditableBlock {
   id: string;                  // sourceBlockId för engine-block; uuid för manuella
@@ -146,7 +146,7 @@ interface TargetOption {
   sub?: string;
 }
 
-const TargetPicker: React.FC<{
+export const TargetPicker: React.FC<{
   date: string;
   value: { type: TargetType; id: string | null; label: string };
   onChange: (next: { type: TargetType; id: string | null; label: string }) => void;
@@ -392,7 +392,13 @@ const MobileDaySubmitSheet: React.FC<Props> = ({ date, reviewComment, onClose, o
   const breakMin = Math.max(0, Math.round(Number(breakStr) || 0));
   const netMin = Math.max(0, grossMin - breakMin);
 
-  const canSubmit = !!date && !isLocked && !isSaving && grossMin > 0 && netMin > 0;
+  const manualBlocksValid = blocks.every((b) => {
+    if (!b.isManual) return true;
+    const start = isoFromHhmm(date ?? '', b.startHhmm);
+    const end = isoFromHhmm(date ?? '', b.endHhmm);
+    return Boolean(b.targetType && b.targetId && start && end && durMinutes(start, end) > 0);
+  });
+  const canSubmit = !!date && !isLocked && !isSaving && grossMin > 0 && netMin > 0 && manualBlocksValid;
 
   const addManualBlock = () => {
     if (!date) return;
@@ -424,6 +430,12 @@ const MobileDaySubmitSheet: React.FC<Props> = ({ date, reviewComment, onClose, o
   const handleSubmit = async () => {
     if (!date || !report) {
       toast.error('Dagen är inte laddad än');
+      return;
+    }
+    const invalidManual = blocks.find((b) => b.isManual && (!b.targetType || !b.targetId || !isoFromHhmm(date, b.startHhmm) || !isoFromHhmm(date, b.endHhmm) || durMinutes(isoFromHhmm(date, b.startHhmm), isoFromHhmm(date, b.endHhmm)) <= 0));
+    if (invalidManual) {
+      setExpanded(invalidManual.id);
+      toast.error('Välj projekt och kontrollera tiden för den manuella raden');
       return;
     }
     try {
@@ -627,7 +639,7 @@ const MobileDaySubmitSheet: React.FC<Props> = ({ date, reviewComment, onClose, o
                     onClick={addManualBlock}
                     disabled={isLocked || isSaving}
                   >
-                    <Plus className="h-4 w-4 mr-1" /> Lägg till projekt / plats
+                    <Plus className="h-4 w-4 mr-1" /> Rapportera tid på projekt
                   </Button>
                 </Card>
 

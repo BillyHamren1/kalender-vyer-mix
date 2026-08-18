@@ -94,6 +94,8 @@ export interface MobileDayReport {
   reportCandidateBlocks?: unknown[] | null;
   displayTimelineBlocksV2?: unknown[] | null;
   workdayAllocationSegments?: unknown[] | null;
+  /** Fryst, redigerad submission-tidslinje. Read-only; används för säkra append-flöden. */
+  submissionTimelineSnapshot?: unknown[] | null;
   presenceBlocks?: unknown[] | null;
   targets?: unknown[] | null;
 }
