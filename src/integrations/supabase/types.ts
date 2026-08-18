@@ -4270,6 +4270,10 @@ export type Database = {
           verified_at: string | null
           verified_by: string | null
           verified_by_staff_id: string | null
+          wms_identity_needs_repair: boolean
+          wms_identity_source: string | null
+          wms_item_type_id: string | null
+          wms_sku: string | null
         }
         Insert: {
           booking_product_id?: string | null
@@ -4292,6 +4296,10 @@ export type Database = {
           verified_at?: string | null
           verified_by?: string | null
           verified_by_staff_id?: string | null
+          wms_identity_needs_repair?: boolean
+          wms_identity_source?: string | null
+          wms_item_type_id?: string | null
+          wms_sku?: string | null
         }
         Update: {
           booking_product_id?: string | null
@@ -4314,6 +4322,10 @@ export type Database = {
           verified_at?: string | null
           verified_by?: string | null
           verified_by_staff_id?: string | null
+          wms_identity_needs_repair?: boolean
+          wms_identity_source?: string | null
+          wms_item_type_id?: string | null
+          wms_sku?: string | null
         }
         Relationships: [
           {
