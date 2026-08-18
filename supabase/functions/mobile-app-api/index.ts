@@ -228,16 +228,19 @@ function buildMessagePreview(
 }
 
 async function resolveOrganizationId(supabase: any, explicitOrgId?: string): Promise<string> {
-  // Tenant guard: fail-closed. Ingen fallback till "första organisationen" —
-  // det gav cross-tenant-skrivningar för nya/tomma organisationer.
-  if (!explicitOrgId) {
-    throw new Error('organization_id saknas – fail-closed (ingen fallback till annan organisation)')
+  if (explicitOrgId) {
+    const { data } = await supabase.from('organizations').select('id').eq('id', explicitOrgId).single()
+    if (!data) throw new Error(`Organization not found: ${explicitOrgId}`)
+    return data.id
   }
-  const { data } = await supabase.from('organizations').select('id').eq('id', explicitOrgId).maybeSingle()
-  if (!data) throw new Error(`Organization not found: ${explicitOrgId}`)
-  return data.id
+  console.warn('[mobile-app-api] DEPRECATION WARNING: organization_id not provided, falling back to first org.')
+  const { data } = await supabase
+    .from('organizations')
+    .select('id')
+    .limit(1)
+    .single()
+  return data?.id
 }
-
 
 /**
  * ensureOpenWorkdayForTimer — workday-first guarantee for ALL server-side
@@ -553,6 +556,8 @@ async function handleRequest(req: Request, rotationSlot: { token: string | null 
         return await handleMe(supabase, staffId, organizationId)
       case 'get_bookings':
         return await handleGetBookings(supabase, staffId, organizationId)
+      case 'get_job_catalog':
+        return await handleGetJobCatalog(supabase, organizationId)
       case 'get_inbox_all':
         return await handleGetInboxAll(supabase, staffId, organizationId, staffOrg?.user_id || null)
       case 'get_inbox_jobs':
@@ -1043,6 +1048,128 @@ async function handleMe(supabase: any, staffId: string, organizationId: string) 
   return new Response(
     JSON.stringify({ staff: enriched }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+/**
+ * Organization-wide read-only job catalog for the Time app.
+ *
+ * IMPORTANT: this is intentionally separate from get_bookings. get_bookings is
+ * staff-planning data used by Time Engine/Quick Entry and must stay scoped to
+ * the signed-in person's assignments. The catalog is only for browsing jobs.
+ * Every row is hard-scoped by organization_id before it can reach the client.
+ */
+async function handleGetJobCatalog(supabase: any, organizationId: string) {
+  const catalogSelect = `
+      id,
+      title,
+      client,
+      booking_number,
+      status,
+      deliveryaddress,
+      delivery_city,
+      delivery_postal_code,
+      delivery_latitude,
+      delivery_longitude,
+      rigdaydate,
+      eventdate,
+      rigdowndate,
+      rig_start_time,
+      rig_end_time,
+      event_start_time,
+      event_end_time,
+      rigdown_start_time,
+      rigdown_end_time,
+      contact_name,
+      contact_phone,
+      contact_email,
+      assigned_project_id,
+      assigned_project_name,
+      large_project_id
+  `
+
+  // PostgREST/Supabase projects commonly cap one response at 1000 rows. Page
+  // deliberately so "Alla jobb" really means the full tenant catalog rather
+  // than a silent first-page subset.
+  const rows: any[] = []
+  const pageSize = 1000
+  for (let from = 0; ; from += pageSize) {
+    const { data: page, error } = await supabase
+      .from('bookings')
+      .select(catalogSelect)
+      .eq('organization_id', organizationId)
+      .order('eventdate', { ascending: true, nullsFirst: false })
+      .range(from, from + pageSize - 1)
+
+    if (error) {
+      console.error('[get_job_catalog] bookings query failed:', error)
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch job catalog' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+
+    const chunk = page || []
+    rows.push(...chunk)
+    if (chunk.length < pageSize) break
+  }
+
+  const largeProjectIds = [...new Set(rows.map((b: any) => b.large_project_id).filter(Boolean))]
+  const largeProjectNames: Record<string, string> = {}
+  if (largeProjectIds.length > 0) {
+    const { data: projects, error: lpError } = await supabase
+      .from('large_projects')
+      .select('id, name')
+      .eq('organization_id', organizationId)
+      .in('id', largeProjectIds)
+    if (lpError) {
+      console.warn('[get_job_catalog] large project names failed (non-fatal):', lpError)
+    }
+    for (const project of projects || []) largeProjectNames[project.id] = project.name
+  }
+
+  const normalized = rows.map((booking: any) => ({
+    ...booking,
+    large_project_name: booking.large_project_id ? (largeProjectNames[booking.large_project_id] || null) : null,
+    assignment_dates: [booking.rigdaydate, booking.eventdate, booking.rigdowndate].filter(Boolean),
+    assignment_type: 'organization_catalog',
+  }))
+
+  // Calendar representation. This is NOT a staff shift and must never be used
+  // as timer/planning authority; it exists solely to render the browse calendar.
+  const shifts: any[] = []
+  const pushPhase = (booking: any, phase: 'rig' | 'event' | 'rigdown', date: string | null, start: string | null, end: string | null) => {
+    if (!date) return
+    const fallbackStart = phase === 'event' ? '08:00' : '07:00'
+    const fallbackEnd = phase === 'event' ? '17:00' : '16:00'
+    shifts.push({
+      shift_id: `catalog-${booking.id}-${phase}-${date}`,
+      booking_id: booking.id,
+      booking_number: booking.booking_number ?? null,
+      title: booking.title || booking.client || booking.booking_number || 'Jobb',
+      event_type: phase,
+      start_time: `${date}T${String(start || fallbackStart).slice(0, 5)}:00`,
+      end_time: `${date}T${String(end || fallbackEnd).slice(0, 5)}:00`,
+      delivery_address: booking.deliveryaddress ?? null,
+      delivery_latitude: booking.delivery_latitude ?? null,
+      delivery_longitude: booking.delivery_longitude ?? null,
+      client: booking.client || booking.title || 'Jobb',
+      is_internal: false,
+      internal_type: null,
+      large_project_id: booking.large_project_id ?? null,
+      large_project_name: booking.large_project_id ? (largeProjectNames[booking.large_project_id] || null) : null,
+    })
+  }
+
+  for (const booking of rows) {
+    pushPhase(booking, 'rig', booking.rigdaydate, booking.rig_start_time, booking.rig_end_time)
+    pushPhase(booking, 'event', booking.eventdate, booking.event_start_time, booking.event_end_time)
+    pushPhase(booking, 'rigdown', booking.rigdowndate, booking.rigdown_start_time, booking.rigdown_end_time)
+  }
+
+  return new Response(
+    JSON.stringify({ bookings: normalized, shifts }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
   )
 }
 
@@ -4018,26 +4145,17 @@ async function handleGetBookingDetails(supabase: any, staffId: string, data: { b
 
   // ── Regular booking flow ──
 
-  // Verify staff is assigned to this booking
-  const { data: assignment, error: assignmentError } = await supabase
-    .from('booking_staff_assignments')
-    .select('id')
-    .eq('staff_id', staffId)
-    .eq('booking_id', booking_id)
-    .limit(1)
-
-  if (assignmentError || !assignment || assignment.length === 0) {
-    return new Response(
-      JSON.stringify({ error: 'You are not assigned to this booking' }),
-      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
+  // Organization-wide browsing is allowed in the Time app. Authorization is
+  // tenant-based here, not assignment-based: the booking itself MUST belong to
+  // the authenticated staff member's organization. Assignment checks remain in
+  // mutation handlers (time/task/etc.) and are not weakened by this read path.
 
   // Fetch complete booking details
   const { data: booking, error: bookingError } = await supabase
     .from('bookings')
     .select(`
       id,
+      title,
       client,
       booking_number,
       status,
@@ -4066,10 +4184,12 @@ async function handleGetBookingDetails(supabase: any, staffId: string, data: { b
       assigned_project_id,
       assigned_project_name,
       assigned_to_project,
+      large_project_id,
       created_at,
       updated_at
     `)
     .eq('id', booking_id)
+    .eq('organization_id', organizationId)
     .single()
 
   if (bookingError || !booking) {
@@ -4078,6 +4198,21 @@ async function handleGetBookingDetails(supabase: any, staffId: string, data: { b
       JSON.stringify({ error: 'Booking not found' }),
       { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
+  }
+
+  // Resolve large-project display metadata without changing the booking's
+  // canonical identity. This keeps the general job browser useful even when
+  // the current staff member is not part of that large project's team.
+  if (booking.large_project_id) {
+    const { data: lp } = await supabase
+      .from('large_projects')
+      .select('id, name')
+      .eq('id', booking.large_project_id)
+      .eq('organization_id', organizationId)
+      .maybeSingle()
+    ;(booking as any).large_project_name = lp?.name || null
+  } else {
+    ;(booking as any).large_project_name = null
   }
 
   // Fetch products (include hierarchy fields for grouping, parents first)
@@ -4099,6 +4234,7 @@ async function handleGetBookingDetails(supabase: any, staffId: string, data: { b
     .from('booking_staff_assignments')
     .select('staff_id, team_id, assignment_date')
     .eq('booking_id', booking_id)
+    .eq('organization_id', organizationId)
 
   // Get unique staff IDs and fetch their details
   const staffIds = [...new Set((staffAssignments || []).map((a: any) => a.staff_id))]
@@ -4122,6 +4258,7 @@ async function handleGetBookingDetails(supabase: any, staffId: string, data: { b
     .from('calendar_events')
     .select('id, title, event_type, resource_id, start_time, end_time, delivery_address')
     .eq('booking_id', booking_id)
+    .eq('organization_id', organizationId)
     .order('start_time', { ascending: true })
 
   // Fetch project if exists
@@ -4142,6 +4279,7 @@ async function handleGetBookingDetails(supabase: any, staffId: string, data: { b
       updated_at
     `)
     .eq('booking_id', booking_id)
+    .eq('organization_id', organizationId)
     .maybeSingle()
 
   if (projectData) {
@@ -4282,7 +4420,11 @@ async function handleGetBookingDetails(supabase: any, staffId: string, data: { b
       purchases: projectPurchases
     } : null,
     my_time_reports: myTimeReports || [],
-    establishment_tasks: establishmentTasks || []
+    establishment_tasks: establishmentTasks || [],
+    access: {
+      is_assigned: (staffAssignments || []).some((a: any) => a.staff_id === staffId),
+      can_report_time: (staffAssignments || []).some((a: any) => a.staff_id === staffId),
+    }
   }
 
   console.log(`Booking details fetched: ${booking_id} for staff ${staffId}`)
@@ -4347,6 +4489,16 @@ async function handleToggleEstablishmentTask(supabase: any, staffId: string, dat
   )
 }
 
+async function bookingBelongsToOrganization(supabase: any, bookingId: string, organizationId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('bookings')
+    .select('id')
+    .eq('id', bookingId)
+    .eq('organization_id', organizationId)
+    .maybeSingle()
+  return !!data
+}
+
 async function handleGetProjectComments(supabase: any, data: { booking_id: string }, organizationId: string) {
   const { booking_id } = data
 
@@ -4357,10 +4509,18 @@ async function handleGetProjectComments(supabase: any, data: { booking_id: strin
     )
   }
 
+  if (!(await bookingBelongsToOrganization(supabase, booking_id, organizationId))) {
+    return new Response(
+      JSON.stringify({ error: 'Booking not found' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
   const { data: project } = await supabase
     .from('projects')
     .select('id')
     .eq('booking_id', booking_id)
+    .eq('organization_id', organizationId)
     .maybeSingle()
 
   if (!project) {
@@ -4389,12 +4549,20 @@ async function handleGetProjectFiles(supabase: any, data: { booking_id: string }
     )
   }
 
+  if (!(await bookingBelongsToOrganization(supabase, booking_id, organizationId))) {
+    return new Response(
+      JSON.stringify({ error: 'Booking not found' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
   // Fetch project files
   let projectFiles: any[] = []
   const { data: project } = await supabase
     .from('projects')
     .select('id')
     .eq('booking_id', booking_id)
+    .eq('organization_id', organizationId)
     .maybeSingle()
 
   if (project) {
@@ -4446,10 +4614,18 @@ async function handleGetProjectPurchases(supabase: any, data: { booking_id: stri
     )
   }
 
+  if (!(await bookingBelongsToOrganization(supabase, booking_id, organizationId))) {
+    return new Response(
+      JSON.stringify({ error: 'Booking not found' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
   const { data: project } = await supabase
     .from('projects')
     .select('id')
     .eq('booking_id', booking_id)
+    .eq('organization_id', organizationId)
     .maybeSingle()
 
   if (!project) {

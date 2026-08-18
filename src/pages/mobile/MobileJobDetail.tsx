@@ -27,10 +27,12 @@ const MobileJobDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { staff } = useMobileAuth();
-  const { data: bookingData, isLoading } = useMobileBookingDetails(id);
+  const { data: bookingData, isLoading, isError, error, refetch } = useMobileBookingDetails(id);
   const { t } = useLanguage();
   const { invalidateBookingDetails } = useInvalidateMobileData();
   const booking = bookingData?.booking ?? null;
+  const canReportTime = bookingData?.access?.can_report_time ?? false;
+  const isAssigned = bookingData?.access?.is_assigned ?? false;
   const [activeTab, setActiveTab] = useState<TabKey>('Info');
 
   const largeProjectId = (booking as any)?.large_project_id ?? null;
@@ -54,10 +56,19 @@ const MobileJobDetail = () => {
     );
   }
 
-  if (!booking) {
+  if (isError || !booking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-card">
-        <p className="text-muted-foreground">Job not found</p>
+      <div className="min-h-screen bg-background flex flex-col">
+        <MobileBackHeader title="Jobb" backTo="/m" />
+        <div className="flex-1 px-6 flex items-center justify-center">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 text-center shadow-sm">
+            <p className="text-base font-bold text-foreground">Kunde inte öppna jobbet</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              {error instanceof Error ? error.message : 'Jobbet kunde inte hämtas. Försök igen.'}
+            </p>
+            <Button onClick={() => refetch()} className="mt-4 rounded-xl">Försök igen</Button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -65,8 +76,8 @@ const MobileJobDetail = () => {
   return (
     <div className="flex flex-col min-h-screen bg-card pb-24">
       <MobileBackHeader
-        title={booking.client}
-        subtitle={booking.booking_number ? `#${booking.booking_number}` : undefined}
+        title={booking.title || booking.client || 'Jobb'}
+        subtitle={[booking.client && booking.title && booking.client !== booking.title ? booking.client : null, booking.booking_number ? `#${booking.booking_number}` : null].filter(Boolean).join(' · ') || undefined}
         backTo="/m"
         rightAction={
           isProjectBooking ? (
@@ -165,19 +176,21 @@ const MobileJobDetail = () => {
         {activeTab === 'Team' && <JobTeamTab bookingId={booking.id} />}
         {activeTab === 'Photos' && <JobPhotosTab bookingId={booking.id} />}
         {activeTab === 'Costs' && <JobCostsTab bookingId={booking.id} />}
-        {activeTab === 'Time' && <JobTimeTab bookingId={booking.id} bookingLabel={booking.client || booking.booking_number || 'Det här jobbet'} timeReports={bookingData?.my_time_reports} />}
+        {activeTab === 'Time' && <JobTimeTab bookingId={booking.id} bookingLabel={booking.title || booking.client || booking.booking_number || 'Det här jobbet'} timeReports={bookingData?.my_time_reports} canReportTime={canReportTime} />}
       </div>
 
-      <div className="px-4 pb-4">
-        <Button
-          onClick={() => navigate(`/m/job/${id}/complete`)}
-          variant="outline"
-          className="w-full h-12 rounded-xl border-primary text-primary font-semibold text-base"
-        >
-          <CheckCircle2 className="w-5 h-5 mr-2" />
-          Complete job
-        </Button>
-      </div>
+      {isAssigned && (
+        <div className="px-4 pb-4">
+          <Button
+            onClick={() => navigate(`/m/job/${id}/complete`)}
+            variant="outline"
+            className="w-full h-12 rounded-xl border-primary text-primary font-semibold text-base"
+          >
+            <CheckCircle2 className="w-5 h-5 mr-2" />
+            Slutför jobb
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

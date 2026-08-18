@@ -36,6 +36,15 @@ export function useMobileBookings() {
   });
 }
 
+
+export function useMobileJobCatalog() {
+  return useQuery({
+    queryKey: ['mobile-job-catalog'],
+    queryFn: () => mobileApi.getJobCatalog(),
+    staleTime: STALE_TIME,
+  });
+}
+
 export function useMobileTimeReports() {
   return useQuery({
     queryKey: ['mobile-time-reports'],
@@ -100,6 +109,7 @@ export function useInvalidateMobileData() {
   return {
     invalidateTimeReports: () => queryClient.invalidateQueries({ queryKey: ['mobile-time-reports'] }),
     invalidateBookings: () => queryClient.invalidateQueries({ queryKey: ['mobile-bookings'] }),
+    invalidateJobCatalog: () => queryClient.invalidateQueries({ queryKey: ['mobile-job-catalog'] }),
     invalidatePurchases: () => queryClient.invalidateQueries({ queryKey: ['mobile-purchases'] }),
     invalidateTravelLogs: () => queryClient.invalidateQueries({ queryKey: ['mobile-travel-logs'] }),
     invalidateBookingDetails: (id?: string) => 
