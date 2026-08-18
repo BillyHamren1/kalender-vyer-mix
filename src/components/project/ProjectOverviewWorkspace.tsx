@@ -217,29 +217,6 @@ const ProjectOverviewWorkspace = ({ project, tasks, bookingId, onAddTask, onUpda
           )}
         </Card>
       </div>
-
-
-      <QuickPlanningItemDialog
-        open={quickDialogOpen}
-        onOpenChange={setQuickDialogOpen}
-        mode={quickMode}
-        bookingId={bookingId}
-        defaultDate={rigDate || eventDate}
-        staffPool={staffPool}
-        onCreated={refreshPlanning}
-      />
-
-      <ActivityPlannerSheet
-        open={plannerOpen}
-        onOpenChange={setPlannerOpen}
-        bookingId={bookingId || undefined}
-        bookingName={booking?.booking_number || booking?.client || project.client || undefined}
-        products={bookingPlanningData?.products || []}
-        defaultDate={rigDate || eventDate}
-        staffPool={staffPool}
-        existingTasks={analytics.tasks}
-        onTaskCreated={refreshPlanning}
-      />
     </div>
   );
 };
