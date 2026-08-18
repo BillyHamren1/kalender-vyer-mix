@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { PLANNING_SSO_START_EVENT, PLANNING_SSO_SETTLED_EVENT } from '@/hooks/useSsoListener';
 
 interface AuthContextType {
   user: User | null;
@@ -33,8 +34,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSsoUser, setIsSsoUser] = useState(false);
+  const [ssoPending, setSsoPending] = useState(() => {
+    try { return window.parent !== window; } catch { return true; }
+  });
 
   useEffect(() => {
+    const onSsoStart = () => setSsoPending(true);
+    const onSsoSettled = () => setSsoPending(false);
+    window.addEventListener(PLANNING_SSO_START_EVENT, onSsoStart);
+    window.addEventListener(PLANNING_SSO_SETTLED_EVENT, onSsoSettled);
+
+    // Embedded HUB mode must not redirect to /auth while postMessage SSO is in flight.
+    // If no HUB token arrives at all, release the gate after a real timeout so standalone
+    // iframe/debug usage is still recoverable without a transient login flash.
+    const ssoBootstrapTimeout = window.setTimeout(() => setSsoPending(false), 15_000);
+
     // Check if this is an SSO user from sessionStorage
     const checkSsoUser = () => {
       const ssoFlag = sessionStorage.getItem('isSsoUser') === 'true';
@@ -125,7 +139,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     loadSession();
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      window.clearTimeout(ssoBootstrapTimeout);
+      window.removeEventListener(PLANNING_SSO_START_EVENT, onSsoStart);
+      window.removeEventListener(PLANNING_SSO_SETTLED_EVENT, onSsoSettled);
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
@@ -156,7 +175,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const value = {
     user,
     session,
-    isLoading,
+    isLoading: isLoading || ssoPending,
     isSsoUser,
     signIn,
     signOut,
