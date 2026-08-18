@@ -9,16 +9,24 @@ import {
 
 
 const HUB_ALLOWED_ORIGINS = [
-  'https://619bc35d-e2d6-4874-822e-21a151f48315.lovableproject.com',
+  'https://e-flow.se',
+  'https://www.e-flow.se',
+  'https://eventflow-harmony-hub.lovable.app',
   'https://id-preview--619bc35d-e2d6-4874-822e-21a151f48315.lovable.app',
-  'https://preview--eventflow-hub.lovable.app',
-  'https://eventflow-hub.lovable.app',
+  'https://619bc35d-e2d6-4874-822e-21a151f48315.lovableproject.com',
   'http://localhost:5173',
   'http://localhost:8080',
   'http://localhost:3000',
 ];
 
+// Origin som HUB faktiskt skickade senaste SSO/preferences-meddelandet från.
+// Svar (SSO_ACK/SSO_ERROR) ska alltid gå tillbaka dit, aldrig till en hårdkodad URL.
+let lastHubMessageOrigin: string | null = null;
+
 function getHubParentOrigin(): string | null {
+  if (lastHubMessageOrigin && HUB_ALLOWED_ORIGINS.includes(lastHubMessageOrigin)) {
+    return lastHubMessageOrigin;
+  }
   try {
     const origin = document.referrer ? new URL(document.referrer).origin : null;
     return origin && HUB_ALLOWED_ORIGINS.includes(origin) ? origin : null;
@@ -26,6 +34,7 @@ function getHubParentOrigin(): string | null {
     return null;
   }
 }
+
 
 interface SsoPreferences {
   language?: string;
