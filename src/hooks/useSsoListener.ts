@@ -305,6 +305,10 @@ export function useSsoListener() {
         return;
       }
       const data = event.data;
+      if (data?.type === 'SSO_TOKEN' || data?.type === 'PREFERENCES_UPDATE') {
+        lastHubMessageOrigin = event.origin;
+      }
+
       
       // Handle SSO_TOKEN message
       if (data?.type === 'SSO_TOKEN') {
