@@ -1,28 +1,33 @@
 /**
- * EstablishmentPage — vanliga single-booking-projekt.
- * --------------------------------------------------------------------------
- * Använder LEGACY `ProjectCalendarView` (single-booking only). Stora projekt
- * har en separat sida: `LargeEstablishmentPage` med
- * `LargeProjectBookingPlannerCalendar`. Blanda inte ihop dem — projekt-
- * kalendern och personalkalendern är hårt separerade.
+ * EstablishmentPage — enkel operativ planering för vanliga single-booking-projekt.
+ *
+ * UX-princip:
+ * - Tidslinjen är standardvyn: vad händer, när och vem ansvarar.
+ * - Kalendern är en alternativ vy av samma genomförande och behåller befintlig kalenderfunktionalitet.
+ * - Personal ligger separat och ska inte dominera den dagliga projektplaneringen.
+ * - Bokningens produkter kan användas som underlag för verkliga bygg-/etableringsmoment.
  */
-import { useState, useMemo, useCallback, useEffect } from "react";
-import { useOutletContext, useNavigate, useLocation } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { Card } from "@/components/ui/card";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate, useOutletContext } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { List, Users, ListChecks } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { CalendarDays, HardHat, PackagePlus, Plus, Users } from "lucide-react";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
 import ProjectCalendarView from "@/components/project/ProjectCalendarView";
-import PlanningTaskList from "@/components/project/planning/PlanningTaskList";
-import PlanningFilterBar, { applyFilters, hasActiveFilters, EMPTY_FILTERS, type PlanningFilters } from "@/components/project/planning/PlanningFilterBar";
 import PeopleOverview from "@/components/project/planning/PeopleOverview";
 import ProjectPlanningHeader from "@/components/project/ProjectPlanningHeader";
+import SimplePlanningTimeline from "@/components/project/planning/SimplePlanningTimeline";
+import QuickPlanningItemDialog, { type QuickPlanningMode } from "@/components/project/planning/QuickPlanningItemDialog";
+import ActivityPlannerSheet from "@/components/project/ActivityPlannerSheet";
 import { useBookingTaskAnalytics } from "@/hooks/useBookingTaskAnalytics";
+import { fetchEstablishmentBookingData } from "@/services/establishmentPlanningService";
 import { supabase } from "@/integrations/supabase/client";
+import type { EstablishmentTask } from "@/services/establishmentTaskService";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 
-type ViewMode = "list" | "people";
+ type ViewMode = "timeline" | "calendar" | "people";
 
 interface SelectedTask {
   id: string;
@@ -38,38 +43,18 @@ const EstablishmentPage = () => {
   const { project } = detail;
   const booking = project?.booking;
   const bookingId = booking?.id || project?.booking_id || null;
-  const [selectedTask, setSelectedTask] = useState<SelectedTask | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
 
-  useEffect(() => {
-    const tid = (location.state as any)?.highlightTaskId;
-    if (tid) {
-      window.history.replaceState({}, document.title);
-      supabase
-        .from("establishment_tasks")
-        .select("id, title, category, start_date, end_date, completed")
-        .eq("id", tid)
-        .single()
-        .then(({ data }) => {
-          if (data) {
-            setSelectedTask({
-              id: data.id,
-              title: data.title,
-              category: data.category,
-              startDate: new Date(data.start_date),
-              endDate: new Date(data.end_date),
-              completed: data.completed ?? false,
-            });
-            setSheetOpen(true);
-          }
-        });
-    }
-  }, [location.state]);
+  const [viewMode, setViewMode] = useState<ViewMode>("timeline");
+  const [selectedTask, setSelectedTask] = useState<SelectedTask | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [quickDialogOpen, setQuickDialogOpen] = useState(false);
+  const [quickMode, setQuickMode] = useState<QuickPlanningMode>("moment");
+  const [plannerOpen, setPlannerOpen] = useState(false);
 
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
-  const [filters, setFilters] = useState<PlanningFilters>(EMPTY_FILTERS);
+  const defaultDate = booking?.rigdaydate || booking?.eventdate || null;
 
   const { data: staffPool = [] } = useQuery({
     queryKey: ["booking-staff-pool", bookingId],
@@ -78,135 +63,198 @@ const EstablishmentPage = () => {
         .from("booking_staff_assignments")
         .select("staff_id")
         .eq("booking_id", bookingId!);
-
       const uniqueIds = [...new Set((data || []).map((r) => r.staff_id))];
       if (uniqueIds.length === 0) return [];
-
       const { data: staffData } = await supabase
         .from("staff_members")
         .select("id, name")
         .in("id", uniqueIds)
         .order("name");
-
       return staffData || [];
     },
     enabled: !!bookingId,
   });
 
+  const { data: bookingPlanningData } = useQuery({
+    queryKey: ["establishment-booking-data", bookingId],
+    queryFn: () => fetchEstablishmentBookingData(bookingId!),
+    enabled: !!bookingId,
+    staleTime: 60_000,
+  });
+
   const { analytics } = useBookingTaskAnalytics(bookingId);
 
-  const filteredTasks = useMemo(() => {
-    if (!hasActiveFilters(filters)) return analytics.tasks;
-    return applyFilters(analytics.tasks, filters);
-  }, [analytics.tasks, filters]);
+  const refreshPlanning = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["establishment-tasks-analytics-booking", bookingId] });
+    queryClient.invalidateQueries({ queryKey: ["establishment-tasks", bookingId] });
+    queryClient.invalidateQueries({ queryKey: ["project-task-calendar-events"] });
+    queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+  }, [bookingId, queryClient]);
 
-  const handleTaskClick = useCallback((task: SelectedTask) => {
-    setSelectedTask(task);
+  const openTask = useCallback((task: EstablishmentTask | SelectedTask) => {
+    setSelectedTask({
+      id: task.id,
+      title: task.title,
+      category: task.category,
+      startDate: new Date((task as EstablishmentTask).start_date || (task as SelectedTask).startDate),
+      endDate: new Date((task as EstablishmentTask).end_date || (task as SelectedTask).endDate),
+      completed: task.completed,
+    });
     setSheetOpen(true);
   }, []);
 
-  const handleOpenInChat = useCallback(
-    (taskId: string, taskTitle: string) => {
-      setSheetOpen(false);
-      navigate("..", { state: { linkedTaskRef: { taskId, taskTitle } } });
-    },
-    [navigate]
-  );
+  useEffect(() => {
+    const tid = (location.state as any)?.highlightTaskId;
+    if (!tid) return;
+    window.history.replaceState({}, document.title);
+    supabase
+      .from("establishment_tasks")
+      .select("id, title, category, start_date, end_date, completed")
+      .eq("id", tid)
+      .single()
+      .then(({ data }) => {
+        if (data) openTask(data as any);
+      });
+  }, [location.state, openTask]);
 
-  const handleControlPanelTaskClick = useCallback(
-    (taskId: string) => {
-      const task = analytics.tasks.find((t) => t.id === taskId);
-      if (task) {
-        setSelectedTask({
-          id: task.id,
-          title: task.title,
-          category: task.category,
-          startDate: new Date(task.start_date),
-          endDate: new Date(task.end_date),
-          completed: task.completed,
-        });
-        setSheetOpen(true);
-      }
-    },
-    [analytics.tasks]
-  );
+  const handleOpenInChat = useCallback((taskId: string, taskTitle: string) => {
+    setSheetOpen(false);
+    navigate("..", { state: { linkedTaskRef: { taskId, taskTitle } } });
+  }, [navigate]);
+
+  const openQuick = (mode: QuickPlanningMode) => {
+    setQuickMode(mode);
+    setQuickDialogOpen(true);
+  };
+
+  const progressText = useMemo(() => {
+    if (analytics.total === 0) return "Ingen planering skapad";
+    return `${analytics.completed} av ${analytics.total} klara`;
+  }, [analytics.completed, analytics.total]);
 
   if (!project) return null;
-
-  const planningPanel = (
-    <Card className="flex h-full min-h-[600px] flex-col overflow-hidden border-border/60">
-      <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-primary/5 px-3 py-2">
-        <div className="flex items-center gap-1.5 text-sm font-semibold">
-          <ListChecks className="h-4 w-4 text-primary" />
-          Planera projektet
-        </div>
-        <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
-          <Button
-            variant={viewMode === "list" ? "default" : "ghost"}
-            size="sm"
-            className="h-7 px-2.5 text-xs gap-1"
-            onClick={() => setViewMode("list")}
-          >
-            <List className="h-3.5 w-3.5" />
-            Lista
-          </Button>
-          <Button
-            variant={viewMode === "people" ? "default" : "ghost"}
-            size="sm"
-            className="h-7 px-2.5 text-xs gap-1"
-            onClick={() => setViewMode("people")}
-          >
-            <Users className="h-3.5 w-3.5" />
-            Personal
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-auto p-2 space-y-2">
-        <PlanningFilterBar
-          tasks={analytics.tasks}
-          filters={filters}
-          onFiltersChange={setFilters}
-          staffPool={staffPool}
-          filteredCount={filteredTasks.length}
-        />
-        {viewMode === "list" ? (
-          <PlanningTaskList
-            tasks={filteredTasks}
-            staffPool={staffPool}
-            onTaskClick={handleTaskClick}
-            bookingId={bookingId}
-          />
-        ) : (
-          <PeopleOverview
-            analytics={analytics}
-            staffPool={staffPool}
-            onTaskClick={handleControlPanelTaskClick}
-          />
-        )}
-      </div>
-    </Card>
-  );
-
-  const totalTasks = analytics.tasks.length;
-  const completedTasks = analytics.tasks.filter((task) => task.completed).length;
 
   return (
     <div className="space-y-4">
       <ProjectPlanningHeader
         title="Planering"
-        description="Projektets operativa arbetsyta. Kalendern och aktivitetslistan visar samma genomförande ur två perspektiv utan att ändra kalenderns befintliga funktioner."
+        description="Planera etablering, byggmoment, tider och kalenderhändelser. Börja enkelt i tidslinjen och öppna kalender eller personal först när du behöver det."
         bookingCount={1}
-        taskCount={totalTasks}
-        completedCount={completedTasks}
+        taskCount={analytics.total}
+        completedCount={analytics.completed}
         modeLabel="Enskild leverans"
       />
-      <ProjectCalendarView
-        projectId={project.id}
+
+      <Card className="border-border/60 shadow-sm">
+        <div className="flex flex-col gap-3 p-3 sm:p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={() => openQuick("moment")} className="gap-1.5">
+              <Plus className="h-4 w-4" />
+              Nytt moment
+            </Button>
+            <Button variant="outline" onClick={() => setPlannerOpen(true)} className="gap-1.5">
+              <PackagePlus className="h-4 w-4" />
+              Planera från bokningen
+            </Button>
+            <Button variant="outline" onClick={() => openQuick("calendar")} className="gap-1.5">
+              <CalendarDays className="h-4 w-4" />
+              Kalenderhändelse
+            </Button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="h-8 px-3 font-normal text-muted-foreground">{progressText}</Badge>
+            <div className="flex rounded-lg border border-border/60 bg-muted/25 p-1">
+              <Button
+                variant={viewMode === "timeline" ? "default" : "ghost"}
+                size="sm"
+                className="h-8 gap-1.5 px-3"
+                onClick={() => setViewMode("timeline")}
+              >
+                <HardHat className="h-3.5 w-3.5" /> Tidslinje
+              </Button>
+              <Button
+                variant={viewMode === "calendar" ? "default" : "ghost"}
+                size="sm"
+                className="h-8 gap-1.5 px-3"
+                onClick={() => setViewMode("calendar")}
+              >
+                <CalendarDays className="h-3.5 w-3.5" /> Kalender
+              </Button>
+              <Button
+                variant={viewMode === "people" ? "default" : "ghost"}
+                size="sm"
+                className="h-8 gap-1.5 px-3"
+                onClick={() => setViewMode("people")}
+              >
+                <Users className="h-3.5 w-3.5" /> Personal
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {viewMode === "timeline" && (
+        <SimplePlanningTimeline
+          tasks={analytics.tasks}
+          staffPool={staffPool}
+          onTaskClick={openTask}
+          onCreateMoment={() => openQuick("moment")}
+          onPlanFromBooking={() => setPlannerOpen(true)}
+        />
+      )}
+
+      {viewMode === "calendar" && (
+        <div className="space-y-2">
+          <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+            Kalendern visar genomförandet visuellt. Team- och resursverktygen är kvar här men ligger inte längre i projektets standardvy.
+          </div>
+          <ProjectCalendarView
+            projectId={project.id}
+            bookingId={bookingId}
+            isLargeProject={false}
+            compactHeader
+          />
+        </div>
+      )}
+
+      {viewMode === "people" && (
+        <Card className="border-border/60 p-3 sm:p-4 shadow-sm">
+          <div className="mb-3">
+            <h3 className="text-sm font-semibold">Personal</h3>
+            <p className="text-xs text-muted-foreground">Se vem som ansvarar för vad. Själva bemanningen fortsätter följa projektets befintliga personalregler.</p>
+          </div>
+          <PeopleOverview
+            analytics={analytics}
+            staffPool={staffPool}
+            onTaskClick={(taskId) => {
+              const task = analytics.tasks.find((t) => t.id === taskId);
+              if (task) openTask(task);
+            }}
+          />
+        </Card>
+      )}
+
+      <QuickPlanningItemDialog
+        open={quickDialogOpen}
+        onOpenChange={setQuickDialogOpen}
+        mode={quickMode}
         bookingId={bookingId}
-        isLargeProject={false}
-        compactHeader
-        rightPanel={planningPanel}
+        defaultDate={defaultDate}
+        staffPool={staffPool}
+        onCreated={refreshPlanning}
+      />
+
+      <ActivityPlannerSheet
+        open={plannerOpen}
+        onOpenChange={setPlannerOpen}
+        bookingId={bookingId || undefined}
+        bookingName={booking?.booking_number || booking?.client || undefined}
+        products={bookingPlanningData?.products || []}
+        defaultDate={defaultDate}
+        staffPool={staffPool}
+        existingTasks={analytics.tasks}
+        onTaskCreated={refreshPlanning}
       />
 
       <EstablishmentTaskDetailSheet
@@ -215,7 +263,7 @@ const EstablishmentPage = () => {
         task={selectedTask}
         bookingId={bookingId}
         staffPool={staffPool}
-        projectId={project?.id}
+        projectId={project.id}
         onOpenInChat={handleOpenInChat}
       />
     </div>
