@@ -218,19 +218,8 @@ const ProjectDashboardWidgets = () => {
         ))}
       </div>
 
-      {closingCount > 0 && (
-        <Card className="border-amber-300/70 bg-amber-50/50 dark:bg-amber-950/10">
-          <CardContent className="p-4 flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-amber-700 dark:text-amber-400 mt-0.5" />
-            <div>
-              <h3 className="text-sm font-semibold">Behöver uppmärksamhet</h3>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                {closingCount} projekt har passerat eventdatum men är inte avslutade. Kontrollera efterarbete, ekonomi och avslut.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+
+
 
       {/* Projektledarens prioritering – vad behöver göras och vad kommer närmast? */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
