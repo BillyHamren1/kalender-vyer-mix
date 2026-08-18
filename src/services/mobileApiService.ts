@@ -118,7 +118,8 @@ export interface MobileBooking {
   large_project_id: string | null;
   large_project_name: string | null;
   assignment_dates: string[];
-  assignment_type?: 'scheduled' | 'project_member';
+  assignment_type?: 'scheduled' | 'project_member' | 'organization_catalog';
+  title?: string | null;
 }
 
 export interface MobileTimeReport {
@@ -313,6 +314,7 @@ const RETRYABLE_ACTIONS: ReadonlySet<string> = new Set([
   'login',
   'me',
   'get_bookings',
+  'get_job_catalog',
   'get_inbox_jobs',
   'get_inbox_all',
   'get_booking_details',
@@ -519,12 +521,14 @@ export const mobileApi = {
 
   getBookings: () => callApi<{ bookings: MobileBooking[]; shifts?: ScheduledShift[] }>('get_bookings'),
 
+  getJobCatalog: () => callApi<{ bookings: MobileBooking[]; shifts: ScheduledShift[] }>('get_job_catalog'),
+
   getInboxJobs: () => callApi<{ bookings: { id: string; client: string; status: string; rigdaydate: string | null; eventdate: string | null; rigdowndate: string | null }[] }>('get_inbox_jobs'),
 
   getInboxAll: () => callApi<{ conversations: any[]; broadcasts: any[]; bookings: any[] }>('get_inbox_all'),
 
   getBookingDetails: (bookingId: string) =>
-    callApi<{ booking: any; planning?: any; project?: any; my_time_reports?: any[]; establishment_tasks?: any[] }>('get_booking_details', { booking_id: bookingId }),
+    callApi<{ booking: any; planning?: any; project?: any; my_time_reports?: any[]; establishment_tasks?: any[]; access?: { is_assigned: boolean; can_report_time: boolean } }>('get_booking_details', { booking_id: bookingId }),
 
   getTimeReports: () => callApi<{ time_reports: MobileTimeReport[] }>('get_time_reports'),
 

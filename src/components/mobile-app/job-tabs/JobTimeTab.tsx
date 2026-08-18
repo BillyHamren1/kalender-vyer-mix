@@ -10,9 +10,10 @@ interface JobTimeTabProps {
   bookingId: string;
   bookingLabel?: string;
   timeReports?: any[];
+  canReportTime?: boolean;
 }
 
-const JobTimeTab = ({ bookingId, bookingLabel = 'Det här jobbet', timeReports }: JobTimeTabProps) => {
+const JobTimeTab = ({ bookingId, bookingLabel = 'Det här jobbet', timeReports, canReportTime = true }: JobTimeTabProps) => {
   const [quickEntryOpen, setQuickEntryOpen] = useState(false);
   const reports: MobileTimeReport[] = (timeReports || []).filter(
     (r: any) => r.booking_id === bookingId
@@ -22,14 +23,21 @@ const JobTimeTab = ({ bookingId, bookingLabel = 'Det här jobbet', timeReports }
 
   return (
     <div className="space-y-3">
-      <Button
-        type="button"
-        onClick={() => setQuickEntryOpen(true)}
-        className="w-full h-12 rounded-xl text-sm font-semibold"
-      >
-        <Plus className="w-4 h-4 mr-2" />
-        Rapportera tid på jobbet
-      </Button>
+      {canReportTime ? (
+        <Button
+          type="button"
+          onClick={() => setQuickEntryOpen(true)}
+          className="w-full h-12 rounded-xl text-sm font-semibold"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Rapportera tid på jobbet
+        </Button>
+      ) : (
+        <div className="rounded-xl border border-border bg-muted/40 p-3">
+          <p className="text-xs font-semibold text-foreground">Jobbinformation</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">Du kan läsa jobbet, men tid rapporteras bara på jobb du är bemannad på.</p>
+        </div>
+      )}
 
       {reports.length === 0 ? (
         <div className="text-center py-8 rounded-xl border border-dashed">
@@ -76,11 +84,11 @@ const JobTimeTab = ({ bookingId, bookingLabel = 'Det här jobbet', timeReports }
         </>
       )}
 
-      <QuickTimeEntrySheet
+      {canReportTime && <QuickTimeEntrySheet
         open={quickEntryOpen}
         onOpenChange={setQuickEntryOpen}
         fixedTarget={{ type: 'booking', id: bookingId, label: bookingLabel }}
-      />
+      />}
     </div>
   );
 };

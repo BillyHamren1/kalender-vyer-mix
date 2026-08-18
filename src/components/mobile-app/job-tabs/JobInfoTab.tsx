@@ -418,6 +418,22 @@ const JobInfoTab = ({ booking, bookingId, establishmentTasks, onCommentsUpdated,
         </div>
       )}
 
+
+      {(booking.exact_time_needed || booking.exact_time_info || booking.ground_nails_allowed !== null || booking.carry_more_than_10m !== null) && (
+        <div className="rounded-xl border bg-card p-3 space-y-2">
+          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Praktisk information</p>
+          {booking.exact_time_needed && (
+            <InfoRow label="Exakt tid krävs" value={booking.exact_time_info || 'Ja'} icon={Clock} />
+          )}
+          {booking.ground_nails_allowed !== null && booking.ground_nails_allowed !== undefined && (
+            <InfoRow label="Markspik" value={booking.ground_nails_allowed ? 'Tillåtet' : 'Inte tillåtet'} icon={CheckSquare} />
+          )}
+          {booking.carry_more_than_10m !== null && booking.carry_more_than_10m !== undefined && (
+            <InfoRow label="Bärväg över 10 m" value={booking.carry_more_than_10m ? 'Ja' : 'Nej'} icon={Package} />
+          )}
+        </div>
+      )}
+
       {/* Team vehicles for this booking's dates */}
       {Array.isArray((booking as any).team_vehicles) && (booking as any).team_vehicles.length > 0 && (
         <div className="rounded-xl border bg-card p-3">
