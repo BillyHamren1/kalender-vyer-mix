@@ -29,7 +29,7 @@ describe('manuell avbokning (människa bekräftar)', () => {
 
 describe('booking-cancellation-watch', () => {
   it('läser booking_changes med tabellens verkliga tidskolumn', () => {
-    expect(REVISION).toContain(".select('change_type, new_values, changed_at')");
+    expect(REVISION).toContain(".select('change_type, new_values, created_at:changed_at')");
     expect(REVISION).toContain(".order('changed_at', { ascending: false })");
     expect(REVISION).not.toContain(".select('change_type, new_values, created_at')");
   });
