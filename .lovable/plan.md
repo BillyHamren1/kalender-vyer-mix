@@ -1,34 +1,44 @@
-# Avbokade bokningar ligger kvar i "Nya bokningar"
+# Avbokade bokningar ska synas som avbokade — inte ligga kvar som nya
 
 ## Vad jag ser i systemet
 
-Bokning `#2608-43` ("11 - TEST - !!") ligger lokalt kvar med status `CONFIRMED`, utan projekt och utan koppling till stort projekt. Därför visas den korrekt (enligt nuvarande regler) i listan "Nya bokningar".
+Bokning `#2608-43` ("11 - TEST - !!") ligger lokalt kvar med status `CONFIRMED`, utan projekt och utan koppling till stort projekt. Därför visas den i listan "Nya bokningar" med grön "Placera"-knapp.
 
-Orsaken till att den inte blivit avbokad lokalt är en medveten säkerhetsspärr som lades in efter incidenten då ~80 bokningar massavbokades av misstag:
+Orsaken: efter incidenten då ~80 bokningar massavbokades av misstag spärrades all automatisk avbokning:
 
-- Normal sync (`import-bookings`) utför **aldrig** avbokning. Den loggar bara en "cancellation candidate".
-- Den aktiva avbokningsreconcilern (`reconcile-booking-status`) kräver miljöflaggan `AUTOMATIC_DESTRUCTIVE_SYNC_ENABLED=true`, som är avstängd, och har hård gräns på 1 avbokning per körning.
-- Det finns **ingen UI-väg** för att godkänna en kandidat manuellt. Alltså fastnar varje extern avbokning i limbo.
+- Normal sync (`import-bookings`) utför aldrig avbokning — den loggar bara en "cancellation candidate".
+- Reconcilern (`reconcile-booking-status`) kräver miljöflaggan `AUTOMATIC_DESTRUCTIVE_SYNC_ENABLED=true` (avstängd) och har hård gräns 1 avbokning/körning.
+- Det finns ingen UI-väg för att se eller godkänna kandidaterna → avbokningar fastnar i limbo.
 
-Att den externa bokningen verkligen är avbokad är ännu inte bekräftat mot API:t — det blir steg 1.
+## Så här ska det fungera
 
-## Förslag: manuell, säker avbokningsväg (människa i loopen)
+En avbokning i bokningssystemet ska alltid **synas** i planeringen, i samma inkorg som uppdaterade bokningar:
 
-Behåll spärren mot automatisk massavbokning, men gör kandidaterna synliga och åtgärdbara.
+```text
+Inkommande bokningar
+  Uppdaterade · kräver granskning
+    ● Kund AB    #2608-43    AVBOKAD I BOOKING   [ Granska ]
+  Nya bokningar · ska placeras
+    ● Drivex AB  #2608-44                        [ Placera ]
+```
 
-1. **Verifiera källan**: kör `reconcile-booking-status` i dry-run för organisationen och bekräfta att `#2608-43` rapporteras som CANCELLED externt.
-2. **Ny explicit apply-väg**: lägg till action `apply_cancellation` i `reconcile-booking-status` som tar EN `booking_id`, hämtar extern status på nytt, kräver att den är CANCELLED, och kör `applyBookingCancellation` (samma single source of truth). Ingen batch, ingen flagga behövs, allt loggas.
-3. **Synliggör i planeringen**: i "Nya bokningar"/"Inkommande bokningar" markeras bokningar som är avbokade i bokningssystemet med röd rad + badge "Avbokad i bokning", istället för grön "Placera"-rad. Knappen blir "Avboka här" (bekräftelsedialog med bokningsnummer).
-4. **Kandidatkälla**: lätt statuskontroll per synlig kandidat via samma dry-run-läge (inga skrivningar), så listan kan flagga rätt rader utan att förlita sig på cron.
-5. **Test**: utöka befintlig kontraktstestsvit med fall för `apply_cancellation` (fel om extern status ≠ CANCELLED, idempotent om redan avbokad lokalt, max 1 bokning per anrop) och kör hela sync-sviten.
+1. **Avbokade bokningar lämnar "Nya bokningar"** och hamnar i sektionen "Uppdaterade / kräver granskning" med röd accent och badge "Avbokad i booking".
+2. **Granska-dialogen** för en avbokad bokning visar tydligt "Bokningen är avbokad i bokningssystemet" plus datum/kund, och har en primärknapp "Bekräfta avbokning" som faktiskt avbokar lokalt (projekt/jobb/kalenderposter/packning stängs via befintlig `applyBookingCancellation`).
+3. **Ingen tyst massavbokning**: en människa bekräftar per bokning. Automatflaggan förblir avstängd.
 
-## Teknisk detalj
+## Så upptäcks avbokningarna
 
-- `supabase/functions/reconcile-booking-status/index.ts`: ny action, org-verifierad via `tenantGuard`, återanvänder `fetchExternalStatus` + `parseSingleBookingSourceResponse` + `evaluateDestructiveAction`.
-- `supabase/functions/_shared/cancellation-handler.ts`: oförändrad — enda skrivvägen.
-- `src/components/project/IncomingBookingsList.tsx`: ny visuell status + bekräftelsedialog; ingen ändring av placeringsflödet.
-- Automatflaggan förblir avstängd; ingen massavbokning möjlig.
+- `reconcile-booking-status` körs redan via cron och känner igen mismatchen. Istället för att bara logga kandidaten ska den skriva ner den som en synlig post (kandidatlista per organisation) som planeringens inkorg läser.
+- Kandidaten lagras som en bokningsändring av typen `status → CANCELLED`, så den plockas upp av den befintliga "osedda uppdateringar"-mekaniken (`get_unseen_booking_updates`) och försvinner när den granskats/bekräftats.
 
-## Alternativ (om du hellre vill)
+## Tekniskt
 
-Slå på automatiken igen med höjd men begränsad gräns (t.ex. 5/körning) så avbokningar går igenom av sig själva. Snabbare, men återinför risken från incidenten. Jag rekommenderar den manuella vägen ovan.
+- `supabase/functions/reconcile-booking-status/index.ts`: när extern status = CANCELLED och lokal ≠ CANCELLED → registrera kandidat (booking_changes-rad + markering på bokningen), fortfarande utan destruktiv mutation.
+- Ny action `apply_cancellation` (en `booking_id` per anrop, org-verifierad, hämtar extern status på nytt och kräver CANCELLED) som anropar `applyBookingCancellation` i `_shared/cancellation-handler.ts` — enda skrivvägen, oförändrad.
+- `src/components/project/IncomingBookingsList.tsx`: filtrera bort avbokningskandidater ur "Nya"; rendera dem i uppdateringssektionen med röd accent + badge.
+- `src/components/project/ProjectUpdateDialog.tsx`: avbokningsläge med "Bekräfta avbokning".
+- Tester: kontraktstest för `apply_cancellation` (fel om extern status ≠ CANCELLED, idempotent om redan avbokad, max 1 bokning/anrop) + test att avbokade kandidater aldrig visas som "ny bokning". Kör sync-sviten efteråt.
+
+## Verifiering efter bygget
+
+Kör reconcilern mot organisationen, kontrollera att `#2608-43` flyttas från "Nya bokningar" till "Uppdaterade · avbokad", bekräfta avbokningen och verifiera i databasen att status blir CANCELLED och att kalender/projekt städas.
