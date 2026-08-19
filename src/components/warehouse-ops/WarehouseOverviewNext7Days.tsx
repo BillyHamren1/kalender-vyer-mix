@@ -131,9 +131,13 @@ function buildRows(data: OpsRangeData): WeekRow[] {
     }
 
     // Ett aktivt jobb får aldrig försvinna ur arbetsveckan bara för att planeringen saknar dagens rad.
-    if (ACTIVE_STATUSES.has(job.status)) {
+    // Men redan nedriggade jobb (sista datum har passerat) ska inte ligga kvar på dagens rad.
+    const lastDate = job.endDate || job.anchorDate;
+    const alreadyRiggedDown = !!lastDate && lastDate < firstDay;
+    if (ACTIVE_STATUSES.has(job.status) && !alreadyRiggedDown) {
       rows.push({ key: `${job.id}-${firstDay}-active`, date: firstDay, job, assignedStaff: [] });
     }
+
   }
 
   return rows.sort((a, b) => {
