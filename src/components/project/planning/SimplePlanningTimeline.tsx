@@ -99,6 +99,7 @@ const SimplePlanningTimeline = ({ tasks, staffPool, products = [], onTaskClick, 
                 {dayTasks.map((task) => {
                   const person = staffName(task);
                   const isCalendar = task.source === "calendar_manual" || task.category?.toLowerCase() === "kalender";
+                  const items = taskProducts(task);
                   return (
                     <button
                       key={task.id}
