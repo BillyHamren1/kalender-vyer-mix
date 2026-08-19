@@ -3328,7 +3328,8 @@ serve(async (req) => {
         incoming,
         ownerJobId: `import-bookings:${crypto.randomUUID()}`,
       });
-      if (reserved.ok && reserved.decision === 'already_current') {
+      const forceRevision = body?.force_revision === true;
+      if (reserved.ok && reserved.decision === 'already_current' && !forceRevision) {
         console.log('[import-bookings] revision already current — no mutation', JSON.stringify({
           booking_id: normalizedSingleBookingId, organization_id: organizationId,
         }));
@@ -3339,6 +3340,12 @@ serve(async (req) => {
           results: { total: 1, imported: 0, failed: 0, errors: [], sync_mode: 'revision_idempotent' },
         })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
       }
+      if (reserved.ok && reserved.decision === 'already_current' && forceRevision) {
+        console.warn('[import-bookings] force_revision=true — kör om trots already_current', JSON.stringify({
+          booking_id: normalizedSingleBookingId, organization_id: organizationId,
+        }));
+      }
+
       if (!reserved.ok) {
         console.error('[import-bookings] canonical revision guard blocked import', JSON.stringify({
           booking_id: normalizedSingleBookingId,
