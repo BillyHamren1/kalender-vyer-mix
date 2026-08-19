@@ -198,6 +198,7 @@ const EstablishmentPage = () => {
         <SimplePlanningTimeline
           tasks={analytics.tasks}
           staffPool={staffPool}
+          products={bookingPlanningData?.products || []}
           onTaskClick={openTask}
           onCreateMoment={() => openQuick("moment")}
           onPlanFromBooking={() => setPlannerOpen(true)}

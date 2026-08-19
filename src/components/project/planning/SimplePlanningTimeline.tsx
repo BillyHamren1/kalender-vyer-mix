@@ -1,21 +1,42 @@
 import { useMemo } from "react";
 import { format, isSameDay, parseISO } from "date-fns";
 import { sv } from "date-fns/locale";
-import { CalendarDays, CheckCircle2, ChevronRight, Clock3, HardHat, UserRound } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronRight, Clock3, HardHat, Package, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { EstablishmentTask } from "@/services/establishmentTaskService";
 
+interface TimelineProduct {
+  id: string;
+  name: string;
+  quantity?: number | null;
+}
+
 interface SimplePlanningTimelineProps {
   tasks: EstablishmentTask[];
   staffPool: Array<{ id: string; name: string }>;
+  products?: TimelineProduct[];
   onTaskClick: (task: EstablishmentTask) => void;
   onCreateMoment: () => void;
   onPlanFromBooking: () => void;
 }
 
-const SimplePlanningTimeline = ({ tasks, staffPool, onTaskClick, onCreateMoment, onPlanFromBooking }: SimplePlanningTimelineProps) => {
+const SimplePlanningTimeline = ({ tasks, staffPool, products = [], onTaskClick, onCreateMoment, onPlanFromBooking }: SimplePlanningTimelineProps) => {
+  const productMap = useMemo(() => {
+    const map = new Map<string, TimelineProduct>();
+    products.forEach((p) => map.set(p.id, p));
+    return map;
+  }, [products]);
+
+  const taskProducts = (task: EstablishmentTask): TimelineProduct[] => {
+    const ids = task.source_product_ids?.length
+      ? task.source_product_ids
+      : task.source_product_id
+        ? [task.source_product_id]
+        : [];
+    return ids.map((id) => productMap.get(id)).filter(Boolean) as TimelineProduct[];
+  };
   const sorted = useMemo(() => [...tasks].sort((a, b) => {
     const ad = `${a.start_date || "9999-12-31"}T${a.start_time || "23:59"}`;
     const bd = `${b.start_date || "9999-12-31"}T${b.start_time || "23:59"}`;
@@ -78,6 +99,7 @@ const SimplePlanningTimeline = ({ tasks, staffPool, onTaskClick, onCreateMoment,
                 {dayTasks.map((task) => {
                   const person = staffName(task);
                   const isCalendar = task.source === "calendar_manual" || task.category?.toLowerCase() === "kalender";
+                  const items = taskProducts(task);
                   return (
                     <button
                       key={task.id}
@@ -111,6 +133,24 @@ const SimplePlanningTimeline = ({ tasks, staffPool, onTaskClick, onCreateMoment,
                           {person && <span className="inline-flex items-center gap-1"><UserRound className="h-3 w-3" />{person}</span>}
                           {task.description && <span className="truncate max-w-[420px]">{task.description}</span>}
                         </div>
+
+                        {items.length > 0 && (
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                            <Package className="h-3 w-3 text-muted-foreground" />
+                            {items.slice(0, 6).map((item) => (
+                              <Badge key={item.id} variant="secondary" className="max-w-[260px] truncate text-[11px] font-normal">
+                                {item.quantity && item.quantity > 1 ? `${item.quantity} × ` : ""}{item.name}
+                              </Badge>
+                            ))}
+                            {items.length > 6 && (
+                              <span className="text-[11px] text-muted-foreground">+{items.length - 6} till</span>
+                            )}
+                          </div>
+                        )}
+
+                        {items.length === 0 && task.notes && (
+                          <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{task.notes}</div>
+                        )}
                       </div>
 
                       <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
