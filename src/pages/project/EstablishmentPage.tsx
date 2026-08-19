@@ -175,14 +175,6 @@ const EstablishmentPage = () => {
                 <HardHat className="h-3.5 w-3.5" /> Tidslinje
               </Button>
               <Button
-                variant={viewMode === "calendar" ? "default" : "ghost"}
-                size="sm"
-                className="h-8 gap-1.5 px-3"
-                onClick={() => setViewMode("calendar")}
-              >
-                <CalendarDays className="h-3.5 w-3.5" /> Kalender
-              </Button>
-              <Button
                 variant={viewMode === "gantt" ? "default" : "ghost"}
                 size="sm"
                 className="h-8 gap-1.5 px-3"
