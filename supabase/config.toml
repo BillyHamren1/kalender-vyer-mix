@@ -185,3 +185,6 @@ verify_jwt = false
 
 [functions.export-catering-staff]
 verify_jwt = false
+
+[functions.sync-operational-plan-to-booking]
+verify_jwt = false
