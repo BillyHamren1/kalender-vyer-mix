@@ -9,11 +9,13 @@ import {
   MapPin,
   Plus,
   ListTodo,
+  Truck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import TransportPlanningDialog from "@/components/logistics/TransportPlanningDialog";
 import type { ProjectTask } from "@/types/project";
 import type { ProjectWithBooking } from "@/types/project";
 
@@ -34,10 +36,11 @@ const dateLabel = (value?: string | null) => {
   }
 };
 
-const ProjectOverviewWorkspace = ({ project, tasks, onAddTask, onUpdateTask }: ProjectOverviewWorkspaceProps) => {
+const ProjectOverviewWorkspace = ({ project, tasks, bookingId, onAddTask, onUpdateTask }: ProjectOverviewWorkspaceProps) => {
   const navigate = useNavigate();
   const quickInput = useRef<HTMLInputElement>(null);
   const [todoTitle, setTodoTitle] = useState("");
+  const [transportOpen, setTransportOpen] = useState(false);
 
   const booking = project.booking;
   const rigDate = project.rigdaydate || booking?.rigdaydate || null;
@@ -73,6 +76,13 @@ const ProjectOverviewWorkspace = ({ project, tasks, onAddTask, onUpdateTask }: P
           <OverviewFact icon={HardHat} label="Nedrigg" value={dateLabel(rigDownDate)} />
           <OverviewFact icon={MapPin} label="Plats" value={address} compact />
         </div>
+        {bookingId && (
+          <div className="flex justify-end border-t border-border/50 bg-muted/10 px-4 py-3">
+            <Button variant="outline" className="gap-1.5" onClick={() => setTransportOpen(true)}>
+              <Truck className="h-4 w-4" /> Planera transport
+            </Button>
+          </div>
+        )}
       </Card>
 
       <div className="grid grid-cols-1 gap-4">
@@ -148,6 +158,12 @@ const ProjectOverviewWorkspace = ({ project, tasks, onAddTask, onUpdateTask }: P
           )}
         </Card>
       </div>
+      <TransportPlanningDialog
+        bookingId={bookingId}
+        open={transportOpen}
+        onOpenChange={setTransportOpen}
+        defaultDate={rigDate || eventDate}
+      />
     </div>
   );
 };

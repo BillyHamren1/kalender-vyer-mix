@@ -13,6 +13,7 @@ import {
   TransportEmailLogEntry,
 } from '@/hooks/useProjectTransport';
 import ProjectTransportBookingDialog from './ProjectTransportBookingDialog';
+import TransportPlanningDialog from '@/components/logistics/TransportPlanningDialog';
 
 interface ProjectTransportWidgetProps {
   bookingId: string | null | undefined;
@@ -26,6 +27,7 @@ const ProjectCard = ({
   cardBg,
   cardBorder,
   emailLogs,
+  onSetPlanningStatus,
 }: {
   assignment: ProjectTransportAssignment;
   expanded: boolean;
@@ -33,15 +35,15 @@ const ProjectCard = ({
   cardBg: string;
   cardBorder: string;
   emailLogs: TransportEmailLogEntry[];
+  onSetPlanningStatus: (status: 'preliminary' | 'confirmed') => void;
 }) => {
   const vehicle = assignment.vehicle;
   const isExternal = vehicle?.is_external ?? false;
   const response = assignment.partner_response;
 
-  const statusLabel = response === 'accepted' ? 'Accepterad' :
-    response === 'declined' ? 'Nekad' : 'Väntar';
-  const statusDot = response === 'accepted' ? 'bg-primary' :
-    response === 'declined' ? 'bg-destructive' : 'bg-muted-foreground';
+  const isPlanningConfirmed = assignment.planning_status === 'confirmed' || assignment.partner_response === 'accepted';
+  const statusLabel = isPlanningConfirmed ? 'Bekräftad' : 'Preliminär';
+  const statusDot = isPlanningConfirmed ? 'bg-emerald-500' : 'bg-amber-500';
 
   const assignmentEmails = emailLogs.filter(e => e.assignment_id === assignment.id);
 
@@ -70,13 +72,13 @@ const ProjectCard = ({
         </div>
 
         <h4 className="font-semibold text-sm text-foreground line-clamp-2 mb-1">
-          {vehicle?.name || 'Okänt fordon'}
+          {vehicle?.name || 'Fordon ej bestämt'}
         </h4>
 
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
           <Clock className="w-3 h-3" />
           {assignment.transport_date}
-          {assignment.transport_time ? ` kl ${assignment.transport_time}` : ''}
+          {assignment.transport_time ? ` kl ${assignment.transport_time.slice(0, 5)}` : ''}{assignment.transport_end_time ? `–${assignment.transport_end_time.slice(0, 5)}` : ''}
         </div>
 
         <div className="flex items-center gap-1.5">
@@ -94,10 +96,16 @@ const ProjectCard = ({
       {expanded && (
         <div className="px-3 pb-3 pt-0 border-t border-border/30 space-y-2" onClick={e => e.stopPropagation()}>
           <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-2 text-xs">
-            {assignment.pickup_address && (
+            {(assignment.origin_address || assignment.pickup_address) && (
               <div>
-                <p className="text-muted-foreground text-[10px]">Hämtadress</p>
-                <p className="font-medium">{assignment.pickup_address}</p>
+                <p className="text-muted-foreground text-[10px]">Från</p>
+                <p className="font-medium">{assignment.origin_address || assignment.pickup_address}</p>
+              </div>
+            )}
+            {assignment.destination_address && (
+              <div>
+                <p className="text-muted-foreground text-[10px]">Till</p>
+                <p className="font-medium">{assignment.destination_address}</p>
               </div>
             )}
             {vehicle?.contact_person && (
@@ -117,6 +125,17 @@ const ProjectCard = ({
               <p className="font-medium">{assignment.driver_notes}</p>
             </div>
           )}
+          <div className="flex items-center gap-2 pt-1">
+            {isPlanningConfirmed ? (
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onSetPlanningStatus('preliminary')}>
+                Gör preliminär
+              </Button>
+            ) : (
+              <Button size="sm" className="h-7 text-xs" onClick={() => onSetPlanningStatus('confirmed')}>
+                Bekräfta transport
+              </Button>
+            )}
+          </div>
 
           {/* Partner response */}
           {isExternal && assignment.partner_responded_at && (
@@ -160,9 +179,10 @@ const ProjectCard = ({
 };
 
 const ProjectTransportWidget: React.FC<ProjectTransportWidgetProps> = ({ bookingId }) => {
-  const { assignments, emailLogs, isLoading, refetch } = useProjectTransport(bookingId);
+  const { assignments, emailLogs, isLoading, refetch, updateAssignment } = useProjectTransport(bookingId);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
+  const [planningDialogOpen, setPlanningDialogOpen] = useState(false);
 
   if (!bookingId) {
     return (
@@ -181,48 +201,41 @@ const ProjectTransportWidget: React.FC<ProjectTransportWidgetProps> = ({ booking
     );
   }
 
-  // Split into three columns based on status
-  const actionRequired = assignments.filter(a =>
-    a.partner_response === 'declined' ||
-    (!a.status || a.status === 'pending') && !a.partner_response
-  );
-  const waitingResponse = assignments.filter(a =>
-    a.status === 'pending' && a.partner_response !== 'accepted' && a.partner_response !== 'declined' && a.partner_response === 'pending'
-  );
-  const confirmed = assignments.filter(a =>
-    a.partner_response === 'accepted'
-  );
+  const isConfirmed = (a: ProjectTransportAssignment) => a.planning_status === 'confirmed' || a.partner_response === 'accepted';
+  const preliminary = assignments.filter(a => !isConfirmed(a) && a.status !== 'delivered');
+  const confirmed = assignments.filter(a => isConfirmed(a) && a.status !== 'delivered');
+  const completed = assignments.filter(a => a.status === 'delivered');
 
   const columns = [
     {
-      title: 'Åtgärd krävs',
-      icon: AlertTriangle,
-      items: actionRequired,
-      color: 'text-destructive',
-      bgColor: 'bg-white',
-      borderColor: 'border-border/40',
-      cardBg: 'bg-red-50',
-      cardBorder: 'border-red-200',
-    },
-    {
-      title: 'Väntar svar',
+      title: 'Preliminära',
       icon: Clock,
-      items: waitingResponse,
-      color: 'text-amber-500',
+      items: preliminary,
+      color: 'text-amber-600',
       bgColor: 'bg-white',
       borderColor: 'border-border/40',
       cardBg: 'bg-amber-50',
       cardBorder: 'border-amber-200',
     },
     {
-      title: 'Bekräftat',
+      title: 'Bekräftade',
       icon: CheckCircle2,
       items: confirmed,
-      color: 'text-primary',
+      color: 'text-emerald-600',
       bgColor: 'bg-white',
       borderColor: 'border-border/40',
-      cardBg: 'bg-teal-50',
-      cardBorder: 'border-teal-200',
+      cardBg: 'bg-emerald-50',
+      cardBorder: 'border-emerald-200',
+    },
+    {
+      title: 'Utförda',
+      icon: CheckCircle2,
+      items: completed,
+      color: 'text-muted-foreground',
+      bgColor: 'bg-white',
+      borderColor: 'border-border/40',
+      cardBg: 'bg-slate-50',
+      cardBorder: 'border-slate-200',
     },
   ];
 
@@ -248,11 +261,19 @@ const ProjectTransportWidget: React.FC<ProjectTransportWidgetProps> = ({ booking
               )}
               <Button
                 size="sm"
-                onClick={() => setBookingDialogOpen(true)}
+                onClick={() => setPlanningDialogOpen(true)}
                 className="rounded-xl gap-1.5 h-8 text-xs"
               >
                 <Plus className="h-3.5 w-3.5" />
-                Boka transport
+                Planera transport
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setBookingDialogOpen(true)}
+                className="rounded-xl h-8 text-xs"
+              >
+                Fordon / partner
               </Button>
             </div>
           </CardTitle>
@@ -262,15 +283,15 @@ const ProjectTransportWidget: React.FC<ProjectTransportWidgetProps> = ({ booking
           {assignments.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Truck className="h-10 w-10 mx-auto mb-3 opacity-40" />
-              <p className="font-medium">Inga transporter bokade</p>
-              <p className="text-sm mt-1">Klicka på "Boka transport" för att komma igång</p>
+              <p className="font-medium">Inga transporter planerade</p>
+              <p className="text-sm mt-1">Skapa transporten först — fordon kan bestämmas senare.</p>
               <Button
                 size="sm"
-                onClick={() => setBookingDialogOpen(true)}
+                onClick={() => setPlanningDialogOpen(true)}
                 className="mt-4 rounded-xl gap-1.5"
               >
                 <Plus className="h-3.5 w-3.5" />
-                Boka transport
+                Planera transport
               </Button>
             </div>
           ) : (
@@ -295,6 +316,13 @@ const ProjectTransportWidget: React.FC<ProjectTransportWidgetProps> = ({ booking
                           cardBg={col.cardBg}
                           cardBorder={col.cardBorder}
                           emailLogs={emailLogs}
+                          onSetPlanningStatus={async (status) => {
+                            try {
+                              await updateAssignment(a.id, { planning_status: status });
+                            } catch (error: any) {
+                              console.error('[ProjectTransportWidget] status update failed', error);
+                            }
+                          }}
                         />
                       ))
                     )}
@@ -305,6 +333,13 @@ const ProjectTransportWidget: React.FC<ProjectTransportWidgetProps> = ({ booking
           )}
         </CardContent>
       </Card>
+
+      <TransportPlanningDialog
+        bookingId={bookingId}
+        open={planningDialogOpen}
+        onOpenChange={setPlanningDialogOpen}
+        onSaved={refetch}
+      />
 
       <ProjectTransportBookingDialog
         bookingId={bookingId}

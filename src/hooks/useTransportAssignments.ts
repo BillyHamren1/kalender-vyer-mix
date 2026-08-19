@@ -6,7 +6,7 @@ import { syncBookingOperationalPlan } from '@/services/bookingOperationalPlanSyn
 
 export interface TransportAssignment {
   id: string;
-  vehicle_id: string;
+  vehicle_id: string | null;
   booking_id: string;
   transport_date: string;
   transport_time: string | null;
@@ -21,6 +21,11 @@ export interface TransportAssignment {
   pickup_address: string | null;
   pickup_latitude: number | null;
   pickup_longitude: number | null;
+  planning_status: 'preliminary' | 'confirmed';
+  transport_type: 'delivery' | 'pickup' | 'transfer' | 'internal' | 'other';
+  origin_address: string | null;
+  destination_address: string | null;
+  transport_end_time: string | null;
   created_at: string;
   // Joined data
   vehicle?: {
@@ -143,13 +148,7 @@ export const useTransportAssignments = (date?: Date | null, endDate?: Date | nul
         `)
         .single();
 
-      if (error) {
-        if (error.code === '23505') {
-          toast.error('Bokningen är redan tilldelad denna dag');
-          return null;
-        }
-        throw error;
-      }
+      if (error) throw error;
       
       setAssignments(prev => [...prev, assignment as unknown as TransportAssignment]);
       toast.success('Bokning tilldelad till fordon');

@@ -43,7 +43,7 @@ export const MoveDayPopover: React.FC<Props> = ({ event, setEvents, onUpdate }) 
 
   // Sortera ut bara riktiga team-kolumner (inte transport/lager-bryggan eller team-11)
   const teams = teamResources.filter(
-    (r: any) => r.id !== 'team-11' && r.id !== 'transport'
+    (r: any) => r.id !== 'team-11' && r.id !== 'warehouse' && r.id !== 'logistics-transport' && r.id !== 'transport'
   );
 
   const currentIdx = teams.findIndex((t: any) => t.id === event.resourceId);

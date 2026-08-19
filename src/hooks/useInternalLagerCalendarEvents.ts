@@ -8,7 +8,7 @@ import { addDays, format, startOfWeek, startOfMonth, endOfMonth, differenceInCal
  * Genererar virtuella heldagsevent (07:00–16:00) för det interna Lagerprojektet
  * (`projects.is_internal = true`) för varje dag i synligt intervall.
  *
- * Eventet placeras i kolumnen `transport` (som nu heter "Lager") i planeringskalendern.
+ * Eventet placeras i UI-kolumnen `warehouse`. Legacy staff-data kan fortfarande använda team_id='transport'.
  * Read-only — det är bara en visuell schemaläggning, ingen post i calendar_events.
  */
 export function useInternalLagerCalendarEvents(
@@ -69,7 +69,7 @@ export function useInternalLagerCalendarEvents(
         title: projectName,
         start: `${dateStr}T07:00:00`,
         end: `${dateStr}T16:00:00`,
-        resourceId: 'transport',
+        resourceId: 'warehouse',
         eventType: 'internal_task',
         // INGEN bookingId — annars använder CustomEvent fallback (sista 8 tecken
         // av booking_id) som "#d0179463". Lager-kortet ska aldrig visa nummer.

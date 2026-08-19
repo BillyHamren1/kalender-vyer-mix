@@ -5,10 +5,15 @@ import { supabase } from "@/integrations/supabase/client";
 export interface ProjectTransportAssignment {
   id: string;
   booking_id: string;
-  vehicle_id: string;
+  vehicle_id: string | null;
   transport_date: string;
   transport_time: string | null;
   pickup_address: string | null;
+  origin_address: string | null;
+  destination_address: string | null;
+  transport_end_time: string | null;
+  planning_status: 'preliminary' | 'confirmed';
+  transport_type: 'delivery' | 'pickup' | 'transfer' | 'internal' | 'other';
   status: string | null;
   partner_response: string | null;
   partner_responded_at: string | null;
@@ -48,8 +53,9 @@ export const useProjectTransport = (bookingId: string | null | undefined) => {
       const { data, error } = await supabase
         .from("transport_assignments")
         .select(`
-          id, booking_id, vehicle_id, transport_date, transport_time,
-          pickup_address, status, partner_response, partner_responded_at,
+          id, booking_id, vehicle_id, transport_date, transport_time, transport_end_time,
+          pickup_address, origin_address, destination_address, planning_status, transport_type,
+          status, partner_response, partner_responded_at,
           created_at, stop_order, driver_notes,
           vehicle:vehicles!vehicle_id (
             id, name, contact_person, contact_email, contact_phone, is_external, vehicle_type
@@ -107,10 +113,20 @@ export const useProjectTransport = (bookingId: string | null | undefined) => {
     };
   }, [bookingId, queryClient]);
 
+  const updateAssignment = async (id: string, updates: Partial<ProjectTransportAssignment>) => {
+    const { error } = await supabase
+      .from("transport_assignments")
+      .update(updates as any)
+      .eq("id", id);
+    if (error) throw error;
+    await queryClient.invalidateQueries({ queryKey: ["project-transport-assignments", bookingId] });
+  };
+
   return {
     assignments: assignmentsQuery.data || [],
     emailLogs: emailLogsQuery.data || [],
     isLoading: assignmentsQuery.isLoading || emailLogsQuery.isLoading,
+    updateAssignment,
     refetch: () => {
       assignmentsQuery.refetch();
       emailLogsQuery.refetch();

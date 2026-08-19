@@ -226,7 +226,7 @@ const CustomCalendarPage = () => {
   const transportRangeEnd = viewMode === 'monthly'
     ? endOfMonth(monthlyDate)
     : endOfWeek(currentWeekStart, { weekStartsOn: 1 });
-  const { byBookingAndDate: transportByBookingAndDate } = useTransportCalendarProjection(
+  const { items: transportItems, byBookingAndDate: transportByBookingAndDate } = useTransportCalendarProjection(
     transportRangeStart,
     transportRangeEnd
   );
@@ -253,10 +253,50 @@ const CustomCalendarPage = () => {
         };
       });
 
-    const base = [...filteredEvents, ...internalLagerEvents];
+    const transportEvents = transportItems.map((transport) => {
+      const start = transport.transportTime?.slice(0, 5) || '08:00';
+      let end = transport.transportEndTime?.slice(0, 5) || '';
+      if (!end) {
+        const duration = transport.estimatedDuration || 60;
+        const [h, m] = start.split(':').map(Number);
+        const total = h * 60 + m + duration;
+        end = `${String(Math.floor((total % 1440) / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+      }
+      const typeLabel: Record<string, string> = {
+        delivery: 'Leverans', pickup: 'Hämtning', transfer: 'Mellantransport', internal: 'Intern', other: 'Transport',
+      };
+      return {
+        id: `transport-${transport.id}`,
+        title: transport.bookingTitle,
+        start: `${transport.transportDate}T${start}:00`,
+        end: `${transport.transportDate}T${end}:00`,
+        resourceId: 'logistics-transport',
+        bookingId: transport.bookingId,
+        bookingNumber: transport.bookingNumber || undefined,
+        eventType: 'transport' as const,
+        deliveryAddress: transport.destinationAddress || transport.deliveryAddress || undefined,
+        editable: false,
+        startEditable: false,
+        durationEditable: false,
+        extendedProps: {
+          isTransportPlanning: true,
+          transportAssignmentId: transport.id,
+          planningStatus: transport.planningStatus,
+          transportType: transport.transportType,
+          transportTypeLabel: typeLabel[transport.transportType] || 'Transport',
+          originAddress: transport.originAddress,
+          destinationAddress: transport.destinationAddress,
+          vehicleName: transport.vehicleName,
+          driverNotes: transport.driverNotes,
+          bookingNumber: transport.bookingNumber,
+        },
+      } as any;
+    });
+
+    const base = [...filteredEvents, ...internalLagerEvents, ...transportEvents];
     if (!showTasks || taskEvents.length === 0) return base;
     return [...base, ...taskEvents];
-  }, [events, taskEvents, internalLagerEvents, showTasks, transportByBookingAndDate]);
+  }, [events, taskEvents, internalLagerEvents, transportItems, showTasks, transportByBookingAndDate]);
 
   // Visible teams state - per day { [dateString]: teamIds[] }
   // Default = ALLA aktuella team + Lager (transport). Tidigare hårdkodades

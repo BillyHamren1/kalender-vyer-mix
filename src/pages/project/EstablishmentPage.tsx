@@ -13,7 +13,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CalendarDays, GanttChart, HardHat, PackagePlus, Plus, Users } from "lucide-react";
+import { CalendarDays, GanttChart, HardHat, PackagePlus, Plus, Users, Truck } from "lucide-react";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
 import PeopleOverview from "@/components/project/planning/PeopleOverview";
 import ProjectPlanningHeader from "@/components/project/ProjectPlanningHeader";
@@ -21,6 +21,7 @@ import SimplePlanningTimeline from "@/components/project/planning/SimplePlanning
 import { LargeProjectGanttChart, type GanttStep } from "@/components/project/LargeProjectGanttChart";
 import QuickPlanningItemDialog, { type QuickPlanningMode } from "@/components/project/planning/QuickPlanningItemDialog";
 import ActivityPlannerSheet from "@/components/project/ActivityPlannerSheet";
+import TransportPlanningDialog from "@/components/logistics/TransportPlanningDialog";
 import { useBookingTaskAnalytics } from "@/hooks/useBookingTaskAnalytics";
 import { fetchEstablishmentBookingData } from "@/services/establishmentPlanningService";
 import { supabase } from "@/integrations/supabase/client";
@@ -53,6 +54,7 @@ const EstablishmentPage = () => {
   const [quickDialogOpen, setQuickDialogOpen] = useState(false);
   const [quickMode, setQuickMode] = useState<QuickPlanningMode>("moment");
   const [plannerOpen, setPlannerOpen] = useState(false);
+  const [transportOpen, setTransportOpen] = useState(false);
 
   const defaultDate = booking?.rigdaydate || booking?.eventdate || null;
 
@@ -174,6 +176,10 @@ const EstablishmentPage = () => {
               <CalendarDays className="h-4 w-4" />
               Kalenderhändelse
             </Button>
+            <Button variant="outline" onClick={() => setTransportOpen(true)} className="gap-1.5" disabled={!bookingId}>
+              <Truck className="h-4 w-4" />
+              Planera transport
+            </Button>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -268,6 +274,14 @@ const EstablishmentPage = () => {
         defaultDate={defaultDate}
         staffPool={staffPool}
         onCreated={refreshPlanning}
+      />
+
+      <TransportPlanningDialog
+        bookingId={bookingId}
+        open={transportOpen}
+        onOpenChange={setTransportOpen}
+        defaultDate={defaultDate}
+        onSaved={refreshPlanning}
       />
 
       <ActivityPlannerSheet

@@ -10,6 +10,8 @@ import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 import { useInternalLagerCalendarEvents } from '@/hooks/useInternalLagerCalendarEvents';
+import { useTransportCalendarProjection } from '@/hooks/useTransportCalendarProjection';
+import { transportProjectionToCalendarEvent } from '@/utils/transportCalendarProjection';
 import { computeDefaultVisibleTeams, isRequiredTeam } from '@/lib/calendar/defaultVisibleTeams';
 
 /**
@@ -33,13 +35,14 @@ const OpsPlanningDayPanel: React.FC = () => {
   } = useRealTimeCalendarEvents();
 
   const { internalLagerEvents } = useInternalLagerCalendarEvents(currentDate, 'day');
+  const { items: transportItems } = useTransportCalendarProjection(currentDate, currentDate);
   const { teamResources } = useTeamResources();
   const staffOps = useUnifiedStaffOperations(currentDate, 'weekly', 'Montage');
 
   const mergedEvents = useMemo(() => {
     const filtered = events.filter((e: any) => e.resourceId !== 'transport');
-    return [...filtered, ...internalLagerEvents];
-  }, [events, internalLagerEvents]);
+    return [...filtered, ...internalLagerEvents, ...transportItems.map(transportProjectionToCalendarEvent)];
+  }, [events, internalLagerEvents, transportItems]);
 
   // Per-day team visibility (same defaults as CustomCalendarPage)
   const [visibleTeamsByDay, setVisibleTeamsByDay] = useState<Record<string, string[]>>(() => {

@@ -9062,64 +9062,79 @@ export type Database = {
           actual_arrival: string | null
           booking_id: string
           created_at: string
+          destination_address: string | null
           driver_notes: string | null
           estimated_arrival: string | null
           estimated_duration: number | null
           id: string
           organization_id: string
+          origin_address: string | null
           partner_responded_at: string | null
           partner_response: string | null
           partner_response_token: string | null
           pickup_address: string | null
           pickup_latitude: number | null
           pickup_longitude: number | null
+          planning_status: string
           status: string | null
           stop_order: number | null
           transport_date: string
+          transport_end_time: string | null
           transport_time: string | null
-          vehicle_id: string
+          transport_type: string
+          vehicle_id: string | null
         }
         Insert: {
           actual_arrival?: string | null
           booking_id: string
           created_at?: string
+          destination_address?: string | null
           driver_notes?: string | null
           estimated_arrival?: string | null
           estimated_duration?: number | null
           id?: string
           organization_id?: string
+          origin_address?: string | null
           partner_responded_at?: string | null
           partner_response?: string | null
           partner_response_token?: string | null
           pickup_address?: string | null
           pickup_latitude?: number | null
           pickup_longitude?: number | null
+          planning_status?: string
           status?: string | null
           stop_order?: number | null
           transport_date: string
+          transport_end_time?: string | null
           transport_time?: string | null
-          vehicle_id: string
+          transport_type?: string
+          vehicle_id?: string | null
         }
         Update: {
           actual_arrival?: string | null
           booking_id?: string
           created_at?: string
+          destination_address?: string | null
           driver_notes?: string | null
           estimated_arrival?: string | null
           estimated_duration?: number | null
           id?: string
           organization_id?: string
+          origin_address?: string | null
           partner_responded_at?: string | null
           partner_response?: string | null
           partner_response_token?: string | null
           pickup_address?: string | null
           pickup_latitude?: number | null
           pickup_longitude?: number | null
+          planning_status?: string
           status?: string | null
           stop_order?: number | null
           transport_date?: string
+          transport_end_time?: string | null
           transport_time?: string | null
-          vehicle_id?: string
+          transport_type?: string
+          vehicle_id?: string | null
         }
         Relationships: [
           {

@@ -152,8 +152,10 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
       const dateStr = format(date, 'yyyy-MM-dd');
       const key = `${teamId}-${dateStr}`;
       if (cache.has(key)) return cache.get(key)!;
+      const dbTeamId = teamId === 'warehouse' ? 'transport' : teamId;
+      if (teamId === 'logistics-transport') { cache.set(key, []); return []; }
       const result = assignments
-        .filter(a => a.teamId === teamId && a.date === dateStr)
+        .filter(a => a.teamId === dbTeamId && a.date === dateStr)
         .map(a => ({ id: a.staffId, name: a.staffName, color: a.color || '#E3F2FD' }));
       cache.set(key, result);
       return result;
@@ -261,48 +263,56 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
 
     const effectiveDate = targetDate || currentDate;
     const effectiveDateStr = format(effectiveDate, 'yyyy-MM-dd');
+    // Legacy DB compatibility: warehouse staffing is still persisted as team_id='transport'.
+    // The true transport column is event-only and cannot receive staff drops.
+    if (resourceId === 'logistics-transport') {
+      toast.info('Transportkolumnen visar planerade transporter, inte personal');
+      return;
+    }
+    const dbResourceId = resourceId === 'warehouse' ? 'transport' : resourceId;
+    const dbFromTeamId = fromTeamId === 'warehouse' ? 'transport' : fromTeamId;
     const staffMember = activeStaff.find(s => s.id === staffId);
 
     // Optimistic update — add OR remove a single team-row.
     queryClient.setQueryData<StaffAssignment[]>(['staff-assignments-all', window.bucket], prev => {
       const list = prev || [];
-      if (resourceId) {
+      if (dbResourceId) {
         // Don't add a duplicate for (staff,team,date)
-        if (list.some(a => a.staffId === staffId && a.teamId === resourceId && a.date === effectiveDateStr)) {
+        if (list.some(a => a.staffId === staffId && a.teamId === dbResourceId && a.date === effectiveDateStr)) {
           return list;
         }
         return [...list, {
           staffId,
           staffName: staffMember?.name || `Staff ${staffId}`,
-          teamId: resourceId,
+          teamId: dbResourceId,
           date: effectiveDateStr,
           color: staffMember?.color || '#E3F2FD',
         }];
       }
       // Removing
-      if (fromTeamId) {
-        return list.filter(a => !(a.staffId === staffId && a.date === effectiveDateStr && a.teamId === fromTeamId));
+      if (dbFromTeamId) {
+        return list.filter(a => !(a.staffId === staffId && a.date === effectiveDateStr && a.teamId === dbFromTeamId));
       }
       return list.filter(a => !(a.staffId === staffId && a.date === effectiveDateStr));
     });
 
     try {
-      if (resourceId) {
-        await assignStaffToTeamCore(staffId, resourceId, effectiveDate);
+      if (dbResourceId) {
+        await assignStaffToTeamCore(staffId, dbResourceId, effectiveDate);
         toast.success(`Personal tilldelad`);
         // Bridge into concrete warehouse_assignments when assigned to a lager column.
         try {
           const { syncWarehouseAssignmentsForStaffTeamDay } = await import('@/services/warehouseAssignmentsSync');
-          await syncWarehouseAssignmentsForStaffTeamDay({ staffId, teamId: resourceId, date: effectiveDate });
+          await syncWarehouseAssignmentsForStaffTeamDay({ staffId, teamId: dbResourceId, date: effectiveDate });
         } catch (e) {
           console.warn('[useUnifiedStaffOperations] warehouse assignment sync failed', e);
         }
       } else {
-        await removeStaffAssignmentCore(staffId, effectiveDate, fromTeamId);
+        await removeStaffAssignmentCore(staffId, effectiveDate, dbFromTeamId);
         toast.success(`Tilldelning borttagen`);
         try {
           const { removeWarehouseAssignmentsForStaffTeamDay } = await import('@/services/warehouseAssignmentsSync');
-          await removeWarehouseAssignmentsForStaffTeamDay({ staffId, teamId: fromTeamId ?? null, date: effectiveDate });
+          await removeWarehouseAssignmentsForStaffTeamDay({ staffId, teamId: dbFromTeamId ?? null, date: effectiveDate });
         } catch (e) {
           console.warn('[useUnifiedStaffOperations] warehouse assignment cleanup failed', e);
         }

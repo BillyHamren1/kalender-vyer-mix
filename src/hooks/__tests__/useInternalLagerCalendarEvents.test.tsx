@@ -39,7 +39,7 @@ describe('useInternalLagerCalendarEvents', () => {
     await waitFor(() => expect(result.current.internalLagerEvents.length).toBe(7));
     const ev = result.current.internalLagerEvents[0];
     expect(ev.title).toBe('Lager');
-    expect(ev.resourceId).toBe('transport');
+    expect(ev.resourceId).toBe('warehouse');
     // Kritiskt: ingen bookingId → CustomEvent visar inte "#xxxxxxxx"
     expect((ev as any).bookingId).toBeUndefined();
     expect(ev.extendedProps?.hideBookingNumber).toBe(true);

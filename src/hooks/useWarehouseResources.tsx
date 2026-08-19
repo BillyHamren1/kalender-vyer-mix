@@ -37,9 +37,9 @@ export const useWarehouseResources = () => {
   useEffect(() => {
     let loaded = loadFromStorage();
 
-    // Strip legacy Transport/Transporter columns – only Lager-N remains.
+    // Strip obsolete legacy ids. The first-class transport column is fixed and added below.
     const before = loaded.length;
-    loaded = loaded.filter(r => r.id !== 'warehouse-event' && r.id !== 'transport');
+    loaded = loaded.filter(r => r.id !== 'warehouse-event' && r.id !== 'transport' && r.id !== 'warehouse-transport');
     const stripped = before !== loaded.length;
 
     if (loaded.length === 0) {
@@ -91,13 +91,17 @@ export const useWarehouseResources = () => {
     if (team) toast(`${team.title} borttaget`);
   };
 
-  const teamResources = resources
-    .filter(r => r.id.startsWith('lager-'))
-    .sort((a, b) => {
-      const aNum = parseInt(a.id.replace('lager-', '')) || 0;
-      const bNum = parseInt(b.id.replace('lager-', '')) || 0;
-      return aNum - bNum;
-    });
+  const transportResource: Resource = { id: 'warehouse-transport', title: 'Transport', eventColor: '#93C5FD' };
+  const teamResources = [
+    ...resources
+      .filter(r => r.id.startsWith('lager-'))
+      .sort((a, b) => {
+        const aNum = parseInt(a.id.replace('lager-', '')) || 0;
+        const bNum = parseInt(b.id.replace('lager-', '')) || 0;
+        return aNum - bNum;
+      }),
+    transportResource,
+  ];
 
   return { resources, teamResources, addTeam, removeTeam };
 };

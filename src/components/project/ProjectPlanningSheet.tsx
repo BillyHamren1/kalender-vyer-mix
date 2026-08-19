@@ -196,7 +196,7 @@ export const ProjectPlanningSheet: React.FC<Props> = ({ projectId, projectKind, 
 
   const teamOptions = useMemo(() => {
     return teamResources
-      .filter((r: any) => r.id !== 'team-11' && r.id !== 'transport')
+      .filter((r: any) => r.id !== 'team-11' && r.id !== 'warehouse' && r.id !== 'logistics-transport' && r.id !== 'transport')
       .map((r: any) => ({ id: r.id, title: r.title }));
   }, [teamResources]);
 

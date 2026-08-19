@@ -176,8 +176,8 @@ export const useTeamResources = (knownTeamIds: string[] = []) => {
   };
 
   const removeTeam = (teamId: string) => {
-    // Don't allow removing Team 1-4 and the transport pseudo-team
-    if (['team-1', 'team-2', 'team-3', 'team-4', 'transport'].includes(teamId)) {
+    // Don't allow removing Team 1-4 or the two fixed operational columns.
+    if (['team-1', 'team-2', 'team-3', 'team-4', 'warehouse', 'logistics-transport'].includes(teamId)) {
       toast.error("Cannot remove default team", {
         description: "Team 1-4 cannot be removed.",
         duration: 3000,
@@ -196,28 +196,23 @@ export const useTeamResources = (knownTeamIds: string[] = []) => {
     });
   };
 
-  // Get only the team resources (not room resources) and sort them correctly.
-  // Excludes the deprecated Live column (team-11). Includes the virtual 'transport' resource.
-  const transportResource: Resource = { id: 'transport', title: 'Lager', eventColor: '#3B82F6' };
-  
+  // Fixed operational resources. `warehouse` is a UI alias for legacy DB team_id='transport'.
+  // Real transport planning has its own resource and never shares the warehouse id.
+  const warehouseResource: Resource = { id: 'warehouse', title: 'Lager', eventColor: '#3B82F6' };
+  const transportResource: Resource = { id: 'logistics-transport', title: 'Transport', eventColor: '#93C5FD' };
   const teamResources = [
     ...resources.filter(resource => resource.id.startsWith('team-') && resource.id !== 'team-11'),
+    warehouseResource,
     transportResource,
   ].sort((a, b) => {
-      // Transport always goes last
-      if (a.id === 'transport') return 1;
-      if (b.id === 'transport') return -1;
-
-      // Extract team numbers for comparison
-      const aMatch = a.id.match(/team-(\d+)/);
-      const bMatch = b.id.match(/team-(\d+)/);
-
-      const aNum = aMatch ? parseInt(aMatch[1]) : 0;
-      const bNum = bMatch ? parseInt(bMatch[1]) : 0;
-
-      // Sort by team number
-      return aNum - bNum;
-    });
+    if (a.id === 'warehouse') return b.id === 'logistics-transport' ? -1 : 1;
+    if (b.id === 'warehouse') return a.id === 'logistics-transport' ? 1 : -1;
+    if (a.id === 'logistics-transport') return 1;
+    if (b.id === 'logistics-transport') return -1;
+    const aMatch = a.id.match(/team-(\d+)/);
+    const bMatch = b.id.match(/team-(\d+)/);
+    return (aMatch ? parseInt(aMatch[1]) : 0) - (bMatch ? parseInt(bMatch[1]) : 0);
+  });
   
   return {
     resources,

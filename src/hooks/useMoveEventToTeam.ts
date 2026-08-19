@@ -21,7 +21,7 @@ export function useMoveEventToTeam(
   const [busy, setBusy] = useState(false);
 
   const teams = teamResources.filter(
-    (r: any) => r.id !== 'team-11' && r.id !== 'transport',
+    (r: any) => r.id !== 'team-11' && r.id !== 'warehouse' && r.id !== 'logistics-transport' && r.id !== 'transport',
   );
 
   const recompute = useCallback(async (bookingId: string, sourceDate: string) => {

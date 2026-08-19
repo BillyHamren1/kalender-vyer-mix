@@ -3,7 +3,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Button } from '@/components/ui/button';
 import {
   Plus, Trash2, Loader2, Clock, Users, Calendar as CalIcon,
-  ExternalLink, ChevronLeft, ChevronRight, Lock, Unlock,
+  ExternalLink, ChevronLeft, ChevronRight, Lock, Unlock, Truck,
 } from 'lucide-react';
 import {
   format, startOfMonth, endOfMonth, eachDayOfInterval,
@@ -19,6 +19,7 @@ import { useMoveEventToTeam } from '@/hooks/useMoveEventToTeam';
 import { useEventBookingDays, type BookingDayRow } from '@/hooks/useEventBookingDays';
 import AddRiggDayDialog from './AddRiggDayDialog';
 import type { CalendarEvent } from './ResourceData';
+import TransportPlanningDialog from '@/components/logistics/TransportPlanningDialog';
 
 interface Props {
   event: CalendarEvent;
@@ -80,6 +81,7 @@ const EventActionPopover: React.FC<Props> = ({
   const initialPickup = Boolean((event.extendedProps as any)?.customerPickup);
   const [customerPickup, setCustomerPickup] = useState(initialPickup);
   const [pickupSaving, setPickupSaving] = useState(false);
+  const [transportPlanningOpen, setTransportPlanningOpen] = useState(false);
 
   useEffect(() => {
     setCustomerPickup(Boolean((event.extendedProps as any)?.customerPickup));
@@ -491,7 +493,17 @@ const EventActionPopover: React.FC<Props> = ({
             </div>
 
             {/* FOOTER */}
-            <div className="flex gap-2 pt-1 border-t">
+            <div className="flex flex-wrap gap-2 pt-1 border-t">
+              {event.bookingId && !(event.extendedProps as any)?.isTransportPlanning && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1.5"
+                  onClick={() => { setOpen(false); setTransportPlanningOpen(true); }}
+                >
+                  <Truck className="h-3 w-3" /> Planera transport
+                </Button>
+              )}
               {onOpenDetails && (
                 <Button size="sm" variant="ghost" className="h-7 text-xs flex-1" onClick={() => { setOpen(false); onOpenDetails(); }}>
                   <ExternalLink className="h-3 w-3 mr-1" /> Öppna
@@ -506,6 +518,16 @@ const EventActionPopover: React.FC<Props> = ({
           </div>
         </PopoverContent>
       </Popover>
+
+
+      <TransportPlanningDialog
+        bookingId={event.bookingId}
+        open={transportPlanningOpen}
+        onOpenChange={setTransportPlanningOpen}
+        defaultDate={eventDate}
+        defaultStartTime={`${initStart.h}:${initStart.m}`}
+        onSaved={onUpdate}
+      />
 
       <AddRiggDayDialog
         open={showAddDay}
