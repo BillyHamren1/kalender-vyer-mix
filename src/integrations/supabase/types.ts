@@ -3877,6 +3877,80 @@ export type Database = {
           },
         ]
       }
+      packing_change_requests: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          acknowledged_by_name: string | null
+          booking_id: string | null
+          booking_product_id: string | null
+          change_type: string
+          created_at: string
+          days_until_rig: number | null
+          id: string
+          new_quantity: number | null
+          old_quantity: number | null
+          organization_id: string
+          packing_id: string
+          packing_list_item_id: string | null
+          product_name: string | null
+          sku: string | null
+          status: string
+          updated_at: string
+          urgency: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          acknowledged_by_name?: string | null
+          booking_id?: string | null
+          booking_product_id?: string | null
+          change_type: string
+          created_at?: string
+          days_until_rig?: number | null
+          id?: string
+          new_quantity?: number | null
+          old_quantity?: number | null
+          organization_id: string
+          packing_id: string
+          packing_list_item_id?: string | null
+          product_name?: string | null
+          sku?: string | null
+          status?: string
+          updated_at?: string
+          urgency?: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          acknowledged_by_name?: string | null
+          booking_id?: string | null
+          booking_product_id?: string | null
+          change_type?: string
+          created_at?: string
+          days_until_rig?: number | null
+          id?: string
+          new_quantity?: number | null
+          old_quantity?: number | null
+          organization_id?: string
+          packing_id?: string
+          packing_list_item_id?: string | null
+          product_name?: string | null
+          sku?: string | null
+          status?: string
+          updated_at?: string
+          urgency?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packing_change_requests_packing_id_fkey"
+            columns: ["packing_id"]
+            isOneToOne: false
+            referencedRelation: "packing_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       packing_comments: {
         Row: {
           author_name: string
@@ -4515,6 +4589,7 @@ export type Database = {
       }
       packing_projects: {
         Row: {
+          blocked_by_short_notice_change: boolean
           booking_id: string | null
           client_name: string | null
           control_completed_at: string | null
@@ -4543,6 +4618,7 @@ export type Database = {
           warehouse_project_id: string | null
         }
         Insert: {
+          blocked_by_short_notice_change?: boolean
           booking_id?: string | null
           client_name?: string | null
           control_completed_at?: string | null
@@ -4571,6 +4647,7 @@ export type Database = {
           warehouse_project_id?: string | null
         }
         Update: {
+          blocked_by_short_notice_change?: boolean
           booking_id?: string | null
           client_name?: string | null
           control_completed_at?: string | null

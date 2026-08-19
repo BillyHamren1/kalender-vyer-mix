@@ -1,5 +1,7 @@
 // @ts-nocheck
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { queuePackingChangeRequests } from '../_shared/packingChangeRequests.ts'
+
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -358,21 +360,79 @@ async function syncPackingListItems(
   })
 
   if (packingStatus !== 'planning') {
-    const frozenDriftCount = newItems.length + orphanedItems.length + quantityDrift.length
-    if (frozenDriftCount > 0) {
-      console.warn(`[sync-booking-to-packing] Frozen packing snapshot ${packingId}: ${frozenDriftCount} booking drift(s) detected; no operational rows changed`)
-      await supabase
-        .from('packing_projects')
-        .update({
-          needs_packing_review: true,
-          needs_packing_review_reason: 'booking_changed_after_packing_started',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', packingId)
-        .eq('organization_id', organizationId)
+    // Snapshotet är fryst. I stället för att bara flagga "något har ändrats"
+    // köar vi varje konkret ändring i packing_change_requests. Lagret måste
+    // ta emot ändringen innan packlistan skrivs om (kort varsel = blockerande).
+    const productById = new Map(packableProducts.map((p: any) => [p.id, p]))
+    const drafts: any[] = []
+
+    for (const item of newItems) {
+      const p: any = productById.get(item.booking_product_id)
+      drafts.push({
+        booking_product_id: item.booking_product_id,
+        change_type: 'item_added',
+        product_name: p?.name || null,
+        sku: p?.sku || null,
+        old_quantity: null,
+        new_quantity: item.quantity_to_pack ?? null,
+      })
     }
+
+    const orphanProductIds = orphanedItems.map((i: any) => i.booking_product_id).filter(Boolean)
+    let orphanNames = new Map<string, any>()
+    if (orphanProductIds.length > 0) {
+      const { data: orphanProducts } = await supabase
+        .from('booking_products')
+        .select('id, name, sku')
+        .in('id', orphanProductIds)
+      orphanNames = new Map((orphanProducts || []).map((p: any) => [p.id, p]))
+    }
+    for (const item of orphanedItems) {
+      const p: any = orphanNames.get(item.booking_product_id)
+      drafts.push({
+        booking_product_id: item.booking_product_id,
+        packing_list_item_id: item.id,
+        change_type: 'item_removed',
+        product_name: p?.name || null,
+        sku: p?.sku || null,
+        old_quantity: item.quantity_to_pack ?? null,
+        new_quantity: null,
+      })
+    }
+
+    for (const product of quantityDrift) {
+      const existing: any = existingByProductId.get(product.id)
+      drafts.push({
+        booking_product_id: product.id,
+        packing_list_item_id: existing?.id || null,
+        change_type: 'quantity_changed',
+        product_name: product.name || null,
+        sku: product.sku || null,
+        old_quantity: existing?.quantity_to_pack ?? null,
+        new_quantity: product.quantity ?? null,
+      })
+    }
+
+    const { data: bookingDates } = await supabase
+      .from('bookings')
+      .select('rigdaydate, eventdate')
+      .eq('id', bookingId)
+      .maybeSingle()
+
+    const result = await queuePackingChangeRequests(supabase, {
+      packingId,
+      bookingId,
+      organizationId,
+      rigDate: (bookingDates as any)?.rigdaydate || (bookingDates as any)?.eventdate || null,
+      drafts,
+    })
+
+    console.warn(
+      `[sync-booking-to-packing] Frozen packing ${packingId}: ${drafts.length} drift(s) queued as change requests (pending short notice: ${result.pendingShortNotice})`
+    )
     return 0
   }
+
 
   let synced = 0
 
