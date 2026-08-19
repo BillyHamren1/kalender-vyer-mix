@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Calendar as CalendarIcon, Package, ClipboardList, RefreshCw, CheckSquare, Layers, Scissors, LayoutList, History, ExternalLink } from "lucide-react";
+import { ArrowLeft, Calendar as CalendarIcon, Package, ClipboardList, RefreshCw, CheckSquare, Layers, Scissors, LayoutList, History, ExternalLink, MoreHorizontal } from "lucide-react";
 import { PackingHistoryDialog } from "@/components/packing/PackingHistoryDialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -289,6 +289,7 @@ const PackingDetail = () => {
 
   const booking = packing.booking;
   const isLargeProject = !!packing.large_project_id;
+  const defaultTab = (booking || isMultiBooking) ? 'packlist' : isLargeProject ? 'overview' : 'checklist';
 
   return (
     <div className="h-full overflow-y-auto" style={{ background: 'var(--gradient-page)' }}>
@@ -338,83 +339,77 @@ const PackingDetail = () => {
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setShowHistory(true)} className="border-border/60">
-                <History className="h-4 w-4 mr-1.5" />
-                Historik
-              </Button>
-              {booking?.id && !isLargeProject && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate(`/warehouse/bookings/${booking.id}`)}
-                  className="border-border/60"
-                >
-                  <ExternalLink className="h-4 w-4 mr-1.5" />
-                  Lagerbokning
-                </Button>
-              )}
-              <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing} className="border-border/60">
-                <RefreshCw className={`h-4 w-4 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-                Uppdatera
-              </Button>
-              {packing.status === 'planning' && packingIntegrity?.sourceAvailable && !packingIntegrity.isExactMatch && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="outline" size="sm" disabled={isRepairingPackingList} className="border-amber-400/70 text-amber-800 dark:text-amber-300">
-                      <RefreshCw className={`h-4 w-4 mr-1.5 ${isRepairingPackingList ? 'animate-spin' : ''}`} />
-                      Uppdatera packlista från bokning
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Uppdatera den operativa packlistan?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Detta gäller endast denna packlista och är bara tillåtet medan status är Planering.
-                        Packrader kan läggas till, få nytt antal eller tas bort för att exakt spegla aktuell bokning.
-                        När packningen har startat låses snapshoten och den här åtgärden är inte längre tillgänglig.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Avbryt</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => void handleRepairPackingList()}>
-                        Uppdatera denna packlista
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
-              {isMultiBooking && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="border-border/60">
-                      <Scissors className="h-4 w-4 mr-1.5" />
-                      Splitta
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Splitta till separata packlistor?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Detta skapar {linkedBookingIds.length} separata packlistor (en per bokning) och tar bort den samlade packlistan. Packstatus nollställs.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Avbryt</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleSplitPacking} disabled={isSplitting}>
-                        {isSplitting ? 'Splittar...' : 'Splitta'}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
-              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${PACKING_STATUS_COLORS[packing.status] || 'bg-muted text-muted-foreground'}`}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold ${PACKING_STATUS_COLORS[packing.status] || 'bg-muted text-muted-foreground'}`}>
                 {PACKING_STATUS_LABELS[packing.status] || packing.status}
               </span>
+              <details className="relative">
+                <summary className="list-none cursor-pointer inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground">
+                  <MoreHorizontal className="h-4 w-4 mr-1.5" />
+                  Mer
+                </summary>
+                <div className="absolute right-0 z-30 mt-2 w-72 rounded-xl border border-border bg-popover p-2 shadow-xl space-y-1">
+                  <Button variant="ghost" size="sm" onClick={() => setShowHistory(true)} className="w-full justify-start">
+                    <History className="h-4 w-4 mr-2" /> Historik
+                  </Button>
+                  {booking?.id && !isLargeProject && (
+                    <Button variant="ghost" size="sm" onClick={() => navigate(`/warehouse/bookings/${booking.id}`)} className="w-full justify-start">
+                      <ExternalLink className="h-4 w-4 mr-2" /> Bokningsinfo för lager
+                    </Button>
+                  )}
+                  <Button variant="ghost" size="sm" onClick={handleRefresh} disabled={isRefreshing} className="w-full justify-start">
+                    <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} /> Uppdatera
+                  </Button>
+                  {packing.status === 'planning' && packingIntegrity?.sourceAvailable && !packingIntegrity.isExactMatch && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="sm" disabled={isRepairingPackingList} className="w-full justify-start text-amber-800 dark:text-amber-300">
+                          <RefreshCw className={`h-4 w-4 mr-2 ${isRepairingPackingList ? 'animate-spin' : ''}`} /> Synka packlista från bokning
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Uppdatera den operativa packlistan?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Detta gäller endast denna packlista och är bara tillåtet medan status är Planering. Packrader kan läggas till, få nytt antal eller tas bort för att exakt spegla aktuell bokning. När packningen har startat låses snapshoten.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Avbryt</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => void handleRepairPackingList()}>Uppdatera denna packlista</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                  {isMultiBooking && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="sm" className="w-full justify-start">
+                          <Scissors className="h-4 w-4 mr-2" /> Splitta packlista
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Splitta till separata packlistor?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Detta skapar {linkedBookingIds.length} separata packlistor (en per bokning) och tar bort den samlade packlistan. Packstatus nollställs.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Avbryt</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleSplitPacking} disabled={isSplitting}>
+                            {isSplitting ? 'Splittar...' : 'Splitta'}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                </div>
+              </details>
             </div>
           </div>
 
-          <Tabs value={activeTab || (isLargeProject ? 'overview' : 'checklist')} onValueChange={setActiveTab} className="space-y-4">
+          <Tabs value={activeTab || defaultTab} onValueChange={setActiveTab} className="space-y-4">
             <div className="overflow-x-auto">
               <TabsList className="h-auto p-1.5 bg-muted/50 rounded-xl border border-border/40 gap-1 w-full justify-start">
                 {isLargeProject && (
@@ -423,10 +418,6 @@ const PackingDetail = () => {
                     Översikt
                   </TabsTrigger>
                 )}
-                <TabsTrigger value="checklist" className={tabTriggerClass}>
-                  <CheckSquare className="h-3.5 w-3.5 mr-1.5" />
-                  Arbetschecklista
-                </TabsTrigger>
                 {(booking || isMultiBooking) && (
                   <>
                     <TabsTrigger value="packlist" className={tabTriggerClass}>
@@ -439,13 +430,17 @@ const PackingDetail = () => {
                     </TabsTrigger>
                   </>
                 )}
+                <TabsTrigger value="checklist" className={tabTriggerClass}>
+                  <CheckSquare className="h-3.5 w-3.5 mr-1.5" />
+                  Lageruppgifter
+                </TabsTrigger>
                 <TabsTrigger value="files" className={tabTriggerClass}>Filer ({files.length})</TabsTrigger>
                 <TabsTrigger value="comments" className={tabTriggerClass}>Kommentarer ({comments.length})</TabsTrigger>
               </TabsList>
             </div>
 
           {(() => {
-            const currentTab = activeTab || (isLargeProject ? 'overview' : 'checklist');
+            const currentTab = activeTab || defaultTab;
             const showBookingInfo = currentTab === 'overview' || currentTab === 'checklist';
             if (!showBookingInfo) return null;
             return (
@@ -550,7 +545,8 @@ const PackingDetail = () => {
 
               <TabsContent value="checklist">
                 <div className="rounded-xl border border-border/30 bg-background/60 backdrop-blur-sm p-5">
-                  <h3 className="font-semibold text-lg text-[hsl(var(--heading))] mb-4">Arbetschecklista</h3>
+                  <h3 className="font-semibold text-lg text-[hsl(var(--heading))] mb-1">Lageruppgifter</h3>
+                  <p className="text-sm text-muted-foreground mb-4">Praktiska uppgifter runt packningen. Materialet som ska med finns alltid under Packlista.</p>
                   <ManualPackingChecklist
                     packingId={packingId || ''}
                     packingName={packing.name}

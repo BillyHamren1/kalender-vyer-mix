@@ -51,6 +51,15 @@ const MobileLagerPage = () => {
     return `/m/tools/scanner?${params.toString()}`;
   };
 
+  const openPackingList = (item: LagerAssignmentItem) => {
+    const packingId = item.packing_id || item.packlist_id;
+    if (packingId) {
+      navigate(`/warehouse/packing/${packingId}`);
+      return true;
+    }
+    return false;
+  };
+
   const handleAction = async (item: LagerAssignmentItem) => {
     const action = resolveAction(item);
     switch (action) {
@@ -174,12 +183,29 @@ const MobileLagerPage = () => {
                   </p>
                 )}
 
-                <button
-                  onClick={() => handleAction(item)}
-                  className="w-full mt-1 rounded-xl bg-primary text-primary-foreground py-2.5 text-sm font-bold active:opacity-80 transition-opacity"
-                >
-                  {ASSIGNMENT_ACTION_LABEL[action]}
-                </button>
+                {type === 'packing' && (item.packing_id || item.packlist_id) ? (
+                  <div className="grid grid-cols-1 gap-2 mt-1">
+                    <button
+                      onClick={() => openPackingList(item)}
+                      className="w-full rounded-xl bg-primary text-primary-foreground py-3 text-sm font-extrabold active:opacity-80 transition-opacity"
+                    >
+                      Öppna packlista
+                    </button>
+                    <button
+                      onClick={() => navigate(buildScannerLink(item, 'out'))}
+                      className="w-full rounded-xl border border-border bg-background py-2.5 text-sm font-semibold text-foreground active:opacity-70"
+                    >
+                      Starta scanner
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => handleAction(item)}
+                    className="w-full mt-1 rounded-xl bg-primary text-primary-foreground py-2.5 text-sm font-bold active:opacity-80 transition-opacity"
+                  >
+                    {ASSIGNMENT_ACTION_LABEL[action]}
+                  </button>
+                )}
               </div>
             );
           })

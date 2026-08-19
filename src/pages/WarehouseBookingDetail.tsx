@@ -201,6 +201,24 @@ const WarehouseBookingDetail = () => {
           </div>
         ) : (
           <>
+            <section className="rounded-2xl border-2 border-warehouse/25 bg-card p-5 sm:p-6 shadow-sm">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">Att göra nu</p>
+                  <h2 className="text-xl font-bold text-[hsl(var(--heading))] mt-1">Packa {booking.booking_number || booking.title || booking.client}</h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {packingListLoading ? 'Kontrollerar packlistan…' : `${packingProgress.packed} av ${packingProgress.total} packade · ${packingProgress.percent}% klart`}
+                  </p>
+                  <div className="h-2 rounded-full bg-muted overflow-hidden mt-3 max-w-xl">
+                    <div className="h-full bg-warehouse transition-all" style={{ width: `${Math.min(100, packingProgress.percent)}%` }} />
+                  </div>
+                </div>
+                <Button size="lg" onClick={() => navigate(`/warehouse/packing/${activePacking.id}`)} className="bg-warehouse hover:bg-warehouse-hover font-bold shrink-0">
+                  <Package className="h-5 w-5 mr-2" /> Öppna packlista
+                </Button>
+              </div>
+            </section>
+
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <StatusCard
                 icon={Package}
@@ -221,7 +239,7 @@ const WarehouseBookingDetail = () => {
               />
               <StatusCard
                 icon={CheckCircle2}
-                label="Arbetschecklista"
+                label="Lageruppgifter"
                 value={tasks.length > 0 ? `${completedTasks}/${tasks.length} klara` : 'Ingen lista ännu'}
                 positive={tasks.length > 0 && completedTasks === tasks.length}
               />

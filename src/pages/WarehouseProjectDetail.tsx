@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Package, Wrench, FileText, Trash2 } from "lucide-react";
+import { ArrowLeft, Package, Wrench, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -160,11 +160,11 @@ const WarehouseProjectDetail = () => {
           </div>
         </div>
 
-        <Tabs defaultValue="overview">
+        <Tabs defaultValue="packings">
           <TabsList>
-            <TabsTrigger value="overview">Översikt</TabsTrigger>
-            <TabsTrigger value="packings">Packningar</TabsTrigger>
-            <TabsTrigger value="tasks">Moment ({tasks.length})</TabsTrigger>
+            <TabsTrigger value="packings">Packlistor ({packings.length})</TabsTrigger>
+            <TabsTrigger value="tasks">Lageruppgifter ({tasks.length})</TabsTrigger>
+            <TabsTrigger value="overview">Info</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="mt-4">
@@ -181,7 +181,7 @@ const WarehouseProjectDetail = () => {
               <div className="rounded-xl border border-border/40 bg-card p-6 text-center">
                 <Package className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
                 <p className="text-sm text-muted-foreground">
-                  Inga packningar skapade ännu för det här lagerprojektet.
+                  Inga packlistor finns ännu för det här projektet.
                 </p>
               </div>
             ) : (
@@ -202,7 +202,7 @@ const WarehouseProjectDetail = () => {
             {tasks.length === 0 ? (
               <div className="rounded-xl border border-border/40 bg-card p-6 text-center">
                 <Wrench className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
-                <p className="text-sm text-muted-foreground">Inga moment ännu.</p>
+                <p className="text-sm text-muted-foreground">Inga lageruppgifter ännu.</p>
               </div>
             ) : (
               <div className="rounded-xl border border-border/40 bg-card divide-y divide-border/40 overflow-hidden">
