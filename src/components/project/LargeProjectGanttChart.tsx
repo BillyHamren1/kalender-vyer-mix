@@ -12,6 +12,8 @@ export interface GanttStep {
   name: string;
   start_date: string;
   end_date: string;
+  start_time?: string | null;
+  end_time?: string | null;
   is_milestone: boolean;
   sort_order?: number;
 }
