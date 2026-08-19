@@ -96,9 +96,15 @@ const ProjectDashboardWidgets = () => {
   const isFinished = (p: UnifiedItem) =>
     p.status === 'completed' || (!!p.rigDownDate && p.rigDownDate < today);
   const activeCount = nonCancelled.filter(p => !isFinished(p)).length;
-  const planningCount = nonCancelled.filter(p => !isFinished(p) && p.status === 'planning').length;
-  const inProgressCount = nonCancelled.filter(p => !isFinished(p) && p.status === 'in_progress').length;
+  /** Pågående = projektet har startat (riggdag/event passerad eller idag) men är inte avslutat. */
+  const isOngoing = (p: UnifiedItem) => {
+    const start = p.rigDate ?? p.date;
+    return !isFinished(p) && !!start && start <= today;
+  };
+  const inProgressCount = nonCancelled.filter(isOngoing).length;
+  const planningCount = nonCancelled.filter(p => !isFinished(p) && !isOngoing(p)).length;
   const completedCount = nonCancelled.filter(isFinished).length;
+
 
   const horizon14 = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0];
   const upcomingProjects = useMemo(() =>
