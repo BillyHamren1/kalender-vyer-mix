@@ -12,8 +12,12 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
+  const serviceApiKey = req.headers.get('x-api-key');
+  const planningApiKey = Deno.env.get('PLANNING_API_KEY');
+  const isServiceCall = !!serviceApiKey && !!planningApiKey && serviceApiKey === planningApiKey;
+
   const authHeader = req.headers.get('Authorization');
-  if (!authHeader) return json({ error: 'Unauthorized' }, 401);
+  if (!authHeader && !isServiceCall) return json({ error: 'Unauthorized' }, 401);
 
   const body = await req.json().catch(() => ({}));
   const bookingId = typeof body?.booking_id === 'string' ? body.booking_id : null;
@@ -22,9 +26,14 @@ Deno.serve(async (req) => {
   const url = Deno.env.get('SUPABASE_URL')!;
   const anon = Deno.env.get('SUPABASE_ANON_KEY')!;
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const userClient = createClient(url, anon, { global: { headers: { Authorization: authHeader } } });
-  const { data: auth } = await userClient.auth.getUser();
-  if (!auth?.user) return json({ error: 'Unauthorized' }, 401);
+
+  let userId: string | null = null;
+  if (!isServiceCall) {
+    const userClient = createClient(url, anon, { global: { headers: { Authorization: authHeader! } } });
+    const { data: auth } = await userClient.auth.getUser();
+    if (!auth?.user) return json({ error: 'Unauthorized' }, 401);
+    userId = auth.user.id;
+  }
 
   const admin = createClient(url, serviceKey);
   const { data: booking, error: bookingError } = await admin
@@ -35,8 +44,11 @@ Deno.serve(async (req) => {
   if (bookingError || !booking) return json({ error: 'Booking not found' }, 404);
 
   // Tenant authorization: caller must belong to the same organization.
-  const { data: profile } = await admin.from('profiles').select('organization_id').eq('id', auth.user.id).maybeSingle();
-  if (!profile || profile.organization_id !== booking.organization_id) return json({ error: 'Forbidden' }, 403);
+  if (!isServiceCall) {
+    const { data: profile } = await admin.from('profiles').select('organization_id').eq('id', userId!).maybeSingle();
+    if (!profile || profile.organization_id !== booking.organization_id) return json({ error: 'Forbidden' }, 403);
+  }
+
 
   const [tasksRes, transportRes, calendarRes] = await Promise.all([
     admin.from('establishment_tasks')
