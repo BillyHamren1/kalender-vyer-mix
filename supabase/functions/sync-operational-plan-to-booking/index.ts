@@ -14,7 +14,14 @@ Deno.serve(async (req) => {
 
   const serviceApiKey = req.headers.get('x-api-key');
   const planningApiKey = Deno.env.get('PLANNING_API_KEY');
-  const isServiceCall = !!serviceApiKey && !!planningApiKey && serviceApiKey === planningApiKey;
+  const cronSecretHeader = req.headers.get('x-cron-secret');
+  const cronSecret = Deno.env.get('CRON_SECRET');
+  const opsKeyHeader = req.headers.get('x-ops-resync-key');
+  const opsKey = Deno.env.get('OPS_RESYNC_KEY');
+  const isServiceCall =
+    (!!serviceApiKey && !!planningApiKey && serviceApiKey === planningApiKey) ||
+    (!!cronSecretHeader && !!cronSecret && cronSecretHeader === cronSecret) ||
+    (!!opsKeyHeader && !!opsKey && opsKeyHeader === opsKey);
 
 
 
