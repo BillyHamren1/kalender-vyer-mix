@@ -5,6 +5,7 @@ import type { BookingProduct } from "@/services/establishmentPlanningService";
 const products = [
   { id: "chair", name: "Stol", quantity: 4 },
   { id: "table", name: "Bord", quantity: 2 },
+  { id: "roof", name: "Tak", quantity: 1, parentProductId: "chair" },
 ] as BookingProduct[];
 
 describe("resolveProductSelection", () => {
@@ -26,6 +27,20 @@ describe("resolveProductSelection", () => {
     expect(resolveProductSelection(new Set(["chair", "table__unit_1"]), products)).toEqual({
       productIds: ["chair", "table"],
       productQuantities: { chair: 4, table: 1 },
+    });
+  });
+
+  it("tar inte med ett tillbehör när endast huvudprodukten är markerad", () => {
+    expect(resolveProductSelection(new Set(["chair"]), products)).toEqual({
+      productIds: ["chair"],
+      productQuantities: { chair: 4 },
+    });
+  });
+
+  it("tar med tillbehöret först när även det är markerat", () => {
+    expect(resolveProductSelection(new Set(["chair", "roof"]), products)).toEqual({
+      productIds: ["chair", "roof"],
+      productQuantities: { chair: 4, roof: 1 },
     });
   });
 });

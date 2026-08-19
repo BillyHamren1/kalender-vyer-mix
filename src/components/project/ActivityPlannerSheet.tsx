@@ -311,20 +311,6 @@ const ActivityPlannerSheet = ({
     });
   };
 
-  const toggleParentWithChildren = (node: ProductNode) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      const allIds = [node.product.id, ...node.children.map(c => c.product.id)];
-      const allSelected = allIds.every(id => next.has(id) || plannedProductIds.has(id));
-      allIds.forEach(id => {
-        if (!plannedProductIds.has(id)) {
-          if (allSelected) next.delete(id); else next.add(id);
-        }
-      });
-      return next;
-    });
-  };
-
   const attachProductsToRow = useCallback(() => {
     if (!attachingToRowId || selectedIds.size === 0) return;
     const selection = resolveProductSelection(selectedIds, activeProducts);
@@ -559,10 +545,7 @@ const ActivityPlannerSheet = ({
             <Checkbox
               checked={isPlanned || isSelected}
               disabled={isPlanned}
-              onCheckedChange={() => {
-                if (hasChildren && depth === 0) toggleParentWithChildren(node);
-                else toggleProduct(node.product.id);
-              }}
+              onCheckedChange={() => toggleProduct(node.product.id)}
             />
             <Package className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
             <span className={cn("flex-1 text-sm truncate", isPlanned && "line-through text-muted-foreground")}>
