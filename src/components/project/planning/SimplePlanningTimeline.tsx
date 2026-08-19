@@ -124,24 +124,26 @@ const SimplePlanningTimeline = ({ tasks, staffPool, products = [], onTaskClick, 
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        <div className="flex w-full items-center gap-4">
-                          <span className={`shrink-0 ${task.status === "done" ? "font-medium line-through text-muted-foreground" : "font-medium"}`}>{task.title}</span>
-                          {mainProduct && (
-                            <span className="inline-flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium text-primary">
-                              <Package className="h-3.5 w-3.5 shrink-0 text-primary" />
-                              <span className="break-words">
-                                {mainProduct.quantity && mainProduct.quantity > 1 ? `${mainProduct.quantity} × ` : ""}{mainProduct.name}
+                        <div className="grid w-full grid-cols-[minmax(140px,180px)_minmax(0,1fr)_minmax(140px,220px)] items-center gap-4">
+                          <span className={`truncate ${task.status === "done" ? "font-medium line-through text-muted-foreground" : "font-medium"}`}>{task.title}</span>
+                          <span className="min-w-0">
+                            {mainProduct && (
+                              <span className="inline-flex min-w-0 items-center gap-1.5 rounded-md bg-primary/5 px-2 py-1 text-sm font-medium text-primary">
+                                <Package className="h-3.5 w-3.5 shrink-0 text-primary" />
+                                <span className="break-words">
+                                  {mainProduct.quantity && mainProduct.quantity > 1 ? `${mainProduct.quantity} × ` : ""}{mainProduct.name}
+                                </span>
                               </span>
-                            </span>
-                          )}
-                          {!mainProduct && <span className="flex-1" />}
-                          <div className="ml-auto flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
-                            {!isCalendar && task.category && <span>{task.category}</span>}
+                            )}
+                          </span>
+                          <div className="flex items-center justify-end gap-3 text-xs text-muted-foreground">
+                            {!isCalendar && task.category && <span className="truncate">{task.category}</span>}
                             {person && <span className="inline-flex items-center gap-1"><UserRound className="h-3 w-3" />{person}</span>}
                             {task.status === "done" && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
                             {isCalendar && <Badge variant="secondary" className="text-[10px]">Kalender</Badge>}
                           </div>
                         </div>
+
 
                         {(task.description || remaining.length > 0) && (
                           <div className="mt-1 flex w-full flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
