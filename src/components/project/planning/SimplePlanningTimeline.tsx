@@ -7,15 +7,36 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { EstablishmentTask } from "@/services/establishmentTaskService";
 
+interface TimelineProduct {
+  id: string;
+  name: string;
+  quantity?: number | null;
+}
+
 interface SimplePlanningTimelineProps {
   tasks: EstablishmentTask[];
   staffPool: Array<{ id: string; name: string }>;
+  products?: TimelineProduct[];
   onTaskClick: (task: EstablishmentTask) => void;
   onCreateMoment: () => void;
   onPlanFromBooking: () => void;
 }
 
-const SimplePlanningTimeline = ({ tasks, staffPool, onTaskClick, onCreateMoment, onPlanFromBooking }: SimplePlanningTimelineProps) => {
+const SimplePlanningTimeline = ({ tasks, staffPool, products = [], onTaskClick, onCreateMoment, onPlanFromBooking }: SimplePlanningTimelineProps) => {
+  const productMap = useMemo(() => {
+    const map = new Map<string, TimelineProduct>();
+    products.forEach((p) => map.set(p.id, p));
+    return map;
+  }, [products]);
+
+  const taskProducts = (task: EstablishmentTask): TimelineProduct[] => {
+    const ids = task.source_product_ids?.length
+      ? task.source_product_ids
+      : task.source_product_id
+        ? [task.source_product_id]
+        : [];
+    return ids.map((id) => productMap.get(id)).filter(Boolean) as TimelineProduct[];
+  };
   const sorted = useMemo(() => [...tasks].sort((a, b) => {
     const ad = `${a.start_date || "9999-12-31"}T${a.start_time || "23:59"}`;
     const bd = `${b.start_date || "9999-12-31"}T${b.start_time || "23:59"}`;
