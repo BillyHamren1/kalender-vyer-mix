@@ -38,9 +38,9 @@ Deno.serve(async (req) => {
       organizationId = typeof body.organization_id === 'string' ? body.organization_id : null;
       if (!organizationId) return json({ error: 'organization_id required for service calls' }, 400);
     } else {
-      const { data: userData } = await admin.auth.getUser(token);
+      const { data: userData, error: userErr } = await admin.auth.getUser(token);
       const user = userData?.user;
-      if (!user) return json({ error: 'Unauthorized' }, 401);
+      if (!user) return json({ error: 'Unauthorized', reason: 'token_not_a_user', details: userErr?.message ?? null }, 401);
 
       const { data: isAdmin } = await admin.rpc('has_role', { _user_id: user.id, _role: 'admin' });
       if (!isAdmin) return json({ error: 'Forbidden' }, 403);
