@@ -28,7 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { EstablishmentTask } from "@/services/establishmentTaskService";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 
- type ViewMode = "timeline" | "calendar" | "gantt" | "people";
+ type ViewMode = "timeline" | "gantt" | "people";
 
 interface SelectedTask {
   id: string;
