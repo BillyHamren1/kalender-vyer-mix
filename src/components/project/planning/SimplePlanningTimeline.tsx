@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { format, isSameDay, parseISO } from "date-fns";
 import { sv } from "date-fns/locale";
-import { CalendarDays, CheckCircle2, ChevronRight, Clock3, HardHat, UserRound } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronRight, Clock3, HardHat, Package, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
