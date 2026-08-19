@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { syncBookingOperationalPlan } from '@/services/bookingOperationalPlanSyncService';
 
 export interface TransportAssignment {
   id: string;
@@ -152,6 +153,7 @@ export const useTransportAssignments = (date?: Date | null, endDate?: Date | nul
       
       setAssignments(prev => [...prev, assignment as unknown as TransportAssignment]);
       toast.success('Bokning tilldelad till fordon');
+      await syncBookingOperationalPlan(data.booking_id);
       return assignment as unknown as TransportAssignment;
     } catch (error: any) {
       console.error('Error assigning booking:', error);
@@ -162,6 +164,7 @@ export const useTransportAssignments = (date?: Date | null, endDate?: Date | nul
 
   const updateAssignment = async (id: string, updates: Partial<TransportAssignment>): Promise<boolean> => {
     try {
+      const existing = assignments.find(a => a.id === id);
       const { error } = await supabase
         .from('transport_assignments')
         .update(updates)
@@ -170,6 +173,7 @@ export const useTransportAssignments = (date?: Date | null, endDate?: Date | nul
       if (error) throw error;
       
       setAssignments(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a));
+      await syncBookingOperationalPlan(updates.booking_id || existing?.booking_id);
       return true;
     } catch (error: any) {
       console.error('Error updating assignment:', error);
@@ -180,6 +184,7 @@ export const useTransportAssignments = (date?: Date | null, endDate?: Date | nul
 
   const removeAssignment = async (id: string): Promise<boolean> => {
     try {
+      const existing = assignments.find(a => a.id === id);
       const { error } = await supabase
         .from('transport_assignments')
         .delete()
@@ -189,6 +194,7 @@ export const useTransportAssignments = (date?: Date | null, endDate?: Date | nul
       
       setAssignments(prev => prev.filter(a => a.id !== id));
       toast.success('Tilldelning borttagen');
+      await syncBookingOperationalPlan(existing?.booking_id);
       return true;
     } catch (error: any) {
       console.error('Error removing assignment:', error);

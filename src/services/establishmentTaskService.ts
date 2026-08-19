@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { subDays, addDays, format, eachDayOfInterval, parseISO } from "date-fns";
 import { syncActivityToCalendar } from "@/services/activityCalendarSyncService";
+import { syncBookingOperationalPlan } from '@/services/bookingOperationalPlanSyncService';
 
 // Fält som påverkar speglingen i personalkalendern.
 // När någon av dessa ändras OCH aktiviteten redan är publicerad
@@ -269,6 +270,7 @@ export const createEstablishmentTask = async (task: {
     ensureBookingStaffAssignments(task.booking_id, assignedToIds, task.start_date, task.end_date);
   }
 
+  await syncBookingOperationalPlan(task.booking_id);
   return data as EstablishmentTask;
 };
 
@@ -321,6 +323,8 @@ export const updateEstablishmentTask = async (
     }
   }
 
+  const { data: syncTarget } = await supabase.from('establishment_tasks').select('booking_id').eq('id', id).maybeSingle();
+
   const { error } = await supabase
     .from('establishment_tasks')
     .update(updates)
@@ -349,6 +353,7 @@ export const updateEstablishmentTask = async (
   if (touchesMirror) {
     await reSyncIfPublished(id);
   }
+  await syncBookingOperationalPlan(syncTarget?.booking_id);
 };
 
 export const bulkUpdateEstablishmentTasks = async (
@@ -396,12 +401,14 @@ export const bulkUpdateEstablishmentTasks = async (
 };
 
 export const deleteEstablishmentTask = async (id: string): Promise<void> => {
+  const { data: syncTarget } = await supabase.from('establishment_tasks').select('booking_id').eq('id', id).maybeSingle();
   const { error } = await supabase
     .from('establishment_tasks')
     .delete()
     .eq('id', id);
 
   if (error) throw error;
+  await syncBookingOperationalPlan(syncTarget?.booking_id);
 };
 
 export const generateDefaultTasks = async (
