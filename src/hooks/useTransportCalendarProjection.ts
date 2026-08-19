@@ -5,20 +5,28 @@ import { supabase } from '@/integrations/supabase/client';
 export interface CalendarTransportProjection {
   id: string;
   bookingId: string;
+  bookingNumber: string | null;
+  bookingTitle: string;
+  deliveryAddress: string | null;
   transportDate: string;
   transportTime: string | null;
+  transportEndTime: string | null;
   estimatedDuration: number | null;
   status: string | null;
+  planningStatus: 'preliminary' | 'confirmed';
+  transportType: string;
+  originAddress: string | null;
+  destinationAddress: string | null;
   pickupAddress: string | null;
   driverNotes: string | null;
-  vehicleId: string;
+  vehicleId: string | null;
   vehicleName: string;
   vehicleType: string | null;
   isExternal: boolean;
 }
 
 /**
- * Read-only projection of transport_assignments into Bemanningsplaneringen.
+ * Read-only projection of transport_assignments into operational calendars.
  * transport_assignments remains the single source of truth; this hook never
  * writes calendar_events or booking phase dates.
  */
@@ -40,8 +48,14 @@ export const useTransportCalendarProjection = (startDate: Date, endDate: Date) =
           vehicle_id,
           transport_date,
           transport_time,
+          transport_end_time,
           estimated_duration,
           status,
+          planning_status,
+          partner_response,
+          transport_type,
+          origin_address,
+          destination_address,
           pickup_address,
           driver_notes,
           vehicle:vehicles!vehicle_id (
@@ -49,6 +63,12 @@ export const useTransportCalendarProjection = (startDate: Date, endDate: Date) =
             name,
             vehicle_type,
             is_external
+          ),
+          booking:bookings!booking_id (
+            id,
+            client,
+            booking_number,
+            deliveryaddress
           )
         `)
         .gte('transport_date', start)
@@ -61,14 +81,22 @@ export const useTransportCalendarProjection = (startDate: Date, endDate: Date) =
       setItems((data || []).map((row: any) => ({
         id: row.id,
         bookingId: row.booking_id,
-        vehicleId: row.vehicle_id,
+        bookingNumber: row.booking?.booking_number || null,
+        bookingTitle: row.booking?.client || 'Transport',
+        deliveryAddress: row.booking?.deliveryaddress || null,
+        vehicleId: row.vehicle_id || null,
         transportDate: row.transport_date,
         transportTime: row.transport_time,
+        transportEndTime: row.transport_end_time,
         estimatedDuration: row.estimated_duration,
         status: row.status,
+        planningStatus: row.planning_status === 'confirmed' || row.partner_response === 'accepted' ? 'confirmed' : 'preliminary',
+        transportType: row.transport_type || 'delivery',
+        originAddress: row.origin_address || row.pickup_address || null,
+        destinationAddress: row.destination_address || row.booking?.deliveryaddress || null,
         pickupAddress: row.pickup_address,
         driverNotes: row.driver_notes,
-        vehicleName: row.vehicle?.name || 'Transport',
+        vehicleName: row.vehicle?.name || 'Fordon ej bestämt',
         vehicleType: row.vehicle?.vehicle_type || null,
         isExternal: Boolean(row.vehicle?.is_external),
       })));
@@ -82,15 +110,11 @@ export const useTransportCalendarProjection = (startDate: Date, endDate: Date) =
 
   useEffect(() => {
     fetchItems();
-
     const channel = supabase
       .channel(`staff-calendar-transport-${start}-${end}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transport_assignments' }, fetchItems)
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [fetchItems, start, end]);
 
   const byBookingAndDate = useMemo(() => {

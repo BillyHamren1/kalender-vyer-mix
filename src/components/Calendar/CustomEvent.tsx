@@ -393,6 +393,30 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
             {locationLine}
           </div>
         )}
+        {(event.extendedProps as any)?.isTransportPlanning && (() => {
+          const ep = event.extendedProps as any;
+          const status = ep.planningStatusLabel || (ep.planningStatus === 'confirmed' ? 'Bekräftad' : 'Preliminär');
+          const type = ep.transportTypeLabel || 'Transport';
+          const vehicle = ep.vehicleName || 'Fordon ej bestämt';
+          const time = ep.timeLabel || '';
+          const route = [ep.originAddress, ep.destinationAddress].filter(Boolean).join(' → ');
+          return (
+            <div className="mt-1 flex flex-col gap-0.5" style={{ fontSize: '9.5px', color: '#1E3A8A' }}>
+              <div className="flex flex-wrap items-center gap-1 font-semibold">
+                {time && <span className="tabular-nums">{time}</span>}
+                <span>· {type}</span>
+                <span
+                  className="rounded px-1 py-px"
+                  style={{ backgroundColor: ep.planningStatus === 'confirmed' ? 'rgba(16,185,129,.16)' : 'rgba(245,158,11,.18)' }}
+                >
+                  {status}
+                </span>
+              </div>
+              <div className="truncate font-medium" title={vehicle}>{vehicle}</div>
+              {route && <div className="truncate opacity-80" title={route}>{route}</div>}
+            </div>
+          );
+        })()}
         {!isWarehouseEvent && Array.isArray((event.extendedProps as any)?.logisticsTransports) &&
           (event.extendedProps as any).logisticsTransports.length > 0 && (
             <div className="mt-1 flex flex-col gap-0.5">
@@ -567,7 +591,7 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
   }
 
   // If read-only, just render the card with double-click for details
-  if (readOnly) {
+  if (readOnly || (event.extendedProps as any)?.isTransportPlanning) {
     return (
       <EventHoverCard event={event} onClick={handleViewDetails}>
         {eventCardContent}

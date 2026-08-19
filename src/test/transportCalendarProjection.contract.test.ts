@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 const root = process.cwd();
 const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8');
 
-describe('Logistik → Bemanningsplanering projection contract', () => {
+describe('First-class transport planning contract', () => {
   it('läser transport_assignments utan att skriva calendar_events', () => {
     const hook = read('src/hooks/useTransportCalendarProjection.ts');
     expect(hook).toContain(".from('transport_assignments')");
@@ -13,17 +13,33 @@ describe('Logistik → Bemanningsplanering projection contract', () => {
     expect(hook).not.toMatch(/\.insert\(|\.update\(|\.delete\(/);
   });
 
-  it('berikar befintliga kalenderkort istället för att skapa ny transportresurs', () => {
-    const page = read('src/pages/CustomCalendarPage.tsx');
-    expect(page).toContain('logisticsTransports');
-    expect(page).toContain('transportByBookingAndDate');
-    expect(page).toContain("e.resourceId !== 'transport'");
+  it('har en egen transportresurs separerad från Lager', () => {
+    const teams = read('src/hooks/useTeamResources.tsx');
+    expect(teams).toContain("id: 'warehouse', title: 'Lager'");
+    expect(teams).toContain("id: 'logistics-transport', title: 'Transport'");
+    expect(teams).toContain("team_id='transport'"); // documented legacy adapter only
   });
 
-  it('har snabb registrering men behåller transport_assignments som write-path', () => {
-    const dialog = read('src/components/logistics/QuickTransportDialog.tsx');
-    expect(dialog).toContain('assignBookingToVehicle');
-    expect(dialog).toContain('updateAssignment');
-    expect(dialog).not.toContain('calendar_events');
+  it('renderar transport_assignments som egna transportkort i bemanningskalendern', () => {
+    const page = read('src/pages/CustomCalendarPage.tsx');
+    expect(page).toContain("resourceId: 'logistics-transport'");
+    expect(page).toContain('transportItems');
+    expect(page).toContain('isTransportPlanning');
+  });
+
+  it('snabbplanering skriver endast till transport_assignments', () => {
+    const dialog = read('src/components/logistics/TransportPlanningDialog.tsx');
+    expect(dialog).toContain(".from('transport_assignments').insert");
+    expect(dialog).not.toContain(".from('calendar_events')");
+    expect(dialog).toContain("vehicle_id: vehicleId === 'unassigned' ? null : vehicleId");
+    expect(dialog).toContain("planning_status: planningStatus");
+  });
+
+  it('migrationen tillåter flera transporter per bokning/dag och valfritt fordon', () => {
+    const migration = read('supabase/migrations/20260819145100_transport_planning_first_class.sql');
+    expect(migration).toContain('ALTER COLUMN vehicle_id DROP NOT NULL');
+    expect(migration).toContain('DROP CONSTRAINT IF EXISTS transport_assignments_booking_id_transport_date_key');
+    expect(migration).toContain("planning_status text NOT NULL DEFAULT 'preliminary'");
+    expect(migration).toContain('transport_end_time time without time zone');
   });
 });

@@ -52,7 +52,7 @@ export const ReadOnlyStaffDayView: React.FC<Props> = ({ date, highlightedTeamId,
   const teams = useMemo(() => {
     return (teamResources || [])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .filter((r: any) => r.id !== 'team-11' && r.id !== 'transport')
+      .filter((r: any) => r.id !== 'team-11' && r.id !== 'warehouse' && r.id !== 'logistics-transport' && r.id !== 'transport')
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((r: any) => ({ id: r.id, title: r.title }));
   }, [teamResources]);

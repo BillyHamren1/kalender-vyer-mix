@@ -228,7 +228,7 @@ const WarehouseCalendarPage = () => {
   // Transport events for the "Transporter" column
   const { transportEvents } = useTransportCalendarEvents(
     currentWeekStart,
-    viewMode === 'day' ? 'day' : 'week'
+    viewMode === 'day' ? 'day' : viewMode === 'monthly' ? 'month' : 'week'
   );
 
   // Sync initial view/date from URL (?date=YYYY-MM-DD&view=day)
@@ -361,7 +361,7 @@ const WarehouseCalendarPage = () => {
   const getVisibleTeamsForDay = (date: Date): string[] => {
     const dateKey = format(date, 'yyyy-MM-dd');
     const stored = visibleTeamsByDay[dateKey];
-    const base = stored ?? ['lager-1', 'lager-2', 'lager-3', 'warehouse-event'];
+    const base = stored ?? ['lager-1', 'lager-2', 'lager-3', 'warehouse-transport'];
     // Auto-include any lager column that has events on this day
     const extras = new Set<string>();
     for (const ev of combinedEvents) {
@@ -378,11 +378,11 @@ const WarehouseCalendarPage = () => {
   const handleToggleTeamForDay = (teamId: string, date: Date) => {
     const dateKey = format(date, 'yyyy-MM-dd');
     setVisibleTeamsByDay(prev => {
-      const currentVisible = prev[dateKey] || ['lager-1', 'lager-2', 'lager-3', 'warehouse-event'];
+      const currentVisible = prev[dateKey] || ['lager-1', 'lager-2', 'lager-3', 'warehouse-transport'];
       
       if (currentVisible.includes(teamId)) {
         // Don't allow hiding Lager 1-3 or Transport column
-        if (['lager-1', 'lager-2', 'lager-3', 'warehouse-event'].includes(teamId)) {
+        if (['lager-1', 'lager-2', 'lager-3', 'warehouse-transport'].includes(teamId)) {
           return prev;
         }
         return {

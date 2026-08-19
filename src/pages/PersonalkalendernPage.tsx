@@ -7,6 +7,8 @@ import { useProjectInboxCount } from '@/hooks/useProjectInboxCount';
 import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { useInternalLagerCalendarEvents } from '@/hooks/useInternalLagerCalendarEvents';
+import { useTransportCalendarProjection } from '@/hooks/useTransportCalendarProjection';
+import { transportProjectionToCalendarEvent } from '@/utils/transportCalendarProjection';
 import CustomCalendar from '@/components/Calendar/CustomCalendar';
 import PersonalkalendernAuthGate from '@/auth/PersonalkalendernAuthGate';
 import { Button } from '@/components/ui/button';
@@ -33,12 +35,13 @@ const PersonalkalendernInner: React.FC = () => {
   });
   const { teamResources } = useTeamResources();
   const { internalLagerEvents } = useInternalLagerCalendarEvents(weekStart, 'weekly');
+  const { items: transportItems } = useTransportCalendarProjection(weekStart, addDays(weekStart, 6));
   const inboxCount = useProjectInboxCount();
 
   const mergedEvents = useMemo(() => {
     const filtered = events.filter((e: any) => e.resourceId !== 'transport');
-    return [...filtered, ...internalLagerEvents];
-  }, [events, internalLagerEvents]);
+    return [...filtered, ...internalLagerEvents, ...transportItems.map(transportProjectionToCalendarEvent)];
+  }, [events, internalLagerEvents, transportItems]);
 
   // Alla event är read-only i denna vy
   const isEventReadOnly = useCallback(() => true, []);
