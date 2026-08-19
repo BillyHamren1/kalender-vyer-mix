@@ -47,6 +47,9 @@ export interface OpsJob {
   totalItems: number;
   verifiedItems: number;
   percent: number;
+  /** Planerad/tilldelad lagerpersonal för jobbets dagar i valt intervall. */
+  assignedStaff: OpsAssignedStaff[];
+  /** Personer som faktiskt har scannat på packningen nyligen. */
   workers: OpsWorker[];
   lastActivityAt: string | null;
   updatedAt: string;
@@ -56,6 +59,15 @@ export interface OpsWorker {
   staffId: string;
   name: string;
   lastActivityAt: string;
+}
+
+export interface OpsAssignedStaff {
+  staffId: string;
+  name: string;
+  assignmentDate: string;
+  startTime: string | null;
+  endTime: string | null;
+  status: string;
 }
 
 export interface OpsShift {
@@ -209,12 +221,33 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
         }
       }
 
-      // 4. Staff-namn (för workers + scans + shifts senare)
+      // 4. Planerad lagerpersonal för packningarna i valt intervall.
+      // warehouse_assignments är den konkreta operativa kopplingen mellan en packning, dag och person.
+      let plannedAssignments: any[] = [];
+      if (ids.length > 0) {
+        const { data: assignedRows, error: assignedErr } = await supabase
+          .from("warehouse_assignments")
+          .select("packing_id,staff_id,assignment_date,start_time,end_time,status")
+          .in("packing_id", ids)
+          .gte("assignment_date", startDay)
+          .lte("assignment_date", endDay)
+          .neq("status", "cancelled")
+          .limit(10000);
+        if (assignedErr) {
+          // Översikten ska fortfarande fungera även om äldre miljö saknar/har begränsad vy.
+          console.warn("[warehouse-ops-range] could not load warehouse_assignments", assignedErr);
+        } else {
+          plannedAssignments = assignedRows || [];
+        }
+      }
+
+      // 5. Staff-namn (för planerad personal + workers + scans + shifts senare)
       const staffIds = new Set<string>();
       list.forEach((p) => p.signed_by_staff_id && staffIds.add(p.signed_by_staff_id));
       allocations.forEach((a) => a.scanned_by_staff_id && staffIds.add(a.scanned_by_staff_id));
+      plannedAssignments.forEach((a) => a.staff_id && staffIds.add(a.staff_id));
 
-      // 5. Shifts (time_reports) för intervallet — kopplade till internt Lager-bokningsled (is_internal)
+      // 6. Shifts (time_reports) för intervallet — kopplade till internt Lager-bokningsled (is_internal)
       const { data: lagerBookings } = await supabase
         .from("bookings")
         .select("id")
@@ -244,12 +277,34 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
         staffMap = new Map((staff || []).map((s: any) => [s.id, s.name]));
       }
 
-      // 6. Bygg OpsJob[]
+      // 7. Bygg OpsJob[]
       const itemsByProject = new Map<string, any[]>();
       for (const it of items) {
         const arr = itemsByProject.get(it.packing_id) || [];
         arr.push(it);
         itemsByProject.set(it.packing_id, arr);
+      }
+
+      const assignedStaffByProject = new Map<string, OpsAssignedStaff[]>();
+      for (const a of plannedAssignments) {
+        if (!a.packing_id || !a.staff_id || !a.assignment_date) continue;
+        const arr = assignedStaffByProject.get(a.packing_id) || [];
+        arr.push({
+          staffId: a.staff_id,
+          name: staffMap.get(a.staff_id) || "Okänd",
+          assignmentDate: a.assignment_date,
+          startTime: a.start_time || null,
+          endTime: a.end_time || null,
+          status: a.status || "planned",
+        });
+        assignedStaffByProject.set(a.packing_id, arr);
+      }
+      for (const arr of assignedStaffByProject.values()) {
+        arr.sort((a, b) => {
+          const ad = `${a.assignmentDate} ${a.startTime || ""}`;
+          const bd = `${b.assignmentDate} ${b.startTime || ""}`;
+          return ad.localeCompare(bd) || a.name.localeCompare(b.name, "sv");
+        });
       }
 
       const workersByProject = new Map<string, Map<string, OpsWorker>>();
@@ -331,13 +386,14 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
           totalItems: progress.total,
           verifiedItems: progress.verified,
           percent: progress.percentage,
+          assignedStaff: assignedStaffByProject.get(p.id) || [],
           workers,
           lastActivityAt,
           updatedAt: p.updated_at,
         };
       });
 
-      // 7. Filtrera jobb till intervallet (eller alltid med om aktiva eller kommande)
+      // 8. Filtrera jobb till intervallet (eller alltid med om aktiva eller kommande)
       const inRange = (d: string | null) => !!d && d >= startDay && d <= endDay;
       const isCurrentlyActive = (j: OpsJob) =>
         j.status === "in_progress" || j.status === "returning" || j.status === "back";
@@ -353,7 +409,7 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
         (j) => inRange(j.anchorDate) || isCurrentlyActive(j) || isUpcoming(j),
       );
 
-      // 8. Scan-events i intervallet
+      // 9. Scan-events i intervallet
       const scans: OpsScanEvent[] = allocations
         .filter((a) => a.created_at >= startISO && a.created_at <= endISO)
         .map((a) => {
@@ -368,7 +424,7 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
         })
         .filter((s) => s.staffId);
 
-      // 9. Shifts
+      // 10. Shifts
       const shifts: OpsShift[] = shiftRows
         .filter((r) => r.staff_id)
         .map((r) => ({
@@ -381,10 +437,10 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
           isInternal: true,
         }));
 
-      // 10. Attention
+      // 11. Attention
       const attention = computeAttention(filteredJobs, scans, shifts, anchorDate);
 
-      // 11. Summary
+      // 12. Summary
       const peopleActive = new Set([
         ...scans.map((s) => s.staffId),
         ...shifts.filter((s) => !s.endTime).map((s) => s.staffId),

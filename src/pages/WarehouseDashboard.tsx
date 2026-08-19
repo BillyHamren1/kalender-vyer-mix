@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWarehouseOpsRange } from "@/hooks/useWarehouseOpsRange";
 import CreateInternalTaskDialog from "@/components/warehouse/CreateInternalTaskDialog";
-import WarehouseOverviewToday from "@/components/warehouse-ops/WarehouseOverviewToday";
 import WarehouseOverviewAttention from "@/components/warehouse-ops/WarehouseOverviewAttention";
 import WarehouseOverviewNext7Days from "@/components/warehouse-ops/WarehouseOverviewNext7Days";
 import WarehouseBookingQuickOpen from "@/components/warehouse/WarehouseBookingQuickOpen";
@@ -87,9 +86,8 @@ const WarehouseDashboard = () => {
           </div>
         ) : (
           <>
-            <WarehouseOverviewToday data={data} />
-            <WarehouseOverviewAttention items={data.attention} maxItems={4} />
             <WarehouseOverviewNext7Days data={data} />
+            <WarehouseOverviewAttention items={data.attention} maxItems={4} />
           </>
         )}
 
