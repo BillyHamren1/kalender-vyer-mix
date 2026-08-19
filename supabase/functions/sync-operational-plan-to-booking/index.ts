@@ -19,11 +19,13 @@ Deno.serve(async (req) => {
   const opsKeyHeader = req.headers.get('x-ops-resync-key');
   const opsKey = Deno.env.get('OPS_RESYNC_KEY');
   const opsKeyV2 = Deno.env.get('OPS_RESYNC_KEY_V2');
+  const opsKeyV3 = Deno.env.get('OPS_RESYNC_KEY_V3');
   const isServiceCall =
     (!!serviceApiKey && !!planningApiKey && serviceApiKey === planningApiKey) ||
     (!!cronSecretHeader && !!cronSecret && cronSecretHeader === cronSecret) ||
     (!!opsKeyHeader && !!opsKey && opsKeyHeader === opsKey) ||
-    (!!opsKeyHeader && !!opsKeyV2 && opsKeyHeader === opsKeyV2);
+    (!!opsKeyHeader && !!opsKeyV2 && opsKeyHeader === opsKeyV2) ||
+    (!!opsKeyHeader && !!opsKeyV3 && opsKeyHeader === opsKeyV3);
 
 
 
@@ -63,7 +65,7 @@ Deno.serve(async (req) => {
 
   const [tasksRes, transportRes, calendarRes] = await Promise.all([
     admin.from('establishment_tasks')
-      .select('id,title,category,start_date,end_date,start_time,end_time,status,task_type,description,sort_order')
+      .select('id,title,category,start_date,end_date,start_time,end_time,status,task_type,description,sort_order,source_product_id,source_product_ids')
       .eq('booking_id', bookingId)
       .order('start_date', { ascending: true })
       .order('start_time', { ascending: true, nullsFirst: false }),
@@ -83,6 +85,34 @@ Deno.serve(async (req) => {
     return json({ error: 'Could not build operational projection', details: [tasksRes.error?.message, transportRes.error?.message, calendarRes.error?.message].filter(Boolean) }, 500);
   }
 
+  // Product catalogue for the booking – so Booking knows WHAT is being rigged, not just "Rigg".
+  const { data: bookingProducts } = await admin
+    .from('booking_products')
+    .select('id,name,quantity,sku,parent_product_id,notes')
+    .eq('booking_id', bookingId);
+  const productById = new Map<string, any>((bookingProducts || []).map((p: any) => [p.id, p]));
+
+  const resolveProducts = (t: any) => {
+    const ids: string[] = Array.isArray(t.source_product_ids) && t.source_product_ids.length
+      ? t.source_product_ids
+      : (t.source_product_id ? [t.source_product_id] : []);
+    const qty: Record<string, number> = {};
+    return ids
+      .map((id) => {
+        const p = productById.get(id);
+        if (!p) return null;
+        return {
+          id: p.id,
+          name: p.name,
+          sku: p.sku ?? null,
+          quantity: Number(qty?.[id] ?? p.quantity ?? 1),
+          is_accessory: !!p.parent_product_id,
+          notes: p.notes ?? null,
+        };
+      })
+      .filter(Boolean);
+  };
+
   const calendar = calendarRes.data || [];
   const firstProjectStart = calendar.find((e: any) => e?.start_time)?.start_time || null;
   const startTimeOnSite = firstProjectStart ? new Date(firstProjectStart).toISOString().slice(11, 16) : null;
@@ -99,6 +129,9 @@ Deno.serve(async (req) => {
       id: t.id, type: 'planning_item', title: t.title, category: t.category,
       date: t.start_date, end_date: t.end_date, start_time: t.start_time, end_time: t.end_time,
       status: t.status, task_type: t.task_type, description: t.description, sort_order: t.sort_order,
+      products: resolveProducts(t),
+      product_summary: resolveProducts(t).map((p: any) => (p.quantity > 1 ? `${p.quantity}× ${p.name}` : p.name)).join(', ') || null,
+      label: [t.title, resolveProducts(t).map((p: any) => p.name).join(', ')].filter(Boolean).join(' – '),
     })),
     transports: (transportRes.data || []).map((t: any) => ({
       id: t.id, type: 'transport', date: t.transport_date, time: t.transport_time,
