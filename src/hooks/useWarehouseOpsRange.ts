@@ -405,9 +405,19 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
         const last = j.endDate || j.anchorDate;
         return !!last && last >= todayStr;
       };
+      // Redan nedriggade jobb (sista datum har passerat) ska aldrig ligga kvar i översikten,
+      // oavsett status — de hör hemma i historiken, inte i dag-för-dag-vyn.
+      const isRiggedDown = (j: OpsJob) => {
+        const last = j.endDate || j.anchorDate;
+        if (!last) return false;
+        return last < todayStr && last < startDay;
+      };
       const filteredJobs = jobs.filter(
-        (j) => inRange(j.anchorDate) || isCurrentlyActive(j) || isUpcoming(j),
+        (j) =>
+          !isRiggedDown(j) &&
+          (inRange(j.anchorDate) || isCurrentlyActive(j) || isUpcoming(j)),
       );
+
 
       // 9. Scan-events i intervallet
       const scans: OpsScanEvent[] = allocations
