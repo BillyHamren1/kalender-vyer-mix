@@ -206,20 +206,6 @@ const EstablishmentPage = () => {
         />
       )}
 
-      {viewMode === "calendar" && (
-        <div className="space-y-2">
-          <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-            Kalendern visar genomförandet visuellt. Team- och resursverktygen är kvar här men ligger inte längre i projektets standardvy.
-          </div>
-          <ProjectCalendarView
-            projectId={project.id}
-            bookingId={bookingId}
-            isLargeProject={false}
-            compactHeader
-          />
-        </div>
-      )}
-
       {viewMode === "gantt" && (
         <div className="space-y-2">
           <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
@@ -232,6 +218,7 @@ const EstablishmentPage = () => {
                 id: t.id,
                 key: `task-${t.id}`,
                 name: t.title,
+                subtitle: ganttProductLabel(t),
                 start_date: t.start_date,
                 end_date: t.end_date,
                 start_time: t.start_time,
