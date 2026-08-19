@@ -100,6 +100,8 @@ const SimplePlanningTimeline = ({ tasks, staffPool, products = [], onTaskClick, 
                   const person = staffName(task);
                   const isCalendar = task.source === "calendar_manual" || task.category?.toLowerCase() === "kalender";
                   const items = taskProducts(task);
+                  const mainProduct = items[0] || null;
+                  const remaining = items.slice(1);
                   return (
                     <button
                       key={task.id}
@@ -124,6 +126,14 @@ const SimplePlanningTimeline = ({ tasks, staffPool, products = [], onTaskClick, 
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className={task.status === "done" ? "font-medium line-through text-muted-foreground" : "font-medium"}>{task.title}</span>
+                          {mainProduct && (
+                            <span className="inline-flex max-w-[260px] items-center gap-1.5 rounded-md bg-primary/10 px-2 py-1 text-sm font-medium text-primary">
+                              <Package className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">
+                                {mainProduct.quantity && mainProduct.quantity > 1 ? `${mainProduct.quantity} × ` : ""}{mainProduct.name}
+                              </span>
+                            </span>
+                          )}
                           {task.status === "done" && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
                           {task.source === "product" && <Badge variant="outline" className="text-[10px]">Från bokning</Badge>}
                           {isCalendar && <Badge variant="secondary" className="text-[10px]">Kalender</Badge>}
@@ -134,16 +144,16 @@ const SimplePlanningTimeline = ({ tasks, staffPool, products = [], onTaskClick, 
                           {task.description && <span className="truncate max-w-[420px]">{task.description}</span>}
                         </div>
 
-                        {items.length > 0 && (
+                        {remaining.length > 0 && (
                           <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                            <Package className="h-3 w-3 text-muted-foreground" />
-                            {items.slice(0, 6).map((item) => (
-                              <Badge key={item.id} variant="secondary" className="max-w-[260px] truncate text-[11px] font-normal">
+                            <span className="text-[11px] text-muted-foreground">Övriga produkter:</span>
+                            {remaining.slice(0, 5).map((item) => (
+                              <Badge key={item.id} variant="secondary" className="max-w-[220px] truncate text-[11px] font-normal">
                                 {item.quantity && item.quantity > 1 ? `${item.quantity} × ` : ""}{item.name}
                               </Badge>
                             ))}
-                            {items.length > 6 && (
-                              <span className="text-[11px] text-muted-foreground">+{items.length - 6} till</span>
+                            {remaining.length > 5 && (
+                              <span className="text-[11px] text-muted-foreground">+{remaining.length - 5} till</span>
                             )}
                           </div>
                         )}
