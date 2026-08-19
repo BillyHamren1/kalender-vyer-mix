@@ -449,8 +449,10 @@ const ActivityPlannerSheet = ({
     queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
 
     onTaskCreated();
-    onOpenChange(false);
+    // Vid fel: håll panelen öppen så användaren ser vad som gick fel och kan rätta.
+    if (failures.length === 0) onOpenChange(false);
     setIsSubmitting(false);
+
   }, [rowsForSave, isProjectMode, selectedBookingId, bookingId, largeProjectId, activeProducts, onTaskCreated, onOpenChange, queryClient]);
 
   // --- Render ---
