@@ -128,6 +128,20 @@ const EstablishmentPage = () => {
     setQuickDialogOpen(true);
   };
 
+  const ganttProductLabel = useCallback((task: any): string | null => {
+    const all = (bookingPlanningData?.products || []) as Array<{ id: string; name: string; quantity?: number | null }>;
+    const ids: string[] = task.source_product_ids?.length
+      ? task.source_product_ids
+      : task.source_product_id
+        ? [task.source_product_id]
+        : [];
+    const names = ids
+      .map((id) => all.find((p) => p.id === id))
+      .filter(Boolean)
+      .map((p) => `${p!.name}${p!.quantity && p!.quantity > 1 ? ` ×${p!.quantity}` : ""}`);
+    return names.length ? names.join(" · ") : null;
+  }, [bookingPlanningData?.products]);
+
   const progressText = useMemo(() => {
     if (analytics.total === 0) return "Ingen planering skapad";
     return `${analytics.completed} av ${analytics.total} klara`;
