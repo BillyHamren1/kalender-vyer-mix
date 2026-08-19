@@ -1998,6 +1998,37 @@ export const checkProductChanges = async (
     console.warn(`[Product Sync] ${PRODUCT_DESTRUCTIVE_BLOCKED_LOG} booking ${bookingId}: ${diff.blockedRemovals.length} local products kept (completeness=${completeness})`);
   }
 
+  // Synliggör blockerade borttagningar i UI istället för att bara logga dem.
+  // Produkter som saknas i Bookings lista men inte får raderas markeras;
+  // produkter som finns i källan får markeringen rensad.
+  try {
+    const blockedSet = new Set(diff.blockedRemovals.map((n: string) => String(n)));
+    const missingIds = (existingProducts || [])
+      .filter((p: any) => blockedSet.has(String(p.name)))
+      .map((p: any) => p.id);
+    const presentIds = (existingProducts || [])
+      .filter((p: any) => !blockedSet.has(String(p.name)))
+      .map((p: any) => p.id);
+
+    if (missingIds.length > 0) {
+      await supabase
+        .from('booking_products')
+        .update({ source_missing_since: new Date().toISOString() })
+        .in('id', missingIds)
+        .is('source_missing_since', null);
+    }
+    if (presentIds.length > 0) {
+      await supabase
+        .from('booking_products')
+        .update({ source_missing_since: null })
+        .in('id', presentIds)
+        .not('source_missing_since', 'is', null);
+    }
+  } catch (markErr) {
+    console.warn(`[Product Sync] kunde inte markera source_missing_since för ${bookingId}:`, markErr);
+  }
+
+
   if (diff.changed) {
     console.log(`[Product Changes] Booking ${bookingId}: +${diff.added.length} added, -${diff.removed.length} removed, ~${diff.updated.length} updated (completeness=${completeness})`);
   }
@@ -3291,12 +3322,31 @@ serve(async (req) => {
         })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
       }
 
-      const reserved = await reserveCanonicalRevision(supabase, {
+      const forceRevision = body?.force_revision === true;
+      let reserved = await reserveCanonicalRevision(supabase, {
         bookingId: normalizedSingleBookingId,
         organizationId: organizationId,
         incoming,
         ownerJobId: `import-bookings:${crypto.randomUUID()}`,
       });
+      if (reserved.ok && reserved.decision === 'already_current' && forceRevision) {
+        // Explicit omkörning: revisionen är redan applicerad men innehållet
+        // (t.ex. produktlistan) kan ha blockerats vid förra körningen.
+        console.warn('[import-bookings] force_revision=true — nollställer applied revision och kör om', JSON.stringify({
+          booking_id: normalizedSingleBookingId, organization_id: organizationId,
+        }));
+        await supabase
+          .from('booking_source_state')
+          .update({ applied_source_updated_at: null, applied_source_version: null, highest_seen_source_updated_at: null, highest_seen_source_version: null })
+          .eq('booking_id', normalizedSingleBookingId)
+          .eq('organization_id', organizationId);
+        reserved = await reserveCanonicalRevision(supabase, {
+          bookingId: normalizedSingleBookingId,
+          organizationId: organizationId,
+          incoming,
+          ownerJobId: `import-bookings:${crypto.randomUUID()}`,
+        });
+      }
       if (reserved.ok && reserved.decision === 'already_current') {
         console.log('[import-bookings] revision already current — no mutation', JSON.stringify({
           booking_id: normalizedSingleBookingId, organization_id: organizationId,
@@ -3308,6 +3358,8 @@ serve(async (req) => {
           results: { total: 1, imported: 0, failed: 0, errors: [], sync_mode: 'revision_idempotent' },
         })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
       }
+
+
       if (!reserved.ok) {
         console.error('[import-bookings] canonical revision guard blocked import', JSON.stringify({
           booking_id: normalizedSingleBookingId,

@@ -8,6 +8,7 @@ import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { CalendarIcon } from 'lucide-react';
 import ProjectScheduleEditable from '@/components/project/ProjectScheduleEditable';
 import { ProductsList } from '../ProductsList';
+import { SourceMissingProductsAlert } from '../SourceMissingProductsAlert';
 import { AttachmentsList } from '../AttachmentsList';
 import { InternalNotes } from '../InternalNotes';
 import { MapDrawingCard } from '../MapDrawingCard';
@@ -114,6 +115,7 @@ const BookingDetailContent: React.FC<BookingDetailContentProps> = ({
             eventDates={eventDates}
             rigDownDates={rigDownDates}
           />
+          <SourceMissingProductsAlert bookingId={booking.id} />
           <ProductsList products={booking.products || []} />
           <AttachmentsList 
             bookingId={booking.id}

@@ -20,7 +20,9 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get('Authorization') ?? '';
-    if (!authHeader.startsWith('Bearer ')) return json({ error: 'Unauthorized' }, 401);
+    if (!authHeader.startsWith('Bearer ')) {
+      return json({ error: 'Unauthorized', reason: 'missing_bearer', header_present: Boolean(authHeader) }, 401);
+    }
     const token = authHeader.replace('Bearer ', '').trim();
 
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -32,13 +34,15 @@ Deno.serve(async (req) => {
 
     let organizationId: string | null = null;
 
+    const metadataOnly = false;
+
     if (token === serviceKey) {
       organizationId = typeof body.organization_id === 'string' ? body.organization_id : null;
       if (!organizationId) return json({ error: 'organization_id required for service calls' }, 400);
     } else {
-      const { data: userData } = await admin.auth.getUser(token);
+      const { data: userData, error: userErr } = await admin.auth.getUser(token);
       const user = userData?.user;
-      if (!user) return json({ error: 'Unauthorized' }, 401);
+      if (!user) return json({ error: 'Unauthorized', reason: 'token_not_a_user', details: userErr?.message ?? null }, 401);
 
       const { data: isAdmin } = await admin.rpc('has_role', { _user_id: user.id, _role: 'admin' });
       if (!isAdmin) return json({ error: 'Forbidden' }, 403);
@@ -86,12 +90,13 @@ Deno.serve(async (req) => {
       booking_id: bookingId,
       envelope_keys: payload && typeof payload === 'object' ? Object.keys(payload) : [],
       booking_keys: booking && typeof booking === 'object' ? Object.keys(booking) : [],
+      metadata_only: metadataOnly,
       products_complete_root: booking?.products_complete ?? null,
       products_complete_type: typeof booking?.products_complete,
       products_complete_meta: booking?.meta?.products_complete ?? null,
       products_complete_envelope: payload?.products_complete ?? null,
       product_count: products.length,
-      product_names: products.map((p) => p?.name ?? p?.product_name).filter(Boolean),
+      product_names: metadataOnly ? undefined : products.map((p) => p?.name ?? p?.product_name).filter(Boolean),
       source_updated_at: booking?.updated_at ?? booking?.source_updated_at ?? null,
     });
   } catch (err) {
