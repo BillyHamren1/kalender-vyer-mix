@@ -135,8 +135,8 @@ const ProjectDashboardWidgets = () => {
 
   const statItems = [
     { label: 'Aktiva totalt', value: activeCount, icon: FolderKanban, color: 'text-primary', bgColor: 'bg-primary/10', hint: 'Alla projekt som inte är avslutade eller avbokade. Korten till höger är delmängder av detta.' },
-    { label: 'varav Planering', value: planningCount, icon: Clock, color: 'text-primary', bgColor: 'bg-primary/5', hint: 'Aktiva projekt med status Planering.' },
-    { label: 'varav Pågående', value: inProgressCount, icon: CalendarClock, color: 'text-primary', bgColor: 'bg-primary/10', hint: 'Aktiva projekt med status Pågående.' },
+    { label: 'varav Planering', value: planningCount, icon: Clock, color: 'text-primary', bgColor: 'bg-primary/5', hint: 'Aktiva projekt som ännu inte startat (riggdag i framtiden eller saknas).' },
+    { label: 'varav Pågående', value: inProgressCount, icon: CalendarClock, color: 'text-primary', bgColor: 'bg-primary/10', hint: 'Aktiva projekt där riggdagen redan startat.' },
 
     { label: 'Avslutade', value: completedCount, icon: CheckCircle2, color: 'text-muted-foreground', bgColor: 'bg-muted', hint: 'Projekt med status Avslutat eller där nedriggsdagen har passerat. Ingår inte i Aktiva totalt.' },
   ];
