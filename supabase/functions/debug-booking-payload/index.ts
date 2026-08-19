@@ -34,9 +34,18 @@ Deno.serve(async (req) => {
 
     let organizationId: string | null = null;
 
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    let metadataOnly = false;
+
     if (token === serviceKey) {
       organizationId = typeof body.organization_id === 'string' ? body.organization_id : null;
       if (!organizationId) return json({ error: 'organization_id required for service calls' }, 400);
+    } else if (anonKey && token === anonKey) {
+      // Metadata-läge: avslöjar inga produktnamn eller kunddata, bara om
+      // kontraktsfältet products_complete finns med i Booking-svaret.
+      metadataOnly = true;
+      organizationId = typeof body.organization_id === 'string' ? body.organization_id : null;
+      if (!organizationId) return json({ error: 'organization_id required' }, 400);
     } else {
       const { data: userData, error: userErr } = await admin.auth.getUser(token);
       const user = userData?.user;
