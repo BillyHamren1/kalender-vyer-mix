@@ -13,6 +13,8 @@ import PackingFiles from "@/components/packing/PackingFiles";
 import PackingComments from "@/components/packing/PackingComments";
 import PackingProjectOverview from "@/components/packing/PackingProjectOverview";
 import MultiBookingScheduleCard from "@/components/packing/MultiBookingScheduleCard";
+import PackingChangeRequestsPanel from "@/components/packing/PackingChangeRequestsPanel";
+
 
 import DesktopChecklistView from "@/components/packing/DesktopChecklistView";
 import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
