@@ -124,8 +124,8 @@ const SimplePlanningTimeline = ({ tasks, staffPool, products = [], onTaskClick, 
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        <div className="flex w-full flex-nowrap items-center gap-2">
-                          <span className={task.status === "done" ? "font-medium line-through text-muted-foreground" : "font-medium"}>{task.title}</span>
+                        <div className="flex w-full items-center gap-4">
+                          <span className={`shrink-0 ${task.status === "done" ? "font-medium line-through text-muted-foreground" : "font-medium"}`}>{task.title}</span>
                           {mainProduct && (
                             <span className="inline-flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium text-primary">
                               <Package className="h-3.5 w-3.5 shrink-0 text-primary" />
@@ -134,25 +134,30 @@ const SimplePlanningTimeline = ({ tasks, staffPool, products = [], onTaskClick, 
                               </span>
                             </span>
                           )}
-                          {task.status === "done" && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />}
-                          {isCalendar && <Badge variant="secondary" className="shrink-0 text-[10px]">Kalender</Badge>}
-                        </div>
-                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                          {!isCalendar && task.category && <span>{task.category}</span>}
-                          {person && <span className="inline-flex items-center gap-1"><UserRound className="h-3 w-3" />{person}</span>}
-                          {task.description && <span className="truncate max-w-[420px]">{task.description}</span>}
+                          {!mainProduct && <span className="flex-1" />}
+                          <div className="ml-auto flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
+                            {!isCalendar && task.category && <span>{task.category}</span>}
+                            {person && <span className="inline-flex items-center gap-1"><UserRound className="h-3 w-3" />{person}</span>}
+                            {task.status === "done" && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
+                            {isCalendar && <Badge variant="secondary" className="text-[10px]">Kalender</Badge>}
+                          </div>
                         </div>
 
-                        {remaining.length > 0 && (
-                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                            <span className="text-[11px] text-muted-foreground">Övriga produkter:</span>
-                            {remaining.slice(0, 5).map((item) => (
-                              <Badge key={item.id} variant="secondary" className="max-w-[220px] truncate text-[11px] font-normal">
-                                {item.quantity && item.quantity > 1 ? `${item.quantity} × ` : ""}{item.name}
-                              </Badge>
-                            ))}
-                            {remaining.length > 5 && (
-                              <span className="text-[11px] text-muted-foreground">+{remaining.length - 5} till</span>
+                        {(task.description || remaining.length > 0) && (
+                          <div className="mt-1 flex w-full flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                            {task.description && <span className="min-w-0 flex-1 break-words">{task.description}</span>}
+                            {remaining.length > 0 && (
+                              <span className="ml-auto flex flex-wrap items-center gap-1.5">
+                                <span className="text-[11px] text-muted-foreground">Övriga produkter:</span>
+                                {remaining.slice(0, 5).map((item) => (
+                                  <span key={item.id} className="text-[11px] text-foreground/70">
+                                    {item.quantity && item.quantity > 1 ? `${item.quantity} × ` : ""}{item.name}
+                                  </span>
+                                ))}
+                                {remaining.length > 5 && (
+                                  <span className="text-[11px] text-muted-foreground">+{remaining.length - 5} till</span>
+                                )}
+                              </span>
                             )}
                           </div>
                         )}
@@ -161,6 +166,7 @@ const SimplePlanningTimeline = ({ tasks, staffPool, products = [], onTaskClick, 
                           <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{task.notes}</div>
                         )}
                       </div>
+
 
                       <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
                     </button>
