@@ -18,7 +18,7 @@ describe('ProjectManagement incoming flow', () => {
     expect(src).toContain('<span>Placera</span>');
     expect(src).not.toContain('ProjectPlanningSheet');
     expect(src).not.toContain('Att planera');
-    expect(src).toContain('bookings.length + unplannedProjects.length');
+    expect(src).toContain('newBookings.length + newUnplanned.length');
   });
 
   it('BookingPlacementDialog removes stale medium project when linking booking into existing large project', () => {
