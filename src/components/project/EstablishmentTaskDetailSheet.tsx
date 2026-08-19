@@ -291,10 +291,20 @@ const EstablishmentTaskDetailSheet = ({
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: taskQueryKey });
     queryClient.invalidateQueries({ queryKey: analyticsQueryKey });
+    queryClient.invalidateQueries({ queryKey: ["establishment-tasks-analytics-booking", bookingId] });
     queryClient.invalidateQueries({ queryKey: ["establishment-task-detail", task?.id] });
     // Projektkalendern speglar establishment_tasks — håll den i synk
     queryClient.invalidateQueries({ queryKey: ["project-task-calendar-events"] });
     queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+  };
+
+  /** Ta bort raden direkt ur alla cachade listor så UI:t inte visar en raderad aktivitet. */
+  const removeTaskFromCaches = (taskId: string) => {
+    queryClient.setQueriesData<any>({ predicate: (q) => Array.isArray(q.queryKey) && typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("establishment-tasks") }, (old: any) => {
+      if (Array.isArray(old)) return old.filter((t: any) => t?.id !== taskId);
+      return old;
+    });
+    queryClient.removeQueries({ queryKey: ["establishment-task-detail", taskId] });
   };
 
   const handleFieldUpdate = async (updates: Parameters<typeof updateEstablishmentTask>[1]) => {
