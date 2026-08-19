@@ -3322,14 +3322,32 @@ serve(async (req) => {
         })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
       }
 
-      const reserved = await reserveCanonicalRevision(supabase, {
+      const forceRevision = body?.force_revision === true;
+      let reserved = await reserveCanonicalRevision(supabase, {
         bookingId: normalizedSingleBookingId,
         organizationId: organizationId,
         incoming,
         ownerJobId: `import-bookings:${crypto.randomUUID()}`,
       });
-      const forceRevision = body?.force_revision === true;
-      if (reserved.ok && reserved.decision === 'already_current' && !forceRevision) {
+      if (reserved.ok && reserved.decision === 'already_current' && forceRevision) {
+        // Explicit omkörning: revisionen är redan applicerad men innehållet
+        // (t.ex. produktlistan) kan ha blockerats vid förra körningen.
+        console.warn('[import-bookings] force_revision=true — nollställer applied revision och kör om', JSON.stringify({
+          booking_id: normalizedSingleBookingId, organization_id: organizationId,
+        }));
+        await supabase
+          .from('booking_source_state')
+          .update({ applied_source_updated_at: null, applied_source_version: null, highest_seen_source_updated_at: null, highest_seen_source_version: null })
+          .eq('booking_id', normalizedSingleBookingId)
+          .eq('organization_id', organizationId);
+        reserved = await reserveCanonicalRevision(supabase, {
+          bookingId: normalizedSingleBookingId,
+          organizationId: organizationId,
+          incoming,
+          ownerJobId: `import-bookings:${crypto.randomUUID()}`,
+        });
+      }
+      if (reserved.ok && reserved.decision === 'already_current') {
         console.log('[import-bookings] revision already current — no mutation', JSON.stringify({
           booking_id: normalizedSingleBookingId, organization_id: organizationId,
         }));
@@ -3340,11 +3358,7 @@ serve(async (req) => {
           results: { total: 1, imported: 0, failed: 0, errors: [], sync_mode: 'revision_idempotent' },
         })), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
       }
-      if (reserved.ok && reserved.decision === 'already_current' && forceRevision) {
-        console.warn('[import-bookings] force_revision=true — kör om trots already_current', JSON.stringify({
-          booking_id: normalizedSingleBookingId, organization_id: organizationId,
-        }));
-      }
+
 
       if (!reserved.ok) {
         console.error('[import-bookings] canonical revision guard blocked import', JSON.stringify({
