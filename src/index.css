@@ -121,6 +121,16 @@
     --project-large: 270 35% 87%;
     --project-large-foreground: 270 40% 25%;
     --project-large-border: 270 28% 74%;
+
+    /* === GANTT BAR PALETTE === */
+    --gantt-1: 262 60% 55%;
+    --gantt-2: 199 78% 45%;
+    --gantt-3: 152 55% 40%;
+    --gantt-4: 32 90% 50%;
+    --gantt-5: 340 62% 52%;
+    --gantt-6: 220 55% 50%;
+    --gantt-7: 88 45% 42%;
+    --gantt-8: 12 72% 52%;
   }
 
   .dark {

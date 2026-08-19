@@ -15,7 +15,6 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CalendarDays, GanttChart, HardHat, PackagePlus, Plus, Users } from "lucide-react";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
-import ProjectCalendarView from "@/components/project/ProjectCalendarView";
 import PeopleOverview from "@/components/project/planning/PeopleOverview";
 import ProjectPlanningHeader from "@/components/project/ProjectPlanningHeader";
 import SimplePlanningTimeline from "@/components/project/planning/SimplePlanningTimeline";
@@ -28,7 +27,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { EstablishmentTask } from "@/services/establishmentTaskService";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 
- type ViewMode = "timeline" | "calendar" | "gantt" | "people";
+ type ViewMode = "timeline" | "gantt" | "people";
 
 interface SelectedTask {
   id: string;
@@ -128,6 +127,20 @@ const EstablishmentPage = () => {
     setQuickDialogOpen(true);
   };
 
+  const ganttProductLabel = useCallback((task: any): string | null => {
+    const all = (bookingPlanningData?.products || []) as Array<{ id: string; name: string; quantity?: number | null }>;
+    const ids: string[] = task.source_product_ids?.length
+      ? task.source_product_ids
+      : task.source_product_id
+        ? [task.source_product_id]
+        : [];
+    const names = ids
+      .map((id) => all.find((p) => p.id === id))
+      .filter(Boolean)
+      .map((p) => `${p!.name}${p!.quantity && p!.quantity > 1 ? ` ×${p!.quantity}` : ""}`);
+    return names.length ? names.join(" · ") : null;
+  }, [bookingPlanningData?.products]);
+
   const progressText = useMemo(() => {
     if (analytics.total === 0) return "Ingen planering skapad";
     return `${analytics.completed} av ${analytics.total} klara`;
@@ -175,14 +188,6 @@ const EstablishmentPage = () => {
                 <HardHat className="h-3.5 w-3.5" /> Tidslinje
               </Button>
               <Button
-                variant={viewMode === "calendar" ? "default" : "ghost"}
-                size="sm"
-                className="h-8 gap-1.5 px-3"
-                onClick={() => setViewMode("calendar")}
-              >
-                <CalendarDays className="h-3.5 w-3.5" /> Kalender
-              </Button>
-              <Button
                 variant={viewMode === "gantt" ? "default" : "ghost"}
                 size="sm"
                 className="h-8 gap-1.5 px-3"
@@ -214,20 +219,6 @@ const EstablishmentPage = () => {
         />
       )}
 
-      {viewMode === "calendar" && (
-        <div className="space-y-2">
-          <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-            Kalendern visar genomförandet visuellt. Team- och resursverktygen är kvar här men ligger inte längre i projektets standardvy.
-          </div>
-          <ProjectCalendarView
-            projectId={project.id}
-            bookingId={bookingId}
-            isLargeProject={false}
-            compactHeader
-          />
-        </div>
-      )}
-
       {viewMode === "gantt" && (
         <div className="space-y-2">
           <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
@@ -240,6 +231,7 @@ const EstablishmentPage = () => {
                 id: t.id,
                 key: `task-${t.id}`,
                 name: t.title,
+                subtitle: ganttProductLabel(t),
                 start_date: t.start_date,
                 end_date: t.end_date,
                 start_time: t.start_time,
