@@ -1186,9 +1186,10 @@ const EstablishmentTaskDetailSheet = ({
               if (!confirmed) return;
               try {
                 await deleteEstablishmentTask(task.id);
-                invalidateAll();
-                toast.success("Aktivitet raderad");
+                removeTaskFromCaches(task.id);
                 onOpenChange(false);
+                toast.success("Aktivitet raderad");
+                invalidateAll();
               } catch {
                 toast.error("Kunde inte radera aktivitet");
               }
