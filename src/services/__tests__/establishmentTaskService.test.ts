@@ -130,7 +130,10 @@ describe("establishmentTaskService", () => {
 
   describe("updateEstablishmentTask", () => {
     it("updates with partial fields and syncs status when completed flips true", async () => {
-      mockChain.eq.mockReturnValue(Promise.resolve({ error: null }));
+      mockChain.eq.mockReturnValue(Object.assign(
+        Promise.resolve({ error: null }),
+        { maybeSingle: vi.fn(() => Promise.resolve({ data: { booking_id: null }, error: null })) },
+      ));
 
       await updateEstablishmentTask("t1", { completed: true, notes: "Klart" });
 
@@ -146,7 +149,10 @@ describe("establishmentTaskService", () => {
 
   describe("deleteEstablishmentTask", () => {
     it("deletes by id", async () => {
-      mockChain.eq.mockReturnValue(Promise.resolve({ error: null }));
+      mockChain.eq.mockReturnValue(Object.assign(
+        Promise.resolve({ error: null }),
+        { maybeSingle: vi.fn(() => Promise.resolve({ data: { booking_id: null }, error: null })) },
+      ));
 
       await deleteEstablishmentTask("t1");
 
