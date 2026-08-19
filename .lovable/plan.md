@@ -1,39 +1,42 @@
-# Borttagna produkter i Booking försvinner inte i Planning
+# Borttagna produkter i Booking syns inte i Planning (2605-37)
 
-## Vad som faktiskt hänt med 2605-37
+## Vad som faktiskt är fel
 
-Verifierat i databasen just nu: bokningen har BÅDE `F8 - 8x5/300` (med F8 Tak, F8 Vägg, F8 Gaveltriangel) OCH den gamla `F10 - 10x5/300` (med F10 Tak, F10 Vägg, F10 Gaveltriangel). Tillägget av F8 kom in, men raderingen av F10 kom aldrig fram.
+Verifierat i databasen: 2605-37 har både nya `F8 - 8x5/300` (med tillbehör) och gamla `F10 - 10x5/300` (med tillbehör). Tillägget kom in, raderingen kom aldrig.
 
-Orsaken är en säkerhetsspärr i importen (`_shared/productCompleteness.ts` + `import-bookings`): en produkt får bara raderas lokalt när Booking-svaret EXPLICIT innehåller `products_complete: true`. Saknas fältet blir läget `unknown` och all radering blockeras (loggas som `product_destructive_sync_blocked_incomplete_source`) — tillägg och uppdateringar släpps ändå igenom. Det är exakt det beteende vi ser: F8 in, F10 kvar.
+Grundorsaken är inte Planning-UI:t och inte importens raderingskod. Den är att **Booking-API:t inte talar om att produktlistan är komplett**. Importen raderar bara produkter när svaret innehåller `products_complete: true` (`_shared/productCompleteness.ts`). Utan flaggan blir läget `unknown` → all radering blockeras tyst, tillägg släpps igenom. Det är precis symptomet.
 
-Spärren byggdes för att en trunkerad/tom produktlista från Booking inte ska radera hela packlistor. Problemet är att den nu är permanent påslagen eftersom Booking-API:t inte skickar flaggan alls.
+Spärren är korrekt i sig: utan komplettletshetsbesked kan en trunkerad eller delvis produktlista radera hela packlistor. Att kringgå den med heuristik i Planning vore att lägga en lösning ovanpå problemet.
 
-## Vad som ska göras
+## Grundlösningen: Booking ska ändras
 
-### 1. Bekräfta vad Booking faktiskt skickar (första steget)
-Hämta råsvaret för 2605-37 via `planning-api-proxy` och logga om `products_complete` (eller `meta.products_complete`) finns. Resultatet avgör steg 2a eller 2b. Ingen gissning innan detta är läst.
+Booking-API:t ska, i varje bokningssvar som innehåller produkter, skicka med att listan är hela sanningen:
 
-### 2a. Om Booking kan skicka flaggan
-Ingen kodändring i Planning behövs utöver att verifiera att `readProductSourceCompleteness` plockar upp den. Vi begär att Booking sätter `products_complete: true` på hela produktlistan.
+```json
+{
+  "booking_number": "2605-37",
+  "products_complete": true,
+  "products": [ ... alla aktuella rader ... ]
+}
+```
 
-### 2b. Om Booking inte skickar flaggan (troligast)
-Inför en "verifierad komplett hämtning"-regel i importen istället för att kräva flaggan:
+Krav på Booking-sidan:
+- `products_complete: true` när `products` är hela den aktuella produktlistan för bokningen (även när den är tom efter radering).
+- Fältet utelämnas eller sätts `false` endast när svaret är partiellt/trunkerat.
+- Gäller både enskild bokningshämtning och listnings-/cursor-sync.
 
-- När vi hämtar EN specifik bokning direkt via id/bokningsnummer (targeted sync / "Uppdatera bokningar"), och svaret innehåller en icke-tom `products`-array, behandlas källan som `complete`.
-- Vid bulk-/cursor-sync behålls dagens fail-closed-beteende.
-- Kvarvarande skydd: tom produktlista = aldrig radering, och en takregel — om fler än X % (t.ex. 50 %) av lokala produkter skulle raderas i en och samma körning stoppas raderingen och loggas som avvikelse istället.
+När det är på plats raderas F10 automatiskt vid nästa sync — ingen kodändring behövs i Planning utöver verifiering.
 
-### 3. Synlig varning istället för tyst blockering
-Idag är blockerad radering bara en serverlogg. Vi visar i produktlistan för bokningen en varningsrad: "Finns i Planning men saknas i Booking" på produkter som ligger i `blockedRemovals`, med knapp "Ta bort lokalt" för manuell åtgärd. Ingen tyst avvikelse igen.
+## Steg
 
-### 4. Reparera 2605-37
-Efter att fixen är på plats: kör targeted sync på 2605-37 och verifiera i databasen att F10-raderna (inkl. tillbehör) och deras packlisterader är borta och att F8 ligger kvar. Kontrollera även andra bokningar med samma symptom via en diff-körning.
-
-### 5. Tester
-- Utöka `src/test/productCompleteness.contract.test.ts`: targeted fetch med produkter → `deleteAllowed = true`; bulk-sync utan flagga → fortsatt blockerad; tom lista → alltid blockerad; takregeln stoppar massradering.
-- Regressionstest på scenariot "produkt ersatt med annan" (F10 → F8): en add + en delete.
+1. **Bekräfta råsvaret.** Hämta 2605-37 via `planning-api-proxy` och läs om `products_complete` (eller `meta.products_complete`) finns. Detta avgör om det är Booking som saknar fältet eller vår parser som missar det.
+2. **Om fältet saknas** → detta är Booking-teamets ändring enligt ovan. Vi skickar kravet vidare; Planning ändras inte.
+3. **Om fältet finns men vi missar det** → buggen är i `readProductSourceCompleteness` och fixas där (rätt plats i payloaden, rätt typ).
+4. **Gör den tysta blockeringen synlig.** Idag loggas blockerad radering bara på servern. Vi visar `blockedRemovals` i bokningens produktlista som "Finns i Planning men saknas i Booking". Det är inte en workaround — det är att avvikelsen aldrig ska vara osynlig igen.
+5. **Reparera 2605-37** efter att grundorsaken är åtgärdad, och kör en diff för att hitta andra bokningar med samma spöken.
+6. **Test** som låser att radering kräver `products_complete: true` och att tom lista aldrig raderar utan flaggan.
 
 ## Teknisk sammanfattning
-- `supabase/functions/_shared/productCompleteness.ts` — ny källkontext (`fetch_mode: 'targeted' | 'bulk'`) i completeness-beräkningen + takregel.
-- `supabase/functions/import-bookings/index.ts` — skickar med fetch-mode, exponerar `blockedRemovals` i sync-resultat/`sync_audit_log`.
-- Frontend: produktlistan i bokning/projekt visar blockerade borttagningar med manuell rensning.
+- Ingen uppmjukning av `canDeleteProducts` — kontraktet `products_complete` behålls som enda grund för radering.
+- Eventuell fix begränsas till `supabase/functions/_shared/productCompleteness.ts` (parsning) om steg 1 visar att fältet redan skickas.
+- Frontend: synlig lista över blockerade borttagningar i bokningens produktvy.
