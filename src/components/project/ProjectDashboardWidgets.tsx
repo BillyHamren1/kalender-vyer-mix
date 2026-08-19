@@ -50,6 +50,7 @@ const ProjectDashboardWidgets = () => {
       type: 'small',
       date: j.booking?.eventDate ?? null,
       rigDate: j.booking?.rigDayDate ?? j.booking?.eventDate ?? null,
+      rigDownDate: j.booking?.rigDownDate ?? j.booking?.eventDate ?? null,
       status: j.status === 'planned' ? 'planning' : j.status,
       subtitle: j.booking?.deliveryAddress ?? null,
       navigateTo: `/jobs/${j.id}`,
@@ -66,6 +67,7 @@ const ProjectDashboardWidgets = () => {
         id: p.id, name: displayName, type: 'medium',
         date: p.booking?.eventdate ?? null,
         rigDate: p.booking?.rigdaydate ?? p.booking?.eventdate ?? null,
+        rigDownDate: p.booking?.rigdowndate ?? p.booking?.eventdate ?? null,
         status: p.status,
         subtitle: fullAddress,
         navigateTo: `/project/${p.id}`,
@@ -77,6 +79,7 @@ const ProjectDashboardWidgets = () => {
       id: lp.id, name: lp.name, type: 'large',
       date: lp.start_date?.[0] ?? null,
       rigDate: lp.start_date?.[0] ?? lp.event_date?.[0] ?? null,
+      rigDownDate: lp.end_date?.[lp.end_date.length - 1] ?? lp.event_date?.[lp.event_date.length - 1] ?? null,
       status: lp.status,
       subtitle: lp.location ?? `${lp.bookingCount ?? 0} bokningar`,
       navigateTo: `/large-project/${lp.id}`,
@@ -86,19 +89,22 @@ const ProjectDashboardWidgets = () => {
     return items;
   }, [jobs, projects, largeProjects]);
 
-  const nonCancelled = unified.filter(p => p.status !== 'cancelled');
-  const activeCount = nonCancelled.filter(p => p.status !== 'completed').length;
-  const planningCount = nonCancelled.filter(p => p.status === 'planning').length;
-  const inProgressCount = nonCancelled.filter(p => p.status === 'in_progress').length;
-  const completedCount = nonCancelled.filter(p => p.status === 'completed').length;
-  
   const today = new Date().toISOString().split('T')[0];
+
+  const nonCancelled = unified.filter(p => p.status !== 'cancelled');
+  /** Ett projekt räknas som avslutat när status är completed ELLER när nedriggsdagen har passerat. */
+  const isFinished = (p: UnifiedItem) =>
+    p.status === 'completed' || (!!p.rigDownDate && p.rigDownDate < today);
+  const activeCount = nonCancelled.filter(p => !isFinished(p)).length;
+  const planningCount = nonCancelled.filter(p => !isFinished(p) && p.status === 'planning').length;
+  const inProgressCount = nonCancelled.filter(p => !isFinished(p) && p.status === 'in_progress').length;
+  const completedCount = nonCancelled.filter(isFinished).length;
 
   const horizon14 = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0];
   const upcomingProjects = useMemo(() =>
 
     nonCancelled
-      .filter(p => p.status !== 'completed' && p.rigDate && p.rigDate >= today && p.rigDate <= horizon14)
+      .filter(p => !isFinished(p) && p.rigDate && p.rigDate >= today && p.rigDate <= horizon14)
       .sort((a, b) => (a.rigDate || '').localeCompare(b.rigDate || ''))
       .slice(0, 6),
     [nonCancelled, today, horizon14]
@@ -110,7 +116,7 @@ const ProjectDashboardWidgets = () => {
     const d30 = iso(30);
     const d60 = iso(60);
     const d90 = iso(90);
-    const planned = nonCancelled.filter(p => p.status !== 'completed' && (p.rigDate ?? p.date));
+    const planned = nonCancelled.filter(p => !isFinished(p) && (p.rigDate ?? p.date));
     const key = (p: UnifiedItem) => (p.rigDate ?? p.date) as string;
     const within = (from: string, to: string) => planned.filter(p => key(p) >= from && key(p) <= to).length;
     return [
@@ -126,7 +132,7 @@ const ProjectDashboardWidgets = () => {
     { label: 'varav Planering', value: planningCount, icon: Clock, color: 'text-primary', bgColor: 'bg-primary/5', hint: 'Aktiva projekt med status Planering.' },
     { label: 'varav Pågående', value: inProgressCount, icon: CalendarClock, color: 'text-primary', bgColor: 'bg-primary/10', hint: 'Aktiva projekt med status Pågående.' },
 
-    { label: 'Avslutade', value: completedCount, icon: CheckCircle2, color: 'text-muted-foreground', bgColor: 'bg-muted', hint: 'Projekt med status Avslutat. Ingår inte i Aktiva totalt.' },
+    { label: 'Avslutade', value: completedCount, icon: CheckCircle2, color: 'text-muted-foreground', bgColor: 'bg-muted', hint: 'Projekt med status Avslutat eller där nedriggsdagen har passerat. Ingår inte i Aktiva totalt.' },
   ];
 
   if (isLoading) {
