@@ -383,12 +383,22 @@ Deno.serve(async (req) => {
     blocked: rows.filter((r) => r.status === 'BLOCKED').length,
   }
 
+  // Kort varsel-ändringar måste kvitteras av lagret innan packlistan används.
+  const { count: pendingShortNotice } = await supabase
+    .from('packing_change_requests')
+    .select('id', { count: 'exact', head: true })
+    .eq('packing_id', packingId)
+    .eq('status', 'pending')
+    .eq('urgency', 'short_notice')
+
   return json({
     success: true,
     packingId,
     bookingNumber,
     summary,
-    canStartScanning: summary.blocked === 0,
+    pendingShortNoticeChanges: pendingShortNotice || 0,
+    canStartScanning: summary.blocked === 0 && (pendingShortNotice || 0) === 0,
     items: rows,
   })
 })
+
