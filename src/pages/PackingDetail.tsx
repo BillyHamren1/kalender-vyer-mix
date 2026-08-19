@@ -297,7 +297,9 @@ const PackingDetail = () => {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,hsl(184_60%_38%/0.04),transparent)]" />
 
         <div className="relative container mx-auto px-4 sm:px-6 lg:px-8 py-6 max-w-[1600px]">
+          {packingId && <PackingChangeRequestsPanel packingId={packingId} />}
           {/* Header */}
+
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 p-7 rounded-2xl bg-card border border-border/40 shadow-2xl">
             <div className="flex items-center gap-4">
               <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="hover:bg-accent/50">
