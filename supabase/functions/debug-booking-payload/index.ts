@@ -97,12 +97,13 @@ Deno.serve(async (req) => {
       booking_id: bookingId,
       envelope_keys: payload && typeof payload === 'object' ? Object.keys(payload) : [],
       booking_keys: booking && typeof booking === 'object' ? Object.keys(booking) : [],
+      metadata_only: metadataOnly,
       products_complete_root: booking?.products_complete ?? null,
       products_complete_type: typeof booking?.products_complete,
       products_complete_meta: booking?.meta?.products_complete ?? null,
       products_complete_envelope: payload?.products_complete ?? null,
       product_count: products.length,
-      product_names: products.map((p) => p?.name ?? p?.product_name).filter(Boolean),
+      product_names: metadataOnly ? undefined : products.map((p) => p?.name ?? p?.product_name).filter(Boolean),
       source_updated_at: booking?.updated_at ?? booking?.source_updated_at ?? null,
     });
   } catch (err) {
