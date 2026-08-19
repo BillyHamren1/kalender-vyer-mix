@@ -89,8 +89,8 @@ const PackingManagement = () => {
           {/* Header */}
           <PageHeader
             icon={Package}
-            title="Planera packning"
-            subtitle="Hantera packningsprojekt och uppgifter"
+            title="Packning"
+            subtitle="Hitta packlistor och se vad som ska göras"
             variant="warehouse"
             action={{
               label: "Ny packning",
@@ -104,7 +104,7 @@ const PackingManagement = () => {
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Sök packning, projekt eller bokning..."
+                placeholder="Sök bokningsnummer, kund, projekt eller adress..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10 rounded-xl border-border/40"
@@ -121,15 +121,6 @@ const PackingManagement = () => {
                 ))}
               </SelectContent>
             </Select>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsCleanupOpen(true)}
-              className="text-destructive border-destructive/30 hover:bg-destructive/10 h-10"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Rensa gamla
-            </Button>
           </div>
 
           {/* Kompakt statusrad (ersätter de fyra stora KPI-korten) */}
@@ -199,7 +190,7 @@ const PackingManagement = () => {
                 onClick={() => setShowAllPackings(true)}
               >
                 <ChevronDown className="h-4 w-4 mr-2" />
-                Visa alla packningar ({packings.length})
+                Visa alla packlistor ({packings.length})
               </Button>
             )}
 
@@ -213,16 +204,16 @@ const PackingManagement = () => {
               ) : filteredPackings.length === 0 ? (
                 <div className="text-center py-16 rounded-2xl bg-card border border-border/40 shadow-2xl">
                   <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-[hsl(var(--heading))] mb-2">Inga packningar hittades</h3>
+                  <h3 className="text-lg font-semibold text-[hsl(var(--heading))] mb-2">Inga packlistor hittades</h3>
                   <p className="text-muted-foreground mb-4 text-[0.925rem]">
                     {searching
                       ? "Prova att ändra dina filter"
-                      : "Skapa din första packning för att komma igång"}
+                      : "Det finns inga packlistor att visa ännu"}
                   </p>
                   {!searching && (
                     <Button className="bg-warehouse hover:bg-warehouse-hover shadow-xl shadow-warehouse/25 font-semibold" onClick={() => setIsCreateOpen(true)}>
                       <Plus className="h-4 w-4 mr-2" />
-                      Skapa packning
+                      Skapa packlista
                     </Button>
                   )}
                 </div>
@@ -262,7 +253,22 @@ const PackingManagement = () => {
             }}
           />
 
-          <details className="mt-8">
+          <details className="mt-8 rounded-xl border border-border/50 bg-card/60 p-3">
+            <summary className="cursor-pointer text-sm font-medium text-muted-foreground">Administration</summary>
+            <div className="pt-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsCleanupOpen(true)}
+                className="text-destructive border-destructive/30 hover:bg-destructive/10"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Rensa gamla packlistor
+              </Button>
+            </div>
+          </details>
+
+          <details className="mt-3">
             <summary className="cursor-pointer text-sm text-muted-foreground">
               Dev / Debug
             </summary>
