@@ -200,7 +200,7 @@ const WarehouseOverviewNext7Days: React.FC<Props> = ({ data }) => {
                 <div className="divide-y divide-border/40">
                   {dayRows.map((row) => {
                     const staff = staffLabel(row);
-                    const statusLabel = STATUS_LABELS[row.job.status] || row.job.status.replaceAll('_', ' ');
+                    const statusLabel = STATUS_LABELS[row.job.status] || row.job.status.replace(/_/g, ' ');
                     const statusTone = STATUS_TONE[row.job.status] || 'bg-muted text-muted-foreground border-border';
                     const DirectionIcon = row.job.direction === 'in' ? Undo2 : Truck;
                     const directionLabel = row.job.direction === 'in' ? 'IN' : row.job.direction === 'internal' ? 'LAGER' : 'UT';
