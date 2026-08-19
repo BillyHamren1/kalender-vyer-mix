@@ -124,18 +124,17 @@ const SimplePlanningTimeline = ({ tasks, staffPool, products = [], onTaskClick, 
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-nowrap items-center gap-2">
+                        <div className="flex w-full flex-nowrap items-center gap-2">
                           <span className={task.status === "done" ? "font-medium line-through text-muted-foreground" : "font-medium"}>{task.title}</span>
                           {mainProduct && (
                             <span className="inline-flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium text-primary">
                               <Package className="h-3.5 w-3.5 shrink-0 text-primary" />
-                              <span className="truncate">
+                              <span className="break-words">
                                 {mainProduct.quantity && mainProduct.quantity > 1 ? `${mainProduct.quantity} × ` : ""}{mainProduct.name}
                               </span>
                             </span>
                           )}
                           {task.status === "done" && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />}
-                          {task.source === "product" && <Badge variant="outline" className="shrink-0 text-[10px]">Från bokning</Badge>}
                           {isCalendar && <Badge variant="secondary" className="shrink-0 text-[10px]">Kalender</Badge>}
                         </div>
                         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">

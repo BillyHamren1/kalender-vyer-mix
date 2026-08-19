@@ -13,12 +13,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CalendarDays, HardHat, PackagePlus, Plus, Users } from "lucide-react";
+import { CalendarDays, GanttChart, HardHat, PackagePlus, Plus, Users } from "lucide-react";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
 import ProjectCalendarView from "@/components/project/ProjectCalendarView";
 import PeopleOverview from "@/components/project/planning/PeopleOverview";
 import ProjectPlanningHeader from "@/components/project/ProjectPlanningHeader";
 import SimplePlanningTimeline from "@/components/project/planning/SimplePlanningTimeline";
+import { LargeProjectGanttChart, type GanttStep } from "@/components/project/LargeProjectGanttChart";
 import QuickPlanningItemDialog, { type QuickPlanningMode } from "@/components/project/planning/QuickPlanningItemDialog";
 import ActivityPlannerSheet from "@/components/project/ActivityPlannerSheet";
 import { useBookingTaskAnalytics } from "@/hooks/useBookingTaskAnalytics";
@@ -27,7 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { EstablishmentTask } from "@/services/establishmentTaskService";
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 
- type ViewMode = "timeline" | "calendar" | "people";
+ type ViewMode = "timeline" | "calendar" | "gantt" | "people";
 
 interface SelectedTask {
   id: string;
@@ -182,6 +183,14 @@ const EstablishmentPage = () => {
                 <CalendarDays className="h-3.5 w-3.5" /> Kalender
               </Button>
               <Button
+                variant={viewMode === "gantt" ? "default" : "ghost"}
+                size="sm"
+                className="h-8 gap-1.5 px-3"
+                onClick={() => setViewMode("gantt")}
+              >
+                <GanttChart className="h-3.5 w-3.5" /> Gantt
+              </Button>
+              <Button
                 variant={viewMode === "people" ? "default" : "ghost"}
                 size="sm"
                 className="h-8 gap-1.5 px-3"
@@ -215,6 +224,29 @@ const EstablishmentPage = () => {
             bookingId={bookingId}
             isLargeProject={false}
             compactHeader
+          />
+        </div>
+      )}
+
+      {viewMode === "gantt" && (
+        <div className="space-y-2">
+          <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+            Gantt-vyn visar aktiviteternas datum och tider över projektets period.
+          </div>
+          <LargeProjectGanttChart
+            steps={analytics.tasks
+              .filter((t) => t.start_date && t.end_date)
+              .map((t): GanttStep => ({
+                id: t.id,
+                key: `task-${t.id}`,
+                name: t.title,
+                start_date: t.start_date,
+                end_date: t.end_date,
+                start_time: t.start_time,
+                end_time: t.end_time,
+                is_milestone: false,
+                sort_order: t.sort_order,
+              }))}
           />
         </div>
       )}

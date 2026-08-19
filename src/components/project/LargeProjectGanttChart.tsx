@@ -12,6 +12,8 @@ export interface GanttStep {
   name: string;
   start_date: string;
   end_date: string;
+  start_time?: string | null;
+  end_time?: string | null;
   is_milestone: boolean;
   sort_order?: number;
 }
@@ -111,20 +113,27 @@ export const LargeProjectGanttChart: React.FC<LargeProjectGanttChartProps> = ({
             const position = getBarPosition(step.start_date, step.end_date);
             const status = getStepStatus(step);
 
+            const timeLabel = step.start_time || step.end_time
+              ? `${step.start_time?.slice(0, 5) || ''}–${step.end_time?.slice(0, 5) || ''}`
+              : null;
+
             return (
               <div key={step.key} className="relative">
                 {/* Label */}
                 <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{step.name}</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm font-medium truncate">{step.name}</span>
+                    {timeLabel && (
+                      <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">{timeLabel}</span>
+                    )}
                     {step.is_milestone && (
-                      <Badge variant="outline" className="text-[10px] h-4 px-1.5">
+                      <Badge variant="outline" className="text-[10px] h-4 px-1.5 shrink-0">
                         <Info className="h-2.5 w-2.5 mr-0.5" />
                         Milstolpe
                       </Badge>
                     )}
                   </div>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
                     {formatDate(step.start_date)} – {formatDate(step.end_date)}
                   </span>
                 </div>

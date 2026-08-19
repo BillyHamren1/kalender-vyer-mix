@@ -100,4 +100,16 @@ describe("SimplePlanningTimeline produktvisning", () => {
     expect(screen.getByText("F8 - 8x5/300")).toBeInTheDocument();
     expect(screen.queryByText("Övriga produkter:")).not.toBeInTheDocument();
   });
+
+  it("visar inte längre 'Från bokning'-badgen", () => {
+    renderTimeline([baseTask]);
+    expect(screen.queryByText("Från bokning")).not.toBeInTheDocument();
+  });
+
+  it("visar huvudprodukten utan truncate-klass så den nyttjar tillgänglig bredd", () => {
+    renderTimeline([baseTask]);
+    const product = screen.getByText("F8 - 8x5/300");
+    expect(product).toBeInTheDocument();
+    expect(product.className).not.toContain("truncate");
+  });
 });
