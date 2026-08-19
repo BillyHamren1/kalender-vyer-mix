@@ -128,7 +128,7 @@ const SimplePlanningTimeline = ({ tasks, staffPool, products = [], onTaskClick, 
                           <span className={`truncate ${task.status === "done" ? "font-medium line-through text-muted-foreground" : "font-medium"}`}>{task.title}</span>
                           <span className="min-w-0">
                             {mainProduct && (
-                              <span className="inline-flex min-w-0 items-center gap-1.5 rounded-md bg-primary/5 px-2 py-1 text-sm font-medium text-primary">
+                              <span className="inline-flex min-w-0 items-center gap-1.5 rounded-md bg-primary/5 px-2 py-1 text-sm font-medium text-foreground">
                                 <Package className="h-3.5 w-3.5 shrink-0 text-primary" />
                                 <span className="break-words">
                                   {mainProduct.quantity && mainProduct.quantity > 1 ? `${mainProduct.quantity} × ` : ""}{mainProduct.name}
