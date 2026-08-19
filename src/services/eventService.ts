@@ -1,3 +1,4 @@
+import { syncBookingOperationalPlan } from '@/services/bookingOperationalPlanSyncService';
 /**
  * ============================================================
  * eventService.ts — Calendar Event Data Access Layer
@@ -529,6 +530,8 @@ export const addCalendarEvent = async (event: Omit<CalendarEvent, 'id'>): Promis
     throw error;
   }
 
+  await syncBookingOperationalPlan(data.booking_id);
+
   return {
     id: data.id,
     title: data.title,
@@ -736,6 +739,8 @@ export const updateCalendarEvent = async (
     }
   }
 
+  await syncBookingOperationalPlan(data.booking_id);
+
   return {
     id: data.id,
     title: data.title,
@@ -770,6 +775,7 @@ export const updateCalendarEvent = async (
  */
 export const deleteCalendarEvent = async (eventId: string): Promise<void> => {
   console.log('🗑️ [Planner UI] Deleting calendar event:', eventId);
+  const { data: syncTarget } = await supabase.from('calendar_events').select('booking_id').eq('id', eventId).maybeSingle();
   
   const { error } = await supabase
     .from('calendar_events')
@@ -780,6 +786,7 @@ export const deleteCalendarEvent = async (eventId: string): Promise<void> => {
     console.error('❌ Error deleting calendar event:', error);
     throw error;
   }
+  await syncBookingOperationalPlan(syncTarget?.booking_id);
 };
 
 /**

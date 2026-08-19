@@ -8,6 +8,9 @@ export type ExternalWriteFields = {
   rig_down_dates?: string[];
   rig_up_time?: string | null;
   rig_down_time?: string | null;
+  operational_plan?: Record<string, unknown> | null;
+  start_time_on_site?: string | null;
+  operational_plan_updated_at?: string | null;
 };
 
 export type ExternalWriteResult = {
