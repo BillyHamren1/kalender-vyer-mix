@@ -1998,6 +1998,37 @@ export const checkProductChanges = async (
     console.warn(`[Product Sync] ${PRODUCT_DESTRUCTIVE_BLOCKED_LOG} booking ${bookingId}: ${diff.blockedRemovals.length} local products kept (completeness=${completeness})`);
   }
 
+  // Synliggör blockerade borttagningar i UI istället för att bara logga dem.
+  // Produkter som saknas i Bookings lista men inte får raderas markeras;
+  // produkter som finns i källan får markeringen rensad.
+  try {
+    const blockedSet = new Set(diff.blockedRemovals.map((n: string) => String(n)));
+    const missingIds = (existingProducts || [])
+      .filter((p: any) => blockedSet.has(String(p.name)))
+      .map((p: any) => p.id);
+    const presentIds = (existingProducts || [])
+      .filter((p: any) => !blockedSet.has(String(p.name)))
+      .map((p: any) => p.id);
+
+    if (missingIds.length > 0) {
+      await supabase
+        .from('booking_products')
+        .update({ source_missing_since: new Date().toISOString() })
+        .in('id', missingIds)
+        .is('source_missing_since', null);
+    }
+    if (presentIds.length > 0) {
+      await supabase
+        .from('booking_products')
+        .update({ source_missing_since: null })
+        .in('id', presentIds)
+        .not('source_missing_since', 'is', null);
+    }
+  } catch (markErr) {
+    console.warn(`[Product Sync] kunde inte markera source_missing_since för ${bookingId}:`, markErr);
+  }
+
+
   if (diff.changed) {
     console.log(`[Product Changes] Booking ${bookingId}: +${diff.added.length} added, -${diff.removed.length} removed, ~${diff.updated.length} updated (completeness=${completeness})`);
   }
