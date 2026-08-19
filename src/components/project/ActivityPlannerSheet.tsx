@@ -368,13 +368,22 @@ const ActivityPlannerSheet = ({
 
   const handleSaveAll = useCallback(async () => {
     if (rowsForSave.length === 0) return;
-    setIsSubmitting(true);
 
     const effectiveBookingId = isProjectMode
       ? (selectedBookingId !== "none" ? selectedBookingId : null)
       : (bookingId || null);
 
-    let ok = 0, fail = 0;
+    // DB-constraint: en aktivitet måste tillhöra en bokning ELLER ett stort projekt.
+    if (!effectiveBookingId && !largeProjectId) {
+      toast.error('Välj vilken bokning aktiviteten gäller — annars kan den inte sparas.');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    let ok = 0;
+    const failures: string[] = [];
+
     for (const row of rowsForSave) {
       try {
         // Build quantity description for partial assignments
