@@ -428,14 +428,19 @@ const ActivityPlannerSheet = ({
           }
         }
         ok++;
-      } catch (e) {
+      } catch (e: any) {
         console.error('[ActivityPlanner] Failed:', row.title, e);
-        fail++;
+        const detail = e?.message || e?.details || e?.hint || String(e);
+        failures.push(`"${row.title}": ${detail}`);
       }
     }
 
-    if (fail === 0) toast.success(`${ok} aktivitet(er) skapade`);
-    else toast.warning(`${ok} skapade, ${fail} misslyckades`);
+    if (failures.length === 0) toast.success(`${ok} aktivitet(er) skapade`);
+    else toast.error(`${ok} skapade, ${failures.length} misslyckades`, {
+      description: failures.join(' • '),
+      duration: 12000,
+    });
+
 
     // Säkerställ att projektkalendern och alla task-listor uppdateras direkt
     queryClient.invalidateQueries({ queryKey: ["project-task-calendar-events"] });
