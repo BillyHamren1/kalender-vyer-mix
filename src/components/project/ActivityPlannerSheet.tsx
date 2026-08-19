@@ -368,13 +368,22 @@ const ActivityPlannerSheet = ({
 
   const handleSaveAll = useCallback(async () => {
     if (rowsForSave.length === 0) return;
-    setIsSubmitting(true);
 
     const effectiveBookingId = isProjectMode
       ? (selectedBookingId !== "none" ? selectedBookingId : null)
       : (bookingId || null);
 
-    let ok = 0, fail = 0;
+    // DB-constraint: en aktivitet måste tillhöra en bokning ELLER ett stort projekt.
+    if (!effectiveBookingId && !largeProjectId) {
+      toast.error('Välj vilken bokning aktiviteten gäller — annars kan den inte sparas.');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    let ok = 0;
+    const failures: string[] = [];
+
     for (const row of rowsForSave) {
       try {
         // Build quantity description for partial assignments
@@ -419,14 +428,19 @@ const ActivityPlannerSheet = ({
           }
         }
         ok++;
-      } catch (e) {
+      } catch (e: any) {
         console.error('[ActivityPlanner] Failed:', row.title, e);
-        fail++;
+        const detail = e?.message || e?.details || e?.hint || String(e);
+        failures.push(`"${row.title}": ${detail}`);
       }
     }
 
-    if (fail === 0) toast.success(`${ok} aktivitet(er) skapade`);
-    else toast.warning(`${ok} skapade, ${fail} misslyckades`);
+    if (failures.length === 0) toast.success(`${ok} aktivitet(er) skapade`);
+    else toast.error(`${ok} skapade, ${failures.length} misslyckades`, {
+      description: failures.join(' • '),
+      duration: 12000,
+    });
+
 
     // Säkerställ att projektkalendern och alla task-listor uppdateras direkt
     queryClient.invalidateQueries({ queryKey: ["project-task-calendar-events"] });
@@ -435,8 +449,10 @@ const ActivityPlannerSheet = ({
     queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
 
     onTaskCreated();
-    onOpenChange(false);
+    // Vid fel: håll panelen öppen så användaren ser vad som gick fel och kan rätta.
+    if (failures.length === 0) onOpenChange(false);
     setIsSubmitting(false);
+
   }, [rowsForSave, isProjectMode, selectedBookingId, bookingId, largeProjectId, activeProducts, onTaskCreated, onOpenChange, queryClient]);
 
   // --- Render ---
