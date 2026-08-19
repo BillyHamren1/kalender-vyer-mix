@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
 
   const [tasksRes, transportRes, calendarRes] = await Promise.all([
     admin.from('establishment_tasks')
-      .select('id,title,category,start_date,end_date,start_time,end_time,status,task_type,description,sort_order,source_product_id,source_product_ids,source_product_quantities')
+      .select('id,title,category,start_date,end_date,start_time,end_time,status,task_type,description,sort_order,source_product_id,source_product_ids')
       .eq('booking_id', bookingId)
       .order('start_date', { ascending: true })
       .order('start_time', { ascending: true, nullsFirst: false }),
@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
     const ids: string[] = Array.isArray(t.source_product_ids) && t.source_product_ids.length
       ? t.source_product_ids
       : (t.source_product_id ? [t.source_product_id] : []);
-    const qty = (t.source_product_quantities || {}) as Record<string, number>;
+    const qty: Record<string, number> = {};
     return ids
       .map((id) => {
         const p = productById.get(id);
