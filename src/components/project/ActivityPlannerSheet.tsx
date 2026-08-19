@@ -93,6 +93,11 @@ interface ActivityRow {
   syncToCalendar: boolean;
 }
 
+export interface ResolvedProductSelection {
+  productIds: string[];
+  productQuantities: Record<string, number>;
+}
+
 /** Parse a virtual unit ID like "abc__unit_3" → { realId: "abc", unitIndex: 3 } */
 function parseVirtualId(id: string): { realId: string; unitIndex: number } | null {
   const match = id.match(/^(.+)__unit_(\d+)$/);
@@ -104,6 +109,30 @@ function parseVirtualId(id: string): { realId: string; unitIndex: number } | nul
 function getRealProductId(id: string): string {
   const parsed = parseVirtualId(id);
   return parsed ? parsed.realId : id;
+}
+
+/** Converts checked whole products / split units into the IDs persisted on the activity. */
+export function resolveProductSelection(
+  selectedIds: Iterable<string>,
+  products: BookingProduct[],
+): ResolvedProductSelection {
+  const selected = Array.from(selectedIds);
+  const productIds = new Set<string>();
+  const productQuantities: Record<string, number> = {};
+
+  selected.forEach((selectedId) => {
+    const parsed = parseVirtualId(selectedId);
+    const realId = getRealProductId(selectedId);
+    productIds.add(realId);
+    productQuantities[realId] = (productQuantities[realId] || 0) + 1;
+
+    if (!parsed) {
+      const product = products.find((candidate) => candidate.id === realId);
+      productQuantities[realId] = product?.quantity || 1;
+    }
+  });
+
+  return { productIds: Array.from(productIds), productQuantities };
 }
 
 let _rowId = 0;
@@ -298,32 +327,12 @@ const ActivityPlannerSheet = ({
 
   const attachProductsToRow = useCallback(() => {
     if (!attachingToRowId || selectedIds.size === 0) return;
-    const virtualIds = Array.from(selectedIds);
-
-    // Resolve virtual IDs to real product IDs with quantity counts
-    const quantityMap: Record<string, number> = {};
-    const realProductIds = new Set<string>();
-    virtualIds.forEach(vid => {
-      const parsed = parseVirtualId(vid);
-      const realId = parsed ? parsed.realId : vid;
-      realProductIds.add(realId);
-      quantityMap[realId] = (quantityMap[realId] || 0) + 1;
-    });
-
-    // For non-split products (no virtual IDs), use full quantity
-    realProductIds.forEach(realId => {
-      if (!virtualIds.some(vid => parseVirtualId(vid)?.realId === realId)) {
-        // Was selected as whole product, not split units
-        const prod = activeProducts.find(p => p.id === realId);
-        if (prod) quantityMap[realId] = prod.quantity;
-      }
-    });
-
-    const realIds = Array.from(realProductIds);
+    const selection = resolveProductSelection(selectedIds, activeProducts);
+    const realIds = selection.productIds;
     const prodNames = activeProducts
-      .filter(p => realProductIds.has(p.id))
+      .filter(p => realIds.includes(p.id))
       .map(p => {
-        const qty = quantityMap[p.id] || p.quantity;
+        const qty = selection.productQuantities[p.id] || p.quantity;
         return `${p.name}${qty > 1 ? ` x${qty}` : ''}`;
       });
 
@@ -332,22 +341,47 @@ const ActivityPlannerSheet = ({
       const mergedIds = [...new Set([...r.productIds, ...realIds])];
       const mergedQuantities = { ...r.productQuantities };
       realIds.forEach(id => {
-        mergedQuantities[id] = quantityMap[id] || 1;
+        mergedQuantities[id] = selection.productQuantities[id] || 1;
       });
       const autoTitle = r.title || prodNames.join(', ');
       return { ...r, productIds: mergedIds, productQuantities: mergedQuantities, source: 'product', title: autoTitle };
     }));
     setSelectedIds(new Set());
     setAttachingToRowId(null);
-    const totalUnits = Object.values(quantityMap).reduce((s, n) => s + n, 0);
+    const totalUnits = Object.values(selection.productQuantities).reduce((s, n) => s + n, 0);
     toast.success(`${totalUnits} enhet(er) kopplade`);
   }, [attachingToRowId, selectedIds, activeProducts]);
 
   // --- Save all rows ---
   const validRows = rows.filter(r => r.title.trim() && r.startDate && r.endDate);
 
+  // The product list is always visible on desktop. If the user checks products and
+  // there is only one saveable activity, those products belong to that activity;
+  // requiring a second "Koppla produkter" click silently dropped the selection.
+  const rowsForSave = useMemo(() => {
+    if (selectedIds.size === 0) return validRows;
+
+    const targetRowId = attachingToRowId && validRows.some((row) => row.id === attachingToRowId)
+      ? attachingToRowId
+      : validRows.length === 1
+        ? validRows[0].id
+        : null;
+    if (!targetRowId) return validRows;
+
+    const selection = resolveProductSelection(selectedIds, activeProducts);
+    return validRows.map((row) => {
+      if (row.id !== targetRowId) return row;
+      return {
+        ...row,
+        source: 'product' as const,
+        productIds: [...new Set([...row.productIds, ...selection.productIds])],
+        productQuantities: { ...row.productQuantities, ...selection.productQuantities },
+      };
+    });
+  }, [activeProducts, attachingToRowId, selectedIds, validRows]);
+
   const handleSaveAll = useCallback(async () => {
-    if (validRows.length === 0) return;
+    if (rowsForSave.length === 0) return;
     setIsSubmitting(true);
 
     const effectiveBookingId = isProjectMode
@@ -355,7 +389,7 @@ const ActivityPlannerSheet = ({
       : (bookingId || null);
 
     let ok = 0, fail = 0;
-    for (const row of validRows) {
+    for (const row of rowsForSave) {
       try {
         // Build quantity description for partial assignments
         const quantityNotes = Object.entries(row.productQuantities)
@@ -417,7 +451,7 @@ const ActivityPlannerSheet = ({
     onTaskCreated();
     onOpenChange(false);
     setIsSubmitting(false);
-  }, [validRows, isProjectMode, selectedBookingId, bookingId, largeProjectId, onTaskCreated, onOpenChange, queryClient]);
+  }, [rowsForSave, isProjectMode, selectedBookingId, bookingId, largeProjectId, activeProducts, onTaskCreated, onOpenChange, queryClient]);
 
   // --- Render ---
   const toggleExpandProduct = useCallback((productId: string) => {
