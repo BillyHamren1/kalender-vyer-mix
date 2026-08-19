@@ -228,6 +228,29 @@ const EstablishmentPage = () => {
         </div>
       )}
 
+      {viewMode === "gantt" && (
+        <div className="space-y-2">
+          <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+            Gantt-vyn visar aktiviteternas datum och tider över projektets period.
+          </div>
+          <LargeProjectGanttChart
+            steps={analytics.tasks
+              .filter((t) => t.start_date && t.end_date)
+              .map((t): GanttStep => ({
+                id: t.id,
+                key: `task-${t.id}`,
+                name: t.title,
+                start_date: t.start_date,
+                end_date: t.end_date,
+                start_time: t.start_time,
+                end_time: t.end_time,
+                is_milestone: false,
+                sort_order: t.sort_order,
+              }))}
+          />
+        </div>
+      )}
+
       {viewMode === "people" && (
         <Card className="border-border/60 p-3 sm:p-4 shadow-sm">
           <div className="mb-3">
