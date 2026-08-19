@@ -796,6 +796,7 @@ export type Database = {
           setup_hours: number | null
           sku: string | null
           sort_index: number | null
+          source_missing_since: string | null
           tags: string[] | null
           tags_en: string[] | null
           total_price: number | null
@@ -829,6 +830,7 @@ export type Database = {
           setup_hours?: number | null
           sku?: string | null
           sort_index?: number | null
+          source_missing_since?: string | null
           tags?: string[] | null
           tags_en?: string[] | null
           total_price?: number | null
@@ -862,6 +864,7 @@ export type Database = {
           setup_hours?: number | null
           sku?: string | null
           sort_index?: number | null
+          source_missing_since?: string | null
           tags?: string[] | null
           tags_en?: string[] | null
           total_price?: number | null
