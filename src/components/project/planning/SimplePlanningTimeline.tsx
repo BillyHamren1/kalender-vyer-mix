@@ -133,6 +133,24 @@ const SimplePlanningTimeline = ({ tasks, staffPool, products = [], onTaskClick, 
                           {person && <span className="inline-flex items-center gap-1"><UserRound className="h-3 w-3" />{person}</span>}
                           {task.description && <span className="truncate max-w-[420px]">{task.description}</span>}
                         </div>
+
+                        {items.length > 0 && (
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                            <Package className="h-3 w-3 text-muted-foreground" />
+                            {items.slice(0, 6).map((item) => (
+                              <Badge key={item.id} variant="secondary" className="max-w-[260px] truncate text-[11px] font-normal">
+                                {item.quantity && item.quantity > 1 ? `${item.quantity} × ` : ""}{item.name}
+                              </Badge>
+                            ))}
+                            {items.length > 6 && (
+                              <span className="text-[11px] text-muted-foreground">+{items.length - 6} till</span>
+                            )}
+                          </div>
+                        )}
+
+                        {items.length === 0 && task.notes && (
+                          <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{task.notes}</div>
+                        )}
                       </div>
 
                       <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
