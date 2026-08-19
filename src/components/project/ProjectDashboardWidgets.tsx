@@ -19,6 +19,7 @@ interface UnifiedItem {
   type: 'small' | 'medium' | 'large';
   date: string | null;
   rigDate: string | null;
+  rigDownDate: string | null;
   status: string;
   subtitle: string | null;
   navigateTo: string;
