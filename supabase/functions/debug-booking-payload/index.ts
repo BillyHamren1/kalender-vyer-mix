@@ -21,28 +21,35 @@ Deno.serve(async (req) => {
   try {
     const authHeader = req.headers.get('Authorization') ?? '';
     if (!authHeader.startsWith('Bearer ')) return json({ error: 'Unauthorized' }, 401);
+    const token = authHeader.replace('Bearer ', '').trim();
 
-    const admin = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-    );
-    const { data: userData } = await admin.auth.getUser(authHeader.replace('Bearer ', ''));
-    const user = userData?.user;
-    if (!user) return json({ error: 'Unauthorized' }, 401);
-
-    const { data: isAdmin } = await admin.rpc('has_role', { _user_id: user.id, _role: 'admin' });
-    if (!isAdmin) return json({ error: 'Forbidden' }, 403);
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const admin = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey);
 
     const body = await req.json().catch(() => ({}));
     const bookingNumber = typeof body.booking_number === 'string' ? body.booking_number.trim() : '';
     let bookingId = typeof body.booking_id === 'string' ? body.booking_id.trim() : '';
 
-    const { data: profile } = await admin
-      .from('profiles')
-      .select('organization_id')
-      .eq('id', user.id)
-      .maybeSingle();
-    const organizationId = profile?.organization_id;
+    let organizationId: string | null = null;
+
+    if (token === serviceKey) {
+      organizationId = typeof body.organization_id === 'string' ? body.organization_id : null;
+      if (!organizationId) return json({ error: 'organization_id required for service calls' }, 400);
+    } else {
+      const { data: userData } = await admin.auth.getUser(token);
+      const user = userData?.user;
+      if (!user) return json({ error: 'Unauthorized' }, 401);
+
+      const { data: isAdmin } = await admin.rpc('has_role', { _user_id: user.id, _role: 'admin' });
+      if (!isAdmin) return json({ error: 'Forbidden' }, 403);
+
+      const { data: profile } = await admin
+        .from('profiles')
+        .select('organization_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      organizationId = profile?.organization_id ?? null;
+    }
     if (!organizationId) return json({ error: 'No organization for user' }, 400);
 
     if (!bookingId && bookingNumber) {
