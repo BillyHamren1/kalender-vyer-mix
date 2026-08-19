@@ -15,7 +15,6 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CalendarDays, GanttChart, HardHat, PackagePlus, Plus, Users } from "lucide-react";
 import EstablishmentTaskDetailSheet from "@/components/project/EstablishmentTaskDetailSheet";
-import ProjectCalendarView from "@/components/project/ProjectCalendarView";
 import PeopleOverview from "@/components/project/planning/PeopleOverview";
 import ProjectPlanningHeader from "@/components/project/ProjectPlanningHeader";
 import SimplePlanningTimeline from "@/components/project/planning/SimplePlanningTimeline";
