@@ -1,5 +1,7 @@
 // @ts-nocheck
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { queuePackingChangeRequests } from '../_shared/packingChangeRequests.ts'
+
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
