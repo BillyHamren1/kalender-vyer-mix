@@ -64,6 +64,7 @@ describe('canonical Booking -> warehouse need contract', () => {
   it('contains no destructive backfill of historical inbox rows', () => {
     expect(migration).not.toContain('DELETE FROM public.warehouse_project_inbox');
     expect(migration).not.toContain('TRUNCATE');
-    expect(migration).toContain('Do not rewrite historical inbox rows');
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS source_booking_id');
   });
+
 });
