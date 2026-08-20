@@ -1,35 +1,44 @@
-# Tre packningsblock 21 aug – vad datan visar
+# Lageraktivering: personal som "är aktiverad" syns inte i kalendern
 
-Jag kontrollerade de tre korten i lagerkalendern. De är **inte** samma jobb kopierat tre gånger — det är tre olika bokningar från samma kund, var och en med egen adress, egna produkter och eget skapandedatum:
+## Vad datan visar
 
-| Bokning | Rubrik | Adress | Produkter | Skapad | Riv |
-|---|---|---|---|---|---|
-| 2604-135 | 6x15 | Tornslingan | 25 | 27 apr | 25 aug |
-| 2605-68 | Kopia | Dahlbergsvägen 20 | 25 | 21 maj | 24 aug |
-| 2608-22 | 4x9 | Båtsmansvägen 47 B | 19 | 11 aug | 24 aug |
+Det finns 9 rader med `is_active = true` i lageraktiveringarna, men bara 3 av dem gäller idag:
 
-Varje bokning har exakt **en** packning och ett block — ingen dubblering sker i koden. Problemet är att kortet bara visar kundnamnet stort, så tre olika jobb ser identiska ut. Att en av dem heter "Kopia" i Booking förstärker känslan av dubblett.
+| Person | Typ | Giltig |
+|---|---|---|
+| Nana Yaw Antwi | permanent | ja |
+| Raivis Minalto | permanent | ja |
+| Ivars Cipans | permanent | ja |
+| Armands Birznieks | tillfällig 16 apr – 24 apr | nej, utgången |
+| Matīss Ulmis | tillfällig 16 apr – 24 apr | nej, utgången |
+| Kristaps Ruža | tillfällig 16 apr – 24 apr | nej, utgången |
+| Kevins Oskars Trumpekojs | tillfällig 16 apr – 24 apr | nej, utgången |
+| Jānis Puriņš | tillfällig, utgången + personalen inaktiv | nej |
+| Kristiāns Krisjuks | tillfällig, utgången + personalen inaktiv | nej |
 
-## Vad jag föreslår
+Kalendern räknar en tillfällig aktivering som giltig endast mellan start- och slutdatum. Slutdatumet 24 april har passerat, så de personerna filtreras bort trots att raden ser "aktiv" ut. Kryssrutan är alltså inte trasig — perioden har löpt ut, och det finns idag ingen knapp i gränssnittet för att förlänga eller göra om dem till permanenta.
 
-### 1. Gör korten identifierbara (huvudåtgärden)
-Lagerkortet ska visa, i den befintliga layouten utan att bygga om kalendern:
-- Bokningens rubrik (6x15 / 4x9) tydligt under kundnamnet — den hämtas redan men syns inte på packningskort idag.
-- Leveransadressens gatunamn som andra rad, så tre jobb samma dag alltid går att skilja åt.
-- Bokningsnumret behålls där det står idag.
+## Vad som byggs
 
-### 2. Dubblettvarning istället för tyst likhet
-Om två eller fler bokningar samma dag har samma kund **och** samma adress, markeras korten med en liten varningsikon "Möjlig dubblett". Idag har de tre olika adresser, så de flaggas inte — men äkta dubbletter fångas direkt i framtiden.
+1. **Panel "Lagerpersonal" i lagerkalendern**
+   Knapp i kalenderns huvud som öppnar en panel med all personal som har taggen **Lager** (aktiv personal). Per person visas nuvarande status: Permanent aktiv / Aktiv t.o.m. datum / Utgången (med datum) / Ej aktiverad.
 
-### 3. Verifieringstest
-Ett automatiskt test som:
-- Bygger kortdata för de tre bokningarna och säkerställer att rubrik + adress renderas och att korten får unikt innehåll.
-- Säkerställer att en bokning aldrig genererar mer än ett packningsblock per dag i kalendern (regression mot äkta dubblering).
-- En kontrollfråga mot databasen som listar bokningar med fler än en packning — svaret idag är noll rader.
+2. **Åtgärder per person**
+   - Aktivera tillsvidare (permanent)
+   - Aktivera för period (start- och slutdatum)
+   - Avaktivera
+   Detta använder den befintliga aktiveringslogiken som redan finns i koden men aldrig monterats i något gränssnitt.
 
-## Teknisk detalj
+3. **Tydlig markering av utgångna aktiveringar**
+   Utgångna perioder visas med varningsfärg och en "Förläng"-genväg, så att man aldrig igen tror att någon är bemanningsbar när perioden gått ut.
 
-- `src/pages/WarehouseCalendarPage.tsx`: skicka med `deliveryAddress` och rubrik i `extendedProps` även för packningskort samt beräkna dubblettflagga per dag (kund + adress).
-- `src/components/Calendar/CustomEvent.tsx`: rendera rubrik + adressrad och varningsikon i packningskortets befintliga block; ingen ändring av kortets storlek, färger eller kalenderns layout.
-- Nytt test under `src/__tests__/` som täcker punkterna ovan.
-- Inga databasändringar.
+4. **Endast Lager-taggade**
+   Panelen listar bara personal med Lager-taggen, enligt önskemål. Saknas taggen står det tydligt att den sätts på personalkortet först.
+
+## Tekniska detaljer
+
+- Ny panel-komponent under `src/components/warehouse/`, monterad i `src/pages/WarehouseCalendarPage.tsx` bredvid befintliga kontroller. Kalenderns rutnät, kort och layout rörs inte.
+- Använder befintlig `useWarehouseStaffActivations` (`activatePermanent`, `activateTemporary`, `deactivate`) — ingen ny datamodell, inga migrationer.
+- Efter mutation invalideras `warehouse-staff-activations` och `available-staff-week` så kalendern uppdateras direkt.
+- Statuslogiken (permanent / pågående / utgången) läggs i en liten ren hjälpfunktion med enhetstest, så att "utgången" alltid räknas likadant som i kalenderfiltret.
+- Ingen ändring av kalenderns filterlogik i `useAvailableStaffWeek` eller `useUnifiedStaffOperations`.
