@@ -3,10 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { sv } from "date-fns/locale";
 import {
-  CalendarDays,
   Check,
   HardHat,
-  MapPin,
   Plus,
   ListTodo,
   Truck,
