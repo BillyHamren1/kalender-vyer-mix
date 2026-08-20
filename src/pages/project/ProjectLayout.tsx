@@ -441,11 +441,6 @@ const ProjectLayout = () => {
                   >
                     <Icon className="h-4 w-4" />
                     <span className="hidden sm:inline">{item.label}</span>
-                    {!isActive && (item as any).emphasis && (
-                      <span className="hidden sm:inline-flex px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-full bg-primary/15 text-primary leading-none">
-                        Hub
-                      </span>
-                    )}
                   </Link>
                 );
               })}
