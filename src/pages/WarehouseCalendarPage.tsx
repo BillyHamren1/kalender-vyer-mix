@@ -5,7 +5,7 @@ import { useWarehouseCalendarEvents, WarehouseEvent } from '@/hooks/useWarehouse
 import { useTransportCalendarEvents } from '@/hooks/useTransportCalendarEvents';
 import { useWarehouseResources } from '@/hooks/useWarehouseResources';
 import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
-import { useWarehouseStaffActivations, useWarehouseAvailableStaff } from '@/hooks/useWarehouseStaffActivations';
+// OBS: lagerkalendern kräver inte längre "lageraktivering" — Lager-tagg + tillgänglighet räcker.
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { distributeWarehouseEvents } from '@/utils/warehouseTeamAvailability';
 
