@@ -438,6 +438,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
                   bookingNumber,
                   client: clientName,
                   rigDate,
+                  preliminaryNotice: printPreliminaryReason,
                 },
                 printRows,
               );
@@ -446,6 +447,15 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
             <Printer className="h-4 w-4 mr-2" />
             Skriv ut
           </Button>
+          {printPreliminaryReason && (
+            <span
+              className="inline-flex items-center gap-1 text-xs text-amber-600"
+              title={`Utskriften märks som preliminär: ${printPreliminaryReason}`}
+            >
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Preliminär
+            </span>
+          )}
           <Button variant="outline" size="sm" onClick={() => setShowHistory(true)}>
             <History className="h-4 w-4 mr-2" />
             Historik
