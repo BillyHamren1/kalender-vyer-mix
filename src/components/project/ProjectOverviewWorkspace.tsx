@@ -12,7 +12,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
 import TransportPlanningDialog from "@/components/logistics/TransportPlanningDialog";
 import type { ProjectTask } from "@/types/project";
 import type { ProjectWithBooking } from "@/types/project";
