@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -8,7 +9,9 @@ import { Badge } from '@/components/ui/badge';
 import { User, Mail, Phone, Edit2 } from 'lucide-react';
 import { getContrastTextColor } from '@/utils/staffColors';
 import { updateStaffActiveStatus } from '@/services/staffAvailabilityService';
+import { invalidateStaffCaches } from '@/lib/staff/staffCacheInvalidation';
 import { toast } from 'sonner';
+
 
 interface StaffMember {
   id: string;
