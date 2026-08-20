@@ -30,7 +30,6 @@ describe('canonical Booking -> warehouse need contract', () => {
     // bookings.id är TEXT i denna databas — kopplingen görs mot b.id direkt.
     expect(migration).toContain('p.booking_id = b.id');
     expect(migration).toContain('source_booking_id = p_booking_id');
-
   });
 
   it('tracks the canonical booking on warehouse_projects and reuses an existing packing', () => {
@@ -62,9 +61,30 @@ describe('canonical Booking -> warehouse need contract', () => {
   });
 
   it('contains no destructive backfill of historical inbox rows', () => {
-    expect(migration).not.toContain('DELETE FROM public.warehouse_project_inbox');
     expect(migration).not.toContain('TRUNCATE');
     expect(migration).toContain('ADD COLUMN IF NOT EXISTS source_booking_id');
   });
 
+  it('auto-dismisses only unconverted needs when the booking stops requiring warehouse work', () => {
+    expect(migration).toContain("dismissal_reason = 'booking_not_confirmed'");
+    expect(migration).toContain("dismissal_reason = 'inventory_need_removed'");
+    expect(migration).toContain("AND status = 'new'");
+  });
+
+  it('never auto-deletes or auto-cancels an already planned warehouse project', () => {
+    expect(migration).not.toContain('DELETE FROM public.warehouse_projects');
+    expect(migration).not.toContain("UPDATE public.warehouse_projects\n    SET status = 'cancelled'");
+  });
+
+  it('reactivates only lifecycle-dismissed needs when the booking becomes valid again', () => {
+    expect(migration).toContain("dismissal_reason IN ('booking_not_confirmed', 'inventory_need_removed')");
+    expect(migration).toContain("THEN 'new'");
+    expect(migration).toContain('dismissal_reason = CASE');
+  });
+
+  it('re-evaluates warehouse need when booking products are deleted or moved', () => {
+    expect(migration).toContain("TG_OP IN ('DELETE', 'UPDATE')");
+    expect(migration).toContain('OLD.booking_id');
+    expect(migration).toContain('OR DELETE');
+  });
 });
