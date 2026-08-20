@@ -27,12 +27,19 @@ Deno.serve(async (req) => {
     const jwt = authHeader.replace('Bearer ', '')
     const { data: userData } = await supabase.auth.getUser(jwt)
     const user = userData?.user || null
+    if (!user) return json({ error: 'Unauthorized' }, 401)
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('organization_id')
+      .eq('id', user.id)
+      .maybeSingle()
+    if (profileError || !profile?.organization_id) return json({ error: 'Organization access required' }, 403)
 
     const body = await req.json().catch(() => ({}))
     const ids: string[] = Array.isArray(body?.change_request_ids) ? body.change_request_ids : []
     const packingId: string | null = body?.packing_id || null
     const acknowledgedByName: string | null = body?.acknowledged_by_name || null
-    const force: boolean = body?.force === true
 
     if (!packingId) {
       return json({ error: 'packing_id is required' }, 400)
@@ -42,6 +49,7 @@ Deno.serve(async (req) => {
       .from('packing_change_requests')
       .select('*')
       .eq('packing_id', packingId)
+      .eq('organization_id', profile.organization_id)
       .eq('status', 'pending')
     if (ids.length > 0) query = query.in('id', ids)
 
