@@ -1,30 +1,28 @@
-# Varför packlistans utskrift är grå – och hur vi fixar det
+# Packlistan ska alltid gå att skriva ut
 
-## Vad som faktiskt händer
+## Vad som händer idag
 
-Knappen "Skriv ut" i packlistevyn (DesktopChecklistView) är inte borttagen – den spärras av två kontroller som infördes med scanner-/WMS-härdningen:
+Knappen "Skriv ut" i packlistevyn (DesktopChecklistView) är inte borttagen – den spärras av två kontroller från scanner-/WMS-härdningen:
 
-1. **Integritetskontroll** mot bokningen: utskrift blockeras om kontrollen inte hunnit köra klart, misslyckats, eller om bokning och packlista inte matchar exakt.
-2. **WMS-preflight**: utskrift blockeras så länge preflight-läget inte är exakt `pass`. Det betyder att även `not_run` (innan kontrollen kört), `checking` (medan den kör) och `warning` (mjuka varningar) ger grå knapp.
+1. **Integritetskontroll** mot bokningen: blockerar om kontrollen inte hunnit köra klart, misslyckats, eller om bokning och packlista inte matchar exakt.
+2. **WMS-preflight**: blockerar så länge läget inte är exakt `pass` – alltså även `not_run`, `checking` och mjuka `warning`.
 
-Eftersom WMS-panelen numera är hopfälld som standard ser man inte varför knappen är grå – bara en grå knapp med en tooltip.
+Eftersom WMS-panelen är hopfälld som standard syns bara en grå knapp utan tydlig orsak.
 
-## Vad vi ändrar (endast UI/villkor, ingen ändring av packlogiken)
+## Vad vi ändrar
 
-1. **Lås inte utskrift på mjuka lägen.** Endast hårda lägen blockerar:
-   - WMS: blockera bara vid `blocked`.
-   - Integritet: blockera bara vid bekräftad avvikelse (källa tillgänglig och ingen exakt match).
-   - `not_run` / `checking` / `warning` / tillfälliga fel blockerar inte längre.
-2. **Preliminär utskrift.** När något är osäkert (warning, ej körd kontroll, integritetsfel) skrivs listan ut med en tydlig stämpel i sidhuvudet: "PRELIMINÄR – ej WMS-verifierad" + datum/tid. Fullt verifierad lista skrivs ut som idag utan stämpel.
-3. **Synlig orsak.** Vid faktisk blockering visas en liten röd text/varningsikon bredvid knappen med orsaken och en knapp som fäller ut WMS-panelen, istället för bara tooltip.
+1. **Utskrift blockeras aldrig.** Knappen är alltid klickbar, oavsett integritets- eller WMS-läge. `printBlocked` tas bort helt.
+2. **Stämpel istället för spärr.** Är läget inte fullt verifierat skrivs listan ut med en tydlig markering i sidhuvudet: "PRELIMINÄR – ej WMS-verifierad" + datum/tid och kort orsak. Fullt verifierad lista skrivs ut som idag, utan stämpel.
+3. **Statusen syns i vyn.** Bredvid knappen visas en liten varningsikon med text när något är overifierat, som fäller ut WMS-panelen vid klick – information, inte hinder.
+4. **Scanning påverkas inte.** Spärrar för scanning/godkännande av ändringar ligger kvar oförändrade.
 
 ## Tekniska detaljer
 
-- `src/components/packing/DesktopChecklistView.tsx`: skriv om `integrityBlocked` / `wmsBlocked` / `printBlocked` enligt ovan, lägg till `printPreliminary`-flagga som skickas till utskriften och styr orsaksraden.
-- `src/lib/packing/printPackingList.ts`: ta emot valfri `preliminaryNotice`-sträng och rendera den i utskriftens sidhuvud.
-- Inga ändringar i scanning, WMS-anrop, statusflöden eller databas – scanning förblir spärrad vid ogodkända ändringar precis som idag.
+- `src/components/packing/DesktopChecklistView.tsx`: ta bort `disabled={printBlocked}`, behåll härledningen enbart för att sätta `preliminaryNotice` och statusraden.
+- `src/lib/packing/printPackingList.ts`: valfri `preliminaryNotice`-sträng som renderas i utskriftens sidhuvud.
+- Inga ändringar i WMS-anrop, statusflöden eller databas.
 
 ## Verifiering
 
-- Vitest-test som låser regeln: `blocked` → utskrift spärrad; `warning` / `not_run` → utskrift tillåten men markerad preliminär.
-- Manuell koll i preview på en packlista i lagervyn: knappen ska vara klickbar och PDF:en få rätt stämpel.
+- Vitest-test som låser regeln: utskriftsknappen är aldrig disabled, och `blocked` / `warning` / `not_run` ger preliminär-stämpel medan `pass` inte gör det.
+- Manuell koll i preview på en packlista i lagervyn.
