@@ -19,8 +19,6 @@ export interface PrintablePackingMeta {
   bookingNumber?: string | null;
   client?: string | null;
   rigDate?: string | null;
-  /** Visas som tydlig stämpel i sidhuvudet när listan inte är fullt verifierad. */
-  preliminaryNotice?: string | null;
 }
 
 const escapeHtml = (s: string): string =>
@@ -169,16 +167,6 @@ export function openPrintablePackingList(
       border-top: 1px solid #111;
       padding-top: 4px;
     }
-    .preliminary {
-      border: 2px solid #b91c1c;
-      color: #b91c1c;
-      font-weight: 700;
-      font-size: 11px;
-      letter-spacing: 0.04em;
-      padding: 6px 8px;
-      margin-bottom: 10px;
-      text-transform: uppercase;
-    }
     @media print {
       body { padding: 0; }
       tr { page-break-inside: avoid; }
@@ -187,11 +175,6 @@ export function openPrintablePackingList(
   </style>
 </head>
 <body>
-  ${
-    meta.preliminaryNotice
-      ? `<div class="preliminary">PRELIMINÄR – ej WMS-verifierad · ${escapeHtml(meta.preliminaryNotice)}</div>`
-      : ''
-  }
   <div class="header">
     <div>
       <h1>${escapeHtml(meta.packingName)}</h1>

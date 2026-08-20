@@ -439,7 +439,6 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
                   bookingNumber,
                   client: clientName,
                   rigDate,
-                  preliminaryNotice: printPreliminaryReason,
                 },
                 printRows,
               );
