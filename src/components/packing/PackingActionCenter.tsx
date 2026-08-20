@@ -113,10 +113,10 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
 
   const renderInboxList = () => {
     if (inboxError) {
-      return <p className="text-sm text-destructive py-3">Kunde inte hämta nya projekt från Planning.</p>;
+      return <p className="text-sm text-destructive py-3">Kunde inte hämta nya lagerbehov.</p>;
     }
     if (inboxItems.length === 0) {
-      return <p className="text-sm text-muted-foreground py-3">Inga nya projekt väntar på lagerplanering.</p>;
+      return <p className="text-sm text-muted-foreground py-3">Inga nya lagerbehov väntar på planering.</p>;
     }
 
     const visible = inboxItems.slice(0, limitFor('new', inboxItems.length));
@@ -132,7 +132,7 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
                 : <Package className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium truncate">{item.client_name || 'Okänt projekt'}</span>
+                  <span className="text-sm font-medium truncate">{item.client_name || 'Okänt lagerbehov'}</span>
                   {item.source_project_number && (
                     <span className="text-[11px] font-mono text-muted-foreground/70 shrink-0">#{item.source_project_number}</span>
                   )}

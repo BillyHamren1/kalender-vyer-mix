@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Plus, Check, Loader2, Users, MapPin, Navigation } from 'lucide-react';
+import { Plus, Check, Loader2, Users, MapPin, Navigation, Package } from 'lucide-react';
 import { mobileApi } from '@/services/mobileApiService';
 import { useGeofencingContext } from '@/contexts/GeofencingContext';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,6 @@ import { MobileBackHeader } from '@/components/mobile-app/MobileHeader';
 import LagerTeamSection from '@/components/mobile-app/lager/LagerTeamSection';
 import LagerExpensesSection from '@/components/mobile-app/lager/LagerExpensesSection';
 import LagerPhotosSection from '@/components/mobile-app/lager/LagerPhotosSection';
-import LagerMyAssignmentsSection from '@/components/mobile-app/lager/LagerMyAssignmentsSection';
 
 interface LagerTask {
   id: string;
@@ -211,7 +210,18 @@ const MobileLocationDetail = () => {
         {activeTab === 'Info' && (
           <>
             {location && /lager/i.test(location.name) && (
-              <LagerMyAssignmentsSection />
+              <button
+                onClick={() => navigate('/m/lager')}
+                className="w-full rounded-2xl border border-border bg-card p-3.5 flex items-center gap-3 text-left active:scale-[0.99] transition-transform"
+              >
+                <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <Package className="w-4 h-4 text-primary" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-foreground">Mitt lager</p>
+                  <p className="text-xs text-muted-foreground">Se planerade lagerjobb och nästa arbetsuppgift</p>
+                </div>
+              </button>
             )}
             <div>
               <div className="flex items-center justify-between mb-2.5">

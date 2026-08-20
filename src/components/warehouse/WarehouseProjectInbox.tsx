@@ -75,7 +75,7 @@ export const WarehouseProjectInbox: React.FC<WarehouseProjectInboxProps> = ({ se
           <div className="p-1.5 rounded-lg bg-amber-500/10">
             <Inbox className="h-4 w-4 text-amber-600" />
           </div>
-          <h3 className="font-semibold text-sm text-foreground">Nya projekt från Planning</h3>
+          <h3 className="font-semibold text-sm text-foreground">Nya lagerbehov</h3>
         </div>
         <Badge className="h-5 px-2 text-xs font-medium bg-amber-100 text-amber-800 border-0">
           {q ? `${visible.length}/${items.length}` : `${items.length} nya`}
@@ -90,6 +90,7 @@ export const WarehouseProjectInbox: React.FC<WarehouseProjectInboxProps> = ({ se
         ) : visible.map((item) => {
           const isBusy = busyId === item.id;
           const isLarge = item.source_type === 'large_project';
+          const isBooking = item.source_type === 'booking';
           return (
             <div
               key={item.id}
@@ -103,7 +104,7 @@ export const WarehouseProjectInbox: React.FC<WarehouseProjectInboxProps> = ({ se
                     <Package className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                   )}
                   <h4 className="text-sm font-medium truncate text-foreground">
-                    {item.client_name || 'Okänt projekt'}
+                    {item.client_name || 'Okänt lagerbehov'}
                   </h4>
                   {item.source_project_number && (
                     <span className="text-[10px] text-muted-foreground/70 font-mono shrink-0">
@@ -111,7 +112,7 @@ export const WarehouseProjectInbox: React.FC<WarehouseProjectInboxProps> = ({ se
                     </span>
                   )}
                   <Badge variant="outline" className="text-[10px] h-4 px-1.5 shrink-0">
-                    {isLarge ? 'Stort projekt' : 'Projekt'}
+                    {isLarge ? 'Stort projekt' : isBooking ? 'Bokning' : 'Projekt'}
                   </Badge>
                 </div>
                 {item.event_date && (
