@@ -645,15 +645,8 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
         bookingId={placementBookingId}
       />
 
-      {updateDialog && (
-        <ProjectUpdateDialog
-          open={!!updateDialog}
-          onOpenChange={(open) => !open && setUpdateDialog(null)}
-          projectName={updateDialog.name}
-          bookingIds={updateDialog.bookingIds}
-          navigateTo={updateDialog.navigateTo}
-        />
-      )}
+
+
     </div>
   );
 };
