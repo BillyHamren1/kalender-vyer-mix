@@ -15,6 +15,7 @@ import ProjectFollowersPanel from "@/components/project/ProjectFollowersPanel";
 
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
+import { isTransportTodoTitle } from "@/components/project/defaultChecklist";
 import { useRefreshBooking } from "@/hooks/useRefreshBooking";
 import { FileText, MessageSquare, RefreshCw, Users, Truck, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
