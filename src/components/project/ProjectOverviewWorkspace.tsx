@@ -68,23 +68,6 @@ const ProjectOverviewWorkspace = ({ project, tasks, bookingId, onAddTask, onUpda
 
   return (
     <div className="space-y-4">
-      {/* Actual project overview: only facts the PM needs at a glance. */}
-      <Card className="overflow-hidden border-border/60 shadow-sm">
-        <div className="grid grid-cols-2 divide-x divide-y divide-border/50 md:grid-cols-4 md:divide-y-0">
-          <OverviewFact icon={HardHat} label="Etablering" value={dateLabel(rigDate)} />
-          <OverviewFact icon={CalendarDays} label="Event" value={dateLabel(eventDate)} />
-          <OverviewFact icon={HardHat} label="Nedrigg" value={dateLabel(rigDownDate)} />
-          <OverviewFact icon={MapPin} label="Plats" value={address} compact />
-        </div>
-        {bookingId && (
-          <div className="flex justify-end border-t border-border/50 bg-muted/10 px-4 py-3">
-            <Button variant="outline" className="gap-1.5" onClick={() => setTransportOpen(true)}>
-              <Truck className="h-4 w-4" /> Planera transport
-            </Button>
-          </div>
-        )}
-      </Card>
-
       <div className="grid grid-cols-1 gap-4">
         {/* TODOS */}
         <Card className="overflow-hidden border-border/60 shadow-sm">
