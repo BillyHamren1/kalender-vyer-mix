@@ -46,9 +46,10 @@ interface BookingInfoExpandedProps {
   packingStartDate?: string | null;
   packingEndDate?: string | null;
   onPackingDateChange?: (updates: { start_date?: string | null; end_date?: string | null }) => void;
+  showCustomerInfo?: boolean;
 }
 
-const BookingInfoExpanded = ({ booking, projectLeader }: BookingInfoExpandedProps) => {
+const BookingInfoExpanded = ({ booking, projectLeader, showCustomerInfo = true }: BookingInfoExpandedProps) => {
   return (
     <>
       <CustomerInfoBlock
