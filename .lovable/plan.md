@@ -1,31 +1,46 @@
-# Visa VAD som saknas/tagits bort i packlistans kontroll
+# Sluta varna i onödan – visa bara relevanta ändringar, och visa VAD som ändrats
 
 ## Problemet
 
-Varningen säger bara "Artikel som inte längre finns i bokningen" – två gånger, utan namn. Det går inte att förstå vad det gäller.
+Varningen "Packlistan får inte användas utan kontroll" listar bara "Artikel som inte längre finns i bokningen" – två gånger, utan namn.
 
-Kontroll av databasen visar två saker:
+Kontroll av databasen visar:
 
-1. Det finns **inga** packrader som pekar på en raderad bokningsrad i hela systemet just nu. Ingen artikel är alltså faktiskt borttagen i Booking.
-2. De rader som flaggas är i stället **paketrader** (paketets huvudrad, t.ex. "Multiflex 8x15", som har underliggande komponenter). Kontrollen räknar bara "packbara" lövrader som förväntade, så paketets huvudrad hamnar utanför och rapporteras som avvikelse – och eftersom raden inte har något manuellt namn skrivs den generiska texten ut.
+1. Det finns **inga** packrader i systemet som pekar på en raderad bokningsrad. Ingen artikel är alltså faktiskt borttagen i Booking här.
+2. Raderna som flaggas är **paketrader** (paketets huvudrad, t.ex. "Multiflex 8x15", som har underliggande komponenter). Kontrollen räknar bara lövrader som förväntade, så paketets huvudrad hamnar utanför och rapporteras som avvikelse – utan namn.
 
-Så dagens larm är dels felformulerat, dels i det här fallet falskt blockerande.
+Alltså: ett falskt, blockerande larm som dessutom inte går att förstå.
 
-## Åtgärd
+## Ny regel för när något får visas
 
-1. **Namnge alltid raden.** Kontrollen får med sig produktens namn, antal, SKU och bokningsnummer även för rader som inte ingår i "förväntade" rader. Texten blir t.ex.:
-   - "Multiflex 8x15 (1 st, SKU 12345) · bokning 2608-32".
-2. **Skilj på tre helt olika fall** i stället för en enda gemensam text:
-   - **Borttagen i bokningen** – bokningsraden finns inte längre: "Borttagen i bokningen: <namn> (<antal> st) ligger kvar på packlistan." (blockerande, som idag)
-   - **Markerad som borttagen i källan** – raden finns kvar lokalt men är flaggad som saknad från Booking: samma tydliga text plus datum när den försvann. (blockerande)
-   - **Paketets huvudrad** – raden är ett paket vars komponenter också ligger på listan: informativ rad, inte blockerande. Den är en normal följd av hur paket packas.
-3. **Sammanfattningen blir konkret.** Rubriken visar t.ex. "2 avvikelser: 1 borttagen artikel, 1 antalsdiff" i stället för bara ett antal, och de tydligaste namnen visas direkt utan att man måste öppna "Detaljer".
+En avvikelse mellan bokningen och packlistan visas **bara** när minst ett av dessa gäller:
 
-Ingen packrad ändras, tas bort eller läggs till – kontrollen förblir strikt read-only.
+- Det är **mindre än 14 dagar** kvar till riggdag/event (samma 14-dagarsregel som redan används för ändringshantering), eller
+- **Packningen är påbörjad** (status är inte längre planering).
+
+Är det längre kvar och packningen inte startat: ingen banner, inget larm, inget blockeringsläge. Ändringen fångas ändå upp av den vanliga bokning→packning-synken.
+
+Dessutom:
+
+- **Paketrader räknas aldrig som avvikelse.** De är en normal följd av hur paket packas.
+- När något väl visas är det **"ändrad", inte "får inte användas"** – tonen sänks till en informativ ändringsnotis. Packlistan blockeras inte längre av själva jämförelsen.
+
+## Vad notisen ska säga
+
+Alltid med namn, antal och orsak, t.ex.:
+
+- "Borttagen i bokningen: Bardisk vit (2 st) ligger kvar på packlistan."
+- "Antal ändrat: Uniflexgolv 175 st → 150 st."
+- "Tillagd i bokningen: Mastertent 3x3 (1 st) saknas på packlistan."
+
+Med bokningsnummer när packlistan omfattar flera bokningar, och en kort rubrik i stil med "3 ändringar sedan packlistan skapades – 6 dagar till rigg".
 
 ## Teknisk detalj
 
-- `src/lib/packing/packingIntegrity.ts`: låt jämförelsen ta emot hela produktlistan (inte bara lövrader) plus `source_missing_since`, och dela upp `orphan_item` i `removed_in_booking` (blockerande), `source_missing` (blockerande) och `package_header` (informativ). Namn/antal/SKU/bokning följer med i varje issue.
-- `src/hooks/usePackingList.tsx`: hämta även `source_missing_since` och bokningsnummer så texterna kan byggas.
-- `src/components/packing/PackingIntegrityBanner.tsx`: nya texter per typ och en kort sammanfattning i rubriken.
-- `src/__tests__/packingIntegrity.test.ts`: nya testfall som låser att paketrader inte blockerar och att borttagna artiklar alltid namnges.
+- `src/lib/packing/packingIntegrity.ts`: ta emot hela produktlistan (inte bara lövrader) så namn/antal/SKU alltid finns; ta bort paketrader ur avvikelserna; byt `orphan_item` mot `removed_in_booking`; behåll `missing_item`/`quantity_mismatch` men som "ändring", inte blockering.
+- Ny relevansgrind som återanvänder `PACKING_SHORT_NOTICE_DAYS`/`daysUntil` i `src/lib/packing/shortNoticeChange.ts` plus packningens status. Returnerar inga avvikelser alls när grinden är stängd.
+- `src/hooks/usePackingList.tsx`: skicka med riggdatum/eventdatum, packningsstatus och bokningsnummer till jämförelsen.
+- `src/components/packing/PackingIntegrityBanner.tsx`: neutral "Ändringar från bokningen"-notis med namngivna rader; ingen banner när grinden är stängd eller när allt matchar.
+- Tester i `src/__tests__/packingIntegrity.test.ts`: paketrader ger noll avvikelser; >14 dagar och ej påbörjad packning ger noll avvikelser; <14 dagar eller påbörjad packning ger namngivna ändringar.
+
+Kontrollen förblir strikt read-only – inga packrader läggs till, ändras eller tas bort.
