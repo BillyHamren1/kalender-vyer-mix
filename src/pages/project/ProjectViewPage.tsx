@@ -6,7 +6,6 @@ import ProjectOverviewWorkspace from "@/components/project/ProjectOverviewWorksp
 import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectInternalNotes from "@/components/project/ProjectInternalNotes";
 import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
-import CustomerInfoBlock from "@/components/project/CustomerInfoBlock";
 import PickupStopsSection from "@/components/pickup/PickupStopsSection";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -123,28 +122,6 @@ const ProjectViewPage = () => {
         onAddTask={detail.addTask}
         onUpdateTask={detail.updateTask}
       />
-
-      {/* Customer information lives directly below the dates so the PM sees it at a glance. */}
-      {displayBooking && (
-        <CustomerInfoBlock
-          client={displayBooking.client}
-          bookingNumber={displayBooking.booking_number}
-          deliveryAddress={displayBooking.deliveryaddress}
-          deliveryCity={displayBooking.delivery_city}
-          deliveryPostalCode={displayBooking.delivery_postal_code}
-          contactName={displayBooking.contact_name}
-          contactPhone={displayBooking.contact_phone}
-          contactEmail={displayBooking.contact_email}
-          eventdate={displayBooking.eventdate}
-          rigdaydate={displayBooking.rigdaydate}
-          rigdowndate={displayBooking.rigdowndate}
-          carryMoreThan10m={displayBooking.carry_more_than_10m}
-          groundNailsAllowed={displayBooking.ground_nails_allowed}
-          exactTimeNeeded={displayBooking.exact_time_needed}
-          exactTimeInfo={displayBooking.exact_time_info}
-          projectLeader={projectLeaderDisplay}
-        />
-      )}
 
       {/* Secondary project workspace: information is grouped by PM intent instead of long scrolling panels. */}
       <Tabs defaultValue="info" className="space-y-4">

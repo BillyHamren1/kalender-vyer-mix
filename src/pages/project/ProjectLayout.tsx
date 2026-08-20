@@ -14,6 +14,7 @@ import { AddToLargeProjectDialog } from "@/components/project/AddToLargeProjectD
 import ConsolidateProjectsDialog from "@/components/project/ConsolidateProjectsDialog";
 import ProjectAddressMapDialog from "@/components/maps/ProjectAddressMapDialog";
 import LargeProjectScheduleEditable from "@/components/project/LargeProjectScheduleEditable";
+import CustomerInfoBlock from "@/components/project/CustomerInfoBlock";
 import { useProjectDetail } from "@/hooks/useProjectDetail";
 import { cancelProject } from "@/services/projectService";
 import { convertToMedium, prepareConvertToLarge, type ProjectType } from "@/services/projectConversionService";
@@ -410,6 +411,34 @@ const ProjectLayout = () => {
                 onSave={handleAddressDialogSave}
               />
             </>
+          );
+        })()}
+
+        {/* Kundinformation direkt under datum/adress — PM ser allt utan att scrolla. */}
+        {(() => {
+          const b: any = (project as any).booking ?? null;
+          const p: any = project as any;
+          return (
+            <div className="mb-4">
+              <CustomerInfoBlock
+                client={b?.client || p.client || p.name}
+                bookingNumber={b?.booking_number ?? null}
+                deliveryAddress={p.deliveryaddress ?? b?.deliveryaddress ?? null}
+                deliveryCity={p.delivery_city ?? b?.delivery_city ?? null}
+                deliveryPostalCode={p.delivery_postal_code ?? b?.delivery_postal_code ?? null}
+                contactName={b?.contact_name ?? p.contact_name ?? null}
+                contactPhone={b?.contact_phone ?? p.contact_phone ?? null}
+                contactEmail={b?.contact_email ?? p.contact_email ?? null}
+                eventdate={p.eventdate ?? b?.eventdate ?? null}
+                rigdaydate={p.rigdaydate ?? b?.rigdaydate ?? null}
+                rigdowndate={p.rigdowndate ?? b?.rigdowndate ?? null}
+                carryMoreThan10m={b?.carry_more_than_10m ?? null}
+                groundNailsAllowed={b?.ground_nails_allowed ?? null}
+                exactTimeNeeded={b?.exact_time_needed ?? null}
+                exactTimeInfo={b?.exact_time_info ?? null}
+                projectLeader={p.project_leader ?? null}
+              />
+            </div>
           );
         })()}
 
