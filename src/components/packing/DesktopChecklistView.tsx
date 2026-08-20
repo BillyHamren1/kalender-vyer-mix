@@ -389,8 +389,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
           <Button
             variant="outline"
             size="sm"
-            disabled={printBlocked}
-            title={printBlockedReason}
+            title={printTitle}
             onClick={() => {
               const clientName = packing?.booking?.client || bookingGroups[0]?.client || null;
               const bookingNumber =
