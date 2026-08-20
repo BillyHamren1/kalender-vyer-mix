@@ -505,7 +505,18 @@ const WarehouseCalendarPage = () => {
           </div>
         </div>
 
+        {/* Manager surface: planning all warehouse jobs and staffing.
+            Keep this separate from /m/lager, which is worker/read-and-execute only. */}
+        <div className="mx-2 mb-2 px-3 py-2 rounded-xl border border-border/60 bg-card/80 shrink-0">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="text-sm font-semibold text-foreground">Lagerplanering</span>
+            <span className="text-xs text-muted-foreground">Planera alla lagerjobb och bemanna dem här.</span>
+            <span className="ml-auto text-[11px] text-muted-foreground">Arbetarna ser sin planering i Mitt lager.</span>
+          </div>
+        </div>
+
         {/* Content - flex-1 to fill remaining space */}
+
         <div className="flex-1 min-h-0 flex flex-col p-4 bg-card rounded-2xl mx-2 mb-2 shadow-sm">
           {viewMode === 'day' ? (
             <>
