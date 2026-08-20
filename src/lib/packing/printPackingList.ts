@@ -177,6 +177,11 @@ export function openPrintablePackingList(
   </style>
 </head>
 <body>
+  ${
+    meta.preliminaryNotice
+      ? `<div class="preliminary">PRELIMINÄR – ej WMS-verifierad · ${escapeHtml(meta.preliminaryNotice)}</div>`
+      : ''
+  }
   <div class="header">
     <div>
       <h1>${escapeHtml(meta.packingName)}</h1>
