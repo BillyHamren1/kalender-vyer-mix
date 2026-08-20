@@ -19,6 +19,8 @@ export interface PrintablePackingMeta {
   bookingNumber?: string | null;
   client?: string | null;
   rigDate?: string | null;
+  /** Visas som tydlig stämpel i sidhuvudet när listan inte är fullt verifierad. */
+  preliminaryNotice?: string | null;
 }
 
 const escapeHtml = (s: string): string =>
