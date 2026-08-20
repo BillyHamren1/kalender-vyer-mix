@@ -38,6 +38,8 @@ const StaffList: React.FC<StaffListProps> = ({
   onEdit 
 }) => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [pendingStaffId, setPendingStaffId] = useState<string | null>(null);
 
   const handleStaffClick = (staffId: string) => {
     navigate(`/staff/${staffId}`);
@@ -52,15 +54,22 @@ const StaffList: React.FC<StaffListProps> = ({
 
   const handleActiveToggle = async (staff: StaffMember) => {
     const newActiveStatus = !staff.is_active;
+    setPendingStaffId(staff.id);
     try {
       await updateStaffActiveStatus(staff.id, newActiveStatus);
-      toast.success(`${staff.name} är nu ${newActiveStatus ? 'aktiv' : 'inaktiv'}`);
+      // Invalidera ALL personal-relaterad cache så kalendrar/lagervyer/KPI:er
+      // inte ligger kvar på gammal data.
+      await invalidateStaffCaches(queryClient);
       onRefresh();
+      toast.success(`${staff.name} är nu ${newActiveStatus ? 'aktiv' : 'inaktiv'}`);
     } catch (error) {
       toast.error('Kunde inte uppdatera status');
       console.error(error);
+    } finally {
+      setPendingStaffId(null);
     }
   };
+
 
   if (isLoading) {
     return (
