@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProjectInboxCount } from "@/hooks/useProjectInboxCount";
+import { useProjectMessagesCount } from "@/hooks/useProjectMessagesCount";
+
 import { useUnplannedProjects } from "@/hooks/useUnplannedProjects";
 import { useCurrentStaffId } from "@/hooks/useCurrentStaffId";
 import { useMySidebarProjects } from "@/hooks/useMySidebarProjects";
@@ -60,13 +62,16 @@ const baseNavigationItems: NavItem[] = [
     ],
   },
   {
-    title: "Projekt",
+    title: "Dashboard",
     url: "/projects",
-    icon: FolderKanban,
-    children: [
-      { title: "Projektöversikt", url: "/economy", icon: Wallet },
-    ],
+    icon: LayoutDashboard,
   },
+  {
+    title: "Projekt",
+    url: "/economy",
+    icon: FolderKanban,
+  },
+
   {
     title: "Logistikplanering",
     url: "/ops-control",
@@ -123,6 +128,7 @@ export function Sidebar3D() {
   const navigate = useNavigate();
   const location = useLocation();
   const unviewedCount = useProjectInboxCount();
+  const projectMessagesCount = useProjectMessagesCount();
   const { data: unplannedProjects = [] } = useUnplannedProjects();
   const unplannedCount = unplannedProjects.length;
   const { addTab, removeTab, hasTab } = usePinnedTabs();
@@ -133,11 +139,12 @@ export function Sidebar3D() {
 
   const navigationItems = baseNavigationItems.map((item) => {
     if (item.url === "/projects") {
-      const total = unviewedCount + unplannedCount;
+      const total = unviewedCount + unplannedCount + projectMessagesCount;
       return total > 0 ? { ...item, badge: total } : item;
     }
     return item;
   });
+
 
   // Auto-expand parent if a child route is active
   useEffect(() => {
