@@ -148,13 +148,4 @@ const ProjectOverviewWorkspace = ({ project, tasks, bookingId, onAddTask, onUpda
   );
 };
 
-const OverviewFact = ({ icon: Icon, label, value, compact }: { icon: React.ElementType; label: string; value: string; compact?: boolean }) => (
-  <div className="min-w-0 p-4">
-    <div className="mb-1 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-      <Icon className="h-3.5 w-3.5" /> {label}
-    </div>
-    <p className={cn("font-semibold", compact ? "truncate text-sm" : "text-base")}>{value}</p>
-  </div>
-);
-
 export default ProjectOverviewWorkspace;
