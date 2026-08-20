@@ -9753,6 +9753,8 @@ export type Database = {
           title: string
           updated_at: string | null
           viewed: boolean | null
+          warehouse_project_id: string | null
+          warehouse_project_task_id: string | null
         }
         Insert: {
           booking_id?: string | null
@@ -9774,6 +9776,8 @@ export type Database = {
           title: string
           updated_at?: string | null
           viewed?: boolean | null
+          warehouse_project_id?: string | null
+          warehouse_project_task_id?: string | null
         }
         Update: {
           booking_id?: string | null
@@ -9795,6 +9799,8 @@ export type Database = {
           title?: string
           updated_at?: string | null
           viewed?: boolean | null
+          warehouse_project_id?: string | null
+          warehouse_project_task_id?: string | null
         }
         Relationships: [
           {
@@ -9816,6 +9822,20 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_calendar_events_warehouse_project_id_fkey"
+            columns: ["warehouse_project_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_calendar_events_warehouse_project_task_id_fkey"
+            columns: ["warehouse_project_task_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_project_tasks"
             referencedColumns: ["id"]
           },
         ]
@@ -9881,7 +9901,10 @@ export type Database = {
           id: string
           organization_id: string
           processed_at: string | null
+          source_booking_id: string | null
           source_id: string
+          source_large_project_id: string | null
+          source_project_id: string | null
           source_project_number: string | null
           source_type: string
           status: string
@@ -9894,7 +9917,10 @@ export type Database = {
           id?: string
           organization_id: string
           processed_at?: string | null
+          source_booking_id?: string | null
           source_id: string
+          source_large_project_id?: string | null
+          source_project_id?: string | null
           source_project_number?: string | null
           source_type: string
           status?: string
@@ -9907,13 +9933,30 @@ export type Database = {
           id?: string
           organization_id?: string
           processed_at?: string | null
+          source_booking_id?: string | null
           source_id?: string
+          source_large_project_id?: string | null
+          source_project_id?: string | null
           source_project_number?: string | null
           source_type?: string
           status?: string
           warehouse_project_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "warehouse_project_inbox_source_large_project_id_fkey"
+            columns: ["source_large_project_id"]
+            isOneToOne: false
+            referencedRelation: "large_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_project_inbox_source_project_id_fkey"
+            columns: ["source_project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "warehouse_project_inbox_warehouse_project_id_fkey"
             columns: ["warehouse_project_id"]
@@ -9935,6 +9978,7 @@ export type Database = {
           sort_order: number
           start_date: string | null
           status: string
+          task_kind: string
           title: string
           updated_at: string
           warehouse_project_id: string
@@ -9950,6 +9994,7 @@ export type Database = {
           sort_order?: number
           start_date?: string | null
           status?: string
+          task_kind?: string
           title: string
           updated_at?: string
           warehouse_project_id: string
@@ -9965,6 +10010,7 @@ export type Database = {
           sort_order?: number
           start_date?: string | null
           status?: string
+          task_kind?: string
           title?: string
           updated_at?: string
           warehouse_project_id?: string
@@ -9991,6 +10037,7 @@ export type Database = {
           notes: string | null
           organization_id: string
           project_number: string
+          source_booking_id: string | null
           source_large_project_id: string | null
           source_project_id: string | null
           source_project_number: string | null
@@ -10009,6 +10056,7 @@ export type Database = {
           notes?: string | null
           organization_id: string
           project_number: string
+          source_booking_id?: string | null
           source_large_project_id?: string | null
           source_project_id?: string | null
           source_project_number?: string | null
@@ -10027,6 +10075,7 @@ export type Database = {
           notes?: string | null
           organization_id?: string
           project_number?: string
+          source_booking_id?: string | null
           source_large_project_id?: string | null
           source_project_id?: string | null
           source_project_number?: string | null
@@ -10826,6 +10875,10 @@ export type Database = {
       ensure_internal_warehouse_project: {
         Args: { _org_id: string }
         Returns: string
+      }
+      ensure_warehouse_booking_need: {
+        Args: { p_booking_id: string }
+        Returns: undefined
       }
       fail_sync_job: {
         Args: {
