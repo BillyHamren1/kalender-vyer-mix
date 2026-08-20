@@ -22,4 +22,27 @@ describe('warehouse manager / worker role separation', () => {
     expect(mobile).not.toContain('Starta scanner');
     expect(mobile).not.toContain('Starta returscanning');
   });
+
+  it('uses one worker-facing active-state rule for section, status and CTA', () => {
+    const mobile = read('src/pages/mobile/MobileLagerPage.tsx');
+    const labels = read('src/lib/warehouse/lagerLabels.ts');
+    expect(mobile).toContain('isAssignmentOperationallyActive(item, now)');
+    expect(mobile).toContain('isAssignmentOperationallyActive(item)');
+    expect(labels).toContain('isAssignmentCurrentByTime');
+    expect(labels).toContain('isAssignmentOperationallyActive');
+  });
+
+  it('keeps warehouse team fallback paired to the assignment date', () => {
+    const api = read('supabase/functions/mobile-app-api/index.ts');
+    expect(api).toContain('lagerTeamsByDate');
+    expect(api).toContain('const teamsForDay = lagerTeamsByDate.get(day)');
+    expect(api).toContain("!teamsForDay.has(String(w.resource_id || ''))");
+  });
+
+  it('has a single worker assignment list and links location detail to Mitt lager', () => {
+    const detail = read('src/pages/mobile/MobileLocationDetail.tsx');
+    expect(detail).toContain("navigate('/m/lager')");
+    expect(detail).not.toContain('LagerMyAssignmentsSection');
+  });
+
 });

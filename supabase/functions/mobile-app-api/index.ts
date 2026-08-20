@@ -7097,7 +7097,7 @@ async function handleGetLagerAssignments(
   // 3) FALLBACK: warehouse_calendar_events on dates where staff has lager team placement
   //    Only used to back-fill events not already represented in warehouse_assignments.
   let lagerDates = new Set<string>()
-  let lagerTeams = new Set<string>()
+  const lagerTeamsByDate = new Map<string, Set<string>>()
   try {
     const { data: sa, error: saErr } = await supabase
       .from('staff_assignments')
@@ -7113,8 +7113,11 @@ async function handleGetLagerAssignments(
     for (const row of sa || []) {
       const tid = String(row.team_id || '')
       if (isWarehouseTeam(tid)) {
-        lagerDates.add(row.assignment_date)
-        if (tid.startsWith('lager-')) lagerTeams.add(tid)
+        const day = String(row.assignment_date || '')
+        if (!day) continue
+        lagerDates.add(day)
+        if (!lagerTeamsByDate.has(day)) lagerTeamsByDate.set(day, new Set<string>())
+        lagerTeamsByDate.get(day)!.add(tid)
       }
     }
 
@@ -7126,8 +7129,11 @@ async function handleGetLagerAssignments(
         .gte('start_time', `${dateFrom}T00:00:00`)
         .lte('start_time', `${dateTo}T23:59:59`)
 
-      if (lagerTeams.size > 0) {
-        q = q.in('resource_id', Array.from(lagerTeams))
+      const allLagerTeams = Array.from(
+        new Set(Array.from(lagerTeamsByDate.values()).flatMap((teams) => Array.from(teams))),
+      )
+      if (allLagerTeams.length > 0) {
+        q = q.in('resource_id', allLagerTeams)
       }
 
       const { data: wEvents, error: wErr } = await q
@@ -7137,6 +7143,8 @@ async function handleGetLagerAssignments(
         for (const w of wEvents || []) {
           const day = (w.start_time as string)?.slice(0, 10)
           if (!day || !lagerDates.has(day)) continue
+          const teamsForDay = lagerTeamsByDate.get(day)
+          if (teamsForDay && teamsForDay.size > 0 && !teamsForDay.has(String(w.resource_id || ''))) continue
           if (seenWarehouseEventIds.has(w.id)) continue
           const type = deriveLagerType(w.event_type)
           const action = deriveLagerAction(type, null)

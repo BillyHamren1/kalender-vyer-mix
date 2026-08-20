@@ -90,18 +90,22 @@ export const WarehousePlanningInboxBar: React.FC = () => {
         <div className={`mt-1 divide-y divide-border/30 ${expanded ? 'max-h-40 overflow-y-auto' : ''}`}>
           {visible.map((item) => {
             const isLarge = item.source_type === 'large_project';
+            const isBooking = item.source_type === 'booking';
             const date = formatDate(item.event_date);
             return (
               <div key={item.id} className="flex items-center gap-2 py-1">
                 {isLarge
                   ? <Layers className="w-3 h-3 text-primary shrink-0" />
                   : <Package className="w-3 h-3 text-muted-foreground shrink-0" />}
-                <span className="text-xs font-medium truncate">{item.client_name || 'Okänt projekt'}</span>
+                <span className="text-xs font-medium truncate">{item.client_name || 'Okänt lagerbehov'}</span>
                 {item.source_project_number && (
                   <span className="text-[10px] font-mono text-muted-foreground/70 shrink-0">
                     #{item.source_project_number}
                   </span>
                 )}
+                <span className="text-[10px] text-muted-foreground shrink-0">
+                  {isLarge ? 'Stort projekt' : isBooking ? 'Bokning' : 'Projekt'}
+                </span>
                 {date && (
                   <span className="text-[10px] text-muted-foreground shrink-0">Event {date}</span>
                 )}

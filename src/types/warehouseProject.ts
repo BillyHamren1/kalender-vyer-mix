@@ -1,12 +1,13 @@
 export type WarehouseProjectStatus = 'planning' | 'in_progress' | 'completed' | 'cancelled';
 export type WarehouseInboxStatus = 'new' | 'converted' | 'dismissed';
-export type WarehouseInboxSourceType = 'project' | 'large_project';
+export type WarehouseInboxSourceType = 'booking' | 'project' | 'large_project';
 
 export interface WarehouseProject {
   id: string;
   organization_id: string;
   project_number: string;
   name: string;
+  source_booking_id?: string | null;
   source_project_id: string | null;
   source_large_project_id: string | null;
   source_project_number: string | null;
@@ -49,6 +50,9 @@ export interface WarehouseProjectInboxItem {
   organization_id: string;
   source_type: WarehouseInboxSourceType;
   source_id: string;
+  source_booking_id?: string | null;
+  source_project_id?: string | null;
+  source_large_project_id?: string | null;
   source_project_number: string | null;
   client_name: string | null;
   event_date: string | null;
@@ -68,6 +72,7 @@ export interface WarehouseProjectTask {
   end_date: string | null;
   assigned_to: string | null;
   status: WarehouseProjectStatus;
+  task_kind?: 'planned_work';
   category: WarehouseTaskCategory | null;
   sort_order: number;
   created_at: string;

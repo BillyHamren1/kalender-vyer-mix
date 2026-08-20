@@ -53,6 +53,20 @@ export const fetchWarehouseProject = async (id: string): Promise<WarehouseProjec
   return (data || null) as WarehouseProject | null;
 };
 
+const resolveInboxBookingId = async (item: WarehouseProjectInboxItem): Promise<string | null> => {
+  if (item.source_booking_id) return item.source_booking_id;
+  if (item.source_type === 'booking') return item.source_id;
+  if (item.source_type !== 'project') return null;
+
+  const { data: proj, error } = await supabase
+    .from('projects')
+    .select('booking_id')
+    .eq('id', item.source_id)
+    .maybeSingle();
+  if (error) throw error;
+  return proj?.booking_id ?? null;
+};
+
 export interface SuggestedTaskDates {
   packStart: string | null;
   packEnd: string | null;
@@ -73,19 +87,15 @@ export const fetchInboxItemSuggestedDates = async (
   let eventDate: string | null = null;
   let rigdownDate: string | null = null;
 
-  if (item.source_type === 'project') {
-    // projects.booking_id -> bookings.rigdaydate / eventdate / rigdowndate
-    const { data: proj } = await supabase
-      .from('projects')
-      .select('booking_id')
-      .eq('id', item.source_id)
-      .maybeSingle();
-    if (proj?.booking_id) {
-      const { data: booking } = await supabase
+  if (item.source_type === 'booking' || item.source_type === 'project') {
+    const bookingId = await resolveInboxBookingId(item);
+    if (bookingId) {
+      const { data: booking, error } = await supabase
         .from('bookings')
         .select('rigdaydate, eventdate, rigdowndate')
-        .eq('id', proj.booking_id)
+        .eq('id', bookingId)
         .maybeSingle();
+      if (error) throw error;
       rigDate = booking?.rigdaydate ?? null;
       eventDate = booking?.eventdate ?? null;
       rigdownDate = booking?.rigdowndate ?? null;
@@ -120,6 +130,81 @@ export const fetchInboxItemSuggestedDates = async (
   };
 };
 
+const enumerateDates = (start: string, end: string): string[] => {
+  const out: string[] = [];
+  const cursor = new Date(`${start}T12:00:00`);
+  const last = new Date(`${end}T12:00:00`);
+  while (cursor <= last && out.length < 31) {
+    out.push(cursor.toISOString().slice(0, 10));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return out;
+};
+
+const pickWarehousePlanningResource = async (date: string): Promise<string> => {
+  const { data } = await supabase
+    .from('warehouse_calendar_events')
+    .select('resource_id')
+    .gte('start_time', `${date}T00:00:00`)
+    .lt('start_time', `${date}T23:59:59`);
+  const candidates = ['lager-1', 'lager-2', 'lager-3'];
+  const counts = new Map(candidates.map((id) => [id, 0]));
+  for (const row of data || []) {
+    if (counts.has(row.resource_id)) counts.set(row.resource_id, (counts.get(row.resource_id) || 0) + 1);
+  }
+  return candidates.sort((a, b) => (counts.get(a) || 0) - (counts.get(b) || 0))[0];
+};
+
+const materializeBookingWarehousePlan = async (params: {
+  warehouseProjectId: string;
+  inboxItem: WarehouseProjectInboxItem;
+  sourceBookingId: string;
+  tasks: Array<{ id: string; title: string; start_date: string | null; end_date: string | null }>;
+}): Promise<void> => {
+  const { warehouseProjectId, inboxItem, sourceBookingId, tasks } = params;
+  if (inboxItem.source_type !== 'booking') return;
+
+  const { data: booking, error: bookingError } = await supabase
+    .from('bookings')
+    .select('booking_number, client, deliveryaddress, rigdaydate, eventdate, rigdowndate, organization_id')
+    .eq('id', sourceBookingId)
+    .maybeSingle();
+  if (bookingError) throw bookingError;
+  if (!booking) throw new Error(`Source booking ${sourceBookingId} not found for warehouse plan`);
+
+  const rows: any[] = [];
+  for (const task of tasks) {
+    if (!task.start_date || !task.end_date) continue;
+    const eventType = task.title.toLowerCase().includes('retur') ? 'return' : 'packing';
+    for (const date of enumerateDates(task.start_date, task.end_date)) {
+      const resourceId = await pickWarehousePlanningResource(date);
+      rows.push({
+        booking_id: sourceBookingId,
+        booking_number: booking.booking_number,
+        title: booking.client || inboxItem.client_name || 'Lagerjobb',
+        start_time: new Date(`${date}T08:00:00`).toISOString(),
+        end_time: new Date(`${date}T11:00:00`).toISOString(),
+        resource_id: resourceId,
+        event_type: eventType,
+        delivery_address: booking.deliveryaddress,
+        source_rig_date: booking.rigdaydate,
+        source_event_date: booking.eventdate,
+        source_rigdown_date: booking.rigdowndate,
+        manually_adjusted: true,
+        has_source_changes: false,
+        viewed: true,
+        warehouse_project_id: warehouseProjectId,
+        warehouse_project_task_id: task.id,
+        organization_id: booking.organization_id,
+      });
+    }
+  }
+
+  if (rows.length === 0) return;
+  const { error } = await supabase.from('warehouse_calendar_events').insert(rows);
+  if (error) throw error;
+};
+
 export interface CreateFromInboxOptions {
   name: string;
   packStart: string;
@@ -142,6 +227,33 @@ export const createWarehouseProjectFromInbox = async (
 ): Promise<WarehouseProject> => {
   const { data: { user } } = await supabase.auth.getUser();
 
+  const sourceBookingId = await resolveInboxBookingId(inboxItem);
+
+  // Canonical pre-flight for normal Booking-driven warehouse needs.
+  // One booking may only produce one non-internal warehouse plan.
+  if (sourceBookingId) {
+    const { data: existingByBooking, error } = await supabase
+      .from('warehouse_projects')
+      .select('*')
+      .eq('organization_id', inboxItem.organization_id)
+      .eq('source_booking_id', sourceBookingId)
+      .eq('is_internal', false)
+      .maybeSingle();
+    if (error) throw error;
+
+    if (existingByBooking) {
+      await supabase
+        .from('warehouse_project_inbox')
+        .update({
+          status: 'converted',
+          processed_at: new Date().toISOString(),
+          warehouse_project_id: existingByBooking.id,
+        })
+        .eq('id', inboxItem.id);
+      throw new WarehouseProjectAlreadyExistsError(existingByBooking as WarehouseProject);
+    }
+  }
+
   // Pre-flight: detta projekt kan redan ha ett warehouse_projects om det
   // tidigare konverterats och sedan re-importerats från externa systemet.
   // Kolla på source_project_number (samma underliggande booking) och länka
@@ -150,6 +262,7 @@ export const createWarehouseProjectFromInbox = async (
     const { data: existing } = await supabase
       .from('warehouse_projects')
       .select('*')
+      .eq('organization_id', inboxItem.organization_id)
       .eq('source_project_number', inboxItem.source_project_number)
       .maybeSingle();
 
@@ -166,9 +279,11 @@ export const createWarehouseProjectFromInbox = async (
 
       // Backfill source_project_id på befintligt wp om det saknas.
       const sourceField =
-        inboxItem.source_type === 'project'
-          ? 'source_project_id'
-          : 'source_large_project_id';
+        inboxItem.source_type === 'booking'
+          ? 'source_booking_id'
+          : inboxItem.source_type === 'project'
+            ? 'source_project_id'
+            : 'source_large_project_id';
       const existingAny = existing as any;
       if (!existingAny[sourceField]) {
         await supabase
@@ -186,8 +301,9 @@ export const createWarehouseProjectFromInbox = async (
     .from('warehouse_projects')
     .insert({
       name: options.name || inboxItem.client_name || 'Lagerprojekt',
-      source_project_id: inboxItem.source_type === 'project' ? inboxItem.source_id : null,
-      source_large_project_id: inboxItem.source_type === 'large_project' ? inboxItem.source_id : null,
+      source_booking_id: sourceBookingId,
+      source_project_id: inboxItem.source_project_id ?? (inboxItem.source_type === 'project' ? inboxItem.source_id : null),
+      source_large_project_id: inboxItem.source_large_project_id ?? (inboxItem.source_type === 'large_project' ? inboxItem.source_id : null),
       source_project_number: inboxItem.source_project_number,
       status: 'planning',
       created_by: user?.id ?? null,
@@ -206,6 +322,7 @@ export const createWarehouseProjectFromInbox = async (
       start_date: options.packStart,
       end_date: options.packEnd,
       status: 'planning',
+      task_kind: 'planned_work',
       sort_order: 0,
     },
   ];
@@ -217,17 +334,36 @@ export const createWarehouseProjectFromInbox = async (
       start_date: options.returnStart,
       end_date: options.returnEnd,
       status: 'planning',
+      task_kind: 'planned_work',
       sort_order: 1,
     });
   }
 
-  const { error: tasksError } = await supabase
+  const { data: createdTasks, error: tasksError } = await supabase
     .from('warehouse_project_tasks')
-    .insert(defaultTasks);
+    .insert(defaultTasks)
+    .select('id, title, start_date, end_date');
 
   if (tasksError) {
     console.error('Failed to create default tasks:', tasksError);
-    // Don't throw — project is created, tasks can be added later
+    await supabase.from('warehouse_projects').delete().eq('id', wp.id);
+    throw tasksError;
+  }
+
+  if (sourceBookingId) {
+    try {
+      await materializeBookingWarehousePlan({
+        warehouseProjectId: wp.id,
+        inboxItem,
+        sourceBookingId,
+        tasks: createdTasks || [],
+      });
+    } catch (err) {
+      await supabase.from('warehouse_calendar_events').delete().eq('warehouse_project_id', wp.id);
+      await supabase.from('warehouse_project_tasks').delete().eq('warehouse_project_id', wp.id);
+      await supabase.from('warehouse_projects').delete().eq('id', wp.id);
+      throw err;
+    }
   }
 
   // ==========================================================================
@@ -242,6 +378,7 @@ export const createWarehouseProjectFromInbox = async (
     console.error('[createWarehouseProjectFromInbox] Packing creation failed, rolling back warehouse project:', err);
     // Best-effort rollback — delete the warehouse project we just created so
     // the inbox item stays "new" and can be retried cleanly.
+    await supabase.from('warehouse_calendar_events').delete().eq('warehouse_project_id', wp.id);
     await supabase.from('warehouse_project_tasks').delete().eq('warehouse_project_id', wp.id);
     await supabase.from('warehouse_projects').delete().eq('id', wp.id);
     throw err instanceof Error ? err : new Error(String(err));
@@ -275,14 +412,8 @@ const createPackingsForWarehouseProject = async (
   wp: WarehouseProject,
   inboxItem: WarehouseProjectInboxItem
 ): Promise<void> => {
-  if (inboxItem.source_type === 'project') {
-    const { data: proj } = await supabase
-      .from('projects')
-      .select('booking_id')
-      .eq('id', inboxItem.source_id)
-      .maybeSingle();
-
-    const bookingId = proj?.booking_id;
+  if (inboxItem.source_type === 'booking' || inboxItem.source_type === 'project') {
+    const bookingId = await resolveInboxBookingId(inboxItem);
     if (!bookingId) {
       // Standalone project without booking — nothing to pack, that's OK.
       return;
@@ -580,7 +711,7 @@ export const createWarehouseProjectTask = async (task: {
 }): Promise<WarehouseProjectTask> => {
   const { data, error } = await supabase
     .from('warehouse_project_tasks')
-    .insert(task as any)
+    .insert({ ...task, task_kind: 'planned_work' } as any)
     .select()
     .single();
   if (error) throw error;

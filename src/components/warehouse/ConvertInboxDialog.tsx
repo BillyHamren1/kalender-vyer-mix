@@ -157,7 +157,7 @@ export const ConvertInboxDialog: React.FC<ConvertInboxDialogProps> = ({
         <DialogHeader>
           <DialogTitle>Planera lagerprojekt</DialogTitle>
           <DialogDescription>
-            Justera datumen vid behov. Packa och Returnera skapas som moment.
+            Datumen nedan är systemets förslag. Lagerchefens val här blir den operativa planen. Packning och retur skapas som planerade lagerjobb.
           </DialogDescription>
         </DialogHeader>
 
@@ -184,7 +184,7 @@ export const ConvertInboxDialog: React.FC<ConvertInboxDialogProps> = ({
               <div className="rounded-lg border border-border/60 p-3 space-y-3">
                 <div className="flex items-center gap-2">
                   <Package className="w-4 h-4 text-primary" />
-                  <h4 className="text-sm font-medium">Packning</h4>
+                  <h4 className="text-sm font-medium">Packning · föreslagen plan</h4>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <DateField label="Startdatum" value={packStart} onChange={setPackStart} />
@@ -199,7 +199,7 @@ export const ConvertInboxDialog: React.FC<ConvertInboxDialogProps> = ({
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <RotateCcw className="w-4 h-4 text-primary" />
-                    <h4 className="text-sm font-medium">Retur</h4>
+                    <h4 className="text-sm font-medium">Retur · föreslagen plan</h4>
                   </div>
                   <div className="flex items-center gap-2">
                     <Label htmlFor="has-return" className="text-xs text-muted-foreground cursor-pointer">

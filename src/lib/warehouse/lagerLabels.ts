@@ -39,16 +39,40 @@ export function isAssignmentActive(item: LagerAssignmentItem): boolean {
   return ACTIVE_STATUSES.has(String(item.status || '').toLowerCase());
 }
 
+/**
+ * True while the scheduled time window is currently running. This is kept
+ * separate from persisted status because manager planning can place a worker
+ * on a job before the operational status has been advanced by the scanner.
+ */
+export function isAssignmentCurrentByTime(
+  item: LagerAssignmentItem,
+  now: number = Date.now(),
+): boolean {
+  if (isAssignmentCompleted(item) || !item.start_time) return false;
+  const start = new Date(item.start_time).getTime();
+  const end = item.end_time ? new Date(item.end_time).getTime() : start + 60 * 60 * 1000;
+  if (Number.isNaN(start) || Number.isNaN(end)) return false;
+  return start <= now && now <= end;
+}
+
+/** Worker-facing active state: persisted workflow status OR current schedule. */
+export function isAssignmentOperationallyActive(
+  item: LagerAssignmentItem,
+  now: number = Date.now(),
+): boolean {
+  return isAssignmentActive(item) || isAssignmentCurrentByTime(item, now);
+}
+
 export function assignmentStatusLabel(item: LagerAssignmentItem): string {
   if (isAssignmentCompleted(item)) return 'Klar';
-  if (isAssignmentActive(item)) return 'Pågår';
+  if (isAssignmentOperationallyActive(item)) return 'Pågår';
   return 'Planerad';
 }
 
 /** Worker-facing CTA. Deliberately describes the job, not the technical tool. */
 export function workerActionLabel(item: LagerAssignmentItem): string {
   if (isAssignmentCompleted(item)) return 'Visa uppgift';
-  const active = isAssignmentActive(item);
+  const active = isAssignmentOperationallyActive(item);
   switch (resolveAssignmentType(item)) {
     case 'packing':
       return active ? 'Fortsätt packning' : 'Starta packning';

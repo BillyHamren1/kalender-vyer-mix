@@ -38,12 +38,12 @@ export const distributeWarehouseEvents = (
     return [...result, ...lagerEvents];
   }
 
-  // Events with an explicit lager-resourceId (e.g. internal_task) keep their place.
+  // Events with an explicit lager-resourceId are manager-planned and keep their place.
   const explicit: CalendarEvent[] = [];
   const toDistribute: CalendarEvent[] = [];
   const lagerIds = new Set(lagerResources.map(r => r.id));
   for (const ev of lagerEvents) {
-    if (ev.eventType === 'internal_task' && ev.resourceId && lagerIds.has(ev.resourceId)) {
+    if (ev.resourceId && lagerIds.has(ev.resourceId)) {
       explicit.push(ev);
     } else {
       toDistribute.push(ev);

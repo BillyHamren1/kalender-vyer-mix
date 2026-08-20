@@ -17,7 +17,7 @@ import {
   ASSIGNMENT_TYPE_TONE,
   assignmentStatusLabel,
   dayTimeWindow,
-  isAssignmentActive,
+  isAssignmentOperationallyActive,
   isAssignmentCompleted,
   resolveAction,
   resolveAssignmentType,
@@ -54,13 +54,7 @@ const MobileLagerPage = () => {
   const sections = useMemo(() => {
     const sorted = [...assignments].sort((a, b) => itemStart(a) - itemStart(b));
     const now = Date.now();
-    const isCurrentByTime = (item: LagerAssignmentItem) => {
-      if (!today || !item.start_time || isAssignmentCompleted(item)) return false;
-      const start = new Date(item.start_time).getTime();
-      const end = item.end_time ? new Date(item.end_time).getTime() : start + 60 * 60 * 1000;
-      return !Number.isNaN(start) && !Number.isNaN(end) && start <= now && now <= end;
-    };
-    const active = sorted.filter((item) => isAssignmentActive(item) || isCurrentByTime(item));
+    const active = sorted.filter((item) => isAssignmentOperationallyActive(item, now));
     const activeIds = new Set(active.map((item) => item.id));
     const completed = sorted.filter(isAssignmentCompleted);
     const planned = sorted.filter((item) => !isAssignmentCompleted(item) && !activeIds.has(item.id));
@@ -117,7 +111,7 @@ const MobileLagerPage = () => {
     if (item.booking_number) subtitleParts.push(item.booking_number);
     if (item.customer_name && item.customer_name !== title) subtitleParts.push(item.customer_name);
     const completed = isAssignmentCompleted(item);
-    const active = isAssignmentActive(item);
+    const active = isAssignmentOperationallyActive(item);
 
     return (
       <article
