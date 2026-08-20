@@ -165,9 +165,11 @@ const StaffList: React.FC<StaffListProps> = ({
                 <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                   <Switch
                     checked={isActive}
+                    disabled={pendingStaffId === staff.id}
                     onCheckedChange={() => handleActiveToggle(staff)}
                     className="scale-75"
                   />
+
                   <Button
                     variant="ghost"
                     size="icon"
