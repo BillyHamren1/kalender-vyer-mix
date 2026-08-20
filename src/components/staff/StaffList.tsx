@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -8,7 +9,9 @@ import { Badge } from '@/components/ui/badge';
 import { User, Mail, Phone, Edit2 } from 'lucide-react';
 import { getContrastTextColor } from '@/utils/staffColors';
 import { updateStaffActiveStatus } from '@/services/staffAvailabilityService';
+import { invalidateStaffCaches } from '@/lib/staff/staffCacheInvalidation';
 import { toast } from 'sonner';
+
 
 interface StaffMember {
   id: string;
@@ -35,6 +38,8 @@ const StaffList: React.FC<StaffListProps> = ({
   onEdit 
 }) => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [pendingStaffId, setPendingStaffId] = useState<string | null>(null);
 
   const handleStaffClick = (staffId: string) => {
     navigate(`/staff/${staffId}`);
@@ -49,15 +54,22 @@ const StaffList: React.FC<StaffListProps> = ({
 
   const handleActiveToggle = async (staff: StaffMember) => {
     const newActiveStatus = !staff.is_active;
+    setPendingStaffId(staff.id);
     try {
       await updateStaffActiveStatus(staff.id, newActiveStatus);
-      toast.success(`${staff.name} är nu ${newActiveStatus ? 'aktiv' : 'inaktiv'}`);
+      // Invalidera ALL personal-relaterad cache så kalendrar/lagervyer/KPI:er
+      // inte ligger kvar på gammal data.
+      await invalidateStaffCaches(queryClient);
       onRefresh();
+      toast.success(`${staff.name} är nu ${newActiveStatus ? 'aktiv' : 'inaktiv'}`);
     } catch (error) {
       toast.error('Kunde inte uppdatera status');
       console.error(error);
+    } finally {
+      setPendingStaffId(null);
     }
   };
+
 
   if (isLoading) {
     return (
@@ -153,9 +165,11 @@ const StaffList: React.FC<StaffListProps> = ({
                 <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                   <Switch
                     checked={isActive}
+                    disabled={pendingStaffId === staff.id}
                     onCheckedChange={() => handleActiveToggle(staff)}
                     className="scale-75"
                   />
+
                   <Button
                     variant="ghost"
                     size="icon"

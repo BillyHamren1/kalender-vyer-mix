@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   Users,
@@ -29,6 +29,8 @@ import { importStaffData } from '@/services/staffImportService';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import StaffList from '@/components/staff/StaffList';
+import { invalidateStaffCaches } from '@/lib/staff/staffCacheInvalidation';
+
 import AddStaffDialog from '@/components/staff/AddStaffDialog';
 import EditStaffDialog from '@/components/staff/EditStaffDialog';
 import StaffAccountsPanel from '@/components/staff/StaffAccountsPanel';
@@ -99,6 +101,7 @@ function KpiCard({
 
 const StaffManagement: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedStaffForEdit, setSelectedStaffForEdit] = useState<any>(null);
@@ -113,9 +116,10 @@ const StaffManagement: React.FC = () => {
   } = useQuery({
     queryKey: ['staffMembers'],
     queryFn: () => fetchStaffMembers({ includeInactive: true }),
-    staleTime: 60_000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    // Personalöversikten måste spegla verkligheten direkt efter en ändring.
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnMount: 'always',
   });
 
   // Reuse the same key as StaffAccountsPanel so we share cache.
@@ -128,13 +132,18 @@ const StaffManagement: React.FC = () => {
       if (error) throw error;
       return data as { id: string; staff_id: string; username: string; created_at: string }[];
     },
-    staleTime: 60_000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnMount: 'always',
   });
 
-  const handleRefresh = () => {
-    refetch();
+  const refreshStaffEverywhere = async () => {
+    await invalidateStaffCaches(queryClient);
+    await refetch();
+  };
+
+  const handleRefresh = async () => {
+    await refreshStaffEverywhere();
     toast.success('Personallistan uppdaterad');
   };
 
@@ -142,7 +151,7 @@ const StaffManagement: React.FC = () => {
     setIsImportingStaff(true);
     try {
       const result = await importStaffData();
-      if (result.success) refetch();
+      if (result.success) await refreshStaffEverywhere();
     } catch (error) {
       console.error('Staff import failed:', error);
     } finally {
@@ -150,22 +159,23 @@ const StaffManagement: React.FC = () => {
     }
   };
 
-  const handleStaffAdded = () => {
+  const handleStaffAdded = async () => {
     setIsAddDialogOpen(false);
-    refetch();
+    await refreshStaffEverywhere();
     toast.success('Personal tillagd');
   };
 
-  const handleStaffUpdated = () => {
+  const handleStaffUpdated = async () => {
     setSelectedStaffForEdit(null);
-    refetch();
+    await refreshStaffEverywhere();
     toast.success('Personal uppdaterad');
   };
 
   const handleColorUpdate = async (staffId: string, color: string) => {
     await updateStaffColor(staffId, color);
-    refetch();
+    await refreshStaffEverywhere();
   };
+
 
   const filteredStaff = staffMembers.filter(
     (staff) =>
