@@ -1,4 +1,4 @@
-# Sluta varna i onödan – visa bara relevanta ändringar, och visa VAD som ändrats
+# Korrekt Booking→packning-flöde: automatisk uppdatering eller lagerattest
 
 ## Problemet
 
@@ -11,19 +11,29 @@ Kontroll av databasen visar:
 
 Alltså: ett falskt, blockerande larm som dessutom inte går att förstå.
 
-## Ny regel för när något får visas
+## Ny regel för hur ändringar ska verkställas
 
-En avvikelse mellan bokningen och packlistan visas **bara** när minst ett av dessa gäller:
+En ändring i Booking ska aldrig ligga kvar som en gammal, packbar rad. Den hanteras på ett av två sätt:
 
-- Det är **mindre än 14 dagar** kvar till riggdag/event (samma 14-dagarsregel som redan används för ändringshantering), eller
-- **Packningen är påbörjad** (status är inte längre planering).
+### Mer än 14 dagar kvar och packningen är inte påbörjad
 
-Är det längre kvar och packningen inte startat: ingen banner, inget larm, inget blockeringsläge. Ändringen fångas ändå upp av den vanliga bokning→packning-synken.
+- Ändringen appliceras **automatiskt och tyst** på packlistan.
+- Borttagen artikel tas bort, tillagd artikel läggs till och ändrat antal uppdateras.
+- Ingen banner, varning eller attest krävs.
+
+### Mindre än 14 dagar kvar, eller packningen är påbörjad
+
+- Ändringen köas och visas tydligt för Lager med produktnamn, antal och vad som hänt.
+- Lager klickar **Ta emot** för att attestera ändringen.
+- Direkt efter attest verkställs ändringen i packningen: en borttagen Booking-rad tas bort från den operativa packlistan, en ny rad läggs till och ett ändrat antal skrivs om.
+- Notisen försvinner först när ändringen faktiskt är genomförd.
+- Om artikeln redan har skannats/packats måste samma attestflöde först återföra den packade kvantiteten från kollit/packningen, så att ingen fysisk artikel eller WMS-allokering lämnas kvar på en rad som tas bort. Därefter tas raden bort.
 
 Dessutom:
 
 - **Paketrader räknas aldrig som avvikelse.** De är en normal följd av hur paket packas.
-- När något väl visas är det **"ändrad", inte "får inte användas"** – tonen sänks till en informativ ändringsnotis. Packlistan blockeras inte längre av själva jämförelsen.
+- När något visas heter det **"Bokningen har ändrats – Lager måste ta emot ändringen"**, inte den generiska texten "Packlistan får inte användas utan kontroll".
+- Packningens kontroll/signering blockeras medan en relevant ändring väntar på attest, men inte av falska paketradsavvikelser.
 
 ## Vad notisen ska säga
 
@@ -37,10 +47,11 @@ Med bokningsnummer när packlistan omfattar flera bokningar, och en kort rubrik 
 
 ## Teknisk detalj
 
-- `src/lib/packing/packingIntegrity.ts`: ta emot hela produktlistan (inte bara lövrader) så namn/antal/SKU alltid finns; ta bort paketrader ur avvikelserna; byt `orphan_item` mot `removed_in_booking`; behåll `missing_item`/`quantity_mismatch` men som "ändring", inte blockering.
-- Ny relevansgrind som återanvänder `PACKING_SHORT_NOTICE_DAYS`/`daysUntil` i `src/lib/packing/shortNoticeChange.ts` plus packningens status. Returnerar inga avvikelser alls när grinden är stängd.
-- `src/hooks/usePackingList.tsx`: skicka med riggdatum/eventdatum, packningsstatus och bokningsnummer till jämförelsen.
-- `src/components/packing/PackingIntegrityBanner.tsx`: neutral "Ändringar från bokningen"-notis med namngivna rader; ingen banner när grinden är stängd eller när allt matchar.
-- Tester i `src/__tests__/packingIntegrity.test.ts`: paketrader ger noll avvikelser; >14 dagar och ej påbörjad packning ger noll avvikelser; <14 dagar eller påbörjad packning ger namngivna ändringar.
+- `sync-booking-to-packing`: dela skrivvägen vid 14-dagarsgränsen och packningsstatus. Normal/lång framförhållning appliceras direkt och idempotent; kort varsel eller påbörjad packning skapar `packing_change_requests` och lämnar packlistan fryst tills attest.
+- `apply-packing-change-request`: gör attest och packlisteändring atomiskt. För `item_removed` tas raden bort; om den redan packats återförs skannad/allokerad kvantitet kontrollerat innan raden tas bort. Begäran markeras `applied` först när hela operationen lyckats.
+- `packing_change_requests`: endast relevanta väntande attester ska visas. Normala ändringar över 14 dagar får inte ligga kvar som pending-rader.
+- `src/lib/packing/packingIntegrity.ts`: ta emot hela produktlistan så namn/antal/SKU alltid finns och ignorera paketets huvudrader som normal struktur, inte avvikelse.
+- `src/components/packing/PackingChangeRequestsPanel.tsx`: visa exakt ändring och låt **Ta emot** verkställa den; falska integritetslarm tas bort från `PackingIntegrityBanner`.
+- Tester täcker: automatisk tyst borttagning över 14 dagar; kö/attest under 14 dagar; kö/attest när packning är påbörjad oavsett datum; redan packad artikel återförs och tas bort säkert; pakethuvud ger aldrig larm; inga pending-rader eller varningar blir kvar efter lyckad verkställning.
 
-Kontrollen förblir strikt read-only – inga packrader läggs till, ändras eller tas bort.
+Att bara öppna sidan förblir strikt read-only. Ändringar sker endast genom Booking-synken (>14 dagar, ej startad) eller genom Lagers uttryckliga attest (<14 dagar eller påbörjad).
