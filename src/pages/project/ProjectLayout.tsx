@@ -23,8 +23,8 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 const navItems = [
+  { key: "execution", label: "Planering", icon: HardHat, path: "/execution" },
   { key: "overview", label: "Översikt", icon: LayoutDashboard, path: "" },
-  { key: "execution", label: "Planering", icon: HardHat, path: "/execution", emphasis: true },
   { key: "economy", label: "Ekonomi", icon: Wallet, path: "/economy" },
 ];
 
