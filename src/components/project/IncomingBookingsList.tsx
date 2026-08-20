@@ -79,9 +79,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
     placeholderData: [],
   });
   const { data: unplannedProjects = [], isLoading: isLoadingUnplannedProjects } = useUnplannedProjects();
-  const { data: unseenUpdates = [], isLoading: isLoadingUpdates } = useUnseenBookingUpdates();
-  const markSeen = useMarkBookingChangesSeen();
-  const markAllSeen = useMarkAllBookingChangesSeen();
+
 
   // Avbokade i bokningssystemet men fortfarande aktiva lokalt.
   // Scan = ren läsning mot Booking; ingen automatisk destruktiv sync.
