@@ -178,28 +178,20 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
     }
   });
 
-  // Tidigare hade vi en lokal "first-visit baseline" här som dolde alla
-  // ändringar äldre än första gången användaren öppnade sidan. Det gjorde
-  // att stora projekt (med mest historik) tappade bort osedda uppdateringar
-  // helt. Vi litar nu enbart på `booking_change_views.last_seen_at` som
-  // `get_unseen_booking_updates()` redan filtrerar på server-side.
-  const visibleUpdates = unseenUpdates;
-
   // Avbokade bokningar får ALDRIG ligga kvar bland "Nya · ska placeras".
   const newBookings = bookings.filter((b) => !cancelledIds.has(b.id));
   const newUnplanned = unplannedProjects.filter((p) => !p.bookingId || !cancelledIds.has(p.bookingId));
 
   const totalNew = newBookings.length + newUnplanned.length;
-  const totalUpdates = visibleUpdates.length;
   const totalCancelled = cancellationCandidates.length;
   const cancellationCheckPending = scanIds.length > 0 && (
     cancellationScan.isPending || cancellationScan.isFetching || cancellationCandidatesQuery.isFetching
   );
   const cancellationCheckFailed = cancellationScan.isError;
-  const hasIncomingItems = totalNew + totalUpdates + totalCancelled > 0;
+  const hasIncomingItems = totalNew + totalCancelled > 0;
 
 
-  if ((isLoading && isLoadingUnplannedProjects && isLoadingUpdates) || !hasIncomingItems) {
+  if ((isLoading && isLoadingUnplannedProjects) || !hasIncomingItems) {
     return null;
   }
 
@@ -212,46 +204,9 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
     }
   };
 
-  const handleReviewUpdate = (booking: typeof updatedBookingsMeta[number]) => {
-    // Bygg navigateTo + samla alla syskon-bokningar med osedda ändringar
-    // som tillhör samma target, så att dialogen visar ALLA diffar.
-    const unseenIds = new Set(visibleUpdates.map((u) => u.booking_id));
-    let navigateTo: string;
-    let bookingIds: string[];
-    let name: string;
-    if (booking.large_project_id) {
-      navigateTo = `/large-project/${booking.large_project_id}`;
-      bookingIds = updatedBookingsMeta
-        .filter((b) => b.large_project_id === booking.large_project_id && unseenIds.has(b.id))
-        .map((b) => b.id);
-      name = booking.client || 'Stort projekt';
-    } else if (booking.assigned_project_id) {
-      navigateTo = `/project/${booking.assigned_project_id}`;
-      bookingIds = updatedBookingsMeta
-        .filter((b) => b.assigned_project_id === booking.assigned_project_id && unseenIds.has(b.id))
-        .map((b) => b.id);
-      name = booking.client || 'Projekt';
-    } else {
-      navigateTo = `/booking/${booking.id}`;
-      bookingIds = [booking.id];
-      name = booking.client || 'Bokning';
-    }
-    if (bookingIds.length === 0) bookingIds = [booking.id];
-    setUpdateDialog({ name, bookingIds, navigateTo });
-  };
+  const headerLabel = totalNew > 0 ? 'Nya bokningar' : 'Avbokade bokningar';
+  const showSectionHeaders = totalCancelled > 0 && totalNew > 0;
 
-  // Visuell prioritet: uppdaterade vs nya MÅSTE särskiljas tydligt — annars
-  // riskerar man att klicka "Placera" på en uppdatering eller "Granska" på en
-  // helt ny bokning. Vi separerar i två sektioner med olika färg + kant + CTA.
-  const hasBoth = totalUpdates > 0 && totalNew > 0;
-  const headerLabel = hasBoth
-    ? 'Inkommande bokningar'
-    : totalUpdates > 0
-      ? 'Uppdaterade bokningar'
-      : totalNew > 0
-        ? 'Nya bokningar'
-        : 'Avbokade bokningar';
-  const showSectionHeaders = hasBoth || totalCancelled > 0;
 
 
   return (
