@@ -60,10 +60,9 @@ const CustomerInfoBlock = ({
   const fullAddress = [deliveryAddress, [deliveryPostalCode, deliveryCity].filter(Boolean).join(" ")]
     .filter(Boolean).join(", ");
 
-  const flags: string[] = [];
-  if (carryMoreThan10m) flags.push("Bär >10 m");
-  if (groundNailsAllowed === false) flags.push("Inga marknubb");
-  if (exactTimeNeeded) flags.push("Exakt tid krävs");
+  const carryLabel = carryMoreThan10m === true ? "Mer än 10 m" : carryMoreThan10m === false ? "Mindre än 10 m" : null;
+  const nailsLabel = groundNailsAllowed === true ? "Tillåtet" : groundNailsAllowed === false ? "Ej tillåtet" : null;
+
 
   return (
     <Card className="mb-4 border-border/40 rounded-2xl">
@@ -148,19 +147,14 @@ const CustomerInfoBlock = ({
             <Row icon={Clock} label="Exakt tid">{exactTimeInfo}</Row>
           )}
 
-          {flags.length > 0 && (
-            <div className="md:col-span-2">
-              <Row icon={AlertTriangle} label="Särskilda villkor">
-                <div className="flex flex-wrap gap-1.5">
-                  {flags.map(f => (
-                    <span key={f} className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-xs font-medium">
-                      {f}
-                    </span>
-                  ))}
-                </div>
-              </Row>
-            </div>
+          {carryLabel && (
+            <Row icon={AlertTriangle} label="Bärväg">{carryLabel}</Row>
           )}
+
+          {nailsLabel && (
+            <Row icon={AlertTriangle} label="Spett">{nailsLabel}</Row>
+          )}
+
         </div>
       </div>
     </Card>
