@@ -352,6 +352,41 @@ const ProjectLayout = () => {
           </div>
         </div>
 
+        {/* 3-page navigation — döljs för rental-only projekt (ingen rigg/utförande behövs) */}
+        {!isRentalOnly && (
+          <nav className="mb-6">
+            <div className="bg-card rounded-2xl border border-border/40 shadow-2xl p-1.5 flex gap-1.5">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeKey === item.key;
+                return (
+                  <Link
+                    key={item.key}
+                    to={`${basePath}${item.path}`}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+                      isActive
+                        ? "text-primary-foreground shadow-lg"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                    )}
+                    style={
+                      isActive
+                        ? {
+                            background: "var(--gradient-icon)",
+                            boxShadow: "0 4px 14px -2px hsl(var(--primary) / 0.4), 0 2px 6px -1px hsl(var(--primary) / 0.2)",
+                          }
+                        : undefined
+                    }
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span className="hidden sm:inline">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </nav>
+        )}
+
         {/* Address card — samma flöde som stora projekt.
             Adressen kan ligga lokalt på projektet (override) eller ärvas från
             den länkade bokningen. Visa alltid den effektiva adressen. */}
