@@ -43,7 +43,6 @@ const ProjectOverviewWorkspace = ({ project, tasks, bookingId, onAddTask, onUpda
   const rigDate = project.rigdaydate || booking?.rigdaydate || null;
   const eventDate = project.eventdate || booking?.eventdate || null;
   const rigDownDate = project.rigdowndate || booking?.rigdowndate || null;
-  const address = project.deliveryaddress || booking?.deliveryaddress || "Ingen adress angiven";
 
   const openTasks = useMemo(
     () => tasks.filter((task) => !task.completed && !task.is_info_only),
