@@ -115,12 +115,9 @@ export const BookingInfoHeader: React.FC<Props> = ({ booking, hideTimes = false 
           const addr = (booking.deliveryaddress || '').trim();
           const postal = (booking.delivery_postal_code || '').trim();
           const city = (booking.delivery_city || '').trim();
-          const lat = booking.delivery_latitude;
-          const lng = booking.delivery_longitude;
-          const hasAny = addr || postal || city || (lat != null && lng != null);
+          const hasAny = addr || postal || city;
           const mapsQuery = encodeURIComponent(
-            [addr, [postal, city].filter(Boolean).join(' ')].filter(Boolean).join(', ') ||
-              (lat != null && lng != null ? `${lat},${lng}` : ''),
+            [addr, [postal, city].filter(Boolean).join(' ')].filter(Boolean).join(', '),
           );
           if (!hasAny) {
             return (
@@ -143,11 +140,6 @@ export const BookingInfoHeader: React.FC<Props> = ({ booking, hideTimes = false 
                 {(postal || city) && (
                   <div className="text-muted-foreground">
                     {[postal, city].filter(Boolean).join(' ')}
-                  </div>
-                )}
-                {lat != null && lng != null && (
-                  <div className="text-[10px] text-muted-foreground font-mono">
-                    {Number(lat).toFixed(5)}, {Number(lng).toFixed(5)}
                   </div>
                 )}
               </div>
