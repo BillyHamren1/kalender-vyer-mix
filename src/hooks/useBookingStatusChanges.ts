@@ -53,15 +53,22 @@ export function useBookingStatusChanges(bookingIds: string[]) {
             ? Object.prototype.hasOwnProperty.call(fields, 'status')
             : false;
         if (!hasStatus) continue;
+        const from = (row.previous_values as any)?.status ?? null;
+        const to = (row.new_values as any)?.status ?? null;
+        // Aktivering (offert / awaiting approval / avbokad -> bekräftad) är ingen
+        // granskningsvärd ändring: Planning kände inte till bokningen innan den
+        // blev bekräftad.
+        if (isActivationStatusChange(from, to)) continue;
         const id = String(row.booking_id);
         if (map[id]) continue; // senaste först
         map[id] = {
           bookingId: id,
-          from: (row.previous_values as any)?.status ?? null,
-          to: (row.new_values as any)?.status ?? null,
+          from,
+          to,
           changedAt: row.changed_at as string,
         };
       }
+
       return map;
     },
   });
