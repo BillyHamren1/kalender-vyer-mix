@@ -6,6 +6,7 @@ import ProjectOverviewWorkspace from "@/components/project/ProjectOverviewWorksp
 import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectInternalNotes from "@/components/project/ProjectInternalNotes";
 import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
+import CustomerInfoBlock from "@/components/project/CustomerInfoBlock";
 import PickupStopsSection from "@/components/pickup/PickupStopsSection";
 import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
