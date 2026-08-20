@@ -233,19 +233,22 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
     : [{ bookingId: 'all', client: '', bookingNumber: null, eventdate: null, items: productItems }];
 
   const integrityPending = !integrity && !integrityError;
-  const integrityBlocked = Boolean(integrityError || integrityPending || (integrity?.sourceAvailable && !integrity?.isExactMatch));
+  const integrityMismatch = Boolean(integrity?.sourceAvailable && !integrity?.isExactMatch);
   const requiresWmsPreflight = Boolean(packing?.id);
-  const wmsBlocked = requiresWmsPreflight && wmsPreflightState !== 'pass';
-  const printBlocked = integrityBlocked || wmsBlocked;
-  const printBlockedReason = integrityError
-    ? 'Utskrift är blockerad eftersom packlistans integritet inte kunde verifieras.'
-    : integrityPending
-    ? 'Utskrift är blockerad medan packlistans integritet kontrolleras.'
-    : integrityBlocked
-      ? 'Utskrift är blockerad tills avvikelsen mellan bokning och packlista är utredd.'
-    : wmsBlocked
-      ? 'Utskrift är blockerad tills WMS-kopplingen har kontrollerats och godkänts.'
-      : 'Skriv ut packlistan eller spara som PDF';
+  const wmsUnverified = requiresWmsPreflight && wmsPreflightState !== 'pass';
+  // Utskrift blockeras aldrig – osäkert läge markeras istället på utskriften.
+  const printPreliminaryReason = integrityError
+    ? 'packlistans integritet kunde inte verifieras'
+    : integrityMismatch
+      ? 'avvikelse mellan bokning och packlista'
+      : integrityPending
+        ? 'integritetskontrollen har inte slutförts'
+        : wmsUnverified
+          ? 'WMS-kopplingen är inte verifierad'
+          : null;
+  const printTitle = printPreliminaryReason
+    ? `Skrivs ut som PRELIMINÄR (${printPreliminaryReason})`
+    : 'Skriv ut packlistan eller spara som PDF';
 
   const renderItem = (item: PackingItem) => {
     const rawName = item.manual_name || item.booking_products?.name || 'Okänd produkt';
