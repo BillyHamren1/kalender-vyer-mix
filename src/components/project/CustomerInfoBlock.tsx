@@ -1,5 +1,5 @@
 import { Card } from "@/components/ui/card";
-import { Building2, MapPin, User, Phone, Mail, Hash, Calendar, Clock, AlertTriangle } from "lucide-react";
+import { Building2, MapPin, User, Phone, Mail, Hash, Calendar, Clock, AlertTriangle, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 
@@ -21,6 +21,10 @@ interface CustomerInfoBlockProps {
   exactTimeInfo?: string | null;
   rentalOnly?: boolean | null;
   projectLeader?: string | null;
+  /** When provided, the delivery address becomes editable directly in this card. */
+  onEditAddress?: () => void;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 const fmt = (s?: string | null) => {
@@ -56,6 +60,9 @@ const CustomerInfoBlock = ({
   exactTimeInfo,
   rentalOnly,
   projectLeader,
+  onEditAddress,
+  latitude,
+  longitude,
 }: CustomerInfoBlockProps) => {
   const fullAddress = [deliveryAddress, [deliveryPostalCode, deliveryCity].filter(Boolean).join(" ")]
     .filter(Boolean).join(", ");
@@ -93,16 +100,36 @@ const CustomerInfoBlock = ({
             <Row icon={User} label="Projektledare">{projectLeader}</Row>
           )}
 
-          {fullAddress && (
+          {(fullAddress || onEditAddress) && (
             <Row icon={MapPin} label="Leveransadress">
-              <a
-                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`}
-                target="_blank"
-                rel="noreferrer"
-                className="hover:text-primary"
-              >
-                {fullAddress}
-              </a>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                {fullAddress ? (
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:text-primary"
+                  >
+                    {fullAddress}
+                  </a>
+                ) : (
+                  <span className="italic text-muted-foreground">Ingen adress angiven</span>
+                )}
+                {latitude && longitude && (
+                  <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] text-secondary-foreground">
+                    📍 {Number(latitude).toFixed(4)}, {Number(longitude).toFixed(4)}
+                  </span>
+                )}
+                {onEditAddress && (
+                  <button
+                    type="button"
+                    onClick={onEditAddress}
+                    className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
+                  >
+                    <Pencil className="h-3 w-3" /> Redigera
+                  </button>
+                )}
+              </div>
             </Row>
           )}
 

@@ -365,38 +365,6 @@ const ProjectLayout = () => {
             (project as any).delivery_longitude ?? bookingRef?.delivery_longitude ?? null;
           return (
             <>
-              <Card className="border-border/50 shadow-sm mb-4">
-                <CardContent className="py-3 px-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setIsAddressDialogOpen(true)}
-                      className="flex items-center gap-2 text-sm hover:text-foreground transition-colors group min-w-0"
-                    >
-                      <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span className={cn(
-                        'truncate',
-                        effectiveAddress ? 'text-foreground' : 'text-muted-foreground italic'
-                      )}>
-                        {effectiveAddress || 'Ingen adress – klicka för att lägga till'}
-                      </span>
-                      <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                    </button>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {effectiveLat && effectiveLng && (
-                        <Badge variant="secondary" className="text-xs whitespace-nowrap">
-                          📍 {Number(effectiveLat).toFixed(4)}, {Number(effectiveLng).toFixed(4)}
-                        </Badge>
-                      )}
-                      <Button size="sm" variant="outline" onClick={() => setIsAddressDialogOpen(true)} className="h-7">
-                        <Pencil className="h-3.5 w-3.5 mr-1" />
-                        Redigera adress
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
               <ProjectAddressMapDialog
                 open={isAddressDialogOpen}
                 onOpenChange={setIsAddressDialogOpen}
@@ -437,6 +405,9 @@ const ProjectLayout = () => {
                 exactTimeNeeded={b?.exact_time_needed ?? null}
                 exactTimeInfo={b?.exact_time_info ?? null}
                 projectLeader={p.project_leader ?? null}
+                latitude={p.delivery_latitude ?? b?.delivery_latitude ?? null}
+                longitude={p.delivery_longitude ?? b?.delivery_longitude ?? null}
+                onEditAddress={() => setIsAddressDialogOpen(true)}
               />
             </div>
           );
