@@ -1,44 +1,36 @@
-# Lageraktivering: personal som "är aktiverad" syns inte i kalendern
+# Lagerkalendern: Lager-tagg + tillgänglighet ska räcka
 
-## Vad datan visar
+## Problemet
 
-Det finns 9 rader med `is_active = true` i lageraktiveringarna, men bara 3 av dem gäller idag:
+Idag krävs TVÅ saker för att en person ska gå att bemanna i lagerkalendern:
 
-| Person | Typ | Giltig |
-|---|---|---|
-| Nana Yaw Antwi | permanent | ja |
-| Raivis Minalto | permanent | ja |
-| Ivars Cipans | permanent | ja |
-| Armands Birznieks | tillfällig 16 apr – 24 apr | nej, utgången |
-| Matīss Ulmis | tillfällig 16 apr – 24 apr | nej, utgången |
-| Kristaps Ruža | tillfällig 16 apr – 24 apr | nej, utgången |
-| Kevins Oskars Trumpekojs | tillfällig 16 apr – 24 apr | nej, utgången |
-| Jānis Puriņš | tillfällig, utgången + personalen inaktiv | nej |
-| Kristiāns Krisjuks | tillfällig, utgången + personalen inaktiv | nej |
+1. Taggen **Lager** på personalkortet (många har den — se listan).
+2. En separat, dold "lageraktivering" som inte längre går att sätta någonstans i gränssnittet.
 
-Kalendern räknar en tillfällig aktivering som giltig endast mellan start- och slutdatum. Slutdatumet 24 april har passerat, så de personerna filtreras bort trots att raden ser "aktiv" ut. Kryssrutan är alltså inte trasig — perioden har löpt ut, och det finns idag ingen knapp i gränssnittet för att förlänga eller göra om dem till permanenta.
+I databasen finns bara 3 personer med giltig aktivering (tre permanenta). Sex till hade tillfälliga aktiveringar som gick ut 24 april 2026. Alla andra Lager-taggade filtreras därför bort, trots att de är aktiva och tillgängliga.
 
-## Vad som byggs
+## Vad som ändras
 
-1. **Panel "Lagerpersonal" i lagerkalendern**
-   Knapp i kalenderns huvud som öppnar en panel med all personal som har taggen **Lager** (aktiv personal). Per person visas nuvarande status: Permanent aktiv / Aktiv t.o.m. datum / Utgången (med datum) / Ej aktiverad.
+Lagerkalendern ska bemannas enligt samma enkla regel som du beskriver:
 
-2. **Åtgärder per person**
-   - Aktivera tillsvidare (permanent)
-   - Aktivera för period (start- och slutdatum)
-   - Avaktivera
-   Detta använder den befintliga aktiveringslogiken som redan finns i koden men aldrig monterats i något gränssnitt.
+- Personen är **aktiv** personal, och
+- har taggen **Lager**, och
+- är **tillgänglig** det datumet (ingen "Unavailable"- eller "Blocked"-period som täcker dagen).
 
-3. **Tydlig markering av utgångna aktiveringar**
-   Utgångna perioder visas med varningsfärg och en "Förläng"-genväg, så att man aldrig igen tror att någon är bemanningsbar när perioden gått ut.
+Personer med Unavailable eller Blocked den dagen visas inte — precis som i personalkalendern.
 
-4. **Endast Lager-taggade**
-   Panelen listar bara personal med Lager-taggen, enligt önskemål. Saknas taggen står det tydligt att den sätts på personalkortet först.
+Det dolda aktiveringskravet tas bort som spärr. Personal som dragits in i Lager-kolumnen i planeringskalendern fortsätter att fungera som idag.
+
+## Effekt
+
+- Alla Lager-taggade och tillgängliga personer blir valbara i lagerkalenderns personalgardin direkt.
+- Inaktiv personal (t.ex. Kristiāns Krisjuks, Eduards Žukovs) syns fortfarande inte.
+- Utgångna aktiveringsperioder kan aldrig mer tysta bort personal av misstag.
 
 ## Tekniska detaljer
 
-- Ny panel-komponent under `src/components/warehouse/`, monterad i `src/pages/WarehouseCalendarPage.tsx` bredvid befintliga kontroller. Kalenderns rutnät, kort och layout rörs inte.
-- Använder befintlig `useWarehouseStaffActivations` (`activatePermanent`, `activateTemporary`, `deactivate`) — ingen ny datamodell, inga migrationer.
-- Efter mutation invalideras `warehouse-staff-activations` och `available-staff-week` så kalendern uppdateras direkt.
-- Statuslogiken (permanent / pågående / utgången) läggs i en liten ren hjälpfunktion med enhetstest, så att "utgången" alltid räknas likadant som i kalenderfiltret.
-- Ingen ändring av kalenderns filterlogik i `useAvailableStaffWeek` eller `useUnifiedStaffOperations`.
+- `src/pages/WarehouseCalendarPage.tsx`: slutar skicka `activatedStaffIds` / `activatedStaffByDate` som hård begränsning till kalendern och till `useUnifiedStaffOperations`; tagg-filtret `Lager` behålls.
+- `useWarehouseAvailableStaff` i `src/hooks/useWarehouseStaffActivations.ts` görs till en icke-blockerande källa (används inte längre för att filtrera bort personal). Tabellen `warehouse_staff_activations` rörs inte — ingen migration, ingen data raderas.
+- Tillgänglighetsregeln ligger redan i `staffAvailabilityService` / `useUnifiedStaffOperations` (unavailable och blocked filtreras bort, saknad post = tillgänglig) och behålls oförändrad.
+- Kalenderns rutnät, kort och visuella utformning ändras inte.
+- Nytt test som verifierar att en Lager-taggad tillgänglig person utan aktivering blir valbar, och att en blockerad/unavailable person inte blir det.
