@@ -27,8 +27,10 @@ describe('canonical Booking -> warehouse need contract', () => {
 
   it('does not duplicate a legacy project inbox when the same booking is already represented', () => {
     expect(migration).toContain('JOIN public.projects p');
-    expect(migration).toContain('p.booking_id = b.id::text');
-    expect(migration).toContain('source_booking_id = b.id');
+    // bookings.id är TEXT i denna databas — kopplingen görs mot b.id direkt.
+    expect(migration).toContain('p.booking_id = b.id');
+    expect(migration).toContain('source_booking_id = p_booking_id');
+
   });
 
   it('tracks the canonical booking on warehouse_projects and reuses an existing packing', () => {
