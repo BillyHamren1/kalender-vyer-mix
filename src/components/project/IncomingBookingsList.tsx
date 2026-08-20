@@ -218,14 +218,15 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
           <h3 className="font-medium text-sm text-foreground">{headerLabel}</h3>
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          {totalUpdates > 0 && (
+          {totalCancelled > 0 && (
             <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-foreground/60" />
-              <span className="tabular-nums font-medium text-foreground">{totalUpdates}</span>
-              <span>uppdaterade</span>
+              <span className="h-1.5 w-1.5 rounded-full bg-destructive" />
+              <span className="tabular-nums font-medium text-foreground">{totalCancelled}</span>
+              <span>ska bort</span>
             </span>
           )}
-          {hasBoth && <span className="h-3 w-px bg-border" />}
+          {showSectionHeaders && <span className="h-3 w-px bg-border" />}
+
           {totalNew > 0 && (
             <span className="flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-primary" />
