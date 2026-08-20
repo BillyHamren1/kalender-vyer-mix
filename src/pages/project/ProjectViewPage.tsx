@@ -15,6 +15,7 @@ import ProjectFollowersPanel from "@/components/project/ProjectFollowersPanel";
 
 import type { useProjectDetail } from "@/hooks/useProjectDetail";
 import { useProjectTransport } from "@/hooks/useProjectTransport";
+import { isTransportTodoTitle } from "@/components/project/defaultChecklist";
 import { useRefreshBooking } from "@/hooks/useRefreshBooking";
 import { FileText, MessageSquare, RefreshCw, Users, Truck, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -41,8 +42,8 @@ const ProjectViewPage = () => {
   const { assignments: transportAssignments } = useProjectTransport(bookingId);
   const { refreshBooking, isRefreshing } = useRefreshBooking(bookingId, project?.id ?? '');
 
-  // Auto-complete Transportbokning task if transport assignments exist
-  const incompleteTransportTask = tasks.find(t => t.title === 'Transportbokning' && !t.completed);
+  // Auto-complete "Boka transport" (även historiska "Transportbokning") när transport finns
+  const incompleteTransportTask = tasks.find(t => isTransportTodoTitle(t.title) && !t.completed);
   useEffect(() => {
     if (transportAssignments.length > 0 && incompleteTransportTask) {
       detail.updateTask({ id: incompleteTransportTask.id, updates: { completed: true } });
