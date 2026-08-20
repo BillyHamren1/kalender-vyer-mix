@@ -3,18 +3,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Inbox, Calendar, MapPin, ChevronRight, XCircle, Trash2, Undo2, CalendarPlus, RefreshCw, Eye } from 'lucide-react';
+import { Inbox, Calendar, MapPin, ChevronRight, XCircle, Trash2, Undo2, CalendarPlus, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { BookingPlacementDialog } from './BookingPlacementDialog';
-import ProjectUpdateDialog from './ProjectUpdateDialog';
 import { useUnplannedProjects } from '@/hooks/useUnplannedProjects';
-import { useUnseenBookingUpdates, useMarkBookingChangesSeen, useMarkAllBookingChangesSeen } from '@/hooks/useUnseenBookingUpdates';
 import { useCancellationCandidates, useScanCancellationCandidates, useApplyCancellation } from '@/hooks/useCancellationCandidates';
-import { useBookingStatusChanges, useRefreshSingleBooking, bookingStatusLabel } from '@/hooks/useBookingStatusChanges';
-import { CheckCheck } from 'lucide-react';
+
 
 
 
