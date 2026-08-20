@@ -60,10 +60,9 @@ const CustomerInfoBlock = ({
   const fullAddress = [deliveryAddress, [deliveryPostalCode, deliveryCity].filter(Boolean).join(" ")]
     .filter(Boolean).join(", ");
 
-  const flags: string[] = [];
-  if (carryMoreThan10m) flags.push("Bär >10 m");
-  if (groundNailsAllowed === false) flags.push("Inga marknubb");
-  if (exactTimeNeeded) flags.push("Exakt tid krävs");
+  const carryLabel = carryMoreThan10m === true ? "Mer än 10 m" : carryMoreThan10m === false ? "Mindre än 10 m" : null;
+  const nailsLabel = groundNailsAllowed === true ? "Tillåtet" : groundNailsAllowed === false ? "Ej tillåtet" : null;
+
 
   return (
     <Card className="mb-4 border-border/40 rounded-2xl">
