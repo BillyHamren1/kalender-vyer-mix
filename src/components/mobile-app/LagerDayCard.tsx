@@ -47,9 +47,9 @@ const LagerDayCard: React.FC<Props> = ({ date }) => {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h3 className="font-extrabold text-foreground text-[16px] leading-tight">{name}</h3>
+              <h3 className="font-extrabold text-foreground text-[16px] leading-tight">Mitt lager</h3>
               <span className="text-[10px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 bg-primary/10 text-primary border border-primary/20">
-                Internt
+                {name}
               </span>
             </div>
             {(window.start || window.end) && (
@@ -64,7 +64,7 @@ const LagerDayCard: React.FC<Props> = ({ date }) => {
               <p className="text-[12px] text-foreground/80 mt-1 truncate">{summary}</p>
             )}
             <span className="mt-2 inline-flex items-center gap-1 text-[12px] font-bold text-primary">
-              Öppna lageruppgifter
+              Se min arbetsdag
               <ChevronRight className="w-3.5 h-3.5" />
             </span>
           </div>
