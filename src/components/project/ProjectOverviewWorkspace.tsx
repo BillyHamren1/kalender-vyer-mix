@@ -3,10 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { sv } from "date-fns/locale";
 import {
-  CalendarDays,
   Check,
   HardHat,
-  MapPin,
   Plus,
   ListTodo,
   Truck,
@@ -14,7 +12,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
 import TransportPlanningDialog from "@/components/logistics/TransportPlanningDialog";
 import type { ProjectTask } from "@/types/project";
 import type { ProjectWithBooking } from "@/types/project";
@@ -46,7 +43,6 @@ const ProjectOverviewWorkspace = ({ project, tasks, bookingId, onAddTask, onUpda
   const rigDate = project.rigdaydate || booking?.rigdaydate || null;
   const eventDate = project.eventdate || booking?.eventdate || null;
   const rigDownDate = project.rigdowndate || booking?.rigdowndate || null;
-  const address = project.deliveryaddress || booking?.deliveryaddress || "Ingen adress angiven";
 
   const openTasks = useMemo(
     () => tasks.filter((task) => !task.completed && !task.is_info_only),
@@ -68,23 +64,6 @@ const ProjectOverviewWorkspace = ({ project, tasks, bookingId, onAddTask, onUpda
 
   return (
     <div className="space-y-4">
-      {/* Actual project overview: only facts the PM needs at a glance. */}
-      <Card className="overflow-hidden border-border/60 shadow-sm">
-        <div className="grid grid-cols-2 divide-x divide-y divide-border/50 md:grid-cols-4 md:divide-y-0">
-          <OverviewFact icon={HardHat} label="Etablering" value={dateLabel(rigDate)} />
-          <OverviewFact icon={CalendarDays} label="Event" value={dateLabel(eventDate)} />
-          <OverviewFact icon={HardHat} label="Nedrigg" value={dateLabel(rigDownDate)} />
-          <OverviewFact icon={MapPin} label="Plats" value={address} compact />
-        </div>
-        {bookingId && (
-          <div className="flex justify-end border-t border-border/50 bg-muted/10 px-4 py-3">
-            <Button variant="outline" className="gap-1.5" onClick={() => setTransportOpen(true)}>
-              <Truck className="h-4 w-4" /> Planera transport
-            </Button>
-          </div>
-        )}
-      </Card>
-
       <div className="grid grid-cols-1 gap-4">
         {/* TODOS */}
         <Card className="overflow-hidden border-border/60 shadow-sm">
@@ -167,14 +146,5 @@ const ProjectOverviewWorkspace = ({ project, tasks, bookingId, onAddTask, onUpda
     </div>
   );
 };
-
-const OverviewFact = ({ icon: Icon, label, value, compact }: { icon: React.ElementType; label: string; value: string; compact?: boolean }) => (
-  <div className="min-w-0 p-4">
-    <div className="mb-1 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-      <Icon className="h-3.5 w-3.5" /> {label}
-    </div>
-    <p className={cn("font-semibold", compact ? "truncate text-sm" : "text-base")}>{value}</p>
-  </div>
-);
 
 export default ProjectOverviewWorkspace;
