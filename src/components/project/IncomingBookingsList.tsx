@@ -3,18 +3,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Inbox, Calendar, MapPin, ChevronRight, XCircle, Trash2, Undo2, CalendarPlus, RefreshCw, Eye } from 'lucide-react';
+import { Inbox, Calendar, MapPin, ChevronRight, XCircle, Trash2, Undo2, CalendarPlus, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { BookingPlacementDialog } from './BookingPlacementDialog';
-import ProjectUpdateDialog from './ProjectUpdateDialog';
 import { useUnplannedProjects } from '@/hooks/useUnplannedProjects';
-import { useUnseenBookingUpdates, useMarkBookingChangesSeen, useMarkAllBookingChangesSeen } from '@/hooks/useUnseenBookingUpdates';
 import { useCancellationCandidates, useScanCancellationCandidates, useApplyCancellation } from '@/hooks/useCancellationCandidates';
-import { useBookingStatusChanges, useRefreshSingleBooking, bookingStatusLabel } from '@/hooks/useBookingStatusChanges';
-import { CheckCheck } from 'lucide-react';
+
 
 
 
@@ -41,7 +38,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [placementBookingId, setPlacementBookingId] = useState<string | null>(null);
-  const [updateDialog, setUpdateDialog] = useState<{ name: string; bookingIds: string[]; navigateTo: string } | null>(null);
+  
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ['bookings-without-project'],
     queryFn: async () => {
@@ -79,9 +76,7 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
     placeholderData: [],
   });
   const { data: unplannedProjects = [], isLoading: isLoadingUnplannedProjects } = useUnplannedProjects();
-  const { data: unseenUpdates = [], isLoading: isLoadingUpdates } = useUnseenBookingUpdates();
-  const markSeen = useMarkBookingChangesSeen();
-  const markAllSeen = useMarkAllBookingChangesSeen();
+
 
   // Avbokade i bokningssystemet men fortfarande aktiva lokalt.
   // Scan = ren läsning mot Booking; ingen automatisk destruktiv sync.
@@ -101,29 +96,8 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
   );
 
 
-  // Hämta bokningsmeta (klient, nummer, datum) för uppdaterade bokningar
-  const updateBookingIds = unseenUpdates.map((u) => u.booking_id);
-  const { data: updatedBookingsMeta = [] } = useQuery({
-    queryKey: ['updated-bookings-meta', updateBookingIds.sort().join(',')],
-    queryFn: async () => {
-      if (updateBookingIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('id, client, status, booking_number, eventdate, deliveryaddress, assigned_project_id, large_project_id')
-        .in('id', updateBookingIds);
-      if (error) {
-        console.error('[updated-bookings-meta]', error);
-        return [];
-      }
-      return data || [];
-    },
-    enabled: updateBookingIds.length > 0,
-    staleTime: 30_000,
-  });
 
-  const { data: statusChanges = {} } = useBookingStatusChanges(updateBookingIds);
-  const refreshSingle = useRefreshSingleBooking();
-  const [refreshingId, setRefreshingId] = useState<string | null>(null);
+
 
 
   const invalidateAll = () => {
@@ -178,28 +152,20 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
     }
   });
 
-  // Tidigare hade vi en lokal "first-visit baseline" här som dolde alla
-  // ändringar äldre än första gången användaren öppnade sidan. Det gjorde
-  // att stora projekt (med mest historik) tappade bort osedda uppdateringar
-  // helt. Vi litar nu enbart på `booking_change_views.last_seen_at` som
-  // `get_unseen_booking_updates()` redan filtrerar på server-side.
-  const visibleUpdates = unseenUpdates;
-
   // Avbokade bokningar får ALDRIG ligga kvar bland "Nya · ska placeras".
   const newBookings = bookings.filter((b) => !cancelledIds.has(b.id));
   const newUnplanned = unplannedProjects.filter((p) => !p.bookingId || !cancelledIds.has(p.bookingId));
 
   const totalNew = newBookings.length + newUnplanned.length;
-  const totalUpdates = visibleUpdates.length;
   const totalCancelled = cancellationCandidates.length;
   const cancellationCheckPending = scanIds.length > 0 && (
     cancellationScan.isPending || cancellationScan.isFetching || cancellationCandidatesQuery.isFetching
   );
   const cancellationCheckFailed = cancellationScan.isError;
-  const hasIncomingItems = totalNew + totalUpdates + totalCancelled > 0;
+  const hasIncomingItems = totalNew + totalCancelled > 0;
 
 
-  if ((isLoading && isLoadingUnplannedProjects && isLoadingUpdates) || !hasIncomingItems) {
+  if ((isLoading && isLoadingUnplannedProjects) || !hasIncomingItems) {
     return null;
   }
 
@@ -212,46 +178,9 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
     }
   };
 
-  const handleReviewUpdate = (booking: typeof updatedBookingsMeta[number]) => {
-    // Bygg navigateTo + samla alla syskon-bokningar med osedda ändringar
-    // som tillhör samma target, så att dialogen visar ALLA diffar.
-    const unseenIds = new Set(visibleUpdates.map((u) => u.booking_id));
-    let navigateTo: string;
-    let bookingIds: string[];
-    let name: string;
-    if (booking.large_project_id) {
-      navigateTo = `/large-project/${booking.large_project_id}`;
-      bookingIds = updatedBookingsMeta
-        .filter((b) => b.large_project_id === booking.large_project_id && unseenIds.has(b.id))
-        .map((b) => b.id);
-      name = booking.client || 'Stort projekt';
-    } else if (booking.assigned_project_id) {
-      navigateTo = `/project/${booking.assigned_project_id}`;
-      bookingIds = updatedBookingsMeta
-        .filter((b) => b.assigned_project_id === booking.assigned_project_id && unseenIds.has(b.id))
-        .map((b) => b.id);
-      name = booking.client || 'Projekt';
-    } else {
-      navigateTo = `/booking/${booking.id}`;
-      bookingIds = [booking.id];
-      name = booking.client || 'Bokning';
-    }
-    if (bookingIds.length === 0) bookingIds = [booking.id];
-    setUpdateDialog({ name, bookingIds, navigateTo });
-  };
+  const headerLabel = totalNew > 0 ? 'Nya bokningar' : 'Avbokade bokningar';
+  const showSectionHeaders = totalCancelled > 0 && totalNew > 0;
 
-  // Visuell prioritet: uppdaterade vs nya MÅSTE särskiljas tydligt — annars
-  // riskerar man att klicka "Placera" på en uppdatering eller "Granska" på en
-  // helt ny bokning. Vi separerar i två sektioner med olika färg + kant + CTA.
-  const hasBoth = totalUpdates > 0 && totalNew > 0;
-  const headerLabel = hasBoth
-    ? 'Inkommande bokningar'
-    : totalUpdates > 0
-      ? 'Uppdaterade bokningar'
-      : totalNew > 0
-        ? 'Nya bokningar'
-        : 'Avbokade bokningar';
-  const showSectionHeaders = hasBoth || totalCancelled > 0;
 
 
   return (
@@ -263,14 +192,15 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
           <h3 className="font-medium text-sm text-foreground">{headerLabel}</h3>
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          {totalUpdates > 0 && (
+          {totalCancelled > 0 && (
             <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-foreground/60" />
-              <span className="tabular-nums font-medium text-foreground">{totalUpdates}</span>
-              <span>uppdaterade</span>
+              <span className="h-1.5 w-1.5 rounded-full bg-destructive" />
+              <span className="tabular-nums font-medium text-foreground">{totalCancelled}</span>
+              <span>ska bort</span>
             </span>
           )}
-          {hasBoth && <span className="h-3 w-px bg-border" />}
+          {showSectionHeaders && <span className="h-3 w-px bg-border" />}
+
           {totalNew > 0 && (
             <span className="flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-primary" />
@@ -353,133 +283,9 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
         </section>
       )}
 
-      {/* === SEKTION 1: UPPDATERADE === */}
-      {totalUpdates > 0 && (
+      {/* SEKTION 1 (granskning av uppdateringar) borttagen medvetet:
+          endast nya bokningar och bokningar som ska bort visas. */}
 
-        <section>
-          <div className="flex items-center justify-between gap-2 px-4 h-8 border-y border-border/60 bg-amber-500/[0.06]">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
-              <span className="text-xs font-medium text-amber-700 truncate">
-                {showSectionHeaders ? 'Uppdaterade · kräver granskning' : `${totalUpdates} kräver granskning`}
-              </span>
-            </div>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                const ids = visibleUpdates.map((u) => u.booking_id);
-                markAllSeen.mutate(ids, {
-                  onSuccess: (n) => toast.success(`${n} bokningar markerade som granskade`),
-                  onError: () => toast.error('Kunde inte markera alla som granskade'),
-                });
-              }}
-              disabled={markAllSeen.isPending || visibleUpdates.length === 0}
-              className="h-6 px-2 text-[11px] gap-1 text-amber-700 hover:bg-amber-500/10 hover:text-amber-800"
-              title="Markera alla uppdaterade bokningar som granskade"
-            >
-              <CheckCheck className="w-3 h-3" />
-              <span>Markera alla</span>
-            </Button>
-          </div>
-
-          <div className="divide-y divide-border/40">
-            {visibleUpdates.map((update) => {
-              const meta = updatedBookingsMeta.find((b) => b.id === update.booking_id);
-              if (!meta) return null;
-              const statusChange = statusChanges[update.booking_id];
-              return (
-                <div
-                  key={`update-${update.booking_id}`}
-                  className="group relative flex items-center gap-3 pl-5 pr-3 py-2 hover:bg-amber-500/[0.03] transition-colors"
-                >
-                  <span className="absolute left-0 top-0 bottom-0 w-0.5 bg-amber-500" aria-hidden />
-
-                  <div
-                    className="flex-1 min-w-0 cursor-pointer"
-                    onClick={() => handleReviewUpdate(meta)}
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <h4 className="text-sm font-medium truncate text-foreground group-hover:text-primary transition-colors">
-                        {meta.client}
-                      </h4>
-                      <span className="inline-flex items-center h-4 px-1.5 rounded-md bg-muted text-muted-foreground text-[10px] font-medium shrink-0">
-                        {bookingStatusLabel(meta.status)}
-                      </span>
-                    </div>
-                    {statusChange && statusChange.from !== statusChange.to && (
-                      <div className="mt-0.5 text-[11px] font-medium text-amber-700/80">
-                        Status: {bookingStatusLabel(statusChange.from)} → {bookingStatusLabel(statusChange.to)}
-                      </div>
-                    )}
-                    <div className="flex items-center gap-3 mt-0.5 text-[11px] text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        {formatDate(meta.eventdate || '')}
-                      </span>
-                      {meta.deliveryaddress && (
-                        <span className="flex items-center gap-1 truncate max-w-[200px]">
-                          <MapPin className="w-3 h-3 shrink-0" />
-                          {meta.deliveryaddress}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 shrink-0 pl-3 border-l border-border/40">
-                    {meta.booking_number && (
-                      <span className="text-xs font-mono text-muted-foreground/60 order-2 sm:order-1">
-                        #{meta.booking_number}
-                      </span>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 px-2 text-[11px] gap-1 order-2 sm:order-1 text-muted-foreground hover:text-foreground hover:bg-muted"
-                      title="Hämta senaste status från bokningssystemet"
-                      disabled={refreshingId === meta.id && refreshSingle.isPending}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setRefreshingId(meta.id);
-                        refreshSingle.mutate(meta.id, {
-                          onSuccess: () => toast.success('Status hämtad från bokningssystemet'),
-                          onError: (err: any) => toast.error(err?.message || 'Kunde inte hämta status'),
-                          onSettled: () => setRefreshingId(null),
-                        });
-                      }}
-                    >
-                      <RefreshCw className={`w-3 h-3 ${refreshingId === meta.id && refreshSingle.isPending ? 'animate-spin' : ''}`} />
-                      <span>Hämta</span>
-                    </Button>
-                    <div className="flex flex-col items-end gap-0 order-1 sm:order-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleReviewUpdate(meta)}
-                        className="h-7 px-2.5 text-xs gap-1 rounded-md border-amber-400/70 text-amber-800 bg-amber-500/[0.04] hover:bg-amber-500/10 hover:text-amber-900 whitespace-nowrap transition-colors"
-                        title="Granska ändringar och bekräfta mottagen"
-                        disabled={markSeen.isPending}
-                      >
-                        <Eye className="w-3 h-3" />
-                        <span>Granska</span>
-                      </Button>
-                      {update.change_count > 0 && (
-                        <span className="text-[10px] text-amber-700/70 font-medium">
-                          {statusChange && statusChange.from !== statusChange.to
-                            ? 'Statusändring väntar'
-                            : `${update.change_count} ${update.change_count === 1 ? 'ändring väntar' : 'ändringar väntar'}`}
-                        </span>
-                      )}
-                    </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground/40 order-3" />
-                  </div>
-
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
 
       {/* === SEKTION 2: NYA === */}
       {totalNew > 0 && !cancellationCheckPending && !cancellationCheckFailed && (
@@ -645,15 +451,8 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
         bookingId={placementBookingId}
       />
 
-      {updateDialog && (
-        <ProjectUpdateDialog
-          open={!!updateDialog}
-          onOpenChange={(open) => !open && setUpdateDialog(null)}
-          projectName={updateDialog.name}
-          bookingIds={updateDialog.bookingIds}
-          navigateTo={updateDialog.navigateTo}
-        />
-      )}
+
+
     </div>
   );
 };
