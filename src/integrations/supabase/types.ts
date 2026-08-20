@@ -10894,6 +10894,10 @@ export type Database = {
         Args: { _new: string; _old: string }
         Returns: boolean
       }
+      is_noise_booking_change: {
+        Args: { _changed_fields: Json; _new: Json; _previous: Json }
+        Returns: boolean
+      }
       jsonb_object_keys_array: { Args: { j: Json }; Returns: string[] }
       lp_rep_booking_id: { Args: { _lp: string }; Returns: string }
       mark_booking_changes_seen: {
