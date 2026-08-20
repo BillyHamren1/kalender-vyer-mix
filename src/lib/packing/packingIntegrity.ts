@@ -151,22 +151,33 @@ export const comparePackingSnapshot = (
     }
   });
 
+  const productById = new Map(products.map((product) => [product.id, product]));
+
   itemsByProduct.forEach((matching, productId) => {
     if (expectedById.has(productId)) return;
     // Kända borttagningar hanteras av 14-dagarsflödet och dess attestpanel.
     // De ska inte samtidigt ge den generiska integritetsvarningen.
     if (removedProductIds.has(productId)) return;
+    // Paketrubriker (huvudrader med komponenter) finns kvar i bokningen men räknas
+    // inte som packbara rader. De är strukturella och får aldrig ge avvikelse.
+    if (parentIds.has(productId) && productById.has(productId)) return;
+    const sourceProduct = productById.get(productId);
     matching.forEach((item) => {
       issues.push({
         type: 'orphan_item',
         severity: item.excluded ? 'warning' : 'blocking',
         bookingProductId: productId,
-        name: item.manual_name || 'Artikel som inte längre finns i bokningen',
+        name:
+          sourceProduct?.name ||
+          item.manual_name ||
+          'Artikel som inte längre finns i bokningen',
+        expectedQuantity: sourceProduct ? Number(sourceProduct.quantity || 0) : undefined,
         actualQuantity: Number(item.quantity_to_pack || 0),
         itemIds: [item.id],
       });
     });
   });
+
 
   const blockingCount = issues.filter((issue) => issue.severity === 'blocking').length;
   const warningCount = issues.filter((issue) => issue.severity === 'warning').length;
