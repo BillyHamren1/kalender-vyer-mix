@@ -98,15 +98,35 @@ Deno.serve(async (req) => {
             .maybeSingle()
 
           if (item) {
-            if ((item.quantity_packed || 0) > 0 && !force) {
-              blocked.push({
-                id: cr.id,
-                reason: 'already_packed',
-                message: `${cr.product_name || 'Artikeln'} är redan packad (${item.quantity_packed} st) — måste returneras till lager innan den tas bort.`,
-              })
-              continue
+            if ((item.quantity_packed || 0) > 0) {
+              const { error: allocationError } = await supabase
+                .from('packing_list_item_allocations')
+                .delete()
+                .eq('packing_list_item_id', item.id)
+                .eq('organization_id', organizationId)
+              if (allocationError) throw allocationError
+
+              const { error: resetError } = await supabase
+                .from('packing_list_items')
+                .update({
+                  quantity_packed: 0,
+                  packed_at: null,
+                  packed_by: null,
+                  packed_by_staff_id: null,
+                  verified_at: null,
+                  verified_by: null,
+                  verified_by_staff_id: null,
+                  parcel_id: null,
+                })
+                .eq('id', item.id)
+                .eq('organization_id', organizationId)
+              if (resetError) throw resetError
             }
-            const { error } = await supabase.from('packing_list_items').delete().eq('id', item.id)
+            const { error } = await supabase
+              .from('packing_list_items')
+              .delete()
+              .eq('id', item.id)
+              .eq('organization_id', organizationId)
             if (error) throw error
           }
         }

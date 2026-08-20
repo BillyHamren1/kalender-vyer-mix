@@ -29,6 +29,15 @@ export function isShortNotice(days: number | null): boolean {
   return days < PACKING_SHORT_NOTICE_DAYS;
 }
 
+export function requiresWarehouseAcknowledgement(input: {
+  daysUntilRig: number | null;
+  packingStatus: string | null;
+  hasPackedQuantity?: boolean;
+}): boolean {
+  const packingStarted = input.packingStatus !== null && input.packingStatus !== 'planning';
+  return isShortNotice(input.daysUntilRig) || packingStarted || Boolean(input.hasPackedQuantity);
+}
+
 /**
  * Skriver (idempotent) ändringar till packing_change_requests och stänger
  * pending-rader som inte längre stämmer med bokningen.
