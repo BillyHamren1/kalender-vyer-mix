@@ -5,6 +5,7 @@ export interface PackingIntegrityProduct {
   quantity: number;
   parent_product_id?: string | null;
   sku?: string | null;
+  source_missing_since?: string | null;
 }
 
 export interface PackingIntegrityItem {
@@ -59,12 +60,16 @@ export const comparePackingSnapshot = (
   const checkedAt = new Date().toISOString();
   const sourceAvailable = sourceKnown;
 
+  const activeProducts = products.filter((product) => !product.source_missing_since);
+  const removedProductIds = new Set(
+    products.filter((product) => Boolean(product.source_missing_since)).map((product) => product.id),
+  );
   const parentIds = new Set(
-    products
+    activeProducts
       .map((product) => product.parent_product_id)
       .filter((id): id is string => Boolean(id)),
   );
-  const expected = products.filter((product) => !parentIds.has(product.id));
+  const expected = activeProducts.filter((product) => !parentIds.has(product.id));
   const expectedById = new Map(expected.map((product) => [product.id, product]));
 
   const manualRows = items.filter((item) => !item.booking_product_id && item.manual_name).length;
@@ -148,6 +153,9 @@ export const comparePackingSnapshot = (
 
   itemsByProduct.forEach((matching, productId) => {
     if (expectedById.has(productId)) return;
+    // Kända borttagningar hanteras av 14-dagarsflödet och dess attestpanel.
+    // De ska inte samtidigt ge den generiska integritetsvarningen.
+    if (removedProductIds.has(productId)) return;
     matching.forEach((item) => {
       issues.push({
         type: 'orphan_item',

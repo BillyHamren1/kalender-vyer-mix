@@ -105,7 +105,7 @@ const fetchPackingListReadModel = async (
   if (bookingIds.length > 0) {
     const { data: sourceProducts, error: productsError } = await supabase
       .from('booking_products')
-      .select('id, name, quantity, parent_product_id, sku, booking_id')
+      .select('id, name, quantity, parent_product_id, sku, booking_id, source_missing_since')
       .in('booking_id', bookingIds);
 
     if (productsError) throw productsError;

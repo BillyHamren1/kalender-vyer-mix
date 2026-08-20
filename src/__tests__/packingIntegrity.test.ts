@@ -69,4 +69,22 @@ describe('comparePackingSnapshot', () => {
     expect(result.sourceAvailable).toBe(true);
     expect(result.isExactMatch).toBe(true);
   });
+
+  it('låter 14-dagarsflödet hantera kända borttagningar utan generisk integritetsvarning', () => {
+    const result = comparePackingSnapshot([
+      {
+        id: 'removed',
+        booking_id: 'b1',
+        name: 'F10',
+        quantity: 2,
+        parent_product_id: null,
+        source_missing_since: '2026-08-20T10:00:00Z',
+      },
+    ], [
+      { id: 'i1', booking_product_id: 'removed', quantity_to_pack: 2 },
+    ], true);
+
+    expect(result.blockingCount).toBe(0);
+    expect(result.issues).toEqual([]);
+  });
 });
