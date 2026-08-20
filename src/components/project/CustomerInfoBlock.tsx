@@ -61,8 +61,6 @@ const CustomerInfoBlock = ({
   rentalOnly,
   projectLeader,
   onEditAddress,
-  latitude,
-  longitude,
 }: CustomerInfoBlockProps) => {
   const fullAddress = [deliveryAddress, [deliveryPostalCode, deliveryCity].filter(Boolean).join(" ")]
     .filter(Boolean).join(", ");
@@ -114,11 +112,6 @@ const CustomerInfoBlock = ({
                   </a>
                 ) : (
                   <span className="italic text-muted-foreground">Ingen adress angiven</span>
-                )}
-                {latitude && longitude && (
-                  <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] text-secondary-foreground">
-                    📍 {Number(latitude).toFixed(4)}, {Number(longitude).toFixed(4)}
-                  </span>
                 )}
                 {onEditAddress && (
                   <button
