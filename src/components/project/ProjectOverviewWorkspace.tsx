@@ -67,21 +67,20 @@ const ProjectOverviewWorkspace = ({ project, tasks, bookingId, onAddTask, onUpda
       <div className="grid grid-cols-1 gap-4">
         {/* TODOS */}
         <Card className="overflow-hidden border-border/60 shadow-sm">
-          <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
+          <div className="flex items-center justify-between border-b border-border/50 px-4 py-2">
             <div>
               <div className="flex items-center gap-2">
                 <ListTodo className="h-4 w-4 text-primary" />
                 <h2 className="font-semibold">Att göra</h2>
                 <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">{openTasks.length}</Badge>
               </div>
-              <p className="mt-0.5 text-xs text-muted-foreground">Projektets enkla todo-lista.</p>
             </div>
             <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate("execution")}>
               <HardHat className="h-3.5 w-3.5" /> Planering
             </Button>
           </div>
 
-          <div className="flex items-center gap-2 border-b border-border/40 bg-muted/15 p-3">
+          <div className="flex items-center gap-2 border-b border-border/40 bg-muted/15 px-3 py-2">
             <Plus className="h-4 w-4 shrink-0 text-muted-foreground" />
             <input
               ref={quickInput}
@@ -98,12 +97,12 @@ const ProjectOverviewWorkspace = ({ project, tasks, bookingId, onAddTask, onUpda
 
           <div className="max-h-[430px] overflow-y-auto">
             {openTasks.length === 0 ? (
-              <div className="px-5 py-10 text-center">
-                <Check className="mx-auto mb-2 h-6 w-6 text-emerald-600" />
-                <p className="text-sm font-medium">Inget öppet just nu</p>
-                <p className="mt-1 text-xs text-muted-foreground">Lägg till nästa sak som behöver göras ovan.</p>
+              <div className="flex items-center justify-center gap-2 px-4 py-2.5 text-xs text-muted-foreground">
+                <Check className="h-3.5 w-3.5 text-emerald-600" />
+                <span>Inget öppet just nu</span>
               </div>
             ) : (
+
               <div className="divide-y divide-border/40">
                 {openTasks.map((task) => (
                   <div key={task.id} className="flex items-start gap-3 px-4 py-3">
