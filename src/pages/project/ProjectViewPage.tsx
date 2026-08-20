@@ -142,7 +142,6 @@ const ProjectViewPage = () => {
           groundNailsAllowed={displayBooking.ground_nails_allowed}
           exactTimeNeeded={displayBooking.exact_time_needed}
           exactTimeInfo={displayBooking.exact_time_info}
-          rentalOnly={displayBooking.rental_only}
           projectLeader={projectLeaderDisplay}
         />
       )}
