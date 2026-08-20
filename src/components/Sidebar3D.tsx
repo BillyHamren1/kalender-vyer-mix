@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProjectInboxCount } from "@/hooks/useProjectInboxCount";
+import { useProjectMessagesCount } from "@/hooks/useProjectMessagesCount";
+
 import { useUnplannedProjects } from "@/hooks/useUnplannedProjects";
 import { useCurrentStaffId } from "@/hooks/useCurrentStaffId";
 import { useMySidebarProjects } from "@/hooks/useMySidebarProjects";
