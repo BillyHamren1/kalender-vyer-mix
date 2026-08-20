@@ -1,10 +1,13 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-const migration = readFileSync(
-  'supabase/migrations/20260820153000_canonical_warehouse_need_from_booking.sql',
-  'utf8',
-);
+const MIGRATIONS_DIR = 'supabase/migrations';
+const migration = readdirSync(MIGRATIONS_DIR)
+  .filter((f) => f.endsWith('.sql'))
+  .map((f) => readFileSync(`${MIGRATIONS_DIR}/${f}`, 'utf8'))
+  .filter((sql) => sql.includes('ensure_warehouse_booking_need'))
+  .join('\n');
+
 const service = readFileSync('src/services/warehouseProjectService.ts', 'utf8');
 const dialog = readFileSync('src/components/warehouse/ConvertInboxDialog.tsx', 'utf8');
 const types = readFileSync('src/types/warehouseProject.ts', 'utf8');
