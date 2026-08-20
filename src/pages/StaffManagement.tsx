@@ -29,6 +29,8 @@ import { importStaffData } from '@/services/staffImportService';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import StaffList from '@/components/staff/StaffList';
+import { invalidateStaffCaches } from '@/lib/staff/staffCacheInvalidation';
+
 import AddStaffDialog from '@/components/staff/AddStaffDialog';
 import EditStaffDialog from '@/components/staff/EditStaffDialog';
 import StaffAccountsPanel from '@/components/staff/StaffAccountsPanel';
