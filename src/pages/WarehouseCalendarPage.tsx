@@ -398,12 +398,12 @@ const WarehouseCalendarPage = () => {
     });
   };
 
-  // Personal som är tillgänglig i lagerkalendern denna dag/vecka:
-  // = aktiverad personal + personal planerad i Lager-kolumnen i planeringskalendern
-  const { activeStaffIds, activeStaffIdsByDate } = useWarehouseAvailableStaff(currentWeekStart, viewMode);
+  // Bemanning i lagerkalendern: Lager-taggad + aktiv personal + tillgänglig den dagen.
+  // Ingen separat "lageraktivering" krävs längre (utgångna perioder tystade tidigare
+  // bort nästan all lagerpersonal). Unavailable/blocked filtreras bort av
+  // useUnifiedStaffOperations / staffAvailabilityService.
+  const staffOps = useUnifiedStaffOperations(currentWeekStart, 'weekly', 'Lager');
 
-  // Use the unified staff operations hook — filtered by available staff
-  const staffOps = useUnifiedStaffOperations(currentWeekStart, 'weekly', 'Lager', activeStaffIds);
 
   // Staff curtain state - simplified with position
   const [staffCurtainOpen, setStaffCurtainOpen] = useState(false);
