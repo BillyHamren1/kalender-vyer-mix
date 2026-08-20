@@ -60,13 +60,16 @@ const baseNavigationItems: NavItem[] = [
     ],
   },
   {
-    title: "Projekt",
+    title: "Dashboard",
     url: "/projects",
-    icon: FolderKanban,
-    children: [
-      { title: "Projektöversikt", url: "/economy", icon: Wallet },
-    ],
+    icon: LayoutDashboard,
   },
+  {
+    title: "Projekt",
+    url: "/economy",
+    icon: FolderKanban,
+  },
+
   {
     title: "Logistikplanering",
     url: "/ops-control",
