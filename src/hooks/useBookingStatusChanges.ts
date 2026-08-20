@@ -20,6 +20,23 @@ export function bookingStatusLabel(status?: string | null): string {
   return BOOKING_STATUS_LABELS[status.toUpperCase()] ?? status;
 }
 
+/** Statusar som betyder att bokningen ännu inte "fanns" i Planning. */
+const PRE_PLANNING_STATUSES = new Set([
+  'OFFER', 'OFFERT', 'QUOTE', 'DRAFT', 'PENDING', 'TENTATIVE', 'RESERVED',
+  'AWAITINGAPPROVAL', 'AWAITING_APPROVAL', 'AWAITING APPROVAL',
+  'CANCELLED', 'CANCELED', 'AVBOKAD',
+]);
+
+export function isActivationStatusChange(from?: string | null, to?: string | null): boolean {
+  const f = (from ?? '').toUpperCase().trim();
+  const t = (to ?? '').toUpperCase().trim();
+  if (PRE_PLANNING_STATUSES.has(f)) return true;
+  // Statusändring som landar i bekräftad är aldrig granskningsvärd.
+  if (t === 'CONFIRMED') return true;
+  return false;
+}
+
+
 /**
  * Läser de senaste statusändringarna (från booking_changes) för en uppsättning
  * bokningar, så att inkorgen kan visa "Bekräftad → Offert" i klartext istället
@@ -53,15 +70,22 @@ export function useBookingStatusChanges(bookingIds: string[]) {
             ? Object.prototype.hasOwnProperty.call(fields, 'status')
             : false;
         if (!hasStatus) continue;
+        const from = (row.previous_values as any)?.status ?? null;
+        const to = (row.new_values as any)?.status ?? null;
+        // Aktivering (offert / awaiting approval / avbokad -> bekräftad) är ingen
+        // granskningsvärd ändring: Planning kände inte till bokningen innan den
+        // blev bekräftad.
+        if (isActivationStatusChange(from, to)) continue;
         const id = String(row.booking_id);
         if (map[id]) continue; // senaste först
         map[id] = {
           bookingId: id,
-          from: (row.previous_values as any)?.status ?? null,
-          to: (row.new_values as any)?.status ?? null,
+          from,
+          to,
           changedAt: row.changed_at as string,
         };
       }
+
       return map;
     },
   });
