@@ -1,6 +1,10 @@
 // @ts-nocheck
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { queuePackingChangeRequests } from '../_shared/packingChangeRequests.ts'
+import {
+  daysUntil,
+  queuePackingChangeRequests,
+  requiresWarehouseAcknowledgement,
+} from '../_shared/packingChangeRequests.ts'
 
 
 const corsHeaders = {
@@ -286,7 +290,7 @@ async function syncPackingListItems(
   // Fetch current booking products (exclude package headers - only actual packable items)
   const { data: products, error: prodError } = await supabase
     .from('booking_products')
-    .select('id, name, quantity, parent_product_id, is_package_component, sku, inventory_item_type_id')
+    .select('id, name, quantity, parent_product_id, is_package_component, sku, inventory_item_type_id, source_missing_since')
     .eq('booking_id', bookingId)
     .eq('organization_id', organizationId)
 
@@ -296,12 +300,13 @@ async function syncPackingListItems(
   }
 
   // Filter to packable items (exclude parent packages that have components)
+  const activeProducts = (products || []).filter((p: any) => !p.source_missing_since)
   const parentIds = new Set(
-    (products || [])
+    activeProducts
       .filter((p: any) => p.parent_product_id)
       .map((p: any) => p.parent_product_id)
   )
-  const packableProducts = (products || []).filter((p: any) => !parentIds.has(p.id))
+  const packableProducts = activeProducts.filter((p: any) => !parentIds.has(p.id))
 
   // Fetch current packing list items for this packing.
   // NOTE: a consolidated packing (large project) contains items from multiple
@@ -309,7 +314,7 @@ async function syncPackingListItems(
   // booking only — otherwise syncing booking B would delete booking A's items.
   const { data: existingItemsRaw, error: itemsError } = await supabase
     .from('packing_list_items')
-    .select('id, booking_product_id, quantity_to_pack, booking_products!inner(booking_id)')
+    .select('id, booking_product_id, quantity_to_pack, quantity_packed, wms_sku, manual_name, booking_products!inner(booking_id, name, sku)')
     .eq('packing_id', packingId)
 
   if (itemsError) {
@@ -338,6 +343,19 @@ async function syncPackingListItems(
     .maybeSingle()
   const packingStatus = (packingMeta as any)?.status || null
 
+  const { data: bookingDates } = await supabase
+    .from('bookings')
+    .select('rigdaydate, eventdate')
+    .eq('id', bookingId)
+    .eq('organization_id', organizationId)
+    .maybeSingle()
+  const rigDate = (bookingDates as any)?.rigdaydate || (bookingDates as any)?.eventdate || null
+  const needsWarehouseAck = requiresWarehouseAcknowledgement({
+    daysUntilRig: daysUntil(rigDate),
+    packingStatus,
+    hasPackedQuantity: itemsForThisBooking.some((item: any) => (item.quantity_packed || 0) > 0),
+  })
+
   const newItems = packableProducts
     .filter((p: any) => !existingByProductId.has(p.id))
     .map((p: any) => ({
@@ -359,7 +377,7 @@ async function syncPackingListItems(
     return existing && existing.quantity_to_pack !== product.quantity
   })
 
-  if (packingStatus !== 'planning') {
+  if (needsWarehouseAck) {
     // Snapshotet är fryst. I stället för att bara flagga "något har ändrats"
     // köar vi varje konkret ändring i packing_change_requests. Lagret måste
     // ta emot ändringen innan packlistan skrivs om (kort varsel = blockerande).
@@ -378,23 +396,14 @@ async function syncPackingListItems(
       })
     }
 
-    const orphanProductIds = orphanedItems.map((i: any) => i.booking_product_id).filter(Boolean)
-    let orphanNames = new Map<string, any>()
-    if (orphanProductIds.length > 0) {
-      const { data: orphanProducts } = await supabase
-        .from('booking_products')
-        .select('id, name, sku')
-        .in('id', orphanProductIds)
-      orphanNames = new Map((orphanProducts || []).map((p: any) => [p.id, p]))
-    }
     for (const item of orphanedItems) {
-      const p: any = orphanNames.get(item.booking_product_id)
+      const p: any = item.booking_products
       drafts.push({
         booking_product_id: item.booking_product_id,
         packing_list_item_id: item.id,
         change_type: 'item_removed',
-        product_name: p?.name || null,
-        sku: p?.sku || null,
+        product_name: p?.name || item.manual_name || (item.wms_sku ? `Artikel ${item.wms_sku}` : 'Borttagen artikel'),
+        sku: p?.sku || item.wms_sku || null,
         old_quantity: item.quantity_to_pack ?? null,
         new_quantity: null,
       })
@@ -413,22 +422,16 @@ async function syncPackingListItems(
       })
     }
 
-    const { data: bookingDates } = await supabase
-      .from('bookings')
-      .select('rigdaydate, eventdate')
-      .eq('id', bookingId)
-      .maybeSingle()
-
     const result = await queuePackingChangeRequests(supabase, {
       packingId,
       bookingId,
       organizationId,
-      rigDate: (bookingDates as any)?.rigdaydate || (bookingDates as any)?.eventdate || null,
+      rigDate,
       drafts,
     })
 
     console.warn(
-      `[sync-booking-to-packing] Frozen packing ${packingId}: ${drafts.length} drift(s) queued as change requests (pending short notice: ${result.pendingShortNotice})`
+      `[sync-booking-to-packing] Warehouse acknowledgement required for packing ${packingId}: ${drafts.length} change(s) queued (pending short notice: ${result.pendingShortNotice})`
     )
     return 0
   }
@@ -454,18 +457,14 @@ async function syncPackingListItems(
   for (const product of packableProducts) {
     const existing = existingByProductId.get(product.id) as any
     if (existing && existing.quantity_to_pack !== product.quantity) {
-      if (packingStatus === 'planning') {
-        const { error: updateError } = await supabase
-          .from('packing_list_items')
-          .update({ quantity_to_pack: product.quantity })
-          .eq('id', existing.id)
+      const { error: updateError } = await supabase
+        .from('packing_list_items')
+        .update({ quantity_to_pack: product.quantity })
+        .eq('id', existing.id)
 
-        if (!updateError) {
-          synced++
-          console.log(`[sync-booking-to-packing] Updated quantity for product ${product.id}: ${existing.quantity_to_pack} → ${product.quantity}`)
-        }
-      } else {
-        console.warn(`[sync-booking-to-packing] Frozen quantity_to_pack for packing ${packingId} item ${existing.id}: ${existing.quantity_to_pack} stays despite booking quantity ${product.quantity}`)
+      if (!updateError) {
+        synced++
+        console.log(`[sync-booking-to-packing] Updated quantity for product ${product.id}: ${existing.quantity_to_pack} → ${product.quantity}`)
       }
     }
   }
