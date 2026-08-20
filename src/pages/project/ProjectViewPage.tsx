@@ -124,6 +124,28 @@ const ProjectViewPage = () => {
         onUpdateTask={detail.updateTask}
       />
 
+      {/* Customer information lives directly below the dates so the PM sees it at a glance. */}
+      {displayBooking && (
+        <CustomerInfoBlock
+          client={displayBooking.client}
+          bookingNumber={displayBooking.booking_number}
+          deliveryAddress={displayBooking.deliveryaddress}
+          deliveryCity={displayBooking.delivery_city}
+          deliveryPostalCode={displayBooking.delivery_postal_code}
+          contactName={displayBooking.contact_name}
+          contactPhone={displayBooking.contact_phone}
+          contactEmail={displayBooking.contact_email}
+          eventdate={displayBooking.eventdate}
+          rigdaydate={displayBooking.rigdaydate}
+          rigdowndate={displayBooking.rigdowndate}
+          carryMoreThan10m={displayBooking.carry_more_than_10m}
+          groundNailsAllowed={displayBooking.ground_nails_allowed}
+          exactTimeNeeded={displayBooking.exact_time_needed}
+          exactTimeInfo={displayBooking.exact_time_info}
+          rentalOnly={displayBooking.rental_only}
+          projectLeader={projectLeaderDisplay}
+        />
+      )}
 
       {/* Secondary project workspace: information is grouped by PM intent instead of long scrolling panels. */}
       <Tabs defaultValue="info" className="space-y-4">
@@ -138,7 +160,7 @@ const ProjectViewPage = () => {
           {displayBooking && (
             <div className="relative max-h-[680px] overflow-y-auto rounded-2xl">
               {bookingId && <Button variant="outline" size="icon" onClick={refreshBooking} disabled={isRefreshing} className="absolute top-3 right-3 z-10 h-8 w-8" title="Uppdatera bokning"><RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} /></Button>}
-              <BookingInfoExpanded booking={displayBooking} projectLeader={projectLeaderDisplay} bookingAttachments={bookingAttachments} />
+              <BookingInfoExpanded booking={displayBooking} projectLeader={projectLeaderDisplay} bookingAttachments={bookingAttachments} showCustomerInfo={false} />
             </div>
           )}
         </TabsContent>
