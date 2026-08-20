@@ -19,12 +19,49 @@ export const ASSIGNMENT_TYPE_LABEL: Record<AssignmentType | 'other', string> = {
 };
 
 export const ASSIGNMENT_ACTION_LABEL: Record<AssignmentAction, string> = {
-  open_scanner: 'Starta scanner',
-  open_return_scanner: 'Starta returscanning',
-  open_inventory: 'Öppna inventering',
+  open_scanner: 'Starta packning',
+  open_return_scanner: 'Starta retur',
+  open_inventory: 'Starta inventering',
   complete_task: 'Markera klar',
-  open_details: 'Visa detaljer',
+  open_details: 'Öppna uppgift',
 };
+
+const COMPLETED_STATUSES = new Set(['completed', 'complete', 'done', 'finished']);
+const ACTIVE_STATUSES = new Set(['in_progress', 'active', 'started', 'packing', 'returning', 'counting']);
+
+export function isAssignmentCompleted(item: LagerAssignmentItem): boolean {
+  if (item.completed) return true;
+  return COMPLETED_STATUSES.has(String(item.status || '').toLowerCase());
+}
+
+export function isAssignmentActive(item: LagerAssignmentItem): boolean {
+  if (isAssignmentCompleted(item)) return false;
+  return ACTIVE_STATUSES.has(String(item.status || '').toLowerCase());
+}
+
+export function assignmentStatusLabel(item: LagerAssignmentItem): string {
+  if (isAssignmentCompleted(item)) return 'Klar';
+  if (isAssignmentActive(item)) return 'Pågår';
+  return 'Planerad';
+}
+
+/** Worker-facing CTA. Deliberately describes the job, not the technical tool. */
+export function workerActionLabel(item: LagerAssignmentItem): string {
+  if (isAssignmentCompleted(item)) return 'Visa uppgift';
+  const active = isAssignmentActive(item);
+  switch (resolveAssignmentType(item)) {
+    case 'packing':
+      return active ? 'Fortsätt packning' : 'Starta packning';
+    case 'return':
+      return active ? 'Fortsätt retur' : 'Starta retur';
+    case 'inventory':
+      return active ? 'Fortsätt inventering' : 'Starta inventering';
+    case 'internal_task':
+      return 'Markera klar';
+    default:
+      return 'Öppna uppgift';
+  }
+}
 
 export const ASSIGNMENT_TYPE_TONE: Record<AssignmentType | 'other', string> = {
   packing: 'bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/30',

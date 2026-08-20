@@ -1,30 +1,32 @@
 /**
- * MobileLagerPage — internal "Lager" hub for the Time-app.
+ * MobileLagerPage — worker-facing "Mitt lager" for the Time app.
  *
- * Shown when the user taps the Lager card on /m/jobs. Lists the day's
- * concrete warehouse_assignments (packing / return / inventory / internal
- * task) with type-badge, time, customer/booking/delivery info and a
- * primary CTA driven by the assignment's `action`.
+ * This surface is deliberately NOT a planning surface. Warehouse managers
+ * plan all work in /warehouse/calendar; the signed-in worker only sees the
+ * work assigned/planned for them here and gets one primary next action.
  */
+import { useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, MapPin, Package } from 'lucide-react';
-import { format } from 'date-fns';
+import { ArrowLeft, CheckCircle2, Clock3, Loader2, MapPin, Package } from 'lucide-react';
+import { format, isToday } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useLagerAssignments, type LagerAssignmentItem } from '@/hooks/useLagerAssignments';
 import {
-  ASSIGNMENT_ACTION_LABEL,
   ASSIGNMENT_TYPE_LABEL,
   ASSIGNMENT_TYPE_TONE,
+  assignmentStatusLabel,
   dayTimeWindow,
+  isAssignmentActive,
+  isAssignmentCompleted,
   resolveAction,
   resolveAssignmentType,
   resolveTitle,
   summarizeTypes,
+  workerActionLabel,
 } from '@/lib/warehouse/lagerLabels';
 import { mobileApi } from '@/services/mobileApiService';
 import { toast } from 'sonner';
-import { getWarehouseDisplayName } from '@/lib/warehouse/warehouseTeam';
 
 const formatHHMM = (iso: string | null | undefined) => {
   if (!iso) return '';
@@ -33,14 +35,37 @@ const formatHHMM = (iso: string | null | undefined) => {
   return d.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
 };
 
+const itemStart = (item: LagerAssignmentItem) => {
+  const ms = item.start_time ? new Date(item.start_time).getTime() : Number.MAX_SAFE_INTEGER;
+  return Number.isNaN(ms) ? Number.MAX_SAFE_INTEGER : ms;
+};
+
 const MobileLagerPage = () => {
   const navigate = useNavigate();
   const [search] = useSearchParams();
   const dateParam = search.get('date') ?? format(new Date(), 'yyyy-MM-dd');
+  const selectedDate = new Date(`${dateParam}T12:00:00`);
   const { assignments, loading, refresh } = useLagerAssignments({ date: dateParam });
 
   const window = dayTimeWindow(assignments);
   const summary = summarizeTypes(assignments);
+  const today = isToday(selectedDate);
+
+  const sections = useMemo(() => {
+    const sorted = [...assignments].sort((a, b) => itemStart(a) - itemStart(b));
+    const now = Date.now();
+    const isCurrentByTime = (item: LagerAssignmentItem) => {
+      if (!today || !item.start_time || isAssignmentCompleted(item)) return false;
+      const start = new Date(item.start_time).getTime();
+      const end = item.end_time ? new Date(item.end_time).getTime() : start + 60 * 60 * 1000;
+      return !Number.isNaN(start) && !Number.isNaN(end) && start <= now && now <= end;
+    };
+    const active = sorted.filter((item) => isAssignmentActive(item) || isCurrentByTime(item));
+    const activeIds = new Set(active.map((item) => item.id));
+    const completed = sorted.filter(isAssignmentCompleted);
+    const planned = sorted.filter((item) => !isAssignmentCompleted(item) && !activeIds.has(item.id));
+    return { active, planned, completed };
+  }, [assignments, today]);
 
   const buildScannerLink = (item: LagerAssignmentItem, mode: 'out' | 'in') => {
     const params = new URLSearchParams();
@@ -49,15 +74,6 @@ const MobileLagerPage = () => {
     else if (item.booking_id) params.set('bookingId', item.booking_id);
     params.set('mode', mode);
     return `/m/tools/scanner?${params.toString()}`;
-  };
-
-  const openPackingList = (item: LagerAssignmentItem) => {
-    const packingId = item.packing_id || item.packlist_id;
-    if (packingId) {
-      navigate(`/warehouse/packing/${packingId}`);
-      return true;
-    }
-    return false;
   };
 
   const handleAction = async (item: LagerAssignmentItem) => {
@@ -93,6 +109,95 @@ const MobileLagerPage = () => {
     }
   };
 
+  const renderAssignment = (item: LagerAssignmentItem) => {
+    const type = resolveAssignmentType(item);
+    const title = resolveTitle(item);
+    const tone = ASSIGNMENT_TYPE_TONE[type];
+    const subtitleParts: string[] = [];
+    if (item.booking_number) subtitleParts.push(item.booking_number);
+    if (item.customer_name && item.customer_name !== title) subtitleParts.push(item.customer_name);
+    const completed = isAssignmentCompleted(item);
+    const active = isAssignmentActive(item);
+
+    return (
+      <article
+        key={item.id}
+        className={cn(
+          'rounded-2xl border bg-card p-4 shadow-sm space-y-2.5',
+          active ? 'border-primary/40 ring-1 ring-primary/10' : 'border-border',
+          completed && 'opacity-75',
+        )}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border', tone)}>
+                {ASSIGNMENT_TYPE_LABEL[type]}
+              </span>
+              <span className={cn(
+                'text-[10px] font-bold uppercase tracking-wider',
+                completed ? 'text-emerald-600' : active ? 'text-primary' : 'text-muted-foreground',
+              )}>
+                {assignmentStatusLabel(item)}
+              </span>
+            </div>
+            <h2 className="font-bold text-foreground text-[15px] leading-snug">{title}</h2>
+            {subtitleParts.length > 0 && (
+              <p className="text-[12px] text-muted-foreground mt-0.5 truncate">
+                {subtitleParts.join(' · ')}
+              </p>
+            )}
+          </div>
+          {completed ? (
+            <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+          ) : active ? (
+            <Clock3 className="h-5 w-5 text-primary shrink-0" />
+          ) : null}
+        </div>
+
+        {(item.start_time || item.end_time) && (
+          <p className="text-[12px] text-muted-foreground tabular-nums">
+            {formatHHMM(item.start_time)}
+            {item.end_time && item.end_time !== item.start_time ? ` – ${formatHHMM(item.end_time)}` : ''}
+          </p>
+        )}
+
+        {item.delivery_address && (
+          <div className="flex items-start gap-1.5 text-[12px] text-muted-foreground">
+            <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            <span>{item.delivery_address}</span>
+          </div>
+        )}
+
+        {item.description && (
+          <p className="text-[12px] text-muted-foreground leading-snug">{item.description}</p>
+        )}
+
+        {!completed && (
+          <button
+            onClick={() => handleAction(item)}
+            className="w-full mt-1 rounded-xl bg-primary text-primary-foreground py-3 text-sm font-extrabold active:opacity-80 transition-opacity"
+          >
+            {workerActionLabel(item)}
+          </button>
+        )}
+      </article>
+    );
+  };
+
+  const renderSection = (title: string, items: LagerAssignmentItem[], hint?: string) => {
+    if (items.length === 0) return null;
+    return (
+      <section className="space-y-2.5">
+        <div className="flex items-baseline justify-between gap-2 px-0.5">
+          <h2 className="text-[12px] font-extrabold uppercase tracking-widest text-foreground">{title}</h2>
+          {hint && <span className="text-[11px] text-muted-foreground">{hint}</span>}
+        </div>
+        {items.map(renderAssignment)}
+      </section>
+    );
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-background pb-24">
       <div className="bg-primary text-primary-foreground px-4 pt-3 pb-4">
@@ -106,16 +211,19 @@ const MobileLagerPage = () => {
         </button>
         <div className="mt-2 flex items-center gap-2">
           <Package className="w-5 h-5" />
-          <h1 className="text-xl font-extrabold">{getWarehouseDisplayName()}</h1>
+          <h1 className="text-xl font-extrabold">Mitt lager</h1>
         </div>
         <p className="mt-1 text-[12px] text-primary-foreground/80">
-          {format(new Date(dateParam), 'EEEE d MMMM', { locale: sv })}
+          {format(selectedDate, 'EEEE d MMMM', { locale: sv })}
           {window.start && ` · ${window.start}${window.end ? `–${window.end}` : ''}`}
           {summary && ` · ${summary}`}
         </p>
+        <p className="mt-1 text-[11px] text-primary-foreground/70">
+          Här ser du det lagerarbete som är planerat för dig.
+        </p>
       </div>
 
-      <div className="px-4 py-4 space-y-3">
+      <div className="px-4 py-4 space-y-5">
         {loading ? (
           <div className="flex justify-center py-10">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -123,92 +231,15 @@ const MobileLagerPage = () => {
         ) : assignments.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border p-6 text-center">
             <Package className="w-6 h-6 mx-auto text-muted-foreground/60 mb-2" />
-            <p className="text-sm text-muted-foreground">Inga lageruppgifter denna dag.</p>
+            <p className="text-sm font-semibold text-foreground">Inget planerat lagerarbete</p>
+            <p className="text-xs text-muted-foreground mt-1">Du har inga lageruppgifter tilldelade denna dag.</p>
           </div>
         ) : (
-          assignments.map((item) => {
-            const type = resolveAssignmentType(item);
-            const action = resolveAction(item);
-            const title = resolveTitle(item);
-            const tone = ASSIGNMENT_TYPE_TONE[type];
-            const subtitleParts: string[] = [];
-            if (item.booking_number) subtitleParts.push(item.booking_number);
-            if (item.customer_name && item.customer_name !== title) subtitleParts.push(item.customer_name);
-
-            return (
-              <div
-                key={item.id}
-                className="rounded-2xl border border-border bg-card p-4 shadow-sm space-y-2"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border mb-1.5', tone)}>
-                      {ASSIGNMENT_TYPE_LABEL[type]}
-                    </div>
-                    <h2 className="font-bold text-foreground text-[15px] leading-snug">
-                      {title}
-                    </h2>
-                    {subtitleParts.length > 0 && (
-                      <p className="text-[12px] text-muted-foreground mt-0.5 truncate">
-                        {subtitleParts.join(' · ')}
-                      </p>
-                    )}
-                  </div>
-                  {item.status === 'completed' && (
-                    <span className="text-[10px] uppercase tracking-wider text-emerald-600 font-bold shrink-0">
-                      Klar
-                    </span>
-                  )}
-                </div>
-
-                {(item.start_time || item.end_time) && (
-                  <p className="text-[12px] text-muted-foreground tabular-nums">
-                    ⏱ {formatHHMM(item.start_time)}
-                    {item.end_time && item.end_time !== item.start_time
-                      ? ` – ${formatHHMM(item.end_time)}`
-                      : ''}
-                  </p>
-                )}
-
-                {item.delivery_address && (
-                  <div className="flex items-start gap-1.5 text-[12px] text-muted-foreground">
-                    <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                    <span>{item.delivery_address}</span>
-                  </div>
-                )}
-
-                {item.description && (
-                  <p className="text-[12px] text-muted-foreground leading-snug">
-                    {item.description}
-                  </p>
-                )}
-
-                {type === 'packing' && (item.packing_id || item.packlist_id) ? (
-                  <div className="grid grid-cols-1 gap-2 mt-1">
-                    <button
-                      onClick={() => openPackingList(item)}
-                      className="w-full rounded-xl bg-primary text-primary-foreground py-3 text-sm font-extrabold active:opacity-80 transition-opacity"
-                    >
-                      Öppna packlista
-                    </button>
-                    <button
-                      onClick={() => navigate(buildScannerLink(item, 'out'))}
-                      className="w-full rounded-xl border border-border bg-background py-2.5 text-sm font-semibold text-foreground active:opacity-70"
-                    >
-                      Starta scanner
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => handleAction(item)}
-                    className="w-full mt-1 rounded-xl bg-primary text-primary-foreground py-2.5 text-sm font-bold active:opacity-80 transition-opacity"
-                  >
-                    {ASSIGNMENT_ACTION_LABEL[action]}
-                  </button>
-                )}
-              </div>
-            );
-          })
+          <>
+            {renderSection('Nu', sections.active, 'Pågående')}
+            {renderSection(today ? 'Senare idag' : 'Planerat', sections.planned, `${sections.planned.length} uppgifter`)}
+            {renderSection('Klart', sections.completed, `${sections.completed.length} klara`)}
+          </>
         )}
       </div>
     </div>
