@@ -20,6 +20,23 @@ export function bookingStatusLabel(status?: string | null): string {
   return BOOKING_STATUS_LABELS[status.toUpperCase()] ?? status;
 }
 
+/** Statusar som betyder att bokningen ännu inte "fanns" i Planning. */
+const PRE_PLANNING_STATUSES = new Set([
+  'OFFER', 'OFFERT', 'QUOTE', 'DRAFT', 'PENDING', 'TENTATIVE', 'RESERVED',
+  'AWAITINGAPPROVAL', 'AWAITING_APPROVAL', 'AWAITING APPROVAL',
+  'CANCELLED', 'CANCELED', 'AVBOKAD',
+]);
+
+export function isActivationStatusChange(from?: string | null, to?: string | null): boolean {
+  const f = (from ?? '').toUpperCase().trim();
+  const t = (to ?? '').toUpperCase().trim();
+  if (PRE_PLANNING_STATUSES.has(f)) return true;
+  // Statusändring som landar i bekräftad är aldrig granskningsvärd.
+  if (t === 'CONFIRMED') return true;
+  return false;
+}
+
+
 /**
  * Läser de senaste statusändringarna (från booking_changes) för en uppsättning
  * bokningar, så att inkorgen kan visa "Bekräftad → Offert" i klartext istället
