@@ -101,29 +101,8 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
   );
 
 
-  // Hämta bokningsmeta (klient, nummer, datum) för uppdaterade bokningar
-  const updateBookingIds = unseenUpdates.map((u) => u.booking_id);
-  const { data: updatedBookingsMeta = [] } = useQuery({
-    queryKey: ['updated-bookings-meta', updateBookingIds.sort().join(',')],
-    queryFn: async () => {
-      if (updateBookingIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('id, client, status, booking_number, eventdate, deliveryaddress, assigned_project_id, large_project_id')
-        .in('id', updateBookingIds);
-      if (error) {
-        console.error('[updated-bookings-meta]', error);
-        return [];
-      }
-      return data || [];
-    },
-    enabled: updateBookingIds.length > 0,
-    staleTime: 30_000,
-  });
 
-  const { data: statusChanges = {} } = useBookingStatusChanges(updateBookingIds);
-  const refreshSingle = useRefreshSingleBooking();
-  const [refreshingId, setRefreshingId] = useState<string | null>(null);
+
 
 
   const invalidateAll = () => {
