@@ -35,9 +35,10 @@ describe('warehouse UI separation contract', () => {
   it('counts each next-7-day job on its exact anchor date only', () => {
     const next7 = read('src/components/warehouse-ops/WarehouseOverviewNext7Days.tsx');
 
-    expect(next7).toContain("j.anchorDate?.slice(0, 10) === dayKey");
+    expect(next7).toContain('job.anchorDate >= firstDay && job.anchorDate <= lastDay');
     expect(next7).not.toContain('isWithinInterval');
   });
+
 
   it('keeps personnel planning on the calendar route and incoming work on packing', () => {
     const dashboard = read('src/pages/WarehouseDashboard.tsx');
