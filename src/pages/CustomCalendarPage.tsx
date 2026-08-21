@@ -23,6 +23,8 @@ import MobileEventsList from '@/components/mobile/MobileEventsList';
 import MobileWarehouseWeekSelector from '@/components/mobile/MobileWarehouseWeekSelector';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
 import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
+import NewBookingsPopup from '@/components/calendar/NewBookingsPopup';
+
 
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
