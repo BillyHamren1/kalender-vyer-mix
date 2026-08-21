@@ -54,7 +54,7 @@ const MAX_EVENTS_PER_DAY_MONTH = 3;
 
 export default function PackingCalendarView({ packings }: Props) {
   const navigate = useNavigate();
-  const [viewMode, setViewMode] = useState<ViewMode>("month");
+  const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const days = useMemo(() => {
