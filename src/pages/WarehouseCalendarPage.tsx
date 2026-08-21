@@ -8,6 +8,8 @@ import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
 // OBS: lagerkalendern kräver inte längre "lageraktivering" — Lager-tagg + tillgänglighet räcker.
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { distributeWarehouseEvents } from '@/utils/warehouseTeamAvailability';
+import { toDisplayResources, type WarehousePlanningMode } from '@/lib/warehouse/warehouseCalendarDisplay';
+import WarehousePersonnelView from '@/components/warehouse/WarehousePersonnelView';
 
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -155,6 +157,8 @@ const WarehouseCalendarPage = () => {
   const isMobile = useIsMobile();
   
   const [viewMode, setViewMode] = useState<'day' | 'weekly' | 'monthly' | 'list'>('weekly');
+  // Två huvudlägen i lagerplaneringen: Kalender (default) och Personal.
+  const [planningMode, setPlanningMode] = useState<WarehousePlanningMode>('calendar');
   const { teamResources: warehouseTeamResources } = useWarehouseResources();
 
   // STORE SYNC: Bridge local state → central PlannerStore (legacy compatibility)
@@ -336,7 +340,12 @@ const WarehouseCalendarPage = () => {
 
   
   // Resources list — warehouse resource no longer needed since events are distributed across lager columns
-  const resourcesWithWarehouse = warehouseTeamResources;
+  // Legacy `lager-N`-id:n behålls internt (drag/drop, staff_assignments,
+  // warehouse_calendar_events). Numreringen visas aldrig för användaren.
+  const resourcesWithWarehouse = useMemo(
+    () => toDisplayResources(warehouseTeamResources),
+    [warehouseTeamResources],
+  );
 
   // When switching to monthly mode, sync the month with current week
   useEffect(() => {
@@ -511,14 +520,31 @@ const WarehouseCalendarPage = () => {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="text-sm font-semibold text-foreground">Lagerplanering</span>
             <span className="text-xs text-muted-foreground">Planera alla lagerjobb och bemanna dem här.</span>
-            <span className="ml-auto text-[11px] text-muted-foreground">Arbetarna ser sin planering i Mitt lager.</span>
+            <div className="ml-auto flex items-center gap-1 rounded-md border border-border/60 bg-background p-0.5">
+              {(['calendar', 'personnel'] as WarehousePlanningMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setPlanningMode(mode)}
+                  className={`h-7 px-3 rounded text-xs font-semibold transition-colors ${
+                    planningMode === mode
+                      ? 'bg-warehouse text-white'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {mode === 'calendar' ? 'Kalender' : 'Personal'}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
         {/* Content - flex-1 to fill remaining space */}
 
         <div className="flex-1 min-h-0 flex flex-col p-4 bg-card rounded-2xl mx-2 mb-2 shadow-sm">
-          {viewMode === 'day' ? (
+          {planningMode === 'personnel' ? (
+            <WarehousePersonnelView currentDate={currentWeekStart} />
+          ) : viewMode === 'day' ? (
             <>
               {isMobile ? (
                 <MobileCalendarView events={dayEvents} />
