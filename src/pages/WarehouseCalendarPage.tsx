@@ -1,32 +1,39 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { usePlannerSync } from '@/stores/plannerStore';
-import { useRealTimeCalendarEvents } from '@/hooks/useRealTimeCalendarEvents';
-import { useWarehouseCalendarEvents, WarehouseEvent } from '@/hooks/useWarehouseCalendarEvents';
-import { useTransportCalendarEvents } from '@/hooks/useTransportCalendarEvents';
-import { useWarehouseResources } from '@/hooks/useWarehouseResources';
-import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
-// OBS: lagerkalendern kräver inte längre "lageraktivering" — Lager-tagg + tillgänglighet räcker.
-import { CalendarEvent } from '@/components/Calendar/ResourceData';
-import { distributeWarehouseEvents } from '@/utils/warehouseTeamAvailability';
+import { useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  endOfMonth,
+  endOfWeek,
+  format,
+  parseISO,
+  startOfMonth,
+  startOfWeek,
+} from 'date-fns';
+import { CalendarDays, Loader2, Users } from 'lucide-react';
+import { toast } from 'sonner';
 
-import { useIsMobile } from '@/hooks/use-mobile';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import CustomCalendar from '@/components/Calendar/CustomCalendar';
-import SimpleStaffCurtain from '@/components/Calendar/SimpleStaffCurtain';
-import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
-import MobileCalendarView from '@/components/mobile/MobileCalendarView';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
-import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
 import WarehouseDayNavigationHeader from '@/components/Calendar/WarehouseDayNavigationHeader';
-import WarehouseEventFilter, { WarehouseEventTypeFilter, WAREHOUSE_EVENT_TYPE_FILTERS } from '@/components/Calendar/WarehouseEventFilter';
-import BookingProductsDialog from '@/components/Calendar/BookingProductsDialog';
-import { startOfWeek, startOfMonth, format, parseISO } from 'date-fns';
+import WarehouseEventFilter, {
+  WarehouseEventTypeFilter,
+  WAREHOUSE_EVENT_TYPE_FILTERS,
+} from '@/components/Calendar/WarehouseEventFilter';
+import type { CalendarEvent } from '@/components/Calendar/ResourceData';
+import WarehouseGeneralCalendar from '@/components/warehouse/WarehouseGeneralCalendar';
+import WarehousePersonnelCalendar from '@/components/warehouse/WarehousePersonnelCalendar';
+
+import { useWarehouseCalendarEvents, type WarehouseEvent } from '@/hooks/useWarehouseCalendarEvents';
+import { useTransportCalendarEvents } from '@/hooks/useTransportCalendarEvents';
+import { useUnifiedStaffOperations } from '@/hooks/useUnifiedStaffOperations';
+import { useWarehousePersonnelCalendar } from '@/hooks/useWarehousePersonnelCalendar';
 import {
   useWarehousePackingStats,
   useWarehouseBookingTitles,
 } from '@/hooks/useWarehouseCardMeta';
+import { assignStaffToExactWarehouseEvent } from '@/services/warehouseDirectAssignmentService';
 
-// Aktivitetsetiketter för lagerkortets översta rad.
 const WAREHOUSE_ACTIVITY_LABELS: Record<string, string> = {
   packing: 'Packning',
   return: 'Retur',
@@ -35,598 +42,331 @@ const WAREHOUSE_ACTIVITY_LABELS: Record<string, string> = {
   inventory: 'Inventering',
   internal_task: 'Lageruppgift',
 };
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 
-// Map warehouse event types to CalendarEvent eventType
 const mapWarehouseEventType = (warehouseType: string): CalendarEvent['eventType'] => {
   switch (warehouseType) {
-    case 'packing':
-      return 'packing';
-    case 'delivery':
-      return 'delivery';
-    case 'return':
-      return 'return';
-    case 'inventory':
-      return 'inventory';
-    case 'unpacking':
-      return 'unpacking';
-    case 'internal_task':
-      return 'internal_task';
-    default:
-      return 'event';
+    case 'packing': return 'packing';
+    case 'delivery': return 'delivery';
+    case 'return': return 'return';
+    case 'inventory': return 'inventory';
+    case 'unpacking': return 'unpacking';
+    case 'internal_task': return 'internal_task';
+    default: return 'internal_task';
   }
 };
 
-// Rigg/Event/Riv visas inte längre som egna lagerposter — de renderas som
-// kontextrad inuti lageraktivitetens kort ("Rigg: 21 aug · Event: 22 aug").
 const formatPhaseDate = (value: string | null | undefined): string | null => {
   if (!value) return null;
-  const d = parseISO(value);
-  if (isNaN(d.getTime())) return null;
-  return format(d, 'd MMM');
+  const date = parseISO(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return format(date, 'd MMM');
 };
 
-const buildPhaseContext = (we: WarehouseEvent): string | undefined => {
+const buildPhaseContext = (event: WarehouseEvent): string | undefined => {
   const parts = [
-    ['Rigg', formatPhaseDate(we.source_rig_date)],
-    ['Event', formatPhaseDate(we.source_event_date)],
-    ['Riv', formatPhaseDate(we.source_rigdown_date)],
+    ['Rigg', formatPhaseDate(event.source_rig_date)],
+    ['Event', formatPhaseDate(event.source_event_date)],
+    ['Riv', formatPhaseDate(event.source_rigdown_date)],
   ]
-    .filter(([, v]) => !!v)
-    .map(([label, v]) => `${label}: ${v}`);
+    .filter(([, value]) => !!value)
+    .map(([label, value]) => `${label}: ${value}`);
   return parts.length ? parts.join(' · ') : undefined;
 };
 
-// Map warehouse events to CalendarEvent format
-const mapWarehouseEventsToCalendarEvents = (warehouseEvents: WarehouseEvent[]): CalendarEvent[] => {
-  return warehouseEvents.map(we => ({
-    id: we.id,
-    title: we.title,
-    start: we.start_time,
-    end: we.end_time,
-    // Preserve explicit resource (e.g. internal_task) — others get redistributed.
-    resourceId: we.resource_id && we.resource_id.startsWith('lager-')
-      ? we.resource_id
-      : 'lager-1',
-    bookingId: we.booking_id,
-    bookingNumber: we.booking_number || undefined,
-    eventType: mapWarehouseEventType(we.event_type),
-    deliveryAddress: we.delivery_address || undefined,
-    viewed: we.viewed,
+const mapWarehouseEvents = (events: WarehouseEvent[]): CalendarEvent[] =>
+  events.map((event) => ({
+    id: event.id,
+    title: event.title,
+    start: event.start_time,
+    end: event.end_time,
+    // Behåll resource-id som compatibility-data. Den används inte längre för
+    // presentationen, men äldre writes/sync kan fortfarande förlita sig på den.
+    resourceId: event.resource_id || 'warehouse',
+    bookingId: event.booking_id,
+    bookingNumber: event.booking_number || undefined,
+    eventType: mapWarehouseEventType(event.event_type),
+    deliveryAddress: event.delivery_address || undefined,
+    viewed: event.viewed,
     extendedProps: {
-      bookingNumber: we.booking_number || undefined,
-      booking_id: we.booking_id,
-      deliveryCity: we.delivery_address?.split(',')[0] || undefined,
-      has_source_changes: we.has_source_changes,
-      manually_adjusted: we.manually_adjusted,
-      change_details: we.change_details || undefined,
-      phaseContext: buildPhaseContext(we),
-      sourceRigDate: we.source_rig_date || undefined,
-      sourceEventDate: we.source_event_date || undefined,
-      sourceRigDownDate: we.source_rigdown_date || undefined,
-    }
+      bookingNumber: event.booking_number || undefined,
+      booking_id: event.booking_id,
+      deliveryCity: event.delivery_address?.split(',')[0] || undefined,
+      has_source_changes: event.has_source_changes,
+      manually_adjusted: event.manually_adjusted,
+      change_details: event.change_details || undefined,
+      phaseContext: buildPhaseContext(event),
+      sourceRigDate: event.source_rig_date || undefined,
+      sourceEventDate: event.source_event_date || undefined,
+      sourceRigDownDate: event.source_rigdown_date || undefined,
+      legacyWarehouseResourceId: event.resource_id || undefined,
+    },
   }));
-};
 
-// Wrapper component to handle async loading of staff with status
-const SimpleStaffCurtainWrapper: React.FC<{
-  currentDate: Date;
-  onClose: () => void;
-  onAssignStaff: (staffId: string, teamId: string) => Promise<void>;
-  selectedTeamId: string | null;
-  selectedTeamName: string;
-  staffOps: ReturnType<typeof useUnifiedStaffOperations>;
-  position: { top: number; left: number };
-}> = (props) => {
-  const [staffList, setStaffList] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  
-  useEffect(() => {
-    const loadStaff = async () => {
-      if (!props.selectedTeamId) return;
-      setLoading(true);
-      const staff = await props.staffOps.getStaffForPlanningDate(props.currentDate, props.selectedTeamId);
-      setStaffList(staff);
-      setLoading(false);
-    };
-    loadStaff();
-  }, [props.currentDate, props.selectedTeamId, props.staffOps]);
-  
-  if (loading) {
-    return null;
-  }
-  
-  return (
-    <SimpleStaffCurtain
-      currentDate={props.currentDate}
-      onClose={props.onClose}
-      onAssignStaff={props.onAssignStaff}
-      selectedTeamId={props.selectedTeamId}
-      selectedTeamName={props.selectedTeamName}
-      staffList={staffList}
-      position={props.position}
-    />
-  );
-};
+type CalendarSurface = 'calendar' | 'personnel';
+type ViewMode = 'day' | 'weekly' | 'monthly' | 'list';
 
 const WarehouseCalendarPage = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const isMobile = useIsMobile();
-  
-  const [viewMode, setViewMode] = useState<'day' | 'weekly' | 'monthly' | 'list'>('weekly');
-  const { teamResources: warehouseTeamResources } = useWarehouseResources();
+  const initialDate = useMemo(() => {
+    const value = searchParams.get('date');
+    if (!value) return new Date();
+    const parsed = parseISO(value);
+    return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  }, []);
 
-  // STORE SYNC: Bridge local state → central PlannerStore (legacy compatibility)
-  const syncToStore = usePlannerSync();
-  
-  // Booking products dialog state
-  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
-  const [productDialogOpen, setProductDialogOpen] = useState(false);
-  
-  // Event type filter state - default all types visible
+  const [currentDate, setCurrentDate] = useState(() => startOfWeek(initialDate, { weekStartsOn: 1 }));
+  const [monthlyDate, setMonthlyDate] = useState(() => startOfMonth(initialDate));
+  const [viewMode, setViewMode] = useState<ViewMode>(() => searchParams.get('view') === 'day' ? 'day' : 'weekly');
+  const [surface, setSurface] = useState<CalendarSurface>('calendar');
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [assigningStaffId, setAssigningStaffId] = useState<string | null>(null);
   const [eventTypeFilters, setEventTypeFilters] = useState<WarehouseEventTypeFilter[]>(() => {
-    const stored = localStorage.getItem('warehouseEventTypeFilters');
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as string[];
-        // Rensa bort legacy planning-typer (rig/event/rigDown) ur sparade filter.
-        const sanitized = Array.isArray(parsed)
-          ? (parsed.filter(f => (WAREHOUSE_EVENT_TYPE_FILTERS as string[]).includes(f)) as WarehouseEventTypeFilter[])
-          : [];
-        if (sanitized.length > 0) return sanitized;
-      } catch {
-        // ignore corrupt storage
-      }
+    try {
+      const raw = localStorage.getItem('warehouseEventTypeFilters');
+      if (!raw) return [...WAREHOUSE_EVENT_TYPE_FILTERS];
+      const parsed = JSON.parse(raw) as string[];
+      const valid = parsed.filter((value) => (WAREHOUSE_EVENT_TYPE_FILTERS as string[]).includes(value)) as WarehouseEventTypeFilter[];
+      return valid.length ? valid : [...WAREHOUSE_EVENT_TYPE_FILTERS];
+    } catch {
+      return [...WAREHOUSE_EVENT_TYPE_FILTERS];
     }
-    return [...WAREHOUSE_EVENT_TYPE_FILTERS];
   });
 
-  // Save event type filters to localStorage
-  useEffect(() => {
-    localStorage.setItem('warehouseEventTypeFilters', JSON.stringify(eventTypeFilters));
-  }, [eventTypeFilters]);
-  
-  // Monthly view state (for desktop) - now used for the month tabs
-  const [monthlyDate, setMonthlyDate] = useState<Date>(startOfMonth(new Date()));
-  
-  // Real-time calendar events (standard booking events)
-  const {
-    events: calendarEvents,
-    setEvents,
-    isLoading,
-    isMounted,
-    currentDate: hookCurrentDate,
-    handleDatesSet,
-    refreshEvents
-  } = useRealTimeCalendarEvents();
-  
-  // Week navigation state
-  const [currentWeekStart, setCurrentWeekStart] = useState(() => {
-    return startOfWeek(new Date(hookCurrentDate), { weekStartsOn: 1 });
+  const warehouseView = viewMode === 'day' ? 'day' : viewMode === 'monthly' ? 'month' : 'week';
+  const { events: warehouseEvents, loading: warehouseLoading } = useWarehouseCalendarEvents({
+    currentDate,
+    view: warehouseView,
   });
+  const { transportEvents } = useTransportCalendarEvents(currentDate, warehouseView);
 
-  const [currentMonthStart, setCurrentMonthStart] = useState(() => {
-    return startOfMonth(new Date(hookCurrentDate));
-  });
-  
-  // STORE SYNC: Keep PlannerStore in sync with local state (legacy bridge)
-  useEffect(() => {
-    syncToStore({ selectedDate: currentWeekStart, viewMode });
-  }, [currentWeekStart, viewMode, syncToStore]);
+  const filteredWarehouseEvents = useMemo(() => {
+    return mapWarehouseEvents(warehouseEvents).filter((event) =>
+      eventTypeFilters.includes(event.eventType as WarehouseEventTypeFilter),
+    );
+  }, [warehouseEvents, eventTypeFilters]);
 
-  // Warehouse-specific events
-  const {
-    events: warehouseEvents,
-    loading: warehouseLoading,
-    changedEventsCount
-  } = useWarehouseCalendarEvents({ 
-    currentDate: currentWeekStart,
-    view: viewMode === 'day' ? 'day' : viewMode === 'monthly' ? 'month' : 'week'
-  });
-
-  // Transport events for the "Transporter" column
-  const { transportEvents } = useTransportCalendarEvents(
-    currentWeekStart,
-    viewMode === 'day' ? 'day' : viewMode === 'monthly' ? 'month' : 'week'
+  const bookingIds = useMemo(
+    () => filteredWarehouseEvents.map((event) => event.bookingId).filter(Boolean) as string[],
+    [filteredWarehouseEvents],
   );
+  const { data: packingStats } = useWarehousePackingStats(bookingIds);
+  const { data: bookingTitles } = useWarehouseBookingTitles(bookingIds);
 
-  // Sync initial view/date from URL (?date=YYYY-MM-DD&view=day)
-  useEffect(() => {
-    const dateStr = searchParams.get('date');
-    const viewParam = searchParams.get('view');
-
-    if (!dateStr) return;
-    const parsed = parseISO(dateStr);
-    if (isNaN(parsed.getTime())) return;
-
-    if (viewParam === 'day') {
-      setViewMode('day');
-      setCurrentWeekStart(parsed);
-      setMonthlyDate(startOfMonth(parsed));
-      return;
-    }
-
-    // For non-day deep links, keep behavior consistent with weekly grid
-    setCurrentWeekStart(startOfWeek(parsed, { weekStartsOn: 1 }));
-    setMonthlyDate(startOfMonth(parsed));
-  }, [searchParams]);
-
-  const setDayInUrl = (date: Date) => {
-    const dateStr = format(date, 'yyyy-MM-dd');
-    setSearchParams({ date: dateStr, view: 'day' });
-  };
-
-  const handleViewModeChange = (mode: 'day' | 'weekly' | 'monthly' | 'list') => {
-    setViewMode(mode);
-
-    // Only persist URL params for day deep links (used by dashboard calendar)
-    if (mode === 'day') {
-      setDayInUrl(currentWeekStart);
-      return;
-    }
-
-    // Clear the explicit day param when leaving day view
-    const dateStr = format(currentWeekStart, 'yyyy-MM-dd');
-    setSearchParams({ date: dateStr });
-  };
-
-  const handleDayChange = (nextDate: Date) => {
-    setCurrentWeekStart(nextDate);
-    setMonthlyDate(startOfMonth(nextDate));
-    setDayInUrl(nextDate);
-  };
-  
-  // Combine standard calendar events with warehouse events and apply filters
-  const mappedWarehouseEvents = mapWarehouseEventsToCalendarEvents(warehouseEvents);
-  
-  // Filter warehouse events based on selected event types
-  const filteredWarehouseEvents = mappedWarehouseEvents.filter(event => {
-    const eventType = event.eventType as WarehouseEventTypeFilter;
-    return eventTypeFilters.includes(eventType);
-  });
-  
-  // Planning-faser (rig/event/rigDown) renderas INTE längre som egna
-  // lagerkalenderposter. Deras datum finns kvar i datan och visas som
-  // kontextrad inuti lageraktivitetens kort (extendedProps.phaseContext).
-  const allUnassigned = [...filteredWarehouseEvents];
-  const distributedEvents: CalendarEvent[] = distributeWarehouseEvents(allUnassigned, warehouseTeamResources);
-
-  // ---- READ-ONLY kort-metadata (packstatus och projektrubrik) ----
-  const cardBookingIds = useMemo(
-    () => filteredWarehouseEvents.map(e => e.bookingId).filter(Boolean) as string[],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filteredWarehouseEvents.map(e => e.bookingId).join(',')],
-  );
-  const { data: packingStats } = useWarehousePackingStats(cardBookingIds);
-  const { data: bookingTitles } = useWarehouseBookingTitles(cardBookingIds);
-  const enrichedWarehouseEvents: CalendarEvent[] = distributedEvents.map(event => {
-    const stat = event.bookingId ? packingStats?.get(event.bookingId) : undefined;
-    const rubrik = event.bookingId ? bookingTitles?.get(event.bookingId) : undefined;
-    return {
-      ...event,
-      extendedProps: {
-        ...event.extendedProps,
-        warehouseActivityLabel: WAREHOUSE_ACTIVITY_LABELS[event.eventType as string] ?? undefined,
-        bookingTitle: rubrik ?? (event.extendedProps as any)?.bookingTitle,
-        timeLabel: `${format(new Date(event.start), 'HH:mm')}–${format(new Date(event.end), 'HH:mm')}`,
-        packedLabel: stat && stat.total > 0 ? `${stat.packed} / ${stat.total} klara` : undefined,
-      },
-    };
-  });
-
-  const combinedEvents: CalendarEvent[] = [...enrichedWarehouseEvents, ...transportEvents];
-
-  const dayEvents = useMemo(() => {
-    if (viewMode !== 'day') return combinedEvents;
-    const dayKey = format(currentWeekStart, 'yyyy-MM-dd');
-    return combinedEvents.filter((e) => {
-      const start = new Date(e.start);
-      return !isNaN(start.getTime()) && format(start, 'yyyy-MM-dd') === dayKey;
-    });
-  }, [combinedEvents, currentWeekStart, viewMode]);
-
-  // Define which events are read-only in the warehouse calendar
-  // Standard booking events (rig, event, rigDown) should NOT be editable from warehouse calendar
-  const isEventReadOnly = (event: CalendarEvent): boolean => {
-    const eventType = event.eventType;
-    // Rig, Event, and RigDown events from the main calendar are read-only in warehouse view
-    return eventType === 'rig' || eventType === 'event' || eventType === 'rigDown';
-  };
-
-  
-  // Resources list — warehouse resource no longer needed since events are distributed across lager columns
-  const resourcesWithWarehouse = warehouseTeamResources;
-
-  // When switching to monthly mode, sync the month with current week
-  useEffect(() => {
-    if (viewMode === 'monthly') {
-      setMonthlyDate(startOfMonth(currentWeekStart));
-    }
-  }, [viewMode]);
-
-  // Visible teams state - per day { [dateString]: teamIds[] }
-  // Use separate localStorage key for warehouse calendar
-  const [visibleTeamsByDay, setVisibleTeamsByDay] = useState<{ [key: string]: string[] }>(() => {
-    const stored = localStorage.getItem('warehouseVisibleTeamsByDay');
-    return stored ? JSON.parse(stored) : {};
-  });
-
-  // Save visible teams to localStorage whenever it changes
-  useEffect(() => {
-    localStorage.setItem('warehouseVisibleTeamsByDay', JSON.stringify(visibleTeamsByDay));
-  }, [visibleTeamsByDay]);
-
-  // Get visible teams for a specific day
-  const getVisibleTeamsForDay = (date: Date): string[] => {
-    const dateKey = format(date, 'yyyy-MM-dd');
-    const stored = visibleTeamsByDay[dateKey];
-    const base = stored ?? ['lager-1', 'lager-2', 'lager-3', 'warehouse-transport'];
-    // Auto-include any lager column that has events on this day
-    const extras = new Set<string>();
-    for (const ev of combinedEvents) {
-      const evDay = format(new Date(ev.start), 'yyyy-MM-dd');
-      if (evDay !== dateKey) continue;
-      if (ev.resourceId && ev.resourceId.startsWith('lager-') && !base.includes(ev.resourceId)) {
-        extras.add(ev.resourceId);
-      }
-    }
-    return [...base, ...Array.from(extras)];
-  };
-
-  // Toggle team visibility for a specific day
-  const handleToggleTeamForDay = (teamId: string, date: Date) => {
-    const dateKey = format(date, 'yyyy-MM-dd');
-    setVisibleTeamsByDay(prev => {
-      const currentVisible = prev[dateKey] || ['lager-1', 'lager-2', 'lager-3', 'warehouse-transport'];
-      
-      if (currentVisible.includes(teamId)) {
-        // Don't allow hiding Lager 1-3 or Transport column
-        if (['lager-1', 'lager-2', 'lager-3', 'warehouse-transport'].includes(teamId)) {
-          return prev;
-        }
-        return {
-          ...prev,
-          [dateKey]: currentVisible.filter(id => id !== teamId)
-        };
-      } else {
-        return {
-          ...prev,
-          [dateKey]: [...currentVisible, teamId]
-        };
-      }
-    });
-  };
-
-  // Bemanning i lagerkalendern: Lager-taggad + aktiv personal + tillgänglig den dagen.
-  // Ingen separat "lageraktivering" krävs längre (utgångna perioder tystade tidigare
-  // bort nästan all lagerpersonal). Unavailable/blocked filtreras bort av
-  // useUnifiedStaffOperations / staffAvailabilityService.
-  const staffOps = useUnifiedStaffOperations(currentWeekStart, 'weekly', 'Lager');
-
-
-  // Staff curtain state - simplified with position
-  const [staffCurtainOpen, setStaffCurtainOpen] = useState(false);
-  const [selectedTeam, setSelectedTeam] = useState<{
-    resourceId: string;
-    resourceTitle: string;
-    targetDate: Date;
-    position: { top: number; left: number };
-  } | null>(null);
-
-  // Handle opening staff curtain with position
-  const handleOpenStaffSelection = (resourceId: string, resourceTitle: string, targetDate: Date, buttonElement?: HTMLElement) => {
-    console.log('Opening staff curtain for:', { resourceId, resourceTitle, targetDate });
-    
-    // Calculate position relative to the button
-    let position = { top: 100, left: 300 }; // Default fallback position
-    
-    if (buttonElement) {
-      const rect = buttonElement.getBoundingClientRect();
-      position = {
-        top: rect.bottom + 5,
-        left: Math.max(10, rect.left - 120)
+  const enrichedEvents = useMemo<CalendarEvent[]>(() => {
+    const warehouse = filteredWarehouseEvents.map((event) => {
+      const stat = event.bookingId ? packingStats?.get(event.bookingId) : undefined;
+      const bookingTitle = event.bookingId ? bookingTitles?.get(event.bookingId) : undefined;
+      return {
+        ...event,
+        extendedProps: {
+          ...event.extendedProps,
+          warehouseActivityLabel: WAREHOUSE_ACTIVITY_LABELS[event.eventType as string],
+          bookingTitle: bookingTitle ?? event.extendedProps?.bookingTitle,
+          timeLabel: `${format(new Date(event.start), 'HH:mm')}–${format(new Date(event.end), 'HH:mm')}`,
+          packedLabel: stat && stat.total > 0 ? `${stat.packed} / ${stat.total} klara` : undefined,
+        },
       };
-      
-      // Adjust if it would go off-screen
-      if (position.left + 250 > window.innerWidth) {
-        position.left = window.innerWidth - 260;
-      }
+    });
+    return [...warehouse, ...transportEvents];
+  }, [filteredWarehouseEvents, packingStats, bookingTitles, transportEvents]);
+
+  const range = useMemo(() => {
+    if (viewMode === 'day') {
+      const day = format(currentDate, 'yyyy-MM-dd');
+      return { from: day, to: day };
     }
-    
-    setSelectedTeam({ resourceId, resourceTitle, targetDate, position });
-    setStaffCurtainOpen(true);
-  };
-
-  // Handle staff assignment from curtain
-  const handleStaffAssigned = async (staffId: string, teamId: string) => {
-    if (selectedTeam) {
-      console.log('Assigning staff from curtain:', { staffId, teamId, team: selectedTeam });
-      await staffOps.handleStaffDrop(staffId, teamId, selectedTeam.targetDate);
+    if (viewMode === 'monthly') {
+      return {
+        from: format(startOfMonth(monthlyDate), 'yyyy-MM-dd'),
+        to: format(endOfMonth(monthlyDate), 'yyyy-MM-dd'),
+      };
     }
+    const start = startOfWeek(currentDate, { weekStartsOn: 1 });
+    const end = endOfWeek(currentDate, { weekStartsOn: 1 });
+    return { from: format(start, 'yyyy-MM-dd'), to: format(end, 'yyyy-MM-dd') };
+  }, [currentDate, monthlyDate, viewMode]);
+
+  const personnel = useWarehousePersonnelCalendar(range);
+  const staffOps = useUnifiedStaffOperations(currentDate, 'weekly', 'Lager');
+
+  const setDateInUrl = (date: Date, mode: ViewMode) => {
+    setSearchParams({ date: format(date, 'yyyy-MM-dd'), ...(mode === 'day' ? { view: 'day' } : {}) });
   };
 
-  // Close curtain
-  const handleCloseCurtain = () => {
-    setStaffCurtainOpen(false);
-    setSelectedTeam(null);
+  const handleViewModeChange = (mode: ViewMode) => {
+    setViewMode(mode);
+    setDateInUrl(currentDate, mode);
   };
 
-  // Handle week selection from tabs (monthly view)
-  const handleWeekSelect = (weekStart: Date) => {
-    setCurrentWeekStart(weekStart);
+  const handleDayChange = (date: Date) => {
+    setCurrentDate(date);
+    setMonthlyDate(startOfMonth(date));
+    setDateInUrl(date, 'day');
   };
 
-  // Handle month change in navigation (monthly view)
   const handleMonthChange = (date: Date) => {
     setMonthlyDate(startOfMonth(date));
-    setCurrentWeekStart(startOfWeek(startOfMonth(date), { weekStartsOn: 1 }));
+    setCurrentDate(startOfWeek(startOfMonth(date), { weekStartsOn: 1 }));
   };
 
-  // Single click disabled in warehouse calendar — use double-click / dedicated actions instead.
-  const handleEventClick = (_event: CalendarEvent) => {};
+  const handleOpenEvent = (event: CalendarEvent) => {
+    if (event.bookingId) {
+      navigate(`/warehouse/bookings/${event.bookingId}`);
+      return;
+    }
+    if (event.extendedProps?.packingId) {
+      navigate(`/warehouse/packing/${event.extendedProps.packingId}`);
+    }
+  };
 
-  // Handle create packing from dialog
-  const handleCreatePacking = (bookingId: string, bookingClient: string) => {
-    // Navigate to packing management with pre-filled data
-    navigate(`/warehouse/packing?createFrom=${bookingId}`);
+  const handleOpenAssignment = (assignment: (typeof personnel.assignments)[number]) => {
+    if (assignment.packingId) {
+      navigate(`/warehouse/packing/${assignment.packingId}`);
+      return;
+    }
+    if (assignment.bookingId) navigate(`/warehouse/bookings/${assignment.bookingId}`);
+  };
+
+  const handleAssignStaff = async (staffId: string) => {
+    if (!selectedEvent || selectedEvent.eventType === 'transport') return;
+    setAssigningStaffId(staffId);
+    try {
+      await assignStaffToExactWarehouseEvent({ staffId, warehouseEventId: selectedEvent.id });
+      toast.success('Personal tilldelad');
+      await personnel.refetch();
+      staffOps.forceRefresh();
+      setSelectedEvent(null);
+    } catch (error) {
+      console.error(error);
+      toast.error('Kunde inte tilldela personal');
+    } finally {
+      setAssigningStaffId(null);
+    }
+  };
+
+  const persistFilters = (filters: WarehouseEventTypeFilter[]) => {
+    setEventTypeFilters(filters);
+    localStorage.setItem('warehouseEventTypeFilters', JSON.stringify(filters));
   };
 
   return (
     <TooltipProvider>
-      <div className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--gradient-page)' }}>
-        {/* Navigation with view toggle + filter */}
-        <div className="flex items-center">
-          <div className="flex-1">
-            {viewMode === 'day' ? (
-              <WarehouseDayNavigationHeader
-                date={currentWeekStart}
-                onDateChange={handleDayChange}
-                viewMode={viewMode}
-                onViewModeChange={handleViewModeChange}
-              />
-            ) : (
-              <WeekNavigation
-                currentWeekStart={currentWeekStart}
-                setCurrentWeekStart={setCurrentWeekStart}
-                viewMode={viewMode as 'weekly' | 'monthly' | 'list'}
-                onViewModeChange={handleViewModeChange}
-                currentMonth={monthlyDate}
-                onMonthChange={handleMonthChange}
-                variant="warehouse"
-              />
+      <div className="flex h-screen flex-col overflow-hidden" style={{ background: 'var(--gradient-page)' }}>
+        <div className="shrink-0 border-b border-border/50 bg-background/90">
+          <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+            <div className="inline-flex rounded-lg border border-border/60 bg-muted/30 p-0.5">
+              <Button
+                type="button"
+                size="sm"
+                variant={surface === 'calendar' ? 'secondary' : 'ghost'}
+                className="h-8 gap-1.5 rounded-md px-3"
+                onClick={() => setSurface('calendar')}
+              >
+                <CalendarDays className="h-4 w-4" />
+                Kalender
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={surface === 'personnel' ? 'secondary' : 'ghost'}
+                className="h-8 gap-1.5 rounded-md px-3"
+                onClick={() => setSurface('personnel')}
+              >
+                <Users className="h-4 w-4" />
+                Personal
+              </Button>
+            </div>
+
+            <div className="min-w-0 flex-1">
+              {viewMode === 'day' ? (
+                <WarehouseDayNavigationHeader
+                  date={currentDate}
+                  onDateChange={handleDayChange}
+                  viewMode={viewMode}
+                  onViewModeChange={handleViewModeChange}
+                />
+              ) : (
+                <WeekNavigation
+                  currentWeekStart={currentDate}
+                  setCurrentWeekStart={setCurrentDate}
+                  viewMode={viewMode as 'weekly' | 'monthly' | 'list'}
+                  onViewModeChange={handleViewModeChange}
+                  currentMonth={monthlyDate}
+                  onMonthChange={handleMonthChange}
+                  variant="warehouse"
+                />
+              )}
+            </div>
+
+            {surface === 'calendar' && (
+              <WarehouseEventFilter activeFilters={eventTypeFilters} onFilterChange={persistFilters} />
             )}
           </div>
-          <div className="pr-4 shrink-0">
-            <WarehouseEventFilter
-              activeFilters={eventTypeFilters}
-              onFilterChange={setEventTypeFilters}
-            />
-          </div>
         </div>
 
-        {/* Manager surface: planning all warehouse jobs and staffing.
-            Keep this separate from /m/lager, which is worker/read-and-execute only. */}
-        <div className="mx-2 mb-2 px-3 py-2 rounded-xl border border-border/60 bg-card/80 shrink-0">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="text-sm font-semibold text-foreground">Lagerplanering</span>
-            <span className="text-xs text-muted-foreground">Planera alla lagerjobb och bemanna dem här.</span>
-            <span className="ml-auto text-[11px] text-muted-foreground">Arbetarna ser sin planering i Mitt lager.</span>
-          </div>
-        </div>
-
-        {/* Content - flex-1 to fill remaining space */}
-
-        <div className="flex-1 min-h-0 flex flex-col p-4 bg-card rounded-2xl mx-2 mb-2 shadow-sm">
-          {viewMode === 'day' ? (
-            <>
-              {isMobile ? (
-                <MobileCalendarView events={dayEvents} />
+        <main className="min-h-0 flex-1 overflow-auto p-3 sm:p-4">
+          <div className="mx-auto max-w-[1700px]">
+            {surface === 'calendar' ? (
+              warehouseLoading ? (
+                <div className="flex items-center justify-center py-20 text-sm text-muted-foreground">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Laddar lagerkalender…
+                </div>
               ) : (
-                <CustomCalendar
-                  events={dayEvents}
-                  setEvents={setEvents}
-                  resources={resourcesWithWarehouse}
-                  isLoading={isLoading || warehouseLoading}
-                  isMounted={isMounted}
-                  currentDate={currentWeekStart}
-                  onDateSet={handleDatesSet}
-                  refreshEvents={refreshEvents}
-                  onStaffDrop={staffOps.handleStaffDrop}
-                  onOpenStaffSelection={handleOpenStaffSelection}
-                  viewMode="day"
-                  weeklyStaffOperations={staffOps}
-                  getVisibleTeamsForDay={getVisibleTeamsForDay}
-                  onToggleTeamForDay={handleToggleTeamForDay}
-                  allTeams={resourcesWithWarehouse}
-                  variant="warehouse"
+                <WarehouseGeneralCalendar
+                  events={enrichedEvents}
+                  currentDate={viewMode === 'monthly' ? monthlyDate : currentDate}
+                  viewMode={viewMode}
+                  onOpenEvent={handleOpenEvent}
+                  onAssignStaff={setSelectedEvent}
                 />
-              )}
-            </>
-          ) : viewMode === 'weekly' ? (
-            <>
-              {isMobile ? (
-                <MobileCalendarView events={combinedEvents} />
+              )
+            ) : (
+              personnel.isLoading ? (
+                <div className="flex items-center justify-center py-20 text-sm text-muted-foreground">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Laddar personalvy…
+                </div>
               ) : (
-                <CustomCalendar
-                  events={combinedEvents}
-                  setEvents={setEvents}
-                  resources={resourcesWithWarehouse}
-                  isLoading={isLoading || warehouseLoading}
-                  isMounted={isMounted}
-                  currentDate={currentWeekStart}
-                  onDateSet={handleDatesSet}
-                  refreshEvents={refreshEvents}
-                  onStaffDrop={staffOps.handleStaffDrop}
-                  onOpenStaffSelection={handleOpenStaffSelection}
-                  viewMode="weekly"
-                  weeklyStaffOperations={staffOps}
-                  getVisibleTeamsForDay={getVisibleTeamsForDay}
-                  onToggleTeamForDay={handleToggleTeamForDay}
-                  allTeams={resourcesWithWarehouse}
-                  variant="warehouse"
+                <WarehousePersonnelCalendar
+                  assignments={personnel.assignments}
+                  productivity={personnel.productivity}
+                  currentDate={viewMode === 'monthly' ? monthlyDate : currentDate}
+                  viewMode={viewMode}
+                  onOpenAssignment={handleOpenAssignment}
                 />
+              )
+            )}
+          </div>
+        </main>
+
+        <Dialog open={!!selectedEvent} onOpenChange={(open) => !open && setSelectedEvent(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Tilldela personal</DialogTitle>
+              <DialogDescription>
+                {selectedEvent ? `${selectedEvent.title} · ${format(new Date(selectedEvent.start), 'd MMM HH:mm')}` : ''}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="max-h-[420px] divide-y divide-border/50 overflow-auto rounded-lg border border-border/60">
+              {staffOps.availableStaff.map((staff) => (
+                <div key={staff.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                  <span className="text-sm font-medium text-foreground">{staff.name}</span>
+                  <Button
+                    size="sm"
+                    className="h-7"
+                    disabled={assigningStaffId === staff.id}
+                    onClick={() => handleAssignStaff(staff.id)}
+                  >
+                    {assigningStaffId === staff.id ? 'Tilldelar…' : 'Tilldela'}
+                  </Button>
+                </div>
+              ))}
+              {staffOps.availableStaff.length === 0 && (
+                <div className="px-3 py-6 text-center text-sm text-muted-foreground">Ingen Lager-taggad personal hittades.</div>
               )}
-            </>
-          ) : viewMode === 'monthly' ? (
-            <>
-              <CustomCalendar
-                events={combinedEvents}
-                setEvents={setEvents}
-                resources={resourcesWithWarehouse}
-                isLoading={isLoading || warehouseLoading}
-                isMounted={isMounted}
-                currentDate={currentWeekStart}
-                onDateSet={handleDatesSet}
-                refreshEvents={refreshEvents}
-                onStaffDrop={staffOps.handleStaffDrop}
-                onOpenStaffSelection={handleOpenStaffSelection}
-                viewMode="monthly"
-                weeklyStaffOperations={staffOps}
-                getVisibleTeamsForDay={getVisibleTeamsForDay}
-                onToggleTeamForDay={handleToggleTeamForDay}
-                allTeams={resourcesWithWarehouse}
-                variant="warehouse"
-              />
-              {/* Week tabs for quick navigation within the month */}
-              <WeekTabsNavigation
-                currentMonth={monthlyDate}
-                currentWeekStart={currentWeekStart}
-                onWeekSelect={handleWeekSelect}
-                variant="warehouse"
-              />
-            </>
-          ) : (
-            // List View
-            <StaffBookingsList
-              events={combinedEvents}
-              resources={resourcesWithWarehouse}
-              currentDate={currentWeekStart}
-              weeklyStaffOperations={staffOps}
-            />
-          )}
-        </div>
-
-        {/* Compact Staff Curtain - positioned relative to the + button */}
-        {staffCurtainOpen && selectedTeam && (
-          <SimpleStaffCurtainWrapper
-            currentDate={selectedTeam.targetDate}
-            onClose={handleCloseCurtain}
-            onAssignStaff={handleStaffAssigned}
-            selectedTeamId={selectedTeam.resourceId}
-            selectedTeamName={selectedTeam.resourceTitle}
-            staffOps={staffOps}
-            position={selectedTeam.position}
-          />
-        )}
-
-        {/* Booking Products Dialog */}
-        <BookingProductsDialog
-          open={productDialogOpen}
-          onOpenChange={setProductDialogOpen}
-          bookingId={selectedBookingId}
-          onCreatePacking={handleCreatePacking}
-        />
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </TooltipProvider>
   );
