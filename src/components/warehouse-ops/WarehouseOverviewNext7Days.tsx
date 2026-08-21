@@ -7,12 +7,13 @@ import {
   PackageCheck,
   Truck,
   Undo2,
-  UserRound,
 } from 'lucide-react';
 import { addDays, format, isSameDay, startOfDay } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import type { OpsAssignedStaff, OpsJob, OpsRangeData } from '@/hooks/useWarehouseOpsRange';
+import QuickAssignStaffPopover from '@/components/warehouse-ops/QuickAssignStaffPopover';
+
 
 interface Props {
   data: OpsRangeData;
@@ -214,11 +215,18 @@ const WarehouseOverviewNext7Days: React.FC<Props> = ({ data }) => {
                       : row.job.client;
 
                     return (
-                      <button
+                      <div
                         key={row.key}
-                        type="button"
+                        role="button"
+                        tabIndex={0}
                         onClick={() => navigate(`/warehouse/packing/${row.job.id}`)}
-                        className="w-full px-4 py-3 text-left hover:bg-accent/35 transition-colors grid gap-3 md:grid-cols-[110px_minmax(220px,1.5fr)_minmax(180px,1fr)_155px_28px] md:items-center"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            navigate(`/warehouse/packing/${row.job.id}`);
+                          }
+                        }}
+                        className="w-full px-4 py-3 text-left hover:bg-accent/35 transition-colors grid gap-3 md:grid-cols-[110px_minmax(220px,1.5fr)_minmax(180px,1fr)_155px_28px] md:items-center cursor-pointer"
                       >
                         <div>
                           <div className="flex items-center gap-1.5 text-sm font-semibold text-[hsl(var(--heading))]">
@@ -240,10 +248,13 @@ const WarehouseOverviewNext7Days: React.FC<Props> = ({ data }) => {
                         </div>
 
                         <div className="min-w-0">
-                          <div className={cn('flex items-center gap-1.5 text-sm', staff.muted ? 'text-amber-700' : 'text-[hsl(var(--heading))]')}>
-                            <UserRound className="h-3.5 w-3.5 shrink-0" />
-                            <span className="truncate">{staff.text}</span>
-                          </div>
+                          <QuickAssignStaffPopover
+                            packingId={row.job.id}
+                            packingName={row.job.bookingNumber || row.job.name}
+                            assignedNames={row.assignedStaff.map((a) => a.name).filter(Boolean)}
+                            label={staff.text}
+                            muted={staff.muted}
+                          />
                         </div>
 
                         <div className="flex md:justify-end items-center gap-2">
@@ -259,8 +270,9 @@ const WarehouseOverviewNext7Days: React.FC<Props> = ({ data }) => {
                         </div>
 
                         <ChevronRight className="h-4 w-4 text-muted-foreground justify-self-end hidden md:block" />
-                      </button>
+                      </div>
                     );
+
                   })}
                 </div>
               )}
