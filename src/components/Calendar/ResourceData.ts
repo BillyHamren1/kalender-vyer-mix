@@ -70,6 +70,11 @@ export const getEventColor = (eventType: string | undefined, customerPickup?: bo
     case 'activity':
     case 'transport':
       return '#BFDBFE'; // Light blue (matches delivery)
+    // --- First-class transport planning ---
+    case 'transport_out':
+      return '#BFDBFE'; // Light blue (UT / utleverans)
+    case 'transport_in':
+      return '#FED7AA'; // Orange-200 (IN / retur/hämtning)
     case 'todo':
       return '#FED7AA'; // Orange-200 (to-do tasks)
     default:
