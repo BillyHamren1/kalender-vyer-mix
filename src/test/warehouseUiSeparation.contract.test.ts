@@ -36,6 +36,15 @@ describe('warehouse OPS contract', () => {
     expect(actionCenter).toContain("if (p.status !== 'planning') return false;");
   });
 
+  it('hides empty active work instead of rendering informational filler', () => {
+    const activeWork = read('src/components/packing/PackingActiveWork.tsx');
+
+    expect(activeWork).toContain('if (active.length === 0) return null;');
+    expect(activeWork).toContain('Fortsätt');
+    expect(activeWork).not.toContain('Inget pågående packningsarbete just nu');
+    expect(activeWork).not.toContain('{active.length}</span>');
+  });
+
   it('consolidates dashboard and packing planning into Lager OPS', () => {
     const dashboard = read('src/pages/WarehouseDashboard.tsx');
     const legacyPacking = read('src/pages/PackingManagement.tsx');
