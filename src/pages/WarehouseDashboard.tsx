@@ -1,28 +1,23 @@
-import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
-import { ChevronDown, Package, Plus, RefreshCw, Search } from "lucide-react";
+import { Calendar, Package, Plus, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import PackingActionCenter from "@/components/packing/PackingActionCenter";
 import PackingActiveWork from "@/components/packing/PackingActiveWork";
 import PackingCalendarView from "@/components/packing/PackingCalendarView";
-import PackingCard from "@/components/packing/PackingCard";
 import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
 import CreateInternalTaskDialog from "@/components/warehouse/CreateInternalTaskDialog";
-import WarehouseBookingQuickOpen from "@/components/warehouse/WarehouseBookingQuickOpen";
-import { fetchPackings, deletePacking } from "@/services/packingService";
-import { PackingStatus, PACKING_STATUS_LABELS } from "@/types/packing";
+import WarehouseOpsSearch from "@/components/warehouse/WarehouseOpsSearch";
+import { fetchPackings } from "@/services/packingService";
 import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
 
 /**
  * Lager OPS = den operativa startsidan.
- * Här ska användaren kunna se exakt vad som kräver åtgärd och arbeta vidare direkt.
+ * Synligt innehåll ska vara arbete, avvikelse eller en direkt väg till arbete.
  * Ingen KPI-dashboard och inga informationskort utan nästa action.
  * Full personal-/resursplanering ligger fortsatt i /warehouse/calendar.
  */
@@ -31,9 +26,6 @@ const WarehouseDashboard = () => {
   const queryClient = useQueryClient();
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [showCreatePacking, setShowCreatePacking] = useState(false);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<PackingStatus | "all">("all");
-  const [showAllPackings, setShowAllPackings] = useState(false);
 
   useRealtimeInvalidation({
     channelName: "warehouse-ops",
@@ -50,38 +42,6 @@ const WarehouseDashboard = () => {
     queryKey: ["packings"],
     queryFn: fetchPackings,
   });
-
-  const deleteMutation = useMutation({
-    mutationFn: deletePacking,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["packings"] });
-      toast.success("Packning borttagen");
-    },
-    onError: () => toast.error("Kunde inte ta bort packning"),
-  });
-
-  const normalizedSearch = search.trim().toLowerCase();
-  const searching = normalizedSearch.length > 0 || statusFilter !== "all";
-
-  const filteredPackings = useMemo(
-    () =>
-      packings.filter((packing) => {
-        const matchesSearch =
-          !normalizedSearch ||
-          [
-            packing.name,
-            packing.booking?.client,
-            packing.booking?.booking_number,
-            packing.booking?.deliveryaddress,
-            packing.booking?.delivery_city,
-          ].some((value) => value?.toLowerCase().includes(normalizedSearch));
-        const matchesStatus = statusFilter === "all" || packing.status === statusFilter;
-        return matchesSearch && matchesStatus;
-      }),
-    [packings, normalizedSearch, statusFilter],
-  );
-
-  const showPackingList = searching || showAllPackings;
 
   return (
     <div className="h-full overflow-y-auto overflow-x-hidden" style={{ background: "var(--gradient-page)" }}>
@@ -121,7 +81,7 @@ const WarehouseDashboard = () => {
           </Button>
         </PageHeader>
 
-        <WarehouseBookingQuickOpen compact />
+        <WarehouseOpsSearch packings={packings} />
 
         {isLoading ? (
           <div className="space-y-3 py-2">
@@ -138,78 +98,21 @@ const WarehouseDashboard = () => {
 
             <section className="pt-1">
               <div className="mb-2 flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-sm font-semibold text-[hsl(var(--heading))]">Packningsflöde</h2>
-                  <p className="text-xs text-muted-foreground">UT och IN över tid. Klicka på ett jobb för att öppna packningen.</p>
-                </div>
-                <Button variant="outline" size="sm" className="h-8" onClick={() => navigate("/warehouse/calendar")}>
-                  Öppna lagerplanering
+                <h2 className="text-sm font-semibold text-[hsl(var(--heading))]">Planera packning och retur</h2>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                  onClick={() => navigate("/warehouse/calendar")}
+                >
+                  <Calendar className="mr-1.5 h-4 w-4" />
+                  Bemanna i lagerplanering
                 </Button>
               </div>
               <PackingCalendarView packings={packings} />
             </section>
           </>
         )}
-
-        <section className="border-t border-border/50 pt-5">
-          <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h2 className="text-sm font-semibold text-[hsl(var(--heading))]">Hitta packlista</h2>
-              <p className="text-xs text-muted-foreground">Sök när du behöver öppna en specifik packlista.</p>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <div className="relative min-w-[280px] flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Bokningsnummer, kund, projekt eller adress…"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  className="h-9 rounded-lg pl-9"
-                />
-              </div>
-              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as PackingStatus | "all")}>
-                <SelectTrigger className="h-9 w-[170px] rounded-lg">
-                  <SelectValue placeholder="Alla statusar" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Alla statusar</SelectItem>
-                  {Object.entries(PACKING_STATUS_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {!showPackingList && (
-            <Button variant="ghost" className="h-8 px-2 text-xs" onClick={() => setShowAllPackings(true)}>
-              <ChevronDown className="mr-1.5 h-4 w-4" />
-              Visa alla packlistor
-            </Button>
-          )}
-
-          {showPackingList && (
-            <div className="mt-3">
-              {filteredPackings.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border/60 px-4 py-8 text-center text-sm text-muted-foreground">
-                  Ingen packlista matchar sökningen.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {filteredPackings.map((packing) => (
-                    <PackingCard
-                      key={packing.id}
-                      packing={packing}
-                      onClick={() => navigate(`/warehouse/packing/${packing.id}`)}
-                      onDelete={() => deleteMutation.mutate(packing.id)}
-                      onOpenBooking={packing.booking?.id ? () => navigate(`/warehouse/bookings/${packing.booking!.id}`) : undefined}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </section>
       </div>
 
       <CreatePackingWizard
