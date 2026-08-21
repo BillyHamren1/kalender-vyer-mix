@@ -400,11 +400,18 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
           const vehicle = ep.vehicleName || 'Fordon ej bestämt';
           const time = ep.timeLabel || '';
           const route = [ep.originAddress, ep.destinationAddress].filter(Boolean).join(' → ');
+          const isOut = event.eventType === 'transport_out';
           return (
             <div className="mt-1 flex flex-col gap-0.5" style={{ fontSize: '9.5px', color: '#1E3A8A' }}>
               <div className="flex flex-wrap items-center gap-1 font-semibold">
                 {time && <span className="tabular-nums">{time}</span>}
                 <span>· {type}</span>
+                <span
+                  className="rounded px-1 py-px font-bold uppercase"
+                  style={{ backgroundColor: isOut ? 'rgba(59,130,246,.18)' : 'rgba(245,158,11,.18)' }}
+                >
+                  {isOut ? 'UT' : 'IN'}
+                </span>
                 <span
                   className="rounded px-1 py-px"
                   style={{ backgroundColor: ep.planningStatus === 'confirmed' ? 'rgba(16,185,129,.16)' : 'rgba(245,158,11,.18)' }}
