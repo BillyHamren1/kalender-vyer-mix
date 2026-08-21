@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
 
   // Tenant authorization: caller must belong to the same organization.
   if (!isServiceCall) {
-    const { data: profile } = await admin.from('profiles').select('organization_id').eq('id', userId!).maybeSingle();
+    const { data: profile } = await admin.from('profiles').select('organization_id').eq('user_id', userId!).maybeSingle();
     if (!profile || profile.organization_id !== booking.organization_id) return json({ error: 'Forbidden' }, 403);
   }
 
