@@ -23,6 +23,8 @@ import MobileEventsList from '@/components/mobile/MobileEventsList';
 import MobileWarehouseWeekSelector from '@/components/mobile/MobileWarehouseWeekSelector';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
 import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
+import NewBookingsPopup from '@/components/calendar/NewBookingsPopup';
+
 
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -451,6 +453,8 @@ const CustomCalendarPage = () => {
   return (
     <TooltipProvider>
         <div className="h-screen flex flex-col bg-background overflow-hidden theme-purple">
+          {!isMobile && <NewBookingsPopup />}
+
           
 
           {/* Task overlay toggle + Navigation */}

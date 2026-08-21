@@ -184,13 +184,20 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
 
 
   return (
-    <div className="rounded-xl border border-border/60 bg-card overflow-hidden shadow-sm">
+    <div
+      className={
+        totalNew > 0
+          ? 'rounded-xl border-2 border-emerald-500/60 bg-emerald-500/[0.04] overflow-hidden shadow-md ring-1 ring-emerald-500/20'
+          : 'rounded-xl border border-border/60 bg-card overflow-hidden shadow-sm'
+      }
+    >
       {/* Panel-header */}
-      <div className="flex items-center justify-between px-4 h-10 border-b border-border/60">
+      <div className={`flex items-center justify-between px-4 h-10 border-b ${totalNew > 0 ? 'border-emerald-500/30 bg-emerald-500/[0.06]' : 'border-border/60'}`}>
         <div className="flex items-center gap-2">
-          <Inbox className="h-4 w-4 text-muted-foreground" />
-          <h3 className="font-medium text-sm text-foreground">{headerLabel}</h3>
+          <Inbox className={`h-4 w-4 ${totalNew > 0 ? 'text-emerald-600' : 'text-muted-foreground'}`} />
+          <h3 className={`font-semibold text-sm ${totalNew > 0 ? 'text-emerald-700' : 'text-foreground'}`}>{headerLabel}</h3>
         </div>
+
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           {totalCancelled > 0 && (
             <span className="flex items-center gap-1.5">
