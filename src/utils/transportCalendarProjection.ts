@@ -1,4 +1,4 @@
-import type { CalendarEvent } from '@/components/Calendar/ResourceData';
+import { CalendarEvent, getEventColor, getTransportEventType } from '@/components/Calendar/ResourceData';
 import type { CalendarTransportProjection } from '@/hooks/useTransportCalendarProjection';
 
 export const transportProjectionToCalendarEvent = (transport: CalendarTransportProjection): CalendarEvent => {
