@@ -86,7 +86,7 @@ export const useTransportCalendarEvents = (currentDate: Date, view: 'day' | 'wee
           startEditable: false,
           durationEditable: false,
           backgroundColor: getEventColor(transportEventType),
-          borderColor: transportEventType === 'transport_out' ? '#3B82F6' : '#F59E0B',
+          borderColor: transportEventType === 'transport_out' ? '#EC4899' : '#F59E0B',
           extendedProps: {
             bookingNumber: t.booking?.booking_number || undefined,
             booking_id: t.booking?.id,
