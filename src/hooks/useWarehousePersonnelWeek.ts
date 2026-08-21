@@ -35,6 +35,8 @@ export interface PersonnelRow {
   jobs: PersonnelJob[];
 }
 
+type Row = Record<string, string | null | undefined>;
+
 const timeOf = (value: string | null | undefined) => (value ? value.slice(0, 5) : null);
 
 export function useWarehousePersonnelWeek(rangeStart: Date, rangeEnd: Date) {
@@ -64,7 +66,7 @@ export function useWarehousePersonnelWeek(rangeStart: Date, rangeEnd: Date) {
       if (eErr) throw eErr;
 
       const staffIds = Array.from(
-        new Set((assignments || []).map((a: any) => a.staff_id).filter(Boolean)),
+        new Set((assignments || []).map((a: Row) => a.staff_id).filter(Boolean)),
       );
       let names = new Map<string, string>();
       if (staffIds.length > 0) {
@@ -72,13 +74,13 @@ export function useWarehousePersonnelWeek(rangeStart: Date, rangeEnd: Date) {
           .from('staff_members')
           .select('id, name')
           .in('id', staffIds as string[]);
-        names = new Map((staff || []).map((s: any) => [String(s.id), s.name as string]));
+        names = new Map((staff || []).map((s: Row) => [String(s.id), String(s.name)]));
       }
 
       const byStaff = new Map<string, PersonnelRow>();
       const assignedEventIds = new Set<string>();
 
-      for (const a of (assignments || []) as any[]) {
+      for (const a of (assignments || []) as Row[]) {
         if (a.warehouse_event_id) assignedEventIds.add(a.warehouse_event_id);
         const key = String(a.staff_id ?? 'unknown');
         const row =
@@ -102,7 +104,7 @@ export function useWarehousePersonnelWeek(rangeStart: Date, rangeEnd: Date) {
         byStaff.set(key, row);
       }
 
-      const unstaffed: PersonnelJob[] = ((events || []) as any[])
+      const unstaffed: PersonnelJob[] = ((events || []) as Row[])
         .filter((e) => !assignedEventIds.has(e.id))
         .map((e) => ({
           assignmentId: null,
