@@ -17,16 +17,32 @@ export interface UseRealTimeCalendarEventsOptions {
   anchorDate?: Date | null;
 }
 
+/**
+ * Modul-lokal cache (lever så länge fliken är öppen) av senast hämtade
+ * events per datumfönster. Gör att man kan gå in/ut ur kalendern utan att
+ * mötas av en spinner varje gång — data visas direkt och uppdateras tyst
+ * i bakgrunden.
+ */
+const windowEventsCache = new Map<string, CalendarEvent[]>();
+const windowKey = (anchorDate: Date) => {
+  const w = resolveCalendarWindow({ anchorDate });
+  return `${w.windowFrom}|${w.windowTo}`;
+};
+
+
 export const useRealTimeCalendarEvents = (
   options?: UseRealTimeCalendarEventsOptions,
 ) => {
   const { lastViewedDate, setLastViewedDate } = useContext(CalendarContext);
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isMounted, setIsMounted] = useState(false);
+  const initialAnchor = options?.anchorDate ?? lastViewedDate ?? new Date();
+  const initialCached = windowEventsCache.get(windowKey(initialAnchor));
+  const [events, setEvents] = useState<CalendarEvent[]>(initialCached ?? []);
+  const [isLoading, setIsLoading] = useState(!initialCached);
+  const [isMounted, setIsMounted] = useState(Boolean(initialCached));
   const [loadError, setLoadError] = useState<string | null>(null);
   const activeRef = useRef(true);
   const reloadTimerRef = useRef<number | null>(null);
+
 
   // EN datumkälla: vyns ankare (om det finns) → annars kontextens senast
   // visade datum → annars idag. INGET sessionStorage-ankare (det gjorde att
@@ -61,9 +77,14 @@ export const useRealTimeCalendarEvents = (
       setIsLoading(false);
       setIsMounted(true);
     }, 25_000);
+    const cacheKey = windowKey(anchorDate);
+    const hasCached = windowEventsCache.has(cacheKey);
     try {
-      setIsLoading(true);
+      // Har vi redan data för fönstret i cachen visar vi den och uppdaterar
+      // tyst i bakgrunden — ingen spinner vid varje öppning av kalendern.
+      if (!hasCached) setIsLoading(true);
       setLoadError(null);
+
 
       loadedWindowRef.current = (() => {
         const w = resolveCalendarWindow({ anchorDate });
@@ -196,6 +217,8 @@ export const useRealTimeCalendarEvents = (
         // Det som hämtats visas — punkt. Inga "behåll förra resultatet"-filter
         // (de dolde riktiga tomma veckor och blockerade korrekta uppdateringar).
         setEvents(enhancedEvents);
+        windowEventsCache.set(cacheKey, enhancedEvents);
+
 
         // Check if we need to fix any titles (only run once per session)
         const titleFixKey = 'title-fix-attempted';
@@ -210,6 +233,8 @@ export const useRealTimeCalendarEvents = (
               const updatedEvents = await fetchCalendarEvents({ anchorDate });
               if (activeRef.current) {
                 setEvents(updatedEvents);
+                windowEventsCache.set(cacheKey, updatedEvents);
+
               }
             } catch (error) {
               console.error('Error fixing event titles:', error);

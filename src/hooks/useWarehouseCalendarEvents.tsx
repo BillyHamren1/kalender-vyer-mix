@@ -35,12 +35,16 @@ interface UseWarehouseCalendarEventsProps {
   view: 'day' | 'week' | 'month';
 }
 
+/** Modul-lokal cache per datumintervall så vyn inte spinnar vid varje öppning. */
+const warehouseEventsCache = new Map<string, WarehouseEvent[]>();
+
 export function useWarehouseCalendarEvents({ currentDate, view }: UseWarehouseCalendarEventsProps) {
   const [events, setEvents] = useState<WarehouseEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [changedEventsCount, setChangedEventsCount] = useState(0);
   const { toast } = useToast();
+
 
   // Calculate date range based on view
   const getDateRange = useCallback(() => {
@@ -71,15 +75,25 @@ export function useWarehouseCalendarEvents({ currentDate, view }: UseWarehouseCa
 
   // Fetch events
   const fetchEvents = useCallback(async () => {
-    setLoading(true);
+    const { start, end } = getDateRange();
+    const cacheKey = `${start}|${end}`;
+    const cached = warehouseEventsCache.get(cacheKey);
+
+    if (cached) {
+      // Visa cachad data direkt, uppdatera tyst i bakgrunden.
+      setEvents(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     setError(null);
 
     try {
-      const { start, end } = getDateRange();
       const data = await fetchWarehouseEvents(start, end);
       
       // Type assertion since we know the structure
       setEvents(data as WarehouseEvent[]);
+      warehouseEventsCache.set(cacheKey, data as WarehouseEvent[]);
       
       // Count events with changes
       const changedCount = data.filter((e: any) => e.has_source_changes && !e.manually_adjusted).length;
@@ -99,6 +113,7 @@ export function useWarehouseCalendarEvents({ currentDate, view }: UseWarehouseCa
       setLoading(false);
     }
   }, [getDateRange, toast]);
+
 
   // Acknowledge a change
   const acknowledgeChange = useCallback(async (eventId: string) => {
