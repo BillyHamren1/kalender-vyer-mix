@@ -427,36 +427,7 @@ export default function PackingCalendarView({ packings }: Props) {
           );
         })}
       </div>
-
-      {/* Premium Legend */}
-      <div
-        className="border-t px-5 py-3 flex flex-wrap gap-5 items-center justify-between"
-        style={{
-          borderColor: "hsl(var(--border) / 0.4)",
-          background: "linear-gradient(180deg, hsl(200 15% 98%) 0%, hsl(200 15% 96%) 100%)",
-        }}
-      >
-        <div className="flex flex-wrap gap-4">
-          {(Object.keys(KIND_LABELS) as EventKind[]).map((k) => {
-            const t = KIND_TOKENS[k];
-            const Icon = k === "out" ? ArrowUpRight : ArrowDownLeft;
-            return (
-              <div key={k} className="flex items-center gap-2">
-                <span
-                  className="inline-flex items-center justify-center rounded-md border"
-                  style={{ backgroundColor: t.bg, borderColor: t.border, width: 22, height: 22 }}
-                >
-                  <Icon className="h-3 w-3" style={{ color: t.iconFg }} strokeWidth={2.5} />
-                </span>
-                <span className="text-[11.5px] font-medium text-foreground/80">{KIND_LABELS[k]}</span>
-              </div>
-            );
-          })}
-        </div>
-        <div className="text-[10.5px] text-muted-foreground/70 hidden sm:block">
-          Klicka på en händelse för att öppna packningen
-        </div>
-      </div>
     </section>
+
   );
 }
