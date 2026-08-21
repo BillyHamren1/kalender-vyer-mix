@@ -16,16 +16,16 @@ describe('Transport direction color tokens', () => {
     const out = getEventColor('transport_out');
     const inn = getEventColor('transport_in');
     expect(out).not.toBe(inn);
-    expect(out).toBe('#BFDBFE');
+    expect(out).toBe('#FBCFE8');
     expect(inn).toBe('#FED7AA');
   });
 
   it('provides distinct dot, bg and card classes for transport directions', () => {
-    expect(getEventDotClass('transport_out')).toBe('bg-blue-500');
+    expect(getEventDotClass('transport_out')).toBe('bg-pink-500');
     expect(getEventDotClass('transport_in')).toBe('bg-amber-500');
-    expect(getEventBgClass('transport_out')).toBe('bg-blue-100');
+    expect(getEventBgClass('transport_out')).toBe('bg-pink-100');
     expect(getEventBgClass('transport_in')).toBe('bg-amber-100');
-    expect(getEventCardClass('transport_out')).toBe('bg-blue-500/20 border-blue-500');
+    expect(getEventCardClass('transport_out')).toBe('bg-pink-500/20 border-pink-500');
     expect(getEventCardClass('transport_in')).toBe('bg-amber-500/20 border-amber-500');
   });
 });
