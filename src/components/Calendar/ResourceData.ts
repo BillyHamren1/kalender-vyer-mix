@@ -149,6 +149,21 @@ export const getEventCardClass = (eventType?: string): string => {
   }
 };
 
+/** Mappar transport_type till riktningsbaserad eventType för färgsättning (UT/IN). */
+export const getTransportEventType = (transportType?: string | null): 'transport_out' | 'transport_in' => {
+  switch (transportType) {
+    case 'delivery':
+    case 'transfer':
+      return 'transport_out';
+    case 'pickup':
+    case 'return':
+    case 'internal':
+    case 'other':
+    default:
+      return 'transport_in';
+  }
+};
+
 // Generate unique event ID
 export const generateEventId = (): string => {
   return `event-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
