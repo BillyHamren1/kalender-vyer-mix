@@ -247,44 +247,16 @@ export default function PackingCalendarView({ packings }: Props) {
   // ===================== Render =====================
 
   return (
-    <section
-      className="rounded-2xl border bg-card overflow-hidden"
-      style={{
-        borderColor: "hsl(var(--border) / 0.5)",
-        boxShadow:
-          "0 1px 0 hsl(0 0% 100% / 0.6) inset, 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 32px -16px rgba(15, 23, 42, 0.18)",
-      }}
-    >
-      {/* Premium Header */}
-      <div
-        className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b"
-        style={{
-          borderColor: "hsl(var(--border) / 0.4)",
-          background:
-            "linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(200 15% 98%) 100%)",
-        }}
-      >
-        <div className="flex items-center gap-3">
-          <div
-            className="h-9 w-9 rounded-xl inline-flex items-center justify-center shadow-sm"
-            style={{
-              background:
-                "linear-gradient(135deg, hsl(38 92% 56%) 0%, hsl(32 95% 46%) 100%)",
-              boxShadow:
-                "0 1px 0 hsl(0 0% 100% / 0.4) inset, 0 4px 10px -2px hsl(38 92% 50% / 0.45)",
-            }}
-          >
-            <CalendarIcon className="h-4.5 w-4.5 text-white" strokeWidth={2.25} />
-          </div>
-          <div className="leading-tight">
-            <h3 className="font-semibold text-[15px] text-[hsl(var(--heading))] tracking-tight">
-              Packningskalender
-            </h3>
-            <p className="text-[11.5px] text-muted-foreground mt-0.5">
-              UT från lager och IN i retur — i realtid
-            </p>
-          </div>
+    <section className="rounded-2xl border border-border/50 bg-card overflow-hidden">
+      {/* Ren arbetsyta-header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-b border-border/40">
+        <div className="flex items-center gap-2">
+          <CalendarIcon className="h-4 w-4 text-warehouse" />
+          <h3 className="font-semibold text-sm text-[hsl(var(--heading))] tracking-tight">
+            Packningskalender
+          </h3>
         </div>
+
 
         <div className="flex items-center gap-2">
           {/* Segmented view toggle */}
