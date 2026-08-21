@@ -5,15 +5,6 @@ import { resolve } from 'node:path';
 const read = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8');
 
 describe('warehouse OPS contract', () => {
-  it('keeps staffing logic outside the OPS workspace', () => {
-    const calendar = read('src/pages/WarehouseCalendarPage.tsx');
-
-    expect(calendar).not.toContain('WarehousePlanningInboxBar');
-    expect(calendar).not.toContain('WarehouseStaffingOverview');
-    expect(calendar).not.toContain('crewByDayTeam');
-    expect(calendar).not.toContain('useLagerCrewByDayTeam');
-  });
-
   it('uses a direct action list instead of KPI/category cards', () => {
     const actionCenter = read('src/components/packing/PackingActionCenter.tsx');
 
@@ -91,11 +82,50 @@ describe('warehouse OPS contract', () => {
     expect(search).toContain('matchedBookingIds');
   });
 
-  it('does not infer event-specific staffing from a warehouse team/day assignment', () => {
+  it('replaces visible warehouse team columns with Calendar and Personnel views', () => {
+    const calendar = read('src/pages/WarehouseCalendarPage.tsx');
+    const general = read('src/components/warehouse/WarehouseGeneralCalendar.tsx');
+    const personnel = read('src/components/warehouse/WarehousePersonnelCalendar.tsx');
+
+    expect(calendar).toContain("type CalendarSurface = 'calendar' | 'personnel'");
+    expect(calendar).toContain('Kalender');
+    expect(calendar).toContain('Personal');
+    expect(calendar).toContain('<WarehouseGeneralCalendar');
+    expect(calendar).toContain('<WarehousePersonnelCalendar');
+    expect(calendar).not.toContain('useWarehouseResources');
+    expect(calendar).not.toContain('distributeWarehouseEvents');
+    expect(calendar).not.toContain('visibleTeamsByDay');
+    expect(calendar).not.toContain('getVisibleTeamsForDay');
+    expect(calendar).not.toContain('Lager 1');
+    expect(general).toContain('Tilldela personal');
+    expect(personnel).toContain('Personal');
+  });
+
+  it('keeps legacy warehouse resource ids as compatibility data only', () => {
+    const calendar = read('src/pages/WarehouseCalendarPage.tsx');
+
+    expect(calendar).toContain('legacyWarehouseResourceId');
+    expect(calendar).toContain("resourceId: event.resource_id || 'warehouse'");
+  });
+
+  it('uses canonical warehouse assignments for staff calendar and productivity learning signals', () => {
+    const hook = read('src/hooks/useWarehousePersonnelCalendar.ts');
+
+    expect(hook).toContain("from('warehouse_assignments')");
+    expect(hook).toContain("from('staff_members')");
+    expect(hook).toContain('WarehouseStaffProductivitySignal');
+    expect(hook).toContain('actualSampleCount');
+    expect(hook).toContain('relativeToTypeMedianPct');
+    expect(hook).toContain("confidence: 'none' | 'low' | 'medium' | 'high'");
+  });
+
+  it('does not infer event-specific staffing from generic staff team assignments', () => {
     const cardMeta = read('src/hooks/useWarehouseCardMeta.ts');
     const customEvent = read('src/components/Calendar/CustomEvent.tsx');
+    const personnelHook = read('src/hooks/useWarehousePersonnelCalendar.ts');
 
     expect(cardMeta).not.toContain("from('staff_assignments')");
     expect(customEvent).not.toContain('Obemannad');
+    expect(personnelHook).not.toContain("from('staff_assignments')");
   });
 });
