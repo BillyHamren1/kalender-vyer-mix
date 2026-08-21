@@ -32,7 +32,7 @@ import {
   useWarehousePackingStats,
   useWarehouseBookingTitles,
 } from '@/hooks/useWarehouseCardMeta';
-import { assignStaffToWarehouseEvent } from '@/services/warehouseAssignmentsSync';
+import { assignStaffToExactWarehouseEvent } from '@/services/warehouseDirectAssignmentService';
 
 const WAREHOUSE_ACTIVITY_LABELS: Record<string, string> = {
   packing: 'Packning',
@@ -232,7 +232,7 @@ const WarehouseCalendarPage = () => {
     if (!selectedEvent || selectedEvent.eventType === 'transport') return;
     setAssigningStaffId(staffId);
     try {
-      await assignStaffToWarehouseEvent({ staffId, warehouseEventId: selectedEvent.id });
+      await assignStaffToExactWarehouseEvent({ staffId, warehouseEventId: selectedEvent.id });
       toast.success('Personal tilldelad');
       await personnel.refetch();
       staffOps.forceRefresh();
