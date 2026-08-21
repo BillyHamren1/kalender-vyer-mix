@@ -451,6 +451,8 @@ const CustomCalendarPage = () => {
   return (
     <TooltipProvider>
         <div className="h-screen flex flex-col bg-background overflow-hidden theme-purple">
+          {!isMobile && <NewBookingsPopup />}
+
           
 
           {/* Task overlay toggle + Navigation */}
