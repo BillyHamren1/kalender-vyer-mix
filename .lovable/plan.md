@@ -1,35 +1,35 @@
-# Fel statuspil i inkorgen: "Bekräftad → Avbokad"
+# Nya bokningar: tydligare markering + popup i planeringskalendern
 
-## Vad som faktiskt hänt med #2605-49
+## 1. Tydligare markering på dashboard
 
-Bokningen är **bekräftad** i databasen just nu. Texten är fel — den visar en gammal, redan återtagen händelse:
+Kortet "Nya bokningar" i inkorgen ska sticka ut istället för att se ut som vilken panel som helst:
 
-| Datum | Händelse |
-|---|---|
-| 4 aug 2026 | Bekräftad → Avbokad |
-| 5 aug 2026 | Avbokad → Bekräftad (återaktiverad) |
-| 18 + 20 aug 2026 | Interna anteckningar uppdaterade från bokningssystemet |
+- Färgad ram runt hela panelen (grön/primary accent) och svag bakgrundston när det finns nya bokningar.
+- Rubrikraden får samma accentfärg samt antal nya tydligt markerat.
+- När det bara finns avbokningar (inga nya) behålls dagens neutrala/röda utseende.
 
-Anledningen till att bokningen ligger i inkorgen alls är de **interna anteckningarna** som ändrades 18 och 20 augusti — inte någon avbokning.
+## 2. Popup över planeringskalendern
 
-## Varför texten blir fel
+När en planerare öppnar planeringskalendern och det finns nya, oplacerade bokningar som personen inte redan kryssat bort visas en dialog överst:
 
-Listan hämtar den senaste statusändringen per bokning, men hoppar över "aktiveringar" (allt som slutar i Bekräftad) eftersom vi bestämde att de inte är granskningsvärda. Problemet: när den hoppar över aktiveringen från 5 augusti fortsätter den bakåt i historiken och plockar den föregående raden — avbokningen från 4 augusti — och visar den som om den vore aktuell. Den kan alltså visa en statusändring som redan är ogjord, godtyckligt långt tillbaka i tiden.
+- Lista med de nya bokningarna: kund, bokningsnummer, datum, leveransadress.
+- Knapp **Planera** per rad → öppnar den befintliga placeringsdialogen direkt i kalendervyn, så bokningen kan planeras in utan att lämna sidan.
+- Knapp **Stäng/Kryssa bort** (per rad och för hela dialogen) → bokningen ligger kvar i inkorgen på dashboarden, men popupen visas inte igen för just den bokningen.
+- Popupen visas bara en gång per ny bokning och användare (lagras lokalt i webbläsaren). Nya bokningar som kommer in senare triggar popupen igen nästa gång kalendern öppnas.
+- Om en bokning placeras försvinner den både ur popupen och ur inkorgen automatiskt.
 
-## Vad som ska ändras
+## Teknisk beskrivning
 
-1. **Titta bara på den senaste statusändringen.** Om den är en aktivering (slutar i Bekräftad) visas ingen statusrad alls — sluta leta bakåt i historiken.
-2. **Dubbelkolla mot bokningens nuvarande status.** En statusrad får bara visas om den ändringen matchar bokningens verkliga status idag. Annars är den ogjord och ska inte visas.
-3. **Rätt undertext.** När ingen giltig statusändring finns ska raden visa vad som faktiskt ändrats ("1 ändring väntar") i stället för "Statusändring väntar".
-4. **Regressionstest** som låser beteendet: en historik med avbokning följd av återbekräftelse ska ge noll statusrader.
+- **Markering**: `src/components/project/IncomingBookingsList.tsx` — villkorlig ram/bakgrund på ytterst `div` när `totalNew > 0`.
+- **Ny komponent** `src/components/calendar/NewBookingsPopup.tsx`:
+  - Använder samma datakälla som inkorgen (`useUnplannedProjects` + queryn `bookings-without-project`) — ingen ny DB-logik, inga nya tabeller.
+  - Filtrerar bort id:n som finns i `localStorage`-nyckeln `calendar.newBookingsDismissed.v1` (array av bokningsid).
+  - Renderar `Dialog` + återanvänder `BookingPlacementDialog` (props: `open`, `onOpenChange`, `bookingId`) för Planera-flödet.
+  - Vid dismiss: lägg till id i localStorage och stäng.
+- **Montering**: `src/pages/CustomCalendarPage.tsx` renderar komponenten en gång i toppen av sidan (endast desktop-planeringsvyn).
+- Efter lyckad placering invalidateras `bookings-without-project` / `unplanned-projects` så inkorg och popup uppdateras.
 
-## Teknisk detalj
+## Verifiering
 
-- `src/hooks/useBookingStatusChanges.ts`: behåll bara första (senaste) status-raden per `booking_id` innan aktiveringsfiltret körs, i stället för att filtrera bort och gå vidare till nästa. Hooken tar emot en `Record<bookingId, currentStatus>` och släpper igenom raden endast när `to` matchar bokningens nuvarande status (skiftlägesokänsligt).
-- `src/components/project/IncomingBookingsList.tsx`: skickar in status från `updatedBookingsMeta` till hooken; undertexten faller tillbaka till antal ändringar.
-- Nytt test i `src/hooks/__tests__/bookingStatusChanges.test.ts` för historiken ovan.
-- Ingen databasändring behövs — datan är korrekt, det är presentationen som är fel.
-
-## Öppen fråga
-
-Ska ändringar av **interna anteckningar** från bokningssystemet fortsätta hamna i "kräver granskning"? De är enda anledningen till att #2605-49 ligger där. Säg till om de ska räknas som brus, så tas de bort ur inkorgen i samma veva.
+- Kontraktstest som verifierar dismiss-filtret (localStorage-id filtreras bort, nya id passerar).
+- Manuell körning i preview: kalender öppnas → popup syns, kryss döljer den, Planera öppnar placeringsdialogen.
