@@ -7,7 +7,6 @@ import {
   PackageCheck,
   Truck,
   Undo2,
-  UserRound,
 } from 'lucide-react';
 import { addDays, format, isSameDay, startOfDay } from 'date-fns';
 import { sv } from 'date-fns/locale';
