@@ -3,7 +3,7 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { type LucideIcon,
   Calendar,
   LayoutDashboard,
-  Package,
+
   Boxes,
   Wrench,
   ChevronDown,
@@ -22,9 +22,9 @@ interface NavItem {
 }
 
 const navigationItems: NavItem[] = [
-  { title: "Dashboard", url: "/warehouse", icon: LayoutDashboard, exact: true },
+  { title: "Lager OPS", url: "/warehouse", icon: LayoutDashboard, exact: true },
   { title: "Lagerplanering", url: "/warehouse/calendar", icon: Calendar },
-  { title: "Planera packning", url: "/warehouse/packing", icon: Package },
+
   { title: "Lagerekonomi", url: "/warehouse/economy", icon: TrendingUp },
   { title: "Inventarier", url: "/warehouse/inventory", icon: Boxes },
   { title: "Service", url: "/warehouse/service", icon: Wrench },

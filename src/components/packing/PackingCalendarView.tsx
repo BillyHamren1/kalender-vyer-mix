@@ -54,7 +54,7 @@ const MAX_EVENTS_PER_DAY_MONTH = 3;
 
 export default function PackingCalendarView({ packings }: Props) {
   const navigate = useNavigate();
-  const [viewMode, setViewMode] = useState<ViewMode>("month");
+  const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const days = useMemo(() => {
@@ -247,44 +247,16 @@ export default function PackingCalendarView({ packings }: Props) {
   // ===================== Render =====================
 
   return (
-    <section
-      className="rounded-2xl border bg-card overflow-hidden"
-      style={{
-        borderColor: "hsl(var(--border) / 0.5)",
-        boxShadow:
-          "0 1px 0 hsl(0 0% 100% / 0.6) inset, 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 32px -16px rgba(15, 23, 42, 0.18)",
-      }}
-    >
-      {/* Premium Header */}
-      <div
-        className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b"
-        style={{
-          borderColor: "hsl(var(--border) / 0.4)",
-          background:
-            "linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(200 15% 98%) 100%)",
-        }}
-      >
-        <div className="flex items-center gap-3">
-          <div
-            className="h-9 w-9 rounded-xl inline-flex items-center justify-center shadow-sm"
-            style={{
-              background:
-                "linear-gradient(135deg, hsl(38 92% 56%) 0%, hsl(32 95% 46%) 100%)",
-              boxShadow:
-                "0 1px 0 hsl(0 0% 100% / 0.4) inset, 0 4px 10px -2px hsl(38 92% 50% / 0.45)",
-            }}
-          >
-            <CalendarIcon className="h-4.5 w-4.5 text-white" strokeWidth={2.25} />
-          </div>
-          <div className="leading-tight">
-            <h3 className="font-semibold text-[15px] text-[hsl(var(--heading))] tracking-tight">
-              Packningskalender
-            </h3>
-            <p className="text-[11.5px] text-muted-foreground mt-0.5">
-              UT från lager och IN i retur — i realtid
-            </p>
-          </div>
+    <section className="rounded-2xl border border-border/50 bg-card overflow-hidden">
+      {/* Ren arbetsyta-header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-b border-border/40">
+        <div className="flex items-center gap-2">
+          <CalendarIcon className="h-4 w-4 text-warehouse" />
+          <h3 className="font-semibold text-sm text-[hsl(var(--heading))] tracking-tight">
+            Packningskalender
+          </h3>
         </div>
+
 
         <div className="flex items-center gap-2">
           {/* Segmented view toggle */}
@@ -455,36 +427,7 @@ export default function PackingCalendarView({ packings }: Props) {
           );
         })}
       </div>
-
-      {/* Premium Legend */}
-      <div
-        className="border-t px-5 py-3 flex flex-wrap gap-5 items-center justify-between"
-        style={{
-          borderColor: "hsl(var(--border) / 0.4)",
-          background: "linear-gradient(180deg, hsl(200 15% 98%) 0%, hsl(200 15% 96%) 100%)",
-        }}
-      >
-        <div className="flex flex-wrap gap-4">
-          {(Object.keys(KIND_LABELS) as EventKind[]).map((k) => {
-            const t = KIND_TOKENS[k];
-            const Icon = k === "out" ? ArrowUpRight : ArrowDownLeft;
-            return (
-              <div key={k} className="flex items-center gap-2">
-                <span
-                  className="inline-flex items-center justify-center rounded-md border"
-                  style={{ backgroundColor: t.bg, borderColor: t.border, width: 22, height: 22 }}
-                >
-                  <Icon className="h-3 w-3" style={{ color: t.iconFg }} strokeWidth={2.5} />
-                </span>
-                <span className="text-[11.5px] font-medium text-foreground/80">{KIND_LABELS[k]}</span>
-              </div>
-            );
-          })}
-        </div>
-        <div className="text-[10.5px] text-muted-foreground/70 hidden sm:block">
-          Klicka på en händelse för att öppna packningen
-        </div>
-      </div>
     </section>
+
   );
 }
