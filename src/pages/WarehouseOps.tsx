@@ -164,29 +164,9 @@ const WarehouseOps = () => {
             </div>
           </div>
 
-          <div className="h-8 px-2.5 border-t border-border/55 flex items-center gap-5 overflow-x-auto whitespace-nowrap text-[11px]">
-            <span className="font-bold uppercase tracking-wide text-muted-foreground">Åtgärder</span>
-            <span className={cn("inline-flex items-center gap-1.5", counters.critical > 0 ? "text-red-700 font-semibold" : "text-muted-foreground")}>
-              <span className={cn("h-2 w-2 rounded-full", counters.critical > 0 ? "bg-red-500" : "bg-slate-300")} />
-              {counters.critical} kritiska
-            </span>
-            <span className={cn("inline-flex items-center gap-1.5", inbox.length > 0 ? "text-amber-800 font-semibold" : "text-muted-foreground")}>
-              <span className={cn("h-2 w-2 rounded-full", inbox.length > 0 ? "bg-amber-500" : "bg-slate-300")} />
-              {inbox.length} nya att planera
-            </span>
-            <span className={cn("inline-flex items-center gap-1.5", counters.unstaffed > 0 ? "text-orange-700 font-semibold" : "text-muted-foreground")}>
-              <UsersRound className="h-3.5 w-3.5" />
-              {counters.unstaffed} obemannade
-            </span>
-            <span className={cn("inline-flex items-center gap-1.5", counters.noTime > 0 ? "text-orange-700 font-semibold" : "text-muted-foreground")}>
-              <Clock3 className="h-3.5 w-3.5" />
-              {counters.noTime} saknar tid
-            </span>
-            <span className={cn("inline-flex items-center gap-1.5", counters.attention > 0 ? "text-red-700 font-semibold" : "text-muted-foreground")}>
-              <AlertCircle className="h-3.5 w-3.5" />
-              {counters.attention} avvikelser
-            </span>
-          </div>
+          {/* Passiva räknare är borttagna med flit: allt som kräver åtgärd
+              visas som konkret jobb med knapp i åtgärdskön till höger. */}
+
         </header>
 
         <main className="min-h-0 flex-1 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_350px] gap-2 overflow-hidden">
