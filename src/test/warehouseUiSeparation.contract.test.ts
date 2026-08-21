@@ -45,6 +45,20 @@ describe('warehouse OPS contract', () => {
     expect(activeWork).not.toContain('{active.length}</span>');
   });
 
+  it('keeps the packing calendar as a work surface instead of a nested dashboard card', () => {
+    const packingCalendar = read('src/components/packing/PackingCalendarView.tsx');
+
+    expect(packingCalendar).toContain('useState<ViewMode>("week")');
+    expect(packingCalendar).toContain('UT · packning');
+    expect(packingCalendar).toContain('IN · retur');
+    expect(packingCalendar).toContain('openPacking(event.packingId)');
+    expect(packingCalendar).not.toContain('Premium Header');
+    expect(packingCalendar).not.toContain('Premium Legend');
+    expect(packingCalendar).not.toContain('Packningskalender');
+    expect(packingCalendar).not.toContain('i realtid');
+    expect(packingCalendar).not.toContain('sorted.length}</span>');
+  });
+
   it('consolidates dashboard and packing planning into Lager OPS', () => {
     const dashboard = read('src/pages/WarehouseDashboard.tsx');
     const legacyPacking = read('src/pages/PackingManagement.tsx');
