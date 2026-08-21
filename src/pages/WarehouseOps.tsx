@@ -1,26 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
-  AlertCircle,
   CalendarDays,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
-  Clock3,
   Package,
   Plus,
   RefreshCw,
   Rows3,
-  UsersRound,
 } from "lucide-react";
 import { addWeeks, endOfWeek, format, startOfWeek } from "date-fns";
 import { sv } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWarehouseOpsRange, type OpsJob } from "@/hooks/useWarehouseOpsRange";
-import { fetchInbox } from "@/services/warehouseProjectService";
 import CreateInternalTaskDialog from "@/components/warehouse/CreateInternalTaskDialog";
 import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
 import WarehouseOverviewNext7Days from "@/components/warehouse-ops/WarehouseOverviewNext7Days";
@@ -62,11 +57,6 @@ const WarehouseOps = () => {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailTab, setDetailTab] = useState<DetailTab>("overview");
   const { data, isLoading, isFetching, refetch } = useWarehouseOpsRange(anchorDate, "week");
-  const { data: inbox = [] } = useQuery({
-    queryKey: ["warehouse-project-inbox"],
-    queryFn: () => fetchInbox("new"),
-    retry: 1,
-  });
 
   useEffect(() => {
     setSelectedJobId(null);
@@ -95,17 +85,6 @@ const WarehouseOps = () => {
     const visibleIds = new Set(weekJobs.map((job) => job.id));
     return data.attention.filter((item) => !item.jobId || visibleIds.has(item.jobId));
   }, [data, weekJobs]);
-
-  const counters = useMemo(() => {
-    if (!data) return { unstaffed: 0, noTime: 0, attention: 0, critical: 0 };
-    const active = weekJobs.filter((job) => !DONE.has(job.status));
-    return {
-      unstaffed: active.filter((job) => job.assignedStaff.length === 0 && job.workers.length === 0).length,
-      noTime: active.filter((job) => !job.anchorTime && !job.assignedStaff.some((a) => !!a.startTime)).length,
-      attention: weekAttention.length,
-      critical: weekAttention.filter((item) => item.level === "critical").length,
-    };
-  }, [data, weekAttention, weekJobs]);
 
   const weekStart = startOfWeek(anchorDate, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(anchorDate, { weekStartsOn: 1 });
