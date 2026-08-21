@@ -1,130 +1,135 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Package, Plus, RefreshCw, CalendarIcon, LayoutTemplate, ClipboardList, ChevronRight } from "lucide-react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
+import { Calendar, Package, Plus, RefreshCw } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useWarehouseOpsRange } from "@/hooks/useWarehouseOpsRange";
+import PackingActionCenter from "@/components/packing/PackingActionCenter";
+import PackingActiveWork from "@/components/packing/PackingActiveWork";
+import PackingCalendarView from "@/components/packing/PackingCalendarView";
+import CreatePackingWizard from "@/components/packing/CreatePackingWizard";
 import CreateInternalTaskDialog from "@/components/warehouse/CreateInternalTaskDialog";
-import WarehouseOverviewAttention from "@/components/warehouse-ops/WarehouseOverviewAttention";
-import WarehouseOverviewNext7Days from "@/components/warehouse-ops/WarehouseOverviewNext7Days";
-import WarehouseBookingQuickOpen from "@/components/warehouse/WarehouseBookingQuickOpen";
+import WarehouseOpsSearch from "@/components/warehouse/WarehouseOpsSearch";
+import { fetchPackings } from "@/services/packingService";
+import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
 
 /**
- * Lageröversikt = kort översikt, inte arbetslista.
- * Arbetslistor bor i /warehouse/packing (inkommande + packning) och /warehouse/calendar (personalplanering).
+ * Lager OPS = den operativa startsidan.
+ * Synligt innehåll ska vara arbete, avvikelse eller en direkt väg till arbete.
+ * Ingen KPI-dashboard och inga informationskort utan nästa action.
+ * Full personal-/resursplanering ligger fortsatt i /warehouse/calendar.
  */
-const NEXT_STEPS = [
-  {
-    key: "planning",
-    icon: ClipboardList,
-    title: "Hantera inkommande",
-    detail: "Nya projekt som behöver lagerplaneras.",
-    route: "/warehouse/packing#actions",
-  },
-  {
-    key: "staffing",
-    icon: CalendarIcon,
-    title: "Planera personal",
-    detail: "Vem ska göra arbetet?",
-    route: "/warehouse/calendar",
-  },
-  {
-    key: "packing",
-    icon: LayoutTemplate,
-    title: "Öppna packning",
-    detail: "Genomför och följ upp packning.",
-    route: "/warehouse/packing#active-work",
-  },
-] as const;
-
 const WarehouseDashboard = () => {
   const navigate = useNavigate();
-  const [showCreate, setShowCreate] = useState(false);
+  const queryClient = useQueryClient();
+  const [showCreateTask, setShowCreateTask] = useState(false);
+  const [showCreatePacking, setShowCreatePacking] = useState(false);
 
-  const anchorDate = useMemo(() => new Date(), []);
-  const { data, isLoading, isFetching, refetch } = useWarehouseOpsRange(anchorDate, "next7");
+  useRealtimeInvalidation({
+    channelName: "warehouse-ops",
+    tables: ["packing_projects", "bookings", "projects", "jobs", "warehouse_project_inbox"],
+    queryKeys: [["packings"], ["bookings-without-packing"], ["warehouse-project-inbox"]],
+  });
+
+  const {
+    data: packings = [],
+    isLoading,
+    isFetching,
+    refetch,
+  } = useQuery({
+    queryKey: ["packings"],
+    queryFn: fetchPackings,
+  });
 
   return (
     <div className="h-full overflow-y-auto overflow-x-hidden" style={{ background: "var(--gradient-page)" }}>
-      <div className="relative p-6 max-w-[1200px] mx-auto space-y-5">
+      <div className="relative mx-auto max-w-[1500px] space-y-5 p-4 sm:p-6 lg:p-8">
         <PageHeader
           icon={Package}
-          title="Lageröversikt"
+          title="Lager OPS"
           subtitle={format(new Date(), "EEEE d MMMM yyyy", { locale: sv })}
           variant="warehouse"
         >
           <Button
-            onClick={() => setShowCreate(true)}
             size="sm"
-            className="bg-warehouse hover:bg-warehouse-hover shadow-sm font-medium rounded-lg px-4 h-8"
+            onClick={() => setShowCreatePacking(true)}
+            className="h-8 rounded-lg bg-warehouse px-4 font-medium shadow-sm hover:bg-warehouse-hover"
           >
-            <Plus className="h-4 w-4 mr-1.5" />
-            Skapa lageruppgift
+            <Plus className="mr-1.5 h-4 w-4" />
+            Ny packning
           </Button>
           <Button
             variant="outline"
             size="sm"
+            onClick={() => setShowCreateTask(true)}
+            className="h-8 rounded-lg border-border/60"
+          >
+            <Plus className="mr-1.5 h-4 w-4" />
+            Lageruppgift
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => refetch()}
             disabled={isFetching}
-            className="border-border/60 h-8 rounded-lg"
+            className="h-8 rounded-lg"
           >
-            <RefreshCw className={`w-4 h-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
+            <RefreshCw className={`mr-1.5 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
             Uppdatera
           </Button>
         </PageHeader>
 
-        <WarehouseBookingQuickOpen />
+        <WarehouseOpsSearch packings={packings} />
 
-        {isLoading || !data ? (
-          <div className="space-y-4">
-            <Skeleton className="h-24 rounded-xl" />
-            <Skeleton className="h-32 rounded-xl" />
-            <Skeleton className="h-28 rounded-xl" />
+        {isLoading ? (
+          <div className="space-y-3 py-2">
+            <div className="h-12 animate-pulse rounded-xl bg-muted/60" />
+            <div className="h-24 animate-pulse rounded-xl bg-muted/60" />
           </div>
         ) : (
           <>
-            <WarehouseOverviewNext7Days data={data} />
-            <WarehouseOverviewAttention items={data.attention} maxItems={4} />
+            <PackingActionCenter packings={packings} />
+
+            <div id="active-work" className="scroll-mt-4">
+              <PackingActiveWork packings={packings} />
+            </div>
+
+            <section className="pt-1">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <h2 className="text-sm font-semibold text-[hsl(var(--heading))]">Planera packning och retur</h2>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                  onClick={() => navigate("/warehouse/calendar")}
+                >
+                  <Calendar className="mr-1.5 h-4 w-4" />
+                  Bemanna i lagerplanering
+                </Button>
+              </div>
+              <PackingCalendarView packings={packings} />
+            </section>
           </>
         )}
-
-        {/* Vart går jag för att agera? */}
-        <section>
-          <h2 className="text-sm font-semibold text-[hsl(var(--heading))] mb-3">Gå vidare</h2>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {NEXT_STEPS.map((step) => {
-              const Icon = step.icon;
-              return (
-                <button
-                  key={step.key}
-                  onClick={() => navigate(step.route)}
-                  className="rounded-xl border border-border/60 bg-card p-4 text-left hover:bg-accent/40 transition-colors flex items-start gap-3"
-                >
-                  <div className="h-9 w-9 rounded-lg bg-warehouse/10 flex items-center justify-center shrink-0">
-                    <Icon className="h-4 w-4 text-warehouse" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium text-[hsl(var(--heading))] flex items-center gap-1">
-                      {step.title}
-                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">{step.detail}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
       </div>
 
-      <CreateInternalTaskDialog
-        open={showCreate}
-        onOpenChange={setShowCreate}
+      <CreatePackingWizard
+        open={showCreatePacking}
+        onOpenChange={setShowCreatePacking}
         onSuccess={() => {
-          setShowCreate(false);
+          setShowCreatePacking(false);
+          queryClient.invalidateQueries({ queryKey: ["packings"] });
+          queryClient.invalidateQueries({ queryKey: ["bookings-without-packing"] });
+        }}
+      />
+
+      <CreateInternalTaskDialog
+        open={showCreateTask}
+        onOpenChange={setShowCreateTask}
+        onSuccess={() => {
+          setShowCreateTask(false);
           refetch();
         }}
       />

@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Clock, RefreshCw, Inbox, Layers, Package, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { format, differenceInDays, isPast } from 'date-fns';
+import { format, differenceInDays } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { PackingWithBooking } from '@/types/packing';
 import type { WarehouseProjectInboxItem } from '@/types/warehouseProject';
@@ -12,8 +12,6 @@ import { fetchInbox, dismissInboxItem } from '@/services/warehouseProjectService
 import { ConvertInboxDialog } from '@/components/warehouse/ConvertInboxDialog';
 import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { toast } from 'sonner';
-
-type CategoryKey = 'new' | 'changed' | 'urgent' | 'overdue';
 
 interface Props {
   packings: PackingWithBooking[];
@@ -29,14 +27,13 @@ const formatInboxEventDate = (value: string | null) => {
 };
 
 /**
- * "Kräver åtgärd" — operativ startpunkt på /warehouse/packing.
- * Samlar nya Planning-projekt och befintliga packningar som behöver åtgärd.
- * Ingen kalender-/personalplaneringslogik bor här.
+ * Operativ åtgärdslista för Lager OPS.
+ * Visar bara verkliga arbetsbehov med en direkt nästa action.
+ * Samma packning ska inte visas i flera normala åtgärdsgrupper.
  */
 const PackingActionCenter: React.FC<Props> = ({ packings }) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [active, setActive] = useState<CategoryKey>('new');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [activeInboxItem, setActiveInboxItem] = useState<WarehouseProjectInboxItem | null>(null);
   const [busyInboxId, setBusyInboxId] = useState<string | null>(null);
@@ -55,10 +52,13 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
 
   const { data: changed = [] } = useChangedPackings();
 
+  const changedIds = useMemo(() => new Set(changed.map(item => item.id)), [changed]);
+
   const { urgent, overdue } = useMemo(() => {
     const urgentList = packings
       .filter(p => {
-        if (p.status === 'completed') return false;
+        if (changedIds.has(p.id)) return false;
+        if (p.status !== 'planning') return false;
         if (!p.booking?.rigdaydate) return false;
         const days = differenceInDays(new Date(p.booking.rigdaydate), new Date());
         return days >= 0 && days <= 7;
@@ -67,30 +67,24 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
 
     const overdueList = packings
       .filter(p => {
+        if (changedIds.has(p.id)) return false;
         if (p.status === 'completed' || p.status === 'delivered') return false;
         if (!p.booking?.rigdaydate) return false;
-        return isPast(new Date(p.booking.rigdaydate));
+        return differenceInDays(new Date(p.booking.rigdaydate), new Date()) < 0;
       })
-      .sort((a, b) => new Date(b.booking!.rigdaydate!).getTime() - new Date(a.booking!.rigdaydate!).getTime());
+      .sort((a, b) => new Date(a.booking!.rigdaydate!).getTime() - new Date(b.booking!.rigdaydate!).getTime());
 
     return { urgent: urgentList, overdue: overdueList };
-  }, [packings]);
+  }, [packings, changedIds]);
 
-  const categories: Array<{ key: CategoryKey; label: string; count: number; icon: React.ElementType; tone: string }> = [
-    { key: 'new', label: 'Nya', count: inboxItems.length, icon: Inbox, tone: 'text-warehouse' },
-    { key: 'changed', label: 'Ändrade', count: changed.length, icon: RefreshCw, tone: 'text-amber-600' },
-    { key: 'urgent', label: 'Brådskande', count: urgent.length, icon: Clock, tone: 'text-warehouse' },
-    { key: 'overdue', label: 'Försenade', count: overdue.length, icon: AlertTriangle, tone: 'text-destructive' },
-  ];
+  const totalActions = inboxItems.length + changed.length + urgent.length + overdue.length;
 
-  const totalActions = categories.reduce((sum, c) => sum + c.count, 0);
+  const limitFor = (key: string, total: number) => (expanded[key] ? total : PREVIEW);
 
-  const limitFor = (key: CategoryKey, total: number) => (expanded[key] ? total : key === 'overdue' ? 3 : PREVIEW);
-
-  const showAllRow = (key: CategoryKey, total: number, shown: number) =>
+  const showAllRow = (key: string, total: number, shown: number) =>
     total > shown ? (
       <button
-        className="w-full text-left py-2 text-xs font-medium text-primary hover:underline"
+        className="w-full py-2 text-left text-xs font-medium text-primary hover:underline"
         onClick={() => setExpanded(e => ({ ...e, [key]: true }))}
       >
         Visa alla {total} →
@@ -113,10 +107,7 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
 
   const renderInboxList = () => {
     if (inboxError) {
-      return <p className="text-sm text-destructive py-3">Kunde inte hämta nya lagerbehov.</p>;
-    }
-    if (inboxItems.length === 0) {
-      return <p className="text-sm text-muted-foreground py-3">Inga nya lagerbehov väntar på planering.</p>;
+      return <p className="py-3 text-sm text-destructive">Kunde inte hämta nya lagerbehov.</p>;
     }
 
     const visible = inboxItems.slice(0, limitFor('new', inboxItems.length));
@@ -128,24 +119,23 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
           return (
             <div key={item.id} className="flex items-center gap-3 py-2.5">
               {isLarge
-                ? <Layers className="h-3.5 w-3.5 text-primary shrink-0" />
-                : <Package className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
-              <div className="flex-1 min-w-0">
+                ? <Layers className="h-3.5 w-3.5 shrink-0 text-primary" />
+                : <Package className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium truncate">{item.client_name || 'Okänt lagerbehov'}</span>
+                  <span className="truncate text-sm font-medium">{item.client_name || 'Okänt lagerbehov'}</span>
                   {item.source_project_number && (
-                    <span className="text-[11px] font-mono text-muted-foreground/70 shrink-0">#{item.source_project_number}</span>
+                    <span className="shrink-0 font-mono text-[11px] text-muted-foreground/70">#{item.source_project_number}</span>
                   )}
                 </div>
                 <span className="text-xs text-muted-foreground">
-                  {eventDate ? `Event ${eventDate} · behöver lagerplaneras` : 'Behöver lagerplaneras'}
+                  {eventDate ? `Event ${eventDate} · saknar lagerplanering` : 'Saknar lagerplanering'}
                 </span>
               </div>
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="flex shrink-0 items-center gap-1">
                 <Button
-                  variant="ghost"
                   size="sm"
-                  className="h-7 px-3 text-xs"
+                  className="h-7 bg-warehouse px-3 text-xs hover:bg-warehouse-hover"
                   disabled={busyInboxId === item.id}
                   onClick={() => setActiveInboxItem(item)}
                 >
@@ -170,31 +160,33 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
     );
   };
 
-  const renderPackingList = (key: CategoryKey, list: PackingWithBooking[], subtitle: (p: PackingWithBooking) => string) => {
-    if (list.length === 0) {
-      return <p className="text-sm text-muted-foreground py-3">Inget att visa.</p>;
-    }
+  const renderPackingList = (
+    key: string,
+    list: PackingWithBooking[],
+    issue: (p: PackingWithBooking) => string,
+    actionLabel: string,
+  ) => {
     const visible = list.slice(0, limitFor(key, list.length));
     return (
       <div className="divide-y divide-border/30">
         {visible.map(p => (
           <div key={p.id} className="flex items-center gap-3 py-2.5">
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium truncate">{p.booking?.client || p.name}</span>
+                <span className="truncate text-sm font-medium">{p.booking?.client || p.name}</span>
                 {p.booking?.booking_number && (
-                  <span className="text-[11px] font-mono text-muted-foreground/70 shrink-0">#{p.booking.booking_number}</span>
+                  <span className="shrink-0 font-mono text-[11px] text-muted-foreground/70">#{p.booking.booking_number}</span>
                 )}
               </div>
-              <span className="text-xs text-muted-foreground">{subtitle(p)}</span>
+              <span className="text-xs text-muted-foreground">{issue(p)}</span>
             </div>
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="h-7 px-3 text-xs shrink-0"
+              className="h-7 shrink-0 px-3 text-xs"
               onClick={() => navigate(`/warehouse/packing/${p.id}`)}
             >
-              Öppna
+              {actionLabel}
             </Button>
           </div>
         ))}
@@ -203,51 +195,62 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
     );
   };
 
+  if (totalActions === 0 && !inboxError) return null;
+
   return (
-    <section className="mb-6 rounded-2xl border border-border/40 bg-card shadow-sm overflow-hidden">
-      <div className="px-5 py-3 border-b border-border/30 flex items-center gap-2">
+    <section id="actions" className="mb-5 scroll-mt-4">
+      <div className="mb-2 flex items-center gap-2">
         <AlertTriangle className="h-4 w-4 text-warehouse" />
         <h2 className="text-sm font-semibold text-[hsl(var(--heading))]">Kräver åtgärd</h2>
-        <span className="text-xs text-muted-foreground">{totalActions} poster</span>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-3">
-        {categories.map(c => {
-          const isActive = active === c.key;
-          return (
-            <button
-              key={c.key}
-              onClick={() => setActive(c.key)}
-              className={`rounded-xl border px-3 py-2.5 text-left transition-colors ${
-                isActive ? 'border-primary/50 bg-primary/5' : 'border-border/40 hover:bg-muted/40'
-              }`}
-            >
-              <div className="flex items-center gap-1.5">
-                <c.icon className={`h-3.5 w-3.5 ${c.tone}`} />
-                <span className="text-xs text-muted-foreground font-medium">{c.label}</span>
-              </div>
-              <p className="text-xl font-bold text-[hsl(var(--heading))]">{c.count}</p>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="px-5 pb-3">
-        {active === 'new' && renderInboxList()}
-        {active === 'changed' && (
-          <PackingChangedList
-            limit={limitFor('changed', changed.length)}
-            onShowAll={() => setExpanded(e => ({ ...e, changed: true }))}
-          />
+      <div className="divide-y divide-border/40 rounded-xl border border-border/50 bg-card px-4">
+        {overdue.length > 0 && (
+          <div className="py-2">
+            <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-destructive">
+              <AlertTriangle className="h-3.5 w-3.5" /> Försenat arbete
+            </div>
+            {renderPackingList('overdue', overdue, p => {
+              const days = Math.abs(differenceInDays(new Date(p.booking!.rigdaydate!), new Date()));
+              return `${days} dagar försenad · rigg ${format(new Date(p.booking!.rigdaydate!), 'd MMM yyyy', { locale: sv })}`;
+            }, 'Öppna')}
+          </div>
         )}
-        {active === 'urgent' && renderPackingList('urgent', urgent, p => {
-          const days = differenceInDays(new Date(p.booking!.rigdaydate!), new Date());
-          return `Packning ej klar · rigg om ${days} ${days === 1 ? 'dag' : 'dagar'}`;
-        })}
-        {active === 'overdue' && renderPackingList('overdue', overdue, p => {
-          const days = Math.abs(differenceInDays(new Date(p.booking!.rigdaydate!), new Date()));
-          return `${days} dagar försenad · rigg ${format(new Date(p.booking!.rigdaydate!), 'd MMM yyyy', { locale: sv })}`;
-        })}
+
+        {changed.length > 0 && (
+          <div className="py-2">
+            <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-amber-700">
+              <RefreshCw className="h-3.5 w-3.5" /> Ändringar att granska
+            </div>
+            <PackingChangedList
+              limit={limitFor('changed', changed.length)}
+              onShowAll={() => setExpanded(e => ({ ...e, changed: true }))}
+            />
+          </div>
+        )}
+
+        {(inboxItems.length > 0 || inboxError) && (
+          <div className="py-2">
+            <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-foreground">
+              <Inbox className="h-3.5 w-3.5 text-warehouse" /> Nya jobb att planera
+            </div>
+            {renderInboxList()}
+          </div>
+        )}
+
+        {urgent.length > 0 && (
+          <div className="py-2">
+            <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-foreground">
+              <Clock className="h-3.5 w-3.5 text-warehouse" /> Kommande packning som inte är klar
+            </div>
+            {renderPackingList('urgent', urgent, p => {
+              const days = differenceInDays(new Date(p.booking!.rigdaydate!), new Date());
+              return days === 0
+                ? 'Rigg idag · packning inte klar'
+                : `Rigg om ${days} ${days === 1 ? 'dag' : 'dagar'} · packning inte klar`;
+            }, 'Planera packning')}
+          </div>
+        )}
       </div>
 
       <ConvertInboxDialog

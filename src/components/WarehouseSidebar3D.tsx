@@ -1,14 +1,14 @@
 import { useState, useEffect } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { type LucideIcon,
+import {
+  type LucideIcon,
   Calendar,
-  LayoutDashboard,
-  Package,
+  ClipboardList,
   Boxes,
   Wrench,
   ChevronDown,
   TrendingUp,
-   ChevronsLeft,
+  ChevronsLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWarehouseNotificationCount } from "@/hooks/useWarehouseNotificationCount";
@@ -22,18 +22,16 @@ interface NavItem {
 }
 
 const navigationItems: NavItem[] = [
-  { title: "Dashboard", url: "/warehouse", icon: LayoutDashboard, exact: true },
+  { title: "Lager OPS", url: "/warehouse", icon: ClipboardList, exact: true },
   { title: "Lagerplanering", url: "/warehouse/calendar", icon: Calendar },
-  { title: "Planera packning", url: "/warehouse/packing", icon: Package },
-  { title: "Lagerekonomi", url: "/warehouse/economy", icon: TrendingUp },
   { title: "Inventarier", url: "/warehouse/inventory", icon: Boxes },
   { title: "Service", url: "/warehouse/service", icon: Wrench },
+  { title: "Lagerekonomi", url: "/warehouse/economy", icon: TrendingUp },
 ];
 
-// Warehouse amber accent colors
-const ACCENT = "hsl(38 92% 50%)";        // --warehouse
-const ACCENT_BG = "hsl(38 92% 50% / 0.10)"; // active bg
-const HOVER_BG = "hsl(38 60% 50% / 0.08)";  // hover bg
+const ACCENT = "hsl(38 92% 50%)";
+const ACCENT_BG = "hsl(38 92% 50% / 0.10)";
+const HOVER_BG = "hsl(38 60% 50% / 0.08)";
 
 export function WarehouseSidebar3D() {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -43,7 +41,6 @@ export function WarehouseSidebar3D() {
   const location = useLocation();
   const notif = useWarehouseNotificationCount();
 
-  // Auto-expand parent if a child route is active
   useEffect(() => {
     navigationItems.forEach((item) => {
       if (item.children?.some((child) => location.pathname === child.url)) {
@@ -76,7 +73,6 @@ export function WarehouseSidebar3D() {
 
   return (
     <>
-      {/* ── Desktop Sidebar ── */}
       <aside
         className={cn(
           "relative z-40 h-screen shrink-0 transition-all duration-500 ease-out",
@@ -88,10 +84,7 @@ export function WarehouseSidebar3D() {
           borderRight: "1px solid hsl(200 18% 66%)",
         }}
       >
-        {/* Content */}
         <div className="flex flex-col h-full px-3 py-4">
-
-          {/* Toggle button – circular with primary border */}
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
             className={cn(
@@ -104,7 +97,6 @@ export function WarehouseSidebar3D() {
             <ChevronsLeft size={16} className={cn("transition-transform", isCollapsed && "rotate-180")} />
           </button>
 
-          {/* ── Nav ── */}
           <nav className="flex-1 space-y-px">
             {navigationItems.map((item) => {
               const hasChildren = !!item.children?.length;
@@ -113,19 +105,13 @@ export function WarehouseSidebar3D() {
               const hovered = hoveredUrl === item.url;
 
               const itemStyle: React.CSSProperties = {
-                borderLeft: active
-                  ? `2.5px solid ${ACCENT}`
-                  : "2px solid transparent",
+                borderLeft: active ? `2.5px solid ${ACCENT}` : "2px solid transparent",
                 paddingTop: 9,
                 paddingBottom: 9,
                 paddingLeft: active ? 9 : 11,
                 paddingRight: 12,
                 borderRadius: "0.375rem",
-                background: active
-                  ? ACCENT_BG
-                  : hovered
-                  ? HOVER_BG
-                  : "transparent",
+                background: active ? ACCENT_BG : hovered ? HOVER_BG : "transparent",
                 width: "100%",
                 display: "flex",
                 alignItems: "center",
@@ -183,9 +169,7 @@ export function WarehouseSidebar3D() {
                             style={{
                               color: "hsl(var(--foreground) / 0.40)",
                               transition: "transform 200ms",
-                              transform: expanded
-                                ? "rotate(180deg)"
-                                : "rotate(0deg)",
+                              transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
                               flexShrink: 0,
                             }}
                           />
@@ -199,10 +183,8 @@ export function WarehouseSidebar3D() {
                       {...sharedMouseProps}
                     >
                       {iconEl}
-                      {!isCollapsed && (
-                        <span style={labelStyle}>{item.title}</span>
-                      )}
-                      {item.url === '/warehouse/packing' && notif.total > 0 && (
+                      {!isCollapsed && <span style={labelStyle}>{item.title}</span>}
+                      {item.url === "/warehouse" && notif.total > 0 && (
                         <span
                           title={`${notif.newProjects} nya projekt, ${notif.changes} ändringar`}
                           className="flex items-center justify-center rounded-full text-white font-bold shrink-0"
@@ -211,7 +193,7 @@ export function WarehouseSidebar3D() {
                             fontSize: 10,
                             minWidth: 18,
                             height: 18,
-                            padding: '0 5px',
+                            padding: "0 5px",
                             lineHeight: 1,
                           }}
                         >
@@ -221,7 +203,6 @@ export function WarehouseSidebar3D() {
                     </NavLink>
                   )}
 
-                  {/* Sub-items */}
                   {hasChildren && !isCollapsed && expanded && (
                     <div className="ml-7 mt-px space-y-px">
                       {item.children!.map((child) => {
@@ -241,14 +222,8 @@ export function WarehouseSidebar3D() {
                               borderRadius: "0.375rem",
                               fontSize: 12,
                               fontWeight: childActive ? 600 : 500,
-                              color: childActive
-                                ? ACCENT
-                                : "hsl(var(--foreground) / 0.65)",
-                              background: childActive
-                                ? ACCENT_BG
-                                : childHovered
-                                ? HOVER_BG
-                                : "transparent",
+                              color: childActive ? ACCENT : "hsl(var(--foreground) / 0.65)",
+                              background: childActive ? ACCENT_BG : childHovered ? HOVER_BG : "transparent",
                               transition: "background 150ms",
                             }}
                             onMouseEnter={() => setHoveredUrl(child.url)}
@@ -265,31 +240,15 @@ export function WarehouseSidebar3D() {
             })}
           </nav>
 
-          {/* ── Bottom ── */}
-          <div
-            className="pt-3"
-            style={{ borderTop: "1px solid hsl(var(--sidebar-border))" }}
-          >
-            <div
-              className={cn(
-                "flex items-center gap-2.5 px-2 py-1.5",
-                isCollapsed && "justify-center"
-              )}
-            >
-              <div
-                className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
-                style={{ background: `${ACCENT_BG}` }}
-              >
+          <div className="pt-3" style={{ borderTop: "1px solid hsl(var(--sidebar-border))" }}>
+            <div className={cn("flex items-center gap-2.5 px-2 py-1.5", isCollapsed && "justify-center")}>
+              <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background: ACCENT_BG }}>
                 <Boxes size={14} style={{ color: ACCENT }} />
               </div>
               {!isCollapsed && (
                 <span
                   className="font-medium"
-                  style={{
-                    fontSize: 11,
-                    color: "hsl(var(--foreground))",
-                    opacity: 0.38,
-                  }}
+                  style={{ fontSize: 11, color: "hsl(var(--foreground))", opacity: 0.38 }}
                 >
                   Lagersystem v1.0
                 </span>
@@ -299,7 +258,6 @@ export function WarehouseSidebar3D() {
         </div>
       </aside>
 
-      {/* ── Mobile Bottom Nav ── */}
       <nav
         className="fixed bottom-0 left-0 right-0 z-50 md:hidden"
         style={{
@@ -307,12 +265,11 @@ export function WarehouseSidebar3D() {
           backdropFilter: "blur(24px)",
           WebkitBackdropFilter: "blur(24px)",
           borderTop: "1px solid hsl(var(--border) / 0.50)",
-          boxShadow:
-            "0 -1px 0 hsl(200 14% 82%), 0 -4px 12px hsl(184 30% 15% / 0.08)",
+          boxShadow: "0 -1px 0 hsl(200 14% 82%), 0 -4px 12px hsl(184 30% 15% / 0.08)",
         }}
       >
         <div className="flex items-center justify-around py-2 px-4">
-          {navigationItems.filter((_, i) => i <= 4).map((item) => {
+          {navigationItems.map((item) => {
             const active = isItemActive(item);
             const targetUrl = item.children ? item.children[0].url : item.url;
 
@@ -322,12 +279,7 @@ export function WarehouseSidebar3D() {
                 to={targetUrl}
                 className="relative flex flex-col items-center gap-1 py-2 px-3 rounded-xl transition-all duration-150"
               >
-                {active && (
-                  <div
-                    className="absolute inset-0 rounded-xl"
-                    style={{ background: ACCENT_BG }}
-                  />
-                )}
+                {active && <div className="absolute inset-0 rounded-xl" style={{ background: ACCENT_BG }} />}
                 <item.icon
                   size={20}
                   className="relative z-10"
@@ -335,10 +287,7 @@ export function WarehouseSidebar3D() {
                 />
                 <span
                   className="relative z-10 truncate max-w-[4rem] font-medium"
-                  style={{
-                    fontSize: 10,
-                    color: active ? ACCENT : "hsl(var(--muted-foreground))",
-                  }}
+                  style={{ fontSize: 10, color: active ? ACCENT : "hsl(var(--muted-foreground))" }}
                 >
                   {item.title}
                 </span>
