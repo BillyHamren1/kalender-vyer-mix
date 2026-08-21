@@ -142,6 +142,8 @@ export const getEventCardClass = (eventType?: string): string => {
     case 'task_pm': return 'bg-purple-500/20 border-purple-500';
     case 'task_logistics': return 'bg-blue-400/20 border-blue-400';
     case 'task_admin': return 'bg-slate-400/20 border-slate-400';
+    case 'transport_out': return 'bg-blue-500/20 border-blue-500';
+    case 'transport_in': return 'bg-amber-500/20 border-amber-500';
     case 'todo': return 'bg-orange-500/20 border-orange-500';
     default: return 'bg-primary/20 border-primary';
   }
