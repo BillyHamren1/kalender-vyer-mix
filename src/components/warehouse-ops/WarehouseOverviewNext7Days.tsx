@@ -13,6 +13,8 @@ import { addDays, format, isSameDay, startOfDay } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import type { OpsAssignedStaff, OpsJob, OpsRangeData } from '@/hooks/useWarehouseOpsRange';
+import QuickAssignStaffPopover from '@/components/warehouse-ops/QuickAssignStaffPopover';
+
 
 interface Props {
   data: OpsRangeData;
