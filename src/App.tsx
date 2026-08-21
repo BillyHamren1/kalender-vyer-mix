@@ -95,7 +95,7 @@ import TimeAppShell from "@/shells/TimeAppShell";
 import ScannerAppShell from "@/shells/ScannerAppShell";
 
 // Warehouse system pages — lazy
-const WarehouseDashboard = lazyWithRecovery(() => import("./pages/WarehouseDashboard"));
+const WarehouseOps = lazyWithRecovery(() => import("./pages/WarehouseOps"));
 const WarehouseBookingDetail = lazyWithRecovery(() => import("./pages/WarehouseBookingDetail"));
 const WarehouseCalendarPage = lazyWithRecovery(() => import("./pages/WarehouseCalendarPage"));
 const PackingManagement = lazyWithRecovery(() => import("./pages/PackingManagement"));
@@ -450,10 +450,10 @@ const WebRoutes: React.FC = () => {
 
             {/* Persistent warehouse layout */}
             <Route element={<ProtectedWarehouseLayout />}>
-              <Route path="/warehouse" element={<WarehouseDashboard />} />
+              <Route path="/warehouse" element={<WarehouseOps />} />
               <Route path="/warehouse/bookings/:bookingId" element={<WarehouseBookingDetail />} />
               <Route path="/warehouse/calendar" element={<WarehouseCalendarPage />} />
-              <Route path="/warehouse/packing" element={<PackingManagement />} />
+              <Route path="/warehouse/packing" element={<Navigate to="/warehouse" replace />} />
               <Route path="/warehouse/packing/:packingId" element={<PackingDetail />} />
               <Route path="/warehouse/projects/:warehouseProjectId" element={<WarehouseProjectDetail />} />
               <Route path="/warehouse/economy" element={<WarehouseEconomy />} />
