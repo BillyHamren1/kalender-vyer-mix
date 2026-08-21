@@ -10,16 +10,15 @@ import { sv } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { ConvertInboxDialog } from './ConvertInboxDialog';
 import { WarehouseProjectInboxItem } from '@/types/warehouseProject';
+import { cn } from '@/lib/utils';
 
-const INITIAL_ROWS = 3;
+interface Props {
+  className?: string;
+  initialRows?: number;
+}
 
-/**
- * Kompakt "Att planera"-yta för Lagerplanering.
- * Återanvänder befintlig inbox-data (fetchInbox), query key ['warehouse-project-inbox']
- * och ConvertInboxDialog. Ingen ny datamodell, ingen backend-ändring.
- * Ligger utanför kalenderkomponenten och får aldrig krascha kalendern.
- */
-export const WarehousePlanningInboxBar: React.FC = () => {
+/** Canonical incoming warehouse needs, embedded directly in manager OPS surfaces. */
+export const WarehousePlanningInboxBar: React.FC<Props> = ({ className, initialRows = 3 }) => {
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -38,15 +37,12 @@ export const WarehousePlanningInboxBar: React.FC = () => {
   });
 
   const items: WarehouseProjectInboxItem[] = isError ? [] : (data ?? []);
-  const visible = expanded ? items : items.slice(0, INITIAL_ROWS);
+  const visible = expanded ? items : items.slice(0, initialRows);
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return null;
-    try {
-      return format(new Date(dateStr), 'd MMM', { locale: sv });
-    } catch {
-      return dateStr;
-    }
+    try { return format(new Date(dateStr), 'd MMM', { locale: sv }); }
+    catch { return dateStr; }
   };
 
   const handleDismiss = async (id: string) => {
@@ -64,72 +60,40 @@ export const WarehousePlanningInboxBar: React.FC = () => {
   };
 
   return (
-    <div className="shrink-0 mx-2 mb-2 rounded-xl border border-border/60 bg-card px-3 py-1.5">
-      <div className="flex items-center gap-2">
-        <Inbox className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-xs font-semibold text-foreground">Att planera</span>
-        <Badge variant="outline" className="h-4 px-1.5 text-[10px]">{items.length}</Badge>
+    <div className={cn('shrink-0 rounded-lg border border-border/60 bg-card overflow-hidden', className)}>
+      <div className={cn('h-8 px-2.5 flex items-center gap-2', items.length > 0 ? 'bg-amber-50/70' : 'bg-muted/20')}>
+        <Inbox className={cn('h-3.5 w-3.5', items.length ? 'text-amber-700' : 'text-muted-foreground')} />
+        <span className="text-xs font-bold text-foreground uppercase tracking-wide">Nytt / Att planera</span>
+        <Badge variant="outline" className={cn('h-4 px-1.5 text-[10px]', items.length && 'border-amber-300 bg-amber-100/70 text-amber-800')}>{items.length}</Badge>
         {items.length === 0 && (
-          <span className="text-[11px] text-muted-foreground">
-            {isError ? 'Kunde inte hämta inkommande projekt' : 'Inga projekt väntar på lagerplanering'}
-          </span>
+          <span className="text-[10px] text-muted-foreground">{isError ? 'Kunde inte hämta lagerbehov' : 'Inga nya lagerbehov'}</span>
         )}
-        {items.length > INITIAL_ROWS && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="ml-auto h-6 px-2 text-[11px]"
-            onClick={() => setExpanded(v => !v)}
-          >
-            {expanded ? 'Visa färre' : `Visa alla (${items.length})`}
+        {items.length > initialRows && (
+          <Button variant="ghost" size="sm" className="ml-auto h-6 px-2 text-[10px]" onClick={() => setExpanded(v => !v)}>
+            {expanded ? 'Färre' : `Alla ${items.length}`}
           </Button>
         )}
       </div>
 
       {visible.length > 0 && (
-        <div className={`mt-1 divide-y divide-border/30 ${expanded ? 'max-h-40 overflow-y-auto' : ''}`}>
+        <div className={cn('divide-y divide-border/40', expanded && 'max-h-52 overflow-y-auto')}>
           {visible.map((item) => {
             const isLarge = item.source_type === 'large_project';
             const isBooking = item.source_type === 'booking';
             const date = formatDate(item.event_date);
             return (
-              <div key={item.id} className="flex items-center gap-2 py-1">
-                {isLarge
-                  ? <Layers className="w-3 h-3 text-primary shrink-0" />
-                  : <Package className="w-3 h-3 text-muted-foreground shrink-0" />}
-                <span className="text-xs font-medium truncate">{item.client_name || 'Okänt lagerbehov'}</span>
-                {item.source_project_number && (
-                  <span className="text-[10px] font-mono text-muted-foreground/70 shrink-0">
-                    #{item.source_project_number}
-                  </span>
-                )}
-                <span className="text-[10px] text-muted-foreground shrink-0">
-                  {isLarge ? 'Stort projekt' : isBooking ? 'Bokning' : 'Projekt'}
-                </span>
-                {date && (
-                  <span className="text-[10px] text-muted-foreground shrink-0">Event {date}</span>
-                )}
-                <div className="ml-auto flex items-center gap-1 shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-[11px] hover:bg-primary/10 hover:text-primary"
-                    disabled={busyId === item.id}
-                    onClick={() => setActiveItem(item)}
-                  >
-                    Planera →
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
-                    title="Avfärda"
-                    disabled={busyId === item.id}
-                    onClick={() => handleDismiss(item.id)}
-                  >
-                    <X className="w-3 h-3" />
-                  </Button>
-                </div>
+              <div key={item.id} className="min-h-8 px-2.5 grid grid-cols-[18px_100px_minmax(160px,1fr)_90px_90px_72px_26px] items-center gap-2 text-[11px] hover:bg-accent/25">
+                {isLarge ? <Layers className="w-3 h-3 text-primary" /> : <Package className="w-3 h-3 text-muted-foreground" />}
+                <span className="font-mono font-semibold truncate">{item.source_project_number || '—'}</span>
+                <span className="font-medium truncate">{item.client_name || 'Okänt lagerbehov'}</span>
+                <span className="text-muted-foreground truncate">{isLarge ? 'Stort projekt' : isBooking ? 'Bokning' : 'Projekt'}</span>
+                <span className="text-muted-foreground whitespace-nowrap">{date ? `Event ${date}` : 'Datum saknas'}</span>
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] font-semibold text-amber-800 hover:bg-amber-100" disabled={busyId === item.id} onClick={() => setActiveItem(item)}>
+                  Planera
+                </Button>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive" title="Avfärda" disabled={busyId === item.id} onClick={() => handleDismiss(item.id)}>
+                  <X className="w-3 h-3" />
+                </Button>
               </div>
             );
           })}
@@ -143,6 +107,7 @@ export const WarehousePlanningInboxBar: React.FC = () => {
         onSuccess={async () => {
           await queryClient.invalidateQueries({ queryKey: ['warehouse-project-inbox'] });
           await queryClient.invalidateQueries({ queryKey: ['warehouse-projects'] });
+          await queryClient.invalidateQueries({ queryKey: ['warehouse-ops-range'] });
         }}
       />
     </div>
