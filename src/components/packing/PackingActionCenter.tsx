@@ -29,7 +29,7 @@ const formatInboxEventDate = (value: string | null) => {
 /**
  * Operativ åtgärdslista för Lager OPS.
  * Visar bara verkliga arbetsbehov med en direkt nästa action.
- * Inga KPI-kort, kategori-rutor eller sammanfattningsstatistik.
+ * Samma packning ska inte visas i flera normala åtgärdsgrupper.
  */
 const PackingActionCenter: React.FC<Props> = ({ packings }) => {
   const navigate = useNavigate();
@@ -52,10 +52,13 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
 
   const { data: changed = [] } = useChangedPackings();
 
+  const changedIds = useMemo(() => new Set(changed.map(item => item.id)), [changed]);
+
   const { urgent, overdue } = useMemo(() => {
     const urgentList = packings
       .filter(p => {
-        if (p.status === 'completed' || p.status === 'delivered') return false;
+        if (changedIds.has(p.id)) return false;
+        if (p.status !== 'planning') return false;
         if (!p.booking?.rigdaydate) return false;
         const days = differenceInDays(new Date(p.booking.rigdaydate), new Date());
         return days >= 0 && days <= 7;
@@ -64,6 +67,7 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
 
     const overdueList = packings
       .filter(p => {
+        if (changedIds.has(p.id)) return false;
         if (p.status === 'completed' || p.status === 'delivered') return false;
         if (!p.booking?.rigdaydate) return false;
         return differenceInDays(new Date(p.booking.rigdaydate), new Date()) < 0;
@@ -71,7 +75,7 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
       .sort((a, b) => new Date(a.booking!.rigdaydate!).getTime() - new Date(b.booking!.rigdaydate!).getTime());
 
     return { urgent: urgentList, overdue: overdueList };
-  }, [packings]);
+  }, [packings, changedIds]);
 
   const totalActions = inboxItems.length + changed.length + urgent.length + overdue.length;
 
@@ -80,7 +84,7 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
   const showAllRow = (key: string, total: number, shown: number) =>
     total > shown ? (
       <button
-        className="w-full text-left py-2 text-xs font-medium text-primary hover:underline"
+        className="w-full py-2 text-left text-xs font-medium text-primary hover:underline"
         onClick={() => setExpanded(e => ({ ...e, [key]: true }))}
       >
         Visa alla {total} →
@@ -103,7 +107,7 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
 
   const renderInboxList = () => {
     if (inboxError) {
-      return <p className="text-sm text-destructive py-3">Kunde inte hämta nya lagerbehov.</p>;
+      return <p className="py-3 text-sm text-destructive">Kunde inte hämta nya lagerbehov.</p>;
     }
 
     const visible = inboxItems.slice(0, limitFor('new', inboxItems.length));
@@ -115,23 +119,23 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
           return (
             <div key={item.id} className="flex items-center gap-3 py-2.5">
               {isLarge
-                ? <Layers className="h-3.5 w-3.5 text-primary shrink-0" />
-                : <Package className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
-              <div className="flex-1 min-w-0">
+                ? <Layers className="h-3.5 w-3.5 shrink-0 text-primary" />
+                : <Package className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium truncate">{item.client_name || 'Okänt lagerbehov'}</span>
+                  <span className="truncate text-sm font-medium">{item.client_name || 'Okänt lagerbehov'}</span>
                   {item.source_project_number && (
-                    <span className="text-[11px] font-mono text-muted-foreground/70 shrink-0">#{item.source_project_number}</span>
+                    <span className="shrink-0 font-mono text-[11px] text-muted-foreground/70">#{item.source_project_number}</span>
                   )}
                 </div>
                 <span className="text-xs text-muted-foreground">
                   {eventDate ? `Event ${eventDate} · saknar lagerplanering` : 'Saknar lagerplanering'}
                 </span>
               </div>
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="flex shrink-0 items-center gap-1">
                 <Button
                   size="sm"
-                  className="h-7 px-3 text-xs bg-warehouse hover:bg-warehouse-hover"
+                  className="h-7 bg-warehouse px-3 text-xs hover:bg-warehouse-hover"
                   disabled={busyInboxId === item.id}
                   onClick={() => setActiveInboxItem(item)}
                 >
@@ -167,11 +171,11 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
       <div className="divide-y divide-border/30">
         {visible.map(p => (
           <div key={p.id} className="flex items-center gap-3 py-2.5">
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium truncate">{p.booking?.client || p.name}</span>
+                <span className="truncate text-sm font-medium">{p.booking?.client || p.name}</span>
                 {p.booking?.booking_number && (
-                  <span className="text-[11px] font-mono text-muted-foreground/70 shrink-0">#{p.booking.booking_number}</span>
+                  <span className="shrink-0 font-mono text-[11px] text-muted-foreground/70">#{p.booking.booking_number}</span>
                 )}
               </div>
               <span className="text-xs text-muted-foreground">{issue(p)}</span>
@@ -179,7 +183,7 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
             <Button
               variant="outline"
               size="sm"
-              className="h-7 px-3 text-xs shrink-0"
+              className="h-7 shrink-0 px-3 text-xs"
               onClick={() => navigate(`/warehouse/packing/${p.id}`)}
             >
               {actionLabel}
@@ -191,28 +195,19 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
     );
   };
 
-  if (totalActions === 0 && !inboxError) {
-    return (
-      <section className="mb-6 border-b border-border/40 pb-4">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <AlertTriangle className="h-4 w-4 text-warehouse" />
-          Inget kräver åtgärd just nu.
-        </div>
-      </section>
-    );
-  }
+  if (totalActions === 0 && !inboxError) return null;
 
   return (
-    <section id="actions" className="mb-6 scroll-mt-4">
-      <div className="flex items-center gap-2 mb-2">
+    <section id="actions" className="mb-5 scroll-mt-4">
+      <div className="mb-2 flex items-center gap-2">
         <AlertTriangle className="h-4 w-4 text-warehouse" />
         <h2 className="text-sm font-semibold text-[hsl(var(--heading))]">Kräver åtgärd</h2>
       </div>
 
-      <div className="rounded-xl border border-border/50 bg-card px-4 divide-y divide-border/40">
+      <div className="divide-y divide-border/40 rounded-xl border border-border/50 bg-card px-4">
         {overdue.length > 0 && (
           <div className="py-2">
-            <div className="flex items-center gap-2 text-xs font-semibold text-destructive mb-1">
+            <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-destructive">
               <AlertTriangle className="h-3.5 w-3.5" /> Försenat arbete
             </div>
             {renderPackingList('overdue', overdue, p => {
@@ -224,7 +219,7 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
 
         {changed.length > 0 && (
           <div className="py-2">
-            <div className="flex items-center gap-2 text-xs font-semibold text-amber-700 mb-1">
+            <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-amber-700">
               <RefreshCw className="h-3.5 w-3.5" /> Ändringar att granska
             </div>
             <PackingChangedList
@@ -236,7 +231,7 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
 
         {(inboxItems.length > 0 || inboxError) && (
           <div className="py-2">
-            <div className="flex items-center gap-2 text-xs font-semibold text-foreground mb-1">
+            <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-foreground">
               <Inbox className="h-3.5 w-3.5 text-warehouse" /> Nya jobb att planera
             </div>
             {renderInboxList()}
@@ -245,13 +240,15 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
 
         {urgent.length > 0 && (
           <div className="py-2">
-            <div className="flex items-center gap-2 text-xs font-semibold text-foreground mb-1">
+            <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-foreground">
               <Clock className="h-3.5 w-3.5 text-warehouse" /> Kommande packning som inte är klar
             </div>
             {renderPackingList('urgent', urgent, p => {
               const days = differenceInDays(new Date(p.booking!.rigdaydate!), new Date());
-              return days === 0 ? 'Rigg idag · packning inte klar' : `Rigg om ${days} ${days === 1 ? 'dag' : 'dagar'} · packning inte klar`;
-            }, 'Fortsätt')}
+              return days === 0
+                ? 'Rigg idag · packning inte klar'
+                : `Rigg om ${days} ${days === 1 ? 'dag' : 'dagar'} · packning inte klar`;
+            }, 'Planera packning')}
           </div>
         )}
       </div>
