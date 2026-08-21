@@ -3,7 +3,7 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { type LucideIcon,
   Calendar,
   LayoutDashboard,
-  Package,
+
   Boxes,
   Wrench,
   ChevronDown,

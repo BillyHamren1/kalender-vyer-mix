@@ -98,7 +98,6 @@ import ScannerAppShell from "@/shells/ScannerAppShell";
 const WarehouseOps = lazyWithRecovery(() => import("./pages/WarehouseOps"));
 const WarehouseBookingDetail = lazyWithRecovery(() => import("./pages/WarehouseBookingDetail"));
 const WarehouseCalendarPage = lazyWithRecovery(() => import("./pages/WarehouseCalendarPage"));
-const PackingManagement = lazyWithRecovery(() => import("./pages/PackingManagement"));
 const PackingDetail = lazyWithRecovery(() => import("./pages/PackingDetail"));
 const WarehouseProjectDetail = lazyWithRecovery(() => import("./pages/WarehouseProjectDetail"));
 const PackingVerify = lazyWithRecovery(() => import("./pages/PackingVerify"));
