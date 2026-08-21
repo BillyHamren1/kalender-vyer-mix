@@ -369,21 +369,6 @@ export default function PackingCalendarView({ packings }: Props) {
           );
         })}
       </div>
-
-      <div className="flex flex-wrap items-center gap-4 border-t border-border/30 px-3 py-2 text-[11px] text-muted-foreground">
-        {(Object.keys(KIND_LABELS) as EventKind[]).map((kind) => {
-          const token = KIND_TOKENS[kind];
-          const Icon = kind === "out" ? ArrowUpRight : ArrowDownLeft;
-          return (
-            <span key={kind} className="inline-flex items-center gap-1.5">
-              <span className="inline-flex h-4 w-4 items-center justify-center rounded" style={{ backgroundColor: token.iconBg, color: token.iconFg }}>
-                <Icon className="h-2.5 w-2.5" strokeWidth={2.5} />
-              </span>
-              {KIND_LABELS[kind]}
-            </span>
-          );
-        })}
-      </div>
     </section>
   );
 }
