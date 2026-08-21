@@ -29,7 +29,7 @@ import NewBookingsPopup from '@/components/calendar/NewBookingsPopup';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { startOfWeek, startOfMonth, endOfWeek, endOfMonth, subDays, format } from 'date-fns';
-import { resetCalendarViewStorage } from '@/components/Calendar/ResourceData';
+import { resetCalendarViewStorage, getTransportEventType } from '@/components/Calendar/ResourceData';
 
 import { sv } from 'date-fns/locale';
 import { Calendar, ListChecks, RotateCcw } from 'lucide-react';
