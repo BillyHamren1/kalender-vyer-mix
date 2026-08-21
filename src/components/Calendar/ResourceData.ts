@@ -97,6 +97,8 @@ export const getEventDotClass = (eventType?: string): string => {
     case 'task_pm': return 'bg-purple-500';
     case 'task_logistics': return 'bg-blue-400';
     case 'task_admin': return 'bg-slate-400';
+    case 'transport_out': return 'bg-blue-500';
+    case 'transport_in': return 'bg-amber-500';
     case 'todo': return 'bg-orange-500';
     default: return 'bg-gray-500';
   }
