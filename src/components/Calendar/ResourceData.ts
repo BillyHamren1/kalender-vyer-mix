@@ -119,6 +119,8 @@ export const getEventBgClass = (eventType?: string): string => {
     case 'task_pm': return 'bg-purple-50';
     case 'task_logistics': return 'bg-blue-50';
     case 'task_admin': return 'bg-slate-50';
+    case 'transport_out': return 'bg-blue-100';
+    case 'transport_in': return 'bg-amber-100';
     case 'todo': return 'bg-orange-100';
     default: return 'bg-gray-100';
   }
