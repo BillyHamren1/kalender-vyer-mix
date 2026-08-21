@@ -108,6 +108,17 @@ describe('warehouse OPS contract', () => {
     expect(calendar).toContain("resourceId: event.resource_id || 'warehouse'");
   });
 
+  it('assigns a person to one exact warehouse event instead of an entire legacy team day', () => {
+    const calendar = read('src/pages/WarehouseCalendarPage.tsx');
+    const directAssignment = read('src/services/warehouseDirectAssignmentService.ts');
+
+    expect(calendar).toContain('assignStaffToExactWarehouseEvent');
+    expect(directAssignment).toContain("onConflict: 'staff_id,warehouse_event_id'");
+    expect(directAssignment).toContain("assignment_scope: 'single_event'");
+    expect(directAssignment).toContain('assignStaffToTeamCore');
+    expect(directAssignment).not.toContain('syncWarehouseAssignmentsForStaffTeamDay');
+  });
+
   it('uses canonical warehouse assignments for staff calendar and productivity learning signals', () => {
     const hook = read('src/hooks/useWarehousePersonnelCalendar.ts');
 
