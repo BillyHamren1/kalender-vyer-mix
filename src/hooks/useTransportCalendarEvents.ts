@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { CalendarEvent } from '@/components/Calendar/ResourceData';
+import { CalendarEvent, getEventColor, getTransportEventType } from '@/components/Calendar/ResourceData';
 import { format, startOfWeek, startOfMonth, endOfMonth, addDays } from 'date-fns';
 
 interface TransportCalendarData {
@@ -70,7 +70,8 @@ export const useTransportCalendarEvents = (currentDate: Date, view: 'day' | 'wee
         const clientName = t.booking?.client || 'Okänd';
         const effectivePlanningStatus = t.planning_status === 'confirmed' || t.partner_response === 'accepted' ? 'confirmed' : 'preliminary';
         const planningLabel = effectivePlanningStatus === 'confirmed' ? 'Bekräftad' : 'Preliminär';
-        return {
+      const transportEventType = getTransportEventType(t.transport_type);
+      return {
           id: `transport-${t.id}`,
           title: clientName,
           start: `${t.transport_date}T${time}:00`,
@@ -78,14 +79,14 @@ export const useTransportCalendarEvents = (currentDate: Date, view: 'day' | 'wee
           resourceId: 'warehouse-transport',
           bookingId: t.booking?.id,
           bookingNumber: t.booking?.booking_number || undefined,
-          eventType: 'transport',
+          eventType: transportEventType,
           deliveryAddress: t.destination_address || t.booking?.deliveryaddress || undefined,
           viewed: true,
           editable: false,
           startEditable: false,
           durationEditable: false,
-          backgroundColor: '#DBEAFE',
-          borderColor: '#60A5FA',
+          backgroundColor: getEventColor(transportEventType),
+          borderColor: transportEventType === 'transport_out' ? '#3B82F6' : '#F59E0B',
           extendedProps: {
             bookingNumber: t.booking?.booking_number || undefined,
             booking_id: t.booking?.id,

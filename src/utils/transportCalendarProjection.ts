@@ -1,4 +1,4 @@
-import type { CalendarEvent } from '@/components/Calendar/ResourceData';
+import { CalendarEvent, getEventColor, getTransportEventType } from '@/components/Calendar/ResourceData';
 import type { CalendarTransportProjection } from '@/hooks/useTransportCalendarProjection';
 
 export const transportProjectionToCalendarEvent = (transport: CalendarTransportProjection): CalendarEvent => {
@@ -17,6 +17,7 @@ export const transportProjectionToCalendarEvent = (transport: CalendarTransportP
     internal: 'Intern',
     other: 'Transport',
   };
+  const transportEventType = getTransportEventType(transport.transportType);
 
   return {
     id: `transport-${transport.id}`,
@@ -26,14 +27,14 @@ export const transportProjectionToCalendarEvent = (transport: CalendarTransportP
     resourceId: 'logistics-transport',
     bookingId: transport.bookingId,
     bookingNumber: transport.bookingNumber || undefined,
-    eventType: 'transport',
+    eventType: transportEventType,
     deliveryAddress: transport.destinationAddress || transport.deliveryAddress || undefined,
     viewed: true,
     editable: false,
     startEditable: false,
     durationEditable: false,
-    backgroundColor: '#DBEAFE',
-    borderColor: '#60A5FA',
+    backgroundColor: getEventColor(transportEventType),
+    borderColor: transportEventType === 'transport_out' ? '#3B82F6' : '#F59E0B',
     extendedProps: {
       isTransportPlanning: true,
       transportAssignmentId: transport.id,

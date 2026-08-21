@@ -17,7 +17,7 @@ export interface CalendarEvent extends EventInput {
   bookingNumber?: string;
   booking_number?: string;
   bookingStatus?: string;
-  eventType?: 'rig' | 'event' | 'rigDown' | 'packing' | 'delivery' | 'return' | 'inventory' | 'unpacking' | 'task_crew' | 'task_pm' | 'task_logistics' | 'task_admin' | 'internal_task' | 'todo' | 'transport';
+  eventType?: 'rig' | 'event' | 'rigDown' | 'packing' | 'delivery' | 'return' | 'inventory' | 'unpacking' | 'task_crew' | 'task_pm' | 'task_logistics' | 'task_admin' | 'internal_task' | 'todo' | 'transport' | 'transport_out' | 'transport_in';
   deliveryAddress?: string;
   viewed?: boolean;
   extendedProps?: {
@@ -70,6 +70,11 @@ export const getEventColor = (eventType: string | undefined, customerPickup?: bo
     case 'activity':
     case 'transport':
       return '#BFDBFE'; // Light blue (matches delivery)
+    // --- First-class transport planning ---
+    case 'transport_out':
+      return '#BFDBFE'; // Light blue (UT / utleverans)
+    case 'transport_in':
+      return '#FED7AA'; // Orange-200 (IN / retur/hämtning)
     case 'todo':
       return '#FED7AA'; // Orange-200 (to-do tasks)
     default:
@@ -92,6 +97,8 @@ export const getEventDotClass = (eventType?: string): string => {
     case 'task_pm': return 'bg-purple-500';
     case 'task_logistics': return 'bg-blue-400';
     case 'task_admin': return 'bg-slate-400';
+    case 'transport_out': return 'bg-blue-500';
+    case 'transport_in': return 'bg-amber-500';
     case 'todo': return 'bg-orange-500';
     default: return 'bg-gray-500';
   }
@@ -112,6 +119,8 @@ export const getEventBgClass = (eventType?: string): string => {
     case 'task_pm': return 'bg-purple-50';
     case 'task_logistics': return 'bg-blue-50';
     case 'task_admin': return 'bg-slate-50';
+    case 'transport_out': return 'bg-blue-100';
+    case 'transport_in': return 'bg-amber-100';
     case 'todo': return 'bg-orange-100';
     default: return 'bg-gray-100';
   }
@@ -133,8 +142,25 @@ export const getEventCardClass = (eventType?: string): string => {
     case 'task_pm': return 'bg-purple-500/20 border-purple-500';
     case 'task_logistics': return 'bg-blue-400/20 border-blue-400';
     case 'task_admin': return 'bg-slate-400/20 border-slate-400';
+    case 'transport_out': return 'bg-blue-500/20 border-blue-500';
+    case 'transport_in': return 'bg-amber-500/20 border-amber-500';
     case 'todo': return 'bg-orange-500/20 border-orange-500';
     default: return 'bg-primary/20 border-primary';
+  }
+};
+
+/** Mappar transport_type till riktningsbaserad eventType för färgsättning (UT/IN). */
+export const getTransportEventType = (transportType?: string | null): 'transport_out' | 'transport_in' => {
+  switch (transportType) {
+    case 'delivery':
+    case 'transfer':
+      return 'transport_out';
+    case 'pickup':
+    case 'return':
+    case 'internal':
+    case 'other':
+    default:
+      return 'transport_in';
   }
 };
 

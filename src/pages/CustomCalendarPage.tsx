@@ -29,7 +29,7 @@ import NewBookingsPopup from '@/components/calendar/NewBookingsPopup';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { startOfWeek, startOfMonth, endOfWeek, endOfMonth, subDays, format } from 'date-fns';
-import { resetCalendarViewStorage } from '@/components/Calendar/ResourceData';
+import { resetCalendarViewStorage, getTransportEventType } from '@/components/Calendar/ResourceData';
 
 import { sv } from 'date-fns/locale';
 import { Calendar, ListChecks, RotateCcw } from 'lucide-react';
@@ -267,6 +267,7 @@ const CustomCalendarPage = () => {
       const typeLabel: Record<string, string> = {
         delivery: 'Leverans', pickup: 'Hämtning', transfer: 'Mellantransport', internal: 'Intern', other: 'Transport',
       };
+      const transportEventType = getTransportEventType(transport.transportType);
       return {
         id: `transport-${transport.id}`,
         title: transport.bookingTitle,
@@ -275,7 +276,7 @@ const CustomCalendarPage = () => {
         resourceId: 'logistics-transport',
         bookingId: transport.bookingId,
         bookingNumber: transport.bookingNumber || undefined,
-        eventType: 'transport' as const,
+        eventType: transportEventType,
         deliveryAddress: transport.destinationAddress || transport.deliveryAddress || undefined,
         editable: false,
         startEditable: false,
