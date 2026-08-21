@@ -1,13 +1,17 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, PackageCheck } from 'lucide-react';
-import { addDays, format, isSameDay, startOfDay } from 'date-fns';
+import { Box, ChevronRight, Clock3, PackageCheck, UsersRound } from 'lucide-react';
+import { addDays, format, isSameDay, parseISO, startOfDay } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import type { OpsAssignedStaff, OpsJob, OpsRangeData } from '@/hooks/useWarehouseOpsRange';
 import QuickAssignStaffPopover from '@/components/warehouse-ops/QuickAssignStaffPopover';
 
-interface Props { data: OpsRangeData; }
+interface Props {
+  data: OpsRangeData;
+  selectedJobId?: string | null;
+  onSelectJob?: (job: OpsJob) => void;
+}
 interface WeekRow { key: string; date: string; job: OpsJob; assignedStaff: OpsAssignedStaff[]; }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -54,9 +58,9 @@ function workType(job: OpsJob): string {
 }
 
 function buildRows(data: OpsRangeData): WeekRow[] {
-  const today = startOfDay(new Date());
-  const firstDay = format(today, 'yyyy-MM-dd');
-  const lastDay = format(addDays(today, 6), 'yyyy-MM-dd');
+  const rangeStart = startOfDay(parseISO(data.rangeStart));
+  const firstDay = format(rangeStart, 'yyyy-MM-dd');
+  const lastDay = format(addDays(rangeStart, 6), 'yyyy-MM-dd');
   const rows: WeekRow[] = [];
   for (const job of data.jobs) {
     const byDate = new Map<string, OpsAssignedStaff[]>();
@@ -81,72 +85,113 @@ function buildRows(data: OpsRangeData): WeekRow[] {
   return rows.sort((a, b) => a.date.localeCompare(b.date) || rowTime(a).localeCompare(rowTime(b), 'sv', { numeric: true }));
 }
 
-const WarehouseOverviewNext7Days: React.FC<Props> = ({ data }) => {
+const WarehouseOverviewNext7Days: React.FC<Props> = ({ data, selectedJobId, onSelectJob }) => {
   const navigate = useNavigate();
   const rows = useMemo(() => buildRows(data), [data]);
-  const today = startOfDay(new Date());
+  const rangeStart = useMemo(() => startOfDay(parseISO(data.rangeStart)), [data.rangeStart]);
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => {
-    const date = addDays(today, i);
+    const date = addDays(rangeStart, i);
     const key = format(date, 'yyyy-MM-dd');
     return { date, key, rows: rows.filter((row) => row.date === key) };
-  }), [rows, today]);
+  }), [rows, rangeStart]);
 
   return (
-    <section className="rounded-lg border border-border/60 bg-card overflow-hidden">
-      <div className="h-7 px-2.5 bg-muted/35 border-b border-border/60 grid grid-cols-[82px_84px_100px_minmax(170px,1fr)_minmax(150px,220px)_125px_18px] gap-2 items-center text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-        <span>Tid</span><span>Typ</span><span>Bokning</span><span>Kund / jobb</span><span>Bemanning</span><span>Status</span><span />
-      </div>
-      {days.map(({ date, key, rows: dayRows }, dayIndex) => {
-        const isToday = isSameDay(date, new Date());
-        const unstaffed = dayRows.filter((r) => r.assignedStaff.length === 0 && r.job.workers.length === 0).length;
-        return (
-          <div key={key} className={cn(dayIndex > 0 && 'border-t border-border/60')}>
-            <div className={cn('h-7 px-2.5 flex items-center gap-2 text-[11px]', isToday ? 'bg-warehouse/8' : 'bg-muted/15')}>
-              <span className="font-bold uppercase tracking-wide text-[hsl(var(--heading))]">{format(date, 'EEE', { locale: sv })}</span>
-              <span className="font-semibold text-muted-foreground">{format(date, 'd MMM', { locale: sv })}</span>
-              <span className="text-muted-foreground">· {dayRows.length} jobb</span>
-              {unstaffed > 0 && <span className="font-semibold text-orange-700">· {unstaffed} obemannade</span>}
-              {isToday && <span className="ml-auto text-[9px] font-bold uppercase text-warehouse">Idag</span>}
-            </div>
+    <section className="h-full min-h-0 rounded-lg border border-border/60 bg-card overflow-hidden flex flex-col">
+      <header className="h-10 shrink-0 px-3 border-b border-border/60 flex items-center gap-2">
+        <h2 className="text-sm font-bold text-[hsl(var(--heading))]">Arbetsvecka</h2>
+        <span className="text-[10px] text-muted-foreground">Klicka ett jobb för snabböversikt</span>
+        <div className="ml-auto hidden 2xl:flex items-center gap-3 text-[10px] text-muted-foreground">
+          <span className="inline-flex items-center gap-1"><UsersRound className="h-3 w-3" /> Personal</span>
+          <span className="inline-flex items-center gap-1"><Box className="h-3 w-3" /> Packning</span>
+          <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Klar</span>
+          <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-500" /> Pågår</span>
+        </div>
+      </header>
 
-            {dayRows.length > 0 && (
-              <div className="divide-y divide-border/35">
-                {dayRows.map((row) => {
-                  const staff = staffLabel(row);
-                  const statusLabel = STATUS_LABELS[row.job.status] || row.job.status.replace(/_/g, ' ');
-                  const title = row.job.bookingNumber || row.job.name;
-                  const secondary = row.job.bookingNumber && row.job.name !== row.job.bookingNumber ? row.job.name : row.job.client;
-                  const time = rowTime(row);
-                  return (
-                    <div
-                      key={row.key}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => navigate(`/warehouse/packing/${row.job.id}`)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/warehouse/packing/${row.job.id}`); } }}
-                      className="min-h-9 px-2.5 grid grid-cols-[82px_84px_100px_minmax(170px,1fr)_minmax(150px,220px)_125px_18px] gap-2 items-center hover:bg-accent/30 cursor-pointer text-xs"
-                    >
-                      <span className={cn('font-semibold tabular-nums', time === 'Sätt tid' && 'text-orange-700')}>{time}</span>
-                      <span className="font-semibold text-muted-foreground">{workType(row.job)}</span>
-                      <span className="font-mono font-bold truncate">{title}</span>
-                      <span className="truncate text-foreground/85">{secondary || row.job.client || '—'}</span>
-                      <div className="min-w-0" onClick={(e) => e.stopPropagation()}>
-                        <QuickAssignStaffPopover packingId={row.job.id} packingName={row.job.bookingNumber || row.job.name} assignedNames={row.assignedStaff.map((a) => a.name).filter(Boolean)} label={staff.text} muted={staff.muted} />
-                      </div>
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className={cn('h-2 w-2 rounded-full shrink-0', STATUS_DOT[row.job.status] || 'bg-slate-400')} />
-                        <span className="truncate font-medium">{statusLabel}{row.job.totalItems > 0 && !['completed', 'done', 'completed_in', 'completed_out'].includes(row.job.status) ? ` · ${row.job.percent}%` : ''}</span>
-                        {row.job.percent >= 100 && <PackageCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />}
-                      </div>
-                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+      <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
+        <div className="h-full min-w-[980px] grid grid-cols-7 divide-x divide-border/55">
+          {days.map(({ date, key, rows: dayRows }) => {
+            const isToday = isSameDay(date, new Date());
+            const unstaffed = dayRows.filter((r) => r.assignedStaff.length === 0 && r.job.workers.length === 0).length;
+            return (
+              <div key={key} className={cn("min-w-0 flex flex-col", isToday && "bg-warehouse/[0.025]")}>
+                <div className={cn(
+                  "h-11 shrink-0 px-2.5 border-b border-border/55 flex items-center gap-2 sticky top-0 z-10",
+                  isToday ? "bg-warehouse/10" : "bg-muted/25",
+                )}>
+                  <div>
+                    <div className="text-[11px] font-bold uppercase tracking-wide text-[hsl(var(--heading))]">
+                      {format(date, "EEE d", { locale: sv })}
                     </div>
-                  );
-                })}
+                    <div className="text-[9px] text-muted-foreground">{dayRows.length} jobb{unstaffed > 0 ? ` · ${unstaffed} obem.` : ""}</div>
+                  </div>
+                  {isToday && <span className="ml-auto rounded bg-warehouse px-1.5 py-0.5 text-[8px] font-bold uppercase text-white">Idag</span>}
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-auto p-1.5 space-y-1.5">
+                  {dayRows.length === 0 ? (
+                    <div className="h-14 rounded border border-dashed border-border/55 flex items-center justify-center text-[10px] text-muted-foreground">
+                      Inget planerat
+                    </div>
+                  ) : dayRows.map((row) => {
+                    const staff = staffLabel(row);
+                    const statusLabel = STATUS_LABELS[row.job.status] || row.job.status.replace(/_/g, " ");
+                    const title = row.job.bookingNumber || row.job.name;
+                    const secondary = row.job.bookingNumber && row.job.name !== row.job.bookingNumber ? row.job.name : row.job.client;
+                    const time = rowTime(row);
+                    const selected = selectedJobId === row.job.id;
+                    return (
+                      <article
+                        key={row.key}
+                        className={cn(
+                          "rounded-md border bg-background px-2 py-1.5 cursor-pointer transition-colors hover:border-warehouse/45 hover:bg-accent/20",
+                          selected ? "border-warehouse ring-1 ring-warehouse/25" : "border-border/60",
+                        )}
+                        onClick={() => onSelectJob?.(row.job)}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <Clock3 className={cn("h-3 w-3 shrink-0", time === "Sätt tid" ? "text-orange-600" : "text-muted-foreground")} />
+                          <span className={cn("text-[10px] font-bold tabular-nums", time === "Sätt tid" && "text-orange-700")}>{time}</span>
+                          <span className="ml-auto text-[9px] font-semibold text-muted-foreground">{workType(row.job)}</span>
+                        </div>
+                        <div className="mt-1 text-[11px] font-bold truncate">{title}</div>
+                        <div className="text-[10px] text-muted-foreground truncate">{secondary || row.job.client || "—"}</div>
+                        <div className="mt-1.5 flex items-center gap-1 min-w-0">
+                          <span className={cn("h-2 w-2 rounded-full shrink-0", STATUS_DOT[row.job.status] || "bg-slate-400")} />
+                          <span className="text-[9px] font-semibold truncate">
+                            {statusLabel}{row.job.totalItems > 0 && !["completed", "done", "completed_in", "completed_out"].includes(row.job.status) ? ` · ${row.job.percent}%` : ""}
+                          </span>
+                          {row.job.percent >= 100 && <PackageCheck className="h-3 w-3 text-emerald-600 shrink-0" />}
+                          <button
+                            type="button"
+                            title="Öppna packning"
+                            className="ml-auto h-5 w-5 rounded flex items-center justify-center hover:bg-accent shrink-0"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              navigate(`/warehouse/packing/${row.job.id}`);
+                            }}
+                          >
+                            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                          </button>
+                        </div>
+                        <div className="mt-0.5 min-w-0" onClick={(event) => event.stopPropagation()}>
+                          <QuickAssignStaffPopover
+                            packingId={row.job.id}
+                            packingName={title}
+                            assignedNames={row.assignedStaff.map((a) => a.name).filter(Boolean)}
+                            label={staff.text}
+                            muted={staff.muted}
+                          />
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
               </div>
-            )}
-          </div>
-        );
-      })}
+            );
+          })}
+        </div>
+      </div>
     </section>
   );
 };
