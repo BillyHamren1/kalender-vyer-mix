@@ -22,13 +22,40 @@ describe('Lager OPS consolidation contract', () => {
     expect(sidebar).not.toContain('Planera packning');
   });
 
-  it('composes the OPS page from search, action-required, calendar and active work', () => {
+  it('composes the OPS page as a compact ops surface: sticky search, counters, inbox, attention, work week', () => {
     const page = read('src/pages/WarehouseOps.tsx');
-    expect(page).toContain('title="Lager OPS"');
-    expect(page).toContain('<OpsUnifiedSearch');
-    expect(page).toContain('<OpsActionRequired');
-    expect(page).toContain('<PackingCalendarView');
-    expect(page).toContain('<OpsActiveWork');
+    expect(page).toContain('Lager OPS');
+    expect(page).toContain('sticky top-0');
+    expect(page).toContain('<WarehouseBookingQuickOpen');
+    expect(page).toContain('obemannade');
+    expect(page).toContain('saknar tid');
+    expect(page).toContain('uppmärksamhet');
+    expect(page).toContain('<WarehousePlanningInboxBar');
+    expect(page).toContain('<WarehouseOverviewAttention');
+    expect(page).toContain('<WarehouseOverviewNext7Days');
+    // no airy dashboard leftovers
+    expect(page).not.toContain('<PackingCalendarView');
+    expect(page).not.toContain('<OpsUnifiedSearch');
+  });
+
+  it('keeps the integrated inbox on Planning\'s canonical flow', () => {
+    const bar = read('src/components/warehouse/WarehousePlanningInboxBar.tsx');
+    expect(bar).toContain("fetchInbox('new')");
+    expect(bar).toContain('ConvertInboxDialog');
+    expect(bar).toContain('Planera');
+    expect(bar).toContain("['warehouse-ops-range']");
+  });
+
+  it('work week rows are compact and use plain work labels with inline staffing', () => {
+    const week = read('src/components/warehouse-ops/WarehouseOverviewNext7Days.tsx');
+    expect(week).toContain('min-h-9');
+    expect(week).toContain("'Retur'");
+    expect(week).toContain("'Lager'");
+    expect(week).toContain("'Packning'");
+    expect(week).not.toMatch(/'UT'|'IN'/);
+    expect(week).toContain('Sätt tid');
+    expect(week).toContain('+ Bemanna');
+    expect(week).toContain('<QuickAssignStaffPopover');
   });
 
   it('unified search covers packing lists and bookings without a packing list', () => {

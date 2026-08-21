@@ -40,12 +40,12 @@ describe('warehouse UI separation contract', () => {
   });
 
 
-  it('keeps personnel planning on the calendar route and incoming work on packing', () => {
-    const dashboard = read('src/pages/WarehouseDashboard.tsx');
+  it('keeps personnel planning on the calendar route, reachable from Lager OPS', () => {
+    const ops = read('src/pages/WarehouseOps.tsx');
 
-    expect(dashboard).toContain('title: "Planera personal"');
-    expect(dashboard).toContain('route: "/warehouse/calendar"');
-    expect(dashboard).toContain('title: "Hantera inkommande"');
-    expect(dashboard).toContain('route: "/warehouse/packing#actions"');
+    expect(ops).toContain('navigate("/warehouse/calendar")');
+    expect(ops).toContain('Bemanning');
+    // no airy "Gå vidare" action tiles on the ops surface
+    expect(ops).not.toContain('route: "/warehouse/packing#actions"');
   });
 });
