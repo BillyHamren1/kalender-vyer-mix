@@ -267,6 +267,7 @@ const CustomCalendarPage = () => {
       const typeLabel: Record<string, string> = {
         delivery: 'Leverans', pickup: 'Hämtning', transfer: 'Mellantransport', internal: 'Intern', other: 'Transport',
       };
+      const transportEventType = getTransportEventType(transport.transportType);
       return {
         id: `transport-${transport.id}`,
         title: transport.bookingTitle,
@@ -275,7 +276,7 @@ const CustomCalendarPage = () => {
         resourceId: 'logistics-transport',
         bookingId: transport.bookingId,
         bookingNumber: transport.bookingNumber || undefined,
-        eventType: 'transport' as const,
+        eventType: transportEventType,
         deliveryAddress: transport.destinationAddress || transport.deliveryAddress || undefined,
         editable: false,
         startEditable: false,
