@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Clock, RefreshCw, Inbox, Layers, Package, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { format, differenceInDays, isPast } from 'date-fns';
+import { format, differenceInDays } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { PackingWithBooking } from '@/types/packing';
 import type { WarehouseProjectInboxItem } from '@/types/warehouseProject';
@@ -66,7 +66,7 @@ const PackingActionCenter: React.FC<Props> = ({ packings }) => {
       .filter(p => {
         if (p.status === 'completed' || p.status === 'delivered') return false;
         if (!p.booking?.rigdaydate) return false;
-        return isPast(new Date(p.booking.rigdaydate));
+        return differenceInDays(new Date(p.booking.rigdaydate), new Date()) < 0;
       })
       .sort((a, b) => new Date(a.booking!.rigdaydate!).getTime() - new Date(b.booking!.rigdaydate!).getTime());
 
