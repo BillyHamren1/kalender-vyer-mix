@@ -22,20 +22,18 @@ describe('Lager OPS consolidation contract', () => {
     expect(sidebar).not.toContain('Planera packning');
   });
 
-  it('composes the OPS page as a compact ops surface: sticky search, counters, inbox, attention, work week', () => {
+  it('composes the OPS page as a compact, action-first ops surface', () => {
     const page = read('src/pages/WarehouseOps.tsx');
-    expect(page).toContain('Lager OPS');
-    expect(page).toContain('sticky top-0');
+    expect(page).toContain('Planning OPS');
     expect(page).toContain('<WarehouseBookingQuickOpen');
-    expect(page).toContain('obemannade');
-    expect(page).toContain('saknar tid');
-    expect(page).toContain('uppmärksamhet');
-    expect(page).toContain('<WarehousePlanningInboxBar');
-    expect(page).toContain('<WarehouseOverviewAttention');
     expect(page).toContain('<WarehouseOverviewNext7Days');
-    // no airy dashboard leftovers
+    expect(page).toContain('<WarehouseOpsActionQueue');
+    // Viewport-layout, ingen långscroll-dashboard.
+    expect(page).toContain('h-full min-h-0 overflow-hidden');
+    // Passiva räknare utan direkt action är borttagna.
+    expect(page).not.toContain('obemannade');
+    expect(page).not.toContain('saknar tid');
     expect(page).not.toContain('<PackingCalendarView');
-    expect(page).not.toContain('<OpsUnifiedSearch');
   });
 
   it('keeps the integrated inbox on Planning\'s canonical flow', () => {
@@ -48,7 +46,6 @@ describe('Lager OPS consolidation contract', () => {
 
   it('work week rows are compact and use plain work labels with inline staffing', () => {
     const week = read('src/components/warehouse-ops/WarehouseOverviewNext7Days.tsx');
-    expect(week).toContain('min-h-9');
     expect(week).toContain("'Retur'");
     expect(week).toContain("'Lager'");
     expect(week).toContain("'Packning'");

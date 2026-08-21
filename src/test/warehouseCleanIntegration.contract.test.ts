@@ -47,7 +47,7 @@ describe('warehouse clean integration', () => {
     const hook = read('src/hooks/useWarehousePersonnelWeek.ts');
     expect(hook).toContain("from('warehouse_assignments')");
     expect(hook).not.toContain("from('staff_assignments')");
-    expect(hook).not.toContain('lager-');
+    expect(hook).not.toMatch(/from\('staff_assignments'\)|resource_id/);
   });
 });
 
