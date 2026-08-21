@@ -8,6 +8,11 @@ const migration = readdirSync(MIGRATIONS_DIR)
   .filter((sql) => sql.includes('ensure_warehouse_booking_need'))
   .join('\n');
 
+const allMigrations = readdirSync(MIGRATIONS_DIR)
+  .filter((f) => f.endsWith('.sql'))
+  .map((f) => readFileSync(`${MIGRATIONS_DIR}/${f}`, 'utf8'))
+  .join('\n');
+
 const service = readFileSync('src/services/warehouseProjectService.ts', 'utf8');
 const dialog = readFileSync('src/components/warehouse/ConvertInboxDialog.tsx', 'utf8');
 const types = readFileSync('src/types/warehouseProject.ts', 'utf8');
@@ -30,7 +35,6 @@ describe('canonical Booking -> warehouse need contract', () => {
     // bookings.id är TEXT i denna databas — kopplingen görs mot b.id direkt.
     expect(migration).toContain('p.booking_id = b.id');
     expect(migration).toContain('source_booking_id = p_booking_id');
-
   });
 
   it('tracks the canonical booking on warehouse_projects and reuses an existing packing', () => {
@@ -55,6 +59,29 @@ describe('canonical Booking -> warehouse need contract', () => {
     expect(service).toContain('warehouse_project_task_id: task.id');
   });
 
+  it('protects the approved manager plan from Booking suggestion collisions', () => {
+    expect(allMigrations).toContain('guard_authoritative_warehouse_plan');
+    expect(allMigrations).toContain("NEW.warehouse_project_task_id IS NOT NULL");
+    expect(allMigrations).toContain("NEW.event_type IN ('packing', 'return')");
+    expect(allMigrations).toContain('RETURN NULL;');
+    expect(allMigrations).toContain('NEW.booking_id := NULL;');
+    expect(allMigrations).toContain('NEW.start_time := OLD.start_time;');
+    expect(allMigrations).toContain('NEW.resource_id := OLD.resource_id;');
+    expect(allMigrations).toContain('NEW.manually_adjusted := true;');
+  });
+
+  it('keeps multi-day worker assignments linked to the canonical booking', () => {
+    expect(allMigrations).toContain('source_booking_id text');
+    expect(allMigrations).toContain('restore_warehouse_assignment_booking');
+    expect(allMigrations).toContain('COALESCE(wce.source_booking_id, wce.booking_id)');
+    expect(allMigrations).toContain('NEW.booking_id := _booking_id;');
+  });
+
+  it('does not change the stable Booking warehouse upsert key', () => {
+    expect(allMigrations).toContain('warehouse_calendar_events_org_booking_event_type_unique');
+    expect(allMigrations).not.toContain('DROP INDEX IF EXISTS warehouse_calendar_events_org_booking_event_type_unique');
+  });
+
   it('separates planned warehouse work from packing workflow checkpoints', () => {
     expect(migration).toContain("task_kind text NOT NULL DEFAULT 'planned_work'");
     expect(service).toContain("task_kind: 'planned_work'");
@@ -66,5 +93,4 @@ describe('canonical Booking -> warehouse need contract', () => {
     expect(migration).not.toContain('TRUNCATE');
     expect(migration).toContain('ADD COLUMN IF NOT EXISTS source_booking_id');
   });
-
 });
