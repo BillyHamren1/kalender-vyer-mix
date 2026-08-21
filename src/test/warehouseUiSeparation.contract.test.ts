@@ -25,6 +25,15 @@ describe('warehouse OPS contract', () => {
     expect(actionCenter).toContain('Försenat arbete');
     expect(actionCenter).not.toContain('grid-cols-2 md:grid-cols-4');
     expect(actionCenter).not.toContain('CategoryKey');
+    expect(actionCenter).not.toContain('Inget kräver åtgärd just nu');
+  });
+
+  it('does not duplicate changed packings into the normal upcoming action group', () => {
+    const actionCenter = read('src/components/packing/PackingActionCenter.tsx');
+
+    expect(actionCenter).toContain('const changedIds = useMemo');
+    expect(actionCenter).toContain('if (changedIds.has(p.id)) return false;');
+    expect(actionCenter).toContain("if (p.status !== 'planning') return false;");
   });
 
   it('consolidates dashboard and packing planning into Lager OPS', () => {
@@ -33,18 +42,30 @@ describe('warehouse OPS contract', () => {
     const sidebar = read('src/components/WarehouseSidebar3D.tsx');
 
     expect(dashboard).toContain('title="Lager OPS"');
+    expect(dashboard).toContain('<WarehouseOpsSearch packings={packings} />');
     expect(dashboard).toContain('<PackingActionCenter packings={packings} />');
     expect(dashboard).toContain('<PackingActiveWork packings={packings} />');
     expect(dashboard).toContain('<PackingCalendarView packings={packings} />');
-    expect(dashboard).toContain('Hitta packlista');
+    expect(dashboard).toContain('Planera packning och retur');
     expect(dashboard).not.toContain('WarehouseOverviewNext7Days');
     expect(dashboard).not.toContain('WarehouseOverviewAttention');
+    expect(dashboard).not.toContain('WarehouseBookingQuickOpen');
     expect(dashboard).not.toContain('NEXT_STEPS');
 
     expect(legacyPacking).toContain('<Navigate to="/warehouse" replace />');
     expect(sidebar).toContain('{ title: "Lager OPS", url: "/warehouse"');
     expect(sidebar).not.toContain('Planera packning');
     expect(sidebar).not.toContain('Dashboard');
+  });
+
+  it('uses one unified search for bookings and packlists', () => {
+    const search = read('src/components/warehouse/WarehouseOpsSearch.tsx');
+
+    expect(search).toContain('Sök bokning, packlista, kund eller adress');
+    expect(search).toContain('Öppna packlista');
+    expect(search).toContain('/warehouse/bookings/');
+    expect(search).toContain('/warehouse/packing/');
+    expect(search).toContain('matchedBookingIds');
   });
 
   it('does not infer event-specific staffing from a warehouse team/day assignment', () => {
