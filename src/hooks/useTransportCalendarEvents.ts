@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { CalendarEvent } from '@/components/Calendar/ResourceData';
+import { CalendarEvent, getEventColor, getTransportEventType } from '@/components/Calendar/ResourceData';
 import { format, startOfWeek, startOfMonth, endOfMonth, addDays } from 'date-fns';
 
 interface TransportCalendarData {
