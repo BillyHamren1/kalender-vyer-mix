@@ -56,6 +56,8 @@ export interface OpsJob {
   /** Personer som faktiskt har scannat på packningen nyligen. */
   workers: OpsWorker[];
   lastActivityAt: string | null;
+  /** Senaste VERKLIGA scan (allokering). Null = ingen har scannat. */
+  lastScanAt: string | null;
   updatedAt: string;
 }
 
