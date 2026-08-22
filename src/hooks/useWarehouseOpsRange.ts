@@ -56,6 +56,8 @@ export interface OpsJob {
   /** Personer som faktiskt har scannat på packningen nyligen. */
   workers: OpsWorker[];
   lastActivityAt: string | null;
+  /** Senaste VERKLIGA scan (allokering). Null = ingen har scannat. */
+  lastScanAt: string | null;
   updatedAt: string;
 }
 
@@ -379,6 +381,7 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
           percent: progress.percentage,
           workers,
           lastActivityAt,
+          lastScanAt: lastWorkerActivity,
           updatedAt: p.updated_at,
         };
 
@@ -526,7 +529,7 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
   });
 }
 
-function computeAttention(
+export function computeAttention(
   jobs: OpsJob[],
   scans: OpsScanEvent[],
   shifts: OpsShift[],
@@ -542,15 +545,16 @@ function computeAttention(
     if (j.percent >= 100) continue;
     if (!j.anchorDate) continue;
     if (j.anchorDate > todayStr) continue; // bara dagens eller försenat
-    const lastAct = j.lastActivityAt ? parseISO(j.lastActivityAt) : null;
-    const minsSince = lastAct ? differenceInMinutes(now, lastAct) : Infinity;
+    // Endast verkliga scans får presenteras som scan-tid (updated_at != scan).
+    const lastScan = j.lastScanAt ? parseISO(j.lastScanAt) : null;
+    const minsSince = lastScan ? differenceInMinutes(now, lastScan) : Infinity;
     const isOverdue = j.anchorDate < todayStr;
     out.push({
       id: `late-${j.id}`,
       level: isOverdue ? "critical" : "warning",
       title: `${j.bookingNumber || j.name} — UT ${isOverdue ? "försenad" : "idag"}`,
       detail: `${j.percent}% packat${
-        minsSince < Infinity ? ` · senast scan ${minutesAgo(minsSince)}` : " · ingen har börjat"
+        minsSince < Infinity ? ` · senast scan ${minutesAgo(minsSince)}` : " · ingen har scannat än"
       }`,
       jobId: j.packingId,
     });
@@ -573,8 +577,8 @@ function computeAttention(
   for (const j of jobs) {
     if (j.direction === "in" && j.status === "in_progress") continue;
     if (j.status !== "in_progress" && j.status !== "returning") continue;
-    if (!j.lastActivityAt) continue;
-    const mins = differenceInMinutes(now, parseISO(j.lastActivityAt));
+    if (!j.lastScanAt) continue;
+    const mins = differenceInMinutes(now, parseISO(j.lastScanAt));
     if (mins >= 120 && mins < 60 * 24) {
       out.push({
         id: `idle-${j.id}`,
