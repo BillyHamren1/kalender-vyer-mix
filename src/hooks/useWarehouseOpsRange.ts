@@ -327,7 +327,10 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
         workersByProject.set(projId, map);
       }
 
-      const jobs: OpsJob[] = list.map((p) => {
+      const OUT_DONE = new Set(["completed_in", "completed", "done", "returned"]);
+      const IN_DONE = new Set(["completed", "done"]);
+
+      const jobs: OpsJob[] = list.flatMap((p) => {
         const projItems = itemsByProject.get(p.id) || [];
         const progress = computePackingProgress(
           projItems.map((it: any) => ({
@@ -351,28 +354,15 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
           p.updated_at;
 
         const booking = p.booking_id ? bookingMap.get(p.booking_id) : null;
-        const isReturnPhase =
-          p.status === "back" ||
-          p.status === "returning" ||
-          p.status === "returned" ||
-          p.status === "delivered";
-        let direction: OpsDirection = "out";
-        if (isReturnPhase) direction = "in";
-        if (!p.booking_id && p.warehouse_project_id) direction = "internal";
-
-        const anchorDate =
-          direction === "in"
-            ? booking?.rigdowndate || p.end_date || p.start_date || null
-            : booking?.rigdaydate || p.start_date || null;
-
-        const anchorTime =
-          direction === "in" ? booking?.rigdown_start_time || null : booking?.rig_start_time || null;
-
         const signedByName =
           (p.signed_by_staff_id && staffMap.get(p.signed_by_staff_id)) || p.signed_by || null;
 
-        return {
-          id: p.id,
+        const outAnchor = booking?.rigdaydate || p.start_date || null;
+        const inAnchor = booking?.rigdowndate || p.end_date || null;
+        const allAssignments = assignedStaffByProject.get(p.id) || [];
+
+        const base = {
+          packingId: p.id,
           name: p.name,
           status: p.status,
           client: p.client_name || booking?.client || null,
@@ -380,9 +370,6 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
           bookingNumber: booking?.booking_number || null,
           warehouseProjectId: p.warehouse_project_id,
           largeProjectId: p.large_project_id,
-          direction,
-          anchorDate,
-          anchorTime,
           startDate: p.start_date || booking?.rigdaydate || null,
           endDate: p.end_date || booking?.rigdowndate || null,
           signedAt: p.signed_at,
@@ -390,12 +377,68 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
           totalItems: progress.total,
           verifiedItems: progress.verified,
           percent: progress.percentage,
-          assignedStaff: assignedStaffByProject.get(p.id) || [],
           workers,
           lastActivityAt,
           updatedAt: p.updated_at,
         };
+
+        // Interna lageruppgifter (utan bokning) har varken UT eller IN — en rad.
+        if (!p.booking_id && p.warehouse_project_id) {
+          return [
+            {
+              ...base,
+              id: p.id,
+              direction: "internal" as OpsDirection,
+              anchorDate: outAnchor,
+              anchorTime: booking?.rig_start_time || null,
+              assignedStaff: allAssignments,
+            },
+          ];
+        }
+
+        const rows: OpsJob[] = [];
+
+        // UT — packning/utlastning fram till dess att retur tagit över.
+        if (!OUT_DONE.has(p.status)) {
+          rows.push({
+            ...base,
+            id: p.id,
+            direction: "out",
+            anchorDate: outAnchor,
+            anchorTime: booking?.rig_start_time || null,
+            assignedStaff: allAssignments.filter(
+              (a) => !inAnchor || a.assignmentDate !== inAnchor || outAnchor === inAnchor,
+            ),
+          });
+        }
+
+        // IN — retur. Egen rad så snart det finns ett rivdatum, även innan leverans.
+        if (inAnchor && !IN_DONE.has(p.status)) {
+          rows.push({
+            ...base,
+            id: `${p.id}::in`,
+            direction: "in",
+            anchorDate: inAnchor,
+            anchorTime: booking?.rigdown_start_time || null,
+            assignedStaff: allAssignments.filter((a) => a.assignmentDate === inAnchor),
+          });
+        }
+
+        // Fallback: aldrig tappa en packning helt ur vyn.
+        if (rows.length === 0) {
+          rows.push({
+            ...base,
+            id: p.id,
+            direction: "out",
+            anchorDate: outAnchor,
+            anchorTime: booking?.rig_start_time || null,
+            assignedStaff: allAssignments,
+          });
+        }
+
+        return rows;
       });
+
 
       // 8. Filtrera jobb till intervallet (eller alltid med om aktiva eller kommande)
       const inRange = (d: string | null) => !!d && d >= startDay && d <= endDay;
