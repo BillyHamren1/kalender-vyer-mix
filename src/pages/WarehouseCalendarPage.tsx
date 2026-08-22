@@ -26,7 +26,8 @@ import { startOfWeek, startOfMonth, format, parseISO } from 'date-fns';
 import {
   useWarehousePackingStats,
   useWarehouseBookingTitles,
-, useWarehouseEventCrew } from '@/hooks/useWarehouseCardMeta';
+  useWarehouseEventCrew,
+} from '@/hooks/useWarehouseCardMeta';
 
 // Aktivitetsetiketter för lagerkortets översta rad.
 const WAREHOUSE_ACTIVITY_LABELS: Record<string, string> = {
