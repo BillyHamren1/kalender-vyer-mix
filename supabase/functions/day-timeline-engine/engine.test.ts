@@ -1,7 +1,7 @@
 // Deno tests for the day timeline engine pure functions.
 // Run: deno test --allow-net --allow-env --allow-read supabase/functions/day-timeline-engine/engine.test.ts
 
-import { assertEquals, assert } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assert, assertExists } from "../_shared/testAssertions.ts";
 import { clusterPings } from "../_shared/timeline/cluster.ts";
 import { matchSegmentsToPlaces } from "../_shared/timeline/matcher.ts";
 import { buildEvents } from "../_shared/timeline/eventBuilder.ts";
@@ -83,12 +83,15 @@ Deno.test("eventBuilder: workday + reports + venngarn segment → ordered events
     knownPlaces: [place], homePlace: null,
     reportedPlaceForReport: () => place,
   });
-  // Should contain workday_started, arrived_at_reported_site, left_reported_site, workday_ended
+  // V2 emits one stay_segment for the visit, bounded by workday markers.
   const types = events.map((e) => e.eventType);
   assert(types.includes("workday_started"));
   assert(types.includes("workday_ended"));
-  assert(types.includes("arrived_at_reported_site"));
-  assert(types.includes("left_reported_site"));
+  assert(types.includes("stay_segment"));
+  const stay = events.find((e) => e.eventType === "stay_segment");
+  assertExists(stay);
+  assertEquals(stay.matchedSiteId, "b1");
+  assertEquals(stay.matchedSiteType, "booking");
   // Sorted
   for (let i = 1; i < events.length; i++) assert(events[i - 1].ts <= events[i].ts);
 });

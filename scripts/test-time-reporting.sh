@@ -95,7 +95,7 @@ FRONTEND_TESTS=(
   "src/test/workday/singleOwnerTimeReport.test.ts"
 )
 
-BACKEND_TESTS=(
+INTEGRATION_BACKEND_TESTS=(
   # time_reports skrivvägen: auth, payload, admin-vägen, idempotent timers.
   "supabase/functions/mobile-app-api/timeReports.test.ts"
   # workday_flags skrivvägen: auth, vokabulär, resolution_source-katalog.
@@ -110,8 +110,11 @@ BACKEND_TESTS=(
   # mark_arrival_resolved och get_arrival_state måste behandla alla tre
   # target-kindar likadant på auth/validation-ytan.
   "supabase/functions/mobile-app-api/arrivalParity_test.ts"
+)
+
+PURE_BACKEND_TESTS=(
   # Day Event Timeline Engine (Etapp 1): pure functions för cluster, matcher,
-  # eventBuilder, suggestionEngine, smartFilter.
+  # eventBuilder, suggestionEngine, smartFilter. Kräver inget nätverk.
   "supabase/functions/day-timeline-engine/engine.test.ts"
 )
 
@@ -122,7 +125,7 @@ gray()  { printf "\033[90m%s\033[0m\n" "$*"; }
 
 bold "▶ Time-reporting quality gate"
 gray "  Frontend tests: ${#FRONTEND_TESTS[@]}"
-gray "  Backend tests:  ${#BACKEND_TESTS[@]}"
+gray "  Backend tests:  $((${#PURE_BACKEND_TESTS[@]} + ${#INTEGRATION_BACKEND_TESTS[@]}))"
 echo
 
 FRONTEND_RC=0
@@ -130,35 +133,59 @@ BACKEND_RC=0
 
 # ── 1. Frontend ──
 bold "── 1/2  Frontend (vitest) ──"
-if command -v npx >/dev/null 2>&1; then
+VITEST_BIN="$ROOT/node_modules/.bin/vitest"
+if [ -x "$VITEST_BIN" ]; then
   # Kör en fil i taget för att undvika mock-läckage mellan suiter.
   for f in "${FRONTEND_TESTS[@]}"; do
     echo
     bold "  • $f"
-    if ! npx vitest run "$f"; then
+    if ! "$VITEST_BIN" run "$f"; then
       FRONTEND_RC=1
     fi
   done
 else
-  red "  npx saknas – kan inte köra vitest"
+  red "  Lokal Vitest-binär saknas – kör npm ci först"
   FRONTEND_RC=127
 fi
 
 # ── 2. Backend ──
 echo
 bold "── 2/2  Backend (deno test, mobile-app-api) ──"
-if [ "${#BACKEND_TESTS[@]}" -eq 0 ]; then
-  gray "  (inga dedikerade Deno-tester ännu — hoppar över)"
-elif command -v deno >/dev/null 2>&1; then
-  for f in "${BACKEND_TESTS[@]}"; do
+DENO_BIN="$ROOT/node_modules/.bin/deno"
+if [ ! -x "$DENO_BIN" ]; then
+  red "  Lokal Deno-binär saknas – kör npm ci först"
+  BACKEND_RC=127
+else
+  for f in "${PURE_BACKEND_TESTS[@]}"; do
     echo
     bold "  • $f"
-    if ! deno test --allow-net --allow-env --allow-read "$f"; then
+    if ! "$DENO_BIN" test --allow-env --allow-read "$f"; then
       BACKEND_RC=1
     fi
   done
-else
-  gray "  deno saknas – hoppar över backend-svit (kör i CI eller lokalt med Deno installerat)"
+
+  BACKEND_TEST_URL="${TIME_REPORTING_BACKEND_TEST_URL:-}"
+  SAFE_BACKEND_TARGET=false
+  case "$BACKEND_TEST_URL" in
+    http://127.0.0.1:*|http://localhost:*) SAFE_BACKEND_TARGET=true ;;
+  esac
+  if [ "${TIME_REPORTING_ALLOW_REMOTE_TEST:-false}" = "true" ] && [ -n "$BACKEND_TEST_URL" ]; then
+    SAFE_BACKEND_TARGET=true
+  fi
+
+  if [ "$SAFE_BACKEND_TARGET" != "true" ]; then
+    red "  Integrationstester kräver TIME_REPORTING_BACKEND_TEST_URL mot LOCAL/TEST."
+    red "  För en uttryckligt godkänd fjärrtestmiljö krävs även TIME_REPORTING_ALLOW_REMOTE_TEST=true."
+    BACKEND_RC=2
+  else
+    for f in "${INTEGRATION_BACKEND_TESTS[@]}"; do
+      echo
+      bold "  • $f"
+      if ! VITE_SUPABASE_URL="$BACKEND_TEST_URL" "$DENO_BIN" test --allow-net --allow-env --allow-read "$f"; then
+        BACKEND_RC=1
+      fi
+    done
+  fi
 fi
 
 # ── Slutsummering ──

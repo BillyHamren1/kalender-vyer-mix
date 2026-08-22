@@ -17,8 +17,7 @@
  * körning av cron är en no-op om allt redan stängt.
  */
 
-import "https://deno.land/std@0.224.0/dotenv/load.ts";
-import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assert, assertEquals } from "../_shared/testAssertions.ts";
 import {
   computePlannedDaySignals,
   type BookingTimes,

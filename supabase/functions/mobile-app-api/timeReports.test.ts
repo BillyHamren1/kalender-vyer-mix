@@ -31,8 +31,7 @@
 //   - src/test/timeReporting.manifest.ts
 // ─────────────────────────────────────────────────────────────────────────────
 
-import "https://deno.land/std@0.224.0/dotenv/load.ts";
-import { assertEquals, assertExists } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertExists } from "../_shared/testAssertions.ts";
 
 const SUPABASE_URL = Deno.env.get("VITE_SUPABASE_URL")!;
 const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/mobile-app-api`;
