@@ -86,7 +86,6 @@ const MobileScannerApp: React.FC = () => {
       console.log('[SCAN] scanner_event_received', {
         source: scan.source,
         type: scan.type,
-        value: scan.value,
         symbology: scan.symbology,
       });
 

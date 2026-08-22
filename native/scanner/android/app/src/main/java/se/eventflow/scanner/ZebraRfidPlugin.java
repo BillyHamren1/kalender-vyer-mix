@@ -310,7 +310,7 @@ public class ZebraRfidPlugin extends Plugin {
             payload.put("rawData", rawData);
         }
         notifyListeners("rfid_tag", payload);
-        Log.d(TAG, "Tag event sent: " + epc + " (RSSI: " + rssi + ")");
+        Log.d(TAG, "RFID tag event sent");
     }
 
     private void notifyStatus() {

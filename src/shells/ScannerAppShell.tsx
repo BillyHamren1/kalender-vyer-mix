@@ -1,6 +1,6 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { MobileAuthProvider } from '@/contexts/MobileAuthContext';
+import { ScannerAuthProvider } from '@/contexts/ScannerAuthContext';
 import ScannerRouteGuard from '@/components/scanner/ScannerProtectedRoute';
 import { ShellProvider } from './ShellContext';
 import ScannerAppLayout from './scanner/ScannerAppLayout';
@@ -17,7 +17,7 @@ const ScannerAppShell: React.FC = () => {
   return (
     <ShellProvider mode="scanner" appName="EventFlow Scanner" appTagline="Scanning & packing">
       <LanguageProvider>
-        <MobileAuthProvider>
+        <ScannerAuthProvider>
           <Routes>
           <Route path="/scanner/login" element={<ScannerLogin />} />
           <Route path="/scanner" element={
@@ -37,7 +37,7 @@ const ScannerAppShell: React.FC = () => {
           <Route path="/" element={<Navigate to="/scanner" replace />} />
           <Route path="*" element={<Navigate to="/scanner" replace />} />
           </Routes>
-        </MobileAuthProvider>
+        </ScannerAuthProvider>
       </LanguageProvider>
     </ShellProvider>
   );

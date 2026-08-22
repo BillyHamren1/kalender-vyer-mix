@@ -29,6 +29,7 @@ import com.getcapacitor.PluginMethod;
  *   - Intent action: se.eventflow.scanner.SCAN
  *   - Intent delivery: Broadcast
  *   - Keystroke output: DISABLED
+ *   - Component Information: package se.eventflow.scanner with signature check
  */
 @CapacitorPlugin(name = "DataWedge")
 public class DataWedgePlugin extends Plugin {
@@ -127,8 +128,6 @@ public class DataWedgePlugin extends Plugin {
                 }
 
                 Log.i(TAG, MARKER + "SCAN RECEIVER ACTION=" + intent.getAction());
-                Log.i(TAG, MARKER + "SCAN RECEIVER CATEGORIES=" + intent.getCategories());
-                dumpExtras("SCAN", intent.getExtras());
 
                 if (DW_SCAN_ACTION.equals(intent.getAction())) {
                     handleScanIntent(intent);
@@ -156,7 +155,6 @@ public class DataWedgePlugin extends Plugin {
 
                 String action = intent.getAction();
                 Log.i(TAG, MARKER + "RESULT RECEIVER ACTION=" + action);
-                dumpExtras("RESULT", intent.getExtras());
 
                 if (DW_RESULT_ACTION.equals(action)) {
                     handleResultIntent(intent);
@@ -224,14 +222,10 @@ public class DataWedgePlugin extends Plugin {
         String labelType = getFirstString(extras, "UNKNOWN", EXTRA_LABEL_TYPE, "label_type");
         String source = getFirstString(extras, "scanner", EXTRA_SOURCE, "source");
 
-        Log.i(TAG, MARKER + "SCAN PAYLOAD barcode=" + barcode + " symbology=" + labelType + " source=" + source);
-
         if (barcode.isEmpty()) {
             Log.w(TAG, MARKER + "SCAN INTENT HAS EMPTY BARCODE DATA");
             return;
         }
-
-        Log.i(TAG, "Scan received — barcode: " + barcode + ", symbology: " + labelType);
 
         JSObject payload = new JSObject();
         payload.put("data", barcode);
@@ -239,18 +233,6 @@ public class DataWedgePlugin extends Plugin {
         payload.put("source", "zebra_datawedge");
         payload.put("nativeSource", source);
         payload.put("timestamp", System.currentTimeMillis());
-
-        // Log full extras for debugging
-        if (extras.keySet() != null) {
-            JSObject rawExtras = new JSObject();
-            for (String key : extras.keySet()) {
-                Object val = extras.get(key);
-                if (val != null) {
-                    rawExtras.put(key, val.toString());
-                }
-            }
-            payload.put("rawExtras", rawExtras);
-        }
 
         boolean bridgeReady = bridge != null;
         boolean webViewReady = bridgeReady && bridge.getWebView() != null;
@@ -266,7 +248,7 @@ public class DataWedgePlugin extends Plugin {
         }
 
         notifyListeners("datawedge_scan", payload, true);
-        Log.i(TAG, MARKER + "EVENT SENT TO WEBVIEW event=datawedge_scan barcode=" + barcode);
+        Log.i(TAG, MARKER + "EVENT SENT TO WEBVIEW event=datawedge_scan");
     }
 
     /**
@@ -321,16 +303,6 @@ public class DataWedgePlugin extends Plugin {
         payload.put("result", result); // "SUCCESS", "FAILURE", or ""
         payload.put("resultInfo", resultInfoStr);
         payload.put("timestamp", System.currentTimeMillis());
-
-        // Include raw extras for debugging
-        JSObject rawExtras = new JSObject();
-        for (String key : extras.keySet()) {
-            Object val = extras.get(key);
-            if (val != null) {
-                rawExtras.put(key, val.toString());
-            }
-        }
-        payload.put("rawExtras", rawExtras);
 
         boolean bridgeReady = bridge != null;
         boolean webViewReady = bridgeReady && bridge.getWebView() != null;
@@ -513,18 +485,6 @@ public class DataWedgePlugin extends Plugin {
                 + " activity=" + activityName
                 + " context=" + contextName
                 + " listening=" + isListening);
-    }
-
-    private void dumpExtras(String prefix, Bundle extras) {
-        if (extras == null) {
-            Log.i(TAG, MARKER + prefix + " EXTRAS: <none>");
-            return;
-        }
-
-        for (String key : extras.keySet()) {
-            Object value = extras.get(key);
-            Log.i(TAG, MARKER + prefix + " EXTRA " + key + " = " + value);
-        }
     }
 
     private String getFirstString(Bundle extras, String fallback, String... keys) {

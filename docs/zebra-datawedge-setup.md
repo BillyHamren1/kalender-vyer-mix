@@ -9,6 +9,7 @@ Följande inställningar **måste** vara aktiva på varje Zebra-enhet som kör E
 | **Intent Output** | `ON` |
 | **Intent Action** | `se.eventflow.scanner.SCAN` |
 | **Intent Delivery** | `Broadcast intent` |
+| **Component Information** | `se.eventflow.scanner` + signaturkontroll `ON` |
 | **Keystroke Output** | `OFF` |
 
 > ⚠️ Om Keystroke Output är PÅ skickas scandata som tangentbordsinmatning istället för intent-broadcast, vilket gör att appen **inte** tar emot skanningar korrekt.
@@ -39,7 +40,13 @@ Följande inställningar **måste** vara aktiva på varje Zebra-enhet som kör E
 - Scrolla till **Keystroke Output**
 - Sätt **Enabled** = ❌
 
-### 6. Verifiera
+### 6. Lås Intent Output till den signerade appen
+- Under **Intent Output → Component Information**, lägg till `se.eventflow.scanner`
+- Godkänn **application signature check** när DataWedge frågar
+- Profilen får inte godkännas om paketet saknas eller signaturkontrollen är avstängd
+- På hanterade enheter ska DataWedge Intent API-kategorier dessutom sättas till **Controlled** och endast den signerade scannerappen tillåtas via StageNow/MX
+
+### 7. Verifiera
 - Öppna EventFlow Scanner-appen
 - Skanna en streckkod med hårdvaruknappen
 - Scan-räknaren i appen ska öka och produkten markeras
@@ -50,7 +57,7 @@ Följande inställningar **måste** vara aktiva på varje Zebra-enhet som kör E
 
 Dessa inställningar matchar intent-filtret i:
 ```
-android/app/src/main/java/se/eventflow/scanner/DataWedgePlugin.java
+native/scanner/android/app/src/main/java/se/eventflow/scanner/DataWedgePlugin.java
 ```
 
 Pluginet lyssnar på action `se.eventflow.scanner.SCAN` via `BroadcastReceiver` och vidarebefordrar skanningen till WebView som ett Capacitor-event (`datawedge_scan`).
@@ -65,3 +72,4 @@ Pluginet lyssnar på action `se.eventflow.scanner.SCAN` via `BroadcastReceiver` 
 | Textfält fylls automatiskt vid scan | Keystroke Output är PÅ — stäng av den |
 | Appen tar emot scan men packlistan uppdateras inte | Kontrollera att rätt vy är aktiv (Packlista → Verifiering) |
 | Ingen reaktion alls | Profilen är inte kopplad till rätt app-paket |
+| Scan fungerar i debug men inte signerad release | Component Information har fel app-signatur |

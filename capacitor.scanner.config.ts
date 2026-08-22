@@ -11,27 +11,16 @@ const config: CapacitorConfig = {
   appId: 'se.eventflow.scanner',
   appName: 'EventFlow Scanner',
   webDir: 'dist-scanner',
+  loggingBehavior: 'debug',
   android: {
     path: 'native/scanner/android',
-    allowMixedContent: true,
+    allowMixedContent: false,
+    includePlugins: [],
     backgroundColor: '#0A0A0B',
     buildOptions: {
       keystorePath: undefined,
       keystoreAlias: undefined,
     }
-  },
-  ios: {
-    path: 'native/scanner/ios',
-    contentInset: 'automatic',
-    backgroundColor: '#0A0A0B',
-    allowsLinkPreview: false,
-    infoPlist: {
-      NSCameraUsageDescription: 'EventFlow Scanner uses the camera to scan barcodes and QR codes for packing and warehouse workflows.',
-      NSPhotoLibraryUsageDescription: 'EventFlow Scanner may access the photo library when selecting images related to scanning workflows.',
-      NSPhotoLibraryAddUsageDescription: 'EventFlow Scanner may save images related to scanning workflows.',
-      NSLocationWhenInUseUsageDescription: 'EventFlow Scanner uses your location to show nearby delivery addresses and optimize route planning.',
-      NSLocationAlwaysAndWhenInUseUsageDescription: 'EventFlow Scanner uses your location to show nearby delivery addresses and optimize route planning.',
-    },
   },
   plugins: {
     SplashScreen: {
