@@ -510,7 +510,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isActive,
 
           if (barcodes.length > 0) {
             const value = barcodes[0].rawValue;
-            console.log('[QRScanner] Detected:', value, 'format:', barcodes[0].format);
+            console.log('[QRScanner] Barcode detected; format:', barcodes[0].format);
             framesWithoutDetectionRef.current = 0;
             handleDetected(value);
           } else {

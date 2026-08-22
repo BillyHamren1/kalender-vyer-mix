@@ -24,6 +24,10 @@ import {
   returnToggleItem,
   returnDecrementItem,
   returnResetItem,
+  startPackingSession,
+  identifyProduct,
+  type PackingWorkSession,
+  type PreflightResult,
 } from '@/services/scannerService';
 import type { PackingWithBooking } from '@/types/packing';
 import type { ScanEvent } from '@/services/scanner/types';
@@ -33,6 +37,10 @@ import { enqueueAndProcessScanOperation, resumeAndDrain } from '@/services/scann
 import { isAcceptedResult, type ScannerCommandResult } from '@/lib/scanner/commandTypes';
 import { RfidDedupeTracker } from '@/lib/scanner/rfidDedupe';
 import { getStoredStaff } from '@/services/mobileApiService';
+import { PackingPreflightPanel } from './PackingPreflightPanel';
+import { useReservationAllocations } from '@/hooks/scanner/useReservationAllocations';
+import { isLegacyWmsCommit, legacyOutcomeMessage } from '@/lib/scanner/legacyWmsOutcome';
+import { newOperationId } from '@/services/scannerOperationV2Service';
 
 interface Item {
   id: string;
@@ -67,6 +75,13 @@ const ReturnView: React.FC<Props> = ({
 }) => {
   const [packing, setPacking] = useState<PackingWithBooking | null>(null);
   const storedStaff = useMemo(() => getStoredStaff(), []);
+  const effectiveReturnedBy = storedStaff?.name || returnedBy;
+  const [activeSession, setActiveSession] = useState<PackingWorkSession | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const reservation = useReservationAllocations(packingId);
+  const [preflightState, setPreflightState] = useState<'checking' | 'pass' | 'warning' | 'blocked' | 'error'>('checking');
+  const [preflightResult, setPreflightResult] = useState<PreflightResult | null>(null);
   const returnRfidDedupeRef = useRef(new RfidDedupeTracker(5000));
   const [items, setItems] = useState<Item[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -78,6 +93,47 @@ const ReturnView: React.FC<Props> = ({
     text: string;
     productName?: string;
   } | null>(null);
+
+  const bootSession = useCallback(async () => {
+    if (!storedStaff) {
+      setSessionError('Du måste vara inloggad för att hantera retur');
+      setSessionLoading(false);
+      return;
+    }
+    setSessionLoading(true);
+    setSessionError(null);
+    try {
+      const result = await startPackingSession(packingId);
+      if (!result.success || !result.session) setSessionError(result.error || 'Kunde inte starta retursession');
+      else setActiveSession(result.session);
+    } catch (error: any) {
+      setSessionError(error?.message || 'Kunde inte starta retursession');
+    } finally {
+      setSessionLoading(false);
+    }
+  }, [packingId, storedStaff]);
+
+  useEffect(() => { void bootSession(); }, [bootSession]);
+
+  const readinessBlockReason = useCallback((): string | null => {
+    if (!activeSession || activeSession.status !== 'active') return 'Aktiv retursession saknas';
+    if (reservation.isLoading) return 'Verifierar WMS-reservation…';
+    if (reservation.error) return `WMS-reservation kunde inte verifieras: ${reservation.error}`;
+    if (!reservation.reservationId) return 'WMS-reservation saknas';
+    if (preflightState === 'checking') return 'WMS-kontrollen pågår';
+    if (preflightState === 'error') return 'WMS-kontrollen misslyckades';
+    if (!preflightResult?.canStartScanning) return 'Packlistan är inte godkänd för retur';
+    return null;
+  }, [activeSession, preflightResult, preflightState, reservation.error, reservation.isLoading, reservation.reservationId]);
+  const mutationReady = readinessBlockReason() === null;
+
+  const requireReadiness = useCallback((): boolean => {
+    const reason = readinessBlockReason();
+    if (!reason) return true;
+    setLastResult({ level: 'error', text: `Retur spärrad: ${reason}` });
+    toast.error(`Retur spärrad: ${reason}`);
+    return false;
+  }, [readinessBlockReason]);
 
   const loadData = useCallback(async () => {
     try {
@@ -145,7 +201,7 @@ const ReturnView: React.FC<Props> = ({
 
   const applyScanResult = useCallback(
     (res: Awaited<ReturnType<typeof physicalReturnScan>>, fallbackName: string) => {
-      if (res.success && !res.alreadyReturned) {
+      if (isLegacyWmsCommit(res) && !res.alreadyReturned) {
         setLastResult({
           level: 'success',
           text: `+1 returnerad (${res.quantity_returned}/${res.quantity_packed})`,
@@ -160,7 +216,7 @@ const ReturnView: React.FC<Props> = ({
           ),
         );
         loadData();
-      } else if (res.success && res.alreadyReturned) {
+      } else if (isLegacyWmsCommit(res) && res.alreadyReturned) {
         setLastResult({
           level: 'warning',
           text: `Redan returnerad (${res.quantity_returned ?? '–'}/${res.quantity_packed ?? '–'})`,
@@ -168,16 +224,16 @@ const ReturnView: React.FC<Props> = ({
         });
         if (res.itemId) flashHighlight(res.itemId);
         loadData();
-      } else if (res.debugCode === 'LOCAL_RETURN_MATCH_MISSING') {
+      } else if (res.outcome === 'unknown' || res.outcomeUnknown) {
         const wmsInfo = res.wms
           ? ` (item_type=${res.wms.item_type_id ?? '–'}, sku=${res.wms.sku ?? '–'})`
           : '';
         setLastResult({
           level: 'warning',
-          text: `WMS godkände scan men ingen rad matchar packlistan${wmsInfo}`,
+          text: `${legacyOutcomeMessage(res)}${wmsInfo}`,
           productName: fallbackName,
         });
-        toast.warning('Ingen matchande rad i packlistan');
+        toast.warning(legacyOutcomeMessage(res));
       } else {
         setLastResult({
           level: 'error',
@@ -191,6 +247,7 @@ const ReturnView: React.FC<Props> = ({
   );
 
   const handleV2Return = useCallback(async (scan: ScanEvent | null, rawValue: string) => {
+    if (!requireReadiness()) return;
     const value = rawValue.trim();
     const parsed = parseScanResult(value);
     const isPhysical = (!!scan && (scan.source === 'zebra_rfid' || scan.type === 'rfid')) || parsed.unique;
@@ -201,18 +258,65 @@ const ReturnView: React.FC<Props> = ({
         return;
       }
     }
-    const matchingItem = isPhysical ? undefined : items.find(it => it.booking_products?.sku?.trim().toLowerCase() === value.toLowerCase());
+    let lineResolution = reservation.resolveReservationLine({
+      serialNumber: isPhysical ? value : null,
+      sku: isPhysical ? null : value,
+    });
+    if (!lineResolution.ok && isPhysical) {
+      const identified = await identifyProduct(value);
+      if (!identified.found) {
+        const message = identified.error || 'Produkten kunde inte identifieras i WMS';
+        setLastResult({ level: 'error', text: message, productName: value });
+        toast.error(message);
+        return;
+      }
+      if (
+        identified.currentBooking &&
+        packing?.booking?.booking_number &&
+        identified.currentBooking !== packing.booking.booking_number
+      ) {
+        const message = 'Den fysiska artikeln tillhör en annan reservation';
+        setLastResult({ level: 'error', text: message, productName: value });
+        toast.error(message);
+        return;
+      }
+      lineResolution = reservation.resolveReservationLine({
+        serialNumber: value,
+        reservationLineId: identified.reservationLineId ?? null,
+        bookingProductId: identified.sourceBookingProductId ?? null,
+        itemTypeId: identified.itemTypeId ?? null,
+        sku: identified.sku ?? null,
+      });
+    }
+    if (!lineResolution.ok) {
+      setLastResult({ level: 'error', text: lineResolution.message, productName: value });
+      toast.error(lineResolution.message);
+      return;
+    }
+    const matchingItems = items.filter(
+      (item) => item.booking_products?.id === lineResolution.sourceBookingProductId,
+    );
+    if (matchingItems.length !== 1) {
+      const message = 'Reservationsraden matchar inte exakt en packningsrad';
+      setLastResult({ level: 'error', text: message, productName: value });
+      toast.error(message);
+      return;
+    }
+    const matchingItem = matchingItems[0];
     let processed;
     try {
       processed = await enqueueAndProcessScanOperation({
         operation: isPhysical ? 'physical_return_scan' : 'return_quantity',
         packingId,
+        packingSessionId: activeSession?.id ?? null,
         organizationId: storedStaff?.organization_id ?? null,
-        itemId: matchingItem?.id ?? null,
+        reservationId: reservation.reservationId,
+        reservationLineId: lineResolution.reservationLineId,
+        itemId: matchingItem.id,
         sku: isPhysical ? null : value,
         bookingNumber: packing?.booking?.booking_number ?? null,
         quantityDelta: isPhysical ? null : 1,
-        performedBy: storedStaff?.id ?? returnedBy,
+        performedBy: storedStaff?.id ?? effectiveReturnedBy,
         deviceId: scan?.deviceInfo ?? null,
         scanValue: value,
         scanSource: scan ? undefined : 'manual',
@@ -232,13 +336,13 @@ const ReturnView: React.FC<Props> = ({
       return;
     }
     if (processed.state === 'COMMITTED' && result && isAcceptedResult(result)) {
-      const itemId = result.itemId ?? matchingItem?.id ?? null;
+      const itemId = result.itemId ?? matchingItem.id;
       setLastResult({
         level: result.status === 'duplicate' ? 'warning' : 'success',
         text: result.status === 'duplicate'
           ? 'Returen var redan registrerad'
           : `Returnerad (${result.returnedQuantity ?? '–'}/${result.packedQuantity ?? '–'})`,
-        productName: result.productName || matchingItem?.booking_products?.name || value,
+        productName: result.productName || matchingItem.booking_products?.name || value,
       });
       if (itemId) {
         flashHighlight(itemId);
@@ -254,7 +358,7 @@ const ReturnView: React.FC<Props> = ({
       : result?.message || 'Returen avvisades – inget ändrat';
     setLastResult({ level: 'error', text: message, productName: result?.productName || value });
     toast.error(message);
-  }, [items, packingId, packing?.booking?.booking_number, returnedBy, storedStaff, loadData]);
+  }, [activeSession?.id, effectiveReturnedBy, items, loadData, packingId, packing?.booking?.booking_number, requireReadiness, reservation, storedStaff]);
 
   useEffect(() => {
     if (!isScannerTransactionV2Enabled()) return;
@@ -282,6 +386,7 @@ const ReturnView: React.FC<Props> = ({
 
   const handleHardwareScan = useCallback(
     async (scan: ScanEvent) => {
+      if (!requireReadiness()) return;
       const value = (scan.value || '').trim();
       if (!value) return;
       console.log('[SCAN] return_scan_received', { source: scan.source, type: scan.type, value });
@@ -296,13 +401,13 @@ const ReturnView: React.FC<Props> = ({
         }
         if (isPhysical) {
           console.log('[SCAN] return_scan_physical_detected', { source: scan.source, parsedType: parsed.type });
-          const res = await physicalReturnScan(packingId, value, returnedBy);
+          const res = await physicalReturnScan(packingId, value, effectiveReturnedBy, activeSession?.id ?? null, newOperationId());
           if (res.success) console.log('[SCAN] return_scan_success', { itemId: res.itemId });
           else console.warn('[SCAN] return_scan_failed', { error: res.error, debugCode: res.debugCode });
           applyScanResult(res, value);
         } else {
           console.log('[SCAN] return_scan_sku_fallback', { value });
-          const res = await returnScanSku(packingId, value, returnedBy);
+          const res = await returnScanSku(packingId, value, effectiveReturnedBy, activeSession?.id ?? null);
           if (res.success) console.log('[SCAN] return_scan_success', { itemId: res.itemId });
           else console.warn('[SCAN] return_scan_failed', { error: res.error, debugCode: res.debugCode });
           applyScanResult(res, value);
@@ -311,11 +416,12 @@ const ReturnView: React.FC<Props> = ({
         console.error('[SCAN] return_scan_failed', err);
       }
     },
-    [packingId, returnedBy, applyScanResult, handleV2Return],
+    [activeSession?.id, applyScanResult, effectiveReturnedBy, handleV2Return, packingId, requireReadiness],
   );
 
   const handleManualSubmit = useCallback(
     async (raw: string) => {
+      if (!requireReadiness()) return;
       const value = raw.trim();
       if (!value) return;
       setScanInput('');
@@ -324,10 +430,10 @@ const ReturnView: React.FC<Props> = ({
         await handleV2Return(null, value);
         return;
       }
-      const res = await returnScanSku(packingId, value, returnedBy);
+      const res = await returnScanSku(packingId, value, effectiveReturnedBy, activeSession?.id ?? null);
       applyScanResult(res, value);
     },
-    [packingId, returnedBy, applyScanResult, handleV2Return],
+    [activeSession?.id, applyScanResult, effectiveReturnedBy, handleV2Return, packingId, requireReadiness],
   );
 
   // Wire scanner hardware → physical (WMS-backed) flow
@@ -336,16 +442,27 @@ const ReturnView: React.FC<Props> = ({
   }, [handleHardwareScan, registerScanHandler]);
 
   const handleManualPlus = async (it: Item) => {
+    if (!requireReadiness()) return;
     const sent = it.quantity_packed ?? 0;
     if ((it.quantity_returned ?? 0) >= sent) return;
     if (isScannerTransactionV2Enabled()) {
+      const lineResolution = reservation.resolveReservationLine({
+        bookingProductId: it.booking_products?.id ?? null,
+      });
+      if (!lineResolution.ok) {
+        toast.error(lineResolution.message);
+        return;
+      }
       let processed;
       try {
         processed = await enqueueAndProcessScanOperation({
           operation: 'return_quantity', packingId,
+          packingSessionId: activeSession?.id ?? null,
           organizationId: storedStaff?.organization_id ?? null,
+          reservationId: reservation.reservationId,
+          reservationLineId: lineResolution.reservationLineId,
           itemId: it.id, bookingNumber: packing?.booking?.booking_number ?? null,
-          quantityDelta: 1, performedBy: storedStaff?.id ?? returnedBy,
+          quantityDelta: 1, performedBy: storedStaff?.id ?? effectiveReturnedBy,
           scanValue: `MANUAL_RETURN_PLUS:${it.id}`, scanSource: 'manual',
         });
       } catch (err: any) {
@@ -362,52 +479,32 @@ const ReturnView: React.FC<Props> = ({
       else toast.error(result?.message || 'Kunde inte uppdatera retur');
       return;
     }
-    // Legacy optimistic path (V2 OFF only)
-    setItems(prev =>
-      prev.map(x =>
-        x.id === it.id
-          ? { ...x, quantity_returned: Math.min((x.quantity_returned ?? 0) + 1, sent) }
-          : x,
-      ),
-    );
-    flashHighlight(it.id);
-    const res = await returnToggleItem(it.id, returnedBy);
-    if (!res.success) {
-      toast.error(res.error || 'Kunde inte uppdatera');
-      loadData();
-    }
+    const res = await returnToggleItem(it.id, effectiveReturnedBy, activeSession?.id ?? null);
+    toast.error(legacyOutcomeMessage(res));
+    loadData();
   };
 
   const handleManualMinus = async (it: Item) => {
+    if (!requireReadiness()) return;
     if ((it.quantity_returned ?? 0) <= 0) return;
     if (isScannerTransactionV2Enabled()) {
       toast.error('Ångra retur är spärrad i Scanner V2 tills WMS har ett explicit UNRETURN-kommando');
       return;
     }
-    setItems(prev =>
-      prev.map(x =>
-        x.id === it.id
-          ? { ...x, quantity_returned: Math.max((x.quantity_returned ?? 0) - 1, 0) }
-          : x,
-      ),
-    );
-    const res = await returnDecrementItem(it.id);
-    if (!res.success) {
-      toast.error(res.error || 'Kunde inte uppdatera');
-      loadData();
-    }
+    const res = await returnDecrementItem(it.id, activeSession?.id ?? null);
+    toast.error(legacyOutcomeMessage(res));
+    loadData();
   };
 
   const handleResetRow = async (it: Item) => {
+    if (!requireReadiness()) return;
     if (isScannerTransactionV2Enabled()) {
       toast.error('Nollställ retur är spärrad i Scanner V2 – använd WMS-korrigering med revisionsspår');
       return;
     }
-    setItems(prev =>
-      prev.map(x => (x.id === it.id ? { ...x, quantity_returned: 0 } : x)),
-    );
-    const res = await returnResetItem(it.id);
-    if (!res.success) loadData();
+    const res = await returnResetItem(it.id, activeSession?.id ?? null);
+    if (!res.success) toast.error(legacyOutcomeMessage(res));
+    loadData();
   };
 
   const sortedItems = useMemo(() => {
@@ -425,13 +522,27 @@ const ReturnView: React.FC<Props> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, headerProductIds]);
 
-  if (isLoading) {
+  if (isLoading || sessionLoading) {
     return (
       <div className="space-y-3">
         <Skeleton className="h-12 w-full" />
         {[1, 2, 3, 4].map(i => (
           <Skeleton key={i} className="h-14 w-full" />
         ))}
+      </div>
+    );
+  }
+
+  if (!activeSession) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 p-6 text-center">
+        <AlertCircle className="h-8 w-8 text-destructive" />
+        <p className="text-sm font-semibold">Starta retursession först</p>
+        {sessionError && <p className="text-xs text-muted-foreground">{sessionError}</p>}
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={onBack}>Tillbaka</Button>
+          <Button onClick={() => void bootSession()}>Försök igen</Button>
+        </div>
       </div>
     );
   }
@@ -481,6 +592,25 @@ const ReturnView: React.FC<Props> = ({
         </div>
       </Card>
 
+      <PackingPreflightPanel
+        packingId={packingId}
+        bookingNumber={packing?.booking?.booking_number ?? null}
+        sessionId={activeSession.id}
+        reservationId={reservation.reservationId}
+        autoRun
+        defaultOpen
+        onResult={(result, state) => {
+          setPreflightResult(result);
+          setPreflightState(state);
+        }}
+      />
+
+      {!mutationReady && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs font-medium text-destructive">
+          Retur spärrad: {readinessBlockReason()}
+        </div>
+      )}
+
       {/* Scan input */}
       <Card className="p-3">
         <div className="flex items-center gap-2 mb-2">
@@ -499,13 +629,14 @@ const ReturnView: React.FC<Props> = ({
             value={scanInput}
             onChange={e => setScanInput(e.target.value)}
             autoFocus
+            disabled={!mutationReady}
             className="h-9 flex-1"
           />
           <Button
             type="submit"
             size="sm"
             className="h-9"
-            disabled={!scanInput.trim()}
+            disabled={!mutationReady || !scanInput.trim()}
           >
             <Plus className="h-4 w-4" />
           </Button>
@@ -601,7 +732,7 @@ const ReturnView: React.FC<Props> = ({
                     variant="ghost"
                     className="h-7 w-7"
                     onClick={() => handleManualMinus(it)}
-                    disabled={back <= 0}
+                    disabled={!mutationReady || back <= 0}
                   >
                     <Minus className="h-3.5 w-3.5" />
                   </Button>
@@ -622,7 +753,7 @@ const ReturnView: React.FC<Props> = ({
                     variant="ghost"
                     className="h-7 w-7"
                     onClick={() => handleManualPlus(it)}
-                    disabled={complete}
+                    disabled={!mutationReady || complete}
                   >
                     <Plus className="h-3.5 w-3.5" />
                   </Button>
@@ -634,6 +765,7 @@ const ReturnView: React.FC<Props> = ({
                       className="h-7 w-7 text-muted-foreground"
                       onClick={() => handleResetRow(it)}
                       title="Nollställ raden"
+                      disabled={!mutationReady}
                     >
                       <RotateCcw className="h-3.5 w-3.5" />
                     </Button>

@@ -241,7 +241,7 @@ export function startRfidListener(
 async function startNativeListeners(): Promise<void> {
   try {
     nativeTagListener = await ZebraRfid.addListener('rfid_tag', (payload: NativeTagPayload) => {
-      console.log('[ZebraRFID] Native tag:', payload.epc, 'RSSI:', payload.rssi);
+      console.log('[ZebraRFID] Native tag received; RSSI:', payload.rssi);
       processTagRead(payload.epc, payload.rssi, payload.antennaId, payload.rawData);
     });
 
@@ -529,7 +529,7 @@ export function simulateRfidTag(epc: string, rssi: number = -45): void {
     } as RfidReadEvent
   });
   window.dispatchEvent(event);
-  console.log(`[ZebraRFID] Simulated tag: ${epc} (RSSI: ${rssi})`);
+  console.log(`[ZebraRFID] Simulated tag received (RSSI: ${rssi})`);
 }
 
 export function simulateReaderStatus(connected: boolean, model?: string): void {

@@ -8,9 +8,8 @@
  * from `useWorkSession.stopSession`).
  *
  * This test pins:
- *   1. Frontend: `MobileGlobalOverlays.handleStaleSave` no longer calls
- *      `mobileApi.createTimeReport` directly — it routes through
- *      `stopSession` so the same single-owner rule applies.
+ *   1. Frontend: `MobileGlobalOverlays` is passive and owns no timer or
+ *      time-reporting write path.
  *   3. Frontend: `useWorkSession.stopSession` links anomalies via
  *      `timeReportId` (NOT `serverEntryId`).
  *   4. Frontend: `useGeofencing.saveAndStopTimer` returns a typed shape
@@ -40,22 +39,14 @@ describe('single-owner time_reports contract', () => {
     expect(exists).toBe(false);
   });
 
-  it('MobileGlobalOverlays.handleStaleSave routes through stopSession (no rogue createTimeReport)', () => {
+  it('MobileGlobalOverlays is passive and has no rogue timer/time-report write path', () => {
     const src = read('src/components/mobile-app/MobileGlobalOverlays.tsx');
-    const fnStart = src.indexOf('const handleStaleSave = useCallback');
-    expect(fnStart).toBeGreaterThan(-1);
-    const fnEnd = src.indexOf('}, [staleTimers, dismissStale, stopSession]);', fnStart);
-    expect(fnEnd).toBeGreaterThan(fnStart);
-    const body = src.slice(fnStart, fnEnd);
-
-    // Must NOT call mobileApi.createTimeReport directly any more.
-    expect(body).not.toMatch(/mobileApi\.createTimeReport/);
-    // Must NOT call mobileApi.stopLocationTimer directly any more.
-    expect(body).not.toMatch(/mobileApi\.stopLocationTimer/);
-    // Must use the unified engine.
-    expect(body).toMatch(/stopSession\(/);
-    // Must use timerToTarget for correct id mapping.
-    expect(body).toMatch(/timerToTarget\(/);
+    expect(src).not.toMatch(/mobileApi\.createTimeReport/);
+    expect(src).not.toMatch(/mobileApi\.stopLocationTimer/);
+    expect(src).not.toMatch(/import\s+\{[^}]*useWorkSession[^}]*\}/);
+    expect(src).not.toMatch(/useWorkSession\(/);
+    expect(src).not.toMatch(/handleStaleSave/);
+    expect(src).toMatch(/useBackgroundLocationReporter/);
   });
 
   it('useWorkSession.stopSession links anomalies via timeReportId (not serverEntryId)', () => {

@@ -168,9 +168,10 @@ describe('End Day hardening contract', () => {
     expect(src).toMatch(/eodProcessingRef = useRef\(false\)/);
     expect(src).toMatch(/processNextEod/);
     // request-end-day enqueues entries and triggers the processor.
-    const handlerStart = src.indexOf('const onRequestEndDay = ()');
+    const handlerStart = src.indexOf('const onRequestEndDay = async ()');
     expect(handlerStart).toBeGreaterThan(-1);
-    const handlerEnd = src.indexOf('};', handlerStart);
+    const handlerEnd = src.indexOf("window.addEventListener('request-end-day'", handlerStart);
+    expect(handlerEnd).toBeGreaterThan(handlerStart);
     const handler = src.slice(handlerStart, handlerEnd);
     expect(handler).toMatch(/eodQueueRef\.current\.push/);
     expect(handler).toMatch(/processNextEod/);

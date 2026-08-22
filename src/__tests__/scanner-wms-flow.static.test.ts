@@ -111,10 +111,11 @@ describe('packing snapshot integrity', () => {
     expect(src).toMatch(/Frozen quantity_to_pack/);
   });
 
-  it('sync-booking-to-packing freezes quantity_to_pack after packing left planning', () => {
+  it('sync-booking-to-packing freezes snapshot changes until warehouse acknowledgement when required', () => {
     const src = read('supabase/functions/sync-booking-to-packing/index.ts');
-    expect(src).toMatch(/if \(packingStatus === 'planning'\)/);
-    expect(src).toMatch(/Frozen quantity_to_pack/);
+    expect(src).toMatch(/const needsWarehouseAck = requiresWarehouseAcknowledgement\(\{/);
+    expect(src).toMatch(/if \(needsWarehouseAck\) \{[\s\S]*?queuePackingChangeRequests\([\s\S]*?return 0/);
+    expect(src.indexOf('if (needsWarehouseAck)')).toBeLessThan(src.indexOf(".from('packing_list_items')\n      .insert(newItems)"));
   });
 });
 

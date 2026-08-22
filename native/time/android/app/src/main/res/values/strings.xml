@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">EventFlow Time</string>
+    <string name="title_activity_main">EventFlow Time</string>
+    <string name="package_name">se.eventflow.time</string>
+    <string name="custom_url_scheme">se.eventflow.time</string>
+</resources>

@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMobileAuth } from '@/contexts/MobileAuthContext';
+import { useScannerAuth } from '@/contexts/ScannerAuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2 } from 'lucide-react';
 import AppLogo from '@/components/shared/AppLogo';
 
 const ScannerLogin = () => {
-  const { isAuthenticated, login, isLoading: authLoading } = useMobileAuth();
+  const { isAuthenticated, login, isLoading: authLoading } = useScannerAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');

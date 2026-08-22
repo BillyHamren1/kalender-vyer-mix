@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useMobileAuth } from '@/contexts/MobileAuthContext';
+import { useScannerAuth } from '@/contexts/ScannerAuthContext';
 import { Loader2 } from 'lucide-react';
 
 const SAFETY_TIMEOUT_MS = 5000;
 
 const ScannerProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, isLoading } = useMobileAuth();
+  const { isAuthenticated, isLoading } = useScannerAuth();
   const [safetyElapsed, setSafetyElapsed] = useState(false);
 
   useEffect(() => {

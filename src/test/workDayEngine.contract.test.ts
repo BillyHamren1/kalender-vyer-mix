@@ -11,8 +11,8 @@
  *   1. Ingen automatisk rast/tid skapas av assistenten — den ställer FRÅGOR.
  *   2. Save-then-stop-kontraktet (saveAndStopTimer): aldrig stop före save.
  *   3. End-activity vs end-day (verb-API:t i useGeofencing finns och är låst).
- *   4. Gemensam session-motor: useWorkSession / mobileApi.startLocationTimer
- *      hanterar booking/project/location med samma kontrakt.
+ *   4. Gemensam arbetsdagstimer: start_time_registration startas utan
+ *      booking/project/location-target; aktivitet attribueras i efterhand.
  *   5. Travel-loggar förblir SEPARATA från arbetstid (egen API-väg + suppress
  *      av activity_leave under aktiv resa).
  *   6. Workday-flags skapas när assistenten är osäker (unclassified_anomaly).
@@ -170,7 +170,7 @@ describe('Work-day engine (assistant + sessions + flags)', () => {
     it('save lyckas → stop går SEN', async () => {
       const { mobileApi } = await import('../services/mobileApiService');
       mockFetch.mockResolvedValueOnce(ok({ success: true, time_report: { id: 'tr-1' } }));
-      mockFetch.mockResolvedValueOnce(ok({ success: true, entry: { id: 'lte-1' } }));
+      mockFetch.mockResolvedValueOnce(ok({ success: true, registration: { id: 'atr-1' } }));
 
       await mobileApi.createTimeReport({
         booking_id: 'b1',
@@ -179,10 +179,10 @@ describe('Work-day engine (assistant + sessions + flags)', () => {
         end_time: '16:00',
         hours_worked: 8,
       });
-      await mobileApi.stopLocationTimer({ booking_id: 'b1' });
+      await mobileApi.stopTimeRegistration({ registration_id: 'atr-1' });
 
       expect(bodyAt(mockFetch, 0).action).toBe('create_time_report');
-      expect(bodyAt(mockFetch, 1).action).toBe('stop_location_timer');
+      expect(bodyAt(mockFetch, 1).action).toBe('stop_time_registration');
     });
   });
 
@@ -209,9 +209,9 @@ describe('Work-day engine (assistant + sessions + flags)', () => {
   });
 
   // ───────────────────────────────────────────────────────────────────
-  // 4. GEMENSAM SESSION-MOTOR — same kontrakt för alla tre timer-typer
+  // 4. GEMENSAM ARBETSDAGSTIMER — inga target-bundna timers
   // ───────────────────────────────────────────────────────────────────
-  describe('4. Unified session engine (booking/project/location)', () => {
+  describe('4. Canonical single day timer', () => {
     const originalFetch = globalThis.fetch;
     let mockFetch: ReturnType<typeof vi.fn>;
     beforeEach(async () => {
@@ -228,37 +228,22 @@ describe('Work-day engine (assistant + sessions + flags)', () => {
       vi.restoreAllMocks();
     });
 
-    it('booking timer: enqueueTimerStart + flushQueue → start_location_timer m. booking_id', async () => {
-      const { enqueueTimerStart, flushQueue, removeFromQueue } = await import('../services/timerSyncQueue');
-      mockFetch.mockResolvedValueOnce(ok({ success: true, entry: { id: 'lte-1' } }));
-      enqueueTimerStart({ timerKey: 'booking-1', bookingId: 'booking-1', startedAt: '2026-04-18T08:00:00Z' });
-      await flushQueue();
-      const body = lastBody(mockFetch);
-      expect(body.action).toBe('start_location_timer');
-      expect(body.data.booking_id).toBe('booking-1');
-      removeFromQueue('booking-1');
-    });
+    it('starts the workday without booking, project or location target', async () => {
+      const { mobileApi } = await import('../services/mobileApiService');
+      mockFetch.mockResolvedValueOnce(ok({
+        success: true,
+        registration: { id: 'atr-1', started_at: '2026-04-18T08:00:00Z' },
+      }));
 
-    it('project timer: large_project_id pushas via samma endpoint', async () => {
-      const { enqueueTimerStart, flushQueue, removeFromQueue } = await import('../services/timerSyncQueue');
-      mockFetch.mockResolvedValueOnce(ok({ success: true, entry: { id: 'lte-2' } }));
-      enqueueTimerStart({ timerKey: 'project-lp-1', largeProjectId: 'lp-1', startedAt: '2026-04-18T08:00:00Z' });
-      await flushQueue();
+      await mobileApi.startTimeRegistration({ started_at: '2026-04-18T08:00:00Z' });
       const body = lastBody(mockFetch);
-      expect(body.action).toBe('start_location_timer');
-      expect(body.data.large_project_id).toBe('lp-1');
-      removeFromQueue('project-lp-1');
-    });
 
-    it('location timer: location_id pushas via samma endpoint', async () => {
-      const { enqueueTimerStart, flushQueue, removeFromQueue } = await import('../services/timerSyncQueue');
-      mockFetch.mockResolvedValueOnce(ok({ success: true, entry: { id: 'lte-3' } }));
-      enqueueTimerStart({ timerKey: 'location-loc-1', locationId: 'loc-1', startedAt: '2026-04-18T08:00:00Z' });
-      await flushQueue();
-      const body = lastBody(mockFetch);
-      expect(body.action).toBe('start_location_timer');
-      expect(body.data.location_id).toBe('loc-1');
-      removeFromQueue('location-loc-1');
+      expect(body.action).toBe('start_time_registration');
+      expect(body.data.target_type).toBeNull();
+      expect(body.data.target_id).toBeNull();
+      expect(body.data.booking_id).toBeUndefined();
+      expect(body.data.large_project_id).toBeUndefined();
+      expect(body.data.location_id).toBeUndefined();
     });
   });
 

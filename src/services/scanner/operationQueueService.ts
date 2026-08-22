@@ -5,7 +5,6 @@
  * en gång, och sedan återanvänds vid varje retry. Kön är durable (IndexedDB).
  */
 
-import { SCANNER_TRANSACTION_V2 } from '@/config/scannerFlags';
 import { commandForOperation, type ScannerOperationKind } from '@/lib/scanner/commandTypes';
 import type { QueuedOperation } from '@/lib/scanner/operationQueueTypes';
 import { queueLaneKey } from '@/lib/scanner/operationQueueTypes';
@@ -24,6 +23,7 @@ export interface EnqueueScanOperationInput {
   sku?: string | null;
   bookingNumber?: string | null;
   reservationId?: string | null;
+  reservationLineId?: string | null;
   parcelId?: string | null;
   quantityDelta?: number | null;
   performedBy?: string | null;
@@ -61,6 +61,7 @@ export const buildQueuedOperation = (
   sku: input.sku ?? null,
   booking_number: input.bookingNumber ?? null,
   reservation_id: input.reservationId ?? null,
+  reservation_line_id: input.reservationLineId ?? null,
   parcel_id: input.parcelId ?? null,
   quantity_delta: input.quantityDelta ?? null,
   performed_by: input.performedBy ?? null,
@@ -92,6 +93,7 @@ export const sendQueuedOperation: SendOperation = (op) =>
     packingId: op.packing_id,
     organizationId: op.organization_id,
     reservationId: op.reservation_id,
+    reservationLineId: op.reservation_line_id,
     itemId: op.item_id,
     serialNumber: (op.command === 'PACK_INSTANCE' || op.command === 'UNPACK_INSTANCE' || op.command === 'RETURN_INSTANCE') ? op.scan_value : null,
     sku: op.sku,
@@ -147,7 +149,8 @@ export const enqueueAndProcessScanOperation = async (
 };
 
 /**
- * Dubbelspärr: när V2 är ON äger operation queue scanningen och legacy
- * ScanQueue får inte ta emot samma scan (annars kan den processas två gånger).
+ * The raw localStorage ScanQueue is permanently disabled. It stores scan
+ * values, not idempotent operations, and has no registered replay handler.
+ * Only the durable V2 operation queue may persist mutating work.
  */
-export const shouldUseLegacyScanQueue = (): boolean => !SCANNER_TRANSACTION_V2;
+export const shouldUseLegacyScanQueue = (): boolean => false;

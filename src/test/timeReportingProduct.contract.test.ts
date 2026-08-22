@@ -11,10 +11,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
  *     function men med admin_create_time_report / admin_delete_time_report.
  *     Se mem://architecture/time-reporting-write-path-v1.
  *
- *   • location_time_entries är source of truth för alla tre timer-typer
- *     (booking / project / fast plats). Klienten optimistiskt syncar via
- *     en persistent kö med client_dedupe_key, retry och backoff.
- *     Se mem://features/field-staff/unified-timer-architecture-v1.
+ *   • active_time_registrations är source of truth för den enda aktiva
+ *     arbetsdagstimern. Projekt/plats kopplas i efterhand av Time Engine;
+ *     start_time_registration får därför aldrig få ett target.
  *
  *   • Stop-API:t är låst till tre verb. Save-then-stop är kanonisk.
  *     Se mem://features/field-staff/timer-stop-api-v1.
@@ -385,159 +384,46 @@ describe('Time reporting product (end-to-end contract)', () => {
   });
 
   // ───────────────────────────────────────────────────────────────────────────
-  // F. TIMER START & PERSISTENT SYNC QUEUE
+  // F. CANONICAL SINGLE DAY TIMER
   // ───────────────────────────────────────────────────────────────────────────
-  describe('F. Timer start (booking/project/location) + pending-sync retry', () => {
-    it('booking timer: enqueueTimerStart skickar start_location_timer med client_dedupe_key', async () => {
-      const { enqueueTimerStart, flushQueue, removeFromQueue } = await import(
-        '../services/timerSyncQueue'
-      );
-      mockFetch.mockResolvedValueOnce(
-        ok({ success: true, entry: { id: 'lte-1', entered_at: '2026-04-18T08:00:00Z' } }),
-      );
+  describe('F. Canonical single day timer', () => {
+    it('starts a pure workday timer without project, booking or location target', async () => {
+      const { mobileApi } = await import('../services/mobileApiService');
+      mockFetch.mockResolvedValueOnce(ok({
+        success: true,
+        registration: { id: 'atr-1', started_at: '2026-04-18T08:00:00Z' },
+      }));
 
-      const dedupe = enqueueTimerStart({
-        timerKey: 'booking-1',
-        bookingId: 'booking-1',
-        startedAt: '2026-04-18T08:00:00Z',
-      });
-      expect(dedupe).toBeTruthy();
-
-      await flushQueue();
-
+      const result = await mobileApi.startTimeRegistration({ started_at: '2026-04-18T08:00:00Z' });
       const body = lastBody(mockFetch);
-      expect(body.action).toBe('start_location_timer');
-      expect(body.data.booking_id).toBe('booking-1');
-      expect(body.data.client_dedupe_key).toBe(dedupe);
-      removeFromQueue('booking-1');
+
+      expect(body.action).toBe('start_time_registration');
+      expect(body.data).toEqual({
+        target_type: null,
+        target_id: null,
+        started_at: '2026-04-18T08:00:00Z',
+      });
+      expect(result.registration.id).toBe('atr-1');
     });
 
-    it('project timer: pushar large_project_id', async () => {
-      const { enqueueTimerStart, flushQueue, removeFromQueue } = await import(
-        '../services/timerSyncQueue'
-      );
-      mockFetch.mockResolvedValueOnce(ok({ success: true, entry: { id: 'lte-2' } }));
-      enqueueTimerStart({
-        timerKey: 'project-lp-1',
-        largeProjectId: 'lp-1',
-        startedAt: '2026-04-18T08:00:00Z',
+    it('stops the canonical registration by registration_id', async () => {
+      const { mobileApi } = await import('../services/mobileApiService');
+      mockFetch.mockResolvedValueOnce(ok({
+        success: true,
+        registration: { id: 'atr-1', status: 'stopped' },
+      }));
+
+      const result = await mobileApi.stopTimeRegistration({
+        registration_id: 'atr-1',
+        stop_source: 'user_manual',
+        stopped_at: '2026-04-18T16:00:00Z',
       });
-      await flushQueue();
       const body = lastBody(mockFetch);
-      expect(body.data.large_project_id).toBe('lp-1');
-      expect(body.data.location_id).toBeUndefined();
-      expect(body.data.booking_id).toBeUndefined();
-      removeFromQueue('project-lp-1');
-    });
 
-    it('location timer: pushar location_id', async () => {
-      const { enqueueTimerStart, flushQueue, removeFromQueue } = await import(
-        '../services/timerSyncQueue'
-      );
-      mockFetch.mockResolvedValueOnce(ok({ success: true, entry: { id: 'lte-3' } }));
-      enqueueTimerStart({
-        timerKey: 'location-loc-1',
-        locationId: 'loc-1',
-        startedAt: '2026-04-18T08:00:00Z',
-      });
-      await flushQueue();
-      const body = lastBody(mockFetch);
-      expect(body.data.location_id).toBe('loc-1');
-      removeFromQueue('location-loc-1');
-    });
-
-    it('retry: nätverksfel TAR INTE bort timern ur kön (ingen tyst radering)', async () => {
-      const queueMod = await import('../services/timerSyncQueue');
-      mockFetch.mockRejectedValue(new TypeError('NetworkError'));
-
-      queueMod.enqueueTimerStart({
-        timerKey: 'booking-flaky',
-        bookingId: 'booking-flaky',
-        startedAt: '2026-04-18T08:00:00Z',
-      });
-      // enqueueTimerStart fires-and-forgets a flush. Wait for that
-      // in-flight flush to settle (mock rejection → catch block runs →
-      // attempts incremented + queue saved) before asserting.
-      await new Promise((r) => setTimeout(r, 30));
-
-      const remaining = queueMod.getPendingTimerStarts();
-      const item = remaining.find((p) => p.timerKey === 'booking-flaky');
-      expect(item).toBeDefined();
-      expect(item!.attempts).toBeGreaterThanOrEqual(1);
-      expect(item!.nextAttemptAt).toBeGreaterThan(Date.now());
-      queueMod.removeFromQueue('booking-flaky');
-    });
-
-    it('idempotens: samma timerKey enqueueas inte två gånger — samma dedupe-nyckel återanvänds', async () => {
-      const queueMod = await import('../services/timerSyncQueue');
-      const a = queueMod.enqueueTimerStart({
-        timerKey: 'booking-dup',
-        bookingId: 'booking-dup',
-        startedAt: '2026-04-18T08:00:00Z',
-      });
-      const b = queueMod.enqueueTimerStart({
-        timerKey: 'booking-dup',
-        bookingId: 'booking-dup',
-        startedAt: '2026-04-18T08:00:01Z',
-      });
-      expect(a).toBe(b);
-      const queue = queueMod.getPendingTimerStarts();
-      expect(queue.filter((p) => p.timerKey === 'booking-dup')).toHaveLength(1);
-      queueMod.removeFromQueue('booking-dup');
-    });
-
-    it('success: emittar timer-sync-confirmed med serverEntryId så UI kan adoptera servertid', async () => {
-      const queueMod = await import('../services/timerSyncQueue');
-      mockFetch.mockResolvedValue(
-        ok({ success: true, entry: { id: 'lte-x', entered_at: '2026-04-18T08:00:01Z' } }),
-      );
-
-      const events: any[] = [];
-      const handler = (e: Event) => events.push((e as CustomEvent).detail);
-      window.addEventListener('timer-sync-confirmed', handler);
-
-      queueMod.enqueueTimerStart({
-        timerKey: 'booking-confirm',
-        bookingId: 'booking-confirm',
-        startedAt: '2026-04-18T08:00:00Z',
-      });
-      // enqueueTimerStart fires the actual flush itself; wait for it to settle.
-      await new Promise((r) => setTimeout(r, 30));
-
-      window.removeEventListener('timer-sync-confirmed', handler);
-      expect(events.length).toBe(1);
-      expect(events[0].timerKey).toBe('booking-confirm');
-      expect(events[0].serverEntryId).toBe('lte-x');
-      expect(events[0].serverStartedAt).toBe('2026-04-18T08:00:01Z');
-      expect(queueMod.isTimerPendingSync('booking-confirm')).toBe(false);
-    });
-
-    it('race-guard (2026-05): server svar status=already_closed_or_consumed → kön rensas + timer-sync-rejected emittas', async () => {
-      const queueMod = await import('../services/timerSyncQueue');
-      mockFetch.mockResolvedValue(
-        ok({
-          status: 'already_closed_or_consumed',
-          reason: 'already_consumed',
-          entry: { id: 'lte-old', exited_at: '2026-04-18T08:30:00Z' },
-        }),
-      );
-
-      const events: any[] = [];
-      const handler = (e: Event) => events.push((e as CustomEvent).detail);
-      window.addEventListener('timer-sync-rejected', handler);
-
-      queueMod.enqueueTimerStart({
-        timerKey: 'booking-stale-retry',
-        bookingId: 'booking-stale-retry',
-        startedAt: '2026-04-18T08:00:00Z',
-      });
-      await new Promise((r) => setTimeout(r, 30));
-      window.removeEventListener('timer-sync-rejected', handler);
-
-      expect(events.length).toBe(1);
-      expect(events[0].timerKey).toBe('booking-stale-retry');
-      expect(events[0].reason).toBe('already_consumed');
-      expect(queueMod.isTimerPendingSync('booking-stale-retry')).toBe(false);
+      expect(body.action).toBe('stop_time_registration');
+      expect(body.data.registration_id).toBe('atr-1');
+      expect(body.data.stop_source).toBe('user_manual');
+      expect(result.registration.status).toBe('stopped');
     });
   });
 
@@ -571,10 +457,10 @@ describe('Time reporting product (end-to-end contract)', () => {
       expect(bodyAt(mockFetch, 0).action).toBe('create_time_report');
     });
 
-    it('save-then-stop: vid lyckad save går stop_location_timer SEN', async () => {
+    it('save-then-stop: vid lyckad save går stop_time_registration SEN', async () => {
       const { mobileApi } = await import('../services/mobileApiService');
       mockFetch.mockResolvedValueOnce(ok({ success: true, time_report: { id: 'tr-1' } }));
-      mockFetch.mockResolvedValueOnce(ok({ success: true, entry: { id: 'lte-1' } }));
+      mockFetch.mockResolvedValueOnce(ok({ success: true, registration: { id: 'atr-1' } }));
 
       await mobileApi.createTimeReport({
         booking_id: 'b1',
@@ -583,10 +469,10 @@ describe('Time reporting product (end-to-end contract)', () => {
         end_time: '16:00',
         hours_worked: 8,
       });
-      await mobileApi.stopLocationTimer({ booking_id: 'b1' });
+      await mobileApi.stopTimeRegistration({ registration_id: 'atr-1' });
 
       expect(bodyAt(mockFetch, 0).action).toBe('create_time_report');
-      expect(bodyAt(mockFetch, 1).action).toBe('stop_location_timer');
+      expect(bodyAt(mockFetch, 1).action).toBe('stop_time_registration');
     });
 
     it('stale-warning: gamla open-entries flaggas som stale men raderas ALDRIG tyst', () => {
@@ -603,13 +489,13 @@ describe('Time reporting product (end-to-end contract)', () => {
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it('stop-API: stopLocationTimer kan stänga via entry_id (server source of truth)', async () => {
+    it('stop-API: stopTimeRegistration kan stänga via registration_id (server source of truth)', async () => {
       const { mobileApi } = await import('../services/mobileApiService');
-      mockFetch.mockResolvedValueOnce(ok({ success: true, entry: { id: 'lte-x' } }));
-      await mobileApi.stopLocationTimer({ entry_id: 'lte-x' });
+      mockFetch.mockResolvedValueOnce(ok({ success: true, registration: { id: 'atr-x' } }));
+      await mobileApi.stopTimeRegistration({ registration_id: 'atr-x' });
       const body = lastBody(mockFetch);
-      expect(body.action).toBe('stop_location_timer');
-      expect(body.data.entry_id).toBe('lte-x');
+      expect(body.action).toBe('stop_time_registration');
+      expect(body.data.registration_id).toBe('atr-x');
     });
   });
 

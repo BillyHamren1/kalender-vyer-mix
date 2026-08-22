@@ -19,16 +19,9 @@
  *   - Barcode input: Enabled
  *   - Keystroke output: DISABLED
  * 
- * === INIT SEQUENCE ===
- * 
- * On native Android, startDataWedgeListener() runs:
- *   1. ENABLE_DATAWEDGE → ensures DataWedge is on
- *   2. SWITCH_TO_PROFILE → switches to "EventFlow Scanner" profile
- *   3. SCANNER_INPUT_PLUGIN → enables the scanner input
- * 
- * Each command includes SEND_RESULT + COMMAND_IDENTIFIER. The native plugin
- * listens for DataWedge RESULT_ACTION broadcasts and forwards them as
- * 'datawedge_result' events, allowing the frontend to verify success/failure.
+ * The app runs in passive mode and never mutates the device profile at startup.
+ * The provisioned profile must use secure Component Information bound to the
+ * scanner package and signing certificate.
  */
 
 import { ScanEvent, DataWedgeIntentData } from './types';
@@ -67,7 +60,6 @@ interface NativeScanPayload {
   symbology: string;
   source: string;
   timestamp: number;
-  rawExtras?: Record<string, string>;
 }
 
 interface NativeResultPayload {
@@ -76,7 +68,6 @@ interface NativeResultPayload {
   result: string;         // "SUCCESS", "FAILURE", or ""
   resultInfo: string;     // semicolon-separated key=value pairs
   timestamp: number;
-  rawExtras?: Record<string, string>;
 }
 
 // Register the native plugin (no-op on web, connects on Android)
@@ -108,7 +99,6 @@ export interface DwCommandResult {
   resultInfo: string;
   sentAt: number;
   receivedAt: number | null;
-  rawExtras?: Record<string, string>;
 }
 
 /** Results keyed by the short command name (ENABLE_DATAWEDGE, etc.) */
@@ -145,7 +135,7 @@ export function startDataWedgeListener(onScan: DataWedgeCallback): void {
 async function startNativeListener(): Promise<void> {
   try {
     pluginListener = await DataWedge.addListener('datawedge_scan', (payload: NativeScanPayload) => {
-      console.log('[DataWedge] Native scan received:', payload.data, 'symbology:', payload.symbology);
+      console.log('[DataWedge] Native scan received; symbology:', payload.symbology);
       
       if (!payload.data) {
         console.warn('[DataWedge] Native event with empty data, ignoring');
@@ -162,7 +152,11 @@ async function startNativeListener(): Promise<void> {
         source: 'zebra_datawedge',
         value: payload.data,
         timestamp: lastScanTimestamp,
-        rawData: JSON.stringify(payload),
+        rawData: JSON.stringify({
+          symbology: payload.symbology,
+          source: payload.source,
+          timestamp: payload.timestamp,
+        }),
         symbology: payload.symbology || undefined,
         deviceInfo: 'Zebra DataWedge (native)',
         isDuplicate: false,
@@ -207,7 +201,6 @@ async function startResultListener(): Promise<void> {
         entry.status = status;
         entry.receivedAt = payload.timestamp || Date.now();
         entry.resultInfo = payload.resultInfo || '';
-        entry.rawExtras = payload.rawExtras;
 
         if (status === 'failure') {
           const msg = `${entry.commandName}: FAILURE — ${payload.resultInfo || 'no info'}`;
@@ -232,15 +225,11 @@ async function startResultListener(): Promise<void> {
   }
 }
 
-function findPendingCommand(identifier: string, commandName: string): DwCommandResult | null {
-  // Try exact match by identifier first
+function findPendingCommand(identifier: string, _commandName: string): DwCommandResult | null {
+  if (!identifier) return null;
+
   for (const entry of initCommandResults.values()) {
     if (entry.commandIdentifier === identifier) return entry;
-  }
-  // Fallback: match by command name if identifier doesn't match
-  // (DataWedge sometimes returns a different identifier format)
-  if (commandName && commandName !== 'UNKNOWN') {
-    return initCommandResults.get(commandName) || null;
   }
   return null;
 }
@@ -459,5 +448,5 @@ export function simulateDataWedgeScan(barcode: string, symbology?: string): void
     }
   });
   window.dispatchEvent(event);
-  console.log(`[DataWedge] Simulated scan: ${barcode}`);
+  console.log('[DataWedge] Simulated scan dispatched');
 }

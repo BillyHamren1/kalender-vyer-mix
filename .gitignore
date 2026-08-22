@@ -9,7 +9,10 @@ lerna-debug.log*
 
 node_modules
 dist
+dist-time
+dist-scanner
 dist-ssr
+.gradle-eventflow/
 *.local
 
 # Editor directories and files

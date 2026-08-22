@@ -1,6 +1,14 @@
 // @ts-nocheck
 // Scanner V2 Planning gateway: authenticated, tenant-scoped, WMS-first.
 import { authenticateStaffRequest } from '../_shared/staff-auth.ts'
+import { verifyScannerReadiness } from '../_shared/scanner-readiness.ts'
+import {
+  isSameOperationReplay,
+  mapScannerWmsStatus,
+  wmsItemIdFrom,
+  wmsOperationIdFrom,
+  wmsReservationLineIdFrom,
+} from '../_shared/scanner-wms-result.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -28,6 +36,7 @@ const ALLOWED: CommandType[] = [
 
 const SESSION_REQUIRED = new Set<CommandType>([
   'PACK_QUANTITY', 'UNPACK_QUANTITY', 'PACK_INSTANCE', 'UNPACK_INSTANCE',
+  'RETURN_INSTANCE', 'RETURN_QUANTITY',
 ])
 
 async function authenticateScanner(req: Request) {
@@ -54,88 +63,42 @@ async function authenticateScanner(req: Request) {
   return { staffId, staffName: staff.name || 'Unknown', organizationId, admin }
 }
 
-async function assertPlanningScope(admin: any, auth: any, command: any) {
+async function assertPlanningScope(
+  admin: any,
+  auth: any,
+  command: any,
+  config: { wmsBaseUrl: string | null; apiKey: string | null },
+) {
   if (command.organizationId && command.organizationId !== auth.organizationId) {
     throw { status: 403, code: 'TENANT_MISMATCH', message: 'Operation belongs to another organization' }
   }
-
-  const { data: packing, error: packingError } = await admin
-    .from('packing_projects')
-    .select('id, organization_id, booking_id')
-    .eq('id', command.packingId)
-    .eq('organization_id', auth.organizationId)
-    .maybeSingle()
-  if (packingError || !packing) {
-    throw { status: 404, code: 'PACKING_NOT_FOUND', message: 'Packing not found in organization' }
+  if (SESSION_REQUIRED.has(command.type as CommandType) && !command.sessionId) {
+    throw { status: 400, code: 'PACKING_SESSION_REQUIRED', message: 'Active packing session required' }
   }
 
-  if (command.itemId) {
-    const { data: item, error } = await admin
-      .from('packing_list_items')
-      .select('id, packing_id, organization_id')
-      .eq('id', command.itemId)
-      .eq('packing_id', command.packingId)
-      .eq('organization_id', auth.organizationId)
-      .maybeSingle()
-    if (error || !item) {
-      throw { status: 404, code: 'ITEM_SCOPE_MISMATCH', message: 'Packing item not found in organization/packing' }
+  const readiness = await verifyScannerReadiness({
+    admin,
+    organizationId: auth.organizationId,
+    staffId: auth.staffId,
+    packingId: command.packingId,
+    sessionId: command.sessionId,
+    bookingNumber: command.bookingNumber,
+    reservationId: command.reservationId,
+    itemId: command.itemId ?? null,
+    reservationLineId: command.reservationLineId ?? null,
+    requireReservationLine: true,
+    wmsBaseUrl: config.wmsBaseUrl,
+    apiKey: config.apiKey,
+  })
+  if (!readiness.ok) {
+    const unavailable = readiness.code === 'WMS_NOT_CONFIGURED' || readiness.code.includes('UNAVAILABLE')
+    throw {
+      status: unavailable ? 503 : 409,
+      code: readiness.code,
+      message: readiness.message,
     }
   }
-
-  if (command.bookingNumber) {
-    if (!packing.booking_id) {
-      throw { status: 409, code: 'WRONG_BOOKING', message: 'Packing has no booking identity to verify' }
-    }
-    const { data: booking, error: bookingError } = await admin
-      .from('bookings')
-      .select('id, booking_number, organization_id')
-      .eq('id', packing.booking_id)
-      .eq('organization_id', auth.organizationId)
-      .maybeSingle()
-    if (bookingError || !booking?.id || !booking.booking_number) {
-      throw { status: 409, code: 'BOOKING_SCOPE_UNVERIFIED', message: 'Booking identity could not be verified in organization' }
-    }
-    if (String(booking.booking_number) !== String(command.bookingNumber)) {
-      throw { status: 409, code: 'WRONG_BOOKING', message: 'Booking number does not match packing' }
-    }
-  }
-
-  if (SESSION_REQUIRED.has(command.type as CommandType)) {
-    if (!command.sessionId) {
-      throw { status: 400, code: 'PACKING_SESSION_REQUIRED', message: 'Active packing session required' }
-    }
-    const { data: session, error } = await admin
-      .from('packing_work_sessions')
-      .select('id, packing_id, staff_id, organization_id, status')
-      .eq('id', command.sessionId)
-      .eq('organization_id', auth.organizationId)
-      .maybeSingle()
-    if (error || !session) throw { status: 400, code: 'PACKING_SESSION_NOT_FOUND', message: 'Packing session not found' }
-    if (session.packing_id !== command.packingId) throw { status: 409, code: 'PACKING_SESSION_WRONG_PACKING', message: 'Session belongs to another packing' }
-    if (session.staff_id !== auth.staffId) throw { status: 403, code: 'PACKING_SESSION_WRONG_STAFF', message: 'Session belongs to another user' }
-    if (session.status !== 'active') throw { status: 409, code: 'PACKING_SESSION_NOT_ACTIVE', message: 'Packing session is not active' }
-  }
-
-  return packing
-}
-
-const transientWmsStatus = (status: number) => status === 408 || status === 425 || status === 429 || status >= 500
-
-const mapWmsStatus = (httpStatus: number, body: any): string => {
-  const explicit = String(body?.status || '').toLowerCase()
-  if (['accepted', 'rejected', 'wrong_booking', 'over_capacity', 'not_found', 'duplicate', 'unknown'].includes(explicit)) {
-    return explicit
-  }
-  if (transientWmsStatus(httpStatus)) return 'unknown'
-  if (httpStatus === 200 || httpStatus === 201) return 'accepted'
-  if (httpStatus === 404) return 'not_found'
-  if (httpStatus === 409) {
-    if (body?.code === 'WRONG_BOOKING') return 'wrong_booking'
-    if (body?.code === 'OVER_CAPACITY') return 'over_capacity'
-    return 'rejected'
-  }
-  if (httpStatus === 422) return body?.code === 'OVER_CAPACITY' ? 'over_capacity' : 'rejected'
-  return 'rejected'
+  return readiness.packing
 }
 
 Deno.serve(async (req) => {
@@ -155,16 +118,17 @@ Deno.serve(async (req) => {
 
     const auth = await authenticateScanner(req)
     const admin = auth.admin
-    await assertPlanningScope(admin, auth, command)
 
     const gatewayUrl = Deno.env.get('WMS_COMMAND_GATEWAY_URL')
     const apiKey = Deno.env.get('PRICELIST_API_KEY')
-    if (!gatewayUrl || !apiKey) {
+    const wmsBaseUrl = Deno.env.get('WMS_READINESS_BASE_URL')
+    if (!gatewayUrl || !apiKey || !wmsBaseUrl) {
       return json({
         status: 'unknown', operationId: command.operationId, itemId: command.itemId ?? null,
-        error: 'WMS gateway is not configured', debugCode: 'WMS_NOT_CONFIGURED',
+        error: 'WMS gateway/readiness is not configured', debugCode: 'WMS_NOT_CONFIGURED',
       }, 503)
     }
+    await assertPlanningScope(admin, auth, command, { wmsBaseUrl, apiKey })
 
     let wmsBody: any = null
     let wmsStatus = 0
@@ -182,6 +146,7 @@ Deno.serve(async (req) => {
           organization_id: auth.organizationId,
           packing_id: command.packingId,
           reservation_id: command.reservationId ?? null,
+          reservation_line_id: command.reservationLineId ?? null,
           item_id: command.itemId ?? null,
           serial_number: command.serialNumber ?? null,
           sku: command.sku ?? null,
@@ -208,7 +173,7 @@ Deno.serve(async (req) => {
       }, 503)
     }
 
-    const status = mapWmsStatus(wmsStatus, wmsBody)
+    const status = mapScannerWmsStatus(wmsStatus, wmsBody)
     if (status === 'unknown') {
       return json({
         status: 'unknown', operationId: command.operationId,
@@ -218,7 +183,16 @@ Deno.serve(async (req) => {
       }, 503)
     }
 
-    const replayed = Boolean(wmsBody?.replayed === true || wmsBody?.already_committed === true || wmsBody?.same_operation === true)
+    const returnedOperationId = wmsOperationIdFrom(wmsBody)
+    if (returnedOperationId && returnedOperationId !== command.operationId) {
+      return json({
+        status: 'unknown', operationId: command.operationId, itemId: command.itemId ?? null,
+        message: 'WMS response belongs to another operation; exact result could not be verified',
+        debugCode: 'WMS_OPERATION_ID_MISMATCH',
+      }, 503)
+    }
+
+    const replayed = isSameOperationReplay(wmsBody, command.operationId)
     if (status === 'duplicate' && !replayed) {
       // "Already packed" for a NEW operation is not idempotent replay. Fail closed
       // so the client never gives green feedback for an unrelated prior scan.
@@ -230,7 +204,32 @@ Deno.serve(async (req) => {
       }, 409)
     }
 
-    const itemId = wmsBody?.item_id ?? command.itemId ?? null
+    const terminalSuccess = status === 'accepted' || (status === 'duplicate' && replayed)
+    const returnedItemId = wmsItemIdFrom(wmsBody)
+    const returnedReservationLineId = wmsReservationLineIdFrom(wmsBody)
+    if (terminalSuccess && returnedOperationId !== command.operationId) {
+      return json({
+        status: 'unknown', operationId: command.operationId, itemId: command.itemId ?? null,
+        message: 'WMS success did not echo the exact operation id',
+        debugCode: 'WMS_OPERATION_ID_MISSING',
+      }, 503)
+    }
+    if (terminalSuccess && returnedItemId !== command.itemId) {
+      return json({
+        status: 'unknown', operationId: command.operationId, itemId: command.itemId ?? null,
+        message: 'WMS success did not prove the exact packing item',
+        debugCode: 'WMS_ITEM_ID_MISMATCH',
+      }, 503)
+    }
+    if (terminalSuccess && returnedReservationLineId !== command.reservationLineId) {
+      return json({
+        status: 'unknown', operationId: command.operationId, itemId: command.itemId ?? null,
+        message: 'WMS success did not prove the exact reservation line',
+        debugCode: 'WMS_RESERVATION_LINE_ID_MISMATCH',
+      }, 503)
+    }
+
+    const itemId = returnedItemId ?? command.itemId ?? null
     const packedQuantity = typeof wmsBody?.packed_quantity === 'number' ? wmsBody.packed_quantity : null
     const requiredQuantity = typeof wmsBody?.required_quantity === 'number' ? wmsBody.required_quantity : null
     const returnedQuantity = typeof wmsBody?.returned_quantity === 'number' ? wmsBody.returned_quantity : null
@@ -239,7 +238,7 @@ Deno.serve(async (req) => {
     // as green. The mutation may already be committed, so mark the transport
     // outcome UNKNOWN and retry the SAME operation_id until WMS can replay the
     // canonical result. Never invent local arithmetic as a fallback.
-    if (status === 'accepted' || status === 'duplicate') {
+    if (terminalSuccess) {
       const isReturn = command.type === 'RETURN_INSTANCE' || command.type === 'RETURN_QUANTITY'
       const missingAuthoritativeState = !itemId || (isReturn ? returnedQuantity === null : packedQuantity === null)
       if (missingAuthoritativeState) {
@@ -254,7 +253,7 @@ Deno.serve(async (req) => {
     // Projection is a cache/read model only. Scope every service-role write to
     // verified organization + packing + item. WMS result remains authoritative.
     let projectionWarning: string | null = null
-    if ((status === 'accepted' || status === 'duplicate') && itemId) {
+    if (terminalSuccess && itemId) {
       const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
       if (packedQuantity !== null) patch.quantity_packed = packedQuantity
       if (returnedQuantity !== null) patch.quantity_returned = returnedQuantity
