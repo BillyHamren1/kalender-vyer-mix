@@ -305,11 +305,12 @@ const WarehouseCalendarPage = () => {
   );
   const { data: packingStats } = useWarehousePackingStats(cardBookingIds);
   const { data: bookingTitles } = useWarehouseBookingTitles(cardBookingIds);
+  const epOf = (event: CalendarEvent): Record<string, unknown> =>
+    (event.extendedProps ?? {}) as Record<string, unknown>;
+  const eventKeyOf = (event: CalendarEvent): string =>
+    (epOf(event).warehouseEventId as string | undefined) ?? event.id;
   const cardEventIds = useMemo(
-    () =>
-      filteredWarehouseEvents
-        .map(e => (e.extendedProps as any)?.warehouseEventId ?? e.id)
-        .filter(Boolean) as string[],
+    () => filteredWarehouseEvents.map(eventKeyOf).filter(Boolean),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [filteredWarehouseEvents.map(e => e.id).join(',')],
   );
@@ -317,13 +318,13 @@ const WarehouseCalendarPage = () => {
   const enrichedWarehouseEvents: CalendarEvent[] = distributedEvents.map(event => {
     const stat = event.bookingId ? packingStats?.get(event.bookingId) : undefined;
     const rubrik = event.bookingId ? bookingTitles?.get(event.bookingId) : undefined;
-    const crew = eventCrew?.get(((event.extendedProps as any)?.warehouseEventId ?? event.id) as string) ?? [];
+    const crew = eventCrew?.get(eventKeyOf(event)) ?? [];
     return {
       ...event,
       extendedProps: {
         ...event.extendedProps,
         warehouseActivityLabel: WAREHOUSE_ACTIVITY_LABELS[event.eventType as string] ?? undefined,
-        bookingTitle: rubrik ?? (event.extendedProps as any)?.bookingTitle,
+        bookingTitle: rubrik ?? (epOf(event).bookingTitle as string | undefined),
         timeLabel: `${format(new Date(event.start), 'HH:mm')}–${format(new Date(event.end), 'HH:mm')}`,
         packedLabel: stat && stat.total > 0 ? `${stat.packed} / ${stat.total} klara` : undefined,
         crewLabel: crew.length > 0 ? (crew.length === 1 ? crew[0] : `${crew[0]} +${crew.length - 1}`) : undefined,
