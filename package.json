@@ -29,7 +29,9 @@
     "preview": "vite preview",
     "test:messaging": "bash scripts/test-messaging.sh",
     "test:time-reporting": "bash scripts/test-time-reporting.sh",
-    "test:scanner": "vitest run src/services/__tests__/scannerService.scanning.test.ts",
+    "test:time-reporting:frontend": "bash scripts/test-time-reporting.sh --frontend-only",
+    "test:scanner": "node scripts/run-scanner-automated-gate.mjs --scanner-tests-only",
+    "test:scanner:gate": "node scripts/run-scanner-automated-gate.mjs",
     "test:scanner-flow": "vitest run src/__tests__/scanner-wms-flow.static.test.ts"
   },
   "dependencies": {

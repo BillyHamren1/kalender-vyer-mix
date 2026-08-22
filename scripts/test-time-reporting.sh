@@ -36,6 +36,14 @@
 
 set -uo pipefail
 
+FRONTEND_ONLY=false
+if [ "${1:-}" = "--frontend-only" ]; then
+  FRONTEND_ONLY=true
+elif [ -n "${1:-}" ]; then
+  echo "Usage: bash scripts/test-time-reporting.sh [--frontend-only]" >&2
+  exit 64
+fi
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
@@ -152,7 +160,9 @@ fi
 echo
 bold "── 2/2  Backend (deno test, mobile-app-api) ──"
 DENO_BIN="$ROOT/node_modules/.bin/deno"
-if [ ! -x "$DENO_BIN" ]; then
+if [ "$FRONTEND_ONLY" = "true" ]; then
+  gray "  NOT EXECUTED – --frontend-only kör endast den uttryckliga Time-frontendgaten."
+elif [ ! -x "$DENO_BIN" ]; then
   red "  Lokal Deno-binär saknas – kör npm ci först"
   BACKEND_RC=127
 else
@@ -192,7 +202,13 @@ fi
 echo
 bold "── Resultat ──"
 if [ "$FRONTEND_RC" -eq 0 ]; then green "  ✔ Frontend: PASS"; else red "  ✘ Frontend: FAIL"; fi
-if [ "$BACKEND_RC"  -eq 0 ]; then green "  ✔ Backend:  PASS"; else red "  ✘ Backend:  FAIL"; fi
+if [ "$FRONTEND_ONLY" = "true" ]; then
+  gray "  – Backend:  NOT EXECUTED"
+elif [ "$BACKEND_RC" -eq 0 ]; then
+  green "  ✔ Backend:  PASS"
+else
+  red "  ✘ Backend:  FAIL"
+fi
 
 if [ "$FRONTEND_RC" -ne 0 ] || [ "$BACKEND_RC" -ne 0 ]; then
   exit 1
