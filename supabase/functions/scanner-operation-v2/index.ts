@@ -78,6 +78,8 @@ async function assertPlanningScope(
     bookingNumber: command.bookingNumber,
     reservationId: command.reservationId,
     itemId: command.itemId ?? null,
+    reservationLineId: command.reservationLineId ?? null,
+    requireReservationLine: true,
     wmsBaseUrl: config.wmsBaseUrl,
     apiKey: config.apiKey,
   })
@@ -156,6 +158,7 @@ Deno.serve(async (req) => {
           organization_id: auth.organizationId,
           packing_id: command.packingId,
           reservation_id: command.reservationId ?? null,
+          reservation_line_id: command.reservationLineId ?? null,
           item_id: command.itemId ?? null,
           serial_number: command.serialNumber ?? null,
           sku: command.sku ?? null,

@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { deriveStatusFromProgress } from '../_shared/packing-progress.ts'
+import { reservationLinesFrom, type CanonicalReservationLine } from '../_shared/reservation-line-identity.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -450,6 +451,8 @@ async function checkIfAllReturned(supabase: any, packingId: string, orgId: strin
 type WmsAllocRow = {
   serial_number: string
   instance_id?: string | null
+  reservation_line_id?: string | null
+  source_booking_product_id?: string | null
   item_type_id?: string | null
   sku?: string | null
   item_type_name?: string | null
@@ -884,6 +887,7 @@ Deno.serve(async (req) => {
         const url = `https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/get-reservation-allocations?reservation_id=${encodeURIComponent(bookingNumber)}`
         let wmsAllocs: WmsAllocRow[] = []
         let wmsCurrentState: any = null
+        let wmsReservationLines: CanonicalReservationLine[] = []
         try {
           const resp = await fetch(url, {
             method: 'GET',
@@ -919,12 +923,19 @@ Deno.serve(async (req) => {
                   ? body
                   : []
           wmsCurrentState = body?.current_state || body?.data?.current_state || null
+          wmsReservationLines = reservationLinesFrom(body)
           wmsAllocs = list
             .map((row: any) => {
               const data = row?.data && typeof row.data === 'object' ? { ...row, ...row.data } : row
               return {
                 serial_number: data?.serial_number || data?.serial || data?.sku_serial || '',
                 instance_id: data?.instance_id || data?.id || null,
+                reservation_line_id: data?.reservation_line_id || data?.reservationLineId || data?.line_id || null,
+                source_booking_product_id:
+                  data?.source_booking_product_id ||
+                  data?.sourceBookingProductId ||
+                  data?.booking_product_id ||
+                  null,
                 item_type_id: data?.item_type_id || data?.itemTypeId || null,
                 sku: data?.sku || null,
                 item_type_name: data?.item_type_name || data?.item_type || data?.product_name || data?.name || null,
@@ -954,6 +965,13 @@ Deno.serve(async (req) => {
           reservation_id: bookingNumber,
           packing_id: packingId,
           allocations: wmsAllocs,
+          reservation_lines: wmsReservationLines.map((line) => ({
+            reservation_line_id: line.reservationLineId,
+            source_booking_product_id: line.sourceBookingProductId,
+            item_type_id: line.itemTypeId,
+            sku: line.sku,
+            quantity: line.quantity,
+          })),
           current_state: wmsCurrentState,
           mirroredCount: mirrored,
         })
@@ -2356,6 +2374,17 @@ Deno.serve(async (req) => {
               found: true,
               name: payload.name || payload.item_type_name || payload.product_name || null,
               sku: payload.sku || payload.serial_number || serialNumber,
+              itemTypeId: payload.item_type_id || payload.itemTypeId || payload.inventory_item_type_id || null,
+              reservationLineId:
+                payload.reservation_line_id ||
+                payload.reservationLineId ||
+                payload.active_reservation?.reservation_line_id ||
+                null,
+              sourceBookingProductId:
+                payload.source_booking_product_id ||
+                payload.sourceBookingProductId ||
+                payload.active_reservation?.source_booking_product_id ||
+                null,
               status: payload.status || 'unknown',
               condition: payload.condition || null,
               itemType: payload.item_type || payload.item_type_name || null,

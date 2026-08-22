@@ -44,6 +44,7 @@ export interface QueuedOperation {
   sku: string | null;
   booking_number: string | null;
   reservation_id: string | null;
+  reservation_line_id: string | null;
   parcel_id: string | null;
   quantity_delta: number | null;
   performed_by: string | null;

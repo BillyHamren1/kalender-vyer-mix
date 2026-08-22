@@ -38,6 +38,7 @@ export interface ScannerOperationInput {
   packingId: string;
   organizationId?: string | null;
   reservationId?: string | null;
+  reservationLineId?: string | null;
   itemId?: string | null;
   serialNumber?: string | null;
   sku?: string | null;
@@ -58,6 +59,7 @@ export const buildScannerCommand = (input: ScannerOperationInput): ScannerComman
   packingId: input.packingId,
   organizationId: input.organizationId ?? null,
   reservationId: input.reservationId ?? null,
+  reservationLineId: input.reservationLineId ?? null,
   itemId: input.itemId ?? null,
   serialNumber: input.serialNumber ?? null,
   sku: input.sku ?? null,

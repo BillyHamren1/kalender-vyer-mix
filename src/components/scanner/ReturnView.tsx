@@ -25,6 +25,7 @@ import {
   returnDecrementItem,
   returnResetItem,
   startPackingSession,
+  identifyProduct,
   type PackingWorkSession,
   type PreflightResult,
 } from '@/services/scannerService';
@@ -255,7 +256,51 @@ const ReturnView: React.FC<Props> = ({
         return;
       }
     }
-    const matchingItem = isPhysical ? undefined : items.find(it => it.booking_products?.sku?.trim().toLowerCase() === value.toLowerCase());
+    let lineResolution = reservation.resolveReservationLine({
+      serialNumber: isPhysical ? value : null,
+      sku: isPhysical ? null : value,
+    });
+    if (!lineResolution.ok && isPhysical) {
+      const identified = await identifyProduct(value);
+      if (!identified.found) {
+        const message = identified.error || 'Produkten kunde inte identifieras i WMS';
+        setLastResult({ level: 'error', text: message, productName: value });
+        toast.error(message);
+        return;
+      }
+      if (
+        identified.currentBooking &&
+        packing?.booking?.booking_number &&
+        identified.currentBooking !== packing.booking.booking_number
+      ) {
+        const message = 'Den fysiska artikeln tillhör en annan reservation';
+        setLastResult({ level: 'error', text: message, productName: value });
+        toast.error(message);
+        return;
+      }
+      lineResolution = reservation.resolveReservationLine({
+        serialNumber: value,
+        reservationLineId: identified.reservationLineId ?? null,
+        bookingProductId: identified.sourceBookingProductId ?? null,
+        itemTypeId: identified.itemTypeId ?? null,
+        sku: identified.sku ?? null,
+      });
+    }
+    if (!lineResolution.ok) {
+      setLastResult({ level: 'error', text: lineResolution.message, productName: value });
+      toast.error(lineResolution.message);
+      return;
+    }
+    const matchingItems = items.filter(
+      (item) => item.booking_products?.id === lineResolution.sourceBookingProductId,
+    );
+    if (matchingItems.length !== 1) {
+      const message = 'Reservationsraden matchar inte exakt en packningsrad';
+      setLastResult({ level: 'error', text: message, productName: value });
+      toast.error(message);
+      return;
+    }
+    const matchingItem = matchingItems[0];
     let processed;
     try {
       processed = await enqueueAndProcessScanOperation({
@@ -264,7 +309,8 @@ const ReturnView: React.FC<Props> = ({
         packingSessionId: activeSession?.id ?? null,
         organizationId: storedStaff?.organization_id ?? null,
         reservationId: reservation.reservationId,
-        itemId: matchingItem?.id ?? null,
+        reservationLineId: lineResolution.reservationLineId,
+        itemId: matchingItem.id,
         sku: isPhysical ? null : value,
         bookingNumber: packing?.booking?.booking_number ?? null,
         quantityDelta: isPhysical ? null : 1,
@@ -288,13 +334,13 @@ const ReturnView: React.FC<Props> = ({
       return;
     }
     if (processed.state === 'COMMITTED' && result && isAcceptedResult(result)) {
-      const itemId = result.itemId ?? matchingItem?.id ?? null;
+      const itemId = result.itemId ?? matchingItem.id;
       setLastResult({
         level: result.status === 'duplicate' ? 'warning' : 'success',
         text: result.status === 'duplicate'
           ? 'Returen var redan registrerad'
           : `Returnerad (${result.returnedQuantity ?? '–'}/${result.packedQuantity ?? '–'})`,
-        productName: result.productName || matchingItem?.booking_products?.name || value,
+        productName: result.productName || matchingItem.booking_products?.name || value,
       });
       if (itemId) {
         flashHighlight(itemId);
@@ -310,7 +356,7 @@ const ReturnView: React.FC<Props> = ({
       : result?.message || 'Returen avvisades – inget ändrat';
     setLastResult({ level: 'error', text: message, productName: result?.productName || value });
     toast.error(message);
-  }, [activeSession?.id, effectiveReturnedBy, items, loadData, packingId, packing?.booking?.booking_number, requireReadiness, reservation.reservationId, storedStaff]);
+  }, [activeSession?.id, effectiveReturnedBy, items, loadData, packingId, packing?.booking?.booking_number, requireReadiness, reservation, storedStaff]);
 
   useEffect(() => {
     if (!isScannerTransactionV2Enabled()) return;
@@ -398,6 +444,13 @@ const ReturnView: React.FC<Props> = ({
     const sent = it.quantity_packed ?? 0;
     if ((it.quantity_returned ?? 0) >= sent) return;
     if (isScannerTransactionV2Enabled()) {
+      const lineResolution = reservation.resolveReservationLine({
+        bookingProductId: it.booking_products?.id ?? null,
+      });
+      if (!lineResolution.ok) {
+        toast.error(lineResolution.message);
+        return;
+      }
       let processed;
       try {
         processed = await enqueueAndProcessScanOperation({
@@ -405,6 +458,7 @@ const ReturnView: React.FC<Props> = ({
           packingSessionId: activeSession?.id ?? null,
           organizationId: storedStaff?.organization_id ?? null,
           reservationId: reservation.reservationId,
+          reservationLineId: lineResolution.reservationLineId,
           itemId: it.id, bookingNumber: packing?.booking?.booking_number ?? null,
           quantityDelta: 1, performedBy: storedStaff?.id ?? effectiveReturnedBy,
           scanValue: `MANUAL_RETURN_PLUS:${it.id}`, scanSource: 'manual',

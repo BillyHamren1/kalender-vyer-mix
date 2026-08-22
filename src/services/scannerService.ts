@@ -678,6 +678,9 @@ export const identifyProduct = async (serialOrSku: string): Promise<{
   found: boolean;
   name?: string;
   sku?: string;
+  itemTypeId?: string | null;
+  reservationLineId?: string | null;
+  sourceBookingProductId?: string | null;
   status?: string;
   currentBooking?: string;
   client?: string;
@@ -691,15 +694,25 @@ export const identifyProduct = async (serialOrSku: string): Promise<{
 export interface WmsAllocation {
   serial_number: string;
   instance_id?: string | null;
+  reservation_line_id?: string | null;
+  source_booking_product_id?: string | null;
   item_type_id?: string | null;
   sku?: string | null;
   item_type_name?: string | null;
+}
+export interface WmsReservationLine {
+  reservation_line_id: string;
+  source_booking_product_id: string | null;
+  item_type_id: string | null;
+  sku: string | null;
+  quantity: number | null;
 }
 export interface ReservationAllocationsResponse {
   success: boolean;
   reservation_id?: string;
   packing_id?: string;
   allocations: WmsAllocation[];
+  reservation_lines?: WmsReservationLine[];
   current_state?: any;
   error?: string;
 }

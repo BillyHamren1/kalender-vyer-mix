@@ -24,6 +24,7 @@ export interface EnqueueScanOperationInput {
   sku?: string | null;
   bookingNumber?: string | null;
   reservationId?: string | null;
+  reservationLineId?: string | null;
   parcelId?: string | null;
   quantityDelta?: number | null;
   performedBy?: string | null;
@@ -61,6 +62,7 @@ export const buildQueuedOperation = (
   sku: input.sku ?? null,
   booking_number: input.bookingNumber ?? null,
   reservation_id: input.reservationId ?? null,
+  reservation_line_id: input.reservationLineId ?? null,
   parcel_id: input.parcelId ?? null,
   quantity_delta: input.quantityDelta ?? null,
   performed_by: input.performedBy ?? null,
@@ -92,6 +94,7 @@ export const sendQueuedOperation: SendOperation = (op) =>
     packingId: op.packing_id,
     organizationId: op.organization_id,
     reservationId: op.reservation_id,
+    reservationLineId: op.reservation_line_id,
     itemId: op.item_id,
     serialNumber: (op.command === 'PACK_INSTANCE' || op.command === 'UNPACK_INSTANCE' || op.command === 'RETURN_INSTANCE') ? op.scan_value : null,
     sku: op.sku,

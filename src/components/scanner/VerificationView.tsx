@@ -223,6 +223,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     organizationId: storedStaff?.organization_id ?? null,
     bookingNumber: packing?.booking?.booking_number ?? null,
     reservationId: reservation.reservationId,
+    resolveReservationLine: reservation.resolveReservationLine,
     getReadinessBlockReason,
     getItems: () => itemsRef.current,
     getIsMinusMode: () => isMinusModeRef.current,

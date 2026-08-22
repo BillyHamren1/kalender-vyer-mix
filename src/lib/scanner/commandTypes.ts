@@ -48,6 +48,7 @@ export interface ScannerCommand {
   packingId: string;
   organizationId?: string | null;
   reservationId?: string | null;
+  reservationLineId?: string | null;
   itemId?: string | null;
   serialNumber?: string | null;
   sku?: string | null;

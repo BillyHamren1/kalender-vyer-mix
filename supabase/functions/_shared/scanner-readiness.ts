@@ -1,6 +1,8 @@
 // Shared fail-closed readiness gate for scanner mutations.
 // Read-only: validates Planning scope and asks WMS for reservation state.
 
+import { reservationLinesFrom, type CanonicalReservationLine } from './reservation-line-identity.ts'
+
 export interface ScannerReadinessInput {
   admin: any
   organizationId: string
@@ -10,6 +12,8 @@ export interface ScannerReadinessInput {
   bookingNumber: string | null | undefined
   reservationId: string | null | undefined
   itemId?: string | null
+  reservationLineId?: string | null
+  requireReservationLine?: boolean
   wmsBaseUrl: string | null | undefined
   apiKey: string | null | undefined
 }
@@ -21,6 +25,7 @@ export interface ScannerReadinessResult {
   packing?: any
   bookingNumber?: string
   reservationId?: string
+  reservationLine?: CanonicalReservationLine
   wmsState?: any
 }
 
@@ -55,6 +60,8 @@ export async function verifyScannerReadiness(
     bookingNumber,
     reservationId,
     itemId,
+    reservationLineId,
+    requireReservationLine = false,
     wmsBaseUrl,
     apiKey,
   } = input
@@ -116,7 +123,7 @@ export async function verifyScannerReadiness(
 
   const { data: items, error: itemsError } = await admin
     .from('packing_list_items')
-    .select('id, wms_item_type_id, wms_sku, wms_identity_needs_repair, excluded')
+    .select('id, booking_product_id, wms_item_type_id, wms_sku, wms_identity_needs_repair, excluded')
     .eq('packing_id', packingId)
     .eq('organization_id', organizationId)
   if (itemsError) return fail('PACKING_ITEMS_UNVERIFIED', 'Packing rows could not be verified')
@@ -126,8 +133,29 @@ export async function verifyScannerReadiness(
     row.wms_identity_needs_repair === true || !row.wms_item_type_id || !row.wms_sku
   )
   if (invalidIdentity) return fail('WMS_IDENTITY_UNVERIFIED', 'Every packing row must have verified WMS identity')
-  if (itemId && !activeItems.some((row: any) => row.id === itemId)) {
-    return fail('ITEM_SCOPE_MISMATCH', 'Packing item not found in verified packing scope')
+  const targetItem = itemId ? activeItems.find((row: any) => row.id === itemId) ?? null : null
+  if (itemId && !targetItem) return fail('ITEM_SCOPE_MISMATCH', 'Packing item not found in verified packing scope')
+  if (requireReservationLine && !targetItem) {
+    return fail('PACKING_ITEM_REQUIRED', 'Exact packing item is required for scanner mutation')
+  }
+
+  let targetBookingProduct: any = null
+  if (requireReservationLine) {
+    if (!reservationLineId) return fail('RESERVATION_LINE_REQUIRED', 'Exact reservation line is required')
+    if (!targetItem?.booking_product_id) {
+      return fail('BOOKING_PRODUCT_REQUIRED', 'Packing item has no exact booking row identity')
+    }
+    const { data: bookingProduct, error: bookingProductError } = await admin
+      .from('booking_products')
+      .select('id, booking_id, organization_id, inventory_item_type_id, sku')
+      .eq('id', targetItem.booking_product_id)
+      .eq('booking_id', packing.booking_id)
+      .eq('organization_id', organizationId)
+      .maybeSingle()
+    if (bookingProductError || !bookingProduct) {
+      return fail('BOOKING_PRODUCT_SCOPE_MISMATCH', 'Packing row does not belong to verified booking')
+    }
+    targetBookingProduct = bookingProduct
   }
 
   if (!wmsBaseUrl || !apiKey) return fail('WMS_NOT_CONFIGURED', 'WMS readiness endpoint is not configured')
@@ -163,6 +191,33 @@ export async function verifyScannerReadiness(
     return fail('WMS_RESERVATION_UNVERIFIED', 'WMS did not return verifiable reservation state')
   }
 
+  let reservationLine: CanonicalReservationLine | undefined
+  if (requireReservationLine) {
+    const lines = reservationLinesFrom(wmsBody)
+    const byId = lines.filter((line) => line.reservationLineId === String(reservationLineId).trim())
+    if (byId.length !== 1) {
+      return fail(
+        byId.length > 1 ? 'WMS_RESERVATION_LINE_AMBIGUOUS' : 'WMS_RESERVATION_LINE_NOT_FOUND',
+        'Exact reservation line could not be verified in WMS',
+      )
+    }
+    reservationLine = byId[0]
+    const bySource = lines.filter((line) => line.sourceBookingProductId === targetBookingProduct.id)
+    if (bySource.length !== 1 || reservationLine.sourceBookingProductId !== targetBookingProduct.id) {
+      return fail('WMS_RESERVATION_LINE_SOURCE_MISMATCH', 'Reservation line does not match exact booking row')
+    }
+    if (reservationLine.itemTypeId !== targetItem.wms_item_type_id) {
+      return fail('WMS_RESERVATION_LINE_ITEM_MISMATCH', 'Reservation line item type does not match packing row')
+    }
+    if (
+      reservationLine.sku &&
+      targetItem.wms_sku &&
+      reservationLine.sku.toLowerCase() !== String(targetItem.wms_sku).toLowerCase()
+    ) {
+      return fail('WMS_RESERVATION_LINE_SKU_MISMATCH', 'Reservation line SKU does not match packing row')
+    }
+  }
+
   return {
     ok: true,
     code: 'READY',
@@ -171,5 +226,6 @@ export async function verifyScannerReadiness(
     bookingNumber: canonicalBookingNumber,
     reservationId: canonicalBookingNumber,
     wmsState,
+    reservationLine,
   }
 }

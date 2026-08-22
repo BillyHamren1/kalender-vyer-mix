@@ -7,6 +7,7 @@ import {
   decrementBySerial,
   togglePackingItemManually,
   addUnknownProduct,
+  identifyProduct,
 } from '@/services/scannerService';
 import { PackingItem } from './useOptimisticPacking';
 import { ScanResult } from './useScanFeedback';
@@ -61,6 +62,15 @@ interface UseScanProcessorOptions {
   organizationId?: string | null;
   bookingNumber?: string | null;
   reservationId?: string | null;
+  resolveReservationLine: (lookup: {
+    bookingProductId?: string | null;
+    serialNumber?: string | null;
+    sku?: string | null;
+    itemTypeId?: string | null;
+    reservationLineId?: string | null;
+  }) =>
+    | { ok: true; reservationLineId: string; sourceBookingProductId: string }
+    | { ok: false; code: string; message: string };
   /** Fail-closed UI readiness gate. Returns null only when mutations are allowed. */
   getReadinessBlockReason?: () => string | null;
   getItems: () => PackingItem[];
@@ -112,6 +122,54 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     optRef.current.onScanResult({ value: value || 'READINESS', result: message, success: false });
     toast.error(message);
     return true;
+  }, []);
+
+  const resolveExactV2Target = useCallback(async (input: {
+    scannedValue?: string | null;
+    unique?: boolean;
+    itemId?: string | null;
+  }): Promise<
+    | { ok: true; item: PackingItem; reservationLineId: string }
+    | { ok: false; message: string }
+  > => {
+    const items = optRef.current.getItems();
+    const explicitItem = input.itemId ? items.find((item) => item.id === input.itemId) ?? null : null;
+    let resolution = optRef.current.resolveReservationLine({
+      bookingProductId: explicitItem?.booking_products?.id ?? null,
+      serialNumber: input.unique ? input.scannedValue : null,
+      sku: input.unique ? null : input.scannedValue,
+    });
+
+    if (!resolution.ok && input.unique && input.scannedValue) {
+      const identified = await identifyProduct(input.scannedValue);
+      if (!identified.found) return { ok: false, message: identified.error || 'Produkten kunde inte identifieras i WMS' };
+      if (
+        identified.currentBooking &&
+        optRef.current.bookingNumber &&
+        identified.currentBooking !== optRef.current.bookingNumber
+      ) {
+        return { ok: false, message: 'Den fysiska artikeln tillhör en annan reservation' };
+      }
+      resolution = optRef.current.resolveReservationLine({
+        serialNumber: input.scannedValue,
+        reservationLineId: identified.reservationLineId ?? null,
+        bookingProductId: identified.sourceBookingProductId ?? null,
+        itemTypeId: identified.itemTypeId ?? null,
+        sku: identified.sku ?? null,
+      });
+    }
+
+    if (!resolution.ok) return { ok: false, message: resolution.message };
+    const matchingItems = items.filter(
+      (item) => item.booking_products?.id === resolution.sourceBookingProductId,
+    );
+    if (matchingItems.length !== 1) {
+      return { ok: false, message: 'Reservationsraden matchar inte exakt en packningsrad' };
+    }
+    if (explicitItem && matchingItems[0].id !== explicitItem.id) {
+      return { ok: false, message: 'Reservationsraden tillhör en annan packningsrad' };
+    }
+    return { ok: true, item: matchingItems[0], reservationLineId: resolution.reservationLineId };
   }, []);
 
   const runV2ManualOperation = useCallback(async (input: EnqueueScanOperationInput) => {
@@ -200,9 +258,6 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         }
 
         const items = getItems();
-        const matchingItem = parsed.unique
-          ? undefined
-          : items.find(i => i.booking_products?.sku?.trim().toLowerCase() === normalised);
         const minus = getIsMinusMode();
         const operation: ScannerOperationKind = parsed.unique
           ? (minus ? 'unpack_instance' : 'pack_instance')
@@ -224,6 +279,16 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
           }
         }
 
+        const exactTarget = queueEntry.persistedOperationId
+          ? null
+          : await resolveExactV2Target({ scannedValue, unique: parsed.unique });
+        if (exactTarget && !exactTarget.ok) {
+          onScanResult({ value: scannedValue, result: exactTarget.message, success: false });
+          toast.error(exactTarget.message);
+          addRecentScan({ value: scannedValue, productName: scannedValue, success: false, timestamp: Date.now(), reason: 'error' });
+          return;
+        }
+
         const processed = queueEntry.persistedOperationId
           ? await processPersistedScanOperation(queueEntry.persistedOperationId)
           : await enqueueAndProcessScanOperation({
@@ -232,7 +297,8 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
               packingSessionId: activeSessionId,
               organizationId: organizationId ?? null,
               reservationId: optRef.current.reservationId ?? null,
-              itemId: matchingItem?.id ?? null,
+              reservationLineId: exactTarget?.ok ? exactTarget.reservationLineId : null,
+              itemId: exactTarget?.ok ? exactTarget.item.id : null,
               sku: parsed.unique ? null : scannedValue,
               bookingNumber: bookingNumber ?? null,
               parcelId: optRef.current.getActiveParcelId?.() ?? null,
@@ -253,6 +319,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         }
 
         const result = (processed.result ?? null) as ScannerCommandResult | null;
+        const matchingItem = items.find((item) => item.id === (processed.item_id ?? result?.itemId ?? null));
 
         if (processed.state === 'UNKNOWN' || processed.state === 'PENDING' || processed.state === 'SENDING') {
           scanLog('v2_scan_outcome_unknown', { operationId: processed.operation_id, value: scannedValue, state: processed.state });
@@ -490,7 +557,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         processNext();
       }
     }
-  }, [addRecentScan, blockMutationIfNotReady]); // No changing option deps — reads from optRef
+  }, [addRecentScan, blockMutationIfNotReady, resolveExactV2Target]); // No changing option deps — reads from optRef
 
   const enqueueScan = useCallback((input: string | ScanEvent) => {
     const inputs: Array<string | ScanEvent> = typeof input === 'string'
@@ -524,12 +591,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       if (blockMutationIfNotReady(scannedValue)) continue;
 
       const activeSessionId = optRef.current.getActiveSessionId()!;
-      const normalised = scannedValue.toLowerCase();
       const minus = optRef.current.getIsMinusMode();
-      const items = optRef.current.getItems();
-      const matchingItem = parsed.unique
-        ? undefined
-        : items.find(i => i.booking_products?.sku?.trim().toLowerCase() === normalised);
       const operation: ScannerOperationKind = parsed.unique
         ? (minus ? 'unpack_instance' : 'pack_instance')
         : (minus ? 'unpack_quantity' : 'pack_quantity');
@@ -558,13 +620,21 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       const queueSequence = nextOperationQueueSequence(scanEvent?.timestamp ?? Date.now());
       const persist = async () => {
         try {
+          const exactTarget = await resolveExactV2Target({ scannedValue, unique: parsed.unique });
+          if (!exactTarget.ok) {
+            optRef.current.onScanResult({ value: scannedValue, result: exactTarget.message, success: false });
+            toast.error(exactTarget.message);
+            addRecentScan({ value: scannedValue, productName: scannedValue, success: false, timestamp: Date.now(), reason: 'error' });
+            return;
+          }
           const persisted = await enqueueScanOperation({
             operation,
             packingId: optRef.current.packingId,
             packingSessionId: activeSessionId,
             organizationId: optRef.current.organizationId ?? null,
             reservationId: optRef.current.reservationId ?? null,
-            itemId: matchingItem?.id ?? null,
+            reservationLineId: exactTarget.reservationLineId,
+            itemId: exactTarget.item.id,
             sku: parsed.unique ? null : scannedValue,
             bookingNumber: optRef.current.bookingNumber ?? null,
             parcelId: optRef.current.getActiveParcelId?.() ?? null,
@@ -592,7 +662,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       };
       persistChainRef.current = persistChainRef.current.then(persist, persist);
     }
-  }, [addRecentScan, blockMutationIfNotReady, processNext]);
+  }, [addRecentScan, blockMutationIfNotReady, processNext, resolveExactV2Target]);
 
   // Durable replay on app start / reconnect. Same operation_id is always reused.
   useEffect(() => {
@@ -647,13 +717,19 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
 
     if (isScannerTransactionV2Enabled()) {
       const operation: ScannerOperationKind = getIsMinusMode() || isCurrentlyPacked ? 'unpack_quantity' : 'pack_quantity';
+      const exactTarget = await resolveExactV2Target({ itemId });
+      if (!exactTarget.ok) {
+        toast.error(exactTarget.message);
+        return;
+      }
       const processed = await runV2ManualOperation({
         operation,
         packingId: optRef.current.packingId,
         packingSessionId: activeSessionId,
         organizationId: optRef.current.organizationId ?? null,
         reservationId: optRef.current.reservationId ?? null,
-        itemId,
+        reservationLineId: exactTarget.reservationLineId,
+        itemId: exactTarget.item.id,
         bookingNumber: optRef.current.bookingNumber ?? null,
         parcelId: optRef.current.getActiveParcelId?.() ?? null,
         quantityDelta: operation === 'pack_quantity' ? 1 : -1,
@@ -741,7 +817,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       });
       toast.error(result.error || result.warning || 'WMS nekade manuell avbockning');
     }
-  }, [addRecentScan, blockMutationIfNotReady, runV2ManualOperation]); // reads rest from optRef
+  }, [addRecentScan, blockMutationIfNotReady, resolveExactV2Target, runV2ManualOperation]); // reads rest from optRef
 
   const clearSessionDedup = useCallback(() => {
     rfidDedupeRef.current.reset();
@@ -827,11 +903,17 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       return;
     }
     if (isScannerTransactionV2Enabled()) {
+      const exactTarget = await resolveExactV2Target({ itemId });
+      if (!exactTarget.ok) {
+        toast.error(exactTarget.message);
+        return;
+      }
       const processed = await runV2ManualOperation({
         operation: 'pack_quantity', packingId: optRef.current.packingId,
         packingSessionId: activeSessionId, organizationId: optRef.current.organizationId ?? null,
         reservationId: optRef.current.reservationId ?? null,
-        itemId, bookingNumber: optRef.current.bookingNumber ?? null,
+        reservationLineId: exactTarget.reservationLineId,
+        itemId: exactTarget.item.id, bookingNumber: optRef.current.bookingNumber ?? null,
         parcelId: optRef.current.getActiveParcelId?.() ?? null, quantityDelta: 1,
         performedBy: optRef.current.verifierStaffId ?? optRef.current.verifierName,
         scanValue: `MANUAL_PLUS:${itemId}`, scanSource: 'manual',
@@ -862,7 +944,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     } catch (err: any) {
       toast.error(err?.message || 'Kunde inte öka');
     }
-  }, [blockMutationIfNotReady, runV2ManualOperation]);
+  }, [blockMutationIfNotReady, resolveExactV2Target, runV2ManualOperation]);
 
   // Per-row manual -1 (alltid decrement, oavsett minus-läge)
   const handleManualDecrement = useCallback(async (itemId: string) => {
@@ -880,11 +962,17 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       return;
     }
     if (isScannerTransactionV2Enabled()) {
+      const exactTarget = await resolveExactV2Target({ itemId });
+      if (!exactTarget.ok) {
+        toast.error(exactTarget.message);
+        return;
+      }
       const processed = await runV2ManualOperation({
         operation: 'unpack_quantity', packingId: optRef.current.packingId,
         packingSessionId: activeSessionId, organizationId: optRef.current.organizationId ?? null,
         reservationId: optRef.current.reservationId ?? null,
-        itemId, bookingNumber: optRef.current.bookingNumber ?? null, quantityDelta: -1,
+        reservationLineId: exactTarget.reservationLineId,
+        itemId: exactTarget.item.id, bookingNumber: optRef.current.bookingNumber ?? null, quantityDelta: -1,
         performedBy: optRef.current.verifierStaffId ?? optRef.current.verifierName,
         scanValue: `MANUAL_MINUS:${itemId}`, scanSource: 'manual',
       });
@@ -904,7 +992,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     } catch (err: any) {
       toast.error(err?.message || 'Kunde inte ta bort');
     }
-  }, [blockMutationIfNotReady, runV2ManualOperation]);
+  }, [blockMutationIfNotReady, resolveExactV2Target, runV2ManualOperation]);
 
   return {
     enqueueScan,
