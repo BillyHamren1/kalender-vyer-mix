@@ -1,5 +1,60 @@
 # Scanner hardening – batchstatus
 
+## 2026-08-22 – Isolerade Time- och Zebra-nativeprojekt
+
+Bas: `609ecdb` (`main` efter konfliktkontroll)
+
+Branch/PR: `scanner-hardening/ci-reproducibility` / draft-PR #7
+
+Produktionsaktivering: **nej** – inget är mergat, signerat, driftsatt eller aktiverat och V2 är fortsatt OFF.
+
+### Klart
+
+- Ersatte det delade muterbara `android/` med två fasta projekt: `native/time/android` (`se.eventflow.time`) och `native/scanner/android` (`se.eventflow.scanner`).
+- Gav apparna separata webboutputs (`dist-time`/`dist-scanner`), Androidsökvägar, ikoner, Gradleprojekt, package-id, config, signeringsvariabler och releasekommandon.
+- Ersatte configkopiering och regex-patchning av Gradle med en stabil `capacitor.config.ts`-dispatcher. `CAPACITOR_APP_MODE` väljer config read-only; inget buildscript skriver längre om en annan apps filer.
+- Tog bort scanner-iOS-kommandona. Zebra Scanner är Android-only; befintligt iOS-projekt ägs endast av Time.
+- Skapade ett rent Capacitor 8-projekt för Time. Dess Java-källor innehåller varken DataWedge, Zebra RFID eller API3; scanner-pluginerna finns endast i Zebra-projektet.
+- Tog bort Firebase/google-services från Zebra-projektet. Time har en separat Firebase-gate och kräver uttrycklig `EVENTFLOW_TIME_GOOGLE_SERVICES_JSON_PATH` för release.
+- Gav Time och Scanner separata release-signeringar som failar om appens egna keystorevariabler saknas. Keystores, servicefiler och SDK-binärer ignoreras av Git.
+- Gjorde Zebra API3 till ett explicit licensierat bygginput via `ZEBRA_API3_AAR_PATH` + `ZEBRA_API3_AAR_SHA256`. SHA-256 verifieras före staging; saknat eller felaktigt input stoppar före Capacitor/Gradle.
+- Flyttade Gradles skrivbara cache till `.gradle-eventflow/` med CI-override `EVENTFLOW_GRADLE_USER_HOME`.
+- Lade till sex körbara native-isoleringstester för paths, package-id, configintegritet, plugin-gränser, signering och API3 fail-fast.
+
+### Verifiering
+
+| Gate | Resultat |
+|---|---|
+| `git diff --check` | PASS |
+| TypeScript `tsc --noEmit` | PASS |
+| Scanner/V2/kö/readiness/release/native isolation | PASS – 164/164 tester |
+| Native isolation separat | PASS – 6/6 tester |
+| Reservationsrad + readiness Deno | PASS – 10/10 tester |
+| Time frontend | PASS – 204 passerade, 3 uttryckligt hoppade |
+| Deno pure timeline | PASS – 6/6 tester |
+| Time Capacitor sync | PASS – separat projekt, 8 förväntade Capacitor/Time-pluginer, inga Zebra-pluginer |
+| Scanner Capacitor sync | PASS – separat projekt och korrekta relativa pluginpaths |
+| Time webbbuild | PASS – `dist-time`, 4 998 moduler; huvudchunk 3 214,08 kB / 901,23 kB gzip |
+| Scanner webbbuild | PASS – `dist-scanner`, 4 998 moduler; huvudchunk 3 212,87 kB / 900,85 kB gzip |
+| Scanner utan API3-AAR | EXPECTED FAIL – stoppar före sync/Gradle med exakt SDK-kontrakt |
+
+### Blockerare och kvarvarande risk
+
+- Time `assembleDebug` är **NOT EXECUTED / FAIL** efter godkänd config, webbcopy och Capacitor-sync eftersom den begränsade miljön inte kan hämta `https://services.gradle.org/distributions/gradle-8.14.3-all.zip` (`java.net.SocketException: Network is unreachable`). Reproduktion: `node scripts/build-android.js time --assemble-debug --skip-build`.
+- Scanner Gradlekompilering är **NOT EXECUTED / FAIL** utan den licensierade API3-AAR-filen och dess SHA-256. Reproduktion: `npm run android:scanner:verify`; godkänd körning kräver variablerna dokumenterade i `native/scanner/ZEBRA_SDK.md`.
+- Release-signering är avsiktligt inte körd; separata keystores, lösenord och Time Firebase-konfiguration saknas i denna säkra runner.
+- Fem Time/Supabase-integrationstestfiler är fortsatt **NOT EXECUTED / FAIL** utan uttryckligen godkänd LOCAL/TEST-backend. Reproduktion: `TIME_REPORTING_BACKEND_TEST_URL=http://127.0.0.1:54321 npm run test:time-reporting`.
+- De separata webboutputs innehåller fortfarande orelaterade rutter och är cirka 3,2 MB minifierade. Nativegränsen är nu ren, men entry-/bundleisolering återstår.
+- Fysisk Zebra, DataWedge-broadcast, RFID-trigger, API3 och signerad APK/AAB är inte verifierade.
+
+### Exakt nästa batch
+
+1. Skapa en scanner-specifik Vite-entry/router som endast importerar Scanner-skalet; inga kalender-, projekt-, ekonomi-, personal- eller Time-rutter får finnas i output.
+2. Lägg en bundlemanifest-gate som failar på förbjudna chunks/modulnamn och sätt en mätbar storleksbudget.
+3. Gör motsvarande tunn Time-entry så Time inte importerar Zebra-scannerflödet; kamera/QR får använda ett separat tunt kontrakt.
+4. Kör scanner-, Time-, Deno-, typecheck-, båda webbbyggena och Capacitor-sync igen. Android Gradle förblir FAIL tills Gradle-distribution respektive licensierad API3-AAR är tillgängliga.
+5. Aktivera inte V2 och skapa ingen signerad release före fysisk Zebra-gate.
+
 ## 2026-08-22 – WMS-sanning i legacyflödet
 
 Bas: `609ecdb` (`main` efter konfliktkontroll)
