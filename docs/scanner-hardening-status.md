@@ -1,5 +1,60 @@
 # Scanner hardening – batchstatus
 
+## 2026-08-22 – Isolerade Scanner- och Time-bundlar
+
+Bas: `609ecdb` (`main` efter konfliktkontroll)
+
+Branch/PR: `scanner-hardening/ci-reproducibility` / draft-PR #7
+
+Produktionsaktivering: **nej** – inget är mergat, driftsatt, signerat eller aktiverat och V2 är fortsatt OFF.
+
+### Klart
+
+- Gav Scanner och Time varsin verklig Vite-entry (`main-scanner.tsx` respektive `main-time.tsx`). De går inte längre via den fulla `App.tsx`-grafen.
+- Flyttade gemensam boot/recovery till en liten återanvändbar bootstrap och lade respektive appskal bakom en explicit, separat applikationsrot.
+- Lade ett genererat `bundle-audit.json` i varje mobilbuild med varje outputchunks exakta modullista och byteantal.
+- Gjorde bundleauditen obligatorisk i `build:scanner` och `build:time`. Bygget failar på fel entry, förbjudna appfamiljer eller överskriden budget.
+- Låste Scanner till högst 1 150 000 byte JavaScript och Time till högst 3 150 000 byte JavaScript. Aktuella utfall är 1 042 036 respektive 3 078 997 byte.
+- Scanneroutputen innehåller inte `App.tsx`, Time-skalet eller projekt-, ekonomi-, personal-, admin- och Time-rutter.
+- Timeoutputen innehåller inte Zebra-/lagerscannerns app, routes, hooks, service- eller scannerkomponenter.
+- Ersatte Time-appens tidigare lager-/Zebra-yta med en tunn kamera-/filbaserad QR- och streckkodsläsare. Den kan läsa/kopiera en kod men innehåller inga lager- eller WMS-mutationer.
+- Tar bort den preview-specifika externa `gptengineer.js`-script-taggen ur båda nativebyggenas HTML.
+- Lade fyra körbara kontraktstester för separata entries, Time-gränsen, obligatoriska bundlegates och native-HTML.
+
+### Verifiering
+
+| Gate | Resultat |
+|---|---|
+| `git diff --check` | PASS |
+| TypeScript `tsc --noEmit` | PASS |
+| Scanner/V2/kö/readiness/release/native/bundle | PASS – 168/168 tester |
+| Bundleisoleringskontrakt separat | PASS – 4/4 tester |
+| Reservationsrad + readiness Deno | PASS – 10/10 tester |
+| Time frontend | PASS – 207 passerade, 3 uttryckligt hoppade |
+| Deno pure timeline | PASS – 6/6 tester |
+| Scanner bundleaudit | PASS – 367 outputmoduler, 12 chunks, 1 042 036 JS-byte |
+| Scanner webbbuild | PASS – appchunk 860,28 kB / 251,11 kB gzip; tidigare 3 212,87 / 900,85 kB |
+| Time bundleaudit | PASS – 489 outputmoduler, 14 chunks, 3 078 997 JS-byte |
+| Time webbbuild | PASS – appchunk 2 891,41 kB / 816,29 kB gzip; tidigare 3 214,08 / 901,23 kB |
+| Full web-entry efter gemensam bootrefaktor | PASS |
+| Time + Scanner Capacitor sync | PASS – separata outputs kopierade till respektive nativeprojekt |
+
+### Blockerare och kvarvarande risk
+
+- Time är isolerad från lagerscannern men dess egen appchunk är fortfarande 2,89 MB minifierad. Vidare route-lazyloading är en separat Time-optimering och blockerar inte Scanner-gaten.
+- Scanner appchunk är 860 kB minifierad. Den största kvarvarande delen är den aktiva scannerupplevelsen och dess kamera-/WMS-klienter; budgeten stoppar återväxt över 1,15 MB total JavaScript.
+- Time `assembleDebug` är fortsatt **NOT EXECUTED / FAIL** eftersom Gradle 8.14.3 inte kan hämtas i den begränsade miljön. Reproduktion: `node scripts/build-android.js time --assemble-debug --skip-build`.
+- Scanner Gradlekompilering är fortsatt **NOT EXECUTED / FAIL** utan licensierad API3-AAR och SHA-256. Reproduktion: `npm run android:scanner:verify` med kontraktet i `native/scanner/ZEBRA_SDK.md`.
+- Fem Time/backendintegrationstestfiler är fortsatt **NOT EXECUTED / FAIL** utan uttryckligen godkänd LOCAL/TEST-backend. Reproduktion: `TIME_REPORTING_BACKEND_TEST_URL=http://127.0.0.1:54321 npm run test:time-reporting`.
+- Fysisk Zebra, DataWedge-broadcast, RFID-trigger, API3, signering och signerad APK/AAB är inte verifierade.
+
+### Exakt nästa batch
+
+1. Kör och komplettera Scanner V2-/kö-/readiness-/release-gaten med dynamiska scenarier för offline, tappat svar, reload, två enheter, idempotens och exakta reservationsrader.
+2. Lägg en sammanhållen automatiserbar release-matris som kör Scanner, Time, Deno, bundleaudits och nativekontrakt utan att felaktigt markera externa gates gröna.
+3. Granska hela scannerområdet bakåt mot fail-closed-, WMS-authority- och bundlekontrakten och reparera verifierbara luckor.
+4. När alla automatiserbara gates är gröna, förbered en ren extraktionsbranch för Scanner utan att aktivera V2, skapa release eller arkivera legacy.
+
 ## 2026-08-22 – Isolerade Time- och Zebra-nativeprojekt
 
 Bas: `609ecdb` (`main` efter konfliktkontroll)
