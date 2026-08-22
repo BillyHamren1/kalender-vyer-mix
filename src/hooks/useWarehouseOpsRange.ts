@@ -529,7 +529,7 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
   });
 }
 
-function computeAttention(
+export function computeAttention(
   jobs: OpsJob[],
   scans: OpsScanEvent[],
   shifts: OpsShift[],
