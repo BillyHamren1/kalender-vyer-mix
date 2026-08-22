@@ -168,7 +168,7 @@ const WarehouseOverviewNext7Days: React.FC<Props> = ({ data, selectedJobId, onSe
                             className="ml-auto h-5 w-5 rounded flex items-center justify-center hover:bg-accent shrink-0"
                             onClick={(event) => {
                               event.stopPropagation();
-                              navigate(`/warehouse/packing/${row.job.id}`);
+                              navigate(`/warehouse/packing/${row.job.packingId}`);
                             }}
                           >
                             <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
@@ -176,7 +176,7 @@ const WarehouseOverviewNext7Days: React.FC<Props> = ({ data, selectedJobId, onSe
                         </div>
                         <div className="mt-0.5 min-w-0" onClick={(event) => event.stopPropagation()}>
                           <QuickAssignStaffPopover
-                            packingId={row.job.id}
+                            packingId={row.job.packingId}
                             packingName={title}
                             assignedNames={row.assignedStaff.map((a) => a.name).filter(Boolean)}
                             label={staff.text}

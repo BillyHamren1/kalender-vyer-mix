@@ -552,24 +552,26 @@ function computeAttention(
       detail: `${j.percent}% packat${
         minsSince < Infinity ? ` · senast scan ${minutesAgo(minsSince)}` : " · ingen har börjat"
       }`,
-      jobId: j.id,
+      jobId: j.packingId,
     });
   }
 
   // 2. IN ej påbörjad — back-status > 4h
   for (const j of jobs) {
+    if (j.direction !== "in") continue;
     if (j.status !== "back") continue;
     out.push({
       id: `back-${j.id}`,
       level: "warning",
       title: `${j.bookingNumber || j.name} — Tillbaka, ej påbörjad`,
       detail: `Retur väntar — 0% incheckat`,
-      jobId: j.id,
+      jobId: j.packingId,
     });
   }
 
   // 3. Stillastående — in_progress med scans men inget de senaste 2h
   for (const j of jobs) {
+    if (j.direction === "in" && j.status === "in_progress") continue;
     if (j.status !== "in_progress" && j.status !== "returning") continue;
     if (!j.lastActivityAt) continue;
     const mins = differenceInMinutes(now, parseISO(j.lastActivityAt));
@@ -579,7 +581,7 @@ function computeAttention(
         level: "info",
         title: `${j.bookingNumber || j.name} — paus`,
         detail: `Inget scannat på ${minutesAgo(mins)} (${j.percent}%)`,
-        jobId: j.id,
+        jobId: j.packingId,
       });
     }
   }

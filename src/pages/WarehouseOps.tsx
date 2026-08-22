@@ -82,7 +82,7 @@ const WarehouseOps = () => {
 
   const weekAttention = useMemo(() => {
     if (!data) return [];
-    const visibleIds = new Set(weekJobs.map((job) => job.id));
+    const visibleIds = new Set(weekJobs.map((job) => job.packingId));
     return data.attention.filter((item) => !item.jobId || visibleIds.has(item.jobId));
   }, [data, weekJobs]);
 
@@ -185,7 +185,7 @@ const WarehouseOps = () => {
                     </button>
                   ))}
                 </div>
-                <Button variant="outline" size="sm" className="ml-auto h-7 px-2 text-[10px]" onClick={() => navigate(`/warehouse/packing/${selectedJob.id}`)}>
+                <Button variant="outline" size="sm" className="ml-auto h-7 px-2 text-[10px]" onClick={() => navigate(`/warehouse/packing/${selectedJob.packingId}`)}>
                   Öppna full vy <ChevronRight className="h-3.5 w-3.5 ml-1" />
                 </Button>
               </>
@@ -212,7 +212,7 @@ const WarehouseOps = () => {
                         : "Ingen personal tilldelad"}
                     </div>
                   </div>
-                  <QuickAssignStaffPopover packingId={selectedJob.id} packingName={selectedJob.bookingNumber || selectedJob.name} assignedNames={selectedJob.assignedStaff.map((a) => a.name).filter(Boolean)} label={selectedJob.assignedStaff.length > 0 ? "Ändra bemanning" : "Bemanna"} muted={selectedJob.assignedStaff.length === 0} />
+                  <QuickAssignStaffPopover packingId={selectedJob.packingId} packingName={selectedJob.bookingNumber || selectedJob.name} assignedNames={selectedJob.assignedStaff.map((a) => a.name).filter(Boolean)} label={selectedJob.assignedStaff.length > 0 ? "Ändra bemanning" : "Bemanna"} muted={selectedJob.assignedStaff.length === 0} />
                 </div>
               )}
               {detailTab === "packing" && (
