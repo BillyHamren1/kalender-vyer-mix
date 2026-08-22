@@ -10,8 +10,9 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'se.eventflow.scanner',
   appName: 'EventFlow Scanner',
-  webDir: 'dist',
+  webDir: 'dist-scanner',
   android: {
+    path: 'native/scanner/android',
     allowMixedContent: true,
     backgroundColor: '#0A0A0B',
     buildOptions: {
@@ -20,6 +21,7 @@ const config: CapacitorConfig = {
     }
   },
   ios: {
+    path: 'native/scanner/ios',
     contentInset: 'automatic',
     backgroundColor: '#0A0A0B',
     allowsLinkPreview: false,

@@ -28,6 +28,12 @@ if (!['time', 'scanner'].includes(mode)) {
   process.exit(1);
 }
 
+const platform = process.env.ICON_PLATFORM || 'all';
+if (!['all', 'android', 'ios'].includes(platform)) {
+  console.error(`❌  Unknown ICON_PLATFORM "${platform}". Use "android", "ios" or "all".`);
+  process.exit(1);
+}
+
 const SOURCE = path.join(ROOT, 'assets', 'app-icons', `eventflow-${mode}-icon.png`);
 if (!existsSync(SOURCE)) {
   console.error(`❌  Source icon not found: ${SOURCE}`);
@@ -36,6 +42,19 @@ if (!existsSync(SOURCE)) {
 
 console.log(`\n🎨  Generating icons for EventFlow ${mode === 'time' ? 'Time' : 'Scanner'}`);
 console.log(`    Source: ${SOURCE}\n`);
+
+const TARGETS = {
+  time: {
+    android: path.join(ROOT, 'native', 'time', 'android'),
+    ios: path.join(ROOT, 'ios'),
+  },
+  scanner: {
+    android: path.join(ROOT, 'native', 'scanner', 'android'),
+    ios: path.join(ROOT, 'native', 'scanner', 'ios'),
+  },
+};
+
+const target = TARGETS[mode];
 
 // ── iOS sizes ──────────────────────────────────────────────────────
 // Every required size for a modern universal iOS AppIcon set
@@ -80,7 +99,7 @@ async function resizeAndSave(srcPath, destPath, px) {
 
 // ── Generate iOS icons ─────────────────────────────────────────────
 async function generateIOS() {
-  const iosBase = path.join(ROOT, 'ios', 'App', 'App', 'Assets.xcassets', 'AppIcon.appiconset');
+  const iosBase = path.join(target.ios, 'App', 'App', 'Assets.xcassets', 'AppIcon.appiconset');
   await mkdir(iosBase, { recursive: true });
 
   const contentsImages = [];
@@ -122,7 +141,7 @@ async function generateIOS() {
 
 // ── Generate Android icons ─────────────────────────────────────────
 async function generateAndroid() {
-  const androidRes = path.join(ROOT, 'android', 'app', 'src', 'main', 'res');
+  const androidRes = path.join(target.android, 'app', 'src', 'main', 'res');
 
   // Standard launcher icons
   for (const { folder, size } of ANDROID_DENSITIES) {
@@ -155,23 +174,24 @@ async function generateAndroid() {
 
 // ── Main ───────────────────────────────────────────────────────────
 async function main() {
-  const iosDir = path.join(ROOT, 'ios');
-  const androidDir = path.join(ROOT, 'android');
-
-  if (existsSync(iosDir)) {
-    console.log('📱 Generating iOS icons…');
-    await generateIOS();
-  } else {
-    console.log('⏭️  ios/ directory not found — skipping iOS icons');
+  if (platform !== 'android') {
+    if (existsSync(target.ios)) {
+      console.log('📱 Generating iOS icons…');
+      await generateIOS();
+    } else {
+      console.log(`⏭️  ${path.relative(ROOT, target.ios)}/ directory not found — skipping iOS icons`);
+    }
   }
 
-  console.log('');
+  if (platform === 'all') console.log('');
 
-  if (existsSync(androidDir)) {
-    console.log('🤖 Generating Android icons…');
-    await generateAndroid();
-  } else {
-    console.log('⏭️  android/ directory not found — skipping Android icons');
+  if (platform !== 'ios') {
+    if (existsSync(target.android)) {
+      console.log('🤖 Generating Android icons…');
+      await generateAndroid();
+    } else {
+      console.log(`⏭️  ${path.relative(ROOT, target.android)}/ directory not found — skipping Android icons`);
+    }
   }
 
   console.log(`\n✨ Done! Icons generated for APP_MODE=${mode}\n`);
