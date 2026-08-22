@@ -96,6 +96,7 @@ import ScannerAppShell from "@/shells/ScannerAppShell";
 
 // Warehouse system pages — lazy
 const WarehouseOps = lazyWithRecovery(() => import("./pages/WarehouseOps"));
+const WarehouseSelfTest = lazyWithRecovery(() => import("./pages/WarehouseSelfTest"));
 const WarehouseBookingDetail = lazyWithRecovery(() => import("./pages/WarehouseBookingDetail"));
 const WarehouseCalendarPage = lazyWithRecovery(() => import("./pages/WarehouseCalendarPage"));
 const PackingDetail = lazyWithRecovery(() => import("./pages/PackingDetail"));
@@ -439,6 +440,7 @@ const WebRoutes: React.FC = () => {
               <Route path="/admin/time-debug" element={<TimeIntelligenceDebug />} />
               <Route path="/admin/legacy-incoming-packing" element={<LegacyIncomingPackingDebug />} />
               <Route path="/admin/warehouse-assignments-debug" element={<WarehouseAssignmentsDebug />} />
+              <Route path="/admin/warehouse-selftest" element={<WarehouseSelfTest />} />
             </Route>
 
             {/* Bare protected routes (no sidebar layout) */}
