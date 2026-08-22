@@ -6,7 +6,7 @@
  *
  * Workday-first rule (post 2026-04-22):
  *   `useTimerStartFlow.performStart` MUST `await ensureWorkDayActive(...)`
- *   BEFORE calling `startSession(...)`. The legacy fire-and-forget
+ *   and MUST NOT start a target-bound activity timer. The legacy fire-and-forget
  *   `syncWorkDayStart` import was removed from this hook because the
  *   guarantee is now baked into `ensureActive` on `useWorkDay`.
  */
@@ -19,7 +19,7 @@ function read(rel: string): string {
 }
 
 describe('workday integration', () => {
-  it('useTimerStartFlow awaits ensureWorkDayActive BEFORE startSession (workday-first)', () => {
+  it('useTimerStartFlow awaits ensureWorkDayActive and suppresses target-bound startSession', () => {
     const src = read('src/hooks/useTimerStartFlow.ts');
     expect(src).toContain("from '@/hooks/useWorkDay'");
     expect(src).toMatch(/ensureActive:\s*ensureWorkDayActive/);
@@ -27,17 +27,16 @@ describe('workday integration', () => {
     // Locate the performStart body and assert ordering.
     const fnStart = src.indexOf('const performStart = useCallback');
     expect(fnStart).toBeGreaterThan(-1);
-    const fnEnd = src.indexOf('[startSession, userPosition, ensureWorkDayActive]', fnStart);
+    const fnEnd = src.indexOf('[userPosition, ensureWorkDayActive]', fnStart);
     expect(fnEnd).toBeGreaterThan(fnStart);
     const body = src.slice(fnStart, fnEnd);
 
     const idxEnsure = body.indexOf('ensureWorkDayActive(');
-    const idxStart = body.indexOf('startSession(target,');
     expect(idxEnsure).toBeGreaterThan(-1);
-    expect(idxStart).toBeGreaterThan(-1);
-    expect(idxEnsure).toBeLessThan(idxStart);
     // Must be awaited (not fire-and-forget).
     expect(body).toMatch(/await\s+ensureWorkDayActive\(/);
+    expect(body).not.toMatch(/startSession\(target,/);
+    expect(body).toMatch(/policy:\s*'single-timer-policy-v1'/);
   });
 
   it('useTimerStartFlow no longer imports syncWorkDayStart (replaced by ensureActive)', () => {
