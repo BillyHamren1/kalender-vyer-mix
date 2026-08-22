@@ -1,5 +1,56 @@
 # Scanner hardening – batchstatus
 
+## 2026-08-22 – WMS-sanning i legacyflödet
+
+Bas: `609ecdb` (`main` efter konfliktkontroll)
+
+Branch/PR: `scanner-hardening/ci-reproducibility` / draft-PR #7
+
+Produktionsaktivering: **nej** – inga migrationer, Edge Functions, secrets, WMS-anrop, feature flags eller miljöer har ändrats och V2 är fortsatt OFF.
+
+### Klart
+
+- Införde ett uttryckligt legacyresultat med `operationId`, `outcome` (`committed`/`rejected`/`unknown`) och `authority`. UI visar lyckat endast för ett explicit `committed` svar med `authority=wms` och samma operation.
+- Skickar ett unikt `operation_id` som body-fält och `x-idempotency-key` till alla kvarvarande WMS-mutationer. Legacy auto-retry är avstängd eftersom de gamla WMS-endpointsen ännu inte kan bevisa replay; tappat svar stannar i `UNKNOWN`. V2:s durable retry fortsätter använda exakt samma id.
+- Tog bort all optimistisk +1/−1 i legacy packning och retur. Klienten sätter endast serverns exakta kvantitet efter WMS-commit.
+- Spärrade lokala legacygenvägar för SKU-minus, okänd produkt, manuell retur, retur-minus och nollställning. De returnerar fail-closed 409 utan databasmutation.
+- Spärrade manuell avpackning och manuell packning utan WMS-identitet. Den tidigare gröna texten om lokal packning efter misslyckad Bundle/WMS-synk är borttagen.
+- Tog bort den råa `localStorage`-scankön ur scannerorkestratorn. Endast V2:s durable operation queue får persistenta mutationsreplays.
+- Flyttade `planning → in_progress` till efter WMS-accept i legacy-scannen.
+- Avvisar tvetydig eller saknad lokal rad efter WMS-commit som `UNKNOWN`; ingen första-SKU-/sorteringsmatch väljs och ingen lokal kvantitet skrivs.
+- Kontrollerar fel från lokal rad-/kollispegling efter WMS-commit och returnerar `UNKNOWN`/503 i stället för falskt lyckat. Packradsuppdateringen är dessutom organisationsavgränsad.
+- Lade till nio körbara regressionstester för WMS-authority, UNKNOWN, idempotensmetadata, lokala genvägar, tvetydig rad, speglingsfel, optimism och raw-kön.
+
+### Verifiering
+
+| Gate | Resultat |
+|---|---|
+| `git diff --check` | PASS |
+| TypeScript `tsc --noEmit` | PASS |
+| Scanner/V2/kö/readiness/release/legacy truth | PASS – 158/158 tester |
+| Reservationsrad + readiness Deno | PASS – 10/10 tester |
+| Time frontend | PASS – 204 passerade, 3 uttryckligt hoppade |
+| Deno pure timeline | PASS – 6/6 tester |
+| Scanner webbbuild | PASS – 4 998 moduler; huvudchunk 3 212,87 kB / 900,85 kB gzip |
+| Time webbbuild | PASS – 4 998 moduler; huvudchunk 3 214,08 kB / 901,23 kB gzip |
+
+### Blockerare och kvarvarande risk
+
+- Full `deno check supabase/functions/scanner-api/index.ts` är **NOT EXECUTED / FAIL**: den befintliga remote-importen `https://esm.sh/@supabase/supabase-js@2` hann inte laddas inom 20 sekunder i den begränsade miljön. Reproduktion: `timeout 20s ./node_modules/.bin/deno check supabase/functions/scanner-api/index.ts` (exit 124). `deno fmt --check` kunde däremot parsa filen.
+- Fem Time/Supabase-integrationstestfiler är fortsatt **NOT EXECUTED / FAIL** utan uttryckligen godkänd LOCAL/TEST-backend. Reproduktion: `TIME_REPORTING_BACKEND_TEST_URL=http://127.0.0.1:54321 npm run test:time-reporting`.
+- Legacy UNKNOWN kan inte replayas automatiskt säkert förrän WMS-endpointsen garanterar idempotent replay av `operation_id`. UI instruerar kontroll före nytt försök; V2:s durable kö är den avsedda lösningen men är fortsatt avstängd.
+- Lokala manuell-/SKU-åtgärder är avsiktligt blockerade när V2 är OFF; endast fysiska WMS-bekräftade legacyflöden kan lyckas.
+- Scanner- och Time-bundlarna innehåller fortfarande orelaterade rutter och är cirka 3,2 MB minifierade. Native- och bundleisolering återstår.
+- Fysisk Zebra, DataWedge, RFID/API3-AAR och signering är inte verifierade.
+
+### Exakt nästa batch
+
+1. Separera Time och Zebra till egna nativeprojekt, package-id, Capacitor-konfigurationer, ikoner, Gradle- och releaseflöden.
+2. Bevisa att Time-byggkedjan inte innehåller DataWedge, RFID eller Zebra API3 och att Scanner-byggkedjan inte skriver om Time-projektet.
+3. Gör Zebra-SDK/AAR fail-fast och reproducerbar utan att distribuera licensierad SDK eller secrets.
+4. Lägg statiska kontrakt och buildmatris för båda apparna, därefter isolera scannerbundlen från orelaterade rutter.
+5. Aktivera inte V2 och driftsätt inget; fysisk Zebra-gate kvarstår.
+
 ## 2026-08-22 – Exakt `reservation_line_id` genom hela V2-kontraktet
 
 Bas: `609ecdb` (`main` efter ny konfliktkontroll)
