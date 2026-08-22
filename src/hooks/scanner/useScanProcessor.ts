@@ -25,6 +25,8 @@ import type { EnqueueScanOperationInput } from '@/services/scanner/operationQueu
 import type { ScanEvent } from '@/services/scanner/types';
 import { isAcceptedResult, type ScannerCommandResult, type ScannerOperationKind } from '@/lib/scanner/commandTypes';
 import { RfidDedupeTracker } from '@/lib/scanner/rfidDedupe';
+import { isLegacyWmsCommit, legacyOutcomeMessage } from '@/lib/scanner/legacyWmsOutcome';
+import { newOperationId } from '@/services/scannerOperationV2Service';
 
 export interface RecentScanEntry {
   value: string;
@@ -195,6 +197,9 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     const rawValue = typeof rawInput === 'string' ? rawInput : rawInput.value;
     // Normalize: trim whitespace/control chars that hardware scanners may append
     const scannedValue = rawValue.trim();
+    // One id per legacy request. Legacy never auto-retries because the old WMS
+    // endpoints cannot yet prove replay; an ambiguous response remains UNKNOWN.
+    const legacyOperationId = newOperationId();
 
     if (!scannedValue) {
       scanLog('scan_ignored_empty_after_trim', { rawValue });
@@ -378,13 +383,13 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         // Ask the backend to look it up via the WMS, then decrement.
         if (parsed.unique) {
           recordApiStart(scannedValue);
-          const result = await decrementBySerial(packingId, scannedValue, optRef.current.getActiveSessionId());
+          const result = await decrementBySerial(packingId, scannedValue, optRef.current.getActiveSessionId(), legacyOperationId);
           recordApiEnd(scannedValue, result.success ? 'success' : 'failed', result.productName);
-          if (!result.success || !result.itemId) {
+          if (!isLegacyWmsCommit(result) || !result.itemId || typeof result.newQuantity !== 'number') {
             scanLog('minus_serial_failed', { value: scannedValue, error: result.error });
-            onScanResult({ value: scannedValue, result: result.error || 'Kunde inte ta bort koden', success: false });
-            toast.error(result.error || 'Kunde inte ta bort koden');
-            // Allow user to retry / re-scan
+            const message = legacyOutcomeMessage(result);
+            onScanResult({ value: scannedValue, result: message, success: false, pending: result.outcome === 'unknown' });
+            toast.error(message);
             addRecentScan({ value: scannedValue, productName: scannedValue, success: false, timestamp: Date.now(), reason: 'error' });
             return;
           }
@@ -393,7 +398,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
           scanLog('item_matched', { itemId: result.itemId, productName, mode: 'minus_serial' });
           onScanResult({ value: scannedValue, result: `➖ Removed: ${productName}`, success: true, productName, isMinusScan: true });
           onHighlight(result.itemId);
-          onOptimisticDecrement(result.itemId);
+          onAuthoritativeSet?.(result.itemId, result.newQuantity);
           onTriggerSync();
           addRecentScan({ value: scannedValue, productName, success: true, timestamp: Date.now() });
           notifyRfid(scannedValue, true, productName, matchingItem?.booking_products?.sku || undefined);
@@ -412,13 +417,19 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         }
 
         recordApiStart(scannedValue);
-        await decrementPackingItem(matchingItem.id, verifierName, optRef.current.getActiveSessionId());
-        recordApiEnd(scannedValue, 'success', matchingItem.booking_products?.name);
+        const result = await decrementPackingItem(matchingItem.id, verifierName, optRef.current.getActiveSessionId());
+        recordApiEnd(scannedValue, result.success ? 'success' : 'failed', matchingItem.booking_products?.name);
+        if (!isLegacyWmsCommit(result)) {
+          const message = legacyOutcomeMessage(result);
+          onScanResult({ value: scannedValue, result: message, success: false, pending: result.outcome === 'unknown' });
+          toast.error(message);
+          addRecentScan({ value: scannedValue, productName: matchingItem.booking_products?.name || scannedValue, success: false, timestamp: Date.now(), reason: 'error' });
+          return;
+        }
         const productName = matchingItem.booking_products?.name || scannedValue;
         scanLog('item_matched', { itemId: matchingItem.id, productName, mode: 'minus' });
         onScanResult({ value: scannedValue, result: `➖ Removed: ${productName}`, success: true, productName, isMinusScan: true });
         onHighlight(matchingItem.id);
-        onOptimisticDecrement(matchingItem.id);
         onTriggerSync();
         addRecentScan({ value: scannedValue, productName, success: true, timestamp: Date.now() });
         notifyRfid(scannedValue, true, productName, matchingItem.booking_products?.sku || undefined);
@@ -427,7 +438,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         scanLog('verify_start', { packingId, sku: scannedValue });
         const activeParcelId = optRef.current.getActiveParcelId?.() ?? null;
         recordApiStart(scannedValue);
-        const result = await verifyProductBySku(packingId, scannedValue, verifierName, activeParcelId, verifierStaffId, optRef.current.getActiveSessionId());
+        const result = await verifyProductBySku(packingId, scannedValue, verifierName, activeParcelId, verifierStaffId, optRef.current.getActiveSessionId(), legacyOperationId);
         const apiStatus: ScanStatus = result.success
           ? ((result as any).alreadyScanned ? 'duplicate' : (result.overscan ? 'overscan' : 'success'))
           : (result.notInPackingList ? 'unknown_product' : 'failed');
@@ -462,6 +473,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         }
 
         const alreadyScanned = !!(result as any).alreadyScanned;
+        const authoritativeCommit = isLegacyWmsCommit(result);
 
         onScanResult({
           value: scannedValue,
@@ -470,36 +482,17 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
                 ? `↩️ Redan scannad: ${result.productName || scannedValue}`
                 : (result.overscan ? `⚠️ FÖR MÅNGA: ${result.productName}` : `✅ ${result.productName}`))
             : result.error || 'Unknown error',
-          success: result.success && !result.overscan && !alreadyScanned,
+          success: authoritativeCommit && !result.overscan && !alreadyScanned,
           productName: result.productName || undefined,
         });
 
-        if (result.success && !alreadyScanned) {
-          // Guard: don't bump UI optimistically if backend's newQuantity does
-          // not exceed what we already show locally for this item. Protects
-          // against duplicate/idempotent server replies sneaking past.
-          if (result.itemId) {
-            const items = getItems();
-            const existing = items.find(i => i.id === result.itemId);
-            const currentQty = existing?.quantity_packed ?? 0;
-            const newQty = (result as any).newQuantity;
-            const shouldIncrement = typeof newQty !== 'number' || newQty > currentQty;
-
-            scanLog('item_matched', { itemId: result.itemId, productName: result.productName, mode: 'normal', overscan: !!result.overscan, currentQty, newQty, shouldIncrement });
+        if (authoritativeCommit && !alreadyScanned && result.itemId && typeof result.newQuantity === 'number') {
+            scanLog('item_matched', { itemId: result.itemId, productName: result.productName, mode: 'normal', overscan: !!result.overscan, newQty: result.newQuantity, operationId: result.operationId });
             onHighlight(result.itemId);
-            if (shouldIncrement) {
-              onOptimisticIncrement(result.itemId);
-              if (getIsKolliMode()) {
-                await onAssignToKolli(result.itemId);
-              }
-            } else {
-              scanLog('optimistic_increment_skipped_no_progress', { itemId: result.itemId, currentQty, newQty });
+            onAuthoritativeSet?.(result.itemId, result.newQuantity);
+            if (getIsKolliMode()) {
+              await onAssignToKolli(result.itemId);
             }
-          } else {
-            const items = getItems();
-            const fallback = items.find(i => i.booking_products?.sku?.trim().toLowerCase() === normalised);
-            if (fallback) onOptimisticIncrement(fallback.id);
-          }
           onTriggerSync();
           addRecentScan({
             value: scannedValue,
@@ -525,7 +518,8 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
           });
           notifyRfid(scannedValue, false, result.productName || undefined, undefined);
         } else {
-          toast.error(result.error);
+          const message = legacyOutcomeMessage(result);
+          toast.error(message);
           addRecentScan({
             value: scannedValue,
             productName: scannedValue,
@@ -697,7 +691,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     quantityToPack: number,
     isParent: boolean,
   ) => {
-    const { getItems, getIsMinusMode, getIsKolliMode, verifierName, onOptimisticIncrement, onOptimisticDecrement, onAssignToKolli, onTriggerSync } = optRef.current;
+    const { getItems, getIsMinusMode, getIsKolliMode, verifierName, onAssignToKolli, onTriggerSync } = optRef.current;
 
     // Hard session guard — utan aktiv packing_work_session får INGA
     // muterande actions skickas (backend kräver activeSessionId).
@@ -759,8 +753,11 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         return;
       }
       try {
-        await decrementPackingItem(itemId, verifierName, optRef.current.getActiveSessionId());
-        onOptimisticDecrement(itemId);
+        const result = await decrementPackingItem(itemId, verifierName, optRef.current.getActiveSessionId());
+        if (!isLegacyWmsCommit(result)) {
+          toast.error(legacyOutcomeMessage(result));
+          return;
+        }
         onTriggerSync();
       } catch (err: any) {
         toast.error(err.message || 'Could not remove');
@@ -773,9 +770,9 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     const itemBefore = items.find(i => i.id === itemId);
     const productName = itemBefore?.booking_products?.name || 'Produkt';
     const result = await togglePackingItemManually(itemId, isCurrentlyPacked, quantityToPack, verifierName, activeParcelId, undefined, optRef.current.getActiveSessionId());
-    if (result.success) {
+    if (isLegacyWmsCommit(result) && typeof result.newQuantity === 'number') {
       if (!isCurrentlyPacked) {
-        onOptimisticIncrement(itemId);
+        optRef.current.onAuthoritativeSet?.(itemId, result.newQuantity);
         if (getIsKolliMode()) {
           await onAssignToKolli(itemId);
         }
@@ -783,22 +780,12 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         if (result.manualScan) {
           const value = `MANUAL_CHECKOFF:${itemId}`;
           const displayName = result.productName || productName;
-          if (result.bundleSynced) {
-            optRef.current.onScanResult({
-              value,
-              result: `✅ Manuellt godkänd: ${displayName}`,
-              success: true,
-              productName: displayName,
-            });
-          } else {
-            optRef.current.onScanResult({
-              value,
-              result: result.warning || '⚠️ Packad lokalt, men Bundle-sync misslyckades',
-              success: true,
-              productName: displayName,
-            });
-            toast.warning(result.warning || 'Packad lokalt, men Bundle-sync misslyckades');
-          }
+          optRef.current.onScanResult({
+            value,
+            result: `✅ Manuellt godkänd av WMS: ${displayName}`,
+            success: true,
+            productName: displayName,
+          });
           addRecentScan({
             value,
             productName: displayName,
@@ -815,7 +802,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         warning: result.warning,
         error: result.error,
       });
-      toast.error(result.error || result.warning || 'WMS nekade manuell avbockning');
+      toast.error(legacyOutcomeMessage(result));
     }
   }, [addRecentScan, blockMutationIfNotReady, resolveExactV2Target, runV2ManualOperation]); // reads rest from optRef
 
@@ -928,18 +915,18 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       else toast.error(result?.message || 'Kunde inte öka');
       return;
     }
-    const { verifierName, onOptimisticIncrement, onAssignToKolli, getIsKolliMode, onTriggerSync } = optRef.current;
+    const { verifierName, onAssignToKolli, getIsKolliMode, onTriggerSync } = optRef.current;
     const activeParcelId = optRef.current.getActiveParcelId?.() ?? null;
     try {
       const result = await togglePackingItemManually(
         itemId, false, quantityToPack, verifierName, activeParcelId, undefined, activeSessionId,
       );
-      if (result.success) {
-        onOptimisticIncrement(itemId);
+      if (isLegacyWmsCommit(result) && typeof result.newQuantity === 'number') {
+        optRef.current.onAuthoritativeSet?.(itemId, result.newQuantity);
         if (getIsKolliMode()) await onAssignToKolli(itemId);
         onTriggerSync();
       } else {
-        toast.error(result.error || 'Kunde inte öka');
+        toast.error(legacyOutcomeMessage(result));
       }
     } catch (err: any) {
       toast.error(err?.message || 'Kunde inte öka');
@@ -955,7 +942,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       return;
     }
     if (blockMutationIfNotReady(`MANUAL_MINUS:${itemId}`)) return;
-    const { verifierName, onOptimisticDecrement, onTriggerSync, getItems } = optRef.current;
+    const { verifierName, onTriggerSync, getItems } = optRef.current;
     const item = getItems().find(i => i.id === itemId);
     if (!item || (item.quantity_packed || 0) <= 0) {
       toast.error('Inget att ta bort');
@@ -986,8 +973,11 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       return;
     }
     try {
-      await decrementPackingItem(itemId, verifierName, activeSessionId);
-      onOptimisticDecrement(itemId);
+      const result = await decrementPackingItem(itemId, verifierName, activeSessionId);
+      if (!isLegacyWmsCommit(result)) {
+        toast.error(legacyOutcomeMessage(result));
+        return;
+      }
       onTriggerSync();
     } catch (err: any) {
       toast.error(err?.message || 'Kunde inte ta bort');

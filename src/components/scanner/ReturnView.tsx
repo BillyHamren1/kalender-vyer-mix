@@ -39,6 +39,8 @@ import { RfidDedupeTracker } from '@/lib/scanner/rfidDedupe';
 import { getStoredStaff } from '@/services/mobileApiService';
 import { PackingPreflightPanel } from './PackingPreflightPanel';
 import { useReservationAllocations } from '@/hooks/scanner/useReservationAllocations';
+import { isLegacyWmsCommit, legacyOutcomeMessage } from '@/lib/scanner/legacyWmsOutcome';
+import { newOperationId } from '@/services/scannerOperationV2Service';
 
 interface Item {
   id: string;
@@ -199,7 +201,7 @@ const ReturnView: React.FC<Props> = ({
 
   const applyScanResult = useCallback(
     (res: Awaited<ReturnType<typeof physicalReturnScan>>, fallbackName: string) => {
-      if (res.success && !res.alreadyReturned) {
+      if (isLegacyWmsCommit(res) && !res.alreadyReturned) {
         setLastResult({
           level: 'success',
           text: `+1 returnerad (${res.quantity_returned}/${res.quantity_packed})`,
@@ -214,7 +216,7 @@ const ReturnView: React.FC<Props> = ({
           ),
         );
         loadData();
-      } else if (res.success && res.alreadyReturned) {
+      } else if (isLegacyWmsCommit(res) && res.alreadyReturned) {
         setLastResult({
           level: 'warning',
           text: `Redan returnerad (${res.quantity_returned ?? '–'}/${res.quantity_packed ?? '–'})`,
@@ -222,16 +224,16 @@ const ReturnView: React.FC<Props> = ({
         });
         if (res.itemId) flashHighlight(res.itemId);
         loadData();
-      } else if (res.debugCode === 'LOCAL_RETURN_MATCH_MISSING') {
+      } else if (res.outcome === 'unknown' || res.outcomeUnknown) {
         const wmsInfo = res.wms
           ? ` (item_type=${res.wms.item_type_id ?? '–'}, sku=${res.wms.sku ?? '–'})`
           : '';
         setLastResult({
           level: 'warning',
-          text: `WMS godkände scan men ingen rad matchar packlistan${wmsInfo}`,
+          text: `${legacyOutcomeMessage(res)}${wmsInfo}`,
           productName: fallbackName,
         });
-        toast.warning('Ingen matchande rad i packlistan');
+        toast.warning(legacyOutcomeMessage(res));
       } else {
         setLastResult({
           level: 'error',
@@ -399,7 +401,7 @@ const ReturnView: React.FC<Props> = ({
         }
         if (isPhysical) {
           console.log('[SCAN] return_scan_physical_detected', { source: scan.source, parsedType: parsed.type });
-          const res = await physicalReturnScan(packingId, value, effectiveReturnedBy, activeSession?.id ?? null);
+          const res = await physicalReturnScan(packingId, value, effectiveReturnedBy, activeSession?.id ?? null, newOperationId());
           if (res.success) console.log('[SCAN] return_scan_success', { itemId: res.itemId });
           else console.warn('[SCAN] return_scan_failed', { error: res.error, debugCode: res.debugCode });
           applyScanResult(res, value);
@@ -477,20 +479,9 @@ const ReturnView: React.FC<Props> = ({
       else toast.error(result?.message || 'Kunde inte uppdatera retur');
       return;
     }
-    // Legacy optimistic path (V2 OFF only)
-    setItems(prev =>
-      prev.map(x =>
-        x.id === it.id
-          ? { ...x, quantity_returned: Math.min((x.quantity_returned ?? 0) + 1, sent) }
-          : x,
-      ),
-    );
-    flashHighlight(it.id);
     const res = await returnToggleItem(it.id, effectiveReturnedBy, activeSession?.id ?? null);
-    if (!res.success) {
-      toast.error(res.error || 'Kunde inte uppdatera');
-      loadData();
-    }
+    toast.error(legacyOutcomeMessage(res));
+    loadData();
   };
 
   const handleManualMinus = async (it: Item) => {
@@ -500,18 +491,9 @@ const ReturnView: React.FC<Props> = ({
       toast.error('Ångra retur är spärrad i Scanner V2 tills WMS har ett explicit UNRETURN-kommando');
       return;
     }
-    setItems(prev =>
-      prev.map(x =>
-        x.id === it.id
-          ? { ...x, quantity_returned: Math.max((x.quantity_returned ?? 0) - 1, 0) }
-          : x,
-      ),
-    );
     const res = await returnDecrementItem(it.id, activeSession?.id ?? null);
-    if (!res.success) {
-      toast.error(res.error || 'Kunde inte uppdatera');
-      loadData();
-    }
+    toast.error(legacyOutcomeMessage(res));
+    loadData();
   };
 
   const handleResetRow = async (it: Item) => {
@@ -520,11 +502,9 @@ const ReturnView: React.FC<Props> = ({
       toast.error('Nollställ retur är spärrad i Scanner V2 – använd WMS-korrigering med revisionsspår');
       return;
     }
-    setItems(prev =>
-      prev.map(x => (x.id === it.id ? { ...x, quantity_returned: 0 } : x)),
-    );
     const res = await returnResetItem(it.id, activeSession?.id ?? null);
-    if (!res.success) loadData();
+    if (!res.success) toast.error(legacyOutcomeMessage(res));
+    loadData();
   };
 
   const sortedItems = useMemo(() => {

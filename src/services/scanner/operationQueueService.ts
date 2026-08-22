@@ -5,7 +5,6 @@
  * en gång, och sedan återanvänds vid varje retry. Kön är durable (IndexedDB).
  */
 
-import { SCANNER_TRANSACTION_V2 } from '@/config/scannerFlags';
 import { commandForOperation, type ScannerOperationKind } from '@/lib/scanner/commandTypes';
 import type { QueuedOperation } from '@/lib/scanner/operationQueueTypes';
 import { queueLaneKey } from '@/lib/scanner/operationQueueTypes';
@@ -150,7 +149,8 @@ export const enqueueAndProcessScanOperation = async (
 };
 
 /**
- * Dubbelspärr: när V2 är ON äger operation queue scanningen och legacy
- * ScanQueue får inte ta emot samma scan (annars kan den processas två gånger).
+ * The raw localStorage ScanQueue is permanently disabled. It stores scan
+ * values, not idempotent operations, and has no registered replay handler.
+ * Only the durable V2 operation queue may persist mutating work.
  */
-export const shouldUseLegacyScanQueue = (): boolean => !SCANNER_TRANSACTION_V2;
+export const shouldUseLegacyScanQueue = (): boolean => false;
