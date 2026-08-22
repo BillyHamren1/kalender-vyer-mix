@@ -17,18 +17,19 @@ describe('packing snapshot — fail closed', () => {
     expect(section).not.toMatch(/\.delete\s*\(/);
   });
 
-  it('sync-booking-to-packing fryser hela snapshoten efter planning', () => {
+  it('sync-booking-to-packing fryser snapshotet när warehouse acknowledgement krävs', () => {
     const src = read('supabase/functions/sync-booking-to-packing/index.ts');
     const fn = src.slice(src.indexOf('async function syncPackingListItems'));
-    const freezeGuard = fn.indexOf("if (packingStatus !== 'planning')");
+    const freezeGuard = fn.indexOf('if (needsWarehouseAck)');
     const firstOperationalInsert = fn.indexOf(".from('packing_list_items')\n      .insert(newItems)");
     const firstOperationalDelete = fn.indexOf(".from('packing_list_items')\n      .delete()");
 
     expect(freezeGuard).toBeGreaterThan(-1);
+    expect(fn.slice(0, freezeGuard)).toContain('requiresWarehouseAcknowledgement({');
     expect(fn.slice(freezeGuard, firstOperationalInsert)).toContain('return 0');
     expect(firstOperationalInsert).toBeGreaterThan(freezeGuard);
     expect(firstOperationalDelete).toBeGreaterThan(freezeGuard);
-    expect(fn).toContain("needs_packing_review_reason: 'booking_changed_after_packing_started'");
+    expect(fn.slice(freezeGuard, firstOperationalInsert)).toContain('queuePackingChangeRequests(supabase');
   });
 
   it('import-bookings fryser packing_list_items innan add/remove/update', () => {
@@ -45,13 +46,13 @@ describe('packing snapshot — fail closed', () => {
     expect(fn).toContain("needs_packing_review_reason: 'booking_changed_after_packing_started'");
   });
 
-  it('WMS preflight blockerar endast på blocked (identitetsvarningar stoppar inte packning)', () => {
+  it('WMS preflight är fail-closed: tom lista, varning eller blockerad rad stoppar scanning', () => {
     const single = read('supabase/functions/packing-preflight-check/index.ts');
     const batch = read('supabase/functions/packing-preflight-batch/index.ts');
-    expect(single).toContain('canStartScanning: summary.blocked === 0');
-    expect(single).not.toContain('summary.blocked === 0 && summary.warning === 0');
-    expect(batch).toContain('canStartScanning: blocked === 0');
-    expect(batch).not.toContain('blocked === 0 && warning === 0');
+    expect(single).toContain('summary.total > 0');
+    expect(single).toContain('summary.blocked === 0');
+    expect(single).toContain('summary.warning === 0');
+    expect(batch).toContain('rows.length > 0 && blocked === 0 && warning === 0');
   });
 
   it('packlisteutskrift har en enda automatisk print-trigger', () => {
