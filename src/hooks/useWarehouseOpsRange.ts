@@ -545,8 +545,9 @@ export function computeAttention(
     if (j.percent >= 100) continue;
     if (!j.anchorDate) continue;
     if (j.anchorDate > todayStr) continue; // bara dagens eller försenat
-    const lastAct = j.lastActivityAt ? parseISO(j.lastActivityAt) : null;
-    const minsSince = lastAct ? differenceInMinutes(now, lastAct) : Infinity;
+    // Endast verkliga scans får presenteras som scan-tid (updated_at != scan).
+    const lastScan = j.lastScanAt ? parseISO(j.lastScanAt) : null;
+    const minsSince = lastScan ? differenceInMinutes(now, lastScan) : Infinity;
     const isOverdue = j.anchorDate < todayStr;
     out.push({
       id: `late-${j.id}`,
