@@ -8,6 +8,11 @@ import {
   Camera,
   ClipboardCheck,
   Undo2,
+  CircleDashed,
+  Loader2,
+  CheckCircle2,
+  Truck,
+  RotateCcw,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -24,31 +29,59 @@ interface Props {
   ) => void;
 }
 
+type StatusBadgeProps = {
+  icon: React.ReactNode;
+  label: string;
+  className: string;
+  pulse?: boolean;
+};
+
+const StatusBadge: React.FC<StatusBadgeProps> = ({ icon, label, className, pulse }) => (
+  <span
+    className={[
+      'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide shadow-sm border',
+      pulse ? 'animate-pulse' : '',
+      className,
+    ].join(' ')}
+  >
+    {icon}
+    {label}
+  </span>
+);
+
 const getOutBadge = (status: string) => {
   switch (status) {
     case 'in_progress':
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-600 text-white border border-green-700">
-          Pågår
-        </span>
+        <StatusBadge
+          icon={<Loader2 className="h-3 w-3 animate-spin" />}
+          label="Pågår"
+          className="bg-green-700 text-white border-green-800"
+        />
       );
     case 'packed':
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-900 border border-green-300">
-          Packad ✓
-        </span>
+        <StatusBadge
+          icon={<CheckCircle2 className="h-3 w-3" />}
+          label="Klar"
+          className="bg-green-100 text-green-900 border-green-400"
+        />
       );
     case 'delivered':
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-800 border border-green-200">
-          Levererad
-        </span>
+        <StatusBadge
+          icon={<Truck className="h-3 w-3" />}
+          label="Levererad"
+          className="bg-green-50 text-green-800 border-green-300"
+        />
       );
     default:
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-800 border border-green-200">
-          Planering
-        </span>
+        <StatusBadge
+          icon={<CircleDashed className="h-3 w-3" />}
+          label="Ej startad"
+          className="bg-green-50 text-green-800 border-green-300"
+        />
       );
   }
 };
@@ -56,23 +89,30 @@ const getOutBadge = (status: string) => {
 const getInBadge = (status: string) => {
   if (status === 'returned') {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-600 text-white border border-red-700">
-        Retur klar ✓
-      </span>
+      <StatusBadge
+        icon={<CheckCircle2 className="h-3 w-3" />}
+        label="Retur klar"
+        className="bg-red-700 text-white border-red-800"
+      />
     );
   }
   if (status === 'returning') {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-900 border border-red-300 animate-pulse">
-        Retur pågår
-      </span>
+      <StatusBadge
+        icon={<Loader2 className="h-3 w-3 animate-spin" />}
+        label="Retur pågår"
+        className="bg-red-100 text-red-900 border-red-400"
+        pulse
+      />
     );
   }
   // delivered → return not started
   return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-800 border border-red-200">
-      Att returnera
-    </span>
+    <StatusBadge
+      icon={<RotateCcw className="h-3 w-3" />}
+      label="Att returnera"
+      className="bg-red-50 text-red-800 border-red-300"
+    />
   );
 };
 

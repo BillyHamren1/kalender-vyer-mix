@@ -469,9 +469,10 @@ const CustomEvent: React.FC<CustomEventProps> = React.memo(({
               {packedLabel && (
                 <div className="flex flex-wrap items-center gap-1">
                   <span
-                    className="inline-block rounded px-1 tabular-nums"
-                    style={{ backgroundColor: 'rgba(0,0,0,0.08)', color: '#000000', fontSize: '9.5px', fontWeight: 600 }}
+                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 tabular-nums shadow-sm border border-black/10"
+                    style={{ backgroundColor: 'rgba(0,0,0,0.08)', color: '#000000', fontSize: '10px', fontWeight: 700 }}
                   >
+                    <span aria-hidden="true">📦</span>
                     {packedLabel}
                   </span>
                 </div>
