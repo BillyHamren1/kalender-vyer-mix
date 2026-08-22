@@ -17,7 +17,8 @@
 //         canStartScanning flag.
 // ============================================================
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { authenticateStaffRequest } from '../_shared/staff-auth.ts'
+import { verifyScannerReadiness } from '../_shared/scanner-readiness.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -60,15 +61,14 @@ interface PreflightRow {
 // as unverified (BLOCKED) rather than silently passing.
 // ------------------------------------------------------------
 
-const WMS_BASE_URL = 'https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1'
-
 async function wmsLookup(
   body: Record<string, unknown>,
   apiKey: string,
   orgId: string,
+  wmsBaseUrl: string,
 ): Promise<any | null> {
   try {
-    const res = await fetch(`${WMS_BASE_URL}/item-type-lookup`, {
+    const res = await fetch(`${wmsBaseUrl.replace(/\/+$/, '')}/item-type-lookup`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -100,8 +100,9 @@ async function wmsLookupByItemTypeId(
   itemTypeId: string,
   apiKey: string,
   orgId: string,
+  wmsBaseUrl: string,
 ): Promise<WmsItemType[]> {
-  const data = await wmsLookup({ item_type_id: itemTypeId }, apiKey, orgId)
+  const data = await wmsLookup({ item_type_id: itemTypeId }, apiKey, orgId, wmsBaseUrl)
   const m = data?.exactItemTypeMatch
   return m ? [toMatch(m, 'item_type_id')] : []
 }
@@ -110,8 +111,9 @@ async function wmsLookupBySku(
   sku: string,
   apiKey: string,
   orgId: string,
+  wmsBaseUrl: string,
 ): Promise<WmsItemType[]> {
-  const data = await wmsLookup({ sku }, apiKey, orgId)
+  const data = await wmsLookup({ sku }, apiKey, orgId, wmsBaseUrl)
   const arr = Array.isArray(data?.skuMatches) ? data.skuMatches : []
   return arr.map((m: any) => toMatch(m, 'sku'))
 }
@@ -120,8 +122,9 @@ async function wmsLookupByName(
   name: string,
   apiKey: string,
   orgId: string,
+  wmsBaseUrl: string,
 ): Promise<WmsItemType[]> {
-  const data = await wmsLookup({ name }, apiKey, orgId)
+  const data = await wmsLookup({ name }, apiKey, orgId, wmsBaseUrl)
   const arr = Array.isArray(data?.nameMatches) ? data.nameMatches : []
   return arr.map((m: any) => toMatch(m, 'name'))
 }
@@ -258,51 +261,43 @@ Deno.serve(async (req) => {
 
   const packingId: string | undefined = body?.packing_id
   const bookingNumberInput: string | undefined = body?.booking_number
+  const sessionId: string | undefined = body?.session_id
+  const reservationId: string | undefined = body?.reservation_id
   if (!packingId || typeof packingId !== 'string') {
     return json({ success: false, error: 'packing_id required' }, 400)
   }
 
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-  )
-
-  // Auth: require a Supabase JWT (admin-side preflight).
-  const authHeader = req.headers.get('Authorization') || ''
-  const jwt = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
-  if (!jwt) return json({ success: false, error: 'Auth required' }, 401)
-  const { data: userRes, error: userErr } = await supabase.auth.getUser(jwt)
-  if (userErr || !userRes?.user) {
-    return json({ success: false, error: 'Invalid auth' }, 401)
+  const authResult = await authenticateStaffRequest(req)
+  if (!authResult.ok) return json({ success: false, error: authResult.err.error }, authResult.err.status)
+  if (authResult.auth.mode !== 'mobile') {
+    return json({ success: false, error: 'Mobile scanner session required' }, 403)
   }
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('organization_id')
-    .eq('user_id', userRes.user.id)
-    .maybeSingle()
-  const orgId = profile?.organization_id
-  if (!orgId) return json({ success: false, error: 'No organization for user' }, 403)
+  const supabase = authResult.auth.admin
+  const orgId = authResult.auth.organizationId
+  const PRICELIST_API_KEY = Deno.env.get('PRICELIST_API_KEY') || ''
+  const WMS_READINESS_BASE_URL = Deno.env.get('WMS_READINESS_BASE_URL') || ''
 
-  // 1. Load packing_projects → resolve booking_id + booking_number
-  const { data: packing, error: packErr } = await supabase
-    .from('packing_projects')
-    .select('id, booking_id, organization_id')
-    .eq('id', packingId)
-    .eq('organization_id', orgId)
-    .maybeSingle()
-  if (packErr || !packing) {
-    return json({ success: false, error: 'packing not found' }, 404)
+  const readiness = await verifyScannerReadiness({
+    admin: supabase,
+    organizationId: orgId,
+    staffId: authResult.auth.staffId,
+    packingId,
+    sessionId,
+    bookingNumber: bookingNumberInput,
+    reservationId,
+    wmsBaseUrl: WMS_READINESS_BASE_URL,
+    apiKey: PRICELIST_API_KEY,
+  })
+  if (!readiness.ok) {
+    const unavailable = readiness.code === 'WMS_NOT_CONFIGURED' || readiness.code.includes('UNAVAILABLE')
+    return json({
+      success: false,
+      error: readiness.message,
+      debugCode: readiness.code,
+      canStartScanning: false,
+    }, unavailable ? 503 : 409)
   }
-
-  let bookingNumber = bookingNumberInput || null
-  if (!bookingNumber && packing.booking_id) {
-    const { data: bk } = await supabase
-      .from('bookings')
-      .select('booking_number')
-      .eq('id', packing.booking_id)
-      .maybeSingle()
-    bookingNumber = bk?.booking_number ?? null
-  }
+  const bookingNumber = readiness.bookingNumber ?? null
 
   // 2. Load packing_list_items + joined booking_products
   const { data: items, error: itemsErr } = await supabase
@@ -331,11 +326,6 @@ Deno.serve(async (req) => {
     return json({ success: false, error: 'failed to load packing list', detail: itemsErr.message }, 500)
   }
 
-  const PRICELIST_API_KEY = Deno.env.get('PRICELIST_API_KEY') || ''
-  if (!PRICELIST_API_KEY) {
-    return json({ success: false, error: 'PRICELIST_API_KEY saknas för WMS preflight' }, 500)
-  }
-
   // 3. Per-row verification
   const rows: PreflightRow[] = []
   for (const it of items || []) {
@@ -347,10 +337,10 @@ Deno.serve(async (req) => {
 
     const [byItemTypeId, bySku, byName] = await Promise.all([
       inventoryItemTypeId
-        ? wmsLookupByItemTypeId(inventoryItemTypeId, PRICELIST_API_KEY, orgId)
+        ? wmsLookupByItemTypeId(inventoryItemTypeId, PRICELIST_API_KEY, orgId, WMS_READINESS_BASE_URL)
         : Promise.resolve([] as WmsItemType[]),
-      sku ? wmsLookupBySku(sku, PRICELIST_API_KEY, orgId) : Promise.resolve([] as WmsItemType[]),
-      name ? wmsLookupByName(name, PRICELIST_API_KEY, orgId) : Promise.resolve([] as WmsItemType[]),
+      sku ? wmsLookupBySku(sku, PRICELIST_API_KEY, orgId, WMS_READINESS_BASE_URL) : Promise.resolve([] as WmsItemType[]),
+      name ? wmsLookupByName(name, PRICELIST_API_KEY, orgId, WMS_READINESS_BASE_URL) : Promise.resolve([] as WmsItemType[]),
     ])
 
     const verdict = classifyRow({
@@ -384,12 +374,28 @@ Deno.serve(async (req) => {
   }
 
   // Kort varsel-ändringar måste kvitteras av lagret innan packlistan används.
-  const { count: pendingShortNotice } = await supabase
+  const { count: pendingShortNotice, error: pendingShortNoticeError } = await supabase
     .from('packing_change_requests')
     .select('id', { count: 'exact', head: true })
     .eq('packing_id', packingId)
+    .eq('organization_id', orgId)
     .eq('status', 'pending')
     .eq('urgency', 'short_notice')
+
+  if (pendingShortNoticeError) {
+    return json({
+      success: false,
+      error: 'Packing changes could not be verified',
+      debugCode: 'CHANGE_READINESS_UNVERIFIED',
+      canStartScanning: false,
+    }, 503)
+  }
+
+  const canStartScanning =
+    summary.total > 0 &&
+    summary.blocked === 0 &&
+    summary.warning === 0 &&
+    (pendingShortNotice || 0) === 0
 
   return json({
     success: true,
@@ -397,8 +403,15 @@ Deno.serve(async (req) => {
     bookingNumber,
     summary,
     pendingShortNoticeChanges: pendingShortNotice || 0,
-    canStartScanning: summary.blocked === 0 && (pendingShortNotice || 0) === 0,
+    readiness: {
+      tenantVerified: true,
+      staffVerified: true,
+      sessionVerified: true,
+      bookingVerified: true,
+      reservationVerified: true,
+      wmsVerified: canStartScanning,
+    },
+    canStartScanning,
     items: rows,
   })
 })
-

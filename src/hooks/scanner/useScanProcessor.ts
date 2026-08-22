@@ -60,6 +60,9 @@ interface UseScanProcessorOptions {
   verifierStaffId?: string | null;
   organizationId?: string | null;
   bookingNumber?: string | null;
+  reservationId?: string | null;
+  /** Fail-closed UI readiness gate. Returns null only when mutations are allowed. */
+  getReadinessBlockReason?: () => string | null;
   getItems: () => PackingItem[];
   getIsMinusMode: () => boolean;
   getIsKolliMode: () => boolean;
@@ -99,6 +102,16 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
 
   const addRecentScan = useCallback((entry: RecentScanEntry) => {
     setRecentScans(prev => [entry, ...prev].slice(0, 100));
+  }, []);
+
+  const blockMutationIfNotReady = useCallback((value?: string): boolean => {
+    const reason = optRef.current.getReadinessBlockReason?.() ?? null;
+    if (!reason) return false;
+    const message = `Scanning spärrad: ${reason}`;
+    console.warn('[scanner-readiness] mutation blocked', { packingId: optRef.current.packingId, reason });
+    optRef.current.onScanResult({ value: value || 'READINESS', result: message, success: false });
+    toast.error(message);
+    return true;
   }, []);
 
   const runV2ManualOperation = useCallback(async (input: EnqueueScanOperationInput) => {
@@ -173,6 +186,8 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         return;
       }
 
+      if (blockMutationIfNotReady(scannedValue)) return;
+
       // === TRANSACTIONAL V2 RUNTIME ===
       // When enabled, this branch owns the scan completely. Legacy API calls,
       // in-memory mutation arithmetic and the old ScanQueue are bypassed.
@@ -216,6 +231,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
               packingId,
               packingSessionId: activeSessionId,
               organizationId: organizationId ?? null,
+              reservationId: optRef.current.reservationId ?? null,
               itemId: matchingItem?.id ?? null,
               sku: parsed.unique ? null : scannedValue,
               bookingNumber: bookingNumber ?? null,
@@ -474,7 +490,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         processNext();
       }
     }
-  }, [addRecentScan]); // No deps that change — reads everything from optRef
+  }, [addRecentScan, blockMutationIfNotReady]); // No changing option deps — reads from optRef
 
   const enqueueScan = useCallback((input: string | ScanEvent) => {
     const inputs: Array<string | ScanEvent> = typeof input === 'string'
@@ -505,6 +521,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         processNext();
         continue;
       }
+      if (blockMutationIfNotReady(scannedValue)) continue;
 
       const activeSessionId = optRef.current.getActiveSessionId()!;
       const normalised = scannedValue.toLowerCase();
@@ -546,6 +563,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
             packingId: optRef.current.packingId,
             packingSessionId: activeSessionId,
             organizationId: optRef.current.organizationId ?? null,
+            reservationId: optRef.current.reservationId ?? null,
             itemId: matchingItem?.id ?? null,
             sku: parsed.unique ? null : scannedValue,
             bookingNumber: optRef.current.bookingNumber ?? null,
@@ -574,7 +592,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       };
       persistChainRef.current = persistChainRef.current.then(persist, persist);
     }
-  }, [addRecentScan, processNext]);
+  }, [addRecentScan, blockMutationIfNotReady, processNext]);
 
   // Durable replay on app start / reconnect. Same operation_id is always reused.
   useEffect(() => {
@@ -620,6 +638,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       toast.error('Starta packningssession först');
       return;
     }
+    if (blockMutationIfNotReady(`MANUAL:${itemId}`)) return;
 
     if (isParent) {
       toast.info('Parent products are marked automatically when all parts are packed');
@@ -633,6 +652,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
         packingId: optRef.current.packingId,
         packingSessionId: activeSessionId,
         organizationId: optRef.current.organizationId ?? null,
+        reservationId: optRef.current.reservationId ?? null,
         itemId,
         bookingNumber: optRef.current.bookingNumber ?? null,
         parcelId: optRef.current.getActiveParcelId?.() ?? null,
@@ -721,7 +741,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       });
       toast.error(result.error || result.warning || 'WMS nekade manuell avbockning');
     }
-  }, [addRecentScan, runV2ManualOperation]); // reads rest from optRef
+  }, [addRecentScan, blockMutationIfNotReady, runV2ManualOperation]); // reads rest from optRef
 
   const clearSessionDedup = useCallback(() => {
     rfidDedupeRef.current.reset();
@@ -731,6 +751,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
   // === Unknown-product handlers ===
   const confirmAddUnknown = useCallback(async (productName: string, quantity: number): Promise<boolean> => {
     if (!pendingUnknownProduct) return false;
+    if (blockMutationIfNotReady(pendingUnknownProduct.scannedValue)) return false;
     const { packingId, verifierName, onHighlight, onTriggerSync } = optRef.current;
     try {
       const result = await addUnknownProduct(
@@ -771,7 +792,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       toast.error(err.message || 'Kunde inte lägga till produkten');
       return false;
     }
-  }, [pendingUnknownProduct, addRecentScan, processNext]);
+  }, [pendingUnknownProduct, addRecentScan, blockMutationIfNotReady, processNext]);
 
   const dismissUnknown = useCallback(() => {
     if (pendingUnknownProduct) {
@@ -800,6 +821,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       toast.error('Starta packningssession först');
       return;
     }
+    if (blockMutationIfNotReady(`MANUAL_PLUS:${itemId}`)) return;
     if (isParent) {
       toast.info('Parent products are marked automatically when all parts are packed');
       return;
@@ -808,6 +830,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       const processed = await runV2ManualOperation({
         operation: 'pack_quantity', packingId: optRef.current.packingId,
         packingSessionId: activeSessionId, organizationId: optRef.current.organizationId ?? null,
+        reservationId: optRef.current.reservationId ?? null,
         itemId, bookingNumber: optRef.current.bookingNumber ?? null,
         parcelId: optRef.current.getActiveParcelId?.() ?? null, quantityDelta: 1,
         performedBy: optRef.current.verifierStaffId ?? optRef.current.verifierName,
@@ -839,7 +862,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     } catch (err: any) {
       toast.error(err?.message || 'Kunde inte öka');
     }
-  }, [runV2ManualOperation]);
+  }, [blockMutationIfNotReady, runV2ManualOperation]);
 
   // Per-row manual -1 (alltid decrement, oavsett minus-läge)
   const handleManualDecrement = useCallback(async (itemId: string) => {
@@ -849,6 +872,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       toast.error('Starta packningssession först');
       return;
     }
+    if (blockMutationIfNotReady(`MANUAL_MINUS:${itemId}`)) return;
     const { verifierName, onOptimisticDecrement, onTriggerSync, getItems } = optRef.current;
     const item = getItems().find(i => i.id === itemId);
     if (!item || (item.quantity_packed || 0) <= 0) {
@@ -859,6 +883,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
       const processed = await runV2ManualOperation({
         operation: 'unpack_quantity', packingId: optRef.current.packingId,
         packingSessionId: activeSessionId, organizationId: optRef.current.organizationId ?? null,
+        reservationId: optRef.current.reservationId ?? null,
         itemId, bookingNumber: optRef.current.bookingNumber ?? null, quantityDelta: -1,
         performedBy: optRef.current.verifierStaffId ?? optRef.current.verifierName,
         scanValue: `MANUAL_MINUS:${itemId}`, scanSource: 'manual',
@@ -879,7 +904,7 @@ export const useScanProcessor = (options: UseScanProcessorOptions) => {
     } catch (err: any) {
       toast.error(err?.message || 'Kunde inte ta bort');
     }
-  }, [runV2ManualOperation]);
+  }, [blockMutationIfNotReady, runV2ManualOperation]);
 
   return {
     enqueueScan,

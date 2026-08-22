@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { ArrowLeft, Check, RefreshCw, Camera, AlertCircle, Package, ChevronRight, X, Minus, Plus, List, QrCode, Loader2 } from 'lucide-react';
-import { getItemParcels, startPackingSession, type PackingWorkSession } from '@/services/scannerService';
+import { getItemParcels, startPackingSession, type PackingWorkSession, type PreflightResult } from '@/services/scannerService';
 import { getStoredStaff } from '@/services/mobileApiService';
 import { useNavigate } from 'react-router-dom';
 import { QRScanner } from './QRScanner';
@@ -147,6 +147,23 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     recalcProgress, applyOptimisticIncrement, applyOptimisticSet, applyOptimisticDecrement, setItems,
   } = useOptimisticPacking(packingId);
 
+  const reservation = useReservationAllocations(packingId);
+  const [preflightState, setPreflightState] = useState<'checking' | 'pass' | 'warning' | 'blocked' | 'error'>('checking');
+  const [preflightResult, setPreflightResult] = useState<PreflightResult | null>(null);
+
+  const getReadinessBlockReason = useCallback((): string | null => {
+    if (!activeSession || activeSession.status !== 'active') return 'Starta packningssession först';
+    if (reservation.isLoading) return 'Verifierar WMS-reservation…';
+    if (reservation.error) return `WMS-reservation kunde inte verifieras: ${reservation.error}`;
+    if (!reservation.reservationId) return 'WMS-reservation saknas';
+    if (preflightState === 'checking') return 'WMS-kontrollen pågår';
+    if (preflightState === 'error') return 'WMS-kontrollen misslyckades';
+    if (!preflightResult?.canStartScanning) return 'Packlistan är inte godkänd för scanning';
+    return null;
+  }, [activeSession, preflightResult, preflightState, reservation.error, reservation.isLoading, reservation.reservationId]);
+
+  const mutationReady = getReadinessBlockReason() === null;
+
   const {
     isKolliMode, activeParcel, itemParcelMap, itemAllocations,
     startKolli, nextKolli, exitKolli, assignToKolli, setParcelMap,
@@ -205,6 +222,8 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     verifierStaffId,
     organizationId: storedStaff?.organization_id ?? null,
     bookingNumber: packing?.booking?.booking_number ?? null,
+    reservationId: reservation.reservationId,
+    getReadinessBlockReason,
     getItems: () => itemsRef.current,
     getIsMinusMode: () => isMinusModeRef.current,
     onScanResult: setScanResult,
@@ -412,7 +431,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
   const renderItemRow = (item: PackingItem, showParcelColumn = false) => {
     const info = getItemDisplayInfo(item, childrenByParent);
     const parcelNumber = itemParcelMap[item.id];
-    const rowDisabled = info.isParent || (showParcelColumn && info.isComplete);
+    const rowDisabled = !mutationReady || info.isParent || (showParcelColumn && info.isComplete);
 
     const rowClasses = `w-full flex items-center gap-2 text-left transition-all duration-300 ${
       highlightedItemId === item.id
@@ -515,7 +534,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); handleManualDecrement(item.id); }}
-                disabled={info.packed <= 0}
+                disabled={!mutationReady || info.packed <= 0}
                 className="h-7 w-7 rounded border border-border bg-background hover:bg-muted active:bg-muted/80 flex items-center justify-center disabled:opacity-40"
                 aria-label="Minska 1"
               >
@@ -536,7 +555,7 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); handleManualIncrement(item.id, item.quantity_to_pack, info.isParent); }}
-                disabled={info.packed >= info.total}
+                disabled={!mutationReady || info.packed >= info.total}
                 className="h-7 w-7 rounded border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 active:bg-primary/30 flex items-center justify-center disabled:opacity-40"
                 aria-label="Öka 1"
               >
@@ -715,8 +734,21 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
         <PackingPreflightPanel
           packingId={packingId}
           bookingNumber={packing?.booking?.booking_number ?? null}
+          sessionId={activeSession?.id ?? null}
+          reservationId={reservation.reservationId}
+          autoRun
+          defaultOpen
+          onResult={(result, state) => {
+            setPreflightResult(result);
+            setPreflightState(state);
+          }}
         />
       </div>
+      {!mutationReady && (
+        <div className="shrink-0 mx-2 mt-1 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs font-medium text-destructive">
+          Scanning spärrad: {getReadinessBlockReason()}
+        </div>
+      )}
       <div className="shrink-0 px-2 py-1.5 bg-card border-b space-y-1">
         {scannerState && (
           <ScannerModeIndicator

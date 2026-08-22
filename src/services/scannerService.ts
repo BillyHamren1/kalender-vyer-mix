@@ -385,9 +385,10 @@ export const returnScanSku = async (
   packingId: string,
   sku: string,
   returnedBy?: string,
+  activeSessionId?: string | null,
 ): Promise<ReturnScanResult> => {
   try {
-    return await callScannerApi('return_scan_sku', { packingId, sku, returnedBy });
+    return await callScannerApi('return_scan_sku', { packingId, sku, returnedBy, activeSessionId: activeSessionId || null });
   } catch (err: any) {
     return { success: false, error: err?.message || 'Scan failed', debugCode: err?.debugCode };
   }
@@ -397,9 +398,10 @@ export const physicalReturnScan = async (
   packingId: string,
   scannedValue: string,
   returnedBy?: string,
+  activeSessionId?: string | null,
 ): Promise<ReturnScanResult> => {
   try {
-    return await callScannerApi('physical_return_scan', { packingId, scannedValue, returnedBy });
+    return await callScannerApi('physical_return_scan', { packingId, scannedValue, returnedBy, activeSessionId: activeSessionId || null });
   } catch (err: any) {
     return { success: false, error: err?.message || 'Scan failed', debugCode: err?.debugCode };
   }
@@ -408,16 +410,17 @@ export const physicalReturnScan = async (
 export const returnToggleItem = async (
   itemId: string,
   returnedBy?: string,
+  activeSessionId?: string | null,
 ): Promise<ReturnScanResult> => {
-  return callScannerApi('return_toggle_item', { itemId, returnedBy });
+  return callScannerApi('return_toggle_item', { itemId, returnedBy, activeSessionId: activeSessionId || null });
 };
 
-export const returnDecrementItem = async (itemId: string): Promise<ReturnScanResult> => {
-  return callScannerApi('return_decrement_item', { itemId });
+export const returnDecrementItem = async (itemId: string, activeSessionId?: string | null): Promise<ReturnScanResult> => {
+  return callScannerApi('return_decrement_item', { itemId, activeSessionId: activeSessionId || null });
 };
 
-export const returnResetItem = async (itemId: string): Promise<{ success: boolean }> => {
-  return callScannerApi('reset_return_item', { itemId });
+export const returnResetItem = async (itemId: string, activeSessionId?: string | null): Promise<{ success: boolean }> => {
+  return callScannerApi('reset_return_item', { itemId, activeSessionId: activeSessionId || null });
 };
 const sortPackingItems = (items: any[]) => {
   const mainProducts: typeof items = [];
@@ -618,20 +621,56 @@ export interface PreflightResult {
   packingId?: string;
   bookingNumber?: string | null;
   summary: { total: number; pass: number; warning: number; blocked: number };
+  pendingShortNoticeChanges?: number;
+  readiness?: {
+    tenantVerified: boolean;
+    staffVerified: boolean;
+    sessionVerified: boolean;
+    bookingVerified: boolean;
+    reservationVerified: boolean;
+    wmsVerified: boolean;
+  };
   canStartScanning: boolean;
   items: PreflightItem[];
   error?: string;
+  debugCode?: string;
 }
 
 export const runPackingPreflightCheck = async (
   packingId: string,
   bookingNumber?: string | null,
+  options?: { sessionId?: string | null; reservationId?: string | null },
 ): Promise<PreflightResult> => {
-  const { data, error } = await supabase.functions.invoke('packing-preflight-check', {
-    body: { packing_id: packingId, booking_number: bookingNumber ?? undefined },
-  });
-  if (error) throw new Error(error.message || 'Preflight failed');
-  return data as PreflightResult;
+  const token = getToken();
+  const baseUrl = ((import.meta as any).env?.VITE_SUPABASE_URL as string | undefined)?.replace(/\/$/, '');
+  if (!token) throw new Error('Aktiv mobil session saknas');
+  if (!baseUrl) throw new Error('Scanner backend saknas');
+
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}/functions/v1/packing-preflight-check`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        packing_id: packingId,
+        booking_number: bookingNumber ?? null,
+        session_id: options?.sessionId ?? null,
+        reservation_id: options?.reservationId ?? null,
+      }),
+    });
+  } catch {
+    throw new Error('WMS-kontrollen kunde inte nås');
+  }
+  const data = await response.json().catch(() => ({})) as PreflightResult;
+  if (!response.ok || !data?.success || data.canStartScanning !== true) {
+    const err: any = new Error(data?.error || 'Packlistan är inte verifierad för scanning');
+    err.debugCode = data?.debugCode || `PREFLIGHT_${response.status}`;
+    throw err;
+  }
+  return data;
 };
 
 // Identify a product by serial number or SKU (home screen lookup)
@@ -671,4 +710,3 @@ export const getReservationAllocations = async (
 ): Promise<ReservationAllocationsResponse> => {
   return callScannerApi('get_reservation_allocations', { packingId });
 };
-

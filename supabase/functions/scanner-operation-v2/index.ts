@@ -1,6 +1,7 @@
 // @ts-nocheck
 // Scanner V2 Planning gateway: authenticated, tenant-scoped, WMS-first.
 import { authenticateStaffRequest } from '../_shared/staff-auth.ts'
+import { verifyScannerReadiness } from '../_shared/scanner-readiness.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -28,6 +29,7 @@ const ALLOWED: CommandType[] = [
 
 const SESSION_REQUIRED = new Set<CommandType>([
   'PACK_QUANTITY', 'UNPACK_QUANTITY', 'PACK_INSTANCE', 'UNPACK_INSTANCE',
+  'RETURN_INSTANCE', 'RETURN_QUANTITY',
 ])
 
 async function authenticateScanner(req: Request) {
@@ -54,69 +56,40 @@ async function authenticateScanner(req: Request) {
   return { staffId, staffName: staff.name || 'Unknown', organizationId, admin }
 }
 
-async function assertPlanningScope(admin: any, auth: any, command: any) {
+async function assertPlanningScope(
+  admin: any,
+  auth: any,
+  command: any,
+  config: { wmsBaseUrl: string | null; apiKey: string | null },
+) {
   if (command.organizationId && command.organizationId !== auth.organizationId) {
     throw { status: 403, code: 'TENANT_MISMATCH', message: 'Operation belongs to another organization' }
   }
-
-  const { data: packing, error: packingError } = await admin
-    .from('packing_projects')
-    .select('id, organization_id, booking_id')
-    .eq('id', command.packingId)
-    .eq('organization_id', auth.organizationId)
-    .maybeSingle()
-  if (packingError || !packing) {
-    throw { status: 404, code: 'PACKING_NOT_FOUND', message: 'Packing not found in organization' }
+  if (SESSION_REQUIRED.has(command.type as CommandType) && !command.sessionId) {
+    throw { status: 400, code: 'PACKING_SESSION_REQUIRED', message: 'Active packing session required' }
   }
 
-  if (command.itemId) {
-    const { data: item, error } = await admin
-      .from('packing_list_items')
-      .select('id, packing_id, organization_id')
-      .eq('id', command.itemId)
-      .eq('packing_id', command.packingId)
-      .eq('organization_id', auth.organizationId)
-      .maybeSingle()
-    if (error || !item) {
-      throw { status: 404, code: 'ITEM_SCOPE_MISMATCH', message: 'Packing item not found in organization/packing' }
+  const readiness = await verifyScannerReadiness({
+    admin,
+    organizationId: auth.organizationId,
+    staffId: auth.staffId,
+    packingId: command.packingId,
+    sessionId: command.sessionId,
+    bookingNumber: command.bookingNumber,
+    reservationId: command.reservationId,
+    itemId: command.itemId ?? null,
+    wmsBaseUrl: config.wmsBaseUrl,
+    apiKey: config.apiKey,
+  })
+  if (!readiness.ok) {
+    const unavailable = readiness.code === 'WMS_NOT_CONFIGURED' || readiness.code.includes('UNAVAILABLE')
+    throw {
+      status: unavailable ? 503 : 409,
+      code: readiness.code,
+      message: readiness.message,
     }
   }
-
-  if (command.bookingNumber) {
-    if (!packing.booking_id) {
-      throw { status: 409, code: 'WRONG_BOOKING', message: 'Packing has no booking identity to verify' }
-    }
-    const { data: booking, error: bookingError } = await admin
-      .from('bookings')
-      .select('id, booking_number, organization_id')
-      .eq('id', packing.booking_id)
-      .eq('organization_id', auth.organizationId)
-      .maybeSingle()
-    if (bookingError || !booking?.id || !booking.booking_number) {
-      throw { status: 409, code: 'BOOKING_SCOPE_UNVERIFIED', message: 'Booking identity could not be verified in organization' }
-    }
-    if (String(booking.booking_number) !== String(command.bookingNumber)) {
-      throw { status: 409, code: 'WRONG_BOOKING', message: 'Booking number does not match packing' }
-    }
-  }
-
-  if (SESSION_REQUIRED.has(command.type as CommandType)) {
-    if (!command.sessionId) {
-      throw { status: 400, code: 'PACKING_SESSION_REQUIRED', message: 'Active packing session required' }
-    }
-    const { data: session, error } = await admin
-      .from('packing_work_sessions')
-      .select('id, packing_id, staff_id, organization_id, status')
-      .eq('id', command.sessionId)
-      .eq('organization_id', auth.organizationId)
-      .maybeSingle()
-    if (error || !session) throw { status: 400, code: 'PACKING_SESSION_NOT_FOUND', message: 'Packing session not found' }
-    if (session.packing_id !== command.packingId) throw { status: 409, code: 'PACKING_SESSION_WRONG_PACKING', message: 'Session belongs to another packing' }
-    if (session.staff_id !== auth.staffId) throw { status: 403, code: 'PACKING_SESSION_WRONG_STAFF', message: 'Session belongs to another user' }
-    if (session.status !== 'active') throw { status: 409, code: 'PACKING_SESSION_NOT_ACTIVE', message: 'Packing session is not active' }
-  }
-
-  return packing
+  return readiness.packing
 }
 
 const transientWmsStatus = (status: number) => status === 408 || status === 425 || status === 429 || status >= 500
@@ -155,16 +128,17 @@ Deno.serve(async (req) => {
 
     const auth = await authenticateScanner(req)
     const admin = auth.admin
-    await assertPlanningScope(admin, auth, command)
 
     const gatewayUrl = Deno.env.get('WMS_COMMAND_GATEWAY_URL')
     const apiKey = Deno.env.get('PRICELIST_API_KEY')
-    if (!gatewayUrl || !apiKey) {
+    const wmsBaseUrl = Deno.env.get('WMS_READINESS_BASE_URL')
+    if (!gatewayUrl || !apiKey || !wmsBaseUrl) {
       return json({
         status: 'unknown', operationId: command.operationId, itemId: command.itemId ?? null,
-        error: 'WMS gateway is not configured', debugCode: 'WMS_NOT_CONFIGURED',
+        error: 'WMS gateway/readiness is not configured', debugCode: 'WMS_NOT_CONFIGURED',
       }, 503)
     }
+    await assertPlanningScope(admin, auth, command, { wmsBaseUrl, apiKey })
 
     let wmsBody: any = null
     let wmsStatus = 0

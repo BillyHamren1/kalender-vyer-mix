@@ -80,6 +80,11 @@ const PACKING_MUTATING_ACTIONS = new Set<string>([
   'delete_qr_parcel',
   'assign_item_to_parcel',
   'add_unknown_product',
+  'return_scan_sku',
+  'physical_return_scan',
+  'return_toggle_item',
+  'return_decrement_item',
+  'reset_return_item',
 ])
 
 /**
