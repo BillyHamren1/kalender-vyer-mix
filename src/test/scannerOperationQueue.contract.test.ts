@@ -189,6 +189,65 @@ describe('STEG 9 – retry med samma operation_id', () => {
     await store.enqueue(op({ scan_value: 'annat' }));
     expect(await store.all()).toHaveLength(1);
   });
+
+  it('accepted med fel operation_id stannar UNKNOWN och lämnar durable raden kvar', async () => {
+    await store.enqueue(op());
+    await drainQueue(store, (async () => ({
+      status: 'accepted',
+      operationId: 'annan-operation',
+      itemId: 'item-1',
+      packedQuantity: 1,
+    })) as any);
+
+    const persisted = await store.get('op-fixed');
+    expect(persisted?.state).toBe('UNKNOWN');
+    expect(persisted?.last_error).toContain('operation_id');
+  });
+
+  it('accepted med fel item_id stannar UNKNOWN och kan inte projicera annan rad', async () => {
+    await store.enqueue(op());
+    await drainQueue(store, (async (queued: any) => ({
+      status: 'accepted',
+      operationId: queued.operation_id,
+      itemId: 'item-annan',
+      packedQuantity: 1,
+    })) as any);
+
+    const persisted = await store.get('op-fixed');
+    expect(persisted?.state).toBe('UNKNOWN');
+    expect(persisted?.last_error).toContain('item_id');
+  });
+
+  it('accepted packning utan auktoritativ packedQuantity stannar UNKNOWN', async () => {
+    await store.enqueue(op());
+    await drainQueue(store, (async (queued: any) => ({
+      status: 'accepted',
+      operationId: queued.operation_id,
+      itemId: queued.item_id,
+    })) as any);
+
+    const persisted = await store.get('op-fixed');
+    expect(persisted?.state).toBe('UNKNOWN');
+    expect(persisted?.last_error).toContain('authoritative quantity');
+  });
+
+  it('accepted retur utan auktoritativ returnedQuantity stannar UNKNOWN', async () => {
+    await store.enqueue(op({
+      command: 'RETURN_QUANTITY',
+      intended_action: 'return_quantity',
+      quantity_delta: 1,
+    }));
+    await drainQueue(store, (async (queued: any) => ({
+      status: 'accepted',
+      operationId: queued.operation_id,
+      itemId: queued.item_id,
+      packedQuantity: 1,
+    })) as any);
+
+    const persisted = await store.get('op-fixed');
+    expect(persisted?.state).toBe('UNKNOWN');
+    expect(persisted?.last_error).toContain('authoritative quantity');
+  });
 });
 
 describe('STEG 9 – ordning och dubbelkö-spärr', () => {

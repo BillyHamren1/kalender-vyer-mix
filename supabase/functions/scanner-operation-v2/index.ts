@@ -2,6 +2,13 @@
 // Scanner V2 Planning gateway: authenticated, tenant-scoped, WMS-first.
 import { authenticateStaffRequest } from '../_shared/staff-auth.ts'
 import { verifyScannerReadiness } from '../_shared/scanner-readiness.ts'
+import {
+  isSameOperationReplay,
+  mapScannerWmsStatus,
+  wmsItemIdFrom,
+  wmsOperationIdFrom,
+  wmsReservationLineIdFrom,
+} from '../_shared/scanner-wms-result.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -94,25 +101,6 @@ async function assertPlanningScope(
   return readiness.packing
 }
 
-const transientWmsStatus = (status: number) => status === 408 || status === 425 || status === 429 || status >= 500
-
-const mapWmsStatus = (httpStatus: number, body: any): string => {
-  const explicit = String(body?.status || '').toLowerCase()
-  if (['accepted', 'rejected', 'wrong_booking', 'over_capacity', 'not_found', 'duplicate', 'unknown'].includes(explicit)) {
-    return explicit
-  }
-  if (transientWmsStatus(httpStatus)) return 'unknown'
-  if (httpStatus === 200 || httpStatus === 201) return 'accepted'
-  if (httpStatus === 404) return 'not_found'
-  if (httpStatus === 409) {
-    if (body?.code === 'WRONG_BOOKING') return 'wrong_booking'
-    if (body?.code === 'OVER_CAPACITY') return 'over_capacity'
-    return 'rejected'
-  }
-  if (httpStatus === 422) return body?.code === 'OVER_CAPACITY' ? 'over_capacity' : 'rejected'
-  return 'rejected'
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return json({ status: 'rejected', error: 'Method not allowed', debugCode: 'METHOD_NOT_ALLOWED' }, 405)
@@ -185,7 +173,7 @@ Deno.serve(async (req) => {
       }, 503)
     }
 
-    const status = mapWmsStatus(wmsStatus, wmsBody)
+    const status = mapScannerWmsStatus(wmsStatus, wmsBody)
     if (status === 'unknown') {
       return json({
         status: 'unknown', operationId: command.operationId,
@@ -195,7 +183,16 @@ Deno.serve(async (req) => {
       }, 503)
     }
 
-    const replayed = Boolean(wmsBody?.replayed === true || wmsBody?.already_committed === true || wmsBody?.same_operation === true)
+    const returnedOperationId = wmsOperationIdFrom(wmsBody)
+    if (returnedOperationId && returnedOperationId !== command.operationId) {
+      return json({
+        status: 'unknown', operationId: command.operationId, itemId: command.itemId ?? null,
+        message: 'WMS response belongs to another operation; exact result could not be verified',
+        debugCode: 'WMS_OPERATION_ID_MISMATCH',
+      }, 503)
+    }
+
+    const replayed = isSameOperationReplay(wmsBody, command.operationId)
     if (status === 'duplicate' && !replayed) {
       // "Already packed" for a NEW operation is not idempotent replay. Fail closed
       // so the client never gives green feedback for an unrelated prior scan.
@@ -207,7 +204,32 @@ Deno.serve(async (req) => {
       }, 409)
     }
 
-    const itemId = wmsBody?.item_id ?? command.itemId ?? null
+    const terminalSuccess = status === 'accepted' || (status === 'duplicate' && replayed)
+    const returnedItemId = wmsItemIdFrom(wmsBody)
+    const returnedReservationLineId = wmsReservationLineIdFrom(wmsBody)
+    if (terminalSuccess && returnedOperationId !== command.operationId) {
+      return json({
+        status: 'unknown', operationId: command.operationId, itemId: command.itemId ?? null,
+        message: 'WMS success did not echo the exact operation id',
+        debugCode: 'WMS_OPERATION_ID_MISSING',
+      }, 503)
+    }
+    if (terminalSuccess && returnedItemId !== command.itemId) {
+      return json({
+        status: 'unknown', operationId: command.operationId, itemId: command.itemId ?? null,
+        message: 'WMS success did not prove the exact packing item',
+        debugCode: 'WMS_ITEM_ID_MISMATCH',
+      }, 503)
+    }
+    if (terminalSuccess && returnedReservationLineId !== command.reservationLineId) {
+      return json({
+        status: 'unknown', operationId: command.operationId, itemId: command.itemId ?? null,
+        message: 'WMS success did not prove the exact reservation line',
+        debugCode: 'WMS_RESERVATION_LINE_ID_MISMATCH',
+      }, 503)
+    }
+
+    const itemId = returnedItemId ?? command.itemId ?? null
     const packedQuantity = typeof wmsBody?.packed_quantity === 'number' ? wmsBody.packed_quantity : null
     const requiredQuantity = typeof wmsBody?.required_quantity === 'number' ? wmsBody.required_quantity : null
     const returnedQuantity = typeof wmsBody?.returned_quantity === 'number' ? wmsBody.returned_quantity : null
@@ -216,7 +238,7 @@ Deno.serve(async (req) => {
     // as green. The mutation may already be committed, so mark the transport
     // outcome UNKNOWN and retry the SAME operation_id until WMS can replay the
     // canonical result. Never invent local arithmetic as a fallback.
-    if (status === 'accepted' || status === 'duplicate') {
+    if (terminalSuccess) {
       const isReturn = command.type === 'RETURN_INSTANCE' || command.type === 'RETURN_QUANTITY'
       const missingAuthoritativeState = !itemId || (isReturn ? returnedQuantity === null : packedQuantity === null)
       if (missingAuthoritativeState) {
@@ -231,7 +253,7 @@ Deno.serve(async (req) => {
     // Projection is a cache/read model only. Scope every service-role write to
     // verified organization + packing + item. WMS result remains authoritative.
     let projectionWarning: string | null = null
-    if ((status === 'accepted' || status === 'duplicate') && itemId) {
+    if (terminalSuccess && itemId) {
       const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
       if (packedQuantity !== null) patch.quantity_packed = packedQuantity
       if (returnedQuantity !== null) patch.quantity_returned = returnedQuantity

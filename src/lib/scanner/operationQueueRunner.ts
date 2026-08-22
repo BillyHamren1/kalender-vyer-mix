@@ -38,6 +38,30 @@ const isUnknownOutcome = (err: unknown): boolean =>
 const operationsInFlight = new WeakMap<OperationQueueStore, Map<string, Promise<QueuedOperation | null>>>();
 const drainsInFlight = new WeakMap<OperationQueueStore, Promise<number>>();
 
+const terminalProofError = (
+  op: QueuedOperation,
+  result: ScannerCommandResult,
+): string | null => {
+  if (result.operationId !== op.operation_id) {
+    return 'Terminal response operation_id did not match the durable operation';
+  }
+
+  if (!isAcceptedResult(result)) return null;
+
+  if (!op.item_id || result.itemId !== op.item_id) {
+    return 'Accepted response item_id did not match the exact durable target';
+  }
+
+  const authoritativeQuantity = op.command === 'RETURN_INSTANCE' || op.command === 'RETURN_QUANTITY'
+    ? result.returnedQuantity
+    : result.packedQuantity;
+  if (typeof authoritativeQuantity !== 'number' || !Number.isFinite(authoritativeQuantity) || authoritativeQuantity < 0) {
+    return 'Accepted response lacked a valid authoritative quantity';
+  }
+
+  return null;
+};
+
 const processOperationOnce = async (
   store: OperationQueueStore,
   op: QueuedOperation,
@@ -65,6 +89,14 @@ const processOperationOnce = async (
     }
     return store.transition(op.operation_id, 'UNKNOWN', {
       last_error: String((err as any)?.message ?? err),
+    });
+  }
+
+  const proofError = terminalProofError(op, result);
+  if (proofError) {
+    return store.transition(op.operation_id, 'UNKNOWN', {
+      result,
+      last_error: proofError,
     });
   }
 

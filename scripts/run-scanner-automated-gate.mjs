@@ -34,12 +34,17 @@ const gates = [
     {
       name: 'Scanner readiness and exact reservation line (Deno)',
       command: resolve(ROOT, 'node_modules/.bin/deno'),
-      args: ['test', '--allow-env', '--allow-read', 'supabase/functions/_shared/scanner-readiness.test.ts'],
+      args: ['test', '--allow-env', '--allow-read',
+        'supabase/functions/_shared/scanner-readiness.test.ts',
+        'supabase/functions/_shared/scanner-wms-result.test.ts'],
     },
     {
       name: 'Scanner shared Edge modules (Deno check)',
       command: resolve(ROOT, 'node_modules/.bin/deno'),
-      args: ['check', 'supabase/functions/_shared/reservation-line-identity.ts', 'supabase/functions/_shared/scanner-readiness.ts'],
+      args: ['check',
+        'supabase/functions/_shared/reservation-line-identity.ts',
+        'supabase/functions/_shared/scanner-readiness.ts',
+        'supabase/functions/_shared/scanner-wms-result.ts'],
     },
     {
       name: 'TypeScript',
