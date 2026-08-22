@@ -144,15 +144,22 @@ const WarehouseOverviewNext7Days: React.FC<Props> = ({ data, selectedJobId, onSe
                       <article
                         key={row.key}
                         className={cn(
-                          "rounded-md border bg-background px-2 py-1.5 cursor-pointer transition-colors hover:border-warehouse/45 hover:bg-accent/20",
+                          "rounded-md border-l-4 border-y border-r bg-background px-2 py-1.5 cursor-pointer transition-colors hover:border-warehouse/45 hover:bg-accent/20",
                           selected ? "border-warehouse ring-1 ring-warehouse/25" : "border-border/60",
+                          row.job.direction === 'in' && !selected && "border-l-red-500 bg-red-50/40",
+                          row.job.direction === 'out' && !selected && "border-l-green-500 bg-green-50/40",
+                          row.job.direction === 'in' && selected && "border-l-red-500",
+                          row.job.direction === 'out' && selected && "border-l-green-500",
                         )}
                         onClick={() => onSelectJob?.(row.job)}
                       >
                         <div className="flex items-center gap-1.5">
                           <Clock3 className={cn("h-3 w-3 shrink-0", time === "Sätt tid" ? "text-orange-600" : "text-muted-foreground")} />
                           <span className={cn("text-[10px] font-bold tabular-nums", time === "Sätt tid" && "text-orange-700")}>{time}</span>
-                          <span className="ml-auto text-[9px] font-semibold text-muted-foreground">{workType(row.job)}</span>
+                          <span className={cn(
+                            "ml-auto text-[9px] font-semibold",
+                            row.job.direction === 'in' ? "text-red-700" : row.job.direction === 'out' ? "text-green-700" : "text-muted-foreground"
+                          )}>{workType(row.job)}</span>
                         </div>
                         <div className="mt-1 text-[11px] font-bold truncate">{title}</div>
                         <div className="text-[10px] text-muted-foreground truncate">{secondary || row.job.client || "—"}</div>

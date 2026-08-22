@@ -28,25 +28,25 @@ const getOutBadge = (status: string) => {
   switch (status) {
     case 'in_progress':
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent text-accent-foreground border border-primary/20">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-600 text-white border border-green-700">
           Pågår
         </span>
       );
     case 'packed':
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/15 text-primary border border-primary/30">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-900 border border-green-300">
           Packad ✓
         </span>
       );
     case 'delivered':
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-800 border border-green-200">
           Levererad
         </span>
       );
     default:
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-800 border border-green-200">
           Planering
         </span>
       );
@@ -56,21 +56,21 @@ const getOutBadge = (status: string) => {
 const getInBadge = (status: string) => {
   if (status === 'returned') {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-800 border border-emerald-300">
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-600 text-white border border-red-700">
         Retur klar ✓
       </span>
     );
   }
   if (status === 'returning') {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-orange-100 text-orange-800 border border-orange-300 animate-pulse">
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-900 border border-red-300 animate-pulse">
         Retur pågår
       </span>
     );
   }
   // delivered → return not started
   return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-orange-50 text-orange-700 border border-orange-200">
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-800 border border-red-200">
       Att returnera
     </span>
   );
@@ -100,10 +100,10 @@ export const PackingCard: React.FC<Props> = ({ packing, kind = 'out', onSelect }
 
   return (
     <Card
-      className={`p-3 transition-all border-l-4 ${
+      className={`p-3 transition-all border-2 ${
         isReturn
-          ? 'border-l-red-400 bg-red-50/60'
-          : 'border-l-green-400 bg-green-50/60'
+          ? 'border-red-500 bg-red-100'
+          : 'border-green-500 bg-green-100'
       }`}
     >
       <div className="flex items-start justify-between gap-2 mb-2.5">
@@ -111,7 +111,7 @@ export const PackingCard: React.FC<Props> = ({ packing, kind = 'out', onSelect }
           <div className="flex items-center gap-2 mb-0.5">
             <span
               className={`text-[9px] font-bold uppercase tracking-wider ${
-                isReturn ? 'text-red-700' : 'text-green-700'
+                isReturn ? 'text-red-900' : 'text-green-900'
               }`}
             >
               {flowLabel}
@@ -125,13 +125,15 @@ export const PackingCard: React.FC<Props> = ({ packing, kind = 'out', onSelect }
           <div className="flex items-center gap-2 mb-1">
             <Icon
               className={`h-3.5 w-3.5 flex-shrink-0 ${
-                isReturn ? 'text-red-600' : 'text-green-700'
+                isReturn ? 'text-red-800' : 'text-green-800'
               }`}
             />
-            <span className="font-medium text-sm truncate">{packing.name}</span>
+            <span className={`font-medium text-sm truncate ${isReturn ? 'text-red-950' : 'text-green-950'}`}>
+              {packing.name}
+            </span>
           </div>
           {packing.booking?.client && (
-            <p className="text-xs text-muted-foreground truncate pl-5">
+            <p className={`text-xs truncate pl-5 ${isReturn ? 'text-red-900/70' : 'text-green-900/70'}`}>
               {packing.booking.client}
             </p>
           )}
@@ -139,7 +141,7 @@ export const PackingCard: React.FC<Props> = ({ packing, kind = 'out', onSelect }
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
           {isReturn ? getInBadge(packing.status) : getOutBadge(packing.status)}
           {displayDate && (
-            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+            <span className={`text-[10px] flex items-center gap-1 ${isReturn ? 'text-red-900/70' : 'text-green-900/70'}`}>
               <Calendar className="h-3 w-3" />
               {displayDate}
             </span>
@@ -149,8 +151,11 @@ export const PackingCard: React.FC<Props> = ({ packing, kind = 'out', onSelect }
       <div className="flex gap-2">
         <Button
           size="sm"
-          className="flex-1 gap-1.5 h-9"
-          variant={isReturn ? 'secondary' : 'default'}
+          className={`flex-1 gap-1.5 h-9 ${
+            isReturn
+              ? 'bg-red-700 hover:bg-red-800 text-white'
+              : 'bg-green-700 hover:bg-green-800 text-white'
+          }`}
           onClick={handleScan}
         >
           {isReturn ? <Undo2 className="h-3.5 w-3.5" /> : <Camera className="h-3.5 w-3.5" />}
@@ -159,7 +164,11 @@ export const PackingCard: React.FC<Props> = ({ packing, kind = 'out', onSelect }
         <Button
           size="sm"
           variant="outline"
-          className="flex-1 gap-1.5 h-9"
+          className={`flex-1 gap-1.5 h-9 ${
+            isReturn
+              ? 'border-red-400 bg-white/80 text-red-900 hover:bg-red-50'
+              : 'border-green-400 bg-white/80 text-green-900 hover:bg-green-50'
+          }`}
           onClick={handleCheck}
         >
           <ClipboardCheck className="h-3.5 w-3.5" />

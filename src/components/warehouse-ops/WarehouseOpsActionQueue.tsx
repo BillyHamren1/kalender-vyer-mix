@@ -146,13 +146,19 @@ const WarehouseOpsActionQueue: React.FC<Props> = ({ jobs, attention }) => {
           const row = item.job;
           const title = row.bookingNumber || row.name;
           const isUnstaffed = item.kind === "unstaffed";
+          const directionColor = row.direction === "in" ? "red" : row.direction === "out" ? "green" : null;
           return (
-            <div key={item.id} className="min-h-[58px] px-3 py-2 flex items-center gap-2.5 hover:bg-accent/25">
+            <div key={item.id} className={cn(
+              "min-h-[58px] px-3 py-2 flex items-center gap-2.5 hover:bg-accent/25 border-l-4",
+              directionColor === "red" && "border-l-red-500 bg-red-50/30",
+              directionColor === "green" && "border-l-green-500 bg-green-50/30",
+              !directionColor && "border-l-transparent"
+            )}>
               {isUnstaffed
-                ? <UserRoundPlus className="h-4 w-4 shrink-0 text-amber-600" />
-                : <CalendarClock className="h-4 w-4 shrink-0 text-slate-500" />}
+                ? <UserRoundPlus className={cn("h-4 w-4 shrink-0", directionColor === "red" ? "text-red-600" : directionColor === "green" ? "text-green-600" : "text-amber-600")} />
+                : <CalendarClock className={cn("h-4 w-4 shrink-0", directionColor === "red" ? "text-red-600" : directionColor === "green" ? "text-green-600" : "text-slate-500")} />}
               <div className="min-w-0 flex-1">
-                <div className="text-[11px] font-bold text-muted-foreground">{isUnstaffed ? "OBEMANNAT" : "TID SAKNAS"}</div>
+                <div className={cn("text-[11px] font-bold", directionColor === "red" ? "text-red-800" : directionColor === "green" ? "text-green-800" : "text-muted-foreground")}>{isUnstaffed ? "OBEMANNAT" : "TID SAKNAS"}</div>
                 <div className="text-xs font-semibold truncate">{row.direction === "in" ? "IN · " : row.direction === "out" ? "UT · " : ""}{title}</div>
                 <div className="text-[11px] text-muted-foreground truncate">{row.client || row.name}</div>
               </div>
