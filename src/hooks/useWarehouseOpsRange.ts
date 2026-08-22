@@ -554,7 +554,7 @@ export function computeAttention(
       level: isOverdue ? "critical" : "warning",
       title: `${j.bookingNumber || j.name} — UT ${isOverdue ? "försenad" : "idag"}`,
       detail: `${j.percent}% packat${
-        minsSince < Infinity ? ` · senast scan ${minutesAgo(minsSince)}` : " · ingen har börjat"
+        minsSince < Infinity ? ` · senast scan ${minutesAgo(minsSince)}` : " · ingen har scannat än"
       }`,
       jobId: j.packingId,
     });
