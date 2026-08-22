@@ -1,5 +1,59 @@
 # Scanner hardening – batchstatus
 
+## 2026-08-22 – Dynamiska driftfall och sammanhållen automatiserad gate
+
+Bas: `609ecdb` (`main` efter konfliktkontroll)
+
+Branch/PR: `scanner-hardening/ci-reproducibility` / draft-PR #7
+
+Produktionsaktivering: **nej** – inget är mergat, driftsatt, signerat eller aktiverat och V2 är fortsatt OFF.
+
+### Klart
+
+- Serialiserade samtidig behandling av samma durable operation i en appinstans. Appstart, online-event, recovery-timer och foreground-scan delar nu samma pågående promise och kan inte skicka samma `operation_id` parallellt.
+- Behöll parallell behandling mellan oberoende scanner-lanes så att skyddet inte skapar global köblockering.
+- Lade dynamiska tester för samtidig drain, foreground/recovery-race, oberoende lanes och två enheter mot exakt samma reservationsrad.
+- Tvåenhetstestet verifierar att varje enhet bevarar sitt eget `operation_id`, `device_id` och `reservation_line_id`, medan en simulerad atomisk WMS-gräns accepterar exakt en operation och avvisar överkapacitet.
+- Gjorde den körbara E2E-drivern fail-closed för `itemId`, `reservationId` och `reservationLineId`. Saknad exakt identitet stoppas före enqueue och alla gatewaypayloads bevarar reservationsraden.
+- Uppdaterade E2E-fixturkontraktet för kvantitet, serienummer, retur, felaktig retur, tenant B och överpackning. Saknade fält blir `NOT_EXECUTED`, aldrig falskt PASS.
+- Ersatte det tidigare smala `test:scanner`-kommandot med automatisk upptäckt av hela Scanner-sviten.
+- Lade `test:scanner:gate`, en sammanhållen matris för Scanner, Deno, TypeScript, Time-frontend, timeline, båda webbbyggena, bundleaudits och Time-nativekontrakt.
+- Gaten skiljer automatiserbart PASS från extern releaseberedskap. WMS/Supabase-E2E, API3/Gradle, fysisk Zebra, signering och full extern Edge-graf rapporteras uttryckligen som BLOCKED.
+- Gjorde Time-gaten körbar i frontend-only-läge; backend markeras då uttryckligen `NOT EXECUTED`.
+
+### Verifiering
+
+| Gate | Resultat |
+|---|---|
+| `git diff --check` | PASS |
+| Scanner V2/kö/readiness/release/native/bundle/E2E | PASS – 219/219 tester |
+| Reservationsrad + readiness Deno | PASS – 7/7 tester |
+| Delad Scanner Deno-check | PASS |
+| TypeScript `tsc --noEmit` | PASS |
+| Time frontend | PASS – 207 passerade, 3 uttryckligt hoppade; backend NOT EXECUTED |
+| Deno pure timeline | PASS – 6/6 tester |
+| Scanner build + bundleaudit | PASS – 392 outputmoduler, 13 chunks, 909 281 JS-byte |
+| Time build + bundleaudit | PASS – 513 outputmoduler, 15 chunks, 2 616 171 JS-byte |
+| Time nativekontrakt | PASS |
+| Sammanhållen automatiserad scanner-gate | PASS – 11/11 steg |
+| Total scanner-release | BLOCKED – externa gates återstår |
+
+### Blockerare och kvarvarande risk
+
+- Godkänd LOCAL/TEST WMS- och Supabase-miljö saknas för den verkliga E2E-/idempotensgaten. Ingen produktionsmiljö får användas som ersättning.
+- Scanner Gradlekompilering kräver licensierad checksummebunden Zebra API3-AAR.
+- Fysisk Zebra, DataWedge-broadcast, RFID-trigger och API3 är inte verifierade.
+- Separata releasesigneringshemligheter och signerad APK/AAB är inte verifierade.
+- Full Deno-graf för Scanner Edge Function kräver den externa Supabase-import som inte är tillgänglig i den låsta körmiljön.
+- V2 är fortsatt OFF och får inte aktiveras före externa och fysiska gates.
+
+### Exakt nästa batch
+
+1. Granska hela scannerområdet bakåt mot fail-closed-, WMS-authority-, exakt-rad-, durable-kö-, native- och bundlekontrakten.
+2. Reparera varje verifierbar lucka och kör hela `npm run test:scanner:gate` efter ändringarna.
+3. När den bakåtriktade granskningen är grön, förbered en ren extraktionsbranch/repo-PR för Scanner.
+4. Aktivera inte V2, skapa ingen signerad release och arkivera inget innan uttryckligt beslut och fysisk Zebra-verifiering.
+
 ## 2026-08-22 – Isolerade Scanner- och Time-bundlar
 
 Bas: `609ecdb` (`main` efter konfliktkontroll)
