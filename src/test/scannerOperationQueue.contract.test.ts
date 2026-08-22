@@ -225,11 +225,11 @@ describe('STEG 9 – ordning och dubbelkö-spärr', () => {
     expect(order).toEqual(['a', 'b']);
   });
 
-  it('legacy ScanQueue används endast när V2-flaggan är OFF', () => {
-    expect(shouldUseLegacyScanQueue()).toBe(true); // flaggan är OFF i detta steg
+  it('legacy ScanQueue är permanent avstängd även när V2-flaggan är OFF', () => {
+    expect(shouldUseLegacyScanQueue()).toBe(false);
     const src = readFileSync(resolve(process.cwd(), 'src/services/scanner/ScannerService.ts'), 'utf8');
-    expect(src).toContain('shouldUseLegacyScanQueue()');
-    expect(/if \(shouldUseLegacyScanQueue\(\)\) \{\s*\n\s*enqueueScan/.test(src)).toBe(true);
+    expect(src).not.toContain('shouldUseLegacyScanQueue()');
+    expect(src).not.toContain("enqueueScan(scan, 'received')");
   });
 
   it('V2-kön använder IndexedDB, inte localStorage eller runtime RAM-fallback', () => {
