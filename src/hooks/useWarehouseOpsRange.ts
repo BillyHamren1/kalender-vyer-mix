@@ -26,8 +26,12 @@ export type OpsMode = "day" | "week" | "next7" | "next30";
 export type OpsDirection = "out" | "in" | "internal";
 
 export interface OpsJob {
+  /** Unik rad-id: `${packingId}` för UT/intern, `${packingId}::in` för retur. */
   id: string;
+  /** Alltid det riktiga packing_projects.id (för navigering/bemanning). */
+  packingId: string;
   name: string;
+
   status: string;
   client: string | null;
   bookingId: string | null;
