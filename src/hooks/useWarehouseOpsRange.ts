@@ -381,6 +381,7 @@ export function useWarehouseOpsRange(anchorDate: Date, mode: OpsMode) {
           percent: progress.percentage,
           workers,
           lastActivityAt,
+          lastScanAt: lastWorkerActivity,
           updatedAt: p.updated_at,
         };
 
