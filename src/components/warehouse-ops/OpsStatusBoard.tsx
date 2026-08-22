@@ -191,8 +191,9 @@ const JobCard = ({ job, onClick }: { job: OpsJob; onClick: () => void }) => {
     job.anchorDate < format(new Date(), "yyyy-MM-dd") &&
     job.percent < 100;
 
-  const lastActMins = job.lastActivityAt
-    ? differenceInMinutes(new Date(), parseISO(job.lastActivityAt))
+  // Klockan bredvid scannarna ska visa senaste VERKLIGA scan, inte updated_at.
+  const lastActMins = job.lastScanAt
+    ? differenceInMinutes(new Date(), parseISO(job.lastScanAt))
     : null;
 
   const dirIcon = job.direction === "out" ? ArrowUpRight : job.direction === "in" ? ArrowDownRight : Wrench;
