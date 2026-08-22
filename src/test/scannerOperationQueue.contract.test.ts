@@ -225,6 +225,143 @@ describe('STEG 9 – ordning och dubbelkö-spärr', () => {
     expect(order).toEqual(['a', 'b']);
   });
 
+  it('samtidiga drain-triggers skickar samma operation exakt en gång', async () => {
+    await store.enqueue(op());
+    let release!: () => void;
+    const barrier = new Promise<void>((resolve) => { release = resolve; });
+    const seenIds: string[] = [];
+    const send = async (queued: any): Promise<ScannerCommandResult> => {
+      seenIds.push(queued.operation_id);
+      await barrier;
+      return {
+        status: 'accepted',
+        operationId: queued.operation_id,
+        itemId: 'item-1',
+        packedQuantity: 1,
+        requiredQuantity: 10,
+      };
+    };
+
+    const appStart = drainQueue(store, send);
+    const onlineEvent = drainQueue(store, send);
+    const recoveryTimer = drainQueue(store, send);
+    await Promise.resolve();
+    release();
+
+    expect(await Promise.all([appStart, onlineEvent, recoveryTimer])).toEqual([1, 1, 1]);
+    expect(seenIds).toEqual(['op-fixed']);
+    expect(await store.get('op-fixed')).toBeNull();
+  });
+
+  it('foreground-process och recovery-drain delar samma pågående sändning', async () => {
+    await store.enqueue(op());
+    const persisted = (await store.get('op-fixed'))!;
+    let release!: () => void;
+    const barrier = new Promise<void>((resolve) => { release = resolve; });
+    let calls = 0;
+    const send = async (queued: any): Promise<ScannerCommandResult> => {
+      calls += 1;
+      await barrier;
+      return {
+        status: 'accepted',
+        operationId: queued.operation_id,
+        itemId: 'item-1',
+        packedQuantity: 1,
+        requiredQuantity: 10,
+      };
+    };
+
+    const foreground = processOperation(store, persisted, send);
+    const recovery = drainQueue(store, send);
+    await Promise.resolve();
+    release();
+    await Promise.all([foreground, recovery]);
+
+    expect(calls).toBe(1);
+    expect(await store.get('op-fixed')).toBeNull();
+  });
+
+  it('olika lanes kan behandlas parallellt utan att dela operation', async () => {
+    await store.enqueue(op({ operation_id: 'lane-a', packing_id: 'packing-a', queue_sequence: 1 }));
+    await store.enqueue(op({ operation_id: 'lane-b', packing_id: 'packing-b', queue_sequence: 2 }));
+    const started: string[] = [];
+    let release!: () => void;
+    const barrier = new Promise<void>((resolve) => { release = resolve; });
+    const send = async (queued: any): Promise<ScannerCommandResult> => {
+      started.push(queued.operation_id);
+      if (started.length === 2) release();
+      await barrier;
+      return {
+        status: 'accepted',
+        operationId: queued.operation_id,
+        itemId: queued.item_id,
+        packedQuantity: 1,
+        requiredQuantity: 10,
+      };
+    };
+
+    await drainQueue(store, send);
+    expect(new Set(started)).toEqual(new Set(['lane-a', 'lane-b']));
+  });
+
+  it('två enheter på exakt samma reservationsrad får två id:n men bara auktoritativ kapacitet', async () => {
+    const deviceA = new OperationQueueStore(createMemoryAdapter());
+    const deviceB = new OperationQueueStore(createMemoryAdapter());
+    const exactLine = 'reservation-line-42';
+    await deviceA.enqueue(op({
+      operation_id: 'device-a-op',
+      device_id: 'device-a',
+      reservation_id: 'reservation-1',
+      reservation_line_id: exactLine,
+    }));
+    await deviceB.enqueue(op({
+      operation_id: 'device-b-op',
+      device_id: 'device-b',
+      reservation_id: 'reservation-1',
+      reservation_line_id: exactLine,
+    }));
+
+    let authoritativeQuantity = 0;
+    const seen: Array<{ operationId: string; deviceId: string | null; lineId: string | null }> = [];
+    const results: ScannerCommandResult[] = [];
+    const atomicWms = async (queued: any): Promise<ScannerCommandResult> => {
+      seen.push({
+        operationId: queued.operation_id,
+        deviceId: queued.device_id,
+        lineId: queued.reservation_line_id,
+      });
+      if (authoritativeQuantity >= 1) {
+        return {
+          status: 'over_capacity',
+          operationId: queued.operation_id,
+          itemId: queued.item_id,
+          packedQuantity: authoritativeQuantity,
+          requiredQuantity: 1,
+        };
+      }
+      authoritativeQuantity += 1;
+      return {
+        status: 'accepted',
+        operationId: queued.operation_id,
+        itemId: queued.item_id,
+        packedQuantity: authoritativeQuantity,
+        requiredQuantity: 1,
+      };
+    };
+
+    await Promise.all([
+      drainQueue(deviceA, atomicWms, { onResult: (_queued, result) => results.push(result) }),
+      drainQueue(deviceB, atomicWms, { onResult: (_queued, result) => results.push(result) }),
+    ]);
+
+    expect(authoritativeQuantity).toBe(1);
+    expect(results.filter((result) => result.status === 'accepted')).toHaveLength(1);
+    expect(results.filter((result) => result.status === 'over_capacity')).toHaveLength(1);
+    expect(new Set(seen.map((entry) => entry.operationId))).toEqual(new Set(['device-a-op', 'device-b-op']));
+    expect(new Set(seen.map((entry) => entry.deviceId))).toEqual(new Set(['device-a', 'device-b']));
+    expect(seen.every((entry) => entry.lineId === exactLine)).toBe(true);
+  });
+
   it('legacy ScanQueue är permanent avstängd även när V2-flaggan är OFF', () => {
     expect(shouldUseLegacyScanQueue()).toBe(false);
     const src = readFileSync(resolve(process.cwd(), 'src/services/scanner/ScannerService.ts'), 'utf8');
