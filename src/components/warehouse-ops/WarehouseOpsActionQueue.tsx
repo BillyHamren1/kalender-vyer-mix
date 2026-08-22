@@ -153,12 +153,12 @@ const WarehouseOpsActionQueue: React.FC<Props> = ({ jobs, attention }) => {
                 : <CalendarClock className="h-4 w-4 shrink-0 text-slate-500" />}
               <div className="min-w-0 flex-1">
                 <div className="text-[11px] font-bold text-muted-foreground">{isUnstaffed ? "OBEMANNAT" : "TID SAKNAS"}</div>
-                <div className="text-xs font-semibold truncate">{title}</div>
+                <div className="text-xs font-semibold truncate">{row.direction === "in" ? "IN · " : row.direction === "out" ? "UT · " : ""}{title}</div>
                 <div className="text-[11px] text-muted-foreground truncate">{row.client || row.name}</div>
               </div>
               {isUnstaffed ? (
                 <QuickAssignStaffPopover
-                  packingId={row.id}
+                  packingId={row.packingId}
                   packingName={title}
                   assignedNames={row.assignedStaff.map((a) => a.name).filter(Boolean)}
                   label="Bemanna"
