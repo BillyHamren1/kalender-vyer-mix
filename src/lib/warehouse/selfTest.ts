@@ -178,13 +178,13 @@ const checks: Check[] = [
     run: async () => {
       const { data, error } = await supabase
         .from('warehouse_project_inbox')
-        .select('id, booking_id, status')
+        .select('id, source_booking_id, status')
         .limit(500);
       if (error) return bad(`Läsfel: ${error.message}`);
       const rows = data || [];
       const byBooking = new Map<string, number>();
       for (const r of rows) {
-        const k = String(r.booking_id);
+        const k = String(r.source_booking_id ?? r.id);
         byBooking.set(k, (byBooking.get(k) ?? 0) + 1);
       }
       const dupes = [...byBooking.values()].filter((v) => v > 1).length;
@@ -208,9 +208,9 @@ const checks: Check[] = [
     label: 'Produktivitetsmodell (read-only)',
     run: async () => {
       const model = buildWarehouseProductivityReadModel([
-        { activityType: 'packing', minutes: 60, complexity: 10, date: today(), staffId: 's1' },
-        { activityType: 'packing', minutes: 70, complexity: 10, date: today(), staffId: 's1' },
-        { activityType: 'packing', minutes: 65, complexity: 10, date: today(), staffId: 's1' },
+        { id: 'o1', staffId: 's1', activityType: 'packing', date: today(), plannedMinutes: 60, actualMinutes: 60, complexity: 10 },
+        { id: 'o2', staffId: 's1', activityType: 'packing', date: today(), plannedMinutes: 60, actualMinutes: 70, complexity: 10 },
+        { id: 'o3', staffId: 's1', activityType: 'packing', date: today(), plannedMinutes: 60, actualMinutes: 65, complexity: 10 },
       ] as Parameters<typeof buildWarehouseProductivityReadModel>[0]);
       return model ? ok('Modellen byggs utan personalscoring') : bad('Modellen kunde inte byggas');
     },
