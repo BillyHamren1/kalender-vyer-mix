@@ -1,5 +1,62 @@
 # Scanner hardening – batchstatus
 
+## 2026-08-22 – Bakåtriktad granskning och terminalt WMS-bevis
+
+Bas: `609ecdb` (`main` efter konfliktkontroll)
+
+Branch/PR: `scanner-hardening/ci-reproducibility` / draft-PR #7
+
+Produktionsaktivering: **nej** – inget är mergat, driftsatt, signerat eller aktiverat och V2 är fortsatt OFF.
+
+### Klart
+
+- Granskade Scanner bakåt över hela mutationskedjan: durable kö, V2-gateway, exakt reservationsrad, WMS-svar, native-bryggor, Android-säkerhet, auth, bundle och releasegate.
+- Kräver nu att varje terminalt svar till kön matchar exakt `operation_id`. Godkända svar måste dessutom matcha exakt `item_id` och innehålla en ändlig, icke-negativ auktoritativ packad/returnerad kvantitet. Avvikelse blir `UNKNOWN`; operationen tas inte bort.
+- Flyttade WMS-svarstolkningen till en ren Deno-modul. Transport-/serverfel vinner över motsägelsefull body, `success:false` kan aldrig bli godkänt och HTTP 202 räknas inte som synkron commit.
+- Kräver explicit replaymarkör och exakt ekat `operation_id` för duplicate-replay.
+- Kräver att varje godkänd WMS-operation ekar exakt `operation_id`, `item_id` och `reservation_line_id`. Saknat eller fel mål blir `UNKNOWN` och återförsöks med samma id.
+- Tog bort native diagnosmottagaren som dubblerade DataWedge och loggade hela scanpayloaden. Barcode/EPC och råa extras loggas inte längre.
+- Begränsade WebView-behörighet till kamera från Capacitors lokala `https://localhost`; övriga ursprung/resurser nekas.
+- Stängde Android-backup, cleartext/mixed content och användarinstallerade CA som trust anchor.
+- Dokumenterade obligatorisk DataWedge Component Information med package + signaturkontroll samt kontrollerade Intent API-kategorier för hanterade enheter.
+- Gav Scanner en egen auth-provider utan Time-kö, geofence, bakgrundsplats, push eller impersonering.
+- Satte Capacitor `includePlugins: []` för Zebra-projektet. Endast de manuellt registrerade DataWedge-/RFID-pluginerna följer med; genererade Gradle-filer innehåller inga orelaterade mobilpluginer.
+- Utökade bundleauditen så bakgrundsplats, Time-auth, timerkö och notifications stoppar Scanner-bygget om de återkommer.
+
+### Verifiering
+
+| Gate | Resultat |
+|---|---|
+| `git diff --check` | PASS |
+| Scanner V2/kö/readiness/release/native/bundle/E2E | PASS – 227/227 tester |
+| Readiness + WMS-resultat Deno | PASS – 14/14 tester |
+| Delad Scanner Deno-check | PASS |
+| TypeScript `tsc --noEmit` | PASS |
+| Time frontend | PASS – 207 passerade, 3 uttryckligt hoppade; backend NOT EXECUTED |
+| Deno pure timeline | PASS – 6/6 tester |
+| Scanner build + bundleaudit | PASS – 381 outputmoduler, 10 chunks, 890 648 JS-byte |
+| Time build + bundleaudit | PASS – 513 outputmoduler, 15 chunks, 2 616 171 JS-byte |
+| Scanner Capacitor sync | PASS – inga npm-nativepluginer, custom DataWedge/RFID ligger kvar |
+| Time nativekontrakt | PASS |
+| Sammanhållen automatiserad scanner-gate | PASS – 11/11 steg |
+| Total scanner-release | BLOCKED – externa gates återstår |
+
+### Blockerare och kvarvarande risk
+
+- WMS-kontraktet måste i godkänd LOCAL/TEST-miljö bevisa att framgång ekar exakt operation, artikel och reservationsrad samt att retry ger samma auktoritativa resultat. Ingen produktionsmiljö används som ersättning.
+- Scanner Gradlekompilering kräver licensierad checksummebunden Zebra API3-AAR.
+- DataWedge Component Information/signatur, Intent API-kontroll, fysisk barcode, RFID-trigger och API3 måste verifieras på signerad Zebra-build.
+- Separata releasesigneringshemligheter och signerad APK/AAB är inte verifierade.
+- Full Deno-graf för Scanner Edge Function kräver den externa Supabase-import som inte är tillgänglig i den låsta körmiljön.
+- V2 är fortsatt OFF och får inte aktiveras före externa och fysiska gates.
+
+### Exakt nästa batch
+
+1. Förbered en ren extraktion av den godkända Zebra-scannern till Scanner-repot med egen package-, CI-, native- och Supabase-kontraktgräns.
+2. Bevara draftläge och gör ingen produktionsaktivering, signering eller WMS-/databasmigration.
+3. Kör den extraherade kodbasens reproducerbara web-/Deno-/bundle-/native-kontrakt och dokumentera exakt vad som fortsatt delas via backendkontrakt.
+4. Vänta med V2-aktivering och legacyarkivering tills LOCAL/TEST-WMS och fysisk signerad Zebra är gröna och beslutet är uttryckligt.
+
 ## 2026-08-22 – Dynamiska driftfall och sammanhållen automatiserad gate
 
 Bas: `609ecdb` (`main` efter konfliktkontroll)
