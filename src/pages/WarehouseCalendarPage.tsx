@@ -519,7 +519,7 @@ const WarehouseCalendarPage = () => {
         <div className="mx-2 mb-2 px-3 py-2 rounded-xl border border-border/60 bg-card/80 shrink-0">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="text-sm font-semibold text-foreground">Lagerplanering</span>
-            <span className="text-xs text-muted-foreground">Planera alla lagerjobb och bemanna dem här.</span>
+            <span className="text-xs text-muted-foreground">Planera alla lagerjobb och bemanna dem här. Arbetarna ser sin planering i Mitt lager.</span>
             <div className="ml-auto flex items-center gap-1 rounded-md border border-border/60 bg-background p-0.5">
               {(['calendar', 'personnel'] as WarehousePlanningMode[]).map((mode) => (
                 <button
