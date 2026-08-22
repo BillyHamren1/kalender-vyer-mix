@@ -28,25 +28,25 @@ const getOutBadge = (status: string) => {
   switch (status) {
     case 'in_progress':
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent text-accent-foreground border border-primary/20">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-600 text-white border border-green-700">
           Pågår
         </span>
       );
     case 'packed':
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/15 text-primary border border-primary/30">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-900 border border-green-300">
           Packad ✓
         </span>
       );
     case 'delivered':
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-800 border border-green-200">
           Levererad
         </span>
       );
     default:
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-800 border border-green-200">
           Planering
         </span>
       );
@@ -56,21 +56,21 @@ const getOutBadge = (status: string) => {
 const getInBadge = (status: string) => {
   if (status === 'returned') {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-800 border border-emerald-300">
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-600 text-white border border-red-700">
         Retur klar ✓
       </span>
     );
   }
   if (status === 'returning') {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-orange-100 text-orange-800 border border-orange-300 animate-pulse">
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-900 border border-red-300 animate-pulse">
         Retur pågår
       </span>
     );
   }
   // delivered → return not started
   return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-orange-50 text-orange-700 border border-orange-200">
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-800 border border-red-200">
       Att returnera
     </span>
   );
