@@ -304,9 +304,19 @@ const WarehouseCalendarPage = () => {
   );
   const { data: packingStats } = useWarehousePackingStats(cardBookingIds);
   const { data: bookingTitles } = useWarehouseBookingTitles(cardBookingIds);
+  const cardEventIds = useMemo(
+    () =>
+      filteredWarehouseEvents
+        .map(e => (e.extendedProps as any)?.warehouseEventId ?? e.id)
+        .filter(Boolean) as string[],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filteredWarehouseEvents.map(e => e.id).join(',')],
+  );
+  const { data: eventCrew } = useWarehouseEventCrew(cardEventIds);
   const enrichedWarehouseEvents: CalendarEvent[] = distributedEvents.map(event => {
     const stat = event.bookingId ? packingStats?.get(event.bookingId) : undefined;
     const rubrik = event.bookingId ? bookingTitles?.get(event.bookingId) : undefined;
+    const crew = eventCrew?.get(((event.extendedProps as any)?.warehouseEventId ?? event.id) as string) ?? [];
     return {
       ...event,
       extendedProps: {
@@ -315,6 +325,8 @@ const WarehouseCalendarPage = () => {
         bookingTitle: rubrik ?? (event.extendedProps as any)?.bookingTitle,
         timeLabel: `${format(new Date(event.start), 'HH:mm')}–${format(new Date(event.end), 'HH:mm')}`,
         packedLabel: stat && stat.total > 0 ? `${stat.packed} / ${stat.total} klara` : undefined,
+        crewLabel: crew.length > 0 ? (crew.length === 1 ? crew[0] : `${crew[0]} +${crew.length - 1}`) : undefined,
+        crewFullLabel: crew.length > 0 ? crew.join(', ') : undefined,
       },
     };
   });
