@@ -577,8 +577,8 @@ export function computeAttention(
   for (const j of jobs) {
     if (j.direction === "in" && j.status === "in_progress") continue;
     if (j.status !== "in_progress" && j.status !== "returning") continue;
-    if (!j.lastActivityAt) continue;
-    const mins = differenceInMinutes(now, parseISO(j.lastActivityAt));
+    if (!j.lastScanAt) continue;
+    const mins = differenceInMinutes(now, parseISO(j.lastScanAt));
     if (mins >= 120 && mins < 60 * 24) {
       out.push({
         id: `idle-${j.id}`,
