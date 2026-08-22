@@ -28,7 +28,8 @@ describe('dense warehouse manager OPS board', () => {
   });
 
   it('renders the week as dense operational rows with explicit work type', () => {
-    expect(week).toContain('grid-cols-[82px_84px_100px');
+    // Dense 7-day column board (tid, typ, bokning, kund, bemanning, status per kort).
+    expect(week).toContain('grid grid-cols-7');
     expect(week).toContain("return 'Packning'");
     expect(week).toContain("return 'Retur'");
     expect(week).toContain("return 'Lager'");
