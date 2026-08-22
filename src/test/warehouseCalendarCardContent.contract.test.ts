@@ -33,6 +33,15 @@ describe('Lagerkalenderns kortinnehåll (presentation only)', () => {
     expect(page).not.toContain('shortfallCount');
   });
 
+  it('bemanning kommer från exakt aktiv lagerhändelse', () => {
+    const meta = fs.readFileSync('src/hooks/useWarehouseCardMeta.ts', 'utf8');
+    expect(page).toContain('eventCrew?.get(warehouseEventKeyOf(event))');
+    expect(meta).toContain("from('warehouse_assignments')");
+    expect(meta).toContain(".in('warehouse_event_id', ids)");
+    expect(meta).toContain(".neq('status', 'cancelled')");
+    expect(meta).not.toContain("from('staff_assignments')");
+  });
+
   it('metadata-hämtningen är read-only', () => {
     const meta = fs.readFileSync('src/hooks/useWarehouseCardMeta.ts', 'utf8');
     expect(meta).not.toMatch(/\.(insert|update|upsert|delete)\(/);

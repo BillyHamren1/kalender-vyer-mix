@@ -14,7 +14,7 @@ import WarehousePersonnelView from '@/components/warehouse/WarehousePersonnelVie
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import CustomCalendar from '@/components/Calendar/CustomCalendar';
-import SimpleStaffCurtain from '@/components/Calendar/SimpleStaffCurtain';
+import SimpleStaffCurtain, { type StaffWithStatus } from '@/components/Calendar/SimpleStaffCurtain';
 import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
 import MobileCalendarView from '@/components/mobile/MobileCalendarView';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
@@ -111,6 +111,12 @@ const mapWarehouseEventsToCalendarEvents = (warehouseEvents: WarehouseEvent[]): 
   }));
 };
 
+const eventPropsOf = (event: CalendarEvent): Record<string, unknown> =>
+  (event.extendedProps ?? {}) as Record<string, unknown>;
+
+const warehouseEventKeyOf = (event: CalendarEvent): string =>
+  (eventPropsOf(event).warehouseEventId as string | undefined) ?? event.id;
+
 // Wrapper component to handle async loading of staff with status
 const SimpleStaffCurtainWrapper: React.FC<{
   currentDate: Date;
@@ -121,7 +127,7 @@ const SimpleStaffCurtainWrapper: React.FC<{
   staffOps: ReturnType<typeof useUnifiedStaffOperations>;
   position: { top: number; left: number };
 }> = (props) => {
-  const [staffList, setStaffList] = useState<any[]>([]);
+  const [staffList, setStaffList] = useState<StaffWithStatus[]>([]);
   const [loading, setLoading] = useState(true);
   
   useEffect(() => {
@@ -283,57 +289,71 @@ const WarehouseCalendarPage = () => {
   };
   
   // Combine standard calendar events with warehouse events and apply filters
-  const mappedWarehouseEvents = mapWarehouseEventsToCalendarEvents(warehouseEvents);
+  const mappedWarehouseEvents = useMemo(
+    () => mapWarehouseEventsToCalendarEvents(warehouseEvents),
+    [warehouseEvents],
+  );
   
   // Filter warehouse events based on selected event types
-  const filteredWarehouseEvents = mappedWarehouseEvents.filter(event => {
-    const eventType = event.eventType as WarehouseEventTypeFilter;
-    return eventTypeFilters.includes(eventType);
-  });
+  const filteredWarehouseEvents = useMemo(
+    () => mappedWarehouseEvents.filter((event) => {
+      const eventType = event.eventType as WarehouseEventTypeFilter;
+      return eventTypeFilters.includes(eventType);
+    }),
+    [eventTypeFilters, mappedWarehouseEvents],
+  );
   
   // Planning-faser (rig/event/rigDown) renderas INTE längre som egna
   // lagerkalenderposter. Deras datum finns kvar i datan och visas som
   // kontextrad inuti lageraktivitetens kort (extendedProps.phaseContext).
-  const allUnassigned = [...filteredWarehouseEvents];
-  const distributedEvents: CalendarEvent[] = distributeWarehouseEvents(allUnassigned, warehouseTeamResources);
+  const distributedEvents = useMemo<CalendarEvent[]>(
+    () => distributeWarehouseEvents([...filteredWarehouseEvents], warehouseTeamResources),
+    [filteredWarehouseEvents, warehouseTeamResources],
+  );
 
   // ---- READ-ONLY kort-metadata (packstatus och projektrubrik) ----
   const cardBookingIds = useMemo(
-    () => filteredWarehouseEvents.map(e => e.bookingId).filter(Boolean) as string[],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filteredWarehouseEvents.map(e => e.bookingId).join(',')],
+    () => filteredWarehouseEvents.map((event) => event.bookingId).filter(Boolean) as string[],
+    [filteredWarehouseEvents],
   );
   const { data: packingStats } = useWarehousePackingStats(cardBookingIds);
   const { data: bookingTitles } = useWarehouseBookingTitles(cardBookingIds);
-  const epOf = (event: CalendarEvent): Record<string, unknown> =>
-    (event.extendedProps ?? {}) as Record<string, unknown>;
-  const eventKeyOf = (event: CalendarEvent): string =>
-    (epOf(event).warehouseEventId as string | undefined) ?? event.id;
   const cardEventIds = useMemo(
-    () => filteredWarehouseEvents.map(eventKeyOf).filter(Boolean),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filteredWarehouseEvents.map(e => e.id).join(',')],
+    () => filteredWarehouseEvents.map(warehouseEventKeyOf).filter(Boolean),
+    [filteredWarehouseEvents],
   );
   const { data: eventCrew } = useWarehouseEventCrew(cardEventIds);
-  const enrichedWarehouseEvents: CalendarEvent[] = distributedEvents.map(event => {
-    const stat = event.bookingId ? packingStats?.get(event.bookingId) : undefined;
-    const rubrik = event.bookingId ? bookingTitles?.get(event.bookingId) : undefined;
-    const crew = eventCrew?.get(eventKeyOf(event)) ?? [];
-    return {
-      ...event,
-      extendedProps: {
-        ...event.extendedProps,
-        warehouseActivityLabel: WAREHOUSE_ACTIVITY_LABELS[event.eventType as string] ?? undefined,
-        bookingTitle: rubrik ?? (epOf(event).bookingTitle as string | undefined),
-        timeLabel: `${format(new Date(event.start), 'HH:mm')}–${format(new Date(event.end), 'HH:mm')}`,
-        packedLabel: stat && stat.total > 0 ? `${stat.packed} / ${stat.total} klara` : undefined,
-        crewLabel: crew.length > 0 ? (crew.length === 1 ? crew[0] : `${crew[0]} +${crew.length - 1}`) : undefined,
-        crewFullLabel: crew.length > 0 ? crew.join(', ') : undefined,
-      },
-    };
-  });
+  const enrichedWarehouseEvents = useMemo<CalendarEvent[]>(
+    () => distributedEvents.map((event) => {
+      const stat = event.bookingId ? packingStats?.get(event.bookingId) : undefined;
+      const rubrik = event.bookingId ? bookingTitles?.get(event.bookingId) : undefined;
+      const crew = eventCrew?.get(warehouseEventKeyOf(event));
+      const shortNames = crew?.shortNames ?? [];
+      const crewLabel = shortNames.length > 2
+        ? `${shortNames.slice(0, 2).join(' · ')} · +${shortNames.length - 2}`
+        : shortNames.join(' · ') || undefined;
 
-  const combinedEvents: CalendarEvent[] = [...enrichedWarehouseEvents, ...transportEvents];
+      return {
+        ...event,
+        extendedProps: {
+          ...event.extendedProps,
+          warehouseActivityLabel: WAREHOUSE_ACTIVITY_LABELS[event.eventType as string] ?? undefined,
+          bookingTitle: rubrik ?? (eventPropsOf(event).bookingTitle as string | undefined),
+          timeLabel: `${format(new Date(event.start), 'HH:mm')}–${format(new Date(event.end), 'HH:mm')}`,
+          packedLabel: stat && stat.total > 0 ? `${stat.packed} / ${stat.total} klara` : undefined,
+          crewLabel,
+          crewFullLabel: crew?.fullNames.join(', ') || undefined,
+          crewCount: crew?.fullNames.length ?? 0,
+        },
+      };
+    }),
+    [bookingTitles, distributedEvents, eventCrew, packingStats],
+  );
+
+  const combinedEvents = useMemo<CalendarEvent[]>(
+    () => [...enrichedWarehouseEvents, ...transportEvents],
+    [enrichedWarehouseEvents, transportEvents],
+  );
 
   const dayEvents = useMemo(() => {
     if (viewMode !== 'day') return combinedEvents;
@@ -366,7 +386,7 @@ const WarehouseCalendarPage = () => {
     if (viewMode === 'monthly') {
       setMonthlyDate(startOfMonth(currentWeekStart));
     }
-  }, [viewMode]);
+  }, [currentWeekStart, viewMode]);
 
   // Visible teams state - per day { [dateString]: teamIds[] }
   // Use separate localStorage key for warehouse calendar
