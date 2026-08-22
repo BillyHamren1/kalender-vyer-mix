@@ -66,11 +66,21 @@ const readyDatabase = () => fakeAdmin({
   packing_list_items: {
     data: [{
       id: 'item-1',
+      booking_product_id: 'booking-product-1',
       wms_item_type_id: 'type-1',
       wms_sku: 'SKU-1',
       wms_identity_needs_repair: false,
       excluded: false,
     }],
+  },
+  booking_products: {
+    data: {
+      id: 'booking-product-1',
+      booking_id: 'booking-1',
+      organization_id: 'org-1',
+      inventory_item_type_id: 'type-1',
+      sku: 'SKU-1',
+    },
   },
 })
 
@@ -131,6 +141,87 @@ Deno.test('readiness fails closed on a successful but unverifiable WMS body', as
     const result = await verifyScannerReadiness({ ...baseInput, admin: readyDatabase() })
     assert(!result.ok, 'unverifiable WMS response must fail')
     assert(result.code === 'WMS_RESERVATION_UNVERIFIED', `unexpected code: ${result.code}`)
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+Deno.test('mutation readiness verifies the exact WMS line and booking row', async () => {
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = (() => Promise.resolve(new Response(JSON.stringify({
+    success: true,
+    reservation_id: 'BOOK-101',
+    reservation_lines: [{
+      id: 'line-1',
+      source_booking_product_id: 'booking-product-1',
+      item_type_id: 'type-1',
+      sku: 'SKU-1',
+      quantity: 2,
+    }],
+  }), { status: 200 }))) as typeof fetch
+  try {
+    const result = await verifyScannerReadiness({
+      ...baseInput,
+      admin: readyDatabase(),
+      itemId: 'item-1',
+      reservationLineId: 'line-1',
+      requireReservationLine: true,
+    })
+    assert(result.ok, `expected exact line to pass, got ${result.code}`)
+    assert(result.reservationLine?.reservationLineId === 'line-1', 'exact line must be returned')
+    assert(result.reservationLine?.sourceBookingProductId === 'booking-product-1', 'source booking row must be returned')
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+Deno.test('mutation readiness rejects a line from another booking row', async () => {
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = (() => Promise.resolve(new Response(JSON.stringify({
+    success: true,
+    reservation_id: 'BOOK-101',
+    reservation_lines: [{
+      id: 'line-1',
+      source_booking_product_id: 'other-booking-product',
+      item_type_id: 'type-1',
+      sku: 'SKU-1',
+    }],
+  }), { status: 200 }))) as typeof fetch
+  try {
+    const result = await verifyScannerReadiness({
+      ...baseInput,
+      admin: readyDatabase(),
+      itemId: 'item-1',
+      reservationLineId: 'line-1',
+      requireReservationLine: true,
+    })
+    assert(!result.ok, 'foreign source booking row must fail')
+    assert(result.code === 'WMS_RESERVATION_LINE_SOURCE_MISMATCH', `unexpected code: ${result.code}`)
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+Deno.test('mutation readiness rejects duplicate lines for one booking row', async () => {
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = (() => Promise.resolve(new Response(JSON.stringify({
+    success: true,
+    reservation_id: 'BOOK-101',
+    reservation_lines: [
+      { id: 'line-1', source_booking_product_id: 'booking-product-1', item_type_id: 'type-1', sku: 'SKU-1' },
+      { id: 'line-2', source_booking_product_id: 'booking-product-1', item_type_id: 'type-1', sku: 'SKU-1' },
+    ],
+  }), { status: 200 }))) as typeof fetch
+  try {
+    const result = await verifyScannerReadiness({
+      ...baseInput,
+      admin: readyDatabase(),
+      itemId: 'item-1',
+      reservationLineId: 'line-1',
+      requireReservationLine: true,
+    })
+    assert(!result.ok, 'duplicate source lines must fail')
+    assert(result.code === 'WMS_RESERVATION_LINE_SOURCE_MISMATCH', `unexpected code: ${result.code}`)
   } finally {
     globalThis.fetch = originalFetch
   }

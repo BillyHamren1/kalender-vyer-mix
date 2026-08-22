@@ -54,10 +54,11 @@ describe('STEG 9 – operation payload', () => {
       scanValue: 'SN-123',
       bookingNumber: '2606-24',
       reservationId: 'res-7',
+      reservationLineId: 'line-7',
     });
     for (const key of [
       'operation_id', 'organization_id', 'command', 'intended_action', 'packing_id',
-      'packing_session_id', 'booking_number', 'reservation_id', 'performed_by',
+      'packing_session_id', 'booking_number', 'reservation_id', 'reservation_line_id', 'performed_by',
       'device_id', 'scan_source', 'scan_value', 'created_at', 'queue_sequence', 'attempt_count',
       'last_attempt_at', 'state',
     ]) {
@@ -65,6 +66,7 @@ describe('STEG 9 – operation payload', () => {
     }
     expect(o.state).toBe('PENDING');
     expect(o.attempt_count).toBe(0);
+    expect(o.reservation_line_id).toBe('line-7');
   });
 
   it('två unika scans ger två unika operation_id', () => {

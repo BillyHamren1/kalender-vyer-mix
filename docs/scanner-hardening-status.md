@@ -1,5 +1,55 @@
 # Scanner hardening – batchstatus
 
+## 2026-08-22 – Exakt `reservation_line_id` genom hela V2-kontraktet
+
+Bas: `609ecdb` (`main` efter ny konfliktkontroll)
+
+Branch/PR: `scanner-hardening/ci-reproducibility` / draft-PR #7
+
+Produktionsaktivering: **nej** – inga migrationer, Edge Functions, secrets, WMS-mutationer eller feature flags har ändrats i någon miljö och V2 är fortsatt OFF.
+
+### Klart
+
+- För `reservation_line_id` genom command, durable IndexedDB-kö, retry, V2-klient, servergate och WMS-kommandopayload. Samma radidentitet och `operation_id` bevaras vid replay.
+- Normaliserar WMS reservationsrader till stabilt rad-id, `source_booking_product_id`, item type och SKU utan att skapa identitet från listordning.
+- Matchar varje V2-scan till exakt `booking_products.id` och därefter exakt `packing_list_items.id`. Dubbla SKU-rader, flera WMS-rader eller saknad källrelation blockeras före durable enqueue.
+- Verifierar server-side organisation → booking → booking product → packningsrad → WMS-reservationsrad före varje pack-/unpack-/returmutation.
+- Fysiska scans använder reservationsrad från allocation eller read-only WMS-identifikation och avvisar artiklar som tillhör annan booking.
+- Tog bort första-SKU-matchningen ur V2-flödena för packning och retur. Manuella radknappar går via samma exakta radresolver.
+- Lade till körbara tester för unik rad, dubbla SKU-rader, serialiserad allocation, saknad källrelation, främmande booking product och dubbla WMS-rader.
+
+### Verifiering
+
+| Gate | Resultat |
+|---|---|
+| Konfliktkontroll mot `main` och PR-head | PASS – `609ecdb` / `ba83064`, båda oförändrade |
+| `git diff --check` | PASS |
+| TypeScript `tsc --noEmit` | PASS |
+| Scanner/V2/kö/readiness/release | PASS – 169/169 tester |
+| Reservationsrad + readiness Deno | PASS – 10/10 tester |
+| Fristående Deno check av nya shared-moduler | PASS |
+| Time frontend | PASS – 204 passerade, 3 uttryckligt hoppade |
+| Deno pure timeline | PASS – 6/6 tester |
+| Scanner webbbuild | PASS – 4 997 moduler; huvudchunk 3 210,33 kB / 900,78 kB gzip |
+| Time webbbuild | PASS – 4 997 moduler; huvudchunk 3 211,54 kB / 901,16 kB gzip |
+
+### Blockerare och kvarvarande risk
+
+- WMS-testmiljön måste bekräfta att reservationssvaret faktiskt innehåller stabilt `reservation_line_id` och `source_booking_product_id` för varje rad. Saknad eller tvetydig identitet är avsiktligt fail-closed; inget har driftsatts för att prova detta externt.
+- Full `deno check supabase/functions/scanner-operation-v2/index.ts` är fortsatt **NOT EXECUTED / FAIL** på den befintliga okachade `esm.sh/@supabase/supabase-js@2.45.0`-importen. Reproduktion: `timeout 20s ./node_modules/.bin/deno check supabase/functions/scanner-operation-v2/index.ts`.
+- Fem Time/Supabase-integrationstestfiler är fortsatt **NOT EXECUTED / FAIL** utan uttryckligen godkänd LOCAL/TEST-backend. Reproduktion: `TIME_REPORTING_BACKEND_TEST_URL=http://127.0.0.1:54321 npm run test:time-reporting`.
+- Legacy-flödet kan fortfarande ge lokal framgång efter misslyckad WMS-synk när V2 är OFF. Det är nästa härdningssteg.
+- Scanner- och Time-bundlarna är fortfarande cirka 3,2 MB minifierade och innehåller orelaterade rutter. Native- och bundleisolering återstår.
+- Fysisk Zebra, DataWedge, RFID/API3-AAR och signering är inte verifierade.
+
+### Exakt nästa batch
+
+1. Ta bort falsk lokal framgång ur legacy pack-/returflöden och låt endast auktoritativt WMS-svar ge lyckad status.
+2. Behåll samma `operation_id` över timeout/retry och håll osäkra svar i `UNKNOWN`; skapa ingen ny mutation för samma scan.
+3. Blockera eller adaptera direkta legacy-API-anrop så de inte kan kringgå readiness och exakt reservationsrad.
+4. Lägg regressionstester för offline, tappat svar, reload och två enheter mot samma rad.
+5. Kör hela verifieringsmatrisen igen; aktivera inte V2.
+
 ## 2026-08-22 – Obligatorisk fail-closed WMS-readiness
 
 Bas: `609ecdb` (`main` efter ny konfliktkontroll)

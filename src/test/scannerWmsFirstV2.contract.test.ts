@@ -52,8 +52,15 @@ describe('STEG 8 – command mapping', () => {
   });
 
   it('kommandot bär delta, aldrig en lokalt beräknad ny total', () => {
-    const cmd = buildScannerCommand({ operation: 'increment', packingId: 'p1', itemId: 'i1', quantityDelta: 1 });
+    const cmd = buildScannerCommand({
+      operation: 'increment',
+      packingId: 'p1',
+      itemId: 'i1',
+      reservationLineId: 'line-1',
+      quantityDelta: 1,
+    });
     expect(cmd.quantityDelta).toBe(1);
+    expect(cmd.reservationLineId).toBe('line-1');
     expect((cmd as any).newQuantity).toBeUndefined();
     expect(cmd.operationId).toBeTruthy();
   });
@@ -158,6 +165,16 @@ describe('STEG 8 – V2-koden innehåller ingen lokal aritmetik', () => {
     expect(wmsIdx).toBeGreaterThan(0);
     expect(writeIdx).toBeGreaterThan(wmsIdx);
     expect(src).toContain("status === 'accepted'");
+  });
+
+  it('gatewayen verifierar och skickar exakt reservationsrad före WMS-mutation', () => {
+    const src = read('supabase/functions/scanner-operation-v2/index.ts');
+    const readinessIdx = src.indexOf('requireReservationLine: true');
+    const linePayloadIdx = src.indexOf('reservation_line_id: command.reservationLineId');
+    const wmsIdx = src.indexOf('fetch(gatewayUrl');
+    expect(readinessIdx).toBeGreaterThan(-1);
+    expect(wmsIdx).toBeGreaterThan(readinessIdx);
+    expect(linePayloadIdx).toBeGreaterThan(wmsIdx);
   });
 
 

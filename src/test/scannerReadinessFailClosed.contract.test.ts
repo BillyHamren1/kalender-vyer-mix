@@ -25,6 +25,10 @@ describe('scanner readiness is fail closed', () => {
       'WMS_IDENTITY_UNVERIFIED',
       'WMS_RESERVATION_UNVERIFIED',
       'SHORT_NOTICE_ACK_REQUIRED',
+      'RESERVATION_LINE_REQUIRED',
+      'WMS_RESERVATION_LINE_SOURCE_MISMATCH',
+      "eq('id', targetItem.booking_product_id)",
+      "eq('booking_id', packing.booking_id)",
     ]) {
       expect(gate, evidence).toContain(evidence);
     }
@@ -39,6 +43,8 @@ describe('scanner readiness is fail closed', () => {
     expect(mutation).toBeGreaterThan(readiness);
     expect(gateway).toContain("'RETURN_INSTANCE', 'RETURN_QUANTITY'");
     expect(gateway).toContain("Deno.env.get('WMS_READINESS_BASE_URL')");
+    expect(gateway).toContain('reservationLineId: command.reservationLineId ?? null');
+    expect(gateway).toContain('requireReservationLine: true');
   });
 
   it('blocks durable enqueue and every manual pack action until readiness passes', () => {
