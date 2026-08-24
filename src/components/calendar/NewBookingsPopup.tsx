@@ -111,14 +111,40 @@ const NewBookingsPopup: React.FC = () => {
     writeDismissedIds(next);
   };
 
-  const dismissAll = () => {
-    const next = [...dismissed, ...visible.map((v) => v.dismissKey)];
-    setDismissed(next);
-    writeDismissedIds(next);
-    setClosed(true);
+  const planAll = async () => {
+    if (planningAll) return;
+    setPlanningAll(true);
+    let ok = 0;
+    const failed: string[] = [];
+    const done: string[] = [];
+    for (const item of visible) {
+      if (!item.bookingId) continue;
+      try {
+        await placeBookingWithDefaults(item.bookingId, teamOptions);
+        ok += 1;
+        done.push(item.dismissKey);
+      } catch (e) {
+        console.error('[NewBookingsPopup] planAll failed', item.bookingId, e);
+        failed.push(item.bookingNumber ? `#${item.bookingNumber}` : item.client);
+      }
+    }
+    if (done.length > 0) {
+      const next = [...dismissed, ...done];
+      setDismissed(next);
+      writeDismissedIds(next);
+    }
+    setPlanningAll(false);
+    queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+    queryClient.invalidateQueries({ queryKey: ['unplanned-projects'] });
+    queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+    queryClient.invalidateQueries({ queryKey: ['planner-calendar'] });
+    if (ok > 0) toast.success(`${ok} bokning${ok === 1 ? '' : 'ar'} planerad${ok === 1 ? '' : 'e'} enligt standard`);
+    if (failed.length > 0) toast.error(`Kunde inte planera: ${failed.join(', ')}`);
+    if (failed.length === 0) setClosed(true);
   };
 
   const open = !closed && visible.length > 0 && !placementBookingId;
+
 
   return (
     <>
