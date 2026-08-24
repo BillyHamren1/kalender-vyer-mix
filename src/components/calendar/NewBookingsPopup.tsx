@@ -5,19 +5,23 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Calendar, CalendarPlus, Inbox, MapPin, X } from 'lucide-react';
+import { Calendar, CalendarPlus, Inbox, Loader2, MapPin, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
+import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useUnplannedProjects } from '@/hooks/useUnplannedProjects';
+import { useTeamResources } from '@/hooks/useTeamResources';
+import { placeBookingWithDefaults } from '@/services/bookingDefaultPlacement';
 import { BookingPlacementDialog } from '@/components/project/BookingPlacementDialog';
 import {
   filterDismissed,
   readDismissedIds,
   writeDismissedIds,
 } from '@/lib/calendar/newBookingsDismissal';
+
 
 interface PopupItem {
   dismissKey: string;
@@ -42,6 +46,14 @@ const NewBookingsPopup: React.FC = () => {
   const [dismissed, setDismissed] = useState<string[]>(() => readDismissedIds());
   const [closed, setClosed] = useState(false);
   const [placementBookingId, setPlacementBookingId] = useState<string | null>(null);
+  const [planningAll, setPlanningAll] = useState(false);
+  const { teamResources } = useTeamResources();
+  const teamOptions = useMemo(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (teamResources || []).map((r: any) => ({ id: r.id, title: r.title })),
+    [teamResources],
+  );
+
 
   const { data: bookings = [] } = useQuery({
     queryKey: ['bookings-without-project'],
@@ -111,14 +123,40 @@ const NewBookingsPopup: React.FC = () => {
     writeDismissedIds(next);
   };
 
-  const dismissAll = () => {
-    const next = [...dismissed, ...visible.map((v) => v.dismissKey)];
-    setDismissed(next);
-    writeDismissedIds(next);
-    setClosed(true);
+  const planAll = async () => {
+    if (planningAll) return;
+    setPlanningAll(true);
+    let ok = 0;
+    const failed: string[] = [];
+    const done: string[] = [];
+    for (const item of visible) {
+      if (!item.bookingId) continue;
+      try {
+        await placeBookingWithDefaults(item.bookingId, teamOptions);
+        ok += 1;
+        done.push(item.dismissKey);
+      } catch (e) {
+        console.error('[NewBookingsPopup] planAll failed', item.bookingId, e);
+        failed.push(item.bookingNumber ? `#${item.bookingNumber}` : item.client);
+      }
+    }
+    if (done.length > 0) {
+      const next = [...dismissed, ...done];
+      setDismissed(next);
+      writeDismissedIds(next);
+    }
+    setPlanningAll(false);
+    queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
+    queryClient.invalidateQueries({ queryKey: ['unplanned-projects'] });
+    queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+    queryClient.invalidateQueries({ queryKey: ['planner-calendar'] });
+    if (ok > 0) toast.success(`${ok} bokning${ok === 1 ? '' : 'ar'} planerad${ok === 1 ? '' : 'e'} enligt standard`);
+    if (failed.length > 0) toast.error(`Kunde inte planera: ${failed.join(', ')}`);
+    if (failed.length === 0) setClosed(true);
   };
 
   const open = !closed && visible.length > 0 && !placementBookingId;
+
 
   return (
     <>
@@ -181,13 +219,24 @@ const NewBookingsPopup: React.FC = () => {
           </p>
 
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setClosed(true)}>
+            <Button variant="ghost" size="sm" onClick={() => setClosed(true)} disabled={planningAll}>
               Senare
             </Button>
-            <Button variant="secondary" size="sm" onClick={dismissAll}>
-              Kryssa bort alla
+            <Button size="sm" onClick={planAll} disabled={planningAll || visible.length === 0}>
+              {planningAll ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Planerar…
+                </>
+              ) : (
+                <>
+                  <CalendarPlus className="mr-1.5 h-3.5 w-3.5" />
+                  Planera alla
+                </>
+              )}
             </Button>
           </div>
+
         </DialogContent>
       </Dialog>
 
