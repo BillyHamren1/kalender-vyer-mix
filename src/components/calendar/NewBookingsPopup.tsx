@@ -46,6 +46,14 @@ const NewBookingsPopup: React.FC = () => {
   const [dismissed, setDismissed] = useState<string[]>(() => readDismissedIds());
   const [closed, setClosed] = useState(false);
   const [placementBookingId, setPlacementBookingId] = useState<string | null>(null);
+  const [planningAll, setPlanningAll] = useState(false);
+  const { teamResources } = useTeamResources();
+  const teamOptions = useMemo(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (teamResources || []).map((r: any) => ({ id: r.id, title: r.title })),
+    [teamResources],
+  );
+
 
   const { data: bookings = [] } = useQuery({
     queryKey: ['bookings-without-project'],
