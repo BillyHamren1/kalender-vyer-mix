@@ -181,13 +181,24 @@ const NewBookingsPopup: React.FC = () => {
           </p>
 
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setClosed(true)}>
+            <Button variant="ghost" size="sm" onClick={() => setClosed(true)} disabled={planningAll}>
               Senare
             </Button>
-            <Button variant="secondary" size="sm" onClick={dismissAll}>
-              Kryssa bort alla
+            <Button size="sm" onClick={planAll} disabled={planningAll || visible.length === 0}>
+              {planningAll ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Planerar…
+                </>
+              ) : (
+                <>
+                  <CalendarPlus className="mr-1.5 h-3.5 w-3.5" />
+                  Planera alla
+                </>
+              )}
             </Button>
           </div>
+
         </DialogContent>
       </Dialog>
 
