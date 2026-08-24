@@ -5,19 +5,23 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Calendar, CalendarPlus, Inbox, MapPin, X } from 'lucide-react';
+import { Calendar, CalendarPlus, Inbox, Loader2, MapPin, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
+import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useUnplannedProjects } from '@/hooks/useUnplannedProjects';
+import { useTeamResources } from '@/hooks/useTeamResources';
+import { placeBookingWithDefaults } from '@/services/bookingDefaultPlacement';
 import { BookingPlacementDialog } from '@/components/project/BookingPlacementDialog';
 import {
   filterDismissed,
   readDismissedIds,
   writeDismissedIds,
 } from '@/lib/calendar/newBookingsDismissal';
+
 
 interface PopupItem {
   dismissKey: string;
