@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { arrayToPeriod } from "@/services/largeProjectScheduleSync";
 import { writeProjectDates } from "@/services/projectDateAuthority";
 import { toast } from "sonner";
-import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, Pencil, Check, X, AlertTriangle, FolderKanban, ClipboardList, Package, Combine, Table2, RefreshCw } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, ChevronLeft, Pencil, Check, X, AlertTriangle, FolderKanban, ClipboardList, Package, Combine, Table2, RefreshCw } from "lucide-react";
 import { useRefreshLargeProjectBookings } from "@/hooks/useRefreshLargeProjectBookings";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +24,6 @@ import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { getLargeProjectBookingLabel } from "@/lib/largeProjectBookingLabel";
 import ProjectAddressMapDialog from "@/components/maps/ProjectAddressMapDialog";
-import LargeProjectProductsOverview from "@/components/project/LargeProjectProductsOverview";
 import LargeProjectExcelView from "@/components/project/LargeProjectExcelView";
 import ConsolidateProjectsDialog from "@/components/project/ConsolidateProjectsDialog";
 
@@ -41,7 +40,6 @@ const LargeProjectLayout = () => {
   const queryClient = useQueryClient();
   const [isAddBookingOpen, setIsAddBookingOpen] = useState(false);
   const [bookingSearch, setBookingSearch] = useState("");
-  const [expandedBookingIds, setExpandedBookingIds] = useState<Set<string>>(new Set());
   const [bookingListSearch, setBookingListSearch] = useState("");
   const [isConsolidateOpen, setIsConsolidateOpen] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
@@ -51,13 +49,11 @@ const LargeProjectLayout = () => {
   const [editSubtitle, setEditSubtitle] = useState("");
   const subtitleInputRef = useRef<HTMLInputElement>(null);
   const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
-  const [linkedView, setLinkedView] = useState<'excel' | 'bookings' | 'products'>('bookings');
+  const [linkedView, setLinkedView] = useState<'excel' | 'bookings'>('bookings');
+  // Fokusläge: när en bokning är vald visas ENDAST den bokningen i sin helhet.
+  const [focusedBookingId, setFocusedBookingId] = useState<string | null>(null);
   const toggleBookingExpanded = useCallback((bookingId: string) => {
-    setExpandedBookingIds(prev => {
-      const next = new Set(prev);
-      if (next.has(bookingId)) next.delete(bookingId); else next.add(bookingId);
-      return next;
-    });
+    setFocusedBookingId(prev => (prev === bookingId ? null : bookingId));
   }, []);
 
   const detail = useLargeProjectDetail(id || "");
@@ -620,18 +616,15 @@ const LargeProjectLayout = () => {
                   <ClipboardList className="h-4 w-4" />
                   Bokningar ({bookings.length})
                 </Button>
-                <Button
-                  variant={linkedView === 'products' ? 'default' : 'ghost'}
-                  size="sm"
-                  className="h-9 w-36 px-4 text-sm gap-2"
-                  onClick={() => setLinkedView('products')}
-                >
-                  <Package className="h-4 w-4" />
-                  Produkter
-                </Button>
               </div>
               {linkedView === 'bookings' && (
                 <div className="absolute right-0 flex gap-2">
+                  {focusedBookingId && (
+                    <Button size="sm" variant="ghost" onClick={() => setFocusedBookingId(null)}>
+                      <ChevronLeft className="w-4 h-4 mr-1" />
+                      Alla bokningar
+                    </Button>
+                  )}
                   <Button size="sm" variant="outline" onClick={() => setIsAddBookingOpen(true)}>
                     <Plus className="w-4 h-4 mr-1" />
                     Lägg till bokning
@@ -641,9 +634,6 @@ const LargeProjectLayout = () => {
             </div>
             {linkedView === 'excel' && (
               <LargeProjectExcelView bookings={bookings as any} />
-            )}
-            {linkedView === 'products' && (
-              <LargeProjectProductsOverview bookings={bookings} largeProjectId={id || ""} />
             )}
             {linkedView === 'bookings' && (
               bookings.length === 0 ? (
@@ -659,9 +649,9 @@ const LargeProjectLayout = () => {
               ) : (
                 <Card className="border-border/50 shadow-sm overflow-hidden">
                   <div className="divide-y divide-border/40">
-                    {bookings.map((lpb: any) => {
+                    {(focusedBookingId ? bookings.filter((lpb: any) => lpb.booking_id === focusedBookingId) : bookings).map((lpb: any) => {
                       const b = lpb.booking;
-                      const isExpanded = expandedBookingIds.has(lpb.booking_id);
+                      const isExpanded = focusedBookingId === lpb.booking_id;
                       const isCancelled = (b?.status || '').toUpperCase() === 'CANCELLED';
                       return (
                         <div key={lpb.id}>

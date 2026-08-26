@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Info, MessageSquare, Package, Truck, Users } from "lucide-react";
+import { FileText, Info, MessageSquare, Truck, Users } from "lucide-react";
 import ProjectOverviewHeader from "@/components/project/ProjectOverviewHeader";
 import ProjectTaskList from "@/components/project/ProjectTaskList";
 
@@ -11,7 +11,6 @@ import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectInternalNotes from "@/components/project/ProjectInternalNotes";
 import LargeProjectLogisticsWorkspace from "@/components/project/LargeProjectLogisticsWorkspace";
 import ProjectContactCard from "@/components/project/ProjectContactCard";
-import LargeProjectProductsOverview from "@/components/project/LargeProjectProductsOverview";
 import ProjectFollowersPanel from "@/components/project/ProjectFollowersPanel";
 import LargeProjectTeam from "@/components/project/LargeProjectTeam";
 
@@ -95,7 +94,6 @@ const LargeProjectViewPage = () => {
           <TabsTrigger value="info" className="gap-2"><Info className="h-4 w-4" />Projektinfo</TabsTrigger>
           <TabsTrigger value="team" className="gap-2"><Users className="h-4 w-4" />Team & kommunikation</TabsTrigger>
           <TabsTrigger value="logistics" className="gap-2"><Truck className="h-4 w-4" />Logistik</TabsTrigger>
-          <TabsTrigger value="products" className="gap-2"><Package className="h-4 w-4" />Material</TabsTrigger>
           <TabsTrigger value="files" className="gap-2"><FileText className="h-4 w-4" />Dokument {files.length > 0 && `(${files.length})`}</TabsTrigger>
         </TabsList>
 
@@ -132,10 +130,6 @@ const LargeProjectViewPage = () => {
 
         <TabsContent value="logistics" className="mt-0">
           <LargeProjectLogisticsWorkspace largeProjectId={project.id} bookings={(project as any)?.bookings || []} />
-        </TabsContent>
-
-        <TabsContent value="products" className="mt-0">
-          <LargeProjectProductsOverview bookings={(project as any)?.bookings || []} largeProjectId={project.id} />
         </TabsContent>
 
         <TabsContent value="files" className="mt-0">
