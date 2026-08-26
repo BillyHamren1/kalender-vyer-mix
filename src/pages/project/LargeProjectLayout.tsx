@@ -618,18 +618,15 @@ const LargeProjectLayout = () => {
                   <ClipboardList className="h-4 w-4" />
                   Bokningar ({bookings.length})
                 </Button>
-                <Button
-                  variant={linkedView === 'products' ? 'default' : 'ghost'}
-                  size="sm"
-                  className="h-9 w-36 px-4 text-sm gap-2"
-                  onClick={() => setLinkedView('products')}
-                >
-                  <Package className="h-4 w-4" />
-                  Produkter
-                </Button>
               </div>
               {linkedView === 'bookings' && (
                 <div className="absolute right-0 flex gap-2">
+                  {focusedBookingId && (
+                    <Button size="sm" variant="ghost" onClick={() => setFocusedBookingId(null)}>
+                      <ChevronLeft className="w-4 h-4 mr-1" />
+                      Alla bokningar
+                    </Button>
+                  )}
                   <Button size="sm" variant="outline" onClick={() => setIsAddBookingOpen(true)}>
                     <Plus className="w-4 h-4 mr-1" />
                     Lägg till bokning
@@ -639,9 +636,6 @@ const LargeProjectLayout = () => {
             </div>
             {linkedView === 'excel' && (
               <LargeProjectExcelView bookings={bookings as any} />
-            )}
-            {linkedView === 'products' && (
-              <LargeProjectProductsOverview bookings={bookings} largeProjectId={id || ""} />
             )}
             {linkedView === 'bookings' && (
               bookings.length === 0 ? (
@@ -657,9 +651,9 @@ const LargeProjectLayout = () => {
               ) : (
                 <Card className="border-border/50 shadow-sm overflow-hidden">
                   <div className="divide-y divide-border/40">
-                    {bookings.map((lpb: any) => {
+                    {(focusedBookingId ? bookings.filter((lpb: any) => lpb.booking_id === focusedBookingId) : bookings).map((lpb: any) => {
                       const b = lpb.booking;
-                      const isExpanded = expandedBookingIds.has(lpb.booking_id);
+                      const isExpanded = focusedBookingId === lpb.booking_id;
                       const isCancelled = (b?.status || '').toUpperCase() === 'CANCELLED';
                       return (
                         <div key={lpb.id}>
