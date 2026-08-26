@@ -36,7 +36,7 @@ async function createUserSession(
   email: string,
   trace: (name: string, extra?: Record<string, unknown>) => void,
 ) {
-  const maxAttempts = 3;
+  const maxAttempts = 6;
   let lastError: any = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -60,11 +60,11 @@ async function createUserSession(
     const retryable = verifyError?.code === 'otp_expired' || verifyError?.status === 403;
     if (!retryable || attempt === maxAttempts) break;
 
-    // Hub can open Planning and Warehouse simultaneously. Supabase may then
-    // invalidate one of two magic links for the same user before verifyOtp.
-    // A short stagger followed by a fresh link makes session creation robust.
+    // Hub can open several Planning and Warehouse frames simultaneously.
+    // Each newly generated magic link invalidates the preceding link for the
+    // same user, so use increasing full jitter before generating a fresh one.
     trace('verify_otp_retry', { attempt, code: verifyError?.code ?? null });
-    await delay(75 * attempt + Math.floor(Math.random() * 100));
+    await delay(150 * attempt + Math.floor(Math.random() * 350 * attempt));
   }
 
   return { session: null, error: lastError };
