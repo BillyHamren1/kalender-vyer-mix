@@ -51,13 +51,11 @@ const LargeProjectLayout = () => {
   const [editSubtitle, setEditSubtitle] = useState("");
   const subtitleInputRef = useRef<HTMLInputElement>(null);
   const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
-  const [linkedView, setLinkedView] = useState<'excel' | 'bookings' | 'products'>('bookings');
+  const [linkedView, setLinkedView] = useState<'excel' | 'bookings'>('bookings');
+  // Fokusläge: när en bokning är vald visas ENDAST den bokningen i sin helhet.
+  const [focusedBookingId, setFocusedBookingId] = useState<string | null>(null);
   const toggleBookingExpanded = useCallback((bookingId: string) => {
-    setExpandedBookingIds(prev => {
-      const next = new Set(prev);
-      if (next.has(bookingId)) next.delete(bookingId); else next.add(bookingId);
-      return next;
-    });
+    setFocusedBookingId(prev => (prev === bookingId ? null : bookingId));
   }, []);
 
   const detail = useLargeProjectDetail(id || "");
