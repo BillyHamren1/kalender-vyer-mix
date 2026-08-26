@@ -28,6 +28,48 @@ function mapRoles(roles: unknown): AppRole[] {
   return [...result];
 }
 
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function createUserSession(
+  admin: any,
+  anon: any,
+  email: string,
+  trace: (name: string, extra?: Record<string, unknown>) => void,
+) {
+  const maxAttempts = 3;
+  let lastError: any = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    trace('generate_link', { email_domain: email.split('@')[1] ?? null, attempt });
+    const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({ type: 'magiclink', email });
+    if (linkError || !linkData?.properties?.hashed_token) {
+      return { session: null, error: linkError ?? new Error('no hashed_token in generateLink response') };
+    }
+    trace('generate_link_ok', { attempt });
+
+    const { data: sessionData, error: verifyError } = await anon.auth.verifyOtp({
+      token_hash: linkData.properties.hashed_token,
+      type: 'magiclink',
+    });
+    if (!verifyError && sessionData?.session) {
+      trace('verify_otp_ok', { attempt });
+      return { session: sessionData.session, error: null };
+    }
+
+    lastError = verifyError ?? new Error('no session in verifyOtp response');
+    const retryable = verifyError?.code === 'otp_expired' || verifyError?.status === 403;
+    if (!retryable || attempt === maxAttempts) break;
+
+    // Hub can open Planning and Warehouse simultaneously. Supabase may then
+    // invalidate one of two magic links for the same user before verifyOtp.
+    // A short stagger followed by a fresh link makes session creation robust.
+    trace('verify_otp_retry', { attempt, code: verifyError?.code ?? null });
+    await delay(75 * attempt + Math.floor(Math.random() * 100));
+  }
+
+  return { session: null, error: lastError };
+}
+
 async function findLegacyUserByEmail(admin: any, email: string) {
   const normalized = email.trim().toLowerCase();
   for (let page = 1; page <= 20; page++) {
@@ -175,45 +217,32 @@ Deno.serve(async (req) => {
     }
     trace('profile_sync_ok');
 
-    // Tenant-safe role sync: replace only rows for this organization, preserve every other tenant membership.
-    const { error: deleteError } = await admin.from('user_roles').delete().eq('user_id', userId).eq('organization_id', organizationId);
-    if (deleteError) {
-      failure('role_delete', deleteError);
-      return json(500, { success: false, error_code: 'ROLE_DELETE_FAILED', message: deleteError.message, trace_id: traceId });
-    }
+    // Tenant-safe and concurrency-safe role sync. Hub opens Planning and
+    // Warehouse in parallel, so delete+insert races and can violate the unique
+    // key. Upsert is idempotent while preserving memberships in other tenants.
     const roleRows = rolesToSync.map((role) => ({ user_id: userId, role, organization_id: organizationId }));
-    const { error: roleInsertError } = await admin.from('user_roles').insert(roleRows);
+    const { error: roleInsertError } = await admin
+      .from('user_roles')
+      .upsert(roleRows, { onConflict: 'user_id,role,organization_id' });
     if (roleInsertError) {
-      failure('role_insert', roleInsertError);
-      return json(500, { success: false, error_code: 'ROLE_INSERT_FAILED', message: roleInsertError.message, trace_id: traceId });
+      failure('role_upsert', roleInsertError);
+      return json(500, { success: false, error_code: 'ROLE_SYNC_FAILED', message: roleInsertError.message, trace_id: traceId });
     }
     trace('role_sync_ok', { roles: rolesToSync });
 
-    trace('generate_link', { email_domain: localEmail.split('@')[1] ?? null });
-    const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({ type: 'magiclink', email: localEmail });
-    if (linkError || !linkData?.properties?.hashed_token) {
-      failure('generate_link', linkError ?? { message: 'no hashed_token in response' });
-      return json(500, { success: false, error_code: 'LINK_GENERATION_FAILED', message: linkError?.message, trace_id: traceId });
-    }
-    trace('generate_link_ok');
-
     const anon = createClient(supabaseUrl, anonKey);
-    const { data: sessionData, error: verifyError } = await anon.auth.verifyOtp({
-      token_hash: linkData.properties.hashed_token,
-      type: 'magiclink',
-    });
-    if (verifyError || !sessionData?.session) {
-      failure('verify_otp', verifyError ?? { message: 'no session in verifyOtp response' });
-      return json(500, { success: false, error_code: 'SESSION_CREATE_FAILED', message: verifyError?.message, trace_id: traceId });
+    const { session: createdSession, error: sessionCreateError } = await createUserSession(admin, anon, localEmail, trace);
+    if (sessionCreateError || !createdSession) {
+      failure('verify_otp', sessionCreateError ?? { message: 'no session after retries' });
+      return json(500, { success: false, error_code: 'SESSION_CREATE_FAILED', message: sessionCreateError?.message, trace_id: traceId });
     }
-    trace('verify_otp_ok');
 
     console.log('[SSO] SSO_SYNC', JSON.stringify({ trace_id: traceId, hub_user_id: hubUserId, local_user_id: userId, organization_id: organizationId, target_view: targetView, roles: rolesToSync }));
 
     return json(200, {
       success: true,
-      access_token: sessionData.session.access_token,
-      refresh_token: sessionData.session.refresh_token,
+      access_token: createdSession.access_token,
+      refresh_token: createdSession.refresh_token,
       user: { id: userId, email: localEmail, organization_id: organizationId, full_name: payload.full_name || null, sso_user: true },
       preferences: payload.preferences || null,
       roles: rolesToSync,
