@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { arrayToPeriod } from "@/services/largeProjectScheduleSync";
 import { writeProjectDates } from "@/services/projectDateAuthority";
 import { toast } from "sonner";
-import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, ChevronLeft, Pencil, Check, X, AlertTriangle, FolderKanban, ClipboardList, Package, Combine, Table2, RefreshCw } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, HardHat, Wallet, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, ChevronLeft, Pencil, Check, X, AlertTriangle, FolderKanban, Combine, RefreshCw } from "lucide-react";
 import { useRefreshLargeProjectBookings } from "@/hooks/useRefreshLargeProjectBookings";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,8 +23,6 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { getLargeProjectBookingLabel } from "@/lib/largeProjectBookingLabel";
-import ProjectAddressMapDialog from "@/components/maps/ProjectAddressMapDialog";
-import LargeProjectExcelView from "@/components/project/LargeProjectExcelView";
 import ConsolidateProjectsDialog from "@/components/project/ConsolidateProjectsDialog";
 
 const navItems = [
@@ -40,7 +38,6 @@ const LargeProjectLayout = () => {
   const queryClient = useQueryClient();
   const [isAddBookingOpen, setIsAddBookingOpen] = useState(false);
   const [bookingSearch, setBookingSearch] = useState("");
-  const [bookingListSearch, setBookingListSearch] = useState("");
   const [isConsolidateOpen, setIsConsolidateOpen] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState("");
@@ -48,8 +45,6 @@ const LargeProjectLayout = () => {
   const [isEditingSubtitle, setIsEditingSubtitle] = useState(false);
   const [editSubtitle, setEditSubtitle] = useState("");
   const subtitleInputRef = useRef<HTMLInputElement>(null);
-  const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
-  const [linkedView, setLinkedView] = useState<'excel' | 'bookings'>('bookings');
   // Fokusläge: när en bokning är vald visas ENDAST den bokningen i sin helhet.
   const [focusedBookingId, setFocusedBookingId] = useState<string | null>(null);
   const toggleBookingExpanded = useCallback((bookingId: string) => {
@@ -180,29 +175,6 @@ const LargeProjectLayout = () => {
         });
     }
   }, [project?.id, project?.address, bookings.length]);
-
-  const handleAddressDialogSave = async (data: {
-    address: string;
-    latitude: number | null;
-    longitude: number | null;
-    radius_meters: number;
-    geofence_mode: 'circle' | 'polygon';
-    geofence_polygon: GeoJSON.Polygon | null;
-  }) => {
-    // Await så vi (1) vet om DB-skrivningen lyckades och (2) hinner
-    // invalidera react-query INNAN dialogen stängs. Tidigare fire-and-forget
-    // kunde svälja t.ex. valideringsfel på address_geofence_polygon utan
-    // att användaren såg det → polygonen verkade sparad men var det inte.
-    await detail.updateProject({
-      address: data.address || null,
-      address_latitude: data.latitude,
-      address_longitude: data.longitude,
-      address_radius_meters: data.radius_meters,
-      address_geofence_mode: data.geofence_mode,
-      address_geofence_polygon: data.geofence_polygon as any,
-    } as any);
-    toast.success('Adress och staket sparade');
-  };
 
   const formatDate = (dateStr: string | null | undefined) => {
     if (!dateStr) return "-";
@@ -547,96 +519,25 @@ const LargeProjectLayout = () => {
         {/* Booking info – show on overview page */}
         {activeKey === "overview" && (
           <div className="space-y-4 mb-6">
-            {/* Schema-datumkort har flyttats till headern ovan */}
-
-            {/* Address card */}
-            <Card className="border-border/50 shadow-sm">
-              <CardContent className="py-3 px-4">
-                <div className="flex items-center justify-between gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsAddressDialogOpen(true)}
-                    className="flex items-center gap-2 text-sm hover:text-foreground transition-colors group min-w-0"
-                  >
-                    <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span className={cn(
-                      'truncate',
-                      project.address ? 'text-foreground' : 'text-muted-foreground italic'
-                    )}>
-                      {project.address || 'Ingen adress – klicka för att lägga till'}
-                    </span>
-                    <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                  </button>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {project.address_latitude && project.address_longitude && (
-                      <Badge variant="secondary" className="text-xs whitespace-nowrap">
-                        📍 {project.address_latitude.toFixed(4)}, {project.address_longitude.toFixed(4)}
-                      </Badge>
-                    )}
-                    <Button size="sm" variant="outline" onClick={() => setIsAddressDialogOpen(true)} className="h-7">
-                      <Pencil className="h-3.5 w-3.5 mr-1" />
-                      Redigera adress
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <ProjectAddressMapDialog
-              open={isAddressDialogOpen}
-              onOpenChange={setIsAddressDialogOpen}
-              initial={{
-                address: project.address ?? "",
-                latitude: project.address_latitude ?? null,
-                longitude: project.address_longitude ?? null,
-                radius_meters: (project as any).address_radius_meters ?? 100,
-                geofence_mode: ((project as any).address_geofence_mode as any) ?? "circle",
-                geofence_polygon: ((project as any).address_geofence_polygon as any) ?? null,
-              }}
-              onSave={handleAddressDialogSave}
-            />
-
-            <div className="relative flex items-center justify-center">
-              <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
-                <Button
-                  variant={linkedView === 'excel' ? 'default' : 'ghost'}
-                  size="sm"
-                  className="h-9 w-36 px-4 text-sm gap-2"
-                  onClick={() => setLinkedView('excel')}
-                >
-                  <Table2 className="h-4 w-4" />
-                  Excelvy
-                </Button>
-                <Button
-                  variant={linkedView === 'bookings' ? 'default' : 'ghost'}
-                  size="sm"
-                  className="h-9 w-36 px-4 text-sm gap-2"
-                  onClick={() => setLinkedView('bookings')}
-                >
-                  <ClipboardList className="h-4 w-4" />
-                  Bokningar ({bookings.length})
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold">Bokningar</h2>
+                <p className="text-xs text-muted-foreground">{bookings.length} kopplade till projektet</p>
+              </div>
+              <div className="flex gap-2">
+                {focusedBookingId && (
+                  <Button size="sm" variant="ghost" onClick={() => setFocusedBookingId(null)}>
+                    <ChevronLeft className="w-4 h-4 mr-1" />
+                    Alla bokningar
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" onClick={() => setIsAddBookingOpen(true)}>
+                  <Plus className="w-4 h-4 mr-1" />
+                  Lägg till bokning
                 </Button>
               </div>
-              {linkedView === 'bookings' && (
-                <div className="absolute right-0 flex gap-2">
-                  {focusedBookingId && (
-                    <Button size="sm" variant="ghost" onClick={() => setFocusedBookingId(null)}>
-                      <ChevronLeft className="w-4 h-4 mr-1" />
-                      Alla bokningar
-                    </Button>
-                  )}
-                  <Button size="sm" variant="outline" onClick={() => setIsAddBookingOpen(true)}>
-                    <Plus className="w-4 h-4 mr-1" />
-                    Lägg till bokning
-                  </Button>
-                </div>
-              )}
             </div>
-            {linkedView === 'excel' && (
-              <LargeProjectExcelView bookings={bookings as any} />
-            )}
-            {linkedView === 'bookings' && (
-              bookings.length === 0 ? (
+            {bookings.length === 0 ? (
                 <Card>
                   <CardContent className="py-8 text-center">
                     <p className="text-sm text-muted-foreground mb-3">Inga bokningar kopplade ännu</p>
@@ -742,8 +643,7 @@ const LargeProjectLayout = () => {
                     })}
                   </div>
                 </Card>
-              )
-            )}
+              )}
           </div>
         )}
 
