@@ -90,6 +90,29 @@ export async function fetchLargeProjectCore(id: string): Promise<LargeProjectWit
     booking: undefined,
   }));
 
+  // Fallback (read-only self-heal): bookings that point at this large
+  // project via `bookings.large_project_id` but are missing from the
+  // membership table would otherwise render as an empty list while the
+  // rest of the UI still shows the project as populated.
+  const knownIds = new Set(bookingStubs.map(s => s.booking_id).filter(Boolean));
+  const { data: fkRows } = await supabase
+    .from('bookings')
+    .select('id')
+    .eq('large_project_id', id);
+  for (const row of (fkRows || []) as Array<{ id: string }>) {
+    if (knownIds.has(row.id)) continue;
+    knownIds.add(row.id);
+    bookingStubs.push({
+      id: `fk-${row.id}`,
+      large_project_id: id,
+      booking_id: row.id,
+      display_name: null,
+      sort_order: bookingStubs.length,
+      created_at: new Date().toISOString(),
+      booking: undefined,
+    } as unknown as LargeProjectBooking);
+  }
+
   return {
     ...data,
     status: data.status as LargeProjectStatus,
@@ -97,6 +120,7 @@ export async function fetchLargeProjectCore(id: string): Promise<LargeProjectWit
     bookingCount: bookingStubs.length,
   };
 }
+
 
 /**
  * Hydrate the wide booking data (delivery, contact, times, status …)
