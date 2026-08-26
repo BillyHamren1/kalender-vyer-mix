@@ -80,6 +80,9 @@ interface SsoResult {
   message?: string;
 }
 
+const SSO_VERIFY_MAX_ATTEMPTS = 3;
+const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
 function decodeUtf8Base64(input: string): string {
   const normalized = decodeURIComponent(input).replace(/-/g, '+').replace(/_/g, '/');
   const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
@@ -244,12 +247,28 @@ export function useSsoListener() {
     console.log('[SSO] Starting verification for:', ssoToken.payload.email, 'fingerprint:', fingerprint, 'target_view:', targetView);
 
     try {
-      const { data, error } = await supabase.functions.invoke<SsoResult>('verify-sso-token', {
-        body: {
-          ...ssoToken,
-          target_view: targetView,
-        },
-      });
+      let data: SsoResult | null = null;
+      let error: unknown = null;
+
+      for (let attempt = 1; attempt <= SSO_VERIFY_MAX_ATTEMPTS; attempt++) {
+        const result = await supabase.functions.invoke<SsoResult>('verify-sso-token', {
+          body: {
+            ...ssoToken,
+            target_view: targetView,
+          },
+        });
+        data = result.data;
+        error = result.error;
+
+        if (!error && data?.success) break;
+
+        const status = (error as any)?.context?.status as number | undefined;
+        const retryable = status === undefined || status >= 500 || data?.error_code === 'SESSION_CREATE_FAILED';
+        if (!retryable || attempt === SSO_VERIFY_MAX_ATTEMPTS) break;
+
+        console.warn('[SSO] Transient verification failure, retrying', { attempt, status, code: data?.error_code });
+        await wait(250 * attempt + Math.floor(Math.random() * 300));
+      }
 
       if (error || !data?.success) {
         const status = (error as any)?.context?.status as number | undefined;

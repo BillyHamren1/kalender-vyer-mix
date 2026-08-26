@@ -14,7 +14,7 @@ describe('SSO parallel launch contract', () => {
   });
 
   it('retries a consumed OTP with a newly generated link', () => {
-    expect(source).toContain('const maxAttempts = 3');
+    expect(source).toContain('const maxAttempts = 6');
     expect(source).toContain("verifyError?.code === 'otp_expired'");
     expect(source).toContain("trace('verify_otp_retry'");
     expect(source).toMatch(/for \(let attempt = 1; attempt <= maxAttempts; attempt\+\+\)[\s\S]*generateLink[\s\S]*verifyOtp/);
