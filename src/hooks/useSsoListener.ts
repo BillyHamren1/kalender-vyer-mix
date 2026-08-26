@@ -272,8 +272,9 @@ export function useSsoListener() {
 
       if (error || !data?.success) {
         const status = (error as any)?.context?.status as number | undefined;
+        const errorMessage = error instanceof Error ? error.message : undefined;
         console.error('[SSO] Verification failed:', { error, data, status });
-        sendSsoResponse(false, { status, code: data?.error_code ?? 'VERIFY_FAILED', message: data?.message ?? error?.message });
+        sendSsoResponse(false, { status, code: data?.error_code ?? 'VERIFY_FAILED', message: data?.message ?? errorMessage });
         notifySsoSettled(false);
         return;
       }
