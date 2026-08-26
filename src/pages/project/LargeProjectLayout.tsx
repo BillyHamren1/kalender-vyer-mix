@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { arrayToPeriod } from "@/services/largeProjectScheduleSync";
 import { writeProjectDates } from "@/services/projectDateAuthority";
 import { toast } from "sonner";
-import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, Pencil, Check, X, AlertTriangle, FolderKanban, ClipboardList, Package, Combine, Table2, RefreshCw } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, HardHat, Wallet, MessageSquare, Plus, Search, Calendar, MapPin, Trash2, ChevronDown, ChevronRight, ChevronLeft, Pencil, Check, X, AlertTriangle, FolderKanban, ClipboardList, Package, Combine, Table2, RefreshCw } from "lucide-react";
 import { useRefreshLargeProjectBookings } from "@/hooks/useRefreshLargeProjectBookings";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +24,6 @@ import { format } from "date-fns";
 import { sv } from "date-fns/locale";
 import { getLargeProjectBookingLabel } from "@/lib/largeProjectBookingLabel";
 import ProjectAddressMapDialog from "@/components/maps/ProjectAddressMapDialog";
-import LargeProjectProductsOverview from "@/components/project/LargeProjectProductsOverview";
 import LargeProjectExcelView from "@/components/project/LargeProjectExcelView";
 import ConsolidateProjectsDialog from "@/components/project/ConsolidateProjectsDialog";
 
@@ -41,7 +40,6 @@ const LargeProjectLayout = () => {
   const queryClient = useQueryClient();
   const [isAddBookingOpen, setIsAddBookingOpen] = useState(false);
   const [bookingSearch, setBookingSearch] = useState("");
-  const [expandedBookingIds, setExpandedBookingIds] = useState<Set<string>>(new Set());
   const [bookingListSearch, setBookingListSearch] = useState("");
   const [isConsolidateOpen, setIsConsolidateOpen] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
