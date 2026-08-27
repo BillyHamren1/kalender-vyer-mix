@@ -15,6 +15,7 @@ import { APP_MODE, getDefaultRoute } from "@/config/appMode";
 import { LanguageProvider } from "@/i18n/LanguageContext";
 import { lazyWithRecovery } from "@/utils/lazyWithRecovery";
 import { useTenantCacheGuard } from "@/hooks/useTenantCacheGuard";
+import { enforcePersistedCacheOwner } from "@/lib/tenant/tenantCacheGuard";
 
 
 
@@ -160,6 +161,12 @@ const queryClient = new QueryClient({
 // Persistera react-query-cachen i localStorage så att tunga sidor (t.ex.
 // /staff-management/time) visas direkt med förra besökets data och
 // uppdateras tyst i bakgrunden istället för att ladda om från noll varje gång.
+// Kör FÖRE persistern skapas: en persisterad cache som tillhör en annan
+// användare (annan organisation) får aldrig hydreras in i denna session.
+if (typeof window !== "undefined") {
+  enforcePersistedCacheOwner();
+}
+
 const queryPersister = typeof window !== "undefined"
   ? createSyncStoragePersister({
       storage: window.localStorage,
