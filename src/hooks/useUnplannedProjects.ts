@@ -34,6 +34,7 @@ export function useUnplannedProjects() {
         .select('id, name, booking_id, created_at')
         .eq('organization_id', orgId)
         .eq('planning_status', 'needs_planning')
+        .eq('is_internal', false)
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
