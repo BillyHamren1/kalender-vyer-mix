@@ -83,3 +83,85 @@ export const enforceTenantCacheBoundary = (
   }
   return false;
 };
+
+/* -------------------------------------------------------------------------
+ * Ägarskapskontroll av persisterad cache (körs synkront vid boot).
+ *
+ * Problemet med enbart org-vakten ovan är att den är ASYNKRON: React Query
+ * hydrerar localStorage-cachen direkt vid mount, medan organisationen slås upp
+ * först efter ett par nätverksanrop. Loggar användare A (org 1) ut och
+ * användare B (org 2) in i samma webbläsare hinner A:s data renderas i B:s
+ * session — t.ex. A:s personal i personalkalendern.
+ *
+ * Lösningen: vi stämplar cachen med auth-användarens id och jämför synkront
+ * mot Supabase-sessionen i localStorage innan persistern skapas. Vid minsta
+ * avvikelse kastas hela den persisterade cachen.
+ * ---------------------------------------------------------------------- */
+
+export const AUTH_STORAGE_KEY = 'eventflow-planning-auth';
+const LAST_USER_KEY = 'eventflow-active-user-id';
+
+/** Läser inloggad användares id synkront ur Supabase-sessionen i localStorage. */
+export const readPersistedAuthUserId = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.user?.id ?? parsed?.currentSession?.user?.id ?? null;
+  } catch {
+    return null;
+  }
+};
+
+export const getLastKnownUserId = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage.getItem(LAST_USER_KEY);
+  } catch {
+    return null;
+  }
+};
+
+export const setLastKnownUserId = (userId: string | null) => {
+  if (typeof window === 'undefined') return;
+  try {
+    if (userId) window.localStorage.setItem(LAST_USER_KEY, userId);
+    else window.localStorage.removeItem(LAST_USER_KEY);
+  } catch {
+    /* ignore */
+  }
+};
+
+/**
+ * Kastar persisterad cache om den tillhör en annan (eller okänd) användare.
+ * Returnerar true om cachen rensades.
+ */
+export const enforcePersistedCacheOwner = (
+  currentUserId: string | null = readPersistedAuthUserId(),
+): boolean => {
+  if (typeof window === 'undefined') return false;
+  const previous = getLastKnownUserId();
+
+  if (!currentUserId) {
+    // Ingen session → ingen persisterad tenantdata får ligga kvar.
+    if (previous) {
+      clearPersistedTenantState();
+      setLastKnownUserId(null);
+      setLastKnownOrganizationId(null);
+      return true;
+    }
+    return false;
+  }
+
+  if (previous && previous !== currentUserId) {
+    console.warn('[TenantCacheGuard] Användarbyte upptäckt – rensar persisterad cache');
+    clearPersistedTenantState();
+    setLastKnownOrganizationId(null);
+    setLastKnownUserId(currentUserId);
+    return true;
+  }
+
+  setLastKnownUserId(currentUserId);
+  return false;
+};
