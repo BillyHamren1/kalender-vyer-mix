@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 
 const page = fs.readFileSync('src/pages/WarehouseCalendarPage.tsx', 'utf8');
-const card = fs.readFileSync('src/components/Calendar/CustomEvent.tsx', 'utf8');
+const card = fs.readFileSync('src/components/warehouse/WarehouseWorkCalendar.tsx', 'utf8');
 const filter = fs.readFileSync('src/components/Calendar/WarehouseEventFilter.tsx', 'utf8');
 
 describe('Lagerkalenderns kortinnehåll (presentation only)', () => {
@@ -35,7 +35,7 @@ describe('Lagerkalenderns kortinnehåll (presentation only)', () => {
 
   it('bemanning kommer från exakt aktiv lagerhändelse', () => {
     const meta = fs.readFileSync('src/hooks/useWarehouseCardMeta.ts', 'utf8');
-    expect(page).toContain('eventCrew?.get(warehouseEventKeyOf(event))');
+    expect(page).toContain('eventCrew?.get(event.id)');
     expect(meta).toContain("from('warehouse_assignments')");
     expect(meta).toContain(".in('warehouse_event_id', ids)");
     expect(meta).toContain(".neq('status', 'cancelled')");

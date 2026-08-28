@@ -16,6 +16,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import type { TablesInsert } from '@/integrations/supabase/types';
 import { format } from 'date-fns';
 import { assignStaffToTeamCore } from '@/services/staffAssignmentCore';
 import { getWarehouseTeamId, isWarehouseTeam } from '@/lib/warehouse/warehouseTeam';
@@ -27,7 +28,7 @@ import {
 
 type WarehouseEventRow = {
   id: string;
-  organization_id?: string | null;
+  organization_id: string;
   booking_id: string | null;
   booking_number: string | null;
   title: string | null;
@@ -64,10 +65,15 @@ function deriveAction(type: WarehouseAssignmentType): WarehouseAssignmentAction 
 }
 
 /** Convert event row + staff into an upsertable warehouse_assignments row. */
-function toAssignmentRow(staffId: string, dateStr: string, ev: WarehouseEventRow) {
+function toAssignmentRow(
+  staffId: string,
+  dateStr: string,
+  ev: WarehouseEventRow,
+): TablesInsert<'warehouse_assignments'> {
   const type = deriveType(ev.event_type);
   return {
     staff_id: staffId,
+    organization_id: ev.organization_id,
     assignment_date: dateStr,
     assignment_type: type,
     action: deriveAction(type),
@@ -134,7 +140,7 @@ export async function syncWarehouseAssignmentsForStaffTeamDay(params: {
     const rows = events.map((ev) => toAssignmentRow(staffId, dateStr, ev));
     const { error } = await supabase
       .from('warehouse_assignments')
-      .upsert(rows as any, { onConflict: 'staff_id,warehouse_event_id' });
+      .upsert(rows, { onConflict: 'staff_id,warehouse_event_id' });
     if (error) {
       console.error('[warehouseAssignmentsSync] upsert failed', error);
     } else {
@@ -275,26 +281,72 @@ export async function syncWarehouseAssignmentsForEvents(
 export async function assignStaffToWarehouseEvent(params: {
   staffId: string;
   warehouseEventId: string;
-}): Promise<void> {
+}): Promise<{ ok: boolean; error?: string }> {
   const { staffId, warehouseEventId } = params;
-  if (!staffId || !warehouseEventId) return;
+  if (!staffId || !warehouseEventId) return { ok: false, error: 'missing_params' };
 
   const { data: ev, error } = await supabase
     .from('warehouse_calendar_events')
-    .select('id, start_time, resource_id')
+    .select(
+      'id, organization_id, booking_id, booking_number, title, start_time, end_time, resource_id, event_type, delivery_address',
+    )
     .eq('id', warehouseEventId)
     .maybeSingle();
 
   if (error || !ev || !ev.start_time) {
     console.error('[warehouseAssignmentsSync] assign: event not found', { warehouseEventId, error });
-    return;
+    return { ok: false, error: 'warehouse_event_not_found' };
   }
 
   const date = new Date(ev.start_time);
-  if (isNaN(date.getTime())) return;
+  if (isNaN(date.getTime())) return { ok: false, error: 'invalid_event_date' };
 
   const teamId = getWarehouseTeamId(ev.resource_id);
-  await syncWarehouseAssignmentsForStaffTeamDay({ staffId, teamId, date });
+  const dateStr = format(date, 'yyyy-MM-dd');
+
+  // The warehouse UI assigns a person to THIS concrete job. Do not route this
+  // through the legacy team-day sync: that would implicitly assign the person
+  // to every lager-N job on the same day.
+  const row = toAssignmentRow(staffId, dateStr, ev as WarehouseEventRow);
+  const { error: upsertError } = await supabase
+    .from('warehouse_assignments')
+    .upsert(row, { onConflict: 'staff_id,warehouse_event_id' });
+
+  if (upsertError) {
+    console.error('[warehouseAssignmentsSync] exact-event upsert failed', upsertError);
+    return { ok: false, error: upsertError.message };
+  }
+
+  // Compatibility mirror only. The concrete warehouse_assignments row above
+  // remains the sole source for which warehouse job the person actually owns.
+  try {
+    await assignStaffToTeamCore(staffId, teamId, date);
+  } catch (mirrorError) {
+    console.warn('[warehouseAssignmentsSync] exact-event team mirror failed', mirrorError);
+  }
+
+  return { ok: true };
+}
+
+/** Remove exactly one person's assignment from exactly one warehouse job. */
+export async function removeStaffFromWarehouseEvent(params: {
+  staffId: string;
+  warehouseEventId: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const { staffId, warehouseEventId } = params;
+  if (!staffId || !warehouseEventId) return { ok: false, error: 'missing_params' };
+
+  const { error } = await supabase
+    .from('warehouse_assignments')
+    .delete()
+    .eq('staff_id', staffId)
+    .eq('warehouse_event_id', warehouseEventId);
+
+  if (error) {
+    console.error('[warehouseAssignmentsSync] exact-event removal failed', error);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
 }
 
 /**

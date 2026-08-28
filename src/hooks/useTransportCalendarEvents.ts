@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { CalendarEvent, getEventColor, getTransportEventType } from '@/components/Calendar/ResourceData';
 import { format, startOfWeek, startOfMonth, endOfMonth, addDays } from 'date-fns';
+import { useCurrentOrg } from '@/hooks/useCurrentOrg';
 
 interface TransportCalendarData {
   id: string;
@@ -29,6 +30,7 @@ interface TransportCalendarData {
 export const useTransportCalendarEvents = (currentDate: Date, view: 'day' | 'week' | 'month' = 'week') => {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const { organizationId, isLoading: organizationLoading } = useCurrentOrg();
 
   const dateRange = useMemo(() => {
     if (view === 'day') return { start: currentDate, end: currentDate };
@@ -41,6 +43,10 @@ export const useTransportCalendarEvents = (currentDate: Date, view: 'day' | 'wee
   const endStr = format(dateRange.end, 'yyyy-MM-dd');
 
   const fetchTransports = useCallback(async () => {
+    if (!organizationId) {
+      setEvents([]);
+      return;
+    }
     try {
       setIsLoading(true);
       const { data, error } = await supabase
@@ -51,6 +57,7 @@ export const useTransportCalendarEvents = (currentDate: Date, view: 'day' | 'wee
           vehicle:vehicles!vehicle_id ( id, name ),
           booking:bookings!booking_id ( id, client, booking_number, deliveryaddress, delivery_city )
         `)
+        .eq('organization_id', organizationId)
         .gte('transport_date', startStr)
         .lte('transport_date', endStr)
         .order('transport_time', { ascending: true });
@@ -70,8 +77,8 @@ export const useTransportCalendarEvents = (currentDate: Date, view: 'day' | 'wee
         const clientName = t.booking?.client || 'Okänd';
         const effectivePlanningStatus = t.planning_status === 'confirmed' || t.partner_response === 'accepted' ? 'confirmed' : 'preliminary';
         const planningLabel = effectivePlanningStatus === 'confirmed' ? 'Bekräftad' : 'Preliminär';
-      const transportEventType = getTransportEventType(t.transport_type);
-      return {
+        const transportEventType = getTransportEventType(t.transport_type);
+        return {
           id: `transport-${t.id}`,
           title: clientName,
           start: `${t.transport_date}T${time}:00`,
@@ -113,16 +120,26 @@ export const useTransportCalendarEvents = (currentDate: Date, view: 'day' | 'wee
     } finally {
       setIsLoading(false);
     }
-  }, [startStr, endStr]);
+  }, [endStr, organizationId, startStr]);
 
   useEffect(() => {
+    if (!organizationId) return;
     fetchTransports();
     const channel = supabase
-      .channel('transport-calendar-events')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transport_assignments' }, fetchTransports)
+      .channel(`transport-calendar-events-${organizationId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'transport_assignments',
+          filter: `organization_id=eq.${organizationId}`,
+        },
+        fetchTransports,
+      )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [fetchTransports]);
+  }, [fetchTransports, organizationId]);
 
-  return { transportEvents: events, isLoading };
+  return { transportEvents: events, isLoading: organizationLoading || isLoading };
 };

@@ -9,11 +9,18 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { assignStaffToPacking, removeStaffFromPacking } from '@/services/warehouseAssignmentsSync';
+import {
+  assignStaffToPacking,
+  assignStaffToWarehouseEvent,
+  removeStaffFromPacking,
+  removeStaffFromWarehouseEvent,
+} from '@/services/warehouseAssignmentsSync';
 import { cn } from '@/lib/utils';
+import { useCurrentOrg } from '@/hooks/useCurrentOrg';
 
 interface Props {
-  packingId: string;
+  packingId?: string;
+  warehouseEventId?: string;
   packingName?: string | null;
   /** Namn på redan bemannad personal (för markering i listan). */
   assignedNames: string[];
@@ -28,6 +35,7 @@ interface StaffOption {
 
 const QuickAssignStaffPopover: React.FC<Props> = ({
   packingId,
+  warehouseEventId,
   packingName,
   assignedNames,
   label,
@@ -37,16 +45,21 @@ const QuickAssignStaffPopover: React.FC<Props> = ({
   const [search, setSearch] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const { organizationId } = useCurrentOrg();
+  const targetId = warehouseEventId || packingId || '';
+  const targetKind = warehouseEventId ? 'event' : 'packing';
 
   const { data: staff = [], isLoading } = useQuery<StaffOption[]>({
-    queryKey: ['warehouse-quick-assign-staff'],
-    enabled: open,
+    queryKey: ['warehouse-quick-assign-staff', organizationId],
+    enabled: open && !!organizationId,
     staleTime: 5 * 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('staff_members')
         .select('id, name')
+        .eq('organization_id', organizationId!)
         .eq('is_active', true)
+        .contains('tags', ['Lager'])
         .order('name', { ascending: true });
       if (error) throw error;
       return (data || []) as StaffOption[];
@@ -56,16 +69,20 @@ const QuickAssignStaffPopover: React.FC<Props> = ({
   const { data: assigned = [], refetch: refetchAssigned } = useQuery<
     { assignmentId: string; staffId: string }[]
   >({
-    queryKey: ['warehouse-quick-assign-current', packingId],
-    enabled: open,
+    queryKey: ['warehouse-quick-assign-current', organizationId, targetKind, targetId],
+    enabled: open && !!organizationId && !!targetId,
     staleTime: 0,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let assignmentQuery = supabase
         .from('warehouse_assignments')
         .select('id, staff_id')
-        .eq('packing_id', packingId);
+        .eq('organization_id', organizationId!);
+      assignmentQuery = warehouseEventId
+        ? assignmentQuery.eq('warehouse_event_id', warehouseEventId)
+        : assignmentQuery.eq('packing_id', packingId!);
+      const { data, error } = await assignmentQuery;
       if (error) throw error;
-      return (data || []).map((r: any) => ({ assignmentId: r.id, staffId: r.staff_id }));
+      return (data || []).map((row) => ({ assignmentId: row.id, staffId: row.staff_id }));
     },
   });
 
@@ -83,15 +100,21 @@ const QuickAssignStaffPopover: React.FC<Props> = ({
   const refreshBoards = () => {
     queryClient.invalidateQueries({ queryKey: ['warehouse-ops-range'] });
     queryClient.invalidateQueries({ queryKey: ['warehouse-ops-board'] });
+    queryClient.invalidateQueries({ queryKey: ['warehouse-personnel-week'] });
+    queryClient.invalidateQueries({ queryKey: ['warehouse-card-event-crew'] });
     void refetchAssigned();
   };
 
   const toggle = async (s: StaffOption) => {
     const isAssigned = assignedIds.has(s.id);
     setBusyId(s.id);
-    const res = isAssigned
-      ? await removeStaffFromPacking({ staffId: s.id, packingId })
-      : await assignStaffToPacking({ staffId: s.id, packingId });
+    const res = warehouseEventId
+      ? isAssigned
+        ? await removeStaffFromWarehouseEvent({ staffId: s.id, warehouseEventId })
+        : await assignStaffToWarehouseEvent({ staffId: s.id, warehouseEventId })
+      : isAssigned
+        ? await removeStaffFromPacking({ staffId: s.id, packingId: packingId! })
+        : await assignStaffToPacking({ staffId: s.id, packingId: packingId! });
     setBusyId(null);
     if (res.ok) {
       toast.success(isAssigned ? `${s.name} borttagen` : `${s.name} bemannad`);
