@@ -381,6 +381,17 @@ export async function updateWarehouseCalendarEvent(
   eventId: string, 
   updates: { start_time?: string; end_time?: string }
 ): Promise<void> {
+  const { data: before, error: beforeError } = await supabase
+    .from('warehouse_calendar_events')
+    .select('start_time, end_time, manually_adjusted, has_source_changes')
+    .eq('id', eventId)
+    .maybeSingle();
+
+  if (beforeError || !before) {
+    console.error('[WarehouseCalendar] Could not snapshot event before update:', beforeError);
+    throw beforeError || new Error('warehouse_event_not_found');
+  }
+
   const { error } = await supabase
     .from('warehouse_calendar_events')
     .update({
@@ -394,16 +405,47 @@ export async function updateWarehouseCalendarEvent(
     console.error('[WarehouseCalendar] Error updating event:', error);
     throw error;
   }
+
+  const nextStart = updates.start_time ?? before.start_time;
+  const nextEnd = updates.end_time ?? before.end_time;
+  const assignmentDate = nextStart.slice(0, 10);
+  const { error: assignmentError } = await supabase
+    .from('warehouse_assignments')
+    .update({
+      assignment_date: assignmentDate,
+      start_time: nextStart,
+      end_time: nextEnd,
+    })
+    .eq('warehouse_event_id', eventId);
+
+  if (assignmentError) {
+    // Keep event + concrete assignment consistent. This rollback touches only
+    // the single event the manager just moved and never cascades to bookings.
+    await supabase
+      .from('warehouse_calendar_events')
+      .update({
+        start_time: before.start_time,
+        end_time: before.end_time,
+        manually_adjusted: before.manually_adjusted,
+        has_source_changes: before.has_source_changes,
+      })
+      .eq('id', eventId);
+    console.error('[WarehouseCalendar] Assignment update failed; event rolled back:', assignmentError);
+    throw assignmentError;
+  }
 }
 
 // Fetch warehouse events for a date range
-export async function fetchWarehouseEvents(startDate: string, endDate: string) {
-  const { data, error } = await supabase
+export async function fetchWarehouseEvents(startDate: string, endDate: string, organizationId?: string | null) {
+  let query = supabase
     .from('warehouse_calendar_events')
     .select('*')
     .gte('start_time', startDate)
     .lte('end_time', endDate)
     .order('start_time', { ascending: true });
+
+  if (organizationId) query = query.eq('organization_id', organizationId);
+  const { data, error } = await query;
   
   if (error) {
     console.error('[WarehouseCalendar] Error fetching events:', error);

@@ -36,18 +36,50 @@ describe('warehouse clean integration', () => {
     expect(isLegacyLagerResourceId('warehouse-transport')).toBe(false);
   });
 
-  it('offers Kalender and Personal as the two planning modes', () => {
+  it('offers a classic warehouse calendar and Personal as the two planning modes', () => {
     const page = read('src/pages/WarehouseCalendarPage.tsx');
+    const calendar = read('src/components/warehouse/WarehouseWorkCalendar.tsx');
     expect(page).toContain("useState<WarehousePlanningMode>('calendar')");
     expect(page).toContain('WarehousePersonnelView');
-    expect(page).toContain('toDisplayResources');
+    expect(page).toContain('WarehouseWorkCalendar');
+    expect(page).not.toContain('CustomCalendar');
+    expect(page).not.toContain('toDisplayResources');
+    expect(calendar).toContain("day: 'timeGridDay'");
+    expect(calendar).toContain("weekly: 'timeGridWeek'");
+    expect(calendar).toContain("monthly: 'dayGridMonth'");
   });
 
   it('builds the personnel view from concrete assignments, never from lager-N teams', () => {
     const hook = read('src/hooks/useWarehousePersonnelWeek.ts');
+    const personnel = read('src/components/warehouse/WarehousePersonnelView.tsx');
     expect(hook).toContain("from('warehouse_assignments')");
+    expect(hook).toContain("from('staff_members')");
     expect(hook).not.toContain("from('staff_assignments')");
     expect(hook).not.toMatch(/from\('staff_assignments'\)|resource_id/);
+    expect(personnel).toContain('Inga lagerjobb');
+  });
+
+  it('staffs one concrete warehouse job instead of every lager job that day', () => {
+    const service = read('src/services/warehouseAssignmentsSync.ts');
+    const start = service.indexOf('export async function assignStaffToWarehouseEvent');
+    const end = service.indexOf('export async function removeStaffFromWarehouseEvent');
+    const exactAssignment = service.slice(start, end);
+    const personnel = read('src/components/warehouse/WarehousePersonnelView.tsx');
+
+    expect(exactAssignment).toContain(".upsert(row, { onConflict: 'staff_id,warehouse_event_id' })");
+    expect(exactAssignment).not.toContain('syncWarehouseAssignmentsForStaffTeamDay');
+    expect(personnel).toContain('warehouseEventId={job.warehouseEventId}');
+  });
+
+  it('keeps concrete assignments aligned when a calendar job is moved', () => {
+    const service = read('src/services/warehouseCalendarService.ts');
+    const start = service.indexOf('export async function updateWarehouseCalendarEvent');
+    const end = service.indexOf('// Fetch warehouse events for a date range');
+    const move = service.slice(start, end);
+
+    expect(move).toContain("from('warehouse_assignments')");
+    expect(move).toContain('assignment_date: assignmentDate');
+    expect(move).toContain('event rolled back');
   });
 });
 

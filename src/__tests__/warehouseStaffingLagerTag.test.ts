@@ -6,23 +6,28 @@ import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 
-const page = fs.readFileSync(
-  path.join(process.cwd(), 'src/pages/WarehouseCalendarPage.tsx'),
+const quickAssign = fs.readFileSync(
+  path.join(process.cwd(), 'src/components/warehouse-ops/QuickAssignStaffPopover.tsx'),
+  'utf8',
+);
+const personnelHook = fs.readFileSync(
+  path.join(process.cwd(), 'src/hooks/useWarehousePersonnelWeek.ts'),
   'utf8',
 );
 
 describe('Lagerkalenderns bemanningsregel', () => {
   it('skickar inte aktiverings-id:n som hård spärr till kalendern', () => {
-    expect(page).not.toMatch(/activatedStaffIds=\{activeStaffIds\}/);
-    expect(page).not.toMatch(/activatedStaffByDate=\{activeStaffIdsByDate\}/);
+    expect(quickAssign).not.toMatch(/activatedStaffIds=\{activeStaffIds\}/);
+    expect(quickAssign).not.toMatch(/activatedStaffByDate=\{activeStaffIdsByDate\}/);
   });
 
   it('använder inte längre useWarehouseAvailableStaff för att filtrera personal', () => {
-    expect(page).not.toMatch(/useWarehouseAvailableStaff\(/);
+    expect(quickAssign).not.toMatch(/useWarehouseAvailableStaff\(/);
   });
 
-  it('behåller Lager-taggfiltret i personal-operationerna', () => {
-    expect(page).toMatch(/useUnifiedStaffOperations\(currentWeekStart, 'weekly', 'Lager'\)/);
+  it('behåller Lager-taggfiltret i bemanningslistan och personalmatrisen', () => {
+    expect(quickAssign).toContain(".contains('tags', ['Lager'])");
+    expect(personnelHook).toContain("member.tags.includes('Lager')");
   });
 });
 

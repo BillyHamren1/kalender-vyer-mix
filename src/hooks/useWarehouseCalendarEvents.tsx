@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
+import { useCurrentOrg } from '@/hooks/useCurrentOrg';
 import { 
   fetchWarehouseEvents, 
   markWarehouseEventAsViewed, 
@@ -44,6 +45,7 @@ export function useWarehouseCalendarEvents({ currentDate, view }: UseWarehouseCa
   const [error, setError] = useState<Error | null>(null);
   const [changedEventsCount, setChangedEventsCount] = useState(0);
   const { toast } = useToast();
+  const { organizationId, isLoading: organizationLoading } = useCurrentOrg();
 
 
   // Calculate date range based on view
@@ -76,7 +78,13 @@ export function useWarehouseCalendarEvents({ currentDate, view }: UseWarehouseCa
   // Fetch events
   const fetchEvents = useCallback(async () => {
     const { start, end } = getDateRange();
-    const cacheKey = `${start}|${end}`;
+    if (!organizationId) {
+      setEvents([]);
+      setLoading(organizationLoading);
+      return;
+    }
+
+    const cacheKey = `${organizationId}|${start}|${end}`;
     const cached = warehouseEventsCache.get(cacheKey);
 
     if (cached) {
@@ -89,14 +97,16 @@ export function useWarehouseCalendarEvents({ currentDate, view }: UseWarehouseCa
     setError(null);
 
     try {
-      const data = await fetchWarehouseEvents(start, end);
+      const data = await fetchWarehouseEvents(start, end, organizationId);
       
       // Type assertion since we know the structure
       setEvents(data as WarehouseEvent[]);
       warehouseEventsCache.set(cacheKey, data as WarehouseEvent[]);
       
       // Count events with changes
-      const changedCount = data.filter((e: any) => e.has_source_changes && !e.manually_adjusted).length;
+      const changedCount = data.filter(
+        (event: WarehouseEvent) => event.has_source_changes && !event.manually_adjusted,
+      ).length;
       setChangedEventsCount(changedCount);
       
       if (changedCount > 0) {
@@ -112,7 +122,7 @@ export function useWarehouseCalendarEvents({ currentDate, view }: UseWarehouseCa
     } finally {
       setLoading(false);
     }
-  }, [getDateRange, toast]);
+  }, [getDateRange, organizationId, organizationLoading, toast]);
 
 
   // Acknowledge a change
@@ -154,14 +164,16 @@ export function useWarehouseCalendarEvents({ currentDate, view }: UseWarehouseCa
 
   // Real-time subscription
   useEffect(() => {
+    if (!organizationId) return;
     const channel = supabase
-      .channel('warehouse-calendar-events')
+      .channel(`warehouse-calendar-events-${organizationId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'warehouse_calendar_events'
+          table: 'warehouse_calendar_events',
+          filter: `organization_id=eq.${organizationId}`,
         },
         (payload) => {
           console.log('[WarehouseCalendar] Real-time update:', payload);
@@ -173,7 +185,7 @@ export function useWarehouseCalendarEvents({ currentDate, view }: UseWarehouseCa
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchEvents]);
+  }, [fetchEvents, organizationId]);
 
   // Group events by date for calendar display
   const eventsByDate = events.reduce((acc, event) => {
