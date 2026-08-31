@@ -50,17 +50,34 @@ const isChildRow = (p: BookingProduct): boolean =>
   !!p.is_package_component ||
   NAME_LOOKS_LIKE_CHILD.test(p.name || "");
 
-// Behåll legacy-export för andra konsumenter — visar nu ALLA barn (även paketmedlemmar).
+// Paketmedlem = uppackad komponent ur ett paket (is_package_component,
+// parent_package_id eller `--`-prefix). Dessa är plocklista för lagret och
+// ska INTE visas i projektinfo — Booking visar aldrig dem.
+export const isPackageMemberRow = (p: {
+  name: string;
+  parent_package_id?: string | null;
+  is_package_component?: boolean | null;
+}): boolean =>
+  !!p.is_package_component ||
+  !!p.parent_package_id ||
+  /^\s*--/.test(p.name || "");
+
+// Synlig barnrad = tillbehör (↳/└/L,) som inte är paketmedlem.
+// Samma vy som Booking: huvudprodukter + tillbehör, aldrig paketkomponenter.
 export const isVisibleAccessory = (p: {
   name: string;
   parent_product_id: string | null;
   parent_package_id?: string | null;
   is_package_component?: boolean | null;
-}) =>
-  !!p.parent_product_id ||
-  !!p.parent_package_id ||
-  !!p.is_package_component ||
-  NAME_LOOKS_LIKE_CHILD.test(p.name || "");
+}) => {
+  const isChild =
+    !!p.parent_product_id ||
+    !!p.parent_package_id ||
+    !!p.is_package_component ||
+    NAME_LOOKS_LIKE_CHILD.test(p.name || "");
+  if (!isChild) return false;
+  return !isPackageMemberRow(p);
+};
 
 const ProjectProductsList = ({
   bookingId,
