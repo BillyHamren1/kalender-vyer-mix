@@ -20,7 +20,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { PackingHistoryDialog } from '@/components/packing/PackingHistoryDialog';
-import { openPrintablePackingList } from '@/lib/packing/printPackingList';
+import type { PrintablePackingMeta, PrintablePackingRow } from '@/lib/packing/printPackingList';
 import { supabase } from '@/integrations/supabase/client';
 import {
   fetchPackingListItemsForDesktop as fetchPackingListItems,
@@ -33,6 +33,7 @@ import { computePackingProgress } from '@/lib/packing/progress';
 import type { PackingIntegrityResult } from '@/lib/packing/packingIntegrity';
 import PackingIntegrityBanner from './PackingIntegrityBanner';
 import PackingPreflightPanel from '@/components/scanner/PackingPreflightPanel';
+import PrintPackingListDialog from './PrintPackingListDialog';
 
 // ============================================================================
 // READ-ONLY desktop checklist.
@@ -69,6 +70,7 @@ interface PackingItem {
     quantity: number;
     sku: string | null;
     notes: string | null;
+    sort_index?: number | null;
     parent_product_id: string | null;
     parent_package_id: string | null;
     is_package_component: boolean | null;
@@ -81,6 +83,7 @@ interface BookingGroupInfo {
   client: string;
   bookingNumber: string | null;
   eventdate: string | null;
+  internalnotes: string | null;
 }
 
 const cleanProductName = (name: string): string =>
@@ -124,6 +127,9 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [itemParcelMap, setItemParcelMap] = useState<Record<string, number>>({});
   const [wmsPreflightState, setWmsPreflightState] = useState<'not_run' | 'checking' | 'pass' | 'warning' | 'blocked' | 'error'>('not_run');
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
+  const [printRows, setPrintRows] = useState<PrintablePackingRow[]>([]);
+  const [printMeta, setPrintMeta] = useState<PrintablePackingMeta | null>(null);
 
   const recalcProgress = useCallback((updatedItems: PackingItem[]) => {
     const { total, verified, percentage } = computePackingProgress(updatedItems);
@@ -156,7 +162,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
         if (productBookingIds.size > 1) {
           const { data: bookings } = await supabase
             .from('bookings')
-            .select('id, client, booking_number, eventdate')
+            .select('id, client, booking_number, eventdate, internalnotes')
             .in('id', Array.from(productBookingIds));
           setBookingGroups(
             (bookings || []).map((b) => ({
@@ -164,6 +170,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
               client: b.client,
               bookingNumber: b.booking_number,
               eventdate: b.eventdate,
+              internalnotes: b.internalnotes,
             })),
           );
         } else {
@@ -250,6 +257,68 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
   const printTitle = printPreliminaryReason
     ? `Skrivs ut som PRELIMINÄR (${printPreliminaryReason})`
     : 'Skriv ut packlistan eller spara som PDF';
+
+  const preparePrint = () => {
+    const clientName = packing?.booking?.client || bookingGroups[0]?.client || null;
+    const bookingNumber = packing?.booking?.booking_number || bookingGroups[0]?.bookingNumber || null;
+    const rigDate = (packing?.booking as any)?.rigdaydate || null;
+
+    const rows = activeItems.map((item) => {
+      const rawName = item.manual_name || item.booking_products?.name || 'Okänd produkt';
+      const cleanName = cleanProductName(rawName);
+      const isChildByRelation = !!(
+        item.booking_products?.parent_product_id ||
+        item.booking_products?.parent_package_id ||
+        item.booking_products?.is_package_component
+      );
+      const trimmedName = rawName.trimStart();
+      const isChildByPrefix =
+        trimmedName.startsWith('↳') ||
+        trimmedName.startsWith('└') ||
+        trimmedName.startsWith('L,') ||
+        trimmedName.startsWith('⦿');
+      const isChild = isChildByRelation || isChildByPrefix;
+      const displayName = isChild ? formatToTitleCase(cleanName) : cleanName.toUpperCase();
+      const groupLabel = isMultiBooking
+        ? (() => {
+            const bid = item.booking_products?.booking_id;
+            const group = bookingGroups.find((candidate) => candidate.bookingId === bid);
+            return group
+              ? `${group.client}${group.bookingNumber ? ` · #${group.bookingNumber}` : ''}`
+              : null;
+          })()
+        : null;
+
+      return {
+        name: displayName,
+        sku: item.booking_products?.sku ?? null,
+        quantity: item.quantity_to_pack,
+        isChild,
+        groupLabel,
+        parcelNumber: itemParcelMap[item.id] ?? null,
+        notes: item.booking_products?.notes ?? null,
+      };
+    });
+
+    const multiBookingNotes = bookingGroups
+      .filter((group) => group.internalnotes?.trim())
+      .map((group) => `${group.bookingNumber ? `#${group.bookingNumber} · ` : ''}${group.client}: ${group.internalnotes}`)
+      .join('\n\n');
+    const internalNotes = isMultiBooking
+      ? multiBookingNotes || null
+      : (packing?.notes || (packing?.booking as any)?.internalnotes || null);
+
+    setPrintRows(rows);
+    setPrintMeta({
+      packingName,
+      bookingNumber,
+      client: clientName,
+      rigDate,
+      internalNotes,
+      parcelCount: new Set(Object.values(itemParcelMap)).size,
+    });
+    setShowPrintDialog(true);
+  };
 
   const renderItem = (item: PackingItem) => {
     const rawName = item.manual_name || item.booking_products?.name || 'Okänd produkt';
@@ -391,58 +460,7 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
             variant="outline"
             size="sm"
             title={printTitle}
-            onClick={() => {
-              const clientName = packing?.booking?.client || bookingGroups[0]?.client || null;
-              const bookingNumber =
-                packing?.booking?.booking_number || bookingGroups[0]?.bookingNumber || null;
-              const rigDate = (packing?.booking as any)?.rigdaydate || null;
-
-              const printRows = activeItems.map((item) => {
-                const rawName = item.manual_name || item.booking_products?.name || 'Okänd produkt';
-                const cleanName = cleanProductName(rawName);
-                const isChildByRelation = !!(
-                  item.booking_products?.parent_product_id ||
-                  item.booking_products?.parent_package_id ||
-                  item.booking_products?.is_package_component
-                );
-                const trimmedName = rawName.trimStart();
-                const isChildByPrefix =
-                  trimmedName.startsWith('↳') ||
-                  trimmedName.startsWith('└') ||
-                  trimmedName.startsWith('L,') ||
-                  trimmedName.startsWith('⦿');
-                const isChild = isChildByRelation || isChildByPrefix;
-                const displayName = isChild
-                  ? formatToTitleCase(cleanName)
-                  : cleanName.toUpperCase();
-                const groupLabel = isMultiBooking
-                  ? (() => {
-                      const bid = item.booking_products?.booking_id;
-                      const g = bookingGroups.find((x) => x.bookingId === bid);
-                      return g
-                        ? `${g.client}${g.bookingNumber ? ` · #${g.bookingNumber}` : ''}`
-                        : null;
-                    })()
-                  : null;
-                return {
-                  name: displayName,
-                  sku: item.booking_products?.sku ?? null,
-                  quantity: item.quantity_to_pack,
-                  isChild,
-                  groupLabel,
-                };
-              });
-
-              openPrintablePackingList(
-                {
-                  packingName,
-                  bookingNumber,
-                  client: clientName,
-                  rigDate,
-                },
-                printRows,
-              );
-            }}
+            onClick={preparePrint}
           >
             <Printer className="h-4 w-4 mr-2" />
             Skriv ut
@@ -489,6 +507,17 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
           autoRun
           onResult={(_result, state) => setWmsPreflightState(state)}
         />
+      )}
+
+      {packing?.notes && (
+        <Card className="border-blue-500/30 bg-blue-50/50 dark:bg-blue-950/20">
+          <CardContent className="py-3 px-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
+              Intern information
+            </p>
+            <p className="mt-1 text-sm whitespace-pre-wrap">{packing.notes}</p>
+          </CardContent>
+        </Card>
       )}
 
       {/* Read-only banner */}
@@ -678,6 +707,13 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
         open={showHistory}
         onOpenChange={setShowHistory}
         packingId={packingId}
+      />
+
+      <PrintPackingListDialog
+        open={showPrintDialog}
+        onOpenChange={setShowPrintDialog}
+        meta={printMeta}
+        rows={printRows}
       />
 
     </div>
