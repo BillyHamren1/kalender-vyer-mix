@@ -26,6 +26,8 @@ interface BookingProduct {
   estimated_weight_kg: number | null;
   estimated_volume_m3: number | null;
   sort_index: number | null;
+  source_missing_since?: string | null;
+
 }
 
 interface ProjectProductsListProps {
