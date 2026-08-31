@@ -26,6 +26,8 @@ interface BookingProduct {
   estimated_weight_kg: number | null;
   estimated_volume_m3: number | null;
   sort_index: number | null;
+  source_missing_since?: string | null;
+
 }
 
 interface ProjectProductsListProps {
@@ -88,13 +90,13 @@ const ProjectProductsList = ({
   const [moveDialog, setMoveDialog] = useState<{ productId: string; name: string } | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
-  const { data: products = [], isLoading } = useQuery({
+  const { data: allRows = [], isLoading } = useQuery({
     queryKey: ["booking-products", bookingId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("booking_products")
         .select(
-          "id, name, quantity, notes, parent_product_id, parent_package_id, is_package_component, estimated_weight_kg, estimated_volume_m3, sort_index"
+          "id, name, quantity, notes, parent_product_id, parent_package_id, is_package_component, estimated_weight_kg, estimated_volume_m3, sort_index, source_missing_since"
         )
         .eq("booking_id", bookingId)
         .order("sort_index", { ascending: true, nullsFirst: false });
@@ -103,6 +105,16 @@ const ProjectProductsList = ({
     },
     enabled: !!bookingId,
   });
+
+  // Produkter som tagits bort i Booking (markerade av importen) ska aldrig
+  // visas som aktivt material i projektet — de hanteras via bokningsvyns
+  // bekräftelse-alert. Räknaren visas som en diskret notis.
+  const products = useMemo(
+    () => allRows.filter((p) => !p.source_missing_since),
+    [allRows]
+  );
+  const removedCount = allRows.length - products.length;
+
 
   const { grouping, generate, save, clear } = useProductGrouping("booking", bookingId);
 
@@ -282,6 +294,13 @@ const ProjectProductsList = ({
 
   return (
     <div>
+      {removedCount > 0 && (
+        <div className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+          {removedCount} {removedCount === 1 ? "produkt är" : "produkter är"} borttagna i Booking och
+          visas inte längre här. Bekräfta borttagningen i bokningsvyn.
+        </div>
+      )}
+
       {showGroupingControls && (
         <div className="flex items-center gap-2 mb-3">
           <Button
