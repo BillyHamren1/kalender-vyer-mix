@@ -12,6 +12,8 @@ export interface PrintablePackingRow {
   quantity: number;
   isChild?: boolean;
   groupLabel?: string | null;
+  parcelNumber?: number | null;
+  notes?: string | null;
 }
 
 export interface PrintablePackingMeta {
@@ -19,6 +21,9 @@ export interface PrintablePackingMeta {
   bookingNumber?: string | null;
   client?: string | null;
   rigDate?: string | null;
+  internalNotes?: string | null;
+  parcelCount?: number;
+  requirements?: string[];
 }
 
 const escapeHtml = (s: string): string =>
@@ -52,15 +57,19 @@ export function openPrintablePackingList(
       const rowsHtml = groupRows
         .map((row) => {
           const sku = row.sku ? `<div class="sku">[${escapeHtml(row.sku)}]</div>` : '';
+          const notes = row.notes ? `<div class="row-note">${escapeHtml(row.notes)}</div>` : '';
           return `
             <tr class="${row.isChild ? 'child-row' : ''}">
               <td class="col-name">
                 <div class="name">${escapeHtml(row.name)}</div>
                 ${sku}
+                ${notes}
               </td>
               <td class="col-qty">${row.quantity}</td>
+              <td class="col-parcel">${row.parcelNumber ? `#${row.parcelNumber}` : ''}</td>
               <td class="col-check"><span class="main-box"></span></td>
               <td class="col-sign"></td>
+              <td class="col-return"></td>
               <td class="col-check"><span class="main-box"></span></td>
               <td class="col-sign"></td>
             </tr>
@@ -69,12 +78,31 @@ export function openPrintablePackingList(
         .join('');
 
       const groupHeader = groupName
-        ? `<tr class="group-header"><td colspan="6">${escapeHtml(groupName)}</td></tr>`
+        ? `<tr class="group-header"><td colspan="8">${escapeHtml(groupName)}</td></tr>`
         : '';
 
       return `${groupHeader}${rowsHtml}`;
     })
     .join('');
+
+  const blankRowsHtml = Array.from({ length: 3 }, (_, index) => `
+    <tr class="blank-row">
+      <td class="col-name"><span>Tillägg ${index + 1}</span></td>
+      <td class="col-qty"></td>
+      <td class="col-parcel"></td>
+      <td class="col-check"><span class="main-box"></span></td>
+      <td class="col-sign"></td>
+      <td class="col-return"></td>
+      <td class="col-check"><span class="main-box"></span></td>
+      <td class="col-sign"></td>
+    </tr>
+  `).join('');
+
+  const requirementsHtml = (meta.requirements || []).length > 0
+    ? `<div class="requirements"><b>Särskilda packkrav</b><ul>${meta.requirements!
+        .map((requirement) => `<li>${escapeHtml(requirement)}</li>`)
+        .join('')}</ul></div>`
+    : '';
 
   const html = `<!doctype html>
 <html lang="sv">
@@ -111,6 +139,15 @@ export function openPrintablePackingList(
       color: #444;
     }
     .summary b { color: #111; }
+    .internal-notes, .requirements {
+      border: 1px solid #999;
+      padding: 8px 10px;
+      margin-bottom: 10px;
+      background: #fffbe8;
+      white-space: pre-wrap;
+    }
+    .requirements { background: #f4f7f8; }
+    .requirements ul { margin: 5px 0 0 18px; padding: 0; }
     table { width: 100%; border-collapse: collapse; }
     thead th {
       text-align: left;
@@ -132,10 +169,13 @@ export function openPrintablePackingList(
     .col-check { width: 56px; text-align: center; white-space: nowrap; }
     .col-name  { }
     .col-qty   { width: 48px; text-align: center; font-weight: 600; }
+    .col-parcel { width: 48px; text-align: center; }
     .col-sign  { width: 70px; }
+    .col-return { width: 52px; border-left: 1px solid #ddd; border-right: 1px solid #ddd; }
     .name { font-weight: 600; }
     .sku { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
            font-size: 10px; color: #666; margin-top: 2px; }
+    .row-note { font-size: 10px; color: #555; margin-top: 3px; font-style: italic; }
     .child-row .name { font-weight: 400; padding-left: 14px; color: #333; }
     .group-header td {
       background: #eef3f5;
@@ -152,6 +192,7 @@ export function openPrintablePackingList(
       border-radius: 3px;
       vertical-align: middle;
     }
+    .blank-row td { height: 34px; color: #777; font-style: italic; }
     .col-sign::after {
       content: "";
       display: block;
@@ -191,21 +232,28 @@ export function openPrintablePackingList(
   <div class="summary">
     <div><b>${rows.length}</b> produktrader</div>
     <div><b>${totalUnits}</b> enheter totalt</div>
+    <div><b>${meta.parcelCount || 0}</b> kolli</div>
   </div>
+
+  ${meta.internalNotes ? `<div class="internal-notes"><b>Intern information</b><br>${escapeHtml(meta.internalNotes)}</div>` : ''}
+  ${requirementsHtml}
 
   <table>
     <thead>
       <tr>
         <th class="col-name">Produkt</th>
         <th class="col-qty">Antal</th>
+        <th class="col-parcel">Kolli</th>
         <th class="col-check">Check 1</th>
         <th class="col-sign">Sign</th>
+        <th class="col-return">Retur</th>
         <th class="col-check">Check 2</th>
         <th class="col-sign">Sign</th>
       </tr>
     </thead>
     <tbody>
       ${groupsHtml}
+      ${blankRowsHtml}
     </tbody>
   </table>
 
