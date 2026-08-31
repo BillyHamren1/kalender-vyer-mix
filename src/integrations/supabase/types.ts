@@ -797,6 +797,7 @@ export type Database = {
           sku: string | null
           sort_index: number | null
           source_missing_since: string | null
+          sync_key: string | null
           tags: string[] | null
           tags_en: string[] | null
           total_price: number | null
@@ -831,6 +832,7 @@ export type Database = {
           sku?: string | null
           sort_index?: number | null
           source_missing_since?: string | null
+          sync_key?: string | null
           tags?: string[] | null
           tags_en?: string[] | null
           total_price?: number | null
@@ -865,6 +867,7 @@ export type Database = {
           sku?: string | null
           sort_index?: number | null
           source_missing_since?: string | null
+          sync_key?: string | null
           tags?: string[] | null
           tags_en?: string[] | null
           total_price?: number | null

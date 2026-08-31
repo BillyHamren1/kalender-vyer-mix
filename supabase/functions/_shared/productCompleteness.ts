@@ -198,3 +198,215 @@ export function planPackingReconnect(
 
   return plan;
 }
+
+/* ==========================================================================
+ * BOOKING PRODUCT SYNC IDENTITY
+ * --------------------------------------------------------------------------
+ * Booking-ägda orderrader identifieras med ett STABILT sync_key som härleds
+ * ur Bookings egna rad-id (inte namnet). Det gör att:
+ *  - flera orderrader med samma namn bevaras som separata rader,
+ *  - multipliciteten bevaras vid varje sync,
+ *  - Planning-genererade paketkomponenter aldrig förväxlas med Booking-rader,
+ *  - expansion av paketkomponenter blir idempotent.
+ * ========================================================================== */
+
+/** Prefix för Booking-ägda orderrader. */
+export const BOOKING_SOURCE_SYNC_PREFIX = 'src:';
+/** Prefix för Planning-genererade paketkomponenter. */
+export const PLANNING_COMPONENT_SYNC_PREFIX = 'cmp:';
+
+const slug = (v: unknown): string =>
+  (v ?? '')
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+
+/** Läser Bookings stabila rad-id om det finns. */
+export function readExternalProductId(product: any): string | null {
+  if (!product || typeof product !== 'object') return null;
+  const candidates = [
+    product.id,
+    product.external_id,
+    product.booking_product_id,
+    product.order_row_id,
+    product.row_id,
+    product.line_id,
+  ];
+  for (const c of candidates) {
+    if (c === null || c === undefined) continue;
+    const s = String(c).trim();
+    if (s) return s;
+  }
+  return null;
+}
+
+/**
+ * Bygger stabilt sync_key för en Booking-ägd orderrad.
+ * Med externt id → helt stabilt. Utan id → deterministisk position+namn-nyckel
+ * (fortfarande unik per rad, så multiplicitet bevaras).
+ */
+export function buildSourceSyncKey(product: any, index: number): string {
+  const extId = readExternalProductId(product);
+  if (extId) return `${BOOKING_SOURCE_SYNC_PREFIX}${extId}`;
+  const name = slug(product?.name ?? product?.product_name);
+  return `${BOOKING_SOURCE_SYNC_PREFIX}pos:${index}:${name}`;
+}
+
+/** Bygger stabilt sync_key för en Planning-genererad paketkomponent. */
+export function buildComponentSyncKey(
+  parentKey: string,
+  component: any,
+  index: number,
+): string {
+  const compId =
+    component?.item_type_id ?? component?.id ?? component?.sku ?? null;
+  const suffix =
+    compId !== null && compId !== undefined && String(compId).trim()
+      ? String(compId).trim()
+      : `pos:${index}:${slug(component?.name)}`;
+  return `${PLANNING_COMPONENT_SYNC_PREFIX}${parentKey}:${suffix}`;
+}
+
+/** true om raden skapats av Planning (paketkomponent), inte av Booking. */
+export function isPlanningGeneratedRow(row: any): boolean {
+  const key = (row?.sync_key ?? '').toString();
+  if (key.startsWith(PLANNING_COMPONENT_SYNC_PREFIX)) return true;
+  if (key.startsWith(BOOKING_SOURCE_SYNC_PREFIX)) return false;
+  return row?.is_package_component === true;
+}
+
+/**
+ * Bevarar explicit quantity: 0. Endast saknad/ogiltig mängd blir 1.
+ */
+export function normalizeSyncQuantity(raw: unknown): number {
+  if (raw === null || raw === undefined || raw === '') return 1;
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  if (!Number.isFinite(n)) return 1;
+  return n;
+}
+
+export interface SyncIdentityMatch {
+  syncKey: string;
+  external: any;
+  existingId: string | null;
+}
+
+export interface SyncIdentityPlan {
+  /** En post per extern orderrad, i inkommande ordning. */
+  matches: SyncIdentityMatch[];
+  /** Booking-ägda lokala rader som inte matchades av någon extern rad. */
+  unmatchedExisting: string[];
+  /** Planning-genererade rader — rörs aldrig av Booking-matchningen. */
+  ignoredPlanningRows: string[];
+}
+
+/**
+ * Matchar externa orderrader mot lokala rader via sync_key först och
+ * (för historiska rader utan sync_key) namn med bevarad multiplicitet.
+ * Planning-genererade komponenter ignoreras helt.
+ */
+export function planProductSyncIdentity(
+  externalProducts: any[],
+  existingRows: Array<{ id: string; name?: string | null; sync_key?: string | null; is_package_component?: boolean | null }>,
+): SyncIdentityPlan {
+  const ignoredPlanningRows: string[] = [];
+  const bookingRows: typeof existingRows = [];
+  for (const row of existingRows || []) {
+    if (isPlanningGeneratedRow(row)) ignoredPlanningRows.push(row.id);
+    else bookingRows.push(row);
+  }
+
+  const byKey = new Map<string, string>();
+  const byName = new Map<string, string[]>();
+  for (const row of bookingRows) {
+    const key = (row.sync_key ?? '').toString();
+    if (key) {
+      if (!byKey.has(key)) byKey.set(key, row.id);
+      continue;
+    }
+    const nameKey = slug(row.name);
+    const list = byName.get(nameKey) ?? [];
+    list.push(row.id);
+    byName.set(nameKey, list);
+  }
+
+  const used = new Set<string>();
+  const matches: SyncIdentityMatch[] = [];
+
+  (externalProducts || []).forEach((external, index) => {
+    const syncKey = buildSourceSyncKey(external, index);
+    let existingId: string | null = null;
+
+    const keyed = byKey.get(syncKey);
+    if (keyed && !used.has(keyed)) {
+      existingId = keyed;
+    } else {
+      // Fallback: historisk rad utan sync_key. FIFO per namn så att flera
+      // rader med samma namn behåller sin multiplicitet.
+      const nameKey = slug(external?.name ?? external?.product_name);
+      const queue = byName.get(nameKey);
+      while (queue && queue.length > 0) {
+        const candidate = queue.shift() as string;
+        if (!used.has(candidate)) {
+          existingId = candidate;
+          break;
+        }
+      }
+    }
+
+    if (existingId) used.add(existingId);
+    matches.push({ syncKey, external, existingId });
+  });
+
+  const unmatchedExisting = bookingRows
+    .map((r) => r.id)
+    .filter((id) => !used.has(id));
+
+  return { matches, unmatchedExisting, ignoredPlanningRows };
+}
+
+export interface ComponentExpansionRow {
+  parentId: string;
+  syncKey: string;
+  component: any;
+  quantity: number;
+  sortIndex: number;
+}
+
+/**
+ * Idempotent plan för expansion av package_components.
+ * - Föräldrar utan sync_key (historiska, ej Booking-kopplade) expanderas ALDRIG.
+ * - Komponenter som redan finns (samma component sync_key) hoppas över.
+ */
+export function planPackageComponentExpansion(
+  parents: Array<{ id: string; sync_key?: string | null; package_components?: any; sort_index?: number | null; is_package_component?: boolean | null }>,
+  existingRows: Array<{ sync_key?: string | null }>,
+): ComponentExpansionRow[] {
+  const existingKeys = new Set(
+    (existingRows || [])
+      .map((r) => (r.sync_key ?? '').toString())
+      .filter((k) => k.startsWith(PLANNING_COMPONENT_SYNC_PREFIX)),
+  );
+
+  const out: ComponentExpansionRow[] = [];
+  for (const parent of parents || []) {
+    const parentKey = (parent.sync_key ?? '').toString();
+    if (!parentKey.startsWith(BOOKING_SOURCE_SYNC_PREFIX)) continue; // historisk/okopplad
+    if (parent.is_package_component === true) continue;
+    const comps = Array.isArray(parent.package_components) ? parent.package_components : [];
+    comps.forEach((comp: any, i: number) => {
+      const syncKey = buildComponentSyncKey(parentKey, comp, i);
+      if (existingKeys.has(syncKey)) return;
+      existingKeys.add(syncKey);
+      out.push({
+        parentId: parent.id,
+        syncKey,
+        component: comp,
+        quantity: normalizeSyncQuantity(comp?.quantity),
+        sortIndex: (parent.sort_index ?? 0) + (i + 1) * 0.001,
+      });
+    });
+  }
+  return out;
+}
