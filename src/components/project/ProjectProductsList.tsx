@@ -124,10 +124,12 @@ const ProjectProductsList = ({
     );
   }
 
-  // Huvudprodukter = rader som inte är barnrader
-  const mainProducts = products.filter((p) => !isChildRow(p));
+  // Huvudprodukter = rader som inte är barnrader och inte paketkomponenter.
+  // Paketkomponenter (PKT) visas aldrig här — samma vy som Booking.
+  // Plocklistan med paketdelar lever kvar i lagret/scannern, orörd.
+  const mainProducts = products.filter((p) => !isChildRow(p) && !isPackageMember(p));
   const mainIds = new Set(mainProducts.map((p) => p.id));
-  // ALLA barn (paketmedlemmar + tillbehör) ska visas — vi gömmer aldrig något.
+  // Synliga barn = tillbehör (↳/└/L,). Paketkomponenter filtreras bort av isChildRow.
   const allChildren = products.filter((p) => isChildRow(p));
 
   // Föräldralösa barn där parent saknas i mainProducts → visas separat
@@ -207,31 +209,19 @@ const ProjectProductsList = ({
     });
   };
 
-  const isPackageMember = (p: BookingProduct): boolean =>
-    !!p.is_package_component || !!p.parent_package_id || /^\s*--/.test(p.name || "");
-
   const renderChildRow = (child: BookingProduct) => {
-    const member = isPackageMember(child);
+    // Endast tillbehör når hit (paketkomponenter är bortfiltrerade) —
+    // samma utseende som i Booking: ↳-markör, indraget under huvudprodukten.
     return (
       <div
         key={child.id}
         className="grid grid-cols-[minmax(0,1fr)_2rem_5rem] items-center py-1 pl-5 pb-1.5 gap-3"
       >
         <span className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
-          <span
-            className={
-              member
-                ? "h-1.5 w-1.5 rounded-full bg-primary/40 shrink-0"
-                : "h-1.5 w-1.5 rounded-full bg-muted-foreground/50 shrink-0"
-            }
-            title={member ? "Paketmedlem" : "Tillbehör"}
-          />
+          <span className="shrink-0 text-muted-foreground/50" aria-hidden="true">
+            ↳
+          </span>
           {cleanName(child.name)}
-          {member && (
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
-              pkt
-            </span>
-          )}
         </span>
         <span />
         <span className="text-right text-xs text-muted-foreground tabular-nums">
