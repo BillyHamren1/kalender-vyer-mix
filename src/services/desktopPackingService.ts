@@ -30,7 +30,7 @@ export const fetchPackingForDesktop = async (id: string): Promise<PackingWithBoo
   if (packing.booking_id) {
     const { data: booking } = await supabase
       .from('bookings')
-      .select('id, client, eventdate, rigdaydate, rigdowndate, deliveryaddress, contact_name, contact_phone, contact_email, booking_number')
+      .select('id, client, eventdate, rigdaydate, rigdowndate, deliveryaddress, contact_name, contact_phone, contact_email, booking_number, internalnotes')
       .eq('id', packing.booking_id)
       .single();
     return { ...packing, booking } as PackingWithBooking;
@@ -42,7 +42,7 @@ export const fetchPackingForDesktop = async (id: string): Promise<PackingWithBoo
 export const fetchPackingListItemsForDesktop = async (packingId: string) => {
   const { data, error } = await supabase
     .from('packing_list_items')
-    .select('id, quantity_to_pack, quantity_packed, verified_at, verified_by, parcel_id, excluded, manual_name, booking_product_id, booking_products(id, name, quantity, sku, notes, parent_product_id, parent_package_id, is_package_component, booking_id, inventory_item_type_id)')
+    .select('id, quantity_to_pack, quantity_packed, verified_at, verified_by, parcel_id, excluded, manual_name, booking_product_id, booking_products(id, name, quantity, sku, notes, sort_index, parent_product_id, parent_package_id, is_package_component, booking_id, inventory_item_type_id)')
     .eq('packing_id', packingId);
 
   if (error) throw error;
@@ -154,6 +154,11 @@ const sortPackingItems = (items: any[]) => {
 
   Object.values(childrenByParent).forEach(children => {
     children.sort((a, b) => {
+      const aSort = a.booking_products?.sort_index;
+      const bSort = b.booking_products?.sort_index;
+      if (aSort != null || bSort != null) {
+        return (aSort ?? Number.MAX_SAFE_INTEGER) - (bSort ?? Number.MAX_SAFE_INTEGER);
+      }
       const aName = a.booking_products?.name || '';
       const bName = b.booking_products?.name || '';
       const aIsAccessory = aName.startsWith('↳') || aName.startsWith('└') || aName.startsWith('L,');
@@ -165,6 +170,11 @@ const sortPackingItems = (items: any[]) => {
   });
 
   mainProducts.sort((a, b) => {
+    const aSort = a.booking_products?.sort_index;
+    const bSort = b.booking_products?.sort_index;
+    if (aSort != null || bSort != null) {
+      return (aSort ?? Number.MAX_SAFE_INTEGER) - (bSort ?? Number.MAX_SAFE_INTEGER);
+    }
     const aName = a.booking_products?.name || '';
     const bName = b.booking_products?.name || '';
     return aName.localeCompare(bName, 'sv');
