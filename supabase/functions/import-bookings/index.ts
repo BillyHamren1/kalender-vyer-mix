@@ -34,6 +34,13 @@ import {
   diffProducts,
   planPackingReconnect,
   PRODUCT_DESTRUCTIVE_BLOCKED_LOG,
+  buildSourceSyncKey,
+  buildComponentSyncKey,
+  planProductSyncIdentity,
+  planPackageComponentExpansion,
+  normalizeSyncQuantity,
+  isPlanningGeneratedRow,
+  BOOKING_SOURCE_SYNC_PREFIX,
 } from '../_shared/productCompleteness.ts'
 import type { ProductSourceCompleteness } from '../_shared/productCompleteness.ts'
 import {
@@ -869,6 +876,8 @@ interface ProductData {
   vat_rate?: number;
   tags?: string[];
   tags_en?: string[];
+  /** Stabil identitet: 'src:<booking-row-id>' eller 'cmp:<parent>:<comp>'. */
+  sync_key?: string | null;
 }
 
 /**
@@ -2073,7 +2082,7 @@ const reconnectPackingListItems = async (
   // TENANT GUARD: verifiera parent packing_project via organization_id + booking_id.
   const { data: parentPacking, error: parentError } = await supabase
     .from('packing_projects')
-    .select('id')
+    .select('id, status')
     .eq('id', packingId)
     .eq('booking_id', bookingId)
     .eq('organization_id', organizationId)
@@ -2085,6 +2094,12 @@ const reconnectPackingListItems = async (
   }
   if (!parentPacking) {
     console.warn(`[Packing Reconnect] Parent packing ${packingId} not verified for org ${organizationId} / booking ${bookingId} — skipping`);
+    return { reconnected: 0, orphaned: 0, blockedDeletes: 0 };
+  }
+  // FRUSEN SNAPSHOT: packlistor återansluts endast medan packningen planeras.
+  // Avslutade/pågående packögonblicksbilder får aldrig skrivas om.
+  if ((parentPacking as any).status !== 'planning') {
+    console.warn(`[Packing Reconnect] Packing ${packingId} har status=${(parentPacking as any).status} — snapshot fryst, ingen reconnect`);
     return { reconnected: 0, orphaned: 0, blockedDeletes: 0 };
   }
   const verifiedPackingId = parentPacking.id;
@@ -2197,7 +2212,7 @@ const expandPackageComponents = async (
   // Fetch all products for this booking (STEG 3N: tenant-isolerad read)
   let productQuery = supabase
     .from('booking_products')
-    .select('id, name, package_components, sort_index, inventory_package_id, is_package_component')
+    .select('id, name, sync_key, package_components, sort_index, inventory_package_id, is_package_component')
     .eq('booking_id', bookingId);
   if (orgId) productQuery = productQuery.eq('organization_id', orgId);
   const { data: products, error } = await productQuery;
@@ -2210,85 +2225,70 @@ const expandPackageComponents = async (
   }
   if (!products || products.length === 0) return { expanded: 0 };
 
-
-
-  // Find parents that have package_components JSONB
+  // IDENTITET: endast Booking-ägda föräldrar (src:-nyckel) expanderas, och
+  // varje komponent får ett stabilt cmp:-nyckel → expansionen är idempotent.
   const parentsWithComponents = products.filter(
-    (p: any) => p.package_components && Array.isArray(p.package_components) && p.package_components.length > 0 && p.is_package_component !== true
+    (p: any) =>
+      p.package_components &&
+      Array.isArray(p.package_components) &&
+      p.package_components.length > 0 &&
+      p.is_package_component !== true,
   );
-
   if (parentsWithComponents.length === 0) return { expanded: 0 };
 
-  // Collect names of already-expanded components (strip leading "  -- " prefix)
-  const existingComponentNames = new Set(
-    products
-      .filter((p: any) => p.is_package_component === true)
-      .map((c: any) => (c.name || '').replace(/^\s*--\s*/, '').trim().toLowerCase())
-  );
+  const parentById = new Map<string, any>(parentsWithComponents.map((p: any) => [p.id, p]));
+  const expansionPlan = planPackageComponentExpansion(parentsWithComponents, products);
+
+  if (expansionPlan.length === 0) {
+    console.log(`[Package Expand] Inget att expandera för bokning ${bookingId} (idempotent)`);
+    return { expanded: 0 };
+  }
 
   let totalExpanded = 0;
   const componentErrors: string[] = [];
 
+  for (const planned of expansionPlan) {
+    const parent = parentById.get(planned.parentId);
+    const comp = planned.component ?? {};
+    const parentInventoryPackageId = parent?.inventory_package_id || null;
 
-  for (const parent of parentsWithComponents) {
-    const parentId = parent.id;
-    const parentInventoryPackageId = parent.inventory_package_id || null;
-    const parentSortIndex = parent.sort_index ?? 0;
+    const componentData: ProductData = {
+      booking_id: bookingId,
+      organization_id: orgId || '',
+      name: `  -- ${comp.name || 'Okänd komponent'}`,
+      quantity: planned.quantity,
+      unit_price: 0,
+      total_price: 0,
+      parent_product_id: planned.parentId,
+      is_package_component: true,
+      parent_package_id: parentInventoryPackageId,
+      sku: comp.sku || null,
+      labor_cost: 0,
+      material_cost: 0,
+      setup_hours: 0,
+      external_cost: 0,
+      sort_index: planned.sortIndex,
+      inventory_item_type_id: comp.item_type_id || null,
+      inventory_package_id: parentInventoryPackageId,
+      assembly_cost: 0,
+      handling_cost: 0,
+      purchase_cost: 0,
+      discount: 0,
+      vat_rate: 0,
+      sync_key: planned.syncKey,
+    };
 
-    const componentsToExpand = parent.package_components.filter((comp: any) => {
-      const compName = (comp.name || '').trim().toLowerCase();
-      return !existingComponentNames.has(compName);
-    });
+    const { error: compError } = await supabase
+      .from('booking_products')
+      .insert(componentData);
 
-    if (componentsToExpand.length === 0) {
-      console.log(`[Package Expand] All components for "${parent.name}" already exist as rows`);
-      continue;
-    }
-
-    console.log(`[Package Expand] Expanding ${componentsToExpand.length} components for parent "${parent.name}" (ID: ${parentId})`);
-
-    for (let i = 0; i < componentsToExpand.length; i++) {
-      const comp = componentsToExpand[i];
-      const componentSortIndex = parentSortIndex + (i + 1) * 0.001;
-
-      const componentData: ProductData = {
-        booking_id: bookingId,
-        organization_id: orgId || '',
-        name: `  -- ${comp.name || 'Okänd komponent'}`,
-        quantity: comp.quantity || 1,
-        unit_price: 0,
-        total_price: 0,
-        parent_product_id: parentId,
-        is_package_component: true,
-        parent_package_id: parentInventoryPackageId,
-        sku: comp.sku || null,
-        labor_cost: 0,
-        material_cost: 0,
-        setup_hours: 0,
-        external_cost: 0,
-        sort_index: componentSortIndex,
-        inventory_item_type_id: comp.item_type_id || null,
-        inventory_package_id: parentInventoryPackageId,
-        assembly_cost: 0,
-        handling_cost: 0,
-        purchase_cost: 0,
-        discount: 0,
-        vat_rate: 0,
-      };
-
-      const { error: compError } = await supabase
-        .from('booking_products')
-        .insert(componentData);
-
-      if (compError) {
-        // STEG 3P: komponent-expansion är canonical projection — fel får aldrig sväljas.
-        console.error(`[Package Expand] Error inserting component "${comp.name}":`, compError);
-        componentErrors.push(`${comp.name || 'unknown'}:${compError.message || String(compError)}`);
-      } else {
-        totalExpanded++;
-        existingComponentNames.add((comp.name || '').trim().toLowerCase());
-        console.log(`[Package Expand] Inserted component "${comp.name}" (qty: ${comp.quantity}) for parent "${parent.name}"`);
-      }
+    if (compError) {
+      // STEG 3P: komponent-expansion är canonical projection — fel får aldrig sväljas.
+      console.error(`[Package Expand] Error inserting component "${comp.name}":`, compError);
+      componentErrors.push(`${comp.name || 'unknown'}:${compError.message || String(compError)}`);
+    } else {
+      totalExpanded++;
+      console.log(`[Package Expand] Inserted component "${comp.name}" (qty: ${planned.quantity}, key=${planned.syncKey})`);
     }
   }
 
@@ -2319,20 +2319,29 @@ const syncPackingListAfterExpansion = async (
   const completeness = opts.completeness ?? 'unknown';
   const deleteAllowed = canDeleteProducts(completeness);
 
-  const { data: packingProject, error: packingError } = await supabase
+  // FLERA HISTORISKA PACKPROJEKT får aldrig blockera produktsynken.
+  // maybeSingle() kastade fel vid >1 rad → hela synken failade. Vi läser
+  // istället listan och väljer aktivt planning-projekt (annars senaste).
+  const { data: packingProjects, error: packingError } = await supabase
     .from('packing_projects')
-    .select('id, status')
+    .select('id, status, created_at')
     .eq('booking_id', bookingId)
     .eq('organization_id', orgId)
-    .maybeSingle();
+    .order('created_at', { ascending: false });
 
   if (packingError) {
     console.error(`[Packing Sync] Error loading packing project for booking ${bookingId}:`, packingError);
     return { changes: 0, error: packingError.message || String(packingError) };
   }
+  const packingList = (packingProjects || []) as any[];
+  const packingProject =
+    packingList.find((p) => p?.status === 'planning') || packingList[0] || null;
   if (!packingProject) {
     console.log(`[Packing Sync] No packing project found for booking ${bookingId} in org ${orgId}`);
     return { changes: 0 };
+  }
+  if (packingList.length > 1) {
+    console.warn(`[Packing Sync] Booking ${bookingId} har ${packingList.length} packprojekt — använder ${packingProject.id} (status=${packingProject.status})`);
   }
 
   const packingId = packingProject.id;
@@ -3957,12 +3966,12 @@ serve(async (req) => {
             console.log(`Only product recovery needed for ${bookingData.id} - clearing and reimporting ${recoveryExternalCount} products`);
             
             // Delete packing list items BEFORE products to avoid FK constraint violations
-            const { data: packingForRecovery, error: packingForRecoveryError } = await supabase
+            const { data: packingForRecoveryRows, error: packingForRecoveryError } = await supabase
               .from('packing_projects')
-              .select('id')
+              .select('id, status, created_at')
               .eq('booking_id', existingBooking.id)
               .eq('organization_id', bookingData.organization_id)
-              .maybeSingle();
+              .order('created_at', { ascending: false });
 
             if (packingForRecoveryError) {
               console.error(`[Product Recovery] Error loading packing project:`, packingForRecoveryError);
@@ -3970,6 +3979,9 @@ serve(async (req) => {
               results.failed++;
               continue;
             }
+
+            // Endast packningar i planning får röras; frusna snapshots lämnas orörda.
+            const packingForRecovery = ((packingForRecoveryRows || []) as any[]).find((p) => p?.status === 'planning') || null;
 
             if (packingForRecovery) {
               assertLeaseOwned('packing_item_clear');
@@ -4028,12 +4040,13 @@ serve(async (req) => {
 
                 if (productKeyMap.has(key)) {
                   const existingIdx = productKeyMap.get(key)!;
-                  deduplicatedProducts[existingIdx].quantity = 
-                    (deduplicatedProducts[existingIdx].quantity || 1) + (rawProduct.quantity || 1);
+                  deduplicatedProducts[existingIdx].quantity =
+                    normalizeSyncQuantity(deduplicatedProducts[existingIdx].quantity) + normalizeSyncQuantity(rawProduct.quantity);
                   if (VERBOSE_PRODUCT_LOGS) console.log(`[Product Recovery][Dedup] Merged duplicate "${name}" - new quantity: ${deduplicatedProducts[existingIdx].quantity}`);
                 } else {
                   productKeyMap.set(key, deduplicatedProducts.length);
-                  deduplicatedProducts.push({ ...rawProduct, quantity: rawProduct.quantity || 1 });
+                  // Explicit quantity: 0 bevaras.
+                  deduplicatedProducts.push({ ...rawProduct, quantity: normalizeSyncQuantity(rawProduct.quantity) });
                 }
               }
 
@@ -4045,10 +4058,12 @@ serve(async (req) => {
               const pendingSequentialAccessoryIds: string[] = [];
               let lastParentProductId: string | null = null;
               
-              for (const product of deduplicatedProducts) {
+              for (let recoveryIndex = 0; recoveryIndex < deduplicatedProducts.length; recoveryIndex++) {
+                const product = deduplicatedProducts[recoveryIndex];
+                const recoverySyncKey = buildSourceSyncKey(product, recoveryIndex);
                 try {
                   const unitPrice = product.price || product.unit_price || product.rental_price || product.cost || null;
-                  const quantity = product.quantity || 1;
+                  const quantity = normalizeSyncQuantity(product.quantity);
                   const totalPrice = unitPrice ? unitPrice * quantity : null;
                   const productName = product.name || product.product_name || 'Unknown Product';
                   const isAccessory = isAccessoryProduct(productName);
@@ -4104,6 +4119,7 @@ serve(async (req) => {
                     vat_rate: product.vat_rate ?? 25,
                     tags: Array.isArray(product.tags) ? product.tags : [],
                     tags_en: Array.isArray(product.tags_en) ? product.tags_en : [],
+                    sync_key: recoverySyncKey,
                   }
 
                   const { data: insertedProduct, error: productError } = await supabase
@@ -4469,12 +4485,12 @@ serve(async (req) => {
           // reconnection / product preservation sker. Ett DB-fel får ALDRIG bli
           // "ingen packing project finns" eller "inga gamla produkter finns".
           // 1. Fetch packing project for this booking (if exists)
-          const { data: packingProject, error: packingProjectReadError } = await supabase
+          const { data: packingProjectRows, error: packingProjectReadError } = await supabase
             .from('packing_projects')
-            .select('id')
+            .select('id, status, created_at')
             .eq('booking_id', existingBooking.id)
             .eq('organization_id', bookingData.organization_id)
-            .maybeSingle();
+            .order('created_at', { ascending: false });
 
           if (packingProjectReadError) {
             console.error(`[Packing Reconnect] FAIL-CLOSED packing_projects read failed for ${existingBooking.id}:`, packingProjectReadError);
@@ -4483,10 +4499,14 @@ serve(async (req) => {
             continue;
           }
 
+          // Flera historiska packprojekt blockerar inte synken; endast planning
+          // används för reconnection.
+          const packingProject = ((packingProjectRows || []) as any[]).find((p) => p?.status === 'planning') || null;
+
           // 2. Fetch existing products BEFORE deletion (for packing list reconnection)
           const { data: oldProductsData, error: oldProductsReadError } = await supabase
             .from('booking_products')
-            .select('id, name, quantity')
+            .select('id, name, quantity, sync_key, is_package_component')
             .eq('booking_id', existingBooking.id)
             .eq('organization_id', bookingData.organization_id);
 
@@ -4610,30 +4630,32 @@ serve(async (req) => {
             if (productKeyMap.has(key)) {
               // Merge: add quantities
               const existingIdx = productKeyMap.get(key)!;
-              deduplicatedProducts[existingIdx].quantity = 
-                (deduplicatedProducts[existingIdx].quantity || 1) + (product.quantity || 1);
+              deduplicatedProducts[existingIdx].quantity =
+                normalizeSyncQuantity(deduplicatedProducts[existingIdx].quantity) + normalizeSyncQuantity(product.quantity);
               if (VERBOSE_PRODUCT_LOGS) console.log(`[Dedup] Merged duplicate "${name}" - new quantity: ${deduplicatedProducts[existingIdx].quantity}`);
             } else {
               productKeyMap.set(key, deduplicatedProducts.length);
-              deduplicatedProducts.push({ ...product, quantity: product.quantity || 1 });
+              // Explicit quantity: 0 bevaras — endast saknad mängd blir 1.
+              deduplicatedProducts.push({ ...product, quantity: normalizeSyncQuantity(product.quantity) });
             }
           }
 
           
           console.log(`Processing ${deduplicatedProducts.length} deduplicated products for booking ${bookingData.id}`);
 
-          // ── MERGE STRATEGY ──────────────────────────────────────────────────────
-          // Build a lookup of existing products by normalised name so we can
-          // UPDATE in-place instead of DELETE + INSERT.  This eliminates the
-          // race-condition window where the table is momentarily empty.
-          const existingProductsByName = new Map<string, { id: string; name: string }>();
-          if (oldProducts) {
-            for (const ep of oldProducts) {
-              existingProductsByName.set((ep.name || '').trim().toLowerCase(), ep);
-            }
+          // ── IDENTITETSMATCHNING ────────────────────────────────────────────────
+          // Matcha externa orderrader mot lokala rader via stabilt sync_key
+          // (Booking-rad-id) och fall tillbaka på namn med bevarad multiplicitet.
+          // Planning-genererade paketkomponenter rörs aldrig.
+          const syncIdentity = planProductSyncIdentity(
+            deduplicatedProducts,
+            (oldProducts || []) as any[],
+          );
+          if (syncIdentity.ignoredPlanningRows.length > 0 && VERBOSE_PRODUCT_LOGS) {
+            console.log(`[Product Sync] Ignorerar ${syncIdentity.ignoredPlanningRows.length} Planning-genererade rader`);
           }
           // ────────────────────────────────────────────────────────────────────────
-          
+
           // Track the last parent product ID for linking accessories
           const externalIdToInternalId = new Map<string, string>();
           const pendingByExternalParentId = new Map<string, string[]>();
@@ -4642,14 +4664,18 @@ serve(async (req) => {
           // STEG 4E: mät produktfasen (ren mätning, ingen semantikändring).
           const stopProductsPhase = perf.startPhase('products');
           perf.setCount('products_count', deduplicatedProducts.length);
-          for (const product of deduplicatedProducts) {
+          for (let productIndex = 0; productIndex < deduplicatedProducts.length; productIndex++) {
+            const product = deduplicatedProducts[productIndex];
+            const productSyncKey =
+              syncIdentity.matches[productIndex]?.syncKey ?? buildSourceSyncKey(product, productIndex);
+            const identityExistingId = syncIdentity.matches[productIndex]?.existingId ?? null;
             try {
               // Log raw product data to see all available fields from external API
               if (VERBOSE_PRODUCT_LOGS) console.log(`RAW PRODUCT DATA from external API for booking ${bookingData.id}:`, JSON.stringify(product, null, 2))
               
               // Extract price data - try multiple possible field names
               const unitPrice = product.price || product.unit_price || product.rental_price || product.cost || null;
-              const quantity = product.quantity || 1;
+              const quantity = normalizeSyncQuantity(product.quantity);
               const totalPrice = unitPrice ? unitPrice * quantity : null;
               const productName = product.name || product.product_name || 'Unknown Product';
               
@@ -4712,16 +4738,17 @@ serve(async (req) => {
                 vat_rate: product.vat_rate ?? 25,
                 tags: Array.isArray(product.tags) ? product.tags : [],
                 tags_en: Array.isArray(product.tags_en) ? product.tags_en : [],
+                sync_key: productSyncKey,
               }
 
               // ── MERGE: UPDATE existing or INSERT new ────────────────────────────
-              const nameKey = productName.trim().toLowerCase();
-              const nameMatch = existingProductsByName.get(nameKey);
-              // Om vi redan har återanvänt den befintliga raden (t.ex. två
-              // separata "Multiflex 6x6" med olika komponenter) måste den
-              // andra externa raden bli en ny INSERT — annars skrivs den
-              // första radens produkt/komponenter över.
-              const existingMatch = nameMatch && !seenExistingIds.has(nameMatch.id) ? nameMatch : null;
+              // Identitetsmatchning (sync_key → namn-FIFO) styr vilken lokal rad
+              // som uppdateras. Flera orderrader med samma namn behåller därmed
+              // sin multiplicitet istället för att skriva över varandra.
+              const existingMatch =
+                identityExistingId && !seenExistingIds.has(identityExistingId)
+                  ? { id: identityExistingId, name: productName }
+                  : null;
 
               let upsertedProductId: string | null = null;
               let productError: any = null;
@@ -4824,7 +4851,11 @@ serve(async (req) => {
           // Fail-closed: unknown/false → 0 deletes, oavsett antal produkter.
           const externalProductCount = Array.isArray(externalBooking.products) ? externalBooking.products.length : 0;
           if (oldProducts && oldProducts.length > 0 && externalProductCount > 0 && productDeleteAllowed) {
-            const toDelete = oldProducts.filter((p: any) => !seenExistingIds.has(p.id));
+            // Planning-genererade paketkomponenter ägs inte av Booking och får
+            // aldrig raderas av produktsynken (de hanteras idempotent av expansionen).
+            const toDelete = oldProducts.filter(
+              (p: any) => !seenExistingIds.has(p.id) && !isPlanningGeneratedRow(p),
+            );
             if (toDelete.length > 0) {
               const idsToDelete = toDelete.map((p: any) => p.id);
               console.log(`[Merge] Deleting ${idsToDelete.length} products no longer in external API (external had ${externalProductCount})`);
