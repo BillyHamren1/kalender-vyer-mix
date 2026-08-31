@@ -294,6 +294,13 @@ const ProjectProductsList = ({
 
   return (
     <div>
+      {removedCount > 0 && (
+        <div className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+          {removedCount} {removedCount === 1 ? "produkt är" : "produkter är"} borttagna i Booking och
+          visas inte längre här. Bekräfta borttagningen i bokningsvyn.
+        </div>
+      )}
+
       {showGroupingControls && (
         <div className="flex items-center gap-2 mb-3">
           <Button
