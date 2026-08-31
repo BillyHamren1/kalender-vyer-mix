@@ -104,8 +104,8 @@ export function useWarehouseCalendarEvents({ currentDate, view }: UseWarehouseCa
       warehouseEventsCache.set(cacheKey, data as WarehouseEvent[]);
       
       // Count events with changes
-      const changedCount = data.filter(
-        (event: WarehouseEvent) => event.has_source_changes && !event.manually_adjusted,
+      const changedCount = (data as WarehouseEvent[]).filter(
+        (event) => event.has_source_changes && !event.manually_adjusted,
       ).length;
       setChangedEventsCount(changedCount);
       
