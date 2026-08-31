@@ -127,10 +127,10 @@ const ProjectProductsList = ({
   // Huvudprodukter = rader som inte är barnrader och inte paketkomponenter.
   // Paketkomponenter (PKT) visas aldrig här — samma vy som Booking.
   // Plocklistan med paketdelar lever kvar i lagret/scannern, orörd.
-  const mainProducts = products.filter((p) => !isChildRow(p) && !isPackageMember(p));
+  const mainProducts = products.filter((p) => !isChildRow(p) && !isPackageMemberRow(p));
   const mainIds = new Set(mainProducts.map((p) => p.id));
-  // Synliga barn = tillbehör (↳/└/L,). Paketkomponenter filtreras bort av isChildRow.
-  const allChildren = products.filter((p) => isChildRow(p));
+  // Synliga barn = tillbehör (↳/└/L,). Paketkomponenter filtreras alltid bort.
+  const allChildren = products.filter((p) => isChildRow(p) && !isPackageMemberRow(p));
 
   // Föräldralösa barn där parent saknas i mainProducts → visas separat
   const orphanedChildren = allChildren.filter((c) => {
