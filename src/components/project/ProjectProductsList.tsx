@@ -88,13 +88,13 @@ const ProjectProductsList = ({
   const [moveDialog, setMoveDialog] = useState<{ productId: string; name: string } | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
-  const { data: products = [], isLoading } = useQuery({
+  const { data: allRows = [], isLoading } = useQuery({
     queryKey: ["booking-products", bookingId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("booking_products")
         .select(
-          "id, name, quantity, notes, parent_product_id, parent_package_id, is_package_component, estimated_weight_kg, estimated_volume_m3, sort_index"
+          "id, name, quantity, notes, parent_product_id, parent_package_id, is_package_component, estimated_weight_kg, estimated_volume_m3, sort_index, source_missing_since"
         )
         .eq("booking_id", bookingId)
         .order("sort_index", { ascending: true, nullsFirst: false });
@@ -103,6 +103,16 @@ const ProjectProductsList = ({
     },
     enabled: !!bookingId,
   });
+
+  // Produkter som tagits bort i Booking (markerade av importen) ska aldrig
+  // visas som aktivt material i projektet — de hanteras via bokningsvyns
+  // bekräftelse-alert. Räknaren visas som en diskret notis.
+  const products = useMemo(
+    () => allRows.filter((p) => !p.source_missing_since),
+    [allRows]
+  );
+  const removedCount = allRows.length - products.length;
+
 
   const { grouping, generate, save, clear } = useProductGrouping("booking", bookingId);
 
