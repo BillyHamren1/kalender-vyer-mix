@@ -344,6 +344,11 @@ const WebRoutes: React.FC = () => {
       <Route path="/auth" element={<AuthProvider><Auth /></AuthProvider>} />
       <Route path="/auth/reset" element={<AuthProvider><AuthResetPassword /></AuthProvider>} />
 
+      {/* DEV-ONLY visual shell preview (never exposed in production builds) */}
+      {import.meta.env.DEV && (
+        <Route path="/dev/sidebar-preview" element={<SidebarShellPreview />} />
+      )}
+
       {/* Public transport partner response page - no auth */}
       <Route path="/transport-svar" element={<TransportResponse />} />
 
