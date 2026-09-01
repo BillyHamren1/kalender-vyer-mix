@@ -18,7 +18,10 @@ const MainSystemLayout: React.FC<MainSystemLayoutProps> = ({ children }) => {
     <PinnedTabsProvider>
       <div className="h-screen flex overflow-hidden">
         <Sidebar3D />
-        <main className="flex-1 pb-20 lg:pb-0 flex flex-col overflow-y-auto">
+        <main
+          className="flex-1 pb-20 lg:pb-0 flex flex-col overflow-y-auto"
+          style={{ background: SIDEBAR_SURFACE.canvas }}
+        >
           {children ?? <Outlet />}
         </main>
         <PinnedTabsRail />
