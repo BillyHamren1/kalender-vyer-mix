@@ -49,6 +49,21 @@ export const fetchPackingListItemsForDesktop = async (packingId: string) => {
   return sortPackingItems(data || []);
 };
 
+/**
+ * Explicit reparation från desktop: genererar SAKNADE packrader via edge-funktionen
+ * repair-packing-items. Endast planning/in_progress; raderar aldrig något.
+ */
+export const repairPackingItemsDesktop = async (
+  packingId: string,
+): Promise<{ inserted: number; total: number }> => {
+  const { data, error } = await supabase.functions.invoke('repair-packing-items', {
+    body: { packing_id: packingId },
+  });
+  if (error) throw new Error(error.message || 'Kunde inte generera packlistan');
+  if (data?.error) throw new Error(data.error);
+  return { inserted: data?.inserted ?? 0, total: data?.total ?? 0 };
+};
+
 export const getItemParcelsDesktop = async (
   packingId: string
 ): Promise<Record<string, number>> => {

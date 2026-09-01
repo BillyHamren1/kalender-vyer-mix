@@ -367,6 +367,16 @@ export const fetchPackingListItems = async (packingId: string) => {
   return sortPackingItems(data || []);
 };
 
+/**
+ * Explicit reparation: skapa SAKNADE packrader för en tom/ofullständig packlista.
+ * get_packing_items förblir read-only — detta är enda vägen att generera rader.
+ */
+export const repairPackingItems = async (
+  packingId: string,
+): Promise<{ success: boolean; inserted?: number; total?: number; error?: string }> => {
+  return callScannerApi('repair_packing_items', { packingId });
+};
+
 // ============== RETURN (IN) FLOW ==============
 
 export interface ReturnScanResult {
