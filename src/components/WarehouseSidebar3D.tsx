@@ -72,19 +72,22 @@ export function WarehouseSidebar3D() {
     );
   };
 
+  // Exactly ONE active row.
+  const activeIndex = resolveActiveNavIndex(
+    location.pathname,
+    navigationItems.map((item) => ({
+      url: item.url,
+      exact: !!item.exact || !!item.children?.length,
+    }))
+  );
+
   const isItemActive = (item: NavItem) => {
-    if (item.exact) return location.pathname === item.url;
-    if (item.children?.length) {
-      return (
-        location.pathname === item.url ||
-        item.children.some((child) => location.pathname === child.url)
-      );
+    if (item.children?.length && item.children.some((c) => location.pathname === c.url)) {
+      return false;
     }
-    return (
-      location.pathname === item.url ||
-      location.pathname.startsWith(item.url + "/")
-    );
+    return activeIndex >= 0 && navigationItems[activeIndex] === item;
   };
+
 
   return (
     <>
