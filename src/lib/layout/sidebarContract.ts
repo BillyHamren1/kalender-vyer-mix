@@ -203,10 +203,6 @@ export function sidebarNestedRowStyle({
 }
 
 /**
- * Resolves EXACTLY ONE active navigation url for a pathname.
- * Longest matching url wins; ties resolve to the first declared item.
- */
-/**
  * Resolves EXACTLY ONE active navigation entry for a pathname.
  * `exact` entries only match the exact path. Longest matching url wins;
  * ties resolve to the first declared entry. Returns -1 when nothing matches.
