@@ -374,39 +374,112 @@ export interface ComponentExpansionRow {
   sortIndex: number;
 }
 
-/**
- * Idempotent plan för expansion av package_components.
- * - Föräldrar utan sync_key (historiska, ej Booking-kopplade) expanderas ALDRIG.
- * - Komponenter som redan finns (samma component sync_key) hoppas över.
- */
-export function planPackageComponentExpansion(
-  parents: Array<{ id: string; sync_key?: string | null; package_components?: any; sort_index?: number | null; is_package_component?: boolean | null }>,
-  existingRows: Array<{ sync_key?: string | null }>,
-): ComponentExpansionRow[] {
-  const existingKeys = new Set(
-    (existingRows || [])
-      .map((r) => (r.sync_key ?? '').toString())
-      .filter((k) => k.startsWith(PLANNING_COMPONENT_SYNC_PREFIX)),
-  );
+export interface ComponentUpdateRow extends ComponentExpansionRow {
+  /** Lokalt rad-id för den redan genererade komponentraden. */
+  existingId: string;
+  /** Nuvarande mängd på den lokala raden (för loggning/diff). */
+  currentQuantity: number;
+}
 
-  const out: ComponentExpansionRow[] = [];
+export interface ComponentReconciliationPlan {
+  /** Saknade komponentrader som ska skapas. */
+  inserts: ComponentExpansionRow[];
+  /** Befintliga cmp:-rader vars mängd avviker från önskad mängd. */
+  updates: ComponentUpdateRow[];
+  /** Befintliga cmp:-rader som redan är korrekta (ingen skrivning). */
+  unchanged: string[];
+}
+
+export interface ComponentParentInput {
+  id: string;
+  sync_key?: string | null;
+  package_components?: any;
+  sort_index?: number | null;
+  is_package_component?: boolean | null;
+  quantity?: unknown;
+}
+
+export interface ComponentExistingRowInput {
+  id?: string;
+  sync_key?: string | null;
+  quantity?: unknown;
+}
+
+/**
+ * Icke-destruktiv avstämningsplan för package_components.
+ *
+ * package_components på källraden är en PER-PAKET-definition, så önskad mängd
+ * för varje genererad komponentrad är:
+ *   normalizeSyncQuantity(parent.quantity) × normalizeSyncQuantity(component.quantity)
+ *
+ * - Föräldrar utan Booking-nyckel (historiska) expanderas ALDRIG.
+ * - Stabil cmp:-nyckel skiljer saknad rad (insert) från befintlig rad (update).
+ * - Ingen radering planeras någonsin här.
+ */
+export function planPackageComponentReconciliation(
+  parents: ComponentParentInput[],
+  existingRows: ComponentExistingRowInput[],
+): ComponentReconciliationPlan {
+  const existingByKey = new Map<string, ComponentExistingRowInput>();
+  for (const row of existingRows || []) {
+    const key = (row?.sync_key ?? '').toString();
+    if (!key.startsWith(PLANNING_COMPONENT_SYNC_PREFIX)) continue;
+    if (!existingByKey.has(key)) existingByKey.set(key, row);
+  }
+
+  const plan: ComponentReconciliationPlan = { inserts: [], updates: [], unchanged: [] };
+  const seen = new Set<string>();
+
   for (const parent of parents || []) {
     const parentKey = (parent.sync_key ?? '').toString();
     if (!parentKey.startsWith(BOOKING_SOURCE_SYNC_PREFIX)) continue; // historisk/okopplad
     if (parent.is_package_component === true) continue;
+    const parentQty = normalizeSyncQuantity(parent.quantity);
     const comps = Array.isArray(parent.package_components) ? parent.package_components : [];
+
     comps.forEach((comp: any, i: number) => {
       const syncKey = buildComponentSyncKey(parentKey, comp, i);
-      if (existingKeys.has(syncKey)) return;
-      existingKeys.add(syncKey);
-      out.push({
+      if (seen.has(syncKey)) return; // aldrig dubbletter inom samma plan
+      seen.add(syncKey);
+
+      const desiredQuantity = parentQty * normalizeSyncQuantity(comp?.quantity);
+      const base: ComponentExpansionRow = {
         parentId: parent.id,
         syncKey,
         component: comp,
-        quantity: normalizeSyncQuantity(comp?.quantity),
+        quantity: desiredQuantity,
         sortIndex: (parent.sort_index ?? 0) + (i + 1) * 0.001,
-      });
+      };
+
+      const existing = existingByKey.get(syncKey);
+      if (!existing) {
+        plan.inserts.push(base);
+        return;
+      }
+
+      const currentQuantity = normalizeSyncQuantity(existing.quantity);
+      if (currentQuantity !== desiredQuantity) {
+        plan.updates.push({
+          ...base,
+          existingId: (existing.id ?? '').toString(),
+          currentQuantity,
+        });
+      } else {
+        plan.unchanged.push((existing.id ?? '').toString());
+      }
     });
   }
-  return out;
+
+  return plan;
 }
+
+/**
+ * Bakåtkompatibel vy: endast de komponentrader som saknas (inserts).
+ */
+export function planPackageComponentExpansion(
+  parents: ComponentParentInput[],
+  existingRows: ComponentExistingRowInput[],
+): ComponentExpansionRow[] {
+  return planPackageComponentReconciliation(parents, existingRows).inserts;
+}
+
