@@ -560,16 +560,30 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
           <CardContent className="py-4">
             <div className="flex items-start gap-2">
               <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-medium text-amber-800 text-sm">Inga produkter</p>
+              <div className="flex-1">
+                <p className="font-medium text-amber-800 text-sm">Packlistan är inte genererad</p>
                 <p className="text-xs text-amber-700 mt-0.5">
-                  Gå till Översikt och generera packlistan först.
+                  Bokningens orderrader har inte skrivits in i packlistan. Generera dem här.
                 </p>
+                <Button
+                  size="sm"
+                  className="mt-3"
+                  disabled={isRepairing}
+                  onClick={handleRepair}
+                >
+                  {isRepairing ? (
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Package className="mr-2 h-4 w-4" />
+                  )}
+                  Generera packlista
+                </Button>
               </div>
             </div>
           </CardContent>
         </Card>
       )}
+
 
       {/* Product list grouped by booking */}
       {activeItems.length > 0 && (
