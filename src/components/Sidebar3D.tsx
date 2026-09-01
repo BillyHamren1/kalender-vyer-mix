@@ -178,17 +178,21 @@ export function Sidebar3D() {
     );
   };
 
-  const isItemActive = (item: NavItem) => {
-    if (item.children?.length) {
-      return location.pathname === item.url;
-    }
-    return (
-      location.pathname === item.url ||
-      location.pathname.startsWith(item.url + "/")
-    );
-  };
+  // Exactly ONE active leaf row — parents with children only match exactly,
+  // duplicate urls resolve to the first declared entry.
+  const activeIndex = resolveActiveNavIndex(
+    location.pathname,
+    navigationItems.map((item) => ({
+      url: item.url,
+      exact: !!item.children?.length,
+    }))
+  );
+
+  const isItemActive = (item: NavItem) =>
+    activeIndex >= 0 && navigationItems[activeIndex] === item;
 
   const isChildActive = (url: string) => location.pathname === url;
+
 
   return (
     <>
