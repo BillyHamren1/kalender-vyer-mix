@@ -299,23 +299,21 @@ export function Sidebar3D() {
               )
             ) : null;
 
-            const itemClassName = cn(
-              "relative flex items-center gap-2.5 rounded-lg text-left transition-all duration-150 group",
-              isCollapsed
-                ? "justify-center px-2 py-2.5"
-                : "py-[9px] pl-2.5 pr-2 w-full"
-            );
+            const itemClassName = cn("group", SIDEBAR_FOCUS_CLASS);
 
-            const itemStyle: React.CSSProperties = active
-              ? {
-                  background: "hsl(270 55% 96%)",
-                  boxShadow:
-                    "inset 0 0 0 1px hsl(270 40% 88%), 0 1px 2px hsl(270 30% 25% / 0.04)",
-                }
-              : hovered
-                ? { background: "hsl(240 8% 95%)" }
-                : {};
+            const itemStyle: React.CSSProperties = {
+              ...sidebarRowStyle({
+                active,
+                hovered,
+                collapsed: isCollapsed,
+                accent: ACCENT,
+              }),
+              outlineColor: ACCENT.ring,
+            };
 
+            const activeBarEl = active && !isCollapsed ? (
+              <span aria-hidden style={sidebarActiveBarStyle(ACCENT)} />
+            ) : null;
 
             const pinned = hasTab(item.url);
             const triggerEl = hasChildren ? (
@@ -328,6 +326,7 @@ export function Sidebar3D() {
                 style={itemStyle}
                 {...sharedMouseProps}
               >
+                {activeBarEl}
                 {iconEl}
                 {labelEl}
                 {badgeEl}
@@ -335,12 +334,15 @@ export function Sidebar3D() {
                   <ChevronDown
                     className={cn(
                       "w-3.5 h-3.5 shrink-0 transition-transform duration-200",
-                      expanded ? "rotate-180" : "",
-                      active || hasActiveChild
-                        ? "text-[hsl(var(--primary))]"
-                        : "text-[hsl(240_6%_55%)]"
+                      expanded ? "rotate-180" : ""
                     )}
                     strokeWidth={2}
+                    style={{
+                      color:
+                        active || hasActiveChild
+                          ? ACCENT.base
+                          : SIDEBAR_SURFACE.iconColor,
+                    }}
                   />
                 )}
                 {isCollapsed && (
@@ -354,6 +356,7 @@ export function Sidebar3D() {
                 style={itemStyle}
                 {...sharedMouseProps}
               >
+                {activeBarEl}
                 {iconEl}
                 {labelEl}
                 {badgeEl}
@@ -362,6 +365,7 @@ export function Sidebar3D() {
                 )}
               </NavLink>
             );
+
 
             return (
               <div key={item.url} className="relative">
