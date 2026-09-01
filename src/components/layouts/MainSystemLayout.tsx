@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar3D } from '@/components/Sidebar3D';
+import { SIDEBAR_SURFACE } from '@/lib/layout/sidebarContract';
 import { PinnedTabsProvider } from '@/contexts/PinnedTabsContext';
 import { PinnedTabsRail } from '@/components/PinnedTabsRail';
 

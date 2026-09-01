@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { WarehouseSidebar3D } from '@/components/WarehouseSidebar3D';
+import { SIDEBAR_SURFACE } from '@/lib/layout/sidebarContract';
 
 interface WarehouseSystemLayoutProps {
   children?: React.ReactNode;
