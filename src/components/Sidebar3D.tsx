@@ -182,39 +182,31 @@ export function Sidebar3D() {
       <aside
         className={cn(
           "sticky top-0 z-30 h-screen shrink-0 self-start flex-col transition-all duration-300 ease-out",
-          "hidden lg:flex theme-purple relative",
-          isCollapsed ? "w-[60px]" : "w-[224px]"
+          "hidden lg:flex theme-purple relative"
         )}
         style={{
-          background: "hsl(0 0% 99.5%)",
-          borderRight: "1px solid hsl(240 8% 88%)",
-          boxShadow: "1px 0 0 hsl(240 8% 94%), 2px 0 8px hsl(240 10% 20% / 0.04)",
+          ...sidebarSurfaceStyle(),
+          width: isCollapsed
+            ? SIDEBAR_CONTRACT.collapsedWidthPx
+            : SIDEBAR_CONTRACT.widthPx,
         }}
       >
-        {/* ── Premium Header (Brand + Module) ── */}
-        <div
-          className={cn(
-            "relative shrink-0 transition-all duration-300",
-            isCollapsed ? "px-2 pt-4 pb-3" : "px-3 pt-4 pb-3"
-          )}
-          style={{ borderBottom: "1px solid hsl(240 8% 92%)" }}
-        >
-
-
-          {/* Integrated collapse button */}
+        {/* ── Collapse control (no extra header band — sidebar surface is continuous) ── */}
+        <div className="relative shrink-0 h-3">
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
             className={cn(
-              "absolute -right-3 top-7 z-50 flex items-center justify-center",
+              "absolute -right-3 top-4 z-50 flex items-center justify-center",
               "w-6 h-6 rounded-full transition-all duration-200",
-              "shadow-sm hover:shadow-md hover:scale-105"
+              "shadow-sm hover:shadow-md",
+              SIDEBAR_FOCUS_CLASS
             )}
             style={{
-              background: "hsl(0 0% 100%)",
-              border: "1px solid hsl(240 8% 84%)",
-              color: "hsl(var(--primary))",
+              background: SIDEBAR_SURFACE.background,
+              border: `1px solid ${SIDEBAR_SURFACE.divider}`,
+              color: ACCENT.base,
+              outlineColor: ACCENT.ring,
             }}
-
             title={isCollapsed ? "Expandera sidebar" : "Dölj sidebar"}
             aria-label={isCollapsed ? "Expandera sidebar" : "Dölj sidebar"}
           >
@@ -230,19 +222,18 @@ export function Sidebar3D() {
 
         {/* Navigation */}
         <nav
-          className={cn(
-            "flex-1 pt-3 pb-4 overflow-y-auto space-y-0.5",
-            isCollapsed ? "px-2" : "px-2.5"
-          )}
+          className="flex-1 pt-4 pb-4 overflow-y-auto space-y-0.5"
+          style={{
+            paddingLeft: SIDEBAR_CONTRACT.railPaddingPx,
+            paddingRight: SIDEBAR_CONTRACT.railPaddingPx,
+          }}
         >
           {!isCollapsed && (
-            <div
-              className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em]"
-              style={{ color: "hsl(240 6% 50%)" }}
-            >
+            <div className="pb-2" style={sidebarSectionLabelStyle()}>
               Översikt
             </div>
           )}
+
 
 
           {navigationItems.map((item) => {
