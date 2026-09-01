@@ -161,7 +161,7 @@ const NewBookingsPopup: React.FC = () => {
   return (
     <>
       <Dialog open={open} onOpenChange={(v) => { if (!v) setClosed(true); }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-lg overflow-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Inbox className="h-4 w-4 text-emerald-600" />
@@ -169,11 +169,11 @@ const NewBookingsPopup: React.FC = () => {
             </DialogTitle>
           </DialogHeader>
 
-          <div className="divide-y divide-border/50 rounded-lg border border-emerald-500/40 bg-emerald-500/[0.04]">
+          <div className="max-h-[50vh] divide-y divide-border/50 overflow-y-auto overflow-x-hidden rounded-lg border border-emerald-500/40 bg-emerald-500/[0.04]">
             {visible.map((item) => (
-              <div key={item.dismissKey} className="flex items-center gap-3 px-3 py-2.5">
+              <div key={item.dismissKey} className="flex items-center gap-2 px-3 py-2.5">
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
                     <span className="truncate text-sm font-medium text-foreground">{item.client}</span>
                     {item.bookingNumber && (
                       <span className="shrink-0 text-[11px] text-muted-foreground">#{item.bookingNumber}</span>
