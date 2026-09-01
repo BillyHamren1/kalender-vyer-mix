@@ -290,7 +290,7 @@ export function Sidebar3D() {
 
             const labelEl = !isCollapsed && (
               <span
-                className="text-[13px] leading-none truncate flex-1 transition-colors"
+                className="text-[14px] leading-none truncate flex-1 transition-colors"
                 style={{
                   fontWeight: active ? 600 : 500,
                   color: active ? ACCENT.base : SIDEBAR_SURFACE.labelColor,
