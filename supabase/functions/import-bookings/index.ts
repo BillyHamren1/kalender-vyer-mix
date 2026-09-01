@@ -38,6 +38,7 @@ import {
   buildComponentSyncKey,
   planProductSyncIdentity,
   planPackageComponentExpansion,
+  planPackageComponentReconciliation,
   normalizeSyncQuantity,
   isPlanningGeneratedRow,
   BOOKING_SOURCE_SYNC_PREFIX,
