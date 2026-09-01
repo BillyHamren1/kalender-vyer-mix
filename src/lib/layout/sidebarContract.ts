@@ -116,7 +116,10 @@ interface RowStyleArgs {
   accent: SidebarAccent;
 }
 
-/** Standard menu row — 40px high, 8px radius, 3px accent left line when active. */
+/**
+ * Standard menu row — 40px high, 8px radius, 3px accent left line when active.
+ * Rows NEVER render a border/outline/ring — only background tint changes.
+ */
 export function sidebarRowStyle({
   active,
   hovered,
@@ -137,10 +140,14 @@ export function sidebarRowStyle({
     justifyContent: collapsed ? 'center' : 'flex-start',
     textAlign: 'left',
     borderRadius: SIDEBAR_CONTRACT.rowRadiusPx,
-    border: `1px solid ${active ? accent.border : 'transparent'}`,
+    border: 'none',
+    outline: 'none',
+    boxShadow: 'none',
+    fontSize: SIDEBAR_CONTRACT.labelSizePx,
+    fontWeight: active ? 600 : 500,
     background: active ? accent.soft : hovered ? accent.hover : 'transparent',
     color: active ? accent.base : SIDEBAR_SURFACE.labelColor,
-    transition: 'background 150ms ease, border-color 150ms ease',
+    transition: 'background 150ms ease, color 150ms ease',
     cursor: 'pointer',
   };
 }
@@ -167,13 +174,14 @@ export function sidebarNestedContainerStyle(): React.CSSProperties {
   };
 }
 
-/** Nested row — same 40px interaction height. */
+/** Nested row — same 40px interaction height, no border. */
 export function sidebarNestedRowStyle({
   active,
   hovered,
   accent,
 }: Omit<RowStyleArgs, 'collapsed'>): React.CSSProperties {
   return {
+    position: 'relative',
     display: 'flex',
     alignItems: 'center',
     gap: 8,
@@ -183,6 +191,9 @@ export function sidebarNestedRowStyle({
     paddingLeft: SIDEBAR_CONTRACT.rowPaddingXPx,
     paddingRight: SIDEBAR_CONTRACT.rowPaddingXPx,
     borderRadius: SIDEBAR_CONTRACT.rowRadiusPx,
+    border: 'none',
+    outline: 'none',
+    boxShadow: 'none',
     fontSize: 13,
     fontWeight: active ? 600 : 500,
     color: active ? accent.base : SIDEBAR_SURFACE.labelColor,
@@ -191,6 +202,24 @@ export function sidebarNestedRowStyle({
   };
 }
 
+/**
+ * Resolves EXACTLY ONE active navigation url for a pathname.
+ * Longest matching url wins; ties resolve to the first declared item.
+ */
+export function resolveActiveNavUrl(
+  pathname: string,
+  urls: string[]
+): string | null {
+  let best: string | null = null;
+  for (const url of urls) {
+    const matches = pathname === url || pathname.startsWith(url + '/');
+    if (!matches) continue;
+    if (best === null || url.length > best.length) best = url;
+  }
+  return best;
+}
+
 /** Shared focus-visible class (no layout shift — uses outline offset). */
 export const SIDEBAR_FOCUS_CLASS =
   'outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px]';
+
