@@ -2302,12 +2302,17 @@ const expandPackageComponents = async (
       componentErrors.push(`${comp.name || 'unknown'}:missing_existing_row_id`);
       continue;
     }
+    const patch: Record<string, unknown> = { quantity: planned.quantity, sort_index: planned.sortIndex };
+    // Adoption: historisk komponentrad får sin stabila cmp:-nyckel i stället
+    // för att en dubblett skapas. Ingen radering.
+    if (planned.adoptSyncKey) patch.sync_key = planned.syncKey;
     let updateQuery = supabase
       .from('booking_products')
-      .update({ quantity: planned.quantity, sort_index: planned.sortIndex })
+      .update(patch)
       .eq('id', planned.existingId)
       .eq('booking_id', bookingId);
     if (orgId) updateQuery = updateQuery.eq('organization_id', orgId);
+
     const { error: updError } = await updateQuery;
 
     if (updError) {
