@@ -52,8 +52,15 @@ describe('STEG 8 – command mapping', () => {
   });
 
   it('kommandot bär delta, aldrig en lokalt beräknad ny total', () => {
-    const cmd = buildScannerCommand({ operation: 'increment', packingId: 'p1', itemId: 'i1', quantityDelta: 1 });
+    const cmd = buildScannerCommand({
+      operation: 'increment',
+      packingId: 'p1',
+      itemId: 'i1',
+      reservationLineId: 'line-1',
+      quantityDelta: 1,
+    });
     expect(cmd.quantityDelta).toBe(1);
+    expect(cmd.reservationLineId).toBe('line-1');
     expect((cmd as any).newQuantity).toBeUndefined();
     expect(cmd.operationId).toBeTruthy();
   });
@@ -160,6 +167,16 @@ describe('STEG 8 – V2-koden innehåller ingen lokal aritmetik', () => {
     expect(src).toContain("status === 'accepted'");
   });
 
+  it('gatewayen verifierar och skickar exakt reservationsrad före WMS-mutation', () => {
+    const src = read('supabase/functions/scanner-operation-v2/index.ts');
+    const readinessIdx = src.indexOf('requireReservationLine: true');
+    const linePayloadIdx = src.indexOf('reservation_line_id: command.reservationLineId');
+    const wmsIdx = src.indexOf('fetch(gatewayUrl');
+    expect(readinessIdx).toBeGreaterThan(-1);
+    expect(wmsIdx).toBeGreaterThan(readinessIdx);
+    expect(linePayloadIdx).toBeGreaterThan(wmsIdx);
+  });
+
 
   it('gatewayen skriver endast WMS packed_quantity som projection', () => {
     const src = read('supabase/functions/scanner-operation-v2/index.ts');
@@ -181,8 +198,28 @@ describe('STEG 8 – V2-koden innehåller ingen lokal aritmetik', () => {
   it('generic WMS duplicate kräver explicit same-operation replay proof', () => {
     const src = read('supabase/functions/scanner-operation-v2/index.ts');
     expect(src).toContain('DUPLICATE_WITHOUT_REPLAY_PROOF');
-    expect(src).toContain('wmsBody?.same_operation');
+    expect(src).toContain('isSameOperationReplay(wmsBody, command.operationId)');
+    expect(src).toContain('WMS_OPERATION_ID_MISMATCH');
     expect(src).not.toContain("replayed: Boolean(wmsBody?.replayed || status === 'duplicate')");
+  });
+
+  it('WMS success=false och terminal status över 5xx tolkas fail-closed', () => {
+    const src = read('supabase/functions/scanner-operation-v2/index.ts');
+    const mapping = read('supabase/functions/_shared/scanner-wms-result.ts');
+    expect(src).toContain('mapScannerWmsStatus(wmsStatus, wmsBody)');
+    expect(mapping).toContain("body?.success === false");
+    expect(mapping.indexOf('transientWmsStatus(httpStatus)')).toBeLessThan(mapping.indexOf("body?.success === false"));
+  });
+
+  it('WMS-framgång måste eka exakt operation, artikel och reservationsrad', () => {
+    const src = read('supabase/functions/scanner-operation-v2/index.ts');
+    expect(src).toContain('terminalSuccess && returnedOperationId !== command.operationId');
+    expect(src).toContain("debugCode: 'WMS_OPERATION_ID_MISSING'");
+    expect(src).toContain('terminalSuccess && returnedItemId !== command.itemId');
+    expect(src).toContain("debugCode: 'WMS_ITEM_ID_MISMATCH'");
+    expect(src).toContain('terminalSuccess && returnedReservationLineId !== command.reservationLineId');
+    expect(src).toContain("debugCode: 'WMS_RESERVATION_LINE_ID_MISMATCH'");
+    expect(src).not.toContain('const itemId = wmsBody?.item_id ?? command.itemId');
   });
 
   it('accepted utan authoritative state får aldrig bli grönt utan blir UNKNOWN', () => {

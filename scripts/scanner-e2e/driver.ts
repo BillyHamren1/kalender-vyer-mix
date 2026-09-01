@@ -36,7 +36,9 @@ export interface HarnessConfig {
 export interface SimulatedScan {
   operation: ScannerOperationKind;
   packingId: string;
-  itemId?: string | null;
+  itemId: string;
+  reservationId: string;
+  reservationLineId: string;
   serialNumber?: string | null;
   sku?: string | null;
   bookingNumber?: string | null;
@@ -94,12 +96,16 @@ export class E2EHarness {
 
   /** Ett fysiskt scan-event → exakt en köad operation. */
   async scan(input: SimulatedScan): Promise<QueuedOperation> {
+    if (!input.itemId || !input.reservationId || !input.reservationLineId) {
+      throw new Error('SCANNER_E2E_EXACT_TARGET_REQUIRED: itemId, reservationId och reservationLineId krävs');
+    }
     const command = buildScannerCommand({
       operation: input.operation,
       packingId: input.packingId,
-      itemId: input.itemId ?? null,
+      itemId: input.itemId,
       organizationId: this.config.organizationId,
-      reservationId: input.reservationId ?? null,
+      reservationId: input.reservationId,
+      reservationLineId: input.reservationLineId,
       serialNumber: input.serialNumber ?? null,
       sku: input.sku ?? null,
       quantityDelta: input.quantityDelta ?? null,
@@ -120,10 +126,11 @@ export class E2EHarness {
       intended_action: input.operation,
       packing_id: input.packingId,
       packing_session_id: input.sessionId ?? this.config.packingSessionId ?? null,
-      item_id: input.itemId ?? null,
+      item_id: input.itemId,
       sku: input.sku ?? null,
       booking_number: input.bookingNumber ?? null,
-      reservation_id: input.reservationId ?? null,
+      reservation_id: input.reservationId,
+      reservation_line_id: input.reservationLineId,
       parcel_id: input.parcelId ?? null,
       quantity_delta: input.quantityDelta ?? null,
       performed_by: `e2e:${this.config.runId}`,
@@ -168,6 +175,7 @@ export class E2EHarness {
           packingId: op.packing_id,
           organizationId: op.organization_id,
           reservationId: op.reservation_id,
+          reservationLineId: op.reservation_line_id,
           itemId: op.item_id,
           serialNumber: op.command === 'PACK_INSTANCE' || op.command === 'UNPACK_INSTANCE' || op.command === 'RETURN_INSTANCE' ? op.scan_value : null,
           sku: op.sku,

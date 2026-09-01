@@ -20,7 +20,7 @@ import MobileProfile from '@/pages/mobile/MobileProfile';
 import MobileTimeHistory from '@/pages/mobile/MobileTimeHistory';
 import MobileInbox from '@/pages/mobile/MobileInbox';
 import MobileCompleteJob from '@/pages/mobile/MobileCompleteJob';
-import MobileScannerApp from '@/pages/MobileScannerApp';
+import MobileCodeCapture from '@/pages/mobile/MobileCodeCapture';
 import MobileToolsHub from '@/pages/mobile/MobileToolsHub';
 import MobileOverview from '@/pages/mobile/MobileOverview';
 import PlannerOnlyRoute from '@/components/mobile-app/PlannerOnlyRoute';
@@ -58,7 +58,7 @@ const TimeAppShell: React.FC = () => {
           {/* Tools hub: Camera, Scanner, Measure */}
           <Route path="/m/tools" element={<MobileProtectedRoute><TimeAppLayout><MobileToolsHub /></TimeAppLayout></MobileProtectedRoute>} />
           <Route path="/m/tools/camera" element={<MobileProtectedRoute><TimeAppLayout><MobileCameraCapture /></TimeAppLayout></MobileProtectedRoute>} />
-          <Route path="/m/tools/scanner" element={<MobileProtectedRoute><TimeAppLayout><MobileScannerApp /></TimeAppLayout></MobileProtectedRoute>} />
+          <Route path="/m/tools/scanner" element={<MobileProtectedRoute><TimeAppLayout><MobileCodeCapture /></TimeAppLayout></MobileProtectedRoute>} />
           <Route path="/m/tools/measure" element={<MobileProtectedRoute><TimeAppLayout><MobileMeasure /></TimeAppLayout></MobileProtectedRoute>} />
           <Route path="/m/tools/measure/new" element={<MobileProtectedRoute><NativeMeasureLauncher /></MobileProtectedRoute>} />
           <Route path="/m/tools/measure/:id" element={<MobileProtectedRoute><TimeAppLayout><SiteScanDetailPage /></TimeAppLayout></MobileProtectedRoute>} />

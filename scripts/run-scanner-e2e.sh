@@ -15,7 +15,7 @@
 #   SCANNER_E2E_FIXTURE_ORG_ID=fixture-...
 #   SCANNER_E2E_RUN_ID=scanner-e2e-<unikt>
 #   SCANNER_E2E_AUTH_TOKEN=<active mobile test-session token>
-#   SCANNER_E2E_FIXTURES_JSON='{"packingId":"...","packingSessionId":"...","bookingNumber":"...","wrongBookingNumber":"...","quantityItemId":"...","serialItemId":"...","serialValue":"...","returnItemId":"...","returnSerialValue":"...","wrongReturnItemId":"...","wrongReturnSerialValue":"..."}'
+#   SCANNER_E2E_FIXTURES_JSON='{"packingId":"...","packingSessionId":"...","bookingNumber":"...","reservationId":"...","quantityItemId":"...","quantityReservationLineId":"...","serialItemId":"...","serialReservationLineId":"...","serialValue":"...","returnItemId":"...","returnReservationLineId":"...","returnSerialValue":"..."}'
 set -uo pipefail
 bun run scripts/scanner-e2e/run.ts
 exit $?

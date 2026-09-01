@@ -10,6 +10,8 @@ import { toast } from 'sonner';
 interface Props {
   packingId: string;
   bookingNumber?: string | null;
+  sessionId?: string | null;
+  reservationId?: string | null;
   className?: string;
   autoRun?: boolean;
   defaultOpen?: boolean;
@@ -25,8 +27,10 @@ const statusBadge = (status: PreflightItem['status']) => {
 export const PackingPreflightPanel: React.FC<Props> = ({
   packingId,
   bookingNumber,
+  sessionId,
+  reservationId,
   className,
-  autoRun = false,
+  autoRun = true,
   defaultOpen = false,
   onResult,
 }) => {
@@ -46,9 +50,13 @@ export const PackingPreflightPanel: React.FC<Props> = ({
     setErrorMessage(null);
     onResultRef.current?.(null, 'checking');
     try {
-      const res = await runPackingPreflightCheck(packingId, bookingNumber);
+      const res = await runPackingPreflightCheck(packingId, bookingNumber, { sessionId, reservationId });
       setResult(res);
-      const state = res.summary.blocked > 0 ? 'blocked' : res.summary.warning > 0 ? 'warning' : 'pass';
+      const state = res.canStartScanning
+        ? 'pass'
+        : res.summary.blocked > 0
+          ? 'blocked'
+          : 'warning';
       onResultRef.current?.(res, state);
       if (!silent) {
         if (state === 'pass') toast.success('Packlistan är fullt verifierad mot WMS');
@@ -63,17 +71,17 @@ export const PackingPreflightPanel: React.FC<Props> = ({
     } finally {
       setLoading(false);
     }
-  }, [bookingNumber, packingId]);
+  }, [bookingNumber, packingId, reservationId, sessionId]);
 
   useEffect(() => {
     if (!autoRun || !packingId) return;
     void run(true);
-  }, [autoRun, bookingNumber, packingId, run]);
+  }, [autoRun, bookingNumber, packingId, reservationId, run, sessionId]);
 
   const blocked = result?.summary.blocked ?? 0;
   const warnings = result?.summary.warning ?? 0;
-  const ok = result && blocked === 0 && warnings === 0;
-  const warningOnly = result && blocked === 0 && warnings > 0;
+  const ok = result?.canStartScanning === true;
+  const warningOnly = result && !result.canStartScanning && blocked === 0 && warnings > 0;
   const problems = (result?.items || []).filter((r) => r.status !== 'PASS');
 
   const compactStatus = result ? (

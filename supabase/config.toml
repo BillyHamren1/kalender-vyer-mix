@@ -133,6 +133,9 @@ verify_jwt = false
 [functions.scanner-operation-v2]
 verify_jwt = false
 
+[functions.packing-preflight-check]
+verify_jwt = false
+
 
 
 [functions.send-push-notification]

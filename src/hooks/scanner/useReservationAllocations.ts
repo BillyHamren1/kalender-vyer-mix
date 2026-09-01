@@ -3,7 +3,13 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   getReservationAllocations,
   type WmsAllocation,
+  type WmsReservationLine,
 } from '@/services/scannerService';
+import {
+  resolveExactReservationLine,
+  type ReservationLineLookup,
+  type ReservationLineResolution,
+} from '@/lib/scanner/reservationLineResolver';
 
 /**
  * Hydrerar WMS-allokeringar för en packlista och håller dem i synk via
@@ -12,6 +18,7 @@ import {
  */
 export const useReservationAllocations = (packingId: string | null | undefined) => {
   const [allocations, setAllocations] = useState<WmsAllocation[]>([]);
+  const [reservationLines, setReservationLines] = useState<WmsReservationLine[]>([]);
   const [reservationId, setReservationId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +36,7 @@ export const useReservationAllocations = (packingId: string | null | undefined) 
       const res = await getReservationAllocations(packingId);
       if (res.success) {
         setAllocations(res.allocations || []);
+        setReservationLines(res.reservation_lines || []);
         setReservationId(res.reservation_id ?? null);
         setError(null);
       } else {
@@ -84,8 +92,13 @@ export const useReservationAllocations = (packingId: string | null | undefined) 
     allocations.map((a) => (a.item_type_id || '').trim().toLowerCase()).filter(Boolean),
   );
 
+  const resolveReservationLine = useCallback((lookup: ReservationLineLookup): ReservationLineResolution => {
+    return resolveExactReservationLine(reservationLines, allocations, lookup);
+  }, [allocations, reservationLines]);
+
   return {
     allocations,
+    reservationLines,
     reservationId,
     isLoading,
     error,
@@ -93,6 +106,7 @@ export const useReservationAllocations = (packingId: string | null | undefined) 
     allocatedSerials,
     allocatedSkus,
     allocatedItemTypeIds,
+    resolveReservationLine,
     isAlreadyAllocated: (serial: string) =>
       allocatedSerials.has((serial || '').trim().toUpperCase()),
   };

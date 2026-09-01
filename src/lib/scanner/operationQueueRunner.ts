@@ -35,7 +35,34 @@ const isUnknownOutcome = (err: unknown): boolean =>
   err instanceof OperationTimeoutError ||
   /timeout|network|aborted|failed to fetch/i.test(String((err as any)?.message ?? err));
 
-export const processOperation = async (
+const operationsInFlight = new WeakMap<OperationQueueStore, Map<string, Promise<QueuedOperation | null>>>();
+const drainsInFlight = new WeakMap<OperationQueueStore, Promise<number>>();
+
+const terminalProofError = (
+  op: QueuedOperation,
+  result: ScannerCommandResult,
+): string | null => {
+  if (result.operationId !== op.operation_id) {
+    return 'Terminal response operation_id did not match the durable operation';
+  }
+
+  if (!isAcceptedResult(result)) return null;
+
+  if (!op.item_id || result.itemId !== op.item_id) {
+    return 'Accepted response item_id did not match the exact durable target';
+  }
+
+  const authoritativeQuantity = op.command === 'RETURN_INSTANCE' || op.command === 'RETURN_QUANTITY'
+    ? result.returnedQuantity
+    : result.packedQuantity;
+  if (typeof authoritativeQuantity !== 'number' || !Number.isFinite(authoritativeQuantity) || authoritativeQuantity < 0) {
+    return 'Accepted response lacked a valid authoritative quantity';
+  }
+
+  return null;
+};
+
+const processOperationOnce = async (
   store: OperationQueueStore,
   op: QueuedOperation,
   send: SendOperation,
@@ -62,6 +89,14 @@ export const processOperation = async (
     }
     return store.transition(op.operation_id, 'UNKNOWN', {
       last_error: String((err as any)?.message ?? err),
+    });
+  }
+
+  const proofError = terminalProofError(op, result);
+  if (proofError) {
+    return store.transition(op.operation_id, 'UNKNOWN', {
+      result,
+      last_error: proofError,
     });
   }
 
@@ -96,10 +131,39 @@ export const processOperation = async (
 };
 
 /**
+ * A physical operation may be reached concurrently from the foreground scan,
+ * app-start recovery and the browser online/timer handlers. Share one promise
+ * per durable operation so those local triggers can never send the same
+ * operation in parallel. Cross-device idempotency remains the WMS gateway's
+ * responsibility through operation_id.
+ */
+export const processOperation = (
+  store: OperationQueueStore,
+  op: QueuedOperation,
+  send: SendOperation,
+  opts: RunnerOptions = {},
+): Promise<QueuedOperation | null> => {
+  let inFlight = operationsInFlight.get(store);
+  if (!inFlight) {
+    inFlight = new Map();
+    operationsInFlight.set(store, inFlight);
+  }
+
+  const existing = inFlight.get(op.operation_id);
+  if (existing) return existing;
+
+  const task = processOperationOnce(store, op, send, opts).finally(() => {
+    if (inFlight?.get(op.operation_id) === task) inFlight.delete(op.operation_id);
+  });
+  inFlight.set(op.operation_id, task);
+  return task;
+};
+
+/**
  * Kör kön en gång. Operationer i samma lane körs strikt sekventiellt;
  * olika lanes kan köras parallellt utan att ordningen bryts.
  */
-export const drainQueue = async (
+const drainQueueOnce = async (
   store: OperationQueueStore,
   send: SendOperation,
   opts: RunnerOptions = {},
@@ -136,4 +200,20 @@ export const drainQueue = async (
     }),
   );
   return processed;
+};
+
+/** Share a single queue drain across app-start, online and recovery triggers. */
+export const drainQueue = (
+  store: OperationQueueStore,
+  send: SendOperation,
+  opts: RunnerOptions = {},
+): Promise<number> => {
+  const existing = drainsInFlight.get(store);
+  if (existing) return existing;
+
+  const task = drainQueueOnce(store, send, opts).finally(() => {
+    if (drainsInFlight.get(store) === task) drainsInFlight.delete(store);
+  });
+  drainsInFlight.set(store, task);
+  return task;
 };

@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { deriveStatusFromProgress } from '../_shared/packing-progress.ts'
+import { reservationLinesFrom, type CanonicalReservationLine } from '../_shared/reservation-line-identity.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -80,7 +81,51 @@ const PACKING_MUTATING_ACTIONS = new Set<string>([
   'delete_qr_parcel',
   'assign_item_to_parcel',
   'add_unknown_product',
+  'return_scan_sku',
+  'physical_return_scan',
+  'return_toggle_item',
+  'return_decrement_item',
+  'reset_return_item',
 ])
+
+// These historical endpoints mutate only the local Planning projection. They
+// cannot prove a WMS commit and are therefore blocked until replaced by the
+// transactional scanner command contract.
+const LEGACY_LOCAL_ONLY_MUTATIONS = new Set<string>([
+  'decrement_item',
+  'add_unknown_product',
+  'return_scan_sku',
+  'return_toggle_item',
+  'return_decrement_item',
+  'reset_return_item',
+])
+
+const LEGACY_WMS_MUTATIONS = new Set<string>([
+  'verify_product',
+  'toggle_item',
+  'decrement_by_serial',
+  'physical_return_scan',
+])
+
+const rejectedLegacyMutation = (operationId: unknown, error: string, debugCode: string) => ({
+  success: false,
+  operationId: typeof operationId === 'string' ? operationId : null,
+  outcome: 'rejected',
+  authority: null,
+  outcomeUnknown: false,
+  error,
+  debugCode,
+})
+
+const unknownLegacyMutation = (operationId: unknown, error: string, debugCode: string) => ({
+  success: false,
+  operationId: typeof operationId === 'string' ? operationId : null,
+  outcome: 'unknown',
+  authority: 'wms',
+  outcomeUnknown: true,
+  error,
+  debugCode,
+})
 
 /**
  * KRITISK SÄKERHETSREGEL: packningshistorik är revisionsdata och får inte
@@ -445,6 +490,8 @@ async function checkIfAllReturned(supabase: any, packingId: string, orgId: strin
 type WmsAllocRow = {
   serial_number: string
   instance_id?: string | null
+  reservation_line_id?: string | null
+  source_booking_product_id?: string | null
   item_type_id?: string | null
   sku?: string | null
   item_type_name?: string | null
@@ -614,7 +661,8 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders })
   }
 
-
+  let requestAction: string | null = null
+  let requestOperationId: string | null = null
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -622,6 +670,10 @@ Deno.serve(async (req) => {
     )
 
     const { action, token, ...params } = await req.json()
+    requestAction = typeof action === 'string' ? action : null
+    requestOperationId = typeof (params as any)?.operationId === 'string'
+      ? (params as any).operationId
+      : null
 
     // Authenticate and get organization_id
     let auth: { staffId: string; organizationId: string; staffName: string }
@@ -671,6 +723,25 @@ Deno.serve(async (req) => {
     }
     const ACTIVE_SESSION_ID = __sessionContext?.sessionId ?? null
     const ACTIVE_SESSION_PACKING_ID = __sessionContext?.packingId ?? null
+
+    if (LEGACY_LOCAL_ONLY_MUTATIONS.has(action)) {
+      return json(rejectedLegacyMutation(
+        (params as any)?.operationId,
+        'Den här legacyåtgärden saknar ett auktoritativt WMS-kommando och är spärrad.',
+        'LEGACY_MUTATION_REQUIRES_TRANSACTIONAL_WMS',
+      ), 409)
+    }
+
+    if (
+      LEGACY_WMS_MUTATIONS.has(action) &&
+      (typeof (params as any)?.operationId !== 'string' || !(params as any).operationId.trim())
+    ) {
+      return json(rejectedLegacyMutation(
+        null,
+        'operation_id krävs för varje WMS-mutation.',
+        'OPERATION_ID_REQUIRED',
+      ), 400)
+    }
 
 
     switch (action) {
@@ -879,6 +950,7 @@ Deno.serve(async (req) => {
         const url = `https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/get-reservation-allocations?reservation_id=${encodeURIComponent(bookingNumber)}`
         let wmsAllocs: WmsAllocRow[] = []
         let wmsCurrentState: any = null
+        let wmsReservationLines: CanonicalReservationLine[] = []
         try {
           const resp = await fetch(url, {
             method: 'GET',
@@ -914,12 +986,19 @@ Deno.serve(async (req) => {
                   ? body
                   : []
           wmsCurrentState = body?.current_state || body?.data?.current_state || null
+          wmsReservationLines = reservationLinesFrom(body)
           wmsAllocs = list
             .map((row: any) => {
               const data = row?.data && typeof row.data === 'object' ? { ...row, ...row.data } : row
               return {
                 serial_number: data?.serial_number || data?.serial || data?.sku_serial || '',
                 instance_id: data?.instance_id || data?.id || null,
+                reservation_line_id: data?.reservation_line_id || data?.reservationLineId || data?.line_id || null,
+                source_booking_product_id:
+                  data?.source_booking_product_id ||
+                  data?.sourceBookingProductId ||
+                  data?.booking_product_id ||
+                  null,
                 item_type_id: data?.item_type_id || data?.itemTypeId || null,
                 sku: data?.sku || null,
                 item_type_name: data?.item_type_name || data?.item_type || data?.product_name || data?.name || null,
@@ -949,6 +1028,13 @@ Deno.serve(async (req) => {
           reservation_id: bookingNumber,
           packing_id: packingId,
           allocations: wmsAllocs,
+          reservation_lines: wmsReservationLines.map((line) => ({
+            reservation_line_id: line.reservationLineId,
+            source_booking_product_id: line.sourceBookingProductId,
+            item_type_id: line.itemTypeId,
+            sku: line.sku,
+            quantity: line.quantity,
+          })),
           current_state: wmsCurrentState,
           mirroredCount: mirrored,
         })
@@ -956,11 +1042,8 @@ Deno.serve(async (req) => {
 
       case 'verify_product': {
 
-        const { packingId, sku: serialNumber, verifiedBy, activeParcelId, verifiedByStaffId } = params
+        const { packingId, sku: serialNumber, verifiedBy, activeParcelId, verifiedByStaffId, operationId } = params
         console.log('[verify_product] start', { packingId, serialNumber, orgId: ORG_ID, verifiedBy: auth.staffName })
-
-        // STATUS FLOW: First scan → set to in_progress
-        await transitionToInProgress(supabase, packingId, ORG_ID)
 
         // 1. Get booking_id from packing_projects (separate query, no join)
         const { data: packing, error: packingError } = await supabase
@@ -1055,22 +1138,34 @@ Deno.serve(async (req) => {
           orgId: ORG_ID,
         })
 
-        const allocateResponse = await fetch(
-          'https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/allocate-instance',
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${PRICELIST_API_KEY}`,
-              'x-organization-id': ORG_ID,
-            },
-            body: JSON.stringify({
-              serial_number: serialNumber,
-              reservation_id: bookingNumber,
-              booking_number: bookingNumber,
-            }),
-          }
-        )
+        let allocateResponse: Response
+        try {
+          allocateResponse = await fetch(
+            'https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/allocate-instance',
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${PRICELIST_API_KEY}`,
+                'x-organization-id': ORG_ID,
+                'x-idempotency-key': operationId,
+              },
+              body: JSON.stringify({
+                serial_number: serialNumber,
+                reservation_id: bookingNumber,
+                booking_number: bookingNumber,
+                operation_id: operationId,
+              }),
+            }
+          )
+        } catch (err) {
+          console.error('[allocate-instance] network outcome unknown', { operationId, err })
+          return json(unknownLegacyMutation(
+            operationId,
+            'WMS-svaret gick förlorat. Kontrollera status innan nytt försök.',
+            'WMS_OUTCOME_UNKNOWN',
+          ), 503)
+        }
 
         const responseText = await allocateResponse.text()
         console.log('[allocate-instance] Response:', {
@@ -1308,17 +1403,13 @@ Deno.serve(async (req) => {
 
         if (matchedItems.length === 0) {
           return json({
-            success: false,
-            notInPackingList: true,
-            wmsItemTypeId,
-            wmsSku,
-            wmsInstanceId,
-            wmsSerialNumber,
-            scannedSku: wmsSku || wmsItemTypeId || null, // legacy field
-            scannedName: wmsItemTypeName || null,        // legacy field
-            bookingId: packing.booking_id,
-            error: `Artikeln ${wmsItemTypeName || wmsSku || wmsItemTypeId} finns i WMS men inte i packlistan`,
-          })
+            ...unknownLegacyMutation(
+              operationId,
+              'WMS bekräftade scannen men den lokala raden kunde inte verifieras exakt. Kontroll krävs.',
+              'LOCAL_PROJECTION_UNKNOWN_AFTER_WMS',
+            ),
+            wmsItemTypeId, wmsSku, wmsInstanceId, wmsSerialNumber,
+          }, 503)
         }
 
         if (matchedItems.length > 1) {
@@ -1333,6 +1424,15 @@ Deno.serve(async (req) => {
               toPack: m.quantity_to_pack,
             })),
           })
+          return json({
+            ...unknownLegacyMutation(
+              operationId,
+              'WMS bekräftade scannen men flera lokala rader matchar. Kontroll krävs.',
+              'AMBIGUOUS_LOCAL_PROJECTION_AFTER_WMS',
+            ),
+            candidates: matchedItems.map((m: any) => m.id),
+            wmsItemTypeId, wmsSku, wmsInstanceId, wmsSerialNumber,
+          }, 503)
         }
 
         // Pick row with lowest remaining first (i.e. quantity_packed < quantity_to_pack).
@@ -1392,14 +1492,25 @@ Deno.serve(async (req) => {
         const newQuantity = Math.min(currentPacked + incrementBy, quantityToPack)
         const isNowFull = newQuantity >= quantityToPack
 
-        await supabase.from('packing_list_items').update({
+        // Status/projection may move only after WMS has explicitly accepted.
+        await transitionToInProgress(supabase, packingId, ORG_ID)
+
+        const { error: localProjectionError } = await supabase.from('packing_list_items').update({
           quantity_packed: newQuantity,
           packed_at: now,
           packed_by: verifiedBy,
           packed_by_staff_id: verifiedByStaffId || null,
           ...(isNowFull ? { verified_at: now, verified_by: verifiedBy, verified_by_staff_id: verifiedByStaffId || null } : {}),
           ...(activeParcelId ? { parcel_id: activeParcelId } : {}),
-        }).eq('id', (selectedItem as any).id)
+        }).eq('id', (selectedItem as any).id).eq('organization_id', ORG_ID)
+        if (localProjectionError) {
+          console.error('[verify_product] local projection failed after WMS commit', { operationId, localProjectionError })
+          return json(unknownLegacyMutation(
+            operationId,
+            'WMS bekräftade scannen men den lokala speglingen misslyckades. Kontroll krävs.',
+            'LOCAL_PROJECTION_WRITE_FAILED_AFTER_WMS',
+          ), 503)
+        }
 
         console.log('[scanner-api] local_quantity_packed_incremented', {
           packingId,
@@ -1415,7 +1526,7 @@ Deno.serve(async (req) => {
         if (activeParcelId && !isAlreadyFull) {
           const allocQty = Math.min(incrementBy, quantityToPack - currentPacked)
           if (allocQty > 0) {
-            await supabase.from('packing_list_item_allocations').insert({
+            const { error: parcelProjectionError } = await supabase.from('packing_list_item_allocations').insert({
               packing_list_item_id: (selectedItem as any).id,
               parcel_id: activeParcelId,
               quantity: allocQty,
@@ -1423,6 +1534,13 @@ Deno.serve(async (req) => {
               scanned_by_staff_id: verifiedByStaffId || null,
               organization_id: ORG_ID,
             })
+            if (parcelProjectionError) {
+              return json(unknownLegacyMutation(
+                operationId,
+                'WMS bekräftade scannen men kollispeglingen misslyckades. Kontroll krävs.',
+                'PARCEL_PROJECTION_WRITE_FAILED_AFTER_WMS',
+              ), 503)
+            }
           }
         }
 
@@ -1474,6 +1592,10 @@ Deno.serve(async (req) => {
 
         return json({
           success: true,
+          operationId,
+          outcome: 'committed',
+          authority: 'wms',
+          outcomeUnknown: false,
           overscan: isAlreadyFull,
           itemId: (selectedItem as any).id,
           newQuantity,
@@ -1484,7 +1606,7 @@ Deno.serve(async (req) => {
       }
 
       case 'toggle_item': {
-        const { itemId, currentlyPacked, quantityToPack, verifiedBy, verifiedByStaffId } = params
+        const { itemId, currentlyPacked, quantityToPack, verifiedBy, verifiedByStaffId, operationId } = params
         const now = new Date().toISOString()
 
         // Get the packing_id + product info for status flow + WMS sync
@@ -1508,23 +1630,13 @@ Deno.serve(async (req) => {
 
         let newQty = (itemData as any)?.quantity_packed || 0
 
-        // ── DECREMENT / RESET PATH (currentlyPacked === true) ──
-        // Local-first is fine here per spec; only increments require WMS-first.
+        // Legacy reset has no corresponding WMS command. Never mutate locally.
         if (currentlyPacked) {
-          const beforeQty = (itemData as any)?.quantity_packed || 0
-          await supabase.from('packing_list_items').update({
-            quantity_packed: 0, packed_at: null, packed_by: null, packed_by_staff_id: null, verified_at: null, verified_by: null, verified_by_staff_id: null, parcel_id: null
-          }).eq('id', itemId).eq('organization_id', ORG_ID)
-          await supabase.from('packing_list_item_allocations').delete().eq('packing_list_item_id', itemId).eq('organization_id', ORG_ID)
-          newQty = 0
-          if (packingId) await checkIfAllPacked(supabase, packingId, ORG_ID)
-          await logPackingSessionEvent(supabase, auth, ACTIVE_SESSION_ID, {
-            packingId, itemId, eventType: 'manual_unpack',
-            quantityDelta: -beforeQty, productName,
-            beforeQuantity: beforeQty, afterQuantity: 0,
-            source: 'manual',
-          })
-          return json({ success: true, manualScan: false, bundleSynced: false, productName, newQuantity: newQty })
+          return json(rejectedLegacyMutation(
+            operationId,
+            'Manuell avpackning saknar säkert WMS-kommando och är spärrad.',
+            'LEGACY_UNPACK_REQUIRES_TRANSACTIONAL_WMS',
+          ), 409)
         }
 
         // ── INCREMENT PATH — WMS-FIRST ──
@@ -1540,47 +1652,13 @@ Deno.serve(async (req) => {
         const sku = (itemData as any)?.wms_sku || product?.sku || null
         const itemTypeId = (itemData as any)?.wms_item_type_id || product?.inventory_item_type_id || null
 
-        // Legacy rows without WMS identity are a data-quality problem, not a
-        // physical warehouse conflict. Allow an explicitly manual local checkoff
-        // while marking the packing for review; never pretend it was WMS-synced.
+        // Missing WMS identity cannot produce an authoritative success.
         if (!sku && !itemTypeId) {
-          console.warn('[toggle_item] legacy local-only checkoff — WMS identity missing', { itemId })
-          if (packingId) {
-            await supabase.from('packing_projects').update({
-              needs_packing_review: true,
-              needs_packing_review_reason: 'packing_item_missing_wms_identity',
-              updated_at: now,
-            }).eq('id', packingId).eq('organization_id', ORG_ID)
-          }
-          newQty = Math.min(currentQty + 1, quantityToPack)
-          const isFull = newQty >= quantityToPack
-          await supabase.from('packing_list_items').update({
-            quantity_packed: newQty,
-            packed_at: now,
-            packed_by: verifiedBy,
-            packed_by_staff_id: verifiedByStaffId || null,
-            wms_identity_needs_repair: true,
-            ...(isFull ? { verified_at: now, verified_by: verifiedBy, verified_by_staff_id: verifiedByStaffId || null } : {}),
-          }).eq('id', itemId).eq('organization_id', ORG_ID)
-          if (packingId) {
-            await transitionToInProgress(supabase, packingId, ORG_ID)
-            await checkIfAllPacked(supabase, packingId, ORG_ID)
-          }
-          await logPackingSessionEvent(supabase, auth, ACTIVE_SESSION_ID, {
-            packingId, itemId, eventType: 'manual_pack', quantityDelta: 1,
-            productName, beforeQuantity: currentQty, afterQuantity: newQty,
-            source: 'manual', metadata: { wmsSync: false, identityRepairRequired: true },
-          })
-          return json({
-            success: true,
-            manualScan: true,
-            bundleSynced: false,
-            localOnly: true,
-            identityRepairRequired: true,
-            productName,
-            newQuantity: newQty,
-            warning: 'Avbockad manuellt. WMS-kopplingen behöver repareras.',
-          })
+          return json(rejectedLegacyMutation(
+            operationId,
+            'WMS-identitet saknas. Reparera artikelkopplingen innan packning.',
+            'WMS_IDENTITY_REQUIRED',
+          ), 409)
         }
 
         // 2) Resolve booking_number (required for reservation_id)
@@ -1641,6 +1719,7 @@ Deno.serve(async (req) => {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${PRICELIST_API_KEY}`,
                 'x-organization-id': ORG_ID,
+                'x-idempotency-key': operationId,
               },
               body: JSON.stringify({
                 item_type_id: itemTypeId,
@@ -1653,6 +1732,7 @@ Deno.serve(async (req) => {
                 product_name: productName || null,
                 packing_list_item_id: itemId,
                 verified_by: verifiedBy || null,
+                operation_id: operationId,
               }),
             }
           )
@@ -1687,16 +1767,17 @@ Deno.serve(async (req) => {
               : bundleErrorCode === 'unknown_item_type_id' ? 'Sparat WMS-ID finns inte längre i WMS'
               : (bundleError || 'WMS nekade scan'))
           return json({
-            success: false,
+            ...(networkError
+              ? unknownLegacyMutation(operationId, friendly, 'WMS_OUTCOME_UNKNOWN')
+              : rejectedLegacyMutation(operationId, friendly, bundleErrorCode || 'WMS_REJECTED')),
             manualScan: true,
             bundleSynced: false,
             productName,
             newQuantity: currentQty,
-            error: friendly,
             bundleError,
             bundleErrorCode,
             ...(isHard ? { hardWmsError: true } : {}),
-          })
+          }, networkError ? 503 : 409)
         }
 
         // 5) WMS accepted → now persist local increment
@@ -1706,7 +1787,7 @@ Deno.serve(async (req) => {
         const isFull = newQty >= quantityToPack
         const activeParcelId = (params as any).activeParcelId
 
-        await supabase.from('packing_list_items').update({
+        const { error: localProjectionError } = await supabase.from('packing_list_items').update({
           quantity_packed: newQty,
           packed_at: now,
           packed_by: verifiedBy,
@@ -1714,9 +1795,16 @@ Deno.serve(async (req) => {
           ...(isFull ? { verified_at: now, verified_by: verifiedBy, verified_by_staff_id: verifiedByStaffId || null } : {}),
           ...(activeParcelId ? { parcel_id: activeParcelId } : {}),
         }).eq('id', itemId).eq('organization_id', ORG_ID)
+        if (localProjectionError) {
+          return json(unknownLegacyMutation(
+            operationId,
+            'WMS bekräftade packningen men den lokala speglingen misslyckades. Kontroll krävs.',
+            'LOCAL_PROJECTION_WRITE_FAILED_AFTER_WMS',
+          ), 503)
+        }
 
         if (activeParcelId && newQty > currentQty) {
-          await supabase.from('packing_list_item_allocations').insert({
+          const { error: parcelProjectionError } = await supabase.from('packing_list_item_allocations').insert({
             packing_list_item_id: itemId,
             parcel_id: activeParcelId,
             quantity: newQty - currentQty,
@@ -1724,6 +1812,13 @@ Deno.serve(async (req) => {
             scanned_by_staff_id: verifiedByStaffId || null,
             organization_id: ORG_ID,
           })
+          if (parcelProjectionError) {
+            return json(unknownLegacyMutation(
+              operationId,
+              'WMS bekräftade packningen men kollispeglingen misslyckades. Kontroll krävs.',
+              'PARCEL_PROJECTION_WRITE_FAILED_AFTER_WMS',
+            ), 503)
+          }
         }
 
         if (packingId) await checkIfAllPacked(supabase, packingId, ORG_ID)
@@ -1738,6 +1833,10 @@ Deno.serve(async (req) => {
 
         return json({
           success: true,
+          operationId,
+          outcome: 'committed',
+          authority: 'wms',
+          outcomeUnknown: false,
           manualScan: true,
           bundleSynced: true,
           productName,
@@ -1808,7 +1907,7 @@ Deno.serve(async (req) => {
         // decide whether the scan is valid — only WMS does. After WMS confirms
         // (or returns a known "not allocated" state), we mirror the change
         // locally by decrementing the matching packing_list_item.
-        const { packingId, serialNumber } = params
+        const { packingId, serialNumber, operationId } = params
         const serial = String(serialNumber || '').trim()
         if (!packingId || !serial) {
           return json({ success: false, error: 'packingId and serialNumber required' }, 400)
@@ -1831,8 +1930,9 @@ Deno.serve(async (req) => {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${PRICELIST_API_KEY}`,
                 'x-organization-id': ORG_ID,
+                'x-idempotency-key': operationId,
               },
-              body: JSON.stringify({ serial_number: serial }),
+              body: JSON.stringify({ serial_number: serial, operation_id: operationId }),
             }
           )
           checkinStatus = checkinResponse.status
@@ -1848,7 +1948,11 @@ Deno.serve(async (req) => {
           }
         } catch (err) {
           console.error('[checkin-scan] network error', { serial, err })
-          return json({ success: false, error: 'Kunde inte nå lagersystemet' })
+          return json(unknownLegacyMutation(
+            operationId,
+            'WMS-svaret gick förlorat. Kontrollera status innan nytt försök.',
+            'WMS_OUTCOME_UNKNOWN',
+          ), 503)
         }
 
         // WMS kan returnera nyttodata under .data — packa upp för fältmatchning nedan
@@ -1912,30 +2016,38 @@ Deno.serve(async (req) => {
 
         // WMS accepted the checkin even if we can't find a matching local row.
         if (matched.length === 0) {
-          await checkIfAllPacked(supabase, packingId, ORG_ID)
           console.log('[scanner-api] decrement_by_serial no_local_row', debug)
           return json({
-            success: true,
-            itemId: null,
-            newQuantity: 0,
-            productName: wmsItemTypeName || wmsSku || serial,
-            note: 'WMS checkin OK, no local packing row to decrement',
+            ...unknownLegacyMutation(operationId, 'WMS bekräftade avpackningen men lokal rad saknas. Kontroll krävs.', 'LOCAL_PROJECTION_UNKNOWN_AFTER_WMS'),
             ...debug,
-          })
+          }, 503)
         }
 
-        const target = [...matched].sort((a: any, b: any) =>
-          (b.quantity_packed || 0) - (a.quantity_packed || 0) || String(a.id).localeCompare(String(b.id))
-        )[0] as any
+        if (matched.length > 1) {
+          return json({
+            ...unknownLegacyMutation(operationId, 'WMS bekräftade avpackningen men flera lokala rader matchar. Kontroll krävs.', 'AMBIGUOUS_LOCAL_PROJECTION_AFTER_WMS'),
+            candidates: matched.map((m: any) => m.id),
+            ...debug,
+          }, 503)
+        }
+
+        const target = matched[0] as any
         console.log('[scanner-api] decrement_by_serial matched', { ...debug, localPackingItemId: target.id })
 
         const newQty = Math.max(0, (target.quantity_packed || 0) - 1)
-        await supabase.from('packing_list_items').update({
+        const { error: localProjectionError } = await supabase.from('packing_list_items').update({
           quantity_packed: newQty,
           verified_at: null,
           verified_by: null,
           ...(newQty === 0 ? { packed_at: null, packed_by: null, parcel_id: null } : {})
         }).eq('id', target.id).eq('organization_id', ORG_ID)
+        if (localProjectionError) {
+          return json(unknownLegacyMutation(
+            operationId,
+            'WMS bekräftade avpackningen men den lokala speglingen misslyckades. Kontroll krävs.',
+            'LOCAL_PROJECTION_WRITE_FAILED_AFTER_WMS',
+          ), 503)
+        }
 
         const { data: lastAlloc } = await supabase
           .from('packing_list_item_allocations')
@@ -1947,9 +2059,11 @@ Deno.serve(async (req) => {
           .maybeSingle()
         if (lastAlloc) {
           if ((lastAlloc as any).quantity <= 1) {
-            await supabase.from('packing_list_item_allocations').delete().eq('id', (lastAlloc as any).id)
+            const { error: allocationProjectionError } = await supabase.from('packing_list_item_allocations').delete().eq('id', (lastAlloc as any).id)
+            if (allocationProjectionError) return json(unknownLegacyMutation(operationId, 'WMS bekräftade avpackningen men kollispeglingen misslyckades. Kontroll krävs.', 'PARCEL_PROJECTION_WRITE_FAILED_AFTER_WMS'), 503)
           } else {
-            await supabase.from('packing_list_item_allocations').update({ quantity: (lastAlloc as any).quantity - 1 }).eq('id', (lastAlloc as any).id)
+            const { error: allocationProjectionError } = await supabase.from('packing_list_item_allocations').update({ quantity: (lastAlloc as any).quantity - 1 }).eq('id', (lastAlloc as any).id)
+            if (allocationProjectionError) return json(unknownLegacyMutation(operationId, 'WMS bekräftade avpackningen men kollispeglingen misslyckades. Kontroll krävs.', 'PARCEL_PROJECTION_WRITE_FAILED_AFTER_WMS'), 503)
           }
         }
 
@@ -1966,6 +2080,10 @@ Deno.serve(async (req) => {
 
         return json({
           success: true,
+          operationId,
+          outcome: 'committed',
+          authority: 'wms',
+          outcomeUnknown: false,
           itemId: target.id,
           newQuantity: newQty,
           productName: target.booking_products?.name || returnedItemType || returnedSku,
@@ -2351,6 +2469,17 @@ Deno.serve(async (req) => {
               found: true,
               name: payload.name || payload.item_type_name || payload.product_name || null,
               sku: payload.sku || payload.serial_number || serialNumber,
+              itemTypeId: payload.item_type_id || payload.itemTypeId || payload.inventory_item_type_id || null,
+              reservationLineId:
+                payload.reservation_line_id ||
+                payload.reservationLineId ||
+                payload.active_reservation?.reservation_line_id ||
+                null,
+              sourceBookingProductId:
+                payload.source_booking_product_id ||
+                payload.sourceBookingProductId ||
+                payload.active_reservation?.source_booking_product_id ||
+                null,
               status: payload.status || 'unknown',
               condition: payload.condition || null,
               itemType: payload.item_type || payload.item_type_name || null,
@@ -2513,7 +2642,7 @@ Deno.serve(async (req) => {
         // 1) Call WMS checkin-scan — that is the source of truth.
         // 2) Only if WMS confirms, mirror locally by bumping quantity_returned
         //    on the packing_list_items row that matches WMS item_type_id/sku.
-        const { packingId, scannedValue, returnedBy } = params
+        const { packingId, scannedValue, returnedBy, operationId } = params
         const serial = String(scannedValue || '').trim()
         if (!packingId || !serial) {
           return json({ success: false, error: 'packingId och scannedValue krävs' }, 400)
@@ -2563,6 +2692,14 @@ Deno.serve(async (req) => {
           })
         }
 
+        if (!expectedBookingNumber) {
+          return json(rejectedLegacyMutation(
+            operationId,
+            'Returen saknar verifierat bokningsnummer och skickades inte till WMS.',
+            'WMS_BOOKING_REQUIRED',
+          ), 409)
+        }
+
         // 1) WMS checkin-scan FIRST.
         let checkinData: any = null
         let checkinStatus = 0
@@ -2575,9 +2712,11 @@ Deno.serve(async (req) => {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${PRICELIST_API_KEY}`,
                 'x-organization-id': ORG_ID,
+                'x-idempotency-key': operationId,
               },
               body: JSON.stringify({
                 serial_number: serial,
+                operation_id: operationId,
                 ...(expectedBookingNumber ? {
                   booking_number: expectedBookingNumber,
                   expected_booking_number: expectedBookingNumber,
@@ -2614,7 +2753,11 @@ Deno.serve(async (req) => {
           }
         } catch (err) {
           console.error('[scanner-api] wms_checkin_failed (network)', { serialPrefix: serial.slice(0, 12), err: String(err) })
-          return json({ success: false, error: 'Kunde inte nå lagersystemet' })
+          return json(unknownLegacyMutation(
+            operationId,
+            'WMS-svaret gick förlorat. Kontrollera status innan nytt försök.',
+            'WMS_OUTCOME_UNKNOWN',
+          ), 503)
         }
 
         // Unwrap .data nesting
@@ -2674,19 +2817,19 @@ Deno.serve(async (req) => {
             item_type_name: wmsItemTypeName,
           })
           return json({
-            success: false,
-            error: `WMS bekräftade scan men hittar ingen rad i packlistan (item_type=${wmsItemTypeId || '?'}, sku=${wmsSku || '?'})`,
+            ...unknownLegacyMutation(operationId, 'WMS bekräftade returen men lokal rad saknas. Kontroll krävs.', 'LOCAL_RETURN_MATCH_MISSING'),
             wms: { instance_id: wmsInstanceId, item_type_id: wmsItemTypeId, sku: wmsSku, item_type_name: wmsItemTypeName },
-            debugCode: 'LOCAL_RETURN_MATCH_MISSING',
-          })
+          }, 503)
         }
 
-        // Pick the row with most remaining-to-return (sent − back), deterministic
-        const target = [...matched].sort((a: any, b: any) => {
-          const remA = Math.max(0, (a.quantity_packed || 0) - (a.quantity_returned || 0))
-          const remB = Math.max(0, (b.quantity_packed || 0) - (b.quantity_returned || 0))
-          return (remB - remA) || String(a.id).localeCompare(String(b.id))
-        })[0]
+        if (matched.length > 1) {
+          return json({
+            ...unknownLegacyMutation(operationId, 'WMS bekräftade returen men flera lokala rader matchar. Kontroll krävs.', 'AMBIGUOUS_LOCAL_RETURN_AFTER_WMS'),
+            candidates: matched.map((m: any) => m.id),
+          }, 503)
+        }
+
+        const target = matched[0]
 
         const sentOut = Math.max(0, (target as any).quantity_packed ?? 0)
         const currentBack = Math.max(0, (target as any).quantity_returned ?? 0)
@@ -2702,6 +2845,10 @@ Deno.serve(async (req) => {
         if (currentBack >= sentOut) {
           return json({
             success: true,
+            operationId,
+            outcome: 'committed',
+            authority: 'wms',
+            outcomeUnknown: false,
             alreadyReturned: true,
             itemId: (target as any).id,
             quantity_returned: currentBack,
@@ -2711,11 +2858,18 @@ Deno.serve(async (req) => {
         }
 
         const newQty = Math.min(currentBack + 1, sentOut)
-        await supabase.from('packing_list_items').update({
+        const { error: localProjectionError } = await supabase.from('packing_list_items').update({
           quantity_returned: newQty,
           returned_at: new Date().toISOString(),
           returned_by: returnedBy || null,
         }).eq('id', (target as any).id).eq('organization_id', ORG_ID)
+        if (localProjectionError) {
+          return json(unknownLegacyMutation(
+            operationId,
+            'WMS bekräftade returen men den lokala speglingen misslyckades. Kontroll krävs.',
+            'LOCAL_PROJECTION_WRITE_FAILED_AFTER_WMS',
+          ), 503)
+        }
 
         console.log('[scanner-api] local_quantity_returned_incremented', {
           packingId,
@@ -2730,6 +2884,10 @@ Deno.serve(async (req) => {
 
         return json({
           success: true,
+          operationId,
+          outcome: 'committed',
+          authority: 'wms',
+          outcomeUnknown: false,
           itemId: (target as any).id,
           productName: (target as any).booking_products?.name || wmsItemTypeName,
           quantity_returned: newQty,
@@ -3403,19 +3561,24 @@ Deno.serve(async (req) => {
     if (err instanceof PackingHistoryLogError) {
       console.error('Scanner API — packing history log failed:', err, err.cause)
       return new Response(
-        JSON.stringify({
-          success: false,
-          error: err.message,
-          code: err.code,
-        }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        JSON.stringify(LEGACY_WMS_MUTATIONS.has(requestAction || '')
+          ? unknownLegacyMutation(requestOperationId, err.message, err.code)
+          : { success: false, error: err.message, code: err.code }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       )
     }
     console.error('Scanner API error:', err)
+    if (LEGACY_WMS_MUTATIONS.has(requestAction || '')) {
+      return json(unknownLegacyMutation(
+        requestOperationId,
+        'WMS kan ha genomfört åtgärden men den lokala speglingen kunde inte verifieras.',
+        'LOCAL_PROJECTION_UNKNOWN_AFTER_WMS',
+      ), 503)
+    }
     return new Response(JSON.stringify({ error: err?.message ?? String(err) }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 })
 
-function json(data: any) {
-  return new Response(JSON.stringify(data), { headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' } })
+function json(data: any, status = 200) {
+  return new Response(JSON.stringify(data), { status, headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' } })
 }

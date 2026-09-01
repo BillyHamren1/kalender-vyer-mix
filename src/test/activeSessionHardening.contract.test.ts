@@ -7,11 +7,9 @@
  * Verifierar de robusthetsgarantier som hindrar att en pågående
  * arbetssession blir hängande, dubbel eller "spöke":
  *
- *   1. STORAGE-EVENT FILTERING
- *      `GlobalActiveTimerBanner` reagerar BARA på storage-events vars
- *      `key === TIMERS_KEY` (eller `null` för tab-clear). Annars skulle
- *      orelaterade localStorage-skrivningar (chat-drafts, theme, etc.)
- *      orsaka onödiga re-reads och flicker → spök-state.
+ *   1. LIVE CONTEXT SOURCE
+ *      `GlobalActiveTimerBanner` läser medlemskapet från GeofencingContext
+ *      och använder localStorage endast för kallstarts-/stopprecovery.
  *
  *   2. PENDING-SYNC RECOVERY SWEEP
  *      `useGeofencing` rensar `pendingSync: true` på lokala timers som
@@ -50,15 +48,13 @@ beforeEach(() => {
 
 describe('Active session hardening contract', () => {
   // ─────────────────────────────────────────────────────────────────────
-  // 1. Storage-event filtering — banner must ignore unrelated keys
+  // 1. Live context source — no storage event drives timer membership
   // ─────────────────────────────────────────────────────────────────────
-  it('GlobalActiveTimerBanner filtrerar storage-events på TIMERS_KEY', () => {
+  it('GlobalActiveTimerBanner använder GeofencingContext och saknar storage-listener', () => {
     const src = read('src/components/mobile-app/GlobalActiveTimerBanner.tsx');
-    // Storage handler must inspect e.key and only fire for our key (or null).
-    expect(src).toMatch(/storageHandler\s*=\s*\(e:\s*StorageEvent\)/);
-    expect(src).toMatch(/e\.key\s*===\s*null\s*\|\|\s*e\.key\s*===\s*TIMERS_KEY/);
-    // The raw `handler` (no filter) must NOT be passed directly to addEventListener('storage', ...)
-    expect(src).not.toMatch(/addEventListener\(['"]storage['"],\s*handler\)/);
+    expect(src).toMatch(/const \{ activeTimers \} = useGeofencingContext\(\)/);
+    expect(src).toMatch(/const timers = activeTimers/);
+    expect(src).not.toMatch(/addEventListener\(['"]storage['"]/);
   });
 
   // ─────────────────────────────────────────────────────────────────────

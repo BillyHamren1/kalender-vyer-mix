@@ -6,10 +6,12 @@ const root = process.cwd()
 const read = (p: string) => fs.readFileSync(path.join(root, p), 'utf8')
 
 describe('packing WMS canonical identity contract', () => {
-  it('snapshots WMS identity onto packing rows and freezes after planning', () => {
+  it('snapshots WMS identity onto packing rows and freezes while warehouse acknowledgement is required', () => {
     const src = read('supabase/functions/sync-booking-to-packing/index.ts')
     expect(src).toContain('wms_item_type_id: p.inventory_item_type_id || null')
-    expect(src).toContain("if (packingStatus !== 'planning')")
+    expect(src).toContain('const needsWarehouseAck = requiresWarehouseAcknowledgement({')
+    expect(src).toMatch(/if \(needsWarehouseAck\) \{[\s\S]*?return 0/)
+    expect(src.indexOf('if (needsWarehouseAck)')).toBeLessThan(src.indexOf("wms_item_type_id: product.inventory_item_type_id || null"))
     expect(src).toContain('wms_identity_needs_repair')
   })
 

@@ -1,6 +1,15 @@
 import { PackingWithBooking, PackingParcel } from "@/types/packing";
 import { getToken, clearAuth } from "@/services/mobileApiService";
 import { supabase } from "@/integrations/supabase/client";
+import { newOperationId } from '@/services/scannerOperationV2Service';
+import type { LegacyWmsResult } from '@/lib/scanner/legacyWmsOutcome';
+
+const LEGACY_WMS_MUTATION_ACTIONS = new Set([
+  'verify_product',
+  'toggle_item',
+  'decrement_by_serial',
+  'physical_return_scan',
+]);
 
 export interface ScanResult {
   type: 'packing_id' | 'product_sku' | 'rfid_tag' | 'serial' | 'unknown';
@@ -30,7 +39,14 @@ const callScannerApi = async (action: string, params: Record<string, any> = {}) 
     });
   } catch (networkErr: any) {
     console.error(`[scanner-api] ✗ network error for ${action}:`, networkErr?.message);
-    throw new Error('Nätverksfel — kontrollera anslutningen');
+    const wmsOutcomeUnknown = LEGACY_WMS_MUTATION_ACTIONS.has(action);
+    const err: any = new Error(wmsOutcomeUnknown
+      ? 'Nätverksfel — WMS-resultatet är okänt'
+      : 'Nätverksfel — kontrollera anslutningen');
+    err.operationId = params.operationId ?? null;
+    err.outcome = wmsOutcomeUnknown ? 'unknown' : undefined;
+    err.outcomeUnknown = wmsOutcomeUnknown;
+    throw err;
   }
 
   if (response.status === 401) {
@@ -56,6 +72,10 @@ const callScannerApi = async (action: string, params: Record<string, any> = {}) 
     const err: any = new Error(errorData.error || `API error: ${response.status}`);
     err.debugCode = errorData.debugCode;
     err.status = response.status;
+    err.operationId = errorData.operationId ?? params.operationId ?? null;
+    err.outcome = errorData.outcome;
+    err.authority = errorData.authority ?? null;
+    err.outcomeUnknown = errorData.outcomeUnknown === true || errorData.outcome === 'unknown';
     throw err;
   }
 
@@ -369,7 +389,7 @@ export const fetchPackingListItems = async (packingId: string) => {
 
 // ============== RETURN (IN) FLOW ==============
 
-export interface ReturnScanResult {
+export interface ReturnScanResult extends LegacyWmsResult {
   success: boolean;
   itemId?: string;
   productName?: string;
@@ -385,11 +405,13 @@ export const returnScanSku = async (
   packingId: string,
   sku: string,
   returnedBy?: string,
+  activeSessionId?: string | null,
 ): Promise<ReturnScanResult> => {
+  const operationId = newOperationId();
   try {
-    return await callScannerApi('return_scan_sku', { packingId, sku, returnedBy });
+    return await callScannerApi('return_scan_sku', { packingId, sku, returnedBy, activeSessionId: activeSessionId || null, operationId });
   } catch (err: any) {
-    return { success: false, error: err?.message || 'Scan failed', debugCode: err?.debugCode };
+    return { success: false, error: err?.message || 'Scan failed', debugCode: err?.debugCode, operationId: err?.operationId || operationId, outcome: err?.outcome || 'rejected', authority: err?.authority ?? null, outcomeUnknown: err?.outcomeUnknown === true };
   }
 };
 
@@ -397,27 +419,45 @@ export const physicalReturnScan = async (
   packingId: string,
   scannedValue: string,
   returnedBy?: string,
+  activeSessionId?: string | null,
+  operationId: string = newOperationId(),
 ): Promise<ReturnScanResult> => {
   try {
-    return await callScannerApi('physical_return_scan', { packingId, scannedValue, returnedBy });
+    return await callScannerApi('physical_return_scan', { packingId, scannedValue, returnedBy, activeSessionId: activeSessionId || null, operationId });
   } catch (err: any) {
-    return { success: false, error: err?.message || 'Scan failed', debugCode: err?.debugCode };
+    return { success: false, error: err?.message || 'Scan failed', debugCode: err?.debugCode, operationId: err?.operationId || operationId, outcome: err?.outcome || 'rejected', authority: err?.authority ?? null, outcomeUnknown: err?.outcomeUnknown === true };
   }
 };
 
 export const returnToggleItem = async (
   itemId: string,
   returnedBy?: string,
+  activeSessionId?: string | null,
 ): Promise<ReturnScanResult> => {
-  return callScannerApi('return_toggle_item', { itemId, returnedBy });
+  const operationId = newOperationId();
+  try {
+    return await callScannerApi('return_toggle_item', { itemId, returnedBy, activeSessionId: activeSessionId || null, operationId });
+  } catch (err: any) {
+    return { success: false, error: err?.message, debugCode: err?.debugCode, operationId: err?.operationId || operationId, outcome: err?.outcome || 'rejected', outcomeUnknown: err?.outcomeUnknown === true };
+  }
 };
 
-export const returnDecrementItem = async (itemId: string): Promise<ReturnScanResult> => {
-  return callScannerApi('return_decrement_item', { itemId });
+export const returnDecrementItem = async (itemId: string, activeSessionId?: string | null): Promise<ReturnScanResult> => {
+  const operationId = newOperationId();
+  try {
+    return await callScannerApi('return_decrement_item', { itemId, activeSessionId: activeSessionId || null, operationId });
+  } catch (err: any) {
+    return { success: false, error: err?.message, debugCode: err?.debugCode, operationId: err?.operationId || operationId, outcome: err?.outcome || 'rejected', outcomeUnknown: err?.outcomeUnknown === true };
+  }
 };
 
-export const returnResetItem = async (itemId: string): Promise<{ success: boolean }> => {
-  return callScannerApi('reset_return_item', { itemId });
+export const returnResetItem = async (itemId: string, activeSessionId?: string | null): Promise<ReturnScanResult> => {
+  const operationId = newOperationId();
+  try {
+    return await callScannerApi('reset_return_item', { itemId, activeSessionId: activeSessionId || null, operationId });
+  } catch (err: any) {
+    return { success: false, error: err?.message, debugCode: err?.debugCode, operationId: err?.operationId || operationId, outcome: err?.outcome || 'rejected', outcomeUnknown: err?.outcomeUnknown === true };
+  }
 };
 const sortPackingItems = (items: any[]) => {
   const mainProducts: typeof items = [];
@@ -478,7 +518,8 @@ export const verifyProductBySku = async (
   activeParcelId?: string | null,
   verifiedByStaffId?: string | null,
   activeSessionId?: string | null,
-): Promise<{
+  operationId: string = newOperationId(),
+): Promise<LegacyWmsResult & {
   success: boolean;
   productName?: string;
   error?: string;
@@ -497,7 +538,11 @@ export const verifyProductBySku = async (
   wmsSerialNumber?: string | null;
   wmsSku?: string | null;
 }> => {
-  return callScannerApi('verify_product', { packingId, sku, verifiedBy, activeParcelId: activeParcelId || null, verifiedByStaffId: verifiedByStaffId || null, activeSessionId: activeSessionId || null });
+  try {
+    return await callScannerApi('verify_product', { packingId, sku, verifiedBy, activeParcelId: activeParcelId || null, verifiedByStaffId: verifiedByStaffId || null, activeSessionId: activeSessionId || null, operationId });
+  } catch (err: any) {
+    return { success: false, error: err?.message, debugCode: err?.debugCode, operationId: err?.operationId || operationId, outcome: err?.outcome || 'rejected', authority: err?.authority ?? null, outcomeUnknown: err?.outcomeUnknown === true };
+  }
 };
 
 export interface UnknownProductWmsContext {
@@ -516,7 +561,8 @@ export const addUnknownProduct = async (
   verifiedByStaffId?: string | null,
   wms?: UnknownProductWmsContext,
   activeSessionId?: string | null,
-): Promise<{ success: boolean; itemId?: string; bookingProductId?: string; productName?: string; error?: string }> => {
+): Promise<LegacyWmsResult & { itemId?: string; bookingProductId?: string; productName?: string }> => {
+  const operationId = newOperationId();
   return callScannerApi('add_unknown_product', {
     packingId,
     sku,
@@ -530,6 +576,7 @@ export const addUnknownProduct = async (
     wmsInstanceId: wms?.wmsInstanceId || null,
     wmsSerialNumber: wms?.wmsSerialNumber || null,
     activeSessionId: activeSessionId || null,
+    operationId,
   });
 };
 
@@ -541,9 +588,7 @@ export const togglePackingItemManually = async (
   activeParcelId?: string | null,
   verifiedByStaffId?: string | null,
   activeSessionId?: string | null,
-): Promise<{
-  success: boolean;
-  error?: string;
+): Promise<LegacyWmsResult & {
   manualScan?: boolean;
   bundleSynced?: boolean;
   warning?: string;
@@ -553,23 +598,38 @@ export const togglePackingItemManually = async (
   bundleError?: string | null;
   hardWmsError?: boolean;
 }> => {
-  return callScannerApi('toggle_item', { itemId, currentlyPacked, quantityToPack, verifiedBy, activeParcelId: activeParcelId || null, verifiedByStaffId: verifiedByStaffId || null, activeSessionId: activeSessionId || null });
+  const operationId = newOperationId();
+  try {
+    return await callScannerApi('toggle_item', { itemId, currentlyPacked, quantityToPack, verifiedBy, activeParcelId: activeParcelId || null, verifiedByStaffId: verifiedByStaffId || null, activeSessionId: activeSessionId || null, operationId });
+  } catch (err: any) {
+    return { success: false, error: err?.message, debugCode: err?.debugCode, operationId: err?.operationId || operationId, outcome: err?.outcome || 'rejected', authority: err?.authority ?? null, outcomeUnknown: err?.outcomeUnknown === true };
+  }
 };
 
 export const decrementPackingItem = async (
   itemId: string,
   verifiedBy: string,
   activeSessionId?: string | null,
-): Promise<{ success: boolean; error?: string }> => {
-  return callScannerApi('decrement_item', { itemId, activeSessionId: activeSessionId || null });
+): Promise<LegacyWmsResult> => {
+  const operationId = newOperationId();
+  try {
+    return await callScannerApi('decrement_item', { itemId, activeSessionId: activeSessionId || null, operationId });
+  } catch (err: any) {
+    return { success: false, error: err?.message, debugCode: err?.debugCode, operationId: err?.operationId || operationId, outcome: err?.outcome || 'rejected', outcomeUnknown: err?.outcomeUnknown === true };
+  }
 };
 
 export const decrementBySerial = async (
   packingId: string,
   serialNumber: string,
   activeSessionId?: string | null,
-): Promise<{ success: boolean; error?: string; itemId?: string; newQuantity?: number; productName?: string }> => {
-  return callScannerApi('decrement_by_serial', { packingId, serialNumber, activeSessionId: activeSessionId || null });
+  operationId: string = newOperationId(),
+): Promise<LegacyWmsResult & { itemId?: string; newQuantity?: number; productName?: string }> => {
+  try {
+    return await callScannerApi('decrement_by_serial', { packingId, serialNumber, activeSessionId: activeSessionId || null, operationId });
+  } catch (err: any) {
+    return { success: false, error: err?.message, debugCode: err?.debugCode, operationId: err?.operationId || operationId, outcome: err?.outcome || 'rejected', authority: err?.authority ?? null, outcomeUnknown: err?.outcomeUnknown === true };
+  }
 };
 
 // Get verification progress
@@ -618,20 +678,56 @@ export interface PreflightResult {
   packingId?: string;
   bookingNumber?: string | null;
   summary: { total: number; pass: number; warning: number; blocked: number };
+  pendingShortNoticeChanges?: number;
+  readiness?: {
+    tenantVerified: boolean;
+    staffVerified: boolean;
+    sessionVerified: boolean;
+    bookingVerified: boolean;
+    reservationVerified: boolean;
+    wmsVerified: boolean;
+  };
   canStartScanning: boolean;
   items: PreflightItem[];
   error?: string;
+  debugCode?: string;
 }
 
 export const runPackingPreflightCheck = async (
   packingId: string,
   bookingNumber?: string | null,
+  options?: { sessionId?: string | null; reservationId?: string | null },
 ): Promise<PreflightResult> => {
-  const { data, error } = await supabase.functions.invoke('packing-preflight-check', {
-    body: { packing_id: packingId, booking_number: bookingNumber ?? undefined },
-  });
-  if (error) throw new Error(error.message || 'Preflight failed');
-  return data as PreflightResult;
+  const token = getToken();
+  const baseUrl = ((import.meta as any).env?.VITE_SUPABASE_URL as string | undefined)?.replace(/\/$/, '');
+  if (!token) throw new Error('Aktiv mobil session saknas');
+  if (!baseUrl) throw new Error('Scanner backend saknas');
+
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}/functions/v1/packing-preflight-check`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        packing_id: packingId,
+        booking_number: bookingNumber ?? null,
+        session_id: options?.sessionId ?? null,
+        reservation_id: options?.reservationId ?? null,
+      }),
+    });
+  } catch {
+    throw new Error('WMS-kontrollen kunde inte nås');
+  }
+  const data = await response.json().catch(() => ({})) as PreflightResult;
+  if (!response.ok || !data?.success || data.canStartScanning !== true) {
+    const err: any = new Error(data?.error || 'Packlistan är inte verifierad för scanning');
+    err.debugCode = data?.debugCode || `PREFLIGHT_${response.status}`;
+    throw err;
+  }
+  return data;
 };
 
 // Identify a product by serial number or SKU (home screen lookup)
@@ -639,6 +735,9 @@ export const identifyProduct = async (serialOrSku: string): Promise<{
   found: boolean;
   name?: string;
   sku?: string;
+  itemTypeId?: string | null;
+  reservationLineId?: string | null;
+  sourceBookingProductId?: string | null;
   status?: string;
   currentBooking?: string;
   client?: string;
@@ -652,15 +751,25 @@ export const identifyProduct = async (serialOrSku: string): Promise<{
 export interface WmsAllocation {
   serial_number: string;
   instance_id?: string | null;
+  reservation_line_id?: string | null;
+  source_booking_product_id?: string | null;
   item_type_id?: string | null;
   sku?: string | null;
   item_type_name?: string | null;
+}
+export interface WmsReservationLine {
+  reservation_line_id: string;
+  source_booking_product_id: string | null;
+  item_type_id: string | null;
+  sku: string | null;
+  quantity: number | null;
 }
 export interface ReservationAllocationsResponse {
   success: boolean;
   reservation_id?: string;
   packing_id?: string;
   allocations: WmsAllocation[];
+  reservation_lines?: WmsReservationLine[];
   current_state?: any;
   error?: string;
 }
@@ -671,4 +780,3 @@ export const getReservationAllocations = async (
 ): Promise<ReservationAllocationsResponse> => {
   return callScannerApi('get_reservation_allocations', { packingId });
 };
-

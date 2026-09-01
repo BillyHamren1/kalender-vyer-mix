@@ -10,8 +10,9 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'se.eventflow.time',
   appName: 'EventFlow Time',
-  webDir: 'dist',
+  webDir: 'dist-time',
   android: {
+    path: 'native/time/android',
     allowMixedContent: true,
     backgroundColor: '#0F7C7C',
     buildOptions: {
@@ -20,6 +21,7 @@ const config: CapacitorConfig = {
     }
   },
   ios: {
+    path: 'ios',
     contentInset: 'never',
     backgroundColor: '#0F7C7C',
     infoPlist: {

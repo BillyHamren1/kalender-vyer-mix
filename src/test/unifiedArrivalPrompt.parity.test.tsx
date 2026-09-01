@@ -16,6 +16,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { UnifiedArrivalPrompt } from '@/components/mobile-app/UnifiedArrivalPrompt';
+import { LanguageProvider } from '@/i18n/LanguageContext';
 import type { ArrivalTarget } from '@/types/arrivalTarget';
 
 const ARRIVED_AT = '2026-04-20T06:30:00.000Z';
@@ -29,14 +30,17 @@ const TARGETS: Record<string, ArrivalTarget> = {
 function renderFor(target: ArrivalTarget, handlers: { onConfirm?: any; onDismiss?: any } = {}) {
   const onConfirm = handlers.onConfirm ?? vi.fn().mockResolvedValue(undefined);
   const onDismiss = handlers.onDismiss ?? vi.fn().mockResolvedValue(undefined);
+  localStorage.setItem('eventflow-locale', 'sv');
   render(
-    <UnifiedArrivalPrompt
-      open
-      onOpenChange={() => {}}
-      target={target}
-      onConfirm={onConfirm}
-      onDismiss={onDismiss}
-    />
+    <LanguageProvider>
+      <UnifiedArrivalPrompt
+        open
+        onOpenChange={() => {}}
+        target={target}
+        onConfirm={onConfirm}
+        onDismiss={onDismiss}
+      />
+    </LanguageProvider>
   );
   return { onConfirm, onDismiss };
 }

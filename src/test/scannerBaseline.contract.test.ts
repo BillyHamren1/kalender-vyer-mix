@@ -42,18 +42,19 @@ describe('SCANNER_TRANSACTION_V2 flag', () => {
 });
 
 describe('1. Scanneroperationer som skriver lokalt UTAN WMS', () => {
-  it('decrement_item muterar packing_list_items utan checkin-scan/WMS', () => {
-    const block = apiCase('decrement_item');
-    expect(block).toContain("from('packing_list_items')");
-    expect(block).toContain('quantity_packed: newQty');
-    // BASELINE-BRIST: ingen WMS-verifiering alls i denna operation.
-    expect(block).not.toContain('checkin-scan');
-    expect(block).not.toMatch(/bundle|verify_product/i);
+  it('decrement_item blockeras innan den historiska lokala implementationen kan nås', () => {
+    const guard = scannerApi.indexOf('if (LEGACY_LOCAL_ONLY_MUTATIONS.has(action))');
+    expect(scannerApi).toContain("'decrement_item'");
+    expect(guard).toBeGreaterThan(-1);
+    expect(guard).toBeLessThan(scannerApi.indexOf('switch (action)'));
+    expect(scannerApi).toContain('LEGACY_MUTATION_REQUIRES_TRANSACTIONAL_WMS');
   });
 
-  it('return_toggle_item / return_decrement_item / reset_return_item är lokala', () => {
+  it('lokala returåtgärder ligger samtliga i fail-closed-spärren', () => {
     for (const action of ['return_toggle_item', 'return_decrement_item', 'reset_return_item']) {
-      expect(apiCase(action), action).not.toContain('checkin-scan');
+      const setStart = scannerApi.indexOf('const LEGACY_LOCAL_ONLY_MUTATIONS');
+      const setEnd = scannerApi.indexOf('])', setStart);
+      expect(scannerApi.slice(setStart, setEnd), action).toContain(`'${action}'`);
     }
   });
 });
@@ -115,12 +116,11 @@ describe('4./5. WMS och lokal mutation är inte atomiska', () => {
 });
 
 describe('6. Persistent ScanQueue är inte kopplad till operation replay', () => {
-  it('ScanQueue persisterar i localStorage men har ingen registrerad sync handler i appen', () => {
+  it('den osäkra raw-scan-kön finns endast som legacykod och matas inte längre', () => {
     expect(scanQueue).toContain('eventflow_scan_queue');
     expect(scanQueue).toContain('registerSyncHandler');
-    // ScannerService lägger bara in scans i kön...
-    expect(scannerService).toContain("enqueueScan(scan, 'received')");
-    // ...men ingen app-kod registrerar handler eller startar auto-sync.
+    expect(scannerService).not.toContain("enqueueScan(scan, 'received')");
+    expect(scannerService).not.toContain("from './ScanQueue'");
     const appFiles = [scanProcessor, mobileScannerApp, read('src/components/scanner/VerificationView.tsx')];
     for (const f of appFiles) {
       expect(f).not.toContain('registerSyncHandler');

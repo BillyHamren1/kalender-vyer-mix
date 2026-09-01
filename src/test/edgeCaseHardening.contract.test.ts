@@ -230,13 +230,13 @@ describe('Edge case hardening — 10 scenarios', () => {
     expect(startLocationTimerMock).toHaveBeenCalledTimes(1);
   });
 
-  it('5b. useGeofencing.startTimer har soft-lock som blockerar samma key', () => {
+  it('5b. useGeofencing.startTimer är helt avstängd av single-timer-policyn', () => {
     const src = read('src/hooks/useGeofencing.ts');
-    // Inom startTimer: kontroll mot activeTimersRef.current.has(key) → return false
     const fnStart = src.indexOf('const startTimer = useCallback');
     const fnEnd = src.indexOf('}, []);', fnStart);
     const body = src.slice(fnStart, fnEnd);
-    expect(body).toMatch(/activeTimersRef\.current[\s\S]{0,80}\.has\(key\)/);
+    expect(body).toMatch(/startTimer is disabled by single-timer-policy-v1/);
+    expect(body).toMatch(/only start\/stop the workday via WorkDayPanel/);
     expect(body).toMatch(/return false/);
   });
 
