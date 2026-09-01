@@ -28,6 +28,8 @@ import MyPageCalendar from "./pages/MyPageCalendar";
 import MyPageTodos from "./pages/MyPageTodos";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
+import SidebarShellPreview from "./pages/dev/SidebarShellPreview";
+
 import AuthResetPassword from "./pages/AuthResetPassword";
 
 // Project pages — lazy (heavy trees, only load on demand)
@@ -343,6 +345,11 @@ const WebRoutes: React.FC = () => {
     <Routes>
       <Route path="/auth" element={<AuthProvider><Auth /></AuthProvider>} />
       <Route path="/auth/reset" element={<AuthProvider><AuthResetPassword /></AuthProvider>} />
+
+      {/* DEV-ONLY visual shell preview (never exposed in production builds) */}
+      {import.meta.env.DEV && (
+        <Route path="/dev/sidebar-preview" element={<SidebarShellPreview />} />
+      )}
 
       {/* Public transport partner response page - no auth */}
       <Route path="/transport-svar" element={<TransportResponse />} />

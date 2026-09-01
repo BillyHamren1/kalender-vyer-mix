@@ -44,6 +44,7 @@ import {
   sidebarActiveBarStyle,
   sidebarNestedContainerStyle,
   sidebarNestedRowStyle,
+  resolveActiveNavIndex,
 } from "@/lib/layout/sidebarContract";
 import { Pin, PinOff, Briefcase, AlertCircle } from "lucide-react";
 
@@ -178,17 +179,21 @@ export function Sidebar3D() {
     );
   };
 
-  const isItemActive = (item: NavItem) => {
-    if (item.children?.length) {
-      return location.pathname === item.url;
-    }
-    return (
-      location.pathname === item.url ||
-      location.pathname.startsWith(item.url + "/")
-    );
-  };
+  // Exactly ONE active leaf row — parents with children only match exactly,
+  // duplicate urls resolve to the first declared entry.
+  const activeIndex = resolveActiveNavIndex(
+    location.pathname,
+    navigationItems.map((item) => ({
+      url: item.url,
+      exact: !!item.children?.length,
+    }))
+  );
+
+  const isItemActive = (item: NavItem) =>
+    activeIndex >= 0 && navigationItems[activeIndex] === item;
 
   const isChildActive = (url: string) => location.pathname === url;
+
 
   return (
     <>
@@ -285,7 +290,7 @@ export function Sidebar3D() {
 
             const labelEl = !isCollapsed && (
               <span
-                className="text-[13px] leading-none truncate flex-1 transition-colors"
+                className="text-[14px] leading-none truncate flex-1 transition-colors"
                 style={{
                   fontWeight: active ? 600 : 500,
                   color: active ? ACCENT.base : SIDEBAR_SURFACE.labelColor,
