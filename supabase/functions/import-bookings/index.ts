@@ -38,6 +38,7 @@ import {
   buildComponentSyncKey,
   planProductSyncIdentity,
   planPackageComponentExpansion,
+  planPackageComponentReconciliation,
   normalizeSyncQuantity,
   isPlanningGeneratedRow,
   BOOKING_SOURCE_SYNC_PREFIX,
@@ -2212,7 +2213,7 @@ const expandPackageComponents = async (
   // Fetch all products for this booking (STEG 3N: tenant-isolerad read)
   let productQuery = supabase
     .from('booking_products')
-    .select('id, name, sync_key, package_components, sort_index, inventory_package_id, is_package_component')
+    .select('id, name, quantity, sync_key, package_components, sort_index, inventory_package_id, is_package_component')
     .eq('booking_id', bookingId);
   if (orgId) productQuery = productQuery.eq('organization_id', orgId);
   const { data: products, error } = await productQuery;
@@ -2237,9 +2238,11 @@ const expandPackageComponents = async (
   if (parentsWithComponents.length === 0) return { expanded: 0 };
 
   const parentById = new Map<string, any>(parentsWithComponents.map((p: any) => [p.id, p]));
-  const expansionPlan = planPackageComponentExpansion(parentsWithComponents, products);
+  // Icke-destruktiv avstämning: saknade rader skapas, befintliga rader med fel
+  // mängd (förälderns antal × per-paket-antal) uppdateras. Ingen radering.
+  const reconciliation = planPackageComponentReconciliation(parentsWithComponents, products);
 
-  if (expansionPlan.length === 0) {
+  if (reconciliation.inserts.length === 0 && reconciliation.updates.length === 0) {
     console.log(`[Package Expand] Inget att expandera för bokning ${bookingId} (idempotent)`);
     return { expanded: 0 };
   }
@@ -2247,7 +2250,7 @@ const expandPackageComponents = async (
   let totalExpanded = 0;
   const componentErrors: string[] = [];
 
-  for (const planned of expansionPlan) {
+  for (const planned of reconciliation.inserts) {
     const parent = parentById.get(planned.parentId);
     const comp = planned.component ?? {};
     const parentInventoryPackageId = parent?.inventory_package_id || null;
@@ -2292,11 +2295,38 @@ const expandPackageComponents = async (
     }
   }
 
+  let totalUpdated = 0;
+  for (const planned of reconciliation.updates) {
+    const comp = planned.component ?? {};
+    if (!planned.existingId) {
+      componentErrors.push(`${comp.name || 'unknown'}:missing_existing_row_id`);
+      continue;
+    }
+    let updateQuery = supabase
+      .from('booking_products')
+      .update({ quantity: planned.quantity, sort_index: planned.sortIndex })
+      .eq('id', planned.existingId)
+      .eq('booking_id', bookingId);
+    if (orgId) updateQuery = updateQuery.eq('organization_id', orgId);
+    const { error: updError } = await updateQuery;
+
+    if (updError) {
+      console.error(`[Package Expand] Error updating component "${comp.name}":`, updError);
+      componentErrors.push(`${comp.name || 'unknown'}:${updError.message || String(updError)}`);
+    } else {
+      totalUpdated++;
+      console.log(
+        `[Package Expand] Updated component "${comp.name}" (${planned.currentQuantity} -> ${planned.quantity}, key=${planned.syncKey})`,
+      );
+    }
+  }
+
   return {
-    expanded: totalExpanded,
+    expanded: totalExpanded + totalUpdated,
     error: componentErrors.length > 0 ? `package_component_insert_failed:${componentErrors.join('|')}` : null,
   };
 };
+
 
 
 /**

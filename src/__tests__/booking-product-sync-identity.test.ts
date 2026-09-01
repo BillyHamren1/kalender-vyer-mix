@@ -15,6 +15,7 @@ import {
   buildComponentSyncKey,
   planProductSyncIdentity,
   planPackageComponentExpansion,
+  planPackageComponentReconciliation,
   normalizeSyncQuantity,
   isPlanningGeneratedRow,
   BOOKING_SOURCE_SYNC_PREFIX,
@@ -97,6 +98,7 @@ describe('planPackageComponentExpansion', () => {
     id: 'local-1',
     sync_key: `${BOOKING_SOURCE_SYNC_PREFIX}row-1`,
     sort_index: 2,
+    quantity: 1,
     package_components: [
       { item_type_id: 'it-1', name: 'Ben', quantity: 4 },
       { item_type_id: 'it-2', name: 'Duk', quantity: 0 },
@@ -106,7 +108,7 @@ describe('planPackageComponentExpansion', () => {
   it('expanderar komponenter en gång och är idempotent', () => {
     const first = planPackageComponentExpansion([parent], []);
     expect(first).toHaveLength(2);
-    const existing = first.map((r) => ({ sync_key: r.syncKey }));
+    const existing = first.map((r) => ({ id: r.syncKey, sync_key: r.syncKey, quantity: r.quantity }));
     expect(planPackageComponentExpansion([parent], existing)).toHaveLength(0);
   });
 
@@ -121,6 +123,82 @@ describe('planPackageComponentExpansion', () => {
     expect(rows.find((r) => r.component.name === 'Ben')?.quantity).toBe(4);
   });
 });
+
+describe('planPackageComponentReconciliation (förälderns antal × per-paket-antal)', () => {
+  const makeParent = (id: string, key: string, quantity: unknown, comps: any[]) => ({
+    id,
+    sync_key: `${BOOKING_SOURCE_SYNC_PREFIX}${key}`,
+    sort_index: 1,
+    quantity,
+    package_components: comps,
+  });
+
+  const benKey = (key: string) =>
+    buildComponentSyncKey(`${BOOKING_SOURCE_SYNC_PREFIX}${key}`, { item_type_id: 'it-1' }, 0);
+
+  it('parent 1 × komponent 4 => 4', () => {
+    const plan = planPackageComponentReconciliation(
+      [makeParent('p1', 'row-1', 1, [{ item_type_id: 'it-1', name: 'Ben', quantity: 4 }])],
+      [],
+    );
+    expect(plan.inserts).toHaveLength(1);
+    expect(plan.inserts[0].quantity).toBe(4);
+    expect(plan.updates).toEqual([]);
+  });
+
+  it('parent 3 × komponent 4 => 12', () => {
+    const plan = planPackageComponentReconciliation(
+      [makeParent('p1', 'row-1', 3, [{ item_type_id: 'it-1', name: 'Ben', quantity: 4 }])],
+      [],
+    );
+    expect(plan.inserts[0].quantity).toBe(12);
+  });
+
+  it('befintlig cmp-rad på 4 uppdateras till 12 (ingen dubblett, ingen skip)', () => {
+    const plan = planPackageComponentReconciliation(
+      [makeParent('p1', 'row-1', 3, [{ item_type_id: 'it-1', name: 'Ben', quantity: 4 }])],
+      [{ id: 'cmp-row', sync_key: benKey('row-1'), quantity: 4 }],
+    );
+    expect(plan.inserts).toEqual([]);
+    expect(plan.updates).toHaveLength(1);
+    expect(plan.updates[0]).toMatchObject({ existingId: 'cmp-row', currentQuantity: 4, quantity: 12 });
+  });
+
+  it('redan korrekt rad ger ingen skrivning', () => {
+    const plan = planPackageComponentReconciliation(
+      [makeParent('p1', 'row-1', 3, [{ item_type_id: 'it-1', name: 'Ben', quantity: 4 }])],
+      [{ id: 'cmp-row', sync_key: benKey('row-1'), quantity: 12 }],
+    );
+    expect(plan.inserts).toEqual([]);
+    expect(plan.updates).toEqual([]);
+    expect(plan.unchanged).toEqual(['cmp-row']);
+  });
+
+  it('två föräldrar/komponenter hålls separata', () => {
+    const plan = planPackageComponentReconciliation(
+      [
+        makeParent('p1', 'row-1', 2, [{ item_type_id: 'it-1', name: 'Ben', quantity: 4 }]),
+        makeParent('p2', 'row-2', 5, [{ item_type_id: 'it-1', name: 'Ben', quantity: 4 }]),
+      ],
+      [{ id: 'cmp-1', sync_key: benKey('row-1'), quantity: 8 }],
+    );
+    expect(plan.unchanged).toEqual(['cmp-1']);
+    expect(plan.inserts).toHaveLength(1);
+    expect(plan.inserts[0].parentId).toBe('p2');
+    expect(plan.inserts[0].quantity).toBe(20);
+  });
+
+  it('planerar aldrig någon radering', () => {
+    const plan = planPackageComponentReconciliation(
+      [makeParent('p1', 'row-1', 1, [{ item_type_id: 'it-1', name: 'Ben', quantity: 1 }])],
+      [{ id: 'orphan', sync_key: `${PLANNING_COMPONENT_SYNC_PREFIX}old:key`, quantity: 9 }],
+    );
+    expect(Object.keys(plan)).toEqual(['inserts', 'updates', 'unchanged']);
+    expect(plan.unchanged).not.toContain('orphan');
+    expect(plan.inserts).toHaveLength(1);
+  });
+});
+
 
 describe('normalizeSyncQuantity', () => {
   it('bevarar 0 men gör saknad mängd till 1', () => {
