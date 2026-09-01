@@ -458,6 +458,14 @@ async function syncPackingListItems(
     } else {
       synced += newItems.length
       console.log(`[sync-booking-to-packing] Added ${newItems.length} new packing list items`)
+      // Raderna finns nu — pending "item_added"-kvittenser är inte längre relevanta.
+      await supabase
+        .from('packing_change_requests')
+        .update({ status: 'dismissed', updated_at: new Date().toISOString() })
+        .eq('packing_id', packingId)
+        .eq('status', 'pending')
+        .eq('change_type', 'item_added')
+        .in('booking_product_id', newItems.map((i: any) => i.booking_product_id))
     }
   }
 
