@@ -26,6 +26,7 @@ import {
   fetchPackingListItemsForDesktop as fetchPackingListItems,
   getItemParcelsDesktop as getItemParcels,
   fetchPackingForDesktop as fetchPackingForScanner,
+  repairPackingItemsDesktop,
 } from '@/services/desktopPackingService';
 import { PackingWithBooking } from '@/types/packing';
 import PackingQRCode from './PackingQRCode';
@@ -127,9 +128,28 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [itemParcelMap, setItemParcelMap] = useState<Record<string, number>>({});
   const [wmsPreflightState, setWmsPreflightState] = useState<'not_run' | 'checking' | 'pass' | 'warning' | 'blocked' | 'error'>('not_run');
+  const [isRepairing, setIsRepairing] = useState(false);
+  const loadDataRef = useRef<((bg?: boolean) => Promise<void>) | null>(null);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [printRows, setPrintRows] = useState<PrintablePackingRow[]>([]);
   const [printMeta, setPrintMeta] = useState<PrintablePackingMeta | null>(null);
+
+  const handleRepair = useCallback(async () => {
+    setIsRepairing(true);
+    try {
+      const res = await repairPackingItemsDesktop(packingId);
+      if (res.inserted > 0) {
+        toast.success(`${res.inserted} rader lades till i packlistan`);
+      } else {
+        toast.info('Inga saknade rader hittades');
+      }
+      await loadDataRef.current?.(true);
+    } catch (err: any) {
+      toast.error(err?.message || 'Kunde inte generera packlistan');
+    } finally {
+      setIsRepairing(false);
+    }
+  }, [packingId]);
 
   const recalcProgress = useCallback((updatedItems: PackingItem[]) => {
     const { total, verified, percentage } = computePackingProgress(updatedItems);
