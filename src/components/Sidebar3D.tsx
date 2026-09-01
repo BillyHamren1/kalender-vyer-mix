@@ -255,33 +255,32 @@ export function Sidebar3D() {
             };
 
             const iconEl = (
-              <div className="shrink-0 flex items-center justify-center w-[18px] h-[18px]">
+              <div
+                className="shrink-0 flex items-center justify-center"
+                style={{ width: SIDEBAR_CONTRACT.iconSizePx, height: SIDEBAR_CONTRACT.iconSizePx }}
+              >
                 <item.icon
-                  className={cn(
-                    "w-[16px] h-[16px] transition-colors",
-                    active || hasActiveChild
-                      ? "text-[hsl(var(--primary))]"
-                      : "text-[hsl(240_6%_46%)]"
-                  )}
-                  strokeWidth={active ? 2.1 : 1.75}
+                  size={SIDEBAR_CONTRACT.iconSizePx}
+                  color={
+                    active || hasActiveChild ? ACCENT.base : SIDEBAR_SURFACE.iconColor
+                  }
+                  strokeWidth={active ? 2 : 1.75}
                 />
               </div>
             );
 
             const labelEl = !isCollapsed && (
               <span
-                className={cn(
-                  "text-[13px] leading-none tracking-[-0.005em] truncate flex-1 transition-colors",
-                  active
-                    ? "font-semibold text-[hsl(280_45%_28%)]"
-                    : hasActiveChild
-                      ? "font-medium text-[hsl(240_8%_25%)]"
-                      : "font-medium text-[hsl(240_8%_28%)]"
-                )}
+                className="text-[13px] leading-none truncate flex-1 transition-colors"
+                style={{
+                  fontWeight: active ? 600 : 500,
+                  color: active ? ACCENT.base : SIDEBAR_SURFACE.labelColor,
+                }}
               >
                 {item.title}
               </span>
             );
+
 
 
             const badgeEl = item.badge ? (
