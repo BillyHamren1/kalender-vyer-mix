@@ -20,8 +20,13 @@ export const SIDEBAR_CONTRACT = {
   /** Section heading typography. */
   sectionLabelSizePx: 12,
   sectionLabelTracking: '0.08em',
+  /** Menu label typography. */
+  labelSizePx: 14,
+  /** Vertical gap between rows. */
+  rowGapPx: 2,
   /** Row corner radius. */
   rowRadiusPx: 8,
+
   /** Active row left indicator. */
   activeLeftBarPx: 3,
   /** Horizontal padding inside the sidebar rail. */
