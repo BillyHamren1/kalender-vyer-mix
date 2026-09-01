@@ -850,7 +850,7 @@ Deno.serve(async (req) => {
       // rörs aldrig.
       case 'repair_packing_items': {
         const { packingId } = params
-        if (!packingId) return json({ success: false, error: 'packingId krävs' }, 400)
+        if (!packingId) return json({ success: false, error: 'packingId krävs' })
 
         const { data: packing, error: packErr } = await supabase
           .from('packing_projects')
@@ -859,9 +859,9 @@ Deno.serve(async (req) => {
           .eq('organization_id', ORG_ID)
           .maybeSingle()
 
-        if (packErr || !packing) return json({ success: false, error: 'Packningen hittades inte' }, 404)
+        if (packErr || !packing) return json({ success: false, error: 'Packningen hittades inte' })
         if (!packing.booking_id) {
-          return json({ success: false, error: 'Packningen saknar bokning – kan inte repareras automatiskt' }, 409)
+          return json({ success: false, error: 'Packningen saknar bokning – kan inte repareras automatiskt' })
         }
 
         const repairableStatuses = ['planning', 'in_progress']
@@ -870,7 +870,7 @@ Deno.serve(async (req) => {
             success: false,
             error: `Packningen har status ${packing.status} och får inte skrivas om`,
             code: 'PACKING_SNAPSHOT_FROZEN',
-          }, 409)
+          })
         }
 
         const [{ data: products }, { data: existingItems }] = await Promise.all([
@@ -918,7 +918,7 @@ Deno.serve(async (req) => {
         const { error: insertError } = await supabase.from('packing_list_items').insert(toInsert)
         if (insertError) {
           console.error('[repair_packing_items] insert failed', insertError)
-          return json({ success: false, error: insertError.message }, 500)
+          return json({ success: false, error: insertError.message })
         }
 
         // Pending "item_added"-kvittenser för rader vi just skapat är inte längre relevanta.
