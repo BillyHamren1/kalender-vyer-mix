@@ -844,6 +844,102 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify(data || []), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
+      // ====== REPAIR: generera saknade packrader ======
+      // Explicit, användarinitierad reparation. get_packing_items förblir read-only;
+      // detta är enda vägen att skapa rader i efterhand. Frysta/avslutade packningar
+      // rörs aldrig.
+      case 'repair_packing_items': {
+        const { packingId } = params
+        if (!packingId) return json({ success: false, error: 'packingId krävs' }, 400)
+
+        const { data: packing, error: packErr } = await supabase
+          .from('packing_projects')
+          .select('id, booking_id, status')
+          .eq('id', packingId)
+          .eq('organization_id', ORG_ID)
+          .maybeSingle()
+
+        if (packErr || !packing) return json({ success: false, error: 'Packningen hittades inte' }, 404)
+        if (!packing.booking_id) {
+          return json({ success: false, error: 'Packningen saknar bokning – kan inte repareras automatiskt' }, 409)
+        }
+
+        const repairableStatuses = ['planning', 'in_progress']
+        if (!repairableStatuses.includes(packing.status)) {
+          return json({
+            success: false,
+            error: `Packningen har status ${packing.status} och får inte skrivas om`,
+            code: 'PACKING_SNAPSHOT_FROZEN',
+          }, 409)
+        }
+
+        const [{ data: products }, { data: existingItems }] = await Promise.all([
+          supabase
+            .from('booking_products')
+            .select('id, name, quantity, parent_product_id, sku, inventory_item_type_id, source_missing_since')
+            .eq('booking_id', packing.booking_id)
+            .eq('organization_id', ORG_ID),
+          supabase
+            .from('packing_list_items')
+            .select('id, booking_product_id')
+            .eq('packing_id', packingId)
+            .eq('organization_id', ORG_ID),
+        ])
+
+        // Samma packable-filter som sync-booking-to-packing: aktiva rader,
+        // paketrubriker (rader som är förälder till någon annan rad) exkluderas.
+        const active = (products || []).filter((p: any) => !p.source_missing_since)
+        const parentIds = new Set(
+          active.filter((p: any) => p.parent_product_id).map((p: any) => p.parent_product_id)
+        )
+        const packable = active.filter((p: any) => !parentIds.has(p.id))
+        const existingProductIds = new Set((existingItems || []).map((i: any) => i.booking_product_id))
+
+        const toInsert = packable
+          .filter((p: any) => !existingProductIds.has(p.id))
+          .map((p: any) => ({
+            packing_id: packingId,
+            booking_product_id: p.id,
+            quantity_to_pack: p.quantity ?? 1,
+            quantity_packed: 0,
+            organization_id: ORG_ID,
+            wms_item_type_id: p.inventory_item_type_id || null,
+            wms_sku: p.sku || null,
+            wms_identity_source: p.inventory_item_type_id
+              ? 'booking_item_type_id'
+              : (p.sku ? 'booking_sku_legacy' : 'missing'),
+            wms_identity_needs_repair: !p.inventory_item_type_id,
+          }))
+
+        if (toInsert.length === 0) {
+          return json({ success: true, inserted: 0, total: (existingItems || []).length, message: 'Packlistan är redan komplett' })
+        }
+
+        const { error: insertError } = await supabase.from('packing_list_items').insert(toInsert)
+        if (insertError) {
+          console.error('[repair_packing_items] insert failed', insertError)
+          return json({ success: false, error: insertError.message }, 500)
+        }
+
+        // Pending "item_added"-kvittenser för rader vi just skapat är inte längre relevanta.
+        const insertedProductIds = toInsert.map((i: any) => i.booking_product_id)
+        await supabase
+          .from('packing_change_requests')
+          .update({ status: 'dismissed', updated_at: new Date().toISOString() })
+          .eq('packing_id', packingId)
+          .eq('status', 'pending')
+          .eq('change_type', 'item_added')
+          .in('booking_product_id', insertedProductIds)
+
+        console.log(`[repair_packing_items] packing=${packingId} inserted=${toInsert.length}`)
+        return json({
+          success: true,
+          inserted: toInsert.length,
+          total: (existingItems || []).length + toInsert.length,
+        })
+      }
+
+
       // ====== HYDRATE WMS allocations for a packing (called on screen mount) ======
       // Proxies WMS get-reservation-allocations and mirrors the result into
       // wms_reservation_allocations so the frontend can subscribe via Realtime.
