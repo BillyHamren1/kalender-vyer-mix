@@ -377,7 +377,15 @@ async function syncPackingListItems(
     return existing && existing.quantity_to_pack !== product.quantity
   })
 
-  if (needsWarehouseAck) {
+  // Undantag: en HELT tom/orörd lista kan aldrig störa lagret — det finns
+  // inget packat att skriva över. Då fyller vi på direkt även vid kort varsel
+  // eller status in_progress (samma policy som repairPackingItems), annars
+  // fastnar packningen tom och oanvändbar bakom kvittens-kön.
+  const listIsUntouched =
+    itemsForThisBooking.length === 0 &&
+    (packingStatus === 'planning' || packingStatus === 'in_progress')
+
+  if (needsWarehouseAck && !listIsUntouched) {
     // Snapshotet är fryst. I stället för att bara flagga "något har ändrats"
     // köar vi varje konkret ändring i packing_change_requests. Lagret måste
     // ta emot ändringen innan packlistan skrivs om (kort varsel = blockerande).
@@ -450,6 +458,14 @@ async function syncPackingListItems(
     } else {
       synced += newItems.length
       console.log(`[sync-booking-to-packing] Added ${newItems.length} new packing list items`)
+      // Raderna finns nu — pending "item_added"-kvittenser är inte längre relevanta.
+      await supabase
+        .from('packing_change_requests')
+        .update({ status: 'dismissed', updated_at: new Date().toISOString() })
+        .eq('packing_id', packingId)
+        .eq('status', 'pending')
+        .eq('change_type', 'item_added')
+        .in('booking_product_id', newItems.map((i: any) => i.booking_product_id))
     }
   }
 

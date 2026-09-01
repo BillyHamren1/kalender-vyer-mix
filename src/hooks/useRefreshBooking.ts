@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { getOrganizationId } from "@/hooks/useOrganizationId";
+import { syncBookingToPacking } from "@/services/booking/bookingPackingSyncService";
 
 export const useRefreshBooking = (bookingId: string | null, projectId: string) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -24,6 +25,13 @@ export const useRefreshBooking = (bookingId: string | null, projectId: string) =
       });
 
       if (error) throw error;
+
+      // "Uppdatera" ska räcka för att packlistan ska spegla bokningen —
+      // kör packningssynken direkt (fire-and-forget, idempotent på serversidan).
+      if (orgId) {
+        syncBookingToPacking(bookingId, orgId);
+        queryClient.invalidateQueries({ queryKey: ["packing-status", bookingId] });
+      }
 
       const results = data?.results;
       const updated = results?.updated_bookings?.length ?? 0;

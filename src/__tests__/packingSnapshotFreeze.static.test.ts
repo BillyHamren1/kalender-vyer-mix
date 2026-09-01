@@ -17,18 +17,18 @@ describe('packing snapshot — fail closed', () => {
     expect(section).not.toMatch(/\.delete\s*\(/);
   });
 
-  it('sync-booking-to-packing fryser hela snapshoten efter planning', () => {
+  it('sync-booking-to-packing fryser snapshoten när lagret måste kvittera', () => {
     const src = read('supabase/functions/sync-booking-to-packing/index.ts');
     const fn = src.slice(src.indexOf('async function syncPackingListItems'));
-    const freezeGuard = fn.indexOf("if (packingStatus !== 'planning')");
+    const freezeGuard = fn.indexOf('if (needsWarehouseAck && !listIsUntouched)');
     const firstOperationalInsert = fn.indexOf(".from('packing_list_items')\n      .insert(newItems)");
     const firstOperationalDelete = fn.indexOf(".from('packing_list_items')\n      .delete()");
 
     expect(freezeGuard).toBeGreaterThan(-1);
+    expect(fn.slice(freezeGuard, firstOperationalInsert)).toContain('queuePackingChangeRequests');
     expect(fn.slice(freezeGuard, firstOperationalInsert)).toContain('return 0');
     expect(firstOperationalInsert).toBeGreaterThan(freezeGuard);
     expect(firstOperationalDelete).toBeGreaterThan(freezeGuard);
-    expect(fn).toContain("needs_packing_review_reason: 'booking_changed_after_packing_started'");
   });
 
   it('import-bookings fryser packing_list_items innan add/remove/update', () => {
@@ -43,6 +43,9 @@ describe('packing snapshot — fail closed', () => {
     expect(fn.slice(freezeGuard, firstInsert)).toContain('return { changes: 0 }');
     expect(firstInsert).toBeGreaterThan(freezeGuard);
     expect(fn).toContain("needs_packing_review_reason: 'booking_changed_after_packing_started'");
+    // Undantag: helt tom lista fylls på direkt även efter packstart.
+    expect(fn).toContain('untouchedEmpty');
+    expect(fn).toContain("packingStatus === 'in_progress'");
   });
 
   it('WMS preflight blockerar endast på blocked (identitetsvarningar stoppar inte packning)', () => {

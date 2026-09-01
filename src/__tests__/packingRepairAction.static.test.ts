@@ -39,6 +39,21 @@ describe('packing repair', () => {
     expect(fn).toContain('repairPackingItems(supabase, packingId, profile.organization_id)');
   });
 
+  it('vanlig synk fyller automatiskt en tom/orörd lista (Uppdatera räcker)', () => {
+    const sync = read('supabase/functions/sync-booking-to-packing/index.ts');
+    // Tom lista utan packat innehåll ska inte fastna i kvittens-kön.
+    expect(sync).toContain('listIsUntouched');
+    expect(sync).toContain('itemsForThisBooking.length === 0');
+    expect(sync).toContain('needsWarehouseAck && !listIsUntouched');
+    // Frysta/avslutade statusar får fortfarande aldrig auto-påfyllning.
+    expect(sync).toContain("packingStatus === 'planning' || packingStatus === 'in_progress'");
+  });
+
+  it('Uppdatera-knappen triggar packningssynken', () => {
+    const hook = read('src/hooks/useRefreshBooking.ts');
+    expect(hook).toContain('syncBookingToPacking(bookingId, orgId)');
+  });
+
   it('get_packing_items förblir read-only', () => {
     const scanner = read('supabase/functions/scanner-api/index.ts');
     const start = scanner.indexOf("case 'get_packing_items'");

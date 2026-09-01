@@ -2371,6 +2371,13 @@ const syncPackingListAfterExpansion = async (
       return { changes: 0, error: frozenItemsError.message || String(frozenItemsError) };
     }
 
+    // Undantag: en HELT tom lista kan aldrig störa lagret — det finns inget
+    // packat att skriva över. Fyll på direkt även om status passerat planning
+    // (samma policy som repairPackingItems), annars fastnar packningen tom.
+    const untouchedEmpty = (frozenItems || []).length === 0 && packingStatus === 'in_progress';
+    if (untouchedEmpty) {
+      console.log(`[Packing Sync] Packing ${packingId} är tom trots status ${packingStatus} — fyller på listan`);
+    } else {
     const frozenProductMap = new Map((allProducts || []).map((p: any) => [p.id, p]));
     const frozenByProductId = new Map((frozenItems || []).map((i: any) => [i.booking_product_id, i]));
     const frozenMissing = (allProducts || []).filter((p: any) => !frozenByProductId.has(p.id));
@@ -2398,6 +2405,7 @@ const syncPackingListAfterExpansion = async (
     }
 
     return { changes: 0 };
+    }
   }
 
   if (!allProducts || allProducts.length === 0) {
