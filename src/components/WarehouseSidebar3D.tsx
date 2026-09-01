@@ -23,6 +23,7 @@ import {
   sidebarActiveBarStyle,
   sidebarNestedContainerStyle,
   sidebarNestedRowStyle,
+  resolveActiveNavIndex,
 } from "@/lib/layout/sidebarContract";
 
 interface NavItem {
