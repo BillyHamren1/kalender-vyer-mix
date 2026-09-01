@@ -389,8 +389,8 @@ export function Sidebar3D() {
                 {/* Sub-items */}
                 {hasChildren && !isCollapsed && expanded && (
                   <div
-                    className="mt-1 mb-1 ml-[18px] pl-3 space-y-0.5"
-                    style={{ borderLeft: "1px solid hsl(240 8% 90%)" }}
+                    className="mt-1 mb-1 space-y-0.5"
+                    style={sidebarNestedContainerStyle()}
                   >
                     {item.children!.map((child) => {
                       const childActive = isChildActive(child.url);
@@ -400,24 +400,18 @@ export function Sidebar3D() {
                           <ContextMenuTrigger asChild>
                             <NavLink
                               to={child.url}
-                              className={cn(
-                                "flex items-center gap-2 rounded-md px-2 py-1.5 text-[12px] transition-all duration-150"
-                              )}
-                              style={
-                                childActive
-                                  ? {
-                                      background: "hsl(270 55% 96%)",
-                                      color: "hsl(280 50% 28%)",
-                                      fontWeight: 600,
-                                    }
-                                  : {
-                                      color: "hsl(240 8% 38%)",
-                                    }
-                              }
+                              className={SIDEBAR_FOCUS_CLASS}
+                              style={{
+                                ...sidebarNestedRowStyle({
+                                  active: childActive,
+                                  accent: ACCENT,
+                                }),
+                                outlineColor: ACCENT.ring,
+                              }}
                               onMouseEnter={(e) => {
                                 if (!childActive)
                                   (e.currentTarget as HTMLElement).style.background =
-                                    "hsl(240 8% 95%)";
+                                    ACCENT.hover;
                               }}
                               onMouseLeave={(e) => {
                                 if (!childActive)
@@ -427,18 +421,18 @@ export function Sidebar3D() {
                             >
                               {child.icon && (
                                 <child.icon
-                                  className="w-3.5 h-3.5 shrink-0"
-                                  strokeWidth={childActive ? 2.1 : 1.75}
-                                  style={{
-                                    color: childActive
-                                      ? "hsl(var(--primary))"
-                                      : "hsl(240 6% 52%)",
-                                  }}
+                                  className="shrink-0"
+                                  size={SIDEBAR_CONTRACT.iconSizePx}
+                                  strokeWidth={childActive ? 2 : 1.75}
+                                  color={
+                                    childActive ? ACCENT.base : SIDEBAR_SURFACE.iconColor
+                                  }
                                 />
                               )}
                               <span className="truncate">{child.title}</span>
                             </NavLink>
                           </ContextMenuTrigger>
+
                           <ContextMenuContent>
                             {childPinned ? (
                               <ContextMenuItem onSelect={() => removeTab(child.url)}>
