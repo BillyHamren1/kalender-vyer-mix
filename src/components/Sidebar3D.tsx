@@ -33,7 +33,21 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { usePinnedTabs } from "@/contexts/PinnedTabsContext";
+import {
+  SIDEBAR_CONTRACT,
+  SIDEBAR_SURFACE,
+  SIDEBAR_FOCUS_CLASS,
+  PLANNING_ACCENT,
+  sidebarSurfaceStyle,
+  sidebarSectionLabelStyle,
+  sidebarRowStyle,
+  sidebarActiveBarStyle,
+  sidebarNestedContainerStyle,
+  sidebarNestedRowStyle,
+} from "@/lib/layout/sidebarContract";
 import { Pin, PinOff, Briefcase, AlertCircle } from "lucide-react";
+
+const ACCENT = PLANNING_ACCENT;
 
 interface NavChild {
   title: string;
@@ -470,7 +484,7 @@ export function Sidebar3D() {
         {/* ── Bottom subtle footer ── */}
         <div
           className="shrink-0 px-3 py-2.5"
-          style={{ borderTop: "1px solid hsl(240 8% 92%)" }}
+          style={{ borderTop: `1px solid ${SIDEBAR_SURFACE.divider}` }}
         >
           {!isCollapsed ? (
             <div
