@@ -111,11 +111,12 @@ describe('packing snapshot integrity', () => {
     expect(src).toMatch(/Frozen quantity_to_pack/);
   });
 
-  it('sync-booking-to-packing freezes quantity_to_pack after packing left planning', () => {
+  it('sync-booking-to-packing kräver lagerkvittens innan packlistan skrivs om', () => {
     const src = read('supabase/functions/sync-booking-to-packing/index.ts');
-    expect(src).toMatch(/if \(packingStatus === 'planning'\)/);
-    expect(src).toMatch(/Frozen quantity_to_pack/);
+    expect(src).toMatch(/requiresWarehouseAcknowledgement/);
+    expect(src).toMatch(/Warehouse acknowledgement required for packing/);
   });
+
 });
 
 describe('usePackingList — direkta DB-writes är neutraliserade', () => {
