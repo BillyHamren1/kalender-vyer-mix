@@ -224,9 +224,12 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
     [packingId, recalcProgress],
   );
 
+  loadDataRef.current = loadData;
+
   useEffect(() => {
     loadData(false);
   }, [loadData]);
+
 
   const toggleGroupCollapse = (groupId: string) => {
     setCollapsedGroups((prev) => {
