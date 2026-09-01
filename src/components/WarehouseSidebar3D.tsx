@@ -12,6 +12,18 @@ import { type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWarehouseNotificationCount } from "@/hooks/useWarehouseNotificationCount";
+import {
+  SIDEBAR_CONTRACT,
+  SIDEBAR_SURFACE,
+  SIDEBAR_FOCUS_CLASS,
+  WAREHOUSE_ACCENT,
+  sidebarSurfaceStyle,
+  sidebarSectionLabelStyle,
+  sidebarRowStyle,
+  sidebarActiveBarStyle,
+  sidebarNestedContainerStyle,
+  sidebarNestedRowStyle,
+} from "@/lib/layout/sidebarContract";
 
 interface NavItem {
   title: string;
@@ -30,10 +42,10 @@ const navigationItems: NavItem[] = [
   { title: "Service", url: "/warehouse/service", icon: Wrench },
 ];
 
-// Warehouse amber accent colors
-const ACCENT = "hsl(38 92% 50%)";        // --warehouse
-const ACCENT_BG = "hsl(38 92% 50% / 0.10)"; // active bg
-const HOVER_BG = "hsl(38 60% 50% / 0.08)";  // hover bg
+// Warehouse warm orange accent (module-owned)
+const ACCENT_THEME = WAREHOUSE_ACCENT;
+const ACCENT = ACCENT_THEME.base;
+const ACCENT_BG = ACCENT_THEME.soft;
 
 export function WarehouseSidebar3D() {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -81,31 +93,49 @@ export function WarehouseSidebar3D() {
         className={cn(
           "relative z-40 h-screen shrink-0 transition-all duration-500 ease-out",
           "hidden md:flex flex-col",
-          isCollapsed ? "w-14" : "w-48"
         )}
         style={{
-          background: "hsl(var(--sidebar-background))",
-          borderRight: "1px solid hsl(200 18% 66%)",
+          ...sidebarSurfaceStyle(),
+          width: isCollapsed
+            ? SIDEBAR_CONTRACT.collapsedWidthPx
+            : SIDEBAR_CONTRACT.widthPx,
         }}
       >
         {/* Content */}
-        <div className="flex flex-col h-full px-3 py-4">
+        <div
+          className="flex flex-col h-full py-4"
+          style={{
+            paddingLeft: SIDEBAR_CONTRACT.railPaddingPx,
+            paddingRight: SIDEBAR_CONTRACT.railPaddingPx,
+          }}
+        >
 
           {/* Toggle button – circular with primary border */}
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
             className={cn(
-              "absolute top-4 -right-4 z-50 flex items-center justify-center",
-              "w-8 h-8 rounded-full border-2 border-primary bg-background",
-              "text-primary hover:bg-primary/5 transition-colors shadow-md"
+              "absolute top-4 -right-3 z-50 flex items-center justify-center",
+              "w-6 h-6 rounded-full transition-colors shadow-sm hover:shadow-md",
+              SIDEBAR_FOCUS_CLASS
             )}
+            style={{
+              background: SIDEBAR_SURFACE.background,
+              border: `1px solid ${SIDEBAR_SURFACE.divider}`,
+              color: ACCENT,
+              outlineColor: ACCENT_THEME.ring,
+            }}
             title={isCollapsed ? "Expandera sidebar" : "Dölj sidebar"}
           >
-            <ChevronsLeft size={16} className={cn("transition-transform", isCollapsed && "rotate-180")} />
+            <ChevronsLeft size={14} className={cn("transition-transform", isCollapsed && "rotate-180")} />
           </button>
 
           {/* ── Nav ── */}
-          <nav className="flex-1 space-y-px">
+          <nav className="flex-1 space-y-0.5">
+            {!isCollapsed && (
+              <div className="pb-2" style={sidebarSectionLabelStyle()}>
+                Lager
+              </div>
+            )}
             {navigationItems.map((item) => {
               const hasChildren = !!item.children?.length;
               const active = isItemActive(item);
@@ -113,28 +143,13 @@ export function WarehouseSidebar3D() {
               const hovered = hoveredUrl === item.url;
 
               const itemStyle: React.CSSProperties = {
-                borderLeft: active
-                  ? `2.5px solid ${ACCENT}`
-                  : "2px solid transparent",
-                paddingTop: 9,
-                paddingBottom: 9,
-                paddingLeft: active ? 9 : 11,
-                paddingRight: 12,
-                borderRadius: "0.375rem",
-                background: active
-                  ? ACCENT_BG
-                  : hovered
-                  ? HOVER_BG
-                  : "transparent",
-                width: "100%",
-                display: "flex",
-                alignItems: "center",
-                gap: isCollapsed ? 0 : 8,
-                cursor: "pointer",
-                transition: "background 150ms",
-                justifyContent: isCollapsed ? "center" : "flex-start",
-                textAlign: "left",
-                boxSizing: "border-box",
+                ...sidebarRowStyle({
+                  active,
+                  hovered,
+                  collapsed: isCollapsed,
+                  accent: ACCENT_THEME,
+                }),
+                outlineColor: ACCENT_THEME.ring,
               };
 
               const labelStyle: React.CSSProperties = {
@@ -142,9 +157,7 @@ export function WarehouseSidebar3D() {
                 lineHeight: 1,
                 letterSpacing: "-0.005em",
                 fontWeight: active ? 600 : 500,
-                color: active
-                  ? "hsl(var(--foreground))"
-                  : "hsl(var(--foreground) / 0.72)",
+                color: active ? ACCENT : SIDEBAR_SURFACE.labelColor,
                 flex: 1,
               };
 
@@ -154,10 +167,17 @@ export function WarehouseSidebar3D() {
               };
 
               const iconEl = (
-                <div className="w-4 h-4 flex items-center justify-center shrink-0">
+                <div
+                  className="flex items-center justify-center shrink-0"
+                  style={{
+                    width: SIDEBAR_CONTRACT.iconSizePx,
+                    height: SIDEBAR_CONTRACT.iconSizePx,
+                  }}
+                >
                   <item.icon
-                    size={14}
-                    color={active ? ACCENT : "hsl(var(--foreground) / 0.60)"}
+                    size={SIDEBAR_CONTRACT.iconSizePx}
+                    strokeWidth={active ? 2 : 1.75}
+                    color={active ? ACCENT : SIDEBAR_SURFACE.iconColor}
                   />
                 </div>
               );
@@ -171,8 +191,12 @@ export function WarehouseSidebar3D() {
                         toggleExpanded(item.url);
                       }}
                       style={itemStyle}
+                      className={SIDEBAR_FOCUS_CLASS}
                       {...sharedMouseProps}
                     >
+                      {active && !isCollapsed && (
+                        <span aria-hidden style={sidebarActiveBarStyle(ACCENT_THEME)} />
+                      )}
                       {iconEl}
                       {!isCollapsed && (
                         <>
@@ -196,8 +220,12 @@ export function WarehouseSidebar3D() {
                     <NavLink
                       to={item.url}
                       style={itemStyle}
+                      className={SIDEBAR_FOCUS_CLASS}
                       {...sharedMouseProps}
                     >
+                      {active && !isCollapsed && (
+                        <span aria-hidden style={sidebarActiveBarStyle(ACCENT_THEME)} />
+                      )}
                       {iconEl}
                       {!isCollapsed && (
                         <span style={labelStyle}>{item.title}</span>
@@ -223,7 +251,7 @@ export function WarehouseSidebar3D() {
 
                   {/* Sub-items */}
                   {hasChildren && !isCollapsed && expanded && (
-                    <div className="ml-7 mt-px space-y-px">
+                    <div className="mt-1 mb-1 space-y-0.5" style={sidebarNestedContainerStyle()}>
                       {item.children!.map((child) => {
                         const childActive = location.pathname === child.url;
                         const childHovered = hoveredUrl === child.url;
@@ -231,25 +259,14 @@ export function WarehouseSidebar3D() {
                           <NavLink
                             key={child.url}
                             to={child.url}
+                            className={SIDEBAR_FOCUS_CLASS}
                             style={{
-                              display: "flex",
-                              alignItems: "center",
-                              paddingTop: 7,
-                              paddingBottom: 7,
-                              paddingLeft: 10,
-                              paddingRight: 10,
-                              borderRadius: "0.375rem",
-                              fontSize: 12,
-                              fontWeight: childActive ? 600 : 500,
-                              color: childActive
-                                ? ACCENT
-                                : "hsl(var(--foreground) / 0.65)",
-                              background: childActive
-                                ? ACCENT_BG
-                                : childHovered
-                                ? HOVER_BG
-                                : "transparent",
-                              transition: "background 150ms",
+                              ...sidebarNestedRowStyle({
+                                active: childActive,
+                                hovered: childHovered,
+                                accent: ACCENT_THEME,
+                              }),
+                              outlineColor: ACCENT_THEME.ring,
                             }}
                             onMouseEnter={() => setHoveredUrl(child.url)}
                             onMouseLeave={() => setHoveredUrl(null)}
@@ -268,7 +285,7 @@ export function WarehouseSidebar3D() {
           {/* ── Bottom ── */}
           <div
             className="pt-3"
-            style={{ borderTop: "1px solid hsl(var(--sidebar-border))" }}
+            style={{ borderTop: `1px solid ${SIDEBAR_SURFACE.divider}` }}
           >
             <div
               className={cn(
