@@ -379,6 +379,11 @@ export interface ComponentUpdateRow extends ComponentExpansionRow {
   existingId: string;
   /** Nuvarande mängd på den lokala raden (för loggning/diff). */
   currentQuantity: number;
+  /**
+   * True när raden är en historisk genererad komponentrad UTAN cmp:-nyckel som
+   * adopteras (får nyckeln) i stället för att en dubblett skapas.
+   */
+  adoptSyncKey?: boolean;
 }
 
 export interface ComponentReconciliationPlan {
@@ -403,7 +408,11 @@ export interface ComponentExistingRowInput {
   id?: string;
   sync_key?: string | null;
   quantity?: unknown;
+  name?: string | null;
+  parent_product_id?: string | null;
+  is_package_component?: boolean | null;
 }
+
 
 /**
  * Icke-destruktiv avstämningsplan för package_components.
