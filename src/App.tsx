@@ -28,6 +28,8 @@ import MyPageCalendar from "./pages/MyPageCalendar";
 import MyPageTodos from "./pages/MyPageTodos";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
+import SidebarShellPreview from "./pages/dev/SidebarShellPreview";
+
 import AuthResetPassword from "./pages/AuthResetPassword";
 
 // Project pages — lazy (heavy trees, only load on demand)
