@@ -44,6 +44,7 @@ import {
   sidebarActiveBarStyle,
   sidebarNestedContainerStyle,
   sidebarNestedRowStyle,
+  resolveActiveNavIndex,
 } from "@/lib/layout/sidebarContract";
 import { Pin, PinOff, Briefcase, AlertCircle } from "lucide-react";
 
