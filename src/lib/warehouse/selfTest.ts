@@ -173,6 +173,36 @@ const checks: Check[] = [
     },
   },
   {
+    id: 'E3',
+    label: 'Aktiva packningar utan packrader',
+    run: async () => {
+      const { data: packings, error } = await supabase
+        .from('packing_projects')
+        .select('id, name, status')
+        .in('status', ['planning', 'in_progress'])
+        .not('booking_id', 'is', null)
+        .limit(200);
+      if (error) return bad(`Läsfel: ${error.message}`);
+      const ids = (packings || []).map((p) => p.id);
+      if (ids.length === 0) return { status: 'skip' as const, detail: 'Inga aktiva packningar' };
+      const { data: items, error: itemErr } = await supabase
+        .from('packing_list_items')
+        .select('packing_id')
+        .in('packing_id', ids);
+      if (itemErr) return bad(`Läsfel rader: ${itemErr.message}`);
+      const withItems = new Set((items || []).map((i) => i.packing_id));
+      const empty = (packings || []).filter((p) => !withItems.has(p.id));
+      return empty.length === 0
+        ? ok(`Alla ${ids.length} aktiva packningar har rader`)
+        : warn(
+            `${empty.length} av ${ids.length} saknar rader – öppna packningen och tryck "Generera packlista" (${empty
+              .slice(0, 3)
+              .map((p) => p.name)
+              .join(', ')}${empty.length > 3 ? ' …' : ''})`,
+          );
+    },
+  },
+  {
     id: 'F1',
     label: 'Booking → lagerbehov (inbox)',
     run: async () => {

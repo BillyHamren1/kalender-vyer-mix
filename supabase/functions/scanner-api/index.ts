@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { deriveStatusFromProgress } from '../_shared/packing-progress.ts'
+import { repairPackingItems } from '../_shared/packingRepair.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -842,6 +843,20 @@ Deno.serve(async (req) => {
 
         if (error) throw error
         return new Response(JSON.stringify(data || []), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+
+      // ====== REPAIR: generera saknade packrader ======
+      // Explicit, användarinitierad reparation. get_packing_items förblir read-only;
+      // detta är enda vägen att skapa rader i efterhand. Frysta/avslutade packningar
+      // rörs aldrig. Delad logik med edge-funktionen repair-packing-items.
+      case 'repair_packing_items': {
+        const { packingId } = params
+        if (!packingId) return json({ success: false, error: 'packingId krävs' })
+
+        const result = await repairPackingItems(supabase, packingId, ORG_ID)
+        console.log('[scanner-api repair_packing_items]', packingId, JSON.stringify(result))
+        if (!result.ok) return json({ success: false, error: result.error, code: result.code })
+        return json({ success: true, inserted: result.inserted, total: result.total })
       }
 
       // ====== HYDRATE WMS allocations for a packing (called on screen mount) ======

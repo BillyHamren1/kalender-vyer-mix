@@ -26,6 +26,7 @@ import {
   fetchPackingListItemsForDesktop as fetchPackingListItems,
   getItemParcelsDesktop as getItemParcels,
   fetchPackingForDesktop as fetchPackingForScanner,
+  repairPackingItemsDesktop,
 } from '@/services/desktopPackingService';
 import { PackingWithBooking } from '@/types/packing';
 import PackingQRCode from './PackingQRCode';
@@ -127,9 +128,28 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [itemParcelMap, setItemParcelMap] = useState<Record<string, number>>({});
   const [wmsPreflightState, setWmsPreflightState] = useState<'not_run' | 'checking' | 'pass' | 'warning' | 'blocked' | 'error'>('not_run');
+  const [isRepairing, setIsRepairing] = useState(false);
+  const loadDataRef = useRef<((bg?: boolean) => Promise<void>) | null>(null);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [printRows, setPrintRows] = useState<PrintablePackingRow[]>([]);
   const [printMeta, setPrintMeta] = useState<PrintablePackingMeta | null>(null);
+
+  const handleRepair = useCallback(async () => {
+    setIsRepairing(true);
+    try {
+      const res = await repairPackingItemsDesktop(packingId);
+      if (res.inserted > 0) {
+        toast.success(`${res.inserted} rader lades till i packlistan`);
+      } else {
+        toast.info('Inga saknade rader hittades');
+      }
+      await loadDataRef.current?.(true);
+    } catch (err: any) {
+      toast.error(err?.message || 'Kunde inte generera packlistan');
+    } finally {
+      setIsRepairing(false);
+    }
+  }, [packingId]);
 
   const recalcProgress = useCallback((updatedItems: PackingItem[]) => {
     const { total, verified, percentage } = computePackingProgress(updatedItems);
@@ -204,9 +224,12 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
     [packingId, recalcProgress],
   );
 
+  loadDataRef.current = loadData;
+
   useEffect(() => {
     loadData(false);
   }, [loadData]);
+
 
   const toggleGroupCollapse = (groupId: string) => {
     setCollapsedGroups((prev) => {
@@ -560,16 +583,30 @@ const DesktopChecklistView: React.FC<DesktopChecklistViewProps> = ({
           <CardContent className="py-4">
             <div className="flex items-start gap-2">
               <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-medium text-amber-800 text-sm">Inga produkter</p>
+              <div className="flex-1">
+                <p className="font-medium text-amber-800 text-sm">Packlistan är inte genererad</p>
                 <p className="text-xs text-amber-700 mt-0.5">
-                  Gå till Översikt och generera packlistan först.
+                  Bokningens orderrader har inte skrivits in i packlistan. Generera dem här.
                 </p>
+                <Button
+                  size="sm"
+                  className="mt-3"
+                  disabled={isRepairing}
+                  onClick={handleRepair}
+                >
+                  {isRepairing ? (
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Package className="mr-2 h-4 w-4" />
+                  )}
+                  Generera packlista
+                </Button>
               </div>
             </div>
           </CardContent>
         </Card>
       )}
+
 
       {/* Product list grouped by booking */}
       {activeItems.length > 0 && (
