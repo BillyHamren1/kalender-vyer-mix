@@ -2213,7 +2213,7 @@ const expandPackageComponents = async (
   // Fetch all products for this booking (STEG 3N: tenant-isolerad read)
   let productQuery = supabase
     .from('booking_products')
-    .select('id, name, quantity, sync_key, package_components, sort_index, inventory_package_id, is_package_component')
+    .select('id, name, quantity, sync_key, package_components, sort_index, inventory_package_id, is_package_component, parent_product_id')
     .eq('booking_id', bookingId);
   if (orgId) productQuery = productQuery.eq('organization_id', orgId);
   const { data: products, error } = await productQuery;
