@@ -379,6 +379,11 @@ export interface ComponentUpdateRow extends ComponentExpansionRow {
   existingId: string;
   /** Nuvarande mängd på den lokala raden (för loggning/diff). */
   currentQuantity: number;
+  /**
+   * True när raden är en historisk genererad komponentrad UTAN cmp:-nyckel som
+   * adopteras (får nyckeln) i stället för att en dubblett skapas.
+   */
+  adoptSyncKey?: boolean;
 }
 
 export interface ComponentReconciliationPlan {
@@ -403,7 +408,11 @@ export interface ComponentExistingRowInput {
   id?: string;
   sync_key?: string | null;
   quantity?: unknown;
+  name?: string | null;
+  parent_product_id?: string | null;
+  is_package_component?: boolean | null;
 }
+
 
 /**
  * Icke-destruktiv avstämningsplan för package_components.
@@ -421,10 +430,24 @@ export function planPackageComponentReconciliation(
   existingRows: ComponentExistingRowInput[],
 ): ComponentReconciliationPlan {
   const existingByKey = new Map<string, ComponentExistingRowInput>();
+  /** Historiska genererade komponentrader utan cmp:-nyckel, per förälder + namn. */
+  const legacyByParentName = new Map<string, ComponentExistingRowInput[]>();
+  const legacyKey = (parentId: string, name: unknown) =>
+    `${parentId}::${slug(String(name ?? '').replace(/^\s*--\s*/, ''))}`;
+
   for (const row of existingRows || []) {
     const key = (row?.sync_key ?? '').toString();
-    if (!key.startsWith(PLANNING_COMPONENT_SYNC_PREFIX)) continue;
-    if (!existingByKey.has(key)) existingByKey.set(key, row);
+    if (key.startsWith(PLANNING_COMPONENT_SYNC_PREFIX)) {
+      if (!existingByKey.has(key)) existingByKey.set(key, row);
+      continue;
+    }
+    if (key) continue; // src:-rad → Booking-ägd, aldrig komponentkandidat
+    if (row?.is_package_component !== true) continue;
+    if (!row?.parent_product_id) continue;
+    const lk = legacyKey(row.parent_product_id, row.name);
+    const list = legacyByParentName.get(lk) ?? [];
+    list.push(row);
+    legacyByParentName.set(lk, list);
   }
 
   const plan: ComponentReconciliationPlan = { inserts: [], updates: [], unchanged: [] };
@@ -453,6 +476,19 @@ export function planPackageComponentReconciliation(
 
       const existing = existingByKey.get(syncKey);
       if (!existing) {
+        // Adoptera historisk komponentrad (samma förälder + namn) i stället för
+        // att skapa en dubblett. Ingen radering; raden får sin stabila nyckel.
+        const queue = legacyByParentName.get(legacyKey(parent.id, comp?.name));
+        const legacy = queue && queue.length > 0 ? queue.shift() : undefined;
+        if (legacy) {
+          plan.updates.push({
+            ...base,
+            existingId: (legacy.id ?? '').toString(),
+            currentQuantity: normalizeSyncQuantity(legacy.quantity),
+            adoptSyncKey: true,
+          });
+          return;
+        }
         plan.inserts.push(base);
         return;
       }
@@ -469,6 +505,7 @@ export function planPackageComponentReconciliation(
       }
     });
   }
+
 
   return plan;
 }

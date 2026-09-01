@@ -211,3 +211,31 @@ describe('normalizeSyncQuantity', () => {
     expect(normalizeSyncQuantity(3)).toBe(3);
   });
 });
+
+describe('legacy component adoption (no duplicates)', () => {
+  const parent = {
+    id: 'p1',
+    sync_key: 'src:ext-1',
+    quantity: 5,
+    package_components: [{ name: 'K Ben', quantity: 4, id: 'c1' }],
+  };
+
+  it('adopterar historisk komponentrad utan sync_key i stället för att skapa dubblett', () => {
+    const plan = planPackageComponentReconciliation([parent], [
+      { id: 'legacy-1', sync_key: null, quantity: 4, name: '  -- K Ben', parent_product_id: 'p1', is_package_component: true },
+    ]);
+    expect(plan.inserts).toHaveLength(0);
+    expect(plan.updates).toHaveLength(1);
+    expect(plan.updates[0].existingId).toBe('legacy-1');
+    expect(plan.updates[0].adoptSyncKey).toBe(true);
+    expect(plan.updates[0].quantity).toBe(20);
+  });
+
+  it('adopterar inte rader från annan förälder', () => {
+    const plan = planPackageComponentReconciliation([parent], [
+      { id: 'legacy-2', sync_key: null, quantity: 4, name: '  -- K Ben', parent_product_id: 'other', is_package_component: true },
+    ]);
+    expect(plan.inserts).toHaveLength(1);
+    expect(plan.updates).toHaveLength(0);
+  });
+});
