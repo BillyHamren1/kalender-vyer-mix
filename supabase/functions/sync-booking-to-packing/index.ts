@@ -377,7 +377,15 @@ async function syncPackingListItems(
     return existing && existing.quantity_to_pack !== product.quantity
   })
 
-  if (needsWarehouseAck) {
+  // Undantag: en HELT tom/orörd lista kan aldrig störa lagret — det finns
+  // inget packat att skriva över. Då fyller vi på direkt även vid kort varsel
+  // eller status in_progress (samma policy som repairPackingItems), annars
+  // fastnar packningen tom och oanvändbar bakom kvittens-kön.
+  const listIsUntouched =
+    itemsForThisBooking.length === 0 &&
+    (packingStatus === 'planning' || packingStatus === 'in_progress')
+
+  if (needsWarehouseAck && !listIsUntouched) {
     // Snapshotet är fryst. I stället för att bara flagga "något har ändrats"
     // köar vi varje konkret ändring i packing_change_requests. Lagret måste
     // ta emot ändringen innan packlistan skrivs om (kort varsel = blockerande).
