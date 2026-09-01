@@ -220,6 +220,21 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
     onRfidTagResult: rfid.recordTagResult,
   });
 
+  const [isRepairing, setIsRepairing] = useState(false);
+  const handleRepairItems = useCallback(async () => {
+    setIsRepairing(true);
+    try {
+      const res = await repairPackingItems(packingId);
+      if (!res?.success) throw new Error(res?.error || 'Kunde inte generera packlistan');
+      toast.success(res.inserted ? `${res.inserted} rader lades till` : 'Inga saknade rader hittades');
+      await loadData(true);
+    } catch (err: any) {
+      toast.error(err?.message || 'Kunde inte generera packlistan');
+    } finally {
+      setIsRepairing(false);
+    }
+  }, [packingId, loadData]);
+
   // After adding an unknown product, reload data so the new row appears
   const handleConfirmUnknown = useCallback(async (name: string, quantity: number) => {
     const ok = await confirmAddUnknown(name, quantity);
@@ -922,9 +937,14 @@ export const VerificationView: React.FC<VerificationViewProps> = ({
               <CardContent className="py-3">
                 <div className="flex items-start gap-2">
                   <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-medium text-amber-800 text-sm">Inga produkter</p>
-                    <p className="text-xs text-amber-700 mt-0.5">Packlistan har inte genererats än.</p>
+                  <div className="flex-1">
+                    <p className="font-medium text-amber-800 text-sm">Packlistan är inte genererad</p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      Bokningens orderrader saknas i packlistan.
+                    </p>
+                    <Button size="sm" className="mt-3" disabled={isRepairing} onClick={handleRepairItems}>
+                      {isRepairing ? 'Genererar…' : 'Generera packlista'}
+                    </Button>
                   </div>
                 </div>
               </CardContent>
