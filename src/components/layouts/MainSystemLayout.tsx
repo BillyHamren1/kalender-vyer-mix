@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar3D } from '@/components/Sidebar3D';
+import { SIDEBAR_SURFACE } from '@/lib/layout/sidebarContract';
 import { PinnedTabsProvider } from '@/contexts/PinnedTabsContext';
 import { PinnedTabsRail } from '@/components/PinnedTabsRail';
 
@@ -18,7 +19,10 @@ const MainSystemLayout: React.FC<MainSystemLayoutProps> = ({ children }) => {
     <PinnedTabsProvider>
       <div className="h-screen flex overflow-hidden">
         <Sidebar3D />
-        <main className="flex-1 pb-20 lg:pb-0 flex flex-col overflow-y-auto">
+        <main
+          className="flex-1 pb-20 lg:pb-0 flex flex-col overflow-y-auto"
+          style={{ background: SIDEBAR_SURFACE.canvas }}
+        >
           {children ?? <Outlet />}
         </main>
         <PinnedTabsRail />

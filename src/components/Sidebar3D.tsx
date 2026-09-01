@@ -33,7 +33,21 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { usePinnedTabs } from "@/contexts/PinnedTabsContext";
+import {
+  SIDEBAR_CONTRACT,
+  SIDEBAR_SURFACE,
+  SIDEBAR_FOCUS_CLASS,
+  PLANNING_ACCENT,
+  sidebarSurfaceStyle,
+  sidebarSectionLabelStyle,
+  sidebarRowStyle,
+  sidebarActiveBarStyle,
+  sidebarNestedContainerStyle,
+  sidebarNestedRowStyle,
+} from "@/lib/layout/sidebarContract";
 import { Pin, PinOff, Briefcase, AlertCircle } from "lucide-react";
+
+const ACCENT = PLANNING_ACCENT;
 
 interface NavChild {
   title: string;
@@ -182,39 +196,31 @@ export function Sidebar3D() {
       <aside
         className={cn(
           "sticky top-0 z-30 h-screen shrink-0 self-start flex-col transition-all duration-300 ease-out",
-          "hidden lg:flex theme-purple relative",
-          isCollapsed ? "w-[60px]" : "w-[224px]"
+          "hidden lg:flex theme-purple relative"
         )}
         style={{
-          background: "hsl(0 0% 99.5%)",
-          borderRight: "1px solid hsl(240 8% 88%)",
-          boxShadow: "1px 0 0 hsl(240 8% 94%), 2px 0 8px hsl(240 10% 20% / 0.04)",
+          ...sidebarSurfaceStyle(),
+          width: isCollapsed
+            ? SIDEBAR_CONTRACT.collapsedWidthPx
+            : SIDEBAR_CONTRACT.widthPx,
         }}
       >
-        {/* ── Premium Header (Brand + Module) ── */}
-        <div
-          className={cn(
-            "relative shrink-0 transition-all duration-300",
-            isCollapsed ? "px-2 pt-4 pb-3" : "px-3 pt-4 pb-3"
-          )}
-          style={{ borderBottom: "1px solid hsl(240 8% 92%)" }}
-        >
-
-
-          {/* Integrated collapse button */}
+        {/* ── Collapse control (no extra header band — sidebar surface is continuous) ── */}
+        <div className="relative shrink-0 h-3">
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
             className={cn(
-              "absolute -right-3 top-7 z-50 flex items-center justify-center",
+              "absolute -right-3 top-4 z-50 flex items-center justify-center",
               "w-6 h-6 rounded-full transition-all duration-200",
-              "shadow-sm hover:shadow-md hover:scale-105"
+              "shadow-sm hover:shadow-md",
+              SIDEBAR_FOCUS_CLASS
             )}
             style={{
-              background: "hsl(0 0% 100%)",
-              border: "1px solid hsl(240 8% 84%)",
-              color: "hsl(var(--primary))",
+              background: SIDEBAR_SURFACE.background,
+              border: `1px solid ${SIDEBAR_SURFACE.divider}`,
+              color: ACCENT.base,
+              outlineColor: ACCENT.ring,
             }}
-
             title={isCollapsed ? "Expandera sidebar" : "Dölj sidebar"}
             aria-label={isCollapsed ? "Expandera sidebar" : "Dölj sidebar"}
           >
@@ -230,19 +236,18 @@ export function Sidebar3D() {
 
         {/* Navigation */}
         <nav
-          className={cn(
-            "flex-1 pt-3 pb-4 overflow-y-auto space-y-0.5",
-            isCollapsed ? "px-2" : "px-2.5"
-          )}
+          className="flex-1 pt-4 pb-4 overflow-y-auto space-y-0.5"
+          style={{
+            paddingLeft: SIDEBAR_CONTRACT.railPaddingPx,
+            paddingRight: SIDEBAR_CONTRACT.railPaddingPx,
+          }}
         >
           {!isCollapsed && (
-            <div
-              className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em]"
-              style={{ color: "hsl(240 6% 50%)" }}
-            >
+            <div className="pb-2" style={sidebarSectionLabelStyle()}>
               Översikt
             </div>
           )}
+
 
 
           {navigationItems.map((item) => {
@@ -264,33 +269,32 @@ export function Sidebar3D() {
             };
 
             const iconEl = (
-              <div className="shrink-0 flex items-center justify-center w-[18px] h-[18px]">
+              <div
+                className="shrink-0 flex items-center justify-center"
+                style={{ width: SIDEBAR_CONTRACT.iconSizePx, height: SIDEBAR_CONTRACT.iconSizePx }}
+              >
                 <item.icon
-                  className={cn(
-                    "w-[16px] h-[16px] transition-colors",
-                    active || hasActiveChild
-                      ? "text-[hsl(var(--primary))]"
-                      : "text-[hsl(240_6%_46%)]"
-                  )}
-                  strokeWidth={active ? 2.1 : 1.75}
+                  size={SIDEBAR_CONTRACT.iconSizePx}
+                  color={
+                    active || hasActiveChild ? ACCENT.base : SIDEBAR_SURFACE.iconColor
+                  }
+                  strokeWidth={active ? 2 : 1.75}
                 />
               </div>
             );
 
             const labelEl = !isCollapsed && (
               <span
-                className={cn(
-                  "text-[13px] leading-none tracking-[-0.005em] truncate flex-1 transition-colors",
-                  active
-                    ? "font-semibold text-[hsl(280_45%_28%)]"
-                    : hasActiveChild
-                      ? "font-medium text-[hsl(240_8%_25%)]"
-                      : "font-medium text-[hsl(240_8%_28%)]"
-                )}
+                className="text-[13px] leading-none truncate flex-1 transition-colors"
+                style={{
+                  fontWeight: active ? 600 : 500,
+                  color: active ? ACCENT.base : SIDEBAR_SURFACE.labelColor,
+                }}
               >
                 {item.title}
               </span>
             );
+
 
 
             const badgeEl = item.badge ? (
@@ -309,23 +313,21 @@ export function Sidebar3D() {
               )
             ) : null;
 
-            const itemClassName = cn(
-              "relative flex items-center gap-2.5 rounded-lg text-left transition-all duration-150 group",
-              isCollapsed
-                ? "justify-center px-2 py-2.5"
-                : "py-[9px] pl-2.5 pr-2 w-full"
-            );
+            const itemClassName = cn("group", SIDEBAR_FOCUS_CLASS);
 
-            const itemStyle: React.CSSProperties = active
-              ? {
-                  background: "hsl(270 55% 96%)",
-                  boxShadow:
-                    "inset 0 0 0 1px hsl(270 40% 88%), 0 1px 2px hsl(270 30% 25% / 0.04)",
-                }
-              : hovered
-                ? { background: "hsl(240 8% 95%)" }
-                : {};
+            const itemStyle: React.CSSProperties = {
+              ...sidebarRowStyle({
+                active,
+                hovered,
+                collapsed: isCollapsed,
+                accent: ACCENT,
+              }),
+              outlineColor: ACCENT.ring,
+            };
 
+            const activeBarEl = active && !isCollapsed ? (
+              <span aria-hidden style={sidebarActiveBarStyle(ACCENT)} />
+            ) : null;
 
             const pinned = hasTab(item.url);
             const triggerEl = hasChildren ? (
@@ -338,6 +340,7 @@ export function Sidebar3D() {
                 style={itemStyle}
                 {...sharedMouseProps}
               >
+                {activeBarEl}
                 {iconEl}
                 {labelEl}
                 {badgeEl}
@@ -345,12 +348,15 @@ export function Sidebar3D() {
                   <ChevronDown
                     className={cn(
                       "w-3.5 h-3.5 shrink-0 transition-transform duration-200",
-                      expanded ? "rotate-180" : "",
-                      active || hasActiveChild
-                        ? "text-[hsl(var(--primary))]"
-                        : "text-[hsl(240_6%_55%)]"
+                      expanded ? "rotate-180" : ""
                     )}
                     strokeWidth={2}
+                    style={{
+                      color:
+                        active || hasActiveChild
+                          ? ACCENT.base
+                          : SIDEBAR_SURFACE.iconColor,
+                    }}
                   />
                 )}
                 {isCollapsed && (
@@ -364,6 +370,7 @@ export function Sidebar3D() {
                 style={itemStyle}
                 {...sharedMouseProps}
               >
+                {activeBarEl}
                 {iconEl}
                 {labelEl}
                 {badgeEl}
@@ -372,6 +379,7 @@ export function Sidebar3D() {
                 )}
               </NavLink>
             );
+
 
             return (
               <div key={item.url} className="relative">
@@ -395,8 +403,8 @@ export function Sidebar3D() {
                 {/* Sub-items */}
                 {hasChildren && !isCollapsed && expanded && (
                   <div
-                    className="mt-1 mb-1 ml-[18px] pl-3 space-y-0.5"
-                    style={{ borderLeft: "1px solid hsl(240 8% 90%)" }}
+                    className="mt-1 mb-1 space-y-0.5"
+                    style={sidebarNestedContainerStyle()}
                   >
                     {item.children!.map((child) => {
                       const childActive = isChildActive(child.url);
@@ -406,24 +414,18 @@ export function Sidebar3D() {
                           <ContextMenuTrigger asChild>
                             <NavLink
                               to={child.url}
-                              className={cn(
-                                "flex items-center gap-2 rounded-md px-2 py-1.5 text-[12px] transition-all duration-150"
-                              )}
-                              style={
-                                childActive
-                                  ? {
-                                      background: "hsl(270 55% 96%)",
-                                      color: "hsl(280 50% 28%)",
-                                      fontWeight: 600,
-                                    }
-                                  : {
-                                      color: "hsl(240 8% 38%)",
-                                    }
-                              }
+                              className={SIDEBAR_FOCUS_CLASS}
+                              style={{
+                                ...sidebarNestedRowStyle({
+                                  active: childActive,
+                                  accent: ACCENT,
+                                }),
+                                outlineColor: ACCENT.ring,
+                              }}
                               onMouseEnter={(e) => {
                                 if (!childActive)
                                   (e.currentTarget as HTMLElement).style.background =
-                                    "hsl(240 8% 95%)";
+                                    ACCENT.hover;
                               }}
                               onMouseLeave={(e) => {
                                 if (!childActive)
@@ -433,18 +435,18 @@ export function Sidebar3D() {
                             >
                               {child.icon && (
                                 <child.icon
-                                  className="w-3.5 h-3.5 shrink-0"
-                                  strokeWidth={childActive ? 2.1 : 1.75}
-                                  style={{
-                                    color: childActive
-                                      ? "hsl(var(--primary))"
-                                      : "hsl(240 6% 52%)",
-                                  }}
+                                  className="shrink-0"
+                                  size={SIDEBAR_CONTRACT.iconSizePx}
+                                  strokeWidth={childActive ? 2 : 1.75}
+                                  color={
+                                    childActive ? ACCENT.base : SIDEBAR_SURFACE.iconColor
+                                  }
                                 />
                               )}
                               <span className="truncate">{child.title}</span>
                             </NavLink>
                           </ContextMenuTrigger>
+
                           <ContextMenuContent>
                             {childPinned ? (
                               <ContextMenuItem onSelect={() => removeTab(child.url)}>
@@ -482,7 +484,7 @@ export function Sidebar3D() {
         {/* ── Bottom subtle footer ── */}
         <div
           className="shrink-0 px-3 py-2.5"
-          style={{ borderTop: "1px solid hsl(240 8% 92%)" }}
+          style={{ borderTop: `1px solid ${SIDEBAR_SURFACE.divider}` }}
         >
           {!isCollapsed ? (
             <div
