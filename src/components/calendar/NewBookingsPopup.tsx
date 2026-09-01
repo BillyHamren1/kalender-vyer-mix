@@ -218,7 +218,7 @@ const NewBookingsPopup: React.FC = () => {
             Bortkryssade bokningar ligger kvar i inkorgen på dashboarden.
           </p>
 
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={() => setClosed(true)} disabled={planningAll}>
               Senare
             </Button>
