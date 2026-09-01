@@ -206,18 +206,30 @@ export function sidebarNestedRowStyle({
  * Resolves EXACTLY ONE active navigation url for a pathname.
  * Longest matching url wins; ties resolve to the first declared item.
  */
-export function resolveActiveNavUrl(
+/**
+ * Resolves EXACTLY ONE active navigation entry for a pathname.
+ * `exact` entries only match the exact path. Longest matching url wins;
+ * ties resolve to the first declared entry. Returns -1 when nothing matches.
+ */
+export function resolveActiveNavIndex(
   pathname: string,
-  urls: string[]
-): string | null {
-  let best: string | null = null;
-  for (const url of urls) {
-    const matches = pathname === url || pathname.startsWith(url + '/');
-    if (!matches) continue;
-    if (best === null || url.length > best.length) best = url;
-  }
-  return best;
+  entries: ReadonlyArray<{ url: string; exact?: boolean }>
+): number {
+  let bestIndex = -1;
+  let bestLength = -1;
+  entries.forEach((entry, index) => {
+    const matches = entry.exact
+      ? pathname === entry.url
+      : pathname === entry.url || pathname.startsWith(entry.url + '/');
+    if (!matches) return;
+    if (entry.url.length > bestLength) {
+      bestLength = entry.url.length;
+      bestIndex = index;
+    }
+  });
+  return bestIndex;
 }
+
 
 /** Shared focus-visible class (no layout shift — uses outline offset). */
 export const SIDEBAR_FOCUS_CLASS =
