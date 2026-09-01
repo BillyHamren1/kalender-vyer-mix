@@ -127,7 +127,7 @@ describe('canonical EventFlow sidebar contract', () => {
     expect(String(s.boxShadow)).not.toMatch(/inset|gradient/);
   });
 
-  it('applies the contract in both module sidebars', () => {
+  it('applies the contract in both module sidebars and keeps rows border-free', () => {
     for (const file of [
       'src/components/Sidebar3D.tsx',
       'src/components/WarehouseSidebar3D.tsx',
@@ -137,8 +137,13 @@ describe('canonical EventFlow sidebar contract', () => {
       expect(src).toContain('SIDEBAR_CONTRACT.widthPx');
       expect(src).toContain('sidebarRowStyle');
       expect(src).toContain('sidebarSurfaceStyle');
+      expect(src).toContain('resolveActiveNavIndex');
+      // no ad-hoc accent borders/rings on nav rows
+      expect(src).not.toMatch(/border:\s*`1px solid \$\{ACCENT/);
+      expect(src).not.toMatch(/ring-2 ring-\[/);
     }
   });
+
 
   it('keeps module accents separate (purple planning, orange warehouse)', () => {
     expect(PLANNING_ACCENT.base).not.toBe(WAREHOUSE_ACCENT.base);
