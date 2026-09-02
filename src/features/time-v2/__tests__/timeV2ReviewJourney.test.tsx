@@ -1,7 +1,6 @@
 import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { clearLocalOverrides, writeLocalOverride } from '@/features/time-v2/lib/moduleFlag';
@@ -98,7 +97,7 @@ describe('Time V2 review queue → detail journey', () => {
     writeLocalOverride(ORG, true);
     renderApp();
     await waitFor(() => expect(screen.getByTestId('time-v2-queue-row-sub-2')).toBeInTheDocument());
-    await userEvent.type(screen.getByLabelText('Fritext'), 'Anna');
+    fireEvent.change(screen.getByLabelText('Fritext'), { target: { value: 'Anna' } });
     await waitFor(() => expect(screen.queryByTestId('time-v2-queue-row-sub-2')).toBeNull());
     expect(screen.getByTestId('time-v2-queue-row-sub-1')).toBeInTheDocument();
   });
@@ -107,7 +106,7 @@ describe('Time V2 review queue → detail journey', () => {
     writeLocalOverride(ORG, true);
     renderApp();
     await waitFor(() => expect(screen.getByTestId('time-v2-queue-row-sub-1')).toBeInTheDocument());
-    await userEvent.click(screen.getByTestId('time-v2-queue-row-sub-1'));
+    fireEvent.click(screen.getByTestId('time-v2-queue-row-sub-1'));
 
     await waitFor(() => expect(screen.getByTestId('time-v2-submission-detail')).toBeInTheDocument());
     expect(screen.getByText(/låst snapshot/i)).toBeInTheDocument();
