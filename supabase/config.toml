@@ -188,3 +188,9 @@ verify_jwt = false
 
 [functions.sync-operational-plan-to-booking]
 verify_jwt = false
+
+[functions.booking-source-read]
+verify_jwt = true
+
+[functions.booking-source-write]
+verify_jwt = true

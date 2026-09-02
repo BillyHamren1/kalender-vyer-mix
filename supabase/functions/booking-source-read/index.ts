@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
     // Planning-lokala fält (tenant-scopeade) — läggs ovanpå i klienten.
     const { data: local } = await service
       .from('bookings')
-      .select('viewed, assigned_project_id, assigned_project_name, assigned_to_project, large_project_id')
+      .select('viewed, assigned_project_id, assigned_project_name, assigned_to_project')
       .eq('id', bookingId)
       .eq('organization_id', organizationId)
       .maybeSingle();
