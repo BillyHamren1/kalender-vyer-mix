@@ -2,6 +2,7 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   updateBookingFieldsViaSource,
   assertBookingProductWriteUnavailable,
+  assertBookingAttachmentWriteUnavailable,
 } from '@/services/booking/liveBookingService';
 
 /**
