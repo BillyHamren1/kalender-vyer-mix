@@ -119,6 +119,14 @@ export const clientName = (canonical: CanonicalBooking): string => {
   return String(client);
 };
 
+/** Hela den kanoniska datumarrayen (aldrig lokal kalenderdata). */
+const dateArray = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.filter((v): v is string => typeof v === 'string' && v.length > 0);
+  }
+  return typeof value === 'string' && value.length > 0 ? [value] : [];
+};
+
 const toNumber = (value: unknown): number | undefined => {
   if (value === null || value === undefined || value === '') return undefined;
   const n = Number(value);
@@ -183,6 +191,9 @@ export const mapCanonicalBookingToPlanning = (canonical: CanonicalBooking): Book
     rigDayDate: firstDate(canonical.rig_up_dates),
     eventDate: firstDate(canonical.event_dates),
     rigDownDate: firstDate(canonical.rig_down_dates),
+    rigDates: dateArray(canonical.rig_up_dates),
+    eventDates: dateArray(canonical.event_dates),
+    rigDownDates: dateArray(canonical.rig_down_dates),
     rigStartTime: rig.start,
     rigEndTime: rig.end,
     // Booking saknar kanonisk källa för eventtider — vi hittar aldrig på dem.

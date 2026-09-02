@@ -5,7 +5,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Booking } from '@/types/booking';
 import { markBookingAsViewed } from '@/services/bookingService';
 import { fetchLiveBookingById } from '@/services/booking/liveBookingService';
-import { fetchBookingDatesByType } from '@/services/bookingCalendarService';
 
 
 export const useBookingFetch = (id: string | undefined) => {
@@ -14,35 +13,10 @@ export const useBookingFetch = (id: string | undefined) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // State for multiple dates
+  // State for multiple dates — ALLTID från Booking (single source of truth).
   const [rigDates, setRigDates] = useState<string[]>([]);
   const [eventDates, setEventDates] = useState<string[]>([]);
   const [rigDownDates, setRigDownDates] = useState<string[]>([]);
-
-  // Load all dates for a booking
-  const loadAllBookingDates = async (bookingId: string) => {
-    try {
-      console.log(`Loading booking dates for booking ID: ${bookingId}`);
-      
-      const [fetchedRigDates, fetchedEventDates, fetchedRigDownDates] = await Promise.all([
-        fetchBookingDatesByType(bookingId, 'rig'),
-        fetchBookingDatesByType(bookingId, 'event'),
-        fetchBookingDatesByType(bookingId, 'rigDown')
-      ]);
-      
-      // Set state with all dates (now arrays)
-      setRigDates(fetchedRigDates);
-      setEventDates(fetchedEventDates);
-      setRigDownDates(fetchedRigDownDates);
-      
-      // Log the dates for debugging
-      console.log('Loaded rig dates:', fetchedRigDates);
-      console.log('Loaded event dates:', fetchedEventDates);
-      console.log('Loaded rig down dates:', fetchedRigDownDates);
-    } catch (err) {
-      console.error('Error loading booking dates:', err);
-    }
-  };
 
   const loadBookingData = async () => {
     if (!id) {
@@ -53,33 +27,28 @@ export const useBookingFetch = (id: string | undefined) => {
     }
     
     try {
-      console.log(`Loading booking data for ID: ${id}`);
       setIsLoading(true);
       setError(null);
       
       // Detaljvyn läser ALLTID live från Booking (single source of truth).
       const bookingData = await fetchLiveBookingById(id);
-      console.log('Loaded live booking data from Booking source:', bookingData);
       setBooking(bookingData);
 
-      
+      // Datumarrayerna kommer direkt från Booking-svaret — ingen lokal kalenderfallback.
+      setRigDates(bookingData?.rigDates ?? []);
+      setEventDates(bookingData?.eventDates ?? []);
+      setRigDownDates(bookingData?.rigDownDates ?? []);
+
       // Mark booking as viewed when opened
       if (bookingData && !bookingData.viewed) {
         try {
           await markBookingAsViewed(id);
-          console.log(`Marked booking ${id} as viewed`);
-          // Immediately invalidate the unopened bookings query so dashboard updates
           queryClient.invalidateQueries({ queryKey: ['planning-dashboard', 'unopened-bookings'] });
         } catch (viewErr) {
           console.error('Failed to mark booking as viewed:', viewErr);
         }
       }
-      
-      // Calendar events are managed by the backend — no frontend self-healing
 
-      // Fetch all dates for this booking from calendar events
-      await loadAllBookingDates(id);
-      
       return bookingData;
     } catch (err) {
       console.error('Error fetching booking:', err);

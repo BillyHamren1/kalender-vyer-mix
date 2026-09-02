@@ -58,6 +58,10 @@ export interface Booking {
   rigDayDate: string;
   eventDate: string;
   rigDownDate: string;
+  /** Kanoniska datumarrayer från Booking (rig_up_dates/event_dates/rig_down_dates). */
+  rigDates?: string[];
+  eventDates?: string[];
+  rigDownDates?: string[];
   rigStartTime?: string | null;
   rigEndTime?: string | null;
   eventStartTime?: string | null;
