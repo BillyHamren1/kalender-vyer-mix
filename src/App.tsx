@@ -32,6 +32,8 @@ import Auth from "./pages/Auth";
 import SidebarShellPreview from "./pages/dev/SidebarShellPreview";
 const TimeV2ModulePage = lazyWithRecovery(() => import("./features/time-v2/pages/TimeV2ModulePage"));
 const TimeV2FlagFixturePage = lazyWithRecovery(() => import("./features/time-v2/pages/TimeV2FlagFixturePage"));
+const TimeV2ReviewQueuePage = lazyWithRecovery(() => import("./features/time-v2/pages/TimeV2ReviewQueuePage"));
+const TimeV2SubmissionDetailPage = lazyWithRecovery(() => import("./features/time-v2/pages/TimeV2SubmissionDetailPage"));
 
 import AuthResetPassword from "./pages/AuthResetPassword";
 
@@ -403,6 +405,8 @@ const WebRoutes: React.FC = () => {
               {/* Time V2 — separate module, reversible tenant flag, OFF by default.
                   Legacy /staff-management/time is untouched and remains the default. */}
               <Route path="/time-v2" element={<TimeV2ModulePage />} />
+              <Route path="/time-v2/review" element={<TimeV2ReviewQueuePage />} />
+              <Route path="/time-v2/review/:submissionId" element={<TimeV2SubmissionDetailPage />} />
               <Route path="/dev/time-v2-flag" element={<TimeV2FlagFixturePage />} />
 
               <Route path="/staff-management/time" element={<StaffTimeAndPayrollPage />} />

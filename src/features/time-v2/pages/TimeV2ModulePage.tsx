@@ -16,7 +16,7 @@ import { useTimeV2Flag } from '@/features/time-v2/hooks/useTimeV2Flag';
 import { useTimeV2Overview } from '@/features/time-v2/hooks/useTimeV2Overview';
 import { getTimeV2BaseUrl, TimeV2ClientError } from '@/features/time-v2/lib/client';
 import { describeFreshness, TIME_V2_CONTRACT_VERSION } from '@/features/time-v2/lib/contract';
-import { LEGACY_TIME_ROUTE } from '@/features/time-v2/lib/moduleFlag';
+import { LEGACY_TIME_ROUTE, TIME_V2_ROUTE } from '@/features/time-v2/lib/moduleFlag';
 
 const Stat: React.FC<{ label: string; value: number | string; hint?: string }> = ({ label, value, hint }) => (
   <div className="rounded-xl border bg-card p-4">
@@ -80,10 +80,15 @@ const TimeV2ModulePage: React.FC = () => {
             fortsatt standard och påverkas inte.
           </p>
         </div>
+        <div className="flex items-center gap-2">
+        <Button asChild size="sm">
+          <Link to={`${TIME_V2_ROUTE}/review`} data-testid="time-v2-open-queue">Öppna granskningskö</Link>
+        </Button>
         <Button variant="outline" size="sm" onClick={() => overview.refetch()} disabled={overview.isFetching}>
           <RefreshCw className={`w-4 h-4 mr-2 ${overview.isFetching ? 'animate-spin' : ''}`} />
           Uppdatera
         </Button>
+        </div>
       </header>
 
       {!baseUrl && (
