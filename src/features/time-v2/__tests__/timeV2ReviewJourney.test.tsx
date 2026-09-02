@@ -118,7 +118,9 @@ describe('Time V2 review queue → detail journey', () => {
     const attest = screen.getByTestId('time-v2-detail-attestability');
     expect(attest).toHaveTextContent('Lön: attesterbar');
     expect(attest).toHaveTextContent('Projekt: ej attesterbar');
-    // No decision execution in this slice.
-    expect(screen.queryByRole('button', { name: /godkänn|attestera|begär korrigering/i })).toBeNull();
+    // Decisions are issued through the Time command panel (Package C).
+    expect(screen.getByTestId('time-v2-decision-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('time-v2-attest-payroll')).not.toBeDisabled();
+    expect(screen.getByTestId('time-v2-attest-project')).toBeDisabled();
   });
 });
