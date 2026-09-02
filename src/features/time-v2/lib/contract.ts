@@ -404,3 +404,161 @@ export function formatMinutes(minutes: number): string {
   const m = Math.max(0, Math.round(minutes));
   return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} min`;
 }
+
+/* --------------------- personnel app account support (D) ------------------- */
+
+export const TIME_V2_PERSONNEL_ENDPOINTS = {
+  personnelDirectory: 'personnel-directory',
+  personnelDetail: 'personnel-detail',
+} as const;
+
+export type TimeV2PersonnelEndpointKey = keyof typeof TIME_V2_PERSONNEL_ENDPOINTS;
+
+export function timeV2PersonnelPath(key: TimeV2PersonnelEndpointKey): string {
+  return `/api/time/${TIME_V2_CONTRACT_VERSION}/${TIME_V2_PERSONNEL_ENDPOINTS[key]}`;
+}
+
+export const TIME_V2_APP_ACCOUNT_STATES = [
+  'none',
+  'invited',
+  'active',
+  'suspended',
+] as const;
+export type TimeV2AppAccountState = (typeof TIME_V2_APP_ACCOUNT_STATES)[number];
+
+export const TIME_V2_APP_ACCOUNT_LABELS: Record<TimeV2AppAccountState, string> = {
+  none: 'Inget appkonto',
+  invited: 'Aktivering utfärdad',
+  active: 'Aktivt',
+  suspended: 'Spärrat',
+};
+
+export interface TimeV2PersonnelRow {
+  personnelId: string;
+  personnelName: string;
+  /** Separate identity domains. HUB account is never linked to the app account. */
+  hubAccount: { present: boolean; state: string | null };
+  appAccount: {
+    state: TimeV2AppAccountState;
+    /** Status only — the activation ticket/secret is never exposed to Planning. */
+    activationIssuedAt: string | null;
+    activationExpiresAt: string | null;
+    activationConsumedAt: string | null;
+  };
+  lastAppAccessAt: string | null;
+  lastEvidenceSyncAt: string | null;
+  lastSubmissionSyncAt: string | null;
+  visibleAssignments: number;
+  isTestFixture: boolean;
+}
+
+export interface TimeV2PersonnelDirectory {
+  generatedAt: string | null;
+  rows: TimeV2PersonnelRow[];
+}
+
+export interface TimeV2AssignmentVisibilityRow {
+  assignmentId: string;
+  label: string;
+  date: string | null;
+  visibleInApp: boolean;
+  reasonHidden: string | null;
+}
+
+export interface TimeV2PersonnelDetail extends TimeV2PersonnelRow {
+  assignments: TimeV2AssignmentVisibilityRow[];
+  diagnostics: Array<{ id: string; label: string; ok: boolean; detail: string | null }>;
+}
+
+const parseAppState = (v: unknown): TimeV2AppAccountState =>
+  (TIME_V2_APP_ACCOUNT_STATES as readonly string[]).includes(String(v))
+    ? (v as TimeV2AppAccountState)
+    : 'none';
+
+export function normalizePersonnelRow(raw: unknown): TimeV2PersonnelRow | null {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const id = str(r.personnel_id ?? r.personnelId ?? r.id);
+  if (!id) return null;
+  const app = (r.app_account ?? r.appAccount ?? {}) as Record<string, unknown>;
+  const hub = (r.hub_account ?? r.hubAccount ?? {}) as Record<string, unknown>;
+  return {
+    personnelId: id,
+    personnelName: str(r.personnel_name ?? r.personnelName) ?? id,
+    hubAccount: {
+      present: bool(hub.present ?? hub.exists),
+      state: str(hub.state ?? hub.status),
+    },
+    appAccount: {
+      state: parseAppState(app.state ?? app.status),
+      activationIssuedAt: str(app.activation_issued_at ?? app.activationIssuedAt),
+      activationExpiresAt: str(app.activation_expires_at ?? app.activationExpiresAt),
+      activationConsumedAt: str(app.activation_consumed_at ?? app.activationConsumedAt),
+    },
+    lastAppAccessAt: str(r.last_app_access_at ?? r.lastAppAccessAt),
+    lastEvidenceSyncAt: str(r.last_evidence_sync_at ?? r.lastEvidenceSyncAt),
+    lastSubmissionSyncAt: str(r.last_submission_sync_at ?? r.lastSubmissionSyncAt),
+    visibleAssignments: num(r.visible_assignments ?? r.visibleAssignments),
+    isTestFixture: bool(r.is_test_fixture ?? r.isTestFixture),
+  };
+}
+
+export function normalizePersonnelDirectory(raw: unknown): TimeV2PersonnelDirectory {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const rows = Array.isArray(r.rows ?? r.personnel) ? ((r.rows ?? r.personnel) as unknown[]) : [];
+  return {
+    generatedAt: str(r.generated_at ?? r.generatedAt),
+    rows: rows.map(normalizePersonnelRow).filter((x): x is TimeV2PersonnelRow => !!x),
+  };
+}
+
+export function normalizePersonnelDetail(raw: unknown): TimeV2PersonnelDetail | null {
+  const base = normalizePersonnelRow(raw);
+  if (!base) return null;
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const assignments = Array.isArray(r.assignments) ? (r.assignments as unknown[]) : [];
+  const diags = Array.isArray(r.diagnostics) ? (r.diagnostics as unknown[]) : [];
+  return {
+    ...base,
+    assignments: assignments
+      .map((a) => {
+        const x = (a ?? {}) as Record<string, unknown>;
+        const id = str(x.assignment_id ?? x.assignmentId ?? x.id);
+        if (!id) return null;
+        return {
+          assignmentId: id,
+          label: str(x.label ?? x.title) ?? id,
+          date: str(x.date),
+          visibleInApp: bool(x.visible_in_app ?? x.visibleInApp),
+          reasonHidden: str(x.reason_hidden ?? x.reasonHidden),
+        };
+      })
+      .filter((x): x is TimeV2AssignmentVisibilityRow => !!x),
+    diagnostics: diags
+      .map((d) => {
+        const x = (d ?? {}) as Record<string, unknown>;
+        const id = str(x.id ?? x.key);
+        if (!id) return null;
+        return {
+          id,
+          label: str(x.label) ?? id,
+          ok: bool(x.ok),
+          detail: str(x.detail ?? x.message),
+        };
+      })
+      .filter((x): x is { id: string; label: string; ok: boolean; detail: string | null } => !!x),
+  };
+}
+
+/** Planning must never render an activation ticket/secret, only its status. */
+export function describeActivation(row: TimeV2PersonnelRow, now: Date = new Date()): string {
+  const a = row.appAccount;
+  if (a.state === 'active') return 'Aktiverat appkonto';
+  if (a.state === 'suspended') return 'Appåtkomst spärrad';
+  if (a.state === 'invited') {
+    if (a.activationExpiresAt && new Date(a.activationExpiresAt).getTime() < now.getTime()) {
+      return 'Aktivering utgången – utfärda ny';
+    }
+    return 'Aktivering utfärdad, ej använd';
+  }
+  return 'Inget appkonto';
+}
