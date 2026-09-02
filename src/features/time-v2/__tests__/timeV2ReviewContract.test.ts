@@ -108,7 +108,7 @@ describe('Time V2 submission detail contract', () => {
     expect(d.evidence[0].reference).toBe('time://scan/123');
     expect(d.correction.requested).toBe(true);
     expect(d.correction.resubmittedAt).toBeNull();
-    expect(d.attestability).toEqual({ payroll: true, project: false, blockedReason: 'Projektmål saknas' });
+    expect(d.attestability).toEqual({ payroll: true, project: false, payrollAttested: false, projectAttested: false, blockedReason: 'Projektmål saknas' });
     expect(d.isTestFixture).toBe(true);
   });
 
