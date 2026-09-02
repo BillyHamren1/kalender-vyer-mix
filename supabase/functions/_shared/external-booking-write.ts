@@ -11,6 +11,26 @@ export type ExternalWriteFields = {
   operational_plan?: Record<string, unknown> | null;
   start_time_on_site?: string | null;
   operational_plan_updated_at?: string | null;
+  // Kanoniska bokningsfält som Planning får uppdatera via central skrivväg.
+  rig_start_time?: string | null;
+  rig_end_time?: string | null;
+  event_start_time?: string | null;
+  event_end_time?: string | null;
+  rigdown_start_time?: string | null;
+  rigdown_end_time?: string | null;
+  delivery_address?: string | null;
+  delivery_city?: string | null;
+  delivery_postal_code?: string | null;
+  delivery_geocode?: { lat: number | null; lng: number | null } | null;
+  delivery_contact_name?: string | null;
+  delivery_contact_phone?: string | null;
+  delivery_contact_email?: string | null;
+  internal_notes?: string | null;
+  carry_more_than_10m?: boolean | null;
+  ground_nails_allowed?: boolean | null;
+  exact_time_needed?: boolean | null;
+  exact_time_info?: string | null;
+  status?: string | null;
 };
 
 export type ExternalWriteResult = {

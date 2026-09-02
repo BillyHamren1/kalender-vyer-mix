@@ -1,4 +1,8 @@
 import { supabase } from '@/integrations/supabase/client';
+import {
+  updateBookingFieldsViaSource,
+  assertBookingProductWriteUnavailable,
+} from '@/services/booking/liveBookingService';
 
 /**
  * Generic helper to call the planning-api-proxy edge function.
@@ -126,11 +130,9 @@ export const fetchAllEconomyDataMulti = (bookingIds: string[]): Promise<Record<s
  * Planning never writes dates locally — all changes go through this API.
  */
 export const updateBookingDatesViaApi = (bookingId: string, data: {
-  // Legacy single-date fields (kept for backward compatibility — first date in array)
   rigdaydate?: string | null;
   eventdate?: string | null;
   rigdowndate?: string | null;
-  // Full multi-date arrays — preferred when project has multiple days per phase
   rig_dates?: string[] | null;
   event_dates?: string[] | null;
   rigdown_dates?: string[] | null;
@@ -140,7 +142,7 @@ export const updateBookingDatesViaApi = (bookingId: string, data: {
   event_end_time?: string | null;
   rigdown_start_time?: string | null;
   rigdown_end_time?: string | null;
-}) => callPlanningApi({ type: 'bookings', method: 'PUT', id: bookingId, data });
+}) => updateBookingFieldsViaSource(bookingId, data as Record<string, unknown>);
 
 /**
  * Update delivery details via the Booking system.
@@ -154,19 +156,19 @@ export const updateDeliveryViaApi = (bookingId: string, data: {
   contact_name?: string;
   contact_phone?: string;
   contact_email?: string;
-}) => callPlanningApi({ type: 'bookings', method: 'PUT', id: bookingId, data });
+}) => updateBookingFieldsViaSource(bookingId, data as Record<string, unknown>);
 
 /**
  * Update internal notes via the Booking system.
  */
 export const updateInternalNotesViaApi = (bookingId: string, notes: string) =>
-  callPlanningApi({ type: 'bookings', method: 'PUT', id: bookingId, data: { internalnotes: notes } });
+  updateBookingFieldsViaSource(bookingId, { internalnotes: notes });
 
 /**
  * Update booking status via the Booking system.
  */
 export const updateBookingStatusViaApi = (bookingId: string, status: string) =>
-  callPlanningApi({ type: 'bookings', method: 'PUT', id: bookingId, data: { status } });
+  updateBookingFieldsViaSource(bookingId, { status });
 
 /**
  * Update logistics fields via the Booking system.
@@ -176,18 +178,18 @@ export const updateLogisticsViaApi = (bookingId: string, data: {
   ground_nails_allowed?: boolean;
   exact_time_needed?: boolean;
   exact_time_info?: string;
-}) => callPlanningApi({ type: 'bookings', method: 'PUT', id: bookingId, data });
+}) => updateBookingFieldsViaSource(bookingId, data as Record<string, unknown>);
 
-// ===== Product CRUD via Booking API =====
+// ===== Product CRUD: FAIL-CLOSED (Booking äger produkterna) =====
 
-export const createProductViaApi = (bookingId: string, product: Record<string, any>) =>
-  callPlanningApi({ type: 'booking_products', method: 'POST', booking_id: bookingId, data: product });
+export const createProductViaApi = (_bookingId: string, _product: Record<string, any>) =>
+  assertBookingProductWriteUnavailable();
 
-export const updateProductViaApi = (productId: string, updates: Record<string, any>) =>
-  callPlanningApi({ type: 'booking_products', method: 'PUT', id: productId, data: updates });
+export const updateProductViaApi = (_productId: string, _updates: Record<string, any>) =>
+  assertBookingProductWriteUnavailable();
 
-export const deleteProductViaApi = (productId: string) =>
-  callPlanningApi({ type: 'booking_products', method: 'DELETE', id: productId });
+export const deleteProductViaApi = (_productId: string) =>
+  assertBookingProductWriteUnavailable();
 
 // ===== Attachment CRUD via Booking API =====
 
