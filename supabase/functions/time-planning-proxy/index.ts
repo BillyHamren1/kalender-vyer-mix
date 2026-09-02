@@ -101,12 +101,6 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return fail(405, 'method_not_allowed', 'Method not allowed');
 
   const authorization = req.headers.get('Authorization') ?? req.headers.get('authorization') ?? '';
-  console.log('[time-planning-proxy] auth header', {
-    present: authorization.length > 0,
-    length: authorization.length,
-    prefix: authorization.slice(0, 7),
-    headerNames: [...req.headers.keys()].join(','),
-  });
   if (!authorization.startsWith('Bearer ')) {
     return fail(401, 'unauthorized', 'Authentication required');
   }
