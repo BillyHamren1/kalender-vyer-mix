@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
     const organizationId = profile?.organization_id;
     if (!organizationId) return json({ error: 'Ingen organisation kopplad till användaren' }, 403);
 
-    const apiKey = Deno.env.get('BOOKING_IMPORT_API_KEY') ?? Deno.env.get('PLANNING_API_KEY');
+    const apiKey = Deno.env.get('IMPORT_API_KEY') ?? Deno.env.get('PLANNING_API_KEY');
     if (!apiKey) return json({ error: 'Server configuration error' }, 500);
 
     const qs = new URLSearchParams({ organization_id: organizationId, booking_id: bookingId });
