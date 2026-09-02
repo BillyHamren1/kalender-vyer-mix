@@ -57,9 +57,11 @@ export const useBookingFetch = (id: string | undefined) => {
       setIsLoading(true);
       setError(null);
       
-      const bookingData = await fetchBookingById(id);
-      console.log('Loaded booking data:', bookingData);
+      // Detaljvyn läser ALLTID live från Booking (single source of truth).
+      const bookingData = await fetchLiveBookingById(id);
+      console.log('Loaded live booking data from Booking source:', bookingData);
       setBooking(bookingData);
+
       
       // Mark booking as viewed when opened
       if (bookingData && !bookingData.viewed) {
