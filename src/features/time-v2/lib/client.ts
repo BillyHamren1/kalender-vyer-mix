@@ -10,9 +10,14 @@
 import {
   buildTimeV2Url,
   normalizeOverview,
+  normalizeReviewQueueList,
+  normalizeSubmissionDetail,
   TIME_V2_CONTRACT_VERSION,
   type TimeV2EndpointKey,
   type TimeV2Overview,
+  type TimeV2QueueFilters,
+  type TimeV2ReviewQueue,
+  type TimeV2SubmissionDetail,
 } from './contract';
 
 export type TimeV2ClientErrorKind =
@@ -91,6 +96,45 @@ export async function fetchTimeV2Overview(
 ): Promise<TimeV2Overview> {
   const raw = await readEndpoint('sourceStatus', { organization_id: organizationId }, opts);
   return normalizeOverview(raw);
+}
+
+/** Review queue rows exactly as Time groups them. Read-only. */
+export async function fetchTimeV2ReviewQueue(
+  organizationId: string,
+  filters: TimeV2QueueFilters = {},
+  opts: TimeV2ClientOptions = {},
+): Promise<TimeV2ReviewQueue> {
+  const raw = await readEndpoint(
+    'reviewQueue',
+    {
+      organization_id: organizationId,
+      from: filters.from,
+      to: filters.to,
+      personnel_id: filters.personnelId,
+      project_id: filters.projectId,
+      group: filters.group && filters.group !== 'all' ? filters.group : undefined,
+    },
+    opts,
+  );
+  return normalizeReviewQueueList(raw);
+}
+
+/** Immutable submitted snapshot for one day/submission. Read-only. */
+export async function fetchTimeV2SubmissionDetail(
+  organizationId: string,
+  submissionId: string,
+  opts: TimeV2ClientOptions = {},
+): Promise<TimeV2SubmissionDetail> {
+  const raw = await readEndpoint(
+    'dayDetail',
+    { organization_id: organizationId, submission_id: submissionId },
+    opts,
+  );
+  const detail = normalizeSubmissionDetail(raw);
+  if (!detail) {
+    throw new TimeV2ClientError('bad_payload', 'Time-källan returnerade ingen giltig dagsnapshot.');
+  }
+  return detail;
 }
 
 export { TIME_V2_CONTRACT_VERSION };
