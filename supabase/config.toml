@@ -194,3 +194,6 @@ verify_jwt = true
 
 [functions.booking-source-write]
 verify_jwt = true
+
+[functions.time-planning-proxy]
+verify_jwt = true
