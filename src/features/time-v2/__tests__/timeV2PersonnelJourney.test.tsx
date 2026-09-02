@@ -83,7 +83,7 @@ const renderDetail = () => {
       <MemoryRouter initialEntries={['/time-v2/personnel/p-1']}>
         <Routes>
           <Route path="/time-v2/personnel/:personnelId" element={<TimeV2PersonnelDetailPage />} />
-          <Route path="/admin/time-reports" element={<div>legacy</div>} />
+          <Route path="/staff-management/time" element={<div>legacy</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
