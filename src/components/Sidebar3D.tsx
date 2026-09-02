@@ -32,6 +32,7 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { useTimeV2Flag } from '@/features/time-v2/hooks/useTimeV2Flag';
 import { usePinnedTabs } from "@/contexts/PinnedTabsContext";
 import {
   SIDEBAR_CONTRACT,
@@ -151,8 +152,18 @@ export function Sidebar3D() {
   const { data: myProjData } = useMySidebarProjects(staffId);
   const myProjects = myProjData?.items ?? [];
   const myProjectsTotal = myProjData?.total ?? 0;
+  const { enabled: timeV2Enabled } = useTimeV2Flag();
 
   const navigationItems = baseNavigationItems.map((item) => {
+    if (item.url === "/staff-management" && timeV2Enabled) {
+      return {
+        ...item,
+        children: [
+          ...(item.children ?? []),
+          { title: "Tid V2", url: "/time-v2", icon: CalendarClock },
+        ],
+      };
+    }
     if (item.url === "/projects") {
       const total = unviewedCount + unplannedCount + projectMessagesCount;
       return total > 0 ? { ...item, badge: total } : item;
