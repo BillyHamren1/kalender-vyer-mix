@@ -119,8 +119,9 @@ const TimeV2SubmissionDetailPage: React.FC = () => {
               <p className="text-xs text-muted-foreground">{d.attestability.blockedReason}</p>
             )}
             <p className="text-xs text-muted-foreground">
-              Beslut utförs inte här ännu — vyn visar endast Times rapporterade tillstånd.
+              Attesterbarheten kommer från Time-kontraktet; besluten utförs i panelen nedan.
             </p>
+
           </Card>
 
           <Card className="p-4 space-y-2" data-testid="time-v2-detail-correction">
