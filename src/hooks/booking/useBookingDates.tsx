@@ -105,7 +105,7 @@ export const useBookingDates = (
       dateType === 'rigDayDate' ? 'rig' : dateType === 'eventDate' ? 'event' : 'rigDown';
     const formattedDate = formatDateToLocalString(date);
     const existing = existingFor(phase);
-    const currentPrimary = (booking as Record<string, unknown>)[dateType] as string | undefined;
+    const currentPrimary = (booking as unknown as Record<string, unknown>)[dateType] as string | undefined;
 
     try {
       setIsSaving(true);
@@ -168,10 +168,10 @@ export const useBookingDates = (
       const localFields = localFieldMap[dateType];
       const next: Booking = { ...booking, [localFields.date]: newDate };
       if (dateType !== 'event') {
-        (next as Record<string, unknown>)[localFields.start] = (payload[
+        (next as unknown as Record<string, unknown>)[localFields.start] = (payload[
           dateType === 'rig' ? 'rig_start_time' : 'rigdown_start_time'
         ] as string) ?? null;
-        (next as Record<string, unknown>)[localFields.end] = (payload[
+        (next as unknown as Record<string, unknown>)[localFields.end] = (payload[
           dateType === 'rig' ? 'rig_end_time' : 'rigdown_end_time'
         ] as string) ?? null;
       }
