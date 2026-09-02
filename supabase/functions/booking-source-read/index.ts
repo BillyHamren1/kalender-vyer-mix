@@ -5,6 +5,7 @@
 //
 // organization_id fastställs ALLTID på servern utifrån användarens profil.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { assertPlanningAccess } from '../_shared/planningAccess.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -43,14 +44,11 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
+    // Behörighetssteg FÖRE all service-role-läsning. JWT räcker inte ensam.
     // Server-side org-resolution — klientens organization_id ignoreras alltid.
-    const { data: profile } = await service
-      .from('profiles')
-      .select('organization_id')
-      .eq('user_id', userData.user.id)
-      .maybeSingle();
-    const organizationId = profile?.organization_id;
-    if (!organizationId) return json({ error: 'Ingen organisation kopplad till användaren' }, 403);
+    const access = await assertPlanningAccess(service as never, userData.user.id);
+    if (!access.ok) return json({ error: access.error, message: access.message }, access.status);
+    const organizationId = access.organizationId;
 
     const apiKey = Deno.env.get('IMPORT_API_KEY') ?? Deno.env.get('PLANNING_API_KEY');
     if (!apiKey) return json({ error: 'Server configuration error' }, 500);
