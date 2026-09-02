@@ -191,13 +191,13 @@ export const updateProductViaApi = (_productId: string, _updates: Record<string,
 export const deleteProductViaApi = (_productId: string) =>
   assertBookingProductWriteUnavailable();
 
-// ===== Attachment CRUD via Booking API =====
+// ===== Attachment CRUD: FAIL-CLOSED (Booking äger bilagorna) =====
 
-export const createAttachmentViaApi = (bookingId: string, attachment: Record<string, any>) =>
-  callPlanningApi({ type: 'booking_attachments', method: 'POST', booking_id: bookingId, data: attachment });
+export const createAttachmentViaApi = (_bookingId: string, _attachment: Record<string, any>) =>
+  assertBookingAttachmentWriteUnavailable();
 
-export const deleteAttachmentViaApi = (attachmentId: string) =>
-  callPlanningApi({ type: 'booking_attachments', method: 'DELETE', id: attachmentId });
+export const deleteAttachmentViaApi = (_attachmentId: string) =>
+  assertBookingAttachmentWriteUnavailable();
 
-export const renameAttachmentViaApi = (attachmentId: string, newName: string) =>
-  callPlanningApi({ type: 'booking_attachments', method: 'PUT', id: attachmentId, data: { file_name: newName } });
+export const renameAttachmentViaApi = (_attachmentId: string, _newName: string) =>
+  assertBookingAttachmentWriteUnavailable();

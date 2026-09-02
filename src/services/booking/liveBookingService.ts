@@ -52,3 +52,11 @@ export const BOOKING_PRODUCT_WRITE_DISABLED_MESSAGE =
 export const assertBookingProductWriteUnavailable = (): never => {
   throw new Error(BOOKING_PRODUCT_WRITE_DISABLED_MESSAGE);
 };
+
+/** Bilagor ägs av Booking; Planning saknar central skrivväg → fail-closed. */
+export const BOOKING_ATTACHMENT_WRITE_DISABLED_MESSAGE =
+  'Bokningsbilagor ägs av Booking. Planning har ingen central skrivväg för bilagor – ändra i Booking.';
+
+export const assertBookingAttachmentWriteUnavailable = (): never => {
+  throw new Error(BOOKING_ATTACHMENT_WRITE_DISABLED_MESSAGE);
+};
