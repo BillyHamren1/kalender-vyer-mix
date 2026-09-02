@@ -137,12 +137,12 @@ export const updateBookingDatesViaApi = (bookingId: string, data: {
   rig_dates?: string[] | null;
   event_dates?: string[] | null;
   rigdown_dates?: string[] | null;
+  // Slås ihop till Bookings rig_up_time / rig_down_time.
   rig_start_time?: string | null;
   rig_end_time?: string | null;
-  event_start_time?: string | null;
-  event_end_time?: string | null;
   rigdown_start_time?: string | null;
   rigdown_end_time?: string | null;
+  // event_start_time/event_end_time saknar kanonisk källa i Booking → fail-closed.
 }) => updateBookingFieldsViaSource(bookingId, data as Record<string, unknown>);
 
 /**
