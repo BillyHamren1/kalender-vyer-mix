@@ -14,8 +14,6 @@ export type ExternalWriteFields = {
   // Kanoniska bokningsfält som Planning får uppdatera via central skrivväg.
   // OBS: Booking accepterar INTE rig_start_time/rig_end_time/event_*_time/
   // rigdown_*_time eller delivery_contact_email.
-  rig_up_time?: string | null;
-  rig_down_time?: string | null;
   delivery_address?: string | null;
   delivery_city?: string | null;
   delivery_postal_code?: string | null;
