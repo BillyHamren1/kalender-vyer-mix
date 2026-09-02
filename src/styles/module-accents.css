@@ -1,0 +1,63 @@
+/* ================================================================
+   EventFlow module accents — canonical HUB palette
+   ================================================================
+   Planning  #7357C8 (base) / #6849BE (dark text/action)
+   Lager     #C77922 (base) / #9A5715 (dark text/action)
+
+   Scope is route/context aware: `data-module` is set on <html> by
+   src/hooks/useModuleTheme.ts. Only MODULE IDENTITY tokens are
+   overridden here (primary action, ring, sidebar accent). Neutral
+   surfaces and semantic success/warning/error tokens are untouched.
+   ================================================================ */
+
+:root {
+  --module-accent: 255 51% 56%;
+  --module-accent-dark: 256 47% 52%;
+  --module-accent-soft: 255 60% 97%;
+  --module-accent-border: 255 40% 89%;
+}
+
+html[data-module='planning'] {
+  --module-accent: 255 51% 56%;        /* #7357C8 */
+  --module-accent-dark: 256 47% 52%;   /* #6849BE */
+  --module-accent-soft: 255 60% 97%;
+  --module-accent-border: 255 40% 89%;
+
+  --primary: var(--module-accent);
+  --primary-hover: var(--module-accent-dark);
+  --primary-dark: var(--module-accent-dark);
+  --primary-soft: var(--module-accent-soft);
+  --primary-soft-foreground: var(--module-accent-dark);
+  --ring: var(--module-accent);
+
+  --sidebar-primary: var(--module-accent);
+  --sidebar-accent: var(--module-accent-soft);
+  --sidebar-accent-foreground: var(--module-accent-dark);
+  --sidebar-ring: var(--module-accent);
+}
+
+html[data-module='warehouse'] {
+  --module-accent: 32 71% 46%;         /* #C77922 */
+  --module-accent-dark: 30 76% 34%;    /* #9A5715 */
+  --module-accent-soft: 32 80% 96%;
+  --module-accent-border: 32 55% 84%;
+
+  --primary: var(--module-accent);
+  --primary-hover: var(--module-accent-dark);
+  --primary-dark: var(--module-accent-dark);
+  --primary-soft: var(--module-accent-soft);
+  --primary-soft-foreground: var(--module-accent-dark);
+  --ring: var(--module-accent);
+
+  --sidebar-primary: var(--module-accent);
+  --sidebar-accent: var(--module-accent-soft);
+  --sidebar-accent-foreground: var(--module-accent-dark);
+  --sidebar-ring: var(--module-accent);
+
+  /* Warm orange warehouse family aligned to the canonical HUB values. */
+  --warehouse: 32 71% 46%;
+  --warehouse-hover: 30 76% 34%;
+  --warehouse-dark: 30 76% 34%;
+  --warehouse-muted: 32 80% 92%;
+  --warehouse-accent: 32 71% 46%;
+}

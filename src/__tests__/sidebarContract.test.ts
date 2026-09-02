@@ -13,6 +13,7 @@ import {
   sidebarSurfaceStyle,
   resolveActiveNavIndex,
 } from '@/lib/layout/sidebarContract';
+import { MODULE_PALETTE } from '@/lib/layout/moduleAccents';
 
 const read = (p: string) => fs.readFileSync(path.resolve(process.cwd(), p), 'utf8');
 
@@ -147,7 +148,7 @@ describe('canonical EventFlow sidebar contract', () => {
 
   it('keeps module accents separate (purple planning, orange warehouse)', () => {
     expect(PLANNING_ACCENT.base).not.toBe(WAREHOUSE_ACCENT.base);
-    expect(PLANNING_ACCENT.base).toMatch(/^hsl\(27/);
-    expect(WAREHOUSE_ACCENT.base).toMatch(/^hsl\(3/);
+    expect(PLANNING_ACCENT.base).toBe(MODULE_PALETTE.planning.base);
+    expect(WAREHOUSE_ACCENT.base).toBe(MODULE_PALETTE.warehouse.base);
   });
 });

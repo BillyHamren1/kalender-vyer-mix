@@ -15,10 +15,10 @@
 /* ── 1. Token-override på Planning-roten ───────────────────────── */
 .theme-purple {
   /* Primär lila — premium-värme istället för standard "violet" */
-  --primary: 270 45% 55%;
+  --primary: 255 51% 56%;             /* #7357C8 — canonical HUB Planning */
   --primary-foreground: 0 0% 100%;
-  --primary-hover: 270 45% 48%;
-  --primary-dark: 280 50% 42%;
+  --primary-hover: 256 47% 52%;       /* #6849BE */
+  --primary-dark: 256 47% 52%;        /* #6849BE */
 
   /* Secondary lila — för mjukare CTA-ytor */
   --secondary: 270 35% 78%;
@@ -34,7 +34,7 @@
   /* Accent / hover / focus-ring — lila */
   --accent: 270 30% 94%;
   --accent-foreground: 280 50% 22%;
-  --ring: 270 45% 55%;
+  --ring: 255 51% 56%;
   --muted-foreground: 240 6% 42%;
 
   /* Gradienter (för ikoner/CTA-ytor, inte page-bg) */
@@ -51,10 +51,10 @@
   --shadow-btn-primary: 0 3px 0 hsl(280 50% 35%);
 
   /* Sidebar (när Planning-rot innehåller sidan) */
-  --sidebar-primary: 270 50% 55%;
+  --sidebar-primary: 255 51% 56%;
   --sidebar-accent: 270 30% 94%;
   --sidebar-accent-foreground: 280 50% 22%;
-  --sidebar-ring: 270 45% 55%;
+  --sidebar-ring: 255 51% 56%;
 }
 
 

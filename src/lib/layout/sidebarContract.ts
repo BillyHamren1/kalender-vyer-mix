@@ -8,6 +8,8 @@
  * Only visual/layout tokens live here — no navigation, auth or business logic.
  */
 
+import { MODULE_PALETTE } from '@/lib/layout/moduleAccents';
+
 export const SIDEBAR_CONTRACT = {
   /** Desktop sidebar width — must match HUB brand column exactly. */
   widthPx: 264,
@@ -68,22 +70,22 @@ export interface SidebarAccent {
   ring: string;
 }
 
-/** Planering — purple module accent. */
+/** Planering — canonical HUB purple (#7357C8). */
 export const PLANNING_ACCENT: SidebarAccent = {
-  base: 'hsl(272 45% 42%)',
-  soft: 'hsl(270 55% 97%)',
-  border: 'hsl(270 40% 89%)',
-  hover: 'hsl(270 45% 98%)',
-  ring: 'hsl(272 45% 52%)',
+  base: MODULE_PALETTE.planning.base,
+  soft: MODULE_PALETTE.planning.soft,
+  border: MODULE_PALETTE.planning.border,
+  hover: MODULE_PALETTE.planning.hover,
+  ring: MODULE_PALETTE.planning.ring,
 };
 
-/** Lager & Logistik — warm orange module accent. */
+/** Lager & Logistik — canonical HUB warm orange (#C77922). */
 export const WAREHOUSE_ACCENT: SidebarAccent = {
-  base: 'hsl(30 82% 42%)',
-  soft: 'hsl(38 92% 96%)',
-  border: 'hsl(38 70% 84%)',
-  hover: 'hsl(38 80% 97%)',
-  ring: 'hsl(32 85% 48%)',
+  base: MODULE_PALETTE.warehouse.base,
+  soft: MODULE_PALETTE.warehouse.soft,
+  border: MODULE_PALETTE.warehouse.border,
+  hover: MODULE_PALETTE.warehouse.hover,
+  ring: MODULE_PALETTE.warehouse.ring,
 };
 
 /** Outer <aside> surface style. */

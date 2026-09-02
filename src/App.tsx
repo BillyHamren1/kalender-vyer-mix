@@ -16,6 +16,7 @@ import { LanguageProvider } from "@/i18n/LanguageContext";
 import { lazyWithRecovery } from "@/utils/lazyWithRecovery";
 import { useTenantCacheGuard } from "@/hooks/useTenantCacheGuard";
 import { enforcePersistedCacheOwner } from "@/lib/tenant/tenantCacheGuard";
+import { ModuleThemeMount } from "@/hooks/useModuleTheme";
 
 
 
@@ -342,6 +343,7 @@ const WebRoutes: React.FC = () => {
 
   return (
     <Suspense fallback={routeFallback}>
+    <ModuleThemeMount />
     <Routes>
       <Route path="/auth" element={<AuthProvider><Auth /></AuthProvider>} />
       <Route path="/auth/reset" element={<AuthProvider><AuthResetPassword /></AuthProvider>} />

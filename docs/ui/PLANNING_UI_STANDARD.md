@@ -2,7 +2,7 @@
 
 Status: BINDANDE
 Canonical platform owner: EventFlow HUB
-Module accent: #7357C8
+Module accent: #7357C8 (base), #6849BE (dark text/action)
 
 ## Mandatory platform foundation
 - Brand mark: #4AA0B5
@@ -20,7 +20,7 @@ Module accent: #7357C8
 - Loading, empty, error, offline/stale and disabled states must be explicit and honest
 
 ## Module-specific rule
-Planning uses violet only as module accent. Its sidebar must be 264 px, not a locally invented width. Calendars and project workspaces use the full available canvas. Purple must not replace semantic warning, success or error colors. Planning remains the owner of desktop Time administration.
+Planning uses the canonical HUB violet family only as module identity: active navigation, module icon/brand, focus/ring and the primary module action. Base #7357C8, dark text/action #6849BE. Teal must not be used as a local fallback for Planning identity. Its sidebar must be 264 px, not a locally invented width. Calendars and project workspaces use the full available canvas. Purple must not replace semantic warning, success or error colors. Planning remains the owner of desktop Time administration.
 
 ## Implementation order
 1. Align tokens without changing behavior.
@@ -39,5 +39,7 @@ Planning uses violet only as module accent. Its sidebar must be 264 px, not a lo
 - no technical implementation copy in primary user UI
 - no change to domain ownership, SSO, routes or business behavior
 - focus, contrast, keyboard/touch behavior verified
+
+Route/context aware tokens: Planning and Lager live in the same app, so the accent follows the route via `data-module` on `<html>` (`src/hooks/useModuleTheme.ts`) and the tokens in `src/styles/module-accents.css`. Sidebar accents come from `src/lib/layout/moduleAccents.ts`. The Lager counterpart is docs/ui/WAREHOUSE_UI_STANDARD.md.
 
 For full token definitions and cross-module rules, mirror the canonical EventFlow UI Standard maintained by HUB. When a local historical style conflicts with this document, this document wins unless a product-specific rule above explicitly says otherwise.
