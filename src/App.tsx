@@ -30,6 +30,8 @@ import MyPageTodos from "./pages/MyPageTodos";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import SidebarShellPreview from "./pages/dev/SidebarShellPreview";
+const TimeV2ModulePage = lazyWithRecovery(() => import("./features/time-v2/pages/TimeV2ModulePage"));
+const TimeV2FlagFixturePage = lazyWithRecovery(() => import("./features/time-v2/pages/TimeV2FlagFixturePage"));
 
 import AuthResetPassword from "./pages/AuthResetPassword";
 
