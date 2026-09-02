@@ -310,7 +310,13 @@ export interface TimeV2SubmissionDetail {
   decisions: TimeV2DecisionEntry[];
   evidence: TimeV2EvidenceRef[];
   correction: { requested: boolean; requestedAt: string | null; reason: string | null; resubmittedAt: string | null };
-  attestability: { payroll: boolean; project: boolean; blockedReason: string | null };
+  attestability: {
+    payroll: boolean;
+    project: boolean;
+    payrollAttested: boolean;
+    projectAttested: boolean;
+    blockedReason: string | null;
+  };
   isTestFixture: boolean;
 }
 
@@ -386,6 +392,8 @@ export function normalizeSubmissionDetail(raw: unknown): TimeV2SubmissionDetail 
     attestability: {
       payroll: bool(attest.payroll ?? attest.payroll_attestable),
       project: bool(attest.project ?? attest.project_attestable),
+      payrollAttested: bool(attest.payroll_attested ?? attest.payrollAttested),
+      projectAttested: bool(attest.project_attested ?? attest.projectAttested),
       blockedReason: str(attest.blocked_reason ?? attest.blockedReason),
     },
     isTestFixture: bool(body.is_test_fixture ?? body.isTestFixture ?? body.test_fixture),

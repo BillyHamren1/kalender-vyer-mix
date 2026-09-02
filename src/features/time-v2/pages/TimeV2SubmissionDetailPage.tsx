@@ -10,6 +10,7 @@ import { getTimeV2BaseUrl, type TimeV2ClientError } from '@/features/time-v2/lib
 import { formatMinutes, TIME_V2_QUEUE_GROUP_LABELS } from '@/features/time-v2/lib/contract';
 import { LEGACY_TIME_ROUTE, TIME_V2_ROUTE } from '@/features/time-v2/lib/moduleFlag';
 import TimeV2StateCard from '@/features/time-v2/components/TimeV2StateCard';
+import TimeV2DecisionPanel from '@/features/time-v2/components/TimeV2DecisionPanel';
 
 const Row: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   <div className="rounded-lg border bg-card px-3 py-2">
@@ -119,9 +120,17 @@ const TimeV2SubmissionDetailPage: React.FC = () => {
               <p className="text-xs text-muted-foreground">{d.attestability.blockedReason}</p>
             )}
             <p className="text-xs text-muted-foreground">
-              Beslut utförs inte här ännu — vyn visar endast Times rapporterade tillstånd.
+              Attesterbarheten kommer från Time-kontraktet; besluten utförs i panelen nedan.
             </p>
+
           </Card>
+
+          <TimeV2DecisionPanel
+            organizationId={flag.organizationId}
+            submissionId={submissionId}
+            detail={d}
+            onRefresh={() => detail.refetch()}
+          />
 
           <Card className="p-4 space-y-2" data-testid="time-v2-detail-correction">
             <h2 className="text-sm font-semibold text-foreground">Korrigering</h2>

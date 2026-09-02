@@ -24,7 +24,9 @@ export type TimeV2ClientErrorKind =
   | 'not_configured'
   | 'unreachable'
   | 'http_error'
-  | 'bad_payload';
+  | 'bad_payload'
+  | 'stale_revision'
+  | 'invalid_input';
 
 export class TimeV2ClientError extends Error {
   kind: TimeV2ClientErrorKind;
