@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+import { TIME_V2_ROUTE } from '@/features/time-v2/lib/moduleFlag';
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -117,6 +119,13 @@ const TimeV2DecisionPanel: React.FC<Props> = ({ organizationId, submissionId, de
         >
           {detail.attestability.projectAttested ? 'Projekt attesterat' : 'Attestera projekt'}
         </Button>
+        {(detail.attestability.payrollAttested || detail.attestability.projectAttested) && (
+          <Button size="sm" variant="secondary" asChild data-testid="time-v2-open-preview">
+            <Link to={`${TIME_V2_ROUTE}/preview/${detail.submissionId}`}>
+              Visa lön/projekt-förhandsvisning
+            </Link>
+          </Button>
+        )}
       </div>
       <p className="text-xs text-muted-foreground">
         Lön och projekt attesteras oberoende och endast när Time-kontraktet säger att domänen är attesterbar.
