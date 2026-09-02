@@ -562,3 +562,132 @@ export function describeActivation(row: TimeV2PersonnelRow, now: Date = new Date
   }
   return 'Inget appkonto';
 }
+
+/* ---------------- payroll / project cost preview (Package E) --------------- */
+
+export interface TimeV2PreviewLine {
+  lineId: string;
+  label: string;
+  /** Exact target reference from the attested Time snapshot. */
+  targetId: string | null;
+  minutes: number;
+  /** Amounts come from Time only. Planning never invents pay or rates. */
+  amount: number | null;
+  currency: string | null;
+  note: string | null;
+}
+
+export interface TimeV2PreviewSection {
+  domain: 'payroll' | 'project';
+  attested: boolean;
+  generatedAt: string | null;
+  /** Time may report no monetary basis; Planning must then show minutes only. */
+  amountsAvailable: boolean;
+  totalMinutes: number;
+  totalAmount: number | null;
+  currency: string | null;
+  lines: TimeV2PreviewLine[];
+  blockedReason: string | null;
+}
+
+export interface TimeV2PreviewBundle {
+  submissionId: string;
+  revision: number;
+  snapshotVersion: string | null;
+  /** Preview only — Time never posts to payroll/project systems from here. */
+  previewOnly: true;
+  isTestFixture: boolean;
+  payroll: TimeV2PreviewSection;
+  project: TimeV2PreviewSection;
+}
+
+function normalizePreviewSection(raw: unknown, domain: 'payroll' | 'project'): TimeV2PreviewSection {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const rows = Array.isArray(r.lines) ? (r.lines as unknown[]) : [];
+  const amount = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const lines = rows
+    .map((l) => {
+      const x = (l ?? {}) as Record<string, unknown>;
+      const id = str(x.line_id ?? x.lineId ?? x.id);
+      if (!id) return null;
+      return {
+        lineId: id,
+        label: str(x.label ?? x.target_name ?? x.targetName) ?? id,
+        targetId: str(x.target_id ?? x.targetId),
+        minutes: num(x.minutes),
+        amount: amount(x.amount),
+        currency: str(x.currency),
+        note: str(x.note),
+      };
+    })
+    .filter((x): x is TimeV2PreviewLine => !!x);
+  const total = amount(r.total_amount ?? r.totalAmount);
+  return {
+    domain,
+    attested: bool(r.attested),
+    generatedAt: str(r.generated_at ?? r.generatedAt),
+    amountsAvailable: total !== null || lines.some((l) => l.amount !== null),
+    totalMinutes: num(r.total_minutes ?? r.totalMinutes) || lines.reduce((s, l) => s + l.minutes, 0),
+    totalAmount: total,
+    currency: str(r.currency),
+    lines,
+    blockedReason: str(r.blocked_reason ?? r.blockedReason),
+  };
+}
+
+export function normalizePreviewBundle(raw: unknown): TimeV2PreviewBundle | null {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const body = (r.preview ?? r) as Record<string, unknown>;
+  const id = str(body.submission_id ?? body.submissionId);
+  if (!id) return null;
+  return {
+    submissionId: id,
+    revision: num(body.revision),
+    snapshotVersion: str(body.snapshot_version ?? body.snapshotVersion),
+    previewOnly: true,
+    isTestFixture: bool(body.is_test_fixture ?? body.isTestFixture),
+    payroll: normalizePreviewSection(body.payroll, 'payroll'),
+    project: normalizePreviewSection(body.project ?? body.project_cost ?? body.projectCost, 'project'),
+  };
+}
+
+/** Deterministic CSV of exactly what Time reported. No derived pay logic. */
+export function previewSectionToCsv(section: TimeV2PreviewSection, bundle: TimeV2PreviewBundle): string {
+  const esc = (v: string | number | null) => {
+    const s = v === null ? '' : String(v);
+    return /[",;\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const head = [
+    'preview_only',
+    'submission_id',
+    'revision',
+    'snapshot_version',
+    'domain',
+    'line_id',
+    'label',
+    'target_id',
+    'minutes',
+    'amount',
+    'currency',
+    'note',
+  ].join(';');
+  const rows = section.lines.map((l) =>
+    [
+      'TRUE',
+      bundle.submissionId,
+      bundle.revision,
+      bundle.snapshotVersion,
+      section.domain,
+      l.lineId,
+      l.label,
+      l.targetId,
+      l.minutes,
+      l.amount,
+      l.currency ?? section.currency,
+      l.note,
+    ]
+      .map(esc)
+      .join(';'),
+  );
+  return [head, ...rows].join('\n');
+}

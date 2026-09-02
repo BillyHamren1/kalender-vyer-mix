@@ -34,6 +34,7 @@ const TimeV2ModulePage = lazyWithRecovery(() => import("./features/time-v2/pages
 const TimeV2FlagFixturePage = lazyWithRecovery(() => import("./features/time-v2/pages/TimeV2FlagFixturePage"));
 const TimeV2ReviewQueuePage = lazyWithRecovery(() => import("./features/time-v2/pages/TimeV2ReviewQueuePage"));
 const TimeV2SubmissionDetailPage = lazyWithRecovery(() => import("./features/time-v2/pages/TimeV2SubmissionDetailPage"));
+const TimeV2PreviewPage = lazyWithRecovery(() => import("./features/time-v2/pages/TimeV2PreviewPage"));
 const TimeV2PersonnelListPage = lazyWithRecovery(() => import("./features/time-v2/pages/TimeV2PersonnelListPage"));
 const TimeV2PersonnelDetailPage = lazyWithRecovery(() => import("./features/time-v2/pages/TimeV2PersonnelDetailPage"));
 
@@ -409,6 +410,7 @@ const WebRoutes: React.FC = () => {
               <Route path="/time-v2" element={<TimeV2ModulePage />} />
               <Route path="/time-v2/review" element={<TimeV2ReviewQueuePage />} />
               <Route path="/time-v2/review/:submissionId" element={<TimeV2SubmissionDetailPage />} />
+              <Route path="/time-v2/preview/:submissionId" element={<TimeV2PreviewPage />} />
               <Route path="/time-v2/personnel" element={<TimeV2PersonnelListPage />} />
               <Route path="/time-v2/personnel/:personnelId" element={<TimeV2PersonnelDetailPage />} />
               <Route path="/dev/time-v2-flag" element={<TimeV2FlagFixturePage />} />
