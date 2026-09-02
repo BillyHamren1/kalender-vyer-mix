@@ -1,36 +1,32 @@
 /**
- * Versioned Time V2 command boundary (write path).
+ * Time V2 command boundary (write path) — bound to the REAL Time adapter.
  *
- * Planning may only issue the Time-owned review commands below. This module
- * can never write Planning source records (bookings, projects, customers,
+ * Commands go through Planning's same-origin proxy to Time's deployed
+ * operations `review.requestCorrection`, `attest.payroll` and `attest.project`.
+ * Planning never writes its own source records (bookings, projects, customers,
  * locations, schedules, assignments) and never publishes payroll or project
- * output to any external system — it posts a decision to Time and Time stays
- * the owner of the immutable submission snapshot.
+ * output externally — Time owns the immutable submission snapshot.
  *
- * Every command carries the exact submission revision it was decided against.
- * Time rejects a stale revision (409) and the UI recovers truthfully instead
- * of retrying blindly.
+ * Each command carries the exact revision the admin saw, expressed through the
+ * boundary's own idempotency key. A rejected/stale decision surfaces truthfully
+ * instead of retrying blindly.
  */
 
-import { TIME_V2_CONTRACT_VERSION } from './contract';
-import { getTimeV2BaseUrl, TimeV2ClientError } from './client';
+import { TimeV2ClientError } from './errors';
+import { callTimeBoundary, TIME_OPERATIONS, type TimeBoundaryOptions } from './boundary';
 
 export const TIME_V2_COMMANDS = {
-  requestCorrection: 'request-correction',
-  attestPayroll: 'attest-payroll',
-  attestProject: 'attest-project',
+  requestCorrection: TIME_OPERATIONS.requestCorrection,
+  attestPayroll: TIME_OPERATIONS.attestPayroll,
+  attestProject: TIME_OPERATIONS.attestProject,
 } as const;
 
 export type TimeV2CommandKey = keyof typeof TIME_V2_COMMANDS;
 
-export function timeV2CommandPath(key: TimeV2CommandKey): string {
-  return `/api/time/${TIME_V2_CONTRACT_VERSION}/commands/${TIME_V2_COMMANDS[key]}`;
-}
-
 export interface TimeV2CommandBase {
   organizationId: string;
   submissionId: string;
-  /** Revision the admin actually saw. Required for stale-revision detection. */
+  /** Revision the admin actually saw. Used for idempotency + stale detection. */
   expectedRevision: number;
 }
 
@@ -46,70 +42,39 @@ export interface TimeV2CommandResult {
   message: string | null;
 }
 
-export interface TimeV2CommandOptions {
-  baseUrl?: string | null;
-  fetchImpl?: typeof fetch;
+export interface TimeV2CommandOptions extends TimeBoundaryOptions {
   signal?: AbortSignal;
 }
 
-const normalizeResult = (raw: unknown): TimeV2CommandResult => {
+export function timeV2IdempotencyKey(input: TimeV2CommandBase, key: TimeV2CommandKey): string {
+  return `planning:${TIME_V2_COMMANDS[key]}:${input.submissionId}:r${input.expectedRevision}`;
+}
+
+const normalizeResult = (raw: unknown, fallbackRevision: number): TimeV2CommandResult => {
   const r = (raw ?? {}) as Record<string, unknown>;
+  const nested = (r.submission ?? r.day ?? {}) as Record<string, unknown>;
+  const numberOf = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const strOf = (v: unknown) => (typeof v === 'string' && v.trim() ? v : null);
   return {
-    accepted: r.accepted === undefined ? true : r.accepted === true,
-    revision: typeof r.revision === 'number' && Number.isFinite(r.revision) ? r.revision : 0,
-    state: typeof r.state === 'string' && r.state.trim() ? r.state : null,
-    message: typeof r.message === 'string' && r.message.trim() ? r.message : null,
+    accepted: r.accepted === undefined ? r.error === undefined : r.accepted === true,
+    revision: numberOf(r.version ?? r.revision ?? nested.version) ?? fallbackRevision,
+    state: strOf(r.state ?? nested.state ?? r.decision),
+    message: strOf(r.message ?? r.detail),
   };
 };
 
-async function postCommand(
+async function runCommand(
   key: TimeV2CommandKey,
-  body: Record<string, unknown>,
+  input: TimeV2CommandBase,
+  params: Record<string, unknown>,
   opts: TimeV2CommandOptions,
 ): Promise<TimeV2CommandResult> {
-  const baseUrl = opts.baseUrl ?? getTimeV2BaseUrl();
-  if (!baseUrl) {
-    throw new TimeV2ClientError(
-      'not_configured',
-      'Time-källan är inte konfigurerad (VITE_TIME_V2_BASE_URL saknas).',
-    );
-  }
-  const url = baseUrl.replace(/\/+$/, '') + timeV2CommandPath(key);
-  const doFetch = opts.fetchImpl ?? fetch;
-
-  let res: Response;
-  try {
-    res = await doFetch(url, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'X-EventFlow-Contract-Version': TIME_V2_CONTRACT_VERSION,
-        'X-EventFlow-Consumer': 'planning-time-v2',
-      },
-      body: JSON.stringify(body),
-      signal: opts.signal,
-    });
-  } catch (e) {
-    throw new TimeV2ClientError('unreachable', `Time-källan gick inte att nå: ${(e as Error)?.message ?? 'okänt fel'}`);
-  }
-
-  if (res.status === 409) {
-    throw new TimeV2ClientError(
-      'stale_revision',
-      'Dagen har ändrats i Time sedan du öppnade den. Läs om snapshoten och besluta mot rätt revision.',
-      409,
-    );
-  }
-  if (!res.ok) {
-    throw new TimeV2ClientError('http_error', `Time-källan avvisade kommandot (${res.status}).`, res.status);
-  }
-
-  try {
-    return normalizeResult(await res.json());
-  } catch {
-    throw new TimeV2ClientError('bad_payload', 'Time-källan returnerade ogiltigt svar på kommandot.');
-  }
+  const env = await callTimeBoundary(
+    TIME_V2_COMMANDS[key],
+    { submissionId: input.submissionId, idempotencyKey: timeV2IdempotencyKey(input, key), ...params },
+    opts,
+  );
+  return normalizeResult(env.data, input.expectedRevision);
 }
 
 export async function requestTimeV2Correction(
@@ -120,44 +85,19 @@ export async function requestTimeV2Correction(
   if (!reason) {
     throw new TimeV2ClientError('invalid_input', 'En synlig motivering krävs för korrigeringsbegäran.');
   }
-  return postCommand(
-    'requestCorrection',
-    {
-      organization_id: input.organizationId,
-      submission_id: input.submissionId,
-      expected_revision: input.expectedRevision,
-      reason,
-    },
-    opts,
-  );
+  return runCommand('requestCorrection', input, { reason }, opts);
 }
 
 export async function attestTimeV2Payroll(
   input: TimeV2CommandBase,
   opts: TimeV2CommandOptions = {},
 ): Promise<TimeV2CommandResult> {
-  return postCommand(
-    'attestPayroll',
-    {
-      organization_id: input.organizationId,
-      submission_id: input.submissionId,
-      expected_revision: input.expectedRevision,
-    },
-    opts,
-  );
+  return runCommand('attestPayroll', input, { decision: 'approved' }, opts);
 }
 
 export async function attestTimeV2Project(
   input: TimeV2CommandBase,
   opts: TimeV2CommandOptions = {},
 ): Promise<TimeV2CommandResult> {
-  return postCommand(
-    'attestProject',
-    {
-      organization_id: input.organizationId,
-      submission_id: input.submissionId,
-      expected_revision: input.expectedRevision,
-    },
-    opts,
-  );
+  return runCommand('attestProject', input, { decision: 'approved' }, opts);
 }

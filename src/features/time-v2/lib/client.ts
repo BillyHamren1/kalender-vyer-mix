@@ -1,166 +1,124 @@
 /**
- * Read-only Time V2 contract client.
+ * Read-only Time V2 client — bound to the REAL Time boundary.
  *
- * GET only. No mutation of Time or Planning source records is possible here.
- * The base URL comes from configuration (VITE_TIME_V2_BASE_URL). When it is
- * missing the client fails truthfully ("not configured") instead of guessing
- * or fabricating rows.
+ * Reads go through Planning's own same-origin edge function
+ * (`time-planning-proxy`), which calls Time's deployed
+ * `time-planning-adapter` (`time-planning-boundary.v1` /
+ * `time-planning-adapter.v2`) with a server-held credential. The browser never
+ * calls Time directly and never holds a Time credential.
+ *
+ * Read-only: no Planning source record is written and nothing is published.
  */
 
 import {
-  buildTimeV2Url,
-  normalizeOverview,
-  normalizePreviewBundle,
-  normalizeReviewQueueList,
-  normalizeSubmissionDetail,
   TIME_V2_CONTRACT_VERSION,
-  type TimeV2EndpointKey,
   type TimeV2Overview,
   type TimeV2PreviewBundle,
   type TimeV2QueueFilters,
   type TimeV2ReviewQueue,
   type TimeV2SubmissionDetail,
 } from './contract';
+import { TimeV2ClientError, type TimeV2ClientErrorKind } from './errors';
+import { callTimeBoundary, TIME_OPERATIONS, TIME_PROXY_FUNCTION, type TimeBoundaryOptions } from './boundary';
+import {
+  mapDayDetail,
+  mapPersonnelAccountsToOverviewCounts,
+  mapPreviewBundle,
+  mapReviewQueue,
+  mapStatusToOverview,
+} from './v2Mappers';
 
-export type TimeV2ClientErrorKind =
-  | 'not_configured'
-  | 'unreachable'
-  | 'http_error'
-  | 'bad_payload'
-  | 'stale_revision'
-  | 'invalid_input';
+export { TimeV2ClientError };
+export type { TimeV2ClientErrorKind };
+export { TIME_V2_CONTRACT_VERSION };
 
-export class TimeV2ClientError extends Error {
-  kind: TimeV2ClientErrorKind;
-  status?: number;
-  constructor(kind: TimeV2ClientErrorKind, message: string, status?: number) {
-    super(message);
-    this.name = 'TimeV2ClientError';
-    this.kind = kind;
-    this.status = status;
-  }
+/**
+ * The Time source is now reached through Planning's own same-origin proxy, so
+ * no browser base URL exists. The transport target is reported instead; the
+ * real server-side configuration gate (TIME_ADAPTER_URL /
+ * TIME_ADAPTER_SYSTEM_TOKEN) is enforced by the proxy and surfaces truthfully
+ * as a `not_configured` error.
+ */
+export function getTimeV2BaseUrl(): string {
+  return `same-origin:${TIME_PROXY_FUNCTION}`;
 }
 
-export function getTimeV2BaseUrl(env: Record<string, unknown> = import.meta.env as unknown as Record<string, unknown>): string | null {
-  const raw = env.VITE_TIME_V2_BASE_URL;
-  return typeof raw === 'string' && raw.trim() ? raw.trim() : null;
-}
-
-export interface TimeV2ClientOptions {
-  baseUrl?: string | null;
-  fetchImpl?: typeof fetch;
+export interface TimeV2ClientOptions extends TimeBoundaryOptions {
   signal?: AbortSignal;
 }
 
-async function readEndpoint(
-  key: TimeV2EndpointKey,
-  params: Record<string, string | undefined>,
-  opts: TimeV2ClientOptions,
-): Promise<unknown> {
-  const baseUrl = opts.baseUrl ?? getTimeV2BaseUrl();
-  if (!baseUrl) {
-    throw new TimeV2ClientError(
-      'not_configured',
-      'Time-källan är inte konfigurerad (VITE_TIME_V2_BASE_URL saknas).',
-    );
-  }
-  const url = buildTimeV2Url(baseUrl, key, params);
-  const doFetch = opts.fetchImpl ?? fetch;
-
-  let res: Response;
-  try {
-    res = await doFetch(url, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'X-EventFlow-Contract-Version': TIME_V2_CONTRACT_VERSION,
-        'X-EventFlow-Consumer': 'planning-time-v2',
-      },
-      signal: opts.signal,
-    });
-  } catch (e) {
-    throw new TimeV2ClientError('unreachable', `Time-källan gick inte att nå: ${(e as Error)?.message ?? 'okänt fel'}`);
-  }
-
-  if (!res.ok) {
-    throw new TimeV2ClientError('http_error', `Time-källan svarade ${res.status}.`, res.status);
-  }
-
-  try {
-    return await res.json();
-  } catch {
-    throw new TimeV2ClientError('bad_payload', 'Time-källan returnerade ogiltig JSON.');
-  }
-}
-
-/** Landing overview: source status + personnel + review queue + attestability. */
+/** Landing overview: real Time status + queue counts + personnel accounts. */
 export async function fetchTimeV2Overview(
   organizationId: string,
   opts: TimeV2ClientOptions = {},
 ): Promise<TimeV2Overview> {
-  const raw = await readEndpoint('sourceStatus', { organization_id: organizationId }, opts);
-  return normalizeOverview(raw);
+  const [status, queue, accounts] = await Promise.all([
+    callTimeBoundary(TIME_OPERATIONS.status, {}, opts),
+    callTimeBoundary(TIME_OPERATIONS.daysQueue, {}, opts),
+    callTimeBoundary(TIME_OPERATIONS.personnelAccounts, {}, opts),
+  ]);
+  const overview = mapStatusToOverview(status.data, queue.data);
+  return {
+    ...overview,
+    source: { ...overview.source, generatedAt: overview.source.generatedAt ?? status.generatedAt },
+    personnel: mapPersonnelAccountsToOverviewCounts(accounts.data),
+  };
 }
 
-/** Review queue rows exactly as Time groups them. Read-only. */
+const inRange = (value: string | null, from?: string, to?: string) =>
+  (!from || (value ?? '') >= from) && (!to || (value ?? '') <= to);
+
+/** Review queue rows exactly as Time groups them (`time-review-queue.v1`). */
 export async function fetchTimeV2ReviewQueue(
   organizationId: string,
   filters: TimeV2QueueFilters = {},
   opts: TimeV2ClientOptions = {},
 ): Promise<TimeV2ReviewQueue> {
-  const raw = await readEndpoint(
-    'reviewQueue',
-    {
-      organization_id: organizationId,
-      from: filters.from,
-      to: filters.to,
-      personnel_id: filters.personnelId,
-      project_id: filters.projectId,
-      group: filters.group && filters.group !== 'all' ? filters.group : undefined,
-    },
-    opts,
-  );
-  return normalizeReviewQueueList(raw);
+  const env = await callTimeBoundary(TIME_OPERATIONS.daysQueue, {}, opts);
+  const queue = mapReviewQueue(env.data);
+  const rows = queue.rows.filter((row) =>
+    inRange(row.date, filters.from, filters.to) &&
+    (!filters.personnelId || row.personnelId === filters.personnelId) &&
+    (!filters.projectId || row.projectId === filters.projectId) &&
+    (!filters.group || filters.group === 'all' || row.group === filters.group));
+  return { ...queue, generatedAt: queue.generatedAt ?? env.generatedAt, rows };
 }
 
-/** Immutable submitted snapshot for one day/submission. Read-only. */
+/** Immutable submitted snapshot for one day (`time-day-detail.v1`). */
 export async function fetchTimeV2SubmissionDetail(
   organizationId: string,
   submissionId: string,
   opts: TimeV2ClientOptions = {},
 ): Promise<TimeV2SubmissionDetail> {
-  const raw = await readEndpoint(
-    'dayDetail',
-    { organization_id: organizationId, submission_id: submissionId },
-    opts,
-  );
-  const detail = normalizeSubmissionDetail(raw);
+  const env = await callTimeBoundary(TIME_OPERATIONS.dayDetail, { submissionId }, opts);
+  const detail = mapDayDetail(env.data);
   if (!detail) {
     throw new TimeV2ClientError('bad_payload', 'Time-källan returnerade ingen giltig dagsnapshot.');
   }
   return detail;
 }
 
-export { TIME_V2_CONTRACT_VERSION };
-
 /**
- * Payroll / project-cost preview for one attested snapshot.
- * Read-only: Planning renders exactly what Time reports and never posts to a
- * payroll or project system from here.
+ * Payroll / project-cost preview for one attested snapshot
+ * (two `publication-preview.v1` payloads). Preview only: Planning renders what
+ * Time reports and never posts to a payroll or project system.
  */
 export async function fetchTimeV2Preview(
   organizationId: string,
   submissionId: string,
   opts: TimeV2ClientOptions = {},
 ): Promise<TimeV2PreviewBundle> {
-  const raw = await readEndpoint(
-    'preview',
-    { organization_id: organizationId, submission_id: submissionId },
-    opts,
+  const [payroll, project, detail] = await Promise.all([
+    callTimeBoundary(TIME_OPERATIONS.previewPayroll, { submissionId }, opts),
+    callTimeBoundary(TIME_OPERATIONS.previewProject, { submissionId }, opts),
+    callTimeBoundary(TIME_OPERATIONS.dayDetail, { submissionId }, opts),
+  ]);
+  const head = mapDayDetail(detail.data);
+  return mapPreviewBundle(
+    payroll.data,
+    project.data,
+    submissionId,
+    head?.revision ?? 0,
+    head?.snapshotVersion ?? null,
   );
-  const bundle = normalizePreviewBundle(raw);
-  if (!bundle) {
-    throw new TimeV2ClientError('bad_payload', 'Time-källan returnerade ingen giltig förhandsvisning.');
-  }
-  return bundle;
 }

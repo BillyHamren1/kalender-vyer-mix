@@ -11,6 +11,19 @@ vi.mock('@/hooks/useOrganizationId', () => ({
   useOrganizationId: () => ({ organizationId: ORG, isLoading: false, error: null }),
 }));
 
+// The Time boundary is unconfigured in the test environment: the proxy reports
+// it truthfully and Planning renders no fabricated rows.
+vi.mock('@/integrations/supabase/client', () => ({
+  supabase: {
+    functions: {
+      invoke: vi.fn(async () => ({
+        data: { schema: 'time-planning-boundary-error.v1', code: 'not_configured', error: 'Time-gränsen är inte konfigurerad.' },
+        error: { context: { status: 503 } },
+      })),
+    },
+  },
+}));
+
 import TimeV2ModulePage from '@/features/time-v2/pages/TimeV2ModulePage';
 
 const renderModule = () => {
@@ -42,7 +55,7 @@ describe('Time V2 desktop journey', () => {
     await waitFor(() => expect(screen.getByTestId('time-v2-module')).toBeInTheDocument());
     expect(screen.getByText('Tid V2')).toBeInTheDocument();
     // Truthful state: no source configured in test env → no fabricated rows.
-    expect(screen.getByText(/inte konfigurerad/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText(/inte konfigurerad/i).length).toBeGreaterThan(0));
     expect(screen.queryByText('Granskningskö')).toBeNull();
   });
 
