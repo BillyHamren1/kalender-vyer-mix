@@ -72,23 +72,39 @@ vi.mock('@/features/time-v2/lib/client', async () => {
 
 import TimeV2SubmissionDetailPage from '@/features/time-v2/pages/TimeV2SubmissionDetailPage';
 
-const commandFetch = vi.fn(async (_url: string, init: RequestInit) => {
-  const body = JSON.parse(String(init.body));
-  const url = String(_url);
-  if (body.expected_revision !== timeServer.revision) {
-    return new Response('{}', { status: 409 });
+/**
+ * Synthetic Time boundary: Planning posts the real adapter operations
+ * (review.requestCorrection / attest.payroll) through its own proxy.
+ */
+const commandInvoke = vi.fn(async (body: Record<string, unknown>) => {
+  const operation = String(body.operation);
+  const revision = Number(String(body.idempotencyKey ?? '').split(':').pop()?.replace(/^r/, ''));
+  if (revision !== timeServer.revision) {
+    return { data: { code: 'stale_revision' }, error: { context: { status: 409 } } };
   }
-  if (url.includes('request-correction')) {
+  if (operation === 'review.requestCorrection') {
     timeServer.revision += 1;
-    timeServer.correctionReason = body.reason;
+    timeServer.correctionReason = String(body.reason);
     timeServer.decisions = [
       ...timeServer.decisions,
       { id: 'd2', action: 'correction_requested', actor: 'Planning', revision: timeServer.revision, comment: body.reason },
     ];
   }
-  if (url.includes('attest-payroll')) timeServer.payrollAttested = true;
-  return new Response(JSON.stringify({ accepted: true, revision: timeServer.revision }), { status: 200 });
+  if (operation === 'attest.payroll') timeServer.payrollAttested = true;
+  return {
+    data: {
+      adapterVersion: 'time-planning-adapter.v2',
+      operation,
+      generatedAt: null,
+      data: { accepted: true, version: timeServer.revision },
+    },
+    error: null,
+  };
 });
+
+vi.mock('@/integrations/supabase/client', () => ({
+  supabase: { functions: { invoke: (_name: string, opts: { body: Record<string, unknown> }) => commandInvoke(opts.body) } },
+}));
 
 const renderDetail = () => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
@@ -112,8 +128,7 @@ describe('Planning → worker → Planning correction journey', () => {
     timeServer.resubmitted = false;
     timeServer.payrollAttested = false;
     timeServer.decisions = [{ id: 'd1', action: 'submitted', actor: 'Anna', revision: 1 }];
-    commandFetch.mockClear();
-    vi.stubGlobal('fetch', commandFetch as unknown as typeof fetch);
+    commandInvoke.mockClear();
   });
 
   it('requests correction, sees the worker resubmission and attests payroll independently', async () => {
@@ -130,7 +145,7 @@ describe('Planning → worker → Planning correction journey', () => {
     fireEvent.click(screen.getByTestId('time-v2-request-correction'));
 
     await waitFor(() => expect(screen.getByTestId('time-v2-correction-sent')).toBeInTheDocument());
-    expect(JSON.parse(String(commandFetch.mock.calls[0][1].body)).expected_revision).toBe(1);
+    expect(String((commandInvoke.mock.calls[0][0] as Record<string, unknown>).idempotencyKey)).toContain(':r1');
     await waitFor(() =>
       expect(screen.getByTestId('time-v2-detail-correction')).toHaveTextContent('Rast saknas'),
     );

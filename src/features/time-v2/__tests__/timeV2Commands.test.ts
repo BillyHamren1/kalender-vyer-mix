@@ -3,71 +3,71 @@ import {
   attestTimeV2Payroll,
   attestTimeV2Project,
   requestTimeV2Correction,
-  timeV2CommandPath,
+  timeV2IdempotencyKey,
+  TIME_V2_COMMANDS,
 } from '@/features/time-v2/lib/commands';
 import { TimeV2ClientError } from '@/features/time-v2/lib/client';
+import { TIME_ADAPTER_VERSION } from '@/features/time-v2/lib/boundary';
 
-const base = 'https://time.test';
 const ctx = { organizationId: 'org-1', submissionId: 'sub-1', expectedRevision: 3 };
 
-const okFetch = (body: unknown = { accepted: true, revision: 4, state: 'correction_requested' }) =>
-  vi.fn(async () => new Response(JSON.stringify(body), { status: 200 })) as unknown as typeof fetch;
+const ok = (data: unknown = { accepted: true, version: 4, state: 'correction_requested' }) =>
+  vi.fn(async (body: Record<string, unknown>) => ({
+    data: { adapterVersion: TIME_ADAPTER_VERSION, operation: body.operation, generatedAt: null, data },
+    error: null,
+  }));
 
-describe('Time V2 command boundary', () => {
-  it('posts correction to the versioned command path with the exact revision and reason', async () => {
-    const f = okFetch();
-    const res = await requestTimeV2Correction(
-      { ...ctx, reason: '  Saknad rast  ' },
-      { baseUrl: base, fetchImpl: f },
-    );
-    const [url, init] = (f as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(url).toBe(`${base}${timeV2CommandPath('requestCorrection')}`);
-    expect(init.method).toBe('POST');
-    expect(JSON.parse(init.body)).toEqual({
-      organization_id: 'org-1',
-      submission_id: 'sub-1',
-      expected_revision: 3,
+describe('Time V2 command boundary (real adapter operations)', () => {
+  it('uses Time\'s deployed operation names', () => {
+    expect(TIME_V2_COMMANDS).toEqual({
+      requestCorrection: 'review.requestCorrection',
+      attestPayroll: 'attest.payroll',
+      attestProject: 'attest.project',
+    });
+  });
+
+  it('requests a correction with the reason and the exact revision in the idempotency key', async () => {
+    const invoke = ok();
+    const res = await requestTimeV2Correction({ ...ctx, reason: '  Saknad rast  ' }, { invoke });
+    expect(invoke.mock.calls[0][0]).toEqual({
+      operation: 'review.requestCorrection',
+      submissionId: 'sub-1',
+      idempotencyKey: 'planning:review.requestCorrection:sub-1:r3',
       reason: 'Saknad rast',
     });
     expect(res.revision).toBe(4);
   });
 
   it('rejects an empty correction reason before any request', async () => {
-    const f = okFetch();
-    await expect(
-      requestTimeV2Correction({ ...ctx, reason: '   ' }, { baseUrl: base, fetchImpl: f }),
-    ).rejects.toMatchObject({ kind: 'invalid_input' });
-    expect((f as unknown as ReturnType<typeof vi.fn>).mock.calls.length).toBe(0);
+    const invoke = ok();
+    await expect(requestTimeV2Correction({ ...ctx, reason: '   ' }, { invoke })).rejects.toMatchObject({
+      kind: 'invalid_input',
+    });
+    expect(invoke).not.toHaveBeenCalled();
   });
 
   it('maps 409 to a stale-revision error instead of retrying', async () => {
-    const f = vi.fn(async () => new Response('{}', { status: 409 })) as unknown as typeof fetch;
-    const err = await attestTimeV2Payroll(ctx, { baseUrl: base, fetchImpl: f }).catch((e) => e);
+    const invoke = vi.fn(async () => ({ data: {}, error: { context: { status: 409 } } }));
+    const err = await attestTimeV2Payroll(ctx, { invoke }).catch((e) => e);
     expect(err).toBeInstanceOf(TimeV2ClientError);
     expect(err.kind).toBe('stale_revision');
   });
 
-  it('attests payroll and project through separate command paths', async () => {
-    const f = okFetch({ accepted: true, revision: 3 });
-    await attestTimeV2Payroll(ctx, { baseUrl: base, fetchImpl: f });
-    await attestTimeV2Project(ctx, { baseUrl: base, fetchImpl: f });
-    const calls = (f as unknown as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0]);
-    expect(calls[0]).toContain('/commands/attest-payroll');
-    expect(calls[1]).toContain('/commands/attest-project');
-    expect(calls[0]).not.toBe(calls[1]);
+  it('attests payroll and project as independent domain decisions', async () => {
+    const invoke = ok({ accepted: true, version: 3 });
+    await attestTimeV2Payroll(ctx, { invoke });
+    await attestTimeV2Project(ctx, { invoke });
+    const calls = invoke.mock.calls.map((c) => c[0] as Record<string, unknown>);
+    expect(calls[0].operation).toBe('attest.payroll');
+    expect(calls[1].operation).toBe('attest.project');
+    expect(calls[0].decision).toBe('approved');
+    expect(calls[0].idempotencyKey).not.toBe(calls[1].idempotencyKey);
   });
 
-  it('fails closed when the Time base url is missing', async () => {
-    await expect(
-      attestTimeV2Project(ctx, { baseUrl: null, fetchImpl: okFetch() }),
-    ).rejects.toMatchObject({ kind: 'not_configured' });
-  });
-
-  it('never targets a Planning source endpoint', () => {
+  it('never targets a Planning source record', () => {
     for (const key of ['requestCorrection', 'attestPayroll', 'attestProject'] as const) {
-      const p = timeV2CommandPath(key);
-      expect(p.startsWith('/api/time/')).toBe(true);
-      expect(p).not.toMatch(/booking|project-source|customer|assignment/);
+      expect(timeV2IdempotencyKey(ctx, key)).not.toMatch(/booking|customer|assignment|calendar_events/);
+      expect(TIME_V2_COMMANDS[key]).toMatch(/^(review|attest)\./);
     }
   });
 });

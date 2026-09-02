@@ -11,8 +11,9 @@ import {
   issueTimeV2AppActivation,
   reactivateTimeV2AppAccess,
   suspendTimeV2AppAccess,
-  timeV2PersonnelCommandPath,
+  TIME_V2_PERSONNEL_COMMANDS,
 } from '@/features/time-v2/lib/personnelClient';
+import { TIME_ADAPTER_VERSION } from '@/features/time-v2/lib/boundary';
 
 const raw = {
   personnel_id: 'p-1',
@@ -33,12 +34,13 @@ const raw = {
 };
 
 describe('Time V2 personnel contract', () => {
-  it('uses the versioned personnel paths', () => {
+  it("uses Time's deployed personnel operations", () => {
+    expect(TIME_V2_PERSONNEL_COMMANDS).toEqual({
+      issueActivation: 'activation.issue',
+      reissueActivation: 'activation.reissue',
+      setAppAccess: 'personnel.setAppAccess',
+    });
     expect(timeV2PersonnelPath('personnelDirectory')).toBe('/api/time/v1/personnel-directory');
-    expect(timeV2PersonnelPath('personnelDetail')).toBe('/api/time/v1/personnel-detail');
-    expect(timeV2PersonnelCommandPath('issueActivation')).toBe('/api/time/v1/commands/issue-app-activation');
-    expect(timeV2PersonnelCommandPath('suspendAppAccess')).toBe('/api/time/v1/commands/suspend-app-access');
-    expect(timeV2PersonnelCommandPath('reactivateAppAccess')).toBe('/api/time/v1/commands/reactivate-app-access');
   });
 
   it('normalises a personnel row and keeps HUB and app identity separate', () => {
@@ -81,48 +83,45 @@ describe('Time V2 personnel contract', () => {
   });
 });
 
-describe('Time V2 personnel client', () => {
-  it('fails truthfully when unconfigured', async () => {
-    await expect(fetchTimeV2PersonnelDirectory('org', { baseUrl: null })).rejects.toMatchObject({
-      kind: 'not_configured',
-    });
+describe('Time V2 personnel client (real boundary)', () => {
+  const env = (operation: unknown, data: unknown) => ({
+    data: { adapterVersion: TIME_ADAPTER_VERSION, operation, generatedAt: '2026-09-02T10:00:00Z', data },
+    error: null,
+  });
+
+  it('fails truthfully when the Time boundary is unconfigured server-side', async () => {
+    const invoke = vi.fn(async () => ({
+      data: { code: 'not_configured', error: 'Saknad servernyckel: TIME_ADAPTER_SYSTEM_TOKEN' },
+      error: { context: { status: 503 } },
+    }));
+    await expect(fetchTimeV2PersonnelDirectory('org', { invoke })).rejects.toMatchObject({ kind: 'not_configured' });
   });
 
   it('issues activation without email side effects and never returns a secret', async () => {
-    const fetchImpl = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          accepted: true,
-          app_account_state: 'invited',
-          activation_issued_at: '2026-09-01T10:00:00Z',
-          activation_ticket: 'SECRET-TICKET',
-        }),
-        { status: 200 },
-      ),
-    ) as unknown as typeof fetch;
+    const invoke = vi.fn(async (body: Record<string, unknown>) =>
+      env(body.operation, {
+        accepted: true,
+        accountState: 'invited',
+        ticket: { issuedAt: '2026-09-01T10:00:00Z', expiresAt: '2026-09-01T11:00:00Z' },
+        oneTimeSecret: 'SECRET-TICKET',
+      }));
 
-    const res = await issueTimeV2AppActivation(
-      { organizationId: 'org', personnelId: 'p-1', reissue: true },
-      { baseUrl: 'https://time.test', fetchImpl },
-    );
+    const res = await issueTimeV2AppActivation({ organizationId: 'org', personnelId: 'p-1', reissue: true }, { invoke });
     expect(res.appAccountState).toBe('invited');
+    expect(res.activationExpiresAt).toBe('2026-09-01T11:00:00Z');
     expect(JSON.stringify(res)).not.toContain('SECRET-TICKET');
 
-    const [, init] = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
-    const body = JSON.parse(String((init as RequestInit).body));
-    expect(body).toMatchObject({ organization_id: 'org', personnel_id: 'p-1', reissue: true, send_email: false });
+    const sent = invoke.mock.calls[0][0] as Record<string, unknown>;
+    // Time's activation.issue runs with deliver=false; Planning adds no channel of its own.
+    expect(sent).toMatchObject({ operation: 'activation.reissue', personnelId: 'p-1', channel: 'one_time_claim' });
   });
 
-  it('suspends and reactivates through the versioned command paths', async () => {
-    const urls: string[] = [];
-    const fetchImpl = (async (url: string) => {
-      urls.push(String(url));
-      return new Response(JSON.stringify({ accepted: true, app_account_state: 'suspended' }), { status: 200 });
-    }) as unknown as typeof fetch;
-
-    await suspendTimeV2AppAccess({ organizationId: 'org', personnelId: 'p-1' }, { baseUrl: 'https://time.test', fetchImpl });
-    await reactivateTimeV2AppAccess({ organizationId: 'org', personnelId: 'p-1' }, { baseUrl: 'https://time.test', fetchImpl });
-    expect(urls[0]).toContain('/api/time/v1/commands/suspend-app-access');
-    expect(urls[1]).toContain('/api/time/v1/commands/reactivate-app-access');
+  it('suspends and reactivates through personnel.setAppAccess', async () => {
+    const invoke = vi.fn(async (body: Record<string, unknown>) => env(body.operation, { accepted: true, accountState: 'suspended' }));
+    await suspendTimeV2AppAccess({ organizationId: 'org', personnelId: 'p-1' }, { invoke });
+    await reactivateTimeV2AppAccess({ organizationId: 'org', personnelId: 'p-1' }, { invoke });
+    const calls = invoke.mock.calls.map((c) => c[0] as Record<string, unknown>);
+    expect(calls[0]).toMatchObject({ operation: 'personnel.setAppAccess', state: 'suspended', roles: ['time_worker'] });
+    expect(calls[1]).toMatchObject({ operation: 'personnel.setAppAccess', state: 'active' });
   });
 });

@@ -107,7 +107,7 @@ const TimeV2ModulePage: React.FC = () => {
         <StateCard
           icon={<Clock3 className="w-5 h-5 text-muted-foreground" />}
           title="Hämtar Time-kontraktet…"
-          body={`Läser ${baseUrl} (endast läsning).`}
+          body="Läser Time via Plannings egen serverproxy (endast läsning)."
         />
       )}
 
