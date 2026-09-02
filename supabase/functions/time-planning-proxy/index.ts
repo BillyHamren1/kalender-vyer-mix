@@ -100,10 +100,17 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return fail(405, 'method_not_allowed', 'Method not allowed');
 
-  const authorization = req.headers.get('Authorization') ?? '';
+  const authorization = req.headers.get('Authorization') ?? req.headers.get('authorization') ?? '';
+  console.log('[time-planning-proxy] auth header', {
+    present: authorization.length > 0,
+    length: authorization.length,
+    prefix: authorization.slice(0, 7),
+    headerNames: [...req.headers.keys()].join(','),
+  });
   if (!authorization.startsWith('Bearer ')) {
     return fail(401, 'unauthorized', 'Authentication required');
   }
+
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
