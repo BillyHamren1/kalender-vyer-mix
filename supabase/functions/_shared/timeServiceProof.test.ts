@@ -12,8 +12,8 @@ import {
 
 const generate = async () => {
   const kp = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
-  const priv = await crypto.subtle.exportKey('jwk', kp.privateKey);
-  const pub = await crypto.subtle.exportKey('jwk', kp.publicKey);
+  const priv = await crypto.subtle.exportKey('jwk', kp.privateKey) as JsonWebKey & { kid?: string };
+  const pub = await crypto.subtle.exportKey('jwk', kp.publicKey) as JsonWebKey & { kid?: string };
   priv.kid = 'test-key';
   pub.kid = 'test-key';
   return { priv, pub };
