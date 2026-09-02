@@ -17,6 +17,14 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { assertPlanningAccess } from '../_shared/planningAccess.ts';
+import {
+  buildServiceProof,
+  importSigningKey,
+  SERVICE_PROOF_HEADER,
+  SERVICE_PROOF_SIGNATURE_HEADER,
+  sha256Base64Url,
+  signServiceProof,
+} from '../_shared/timeServiceProof.ts';
 
 const TIME_BOUNDARY_SCHEMA = 'time-planning-boundary.v1';
 const TIME_ADAPTER_VERSION = 'time-planning-adapter.v2';
@@ -127,9 +135,13 @@ Deno.serve(async (req) => {
   // Time's tenant id for this Planning tenant. Server-side only; never from the client.
   const timeOrganizationId = Deno.env.get('TIME_ADAPTER_ORGANIZATION_ID') ?? access.organizationId;
 
+  // Effective staging path: signed service proof. The legacy system token is
+  // kept only as an optional compatibility path.
+  const signingJwk = Deno.env.get('TIME_ADAPTER_SIGNING_PRIVATE_JWK');
+
   const missing = [
     !adapterUrl ? 'TIME_ADAPTER_URL' : null,
-    !systemToken ? 'TIME_ADAPTER_SYSTEM_TOKEN' : null,
+    !signingJwk && !systemToken ? 'TIME_ADAPTER_SIGNING_PRIVATE_JWK' : null,
   ].filter(Boolean);
   if (missing.length) {
     return fail(
@@ -149,17 +161,41 @@ Deno.serve(async (req) => {
     if (body[key] !== undefined && body[key] !== null) payload[key] = body[key];
   }
 
+  const bodyText = JSON.stringify(payload);
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-EventFlow-Consumer': 'planning-time-v2',
+  };
+  if (anonKey) headers.apikey = anonKey;
+  // Optional compatibility path only; never the Planning user's JWT.
+  if (systemToken) headers.Authorization = `Bearer ${systemToken}`;
+
+  if (signingJwk) {
+    try {
+      const { key, keyId } = await importSigningKey(signingJwk);
+      const signed = await signServiceProof(
+        key,
+        buildServiceProof({
+          keyId,
+          operation,
+          organizationId: String(timeOrganizationId),
+          payloadDigest: await sha256Base64Url(bodyText),
+        }),
+      );
+      headers[SERVICE_PROOF_HEADER] = signed.encodedProof;
+      headers[SERVICE_PROOF_SIGNATURE_HEADER] = signed.signature;
+    } catch (e) {
+      return fail(503, 'not_configured', `Tjänstesignering misslyckades: ${(e as Error)?.message ?? 'okänt fel'}`);
+    }
+  }
+
   let upstream: Response;
   try {
     upstream = await fetch(`${adapterUrl!.replace(/\/+$/, '')}/time-planning-adapter`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${systemToken}`,
-        ...(anonKey ? { apikey: anonKey } : {}),
-        'Content-Type': 'application/json',
-        'X-EventFlow-Consumer': 'planning-time-v2',
-      },
-      body: JSON.stringify(payload),
+      headers,
+      body: bodyText,
     });
   } catch (e) {
     return fail(503, 'upstream_unavailable', `Time-gränsen gick inte att nå: ${(e as Error)?.message ?? 'okänt fel'}`, true);
