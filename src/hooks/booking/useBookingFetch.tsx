@@ -3,8 +3,10 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { Booking } from '@/types/booking';
-import { fetchBookingById, markBookingAsViewed } from '@/services/bookingService';
+import { markBookingAsViewed } from '@/services/bookingService';
+import { fetchLiveBookingById } from '@/services/booking/liveBookingService';
 import { fetchBookingDatesByType } from '@/services/bookingCalendarService';
+
 
 export const useBookingFetch = (id: string | undefined) => {
   const queryClient = useQueryClient();
@@ -55,9 +57,11 @@ export const useBookingFetch = (id: string | undefined) => {
       setIsLoading(true);
       setError(null);
       
-      const bookingData = await fetchBookingById(id);
-      console.log('Loaded booking data:', bookingData);
+      // Detaljvyn läser ALLTID live från Booking (single source of truth).
+      const bookingData = await fetchLiveBookingById(id);
+      console.log('Loaded live booking data from Booking source:', bookingData);
       setBooking(bookingData);
+
       
       // Mark booking as viewed when opened
       if (bookingData && !bookingData.viewed) {
