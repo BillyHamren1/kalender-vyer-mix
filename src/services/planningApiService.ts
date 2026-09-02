@@ -2,6 +2,7 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   updateBookingFieldsViaSource,
   assertBookingProductWriteUnavailable,
+  assertBookingAttachmentWriteUnavailable,
 } from '@/services/booking/liveBookingService';
 
 /**
@@ -136,12 +137,12 @@ export const updateBookingDatesViaApi = (bookingId: string, data: {
   rig_dates?: string[] | null;
   event_dates?: string[] | null;
   rigdown_dates?: string[] | null;
+  // Slås ihop till Bookings rig_up_time / rig_down_time.
   rig_start_time?: string | null;
   rig_end_time?: string | null;
-  event_start_time?: string | null;
-  event_end_time?: string | null;
   rigdown_start_time?: string | null;
   rigdown_end_time?: string | null;
+  // event_start_time/event_end_time saknar kanonisk källa i Booking → fail-closed.
 }) => updateBookingFieldsViaSource(bookingId, data as Record<string, unknown>);
 
 /**
@@ -191,13 +192,13 @@ export const updateProductViaApi = (_productId: string, _updates: Record<string,
 export const deleteProductViaApi = (_productId: string) =>
   assertBookingProductWriteUnavailable();
 
-// ===== Attachment CRUD via Booking API =====
+// ===== Attachment CRUD: FAIL-CLOSED (Booking äger bilagorna) =====
 
-export const createAttachmentViaApi = (bookingId: string, attachment: Record<string, any>) =>
-  callPlanningApi({ type: 'booking_attachments', method: 'POST', booking_id: bookingId, data: attachment });
+export const createAttachmentViaApi = (_bookingId: string, _attachment: Record<string, any>) =>
+  assertBookingAttachmentWriteUnavailable();
 
-export const deleteAttachmentViaApi = (attachmentId: string) =>
-  callPlanningApi({ type: 'booking_attachments', method: 'DELETE', id: attachmentId });
+export const deleteAttachmentViaApi = (_attachmentId: string) =>
+  assertBookingAttachmentWriteUnavailable();
 
-export const renameAttachmentViaApi = (attachmentId: string, newName: string) =>
-  callPlanningApi({ type: 'booking_attachments', method: 'PUT', id: attachmentId, data: { file_name: newName } });
+export const renameAttachmentViaApi = (_attachmentId: string, _newName: string) =>
+  assertBookingAttachmentWriteUnavailable();
