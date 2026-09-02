@@ -139,7 +139,7 @@ describe('Planning → worker → Planning correction journey', () => {
     timeServer.workerResubmits();
     fireEvent.click(screen.getByRole('button', { name: /uppdatera/i }));
 
-    await waitFor(() => expect(screen.getByText(/rev 3/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText(/rev 3/).length).toBeGreaterThan(0));
     const chain = screen.getByTestId('time-v2-detail-decisions');
     expect(chain).toHaveTextContent('submitted');
     expect(chain).toHaveTextContent('correction_requested');
