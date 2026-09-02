@@ -4,6 +4,7 @@
 // Produktändringar är fail-closed (read-only) tills Booking exponerar en säker skrivväg.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { pushBookingFieldsToExternal } from '../_shared/external-booking-write.ts';
+import { assertPlanningAccess } from '../_shared/planningAccess.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -82,13 +83,10 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
-    const { data: profile } = await service
-      .from('profiles')
-      .select('organization_id')
-      .eq('user_id', userData.user.id)
-      .maybeSingle();
-    const organizationId = profile?.organization_id;
-    if (!organizationId) return json({ error: 'Ingen organisation kopplad till användaren' }, 403);
+    // Behörighetssteg FÖRE all service-role-läsning/skrivning. JWT räcker inte ensam.
+    const access = await assertPlanningAccess(service as never, userData.user.id);
+    if (!access.ok) return json({ error: access.error, message: access.message }, access.status);
+    const organizationId = access.organizationId;
 
     const result = await pushBookingFieldsToExternal({
       bookingId,
