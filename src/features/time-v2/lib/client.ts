@@ -10,11 +10,13 @@
 import {
   buildTimeV2Url,
   normalizeOverview,
+  normalizePreviewBundle,
   normalizeReviewQueueList,
   normalizeSubmissionDetail,
   TIME_V2_CONTRACT_VERSION,
   type TimeV2EndpointKey,
   type TimeV2Overview,
+  type TimeV2PreviewBundle,
   type TimeV2QueueFilters,
   type TimeV2ReviewQueue,
   type TimeV2SubmissionDetail,
@@ -140,3 +142,25 @@ export async function fetchTimeV2SubmissionDetail(
 }
 
 export { TIME_V2_CONTRACT_VERSION };
+
+/**
+ * Payroll / project-cost preview for one attested snapshot.
+ * Read-only: Planning renders exactly what Time reports and never posts to a
+ * payroll or project system from here.
+ */
+export async function fetchTimeV2Preview(
+  organizationId: string,
+  submissionId: string,
+  opts: TimeV2ClientOptions = {},
+): Promise<TimeV2PreviewBundle> {
+  const raw = await readEndpoint(
+    'preview',
+    { organization_id: organizationId, submission_id: submissionId },
+    opts,
+  );
+  const bundle = normalizePreviewBundle(raw);
+  if (!bundle) {
+    throw new TimeV2ClientError('bad_payload', 'Time-källan returnerade ingen giltig förhandsvisning.');
+  }
+  return bundle;
+}
