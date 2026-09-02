@@ -213,9 +213,11 @@ const DATE_ARRAY_FIELDS = new Set(['rig_up_dates', 'event_dates', 'rig_down_date
 export const toCanonicalBookingFields = (
   patch: Record<string, unknown>,
 ): Record<string, unknown> => {
+  const geoKeys = new Set(['delivery_latitude', 'delivery_longitude', 'deliveryLatitude', 'deliveryLongitude']);
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(patch)) {
     if (value === undefined) continue;
+    if (geoKeys.has(key)) continue;
     const canonicalKey = CANONICAL_FIELD_MAP[key];
     if (!canonicalKey) {
       throw new Error(`Okänt bokningsfält "${key}" – Planning får inte skriva det till Booking.`);
