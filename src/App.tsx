@@ -398,6 +398,11 @@ const WebRoutes: React.FC = () => {
               <Route path="/staff-dashboard" element={<StaffDashboard />} />
               <Route path="/communication" element={<CommunicationPage />} />
               <Route path="/ops-control" element={<OpsControlCenter />} />
+              {/* Time V2 — separate module, reversible tenant flag, OFF by default.
+                  Legacy /staff-management/time is untouched and remains the default. */}
+              <Route path="/time-v2" element={<TimeV2ModulePage />} />
+              <Route path="/dev/time-v2-flag" element={<TimeV2FlagFixturePage />} />
+
               <Route path="/staff-management/time" element={<StaffTimeAndPayrollPage />} />
               <Route path="/staff-management/time-approvals" element={<StaffTimeApprovalsPage />} />
               <Route path="/staff-management/payroll-month-report" element={<StaffPayrollMonthReport />} />
