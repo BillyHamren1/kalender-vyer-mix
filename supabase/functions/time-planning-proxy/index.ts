@@ -132,20 +132,6 @@ Deno.serve(async (req) => {
   // never become active again, even if the secret object still exists.
   const signingSeed = Deno.env.get('TIME_ADAPTER_SIGNING_SEED');
 
-  // TEMPORARY rotation-verification operation (Planning-auth required):
-  // exposes ONLY public signing-key metadata (kty/crv/x/y/kid/alg/use) so the
-  // new key can be registered on the Time side. Never returns d or the seed.
-  // Remove after the Time-side key registration is verified.
-  if (operation === 'signer.publicJwk') {
-    if (!signingSeed) return fail(503, 'not_configured', 'TIME_ADAPTER_SIGNING_SEED saknas.');
-    try {
-      const { publicJwk } = await deriveSigningKeyFromSeed(signingSeed);
-      return json(200, { schema: 'time-planning-signer-public-jwk.v1', publicJwk });
-    } catch (e) {
-      return fail(503, 'not_configured', `Nyckelhärledning misslyckades: ${(e as Error)?.message ?? 'okänt fel'}`);
-    }
-  }
-
   if (!ALLOWED_OPERATIONS.has(operation)) {
     return fail(400, 'unsupported_operation', `Unsupported Time operation: ${operation || '(none)'}`);
   }
