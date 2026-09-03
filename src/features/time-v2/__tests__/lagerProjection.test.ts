@@ -81,6 +81,7 @@ describe('canonical Lager location', () => {
       radiusMeters: 200,
       isExact: true,
     });
+    expect(p.location?.recommendedFields).toEqual([]);
     expect(p.location?.provenance).toEqual({
       sourceTable: 'organization_locations',
       sourceRecordId: 'loc-1',
@@ -89,14 +90,55 @@ describe('canonical Lager location', () => {
     });
   });
 
-  it('reports missing human-supplied fields instead of guessing them', () => {
+  it('NULL address + legacy location_type=other is still an EXACT target (Raivis/FA Warehouse case)', () => {
     const p = buildLagerContextProjection(
-      base({ locations: [location({ address: null, location_type: 'other' })] }),
+      base({
+        locations: [location({
+          name: 'FA Warehouse',
+          address: null,
+          location_type: 'other',
+          latitude: 59.4914494,
+          longitude: 17.8553564,
+          radius_meters: 200,
+        })],
+      }),
     );
-    expect(p.location?.isExact).toBe(false);
+    expect(p.location).not.toBeNull();
+    expect(p.location?.isExact).toBe(true);
     expect(p.location?.address).toBeNull();
-    expect(p.location?.missingFields).toContain('organization_locations.address');
-    expect(p.configuration.missingFields).toContain("organization_locations.location_type = 'warehouse'");
+    expect(p.location?.missingFields).toEqual([]);
+    expect(p.location?.recommendedFields).toEqual([
+      'organization_locations.address',
+      "organization_locations.location_type = 'warehouse'",
+    ]);
+    expect(p.location).toMatchObject({
+      targetKey: 'planning:location:loc-1',
+      label: 'FA Warehouse',
+      latitude: 59.4914494,
+      longitude: 17.8553564,
+      radiusMeters: 200,
+    });
+    expect(p.location?.provenance).toEqual({
+      sourceTable: 'organization_locations',
+      sourceRecordId: 'loc-1',
+      contextType: 'schedule_context',
+      isWorkEvidence: false,
+    });
+    expect(p.configuration.missingFields).toEqual([]);
+  });
+
+  it('null only when the linked location lacks a valid geofence (lat/lon/radius)', () => {
+    const noCoords = buildLagerContextProjection(
+      base({ locations: [location({ latitude: null, longitude: null, location_type: 'other' })] }),
+    );
+    expect(noCoords.location).toBeNull();
+    expect(noCoords.configuration.missingFields).toContain('organization_locations.latitude');
+
+    const zeroRadius = buildLagerContextProjection(
+      base({ locations: [location({ radius_meters: 0 })] }),
+    );
+    expect(zeroRadius.location).toBeNull();
+    expect(zeroRadius.configuration.missingFields).toContain('organization_locations.radius_meters');
   });
 
   it('absence: no canonical record → null location, never a fabricated coordinate', () => {
@@ -104,7 +146,9 @@ describe('canonical Lager location', () => {
       base({ locations: [], internalProjects: [internalProject({ location_id: null })] }),
     );
     expect(p.location).toBeNull();
-    expect(p.configuration.missingFields.length).toBeGreaterThan(0);
+    expect(p.configuration.missingFields).toContain(
+      'projects.location_id (internal Lager project → organization_locations)',
+    );
     expect(JSON.stringify(p)).not.toMatch(/59\.4[0-9]/);
   });
 
