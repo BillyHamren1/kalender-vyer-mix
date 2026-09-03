@@ -7,16 +7,10 @@ import {
   ChevronDown,
   ChevronsLeft,
   FolderKanban,
-  PieChart,
-  Truck,
-  MapPin,
   Wallet,
   ExternalLink,
   Sparkles,
   CalendarClock,
-  UserRound,
-  CalendarDays,
-  ListChecks,
   LayoutDashboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -66,17 +60,7 @@ interface NavItem {
   children?: NavChild[];
 }
 
-const baseNavigationItems: NavItem[] = [
-  {
-    title: "Min sida",
-    url: "/my-page",
-    icon: UserRound,
-    children: [
-      { title: "Översikt", url: "/my-page", icon: LayoutDashboard },
-      { title: "Min kalender", url: "/my-page/calendar", icon: CalendarDays },
-      { title: "Mina todos", url: "/my-page/todos", icon: ListChecks },
-    ],
-  },
+export const baseNavigationItems: NavItem[] = [
   {
     title: "Dashboard",
     url: "/projects",
@@ -87,21 +71,10 @@ const baseNavigationItems: NavItem[] = [
     url: "/economy",
     icon: FolderKanban,
   },
-
-  {
-    title: "Logistikplanering",
-    url: "/ops-control",
-    icon: MapPin,
-  },
   {
     title: "Bemanningsplanering",
     url: "/calendar",
     icon: Calendar,
-  },
-  {
-    title: "Transportplanering",
-    url: "/logistics/planning",
-    icon: Truck,
   },
   {
     title: "Personal",
@@ -113,11 +86,6 @@ const baseNavigationItems: NavItem[] = [
       { title: "Bemanningskalender (publik)", url: "/personalkalendern", icon: ExternalLink },
       { title: "Tid & Lön", url: "/staff-management/time", icon: CalendarClock },
     ],
-  },
-  {
-    title: "Ekonomiöversikt",
-    url: "/economy",
-    icon: PieChart,
   },
 ];
 

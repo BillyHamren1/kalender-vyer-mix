@@ -14,6 +14,7 @@ import {
   resolveActiveNavIndex,
 } from '@/lib/layout/sidebarContract';
 import { MODULE_PALETTE } from '@/lib/layout/moduleAccents';
+import { baseNavigationItems as planningNav } from '@/components/Sidebar3D';
 
 const read = (p: string) => fs.readFileSync(path.resolve(process.cwd(), p), 'utf8');
 
@@ -150,5 +151,19 @@ describe('canonical EventFlow sidebar contract', () => {
     expect(PLANNING_ACCENT.base).not.toBe(WAREHOUSE_ACCENT.base);
     expect(PLANNING_ACCENT.base).toBe(MODULE_PALETTE.planning.base);
     expect(WAREHOUSE_ACCENT.base).toBe(MODULE_PALETTE.warehouse.base);
+  });
+
+  it('hides requested planning menu items from the sidebar', () => {
+    const titles = planningNav.map((item) => item.title);
+    expect(titles).not.toContain('Min sida');
+    expect(titles).not.toContain('Logistikplanering');
+    expect(titles).not.toContain('Transportplanering');
+    expect(titles).not.toContain('Ekonomiöversikt');
+
+    // Remaining top-level items still present
+    expect(titles).toContain('Dashboard');
+    expect(titles).toContain('Projekt');
+    expect(titles).toContain('Bemanningsplanering');
+    expect(titles).toContain('Personal');
   });
 });
