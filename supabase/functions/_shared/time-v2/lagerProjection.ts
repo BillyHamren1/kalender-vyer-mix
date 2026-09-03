@@ -435,6 +435,7 @@ export function buildLagerContextProjection(input: LagerProjectionInput): LagerP
     warehouseAssignments,
     configuration: {
       missingFields,
+      recommendedFields,
       configPath: {
         locationTable: "organization_locations",
         locationTypeValue: "warehouse",
