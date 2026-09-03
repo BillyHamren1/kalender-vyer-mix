@@ -152,4 +152,18 @@ describe('canonical EventFlow sidebar contract', () => {
     expect(PLANNING_ACCENT.base).toBe(MODULE_PALETTE.planning.base);
     expect(WAREHOUSE_ACCENT.base).toBe(MODULE_PALETTE.warehouse.base);
   });
+
+  it('hides requested planning menu items from the sidebar', () => {
+    const titles = planningNav.map((item) => item.title);
+    expect(titles).not.toContain('Min sida');
+    expect(titles).not.toContain('Logistikplanering');
+    expect(titles).not.toContain('Transportplanering');
+    expect(titles).not.toContain('Ekonomiöversikt');
+
+    // Remaining top-level items still present
+    expect(titles).toContain('Dashboard');
+    expect(titles).toContain('Projekt');
+    expect(titles).toContain('Bemanningsplanering');
+    expect(titles).toContain('Personal');
+  });
 });
