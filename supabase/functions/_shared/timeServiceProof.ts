@@ -170,3 +170,99 @@ export const verifyServiceProofJwt = async (
   }
   return { ok: true, header, claims };
 };
+
+// ---------------------------------------------------------------------------
+// Seed-derived signing key (staging credential rotation path).
+//
+// The secret manager only holds a high-entropy random SEED
+// (TIME_ADAPTER_SIGNING_SEED, machine-generated, never revealed anywhere).
+// The ES256 private key is derived deterministically from that seed at
+// runtime (HKDF-SHA-256 -> P-256 scalar -> WebCrypto import) and exists only
+// in process memory. No private JWK is ever serialized into any transcript,
+// secret store, file, or log. The wire contract (`time-planning-service-proof.v1`)
+// is unchanged; only the public JWK / kid registered on the Time side changes.
+// ---------------------------------------------------------------------------
+
+export const SEED_DERIVATION_SALT = 'time-planning-service-proof.v1';
+export const SEED_DERIVATION_INFO = 'planning-staging-es256-signing-key.v2';
+
+/** Order n of the P-256 group (RFC 6090 / FIPS 186-4). */
+const P256_ORDER = BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551');
+
+const bytesToBigInt = (bytes: Uint8Array): bigint => {
+  let value = 0n;
+  for (const byte of bytes) value = (value << 8n) | BigInt(byte);
+  return value;
+};
+
+const bigIntTo32Bytes = (value: bigint): Uint8Array => {
+  const hex = value.toString(16).padStart(64, '0');
+  const out = new Uint8Array(32);
+  for (let i = 0; i < 32; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return out;
+};
+
+/** RFC 5915 ECPrivateKey (public point omitted) wrapped in RFC 5958 PKCS#8. */
+const buildPkcs8FromScalar = (d: Uint8Array): Uint8Array => {
+  const ecPrivateKey = new Uint8Array([0x30, 0x25, 0x02, 0x01, 0x01, 0x04, 0x20, ...d]);
+  const algorithmId = new Uint8Array([
+    0x30, 0x13,
+    0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01, // id-ecPublicKey
+    0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07, // prime256v1
+  ]);
+  return new Uint8Array([0x30, 0x41, 0x02, 0x01, 0x00, ...algorithmId, 0x04, 0x27, ...ecPrivateKey]);
+};
+
+export interface DerivedSigningKey {
+  key: CryptoKey;
+  keyId: string;
+  /** Safe to publish/register on the Time side. Never contains `d`. */
+  publicJwk: { kty: 'EC'; crv: 'P-256'; x: string; y: string; kid: string; alg: 'ES256'; use: 'sig' };
+}
+
+/**
+ * Deterministically derive the ES256 signing key from the secret seed.
+ * Same seed -> same key -> same kid (RFC 7638 thumbprint of the public JWK).
+ */
+export const deriveSigningKeyFromSeed = async (seed: string): Promise<DerivedSigningKey> => {
+  if (typeof seed !== 'string' || seed.trim().length < 32) {
+    throw new Error('TIME_ADAPTER_SIGNING_SEED must be at least 32 characters');
+  }
+  const ikm = await crypto.subtle.importKey('raw', encoder.encode(seed), 'HKDF', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: 'HKDF',
+      hash: 'SHA-256',
+      salt: encoder.encode(SEED_DERIVATION_SALT),
+      info: encoder.encode(SEED_DERIVATION_INFO),
+    },
+    ikm,
+    384,
+  );
+  // 384 bits mod (n-1) + 1 => uniform scalar in [1, n-1], bias < 2^-128.
+  const scalar = (bytesToBigInt(new Uint8Array(bits)) % (P256_ORDER - 1n)) + 1n;
+  const d = bigIntTo32Bytes(scalar);
+  const pkcs8 = buildPkcs8FromScalar(d);
+  d.fill(0);
+  const key = await crypto.subtle.importKey(
+    'pkcs8',
+    pkcs8 as unknown as BufferSource,
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    true,
+    ['sign'],
+  );
+  pkcs8.fill(0);
+  const exported = await crypto.subtle.exportKey('jwk', key);
+  if (!exported.x || !exported.y) throw new Error('Derived signing key is missing its public point');
+  // RFC 7638 EC thumbprint: SHA-256 over {"crv","kty","x","y"} in that member order.
+  const thumbprint = await crypto.subtle.digest(
+    'SHA-256',
+    encoder.encode(JSON.stringify({ crv: 'P-256', kty: 'EC', x: exported.x, y: exported.y })),
+  );
+  const kid = base64url(thumbprint);
+  return {
+    key,
+    keyId: kid,
+    publicJwk: { kty: 'EC', crv: 'P-256', x: exported.x, y: exported.y, kid, alg: 'ES256', use: 'sig' },
+  };
+};

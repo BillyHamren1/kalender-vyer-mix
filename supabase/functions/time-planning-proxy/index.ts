@@ -19,6 +19,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { assertPlanningAccess } from '../_shared/planningAccess.ts';
 import {
   buildServiceProofClaims,
+  deriveSigningKeyFromSeed,
   importSigningKey,
   SERVICE_PROOF_HEADER,
   sha256Hex,
