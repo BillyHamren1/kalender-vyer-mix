@@ -1,40 +1,41 @@
 /**
- * Planning → Time server-to-server request proof (staging service signing).
+ * Planning → Time server-to-server request proof.
  *
- * Contract: `time-planning-service-proof.v1`
+ * Contract: `time-planning-service-proof.v1`, aligned exactly with the Time v12
+ * verifier (commit 5022d52ddc82d27132ab4f58a6110b0eba0a89c8).
  *
- * The Planning proxy signs every upstream request with an ES256 (P-256) key
- * whose PRIVATE JWK lives only in the Planning server secret manager
- * (TIME_ADAPTER_SIGNING_PRIVATE_JWK). The Time boundary verifies the signature
- * against the corresponding PUBLIC JWK (identified by `keyId`).
+ * Wire format: ONE header `x-planning-service-proof` whose value is a compact
+ * three-segment ES256 JWT:
+ *   base64url(header) "." base64url(claims) "." base64url(raw WebCrypto signature)
  *
- * No Planning user JWT or browser credential is ever forwarded to Time.
+ * header: { alg: "ES256", typ: "JWT", kid: <private JWK kid> }
+ * claims: { schema, aud, operation, organizationId, iat, exp, nonce, bodySha256 }
+ *
+ * The ES256 private JWK lives only in the Planning server secret manager
+ * (TIME_ADAPTER_SIGNING_PRIVATE_JWK). No Planning user JWT or browser
+ * credential is ever forwarded to Time.
  */
 
 export const SERVICE_PROOF_SCHEMA = 'time-planning-service-proof.v1';
-export const SERVICE_PROOF_AUDIENCE = 'time-planning-adapter';
-export const SERVICE_PROOF_HEADER = 'X-EventFlow-Service-Proof';
-export const SERVICE_PROOF_SIGNATURE_HEADER = 'X-EventFlow-Service-Proof-Signature';
+export const SERVICE_PROOF_AUDIENCE = 'eventflow-time-planning-adapter';
+export const SERVICE_PROOF_HEADER = 'x-planning-service-proof';
 export const MAX_PROOF_TTL_SECONDS = 60;
 
-export interface ServiceProof {
+export interface ServiceProofClaims {
   schema: typeof SERVICE_PROOF_SCHEMA;
-  keyId: string;
-  audience: typeof SERVICE_PROOF_AUDIENCE;
-  issuedAt: string;
-  expiresAt: string;
-  nonce: string;
+  aud: typeof SERVICE_PROOF_AUDIENCE;
   operation: string;
   organizationId: string;
-  payloadDigest: string;
+  iat: number;
+  exp: number;
+  nonce: string;
+  bodySha256: string;
 }
 
-export interface SignedServiceProof {
-  proof: ServiceProof;
-  /** base64url(JSON(proof)) — exactly what is signed. */
-  encodedProof: string;
-  /** base64url(ES256 signature over `encodedProof`). */
-  signature: string;
+export interface ServiceProofHeader {
+  alg: 'ES256';
+  typ: 'JWT';
+  kid: string;
 }
 
 const encoder = new TextEncoder();
@@ -46,31 +47,38 @@ export const base64url = (bytes: ArrayBuffer | Uint8Array): string => {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 };
 
-/** SHA-256 digest of the exact JSON body that is sent upstream. */
-export const sha256Base64Url = async (text: string): Promise<string> =>
-  base64url(await crypto.subtle.digest('SHA-256', encoder.encode(text)));
+const base64urlDecode = (segment: string): Uint8Array =>
+  Uint8Array.from(atob(segment.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
 
-export const buildServiceProof = (input: {
-  keyId: string;
+const base64urlJson = (value: unknown): string => base64url(encoder.encode(JSON.stringify(value)));
+
+/** Lowercase 64-char hex SHA-256 of the exact JSON body bytes sent upstream. */
+export const sha256Hex = async (text: string): Promise<string> => {
+  const digest = await crypto.subtle.digest('SHA-256', encoder.encode(text));
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+};
+
+export const buildServiceProofClaims = (input: {
   operation: string;
   organizationId: string;
-  payloadDigest: string;
+  bodySha256: string;
   nonce?: string;
   now?: Date;
   ttlSeconds?: number;
-}): ServiceProof => {
-  const ttl = Math.min(Math.max(input.ttlSeconds ?? MAX_PROOF_TTL_SECONDS, 1), MAX_PROOF_TTL_SECONDS);
-  const issued = input.now ?? new Date();
+}): ServiceProofClaims => {
+  const ttl = Math.min(Math.max(Math.floor(input.ttlSeconds ?? MAX_PROOF_TTL_SECONDS), 1), MAX_PROOF_TTL_SECONDS);
+  const iat = Math.floor((input.now ?? new Date()).getTime() / 1000);
   return {
     schema: SERVICE_PROOF_SCHEMA,
-    keyId: input.keyId,
-    audience: SERVICE_PROOF_AUDIENCE,
-    issuedAt: issued.toISOString(),
-    expiresAt: new Date(issued.getTime() + ttl * 1000).toISOString(),
-    nonce: crypto.randomUUID ? crypto.randomUUID() : (input.nonce ?? `${issued.getTime()}`),
+    aud: SERVICE_PROOF_AUDIENCE,
     operation: input.operation,
     organizationId: input.organizationId,
-    payloadDigest: input.payloadDigest,
+    iat,
+    exp: iat + ttl,
+    nonce: input.nonce ?? (crypto.randomUUID ? crypto.randomUUID() : `${iat}-${Math.random()}`),
+    bodySha256: input.bodySha256,
   };
 };
 
@@ -94,26 +102,44 @@ export const importSigningKey = async (privateJwkJson: string): Promise<{ key: C
   return { key, keyId: jwk.kid ?? 'planning-staging' };
 };
 
-export const signServiceProof = async (
+/** Produce the compact ES256 JWT carried in `x-planning-service-proof`. */
+export const signServiceProofJwt = async (
   key: CryptoKey,
-  proof: ServiceProof,
-): Promise<SignedServiceProof> => {
-  const encodedProof = base64url(encoder.encode(JSON.stringify(proof)));
+  keyId: string,
+  claims: ServiceProofClaims,
+): Promise<string> => {
+  const header: ServiceProofHeader = { alg: 'ES256', typ: 'JWT', kid: keyId };
+  const signingInput = `${base64urlJson(header)}.${base64urlJson(claims)}`;
   const signature = await crypto.subtle.sign(
     { name: 'ECDSA', hash: 'SHA-256' },
     key,
-    encoder.encode(encodedProof),
+    encoder.encode(signingInput),
   );
-  return { proof, encodedProof, signature: base64url(signature) };
+  return `${signingInput}.${base64url(signature)}`;
 };
 
-/** Verification helper (used by tests and available to the Time side). */
-export const verifyServiceProof = async (
+/** Verifier mirroring Time v12 (used by fixture tests). */
+export const verifyServiceProofJwt = async (
   publicJwk: JsonWebKey,
-  encodedProof: string,
-  signature: string,
-  opts: { now?: Date; expectedDigest?: string } = {},
-): Promise<{ ok: true; proof: ServiceProof } | { ok: false; reason: string }> => {
+  token: string,
+  opts: { now?: Date; expectedBodySha256?: string } = {},
+): Promise<{ ok: true; header: ServiceProofHeader; claims: ServiceProofClaims } | { ok: false; reason: string }> => {
+  const segments = token.split('.');
+  if (segments.length !== 3) return { ok: false, reason: 'malformed_token' };
+  const [headerSegment, claimsSegment, signatureSegment] = segments;
+
+  let header: ServiceProofHeader;
+  let claims: ServiceProofClaims;
+  try {
+    header = JSON.parse(new TextDecoder().decode(base64urlDecode(headerSegment)));
+    claims = JSON.parse(new TextDecoder().decode(base64urlDecode(claimsSegment)));
+  } catch {
+    return { ok: false, reason: 'invalid_segments' };
+  }
+  if (header.alg !== 'ES256' || header.typ !== 'JWT' || typeof header.kid !== 'string' || !header.kid) {
+    return { ok: false, reason: 'invalid_header' };
+  }
+
   const key = await crypto.subtle.importKey(
     'jwk',
     { ...publicJwk, key_ops: ['verify'], ext: true, d: undefined } as JsonWebKey,
@@ -121,36 +147,26 @@ export const verifyServiceProof = async (
     false,
     ['verify'],
   );
-  const sigBytes = Uint8Array.from(
-    atob(signature.replace(/-/g, '+').replace(/_/g, '/')),
-    (c) => c.charCodeAt(0),
-  );
   const valid = await crypto.subtle.verify(
     { name: 'ECDSA', hash: 'SHA-256' },
     key,
-    sigBytes,
-    encoder.encode(encodedProof),
+    base64urlDecode(signatureSegment) as unknown as BufferSource,
+    encoder.encode(`${headerSegment}.${claimsSegment}`),
   );
   if (!valid) return { ok: false, reason: 'invalid_signature' };
 
-  let proof: ServiceProof;
-  try {
-    proof = JSON.parse(atob(encodedProof.replace(/-/g, '+').replace(/_/g, '/')));
-  } catch {
-    return { ok: false, reason: 'invalid_proof' };
+  if (claims.schema !== SERVICE_PROOF_SCHEMA) return { ok: false, reason: 'schema_mismatch' };
+  if (claims.aud !== SERVICE_PROOF_AUDIENCE) return { ok: false, reason: 'audience_mismatch' };
+  if (!Number.isInteger(claims.iat) || !Number.isInteger(claims.exp) || claims.iat <= 0 || claims.exp <= claims.iat) {
+    return { ok: false, reason: 'invalid_timestamps' };
   }
-  if (proof.schema !== SERVICE_PROOF_SCHEMA) return { ok: false, reason: 'schema_mismatch' };
-  if (proof.audience !== SERVICE_PROOF_AUDIENCE) return { ok: false, reason: 'audience_mismatch' };
+  if (claims.exp - claims.iat > MAX_PROOF_TTL_SECONDS) return { ok: false, reason: 'ttl_too_long' };
+  if (!/^[0-9a-f]{64}$/.test(claims.bodySha256 ?? '')) return { ok: false, reason: 'invalid_body_digest' };
 
-  const now = opts.now ?? new Date();
-  const issuedAt = Date.parse(proof.issuedAt);
-  const expiresAt = Date.parse(proof.expiresAt);
-  if (!Number.isFinite(issuedAt) || !Number.isFinite(expiresAt)) return { ok: false, reason: 'invalid_timestamps' };
-  if (expiresAt - issuedAt > MAX_PROOF_TTL_SECONDS * 1000) return { ok: false, reason: 'ttl_too_long' };
-  if (now.getTime() > expiresAt) return { ok: false, reason: 'expired' };
-
-  if (opts.expectedDigest && opts.expectedDigest !== proof.payloadDigest) {
+  const nowSeconds = Math.floor((opts.now ?? new Date()).getTime() / 1000);
+  if (nowSeconds > claims.exp) return { ok: false, reason: 'expired' };
+  if (opts.expectedBodySha256 && opts.expectedBodySha256 !== claims.bodySha256) {
     return { ok: false, reason: 'digest_mismatch' };
   }
-  return { ok: true, proof };
+  return { ok: true, header, claims };
 };

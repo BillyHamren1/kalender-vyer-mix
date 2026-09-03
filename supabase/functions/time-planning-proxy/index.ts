@@ -18,13 +18,13 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { assertPlanningAccess } from '../_shared/planningAccess.ts';
 import {
-  buildServiceProof,
+  buildServiceProofClaims,
   importSigningKey,
   SERVICE_PROOF_HEADER,
-  SERVICE_PROOF_SIGNATURE_HEADER,
-  sha256Base64Url,
-  signServiceProof,
+  sha256Hex,
+  signServiceProofJwt,
 } from '../_shared/timeServiceProof.ts';
+
 
 const TIME_BOUNDARY_SCHEMA = 'time-planning-boundary.v1';
 const TIME_ADAPTER_VERSION = 'time-planning-adapter.v2';
@@ -175,21 +175,21 @@ Deno.serve(async (req) => {
   if (signingJwk) {
     try {
       const { key, keyId } = await importSigningKey(signingJwk);
-      const signed = await signServiceProof(
+      // ONE header, compact ES256 JWT, digest bound to the exact bytes sent below.
+      headers[SERVICE_PROOF_HEADER] = await signServiceProofJwt(
         key,
-        buildServiceProof({
-          keyId,
+        keyId,
+        buildServiceProofClaims({
           operation,
           organizationId: String(timeOrganizationId),
-          payloadDigest: await sha256Base64Url(bodyText),
+          bodySha256: await sha256Hex(bodyText),
         }),
       );
-      headers[SERVICE_PROOF_HEADER] = signed.encodedProof;
-      headers[SERVICE_PROOF_SIGNATURE_HEADER] = signed.signature;
     } catch (e) {
       return fail(503, 'not_configured', `Tjänstesignering misslyckades: ${(e as Error)?.message ?? 'okänt fel'}`);
     }
   }
+
 
   let upstream: Response;
   try {
