@@ -157,3 +157,29 @@ Deno.test('seed shorter than 32 chars is rejected', async () => {
   }
   assert(threw, 'short seed must be rejected');
 });
+
+Deno.test('derived private key is non-extractable — private material can never be exported', async () => {
+  const derived = await deriveSigningKeyFromSeed('C'.repeat(64));
+  assertEquals(derived.key.extractable, false);
+  let exportThrew = false;
+  try {
+    await crypto.subtle.exportKey('jwk', derived.key);
+  } catch {
+    exportThrew = true;
+  }
+  assert(exportThrew, 'exportKey on the derived signing key must throw');
+});
+
+Deno.test('verifier rejects a token whose kid does not match the registered key (wrong kid)', async () => {
+  const a = await deriveSigningKeyFromSeed('D'.repeat(64));
+  const b = await deriveSigningKeyFromSeed('E'.repeat(64));
+  const bodySha256 = await sha256Hex('{}');
+  const token = await signServiceProofJwt(
+    a.key,
+    a.keyId,
+    buildServiceProofClaims({ operation: 'status', organizationId: 'org-1', bodySha256 }),
+  );
+  // Time-side lookup by kid: token signed by A can never verify against B's public JWK.
+  const rejected = await verifyServiceProofJwt(b.publicJwk as JsonWebKey, token, { expectedBodySha256: bodySha256 });
+  assertEquals(rejected.ok, false);
+});

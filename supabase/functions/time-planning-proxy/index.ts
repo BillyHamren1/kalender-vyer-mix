@@ -20,7 +20,6 @@ import { assertPlanningAccess } from '../_shared/planningAccess.ts';
 import {
   buildServiceProofClaims,
   deriveSigningKeyFromSeed,
-  importSigningKey,
   SERVICE_PROOF_HEADER,
   sha256Hex,
   signServiceProofJwt,
@@ -126,27 +125,26 @@ Deno.serve(async (req) => {
   }
 
   const operation = typeof body.operation === 'string' ? body.operation : '';
+
+  // ONLY signing path: ES256 key derived at runtime from the secret seed.
+  // The legacy TIME_ADAPTER_SIGNING_PRIVATE_JWK secret is intentionally never
+  // read anywhere in this function — the previously exposed private JWK can
+  // never become active again, even if the secret object still exists.
+  const signingSeed = Deno.env.get('TIME_ADAPTER_SIGNING_SEED');
+
   if (!ALLOWED_OPERATIONS.has(operation)) {
     return fail(400, 'unsupported_operation', `Unsupported Time operation: ${operation || '(none)'}`);
   }
 
   // Isolated staging/test configuration only. No value is invented here.
   const adapterUrl = Deno.env.get('TIME_ADAPTER_URL');
-  const systemToken = Deno.env.get('TIME_ADAPTER_SYSTEM_TOKEN');
   const anonKey = Deno.env.get('TIME_ADAPTER_ANON_KEY');
   // Time's tenant id for this Planning tenant. Server-side only; never from the client.
   const timeOrganizationId = Deno.env.get('TIME_ADAPTER_ORGANIZATION_ID') ?? access.organizationId;
 
-  // Effective staging path: signed service proof from a seed-derived key.
-  // The seed never leaves the secret manager; the ES256 private key exists
-  // only in process memory. Legacy private-JWK env and system token remain
-  // as compatibility fallbacks only.
-  const signingSeed = Deno.env.get('TIME_ADAPTER_SIGNING_SEED');
-  const signingJwk = Deno.env.get('TIME_ADAPTER_SIGNING_PRIVATE_JWK');
-
   const missing = [
     !adapterUrl ? 'TIME_ADAPTER_URL' : null,
-    !signingSeed && !signingJwk && !systemToken ? 'TIME_ADAPTER_SIGNING_SEED' : null,
+    !signingSeed ? 'TIME_ADAPTER_SIGNING_SEED' : null,
   ].filter(Boolean);
   if (missing.length) {
     return fail(
@@ -173,27 +171,22 @@ Deno.serve(async (req) => {
     'X-EventFlow-Consumer': 'planning-time-v2',
   };
   if (anonKey) headers.apikey = anonKey;
-  // Optional compatibility path only; never the Planning user's JWT.
-  if (systemToken) headers.Authorization = `Bearer ${systemToken}`;
 
-  if (signingSeed || signingJwk) {
-    try {
-      const { key, keyId } = signingSeed
-        ? await deriveSigningKeyFromSeed(signingSeed)
-        : await importSigningKey(signingJwk!);
-      // ONE header, compact ES256 JWT, digest bound to the exact bytes sent below.
-      headers[SERVICE_PROOF_HEADER] = await signServiceProofJwt(
-        key,
-        keyId,
-        buildServiceProofClaims({
-          operation,
-          organizationId: String(timeOrganizationId),
-          bodySha256: await sha256Hex(bodyText),
-        }),
-      );
-    } catch (e) {
-      return fail(503, 'not_configured', `Tjänstesignering misslyckades: ${(e as Error)?.message ?? 'okänt fel'}`);
-    }
+  // The ONLY signing path: seed-derived, non-extractable ES256 key.
+  // ONE header, compact ES256 JWT, digest bound to the exact bytes sent below.
+  try {
+    const { key, keyId } = await deriveSigningKeyFromSeed(signingSeed!);
+    headers[SERVICE_PROOF_HEADER] = await signServiceProofJwt(
+      key,
+      keyId,
+      buildServiceProofClaims({
+        operation,
+        organizationId: String(timeOrganizationId),
+        bodySha256: await sha256Hex(bodyText),
+      }),
+    );
+  } catch (e) {
+    return fail(503, 'not_configured', `Tjänstesignering misslyckades: ${(e as Error)?.message ?? 'okänt fel'}`);
   }
 
 
@@ -209,11 +202,11 @@ Deno.serve(async (req) => {
   }
 
   const raw = await upstream.json().catch(() => null);
+  // NOTE: logs header NAMES only — never header values, seed, or key material.
   console.log('[time-planning-proxy] upstream', {
     operation,
     status: upstream.status,
     sentHeaders: Object.keys(headers).join(','),
-    hasSystemToken: Boolean(systemToken),
     hasAnonKey: Boolean(anonKey),
     organizationId: String(timeOrganizationId),
     body: JSON.stringify(raw)?.slice(0, 500),
