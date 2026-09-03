@@ -148,9 +148,14 @@ export interface InternalLagerLocationTarget {
   longitude: number | null;
   radiusMeters: number | null;
   geofenceMode: string | null;
-  /** True only when label + address + lat + lon + radius are all Planning-owned values. */
+  /**
+   * True when Planning owns a usable geofence identity: canonical label +
+   * finite lat/lon + positive radius (address/location_type are metadata).
+   */
   isExact: boolean;
   missingFields: string[];
+  /** Nice-to-have Planning metadata; never blocks exactness. */
+  recommendedFields: string[];
   provenance: LagerProvenance;
 }
 
@@ -194,6 +199,8 @@ export interface LagerProjection {
   configuration: {
     /** Human-supplied Planning fields still required before Time can bind exactly. */
     missingFields: string[];
+    /** Recommended metadata (address, warehouse location_type). Not blockers. */
+    recommendedFields: string[];
     /** Where an operator enters/selects the canonical location. */
     configPath: {
       locationTable: "organization_locations";
@@ -229,7 +236,11 @@ export function resolveCanonicalLagerLocation(
   organizationId: string,
   locations: OrganizationLocationRow[],
   internalProjects: InternalLagerProjectRow[],
-): { location: InternalLagerLocationTarget | null; missingFields: string[] } {
+): {
+  location: InternalLagerLocationTarget | null;
+  missingFields: string[];
+  recommendedFields: string[];
+} {
   const orgLocations = locations.filter((l) => l.organization_id === organizationId);
   const internal = internalProjects.filter(
     (p) => p.organization_id === organizationId && p.is_internal === true,
@@ -249,8 +260,8 @@ export function resolveCanonicalLagerLocation(
       location: null,
       missingFields: [
         "projects.location_id (internal Lager project → organization_locations)",
-        "organization_locations.location_type = 'warehouse'",
       ],
+      recommendedFields: ["organization_locations.location_type = 'warehouse'"],
     };
   }
 
@@ -260,19 +271,29 @@ export function resolveCanonicalLagerLocation(
   const longitude = num(row.longitude);
   const radiusMeters = num(row.radius_meters);
 
+  // Geofence identity blockers only. A Planning-owned link + finite lat/lon +
+  // positive radius IS an exact target; address and legacy location_type are
+  // display/metadata, never identity requirements.
   const missingFields: string[] = [];
   if (!label) missingFields.push("organization_locations.name");
-  if (!address) missingFields.push("organization_locations.address");
   if (latitude === null) missingFields.push("organization_locations.latitude");
   if (longitude === null) missingFields.push("organization_locations.longitude");
   if (radiusMeters === null || radiusMeters <= 0) {
     missingFields.push("organization_locations.radius_meters");
   }
-  if (row.location_type !== "warehouse") {
-    missingFields.push("organization_locations.location_type = 'warehouse'");
-  }
   if (!linked) {
     missingFields.push("projects.location_id (internal Lager project → organization_locations)");
+  }
+
+  const recommendedFields: string[] = [];
+  if (!address) recommendedFields.push("organization_locations.address");
+  if (row.location_type !== "warehouse") {
+    recommendedFields.push("organization_locations.location_type = 'warehouse'");
+  }
+
+  // Honest null: no usable geofence identity → Time gets nothing to bind to.
+  if (missingFields.length > 0) {
+    return { location: null, missingFields, recommendedFields };
   }
 
   return {
@@ -282,14 +303,15 @@ export function resolveCanonicalLagerLocation(
       organizationId,
       locationId: row.id,
       internalProjectId: linked?.id ?? internal[0]?.id ?? null,
-      label: label ?? "",
+      label: label as string,
       address,
       latitude,
       longitude,
       radiusMeters,
       geofenceMode: text(row.geofence_mode),
-      isExact: missingFields.length === 0,
+      isExact: true,
       missingFields,
+      recommendedFields,
       provenance: {
         sourceTable: "organization_locations",
         sourceRecordId: row.id,
@@ -298,16 +320,16 @@ export function resolveCanonicalLagerLocation(
       },
     },
     missingFields,
+    recommendedFields,
   };
 }
 
-/** Full read-only projection. Pure: never writes, never invents values. */
 export function buildLagerContextProjection(input: LagerProjectionInput): LagerProjection {
   const { organizationId, from, to } = input;
   const staffFilter =
     input.staffIds && input.staffIds.length > 0 ? new Set(input.staffIds) : null;
 
-  const { location, missingFields } = resolveCanonicalLagerLocation(
+  const { location, missingFields, recommendedFields } = resolveCanonicalLagerLocation(
     organizationId,
     input.locations ?? [],
     input.internalProjects ?? [],
@@ -413,6 +435,7 @@ export function buildLagerContextProjection(input: LagerProjectionInput): LagerP
     warehouseAssignments,
     configuration: {
       missingFields,
+      recommendedFields,
       configPath: {
         locationTable: "organization_locations",
         locationTypeValue: "warehouse",
