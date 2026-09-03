@@ -11,9 +11,11 @@
  * header: { alg: "ES256", typ: "JWT", kid: <private JWK kid> }
  * claims: { schema, aud, operation, organizationId, iat, exp, nonce, bodySha256 }
  *
- * The ES256 private JWK lives only in the Planning server secret manager
- * (TIME_ADAPTER_SIGNING_PRIVATE_JWK). No Planning user JWT or browser
- * credential is ever forwarded to Time.
+ * Signing key: derived at runtime from the secret seed
+ * (TIME_ADAPTER_SIGNING_SEED) via deriveSigningKeyFromSeed below. No private
+ * JWK is stored anywhere and no Planning user JWT or browser credential is
+ * ever forwarded to Time. The legacy TIME_ADAPTER_SIGNING_PRIVATE_JWK secret
+ * is retired and must never be read by any runtime signing path.
  */
 
 export const SERVICE_PROOF_SCHEMA = 'time-planning-service-proof.v1';
@@ -82,15 +84,21 @@ export const buildServiceProofClaims = (input: {
   };
 };
 
+/**
+ * TEST-FIXTURE HELPER ONLY. Imports an arbitrary P-256 private JWK so the
+ * fixture tests can generate throwaway keypairs. This is intentionally NOT
+ * used by any runtime signing path — production/staging signing derives its
+ * key exclusively from TIME_ADAPTER_SIGNING_SEED (deriveSigningKeyFromSeed).
+ */
 export const importSigningKey = async (privateJwkJson: string): Promise<{ key: CryptoKey; keyId: string }> => {
   let jwk: JsonWebKey & { kid?: string };
   try {
     jwk = JSON.parse(privateJwkJson);
   } catch {
-    throw new Error('TIME_ADAPTER_SIGNING_PRIVATE_JWK is not valid JSON');
+    throw new Error('signing JWK is not valid JSON');
   }
   if (jwk.kty !== 'EC' || jwk.crv !== 'P-256' || !jwk.d) {
-    throw new Error('TIME_ADAPTER_SIGNING_PRIVATE_JWK must be a P-256 private JWK');
+    throw new Error('signing JWK must be a P-256 private JWK');
   }
   const key = await crypto.subtle.importKey(
     'jwk',
@@ -244,7 +252,10 @@ export const deriveSigningKeyFromSeed = async (seed: string): Promise<DerivedSig
   const d = bigIntTo32Bytes(scalar);
   const pkcs8 = buildPkcs8FromScalar(d);
   d.fill(0);
-  const key = await crypto.subtle.importKey(
+  // Bootstrap import only exists to obtain the public point; the returned
+  // signing key below is re-imported as NON-extractable so private material
+  // can never be exported or serialized after derivation.
+  const bootstrapKey = await crypto.subtle.importKey(
     'pkcs8',
     pkcs8 as unknown as BufferSource,
     { name: 'ECDSA', namedCurve: 'P-256' },
@@ -252,8 +263,18 @@ export const deriveSigningKeyFromSeed = async (seed: string): Promise<DerivedSig
     ['sign'],
   );
   pkcs8.fill(0);
-  const exported = await crypto.subtle.exportKey('jwk', key);
-  if (!exported.x || !exported.y) throw new Error('Derived signing key is missing its public point');
+  const exported = await crypto.subtle.exportKey('jwk', bootstrapKey) as JsonWebKey;
+  if (!exported.x || !exported.y || !exported.d) {
+    throw new Error('Derived signing key is missing its key material');
+  }
+  const key = await crypto.subtle.importKey(
+    'jwk',
+    { kty: 'EC', crv: 'P-256', x: exported.x, y: exported.y, d: exported.d, key_ops: ['sign'], ext: true },
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    false, // non-extractable: the private scalar is sealed inside WebCrypto
+    ['sign'],
+  );
+  delete exported.d; // drop the only remaining private-scalar reference
   // RFC 7638 EC thumbprint: SHA-256 over {"crv","kty","x","y"} in that member order.
   const thumbprint = await crypto.subtle.digest(
     'SHA-256',
