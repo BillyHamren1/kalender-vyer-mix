@@ -49,6 +49,12 @@ const base = (over: Partial<LagerProjectionInput> = {}): LagerProjectionInput =>
   staffIds: null,
   locations: [location()],
   internalProjects: [internalProject()],
+  staffMembers: [
+    { id: 's1', organization_id: ORG, name: 'S1', is_active: true },
+    { id: 's2', organization_id: ORG, name: 'S2', is_active: true },
+    { id: 's3', organization_id: ORG, name: 'Raivis', is_active: true },
+    { id: 's9', organization_id: OTHER, name: 'Annan org', is_active: true },
+  ] as never,
   staffAssignments: [],
   warehouseAssignments: [],
   warehouseCalendarEvents: [],
@@ -289,5 +295,64 @@ describe('no source writes', () => {
   it('the tenant is resolved server-side, never taken from the request body', () => {
     expect(fn).toContain('const organizationId = access.organizationId;');
     expect(fn).not.toContain('body.organizationId');
+  });
+});
+
+
+describe('permitted targets vs scheduled applicability (site availability)', () => {
+  const day = { from: '2026-06-04', to: '2026-06-04' } as const;
+  const raivisTeam4 = [{
+    id: 'sa-raivis', organization_id: ORG, staff_id: 's3', team_id: 'team-4', assignment_date: '2026-06-04',
+  }] as never;
+
+  it('same-org non-Lager-team worker still gets the exact permitted Lager target', () => {
+    const p = buildLagerContextProjection(base({ ...day, staffAssignments: raivisTeam4, staffIds: ['s3'] }));
+    expect(p.permittedTargets).toHaveLength(1);
+    expect(p.permittedTargets[0]).toMatchObject({
+      kind: 'permitted_location',
+      staffId: 's3',
+      date: '2026-06-04',
+      targetKey: 'planning:location:loc-1',
+      label: 'FA Warehouse',
+      latitude: 59.49,
+      longitude: 17.85,
+      radiusMeters: 200,
+      requiresEvidence: true,
+      scheduled: false,
+    });
+    // Schedule truth stays honest: team-4 is not a Lager team.
+    expect(p.scheduledApplicability).toEqual([]);
+  });
+
+  it('workers from another organization never receive the target', () => {
+    const p = buildLagerContextProjection(base({ ...day, staffIds: ['s9'] }));
+    expect(p.permittedTargets).toEqual([]);
+  });
+
+  it('a permitted target is a candidate only — it never asserts worked time', () => {
+    const p = buildLagerContextProjection(base({ ...day, staffAssignments: raivisTeam4 }));
+    expect(p.permittedTargets.every((t) => t.requiresEvidence === true)).toBe(true);
+    expect(p.permittedTargets.every((t) => t.provenance.isWorkEvidence === false)).toBe(true);
+    expect(JSON.stringify(p.permittedTargets)).not.toMatch(/minutes|hours|worked/i);
+  });
+
+  it('a transport/lager-* assignment stays schedule context and only flags scheduled=true', () => {
+    const p = buildLagerContextProjection(base({
+      ...day,
+      staffIds: ['s1'],
+      staffAssignments: [{
+        id: 'sa-1', organization_id: ORG, staff_id: 's1', team_id: 'transport', assignment_date: '2026-06-04',
+      }] as never,
+    }));
+    expect(p.scheduledApplicability).toHaveLength(1);
+    expect(p.scheduledApplicability[0].provenance.isWorkEvidence).toBe(false);
+    expect(p.permittedTargets[0].scheduled).toBe(true);
+    expect(p.permittedTargets[0].requiresEvidence).toBe(true);
+  });
+
+  it('no permitted targets when Planning has no exact Lager location', () => {
+    const p = buildLagerContextProjection(base({ ...day, locations: [] }));
+    expect(p.location).toBeNull();
+    expect(p.permittedTargets).toEqual([]);
   });
 });

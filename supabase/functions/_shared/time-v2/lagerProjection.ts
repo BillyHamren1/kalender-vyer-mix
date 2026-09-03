@@ -60,6 +60,13 @@ export interface InternalLagerProjectRow {
   location_id: string | null;
 }
 
+export interface StaffMemberRow {
+  id: string;
+  organization_id: string;
+  name: string | null;
+  is_active: boolean | null;
+}
+
 export interface StaffAssignmentRow {
   id: string;
   organization_id: string;
@@ -111,6 +118,8 @@ export interface LagerProjectionInput {
   staffIds?: string[] | null;
   locations: OrganizationLocationRow[];
   internalProjects: InternalLagerProjectRow[];
+  /** Active personnel in the organization. Lager is a known org place for all of them. */
+  staffMembers?: StaffMemberRow[];
   staffAssignments: StaffAssignmentRow[];
   warehouseAssignments: WarehouseAssignmentRow[];
   warehouseCalendarEvents: WarehouseCalendarEventRow[];
@@ -159,6 +168,31 @@ export interface InternalLagerLocationTarget {
   provenance: LagerProvenance;
 }
 
+/**
+ * Site availability: the exact Lager place is a *permitted candidate* for every
+ * active member of the organization on the requested dates. Permission to
+ * recognise the physical site — never worked time. Time must still require GPS
+ * dwell evidence or a worker correction before claiming Lager work.
+ */
+export interface LagerPermittedTarget {
+  kind: "permitted_location";
+  targetKey: string;
+  organizationId: string;
+  staffId: string;
+  date: string;
+  locationId: string;
+  label: string;
+  latitude: number;
+  longitude: number;
+  radiusMeters: number;
+  address: string | null;
+  /** Always true: Planning permits recognition, it does not assert presence. */
+  requiresEvidence: true;
+  /** Whether this worker also has a transport/lager-* schedule row that date. */
+  scheduled: boolean;
+  provenance: LagerProvenance;
+}
+
 export interface LagerApplicability {
   staffId: string;
   date: string;
@@ -194,6 +228,11 @@ export interface LagerProjection {
   range: { from: string; to: string };
   /** null when Planning has no canonical Lager location configured. Never fabricated. */
   location: InternalLagerLocationTarget | null;
+  /** Site availability per active worker/date. Candidates only, evidence required. */
+  permittedTargets: LagerPermittedTarget[];
+  /** Optional schedule context (transport/lager-* teams). Never worked time. */
+  scheduledApplicability: LagerApplicability[];
+  /** @deprecated alias of `scheduledApplicability`. */
   applicability: LagerApplicability[];
   warehouseAssignments: WarehouseAssignmentTarget[];
   configuration: {
@@ -214,6 +253,18 @@ export interface LagerProjection {
 
 const inRange = (date: string | null | undefined, from: string, to: string) =>
   typeof date === "string" && date >= from && date <= to;
+
+/** Inclusive YYYY-MM-DD enumeration, capped so a huge range cannot explode. */
+const datesInRange = (from: string, to: string, max = 62): string[] => {
+  const out: string[] = [];
+  const cursor = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  while (cursor <= end && out.length < max) {
+    out.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return out;
+};
 
 const dateOf = (iso: string | null | undefined): string | null =>
   typeof iso === "string" && iso.length >= 10 ? iso.slice(0, 10) : null;
@@ -356,6 +407,47 @@ export function buildLagerContextProjection(input: LagerProjectionInput): LagerP
     }))
     .sort((a, b) => (a.date === b.date ? a.staffId.localeCompare(b.staffId) : a.date < b.date ? -1 : 1));
 
+  // Site availability: the known org place is permitted for every active member
+  // of the organization on each requested date, regardless of team_id.
+  const permittedTargets: LagerPermittedTarget[] = [];
+  if (location && location.latitude !== null && location.longitude !== null && location.radiusMeters !== null) {
+    const scheduledKeys = new Set(applicability.map((a) => `${a.staffId}|${a.date}`));
+    const members = (input.staffMembers ?? []).filter(
+      (m) =>
+        m.organization_id === organizationId &&
+        m.is_active !== false &&
+        (!staffFilter || staffFilter.has(m.id)),
+    );
+    for (const date of datesInRange(from, to)) {
+      for (const m of members) {
+        permittedTargets.push({
+          kind: "permitted_location",
+          targetKey: location.targetKey,
+          organizationId,
+          staffId: m.id,
+          date,
+          locationId: location.locationId,
+          label: location.label,
+          latitude: location.latitude,
+          longitude: location.longitude,
+          radiusMeters: location.radiusMeters,
+          address: location.address,
+          requiresEvidence: true,
+          scheduled: scheduledKeys.has(`${m.id}|${date}`),
+          provenance: {
+            sourceTable: "organization_locations",
+            sourceRecordId: location.locationId,
+            contextType: "schedule_context",
+            isWorkEvidence: false,
+          },
+        });
+      }
+    }
+    permittedTargets.sort((a, b) =>
+      a.date === b.date ? a.staffId.localeCompare(b.staffId) : a.date < b.date ? -1 : 1,
+    );
+  }
+
   const fromAssignments: WarehouseAssignmentTarget[] = (input.warehouseAssignments ?? [])
     .filter(
       (row) =>
@@ -431,6 +523,8 @@ export function buildLagerContextProjection(input: LagerProjectionInput): LagerP
     organizationId,
     range: { from, to },
     location,
+    permittedTargets,
+    scheduledApplicability: applicability,
     applicability,
     warehouseAssignments,
     configuration: {

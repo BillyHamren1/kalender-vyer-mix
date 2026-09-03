@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
   // Tenant is resolved server-side; a client-supplied organizationId is ignored.
   const organizationId = access.organizationId;
 
-  const [locations, internalProjects, staffAssignments, warehouseAssignments, warehouseEvents] =
+  const [locations, internalProjects, staffMembers, staffAssignments, warehouseAssignments, warehouseEvents] =
     await Promise.all([
       admin
         .from('organization_locations')
@@ -87,6 +87,10 @@ Deno.serve(async (req) => {
         .select('id, organization_id, name, is_internal, location_id')
         .eq('organization_id', organizationId)
         .eq('is_internal', true),
+      admin
+        .from('staff_members')
+        .select('id, organization_id, name, is_active')
+        .eq('organization_id', organizationId),
       admin
         .from('staff_assignments')
         .select('id, organization_id, staff_id, team_id, assignment_date')
@@ -108,7 +112,7 @@ Deno.serve(async (req) => {
     ]);
 
   const firstError =
-    locations.error || internalProjects.error || staffAssignments.error ||
+    locations.error || internalProjects.error || staffMembers.error || staffAssignments.error ||
     warehouseAssignments.error || warehouseEvents.error;
   if (firstError) {
     console.error('[planning-lager-context] read failed', firstError);
@@ -122,6 +126,7 @@ Deno.serve(async (req) => {
     staffIds,
     locations: (locations.data ?? []) as never,
     internalProjects: (internalProjects.data ?? []) as never,
+    staffMembers: (staffMembers.data ?? []) as never,
     staffAssignments: (staffAssignments.data ?? []) as never,
     warehouseAssignments: (warehouseAssignments.data ?? []) as never,
     warehouseCalendarEvents: (warehouseEvents.data ?? []) as never,
