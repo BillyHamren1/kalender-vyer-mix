@@ -185,27 +185,22 @@ Deno.serve(async (req) => {
     'X-EventFlow-Consumer': 'planning-time-v2',
   };
   if (anonKey) headers.apikey = anonKey;
-  // Optional compatibility path only; never the Planning user's JWT.
-  if (systemToken) headers.Authorization = `Bearer ${systemToken}`;
 
-  if (signingSeed || signingJwk) {
-    try {
-      const { key, keyId } = signingSeed
-        ? await deriveSigningKeyFromSeed(signingSeed)
-        : await importSigningKey(signingJwk!);
-      // ONE header, compact ES256 JWT, digest bound to the exact bytes sent below.
-      headers[SERVICE_PROOF_HEADER] = await signServiceProofJwt(
-        key,
-        keyId,
-        buildServiceProofClaims({
-          operation,
-          organizationId: String(timeOrganizationId),
-          bodySha256: await sha256Hex(bodyText),
-        }),
-      );
-    } catch (e) {
-      return fail(503, 'not_configured', `Tjänstesignering misslyckades: ${(e as Error)?.message ?? 'okänt fel'}`);
-    }
+  // The ONLY signing path: seed-derived, non-extractable ES256 key.
+  // ONE header, compact ES256 JWT, digest bound to the exact bytes sent below.
+  try {
+    const { key, keyId } = await deriveSigningKeyFromSeed(signingSeed!);
+    headers[SERVICE_PROOF_HEADER] = await signServiceProofJwt(
+      key,
+      keyId,
+      buildServiceProofClaims({
+        operation,
+        organizationId: String(timeOrganizationId),
+        bodySha256: await sha256Hex(bodyText),
+      }),
+    );
+  } catch (e) {
+    return fail(503, 'not_configured', `Tjänstesignering misslyckades: ${(e as Error)?.message ?? 'okänt fel'}`);
   }
 
 
@@ -221,11 +216,11 @@ Deno.serve(async (req) => {
   }
 
   const raw = await upstream.json().catch(() => null);
+  // NOTE: logs header NAMES only — never header values, seed, or key material.
   console.log('[time-planning-proxy] upstream', {
     operation,
     status: upstream.status,
     sentHeaders: Object.keys(headers).join(','),
-    hasSystemToken: Boolean(systemToken),
     hasAnonKey: Boolean(anonKey),
     organizationId: String(timeOrganizationId),
     body: JSON.stringify(raw)?.slice(0, 500),
