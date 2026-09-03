@@ -60,7 +60,7 @@ interface NavItem {
   children?: NavChild[];
 }
 
-const baseNavigationItems: NavItem[] = [
+export const baseNavigationItems: NavItem[] = [
   {
     title: "Dashboard",
     url: "/projects",
