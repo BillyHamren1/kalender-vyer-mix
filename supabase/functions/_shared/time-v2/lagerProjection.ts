@@ -60,6 +60,13 @@ export interface InternalLagerProjectRow {
   location_id: string | null;
 }
 
+export interface StaffMemberRow {
+  id: string;
+  organization_id: string;
+  name: string | null;
+  is_active: boolean | null;
+}
+
 export interface StaffAssignmentRow {
   id: string;
   organization_id: string;
@@ -111,6 +118,8 @@ export interface LagerProjectionInput {
   staffIds?: string[] | null;
   locations: OrganizationLocationRow[];
   internalProjects: InternalLagerProjectRow[];
+  /** Active personnel in the organization. Lager is a known org place for all of them. */
+  staffMembers?: StaffMemberRow[];
   staffAssignments: StaffAssignmentRow[];
   warehouseAssignments: WarehouseAssignmentRow[];
   warehouseCalendarEvents: WarehouseCalendarEventRow[];
@@ -159,6 +168,31 @@ export interface InternalLagerLocationTarget {
   provenance: LagerProvenance;
 }
 
+/**
+ * Site availability: the exact Lager place is a *permitted candidate* for every
+ * active member of the organization on the requested dates. Permission to
+ * recognise the physical site — never worked time. Time must still require GPS
+ * dwell evidence or a worker correction before claiming Lager work.
+ */
+export interface LagerPermittedTarget {
+  kind: "permitted_location";
+  targetKey: string;
+  organizationId: string;
+  staffId: string;
+  date: string;
+  locationId: string;
+  label: string;
+  latitude: number;
+  longitude: number;
+  radiusMeters: number;
+  address: string | null;
+  /** Always true: Planning permits recognition, it does not assert presence. */
+  requiresEvidence: true;
+  /** Whether this worker also has a transport/lager-* schedule row that date. */
+  scheduled: boolean;
+  provenance: LagerProvenance;
+}
+
 export interface LagerApplicability {
   staffId: string;
   date: string;
@@ -194,6 +228,11 @@ export interface LagerProjection {
   range: { from: string; to: string };
   /** null when Planning has no canonical Lager location configured. Never fabricated. */
   location: InternalLagerLocationTarget | null;
+  /** Site availability per active worker/date. Candidates only, evidence required. */
+  permittedTargets: LagerPermittedTarget[];
+  /** Optional schedule context (transport/lager-* teams). Never worked time. */
+  scheduledApplicability: LagerApplicability[];
+  /** @deprecated alias of `scheduledApplicability`. */
   applicability: LagerApplicability[];
   warehouseAssignments: WarehouseAssignmentTarget[];
   configuration: {
