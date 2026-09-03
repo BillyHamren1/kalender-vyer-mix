@@ -14,6 +14,7 @@ import {
   resolveActiveNavIndex,
 } from '@/lib/layout/sidebarContract';
 import { MODULE_PALETTE } from '@/lib/layout/moduleAccents';
+import { baseNavigationItems as planningNav } from '@/components/Sidebar3D';
 
 const read = (p: string) => fs.readFileSync(path.resolve(process.cwd(), p), 'utf8');
 
