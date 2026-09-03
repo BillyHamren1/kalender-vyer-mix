@@ -137,13 +137,16 @@ Deno.serve(async (req) => {
   // Time's tenant id for this Planning tenant. Server-side only; never from the client.
   const timeOrganizationId = Deno.env.get('TIME_ADAPTER_ORGANIZATION_ID') ?? access.organizationId;
 
-  // Effective staging path: signed service proof. The legacy system token is
-  // kept only as an optional compatibility path.
+  // Effective staging path: signed service proof from a seed-derived key.
+  // The seed never leaves the secret manager; the ES256 private key exists
+  // only in process memory. Legacy private-JWK env and system token remain
+  // as compatibility fallbacks only.
+  const signingSeed = Deno.env.get('TIME_ADAPTER_SIGNING_SEED');
   const signingJwk = Deno.env.get('TIME_ADAPTER_SIGNING_PRIVATE_JWK');
 
   const missing = [
     !adapterUrl ? 'TIME_ADAPTER_URL' : null,
-    !signingJwk && !systemToken ? 'TIME_ADAPTER_SIGNING_PRIVATE_JWK' : null,
+    !signingSeed && !signingJwk && !systemToken ? 'TIME_ADAPTER_SIGNING_SEED' : null,
   ].filter(Boolean);
   if (missing.length) {
     return fail(
@@ -173,9 +176,11 @@ Deno.serve(async (req) => {
   // Optional compatibility path only; never the Planning user's JWT.
   if (systemToken) headers.Authorization = `Bearer ${systemToken}`;
 
-  if (signingJwk) {
+  if (signingSeed || signingJwk) {
     try {
-      const { key, keyId } = await importSigningKey(signingJwk);
+      const { key, keyId } = signingSeed
+        ? await deriveSigningKeyFromSeed(signingSeed)
+        : await importSigningKey(signingJwk!);
       // ONE header, compact ES256 JWT, digest bound to the exact bytes sent below.
       headers[SERVICE_PROOF_HEADER] = await signServiceProofJwt(
         key,

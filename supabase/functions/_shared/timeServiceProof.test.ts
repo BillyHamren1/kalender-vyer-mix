@@ -1,6 +1,7 @@
 import { assert, assertEquals, assertMatch } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 import {
   buildServiceProofClaims,
+  deriveSigningKeyFromSeed,
   importSigningKey,
   MAX_PROOF_TTL_SECONDS,
   SERVICE_PROOF_AUDIENCE,
@@ -122,4 +123,37 @@ Deno.test('nonces are unique per proof', async () => {
   const a = buildServiceProofClaims({ operation: 'status', organizationId: 'o', bodySha256 });
   const b = buildServiceProofClaims({ operation: 'status', organizationId: 'o', bodySha256 });
   assert(a.nonce !== b.nonce);
+});
+
+Deno.test('seed-derived key is deterministic, verifiable, and never exposes private material', async () => {
+  const seed = 'A'.repeat(48) + '0123456789abcdef';
+  const a = await deriveSigningKeyFromSeed(seed);
+  const b = await deriveSigningKeyFromSeed(seed);
+  assertEquals(a.keyId, b.keyId);
+  assertEquals(a.publicJwk, b.publicJwk);
+  assert(!('d' in a.publicJwk), 'public JWK must never contain d');
+
+  const other = await deriveSigningKeyFromSeed('B'.repeat(64));
+  assert(other.keyId !== a.keyId, 'different seed must give different kid');
+
+  const bodySha256 = await sha256Hex('{}');
+  const token = await signServiceProofJwt(
+    a.key,
+    a.keyId,
+    buildServiceProofClaims({ operation: 'status', organizationId: 'org-1', bodySha256 }),
+  );
+  const ok = await verifyServiceProofJwt(a.publicJwk as JsonWebKey, token, { expectedBodySha256: bodySha256 });
+  assert(ok.ok, 'derived-key token should verify against its own public JWK');
+  if (ok.ok) assertEquals(ok.header.kid, a.keyId);
+  assertEquals((await verifyServiceProofJwt(other.publicJwk as JsonWebKey, token)).ok, false);
+});
+
+Deno.test('seed shorter than 32 chars is rejected', async () => {
+  let threw = false;
+  try {
+    await deriveSigningKeyFromSeed('too-short');
+  } catch {
+    threw = true;
+  }
+  assert(threw, 'short seed must be rejected');
 });
