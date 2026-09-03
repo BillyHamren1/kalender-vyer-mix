@@ -7,16 +7,10 @@ import {
   ChevronDown,
   ChevronsLeft,
   FolderKanban,
-  PieChart,
-  Truck,
-  MapPin,
   Wallet,
   ExternalLink,
   Sparkles,
   CalendarClock,
-  UserRound,
-  CalendarDays,
-  ListChecks,
   LayoutDashboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
