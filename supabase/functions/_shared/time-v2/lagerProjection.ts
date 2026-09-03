@@ -321,7 +321,7 @@ export function buildLagerContextProjection(input: LagerProjectionInput): LagerP
         inRange(row.assignment_date, from, to) &&
         (!staffFilter || staffFilter.has(row.staff_id)),
     )
-    .map((row) => ({
+    .map((row): LagerApplicability => ({
       staffId: row.staff_id,
       date: row.assignment_date,
       teamId: row.team_id as string,
