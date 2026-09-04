@@ -22,6 +22,7 @@ import {
   buildLagerContextProjection,
   PLANNING_LAGER_CONTEXT_SCHEMA,
 } from '../_shared/time-v2/lagerProjection.ts';
+import { readLagerProjectionInputs } from '../_shared/time-v2/lagerContextReads.ts';
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), {
