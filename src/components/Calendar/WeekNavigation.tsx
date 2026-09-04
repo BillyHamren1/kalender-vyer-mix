@@ -19,11 +19,12 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
-interface WeekNavigationProps {
+interface WeekNavigationProps<T extends string> {
   currentWeekStart: Date;
   setCurrentWeekStart: (date: Date) => void;
-  viewMode?: 'day' | 'weekly' | 'monthly' | 'list';
-  onViewModeChange?: (mode: 'day' | 'weekly' | 'monthly' | 'list') => void;
+  viewMode?: T;
+  onViewModeChange?: (mode: T) => void;
+  viewOptions?: ReadonlyArray<{ key: T; label: string }>;
   // Monthly mode props
   currentMonth?: Date;
   onMonthChange?: (date: Date) => void;
@@ -47,15 +48,16 @@ const getYearOptions = () => {
   return years;
 };
 
-const WeekNavigation: React.FC<WeekNavigationProps> = ({
+const WeekNavigation = <T extends string,>({
   currentWeekStart,
   setCurrentWeekStart,
   viewMode,
   onViewModeChange,
+  viewOptions,
   currentMonth,
   onMonthChange,
   variant = 'default'
-}) => {
+}: WeekNavigationProps<T>) => {
   const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   // Determine if we're in monthly mode
@@ -155,12 +157,12 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
     ? 'bg-warehouse text-white shadow-sm'
     : 'bg-primary text-primary-foreground shadow-sm';
 
-  const viewOptions: Array<{ key: 'day' | 'weekly' | 'monthly' | 'list'; label: string }> = [
+  const resolvedViewOptions: ReadonlyArray<{ key: T; label: string }> = viewOptions || ([
     { key: 'day', label: 'Dag' },
     { key: 'weekly', label: 'Vecka' },
     { key: 'monthly', label: 'Månad' },
     { key: 'list', label: 'Lista' },
-  ];
+  ] as ReadonlyArray<{ key: T; label: string }>);
 
   return (
     <div className="flex items-center justify-between gap-4 bg-white/95 backdrop-blur border-b border-border/60 px-5 py-2">
@@ -246,12 +248,7 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
 
       {viewMode && onViewModeChange ? (
         <div className="inline-flex items-center p-0.5 rounded-lg bg-muted/60 border border-border/50">
-          {([
-            { key: 'day', label: 'Dag' },
-            { key: 'weekly', label: 'Vecka' },
-            { key: 'monthly', label: 'Månad' },
-            { key: 'list', label: 'Lista' },
-          ] as const).map(opt => {
+          {resolvedViewOptions.map(opt => {
             const active = viewMode === opt.key;
             return (
               <button
