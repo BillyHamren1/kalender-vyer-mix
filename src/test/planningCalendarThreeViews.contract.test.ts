@@ -8,7 +8,7 @@ describe('Planning bemanningskalender has exactly three primary views', () => {
   const page = read('src/pages/CustomCalendarPage.tsx');
 
   it('keeps the existing view and adds month and personnel views', () => {
-    expect(page).toContain("{ key: 'weekly', label: 'Vecka' }");
+    expect(page).toContain("{ key: 'weekly', label: 'Team' }");
     expect(page).toContain("{ key: 'monthly', label: 'Månad' }");
     expect(page).toContain("{ key: 'personnel', label: 'Personal' }");
     expect(page).toMatch(/viewOptions=\{\[[\s\S]*?\]\}/);
