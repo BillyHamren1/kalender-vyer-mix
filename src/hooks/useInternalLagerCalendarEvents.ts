@@ -3,10 +3,15 @@ import { useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { addDays, format, startOfWeek, startOfMonth, endOfMonth, differenceInCalendarDays } from 'date-fns';
+import { useInternalLagerEnabled } from './useInternalLagerEnabled';
 
 /**
  * Genererar virtuella heldagsevent (07:00–16:00) för det interna Lagerprojektet
  * (`projects.is_internal = true`) för varje dag i synligt intervall.
+ *
+ * Visas ENDAST för organisationer med `organizations.internal_lager_enabled = true`.
+ * Övriga organisationer får inga Lager-block alls, även om de har en gammal
+ * intern projektrad kvar i databasen.
  *
  * Eventet placeras i UI-kolumnen `warehouse`. Legacy staff-data kan fortfarande använda team_id='transport'.
  * Read-only — det är bara en visuell schemaläggning, ingen post i calendar_events.
@@ -15,8 +20,11 @@ export function useInternalLagerCalendarEvents(
   currentDate: Date,
   view: 'day' | 'weekly' | 'monthly' | 'list' = 'weekly',
 ) {
+  const { lagerEnabled } = useInternalLagerEnabled();
+
   const { data: lagerProjects = [] } = useQuery({
     queryKey: ['internal-lager-projects-with-booking'],
+    enabled: lagerEnabled,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('projects')
@@ -34,7 +42,9 @@ export function useInternalLagerCalendarEvents(
   });
 
   const internalLagerEvents = useMemo<CalendarEvent[]>(() => {
+    if (!lagerEnabled) return [];
     if (lagerProjects.length === 0) return [];
+
 
     // Bestäm intervall per vy.
     // - day: 1 dag
@@ -88,7 +98,7 @@ export function useInternalLagerCalendarEvents(
       } as CalendarEvent);
     }
     return events;
-  }, [lagerProjects, currentDate, view]);
+  }, [lagerEnabled, lagerProjects, currentDate, view]);
 
   return { internalLagerEvents };
 }
