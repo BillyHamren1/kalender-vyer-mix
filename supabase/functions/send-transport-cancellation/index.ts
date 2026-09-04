@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@4.0.0";
+import { resolveSender, SenderNotConfiguredError } from "../_shared/email/senderIdentity.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -34,6 +35,7 @@ function formatDate(d: string | null): string {
 }
 
 function buildCancellationEmailHtml(params: {
+  senderName: string;
   clientName: string;
   bookingNumber: string | null;
   deliveryAddress: string | null;
@@ -48,6 +50,7 @@ function buildCancellationEmailHtml(params: {
   partnerName: string;
   customMessage: string | null;
 }): string {
+  const senderName = params.senderName;
   const vt = params.vehicleType ? (vehicleTypeLabels[params.vehicleType] || params.vehicleType) : "—";
   const deliveryFull = [params.deliveryAddress, params.deliveryPostalCode, params.deliveryCity]
     .filter(Boolean)
@@ -240,6 +243,9 @@ Deno.serve(async (req) => {
     const booking = assignment.booking;
     const vehicle = assignment.vehicle;
 
+    // Avsändaridentitet härleds från uppdragets organisation – fail closed.
+    const senderIdentity = await resolveSender(supabase, assignment.organization_id ?? null, "planning");
+
     if (!vehicle?.contact_email) {
       console.log(`[send-transport-cancellation] Partner ${vehicle?.name || 'unknown'} has no email — skipping`);
       return new Response(
@@ -255,6 +261,7 @@ Deno.serve(async (req) => {
         : vehicle.vehicle_type);
 
     const html = buildCancellationEmailHtml({
+      senderName: senderIdentity.displayName,
       clientName: booking?.client || "—",
       bookingNumber: booking?.booking_number || null,
       deliveryAddress: booking?.deliveryaddress || null,
@@ -276,6 +283,7 @@ Deno.serve(async (req) => {
 
     const { error: emailError } = await resend.emails.send({
       from: senderIdentity.from,
+      reply_to: senderIdentity.address,
       to: [vehicle.contact_email],
       subject: emailSubject,
       html,

@@ -1,9 +1,9 @@
 // @ts-nocheck
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { Resend } from "npm:resend@4.0.0";
+import { resolveSender } from "../_shared/email/senderIdentity.ts";
 
 const APP_URL = "https://kalender-vyer-mix.lovable.app";
-const LOGO_URL = "https://pihrhltinhewhoxefjxv.supabase.co/storage/v1/object/public/email-assets/fransaugust-logo.png";
 
 function formatDate(d: string | null): string {
   if (!d) return "";
@@ -24,6 +24,7 @@ function redirect(status: string): Response {
 }
 
 function buildConfirmationEmail(params: {
+  senderName: string;
   action: "accepted" | "declined";
   partnerName: string;
   clientName: string;
@@ -32,6 +33,7 @@ function buildConfirmationEmail(params: {
   deliveryAddress: string | null;
   transportTime: string | null;
 }): string {
+  const senderName = params.senderName;
   const isAccepted = params.action === "accepted";
   const title = isAccepted ? "Körning bokad!" : "Körning nekad";
   const titleColor = isAccepted ? "#279B9E" : "#dc2626";
@@ -108,11 +110,13 @@ function buildConfirmationEmail(params: {
 }
 
 function buildBatchConfirmationEmail(params: {
+  senderName: string;
   results: { action: "accepted" | "declined"; transportDate: string }[];
   partnerName: string;
   clientName: string;
   bookingNumber: string | null;
 }): string {
+  const senderName = params.senderName;
   const allAccepted = params.results.every(r => r.action === "accepted");
   const allDeclined = params.results.every(r => r.action === "declined");
   const accepted = params.results.filter(r => r.action === "accepted").length;
@@ -324,12 +328,15 @@ Deno.serve(async (req) => {
     const partnerEmail = results[0].partnerEmail;
     if (resend && partnerEmail) {
       try {
+        // Avsändaridentitet härleds från uppdragets organisation – fail closed.
+        const senderIdentity = await resolveSender(supabase, results[0].organizationId ?? null, "planning");
         let emailHtml: string;
         let subject: string;
 
         if (results.length === 1) {
           const r = results[0];
           emailHtml = buildConfirmationEmail({
+            senderName: senderIdentity.displayName,
             action: r.action,
             partnerName: r.partnerName,
             clientName: r.clientName,
@@ -343,6 +350,7 @@ Deno.serve(async (req) => {
             : `Bekräftelse: Körning nekad ${formatDate(r.transportDate)}`;
         } else {
           emailHtml = buildBatchConfirmationEmail({
+            senderName: senderIdentity.displayName,
             results: results.map(r => ({ action: r.action, transportDate: r.transportDate })),
             partnerName: results[0].partnerName,
             clientName: results[0].clientName,
@@ -359,6 +367,7 @@ Deno.serve(async (req) => {
 
         const { error: emailError } = await resend.emails.send({
           from: senderIdentity.from,
+          reply_to: senderIdentity.address,
           to: [partnerEmail],
           subject,
           html: emailHtml,

@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@4.0.0";
+import { resolveSender, SenderNotConfiguredError } from "../_shared/email/senderIdentity.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -46,6 +47,7 @@ interface AssignmentData {
 }
 
 interface EmailParams {
+  senderName: string;
   clientName: string;
   bookingNumber: string | null;
   deliveryAddress: string | null;
@@ -111,6 +113,7 @@ function buildSingleAssignmentCard(a: AssignmentData): string {
 }
 
 function buildEmailHtml(params: EmailParams): string {
+  const senderName = params.senderName;
   const deliveryFull = [params.deliveryAddress, params.deliveryPostalCode, params.deliveryCity]
     .filter(Boolean)
     .join(", ");
@@ -435,6 +438,10 @@ Deno.serve(async (req) => {
     if (assignmentError) throw new Error(`Assignments not found: ${assignmentError.message}`);
     if (!assignments || assignments.length === 0) throw new Error("No assignments found");
 
+    // Avsändaridentitet härleds från uppdragets organisation – fail closed.
+    const organizationId = assignments[0].organization_id ?? null;
+    const senderIdentity = await resolveSender(supabase, organizationId, "planning");
+
     // All assignments should be for the same vehicle/partner
     const vehicle = assignments[0].vehicle;
     const booking = assignments[0].booking;
@@ -469,6 +476,7 @@ Deno.serve(async (req) => {
     });
 
     const html = buildEmailHtml({
+      senderName: senderIdentity.displayName,
       clientName: booking?.client || "—",
       bookingNumber: booking?.booking_number || null,
       deliveryAddress: booking?.deliveryaddress || null,
@@ -495,6 +503,7 @@ Deno.serve(async (req) => {
 
     const { error: emailError } = await resend.emails.send({
       from: senderIdentity.from,
+      reply_to: senderIdentity.address,
       to: [vehicle.contact_email],
       subject: emailSubject,
       html,
