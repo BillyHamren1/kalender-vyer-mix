@@ -336,6 +336,7 @@ export const useUnifiedStaffOperations = (currentDate: Date, _mode: 'daily' | 'w
 
   return {
     assignments,
+    allStaff: activeStaff,
     availableStaff,
     isLoading,
     handleStaffDrop,

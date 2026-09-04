@@ -9,13 +9,17 @@ interface SimpleMonthlyCalendarProps {
   currentDate: Date;
   onDateChange: (date: Date) => void;
   onDayClick: (date: Date) => void;
+  onEventClick?: (event: CalendarEvent) => void;
+  showHeader?: boolean;
 }
 
 const SimpleMonthlyCalendar: React.FC<SimpleMonthlyCalendarProps> = ({
   events,
   currentDate,
   onDateChange,
-  onDayClick
+  onDayClick,
+  onEventClick,
+  showHeader = true,
 }) => {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -25,7 +29,9 @@ const SimpleMonthlyCalendar: React.FC<SimpleMonthlyCalendarProps> = ({
 
   // Group events by date
   const eventsByDate = events.reduce((acc, event) => {
-    const dateKey = format(new Date(event.start), 'yyyy-MM-dd');
+    const dateKey = typeof event.start === 'string'
+      ? event.start.slice(0, 10)
+      : format(new Date(event.start as Date), 'yyyy-MM-dd');
     if (!acc[dateKey]) acc[dateKey] = [];
     acc[dateKey].push(event);
     return acc;
@@ -44,9 +50,9 @@ const SimpleMonthlyCalendar: React.FC<SimpleMonthlyCalendarProps> = ({
   };
 
   return (
-    <div className="bg-background rounded-lg shadow-sm border border-border">
+    <div className="h-full overflow-auto bg-background rounded-lg border border-border">
       {/* Month Header */}
-      <div className="flex items-center justify-between p-6 border-b border-border">
+      {showHeader && <div className="flex items-center justify-between p-4 border-b border-border">
         <button
           onClick={goToPreviousMonth}
           className="p-2 hover:bg-muted rounded-lg transition-colors"
@@ -64,10 +70,10 @@ const SimpleMonthlyCalendar: React.FC<SimpleMonthlyCalendarProps> = ({
         >
           <ChevronRight className="h-5 w-5" />
         </button>
-      </div>
+      </div>}
 
       {/* Days of Week Header */}
-      <div className="grid grid-cols-7 border-b border-border bg-muted/50">
+      <div className="sticky top-0 z-20 grid grid-cols-7 border-b border-border bg-muted/95 backdrop-blur">
         {['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'].map(day => (
           <div key={day} className="p-3 text-center text-sm font-semibold text-muted-foreground">
             {day}
@@ -88,7 +94,7 @@ const SimpleMonthlyCalendar: React.FC<SimpleMonthlyCalendarProps> = ({
               key={dateKey}
               onClick={() => onDayClick(day)}
               className={`
-                min-h-[120px] p-3 border-b border-r border-border cursor-pointer 
+                min-h-[128px] p-2 border-b border-r border-border cursor-pointer
                 hover:bg-muted/50 transition-colors
                 ${!isCurrentMonth ? 'bg-muted/20 text-muted-foreground' : ''}
                 ${isTodayDate ? 'bg-primary/5 border-primary/20' : ''}
@@ -106,23 +112,31 @@ const SimpleMonthlyCalendar: React.FC<SimpleMonthlyCalendarProps> = ({
               {/* Events */}
               <div className="space-y-1">
                 {dayEvents.slice(0, 4).map((event, index) => (
-                  <div
+                  <button
+                    type="button"
                     key={`${event.id}-${index}`}
-                    className="text-xs px-2 py-1 rounded truncate font-medium"
+                    className="block w-full text-left text-xs px-2 py-1.5 rounded-md truncate font-medium shadow-sm hover:-translate-y-px hover:shadow transition"
                     style={{
                       backgroundColor: getEventColor(event.eventType || 'event'),
                       color: '#333'
                     }}
                     title={`${event.title} - ${event.extendedProps?.client || 'Unknown Client'}`}
+                    onClick={(clickEvent) => {
+                      clickEvent.stopPropagation();
+                      onEventClick?.(event);
+                    }}
                   >
-                    {event.extendedProps?.client || event.title}
-                  </div>
+                    <span className="font-semibold">{event.title}</span>
+                    {event.extendedProps?.client && event.extendedProps.client !== event.title && (
+                      <span className="ml-1 opacity-70">· {event.extendedProps.client}</span>
+                    )}
+                  </button>
                 ))}
                 
                 {/* Show "more" indicator if there are more than 4 events */}
                 {dayEvents.length > 4 && (
                   <div className="text-xs text-muted-foreground font-semibold pl-2">
-                    +{dayEvents.length - 4} more
+                    +{dayEvents.length - 4} till
                   </div>
                 )}
               </div>

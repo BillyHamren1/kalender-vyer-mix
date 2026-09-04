@@ -13,14 +13,14 @@ import { useTransportCalendarProjection } from '@/hooks/useTransportCalendarProj
 import { useInternalLagerCalendarEvents } from '@/hooks/useInternalLagerCalendarEvents';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { PageHeader } from '@/components/ui/PageHeader';
 import ProjectsOverviewMapButton from '@/components/maps/ProjectsOverviewMapButton';
 import CustomCalendar from '@/components/Calendar/CustomCalendar';
 import SimpleStaffCurtain from '@/components/Calendar/SimpleStaffCurtain';
-import StaffBookingsList from '@/components/Calendar/StaffBookingsList';
+import SimpleMonthlyCalendar from '@/components/Calendar/SimpleMonthlyCalendar';
+import PersonnelGanttView from '@/components/Calendar/PersonnelGanttView';
+import PlanningEventDetailsSheet from '@/components/Calendar/PlanningEventDetailsSheet';
+import type { CalendarEvent } from '@/components/Calendar/ResourceData';
 import MobileCalendarView from '@/components/mobile/MobileCalendarView';
-import MobileEventsList from '@/components/mobile/MobileEventsList';
-import MobileWarehouseWeekSelector from '@/components/mobile/MobileWarehouseWeekSelector';
 import WeekNavigation from '@/components/Calendar/WeekNavigation';
 import WeekTabsNavigation from '@/components/Calendar/WeekTabsNavigation';
 import NewBookingsPopup from '@/components/calendar/NewBookingsPopup';
@@ -31,8 +31,7 @@ import { Label } from '@/components/ui/label';
 import { startOfWeek, startOfMonth, endOfWeek, endOfMonth, subDays, format } from 'date-fns';
 import { resetCalendarViewStorage, getTransportEventType } from '@/components/Calendar/ResourceData';
 
-import { sv } from 'date-fns/locale';
-import { Calendar, ListChecks, RotateCcw } from 'lucide-react';
+import { ListChecks, RotateCcw } from 'lucide-react';
 
 // Wrapper component to handle async loading of staff with status
 const SimpleStaffCurtainWrapper: React.FC<{
@@ -79,7 +78,7 @@ const SimpleStaffCurtainWrapper: React.FC<{
 const CALENDAR_STATE_KEY = 'calendarPage.viewState.v1';
 
 type PersistedCalendarState = {
-  viewMode: 'day' | 'weekly' | 'monthly' | 'list';
+  viewMode: 'weekly' | 'monthly' | 'personnel';
   currentWeekStart: string; // ISO
   monthlyDate: string;       // ISO
 };
@@ -98,9 +97,11 @@ const CustomCalendarPage = () => {
   const navigate = useNavigate();
   const persisted = useMemo(() => readPersistedState(), []);
   // Default to 'weekly' - the full 7-day view with all teams
-  const [viewMode, setViewMode] = useState<'day' | 'weekly' | 'monthly' | 'list'>(
-    (persisted?.viewMode as any) || 'weekly'
-  );
+  const [viewMode, setViewMode] = useState<'weekly' | 'monthly' | 'personnel'>(() => {
+    const saved = persisted?.viewMode;
+    return saved === 'monthly' || saved === 'personnel' ? saved : 'weekly';
+  });
+  const [selectedDetailEvent, setSelectedDetailEvent] = useState<CalendarEvent | null>(null);
 
   // Task overlay toggle (persisted in localStorage)
   const [showTasks, setShowTasks] = useState(() => {
@@ -137,7 +138,10 @@ const CustomCalendarPage = () => {
   // Handle task overlay click → navigate to project execution context
   const handleEventClick = async (event: any) => {
     const props = event.extendedProps;
-    if (!props?.isTaskOverlay) return;
+    if (!props?.isTaskOverlay) {
+      setSelectedDetailEvent(event as CalendarEvent);
+      return;
+    }
 
     // Direct large project link (no booking lookup needed)
     if (props.largeProjectId) {
@@ -200,6 +204,11 @@ const CustomCalendarPage = () => {
       setMonthlyDate(startOfMonth(currentWeekStart));
     }
   }, [viewMode]);
+
+  // Keep the read window aligned with the view the user is actually browsing.
+  useEffect(() => {
+    handleDatesSet({ start: viewMode === 'monthly' ? monthlyDate : currentWeekStart });
+  }, [currentWeekStart, handleDatesSet, monthlyDate, viewMode]);
 
   // Persist view state so back-navigation restores the same calendar position
   useEffect(() => {
@@ -468,6 +477,11 @@ const CustomCalendarPage = () => {
                 onViewModeChange={setViewMode}
                 currentMonth={monthlyDate}
                 onMonthChange={handleMonthChange}
+                viewOptions={[
+                  { key: 'weekly', label: 'Nuvarande' },
+                  { key: 'monthly', label: 'Månad' },
+                  { key: 'personnel', label: 'Personal' },
+                ]}
               />
             </div>
             <div className="flex items-center gap-2 ml-4 shrink-0">
@@ -498,33 +512,8 @@ const CustomCalendarPage = () => {
 
           {/* Content - flex-1 to fill remaining space */}
           <div className="flex-1 min-h-0 pt-4 px-4 pb-2 overflow-hidden bg-card rounded-2xl mx-2 mb-3 shadow-sm">
-            {viewMode === 'day' ? (
-              // Day View - 3D Carousel with single focused day and side cards
-              isMobile ? (
-                <MobileCalendarView events={mergedEvents} />
-              ) : (
-                <CustomCalendar
-                  events={mergedEvents}
-                  setEvents={setEvents}
-                  resources={teamResources}
-                  isLoading={isLoading}
-                  isMounted={isMounted}
-                  currentDate={currentWeekStart}
-                  onDateSet={handleDatesSet}
-                  refreshEvents={refreshEvents}
-                  onStaffDrop={staffOps.handleStaffDrop}
-                  onOpenStaffSelection={handleOpenStaffSelection}
-                  viewMode="day"
-                  weeklyStaffOperations={staffOps}
-                  getVisibleTeamsForDay={getVisibleTeamsForDay}
-                  onToggleTeamForDay={handleToggleTeamForDay}
-                  allTeams={teamResources}
-                  onEventClick={handleEventClick}
-                  isEventReadOnly={isEventReadOnly}
-                />
-              )
-            ) : viewMode === 'weekly' ? (
-              // Weekly View - 7 days side by side with horizontal scroll
+            {viewMode === 'weekly' ? (
+              // Existing view — kept intact.
               isMobile ? (
                 <MobileCalendarView events={mergedEvents} />
               ) : (
@@ -558,52 +547,27 @@ const CustomCalendarPage = () => {
                 </div>
               )
             ) : viewMode === 'monthly' ? (
-              // Monthly View - same day-grid style as warehouse calendar
-              isMobile ? (
-                <MobileCalendarView
-                  events={mergedEvents}
-                  currentMonth={monthlyDate}
-                  selectedWeekStart={currentWeekStart}
-                  onMonthChange={handleMonthChange}
-                  onWeekSelect={handleWeekSelect}
-                />
-              ) : (
-                <div className="flex flex-col h-full overflow-hidden">
-                  <div className="flex-1 min-h-0 overflow-hidden">
-                    <CustomCalendar
-                      events={mergedEvents}
-                      setEvents={setEvents}
-                      resources={teamResources}
-                      isLoading={isLoading}
-                      isMounted={isMounted}
-                      currentDate={currentWeekStart}
-                      onDateSet={handleDatesSet}
-                      refreshEvents={refreshEvents}
-                      onStaffDrop={staffOps.handleStaffDrop}
-                      onOpenStaffSelection={handleOpenStaffSelection}
-                      viewMode="monthly"
-                      weeklyStaffOperations={staffOps}
-                      getVisibleTeamsForDay={getVisibleTeamsForDay}
-                      onToggleTeamForDay={handleToggleTeamForDay}
-                      allTeams={teamResources}
-                      onEventClick={handleEventClick}
-                      isEventReadOnly={isEventReadOnly}
-                    />
-                  </div>
-                  <WeekTabsNavigation
-                    currentMonth={monthlyDate}
-                    currentWeekStart={currentWeekStart}
-                    onWeekSelect={handleWeekSelect}
-                  />
-                </div>
-              )
+              <SimpleMonthlyCalendar
+                events={mergedEvents}
+                currentDate={monthlyDate}
+                onDateChange={handleMonthChange}
+                onDayClick={(date) => {
+                  setCurrentWeekStart(startOfWeek(date, { weekStartsOn: 1 }));
+                  setViewMode('weekly');
+                }}
+                onEventClick={handleEventClick}
+                showHeader={false}
+              />
             ) : (
-              // List View
-              <StaffBookingsList
+              <PersonnelGanttView
+                anchorDate={currentWeekStart}
                 events={mergedEvents}
                 resources={teamResources}
-                currentDate={currentWeekStart}
-                weeklyStaffOperations={staffOps}
+                assignments={staffOps.assignments}
+                staff={staffOps.allStaff}
+                isLoading={isLoading || staffOps.isLoading}
+                onAssignStaff={(staffId, teamId, date) => staffOps.handleStaffDrop(staffId, teamId, date)}
+                onEventClick={handleEventClick}
               />
             )}
           </div>
@@ -620,6 +584,11 @@ const CustomCalendarPage = () => {
               position={selectedTeam.position}
             />
           )}
+          <PlanningEventDetailsSheet
+            event={selectedDetailEvent}
+            resources={teamResources}
+            onOpenChange={(open) => !open && setSelectedDetailEvent(null)}
+          />
         </div>
       </TooltipProvider>
   );
