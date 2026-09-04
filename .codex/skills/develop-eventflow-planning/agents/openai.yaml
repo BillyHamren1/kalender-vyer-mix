@@ -1,0 +1,4 @@
+interface:
+  display_name: "Develop EventFlow Planning"
+  short_description: "Bygg Planning utan att tappa helheten"
+  default_prompt: "Use $develop-eventflow-planning to review and improve this Planning workflow safely."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Coordinate EventFlow & Lovable"
+  short_description: "Förhindra att godkända ändringar skrivs över"
+  default_prompt: "Use $coordinate-eventflow-lovable to coordinate this EventFlow change with Lovable safely."
