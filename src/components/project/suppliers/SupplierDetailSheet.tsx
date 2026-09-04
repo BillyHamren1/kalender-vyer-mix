@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useSupplierRequests } from "@/hooks/useSupplierRequests";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,6 +83,9 @@ const SupplierDetailSheet = ({ supplier, open, onOpenChange, onStatusChange, onU
   const [editPricing, setEditPricing] = useState(false);
   const [quotedPrice, setQuotedPrice] = useState('');
   const [confirmedPrice, setConfirmedPrice] = useState('');
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [requestMessage, setRequestMessage] = useState('');
+  const { sendSupplierRequest, isSending } = useSupplierRequests();
 
   if (!supplier) return null;
 
@@ -126,7 +131,14 @@ const SupplierDetailSheet = ({ supplier, open, onOpenChange, onStatusChange, onU
                 key={action.status}
                 size="sm"
                 variant={action.status === 'cancelled' ? 'destructive' : action.status === 'confirmed' ? 'default' : 'outline'}
-                onClick={() => onStatusChange(supplier.id, action.status)}
+                onClick={() => {
+                  if (action.status === 'request_sent') {
+                    setRequestMessage('');
+                    setRequestOpen(true);
+                    return;
+                  }
+                  onStatusChange(supplier.id, action.status);
+                }}
                 className="gap-1.5"
               >
                 <action.icon className="h-3.5 w-3.5" />
@@ -245,6 +257,43 @@ const SupplierDetailSheet = ({ supplier, open, onOpenChange, onStatusChange, onU
             Ta bort underleverantör
           </Button>
         </ConfirmationDialog>
+        <Dialog open={requestOpen} onOpenChange={setRequestOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Skicka förfrågan till {supplier.name}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label>Meddelande</Label>
+              <Textarea
+                rows={7}
+                value={requestMessage}
+                onChange={e => setRequestMessage(e.target.value)}
+                placeholder="Beskriv vad du behöver, datum, plats och när du behöver svar."
+              />
+              <p className="text-xs text-muted-foreground">
+                Mejlet skickas från din organisations avsändare. Svar kopplas automatiskt till detta ärende.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setRequestOpen(false)}>Avbryt</Button>
+              <Button
+                disabled={isSending || !requestMessage.trim()}
+                onClick={async () => {
+                  const ok = await sendSupplierRequest({
+                    projectSupplierLinkId: supplier.link_id,
+                    message: requestMessage,
+                  });
+                  if (ok) {
+                    setRequestOpen(false);
+                    onStatusChange(supplier.id, 'request_sent');
+                  }
+                }}
+              >
+                {isSending ? 'Skickar…' : 'Skicka'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </SheetContent>
     </Sheet>
   );
