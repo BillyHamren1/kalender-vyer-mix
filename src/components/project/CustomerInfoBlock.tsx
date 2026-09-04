@@ -172,7 +172,7 @@ const CustomerInfoBlock = ({
           )}
 
           {nailsLabel && (
-            <Row icon={AlertTriangle} label="Spett">{nailsLabel}</Row>
+            <Row icon={AlertTriangle} label="Markspik">{nailsLabel}</Row>
           )}
 
         </div>

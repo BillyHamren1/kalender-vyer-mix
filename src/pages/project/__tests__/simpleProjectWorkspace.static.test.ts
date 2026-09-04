@@ -5,10 +5,12 @@ import path from "node:path";
 const read = (file: string) => fs.readFileSync(path.resolve(process.cwd(), file), "utf8");
 
 describe("simple project workspace", () => {
-  it("keeps the legacy project and execution routes available", () => {
+  it("redirects every legacy project entry to the simple view while keeping execution available", () => {
     const app = read("src/App.tsx");
     expect(app).toContain('path="/project-next/:projectId"');
     expect(app).toContain('path="/project/:projectId"');
+    expect(app).toContain('<Route index element={<LegacyProjectRedirect />} />');
+    expect(app).toContain('`/project-next/${projectId}`');
     expect(app).toContain('<Route path="execution" element={<EstablishmentPage />} />');
   });
 
@@ -33,5 +35,16 @@ describe("simple project workspace", () => {
     const service = read("src/services/simpleProjectWorkspaceService.ts");
     expect(service).toContain('supabase.from("bookings").update({ internalnotes: notes })');
     expect(service).toContain('supabase.from("projects").update({ internalnotes: notes })');
+  });
+
+  it("restores the complete operational booking information from the legacy project view", () => {
+    const page = read("src/pages/project/SimpleProjectWorkspacePage.tsx");
+    expect(page).toContain("BookingInfoExpanded");
+    expect(page).toContain("ProjectFiles");
+    expect(page).toContain("fetchBookingAttachments");
+    expect(page).toContain("showProductsHeading");
+    expect(page).toContain("rigdaydate: project.rigdaydate");
+    expect(page).toContain("rigdowndate: project.rigdowndate");
+    expect(page).toContain("contact_phone: project.contact_phone");
   });
 });

@@ -47,9 +47,10 @@ interface BookingInfoExpandedProps {
   packingEndDate?: string | null;
   onPackingDateChange?: (updates: { start_date?: string | null; end_date?: string | null }) => void;
   showCustomerInfo?: boolean;
+  showProductsHeading?: boolean;
 }
 
-const BookingInfoExpanded = ({ booking, projectLeader, showCustomerInfo = true }: BookingInfoExpandedProps) => {
+const BookingInfoExpanded = ({ booking, projectLeader, showCustomerInfo = true, showProductsHeading = false }: BookingInfoExpandedProps) => {
   return (
     <>
       {showCustomerInfo && (
@@ -75,6 +76,12 @@ const BookingInfoExpanded = ({ booking, projectLeader, showCustomerInfo = true }
       )}
       <Card className="mb-4 border-border/40 rounded-2xl">
         <div className="p-5">
+          {showProductsHeading && (
+            <div className="mb-3">
+              <h2 className="text-base font-semibold text-foreground tracking-tight">Bokningsrader – det som ska göras</h2>
+              <p className="mt-1 text-xs text-muted-foreground">Produkter, tjänster, antal och tillbehör från den aktuella bokningen.</p>
+            </div>
+          )}
           <ProjectProductsList bookingId={booking.id} showGroupingControls={false} showSummary={false} />
         </div>
       </Card>
@@ -83,4 +90,3 @@ const BookingInfoExpanded = ({ booking, projectLeader, showCustomerInfo = true }
 };
 
 export default BookingInfoExpanded;
-
