@@ -24,6 +24,8 @@ import {
   sha256Hex,
   signServiceProofJwt,
 } from '../_shared/timeServiceProof.ts';
+import { handleLagerContextImport } from './lagerImport.ts';
+
 
 
 const TIME_BOUNDARY_SCHEMA = 'time-planning-boundary.v1';
@@ -131,6 +133,24 @@ Deno.serve(async (req) => {
   // read anywhere in this function — the previously exposed private JWK can
   // never become active again, even if the secret object still exists.
   const signingSeed = Deno.env.get('TIME_ADAPTER_SIGNING_SEED');
+
+  // Versioned planning-lager-context.v1 export → Time work-context-import.
+  // Separate boundary from the adapter operations: same auth, same tenant
+  // resolution, same seed-derived signer — handled in ./lagerImport.ts.
+  if (operation === 'lager.contextImport') {
+    const importAdapterUrl = Deno.env.get('TIME_ADAPTER_URL');
+    if (!importAdapterUrl || !signingSeed) {
+      return fail(503, 'not_configured', 'Time-gränsen är inte konfigurerad för lager.contextImport.');
+    }
+    return handleLagerContextImport({
+      admin,
+      organizationId: access.organizationId,
+      body,
+      adapterUrl: importAdapterUrl,
+      anonKey: Deno.env.get('TIME_ADAPTER_ANON_KEY'),
+      signingSeed,
+    });
+  }
 
   if (!ALLOWED_OPERATIONS.has(operation)) {
     return fail(400, 'unsupported_operation', `Unsupported Time operation: ${operation || '(none)'}`);

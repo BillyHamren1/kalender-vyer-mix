@@ -22,6 +22,7 @@ import {
   buildLagerContextProjection,
   PLANNING_LAGER_CONTEXT_SCHEMA,
 } from '../_shared/time-v2/lagerProjection.ts';
+import { readLagerProjectionInputs } from '../_shared/time-v2/lagerContextReads.ts';
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), {
@@ -76,46 +77,13 @@ Deno.serve(async (req) => {
   // Tenant is resolved server-side; a client-supplied organizationId is ignored.
   const organizationId = access.organizationId;
 
-  const [locations, internalProjects, staffMembers, staffAssignments, warehouseAssignments, warehouseEvents] =
-    await Promise.all([
-      admin
-        .from('organization_locations')
-        .select('id, organization_id, name, address, latitude, longitude, radius_meters, geofence_mode, location_type, is_active')
-        .eq('organization_id', organizationId),
-      admin
-        .from('projects')
-        .select('id, organization_id, name, is_internal, location_id')
-        .eq('organization_id', organizationId)
-        .eq('is_internal', true),
-      admin
-        .from('staff_members')
-        .select('id, organization_id, name, is_active')
-        .eq('organization_id', organizationId),
-      admin
-        .from('staff_assignments')
-        .select('id, organization_id, staff_id, team_id, assignment_date')
-        .eq('organization_id', organizationId)
-        .gte('assignment_date', from)
-        .lte('assignment_date', to),
-      admin
-        .from('warehouse_assignments')
-        .select('id, organization_id, staff_id, assignment_date, assignment_type, status, title, description, start_time, end_time, booking_id, booking_number, delivery_address, customer_name, warehouse_event_id, packing_id, source')
-        .eq('organization_id', organizationId)
-        .gte('assignment_date', from)
-        .lte('assignment_date', to),
-      admin
-        .from('warehouse_calendar_events')
-        .select('id, organization_id, title, start_time, end_time, resource_id, event_type, booking_id, booking_number, delivery_address, warehouse_project_id')
-        .eq('organization_id', organizationId)
-        .gte('start_time', `${from}T00:00:00Z`)
-        .lte('start_time', `${to}T23:59:59Z`),
-    ]);
-
-  const firstError =
-    locations.error || internalProjects.error || staffMembers.error || staffAssignments.error ||
-    warehouseAssignments.error || warehouseEvents.error;
-  if (firstError) {
-    console.error('[planning-lager-context] read failed', firstError);
+  // Shared read helper — the browser contract and the proxy export read the
+  // exact same tables/columns with the same tenant scoping.
+  let rows;
+  try {
+    rows = await readLagerProjectionInputs(admin, organizationId, from, to);
+  } catch (e) {
+    console.error('[planning-lager-context] read failed', (e as Error)?.message);
     return fail(500, 'read_failed', 'Kunde inte läsa Planning-data för Lager-kontexten.');
   }
 
@@ -124,12 +92,7 @@ Deno.serve(async (req) => {
     from,
     to,
     staffIds,
-    locations: (locations.data ?? []) as never,
-    internalProjects: (internalProjects.data ?? []) as never,
-    staffMembers: (staffMembers.data ?? []) as never,
-    staffAssignments: (staffAssignments.data ?? []) as never,
-    warehouseAssignments: (warehouseAssignments.data ?? []) as never,
-    warehouseCalendarEvents: (warehouseEvents.data ?? []) as never,
+    ...rows,
   });
 
   return json(200, {
