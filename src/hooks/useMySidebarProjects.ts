@@ -48,7 +48,7 @@ export const useMySidebarProjects = (staffId: string | null) => {
         nextDeadline: p.nextDeadline,
         eventDate: p.eventDate,
         overdue: !!p.nextDeadline && p.nextDeadline.slice(0, 10) < today,
-        href: p.type === 'large' ? `/large-project/${p.id}` : `/project/${p.id}`,
+        href: p.type === 'large' ? `/large-project/${p.id}` : `/project-next/${p.id}`,
       }));
 
       return { items, total: all.length };

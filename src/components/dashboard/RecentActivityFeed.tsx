@@ -37,7 +37,7 @@ export const RecentActivityFeed: React.FC<RecentActivityFeedProps> = ({ activiti
         navigate(`/booking/${activity.relatedId}`);
         break;
       case 'project':
-        navigate(`/project/${activity.relatedId}`);
+        navigate(`/project-next/${activity.relatedId}`);
         break;
       case 'task':
         // Tasks don't have a dedicated page, navigate to projects

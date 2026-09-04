@@ -71,7 +71,7 @@ const MyProjects: React.FC = () => {
     if (project.type === 'large') {
       navigate(`/large-project/${project.id}`);
     } else {
-      navigate(`/project/${project.id}`);
+      navigate(`/project-next/${project.id}`);
     }
   };
 

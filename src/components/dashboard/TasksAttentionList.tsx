@@ -90,7 +90,7 @@ export const TasksAttentionList: React.FC<TasksAttentionListProps> = ({ tasks, i
                 <div
                   key={task.id}
                   className="flex items-center justify-between p-2 rounded-lg bg-destructive/10 border border-destructive/20 cursor-pointer hover:bg-destructive/15 transition-colors"
-                  onClick={() => navigate(`/project/${task.projectId}`)}
+                  onClick={() => navigate(`/project-next/${task.projectId}`)}
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{task.title}</p>
@@ -115,7 +115,7 @@ export const TasksAttentionList: React.FC<TasksAttentionListProps> = ({ tasks, i
                 <div
                   key={task.id}
                   className="flex items-center justify-between p-2 rounded-lg bg-muted/50 border border-border cursor-pointer hover:bg-muted transition-colors"
-                  onClick={() => navigate(`/project/${task.projectId}`)}
+                  onClick={() => navigate(`/project-next/${task.projectId}`)}
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{task.title}</p>

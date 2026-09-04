@@ -100,7 +100,7 @@ const DashboardAllProjects: React.FC = () => {
       date: p.booking?.eventdate ?? null,
       status: p.status,
       subtitle: p.booking?.client ?? p.project_leader ?? null,
-      navigateTo: `/project/${p.id}`,
+      navigateTo: `/project-next/${p.id}`,
     }));
 
     largeProjects.forEach(lp => {

@@ -82,7 +82,7 @@ const OngoingProjectsCard = ({ projects, isLoading }: OngoingProjectsCardProps) 
                 <div 
                   key={project.id}
                   className="p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors cursor-pointer"
-                  onClick={() => navigate(`/project/${project.id}`)}
+                  onClick={() => navigate(`/project-next/${project.id}`)}
                 >
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="min-w-0 flex-1">

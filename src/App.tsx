@@ -44,6 +44,7 @@ import AuthResetPassword from "./pages/AuthResetPassword";
 const ProjectLayout = lazyWithRecovery(() => import("./pages/project/ProjectLayout"));
 const LargeProjectLayout = lazyWithRecovery(() => import("./pages/project/LargeProjectLayout"));
 const ProjectViewPage = lazyWithRecovery(() => import("./pages/project/ProjectViewPage"));
+const SimpleProjectWorkspacePage = lazyWithRecovery(() => import("./pages/project/SimpleProjectWorkspacePage"));
 const EstablishmentPage = lazyWithRecovery(() => import("./pages/project/EstablishmentPage"));
 const ProjectEconomyPage = lazyWithRecovery(() => import("./pages/project/ProjectEconomyPage"));
 const LargeProjectViewPage = lazyWithRecovery(() => import("./pages/project/LargeProjectViewPage"));
@@ -435,6 +436,7 @@ const WebRoutes: React.FC = () => {
               <Route path="/projects" element={<ProjectManagement />} />
               <Route path="/projects/archive" element={<ProjectArchive />} />
               <Route path="/projects/closing" element={<ProjectClosing />} />
+              <Route path="/project-next/:projectId" element={<SimpleProjectWorkspacePage />} />
               <Route path="/project/:projectId" element={<ProjectLayout />}>
                 <Route index element={<ProjectViewPage />} />
                 <Route path="execution" element={<EstablishmentPage />} />

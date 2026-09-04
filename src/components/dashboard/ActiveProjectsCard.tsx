@@ -91,7 +91,7 @@ export const ActiveProjectsCard: React.FC<ActiveProjectsCardProps> = ({ projects
           <div
             key={project.id}
             className="p-3 rounded-lg border border-border cursor-pointer hover:bg-muted/50 transition-colors"
-            onClick={() => navigate(`/project/${project.id}`)}
+            onClick={() => navigate(`/project-next/${project.id}`)}
           >
             <div className="flex items-start justify-between mb-2">
               <div className="flex-1 min-w-0">

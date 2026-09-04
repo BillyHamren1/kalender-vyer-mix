@@ -72,7 +72,7 @@ export default function ProjectsOverviewMapButton({ weekStart }: ProjectsOvervie
           color: "#a78bfa",
           onClick: () => {
             setOpen(false);
-            navigate(`/project/${p.id}`);
+            navigate(`/project-next/${p.id}`);
           },
         }));
 

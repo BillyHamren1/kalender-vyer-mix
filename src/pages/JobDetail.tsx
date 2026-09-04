@@ -176,7 +176,7 @@ const JobDetail = () => {
         queryClient.invalidateQueries({ queryKey: ['projects'] });
         queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
         toast.success('Konverterat till medelprojekt');
-        navigate(`/project/${newId}`);
+        navigate(`/project-next/${newId}`);
       } else {
         await prepareConvertToLarge(current, job.bookingId);
         queryClient.invalidateQueries({ queryKey: ['jobs'] });

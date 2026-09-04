@@ -133,7 +133,7 @@ const MyPage: React.FC = () => {
                 <li
                   key={`${p.type}-${p.id}`}
                   className="py-2.5 flex items-center justify-between cursor-pointer hover:bg-muted/40 -mx-2 px-2 rounded-md"
-                  onClick={() => navigate(p.type === 'large' ? `/large-project/${p.id}` : `/project/${p.id}`)}
+                  onClick={() => navigate(p.type === 'large' ? `/large-project/${p.id}` : `/project-next/${p.id}`)}
                 >
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">{p.clientName || p.name}</p>

@@ -122,7 +122,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
         status: p.status,
         subtitle: isInternal ? 'Intern plats' : fullAddress,
         address: fullAddress,
-        navigateTo: `/project/${p.id}`,
+        navigateTo: `/project-next/${p.id}`,
         bookingCancelled: (p.booking as any)?.status === 'CANCELLED',
         bookingId: p.booking_id,
         projectNumber: bookingNum || null,
@@ -236,7 +236,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
         const newId = await convertToMedium(current, bookingId);
         invalidateAll();
         toast.success('Projekt konverterat till medel');
-        navigate(`/project/${newId}`);
+        navigate(`/project-next/${newId}`);
       } else {
         await prepareConvertToLarge(current, bookingId);
         invalidateAll();
