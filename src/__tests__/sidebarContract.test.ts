@@ -163,7 +163,16 @@ describe('canonical EventFlow sidebar contract', () => {
     // Remaining top-level items still present
     expect(titles).toContain('Dashboard');
     expect(titles).toContain('Projekt');
-    expect(titles).toContain('Bemanningsplanering');
+    expect(titles).toContain('Planeringskalender');
     expect(titles).toContain('Personal');
   });
+
+  it('exposes the planning calendar only once (not under Personal)', () => {
+    const calendarLinks = planningNav.flatMap((item) => [
+      ...(item.url === '/calendar' ? [item.title] : []),
+      ...((item.children ?? []).filter((c: any) => c.url === '/calendar').map((c: any) => c.title)),
+    ]);
+    expect(calendarLinks).toEqual(['Planeringskalender']);
+  });
+
 });
