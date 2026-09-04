@@ -5,7 +5,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { buildDayEvidence } from '../_shared/time-engine/buildDayEvidence.ts';
 import { getStockholmDayWindowUtc } from '../_shared/stockholmDayWindow.ts';
 
-const ORG = 'f5e5cade-f08b-4833-a105-56461f15b191';
+// TENANT SAFETY: no default organization. The caller's own organization is the
+// only organization this report may ever read. There is NO fallback org.
 
 interface Case { id: string; label: string; staffId: string; date: string; }
 
