@@ -162,14 +162,14 @@ export async function handleWorkerAssignmentSync(ctx: WorkerAssignmentSyncContex
   const bookingIds = [...new Set(calendar.map((row: Json) => text(row.booking_id)).filter(Boolean))] as string[];
   const { data: bookings, error: bookingError } = bookingIds.length
     ? await ctx.admin.from('bookings')
-      .select('id, title, client, status, version, updated_at, booking_number, deliveryaddress, delivery_latitude, delivery_longitude, contact_name, contact_phone, assigned_project_id, assigned_project_name, organization_id')
+      .select(BOOKING_COLUMNS)
       .eq('organization_id', sourceOrganizationId)
       .in('id', bookingIds)
     : { data: [], error: null };
   if (bookingError) return fail(500, 'planning_read_failed', 'Planning-bokningarna kunde inte läsas.', true);
   const { data: projects, error: projectError } = bookingIds.length
     ? await ctx.admin.from('projects')
-      .select('id, booking_id, name, updated_at, deliveryaddress, delivery_latitude, delivery_longitude, address_radius_meters, organization_id, deleted_at')
+      .select(PROJECT_COLUMNS)
       .eq('organization_id', sourceOrganizationId)
       .in('booking_id', bookingIds)
       .is('deleted_at', null)
@@ -183,7 +183,9 @@ export async function handleWorkerAssignmentSync(ctx: WorkerAssignmentSyncContex
     if (!projectByBooking.has(String(row.booking_id))) projectByBooking.set(String(row.booking_id), row);
   }
 
-  const assignments: Json[] = [];
+  // Pass 1 — the assignment binding (unchanged): worker × team-day × calendar
+  // event × CONFIRMED booking (× project when one exists).
+  const shapes: AssignmentShapeInput[] = [];
   for (const event of calendar) {
     const startsAt = text(event.start_time);
     const endsAt = text(event.end_time);
@@ -191,45 +193,31 @@ export async function handleWorkerAssignmentSync(ctx: WorkerAssignmentSyncContex
     if (!startsAt || !endsAt || !bookingId || Date.parse(startsAt) >= Date.parse(endsAt)) continue;
     const booking = bookingById.get(bookingId);
     if (!booking || String(booking.status).toUpperCase() !== 'CONFIRMED') continue;
-    const project = projectByBooking.get(bookingId);
-    const location = {
-      address: text(project?.deliveryaddress) ?? text(booking.deliveryaddress) ?? text(event.delivery_address) ?? undefined,
-      latitude: finite(project?.delivery_latitude) ?? finite(booking.delivery_latitude),
-      longitude: finite(project?.delivery_longitude) ?? finite(booking.delivery_longitude),
-      radiusM: finite(project?.address_radius_meters) ?? 100,
-    };
-    const sourceVersion = await sha256Hex(JSON.stringify({
-      eventId: event.id, startsAt, endsAt, eventType: event.event_type,
-      bookingVersion: booking.version, bookingUpdatedAt: booking.updated_at,
-      projectId: project?.id ?? null, projectUpdatedAt: project?.updated_at ?? null,
-      location,
-    }));
-    assignments.push({
-      sourceAssignmentId: String(event.id),
-      sourceVersion,
-      workerExternalId: String(staff.id),
-      workDate: String(event.source_date),
-      startsAt,
-      endsAt,
-      roleLabel: text(staff.role) ?? 'Tilldelad',
-      teamLabel: String(event.resource_id),
-      target: {
-        sourceSystem: 'planning',
-        kind: project ? 'project' : 'booking',
-        externalId: String(project?.id ?? booking.id),
-        version: sourceVersion,
-        label: text(project?.name) ?? text(booking.assigned_project_name) ?? text(event.title) ?? text(booking.title) ?? String(booking.booking_number),
-        bookingNumber: text(booking.booking_number) ?? text(event.booking_number) ?? undefined,
-        phase: phaseLabel(event.event_type),
-        location,
-        reporting: { state: 'allowed' },
-      },
-      workerDetail: {
-        address: location.address,
-        contactName: text(booking.contact_name) ?? undefined,
-        contactPhone: text(booking.contact_phone) ?? undefined,
-      },
-    });
+    shapes.push({ event, booking, project: projectByBooking.get(bookingId) ?? null, staff, startsAt, endsAt });
+  }
+
+  // Pass 2 — additive work-order.v1 per bound assignment (field data only).
+  const candidates: WorkOrderCandidate[] = shapes.map((shape) => ({
+    sourceAssignmentId: String(shape.event.id),
+    workDate: String(shape.event.source_date),
+    booking: shape.booking as unknown as WorkOrderBookingSource,
+    project: (shape.project as unknown as WorkOrderProjectSource | null) ?? null,
+  }));
+  const { byAssignment: workOrders, report: workOrderReport } = await attachWorkOrders({
+    admin: ctx.admin,
+    organizationId: sourceOrganizationId,
+    staffId: String(staff.id),
+    candidates,
+  });
+
+  const assignments: Json[] = [];
+  for (const shape of shapes) {
+    const attached = workOrders.get(String(shape.event.id));
+    const location = assignmentLocation(shape);
+    const sourceVersion = await sha256Hex(JSON.stringify(
+      assignmentVersionSeed(shape, location, attached?.workOrderHash ?? null),
+    ));
+    assignments.push(buildAssignmentPayload(shape, sourceVersion, location, attached?.workOrder ?? null));
   }
   assignments.sort((a, b) => String(a.startsAt).localeCompare(String(b.startsAt)));
 
