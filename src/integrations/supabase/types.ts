@@ -3747,8 +3747,12 @@ export type Database = {
         Row: {
           created_at: string
           display_name: string
+          domain_verified: boolean
+          domain_verified_at: string | null
           enabled: boolean
+          mail_domain: string | null
           organization_id: string
+          reply_domain: string | null
           sender_email: string
           updated_at: string
           verified: boolean
@@ -3756,8 +3760,12 @@ export type Database = {
         Insert: {
           created_at?: string
           display_name: string
+          domain_verified?: boolean
+          domain_verified_at?: string | null
           enabled?: boolean
+          mail_domain?: string | null
           organization_id: string
+          reply_domain?: string | null
           sender_email: string
           updated_at?: string
           verified?: boolean
@@ -3765,8 +3773,12 @@ export type Database = {
         Update: {
           created_at?: string
           display_name?: string
+          domain_verified?: boolean
+          domain_verified_at?: string | null
           enabled?: boolean
+          mail_domain?: string | null
           organization_id?: string
+          reply_domain?: string | null
           sender_email?: string
           updated_at?: string
           verified?: boolean
