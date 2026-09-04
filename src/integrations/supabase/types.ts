@@ -3743,6 +3743,44 @@ export type Database = {
           },
         ]
       }
+      organization_email_senders: {
+        Row: {
+          created_at: string
+          display_name: string
+          enabled: boolean
+          organization_id: string
+          sender_email: string
+          updated_at: string
+          verified: boolean
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          enabled?: boolean
+          organization_id: string
+          sender_email: string
+          updated_at?: string
+          verified?: boolean
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          enabled?: boolean
+          organization_id?: string
+          sender_email?: string
+          updated_at?: string
+          verified?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_email_senders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_locations: {
         Row: {
           address: string | null
@@ -7781,6 +7819,105 @@ export type Database = {
           staff_id?: string
         }
         Relationships: []
+      }
+      supplier_request_threads: {
+        Row: {
+          body: string
+          booking_id: string | null
+          created_at: string
+          id: string
+          organization_id: string
+          project_id: string
+          project_supplier_link_id: string | null
+          provider_message_id: string | null
+          recipient_email: string
+          recipient_name: string | null
+          responded_at: string | null
+          response_message: string | null
+          response_name: string | null
+          response_token: string
+          sent_at: string | null
+          status: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          booking_id?: string | null
+          created_at?: string
+          id?: string
+          organization_id: string
+          project_id: string
+          project_supplier_link_id?: string | null
+          provider_message_id?: string | null
+          recipient_email: string
+          recipient_name?: string | null
+          responded_at?: string | null
+          response_message?: string | null
+          response_name?: string | null
+          response_token?: string
+          sent_at?: string | null
+          status?: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          booking_id?: string | null
+          created_at?: string
+          id?: string
+          organization_id?: string
+          project_id?: string
+          project_supplier_link_id?: string | null
+          provider_message_id?: string | null
+          recipient_email?: string
+          recipient_name?: string | null
+          responded_at?: string | null
+          response_message?: string | null
+          response_name?: string | null
+          response_token?: string
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_request_threads_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_request_threads_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "confirmed_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_request_threads_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_request_threads_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_request_threads_project_supplier_link_id_fkey"
+            columns: ["project_supplier_link_id"]
+            isOneToOne: false
+            referencedRelation: "project_supplier_links"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       suppliers: {
         Row: {
