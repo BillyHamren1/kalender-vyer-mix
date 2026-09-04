@@ -323,7 +323,7 @@ export const buildLagerWorkContextProjection = async (
     sourceSystem: 'planning',
     sourceCursor: `planning-lager-context:${document.planningSha}:${digest}`,
     generatedAt: document.generatedAt,
-    assignments: [],
+    assignments: [] as never[],
     contextTargets,
   };
   const projectionHash = await sha256Canonical(projection);
