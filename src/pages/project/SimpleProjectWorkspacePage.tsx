@@ -60,8 +60,13 @@ export default function SimpleProjectWorkspacePage() {
   const currentNotes = notes ?? booking?.internalnotes ?? project?.internalnotes ?? "";
 
   const fileMutation = useMutation({
-    mutationFn: (action: { type: "upload"; file: File } | { type: "delete"; id: string; url: string }) =>
-      action.type === "upload" ? uploadProjectFile(projectId, action.file) : deleteProjectFile(action.id, action.url),
+    mutationFn: async (action: { type: "upload"; file: File } | { type: "delete"; id: string; url: string }): Promise<void> => {
+      if (action.type === "upload") {
+        await uploadProjectFile(projectId, action.file);
+        return;
+      }
+      await deleteProjectFile(action.id, action.url);
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-files", projectId] }),
     onError: () => toast.error("Kunde inte uppdatera projektets filer"),
   });

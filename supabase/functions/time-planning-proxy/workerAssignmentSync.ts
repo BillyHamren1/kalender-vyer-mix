@@ -6,8 +6,36 @@ import {
   sha256Hex,
   signServiceProofJwt,
 } from '../_shared/timeServiceProof.ts';
+import { attachWorkOrders, type WorkOrderCandidate } from './workOrderAttach.ts';
+import {
+  assignmentLocation,
+  assignmentVersionSeed,
+  buildAssignmentPayload,
+  type AssignmentShapeInput,
+} from './assignmentShape.ts';
+import type { WorkOrderBookingSource, WorkOrderProjectSource } from '../_shared/time-v2/workOrderV1Builder.ts';
 
 type Json = Record<string, unknown>;
+
+/**
+ * Field-relevant booking columns for the assignment + work order. Deliberately
+ * excludes internalnotes, economics_data and every cost/price column.
+ */
+const BOOKING_COLUMNS = [
+  'id', 'title', 'client', 'status', 'version', 'updated_at', 'booking_number',
+  'deliveryaddress', 'delivery_latitude', 'delivery_longitude',
+  'contact_name', 'contact_phone', 'contact_email',
+  'assigned_project_id', 'assigned_project_name', 'organization_id',
+  'rigdaydate', 'eventdate', 'rigdowndate',
+  'rig_start_time', 'rig_end_time', 'event_start_time', 'event_end_time', 'rigdown_start_time', 'rigdown_end_time',
+  'carry_more_than_10m', 'ground_nails_allowed', 'exact_time_needed', 'exact_time_info',
+  'customer_pickup', 'rental_only', 'map_drawing_url',
+].join(', ');
+
+const PROJECT_COLUMNS = [
+  'id', 'booking_id', 'name', 'updated_at', 'deliveryaddress', 'delivery_latitude', 'delivery_longitude',
+  'address_radius_meters', 'organization_id', 'deleted_at', 'project_leader',
+].join(', ');
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), {
   status,
@@ -24,13 +52,6 @@ const dateOffset = (days: number) => {
 };
 
 const text = (value: unknown): string | null => typeof value === 'string' && value.trim() ? value.trim() : null;
-const finite = (value: unknown): number | undefined => typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-
-const phaseLabel = (value: unknown) => {
-  const code = text(value) ?? 'arbete';
-  const labels: Record<string, string> = { rig: 'Montering', event: 'Genomförande', rigDown: 'Nedmontering' };
-  return { code, label: labels[code] ?? code };
-};
 
 const timeProjectRoot = (adapterUrl: string) => {
   const url = new URL(adapterUrl);
@@ -140,28 +161,30 @@ export async function handleWorkerAssignmentSync(ctx: WorkerAssignmentSyncContex
   const bookingIds = [...new Set(calendar.map((row: Json) => text(row.booking_id)).filter(Boolean))] as string[];
   const { data: bookings, error: bookingError } = bookingIds.length
     ? await ctx.admin.from('bookings')
-      .select('id, title, client, status, version, updated_at, booking_number, deliveryaddress, delivery_latitude, delivery_longitude, contact_name, contact_phone, assigned_project_id, assigned_project_name, organization_id')
+      .select(BOOKING_COLUMNS)
       .eq('organization_id', sourceOrganizationId)
       .in('id', bookingIds)
     : { data: [], error: null };
   if (bookingError) return fail(500, 'planning_read_failed', 'Planning-bokningarna kunde inte läsas.', true);
   const { data: projects, error: projectError } = bookingIds.length
     ? await ctx.admin.from('projects')
-      .select('id, booking_id, name, updated_at, deliveryaddress, delivery_latitude, delivery_longitude, address_radius_meters, organization_id, deleted_at')
+      .select(PROJECT_COLUMNS)
       .eq('organization_id', sourceOrganizationId)
       .in('booking_id', bookingIds)
       .is('deleted_at', null)
     : { data: [], error: null };
   if (projectError) return fail(500, 'planning_read_failed', 'Planning-projekten kunde inte läsas.', true);
 
-  const bookingById = new Map((bookings ?? []).map((row: Json) => [String(row.id), row]));
+  const bookingById = new Map<string, Json>((bookings ?? []).map((row: Json) => [String(row.id), row] as [string, Json]));
   const projectByBooking = new Map<string, Json>();
   for (const project of projects ?? []) {
     const row = project as Json;
     if (!projectByBooking.has(String(row.booking_id))) projectByBooking.set(String(row.booking_id), row);
   }
 
-  const assignments: Json[] = [];
+  // Pass 1 — the assignment binding (unchanged): worker × team-day × calendar
+  // event × CONFIRMED booking (× project when one exists).
+  const shapes: AssignmentShapeInput[] = [];
   for (const event of calendar) {
     const startsAt = text(event.start_time);
     const endsAt = text(event.end_time);
@@ -169,45 +192,31 @@ export async function handleWorkerAssignmentSync(ctx: WorkerAssignmentSyncContex
     if (!startsAt || !endsAt || !bookingId || Date.parse(startsAt) >= Date.parse(endsAt)) continue;
     const booking = bookingById.get(bookingId);
     if (!booking || String(booking.status).toUpperCase() !== 'CONFIRMED') continue;
-    const project = projectByBooking.get(bookingId);
-    const location = {
-      address: text(project?.deliveryaddress) ?? text(booking.deliveryaddress) ?? text(event.delivery_address) ?? undefined,
-      latitude: finite(project?.delivery_latitude) ?? finite(booking.delivery_latitude),
-      longitude: finite(project?.delivery_longitude) ?? finite(booking.delivery_longitude),
-      radiusM: finite(project?.address_radius_meters) ?? 100,
-    };
-    const sourceVersion = await sha256Hex(JSON.stringify({
-      eventId: event.id, startsAt, endsAt, eventType: event.event_type,
-      bookingVersion: booking.version, bookingUpdatedAt: booking.updated_at,
-      projectId: project?.id ?? null, projectUpdatedAt: project?.updated_at ?? null,
-      location,
-    }));
-    assignments.push({
-      sourceAssignmentId: String(event.id),
-      sourceVersion,
-      workerExternalId: String(staff.id),
-      workDate: String(event.source_date),
-      startsAt,
-      endsAt,
-      roleLabel: text(staff.role) ?? 'Tilldelad',
-      teamLabel: String(event.resource_id),
-      target: {
-        sourceSystem: 'planning',
-        kind: project ? 'project' : 'booking',
-        externalId: String(project?.id ?? booking.id),
-        version: sourceVersion,
-        label: text(project?.name) ?? text(booking.assigned_project_name) ?? text(event.title) ?? text(booking.title) ?? String(booking.booking_number),
-        bookingNumber: text(booking.booking_number) ?? text(event.booking_number) ?? undefined,
-        phase: phaseLabel(event.event_type),
-        location,
-        reporting: { state: 'allowed' },
-      },
-      workerDetail: {
-        address: location.address,
-        contactName: text(booking.contact_name) ?? undefined,
-        contactPhone: text(booking.contact_phone) ?? undefined,
-      },
-    });
+    shapes.push({ event, booking, project: projectByBooking.get(bookingId) ?? null, staff, startsAt, endsAt });
+  }
+
+  // Pass 2 — additive work-order.v1 per bound assignment (field data only).
+  const candidates: WorkOrderCandidate[] = shapes.map((shape) => ({
+    sourceAssignmentId: String(shape.event.id),
+    workDate: String(shape.event.source_date),
+    booking: shape.booking as unknown as WorkOrderBookingSource,
+    project: (shape.project as unknown as WorkOrderProjectSource | null) ?? null,
+  }));
+  const { byAssignment: workOrders, report: workOrderReport } = await attachWorkOrders({
+    admin: ctx.admin,
+    organizationId: sourceOrganizationId,
+    staffId: String(staff.id),
+    candidates,
+  });
+
+  const assignments: Json[] = [];
+  for (const shape of shapes) {
+    const attached = workOrders.get(String(shape.event.id));
+    const location = assignmentLocation(shape);
+    const sourceVersion = await sha256Hex(JSON.stringify(
+      assignmentVersionSeed(shape, location, attached?.workOrderHash ?? null),
+    ));
+    assignments.push(buildAssignmentPayload(shape, sourceVersion, location, attached?.workOrder ?? null));
   }
   assignments.sort((a, b) => String(a.startsAt).localeCompare(String(b.startsAt)));
 
@@ -233,6 +242,12 @@ export async function handleWorkerAssignmentSync(ctx: WorkerAssignmentSyncContex
     adapterVersion: 'time-planning-adapter.v2',
     operation: 'worker.assignments.sync',
     generatedAt: new Date().toISOString(),
-    data: { assignmentCount: assignments.length, from, to, receipt: upstreamBody?.data ?? null },
+    data: {
+      assignmentCount: assignments.length,
+      from,
+      to,
+      workOrder: workOrderReport,
+      receipt: upstreamBody?.data ?? null,
+    },
   });
 }

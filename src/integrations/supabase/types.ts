@@ -9237,12 +9237,12 @@ export type Database = {
           requested_vehicle_type: string | null
           status: string | null
           stop_order: number | null
+          supplier_contact_id: string | null
+          supplier_id: string | null
           transport_date: string
           transport_end_time: string | null
           transport_time: string | null
           transport_type: string
-          supplier_contact_id: string | null
-          supplier_id: string | null
           vehicle_id: string | null
         }
         Insert: {
@@ -9269,12 +9269,12 @@ export type Database = {
           requested_vehicle_type?: string | null
           status?: string | null
           stop_order?: number | null
+          supplier_contact_id?: string | null
+          supplier_id?: string | null
           transport_date: string
           transport_end_time?: string | null
           transport_time?: string | null
           transport_type?: string
-          supplier_contact_id?: string | null
-          supplier_id?: string | null
           vehicle_id?: string | null
         }
         Update: {
@@ -9301,12 +9301,12 @@ export type Database = {
           requested_vehicle_type?: string | null
           status?: string | null
           stop_order?: number | null
+          supplier_contact_id?: string | null
+          supplier_id?: string | null
           transport_date?: string
           transport_end_time?: string | null
           transport_time?: string | null
           transport_type?: string
-          supplier_contact_id?: string | null
-          supplier_id?: string | null
           vehicle_id?: string | null
         }
         Relationships: [
