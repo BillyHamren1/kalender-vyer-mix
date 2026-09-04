@@ -6,7 +6,7 @@
 
    Reglerna här:
    - Speglar Booking-modulens premium-känsla (samma spacing, radius,
-     skuggor, cards) men byter ALLT som är teal mot lila.
+     skuggor, cards) men byter ALLT som är teal mot canonical Planning-lila (hue 255).
    - Endast återanvändbara klasser. Hårdkoda inte färger per sida.
    - Booking-modulen påverkas inte — alla regler är scopade under
      `.theme-purple`.
@@ -14,16 +14,16 @@
 
 /* ── 1. Token-override på Planning-roten ───────────────────────── */
 .theme-purple {
-  /* Primär lila — premium-värme istället för standard "violet" */
+  /* Primär lila — canonical HUB Planning (#7357C8), samma familj i hela temat */
   --primary: 255 51% 56%;             /* #7357C8 — canonical HUB Planning */
   --primary-foreground: 0 0% 100%;
   --primary-hover: 256 47% 52%;       /* #6849BE */
   --primary-dark: 256 47% 52%;        /* #6849BE */
 
   /* Secondary lila — för mjukare CTA-ytor */
-  --secondary: 270 35% 78%;
-  --secondary-foreground: 280 50% 22%;
-  --secondary-hover: 270 35% 72%;
+  --secondary: 255 35% 78%;
+  --secondary-foreground: 256 50% 22%;
+  --secondary-hover: 255 35% 72%;
 
   /* Sidbakgrund — NEUTRAL premium-grå (matchar Booking-familjen).
      Lila används enbart som accent, inte som basbakgrund. */
@@ -32,14 +32,14 @@
   --gradient-teal-bg: hsl(240 10% 97%);
 
   /* Accent / hover / focus-ring — lila */
-  --accent: 270 30% 94%;
-  --accent-foreground: 280 50% 22%;
+  --accent: 255 30% 94%;
+  --accent-foreground: 256 50% 22%;
   --ring: 255 51% 56%;
   --muted-foreground: 240 6% 42%;
 
   /* Gradienter (för ikoner/CTA-ytor, inte page-bg) */
-  --gradient-icon: linear-gradient(135deg, hsl(270 50% 62%) 0%, hsl(280 55% 45%) 100%);
-  --gradient-teal: linear-gradient(135deg, hsl(270 50% 58%) 0%, hsl(282 55% 42%) 100%);
+  --gradient-icon: linear-gradient(135deg, hsl(255 50% 62%) 0%, hsl(256 55% 45%) 100%);
+  --gradient-teal: linear-gradient(135deg, hsl(255 50% 58%) 0%, hsl(258 55% 42%) 100%);
 
   /* Skuggor — neutral grå, inte lila-tintad */
   --shadow-soft:
@@ -48,12 +48,12 @@
   --shadow-raised:
     0 1px 3px hsl(240 10% 20% / 0.06),
     0 3px 0 hsl(240 8% 88%);
-  --shadow-btn-primary: 0 3px 0 hsl(280 50% 35%);
+  --shadow-btn-primary: 0 3px 0 hsl(256 50% 35%);
 
   /* Sidebar (när Planning-rot innehåller sidan) */
   --sidebar-primary: 255 51% 56%;
-  --sidebar-accent: 270 30% 94%;
-  --sidebar-accent-foreground: 280 50% 22%;
+  --sidebar-accent: 255 30% 94%;
+  --sidebar-accent-foreground: 256 50% 22%;
   --sidebar-ring: 255 51% 56%;
 }
 
@@ -65,13 +65,13 @@
 .theme-purple .planning-hero {
   background:
     linear-gradient(135deg,
-      hsl(270 50% 96%) 0%,
-      hsl(280 45% 94%) 50%,
-      hsl(265 40% 96%) 100%);
-  border: 1px solid hsl(270 30% 86% / 0.6);
+      hsl(255 50% 96%) 0%,
+      hsl(256 45% 94%) 50%,
+      hsl(255 40% 96%) 100%);
+  border: 1px solid hsl(255 30% 86% / 0.6);
   border-radius: 1rem;
   box-shadow:
-    0 1px 2px hsl(270 30% 25% / 0.04),
+    0 1px 2px hsl(255 30% 25% / 0.04),
     inset 0 1px 0 hsl(0 0% 100% / 0.6);
 }
 
@@ -79,14 +79,14 @@
    en aning förhöjd känsla (whitespace, mjuk kant, dämpad skugga). */
 .theme-purple .planning-card {
   background: hsl(0 0% 100%);
-  border: 1px solid hsl(270 20% 88% / 0.7);
+  border: 1px solid hsl(255 20% 88% / 0.7);
   border-radius: 0.875rem;
-  box-shadow: 0 1px 3px hsl(270 30% 25% / 0.04);
+  box-shadow: 0 1px 3px hsl(255 30% 25% / 0.04);
   transition: box-shadow 160ms ease, border-color 160ms ease;
 }
 .theme-purple .planning-card:hover {
-  border-color: hsl(270 30% 80% / 0.8);
-  box-shadow: 0 2px 8px hsl(270 35% 30% / 0.07);
+  border-color: hsl(255 30% 80% / 0.8);
+  box-shadow: 0 2px 8px hsl(255 35% 30% / 0.07);
 }
 
 /* Stat-card — siffra + label, ramad i lila accent */
@@ -94,11 +94,11 @@
   background:
     linear-gradient(180deg,
       hsl(0 0% 100%) 0%,
-      hsl(270 30% 98%) 100%);
-  border: 1px solid hsl(270 25% 88% / 0.7);
+      hsl(255 30% 98%) 100%);
+  border: 1px solid hsl(255 25% 88% / 0.7);
   border-radius: 0.875rem;
   padding: 1rem 1.125rem;
-  box-shadow: 0 1px 2px hsl(270 30% 25% / 0.04);
+  box-shadow: 0 1px 2px hsl(255 30% 25% / 0.04);
 }
 
 /* Sektion-header inuti en sida (mindre än PageHeader) */
@@ -110,26 +110,26 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: hsl(280 45% 38%);
+  color: hsl(256 45% 38%);
 }
 
 /* Mjuk lila bakgrundsyta (accent zone) */
 .theme-purple .planning-soft-bg {
-  background: hsl(270 35% 96%);
-  border: 1px solid hsl(270 25% 88% / 0.6);
+  background: hsl(255 35% 96%);
+  border: 1px solid hsl(255 25% 88% / 0.6);
   border-radius: 0.75rem;
 }
 
 /* Aktivt tab/chip — ljus lila istället för teal */
 .theme-purple .planning-chip-active {
-  background: hsl(270 45% 92%);
-  color: hsl(280 55% 30%);
-  border: 1px solid hsl(270 40% 80%);
+  background: hsl(255 45% 92%);
+  color: hsl(256 55% 30%);
+  border: 1px solid hsl(255 40% 80%);
 }
 .theme-purple .planning-chip {
   background: hsl(0 0% 100%);
-  color: hsl(270 18% 35%);
-  border: 1px solid hsl(270 18% 86%);
+  color: hsl(255 18% 35%);
+  border: 1px solid hsl(255 18% 86%);
   border-radius: 0.5rem;
   padding: 0.25rem 0.625rem;
   font-size: 0.75rem;
@@ -137,42 +137,42 @@
   transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
 }
 .theme-purple .planning-chip:hover {
-  background: hsl(270 35% 96%);
-  border-color: hsl(270 30% 80%);
+  background: hsl(255 35% 96%);
+  border-color: hsl(255 30% 80%);
 }
 
 /* Filter/input — samma "premium SaaS"-känsla som Booking men lila ring */
 .theme-purple .planning-input {
   background: hsl(0 0% 100%);
-  border: 1px solid hsl(270 18% 84%);
+  border: 1px solid hsl(255 18% 84%);
   border-radius: 0.5rem;
   transition: border-color 140ms ease, box-shadow 140ms ease;
 }
 .theme-purple .planning-input:focus,
 .theme-purple .planning-input:focus-visible {
   outline: none;
-  border-color: hsl(270 45% 60%);
-  box-shadow: 0 0 0 3px hsl(270 45% 60% / 0.15);
+  border-color: hsl(255 45% 60%);
+  box-shadow: 0 0 0 3px hsl(255 45% 60% / 0.15);
 }
 
 /* Premium-knapp — speglar Booking-knappen men i lila */
 .theme-purple .planning-btn-primary {
   background: linear-gradient(180deg,
-    hsl(270 50% 58%) 0%,
-    hsl(280 55% 50%) 100%);
+    hsl(255 50% 58%) 0%,
+    hsl(256 55% 50%) 100%);
   color: white;
   border-radius: 0.625rem;
   font-weight: 600;
   box-shadow:
     0 1px 0 hsl(0 0% 100% / 0.2) inset,
-    0 2px 6px hsl(280 50% 35% / 0.25);
+    0 2px 6px hsl(256 50% 35% / 0.25);
   transition: filter 140ms ease, box-shadow 140ms ease;
 }
 .theme-purple .planning-btn-primary:hover {
   filter: brightness(1.05);
   box-shadow:
     0 1px 0 hsl(0 0% 100% / 0.25) inset,
-    0 4px 10px hsl(280 50% 35% / 0.28);
+    0 4px 10px hsl(256 50% 35% / 0.28);
 }
 
 /* Card/table-hybrid — rader inuti card med mjuka delningslinjer */
@@ -181,14 +181,14 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
-  border-bottom: 1px solid hsl(270 18% 92%);
+  border-bottom: 1px solid hsl(255 18% 92%);
   transition: background-color 120ms ease;
 }
 .theme-purple .planning-row:last-child {
   border-bottom: none;
 }
 .theme-purple .planning-row:hover {
-  background: hsl(270 35% 97%);
+  background: hsl(255 35% 97%);
 }
 
 /* Badge — neutral lila, samma form som Booking */
@@ -201,16 +201,16 @@
   font-size: 0.6875rem;
   font-weight: 700;
   letter-spacing: 0.02em;
-  background: hsl(270 45% 94%);
-  color: hsl(280 55% 32%);
-  border: 1px solid hsl(270 40% 84%);
+  background: hsl(255 45% 94%);
+  color: hsl(256 55% 32%);
+  border: 1px solid hsl(255 40% 84%);
 }
 
 /* Mjukt radial-overlay för Planning hero/page-toppar */
 .theme-purple .planning-radial-overlay {
   background: radial-gradient(
     ellipse 80% 50% at 50% -20%,
-    hsl(270 60% 60% / 0.08),
+    hsl(255 60% 60% / 0.08),
     transparent 70%
   );
 }
@@ -220,15 +220,15 @@
    ska samma utility automatiskt visa lila. Detta är en säker fallback
    för komponenter som inte själva använder semantiska tokens. */
 .theme-purple [data-premium-surface="teal"] {
-  background: hsl(270 35% 97%) !important;
-  border-color: hsl(270 25% 86%) !important;
+  background: hsl(255 35% 97%) !important;
+  border-color: hsl(255 25% 86%) !important;
 }
 
 /* Dark mode — bevara läsbarhet utan att blandas med teal */
 .dark .theme-purple {
-  --gradient-page: linear-gradient(180deg, hsl(270 25% 10%) 0%, hsl(280 20% 8%) 100%);
-  --gradient-teal-bg: hsl(270 20% 12%);
-  --accent: 270 25% 22%;
-  --accent-foreground: 270 30% 90%;
-  --ring: 270 60% 70%;
+  --gradient-page: linear-gradient(180deg, hsl(255 25% 10%) 0%, hsl(256 20% 8%) 100%);
+  --gradient-teal-bg: hsl(255 20% 12%);
+  --accent: 255 25% 22%;
+  --accent-foreground: 255 30% 90%;
+  --ring: 255 60% 70%;
 }
