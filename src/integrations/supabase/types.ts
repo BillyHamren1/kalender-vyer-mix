@@ -3815,18 +3815,21 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          internal_lager_enabled: boolean
           name: string
           slug: string
         }
         Insert: {
           created_at?: string
           id?: string
+          internal_lager_enabled?: boolean
           name: string
           slug: string
         }
         Update: {
           created_at?: string
           id?: string
+          internal_lager_enabled?: boolean
           name?: string
           slug?: string
         }
@@ -10971,6 +10974,10 @@ export type Database = {
       mark_job_thread_read: {
         Args: { _booking_id: string; _my_ids: string[]; _org_id: string }
         Returns: number
+      }
+      org_internal_lager_enabled: {
+        Args: { _org_id: string }
+        Returns: boolean
       }
       promote_stale_assistant_events: { Args: never; Returns: number }
       recompute_booking_staff_for_day: {
