@@ -170,7 +170,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
     });
 
     return items;
-  }, [jobs, projects, largeProjects]);
+  }, [jobs, projects, largeProjects, internalLagerEnabled]);
 
   const hasActiveFilters = search.trim().length > 0 || statusFilter !== 'all_active' || typeFilter !== 'all';
 

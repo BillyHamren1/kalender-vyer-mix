@@ -1571,7 +1571,16 @@ async function handleGetBookings(supabase: any, staffId: string, organizationId:
   let lagerShifts: any[] = []
   let lagerBookingId: string | null = null
 
-  if (lagerDates.length > 0) {
+  // Det konstanta Lager-passet är organisationsstyrt: bara organisationer
+  // med internal_lager_enabled (t.ex. Frans August) får Lager-bron i appen.
+  const { data: lagerOrgRow } = await supabase
+    .from('organizations')
+    .select('internal_lager_enabled')
+    .eq('id', organizationId)
+    .maybeSingle()
+  const internalLagerEnabled = (lagerOrgRow as any)?.internal_lager_enabled === true
+
+  if (lagerDates.length > 0 && internalLagerEnabled) {
     const { data: lagerProject, error: lagerErr } = await supabase
       .from('projects')
       .select('id, name, booking_id')
