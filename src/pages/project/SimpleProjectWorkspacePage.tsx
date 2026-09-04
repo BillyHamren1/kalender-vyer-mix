@@ -11,9 +11,21 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import AddSupplierDialog from "@/components/project/suppliers/AddSupplierDialog";
+import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
+import ProjectFiles from "@/components/project/ProjectFiles";
 import { useProjectSuppliers } from "@/hooks/useProjectSuppliers";
 import { useSupplierRequests } from "@/hooks/useSupplierRequests";
-import { createProjectTask, deleteProjectTask, fetchProject, fetchProjectTasks, updateProjectTask } from "@/services/projectService";
+import {
+  createProjectTask,
+  deleteProjectFile,
+  deleteProjectTask,
+  fetchBookingAttachments,
+  fetchProject,
+  fetchProjectFiles,
+  fetchProjectTasks,
+  updateProjectTask,
+  uploadProjectFile,
+} from "@/services/projectService";
 import { fetchSupplierRequestThreads, saveSimpleProjectNotes, SIMPLE_SUPPLIER_STATUS, SIMPLE_THREAD_STATUS } from "@/services/simpleProjectWorkspaceService";
 import type { MergedSupplier } from "@/types/supplier";
 
@@ -33,12 +45,21 @@ export default function SimpleProjectWorkspacePage() {
 
   const projectQuery = useQuery({ queryKey: ["simple-project", projectId], queryFn: () => fetchProject(projectId), enabled: !!projectId });
   const tasksQuery = useQuery({ queryKey: ["simple-project-tasks", projectId], queryFn: () => fetchProjectTasks(projectId), enabled: !!projectId });
+  const filesQuery = useQuery({ queryKey: ["project-files", projectId], queryFn: () => fetchProjectFiles(projectId), enabled: !!projectId });
   const threadsQuery = useQuery({ queryKey: ["supplier-request-threads", projectId], queryFn: () => fetchSupplierRequestThreads(projectId), enabled: !!projectId });
   const { suppliers, isLoading: suppliersLoading, addSupplier } = useProjectSuppliers(projectId);
   const project = projectQuery.data;
   const booking = project?.booking;
   const bookingId = project?.booking_id || booking?.id || null;
+  const attachmentsQuery = useQuery({ queryKey: ["booking-attachments", bookingId], queryFn: () => fetchBookingAttachments(bookingId!), enabled: !!bookingId });
   const currentNotes = notes ?? booking?.internalnotes ?? project?.internalnotes ?? "";
+
+  const fileMutation = useMutation({
+    mutationFn: (action: { type: "upload"; file: File } | { type: "delete"; id: string; url: string }) =>
+      action.type === "upload" ? uploadProjectFile(projectId, action.file) : deleteProjectFile(action.id, action.url),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-files", projectId] }),
+    onError: () => toast.error("Kunde inte uppdatera projektets filer"),
+  });
 
   const taskMutation = useMutation({
     mutationFn: async (action: { type: "add"; title: string } | { type: "toggle"; id: string; completed: boolean } | { type: "delete"; id: string }) => {
@@ -74,6 +95,27 @@ export default function SimpleProjectWorkspacePage() {
   if (projectQuery.isLoading) return <div className="p-8 text-muted-foreground">Laddar projekt…</div>;
   if (!project) return <div className="p-8"><p>Projektet hittades inte.</p><Button className="mt-4" onClick={() => navigate("/projects")}>Till projekt</Button></div>;
 
+  const displayBooking = booking || {
+    id: project.id,
+    client: project.client || "Internt projekt",
+    eventdate: project.eventdate,
+    rigdaydate: project.rigdaydate,
+    rigdowndate: project.rigdowndate,
+    deliveryaddress: project.deliveryaddress,
+    delivery_city: project.delivery_city,
+    delivery_postal_code: project.delivery_postal_code,
+    contact_name: project.contact_name,
+    contact_phone: project.contact_phone,
+    contact_email: project.contact_email,
+    booking_number: null,
+    carry_more_than_10m: null,
+    ground_nails_allowed: null,
+    exact_time_needed: null,
+    exact_time_info: null,
+    rental_only: false,
+    internalnotes: project.internalnotes,
+  };
+
   return (
     <div className="theme-purple min-h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
       <div className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6">
@@ -84,6 +126,19 @@ export default function SimpleProjectWorkspacePage() {
           </div>
           <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3"><div><span className="text-muted-foreground">Event</span><div className="font-medium">{formatDate(booking?.eventdate || project.eventdate)}</div></div><div><span className="text-muted-foreground">Plats</span><div className="font-medium">{booking?.deliveryaddress || project.deliveryaddress || "Ej angiven"}</div></div><div><span className="text-muted-foreground">Kontakt</span><div className="font-medium">{booking?.contact_name || project.contact_name || "Ej angiven"}</div></div></div>
         </header>
+
+        <section aria-labelledby="booking-core-heading" className="space-y-3">
+          <div>
+            <h2 id="booking-core-heading" className="text-lg font-semibold">Bokning och leverans</h2>
+            <p className="text-sm text-muted-foreground">Operativ information från bokningen – adress, kontakt, datum, SPIK och allt som ska levereras.</p>
+          </div>
+          <BookingInfoExpanded
+            booking={displayBooking}
+            projectLeader={project.project_leader}
+            bookingAttachments={attachmentsQuery.data || []}
+            showProductsHeading
+          />
+        </section>
 
         <main className="grid gap-5 lg:grid-cols-2">
           <Card><CardHeader><CardTitle className="flex items-center gap-2"><Check className="h-5 w-5" />Att göra</CardTitle></CardHeader><CardContent className="space-y-3">
@@ -100,6 +155,16 @@ export default function SimpleProjectWorkspacePage() {
           <Card><CardHeader><CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5" />Leverantörsdialog</CardTitle></CardHeader><CardContent className="space-y-3">
             {timeline.length ? timeline.map((item) => <div key={item.id} className="rounded-lg border p-3 text-sm"><div className="flex justify-between gap-3"><span className="font-medium">{item.subject}</span><Badge variant="outline">{SIMPLE_THREAD_STATUS[item.status] || item.status}</Badge></div><div className="mt-1 text-xs text-muted-foreground">{item.recipient_name || item.recipient_email} · {formatDate(item.responded_at || item.sent_at || item.created_at)}</div>{item.response_message && <p className="mt-2 rounded bg-muted p-2">{item.response_message}</p>}</div>) : <p className="py-6 text-center text-sm text-muted-foreground">Skickade förfrågningar och svar visas här.</p>}
           </CardContent></Card>
+
+          <div className="lg:col-span-2">
+            <ProjectFiles
+              files={filesQuery.data || []}
+              bookingAttachments={attachmentsQuery.data || []}
+              isUploading={fileMutation.isPending}
+              onUpload={({ file }) => fileMutation.mutate({ type: "upload", file })}
+              onDelete={({ id, url }) => fileMutation.mutate({ type: "delete", id, url })}
+            />
+          </div>
         </main>
       </div>
 
