@@ -47,4 +47,13 @@ describe("simple project workspace", () => {
     expect(page).toContain("rigdowndate: project.rigdowndate");
     expect(page).toContain("contact_phone: project.contact_phone");
   });
+
+  it("uses the purple project header and separates booking information from planning", () => {
+    const page = read("src/pages/project/SimpleProjectWorkspacePage.tsx");
+    expect(page).toContain("bg-primary p-5 text-primary-foreground");
+    expect(page).toContain('value="booking"');
+    expect(page).toContain('value="planning"');
+    expect(page).toContain("Bokningsinformation");
+    expect(page).toContain("Projektplanering");
+  });
 });
