@@ -35,12 +35,42 @@ Deno.serve(async (req) => {
     const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {};
     const cases: Case[] = Array.isArray(body?.cases) && body.cases.length > 0
       ? body.cases : DEFAULT_CASES;
-    const orgId = body?.organizationId ?? ORG;
 
     const admin = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
+
+    // FAIL CLOSED: require an authenticated caller and derive the organization
+    // from that caller only. A body-supplied organizationId is never trusted.
+    const authHeader = req.headers.get('authorization') ?? '';
+    const token = authHeader.toLowerCase().startsWith('bearer ')
+      ? authHeader.slice(7).trim() : '';
+    if (!token) {
+      return new Response(JSON.stringify({ ok: false, error: 'unauthorized' }),
+        { status: 401, headers: { ...cors(), 'content-type': 'application/json' } });
+    }
+    const { data: userData } = await admin.auth.getUser(token);
+    const userId = userData?.user?.id ?? null;
+    if (!userId) {
+      return new Response(JSON.stringify({ ok: false, error: 'unauthorized' }),
+        { status: 401, headers: { ...cors(), 'content-type': 'application/json' } });
+    }
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('organization_id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    const orgId: string | null = profile?.organization_id ?? null;
+    if (!orgId) {
+      return new Response(JSON.stringify({ ok: false, error: 'organization_not_resolved' }),
+        { status: 403, headers: { ...cors(), 'content-type': 'application/json' } });
+    }
+    if (body?.organizationId && body.organizationId !== orgId) {
+      return new Response(JSON.stringify({ ok: false, error: 'cross_tenant_request_rejected' }),
+        { status: 403, headers: { ...cors(), 'content-type': 'application/json' } });
+    }
+
 
     const results = [];
     for (const c of cases) {
