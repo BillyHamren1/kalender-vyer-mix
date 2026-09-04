@@ -7,6 +7,12 @@ import {
   signServiceProofJwt,
 } from '../_shared/timeServiceProof.ts';
 import { attachWorkOrders, type WorkOrderCandidate } from './workOrderAttach.ts';
+import {
+  assignmentLocation,
+  assignmentVersionSeed,
+  buildAssignmentPayload,
+  type AssignmentShapeInput,
+} from './assignmentShape.ts';
 import type { WorkOrderBookingSource, WorkOrderProjectSource } from '../_shared/time-v2/workOrderV1Builder.ts';
 
 type Json = Record<string, unknown>;
