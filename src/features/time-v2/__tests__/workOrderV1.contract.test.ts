@@ -4,7 +4,7 @@
  *
  * Locks: allowed sections/keys, forbidden cost/price/internal terms,
  * explicit-offset timestamps, empty-section omission and the DST-safe
- * Europe/Stockholm conversion used for rig/event/teardown phases.
+ * Europe/Stockholm conversion used for rig/event/derig phases.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -12,21 +12,25 @@ import {
   isHttpsUrl,
   toStockholmOffsetIso,
   WORK_ORDER_FORBIDDEN_KEY_TERMS,
+  WORK_ORDER_PHASE_KINDS,
   WORK_ORDER_SCHEMA,
   WORK_ORDER_V1_KEYS,
 } from '../../../../supabase/functions/_shared/time-v2/workOrderV1';
 
 const valid = () => ({
-  phases: [{ kind: 'rig', startsAt: '2026-06-04T07:00:00+02:00', endsAt: '2026-06-04T17:00:00+02:00' }],
-  lines: [
-    { id: 'p1', kind: 'package', label: 'H Mastertent - 3x3 (#1)', quantity: 1 },
-    { id: 'c1', kind: 'product', label: 'H Mastertent - Takduk 3x3', quantity: 1, parentLineId: 'p1', note: 'Vit' },
+  phases: [
+    { kind: 'rig', startsAt: '2026-06-04T07:00:00+02:00', endsAt: '2026-06-04T17:00:00+02:00' },
+    { kind: 'derig', startsAt: '2026-06-07T08:00:00+02:00', endsAt: '2026-06-07T12:00:00+02:00' },
   ],
-  instructions: ['Bär mer än 10 m'],
-  tasks: [{ id: 't1', title: 'Kolla el', completed: false }],
-  files: [{ url: 'https://files.example.com/plan.pdf', name: 'plan.pdf', kind: 'document' }],
-  team: [{ name: 'Anna Ek', role: 'Tekniker' }],
-  contacts: [{ name: 'Kund Kundsson', role: 'Leveranskontakt', phone: '+46700000000' }],
+  lines: [
+    { lineId: 'p1', kind: 'package', label: 'H Mastertent - 3x3 (#1)', quantity: 1 },
+    { lineId: 'c1', kind: 'product', label: 'H Mastertent - Takduk 3x3', quantity: 1, parentLineId: 'p1', note: 'Vit' },
+  ],
+  instructions: [{ instructionId: 'carry_more_than_10m', label: 'Bär mer än 10 m' }],
+  tasks: [{ taskId: 't1', label: 'Kolla el', phase: 'rig' as const }],
+  files: [{ fileId: 'f1', kind: 'document', label: 'plan.pdf', url: 'https://files.example.com/plan.pdf', mimeType: 'application/pdf' }],
+  team: [{ memberId: 's1', displayName: 'Anna Ek', roleLabel: 'Tekniker' }],
+  contacts: [{ contactId: 'c1', role: 'Leveranskontakt', displayName: 'Kund Kundsson', phone: '+46700000000' }],
 });
 
 describe('work-order.v1 — Planning emitter guard', () => {
@@ -34,8 +38,13 @@ describe('work-order.v1 — Planning emitter guard', () => {
     expect(WORK_ORDER_SCHEMA).toBe('work-order.v1');
     expect(WORK_ORDER_V1_KEYS.root).toEqual(['phases', 'lines', 'instructions', 'tasks', 'files', 'team', 'contacts']);
     expect(WORK_ORDER_V1_KEYS.phase).toEqual(['kind', 'startsAt', 'endsAt']);
-    expect(WORK_ORDER_V1_KEYS.line).toEqual(['id', 'kind', 'label', 'quantity', 'unit', 'note', 'parentLineId']);
-    expect(WORK_ORDER_V1_KEYS.file).toEqual(['url', 'name', 'kind']);
+    expect(WORK_ORDER_V1_KEYS.line).toEqual(['lineId', 'kind', 'label', 'quantity', 'unit', 'note', 'parentLineId']);
+    expect(WORK_ORDER_V1_KEYS.instruction).toEqual(['instructionId', 'label', 'body']);
+    expect(WORK_ORDER_V1_KEYS.task).toEqual(['taskId', 'label', 'note', 'phase']);
+    expect(WORK_ORDER_V1_KEYS.file).toEqual(['fileId', 'kind', 'label', 'url', 'thumbnailUrl', 'mimeType']);
+    expect(WORK_ORDER_V1_KEYS.teamMember).toEqual(['memberId', 'displayName', 'roleLabel']);
+    expect(WORK_ORDER_V1_KEYS.contact).toEqual(['contactId', 'role', 'displayName', 'phone']);
+    expect(WORK_ORDER_PHASE_KINDS).toEqual(['rig', 'event', 'derig']);
   });
 
   it('accepts a complete, well-formed work order', () => {
@@ -63,20 +72,20 @@ describe('work-order.v1 — Planning emitter guard', () => {
       .toThrow(/explicit offset/);
     expect(() => assertWorkOrderV1({ phases: [{ kind: 'rig', startsAt: '2026-06-04T17:00:00+02:00', endsAt: '2026-06-04T07:00:00+02:00' }] }))
       .toThrow(/before endsAt/);
-    expect(() => assertWorkOrderV1({ phases: [{ kind: 'strike', startsAt: '2026-06-04T07:00:00+02:00', endsAt: '2026-06-04T17:00:00+02:00' }] }))
+    expect(() => assertWorkOrderV1({ phases: [{ kind: 'teardown', startsAt: '2026-06-04T07:00:00+02:00', endsAt: '2026-06-04T17:00:00+02:00' }] }))
       .toThrow(/kind: invalid/);
   });
 
   it('forbids empty sections and empty work orders (omit instead of fabricating)', () => {
     expect(() => assertWorkOrderV1({})).toThrow(/empty work order/);
     expect(() => assertWorkOrderV1({ lines: [] })).toThrow(/empty sections must be omitted/);
-    expect(() => assertWorkOrderV1({ instructions: [''] })).toThrow(/non-empty string/);
+    expect(() => assertWorkOrderV1({ instructions: [{ instructionId: 'a', label: '' }] })).toThrow(/non-empty string/);
   });
 
   it('requires parentLineId to reference a sibling line and unique ids', () => {
-    expect(() => assertWorkOrderV1({ lines: [{ id: 'c1', kind: 'product', label: 'X', quantity: 1, parentLineId: 'ghost' }] }))
+    expect(() => assertWorkOrderV1({ lines: [{ lineId: 'c1', kind: 'product', label: 'X', quantity: 1, parentLineId: 'ghost' }] }))
       .toThrow(/does not reference a line/);
-    expect(() => assertWorkOrderV1({ lines: [{ id: 'a', kind: 'product', label: 'X', quantity: 1 }, { id: 'a', kind: 'product', label: 'Y', quantity: 2 }] }))
+    expect(() => assertWorkOrderV1({ lines: [{ lineId: 'a', kind: 'product', label: 'X', quantity: 1 }, { lineId: 'a', kind: 'product', label: 'Y', quantity: 2 }] }))
       .toThrow(/duplicate/);
   });
 
@@ -85,7 +94,7 @@ describe('work-order.v1 — Planning emitter guard', () => {
     expect(isHttpsUrl('http://x.example.com/a.png')).toBe(false);
     expect(isHttpsUrl('data:image/png;base64,AAA')).toBe(false);
     expect(isHttpsUrl('/relative/file.pdf')).toBe(false);
-    expect(() => assertWorkOrderV1({ files: [{ url: 'http://x.example.com/a.pdf', name: 'a.pdf', kind: 'document' }] })).toThrow(/https/);
+    expect(() => assertWorkOrderV1({ files: [{ fileId: 'f1', kind: 'document', label: 'a.pdf', url: 'http://x.example.com/a.pdf' }] })).toThrow(/https/);
   });
 });
 
