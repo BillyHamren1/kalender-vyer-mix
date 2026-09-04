@@ -175,7 +175,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.debug-day-evidence-l1-report]
-verify_jwt = false
+verify_jwt = true
 
 [functions.sync-external-suppliers]
 verify_jwt = false
