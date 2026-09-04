@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@4.0.0";
+import { resolveSender, SenderNotConfiguredError } from "../_shared/email/senderIdentity.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -34,6 +35,7 @@ function formatDate(d: string | null): string {
 }
 
 function buildCancellationEmailHtml(params: {
+  senderName: string;
   clientName: string;
   bookingNumber: string | null;
   deliveryAddress: string | null;
@@ -48,6 +50,7 @@ function buildCancellationEmailHtml(params: {
   partnerName: string;
   customMessage: string | null;
 }): string {
+  const senderName = params.senderName;
   const vt = params.vehicleType ? (vehicleTypeLabels[params.vehicleType] || params.vehicleType) : "—";
   const deliveryFull = [params.deliveryAddress, params.deliveryPostalCode, params.deliveryCity]
     .filter(Boolean)
@@ -79,7 +82,7 @@ function buildCancellationEmailHtml(params: {
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
                   <td style="vertical-align:middle;width:50%;">
-                    <img src="https://pihrhltinhewhoxefjxv.supabase.co/storage/v1/object/public/email-assets/fransaugust-logo.png" alt="Frans August" width="150" style="max-width:150px;height:auto;display:block;border:0;font-size:20px;font-weight:bold;color:#1a3a3c;" />
+                    <span style="font-size:20px;font-weight:bold;color:#1a3a3c;">${senderName}</span>
                   </td>
                   <td style="vertical-align:middle;text-align:right;width:50%;">
                     ${params.bookingNumber ? `<p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7a7a7a;font-weight:600;">Referensnummer</p>
@@ -94,7 +97,7 @@ function buildCancellationEmailHtml(params: {
           <tr>
             <td style="padding:20px 40px 0;">
               <h1 style="margin:0;font-size:22px;font-weight:700;color:#dc2626;letter-spacing:-0.5px;">Transport avbokad</h1>
-              <p style="margin:4px 0 0;font-size:13px;color:#7a8b8d;">Denna transport har avbokats av Frans August Logistik</p>
+              <p style="margin:4px 0 0;font-size:13px;color:#7a8b8d;">Denna transport har avbokats av ${senderName}</p>
               <hr style="border:none;border-top:1px solid #fecaca;margin:16px 0;" />
               <p style="margin:0;font-size:15px;color:#1a1a1a;font-weight:600;">Hej ${params.partnerName},</p>
               <p style="margin:6px 0 0;font-size:14px;color:#5a5a5a;line-height:1.6;">
@@ -183,7 +186,7 @@ function buildCancellationEmailHtml(params: {
           <tr>
             <td style="padding:24px 40px;background-color:#fef2f2;border-top:1px solid #fecaca;">
               <p style="margin:0;font-size:12px;color:#7a7a7a;text-align:center;line-height:1.5;">
-                Detta mejl skickades automatiskt från Frans August Logistik.<br>
+                Detta mejl skickades automatiskt från ${senderName}.<br>
                 Svara inte på detta mejl.
               </p>
             </td>
@@ -240,6 +243,9 @@ Deno.serve(async (req) => {
     const booking = assignment.booking;
     const vehicle = assignment.vehicle;
 
+    // Avsändaridentitet härleds från uppdragets organisation – fail closed.
+    const senderIdentity = await resolveSender(supabase, assignment.organization_id ?? null, "planning");
+
     if (!vehicle?.contact_email) {
       console.log(`[send-transport-cancellation] Partner ${vehicle?.name || 'unknown'} has no email — skipping`);
       return new Response(
@@ -255,6 +261,7 @@ Deno.serve(async (req) => {
         : vehicle.vehicle_type);
 
     const html = buildCancellationEmailHtml({
+      senderName: senderIdentity.displayName,
       clientName: booking?.client || "—",
       bookingNumber: booking?.booking_number || null,
       deliveryAddress: booking?.deliveryaddress || null,
@@ -275,7 +282,8 @@ Deno.serve(async (req) => {
     console.log(`[send-transport-cancellation] Sending cancellation email to: ${vehicle.contact_email}`);
 
     const { error: emailError } = await resend.emails.send({
-      from: "Frans August Logistik <noreply@fransaugust.se>",
+      from: senderIdentity.from,
+      reply_to: senderIdentity.address,
       to: [vehicle.contact_email],
       subject: emailSubject,
       html,

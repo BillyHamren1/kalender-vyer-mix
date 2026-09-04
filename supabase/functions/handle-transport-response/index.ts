@@ -1,9 +1,9 @@
 // @ts-nocheck
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { Resend } from "npm:resend@4.0.0";
+import { resolveSender } from "../_shared/email/senderIdentity.ts";
 
 const APP_URL = "https://kalender-vyer-mix.lovable.app";
-const LOGO_URL = "https://pihrhltinhewhoxefjxv.supabase.co/storage/v1/object/public/email-assets/fransaugust-logo.png";
 
 function formatDate(d: string | null): string {
   if (!d) return "";
@@ -24,6 +24,7 @@ function redirect(status: string): Response {
 }
 
 function buildConfirmationEmail(params: {
+  senderName: string;
   action: "accepted" | "declined";
   partnerName: string;
   clientName: string;
@@ -32,6 +33,7 @@ function buildConfirmationEmail(params: {
   deliveryAddress: string | null;
   transportTime: string | null;
 }): string {
+  const senderName = params.senderName;
   const isAccepted = params.action === "accepted";
   const title = isAccepted ? "Körning bokad!" : "Körning nekad";
   const titleColor = isAccepted ? "#279B9E" : "#dc2626";
@@ -74,7 +76,7 @@ function buildConfirmationEmail(params: {
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
                   <td style="vertical-align:middle;width:50%;">
-                    <img src="${LOGO_URL}" alt="Frans August" width="150" style="max-width:150px;height:auto;display:block;border:0;font-size:20px;font-weight:bold;color:#1a3a3c;" />
+                    <span style="font-size:20px;font-weight:bold;color:#1a3a3c;">${senderName}</span>
                   </td>
                   <td style="vertical-align:middle;text-align:right;width:50%;">
                     ${params.bookingNumber ? `<p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7a8b8d;font-weight:600;">Referensnummer</p>
@@ -94,7 +96,7 @@ function buildConfirmationEmail(params: {
           <tr>
             <td style="padding:24px 40px;background-color:#f7fafa;border-top:1px solid #e0ecee;">
               <p style="margin:0;font-size:12px;color:#7a8b8d;text-align:center;line-height:1.5;">
-                Detta mejl skickades automatiskt fr&aring;n Frans August Logistik.<br>
+                Detta mejl skickades automatiskt fr&aring;n ${senderName}.<br>
                 Svara inte p&aring; detta mejl.
               </p>
             </td>
@@ -108,11 +110,13 @@ function buildConfirmationEmail(params: {
 }
 
 function buildBatchConfirmationEmail(params: {
+  senderName: string;
   results: { action: "accepted" | "declined"; transportDate: string }[];
   partnerName: string;
   clientName: string;
   bookingNumber: string | null;
 }): string {
+  const senderName = params.senderName;
   const allAccepted = params.results.every(r => r.action === "accepted");
   const allDeclined = params.results.every(r => r.action === "declined");
   const accepted = params.results.filter(r => r.action === "accepted").length;
@@ -160,7 +164,7 @@ function buildBatchConfirmationEmail(params: {
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
                   <td style="vertical-align:middle;width:50%;">
-                    <img src="${LOGO_URL}" alt="Frans August" width="150" style="max-width:150px;height:auto;display:block;border:0;font-size:20px;font-weight:bold;color:#1a3a3c;" />
+                    <span style="font-size:20px;font-weight:bold;color:#1a3a3c;">${senderName}</span>
                   </td>
                   <td style="vertical-align:middle;text-align:right;width:50%;">
                     ${params.bookingNumber ? `<p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7a8b8d;font-weight:600;">Referensnummer</p>
@@ -186,7 +190,7 @@ function buildBatchConfirmationEmail(params: {
           <tr>
             <td style="padding:24px 40px;background-color:#f7fafa;border-top:1px solid #e0ecee;">
               <p style="margin:0;font-size:12px;color:#7a8b8d;text-align:center;line-height:1.5;">
-                Detta mejl skickades automatiskt fr&aring;n Frans August Logistik.<br>
+                Detta mejl skickades automatiskt fr&aring;n ${senderName}.<br>
                 Svara inte p&aring; detta mejl.
               </p>
             </td>
@@ -324,12 +328,15 @@ Deno.serve(async (req) => {
     const partnerEmail = results[0].partnerEmail;
     if (resend && partnerEmail) {
       try {
+        // Avsändaridentitet härleds från uppdragets organisation – fail closed.
+        const senderIdentity = await resolveSender(supabase, results[0].organizationId ?? null, "planning");
         let emailHtml: string;
         let subject: string;
 
         if (results.length === 1) {
           const r = results[0];
           emailHtml = buildConfirmationEmail({
+            senderName: senderIdentity.displayName,
             action: r.action,
             partnerName: r.partnerName,
             clientName: r.clientName,
@@ -343,6 +350,7 @@ Deno.serve(async (req) => {
             : `Bekräftelse: Körning nekad ${formatDate(r.transportDate)}`;
         } else {
           emailHtml = buildBatchConfirmationEmail({
+            senderName: senderIdentity.displayName,
             results: results.map(r => ({ action: r.action, transportDate: r.transportDate })),
             partnerName: results[0].partnerName,
             clientName: results[0].clientName,
@@ -358,7 +366,8 @@ Deno.serve(async (req) => {
         }
 
         const { error: emailError } = await resend.emails.send({
-          from: "Frans August Logistik <noreply@fransaugust.se>",
+          from: senderIdentity.from,
+          reply_to: senderIdentity.address,
           to: [partnerEmail],
           subject,
           html: emailHtml,
