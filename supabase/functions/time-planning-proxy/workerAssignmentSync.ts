@@ -242,6 +242,12 @@ export async function handleWorkerAssignmentSync(ctx: WorkerAssignmentSyncContex
     adapterVersion: 'time-planning-adapter.v2',
     operation: 'worker.assignments.sync',
     generatedAt: new Date().toISOString(),
-    data: { assignmentCount: assignments.length, from, to, receipt: upstreamBody?.data ?? null },
+    data: {
+      assignmentCount: assignments.length,
+      from,
+      to,
+      workOrder: workOrderReport,
+      receipt: upstreamBody?.data ?? null,
+    },
   });
 }
