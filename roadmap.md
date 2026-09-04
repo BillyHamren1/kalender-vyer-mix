@@ -22,3 +22,10 @@
 - [ ] Steg 5: mockad GPS A→resa→B via `evidence-ingest`, riktig BRAIN Agent Core (`agent-core`/`agent-core-run.v1`).
 - [ ] Steg 6: hostad workerresa med verkliga knappklick (Använd dagen/Justera → agent-rerun → lås bevaras → Bekräfta och skicka → exakt 1 submission).
 - [ ] Steg 7: `review.requestCorrection` → worker-resubmit → separat `attest.payroll`/`attest.project` → TEST/PREVIEW-lineage.
+
+## work-order.v1 (Planning→Time, additiv) — levererat i denna körning
+- [x] `assignments[].workOrder` byggs från verklig Planning-data i `worker.assignments.sync` (phases/lines/instructions/tasks/files/team/contacts),
+      Stockholm-offset, worker-only tasks, https-only files, kostnad/pris/marginal/internalnotes exkluderas redan i SELECT. 36/36 nya tester.
+- [ ] Time: när Times `work-order-v1.ts`-parser landar (commit efter 1077ff62) — diffa elementformer (tasks/team/contacts/instructions) mot Plannings emitter; justera vid avvikelse.
+- [ ] Deploy `time-planning-proxy` till staging + hostad `worker.assignments.sync` mot syntetisk person; verifiera `data.workOrder`-rapporten (attached/omitted/gaps).
+- [ ] Källgap (kräver produktbeslut, ej fabricerat): `lines[].unit` saknar källa i Planning (`booking_products` har ingen enhetskolumn) — avvakta Booking-fältet eller lämna utelämnad.
