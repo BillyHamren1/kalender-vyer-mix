@@ -74,7 +74,7 @@ function buildConfirmationEmail(params: {
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
                   <td style="vertical-align:middle;width:50%;">
-                    <img src="${LOGO_URL}" alt="Frans August" width="150" style="max-width:150px;height:auto;display:block;border:0;font-size:20px;font-weight:bold;color:#1a3a3c;" />
+                    <span style="font-size:20px;font-weight:bold;color:#1a3a3c;">${senderName}</span>
                   </td>
                   <td style="vertical-align:middle;text-align:right;width:50%;">
                     ${params.bookingNumber ? `<p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7a8b8d;font-weight:600;">Referensnummer</p>
@@ -94,7 +94,7 @@ function buildConfirmationEmail(params: {
           <tr>
             <td style="padding:24px 40px;background-color:#f7fafa;border-top:1px solid #e0ecee;">
               <p style="margin:0;font-size:12px;color:#7a8b8d;text-align:center;line-height:1.5;">
-                Detta mejl skickades automatiskt fr&aring;n Frans August Logistik.<br>
+                Detta mejl skickades automatiskt fr&aring;n ${senderName}.<br>
                 Svara inte p&aring; detta mejl.
               </p>
             </td>
@@ -160,7 +160,7 @@ function buildBatchConfirmationEmail(params: {
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
                   <td style="vertical-align:middle;width:50%;">
-                    <img src="${LOGO_URL}" alt="Frans August" width="150" style="max-width:150px;height:auto;display:block;border:0;font-size:20px;font-weight:bold;color:#1a3a3c;" />
+                    <span style="font-size:20px;font-weight:bold;color:#1a3a3c;">${senderName}</span>
                   </td>
                   <td style="vertical-align:middle;text-align:right;width:50%;">
                     ${params.bookingNumber ? `<p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7a8b8d;font-weight:600;">Referensnummer</p>
@@ -186,7 +186,7 @@ function buildBatchConfirmationEmail(params: {
           <tr>
             <td style="padding:24px 40px;background-color:#f7fafa;border-top:1px solid #e0ecee;">
               <p style="margin:0;font-size:12px;color:#7a8b8d;text-align:center;line-height:1.5;">
-                Detta mejl skickades automatiskt fr&aring;n Frans August Logistik.<br>
+                Detta mejl skickades automatiskt fr&aring;n ${senderName}.<br>
                 Svara inte p&aring; detta mejl.
               </p>
             </td>
@@ -358,7 +358,7 @@ Deno.serve(async (req) => {
         }
 
         const { error: emailError } = await resend.emails.send({
-          from: "Frans August Logistik <noreply@fransaugust.se>",
+          from: senderIdentity.from,
           to: [partnerEmail],
           subject,
           html: emailHtml,

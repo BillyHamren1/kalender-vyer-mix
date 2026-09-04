@@ -339,7 +339,7 @@ function buildEmailHtml(params: EmailParams): string {
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
                   <td style="vertical-align:middle;width:50%;">
-                    <img src="https://pihrhltinhewhoxefjxv.supabase.co/storage/v1/object/public/email-assets/fransaugust-logo.png" alt="Frans August" width="150" style="max-width:150px;height:auto;display:block;border:0;font-size:20px;font-weight:bold;color:#1a3a3c;" />
+                    <span style="font-size:20px;font-weight:bold;color:#1a3a3c;">${senderName}</span>
                   </td>
                   <td style="vertical-align:middle;text-align:right;width:50%;">
                     ${params.bookingNumber ? `<p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7a8b8d;font-weight:600;">Referensnummer</p>
@@ -357,7 +357,7 @@ function buildEmailHtml(params: EmailParams): string {
             <td style="padding:20px 40px 0;">
               <h1 style="margin:0;font-size:22px;font-weight:700;color:#1a3a3c;letter-spacing:-0.5px;">Transportförfrågan</h1>
               <p style="margin:4px 0 0;font-size:13px;color:#7a8b8d;">
-                ${isMulti ? `${params.assignments.length} körningar att granska` : 'Ny körning att granska'} från Frans August Logistik
+                ${isMulti ? `${params.assignments.length} körningar att granska` : 'Ny körning att granska'} från ${senderName}
               </p>
               <hr style="border:none;border-top:1px solid #e0ecee;margin:16px 0;" />
               <p style="margin:0;font-size:15px;color:#1a3a3c;font-weight:600;">Hej ${params.partnerName},</p>
@@ -377,7 +377,7 @@ function buildEmailHtml(params: EmailParams): string {
           <tr>
             <td style="padding:24px 40px;background-color:#f7fafa;border-top:1px solid #e0ecee;">
               <p style="margin:0;font-size:12px;color:#7a8b8d;text-align:center;line-height:1.5;">
-                Detta mejl skickades automatiskt från Frans August Logistik.<br>
+                Detta mejl skickades automatiskt från ${senderName}.<br>
                 Svara inte på detta mejl — använd knapparna ovan.
               </p>
             </td>
@@ -494,7 +494,7 @@ Deno.serve(async (req) => {
     console.log(`[send-transport-request] Sending email to: ${vehicle.contact_email}, subject: ${emailSubject}`);
 
     const { error: emailError } = await resend.emails.send({
-      from: "Frans August Logistik <noreply@fransaugust.se>",
+      from: senderIdentity.from,
       to: [vehicle.contact_email],
       subject: emailSubject,
       html,
