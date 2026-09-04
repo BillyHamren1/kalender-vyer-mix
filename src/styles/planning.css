@@ -6,7 +6,7 @@
 
    Reglerna här:
    - Speglar Booking-modulens premium-känsla (samma spacing, radius,
-     skuggor, cards) men byter ALLT som är teal mot lila.
+     skuggor, cards) men byter ALLT som är teal mot canonical Planning-lila (hue 255).
    - Endast återanvändbara klasser. Hårdkoda inte färger per sida.
    - Booking-modulen påverkas inte — alla regler är scopade under
      `.theme-purple`.
@@ -14,7 +14,7 @@
 
 /* ── 1. Token-override på Planning-roten ───────────────────────── */
 .theme-purple {
-  /* Primär lila — premium-värme istället för standard "violet" */
+  /* Primär lila — canonical HUB Planning (#7357C8), samma familj i hela temat */
   --primary: 255 51% 56%;             /* #7357C8 — canonical HUB Planning */
   --primary-foreground: 0 0% 100%;
   --primary-hover: 256 47% 52%;       /* #6849BE */
