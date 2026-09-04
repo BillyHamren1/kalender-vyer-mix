@@ -1,0 +1,1 @@
+REVOKE ALL ON FUNCTION public.org_internal_lager_enabled(uuid) FROM anon, authenticated;
