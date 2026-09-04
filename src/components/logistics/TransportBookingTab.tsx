@@ -230,6 +230,10 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
   };
 
   const startEditWizard = (booking: BookingForTransport, assignment: BookingForTransport['transport_assignments'][0]) => {
+    if (assignment.supplier_id) {
+      toast.info('Extern transport redigeras från projektets transportdel');
+      return;
+    }
     const vehicle = activeVehicles.find(v => v.id === assignment.vehicle_id);
     const isPartner = vehicle?.is_external || assignment.is_external;
     
@@ -461,12 +465,12 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
   // Open email dialog for an existing assignment (resend/update)
   const handleOpenResendDialog = (booking: BookingForTransport, assignment: BookingForTransport['transport_assignments'][0]) => {
     const vehicle = activeVehicles.find(v => v.id === assignment.vehicle_id);
-    if (!vehicle || !vehicle.is_external) {
+    if (!assignment.is_external || (!assignment.supplier_email && !vehicle?.contact_email)) {
       toast.error('Kan bara skicka mejl till externa partners');
       return;
     }
 
-    const partnerName = vehicle.contact_person || vehicle.name;
+    const partnerName = assignment.supplier_contact_name || vehicle?.contact_person || vehicle?.name || assignment.vehicle_name || 'leverantör';
     const defaultSubject = `Uppdaterad transportförfrågan: ${booking.client} — ${assignment.transport_date}`;
     const defaultMessage = `Hej ${partnerName},\n\nHär kommer uppdaterad information om er transportförfrågan. Se detaljer i mejlet.\n\nMed vänliga hälsningar,\nFrans August Logistik`;
 
@@ -477,7 +481,7 @@ const TransportBookingTab: React.FC<TransportBookingTabProps> = ({ vehicles }) =
     setResendTransportDate(assignment.transport_date);
     setResendTransportTime(assignment.transport_time || '');
     setResendPickupAddress(assignment.pickup_address || DEFAULT_PICKUP_ADDRESS);
-    setResendPartnerEmail(vehicle.contact_email || '');
+    setResendPartnerEmail(assignment.supplier_email || vehicle?.contact_email || '');
     setResendPartnerName(partnerName);
     setResendBookingClient(booking.client);
     setResendBookingNumber(booking.booking_number || '');

@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
       .order('start_date', { ascending: true })
       .order('start_time', { ascending: true, nullsFirst: false }),
     admin.from('transport_assignments')
-      .select('id,transport_date,transport_time,estimated_duration,pickup_address,status,stop_order,driver_notes,vehicle:vehicles!vehicle_id(id,name,vehicle_type,is_external)')
+      .select('id,transport_date,transport_time,estimated_duration,pickup_address,origin_address,destination_address,status,planning_status,partner_response,partner_responded_at,stop_order,driver_notes,requested_vehicle_type,cargo_description,cargo_weight_kg,cargo_volume_m3,vehicle:vehicles!vehicle_id(id,name,vehicle_type,is_external),supplier:suppliers!supplier_id(id,external_id,name,email,phone)')
       .eq('booking_id', bookingId)
       .order('transport_date', { ascending: true })
       .order('transport_time', { ascending: true, nullsFirst: false }),
@@ -136,8 +136,16 @@ Deno.serve(async (req) => {
     transports: (transportRes.data || []).map((t: any) => ({
       id: t.id, type: 'transport', date: t.transport_date, time: t.transport_time,
       estimated_duration: t.estimated_duration, pickup_address: t.pickup_address,
-      status: t.status, stop_order: t.stop_order, driver_notes: t.driver_notes,
+      origin_address: t.origin_address, destination_address: t.destination_address,
+      status: t.status, planning_status: t.planning_status,
+      partner_response: t.partner_response, partner_responded_at: t.partner_responded_at,
+      stop_order: t.stop_order, driver_notes: t.driver_notes,
+      requested_vehicle_type: t.requested_vehicle_type,
+      cargo_description: t.cargo_description,
+      cargo_weight_kg: t.cargo_weight_kg,
+      cargo_volume_m3: t.cargo_volume_m3,
       vehicle: t.vehicle ? { id: t.vehicle.id, name: t.vehicle.name, vehicle_type: t.vehicle.vehicle_type, is_external: t.vehicle.is_external } : null,
+      supplier: t.supplier ? { id: t.supplier.external_id, name: t.supplier.name, email: t.supplier.email, phone: t.supplier.phone } : null,
     })),
   };
 

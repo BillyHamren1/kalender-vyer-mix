@@ -9216,6 +9216,9 @@ export type Database = {
         Row: {
           actual_arrival: string | null
           booking_id: string
+          cargo_description: string | null
+          cargo_volume_m3: number | null
+          cargo_weight_kg: number | null
           created_at: string
           destination_address: string | null
           driver_notes: string | null
@@ -9231,17 +9234,23 @@ export type Database = {
           pickup_latitude: number | null
           pickup_longitude: number | null
           planning_status: string
+          requested_vehicle_type: string | null
           status: string | null
           stop_order: number | null
           transport_date: string
           transport_end_time: string | null
           transport_time: string | null
           transport_type: string
+          supplier_contact_id: string | null
+          supplier_id: string | null
           vehicle_id: string | null
         }
         Insert: {
           actual_arrival?: string | null
           booking_id: string
+          cargo_description?: string | null
+          cargo_volume_m3?: number | null
+          cargo_weight_kg?: number | null
           created_at?: string
           destination_address?: string | null
           driver_notes?: string | null
@@ -9257,17 +9266,23 @@ export type Database = {
           pickup_latitude?: number | null
           pickup_longitude?: number | null
           planning_status?: string
+          requested_vehicle_type?: string | null
           status?: string | null
           stop_order?: number | null
           transport_date: string
           transport_end_time?: string | null
           transport_time?: string | null
           transport_type?: string
+          supplier_contact_id?: string | null
+          supplier_id?: string | null
           vehicle_id?: string | null
         }
         Update: {
           actual_arrival?: string | null
           booking_id?: string
+          cargo_description?: string | null
+          cargo_volume_m3?: number | null
+          cargo_weight_kg?: number | null
           created_at?: string
           destination_address?: string | null
           driver_notes?: string | null
@@ -9283,12 +9298,15 @@ export type Database = {
           pickup_latitude?: number | null
           pickup_longitude?: number | null
           planning_status?: string
+          requested_vehicle_type?: string | null
           status?: string | null
           stop_order?: number | null
           transport_date?: string
           transport_end_time?: string | null
           transport_time?: string | null
           transport_type?: string
+          supplier_contact_id?: string | null
+          supplier_id?: string | null
           vehicle_id?: string | null
         }
         Relationships: [
@@ -9311,6 +9329,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transport_assignments_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
             referencedColumns: ["id"]
           },
           {

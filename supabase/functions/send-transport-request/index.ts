@@ -39,7 +39,11 @@ interface AssignmentData {
   transport_date: string;
   transport_time: string | null;
   pickup_address: string | null;
+  destination_address: string | null;
   vehicle_type: string | null;
+  cargo_description: string | null;
+  cargo_weight_kg: number | null;
+  cargo_volume_m3: number | null;
   estimated_duration: number | null;
   token: string;
   acceptUrl: string;
@@ -86,9 +90,15 @@ function buildSingleAssignmentCard(a: AssignmentData): string {
               <td style="padding:4px 0;font-size:13px;color:#1a3a3c;font-weight:500;">${a.pickup_address || '—'}</td>
             </tr>
             <tr>
+              <td style="padding:4px 0;font-size:13px;color:#7a8b8d;">Leverans</td>
+              <td style="padding:4px 0;font-size:13px;color:#1a3a3c;font-weight:500;">${a.destination_address || '—'}</td>
+            </tr>
+            <tr>
               <td style="padding:4px 0;font-size:13px;color:#7a8b8d;">Fordonstyp</td>
               <td style="padding:4px 0;font-size:13px;color:#1a3a3c;font-weight:600;">${vt}</td>
             </tr>
+            ${a.cargo_description ? `<tr><td style="padding:4px 0;font-size:13px;color:#7a8b8d;">Gods</td><td style="padding:4px 0;font-size:13px;color:#1a3a3c;font-weight:500;">${a.cargo_description}</td></tr>` : ''}
+            ${(a.cargo_weight_kg || a.cargo_volume_m3) ? `<tr><td style="padding:4px 0;font-size:13px;color:#7a8b8d;">Storlek</td><td style="padding:4px 0;font-size:13px;color:#1a3a3c;font-weight:500;">${[a.cargo_weight_kg ? `${a.cargo_weight_kg} kg` : '', a.cargo_volume_m3 ? `${a.cargo_volume_m3} m³` : ''].filter(Boolean).join(' · ')}</td></tr>` : ''}
           </table>
           <!-- Individual buttons -->
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:16px;">
@@ -207,6 +217,8 @@ function buildEmailHtml(params: EmailParams): string {
                         <td style="padding:6px 0;font-size:13px;color:#7a8b8d;">Fordonstyp</td>
                         <td style="padding:6px 0;font-size:13px;color:#1a3a3c;font-weight:600;">${vt}</td>
                       </tr>
+                      ${a.cargo_description ? `<tr><td style="padding:6px 0;font-size:13px;color:#7a8b8d;">Gods</td><td style="padding:6px 0;font-size:13px;color:#1a3a3c;font-weight:500;">${a.cargo_description}</td></tr>` : ''}
+                      ${(a.cargo_weight_kg || a.cargo_volume_m3) ? `<tr><td style="padding:6px 0;font-size:13px;color:#7a8b8d;">Storlek</td><td style="padding:6px 0;font-size:13px;color:#1a3a3c;font-weight:500;">${[a.cargo_weight_kg ? `${a.cargo_weight_kg} kg` : '', a.cargo_volume_m3 ? `${a.cargo_volume_m3} m³` : ''].filter(Boolean).join(' · ')}</td></tr>` : ''}
                     </table>
                   </td>
                 </tr>
@@ -431,6 +443,9 @@ Deno.serve(async (req) => {
         vehicle:vehicles!vehicle_id (
           id, name, contact_email, contact_person, contact_phone,
           vehicle_type, provided_vehicle_types
+        ),
+        supplier:suppliers!supplier_id (
+          id, name, email, phone, primary_contact, contacts
         )
       `)
       .in("id", assignmentIds);
@@ -442,12 +457,24 @@ Deno.serve(async (req) => {
     const organizationId = assignments[0].organization_id ?? null;
     const senderIdentity = await resolveSender(supabase, organizationId, "planning");
 
-    // All assignments should be for the same vehicle/partner
+    // New external transports use the shared supplier registry. The vehicle
+    // fallback keeps historical transport requests readable/sendable.
     const vehicle = assignments[0].vehicle;
+    const supplier = assignments[0].supplier as any;
     const booking = assignments[0].booking;
+    const supplierContacts = Array.isArray(supplier?.contacts) ? supplier.contacts : [];
+    const supplierContact = supplierContacts.find((contact: any) => contact.id === assignments[0].supplier_contact_id)
+      || supplier?.primary_contact
+      || supplierContacts[0]
+      || null;
+    const partnerName = supplierContact?.name || supplier?.name || vehicle?.contact_person || vehicle?.name || "Partner";
+    const partnerEmail = supplierContact?.email || supplier?.email || vehicle?.contact_email || null;
 
-    if (!vehicle?.contact_email) {
-      throw new Error(`Partner ${vehicle?.name || 'unknown'} har ingen mejladress konfigurerad`);
+    const partnerKeys = new Set(assignments.map((assignment: any) => assignment.supplier_id || assignment.vehicle_id || ""));
+    if (partnerKeys.size !== 1) throw new Error("Alla körningar i samma utskick måste ha samma transportleverantör");
+
+    if (!partnerEmail) {
+      throw new Error(`Leverantören ${supplier?.name || vehicle?.name || 'okänd'} saknar mejladress`);
     }
 
     // Build response URLs and assignment data
@@ -457,17 +484,21 @@ Deno.serve(async (req) => {
       const token = a.partner_response_token;
       if (!token) throw new Error(`No response token on assignment ${a.id}`);
       
-      const vehicleType = a.vehicle_type || 
-        (vehicle.provided_vehicle_types && vehicle.provided_vehicle_types.length > 0 
+      const vehicleType = a.requested_vehicle_type || a.vehicle_type ||
+        (vehicle?.provided_vehicle_types && vehicle.provided_vehicle_types.length > 0
           ? vehicle.provided_vehicle_types[0] 
-          : vehicle.vehicle_type);
+          : vehicle?.vehicle_type);
 
       return {
         id: a.id,
         transport_date: a.transport_date,
         transport_time: a.transport_time,
         pickup_address: a.pickup_address,
+        destination_address: a.destination_address,
         vehicle_type: vehicleType,
+        cargo_description: a.cargo_description,
+        cargo_weight_kg: a.cargo_weight_kg,
+        cargo_volume_m3: a.cargo_volume_m3,
         estimated_duration: a.estimated_duration,
         token,
         acceptUrl: `${responseBaseUrl}?token=${token}&action=accepted`,
@@ -485,7 +516,7 @@ Deno.serve(async (req) => {
       contactName: booking?.contact_name || null,
       contactPhone: booking?.contact_phone || null,
       contactEmail: booking?.contact_email || null,
-      partnerName: vehicle.contact_person || vehicle.name,
+      partnerName,
       rigDate: booking?.rigdaydate || null,
       eventDate: booking?.eventdate || null,
       rigdownDate: booking?.rigdowndate || null,
@@ -499,12 +530,12 @@ Deno.serve(async (req) => {
         ? `Transportförfrågan: ${booking?.client || 'Bokning'} — ${assignments.length} körningar`
         : `Transportförfrågan: ${booking?.client || 'Bokning'} — ${formatDate(assignments[0].transport_date)}`);
 
-    console.log(`[send-transport-request] Sending email to: ${vehicle.contact_email}, subject: ${emailSubject}`);
+    console.log(`[send-transport-request] Sending email to: ${partnerEmail}, subject: ${emailSubject}`);
 
     const { error: emailError } = await resend.emails.send({
       from: senderIdentity.from,
       reply_to: senderIdentity.address,
-      to: [vehicle.contact_email],
+      to: [partnerEmail],
       subject: emailSubject,
       html,
     });
@@ -528,8 +559,8 @@ Deno.serve(async (req) => {
       .insert({
         assignment_id: assignmentIds[0],
         booking_id: booking?.id || assignments[0].booking_id,
-        recipient_email: vehicle.contact_email,
-        recipient_name: vehicle.contact_person || vehicle.name,
+        recipient_email: partnerEmail,
+        recipient_name: partnerName,
         subject: emailSubject,
         custom_message: custom_message || null,
         email_type: "transport_request",
@@ -539,10 +570,10 @@ Deno.serve(async (req) => {
       console.warn("[send-transport-request] Failed to log email:", logError.message);
     }
 
-    console.log(`[send-transport-request] Email sent and logged successfully to ${vehicle.contact_email}`);
+    console.log(`[send-transport-request] Email sent and logged successfully to ${partnerEmail}`);
 
     return new Response(
-      JSON.stringify({ success: true, sent_to: vehicle.contact_email, assignments_count: assignmentIds.length }),
+      JSON.stringify({ success: true, sent_to: partnerEmail, assignments_count: assignmentIds.length }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error: any) {

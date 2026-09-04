@@ -27,7 +27,7 @@ const statusMeta = (assignment: TransportAssignment) => {
   if (assignment.status === 'skipped') return { label: 'Hoppad', dot: 'bg-muted-foreground', badge: 'border-border bg-muted text-muted-foreground' };
   if (assignment.partner_response === 'accepted') return { label: 'Accepterad', dot: 'bg-emerald-500', badge: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700' };
   if (assignment.partner_response === 'declined') return { label: 'Nekad', dot: 'bg-destructive', badge: 'border-destructive/20 bg-destructive/10 text-destructive' };
-  if (assignment.vehicle?.is_external) return { label: 'Väntar partnersvar', dot: 'bg-amber-500', badge: 'border-amber-500/20 bg-amber-500/10 text-amber-700' };
+  if (assignment.supplier || assignment.vehicle?.is_external) return { label: 'Väntar partnersvar', dot: 'bg-amber-500', badge: 'border-amber-500/20 bg-amber-500/10 text-amber-700' };
   return { label: 'Planerad', dot: 'bg-primary', badge: 'border-primary/20 bg-primary/10 text-primary' };
 };
 
@@ -62,8 +62,8 @@ const TransportEventCard = ({ assignment, onSelect }: { assignment: TransportAss
         <div className="mt-2 space-y-1.5">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Truck className="h-3 w-3 shrink-0" />
-            <span className="truncate">{assignment.vehicle?.name || 'Fordon ej tilldelat'}</span>
-            {assignment.vehicle?.is_external && <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide">Extern</span>}
+            <span className="truncate">{assignment.supplier?.name || assignment.vehicle?.name || (assignment.transport_type === 'internal' ? 'Intern transport' : 'Fordon ej tilldelat')}</span>
+            {(assignment.supplier || assignment.vehicle?.is_external) && <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide">Extern</span>}
           </div>
           <div className={cn('flex items-center gap-1.5 text-xs', hasAddressIssue ? 'text-amber-600' : 'text-muted-foreground')}>
             <MapPin className="h-3 w-3 shrink-0" />
@@ -116,8 +116,8 @@ const TransportDetailDialog = ({ assignment, open, onClose, onEdit }: { assignme
             </div>
             <div className="rounded-xl border bg-muted/20 p-3">
               <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Fordon / Partner</p>
-              <p className="mt-1 text-sm font-semibold text-foreground">{assignment.vehicle?.name || 'Ej tilldelat'}</p>
-              {assignment.vehicle?.is_external && <p className="mt-0.5 text-xs text-muted-foreground">Extern transportpartner</p>}
+              <p className="mt-1 text-sm font-semibold text-foreground">{assignment.supplier?.name || assignment.vehicle?.name || (assignment.transport_type === 'internal' ? 'Intern transport' : 'Ej tilldelat')}</p>
+              {(assignment.supplier || assignment.vehicle?.is_external) && <p className="mt-0.5 text-xs text-muted-foreground">Extern transportleverantör</p>}
             </div>
           </div>
 

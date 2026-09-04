@@ -2,10 +2,23 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
+interface SupplierContactData {
+  id?: string;
+  name?: string;
+  email?: string | null;
+  phone?: string | null;
+}
+
 export interface ProjectTransportAssignment {
   id: string;
   booking_id: string;
   vehicle_id: string | null;
+  supplier_id: string | null;
+  supplier_contact_id: string | null;
+  requested_vehicle_type: string | null;
+  cargo_description: string | null;
+  cargo_weight_kg: number | null;
+  cargo_volume_m3: number | null;
   transport_date: string;
   transport_time: string | null;
   pickup_address: string | null;
@@ -28,6 +41,15 @@ export interface ProjectTransportAssignment {
     contact_phone: string | null;
     is_external: boolean;
     vehicle_type: string | null;
+  } | null;
+  supplier: {
+    id: string;
+    external_id: string | null;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    primary_contact: SupplierContactData | null;
+    contacts: SupplierContactData[];
   } | null;
 }
 
@@ -53,12 +75,17 @@ export const useProjectTransport = (bookingId: string | null | undefined) => {
       const { data, error } = await supabase
         .from("transport_assignments")
         .select(`
-          id, booking_id, vehicle_id, transport_date, transport_time, transport_end_time,
+          id, booking_id, vehicle_id, supplier_id, supplier_contact_id,
+          requested_vehicle_type, cargo_description, cargo_weight_kg, cargo_volume_m3,
+          transport_date, transport_time, transport_end_time,
           pickup_address, origin_address, destination_address, planning_status, transport_type,
           status, partner_response, partner_responded_at,
           created_at, stop_order, driver_notes,
           vehicle:vehicles!vehicle_id (
             id, name, contact_person, contact_email, contact_phone, is_external, vehicle_type
+          ),
+          supplier:suppliers!supplier_id (
+            id, external_id, name, email, phone, primary_contact, contacts
           )
         `)
         .eq("booking_id", bookingId)

@@ -4,9 +4,22 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { syncBookingOperationalPlan } from '@/services/bookingOperationalPlanSyncService';
 
+interface SupplierContactData {
+  id?: string;
+  name?: string;
+  email?: string | null;
+  phone?: string | null;
+}
+
 export interface TransportAssignment {
   id: string;
   vehicle_id: string | null;
+  supplier_id: string | null;
+  supplier_contact_id: string | null;
+  requested_vehicle_type: string | null;
+  cargo_description: string | null;
+  cargo_weight_kg: number | null;
+  cargo_volume_m3: number | null;
   booking_id: string;
   transport_date: string;
   transport_time: string | null;
@@ -34,6 +47,15 @@ export interface TransportAssignment {
     is_external: boolean;
     vehicle_type: string | null;
   };
+  supplier?: {
+    id: string;
+    external_id: string | null;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    primary_contact: SupplierContactData | null;
+    contacts: SupplierContactData[];
+  };
   booking?: {
     id: string;
     client: string;
@@ -55,7 +77,9 @@ export interface TransportAssignment {
 }
 
 export interface AssignmentFormData {
-  vehicle_id: string;
+  vehicle_id?: string | null;
+  supplier_id?: string | null;
+  supplier_contact_id?: string | null;
   booking_id: string;
   transport_date: string;
   transport_time?: string;
@@ -65,6 +89,14 @@ export interface AssignmentFormData {
   stop_order?: number;
   driver_notes?: string;
   estimated_duration?: number;
+  planning_status?: 'preliminary' | 'confirmed';
+  transport_type?: 'delivery' | 'pickup' | 'transfer' | 'internal' | 'other';
+  origin_address?: string;
+  destination_address?: string;
+  requested_vehicle_type?: string;
+  cargo_description?: string;
+  cargo_weight_kg?: number;
+  cargo_volume_m3?: number;
 }
 
 export const useTransportAssignments = (date?: Date | null, endDate?: Date | null) => {
@@ -84,6 +116,15 @@ export const useTransportAssignments = (date?: Date | null, endDate?: Date | nul
             name,
             is_external,
             vehicle_type
+          ),
+          supplier:suppliers!supplier_id (
+            id,
+            external_id,
+            name,
+            email,
+            phone,
+            primary_contact,
+            contacts
           ),
           booking:bookings!booking_id (
             id,
@@ -151,7 +192,7 @@ export const useTransportAssignments = (date?: Date | null, endDate?: Date | nul
       if (error) throw error;
       
       setAssignments(prev => [...prev, assignment as unknown as TransportAssignment]);
-      toast.success('Bokning tilldelad till fordon');
+      toast.success(data.supplier_id ? 'Extern transport sparad' : 'Intern transport sparad');
       await syncBookingOperationalPlan(data.booking_id);
       return assignment as unknown as TransportAssignment;
     } catch (error: any) {

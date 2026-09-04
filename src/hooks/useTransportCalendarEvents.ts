@@ -18,6 +18,7 @@ interface TransportCalendarData {
   destination_address: string | null;
   driver_notes: string | null;
   vehicle: { id: string; name: string } | null;
+  supplier: { id: string; name: string } | null;
   booking: {
     id: string;
     client: string;
@@ -55,6 +56,7 @@ export const useTransportCalendarEvents = (currentDate: Date, view: 'day' | 'wee
           id, transport_date, transport_time, transport_end_time, estimated_duration,
           status, planning_status, partner_response, transport_type, origin_address, destination_address, driver_notes,
           vehicle:vehicles!vehicle_id ( id, name ),
+          supplier:suppliers!supplier_id ( id, name ),
           booking:bookings!booking_id ( id, client, booking_number, deliveryaddress, delivery_city )
         `)
         .eq('organization_id', organizationId)
@@ -73,7 +75,7 @@ export const useTransportCalendarEvents = (currentDate: Date, view: 'day' | 'wee
           const total = h * 60 + m + duration;
           endTime = `${String(Math.floor((total % 1440) / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
         }
-        const vehicleName = t.vehicle?.name || 'Fordon ej bestämt';
+        const vehicleName = t.supplier?.name || t.vehicle?.name || (t.transport_type === 'internal' ? 'Intern transport' : 'Fordon ej bestämt');
         const clientName = t.booking?.client || 'Okänd';
         const effectivePlanningStatus = t.planning_status === 'confirmed' || t.partner_response === 'accepted' ? 'confirmed' : 'preliminary';
         const planningLabel = effectivePlanningStatus === 'confirmed' ? 'Bekräftad' : 'Preliminär';

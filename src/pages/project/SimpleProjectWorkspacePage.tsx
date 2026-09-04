@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CalendarDays, Check, Circle, Mail, Plus, Save, Send, StickyNote, Users } from "lucide-react";
@@ -14,7 +14,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AddSupplierDialog from "@/components/project/suppliers/AddSupplierDialog";
 import BookingInfoExpanded from "@/components/project/BookingInfoExpanded";
 import ProjectFiles from "@/components/project/ProjectFiles";
+import ProjectTransportWidget from "@/components/project/ProjectTransportWidget";
+import { isTransportTodoTitle } from "@/components/project/defaultChecklist";
 import { useProjectSuppliers } from "@/hooks/useProjectSuppliers";
+import { useProjectTransport } from "@/hooks/useProjectTransport";
 import { useSupplierRequests } from "@/hooks/useSupplierRequests";
 import {
   createProjectTask,
@@ -52,6 +55,7 @@ export default function SimpleProjectWorkspacePage() {
   const project = projectQuery.data;
   const booking = project?.booking;
   const bookingId = project?.booking_id || booking?.id || null;
+  const { assignments: transportAssignments } = useProjectTransport(bookingId);
   const attachmentsQuery = useQuery({ queryKey: ["booking-attachments", bookingId], queryFn: () => fetchBookingAttachments(bookingId!), enabled: !!bookingId });
   const currentNotes = notes ?? booking?.internalnotes ?? project?.internalnotes ?? "";
 
@@ -71,11 +75,19 @@ export default function SimpleProjectWorkspacePage() {
     onSuccess: () => { setNewTodo(""); queryClient.invalidateQueries({ queryKey: ["simple-project-tasks", projectId] }); },
     onError: () => toast.error("Kunde inte spara uppgiften"),
   });
+  const mutateTask = taskMutation.mutate;
   const notesMutation = useMutation({
     mutationFn: () => saveSimpleProjectNotes(projectId, bookingId, currentNotes),
     onSuccess: () => { toast.success(bookingId ? "Anteckningen är sparad på bokningen" : "Anteckningen är sparad på projektet"); queryClient.invalidateQueries({ queryKey: ["simple-project", projectId] }); },
     onError: () => toast.error("Kunde inte spara anteckningen"),
   });
+
+  const incompleteTransportTask = tasksQuery.data?.find(task => isTransportTodoTitle(task.title) && !task.completed);
+  useEffect(() => {
+    if (transportAssignments.length > 0 && incompleteTransportTask) {
+      mutateTask({ type: "toggle", id: incompleteTransportTask.id, completed: true });
+    }
+  }, [transportAssignments.length, incompleteTransportTask, mutateTask]);
 
   const openRequest = (supplier: MergedSupplier) => {
     setRequestSupplier(supplier);
@@ -145,6 +157,7 @@ export default function SimpleProjectWorkspacePage() {
 
           <TabsContent value="planning" className="mt-0">
             <main className="grid gap-5 lg:grid-cols-2">
+              <div className="lg:col-span-2"><ProjectTransportWidget bookingId={bookingId} /></div>
               <Card><CardHeader><CardTitle className="flex items-center gap-2"><Check className="h-5 w-5" />Att göra</CardTitle></CardHeader><CardContent className="space-y-3">
                 <form className="flex gap-2" onSubmit={(event) => { event.preventDefault(); if (newTodo.trim()) taskMutation.mutate({ type: "add", title: newTodo.trim() }); }}><Input aria-label="Ny uppgift" value={newTodo} onChange={(event) => setNewTodo(event.target.value)} placeholder="Lägg till en enkel uppgift…" /><Button type="submit" disabled={!newTodo.trim() || taskMutation.isPending}><Plus className="h-4 w-4" /></Button></form>
                 {tasksQuery.data?.length ? tasksQuery.data.map((task) => <div key={task.id} className="group flex items-center gap-3 rounded-lg border p-3"><button aria-label={task.completed ? "Markera som ej klar" : "Markera som klar"} onClick={() => taskMutation.mutate({ type: "toggle", id: task.id, completed: !task.completed })}>{task.completed ? <Check className="h-5 w-5 text-emerald-600" /> : <Circle className="h-5 w-5 text-muted-foreground" />}</button><span className={`flex-1 text-sm ${task.completed ? "text-muted-foreground line-through" : ""}`}>{task.title}</span>{task.deadline && <span className="text-xs text-muted-foreground">{formatDate(task.deadline)}</span>}<Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100" onClick={() => taskMutation.mutate({ type: "delete", id: task.id })}>Ta bort</Button></div>) : <p className="py-6 text-center text-sm text-muted-foreground">Inga uppgifter ännu.</p>}

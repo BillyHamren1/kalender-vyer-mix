@@ -270,7 +270,9 @@ Deno.serve(async (req) => {
         .select(`
           id, organization_id, partner_response, transport_date, transport_time, booking_id,
           booking:bookings!booking_id (client, booking_number, deliveryaddress),
-          vehicle:vehicles!vehicle_id (name, contact_person, contact_email)
+          vehicle:vehicles!vehicle_id (name, contact_person, contact_email),
+          supplier:suppliers!supplier_id (name, email, primary_contact, contacts),
+          supplier_contact_id
         `)
         .eq("partner_response_token", token)
         .single();
@@ -301,10 +303,17 @@ Deno.serve(async (req) => {
 
       console.log(`[handle-transport-response] Assignment ${assignment.id} marked as ${action}`);
 
+      const supplier = (assignment as any).supplier;
+      const contacts = Array.isArray(supplier?.contacts) ? supplier.contacts : [];
+      const contact = contacts.find((item: any) => item.id === (assignment as any).supplier_contact_id)
+        || supplier?.primary_contact
+        || contacts[0]
+        || null;
+
       results.push({
         action,
-        partnerName: (assignment.vehicle as any)?.contact_person || (assignment.vehicle as any)?.name || "Partner",
-        partnerEmail: (assignment.vehicle as any)?.contact_email || null,
+        partnerName: contact?.name || supplier?.name || (assignment.vehicle as any)?.contact_person || (assignment.vehicle as any)?.name || "Partner",
+        partnerEmail: contact?.email || supplier?.email || (assignment.vehicle as any)?.contact_email || null,
         clientName: (assignment.booking as any)?.client || "Kund",
         transportDate: assignment.transport_date,
         transportTime: assignment.transport_time,
@@ -314,6 +323,27 @@ Deno.serve(async (req) => {
         bookingId: assignment.booking_id,
         organizationId: (assignment as any).organization_id,
       });
+    }
+
+    // Keep Booking's operational projection in sync immediately after the
+    // supplier response. The transport assignment remains the source record.
+    const planningApiKey = Deno.env.get("PLANNING_API_KEY");
+    if (planningApiKey && results.length > 0) {
+      const bookingIds = [...new Set(results.map((result) => result.bookingId))];
+      await Promise.all(bookingIds.map(async (bookingId) => {
+        try {
+          await fetch(`${supabaseUrl}/functions/v1/sync-operational-plan-to-booking`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-api-key": planningApiKey,
+            },
+            body: JSON.stringify({ booking_id: bookingId }),
+          });
+        } catch (syncError) {
+          console.warn(`[handle-transport-response] Booking projection sync failed for ${bookingId}`, syncError);
+        }
+      }));
     }
 
     // If all were already responded

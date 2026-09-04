@@ -122,9 +122,9 @@ const LogisticsOperationsOverview: React.FC<LogisticsOperationsOverviewProps> = 
     const delivered = assignments.filter((a) => a.status === 'delivered').length;
     const missingTime = assignments.filter((a) => !a.transport_time && a.status !== 'delivered' && a.status !== 'skipped').length;
     const pendingPartner = assignments.filter(
-      (a) => a.vehicle?.is_external && (!a.partner_response || a.partner_response === 'pending') && a.status !== 'delivered'
+      (a) => (a.supplier || a.vehicle?.is_external) && (!a.partner_response || a.partner_response === 'pending') && a.status !== 'delivered'
     ).length;
-    const declinedPartner = assignments.filter((a) => a.vehicle?.is_external && a.partner_response === 'declined').length;
+    const declinedPartner = assignments.filter((a) => (a.supplier || a.vehicle?.is_external) && a.partner_response === 'declined').length;
     const addressIssues = assignments.filter(
       (a) => !a.booking?.deliveryaddress || a.booking.delivery_latitude == null || a.booking.delivery_longitude == null
     ).length;
@@ -169,18 +169,18 @@ const LogisticsOperationsOverview: React.FC<LogisticsOperationsOverviewProps> = 
         }
       })();
 
-      if (assignment.vehicle?.is_external && assignment.partner_response === 'declined') {
+      if ((assignment.supplier || assignment.vehicle?.is_external) && assignment.partner_response === 'declined') {
         result.push({
           id: `declined-${assignment.id}`,
           kind: 'partner-declined',
           severity: 'critical',
           title: `Partner har nekat ${client}`,
-          description: `${dateLabel} · ${assignment.vehicle?.name || 'Extern partner'}`,
+          description: `${dateLabel} · ${assignment.supplier?.name || assignment.vehicle?.name || 'Extern partner'}`,
           assignmentId: assignment.id,
           bookingId: assignment.booking_id,
         });
       } else if (
-        assignment.vehicle?.is_external &&
+        (assignment.supplier || assignment.vehicle?.is_external) &&
         (!assignment.partner_response || assignment.partner_response === 'pending') &&
         assignment.status !== 'delivered'
       ) {
@@ -189,7 +189,7 @@ const LogisticsOperationsOverview: React.FC<LogisticsOperationsOverviewProps> = 
           kind: 'partner-pending',
           severity: 'warning',
           title: `Väntar på partnersvar för ${client}`,
-          description: `${dateLabel} · ${assignment.vehicle?.name || 'Extern partner'}`,
+          description: `${dateLabel} · ${assignment.supplier?.name || assignment.vehicle?.name || 'Extern partner'}`,
           assignmentId: assignment.id,
           bookingId: assignment.booking_id,
         });
@@ -201,7 +201,7 @@ const LogisticsOperationsOverview: React.FC<LogisticsOperationsOverviewProps> = 
           kind: 'missing-time',
           severity: 'warning',
           title: `${client} saknar transporttid`,
-          description: `${dateLabel} · ${assignment.vehicle?.name || 'Fordon ej tilldelat'}`,
+          description: `${dateLabel} · ${assignment.supplier?.name || assignment.vehicle?.name || (assignment.transport_type === 'internal' ? 'Intern transport' : 'Fordon ej tilldelat')}`,
           assignmentId: assignment.id,
           bookingId: assignment.booking_id,
         });

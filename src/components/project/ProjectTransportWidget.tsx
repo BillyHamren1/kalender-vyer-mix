@@ -13,7 +13,6 @@ import {
   TransportEmailLogEntry,
 } from '@/hooks/useProjectTransport';
 import ProjectTransportBookingDialog from './ProjectTransportBookingDialog';
-import TransportPlanningDialog from '@/components/logistics/TransportPlanningDialog';
 
 interface ProjectTransportWidgetProps {
   bookingId: string | null | undefined;
@@ -38,7 +37,12 @@ const ProjectCard = ({
   onSetPlanningStatus: (status: 'preliminary' | 'confirmed') => void;
 }) => {
   const vehicle = assignment.vehicle;
-  const isExternal = vehicle?.is_external ?? false;
+  const supplier = assignment.supplier;
+  const isExternal = Boolean(supplier || vehicle?.is_external);
+  const supplierContact = supplier?.contacts?.find(contact => contact.id === assignment.supplier_contact_id)
+    || supplier?.primary_contact
+    || supplier?.contacts?.[0]
+    || null;
   const response = assignment.partner_response;
 
   const isPlanningConfirmed = assignment.planning_status === 'confirmed' || assignment.partner_response === 'accepted';
@@ -65,14 +69,12 @@ const ProjectCard = ({
           <span className="px-2 py-0.5 rounded text-[10px] tracking-wide font-bold border bg-teal-50 text-teal-700 border-teal-200">
             TRANSPORT
           </span>
-          {isExternal && (
-            <span className="text-[10px] text-muted-foreground">Extern</span>
-          )}
+          <span className="text-[10px] text-muted-foreground">{isExternal ? 'Extern' : 'Intern'}</span>
           <Truck className="w-3.5 h-3.5 ml-auto text-primary/60" />
         </div>
 
         <h4 className="font-semibold text-sm text-foreground line-clamp-2 mb-1">
-          {vehicle?.name || 'Fordon ej bestämt'}
+          {supplier?.name || vehicle?.name || (assignment.transport_type === 'internal' ? 'Intern transport' : 'Fordon ej bestämt')}
         </h4>
 
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
@@ -108,13 +110,19 @@ const ProjectCard = ({
                 <p className="font-medium">{assignment.destination_address}</p>
               </div>
             )}
-            {vehicle?.contact_person && (
+            {(supplierContact?.name || vehicle?.contact_person) && (
               <div>
                 <p className="text-muted-foreground text-[10px]">Kontaktperson</p>
-                <p className="font-medium">{vehicle.contact_person}</p>
-                {vehicle.contact_phone && (
-                  <p className="text-muted-foreground">{vehicle.contact_phone}</p>
+                <p className="font-medium">{supplierContact?.name || vehicle?.contact_person}</p>
+                {(supplierContact?.phone || supplier?.phone || vehicle?.contact_phone) && (
+                  <p className="text-muted-foreground">{supplierContact?.phone || supplier?.phone || vehicle?.contact_phone}</p>
                 )}
+              </div>
+            )}
+            {assignment.requested_vehicle_type && (
+              <div>
+                <p className="text-muted-foreground text-[10px]">Bil / godsstorlek</p>
+                <p className="font-medium">{assignment.requested_vehicle_type}</p>
               </div>
             )}
           </div>
@@ -123,6 +131,12 @@ const ProjectCard = ({
             <div className="text-xs">
               <p className="text-muted-foreground text-[10px]">Förarnoteringar</p>
               <p className="font-medium">{assignment.driver_notes}</p>
+            </div>
+          )}
+          {assignment.cargo_description && (
+            <div className="text-xs">
+              <p className="text-muted-foreground text-[10px]">Gods</p>
+              <p className="font-medium">{assignment.cargo_description}</p>
             </div>
           )}
           <div className="flex items-center gap-2 pt-1">
@@ -182,7 +196,6 @@ const ProjectTransportWidget: React.FC<ProjectTransportWidgetProps> = ({ booking
   const { assignments, emailLogs, isLoading, refetch, updateAssignment } = useProjectTransport(bookingId);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
-  const [planningDialogOpen, setPlanningDialogOpen] = useState(false);
 
   if (!bookingId) {
     return (
@@ -261,19 +274,11 @@ const ProjectTransportWidget: React.FC<ProjectTransportWidgetProps> = ({ booking
               )}
               <Button
                 size="sm"
-                onClick={() => setPlanningDialogOpen(true)}
+                onClick={() => setBookingDialogOpen(true)}
                 className="rounded-xl gap-1.5 h-8 text-xs"
               >
                 <Plus className="h-3.5 w-3.5" />
-                Planera transport
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setBookingDialogOpen(true)}
-                className="rounded-xl h-8 text-xs"
-              >
-                Fordon / partner
+                Lägg till transport
               </Button>
             </div>
           </CardTitle>
@@ -284,14 +289,14 @@ const ProjectTransportWidget: React.FC<ProjectTransportWidgetProps> = ({ booking
             <div className="text-center py-12 text-muted-foreground">
               <Truck className="h-10 w-10 mx-auto mb-3 opacity-40" />
               <p className="font-medium">Inga transporter planerade</p>
-              <p className="text-sm mt-1">Skapa transporten först — fordon kan bestämmas senare.</p>
+              <p className="text-sm mt-1">Välj intern transport eller boka en extern leverantör.</p>
               <Button
                 size="sm"
-                onClick={() => setPlanningDialogOpen(true)}
+                onClick={() => setBookingDialogOpen(true)}
                 className="mt-4 rounded-xl gap-1.5"
               >
                 <Plus className="h-3.5 w-3.5" />
-                Planera transport
+                Lägg till transport
               </Button>
             </div>
           ) : (
@@ -319,7 +324,7 @@ const ProjectTransportWidget: React.FC<ProjectTransportWidgetProps> = ({ booking
                           onSetPlanningStatus={async (status) => {
                             try {
                               await updateAssignment(a.id, { planning_status: status });
-                            } catch (error: any) {
+                            } catch (error: unknown) {
                               console.error('[ProjectTransportWidget] status update failed', error);
                             }
                           }}
@@ -333,13 +338,6 @@ const ProjectTransportWidget: React.FC<ProjectTransportWidgetProps> = ({ booking
           )}
         </CardContent>
       </Card>
-
-      <TransportPlanningDialog
-        bookingId={bookingId}
-        open={planningDialogOpen}
-        onOpenChange={setPlanningDialogOpen}
-        onSaved={refetch}
-      />
 
       <ProjectTransportBookingDialog
         bookingId={bookingId}

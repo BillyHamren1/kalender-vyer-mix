@@ -232,6 +232,9 @@ Deno.serve(async (req) => {
         vehicle:vehicles!vehicle_id (
           id, name, contact_email, contact_person, contact_phone,
           vehicle_type, provided_vehicle_types
+        ),
+        supplier:suppliers!supplier_id (
+          id, name, email, phone, primary_contact, contacts
         )
       `)
       .eq("id", assignment_id)
@@ -242,12 +245,20 @@ Deno.serve(async (req) => {
 
     const booking = assignment.booking;
     const vehicle = assignment.vehicle;
+    const supplier = assignment.supplier as any;
+    const contacts = Array.isArray(supplier?.contacts) ? supplier.contacts : [];
+    const contact = contacts.find((item: any) => item.id === assignment.supplier_contact_id)
+      || supplier?.primary_contact
+      || contacts[0]
+      || null;
+    const partnerName = contact?.name || supplier?.name || vehicle?.contact_person || vehicle?.name || "Partner";
+    const partnerEmail = contact?.email || supplier?.email || vehicle?.contact_email || null;
 
     // Avsändaridentitet härleds från uppdragets organisation – fail closed.
     const senderIdentity = await resolveSender(supabase, assignment.organization_id ?? null, "planning");
 
-    if (!vehicle?.contact_email) {
-      console.log(`[send-transport-cancellation] Partner ${vehicle?.name || 'unknown'} has no email — skipping`);
+    if (!partnerEmail) {
+      console.log(`[send-transport-cancellation] Partner ${supplier?.name || vehicle?.name || 'unknown'} has no email — skipping`);
       return new Response(
         JSON.stringify({ success: true, skipped: true, reason: "no_email" }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -255,10 +266,10 @@ Deno.serve(async (req) => {
     }
 
     // Determine vehicle type
-    const vehicleType = assignment.vehicle_type ||
-      (vehicle.provided_vehicle_types && vehicle.provided_vehicle_types.length > 0
+    const vehicleType = assignment.requested_vehicle_type || assignment.vehicle_type ||
+      (vehicle?.provided_vehicle_types && vehicle.provided_vehicle_types.length > 0
         ? vehicle.provided_vehicle_types[0]
-        : vehicle.vehicle_type);
+        : vehicle?.vehicle_type);
 
     const html = buildCancellationEmailHtml({
       senderName: senderIdentity.displayName,
@@ -273,18 +284,18 @@ Deno.serve(async (req) => {
       vehicleType: vehicleType,
       transportDate: assignment.transport_date,
       transportTime: assignment.transport_time || null,
-      partnerName: vehicle.contact_person || vehicle.name,
+      partnerName,
       customMessage: custom_message || null,
     });
 
     const emailSubject = `Transport avbokad: ${booking?.client || 'Bokning'} — ${formatDate(assignment.transport_date)}`;
 
-    console.log(`[send-transport-cancellation] Sending cancellation email to: ${vehicle.contact_email}`);
+    console.log(`[send-transport-cancellation] Sending cancellation email to: ${partnerEmail}`);
 
     const { error: emailError } = await resend.emails.send({
       from: senderIdentity.from,
       reply_to: senderIdentity.address,
-      to: [vehicle.contact_email],
+      to: [partnerEmail],
       subject: emailSubject,
       html,
     });
@@ -300,8 +311,8 @@ Deno.serve(async (req) => {
       .insert({
         assignment_id: assignment_id,
         booking_id: booking?.id || assignment.booking_id,
-        recipient_email: vehicle.contact_email,
-        recipient_name: vehicle.contact_person || vehicle.name,
+        recipient_email: partnerEmail,
+        recipient_name: partnerName,
         subject: emailSubject,
         custom_message: custom_message || null,
         email_type: "transport_cancellation",
@@ -311,10 +322,10 @@ Deno.serve(async (req) => {
       console.warn("[send-transport-cancellation] Failed to log email:", logError.message);
     }
 
-    console.log(`[send-transport-cancellation] Cancellation email sent and logged successfully to ${vehicle.contact_email}`);
+    console.log(`[send-transport-cancellation] Cancellation email sent and logged successfully to ${partnerEmail}`);
 
     return new Response(
-      JSON.stringify({ success: true, sent_to: vehicle.contact_email }),
+      JSON.stringify({ success: true, sent_to: partnerEmail }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error: any) {

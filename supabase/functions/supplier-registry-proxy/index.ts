@@ -57,6 +57,15 @@ function mapToRow(s: RemoteSupplier, organization_id: string) {
   };
 }
 
+async function mirrorSuppliers(admin: any, organizationId: string, value: unknown) {
+  const rows: RemoteSupplier[] = Array.isArray(value) ? value : value ? [value as RemoteSupplier] : [];
+  if (rows.length === 0 || !rows[0]?.id || !rows[0]?.name) return;
+  const { error } = await admin
+    .from("suppliers")
+    .upsert(rows.map((row) => mapToRow(row, organizationId)), { onConflict: "organization_id,external_id" });
+  if (error) throw new Error(`supplier_cache_failed: ${error.message}`);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -91,26 +100,36 @@ Deno.serve(async (req) => {
     if (!action) return json({ error: "MISSING_ACTION" }, 400);
 
     // Forward to upstream
+    const upstreamHeaders = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+      "x-organization-id": organization_id,
+    };
     const upstreamRes = await fetch(REMOTE_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-        "x-organization-id": organization_id,
-      },
+      headers: upstreamHeaders,
       body: JSON.stringify(body),
     });
     const upstreamJson = await upstreamRes.json();
 
     // Mirror successful results into local cache
     if (upstreamRes.ok && upstreamJson?.success) {
-      const data = upstreamJson.data;
-      const rows: RemoteSupplier[] = Array.isArray(data) ? data : data ? [data] : [];
-      if (rows.length > 0 && rows[0]?.id) {
-        const mapped = rows.map((r) => mapToRow(r, organization_id));
-        await admin
-          .from("suppliers")
-          .upsert(mapped, { onConflict: "organization_id,external_id" });
+      const supplierActions = new Set(["list_suppliers", "search_suppliers", "get_supplier", "create_supplier", "update_supplier"]);
+      if (supplierActions.has(action)) {
+        await mirrorSuppliers(admin, organization_id, upstreamJson.data);
+      } else if (action === "create_supplier_contact" && body.supplier_id) {
+        // A contact response is not a supplier row. Re-read the parent supplier
+        // so the local cache gets the new contact without creating a bogus
+        // supplier entry for the contact itself.
+        const refreshRes = await fetch(REMOTE_URL, {
+          method: "POST",
+          headers: upstreamHeaders,
+          body: JSON.stringify({ action: "get_supplier", supplier_id: body.supplier_id }),
+        });
+        const refreshJson = await refreshRes.json();
+        if (refreshRes.ok && refreshJson?.success) {
+          await mirrorSuppliers(admin, organization_id, refreshJson.data);
+        }
       }
     }
 

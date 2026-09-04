@@ -29,7 +29,8 @@ export interface BookingForTransport {
   products: BookingProduct[];
   transport_assignments: {
     id: string;
-    vehicle_id: string;
+    vehicle_id: string | null;
+    supplier_id: string | null;
     transport_date: string;
     transport_time: string | null;
     pickup_address: string | null;
@@ -38,6 +39,8 @@ export interface BookingForTransport {
     partner_response: string | null;
     vehicle_name?: string;
     is_external?: boolean;
+    supplier_email?: string | null;
+    supplier_contact_name?: string | null;
   }[];
 }
 
@@ -105,6 +108,8 @@ export const useBookingsForTransport = () => {
         .select(`
           id,
           vehicle_id,
+          supplier_id,
+          supplier_contact_id,
           booking_id,
           transport_date,
           transport_time,
@@ -112,7 +117,8 @@ export const useBookingsForTransport = () => {
           stop_order,
           status,
           partner_response,
-          vehicles!vehicle_id (name, is_external)
+          vehicles!vehicle_id (name, is_external),
+          suppliers!supplier_id (name, email, primary_contact, contacts)
         `);
 
       if (assignmentError) throw assignmentError;
@@ -123,17 +129,25 @@ export const useBookingsForTransport = () => {
         if (!assignmentsByBooking[a.booking_id]) {
           assignmentsByBooking[a.booking_id] = [];
         }
+        const supplierContacts = Array.isArray(a.suppliers?.contacts) ? a.suppliers.contacts : [];
+        const supplierContact = supplierContacts.find(contact => contact.id === a.supplier_contact_id)
+          || a.suppliers?.primary_contact
+          || supplierContacts[0]
+          || null;
         assignmentsByBooking[a.booking_id].push({
           id: a.id,
           vehicle_id: a.vehicle_id,
+          supplier_id: a.supplier_id,
           transport_date: a.transport_date,
           transport_time: a.transport_time,
           pickup_address: a.pickup_address,
           stop_order: a.stop_order,
           status: a.status,
           partner_response: a.partner_response,
-          vehicle_name: a.vehicles?.name || 'Okänt fordon',
-          is_external: a.vehicles?.is_external || false,
+          vehicle_name: a.suppliers?.name || a.vehicles?.name || 'Intern transport',
+          is_external: Boolean(a.suppliers || a.vehicles?.is_external),
+          supplier_email: supplierContact?.email || a.suppliers?.email || null,
+          supplier_contact_name: supplierContact?.name || a.suppliers?.name || null,
         });
       });
 

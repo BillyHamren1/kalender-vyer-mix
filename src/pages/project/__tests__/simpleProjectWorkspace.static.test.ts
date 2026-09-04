@@ -55,5 +55,7 @@ describe("simple project workspace", () => {
     expect(page).toContain('value="planning"');
     expect(page).toContain("Bokningsinformation");
     expect(page).toContain("Projektplanering");
+    expect(page).toContain("ProjectTransportWidget");
+    expect(page).toContain("isTransportTodoTitle");
   });
 });

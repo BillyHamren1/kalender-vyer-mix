@@ -47,7 +47,13 @@ async function callRegistry<T = unknown>(body: Action): Promise<T> {
     throw new Error(`supplier-registry error: ${error.message}`);
   }
 
-  return data as T;
+  // The proxy deliberately preserves the WMS registry envelope so errors and
+  // organization scoping are handled server-side. Consumers work with the
+  // registry payload, never with the transport module's own supplier copy.
+  if (data?.success === false) {
+    throw new Error(data.code || data.error || "supplier-registry request failed");
+  }
+  return (data?.success === true ? data.data : data) as T;
 }
 
 export const listSuppliers = () =>

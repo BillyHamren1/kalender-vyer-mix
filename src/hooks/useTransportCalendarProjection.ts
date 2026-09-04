@@ -54,6 +54,7 @@ export const useTransportCalendarProjection = (startDate: Date, endDate: Date) =
           planning_status,
           partner_response,
           transport_type,
+          requested_vehicle_type,
           origin_address,
           destination_address,
           pickup_address,
@@ -63,6 +64,10 @@ export const useTransportCalendarProjection = (startDate: Date, endDate: Date) =
             name,
             vehicle_type,
             is_external
+          ),
+          supplier:suppliers!supplier_id (
+            id,
+            name
           ),
           booking:bookings!booking_id (
             id,
@@ -96,9 +101,9 @@ export const useTransportCalendarProjection = (startDate: Date, endDate: Date) =
         destinationAddress: row.destination_address || row.booking?.deliveryaddress || null,
         pickupAddress: row.pickup_address,
         driverNotes: row.driver_notes,
-        vehicleName: row.vehicle?.name || 'Fordon ej bestämt',
-        vehicleType: row.vehicle?.vehicle_type || null,
-        isExternal: Boolean(row.vehicle?.is_external),
+        vehicleName: row.supplier?.name || row.vehicle?.name || (row.transport_type === 'internal' ? 'Intern transport' : 'Fordon ej bestämt'),
+        vehicleType: row.requested_vehicle_type || row.vehicle?.vehicle_type || null,
+        isExternal: Boolean(row.supplier || row.vehicle?.is_external),
       })));
     } catch (error) {
       console.error('[useTransportCalendarProjection] fetch failed', error);
