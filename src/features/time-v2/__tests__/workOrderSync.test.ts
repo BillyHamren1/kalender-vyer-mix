@@ -100,7 +100,7 @@ describe('worker.assignments.sync — work-order.v1 is additive on the unchanged
     const { byAssignment, report } = await buildAttachedWorkOrders([candidate()], WORKER, sources);
     const attached = byAssignment.get(EVENT);
     expect(attached?.workOrder?.phases).toEqual([{ kind: 'rig', startsAt: '2026-06-04T07:00:00+02:00', endsAt: '2026-06-04T17:00:00+02:00' }]);
-    expect(attached?.workOrder?.contacts).toEqual([{ name: 'Kund Kundsson', role: 'Leveranskontakt', phone: '+46700000000' }]);
+    expect(attached?.workOrder?.contacts).toEqual([{ contactId: `booking:${BOOKING}:delivery`, role: 'Leveranskontakt', displayName: 'Kund Kundsson', phone: '+46700000000' }]);
     expect(attached?.workOrderHash).toMatch(/^[0-9a-f]{64}$/);
     expect(report).toEqual({
       schema: 'planning-work-order-report.v1',
