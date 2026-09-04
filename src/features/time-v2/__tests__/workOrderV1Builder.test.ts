@@ -5,7 +5,7 @@
  * parent_package_id / inventory_package_id, timestamptz phase fields,
  * establishment_tasks.visible_in_time_app + assigned_to_ids, etc.).
  *
- * Proves: booking/product/package lines, rig-event-teardown phases with
+ * Proves: booking/product/package lines, rig-event-derig phases with
  * Stockholm offsets, worker-only tasks, team/contact/file mapping, omission
  * (never fabrication) on missing source, and that cost/price/margin/internal
  * fields present on the source rows never leak.
@@ -147,26 +147,26 @@ describe('work-order.v1 builder — real-shaped Planning fixture', () => {
   const { workOrder, gaps } = buildWorkOrderV1(fixture());
   if (!workOrder) throw new Error('expected a work order');
 
-  it('maps rig / event / teardown from saved Planning time fields with Stockholm offsets, plus extra calendar days, deduped', () => {
+  it('maps rig / event / derig from saved Planning time fields with Stockholm offsets, plus extra calendar days, deduped', () => {
     expect(workOrder.phases).toEqual([
       { kind: 'rig', startsAt: '2026-06-04T07:00:00+02:00', endsAt: '2026-06-04T17:00:00+02:00' },
       { kind: 'rig', startsAt: '2026-06-05T07:00:00+02:00', endsAt: '2026-06-05T15:00:00+02:00' },
       { kind: 'event', startsAt: '2026-06-06T10:00:00+02:00', endsAt: '2026-06-06T22:00:00+02:00' },
-      { kind: 'teardown', startsAt: '2026-06-07T08:00:00+02:00', endsAt: '2026-06-07T12:00:00+02:00' },
+      { kind: 'derig', startsAt: '2026-06-07T08:00:00+02:00', endsAt: '2026-06-07T12:00:00+02:00' },
     ]);
   });
 
   it('keeps package parent, components with parentLineId, quantity, note and cleaned labels; drops removed/other-booking rows', () => {
     const lines = workOrder.lines ?? [];
-    expect(lines.map((l) => l.id)).toEqual([PARENT_1, COMP_FRAME, COMP_ROOF, COMP_BAG, STANDALONE]);
-    expect(lines[0]).toEqual({ id: PARENT_1, kind: 'package', label: 'H Mastertent - 3x3 (#1)', quantity: 1 });
-    expect(lines[1]).toEqual({ id: COMP_FRAME, kind: 'product', label: 'H Mastertent - Ramverk 3x3', quantity: 1, parentLineId: PARENT_1 });
-    expect(lines[2]).toEqual({ id: COMP_ROOF, kind: 'product', label: 'H Mastertent - Takduk 3x3', quantity: 1, note: 'Vit duk', parentLineId: PARENT_1 });
+    expect(lines.map((l) => l.lineId)).toEqual([PARENT_1, COMP_FRAME, COMP_ROOF, COMP_BAG, STANDALONE]);
+    expect(lines[0]).toEqual({ lineId: PARENT_1, kind: 'package', label: 'H Mastertent - 3x3 (#1)', quantity: 1 });
+    expect(lines[1]).toEqual({ lineId: COMP_FRAME, kind: 'product', label: 'H Mastertent - Ramverk 3x3', quantity: 1, parentLineId: PARENT_1 });
+    expect(lines[2]).toEqual({ lineId: COMP_ROOF, kind: 'product', label: 'H Mastertent - Takduk 3x3', quantity: 1, note: 'Vit duk', parentLineId: PARENT_1 });
     // parent resolved through parent_package_id → inventory package → parent row
-    expect(lines[3]).toEqual({ id: COMP_BAG, kind: 'product', label: 'H Mastertent - Transportväska 3x3 (Pvc tak)', quantity: 2, parentLineId: PARENT_1 });
-    expect(lines[4]).toEqual({ id: STANDALONE, kind: 'product', label: 'Bord 180x80', quantity: 12, note: 'Levereras till scenen' });
-    expect(lines.some((l) => l.id === REMOVED)).toBe(false);
-    expect(lines.some((l) => l.id === 'x-other')).toBe(false);
+    expect(lines[3]).toEqual({ lineId: COMP_BAG, kind: 'product', label: 'H Mastertent - Transportväska 3x3 (Pvc tak)', quantity: 2, parentLineId: PARENT_1 });
+    expect(lines[4]).toEqual({ lineId: STANDALONE, kind: 'product', label: 'Bord 180x80', quantity: 12, note: 'Levereras till scenen' });
+    expect(lines.some((l) => l.lineId === REMOVED)).toBe(false);
+    expect(lines.some((l) => l.lineId === 'x-other')).toBe(false);
     // Planning has no unit source → omitted and reported, never invented
     expect(lines.every((l) => l.unit === undefined)).toBe(true);
     expect(gaps.line_unit_unavailable).toBe(5);
@@ -174,9 +174,9 @@ describe('work-order.v1 builder — real-shaped Planning fixture', () => {
 
   it('emits only practical instructions from real booking flags — never internal notes', () => {
     expect(workOrder.instructions).toEqual([
-      'Exakt tid behövs: Porten öppnas 07:00 prick',
-      'Bär mer än 10 m',
-      'Markpinnar ej tillåtet',
+      { instructionId: 'exact_time_needed', label: 'Exakt tid behövs', body: 'Porten öppnas 07:00 prick' },
+      { instructionId: 'carry_more_than_10m', label: 'Bär mer än 10 m' },
+      { instructionId: 'ground_nails_not_allowed', label: 'Markpinnar ej tillåtet' },
     ]);
     expect(JSON.stringify(workOrder)).not.toContain('INTERN');
     expect(JSON.stringify(workOrder)).not.toContain('PL-notering');
@@ -184,30 +184,39 @@ describe('work-order.v1 builder — real-shaped Planning fixture', () => {
 
   it('exports only the receiving worker\'s tasks (establishment visible_in_time_app + assigned, project non-info assigned)', () => {
     expect(workOrder.tasks).toEqual([
-      { id: 'et-2', title: 'Koppla el', completed: true },
-      { id: 'et-1', title: 'Bygg scen', completed: false, note: 'Börja med bakre delen' },
-      { id: 'pt-1', title: 'Boka lift', completed: true, note: 'Senast onsdag' },
+      { taskId: 'et-2', label: 'Koppla el' },
+      { taskId: 'et-1', label: 'Bygg scen', note: 'Börja med bakre delen' },
+      { taskId: 'pt-1', label: 'Boka lift', note: 'Senast onsdag' },
     ]);
+    // Planning has no per-task phase binding → omitted, never invented
+    expect((workOrder.tasks ?? []).every((t) => t.phase === undefined)).toBe(true);
+    expect(gaps.task_phase_unavailable).toBe(3);
   });
 
   it('exports only https files: booking attachments, project files and the map drawing; http is dropped and reported', () => {
     expect(workOrder.files).toEqual([
-      { url: 'https://files.example.com/att/scen.jpg', name: 'scen.jpg', kind: 'image' },
-      { url: 'https://files.example.com/pf/lastplan.pdf', name: 'Lastplan.pdf', kind: 'document' },
-      { url: 'https://files.example.com/drawings/riddarhustorget.png', name: 'riddarhustorget.png', kind: 'image' },
+      { fileId: 'att-1', kind: 'image', label: 'scen.jpg', url: 'https://files.example.com/att/scen.jpg', mimeType: 'image/jpeg' },
+      { fileId: 'pf-1', kind: 'document', label: 'Lastplan.pdf', url: 'https://files.example.com/pf/lastplan.pdf', mimeType: 'application/pdf' },
+      { fileId: `booking:${BOOKING}:map_drawing`, kind: 'image', label: 'riddarhustorget.png', url: 'https://files.example.com/drawings/riddarhustorget.png' },
     ]);
     expect(gaps.file_not_https).toBe(1);
+    // Planning stores no thumbnails → omitted, never invented
+    expect((workOrder.files ?? []).every((f) => f.thumbnailUrl === undefined)).toBe(true);
+    expect(gaps.file_thumbnail_unavailable).toBe(3);
   });
 
   it('team = colleagues on the same booking and day, never the worker themself', () => {
-    expect(workOrder.team).toEqual([{ name: 'Anna Ek', role: 'Tekniker' }]);
+    expect(workOrder.team).toEqual([{ memberId: COLLEAGUE, displayName: 'Anna Ek', roleLabel: 'Tekniker' }]);
   });
 
   it('contacts = delivery contact + resolved project leader', () => {
     expect(workOrder.contacts).toEqual([
-      { name: 'Kund Kundsson', role: 'Leveranskontakt', phone: '+46 70 000 00 00', email: 'kund@example.com' },
-      { name: 'Lena Ledare', role: 'Projektledare', phone: '+46 70 111 11 11' },
+      { contactId: `booking:${BOOKING}:delivery`, role: 'Leveranskontakt', displayName: 'Kund Kundsson', phone: '+46 70 000 00 00' },
+      { contactId: `staff:${LEADER}`, role: 'Projektledare', displayName: 'Lena Ledare', phone: '+46 70 111 11 11' },
     ]);
+    // Time's contact shape has no email field
+    expect(JSON.stringify(workOrder)).not.toContain('kund@example.com');
+    expect(gaps.contact_email_not_in_contract).toBe(1);
   });
 
   it('never leaks cost, price, margin, salary/rate, VAT/discount or internal notes', () => {
@@ -242,7 +251,7 @@ describe('work-order.v1 builder — omission instead of fabrication', () => {
     });
     expect(result.workOrder?.phases?.map((p) => p.kind)).toEqual(['rig']);
     expect(result.gaps['phase_times_missing:event']).toBe(1);
-    expect(result.gaps['phase_times_missing:teardown']).toBe(1);
+    expect(result.gaps['phase_times_missing:derig']).toBe(1);
   });
 
   it('omits a phase whose saved times are inverted rather than guessing', () => {
@@ -280,7 +289,7 @@ describe('work-order.v1 builder — omission instead of fabrication', () => {
   it('keeps a free-text project leader (not a staff id) as a named contact', () => {
     const input = fixture();
     const result = buildWorkOrderV1({ ...input, project: { id: PROJECT, project_leader: 'Kalle Kula' }, staffById: new Map() });
-    expect(result.workOrder?.contacts?.find((c) => c.role === 'Projektledare')).toEqual({ name: 'Kalle Kula', role: 'Projektledare' });
+    expect(result.workOrder?.contacts?.find((c) => c.role === 'Projektledare')).toEqual({ contactId: `project:${PROJECT}:leader`, role: 'Projektledare', displayName: 'Kalle Kula' });
   });
 
   it('merges per-assignment gaps into one sorted PII-free report', () => {

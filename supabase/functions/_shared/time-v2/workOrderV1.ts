@@ -4,14 +4,14 @@
  * `work-context.v1` boundary).
  *
  * Pinned by the Time contract (field-relevant work order, strict parser):
- *  - phases[]        kind rig|event|teardown, startsAt/endsAt WITH explicit offset
- *  - lines[]         id, kind booking|product|package, label, quantity,
- *                    unit, optional note, optional parentLineId
- *  - instructions[]  practical field instructions
- *  - tasks[]         ONLY tasks assigned to the receiving worker
- *  - files[]         real HTTPS url, name, kind
- *  - team[]          colleagues on the same booking/day
- *  - contacts[]      field-relevant contacts
+ *  - phases[]        kind rig|event|derig, startsAt/endsAt WITH explicit offset
+ *  - lines[]         lineId, kind booking|product|package, label, quantity,
+ *                    unit, note, parentLineId
+ *  - instructions[]  instructionId, label, body
+ *  - tasks[]         taskId, label, note, phase — ONLY the receiving worker's tasks
+ *  - files[]         fileId, kind, label, url, thumbnailUrl, mimeType (real HTTPS url)
+ *  - team[]          memberId, displayName, roleLabel
+ *  - contacts[]      contactId, role, displayName, phone
  *
  * Structurally excluded — never part of this module's types or output:
  * prices, costs, margins, VAT/discount, economics, salaries/rates and any
@@ -22,7 +22,7 @@
 
 export const WORK_ORDER_SCHEMA = 'work-order.v1' as const;
 
-export const WORK_ORDER_PHASE_KINDS = ['rig', 'event', 'teardown'] as const;
+export const WORK_ORDER_PHASE_KINDS = ['rig', 'event', 'derig'] as const;
 export type WorkOrderPhaseKind = (typeof WORK_ORDER_PHASE_KINDS)[number];
 
 export const WORK_ORDER_LINE_KINDS = ['booking', 'product', 'package'] as const;
@@ -39,7 +39,7 @@ export interface WorkOrderPhase {
 }
 
 export interface WorkOrderLine {
-  readonly id: string;
+  readonly lineId: string;
   readonly kind: WorkOrderLineKind;
   readonly label: string;
   readonly quantity: number;
@@ -49,36 +49,46 @@ export interface WorkOrderLine {
   readonly parentLineId?: string;
 }
 
+export interface WorkOrderInstruction {
+  readonly instructionId: string;
+  readonly label: string;
+  readonly body?: string;
+}
+
 export interface WorkOrderTask {
-  readonly id: string;
-  readonly title: string;
-  readonly completed: boolean;
+  readonly taskId: string;
+  readonly label: string;
   readonly note?: string;
+  readonly phase?: WorkOrderPhaseKind;
 }
 
 export interface WorkOrderFile {
-  readonly url: string;
-  readonly name: string;
+  readonly fileId: string;
   readonly kind: WorkOrderFileKind;
+  readonly label: string;
+  readonly url: string;
+  readonly thumbnailUrl?: string;
+  readonly mimeType?: string;
 }
 
 export interface WorkOrderTeamMember {
-  readonly name: string;
-  readonly role?: string;
+  readonly memberId: string;
+  readonly displayName: string;
+  readonly roleLabel?: string;
 }
 
 export interface WorkOrderContact {
-  readonly name: string;
-  readonly role?: string;
+  readonly contactId: string;
+  readonly role: string;
+  readonly displayName: string;
   readonly phone?: string;
-  readonly email?: string;
 }
 
 /** Every section is optional: a section is omitted when Planning holds no source data for it. */
 export interface WorkOrderV1 {
   readonly phases?: readonly WorkOrderPhase[];
   readonly lines?: readonly WorkOrderLine[];
-  readonly instructions?: readonly string[];
+  readonly instructions?: readonly WorkOrderInstruction[];
   readonly tasks?: readonly WorkOrderTask[];
   readonly files?: readonly WorkOrderFile[];
   readonly team?: readonly WorkOrderTeamMember[];
@@ -89,11 +99,12 @@ export interface WorkOrderV1 {
 export const WORK_ORDER_V1_KEYS = {
   root: ['phases', 'lines', 'instructions', 'tasks', 'files', 'team', 'contacts'],
   phase: ['kind', 'startsAt', 'endsAt'],
-  line: ['id', 'kind', 'label', 'quantity', 'unit', 'note', 'parentLineId'],
-  task: ['id', 'title', 'completed', 'note'],
-  file: ['url', 'name', 'kind'],
-  teamMember: ['name', 'role'],
-  contact: ['name', 'role', 'phone', 'email'],
+  line: ['lineId', 'kind', 'label', 'quantity', 'unit', 'note', 'parentLineId'],
+  instruction: ['instructionId', 'label', 'body'],
+  task: ['taskId', 'label', 'note', 'phase'],
+  file: ['fileId', 'kind', 'label', 'url', 'thumbnailUrl', 'mimeType'],
+  teamMember: ['memberId', 'displayName', 'roleLabel'],
+  contact: ['contactId', 'role', 'displayName', 'phone'],
 } as const;
 
 /** Bounds applied on the Planning side so a work order can never blow up the sync payload. */
@@ -187,9 +198,9 @@ export function assertWorkOrderV1(value: unknown, path = 'workOrder'): asserts v
     assertArrayOf(value.lines, `${path}.lines`, WORK_ORDER_LIMITS.maxLines, (item, p) => {
       if (!isRecord(item)) throw new Error(`${p}: must be an object`);
       assertKeys(item, WORK_ORDER_V1_KEYS.line, p);
-      requireText(item.id, `${p}.id`, WORK_ORDER_LIMITS.maxLabelLength);
-      if (ids.has(item.id as string)) throw new Error(`${p}.id: duplicate`);
-      ids.add(item.id as string);
+      requireText(item.lineId, `${p}.lineId`, WORK_ORDER_LIMITS.maxLabelLength);
+      if (ids.has(item.lineId as string)) throw new Error(`${p}.lineId: duplicate`);
+      ids.add(item.lineId as string);
       if (!WORK_ORDER_LINE_KINDS.includes(item.kind as WorkOrderLineKind)) throw new Error(`${p}.kind: invalid`);
       requireText(item.label, `${p}.label`, WORK_ORDER_LIMITS.maxLabelLength);
       if (typeof item.quantity !== 'number' || !Number.isFinite(item.quantity) || item.quantity < 0) {
@@ -207,18 +218,28 @@ export function assertWorkOrderV1(value: unknown, path = 'workOrder'): asserts v
   }
 
   if (value.instructions !== undefined) {
-    assertArrayOf(value.instructions, `${path}.instructions`, WORK_ORDER_LIMITS.maxInstructions, (item, p) =>
-      requireText(item, p, WORK_ORDER_LIMITS.maxTextLength));
+    const instructionIds = new Set<string>();
+    assertArrayOf(value.instructions, `${path}.instructions`, WORK_ORDER_LIMITS.maxInstructions, (item, p) => {
+      if (!isRecord(item)) throw new Error(`${p}: must be an object`);
+      assertKeys(item, WORK_ORDER_V1_KEYS.instruction, p);
+      requireText(item.instructionId, `${p}.instructionId`, WORK_ORDER_LIMITS.maxLabelLength);
+      if (instructionIds.has(item.instructionId as string)) throw new Error(`${p}.instructionId: duplicate`);
+      instructionIds.add(item.instructionId as string);
+      requireText(item.label, `${p}.label`, WORK_ORDER_LIMITS.maxLabelLength);
+      optionalText(item.body, `${p}.body`, WORK_ORDER_LIMITS.maxTextLength);
+    });
   }
 
   if (value.tasks !== undefined) {
     assertArrayOf(value.tasks, `${path}.tasks`, WORK_ORDER_LIMITS.maxTasks, (item, p) => {
       if (!isRecord(item)) throw new Error(`${p}: must be an object`);
       assertKeys(item, WORK_ORDER_V1_KEYS.task, p);
-      requireText(item.id, `${p}.id`, WORK_ORDER_LIMITS.maxLabelLength);
-      requireText(item.title, `${p}.title`, WORK_ORDER_LIMITS.maxLabelLength);
-      if (typeof item.completed !== 'boolean') throw new Error(`${p}.completed: must be boolean`);
+      requireText(item.taskId, `${p}.taskId`, WORK_ORDER_LIMITS.maxLabelLength);
+      requireText(item.label, `${p}.label`, WORK_ORDER_LIMITS.maxLabelLength);
       optionalText(item.note, `${p}.note`, WORK_ORDER_LIMITS.maxTextLength);
+      if (item.phase !== undefined && !WORK_ORDER_PHASE_KINDS.includes(item.phase as WorkOrderPhaseKind)) {
+        throw new Error(`${p}.phase: invalid`);
+      }
     });
   }
 
@@ -226,8 +247,13 @@ export function assertWorkOrderV1(value: unknown, path = 'workOrder'): asserts v
     assertArrayOf(value.files, `${path}.files`, WORK_ORDER_LIMITS.maxFiles, (item, p) => {
       if (!isRecord(item)) throw new Error(`${p}: must be an object`);
       assertKeys(item, WORK_ORDER_V1_KEYS.file, p);
+      requireText(item.fileId, `${p}.fileId`, WORK_ORDER_LIMITS.maxLabelLength);
       if (typeof item.url !== 'string' || !isHttpsUrl(item.url)) throw new Error(`${p}.url: must be an https URL`);
-      requireText(item.name, `${p}.name`, WORK_ORDER_LIMITS.maxLabelLength);
+      if (item.thumbnailUrl !== undefined && (typeof item.thumbnailUrl !== 'string' || !isHttpsUrl(item.thumbnailUrl))) {
+        throw new Error(`${p}.thumbnailUrl: must be an https URL`);
+      }
+      requireText(item.label, `${p}.label`, WORK_ORDER_LIMITS.maxLabelLength);
+      optionalText(item.mimeType, `${p}.mimeType`, 160);
       if (!WORK_ORDER_FILE_KINDS.includes(item.kind as WorkOrderFileKind)) throw new Error(`${p}.kind: invalid`);
     });
   }
@@ -236,8 +262,9 @@ export function assertWorkOrderV1(value: unknown, path = 'workOrder'): asserts v
     assertArrayOf(value.team, `${path}.team`, WORK_ORDER_LIMITS.maxTeam, (item, p) => {
       if (!isRecord(item)) throw new Error(`${p}: must be an object`);
       assertKeys(item, WORK_ORDER_V1_KEYS.teamMember, p);
-      requireText(item.name, `${p}.name`, WORK_ORDER_LIMITS.maxLabelLength);
-      optionalText(item.role, `${p}.role`, WORK_ORDER_LIMITS.maxLabelLength);
+      requireText(item.memberId, `${p}.memberId`, WORK_ORDER_LIMITS.maxLabelLength);
+      requireText(item.displayName, `${p}.displayName`, WORK_ORDER_LIMITS.maxLabelLength);
+      optionalText(item.roleLabel, `${p}.roleLabel`, WORK_ORDER_LIMITS.maxLabelLength);
     });
   }
 
@@ -245,10 +272,10 @@ export function assertWorkOrderV1(value: unknown, path = 'workOrder'): asserts v
     assertArrayOf(value.contacts, `${path}.contacts`, WORK_ORDER_LIMITS.maxContacts, (item, p) => {
       if (!isRecord(item)) throw new Error(`${p}: must be an object`);
       assertKeys(item, WORK_ORDER_V1_KEYS.contact, p);
-      requireText(item.name, `${p}.name`, WORK_ORDER_LIMITS.maxLabelLength);
-      optionalText(item.role, `${p}.role`, WORK_ORDER_LIMITS.maxLabelLength);
+      requireText(item.contactId, `${p}.contactId`, WORK_ORDER_LIMITS.maxLabelLength);
+      requireText(item.role, `${p}.role`, WORK_ORDER_LIMITS.maxLabelLength);
+      requireText(item.displayName, `${p}.displayName`, WORK_ORDER_LIMITS.maxLabelLength);
       optionalText(item.phone, `${p}.phone`, 60);
-      optionalText(item.email, `${p}.email`, WORK_ORDER_LIMITS.maxLabelLength);
     });
   }
 }

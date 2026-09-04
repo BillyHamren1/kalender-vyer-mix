@@ -22,6 +22,7 @@ import {
   type WorkOrderContact,
   type WorkOrderFile,
   type WorkOrderFileKind,
+  type WorkOrderInstruction,
   type WorkOrderLine,
   type WorkOrderPhase,
   type WorkOrderPhaseKind,
@@ -190,8 +191,8 @@ const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 // Phases
 // ---------------------------------------------------------------------------
 
-const CALENDAR_PHASE_KIND: Record<string, WorkOrderPhaseKind> = { rig: 'rig', event: 'event', rigDown: 'teardown' };
-const PHASE_ORDER: Record<WorkOrderPhaseKind, number> = { rig: 0, event: 1, teardown: 2 };
+const CALENDAR_PHASE_KIND: Record<string, WorkOrderPhaseKind> = { rig: 'rig', event: 'event', rigDown: 'derig' };
+const PHASE_ORDER: Record<WorkOrderPhaseKind, number> = { rig: 0, event: 1, derig: 2 };
 
 const buildPhases = (input: WorkOrderBuildInput, gaps: WorkOrderGaps): WorkOrderPhase[] => {
   const { booking } = input;
@@ -209,7 +210,7 @@ const buildPhases = (input: WorkOrderBuildInput, gaps: WorkOrderGaps): WorkOrder
   const canonical: Array<[WorkOrderPhaseKind, unknown, unknown, unknown]> = [
     ['rig', booking.rig_start_time, booking.rig_end_time, booking.rigdaydate],
     ['event', booking.event_start_time, booking.event_end_time, booking.eventdate],
-    ['teardown', booking.rigdown_start_time, booking.rigdown_end_time, booking.rigdowndate],
+    ['derig', booking.rigdown_start_time, booking.rigdown_end_time, booking.rigdowndate],
   ];
   for (const [kind, start, end, date] of canonical) {
     const hasStart = typeof start === 'string' && start.trim() !== '';
@@ -297,7 +298,7 @@ const buildLines = (input: WorkOrderBuildInput, gaps: WorkOrderGaps): WorkOrderL
     const parentLineId = parentOf.get(row.id);
     const cleaned = parentLineId ? cleanLineName(rawName) : rawName;
     const line: WorkOrderLine = {
-      id: row.id,
+      lineId: row.id,
       kind: isPackage(row) ? 'package' : 'product',
       label: label(cleaned) ?? rawName,
       quantity,
@@ -313,7 +314,7 @@ const buildLines = (input: WorkOrderBuildInput, gaps: WorkOrderGaps): WorkOrderL
   if (lines.length > WORK_ORDER_LIMITS.maxLines) {
     bump(gaps, 'lines_truncated', lines.length - WORK_ORDER_LIMITS.maxLines);
     const kept = lines.slice(0, WORK_ORDER_LIMITS.maxLines);
-    const keptIds = new Set(kept.map((line) => line.id));
+    const keptIds = new Set(kept.map((line) => line.lineId));
     return kept.map((line) => (line.parentLineId && !keptIds.has(line.parentLineId)
       ? { ...line, parentLineId: undefined }
       : line)).map((line) => (line.parentLineId === undefined ? stripUndefined(line) : line));
@@ -328,17 +329,20 @@ const stripUndefined = <T extends object>(value: T): T =>
 // Instructions (practical booking flags + exact-time info; never internal notes)
 // ---------------------------------------------------------------------------
 
-const buildInstructions = (input: WorkOrderBuildInput): string[] => {
+const buildInstructions = (input: WorkOrderBuildInput): WorkOrderInstruction[] => {
   const { booking } = input;
-  const out: string[] = [];
+  const out: WorkOrderInstruction[] = [];
+  const push = (instructionId: string, labelText: string, body?: string) => {
+    out.push({ instructionId, label: labelText, ...(body ? { body } : {}) });
+  };
   const exactInfo = text(booking.exact_time_info);
-  if (booking.exact_time_needed === true) out.push(exactInfo ? `Exakt tid behövs: ${exactInfo}` : 'Exakt tid behövs');
-  else if (exactInfo) out.push(exactInfo);
-  if (booking.carry_more_than_10m === true) out.push('Bär mer än 10 m');
-  if (booking.ground_nails_allowed === true) out.push('Markpinnar tillåtet');
-  if (booking.ground_nails_allowed === false) out.push('Markpinnar ej tillåtet');
-  if (booking.customer_pickup === true) out.push('Kund hämtar själv');
-  if (booking.rental_only === true) out.push('Endast uthyrning');
+  if (booking.exact_time_needed === true) push('exact_time_needed', 'Exakt tid behövs', exactInfo);
+  else if (exactInfo) push('exact_time_info', 'Tidsinformation', exactInfo);
+  if (booking.carry_more_than_10m === true) push('carry_more_than_10m', 'Bär mer än 10 m');
+  if (booking.ground_nails_allowed === true) push('ground_nails_allowed', 'Markpinnar tillåtet');
+  if (booking.ground_nails_allowed === false) push('ground_nails_not_allowed', 'Markpinnar ej tillåtet');
+  if (booking.customer_pickup === true) push('customer_pickup', 'Kund hämtar själv');
+  if (booking.rental_only === true) push('rental_only', 'Endast uthyrning');
   return out.slice(0, WORK_ORDER_LIMITS.maxInstructions);
 };
 
@@ -358,9 +362,8 @@ const buildTasks = (input: WorkOrderBuildInput, gaps: WorkOrderGaps): WorkOrderT
       continue;
     }
     out.push({
-      id: row.id,
-      title,
-      completed: row.completed === true || row.status === 'done',
+      taskId: row.id,
+      label: title,
       ...(text(row.notes) ? { note: text(row.notes) } : {}),
       sort: typeof row.sort_order === 'number' ? row.sort_order : Number.POSITIVE_INFINITY,
     });
@@ -375,9 +378,8 @@ const buildTasks = (input: WorkOrderBuildInput, gaps: WorkOrderGaps): WorkOrderT
       continue;
     }
     out.push({
-      id: row.id,
-      title,
-      completed: row.completed === true,
+      taskId: row.id,
+      label: title,
       ...(text(row.description) ? { note: text(row.description) } : {}),
       sort: typeof row.sort_order === 'number' ? row.sort_order : Number.POSITIVE_INFINITY,
     });
@@ -385,9 +387,11 @@ const buildTasks = (input: WorkOrderBuildInput, gaps: WorkOrderGaps): WorkOrderT
 
   const seen = new Set<string>();
   const tasks = out
-    .sort((a, b) => a.sort - b.sort || a.title.localeCompare(b.title, 'sv') || a.id.localeCompare(b.id))
-    .filter((task) => (seen.has(task.id) ? false : (seen.add(task.id), true)))
+    .sort((a, b) => a.sort - b.sort || a.label.localeCompare(b.label, 'sv') || a.taskId.localeCompare(b.taskId))
+    .filter((task) => (seen.has(task.taskId) ? false : (seen.add(task.taskId), true)))
     .map(({ sort: _sort, ...task }) => task);
+  // Planning has no per-task phase binding; the field is omitted, never invented.
+  if (tasks.length > 0) bump(gaps, 'task_phase_unavailable', tasks.length);
   if (tasks.length > WORK_ORDER_LIMITS.maxTasks) {
     bump(gaps, 'tasks_truncated', tasks.length - WORK_ORDER_LIMITS.maxTasks);
     return tasks.slice(0, WORK_ORDER_LIMITS.maxTasks);
@@ -418,33 +422,46 @@ const fileNameFromUrl = (url: string): string | undefined => {
 
 const buildFiles = (input: WorkOrderBuildInput, gaps: WorkOrderGaps): WorkOrderFile[] => {
   const out = new Map<string, WorkOrderFile>();
-  const add = (url: unknown, name: unknown, type: unknown) => {
+  const add = (fileId: unknown, url: unknown, name: unknown, type: unknown) => {
     const href = text(url, 2_048);
     if (!href) return;
     if (!isHttpsUrl(href)) {
       bump(gaps, 'file_not_https');
       return;
     }
+    const id = label(fileId) ?? href;
     const fileName = label(name) ?? fileNameFromUrl(href);
     if (!fileName) {
-      bump(gaps, 'file_name_missing');
+      bump(gaps, 'file_label_missing');
       return;
     }
-    if (!out.has(href)) out.set(href, { url: href, name: fileName, kind: fileKind(type, href) });
+    const mimeType = typeof type === 'string' && type.includes('/') ? text(type, 160) : undefined;
+    if (!mimeType) bump(gaps, 'file_mime_type_missing');
+    // Planning stores no thumbnail for attachments; `thumbnailUrl` is omitted, never invented.
+    if (!out.has(href)) {
+      out.set(href, {
+        fileId: id,
+        kind: fileKind(type, href),
+        label: fileName,
+        url: href,
+        ...(mimeType ? { mimeType } : {}),
+      });
+    }
   };
 
   for (const row of input.attachments ?? []) {
     if (row.booking_id !== input.booking.id) continue;
-    add(row.url, row.file_name, row.file_type);
+    add(row.id, row.url, row.file_name, row.file_type);
   }
   const projectId = input.project?.id ?? null;
   for (const row of input.projectFiles ?? []) {
     if (!projectId || row.project_id !== projectId) continue;
-    add(row.url, row.file_name, row.file_type);
+    add(row.id, row.url, row.file_name, row.file_type);
   }
-  add(input.booking.map_drawing_url, undefined, undefined);
+  add(`booking:${input.booking.id}:map_drawing`, input.booking.map_drawing_url, undefined, undefined);
 
   const files = [...out.values()];
+  if (files.length > 0) bump(gaps, 'file_thumbnail_unavailable', files.length);
   if (files.length > WORK_ORDER_LIMITS.maxFiles) {
     bump(gaps, 'files_truncated', files.length - WORK_ORDER_LIMITS.maxFiles);
     return files.slice(0, WORK_ORDER_LIMITS.maxFiles);
@@ -470,11 +487,11 @@ const buildTeam = (input: WorkOrderBuildInput, gaps: WorkOrderGaps): WorkOrderTe
       bump(gaps, 'team_member_unnamed');
       continue;
     }
-    const role = label(staff?.role);
-    if (!role) bump(gaps, 'staff_role_missing');
-    out.push({ name, ...(role ? { role } : {}) });
+    const roleLabel = label(staff?.role);
+    if (!roleLabel) bump(gaps, 'staff_role_missing');
+    out.push({ memberId: row.staff_id, displayName: name, ...(roleLabel ? { roleLabel } : {}) });
   }
-  out.sort((a, b) => a.name.localeCompare(b.name, 'sv'));
+  out.sort((a, b) => a.displayName.localeCompare(b.displayName, 'sv'));
   if (out.length > WORK_ORDER_LIMITS.maxTeam) {
     bump(gaps, 'team_truncated', out.length - WORK_ORDER_LIMITS.maxTeam);
     return out.slice(0, WORK_ORDER_LIMITS.maxTeam);
@@ -492,12 +509,14 @@ const buildContacts = (input: WorkOrderBuildInput, gaps: WorkOrderGaps): WorkOrd
   const contactName = label(booking.contact_name);
   const phone = text(booking.contact_phone, 60);
   const email = label(booking.contact_email);
+  // Time's contact shape has no email field — it is never emitted.
+  if (email) bump(gaps, 'contact_email_not_in_contract');
   if (contactName) {
     out.push({
-      name: contactName,
+      contactId: `booking:${booking.id}:delivery`,
       role: 'Leveranskontakt',
+      displayName: contactName,
       ...(phone ? { phone } : {}),
-      ...(email ? { email } : {}),
     });
   } else if (phone || email) {
     bump(gaps, 'contact_name_missing');
@@ -509,9 +528,18 @@ const buildContacts = (input: WorkOrderBuildInput, gaps: WorkOrderGaps): WorkOrd
     const staffName = label(staff?.name);
     if (staffName) {
       const staffPhone = text(staff?.phone, 60);
-      out.push({ name: staffName, role: 'Projektledare', ...(staffPhone ? { phone: staffPhone } : {}) });
+      out.push({
+        contactId: `staff:${staff?.id ?? leaderRaw}`,
+        role: 'Projektledare',
+        displayName: staffName,
+        ...(staffPhone ? { phone: staffPhone } : {}),
+      });
     } else if (!UUID_LIKE.test(leaderRaw)) {
-      out.push({ name: leaderRaw, role: 'Projektledare' });
+      out.push({
+        contactId: `project:${input.project?.id ?? 'unknown'}:leader`,
+        role: 'Projektledare',
+        displayName: leaderRaw,
+      });
     } else {
       bump(gaps, 'project_leader_unresolved');
     }
