@@ -14,7 +14,6 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import type { GlobalStatusFilter } from '@/pages/ProjectManagement';
-import { useInternalLagerEnabled } from '@/hooks/useInternalLagerEnabled';
 
 export type ProjectTypeFilter = 'all' | 'medium' | 'large';
 
@@ -63,8 +62,6 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
   const { data: jobs = [], isLoading: jobsLoading } = useQuery({ queryKey: ['jobs'], queryFn: fetchJobs });
   const { data: projects = [], isLoading: projectsLoading } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
   const { data: largeProjects = [], isLoading: largeLoading } = useQuery({ queryKey: ['large-projects'], queryFn: fetchLargeProjects });
-  // Konstanta interna Lager-projektet är organisationsstyrt.
-  const { internalLagerEnabled } = useInternalLagerEnabled();
 
   const isLoading = jobsLoading || projectsLoading || largeLoading;
 
@@ -111,7 +108,6 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
 
     projects.forEach(p => {
       const isInternal = (p as any).is_internal === true;
-      if (isInternal && !internalLagerEnabled) return;
       const client = p.booking?.client;
       const bookingNum = p.booking?.booking_number;
       const displayName = isInternal ? p.name : (client ? `${client}${bookingNum ? ' #' + bookingNum : ''}` : p.name);
@@ -170,7 +166,7 @@ const UnifiedProjectList = ({ search, statusFilter, typeFilter }: UnifiedProject
     });
 
     return items;
-  }, [jobs, projects, largeProjects, internalLagerEnabled]);
+  }, [jobs, projects, largeProjects]);
 
   const hasActiveFilters = search.trim().length > 0 || statusFilter !== 'all_active' || typeFilter !== 'all';
 

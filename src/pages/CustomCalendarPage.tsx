@@ -223,7 +223,7 @@ const CustomCalendarPage = () => {
 
   // STORE SYNC: Keep PlannerStore in sync with local state (legacy bridge)
   useEffect(() => {
-    syncToStore({ selectedDate: currentWeekStart, viewMode: viewMode === 'personnel' ? 'weekly' : viewMode });
+    syncToStore({ selectedDate: currentWeekStart, viewMode: (viewMode === 'personnel' ? 'weekly' : viewMode) as any });
   }, [currentWeekStart, viewMode, syncToStore]);
 
   // Virtuella interna Lager-event för Lager-kolumnen (transport).

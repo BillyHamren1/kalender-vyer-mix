@@ -72,7 +72,7 @@ export const baseNavigationItems: NavItem[] = [
     icon: FolderKanban,
   },
   {
-    title: "Bemanningsplanering",
+    title: "Planeringskalender",
     url: "/calendar",
     icon: Calendar,
   },
@@ -82,11 +82,11 @@ export const baseNavigationItems: NavItem[] = [
     icon: Users,
     children: [
       { title: "Personalöversikt", url: "/staff-management", icon: Users },
-      { title: "Bemanningsplanering", url: "/calendar", icon: Calendar },
       { title: "Bemanningskalender (publik)", url: "/personalkalendern", icon: ExternalLink },
       { title: "Tid & Lön", url: "/staff-management/time", icon: CalendarClock },
     ],
   },
+
 ];
 
 /* ─── Collapsed Tooltip ─── */

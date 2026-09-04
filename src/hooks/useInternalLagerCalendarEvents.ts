@@ -3,7 +3,6 @@ import { useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { CalendarEvent } from '@/components/Calendar/ResourceData';
 import { addDays, format, startOfWeek, startOfMonth, endOfMonth, differenceInCalendarDays } from 'date-fns';
-import { useInternalLagerEnabled } from '@/hooks/useInternalLagerEnabled';
 
 /**
  * Genererar virtuella heldagsevent (07:00–16:00) för det interna Lagerprojektet
@@ -16,13 +15,8 @@ export function useInternalLagerCalendarEvents(
   currentDate: Date,
   view: 'day' | 'weekly' | 'monthly' | 'list' = 'weekly',
 ) {
-  // Det konstanta Lager-blocket är organisationsstyrt — bara organisationer
-  // med internal_lager_enabled (t.ex. Frans August) ser det.
-  const { internalLagerEnabled } = useInternalLagerEnabled();
-
   const { data: lagerProjects = [] } = useQuery({
     queryKey: ['internal-lager-projects-with-booking'],
-    enabled: internalLagerEnabled,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('projects')
