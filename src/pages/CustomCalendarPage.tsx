@@ -478,7 +478,7 @@ const CustomCalendarPage = () => {
                 currentMonth={monthlyDate}
                 onMonthChange={handleMonthChange}
                 viewOptions={[
-                  { key: 'weekly', label: 'Vecka' },
+                  { key: 'weekly', label: 'Team' },
                   { key: 'monthly', label: 'Månad' },
                   { key: 'personnel', label: 'Personal' },
                 ]}
