@@ -6,8 +6,30 @@ import {
   sha256Hex,
   signServiceProofJwt,
 } from '../_shared/timeServiceProof.ts';
+import { attachWorkOrders, type WorkOrderCandidate } from './workOrderAttach.ts';
+import type { WorkOrderBookingSource, WorkOrderProjectSource } from '../_shared/time-v2/workOrderV1Builder.ts';
 
 type Json = Record<string, unknown>;
+
+/**
+ * Field-relevant booking columns for the assignment + work order. Deliberately
+ * excludes internalnotes, economics_data and every cost/price column.
+ */
+const BOOKING_COLUMNS = [
+  'id', 'title', 'client', 'status', 'version', 'updated_at', 'booking_number',
+  'deliveryaddress', 'delivery_latitude', 'delivery_longitude',
+  'contact_name', 'contact_phone', 'contact_email',
+  'assigned_project_id', 'assigned_project_name', 'organization_id',
+  'rigdaydate', 'eventdate', 'rigdowndate',
+  'rig_start_time', 'rig_end_time', 'event_start_time', 'event_end_time', 'rigdown_start_time', 'rigdown_end_time',
+  'carry_more_than_10m', 'ground_nails_allowed', 'exact_time_needed', 'exact_time_info',
+  'customer_pickup', 'rental_only', 'map_drawing_url',
+].join(', ');
+
+const PROJECT_COLUMNS = [
+  'id', 'booking_id', 'name', 'updated_at', 'deliveryaddress', 'delivery_latitude', 'delivery_longitude',
+  'address_radius_meters', 'organization_id', 'deleted_at', 'project_leader',
+].join(', ');
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), {
   status,
