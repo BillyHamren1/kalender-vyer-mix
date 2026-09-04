@@ -1,20 +1,26 @@
-# P1-kontraktskorrigering och hosted rerun
+# Lager syns fortfarande hos Niklas Viking
 
-## Mål
-Korrigera endast Planning→Time-tjänstebeviset så att det exakt matchar Time v12-verifieraren i commit `5022d52ddc82d27132ab4f58a6110b0eba0a89c8`, deploya proxyn till staging och omedelbart köra den riktiga hostade Time V2-resan.
+## Vad som faktiskt är fel
 
-## Genomförande
-1. Ersätt det nuvarande tvåheadersformatet med ett kompakt ES256-JWT i endast `x-planning-service-proof`.
-2. Ändra signeraren till exakt header `{alg,typ,kid}` och claims `{schema,aud,operation,organizationId,iat,exp,nonce,bodySha256}`; SHA-256 ska vara lowercase hex över exakt samma JSON-bytes som skickas upstream och signaturen ska vara WebCryptos råa ES256-signatur över `headerSegment.claimsSegment`.
-3. Behåll server-side staging-organisationen och valfri system-token-backup, men vidarebefordra aldrig Planning-användarens bearer-token. Ändra ingen annan funktionalitet.
-4. Uppdatera fokuserade fixture-/verifierartester så att de låser tresegmentformat, exakta nycklar, tidsregler, digest, signatur och singelheader. Kör Deno-fixtures, relevanta Vitest-tester, TypeScript-kontroll och build.
-5. Deploya exakt uppdaterad `time-planning-proxy` till Planning staging och verifiera deployment/loggar.
-6. Skapa en tillfällig syntetisk HUB/Planning-användare med Planning-access, logga in i preview med Playwright och slå på Time V2 endast lokalt för sessionen.
-7. Kör hosted-resan genom proxyn: manifest/status, review queue och detalj, korrigering om submission finns, personnel och payroll/project previews. Notera exakta upstream-statuskoder och kontraktsversioner samt verifiera att Time identifierar `planning_service`.
-8. Radera testanvändaren. Om nästa P0/P1-blockerare uppstår: dokumentera exakt kod/body och stoppa utan sidofixar.
+Flaggan `organizations.internal_lager_enabled` finns och är påslagen endast för Frans August AB — Niklas Viking Production AB har den avstängd. Men flaggan stoppar bara att NYA interna Lager-upplägg skapas. Varje organisation har sedan tidigare redan en intern projektrad (`projects.is_internal = true`), och kalenderhooken som ritar de blå "Lager"-rutorna läser den raden helt utan att bry sig om flaggan. Därför fylls månadsvyn hos Viking fortfarande med "Lager" varje dag.
 
-## Tekniska avgränsningar
-- Ingen ändring av legacy Time, andra features, dokumentation eller generell hardening.
-- Feature flag förblir OFF som standard.
-- Inga destruktiva databasoperationer utöver explicit borttagning av den disponibla testanvändaren.
-- Slutrapporten anger aktuellt repo-commit-SHA och den deployade proxyversion som plattformen rapporterar.
+## Åtgärd
+
+Gör flaggan till den enda grinden för att visa Lager i planeringen:
+
+1. Hämta organisationens `internal_lager_enabled` en gång (liten delad hook) och returnera inga Lager-block alls när flaggan är av. Ingen befintlig data raderas — Vikings gamla interna projektrad ligger kvar orörd, den ritas bara inte längre ut.
+2. Samma grind på de andra ställen där det konstanta Lagret läcker in i Planning-vyn: Lager-kolumnen/blocken i planeringskalendern (vecka, dag, månad) och Lager-kortet i placeringsdialogens dagkalender.
+3. Frans Augusts vy ska vara oförändrad före/efter.
+
+## Teknisk beskrivning
+
+- Ny hook `src/hooks/useInternalLagerEnabled.ts`: läser `organizations.internal_lager_enabled` för inloggad org (via `get_user_organization_id`-scopad query), cachad.
+- `src/hooks/useInternalLagerCalendarEvents.ts`: returnera `internalLagerEvents: []` när flaggan är av (early return före projektqueryn, så ingen onödig läsning görs).
+- Kontroll av övriga konsumenter av `projects.is_internal` i Planning-ytan (`useWarehouseOpsRange`, `warehouseProjectService.getInternalLagerProject`, `PlacementDayCalendar` via samma hook) så att ingen av dem visar Lager-kolumnen för en org utan flaggan. Warehouse-modulen och mobil/Time rörs inte utöver den redan befintliga backend-grinden.
+- Inga migrationer, inga DELETE, inga ändringar i triggrar.
+
+## Verifiering
+
+- Utökat test i `src/hooks/__tests__/useInternalLagerCalendarEvents.test.tsx`: flagga av → 0 event; flagga på → event som idag.
+- Kör vitest-sviten och bygget.
+- Preview-körning av `/calendar` i månadsvy för att bekräfta att inga "Lager"-rutor renderas när flaggan är av.
