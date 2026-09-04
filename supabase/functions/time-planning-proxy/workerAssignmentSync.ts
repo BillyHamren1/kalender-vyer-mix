@@ -46,13 +46,6 @@ const dateOffset = (days: number) => {
 };
 
 const text = (value: unknown): string | null => typeof value === 'string' && value.trim() ? value.trim() : null;
-const finite = (value: unknown): number | undefined => typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-
-const phaseLabel = (value: unknown) => {
-  const code = text(value) ?? 'arbete';
-  const labels: Record<string, string> = { rig: 'Montering', event: 'Genomförande', rigDown: 'Nedmontering' };
-  return { code, label: labels[code] ?? code };
-};
 
 const timeProjectRoot = (adapterUrl: string) => {
   const url = new URL(adapterUrl);
