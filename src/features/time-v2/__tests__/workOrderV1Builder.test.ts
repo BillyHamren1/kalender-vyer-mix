@@ -36,16 +36,16 @@ const REMOVED = '75716684-b904-4505-8bb8-c9654c3fab28';
 
 /** Cost/price/internal columns exactly as they exist on production rows. */
 const COST_NOISE = {
-  unit_price: 1250,
-  total_price: 2500,
-  labor_cost: 400,
-  material_cost: 300,
+  unit_price: 1250.5,
+  total_price: 2501.5,
+  labor_cost: 400.25,
+  material_cost: 300.75,
   external_cost: 0,
-  assembly_cost: 120,
-  handling_cost: 80,
-  purchase_cost: 900,
+  assembly_cost: 120.5,
+  handling_cost: 80.5,
+  purchase_cost: 900.75,
   cost_notes: 'HEMLIG MARGINAL 42%',
-  discount: 10,
+  discount: 10.5,
   vat_rate: 25,
 };
 
@@ -77,7 +77,7 @@ const fixture = (): WorkOrderBuildInput => ({
     map_drawing_url: 'https://files.example.com/drawings/riddarhustorget.png',
     // Internal / economic noise that must never leak
     internalnotes: 'INTERN: kunden är svår, ta betalt i förskott',
-    economics_data: { margin_pct: 42, total_revenue_ex_vat: 99000 },
+    economics_data: { margin_pct: 42.42, total_revenue_ex_vat: 99001 },
   },
   project: { id: PROJECT, name: 'Westmans Uthyrning - 6 juni 2026', project_leader: LEADER, internalnotes: 'PL-notering intern' },
   products: [
@@ -126,9 +126,9 @@ const fixture = (): WorkOrderBuildInput => ({
     { booking_id: OTHER_BOOKING, staff_id: LEADER, assignment_date: '2026-06-04', team_id: 'team-1' },
   ],
   staffById: new Map([
-    [COLLEAGUE, { id: COLLEAGUE, name: 'Anna Ek', role: 'Tekniker', phone: null, salary: 41000, hourly_rate: 310 }],
+    [COLLEAGUE, { id: COLLEAGUE, name: 'Anna Ek', role: 'Tekniker', phone: null, salary: 41003, hourly_rate: 313.13 }],
     [OTHER_DAY_COLLEAGUE, { id: OTHER_DAY_COLLEAGUE, name: 'Björn Alm', role: null, phone: null }],
-    [LEADER, { id: LEADER, name: 'Lena Ledare', role: 'Projektledare', phone: '+46 70 111 11 11', hourly_rate: 500 }],
+    [LEADER, { id: LEADER, name: 'Lena Ledare', role: 'Projektledare', phone: '+46 70 111 11 11', hourly_rate: 500.5 }],
   ]),
 });
 
@@ -216,7 +216,7 @@ describe('work-order.v1 builder — real-shaped Planning fixture', () => {
       expect(keys.some((k) => k.includes(term)), `key containing "${term}"`).toBe(false);
     }
     const serialized = JSON.stringify(workOrder);
-    for (const needle of ['1250', '2500', 'HEMLIG', '42', '99000', '41000', '310', '500', 'economics', 'salary', 'hourly']) {
+    for (const needle of ['1250.5', '2501.5', '400.25', '900.75', '10.5', 'HEMLIG', '42.42', '99001', '41003', '313.13', '500.5', 'economics', 'salary', 'hourly']) {
       expect(serialized, `value "${needle}"`).not.toContain(needle);
     }
   });
