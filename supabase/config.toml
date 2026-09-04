@@ -196,7 +196,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.time-planning-proxy]
-verify_jwt = true
+verify_jwt = false
 
 [functions.send-supplier-request]
 verify_jwt = true

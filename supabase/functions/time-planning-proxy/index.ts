@@ -25,6 +25,7 @@ import {
   signServiceProofJwt,
 } from '../_shared/timeServiceProof.ts';
 import { handleLagerContextImport } from './lagerImport.ts';
+import { handleWorkerAssignmentSync } from './workerAssignmentSync.ts';
 
 
 
@@ -113,11 +114,6 @@ Deno.serve(async (req) => {
   if (!supabaseUrl || !serviceKey) return fail(503, 'service_not_configured', 'Planning runtime is not configured', true);
 
   const admin = createClient(supabaseUrl, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
-  const { data: userData, error: userError } = await admin.auth.getUser(authorization.slice(7));
-  if (userError || !userData?.user) return fail(401, 'unauthorized', 'Invalid session');
-
-  const access = await assertPlanningAccess(admin as unknown as never, userData.user.id);
-  if (!access.ok) return fail(access.status, access.error, access.message);
 
   let body: Record<string, unknown>;
   try {
@@ -125,15 +121,37 @@ Deno.serve(async (req) => {
   } catch {
     return fail(400, 'invalid_json', 'Invalid JSON body');
   }
-
   const operation = typeof body.operation === 'string' ? body.operation : '';
+  const signingSeed = Deno.env.get('TIME_ADAPTER_SIGNING_SEED');
+  const adapterUrl = Deno.env.get('TIME_ADAPTER_URL');
+  const anonKey = Deno.env.get('TIME_ADAPTER_ANON_KEY');
+
+  // A Time worker may refresh only their own Planning projection. Their Time
+  // JWT is verified against Time Auth inside the handler; all other operations
+  // continue to require a Planning JWT and Planning access below.
+  if (operation === 'worker.assignments.sync') {
+    if (!adapterUrl || !anonKey || !signingSeed) {
+      return fail(503, 'not_configured', 'Planning→Time uppdragssynk är inte konfigurerad.', true);
+    }
+    return handleWorkerAssignmentSync({
+      admin,
+      authorization,
+      adapterUrl,
+      anonKey,
+      signingSeed,
+    });
+  }
+
+  const { data: userData, error: userError } = await admin.auth.getUser(authorization.slice(7));
+  if (userError || !userData?.user) return fail(401, 'unauthorized', 'Invalid session');
+
+  const access = await assertPlanningAccess(admin as unknown as never, userData.user.id);
+  if (!access.ok) return fail(access.status, access.error, access.message);
 
   // ONLY signing path: ES256 key derived at runtime from the secret seed.
   // The legacy TIME_ADAPTER_SIGNING_PRIVATE_JWK secret is intentionally never
   // read anywhere in this function — the previously exposed private JWK can
   // never become active again, even if the secret object still exists.
-  const signingSeed = Deno.env.get('TIME_ADAPTER_SIGNING_SEED');
-
   // Versioned planning-lager-context.v1 export → Time work-context-import.
   // Separate boundary from the adapter operations: same auth, same tenant
   // resolution, same seed-derived signer — handled in ./lagerImport.ts.
@@ -157,8 +175,8 @@ Deno.serve(async (req) => {
   }
 
   // Isolated staging/test configuration only. No value is invented here.
-  const adapterUrl = Deno.env.get('TIME_ADAPTER_URL');
-  const anonKey = Deno.env.get('TIME_ADAPTER_ANON_KEY');
+  // Adapter settings were resolved before authentication so the worker-only
+  // sync route and Planning admin routes use one configuration source.
   // Time's tenant id for this Planning tenant. Server-side only; never from the client.
   const timeOrganizationId = Deno.env.get('TIME_ADAPTER_ORGANIZATION_ID') ?? access.organizationId;
 
