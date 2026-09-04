@@ -275,16 +275,23 @@ describe('no source writes', () => {
     path.join(process.cwd(), 'supabase/functions/planning-lager-context/index.ts'),
     'utf8',
   );
+  const reads = fs.readFileSync(
+    path.join(process.cwd(), 'supabase/functions/_shared/time-v2/lagerContextReads.ts'),
+    'utf8',
+  );
   const lib = fs.readFileSync(
     path.join(process.cwd(), 'supabase/functions/_shared/time-v2/lagerProjection.ts'),
     'utf8',
   );
 
-  it('the edge function only selects — no insert/update/upsert/delete/rpc', () => {
+  it('the edge function + shared reads only select — no insert/update/upsert/delete/rpc', () => {
     for (const forbidden of ['.insert(', '.update(', '.upsert(', '.delete(', '.rpc(']) {
       expect(fn).not.toContain(forbidden);
+      expect(reads).not.toContain(forbidden);
     }
-    expect(fn).toContain(".select(");
+    // The selects live in the shared read helper used by both boundaries.
+    expect(fn).toContain('readLagerProjectionInputs');
+    expect(reads).toContain(".select(");
   });
 
   it('the projection library is pure (no client, no fetch)', () => {
