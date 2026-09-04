@@ -70,7 +70,7 @@ const ProjectDashboardWidgets = () => {
         rigDownDate: p.booking?.rigdowndate ?? p.booking?.eventdate ?? null,
         status: p.status,
         subtitle: fullAddress,
-        navigateTo: `/project/${p.id}`,
+        navigateTo: `/project-next/${p.id}`,
         updatedAt: p.updated_at,
         createdAt: p.created_at,
       });

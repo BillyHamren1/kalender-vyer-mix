@@ -83,7 +83,7 @@ export const MyCalendarShell: React.FC = () => {
       return;
     }
     if (item.projectId && item.projectType) {
-      navigate(item.projectType === 'large' ? `/large-project/${item.projectId}` : `/project/${item.projectId}`);
+      navigate(item.projectType === 'large' ? `/large-project/${item.projectId}` : `/project-next/${item.projectId}`);
     }
   };
 
@@ -94,7 +94,7 @@ export const MyCalendarShell: React.FC = () => {
     } else if (todo.bookingId) {
       // booking_id på todos är text — försök matcha mot mina projekt
       const match = projects.find((p) => p.type === 'standard' && p.bookingNumber === todo.bookingId);
-      if (match) navigate(`/project/${match.id}`);
+      if (match) navigate(`/project-next/${match.id}`);
     }
   };
 

@@ -148,7 +148,7 @@ const MediumProjectsListPanel = ({ completedOnly = false, externalSearch, extern
         ) : (
           <div className="p-2 space-y-1.5">
             {filteredProjects.map(project => {
-              const targetPath = `/project/${project.id}`;
+              const targetPath = `/project-next/${project.id}`;
               return (
               <ContextMenu key={project.id}>
                 <ContextMenuTrigger asChild>

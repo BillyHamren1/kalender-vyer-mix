@@ -82,7 +82,7 @@ export const useEventNavigation = () => {
         .is('deleted_at', null)
         .maybeSingle();
       if (mp?.id) {
-        navigate(`/project/${mp.id}`);
+        navigate(`/project-next/${mp.id}`);
         return true;
       }
       // Stale reference — clear so the booking is treated as unassigned
@@ -101,7 +101,7 @@ export const useEventNavigation = () => {
       .maybeSingle();
 
     if (mediumProject?.id) {
-      navigate(`/project/${mediumProject.id}`);
+      navigate(`/project-next/${mediumProject.id}`);
       return true;
     }
 
