@@ -162,7 +162,7 @@ const WeekNavigation = <T extends string,>({
     { key: 'weekly', label: 'Vecka' },
     { key: 'monthly', label: 'Månad' },
     { key: 'list', label: 'Lista' },
-  ] as ReadonlyArray<{ key: T; label: string }>);
+  ] as unknown as ReadonlyArray<{ key: T; label: string }>);
 
   return (
     <div className="flex items-center justify-between gap-4 bg-white/95 backdrop-blur border-b border-border/60 px-5 py-2">

@@ -20,7 +20,7 @@ export interface PersonnelGanttItem {
 
 const eventDate = (event: CalendarEvent): string => {
   if (typeof event.start === 'string') return event.start.slice(0, 10);
-  if (event.start instanceof Date) return format(event.start, 'yyyy-MM-dd');
+  if ((event.start as unknown) instanceof Date) return format(event.start as unknown as Date, 'yyyy-MM-dd');
   return '';
 };
 

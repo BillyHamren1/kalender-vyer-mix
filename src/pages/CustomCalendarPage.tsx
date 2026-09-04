@@ -223,13 +223,13 @@ const CustomCalendarPage = () => {
 
   // STORE SYNC: Keep PlannerStore in sync with local state (legacy bridge)
   useEffect(() => {
-    syncToStore({ selectedDate: currentWeekStart, viewMode });
+    syncToStore({ selectedDate: currentWeekStart, viewMode: viewMode === 'personnel' ? 'weekly' : viewMode });
   }, [currentWeekStart, viewMode, syncToStore]);
 
   // Virtuella interna Lager-event för Lager-kolumnen (transport).
   // Använd det FAKTISKT renderade datumet (vecka/månad), inte hookens currentDate.
   const lagerAnchorDate = viewMode === 'monthly' ? monthlyDate : currentWeekStart;
-  const { internalLagerEvents } = useInternalLagerCalendarEvents(lagerAnchorDate, viewMode);
+  const { internalLagerEvents } = useInternalLagerCalendarEvents(lagerAnchorDate, viewMode === 'personnel' ? 'weekly' : viewMode);
 
   // Read-only logistics projection. Transportdata owns its own truth in
   // transport_assignments and is only rendered as context on matching booking/day.
@@ -474,7 +474,7 @@ const CustomCalendarPage = () => {
                 currentWeekStart={currentWeekStart}
                 setCurrentWeekStart={setCurrentWeekStart}
                 viewMode={viewMode}
-                onViewModeChange={setViewMode}
+                onViewModeChange={(mode) => setViewMode(mode as 'weekly' | 'monthly' | 'personnel')}
                 currentMonth={monthlyDate}
                 onMonthChange={handleMonthChange}
                 viewOptions={[

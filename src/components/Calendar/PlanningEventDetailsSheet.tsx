@@ -19,7 +19,7 @@ const phaseLabel: Record<string, string> = {
 
 const safeDate = (value: CalendarEvent['start'] | CalendarEvent['end']): Date | null => {
   if (!value) return null;
-  const date = value instanceof Date ? value : new Date(value as string);
+  const date = (value as unknown) instanceof Date ? (value as unknown as Date) : new Date(value as string);
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
