@@ -175,7 +175,7 @@ export async function handleWorkerAssignmentSync(ctx: WorkerAssignmentSyncContex
     : { data: [], error: null };
   if (projectError) return fail(500, 'planning_read_failed', 'Planning-projekten kunde inte läsas.', true);
 
-  const bookingById = new Map((bookings ?? []).map((row: Json) => [String(row.id), row]));
+  const bookingById = new Map<string, Json>((bookings ?? []).map((row: Json) => [String(row.id), row] as [string, Json]));
   const projectByBooking = new Map<string, Json>();
   for (const project of projects ?? []) {
     const row = project as Json;

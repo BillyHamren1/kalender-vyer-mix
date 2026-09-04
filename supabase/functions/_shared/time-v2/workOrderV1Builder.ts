@@ -158,7 +158,7 @@ export interface WorkOrderBuildResult {
 
 // ---------------------------------------------------------------------------
 
-const text = (value: unknown, max = WORK_ORDER_LIMITS.maxTextLength): string | undefined => {
+const text = (value: unknown, max: number = WORK_ORDER_LIMITS.maxTextLength): string | undefined => {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
   if (!trimmed) return undefined;
