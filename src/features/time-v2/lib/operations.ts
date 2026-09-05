@@ -17,6 +17,7 @@ import {
   EXPENSE_OPEN_STATES,
   type ExpenseChainView,
   type ExpenseMoneyV1,
+  type ExpenseSubmissionState,
 } from './expenseContract';
 
 export type OperationsView = 'needs_action' | 'all' | 'time' | 'expenses';
@@ -27,6 +28,31 @@ export const OPERATIONS_VIEW_LABELS: Record<OperationsView, string> = {
   time: 'Endast tid',
   expenses: 'Endast utlägg',
 };
+
+/**
+ * Every case that keeps a row in the default "Kräver åtgärd" view. The set is
+ * exhaustive and closed: a row with none of these is fully settled.
+ */
+export const OPERATIONS_ACTION_CODES = [
+  'time_needs_review',
+  'time_missing',
+  'time_correction',
+  'expenses_open',
+  'expenses_unbound',
+] as const;
+export type OperationsActionCode = (typeof OPERATIONS_ACTION_CODES)[number];
+
+/** One visible, operator-language reason why a row needs attention. */
+export interface OperationsActionReason {
+  code: OperationsActionCode;
+  label: string;
+}
+
+/**
+ * Expense states where nothing more can happen to that revision. An unbound
+ * chain in one of these states is no longer an open deviation for the planner.
+ */
+const EXPENSE_SETTLED_STATES: readonly ExpenseSubmissionState[] = ['approved', 'rejected', 'superseded'];
 
 export interface OperationsTargetRef {
   bookingId: string | null;
@@ -58,14 +84,24 @@ export interface OperationsRow {
     expenseCount: number;
   };
   flags: {
+    /** Time queue group `needs_review`. */
     timeNeedsReview: boolean;
+    /** Time queue group `correction` — a correction is pending with the worker. */
     timeCorrection: boolean;
+    /**
+     * Time queue group `missing`, OR expenses were reported for a worker + date
+     * that has no time submission at all in the queue.
+     */
     timeMissing: boolean;
+    /** Expense chains whose latest revision is still open for a decision. */
     openExpenses: number;
+    /** Expense chains not bound to a booking/project in this tenant and not yet settled. */
     unboundExpenses: number;
     isTestFixture: boolean;
   };
-  /** True when a planner has something to decide on this row right now. */
+  /** Ordered, operator-facing reasons; empty exactly when `needsAction` is false. */
+  actionReasons: OperationsActionReason[];
+  /** True when a planner has something to act on for this row right now. */
   needsAction: boolean;
 }
 
@@ -73,6 +109,8 @@ export interface OperationsCounts {
   rows: number;
   needsAction: number;
   timeNeedsReview: number;
+  timeMissing: number;
+  timeCorrection: number;
   openExpenses: number;
   unboundExpenses: number;
   workers: number;
