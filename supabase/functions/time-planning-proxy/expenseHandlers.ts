@@ -71,7 +71,7 @@ type ReadOutcome = { ok: true; value: ReadResult } | { ok: false; response: Expe
 /** Reads snapshots from Time, parses fail-closed, drops foreign tenants, binds. */
 async function readSnapshots(ctx: ExpenseHandlerContext, params: Record<string, unknown>): Promise<ReadOutcome> {
   const res = await callTimeExpenseAdapter(ctx, EXPENSE_OPERATIONS.list, params);
-  if (!res.ok) return { ok: false, response: fail(res.status, res.code, res.message, res.retryable) };
+  if (res.ok === false) return { ok: false, response: fail(res.status, res.code, res.message, res.retryable) };
   const data = (res.data ?? {}) as Record<string, unknown>;
   const raw = Array.isArray(data.submissions) ? data.submissions : [];
   const parsed: ExpenseSubmissionV1[] = [];
@@ -98,7 +98,7 @@ async function handleList(ctx: ExpenseHandlerContext, body: Record<string, unkno
   const params: Record<string, unknown> = { scope };
   if (typeof body.submissionId === 'string') params.submissionId = body.submissionId;
   const read = await readSnapshots(ctx, params);
-  if (!read.ok) return read.response;
+  if (read.ok === false) return read.response;
   const { rows, unreadable, foreignTenantDropped, generatedAt } = read.value;
   return ok(EXPENSE_OPERATIONS.list, {
     schema: EXPENSE_REVIEW_SCHEMA,
@@ -121,7 +121,7 @@ async function loadDecidable(
   submissionId: string,
 ): Promise<{ ok: true; row: ExpenseReviewRowV1 } | { ok: false; response: ExpenseProxyResult }> {
   const read = await readSnapshots(ctx, { scope: 'all', submissionId });
-  if (!read.ok) return read;
+  if (read.ok === false) return read;
   const row = read.value.rows.find((r) => r.submission.submissionId === submissionId);
   if (!row) return { ok: false, response: fail(404, 'submission_not_found', 'Utlägget finns inte i den här organisationens Time-tenant.') };
   if (row.binding.status !== 'bound') {
@@ -142,7 +142,7 @@ async function handleDecide(ctx: ExpenseHandlerContext, body: Record<string, unk
   const input = v.value;
 
   const loaded = await loadDecidable(ctx, input.submissionId);
-  if (!loaded.ok) return loaded.response;
+  if (loaded.ok === false) return loaded.response;
   const s = loaded.row.submission;
   if (!EXPENSE_OPEN_STATES.includes(s.state)) {
     return fail(409, 'already_decided', `Utlägget är redan i tillståndet "${s.state}" (v${s.version}).`);
@@ -162,7 +162,7 @@ async function handleDecide(ctx: ExpenseHandlerContext, body: Record<string, unk
     reason: input.reason,
     idempotencyKey: input.idempotencyKey,
   });
-  if (!res.ok) return fail(res.status, res.code, res.message, res.retryable);
+  if (res.ok === false) return fail(res.status, res.code, res.message, res.retryable);
 
   const decision = parseExpenseDecisionRecordV1((res.data as Record<string, unknown> | null)?.decision ?? res.data);
   if (!decision) return fail(502, 'contract_mismatch', 'Time returnerade inget giltigt beslutskvitto.');
@@ -179,12 +179,12 @@ async function handleReceiptUrl(ctx: ExpenseHandlerContext, body: Record<string,
   if (!submissionId || !attachmentId) return fail(400, 'invalid_request', 'submissionId och attachmentId krävs.');
 
   const loaded = await loadDecidable(ctx, submissionId);
-  if (!loaded.ok) return loaded.response;
+  if (loaded.ok === false) return loaded.response;
   const att = loaded.row.submission.attachments.find((a) => a.attachmentId === attachmentId);
   if (!att) return fail(403, 'attachment_not_in_submission', 'Kvittot tillhör inte den här snapshoten.');
 
   const res = await callTimeExpenseAdapter(ctx, EXPENSE_OPERATIONS.receiptUrl, { submissionId, attachmentId });
-  if (!res.ok) return fail(res.status, res.code, res.message, res.retryable);
+  if (res.ok === false) return fail(res.status, res.code, res.message, res.retryable);
   const data = (res.data ?? {}) as Record<string, unknown>;
   const url = typeof data.url === 'string' && /^https:\/\//i.test(data.url) ? data.url : null;
   if (!url) return fail(502, 'contract_mismatch', 'Time returnerade ingen signerad https-läsning.');
