@@ -82,6 +82,9 @@ const TimeV2ModulePage: React.FC = () => {
         </div>
         <div className="flex items-center gap-2">
         <Button asChild size="sm">
+          <Link to={`${TIME_V2_ROUTE}/operations`} data-testid="time-v2-open-operations">Tid &amp; utlägg — drift</Link>
+        </Button>
+        <Button asChild size="sm" variant="secondary">
           <Link to={`${TIME_V2_ROUTE}/review`} data-testid="time-v2-open-queue">Öppna granskningskö</Link>
         </Button>
         <Button asChild size="sm" variant="secondary">
