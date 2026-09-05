@@ -128,3 +128,40 @@ describe('import-bookings destructive paths are gated', () => {
   });
 
 });
+
+describe('planPackingReconnect — unique (packing_id, booking_product_id)', () => {
+  it('reserverar varje nytt produkt-id till exakt en packrad', () => {
+    const plan = planPackingReconnect(
+      [
+        { id: 'i1', booking_product_id: 'old-1' },
+        { id: 'i2', booking_product_id: 'old-2' },
+      ],
+      [
+        { id: 'old-1', name: 'Bord 120' },
+        { id: 'old-2', name: 'Bord 120' },
+      ],
+      [{ id: 'new-1', name: 'Bord 120' }],
+      'complete',
+    );
+    expect(plan.updates).toEqual([{ itemId: 'i1', newProductId: 'new-1' }]);
+    expect(plan.untouched).toContain('i2');
+    expect(plan.deletes).toHaveLength(0);
+  });
+
+  it('skriver inte om rader som redan pekar rätt och krockar inte med dem', () => {
+    const plan = planPackingReconnect(
+      [
+        { id: 'i1', booking_product_id: 'new-1' },
+        { id: 'i2', booking_product_id: 'old-2' },
+      ],
+      [
+        { id: 'new-1', name: 'Stol' },
+        { id: 'old-2', name: 'Stol' },
+      ],
+      [{ id: 'new-1', name: 'Stol' }],
+      'complete',
+    );
+    expect(plan.updates).toHaveLength(0);
+    expect(plan.untouched).toContain('i2');
+  });
+});
