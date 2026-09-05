@@ -31,9 +31,11 @@
 - [ ] Källgap (kräver produktbeslut, ej fabricerat): `lines[].unit` saknar källa i Planning (`booking_products` har ingen enhetskolumn) — avvakta Booking-fältet eller lämna utelämnad.
 
 ## Time V2 – Tid & utlägg (Planning-yta, preview/staging, EJ publish)
-- [ ] Versionerat kontrakt `planning-expense-review.v1` (Deno-shared + frontend-spegel, fail-closed parse, idempotens bunden till submissionId+version+canonicalHash)
-- [ ] Proxy: `expenses.list` / `expenses.decide` / `expenses.receiptUrl` med staging-gate, org-/assignment-bindning, läs-före-skriv (version+hash), scrub av objectPath
-- [ ] UI: `/time-v2/expenses` lista + `/time-v2/expenses/:submissionId` detalj (kvitto via kortlivad signerad läsning, revisionskedja, godkänn/avslå/rättelse med orsak)
-- [ ] Tester: kontrakt, proxyhanterare, UI-resa (v1 → rättelse → v2 → godkänn exakt v2-hash), routing/menykontrakt
-- [ ] Hosted/staging-bevis: riktig signerad staging-anrop som visar extern gate (adaptern saknar utläggsoperationer) + rendered UI
-- [ ] Rapport: exakt extern gate, gap, nollräkningar
+- [x] Versionerat kontrakt `planning-expense-review.v1` (`supabase/functions/_shared/time-v2/expenseReviewV1.ts`, importeras oförändrat av frontend – ingen spegel att hålla i synk)
+- [x] Proxy: `expenses.list` / `expenses.decide` / `expenses.receiptUrl` (staging-lock till pklkhhfvgmexsrkkpkzt, tenant-drop, org-scopad bindning bokning/projekt, läs-före-skriv på version+hash, 501 `upstream_operation_missing` via manifest)
+- [x] UI: `/time-v2/expenses` + `/time-v2/expenses/:submissionId`, sidopost "Tid & utlägg" under Personal (flaggstyrd), kvitto via kortlivad signerad läsning, revisionskedja, godkänn/avslå/rättelse
+- [x] Tester: 30 nya (kontrakt 9, proxy 16, UI-resa 5) + routing/menykontrakt; hela time-v2-sviten 191/191; tsgo + deno check + vite build gröna
+- [x] Bevis: riktigt signerat staging-anrop – manifestet listar 23 operationer, inga `expenses.*` → 501; rendered UI i webbläsare (lista, v1, rättelse, v2-kedja, godkänn v2, gate)
+- [ ] EXTERN GATE (Time): lägg till `expenses.list/decide/receiptUrl` i `time-planning-adapter` med server-härledd `workspaceRef`, worker/displayName i snapshot, `isTestFixture`-flagga; därefter hostad resa mot riktig staging-fixture
+- [ ] Deploy `time-planning-proxy` (kräver explicit go – ej gjort i detta paket)
+- [ ] Gap: Time-snapshoten saknar `sourceAssignmentId` → exakt calendar_event kan inte bindas, bara bokning/projekt; moms finns inte i Times kontrakt (visas ej)
