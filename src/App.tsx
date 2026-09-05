@@ -420,6 +420,7 @@ const WebRoutes: React.FC = () => {
               <Route path="/time-v2/preview/:submissionId" element={<TimeV2PreviewPage />} />
               <Route path="/time-v2/personnel" element={<TimeV2PersonnelListPage />} />
               <Route path="/time-v2/personnel/:personnelId" element={<TimeV2PersonnelDetailPage />} />
+              <Route path="/time-v2/operations" element={<TimeV2OperationsPage />} />
               <Route path="/time-v2/expenses" element={<TimeV2ExpensesPage />} />
               <Route path="/time-v2/expenses/:submissionId" element={<TimeV2ExpenseDetailPage />} />
               <Route path="/dev/time-v2-flag" element={<TimeV2FlagFixturePage />} />
