@@ -130,6 +130,7 @@ export function Sidebar3D() {
         children: [
           ...(item.children ?? []),
           { title: "Tid V2", url: "/time-v2", icon: CalendarClock },
+          { title: "Tid & utlägg (drift)", url: "/time-v2/operations", icon: Receipt },
           { title: "Tid & utlägg", url: "/time-v2/expenses", icon: Receipt },
         ],
       };
