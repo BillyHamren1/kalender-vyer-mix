@@ -192,6 +192,7 @@ export function buildOperationsRows({ queueRows, expenseChains }: BuildOperation
         unboundExpenses: 0,
         isTestFixture: false,
       },
+      actionReasons: [],
       needsAction: false,
     };
     rows.set(key, created);
@@ -223,7 +224,9 @@ export function buildOperationsRows({ queueRows, expenseChains }: BuildOperation
     row.expenses.push(chain);
     row.flags.isTestFixture = row.flags.isTestFixture || s.isTestFixture;
     if (EXPENSE_OPEN_STATES.includes(s.state)) row.flags.openExpenses += 1;
-    if (chain.binding.status === 'unbound') row.flags.unboundExpenses += 1;
+    if (chain.binding.status === 'unbound' && !EXPENSE_SETTLED_STATES.includes(s.state)) {
+      row.flags.unboundExpenses += 1;
+    }
     pushTarget(row.targets, {
       bookingId: chain.binding.bookingId,
       bookingNumber: chain.binding.bookingNumber,
@@ -237,12 +240,50 @@ export function buildOperationsRows({ queueRows, expenseChains }: BuildOperation
     row.expenses.sort((a, b) => (b.latest.submittedAt ?? '').localeCompare(a.latest.submittedAt ?? ''));
     row.totals.expenseCount = row.expenses.length;
     row.totals.expenseByCurrency = sumMoney(row.expenses.map((c) => c.latest.money));
-    row.needsAction = row.flags.timeNeedsReview || row.flags.openExpenses > 0;
+    // Expenses reported for a day Time has no time submission for = time missing.
+    if (!row.time && row.expenses.length > 0) row.flags.timeMissing = true;
+    row.actionReasons = actionReasonsOf(row);
+    row.needsAction = row.actionReasons.length > 0;
   }
 
   return Array.from(rows.values()).sort(
     (a, b) => b.date.localeCompare(a.date) || a.workerName.localeCompare(b.workerName),
   );
+}
+
+/**
+ * The single place that turns flags into the closed set of action reasons.
+ * `needsAction` is defined as "this list is non-empty" — nothing else.
+ */
+export function actionReasonsOf(row: Pick<OperationsRow, 'time' | 'flags'>): OperationsActionReason[] {
+  const out: OperationsActionReason[] = [];
+  const { flags } = row;
+  if (flags.timeNeedsReview) out.push({ code: 'time_needs_review', label: 'Arbetstid väntar på granskning' });
+  if (flags.timeMissing) {
+    out.push({
+      code: 'time_missing',
+      label: row.time ? 'Arbetstid saknas för dagen' : 'Utlägg inlämnat utan arbetstid',
+    });
+  }
+  if (flags.timeCorrection) {
+    out.push({ code: 'time_correction', label: 'Rättelse av arbetstid pågår – väntar på medarbetaren' });
+  }
+  if (flags.openExpenses > 0) {
+    out.push({
+      code: 'expenses_open',
+      label: flags.openExpenses === 1 ? '1 utlägg väntar på beslut' : `${flags.openExpenses} utlägg väntar på beslut`,
+    });
+  }
+  if (flags.unboundExpenses > 0) {
+    out.push({
+      code: 'expenses_unbound',
+      label:
+        flags.unboundExpenses === 1
+          ? '1 utlägg saknar bokning/projekt i din organisation'
+          : `${flags.unboundExpenses} utlägg saknar bokning/projekt i din organisation`,
+    });
+  }
+  return out;
 }
 
 /** Pure filtering over contract fields only. */
