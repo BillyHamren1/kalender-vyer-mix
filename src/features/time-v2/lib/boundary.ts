@@ -34,6 +34,10 @@ export const TIME_OPERATIONS = {
   attestProject: 'attest.project',
   activationIssue: 'activation.issue',
   activationReissue: 'activation.reissue',
+  /** planning-expense-review.v1 — handled by Planning's proxy, gated on Time. */
+  expensesList: 'expenses.list',
+  expensesDecide: 'expenses.decide',
+  expensesReceiptUrl: 'expenses.receiptUrl',
 } as const;
 
 export type TimeOperation = (typeof TIME_OPERATIONS)[keyof typeof TIME_OPERATIONS];
@@ -45,7 +49,24 @@ const KIND_BY_CODE: Record<string, TimeV2ClientErrorKind> = {
   unsupported_operation: 'invalid_input',
   invalid_request: 'invalid_input',
   contract_mismatch: 'bad_payload',
+  decision_hash_mismatch: 'bad_payload',
   unknown_subject: 'http_error',
+  stale_revision: 'stale_revision',
+  stale_hash: 'stale_hash',
+  already_decided: 'already_decided',
+  assignment_unbound: 'forbidden',
+  attachment_not_in_submission: 'forbidden',
+  planning_access_required: 'forbidden',
+  no_organization: 'forbidden',
+  submission_not_found: 'not_found',
+  upstream_operation_missing: 'upstream_missing',
+  preview_gate_closed: 'gate_closed',
+  reason_required: 'invalid_input',
+  reason_too_long: 'invalid_input',
+  invalid_submission: 'invalid_input',
+  invalid_version: 'invalid_input',
+  invalid_hash: 'invalid_input',
+  invalid_decision: 'invalid_input',
 };
 
 export interface TimeBoundaryEnvelope<T = unknown> {
@@ -66,14 +87,41 @@ export function mapBoundaryError(payload: unknown, fallbackStatus?: number): Tim
   const message = typeof r.error === 'string' && r.error.trim()
     ? r.error
     : 'Time-gränsen svarade med ett fel.';
+  // Explicit codes win over the status fallback (expense decisions distinguish
+  // stale hash / already decided from a stale day revision).
+  if (code && KIND_BY_CODE[code] && code !== 'stale_revision') {
+    return new TimeV2ClientError(KIND_BY_CODE[code], message, fallbackStatus, code);
+  }
   if (fallbackStatus === 409 || code === 'stale_revision') {
     return new TimeV2ClientError(
       'stale_revision',
-      'Dagen har ändrats i Time sedan du öppnade den. Läs om snapshoten och besluta mot rätt revision.',
+      code === 'stale_revision' && typeof r.error === 'string' && r.error.trim()
+        ? r.error
+        : 'Dagen har ändrats i Time sedan du öppnade den. Läs om snapshoten och besluta mot rätt revision.',
       409,
+      'stale_revision',
     );
   }
-  return new TimeV2ClientError(KIND_BY_CODE[code] ?? 'http_error', message, fallbackStatus);
+  return new TimeV2ClientError(KIND_BY_CODE[code] ?? 'http_error', message, fallbackStatus, code || undefined);
+}
+
+/**
+ * supabase-js returns the raw Response as `error.context` on non-2xx; the JSON
+ * error body must be read from it explicitly or every proxy code is lost.
+ */
+async function readErrorBody(result: { data: unknown; error: unknown }): Promise<Record<string, unknown>> {
+  const body = (result.data ?? {}) as Record<string, unknown>;
+  if (typeof body.code === 'string' || typeof body.error === 'string') return body;
+  const ctx = (result.error as { context?: unknown })?.context as { clone?: () => { json: () => Promise<unknown> } } | undefined;
+  if (ctx && typeof ctx.clone === 'function') {
+    try {
+      const parsed = await ctx.clone().json();
+      if (parsed && typeof parsed === 'object') return parsed as Record<string, unknown>;
+    } catch {
+      /* body unreadable — fall through to status-only mapping */
+    }
+  }
+  return body;
 }
 
 /** Single call path for every Time read and command. */
@@ -100,8 +148,7 @@ export async function callTimeBoundary<T = unknown>(
   if (result.error) {
     const err = result.error as { context?: { status?: number }; status?: number; message?: string };
     const status = err?.context?.status ?? err?.status;
-    // Supabase surfaces the JSON error body on the response when available.
-    const body = (result.data ?? {}) as Record<string, unknown>;
+    const body = await readErrorBody(result);
     if (typeof body.code === 'string' || typeof body.error === 'string') {
       throw mapBoundaryError(body, status);
     }

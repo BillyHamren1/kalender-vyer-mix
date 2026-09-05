@@ -12,6 +12,44 @@ describe('Time V2 module routing & boundaries', () => {
     expect(app).toContain('path="/dev/time-v2-flag"');
   });
 
+  it('registers "Tid & utlägg" under the flagged Time V2 module only', () => {
+    expect(app).toContain('path="/time-v2/expenses"');
+    expect(app).toContain('path="/time-v2/expenses/:submissionId"');
+    const sidebar = read('src/components/Sidebar3D.tsx');
+    // Sidebar entry exists exactly once and only inside the timeV2Enabled branch.
+    expect(sidebar.match(/url: "\/time-v2\/expenses"/g)?.length).toBe(1);
+    expect(sidebar).toMatch(/timeV2Enabled[\s\S]*url: "\/time-v2\/expenses"/);
+    // No legacy Time route points at the expense surface (no cutover).
+    expect(app).not.toMatch(/path="\/staff-management[^"]*"[^>]*time-v2\/expenses/);
+  });
+
+  it('keeps the expense boundary server-owned: no tables, no credentials, no posting', () => {
+    const proxy = read('supabase/functions/time-planning-proxy/expenseHandlers.ts')
+      + read('supabase/functions/time-planning-proxy/expenseAdapter.ts')
+      + read('supabase/functions/time-planning-proxy/expenseBinding.ts')
+      + read('supabase/functions/_shared/time-v2/expenseReviewV1.ts');
+    // Planning never reaches into Time's tables or storage directly.
+    for (const forbidden of ['expense_submissions', 'expense_review_decisions', 'expense_submission_receipts', 'storage.from(', 'createSignedUrl', 'decide_expense_v2', 'list_expense_review_queue_v2']) {
+      expect(proxy, forbidden).not.toContain(forbidden);
+    }
+    // Planning writes no Planning source record from the expense path.
+    expect(proxy).not.toMatch(/\.(insert|update|upsert|delete)\(/);
+    // No payroll / bookkeeping / project-cost posting anywhere in the surface.
+    const ui = read('src/features/time-v2/lib/expenseClient.ts')
+      + read('src/features/time-v2/lib/expenseContract.ts')
+      + read('src/features/time-v2/hooks/useTimeV2Expenses.ts')
+      + read('src/features/time-v2/pages/TimeV2ExpensesPage.tsx')
+      + read('src/features/time-v2/pages/TimeV2ExpenseDetailPage.tsx');
+    expect(ui).not.toContain('supabase.from(');
+    expect(ui).not.toContain('@/integrations/supabase/client');
+    expect(ui).not.toMatch(/fortnox|ledger|voucher|payrollExport|project_labor_costs|project_purchases/i);
+    // Receipts: never a stored/permanent link, always minted per click.
+    const receipt = read('src/features/time-v2/components/expenses/ExpenseReceiptButton.tsx');
+    expect(receipt).toContain('useReceiptUrl');
+    expect(receipt).toContain('noopener');
+    expect(receipt).not.toMatch(/localStorage|sessionStorage/);
+  });
+
   it('leaves every legacy Time route untouched and default', () => {
     for (const r of [
       '/staff-management/time',

@@ -12,6 +12,7 @@ import {
   Sparkles,
   CalendarClock,
   LayoutDashboard,
+  Receipt,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProjectInboxCount } from "@/hooks/useProjectInboxCount";
@@ -129,6 +130,7 @@ export function Sidebar3D() {
         children: [
           ...(item.children ?? []),
           { title: "Tid V2", url: "/time-v2", icon: CalendarClock },
+          { title: "Tid & utlägg", url: "/time-v2/expenses", icon: Receipt },
         ],
       };
     }

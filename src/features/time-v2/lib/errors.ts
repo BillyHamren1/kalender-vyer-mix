@@ -6,15 +6,24 @@ export type TimeV2ClientErrorKind =
   | 'http_error'
   | 'bad_payload'
   | 'stale_revision'
+  | 'stale_hash'
+  | 'already_decided'
+  | 'forbidden'
+  | 'not_found'
+  | 'upstream_missing'
+  | 'gate_closed'
   | 'invalid_input';
 
 export class TimeV2ClientError extends Error {
   kind: TimeV2ClientErrorKind;
   status?: number;
-  constructor(kind: TimeV2ClientErrorKind, message: string, status?: number) {
+  /** Boundary error code exactly as the proxy reported it (for tests/UI). */
+  code?: string;
+  constructor(kind: TimeV2ClientErrorKind, message: string, status?: number, code?: string) {
     super(message);
     this.name = 'TimeV2ClientError';
     this.kind = kind;
     this.status = status;
+    this.code = code;
   }
 }

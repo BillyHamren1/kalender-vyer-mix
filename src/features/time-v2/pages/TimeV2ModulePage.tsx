@@ -87,6 +87,9 @@ const TimeV2ModulePage: React.FC = () => {
         <Button asChild size="sm" variant="secondary">
           <Link to={`${TIME_V2_ROUTE}/personnel`} data-testid="time-v2-open-personnel">Personal &amp; appkonton</Link>
         </Button>
+        <Button asChild size="sm" variant="secondary">
+          <Link to={`${TIME_V2_ROUTE}/expenses`} data-testid="time-v2-open-expenses">Tid &amp; utlägg</Link>
+        </Button>
 
         <Button variant="outline" size="sm" onClick={() => overview.refetch()} disabled={overview.isFetching}>
           <RefreshCw className={`w-4 h-4 mr-2 ${overview.isFetching ? 'animate-spin' : ''}`} />

@@ -12,6 +12,7 @@
 
 
 ## Memories
+- [Time V2 Expense Review v1](.lovable/memory/features/time-v2/expense-review-v1.md) — "Tid & utlägg": planning-expense-review.v1 via time-planning-proxy; Time äger immutabla utläggssnapshots; beslut bundna till submissionId+version+canonicalHash; staging-lås; kvitto via kortlivad signerad läsning; ingen postning
 - [Tracking Policy Backend-Driven](.lovable/memory/features/field-staff/tracking-policy-backend-driven-v1.md) — `get-staff-day-status` returnerar `trackingPolicy { mode, heartbeatMs, distanceFilter, expiresAt?, reason?, targetId?, targetType? }`; boosts via `tracking_policy_boosts` (DB-trigger 5 min cap) + `request-tracking-boost`; appen FÅR INTE skapa egen boost.
 - [Staff Day Audit & Rebuild](.lovable/memory/features/admin/staff-day-audit-and-rebuild-v1.md) — Append-only `staff_day_decision_log` + `rebuild-staff-day` edge function. Låsta dagar ändras aldrig automatiskt; admin-overrides respekteras; alla regel/AI/user/admin/watchdog-beslut loggas med actor/before/after/reason/confidence.
 - [Time Page Snapshot-Only](.lovable/memory/constraints/time-page-snapshot-only-v1.md) — Time-tabbar får ENDAST läsa backend-snapshots; ingen lokal summering av workdays/time_reports/travel/LTE/flags/assistant/GPS i UI.

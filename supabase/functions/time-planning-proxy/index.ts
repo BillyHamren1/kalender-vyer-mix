@@ -26,6 +26,7 @@ import {
 } from '../_shared/timeServiceProof.ts';
 import { handleLagerContextImport } from './lagerImport.ts';
 import { handleWorkerAssignmentSync } from './workerAssignmentSync.ts';
+import { EXPENSE_PROXY_OPERATIONS, handleExpenseOperation } from './expenseHandlers.ts';
 
 
 
@@ -168,6 +169,25 @@ Deno.serve(async (req) => {
       anonKey: Deno.env.get('TIME_ADAPTER_ANON_KEY'),
       signingSeed,
     });
+  }
+
+  // planning-expense-review.v1: same auth, same tenant resolution, same
+  // seed-derived signer. Read-before-write on exact version+hash, tenant and
+  // assignment binding enforced in ./expenseHandlers.ts. Locked to Time's
+  // isolated staging host until Time deploys the expense operations.
+  if (EXPENSE_PROXY_OPERATIONS.has(operation)) {
+    if (!adapterUrl || !signingSeed) {
+      return fail(503, 'not_configured', 'Time-gränsen är inte konfigurerad för utläggsgranskning.');
+    }
+    const result = await handleExpenseOperation({
+      admin,
+      organizationId: access.organizationId,
+      timeOrganizationId: Deno.env.get('TIME_ADAPTER_ORGANIZATION_ID') ?? access.organizationId,
+      adapterUrl,
+      anonKey,
+      signingSeed,
+    }, operation, body);
+    return json(result.status, result.body);
   }
 
   if (!ALLOWED_OPERATIONS.has(operation)) {
