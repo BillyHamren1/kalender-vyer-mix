@@ -180,6 +180,13 @@ export function planPackingReconnect(
 
   const plan: PackingReconnectPlan = { updates: [], deletes: [], blockedDeletes: [], untouched: [] };
 
+  // (packing_id, booking_product_id) är unikt i DB. Två gamla rader med samma
+  // normaliserade namn pekar på samma nya produkt-id → dubblettkrock. Vi
+  // reserverar därför varje nytt produkt-id till exakt en packrad, och rör
+  // aldrig rader som redan pekar rätt.
+  const claimed = new Set<string>();
+  const pending: Array<{ itemId: string; newProductId: string }> = [];
+
   for (const item of packingItems || []) {
     const oldName = item.booking_product_id ? oldIdToName.get(item.booking_product_id) : undefined;
     if (!oldName) {
@@ -187,16 +194,32 @@ export function planPackingReconnect(
       continue;
     }
     const newProductId = newNameToId.get(oldName);
-    if (newProductId) {
-      plan.updates.push({ itemId: item.id, newProductId });
-    } else if (deleteAllowed) {
-      plan.deletes.push(item.id);
-    } else {
-      plan.blockedDeletes.push(item.id);
+    if (!newProductId) {
+      if (deleteAllowed) plan.deletes.push(item.id);
+      else plan.blockedDeletes.push(item.id);
+      continue;
     }
+    if (item.booking_product_id === newProductId) {
+      // Redan korrekt kopplad — ingen skrivning, men id:t är upptaget.
+      claimed.add(newProductId);
+      continue;
+    }
+    pending.push({ itemId: item.id, newProductId });
+  }
+
+  for (const candidate of pending) {
+    if (claimed.has(candidate.newProductId)) {
+      // Någon annan packrad äger redan målraden — lämna orörd i stället för
+      // att krascha hela importen på unique-constraint.
+      plan.untouched.push(candidate.itemId);
+      continue;
+    }
+    claimed.add(candidate.newProductId);
+    plan.updates.push(candidate);
   }
 
   return plan;
+
 }
 
 /* ==========================================================================
