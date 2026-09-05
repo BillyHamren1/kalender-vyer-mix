@@ -7,7 +7,7 @@
  */
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { realShapedSubmission } from './fixtures/expenseFixture';
@@ -114,13 +114,16 @@ const renderPage = () => {
 const rowByWorker = (name: string) =>
   screen.getAllByTestId('time-v2-ops-row').find((el) => el.textContent?.includes(name)) ?? null;
 
+/** Both Time contracts load independently; wait until the join has settled on `n` rows. */
+const awaitRows = (n: number) =>
+  waitFor(() => expect(screen.getAllByTestId('time-v2-ops-row')).toHaveLength(n));
+
 describe('Planning "Tid & utlägg — drift": default "Kräver åtgärd" view', () => {
   it('lists every actionable case with its operator reason and hides the settled day', async () => {
     renderPage();
-    await screen.findAllByTestId('time-v2-ops-row');
+    await awaitRows(5);
 
     const rows = screen.getAllByTestId('time-v2-ops-row');
-    expect(rows).toHaveLength(5);
     expect(rows.every((r) => r.getAttribute('data-needs-action') === 'true')).toBe(true);
 
     const review = rowByWorker('Anna Granska')!;
@@ -146,7 +149,7 @@ describe('Planning "Tid & utlägg — drift": default "Kräver åtgärd" view', 
 
   it('exposes the counters for every actionable case', async () => {
     renderPage();
-    await screen.findAllByTestId('time-v2-ops-row');
+    await awaitRows(5);
     expect(screen.getByTestId('time-v2-ops-count-rows').textContent).toContain('5');
     expect(screen.getByTestId('time-v2-ops-count-action').textContent).toContain('5');
     expect(screen.getByTestId('time-v2-ops-count-time').textContent).toContain('1');
@@ -158,11 +161,9 @@ describe('Planning "Tid & utlägg — drift": default "Kräver åtgärd" view', 
 
   it('shows the settled day only under "Alla dagar", marked as done with no reasons', async () => {
     renderPage();
-    await screen.findAllByTestId('time-v2-ops-row');
+    await awaitRows(5);
     fireEvent.click(screen.getByTestId('time-v2-ops-view-all'));
-
-    const rows = await screen.findAllByTestId('time-v2-ops-row');
-    expect(rows).toHaveLength(6);
+    await awaitRows(6);
     const settled = rowByWorker('Filip Klar')!;
     expect(settled.getAttribute('data-needs-action')).toBe('false');
     expect(within(settled).getByTestId('time-v2-ops-settled').textContent).toBe('Klar');
@@ -176,7 +177,7 @@ describe('Planning "Tid & utlägg — drift": default "Kräver åtgärd" view', 
 
   it('carries the reasons into the detail header when a missing-time day is opened', async () => {
     renderPage();
-    await screen.findAllByTestId('time-v2-ops-row');
+    await awaitRows(5);
     fireEvent.click(rowByWorker('Bosse Saknad')!);
     const detail = await screen.findByTestId('time-v2-ops-detail');
     expect(within(detail).getByTestId('time-v2-ops-detail-reasons').textContent).toContain('Arbetstid saknas för dagen');
