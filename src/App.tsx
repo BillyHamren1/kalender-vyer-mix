@@ -42,6 +42,7 @@ const TimeV2SubmissionDetailPage = lazyWithRecovery(() => import("./features/tim
 const TimeV2PreviewPage = lazyWithRecovery(() => import("./features/time-v2/pages/TimeV2PreviewPage"));
 const TimeV2PersonnelListPage = lazyWithRecovery(() => import("./features/time-v2/pages/TimeV2PersonnelListPage"));
 const TimeV2PersonnelDetailPage = lazyWithRecovery(() => import("./features/time-v2/pages/TimeV2PersonnelDetailPage"));
+const TimeV2OperationsPage = lazyWithRecovery(() => import("./features/time-v2/pages/TimeV2OperationsPage"));
 const TimeV2ExpensesPage = lazyWithRecovery(() => import("./features/time-v2/pages/TimeV2ExpensesPage"));
 const TimeV2ExpenseDetailPage = lazyWithRecovery(() => import("./features/time-v2/pages/TimeV2ExpenseDetailPage"));
 
