@@ -36,6 +36,7 @@
 - [x] UI: `/time-v2/expenses` + `/time-v2/expenses/:submissionId`, sidopost "Tid & utlägg" under Personal (flaggstyrd), kvitto via kortlivad signerad läsning, revisionskedja, godkänn/avslå/rättelse
 - [x] Tester: 30 nya (kontrakt 9, proxy 16, UI-resa 5) + routing/menykontrakt; hela time-v2-sviten 191/191; tsgo + deno check + vite build gröna
 - [x] Bevis: riktigt signerat staging-anrop – manifestet listar 23 operationer, inga `expenses.*` → 501; rendered UI i webbläsare (lista, v1, rättelse, v2-kedja, godkänn v2, gate)
+- [x] Drift-yta `/time-v2/operations` (worker + arbetsdag): P1-korrigering – default "Kräver åtgärd" täcker nu timeNeedsReview, timeMissing (Time-grupp `missing` ELLER utlägg utan tidsinlämning), timeCorrection, openExpenses och unboundExpenses (ej avslutade); orsakschips i operatörsspråk per rad + detaljpanel; räknare "Tid saknas"/"Rättelse pågår"; 11 nya join-tester + 4 renderade
 - [ ] EXTERN GATE (Time): lägg till `expenses.list/decide/receiptUrl` i `time-planning-adapter` med server-härledd `workspaceRef`, worker/displayName i snapshot, `isTestFixture`-flagga; därefter hostad resa mot riktig staging-fixture
 - [ ] Deploy `time-planning-proxy` (kräver explicit go – ej gjort i detta paket)
 - [ ] Gap: Time-snapshoten saknar `sourceAssignmentId` → exakt calendar_event kan inte bindas, bara bokning/projekt; moms finns inte i Times kontrakt (visas ej)
