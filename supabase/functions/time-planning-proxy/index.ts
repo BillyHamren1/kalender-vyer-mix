@@ -179,7 +179,7 @@ Deno.serve(async (req) => {
     if (!adapterUrl || !signingSeed) {
       return fail(503, 'not_configured', 'Time-gränsen är inte konfigurerad för utläggsgranskning.');
     }
-    return handleExpenseOperation({
+    const result = await handleExpenseOperation({
       admin,
       organizationId: access.organizationId,
       timeOrganizationId: Deno.env.get('TIME_ADAPTER_ORGANIZATION_ID') ?? access.organizationId,
@@ -187,6 +187,7 @@ Deno.serve(async (req) => {
       anonKey,
       signingSeed,
     }, operation, body);
+    return json(result.status, result.body);
   }
 
   if (!ALLOWED_OPERATIONS.has(operation)) {

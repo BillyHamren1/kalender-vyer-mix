@@ -14,7 +14,6 @@
  * No payroll, bookkeeping or project-cost posting exists here.
  */
 
-import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import {
   EXPENSE_OPEN_STATES,
   EXPENSE_OPERATIONS,
@@ -38,14 +37,20 @@ export interface ExpenseHandlerContext extends ExpenseAdapterContext {
 
 export const EXPENSE_PROXY_OPERATIONS: ReadonlySet<string> = new Set(Object.values(EXPENSE_OPERATIONS));
 
-const json = (status: number, body: unknown) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json', 'cache-control': 'no-store' },
-  });
-const fail = (status: number, code: string, message: string, retryable = false) =>
+/**
+ * Handlers return plain results; index.ts wraps them into the CORS Response.
+ * Keeping this module free of `npm:` imports lets the SAME code run under
+ * vitest (Node) and Deno without a shim.
+ */
+export interface ExpenseProxyResult {
+  status: number;
+  body: Record<string, unknown>;
+}
+
+const json = (status: number, body: Record<string, unknown>): ExpenseProxyResult => ({ status, body });
+const fail = (status: number, code: string, message: string, retryable = false): ExpenseProxyResult =>
   json(status, { schema: 'time-planning-boundary-error.v1', code, retryable, error: message });
-const ok = (operation: string, data: unknown, generatedAt: string | null) =>
+const ok = (operation: string, data: unknown, generatedAt: string | null): ExpenseProxyResult =>
   json(200, {
     schema: 'time-planning-boundary-response.v1',
     adapterVersion: 'time-planning-adapter.v2',
@@ -61,7 +66,7 @@ interface ReadResult {
   generatedAt: string | null;
 }
 
-type ReadOutcome = { ok: true; value: ReadResult } | { ok: false; response: Response };
+type ReadOutcome = { ok: true; value: ReadResult } | { ok: false; response: ExpenseProxyResult };
 
 /** Reads snapshots from Time, parses fail-closed, drops foreign tenants, binds. */
 async function readSnapshots(ctx: ExpenseHandlerContext, params: Record<string, unknown>): Promise<ReadOutcome> {
@@ -88,7 +93,7 @@ async function readSnapshots(ctx: ExpenseHandlerContext, params: Record<string, 
   return { ok: true, value: { rows, unreadable, foreignTenantDropped, generatedAt: res.generatedAt } };
 }
 
-async function handleList(ctx: ExpenseHandlerContext, body: Record<string, unknown>): Promise<Response> {
+async function handleList(ctx: ExpenseHandlerContext, body: Record<string, unknown>): Promise<ExpenseProxyResult> {
   const scope = body.scope === 'all' ? 'all' : 'open';
   const params: Record<string, unknown> = { scope };
   if (typeof body.submissionId === 'string') params.submissionId = body.submissionId;
@@ -114,7 +119,7 @@ async function handleList(ctx: ExpenseHandlerContext, body: Record<string, unkno
 async function loadDecidable(
   ctx: ExpenseHandlerContext,
   submissionId: string,
-): Promise<{ ok: true; row: ExpenseReviewRowV1 } | { ok: false; response: Response }> {
+): Promise<{ ok: true; row: ExpenseReviewRowV1 } | { ok: false; response: ExpenseProxyResult }> {
   const read = await readSnapshots(ctx, { scope: 'all', submissionId });
   if (!read.ok) return read;
   const row = read.value.rows.find((r) => r.submission.submissionId === submissionId);
@@ -125,7 +130,7 @@ async function loadDecidable(
   return { ok: true, row };
 }
 
-async function handleDecide(ctx: ExpenseHandlerContext, body: Record<string, unknown>): Promise<Response> {
+async function handleDecide(ctx: ExpenseHandlerContext, body: Record<string, unknown>): Promise<ExpenseProxyResult> {
   const v = validateExpenseDecideInput({
     submissionId: body.submissionId,
     submissionVersion: body.submissionVersion,
@@ -168,7 +173,7 @@ async function handleDecide(ctx: ExpenseHandlerContext, body: Record<string, unk
   return ok(EXPENSE_OPERATIONS.decide, { schema: EXPENSE_REVIEW_SCHEMA, decision, idempotencyKey: input.idempotencyKey }, res.generatedAt);
 }
 
-async function handleReceiptUrl(ctx: ExpenseHandlerContext, body: Record<string, unknown>): Promise<Response> {
+async function handleReceiptUrl(ctx: ExpenseHandlerContext, body: Record<string, unknown>): Promise<ExpenseProxyResult> {
   const submissionId = typeof body.submissionId === 'string' ? body.submissionId : '';
   const attachmentId = typeof body.attachmentId === 'string' ? body.attachmentId : '';
   if (!submissionId || !attachmentId) return fail(400, 'invalid_request', 'submissionId och attachmentId krävs.');
@@ -198,7 +203,7 @@ export async function handleExpenseOperation(
   ctx: ExpenseHandlerContext,
   operation: string,
   body: Record<string, unknown>,
-): Promise<Response> {
+): Promise<ExpenseProxyResult> {
   if (!EXPENSE_PROXY_OPERATIONS.has(operation)) return fail(400, 'unsupported_operation', `Unsupported Time operation: ${operation}`);
   if (!isExpensePreviewHost(ctx.adapterUrl)) {
     return fail(503, 'preview_gate_closed', 'Utläggsgranskning är låst till Times isolerade staging. Ingen produktionsväg finns.');
