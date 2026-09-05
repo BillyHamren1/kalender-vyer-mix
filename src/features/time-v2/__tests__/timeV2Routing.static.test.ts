@@ -23,6 +23,23 @@ describe('Time V2 module routing & boundaries', () => {
     expect(app).not.toMatch(/path="\/staff-management[^"]*"[^>]*time-v2\/expenses/);
   });
 
+  it('registers the operational "Tid & utlägg — drift" surface under the flag only', () => {
+    expect(app).toContain('path="/time-v2/operations"');
+    const sidebar = read('src/components/Sidebar3D.tsx');
+    expect(sidebar.match(/url: "\/time-v2\/operations"/g)?.length).toBe(1);
+    expect(sidebar).toMatch(/timeV2Enabled[\s\S]*url: "\/time-v2\/operations"/);
+    const ops = read('src/features/time-v2/lib/operations.ts')
+      + read('src/features/time-v2/hooks/useTimeV2Operations.ts')
+      + read('src/features/time-v2/pages/TimeV2OperationsPage.tsx')
+      + read('src/features/time-v2/components/operations/OperationsDayRow.tsx')
+      + read('src/features/time-v2/components/operations/OperationsDetailPanel.tsx');
+    // Never touches Planning source data and never posts payroll/accounting/cost.
+    expect(ops).not.toContain('supabase.from(');
+    expect(ops).not.toContain('@/integrations/supabase/client');
+    expect(ops).not.toMatch(/\.(insert|update|upsert|delete)\(/);
+    expect(ops).not.toMatch(/fortnox|ledger|voucher|payrollExport|project_labor_costs|project_purchases/i);
+  });
+
   it('keeps the expense boundary server-owned: no tables, no credentials, no posting', () => {
     const proxy = read('supabase/functions/time-planning-proxy/expenseHandlers.ts')
       + read('supabase/functions/time-planning-proxy/expenseAdapter.ts')
