@@ -154,6 +154,34 @@ describe('expense proxy handlers (real handler code, fake Time + fake admin)', (
     expect(bindSubmission(noLineage, empty)).toMatchObject({ status: 'unbound', reason: 'lineage_missing' });
   });
 
+  it('binding: projectRef repeating the booking reference binds to that booking (P1)', () => {
+    const booking = { id: BOOKING_ID, booking_number: '2604-29', title: 'Villa Ekbacken', assigned_project_id: null };
+    const src = {
+      bookingsByNumber: new Map([['2604-29', booking]]),
+      bookingsById: new Map([[BOOKING_ID, booking]]),
+      projectsById: new Map(),
+    };
+    const byNumber = parseExpenseSubmissionV1(
+      realShapedSubmission({ lineage: { bookingRef: '2604-29', projectRef: '2604-29' } }),
+    )!;
+    expect(bindSubmission(byNumber, src)).toMatchObject({
+      status: 'bound',
+      bookingId: BOOKING_ID,
+      bookingNumber: '2604-29',
+      projectId: null,
+      reason: null,
+    });
+    const byId = parseExpenseSubmissionV1(
+      realShapedSubmission({ lineage: { bookingRef: '2604-29', projectRef: BOOKING_ID } }),
+    )!;
+    expect(bindSubmission(byId, src)).toMatchObject({ status: 'bound', bookingId: BOOKING_ID });
+    const foreign = parseExpenseSubmissionV1(
+      realShapedSubmission({ lineage: { bookingRef: '2604-29', projectRef: 'NOT-IN-TENANT' } }),
+    )!;
+    expect(bindSubmission(foreign, src)).toMatchObject({ status: 'unbound', reason: 'project_not_in_tenant' });
+  });
+
+
   describe('decide — read-before-write on exact version + hash', () => {
     const decideBody = (over: Record<string, unknown> = {}) => ({
       submissionId: V1, submissionVersion: 1, expectedSnapshotHash: HASH_A, decision: 'approved', ...over,
