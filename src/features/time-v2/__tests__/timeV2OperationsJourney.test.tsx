@@ -161,6 +161,13 @@ describe('Planning "Tid & utlägg — drift" journey', () => {
     expect(expense.textContent).toContain('Bauhaus');
     expect(expense.textContent).toContain('Buntband till riggen');
     expect(within(expense).getByTestId('time-v2-expense-receipt')).toBeTruthy();
+
+    const booking = screen.getByTestId('time-v2-ops-open-booking');
+    expect(booking.getAttribute('href')).toBe('/booking/b-1');
+    expect(booking.getAttribute('data-booking-id')).toBe('b-1');
+    const project = screen.getByTestId('time-v2-ops-open-project');
+    expect(project.getAttribute('href')).toBe('/project-next/proj-1');
+    expect(project.getAttribute('data-project-id')).toBe('proj-1');
   });
 
   it('lets the planner request a time correction and attest payroll from the same flow', async () => {

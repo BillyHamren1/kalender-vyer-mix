@@ -33,6 +33,7 @@ describe('Time V2 module routing & boundaries', () => {
       + read('src/features/time-v2/pages/TimeV2OperationsPage.tsx')
       + read('src/features/time-v2/components/operations/OperationsDayRow.tsx')
       + read('src/features/time-v2/components/operations/OperationsActionReasons.tsx')
+      + read('src/features/time-v2/components/operations/OperationsTargetLinks.tsx')
       + read('src/features/time-v2/components/operations/OperationsDetailPanel.tsx');
     // Never touches Planning source data and never posts payroll/accounting/cost.
     expect(ops).not.toContain('supabase.from(');

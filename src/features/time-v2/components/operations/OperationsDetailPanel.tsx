@@ -20,6 +20,7 @@ import {
 } from '@/features/time-v2/lib/expenseContract';
 import { describeTargets, type OperationsRow } from '@/features/time-v2/lib/operations';
 import OperationsActionReasons from '@/features/time-v2/components/operations/OperationsActionReasons';
+import OperationsTargetLinks from '@/features/time-v2/components/operations/OperationsTargetLinks';
 
 interface Props {
   organizationId: string | null;
@@ -95,6 +96,7 @@ const OperationsDetailPanel: React.FC<Props> = ({ organizationId, enabled, row, 
           {row.time && <Badge variant="outline" className="text-[10px]">{row.time.state}</Badge>}
         </div>
         <p className="text-sm text-muted-foreground">{describeTargets(row)}</p>
+        <OperationsTargetLinks targets={row.targets} />
         <OperationsActionReasons
           reasons={row.actionReasons}
           testId="time-v2-ops-detail-reasons"
