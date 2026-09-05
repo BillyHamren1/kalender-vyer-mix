@@ -85,7 +85,7 @@ describe('planning-expense-review.v1 — contract', () => {
     expect(validateExpenseDecideInput({ ...base, decision: 'approved' }).ok).toBe(true);
     const r = validateExpenseDecideInput({ ...base, decision: 'rejected', reason: '  ' });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.code).toBe('reason_required');
+    if (r.ok === false) expect(r.code).toBe('reason_required');
     const c = validateExpenseDecideInput({ ...base, decision: 'correction_requested', reason: 'Kvittot är oläsligt' });
     expect(c.ok).toBe(true);
     if (c.ok) expect(c.value.reason).toBe('Kvittot är oläsligt');
