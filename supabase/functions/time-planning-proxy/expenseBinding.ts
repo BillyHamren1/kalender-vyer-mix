@@ -55,8 +55,13 @@ export async function loadBindingSources(
   const ids = new Set<string>();
   for (const s of submissions) {
     if (s.lineage.bookingRef) numbers.add(s.lineage.bookingRef);
-    if (s.lineage.projectRef && UUID_RE.test(s.lineage.projectRef)) ids.add(s.lineage.projectRef);
+    if (s.lineage.projectRef) {
+      if (UUID_RE.test(s.lineage.projectRef)) ids.add(s.lineage.projectRef);
+      // Non-UUID projectRef = Time repeating the booking reference.
+      else numbers.add(s.lineage.projectRef);
+    }
   }
+
   const bookingsByNumber = new Map<string, BookingRow>();
   const bookingsById = new Map<string, BookingRow>();
   const projectsById = new Map<string, ProjectRow>();
@@ -93,10 +98,18 @@ export function bindSubmission(s: ExpenseSubmissionV1, src: BindingSources): Exp
 
   const booking = bookingRef ? src.bookingsByNumber.get(bookingRef) ?? null : null;
   const project = projectRef ? src.projectsById.get(projectRef) ?? null : null;
-  const bookingViaRef = !project && projectRef ? src.bookingsById.get(projectRef) ?? null : null;
+  // Time states `projectRef` as the exported `externalId`. When the booking has
+  // no Planning project, Time repeats the booking reference there — either the
+  // booking id or the booking number. Both must resolve to that same booking,
+  // otherwise a legitimately bound booking is reported `project_not_in_tenant`
+  // and its receipts/decisions stay locked forever.
+  const bookingViaRef = !project && projectRef
+    ? src.bookingsById.get(projectRef) ?? src.bookingsByNumber.get(projectRef) ?? null
+    : null;
 
   if (bookingRef && !booking) return unbound('booking_not_in_tenant');
   if (projectRef && !project && !bookingViaRef) return unbound('project_not_in_tenant');
+
 
   const resolvedBooking = booking ?? bookingViaRef;
   if (booking && bookingViaRef && booking.id !== bookingViaRef.id) return unbound('binding_conflict');
