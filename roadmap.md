@@ -29,3 +29,11 @@
 - [ ] Time: när Times `work-order-v1.ts`-parser landar (commit efter 1077ff62) — diffa elementformer (tasks/team/contacts/instructions) mot Plannings emitter; justera vid avvikelse.
 - [ ] Deploy `time-planning-proxy` till staging + hostad `worker.assignments.sync` mot syntetisk person; verifiera `data.workOrder`-rapporten (attached/omitted/gaps).
 - [ ] Källgap (kräver produktbeslut, ej fabricerat): `lines[].unit` saknar källa i Planning (`booking_products` har ingen enhetskolumn) — avvakta Booking-fältet eller lämna utelämnad.
+
+## Time V2 – Tid & utlägg (Planning-yta, preview/staging, EJ publish)
+- [ ] Versionerat kontrakt `planning-expense-review.v1` (Deno-shared + frontend-spegel, fail-closed parse, idempotens bunden till submissionId+version+canonicalHash)
+- [ ] Proxy: `expenses.list` / `expenses.decide` / `expenses.receiptUrl` med staging-gate, org-/assignment-bindning, läs-före-skriv (version+hash), scrub av objectPath
+- [ ] UI: `/time-v2/expenses` lista + `/time-v2/expenses/:submissionId` detalj (kvitto via kortlivad signerad läsning, revisionskedja, godkänn/avslå/rättelse med orsak)
+- [ ] Tester: kontrakt, proxyhanterare, UI-resa (v1 → rättelse → v2 → godkänn exakt v2-hash), routing/menykontrakt
+- [ ] Hosted/staging-bevis: riktig signerad staging-anrop som visar extern gate (adaptern saknar utläggsoperationer) + rendered UI
+- [ ] Rapport: exakt extern gate, gap, nollräkningar
