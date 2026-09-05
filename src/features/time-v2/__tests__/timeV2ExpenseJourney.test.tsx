@@ -46,12 +46,18 @@ const timeStaging = {
     return this.gateOpen ? [...base, 'expenses.list', 'expenses.decide', 'expenses.receiptUrl'] : base;
   },
   chainOf(id: string) {
-    const byId = new Map(this.submissions.map((s) => [s.submissionId as string, s]));
-    let root = byId.get(id);
-    while (root?.previousSubmissionId && byId.has(root.previousSubmissionId as string)) root = byId.get(root.previousSubmissionId as string);
+    const byId = new Map<string, Sub>(this.submissions.map((s) => [String(s.submissionId), s]));
+    let root: Sub | undefined = byId.get(id);
+    while (root && root.previousSubmissionId && byId.has(String(root.previousSubmissionId))) {
+      root = byId.get(String(root.previousSubmissionId));
+    }
     const out: Sub[] = [];
     let cur: Sub | undefined = root;
-    while (cur) { out.push(cur); cur = this.submissions.find((s) => s.previousSubmissionId === cur!.submissionId); }
+    while (cur) {
+      out.push(cur);
+      const currentId = cur.submissionId;
+      cur = this.submissions.find((s) => s.previousSubmissionId === currentId);
+    }
     return out;
   },
   handle(op: string, p: Record<string, unknown>): { status: number; body: unknown } {
