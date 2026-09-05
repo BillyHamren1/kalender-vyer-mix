@@ -47,9 +47,9 @@ const BOUND = { status: 'bound', bookingId: 'b-1', bookingNumber: '2604-29', boo
 const UNBOUND = { status: 'unbound', bookingId: null, bookingNumber: null, bookingTitle: null, projectId: null, projectName: null, reason: 'booking_not_in_tenant' };
 
 const expenseRows = [
-  { submission: realShapedSubmission({ submissionId: 'e-open', worker: { personnelId: 'p-d', displayName: 'David Utlägg' } }), binding: BOUND },
-  { submission: realShapedSubmission({ submissionId: 'e-unbound', worker: { personnelId: 'p-e', displayName: 'Eva Obunden' } }), binding: UNBOUND },
-  { submission: realShapedSubmission({ submissionId: 'e-settled', state: 'approved', worker: { personnelId: 'p-f', displayName: 'Filip Klar' } }), binding: BOUND },
+  { submission: realShapedSubmission({ submissionId: 'e0000000-0000-4000-8000-00000000000a', worker: { personnelId: 'p-d', displayName: 'David Utlägg' } }), binding: BOUND },
+  { submission: realShapedSubmission({ submissionId: 'e0000000-0000-4000-8000-00000000000b', worker: { personnelId: 'p-e', displayName: 'Eva Obunden' } }), binding: UNBOUND },
+  { submission: realShapedSubmission({ submissionId: 'e0000000-0000-4000-8000-00000000000c', state: 'approved', worker: { personnelId: 'p-f', displayName: 'Filip Klar' } }), binding: BOUND },
 ];
 
 vi.mock('@/features/time-v2/lib/client', async () => {

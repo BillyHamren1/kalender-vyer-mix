@@ -254,9 +254,9 @@ describe('Time V2 operations — default "Kräver åtgärd" covers every actiona
         queueRow({ submission_id: 's-ok2', group: 'approved', state: 'approved', personnel_id: 'p-e', personnel_name: 'E' }),
       ],
       expenseChains: [
-        ...chainWith(realShapedSubmission({ submissionId: 'e-open', worker: { personnelId: 'p-d', displayName: 'D' } }), BOUND),
-        ...chainWith(realShapedSubmission({ submissionId: 'e-unbound', state: 'correction_requested', worker: { personnelId: 'p-e', displayName: 'E' } }), UNBOUND),
-        ...chainWith(realShapedSubmission({ submissionId: 'e-orphan', state: 'approved', worker: { personnelId: 'p-f', displayName: 'F' } }), BOUND),
+        ...chainWith(realShapedSubmission({ submissionId: 'e0000000-0000-4000-8000-00000000000a', worker: { personnelId: 'p-d', displayName: 'D' } }), BOUND),
+        ...chainWith(realShapedSubmission({ submissionId: 'e0000000-0000-4000-8000-00000000000b', state: 'correction_requested', worker: { personnelId: 'p-e', displayName: 'E' } }), UNBOUND),
+        ...chainWith(realShapedSubmission({ submissionId: 'e0000000-0000-4000-8000-00000000000c', state: 'approved', worker: { personnelId: 'p-f', displayName: 'F' } }), BOUND),
       ],
     });
     const c = operationsCounts(rows);
