@@ -54,12 +54,29 @@ const expenseRows = [
 
 vi.mock('@/features/time-v2/lib/client', async () => {
   const actual = await vi.importActual<typeof import('@/features/time-v2/lib/client')>('@/features/time-v2/lib/client');
-  const { normalizeReviewQueueList } = await vi.importActual<typeof import('@/features/time-v2/lib/contract')>('@/features/time-v2/lib/contract');
+  const { normalizeReviewQueueList, normalizeSubmissionDetail } = await vi.importActual<typeof import('@/features/time-v2/lib/contract')>('@/features/time-v2/lib/contract');
   return {
     ...actual,
     getTimeV2BaseUrl: () => 'https://time.staging.test',
     fetchTimeV2ReviewQueue: async () => normalizeReviewQueueList({ generated_at: '2026-06-05T08:00:00Z', rows: queueRows }),
-    fetchTimeV2SubmissionDetail: async () => { throw new Error('detail must not be read in this journey'); },
+    fetchTimeV2SubmissionDetail: async (_org: string, submissionId: string) => {
+      const q = queueRows.find((r) => r.submission_id === submissionId) ?? queueRows[0];
+      return normalizeSubmissionDetail({
+        submission_id: q.submission_id,
+        date: q.date,
+        personnel_name: q.personnel_name,
+        personnel_id: q.personnel_id,
+        state: q.state,
+        group: q.group,
+        revision: q.revision,
+        snapshot_version: `snap-${q.submission_id}`,
+        totals: { total_minutes: q.total_minutes, work_minutes: q.total_minutes, travel_minutes: q.travel_minutes, break_minutes: q.break_minutes },
+        targets: [],
+        segments: [],
+        correction: { requested: q.group === 'correction' },
+        attestability: { payroll: false, project: false, payroll_attested: false, project_attested: false, blocked_reason: null },
+      });
+    },
   };
 });
 
