@@ -101,7 +101,7 @@ describe('expense proxy handlers (real handler code, fake Time + fake admin)', (
 
   it('reports the EXTERNAL GATE precisely when Time\'s manifest lacks the operation', async () => {
     const fetchImpl = fakeFetch((op) => {
-      if (op === 'manifest') return envelope('manifest', { operations: ['status', 'days.queue', 'attest.payroll'] });
+      if (op === 'manifest') return envelope('manifest', { schema: 'time-planning-boundary-manifest.v1', routes: { status: {}, 'days.queue': {}, 'attest.payroll': {} } });
       return { status: 400, body: { code: 'invalid_request', error: 'operation: Invalid enum value' } };
     });
     const r = await handleExpenseOperation(ctxFor(fetchImpl), 'expenses.list', {});
@@ -113,7 +113,7 @@ describe('expense proxy handlers (real handler code, fake Time + fake admin)', (
 
   it('passes a genuine 400 through when the manifest DOES list the operation', async () => {
     const fetchImpl = fakeFetch((op) => {
-      if (op === 'manifest') return envelope('manifest', { operations: ['expenses.list'] });
+      if (op === 'manifest') return envelope('manifest', { schema: 'time-planning-boundary-manifest.v1', routes: { 'expenses.list': { capability: 'expenses.read', command: false } } });
       return { status: 400, body: { code: 'invalid_request', error: 'scope: bad' } };
     });
     const r = await handleExpenseOperation(ctxFor(fetchImpl), 'expenses.list', {});

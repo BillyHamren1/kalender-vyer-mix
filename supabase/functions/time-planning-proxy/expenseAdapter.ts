@@ -92,15 +92,22 @@ const signedPost = async (
   }
 };
 
-/** Reads Time's deployed operation list; empty when unreadable (fail closed). */
+/**
+ * Reads Time's deployed operation list from the real manifest
+ * (`time-planning-boundary-manifest.v1`: `data.routes` keyed by operation;
+ * an `operations` array is accepted too). `null` when unreadable (fail closed).
+ */
 export async function readDeployedOperations(ctx: ExpenseAdapterContext): Promise<string[] | null> {
   const res = await signedPost(ctx, 'manifest', {});
   if ('transportError' in res || res.status !== 200 || !res.raw) return null;
   const data = (res.raw.data ?? {}) as Record<string, unknown>;
-  const ops = Array.isArray(data.operations) ? data.operations : [];
-  return ops
+  const fromRoutes = data.routes && typeof data.routes === 'object' && !Array.isArray(data.routes)
+    ? Object.keys(data.routes as Record<string, unknown>)
+    : [];
+  const fromList = (Array.isArray(data.operations) ? data.operations : [])
     .map((o) => (typeof o === 'string' ? o : (o as Record<string, unknown>)?.operation ?? (o as Record<string, unknown>)?.name))
     .filter((o): o is string => typeof o === 'string');
+  return [...new Set([...fromRoutes, ...fromList])];
 }
 
 export const expenseGateMessage = (operation: string) =>
