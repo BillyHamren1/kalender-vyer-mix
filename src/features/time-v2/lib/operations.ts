@@ -17,6 +17,7 @@ import {
   EXPENSE_OPEN_STATES,
   type ExpenseChainView,
   type ExpenseMoneyV1,
+  type ExpenseSubmissionState,
 } from './expenseContract';
 
 export type OperationsView = 'needs_action' | 'all' | 'time' | 'expenses';
@@ -27,6 +28,31 @@ export const OPERATIONS_VIEW_LABELS: Record<OperationsView, string> = {
   time: 'Endast tid',
   expenses: 'Endast utlägg',
 };
+
+/**
+ * Every case that keeps a row in the default "Kräver åtgärd" view. The set is
+ * exhaustive and closed: a row with none of these is fully settled.
+ */
+export const OPERATIONS_ACTION_CODES = [
+  'time_needs_review',
+  'time_missing',
+  'time_correction',
+  'expenses_open',
+  'expenses_unbound',
+] as const;
+export type OperationsActionCode = (typeof OPERATIONS_ACTION_CODES)[number];
+
+/** One visible, operator-language reason why a row needs attention. */
+export interface OperationsActionReason {
+  code: OperationsActionCode;
+  label: string;
+}
+
+/**
+ * Expense states where nothing more can happen to that revision. An unbound
+ * chain in one of these states is no longer an open deviation for the planner.
+ */
+const EXPENSE_SETTLED_STATES: readonly ExpenseSubmissionState[] = ['approved', 'rejected', 'superseded'];
 
 export interface OperationsTargetRef {
   bookingId: string | null;
@@ -58,14 +84,24 @@ export interface OperationsRow {
     expenseCount: number;
   };
   flags: {
+    /** Time queue group `needs_review`. */
     timeNeedsReview: boolean;
+    /** Time queue group `correction` — a correction is pending with the worker. */
     timeCorrection: boolean;
+    /**
+     * Time queue group `missing`, OR expenses were reported for a worker + date
+     * that has no time submission at all in the queue.
+     */
     timeMissing: boolean;
+    /** Expense chains whose latest revision is still open for a decision. */
     openExpenses: number;
+    /** Expense chains not bound to a booking/project in this tenant and not yet settled. */
     unboundExpenses: number;
     isTestFixture: boolean;
   };
-  /** True when a planner has something to decide on this row right now. */
+  /** Ordered, operator-facing reasons; empty exactly when `needsAction` is false. */
+  actionReasons: OperationsActionReason[];
+  /** True when a planner has something to act on for this row right now. */
   needsAction: boolean;
 }
 
@@ -73,6 +109,8 @@ export interface OperationsCounts {
   rows: number;
   needsAction: number;
   timeNeedsReview: number;
+  timeMissing: number;
+  timeCorrection: number;
   openExpenses: number;
   unboundExpenses: number;
   workers: number;
@@ -154,6 +192,7 @@ export function buildOperationsRows({ queueRows, expenseChains }: BuildOperation
         unboundExpenses: 0,
         isTestFixture: false,
       },
+      actionReasons: [],
       needsAction: false,
     };
     rows.set(key, created);
@@ -185,7 +224,9 @@ export function buildOperationsRows({ queueRows, expenseChains }: BuildOperation
     row.expenses.push(chain);
     row.flags.isTestFixture = row.flags.isTestFixture || s.isTestFixture;
     if (EXPENSE_OPEN_STATES.includes(s.state)) row.flags.openExpenses += 1;
-    if (chain.binding.status === 'unbound') row.flags.unboundExpenses += 1;
+    if (chain.binding.status === 'unbound' && !EXPENSE_SETTLED_STATES.includes(s.state)) {
+      row.flags.unboundExpenses += 1;
+    }
     pushTarget(row.targets, {
       bookingId: chain.binding.bookingId,
       bookingNumber: chain.binding.bookingNumber,
@@ -199,12 +240,50 @@ export function buildOperationsRows({ queueRows, expenseChains }: BuildOperation
     row.expenses.sort((a, b) => (b.latest.submittedAt ?? '').localeCompare(a.latest.submittedAt ?? ''));
     row.totals.expenseCount = row.expenses.length;
     row.totals.expenseByCurrency = sumMoney(row.expenses.map((c) => c.latest.money));
-    row.needsAction = row.flags.timeNeedsReview || row.flags.openExpenses > 0;
+    // Expenses reported for a day Time has no time submission for = time missing.
+    if (!row.time && row.expenses.length > 0) row.flags.timeMissing = true;
+    row.actionReasons = actionReasonsOf(row);
+    row.needsAction = row.actionReasons.length > 0;
   }
 
   return Array.from(rows.values()).sort(
     (a, b) => b.date.localeCompare(a.date) || a.workerName.localeCompare(b.workerName),
   );
+}
+
+/**
+ * The single place that turns flags into the closed set of action reasons.
+ * `needsAction` is defined as "this list is non-empty" — nothing else.
+ */
+export function actionReasonsOf(row: Pick<OperationsRow, 'time' | 'flags'>): OperationsActionReason[] {
+  const out: OperationsActionReason[] = [];
+  const { flags } = row;
+  if (flags.timeNeedsReview) out.push({ code: 'time_needs_review', label: 'Arbetstid väntar på granskning' });
+  if (flags.timeMissing) {
+    out.push({
+      code: 'time_missing',
+      label: row.time ? 'Arbetstid saknas för dagen' : 'Utlägg inlämnat utan arbetstid',
+    });
+  }
+  if (flags.timeCorrection) {
+    out.push({ code: 'time_correction', label: 'Rättelse av arbetstid pågår – väntar på medarbetaren' });
+  }
+  if (flags.openExpenses > 0) {
+    out.push({
+      code: 'expenses_open',
+      label: flags.openExpenses === 1 ? '1 utlägg väntar på beslut' : `${flags.openExpenses} utlägg väntar på beslut`,
+    });
+  }
+  if (flags.unboundExpenses > 0) {
+    out.push({
+      code: 'expenses_unbound',
+      label:
+        flags.unboundExpenses === 1
+          ? '1 utlägg saknar bokning/projekt i din organisation'
+          : `${flags.unboundExpenses} utlägg saknar bokning/projekt i din organisation`,
+    });
+  }
+  return out;
 }
 
 /** Pure filtering over contract fields only. */
@@ -238,6 +317,8 @@ export function operationsCounts(rows: readonly OperationsRow[]): OperationsCoun
     rows: rows.length,
     needsAction: rows.filter((r) => r.needsAction).length,
     timeNeedsReview: rows.filter((r) => r.flags.timeNeedsReview).length,
+    timeMissing: rows.filter((r) => r.flags.timeMissing).length,
+    timeCorrection: rows.filter((r) => r.flags.timeCorrection).length,
     openExpenses: rows.reduce((n, r) => n + r.flags.openExpenses, 0),
     unboundExpenses: rows.reduce((n, r) => n + r.flags.unboundExpenses, 0),
     workers: new Set(rows.map((r) => r.workerKey)).size,

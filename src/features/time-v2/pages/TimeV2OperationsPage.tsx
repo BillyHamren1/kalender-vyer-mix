@@ -71,10 +71,12 @@ const TimeV2OperationsPage: React.FC = () => {
         </Button>
       </header>
 
-      <section className="grid grid-cols-2 lg:grid-cols-5 gap-3" data-testid="time-v2-ops-counts">
+      <section className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3" data-testid="time-v2-ops-counts">
         <Stat label="Dagar" value={ops.counts.rows} testId="time-v2-ops-count-rows" />
         <Stat label="Kräver åtgärd" value={ops.counts.needsAction} testId="time-v2-ops-count-action" />
         <Stat label="Tid att granska" value={ops.counts.timeNeedsReview} testId="time-v2-ops-count-time" />
+        <Stat label="Tid saknas" value={ops.counts.timeMissing} testId="time-v2-ops-count-missing" />
+        <Stat label="Rättelse pågår" value={ops.counts.timeCorrection} testId="time-v2-ops-count-correction" />
         <Stat label="Obeslutade utlägg" value={ops.counts.openExpenses} testId="time-v2-ops-count-expenses" />
         <Stat label="Ej bundna utlägg" value={ops.counts.unboundExpenses} testId="time-v2-ops-count-unbound" />
       </section>

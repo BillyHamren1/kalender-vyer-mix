@@ -123,6 +123,145 @@ describe('Time V2 operations join (worker + work date)', () => {
     ]);
     const rows = buildOperationsRows({ queueRows: [queueRow()], expenseChains: chains });
     const c = operationsCounts(rows);
-    expect(c).toMatchObject({ rows: 1, needsAction: 1, timeNeedsReview: 1, openExpenses: 1, unboundExpenses: 1, workers: 1 });
+    expect(c).toMatchObject({
+      rows: 1, needsAction: 1, timeNeedsReview: 1, timeMissing: 0, timeCorrection: 0, openExpenses: 1, unboundExpenses: 1, workers: 1,
+    });
+  });
+});
+
+const UNBOUND = {
+  status: 'unbound' as const,
+  bookingId: null, bookingNumber: null, bookingTitle: null, projectId: null, projectName: null,
+  reason: 'booking_not_in_tenant',
+};
+const BOUND = {
+  status: 'bound' as const,
+  bookingId: 'b-1', bookingNumber: '2604-29', bookingTitle: 'Westmans middag', projectId: 'proj-1', projectName: 'Westmans',
+  reason: null,
+};
+const chainWith = (raw: unknown, binding: typeof UNBOUND | typeof BOUND) =>
+  buildExpenseChains([{ submission: parseExpenseSubmissionV1(raw)!, binding }]);
+
+const defaultView = (rows: ReturnType<typeof buildOperationsRows>) => filterOperationsRows(rows, {});
+
+describe('Time V2 operations — default "Kräver åtgärd" covers every actionable case', () => {
+  it('time needs review → visible, reason in operator language', () => {
+    const rows = buildOperationsRows({ queueRows: [queueRow({ group: 'needs_review' })], expenseChains: [] });
+    expect(defaultView(rows)).toHaveLength(1);
+    expect(rows[0].actionReasons.map((r) => r.code)).toEqual(['time_needs_review']);
+    expect(rows[0].actionReasons[0].label).toBe('Arbetstid väntar på granskning');
+    expect(operationsCounts(rows).timeNeedsReview).toBe(1);
+  });
+
+  it('time missing (Time queue group "missing") → visible', () => {
+    const rows = buildOperationsRows({
+      queueRows: [queueRow({ group: 'missing', state: 'missing', total_minutes: 0, travel_minutes: 0, break_minutes: 0 })],
+      expenseChains: [],
+    });
+    expect(defaultView(rows)).toHaveLength(1);
+    expect(rows[0].flags.timeMissing).toBe(true);
+    expect(rows[0].actionReasons).toEqual([{ code: 'time_missing', label: 'Arbetstid saknas för dagen' }]);
+    expect(operationsCounts(rows).timeMissing).toBe(1);
+  });
+
+  it('expense day with no time submission at all → time missing, visible even when the expense is already approved', () => {
+    const rows = buildOperationsRows({
+      queueRows: [],
+      expenseChains: chainWith(realShapedSubmission({ state: 'approved' }), BOUND),
+    });
+    expect(rows[0].time).toBeNull();
+    expect(rows[0].flags.timeMissing).toBe(true);
+    expect(rows[0].flags.openExpenses).toBe(0);
+    expect(defaultView(rows)).toHaveLength(1);
+    expect(rows[0].actionReasons).toEqual([{ code: 'time_missing', label: 'Utlägg inlämnat utan arbetstid' }]);
+  });
+
+  it('time correction pending with the worker → visible', () => {
+    const rows = buildOperationsRows({
+      queueRows: [queueRow({ group: 'correction', state: 'correction_requested', correction_requested_at: '2026-06-05T07:00:00Z' })],
+      expenseChains: [],
+    });
+    expect(defaultView(rows)).toHaveLength(1);
+    expect(rows[0].actionReasons.map((r) => r.code)).toEqual(['time_correction']);
+    expect(rows[0].actionReasons[0].label).toContain('Rättelse av arbetstid pågår');
+    expect(operationsCounts(rows).timeCorrection).toBe(1);
+  });
+
+  it('open expense on an approved time day → visible with the expense reason only', () => {
+    const rows = buildOperationsRows({
+      queueRows: [queueRow({ group: 'approved', state: 'approved' })],
+      expenseChains: chainWith(realShapedSubmission(), BOUND),
+    });
+    expect(defaultView(rows)).toHaveLength(1);
+    expect(rows[0].actionReasons).toEqual([{ code: 'expenses_open', label: '1 utlägg väntar på beslut' }]);
+  });
+
+  it('unbound expense (still open) on an approved time day → visible', () => {
+    const rows = buildOperationsRows({
+      queueRows: [queueRow({ group: 'approved', state: 'approved' })],
+      expenseChains: chainWith(realShapedSubmission(), UNBOUND),
+    });
+    expect(defaultView(rows)).toHaveLength(1);
+    expect(rows[0].actionReasons.map((r) => r.code)).toEqual(['expenses_open', 'expenses_unbound']);
+    expect(rows[0].actionReasons[1].label).toBe('1 utlägg saknar bokning/projekt i din organisation');
+    expect(operationsCounts(rows).unboundExpenses).toBe(1);
+  });
+
+  it('unbound expense that awaits worker correction (not decidable) → still visible as unbound', () => {
+    const rows = buildOperationsRows({
+      queueRows: [queueRow({ group: 'approved', state: 'approved' })],
+      expenseChains: chainWith(realShapedSubmission({ state: 'correction_requested' }), UNBOUND),
+    });
+    expect(defaultView(rows)).toHaveLength(1);
+    expect(rows[0].actionReasons.map((r) => r.code)).toEqual(['expenses_unbound']);
+  });
+
+  it('fully settled day (approved time + approved bound expense) is NOT in the default view but is in "Alla dagar"', () => {
+    const rows = buildOperationsRows({
+      queueRows: [queueRow({ group: 'approved', state: 'approved' })],
+      expenseChains: chainWith(realShapedSubmission({ state: 'approved' }), BOUND),
+    });
+    expect(rows[0].needsAction).toBe(false);
+    expect(rows[0].actionReasons).toEqual([]);
+    expect(defaultView(rows)).toHaveLength(0);
+    expect(filterOperationsRows(rows, { view: 'all' })).toHaveLength(1);
+    expect(operationsCounts(rows)).toMatchObject({ rows: 1, needsAction: 0, timeNeedsReview: 0, timeMissing: 0, timeCorrection: 0, openExpenses: 0, unboundExpenses: 0 });
+  });
+
+  it('settled day with a rejected, unbound expense is NOT actionable (nothing left to decide)', () => {
+    const rows = buildOperationsRows({
+      queueRows: [queueRow({ group: 'approved', state: 'approved' })],
+      expenseChains: chainWith(realShapedSubmission({ state: 'rejected' }), UNBOUND),
+    });
+    expect(rows[0].flags.unboundExpenses).toBe(0);
+    expect(rows[0].needsAction).toBe(false);
+    expect(defaultView(rows)).toHaveLength(0);
+  });
+
+  it('approved time day with no expenses is NOT in the default view', () => {
+    const rows = buildOperationsRows({ queueRows: [queueRow({ group: 'approved', state: 'approved' })], expenseChains: [] });
+    expect(defaultView(rows)).toHaveLength(0);
+    expect(filterOperationsRows(rows, { view: 'time' })).toHaveLength(1);
+  });
+
+  it('needsAction counter equals the number of rows with at least one reason, across a mixed set', () => {
+    const rows = buildOperationsRows({
+      queueRows: [
+        queueRow({ submission_id: 's-review', group: 'needs_review', personnel_id: 'p-a', personnel_name: 'A' }),
+        queueRow({ submission_id: 's-missing', group: 'missing', personnel_id: 'p-b', personnel_name: 'B' }),
+        queueRow({ submission_id: 's-corr', group: 'correction', personnel_id: 'p-c', personnel_name: 'C' }),
+        queueRow({ submission_id: 's-ok', group: 'approved', state: 'approved', personnel_id: 'p-d', personnel_name: 'D' }),
+        queueRow({ submission_id: 's-ok2', group: 'approved', state: 'approved', personnel_id: 'p-e', personnel_name: 'E' }),
+      ],
+      expenseChains: [
+        ...chainWith(realShapedSubmission({ submissionId: 'e0000000-0000-4000-8000-00000000000a', worker: { personnelId: 'p-d', displayName: 'D' } }), BOUND),
+        ...chainWith(realShapedSubmission({ submissionId: 'e0000000-0000-4000-8000-00000000000b', state: 'correction_requested', worker: { personnelId: 'p-e', displayName: 'E' } }), UNBOUND),
+        ...chainWith(realShapedSubmission({ submissionId: 'e0000000-0000-4000-8000-00000000000c', state: 'approved', worker: { personnelId: 'p-f', displayName: 'F' } }), BOUND),
+      ],
+    });
+    const c = operationsCounts(rows);
+    expect(c).toMatchObject({ rows: 6, needsAction: 6, timeNeedsReview: 1, timeMissing: 2, timeCorrection: 1, openExpenses: 1, unboundExpenses: 1, workers: 6 });
+    expect(defaultView(rows).map((r) => r.workerName).sort()).toEqual(['A', 'B', 'C', 'D', 'E', 'F']);
+    expect(rows.every((r) => r.needsAction === (r.actionReasons.length > 0))).toBe(true);
   });
 });

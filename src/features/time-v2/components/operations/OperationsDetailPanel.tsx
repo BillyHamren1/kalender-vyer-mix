@@ -19,6 +19,7 @@ import {
   type ExpenseChainView,
 } from '@/features/time-v2/lib/expenseContract';
 import { describeTargets, type OperationsRow } from '@/features/time-v2/lib/operations';
+import OperationsActionReasons from '@/features/time-v2/components/operations/OperationsActionReasons';
 
 interface Props {
   organizationId: string | null;
@@ -94,6 +95,11 @@ const OperationsDetailPanel: React.FC<Props> = ({ organizationId, enabled, row, 
           {row.time && <Badge variant="outline" className="text-[10px]">{row.time.state}</Badge>}
         </div>
         <p className="text-sm text-muted-foreground">{describeTargets(row)}</p>
+        <OperationsActionReasons
+          reasons={row.actionReasons}
+          testId="time-v2-ops-detail-reasons"
+          emptyLabel="Inget kräver åtgärd för den här dagen – arbetstid och utlägg är avslutade."
+        />
         <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
           <span>Arbetstid {row.time ? formatMinutes(row.time.totalMinutes) : '—'}</span>
           <span>Resa {row.time ? formatMinutes(row.time.travelMinutes) : '—'}</span>
