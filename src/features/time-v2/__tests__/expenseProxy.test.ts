@@ -10,7 +10,7 @@ import { handleExpenseOperation, type ExpenseHandlerContext } from '../../../../
 import { EXPENSE_PREVIEW_ALLOWED_TIME_HOSTS, isExpensePreviewHost } from '../../../../supabase/functions/time-planning-proxy/expenseAdapter';
 import { bindSubmission } from '../../../../supabase/functions/time-planning-proxy/expenseBinding';
 import { assertNoPostingFields, parseExpenseSubmissionV1 } from '../../../../supabase/functions/_shared/time-v2/expenseReviewV1';
-import { realShapedSubmission } from './expenseReviewV1.contract.test';
+import { realShapedSubmission } from './fixtures/expenseFixture';
 
 const STAGING = `https://${EXPENSE_PREVIEW_ALLOWED_TIME_HOSTS[0]}/functions/v1`;
 const PLANNING_ORG = 'f5e5cade-0000-4000-8000-000000000001';
