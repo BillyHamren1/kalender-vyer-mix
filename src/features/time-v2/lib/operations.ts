@@ -317,6 +317,8 @@ export function operationsCounts(rows: readonly OperationsRow[]): OperationsCoun
     rows: rows.length,
     needsAction: rows.filter((r) => r.needsAction).length,
     timeNeedsReview: rows.filter((r) => r.flags.timeNeedsReview).length,
+    timeMissing: rows.filter((r) => r.flags.timeMissing).length,
+    timeCorrection: rows.filter((r) => r.flags.timeCorrection).length,
     openExpenses: rows.reduce((n, r) => n + r.flags.openExpenses, 0),
     unboundExpenses: rows.reduce((n, r) => n + r.flags.unboundExpenses, 0),
     workers: new Set(rows.map((r) => r.workerKey)).size,
