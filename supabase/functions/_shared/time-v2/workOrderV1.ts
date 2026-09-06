@@ -1,29 +1,14 @@
-/**
- * Planning-side emitter contract for Time V2 `work-order.v1`
- * (`assignments[].workOrder` on the signed `worker.assignments.sync` /
- * `work-context.v1` boundary).
- *
- * Pinned by the Time contract (field-relevant work order, strict parser):
- *  - phases[]        kind rig|event|derig, startsAt/endsAt WITH explicit offset
- *  - lines[]         lineId, kind booking|product|package, label, quantity,
- *                    unit, note, parentLineId
- *  - instructions[]  instructionId, label, body
- *  - tasks[]         taskId, label, note, phase — ONLY the receiving worker's tasks
- *  - files[]         fileId, kind, label, url, thumbnailUrl, mimeType (real HTTPS url)
- *  - team[]          memberId, displayName, roleLabel
- *  - contacts[]      contactId, role, displayName, phone
- *
- * Structurally excluded — never part of this module's types or output:
- * prices, costs, margins, VAT/discount, economics, salaries/rates and any
- * internal admin notes (`internalnotes`, `cost_notes`, `economics_data`).
- *
- * Pure module: no I/O, no Deno APIs. Usable from the Edge runtime and vitest.
- */
+// Canonical Planning-side mirror of Time's work-order.v1 wire contract.
+// Keep this file structurally aligned with eventflow-time
+// supabase/functions/_shared/work-order-v1.ts.
 
 export const WORK_ORDER_SCHEMA = 'work-order.v1' as const;
+export const WORK_ORDER_CONTRACT = WORK_ORDER_SCHEMA;
 
 export const WORK_ORDER_PHASE_KINDS = ['rig', 'event', 'derig'] as const;
+export const WORK_ORDER_PHASE_CODES = WORK_ORDER_PHASE_KINDS;
 export type WorkOrderPhaseKind = (typeof WORK_ORDER_PHASE_KINDS)[number];
+export type WorkOrderPhaseCode = WorkOrderPhaseKind;
 
 export const WORK_ORDER_LINE_KINDS = ['booking', 'product', 'package'] as const;
 export type WorkOrderLineKind = (typeof WORK_ORDER_LINE_KINDS)[number];
@@ -31,9 +16,12 @@ export type WorkOrderLineKind = (typeof WORK_ORDER_LINE_KINDS)[number];
 export const WORK_ORDER_FILE_KINDS = ['image', 'document'] as const;
 export type WorkOrderFileKind = (typeof WORK_ORDER_FILE_KINDS)[number];
 
+export const WORK_ORDER_CONTACT_ROLES = ['site', 'customer', 'production', 'lead'] as const;
+export type WorkOrderContactRole = (typeof WORK_ORDER_CONTACT_ROLES)[number];
+
 export interface WorkOrderPhase {
-  readonly kind: WorkOrderPhaseKind;
-  /** ISO-8601 with explicit Europe/Stockholm offset, e.g. 2026-06-04T07:00:00+02:00 */
+  readonly phase: WorkOrderPhaseKind;
+  readonly label?: string;
   readonly startsAt: string;
   readonly endsAt: string;
 }
@@ -42,9 +30,8 @@ export interface WorkOrderLine {
   readonly lineId: string;
   readonly kind: WorkOrderLineKind;
   readonly label: string;
-  readonly quantity: number;
-  /** Omitted when Planning has no unit for the row — never invented. */
-  readonly unit?: string;
+  readonly quantity: string;
+  readonly unit: string;
   readonly note?: string;
   readonly parentLineId?: string;
 }
@@ -52,7 +39,7 @@ export interface WorkOrderLine {
 export interface WorkOrderInstruction {
   readonly instructionId: string;
   readonly label: string;
-  readonly body?: string;
+  readonly body: string;
 }
 
 export interface WorkOrderTask {
@@ -79,13 +66,14 @@ export interface WorkOrderTeamMember {
 
 export interface WorkOrderContact {
   readonly contactId: string;
-  readonly role: string;
+  readonly role: WorkOrderContactRole;
   readonly displayName: string;
   readonly phone?: string;
 }
 
-/** Every section is optional: a section is omitted when Planning holds no source data for it. */
 export interface WorkOrderV1 {
+  readonly contract: typeof WORK_ORDER_SCHEMA;
+  readonly summary?: string;
   readonly phases?: readonly WorkOrderPhase[];
   readonly lines?: readonly WorkOrderLine[];
   readonly instructions?: readonly WorkOrderInstruction[];
@@ -95,10 +83,9 @@ export interface WorkOrderV1 {
   readonly contacts?: readonly WorkOrderContact[];
 }
 
-/** Exact allowed keys per object path — mirrors the strictness of Time's parsers. */
 export const WORK_ORDER_V1_KEYS = {
-  root: ['phases', 'lines', 'instructions', 'tasks', 'files', 'team', 'contacts'],
-  phase: ['kind', 'startsAt', 'endsAt'],
+  root: ['contract', 'summary', 'phases', 'lines', 'instructions', 'tasks', 'files', 'team', 'contacts'],
+  phase: ['phase', 'label', 'startsAt', 'endsAt'],
   line: ['lineId', 'kind', 'label', 'quantity', 'unit', 'note', 'parentLineId'],
   instruction: ['instructionId', 'label', 'body'],
   task: ['taskId', 'label', 'note', 'phase'],
@@ -107,23 +94,36 @@ export const WORK_ORDER_V1_KEYS = {
   contact: ['contactId', 'role', 'displayName', 'phone'],
 } as const;
 
-/** Bounds applied on the Planning side so a work order can never blow up the sync payload. */
 export const WORK_ORDER_LIMITS = {
-  maxPhases: 20,
-  maxLines: 500,
-  maxInstructions: 50,
+  summary: 2_000,
+  identifier: 180,
+  label: 240,
+  note: 1_000,
+  body: 4_000,
+  unit: 40,
+  displayName: 160,
+  phone: 80,
+  url: 2_000,
+  mimeType: 120,
+  phases: 3,
+  lines: 300,
+  instructions: 30,
+  tasks: 100,
+  files: 50,
+  team: 60,
+  contacts: 20,
+  // Backwards-compatible aliases used by the Planning builder/tests.
+  maxPhases: 3,
+  maxLines: 300,
+  maxInstructions: 30,
   maxTasks: 100,
-  maxFiles: 100,
-  maxTeam: 100,
+  maxFiles: 50,
+  maxTeam: 60,
   maxContacts: 20,
   maxLabelLength: 240,
   maxTextLength: 2_000,
 } as const;
 
-/**
- * Terms that must never appear as a key anywhere inside an emitted work order.
- * Used by the Planning-side guard and locked by contract tests.
- */
 export const WORK_ORDER_FORBIDDEN_KEY_TERMS = [
   'price', 'cost', 'margin', 'vat', 'discount', 'economics', 'salary', 'rate',
   'internalnotes', 'internal_notes', 'purchase', 'revenue', 'invoice',
@@ -131,6 +131,16 @@ export const WORK_ORDER_FORBIDDEN_KEY_TERMS = [
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const requireText = (value: unknown, path: string, max: number): string => {
+  if (typeof value !== 'string' || value.trim() === '') throw new Error(`${path}: must be a non-empty string`);
+  if (value.length > max) throw new Error(`${path}: at most ${max} characters`);
+  return value;
+};
+
+const optionalText = (value: unknown, path: string, max: number) => {
+  if (value !== undefined) requireText(value, path, max);
+};
 
 const assertKeys = (value: Record<string, unknown>, allowed: readonly string[], path: string) => {
   const unexpected = Object.keys(value).filter((key) => !allowed.includes(key));
@@ -143,141 +153,154 @@ const assertKeys = (value: Record<string, unknown>, allowed: readonly string[], 
   }
 };
 
-const assertArrayOf = (
-  value: unknown,
-  path: string,
-  max: number,
-  check: (item: unknown, itemPath: string) => void,
-) => {
+const assertArray = (value: unknown, path: string, max: number): unknown[] => {
   if (!Array.isArray(value)) throw new Error(`${path}: must be an array`);
   if (value.length === 0) throw new Error(`${path}: empty sections must be omitted`);
   if (value.length > max) throw new Error(`${path}: at most ${max} entries`);
-  value.forEach((item, index) => check(item, `${path}[${index}]`));
+  return value;
 };
 
-const requireText = (value: unknown, path: string, max: number) => {
-  if (typeof value !== 'string' || value.trim() === '') throw new Error(`${path}: must be a non-empty string`);
-  if (value.length > max) throw new Error(`${path}: at most ${max} characters`);
-};
+const OFFSET_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}:?\d{2})$/;
+const QUANTITY = /^\d{1,9}(\.\d{1,3})?$/;
 
-const optionalText = (value: unknown, path: string, max: number) => {
-  if (value === undefined) return;
-  requireText(value, path, max);
-};
-
-const OFFSET_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/;
-
-/**
- * Planning-side guard: throws when an emitted work order deviates from the
- * contract (unknown keys, forbidden terms, empty sections, invented values).
- * The sync never sends a work order that fails this guard.
- */
 export function assertWorkOrderV1(value: unknown, path = 'workOrder'): asserts value is WorkOrderV1 {
   if (!isRecord(value)) throw new Error(`${path}: must be an object`);
   assertKeys(value, WORK_ORDER_V1_KEYS.root, path);
-  if (Object.keys(value).length === 0) throw new Error(`${path}: an empty work order must be omitted`);
+  if (value.contract !== WORK_ORDER_SCHEMA) throw new Error(`${path}.contract: unsupported contract version`);
+
+  let hasContent = typeof value.summary === 'string' && value.summary.trim() !== '';
+  optionalText(value.summary, `${path}.summary`, WORK_ORDER_LIMITS.summary);
 
   if (value.phases !== undefined) {
-    assertArrayOf(value.phases, `${path}.phases`, WORK_ORDER_LIMITS.maxPhases, (item, p) => {
-      if (!isRecord(item)) throw new Error(`${p}: must be an object`);
-      assertKeys(item, WORK_ORDER_V1_KEYS.phase, p);
-      if (!WORK_ORDER_PHASE_KINDS.includes(item.kind as WorkOrderPhaseKind)) throw new Error(`${p}.kind: invalid`);
+    const seen = new Set<string>();
+    for (const [i, raw] of assertArray(value.phases, `${path}.phases`, WORK_ORDER_LIMITS.phases).entries()) {
+      const p = `${path}.phases[${i}]`;
+      if (!isRecord(raw)) throw new Error(`${p}: must be an object`);
+      assertKeys(raw, WORK_ORDER_V1_KEYS.phase, p);
+      const phase = raw.phase;
+      if (typeof phase !== 'string' || !WORK_ORDER_PHASE_KINDS.includes(phase as WorkOrderPhaseKind)) throw new Error(`${p}.phase: invalid`);
+      if (seen.has(phase)) throw new Error(`${p}.phase: duplicate`);
+      seen.add(phase);
+      optionalText(raw.label, `${p}.label`, WORK_ORDER_LIMITS.label);
       for (const key of ['startsAt', 'endsAt'] as const) {
-        if (typeof item[key] !== 'string' || !OFFSET_ISO.test(item[key] as string)) {
-          throw new Error(`${p}.${key}: must be ISO-8601 with explicit offset`);
-        }
+        const timestamp = requireText(raw[key], `${p}.${key}`, 64);
+        if (!OFFSET_ISO.test(timestamp) || Number.isNaN(Date.parse(timestamp))) throw new Error(`${p}.${key}: must be ISO-8601 with explicit offset`);
       }
-      if (Date.parse(item.startsAt as string) >= Date.parse(item.endsAt as string)) {
-        throw new Error(`${p}: startsAt must be before endsAt`);
-      }
-    });
+      if (Date.parse(String(raw.startsAt)) >= Date.parse(String(raw.endsAt))) throw new Error(`${p}: startsAt must be before endsAt`);
+    }
+    hasContent = true;
   }
 
   if (value.lines !== undefined) {
     const ids = new Set<string>();
-    assertArrayOf(value.lines, `${path}.lines`, WORK_ORDER_LIMITS.maxLines, (item, p) => {
-      if (!isRecord(item)) throw new Error(`${p}: must be an object`);
-      assertKeys(item, WORK_ORDER_V1_KEYS.line, p);
-      requireText(item.lineId, `${p}.lineId`, WORK_ORDER_LIMITS.maxLabelLength);
-      if (ids.has(item.lineId as string)) throw new Error(`${p}.lineId: duplicate`);
-      ids.add(item.lineId as string);
-      if (!WORK_ORDER_LINE_KINDS.includes(item.kind as WorkOrderLineKind)) throw new Error(`${p}.kind: invalid`);
-      requireText(item.label, `${p}.label`, WORK_ORDER_LIMITS.maxLabelLength);
-      if (typeof item.quantity !== 'number' || !Number.isFinite(item.quantity) || item.quantity < 0) {
-        throw new Error(`${p}.quantity: must be a finite non-negative number`);
-      }
-      optionalText(item.unit, `${p}.unit`, 40);
-      optionalText(item.note, `${p}.note`, WORK_ORDER_LIMITS.maxTextLength);
-      optionalText(item.parentLineId, `${p}.parentLineId`, WORK_ORDER_LIMITS.maxLabelLength);
-    });
-    for (const line of value.lines as WorkOrderLine[]) {
-      if (line.parentLineId !== undefined && !ids.has(line.parentLineId)) {
-        throw new Error(`${path}.lines: parentLineId ${line.parentLineId} does not reference a line`);
+    const packages = new Set<string>();
+    const lines = assertArray(value.lines, `${path}.lines`, WORK_ORDER_LIMITS.lines);
+    for (const [i, raw] of lines.entries()) {
+      const p = `${path}.lines[${i}]`;
+      if (!isRecord(raw)) throw new Error(`${p}: must be an object`);
+      assertKeys(raw, WORK_ORDER_V1_KEYS.line, p);
+      const id = requireText(raw.lineId, `${p}.lineId`, WORK_ORDER_LIMITS.identifier);
+      if (ids.has(id)) throw new Error(`${p}.lineId: duplicate`);
+      ids.add(id);
+      if (typeof raw.kind !== 'string' || !WORK_ORDER_LINE_KINDS.includes(raw.kind as WorkOrderLineKind)) throw new Error(`${p}.kind: invalid`);
+      if (raw.kind === 'package') packages.add(id);
+      requireText(raw.label, `${p}.label`, WORK_ORDER_LIMITS.label);
+      const quantity = requireText(raw.quantity, `${p}.quantity`, 16);
+      if (!QUANTITY.test(quantity)) throw new Error(`${p}.quantity: invalid exact decimal`);
+      requireText(raw.unit, `${p}.unit`, WORK_ORDER_LIMITS.unit);
+      optionalText(raw.note, `${p}.note`, WORK_ORDER_LIMITS.note);
+      optionalText(raw.parentLineId, `${p}.parentLineId`, WORK_ORDER_LIMITS.identifier);
+    }
+    for (const [i, raw] of lines.entries()) {
+      const row = raw as Record<string, unknown>;
+      if (row.parentLineId !== undefined && (!packages.has(String(row.parentLineId)) || row.parentLineId === row.lineId)) {
+        throw new Error(`${path}.lines[${i}].parentLineId: must reference a package line`);
       }
     }
+    hasContent = true;
   }
 
   if (value.instructions !== undefined) {
-    const instructionIds = new Set<string>();
-    assertArrayOf(value.instructions, `${path}.instructions`, WORK_ORDER_LIMITS.maxInstructions, (item, p) => {
-      if (!isRecord(item)) throw new Error(`${p}: must be an object`);
-      assertKeys(item, WORK_ORDER_V1_KEYS.instruction, p);
-      requireText(item.instructionId, `${p}.instructionId`, WORK_ORDER_LIMITS.maxLabelLength);
-      if (instructionIds.has(item.instructionId as string)) throw new Error(`${p}.instructionId: duplicate`);
-      instructionIds.add(item.instructionId as string);
-      requireText(item.label, `${p}.label`, WORK_ORDER_LIMITS.maxLabelLength);
-      optionalText(item.body, `${p}.body`, WORK_ORDER_LIMITS.maxTextLength);
-    });
+    const ids = new Set<string>();
+    for (const [i, raw] of assertArray(value.instructions, `${path}.instructions`, WORK_ORDER_LIMITS.instructions).entries()) {
+      const p = `${path}.instructions[${i}]`;
+      if (!isRecord(raw)) throw new Error(`${p}: must be an object`);
+      assertKeys(raw, WORK_ORDER_V1_KEYS.instruction, p);
+      const id = requireText(raw.instructionId, `${p}.instructionId`, WORK_ORDER_LIMITS.identifier);
+      if (ids.has(id)) throw new Error(`${p}.instructionId: duplicate`);
+      ids.add(id);
+      requireText(raw.label, `${p}.label`, WORK_ORDER_LIMITS.label);
+      requireText(raw.body, `${p}.body`, WORK_ORDER_LIMITS.body);
+    }
+    hasContent = true;
   }
 
   if (value.tasks !== undefined) {
-    assertArrayOf(value.tasks, `${path}.tasks`, WORK_ORDER_LIMITS.maxTasks, (item, p) => {
-      if (!isRecord(item)) throw new Error(`${p}: must be an object`);
-      assertKeys(item, WORK_ORDER_V1_KEYS.task, p);
-      requireText(item.taskId, `${p}.taskId`, WORK_ORDER_LIMITS.maxLabelLength);
-      requireText(item.label, `${p}.label`, WORK_ORDER_LIMITS.maxLabelLength);
-      optionalText(item.note, `${p}.note`, WORK_ORDER_LIMITS.maxTextLength);
-      if (item.phase !== undefined && !WORK_ORDER_PHASE_KINDS.includes(item.phase as WorkOrderPhaseKind)) {
-        throw new Error(`${p}.phase: invalid`);
-      }
-    });
+    const ids = new Set<string>();
+    for (const [i, raw] of assertArray(value.tasks, `${path}.tasks`, WORK_ORDER_LIMITS.tasks).entries()) {
+      const p = `${path}.tasks[${i}]`;
+      if (!isRecord(raw)) throw new Error(`${p}: must be an object`);
+      assertKeys(raw, WORK_ORDER_V1_KEYS.task, p);
+      const id = requireText(raw.taskId, `${p}.taskId`, WORK_ORDER_LIMITS.identifier);
+      if (ids.has(id)) throw new Error(`${p}.taskId: duplicate`);
+      ids.add(id);
+      requireText(raw.label, `${p}.label`, WORK_ORDER_LIMITS.label);
+      optionalText(raw.note, `${p}.note`, WORK_ORDER_LIMITS.note);
+      if (raw.phase !== undefined && (typeof raw.phase !== 'string' || !WORK_ORDER_PHASE_KINDS.includes(raw.phase as WorkOrderPhaseKind))) throw new Error(`${p}.phase: invalid`);
+    }
+    hasContent = true;
   }
 
   if (value.files !== undefined) {
-    assertArrayOf(value.files, `${path}.files`, WORK_ORDER_LIMITS.maxFiles, (item, p) => {
-      if (!isRecord(item)) throw new Error(`${p}: must be an object`);
-      assertKeys(item, WORK_ORDER_V1_KEYS.file, p);
-      requireText(item.fileId, `${p}.fileId`, WORK_ORDER_LIMITS.maxLabelLength);
-      if (typeof item.url !== 'string' || !isHttpsUrl(item.url)) throw new Error(`${p}.url: must be an https URL`);
-      if (item.thumbnailUrl !== undefined && (typeof item.thumbnailUrl !== 'string' || !isHttpsUrl(item.thumbnailUrl))) {
-        throw new Error(`${p}.thumbnailUrl: must be an https URL`);
-      }
-      requireText(item.label, `${p}.label`, WORK_ORDER_LIMITS.maxLabelLength);
-      optionalText(item.mimeType, `${p}.mimeType`, 160);
-      if (!WORK_ORDER_FILE_KINDS.includes(item.kind as WorkOrderFileKind)) throw new Error(`${p}.kind: invalid`);
-    });
+    const ids = new Set<string>();
+    for (const [i, raw] of assertArray(value.files, `${path}.files`, WORK_ORDER_LIMITS.files).entries()) {
+      const p = `${path}.files[${i}]`;
+      if (!isRecord(raw)) throw new Error(`${p}: must be an object`);
+      assertKeys(raw, WORK_ORDER_V1_KEYS.file, p);
+      const id = requireText(raw.fileId, `${p}.fileId`, WORK_ORDER_LIMITS.identifier);
+      if (ids.has(id)) throw new Error(`${p}.fileId: duplicate`);
+      ids.add(id);
+      if (typeof raw.kind !== 'string' || !WORK_ORDER_FILE_KINDS.includes(raw.kind as WorkOrderFileKind)) throw new Error(`${p}.kind: invalid`);
+      requireText(raw.label, `${p}.label`, WORK_ORDER_LIMITS.label);
+      if (typeof raw.url !== 'string' || !isHttpsUrl(raw.url)) throw new Error(`${p}.url: must be an https URL`);
+      if (raw.thumbnailUrl !== undefined && (typeof raw.thumbnailUrl !== 'string' || !isHttpsUrl(raw.thumbnailUrl))) throw new Error(`${p}.thumbnailUrl: must be an https URL`);
+      optionalText(raw.mimeType, `${p}.mimeType`, WORK_ORDER_LIMITS.mimeType);
+    }
+    hasContent = true;
   }
 
   if (value.team !== undefined) {
-    assertArrayOf(value.team, `${path}.team`, WORK_ORDER_LIMITS.maxTeam, (item, p) => {
-      if (!isRecord(item)) throw new Error(`${p}: must be an object`);
-      assertKeys(item, WORK_ORDER_V1_KEYS.teamMember, p);
-      requireText(item.memberId, `${p}.memberId`, WORK_ORDER_LIMITS.maxLabelLength);
-      requireText(item.displayName, `${p}.displayName`, WORK_ORDER_LIMITS.maxLabelLength);
-      optionalText(item.roleLabel, `${p}.roleLabel`, WORK_ORDER_LIMITS.maxLabelLength);
-    });
+    const ids = new Set<string>();
+    for (const [i, raw] of assertArray(value.team, `${path}.team`, WORK_ORDER_LIMITS.team).entries()) {
+      const p = `${path}.team[${i}]`;
+      if (!isRecord(raw)) throw new Error(`${p}: must be an object`);
+      assertKeys(raw, WORK_ORDER_V1_KEYS.teamMember, p);
+      const id = requireText(raw.memberId, `${p}.memberId`, WORK_ORDER_LIMITS.identifier);
+      if (ids.has(id)) throw new Error(`${p}.memberId: duplicate`);
+      ids.add(id);
+      requireText(raw.displayName, `${p}.displayName`, WORK_ORDER_LIMITS.displayName);
+      optionalText(raw.roleLabel, `${p}.roleLabel`, WORK_ORDER_LIMITS.label);
+    }
+    hasContent = true;
   }
 
   if (value.contacts !== undefined) {
-    assertArrayOf(value.contacts, `${path}.contacts`, WORK_ORDER_LIMITS.maxContacts, (item, p) => {
-      if (!isRecord(item)) throw new Error(`${p}: must be an object`);
-      assertKeys(item, WORK_ORDER_V1_KEYS.contact, p);
-      requireText(item.contactId, `${p}.contactId`, WORK_ORDER_LIMITS.maxLabelLength);
-      requireText(item.role, `${p}.role`, WORK_ORDER_LIMITS.maxLabelLength);
-      requireText(item.displayName, `${p}.displayName`, WORK_ORDER_LIMITS.maxLabelLength);
-      optionalText(item.phone, `${p}.phone`, 60);
-    });
+    const ids = new Set<string>();
+    for (const [i, raw] of assertArray(value.contacts, `${path}.contacts`, WORK_ORDER_LIMITS.contacts).entries()) {
+      const p = `${path}.contacts[${i}]`;
+      if (!isRecord(raw)) throw new Error(`${p}: must be an object`);
+      assertKeys(raw, WORK_ORDER_V1_KEYS.contact, p);
+      const id = requireText(raw.contactId, `${p}.contactId`, WORK_ORDER_LIMITS.identifier);
+      if (ids.has(id)) throw new Error(`${p}.contactId: duplicate`);
+      ids.add(id);
+      if (typeof raw.role !== 'string' || !WORK_ORDER_CONTACT_ROLES.includes(raw.role as WorkOrderContactRole)) throw new Error(`${p}.role: invalid`);
+      requireText(raw.displayName, `${p}.displayName`, WORK_ORDER_LIMITS.displayName);
+      optionalText(raw.phone, `${p}.phone`, WORK_ORDER_LIMITS.phone);
+    }
+    hasContent = true;
   }
+
+  if (!hasContent) throw new Error(`${path}: an empty work order must be omitted`);
 }
 
 export const isHttpsUrl = (value: string): boolean => {
@@ -289,36 +312,20 @@ export const isHttpsUrl = (value: string): boolean => {
   }
 };
 
-// ---------------------------------------------------------------------------
-// Europe/Stockholm offset conversion (DST-safe, device-timezone independent).
-// ---------------------------------------------------------------------------
-
 export const WORK_ORDER_TIME_ZONE = 'Europe/Stockholm' as const;
-
 const partsFormatter = new Intl.DateTimeFormat('en-US', {
   timeZone: WORK_ORDER_TIME_ZONE,
-  hourCycle: 'h23',
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-  timeZoneName: 'longOffset',
+  hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'longOffset',
 });
 
-/**
- * Converts any parseable instant (Postgres timestamptz text, ISO with Z or
- * offset) to the SAME instant expressed with the explicit Europe/Stockholm
- * offset valid at that instant. Returns null for unparseable input.
- */
 export const toStockholmOffsetIso = (value: unknown): string | null => {
   if (typeof value !== 'string' || !value.trim()) return null;
   const ms = Date.parse(value);
   if (!Number.isFinite(ms)) return null;
   const parts = partsFormatter.formatToParts(new Date(ms));
   const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? '';
-  const offsetRaw = get('timeZoneName'); // "GMT+02:00" | "GMT+01:00" | "GMT"
+  const offsetRaw = get('timeZoneName');
   const offsetMatch = offsetRaw.match(/^GMT([+-]\d{2}:\d{2})?$/);
   if (!offsetMatch) return null;
   const offset = offsetMatch[1] ?? '+00:00';
