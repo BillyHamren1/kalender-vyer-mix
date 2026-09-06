@@ -107,12 +107,18 @@ export interface WorkerAssignmentSyncContext {
  * assignments into Time. No Planning source row is modified.
  */
 export async function handleWorkerAssignmentSync(ctx: WorkerAssignmentSyncContext): Promise<Response> {
-  if (!ctx.anonKey) return fail(503, 'not_configured', 'Time Auth-nyckeln saknas för uppdragssynken.', true);
+  // Time's API gateway requires an `apikey` header that is a JWT signed by the
+  // Time project. The worker's own access token already satisfies that, so no
+  // separate Time anon key is required for this route; when the optional
+  // TIME_ADAPTER_ANON_KEY is configured it is still preferred.
+  const gatewayKey = ctx.anonKey ?? ctx.authorization.replace(/^Bearer\s+/i, '').trim();
+  if (!gatewayKey) return fail(401, 'unauthorized', 'Time-sessionen saknas i anropet.');
 
   const userResponse = await fetch(`${timeProjectRoot(ctx.adapterUrl)}/auth/v1/user`, {
-    headers: { authorization: ctx.authorization, apikey: ctx.anonKey },
+    headers: { authorization: ctx.authorization, apikey: gatewayKey },
   }).catch(() => null);
   if (!userResponse?.ok) return fail(401, 'unauthorized', 'Time-sessionen kunde inte verifieras.');
+
   const timeUser = await userResponse.json().catch(() => null) as Json | null;
   const email = text(timeUser?.email)?.toLocaleLowerCase('sv-SE');
   if (!email) return fail(401, 'unauthorized', 'Time-sessionen saknar verifierad e-postadress.');
