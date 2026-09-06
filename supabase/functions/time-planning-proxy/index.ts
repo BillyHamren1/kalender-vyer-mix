@@ -15,7 +15,7 @@
  */
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { corsHeaders } from '../_shared/cors.ts';
 import { assertPlanningAccess } from '../_shared/planningAccess.ts';
 import {
   buildServiceProofClaims,

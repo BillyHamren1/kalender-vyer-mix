@@ -13,7 +13,7 @@
  * No token, seed or key material is ever returned or logged.
  */
 
-import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { corsHeaders } from '../_shared/cors.ts';
 import { base64url, deriveSigningKeyFromSeed } from '../_shared/timeServiceProof.ts';
 import { buildLagerContextProjection } from '../_shared/time-v2/lagerProjection.ts';
 import { readLagerProjectionInputs } from '../_shared/time-v2/lagerContextReads.ts';

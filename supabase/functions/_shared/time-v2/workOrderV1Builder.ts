@@ -135,7 +135,7 @@ export interface WorkOrderBuildInput {
 export type WorkOrderGaps = Record<string, number>;
 export interface WorkOrderBuildResult { readonly workOrder: WorkOrderV1 | null; readonly gaps: WorkOrderGaps; }
 
-const text = (value: unknown, max = WORK_ORDER_LIMITS.maxTextLength): string | undefined => {
+const text = (value: unknown, max: number = WORK_ORDER_LIMITS.maxTextLength): string | undefined => {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
   if (!trimmed) return undefined;

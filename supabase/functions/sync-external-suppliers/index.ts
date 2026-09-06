@@ -301,7 +301,7 @@ Deno.serve(async (req) => {
     const results: any[] = []
     for (const orgId of orgIds) {
       try {
-        const r = await syncOrganization(admin, apiKey, orgId, mode)
+        const r = await syncOrganization(admin as any, apiKey, orgId, mode)
         results.push({ ...r, status: 'ok' })
       } catch (err: any) {
         const msg = String(err?.message ?? err)
