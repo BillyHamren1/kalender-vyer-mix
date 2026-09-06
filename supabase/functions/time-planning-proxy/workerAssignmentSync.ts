@@ -18,6 +18,15 @@ import type { WorkOrderBookingSource, WorkOrderProjectSource } from '../_shared/
 type Json = Record<string, unknown>;
 
 /**
+ * The Time worker route is currently pinned to the isolated Time staging
+ * project. Supabase publishable keys are intentionally public credentials;
+ * this fallback is host-pinned so it can never be used for another project.
+ * TIME_ADAPTER_ANON_KEY still wins when configured server-side.
+ */
+const TIME_STAGING_HOST = 'pklkhhfvgmexsrkkpkzt.supabase.co';
+const TIME_STAGING_PUBLISHABLE_KEY = 'sb_publishable_NhobrNS2pBx6ronR-aQIjg_msYtBS-c';
+
+/**
  * Field-relevant booking columns for the assignment + work order. Deliberately
  * excludes internalnotes, economics_data and every cost/price column.
  */
@@ -56,6 +65,17 @@ const text = (value: unknown): string | null => typeof value === 'string' && val
 const timeProjectRoot = (adapterUrl: string) => {
   const url = new URL(adapterUrl);
   return url.origin;
+};
+
+const resolveGatewayKey = (adapterUrl: string, configuredKey?: string): string | null => {
+  if (configuredKey?.trim()) return configuredKey.trim();
+  try {
+    return new URL(adapterUrl).host.toLowerCase() === TIME_STAGING_HOST
+      ? TIME_STAGING_PUBLISHABLE_KEY
+      : null;
+  } catch {
+    return null;
+  }
 };
 
 const callTimeAdapter = async (input: {
@@ -107,12 +127,10 @@ export interface WorkerAssignmentSyncContext {
  * assignments into Time. No Planning source row is modified.
  */
 export async function handleWorkerAssignmentSync(ctx: WorkerAssignmentSyncContext): Promise<Response> {
-  // Time's API gateway requires an `apikey` header that is a JWT signed by the
-  // Time project. The worker's own access token already satisfies that, so no
-  // separate Time anon key is required for this route; when the optional
-  // TIME_ADAPTER_ANON_KEY is configured it is still preferred.
-  const gatewayKey = ctx.anonKey ?? ctx.authorization.replace(/^Bearer\s+/i, '').trim();
-  if (!gatewayKey) return fail(401, 'unauthorized', 'Time-sessionen saknas i anropet.');
+  const gatewayKey = resolveGatewayKey(ctx.adapterUrl, ctx.anonKey);
+  if (!gatewayKey) {
+    return fail(503, 'not_configured', 'Time Auth-nyckeln saknas för uppdragssynken.', true);
+  }
 
   const userResponse = await fetch(`${timeProjectRoot(ctx.adapterUrl)}/auth/v1/user`, {
     headers: { authorization: ctx.authorization, apikey: gatewayKey },
@@ -188,8 +206,6 @@ export async function handleWorkerAssignmentSync(ctx: WorkerAssignmentSyncContex
     if (!projectByBooking.has(String(row.booking_id))) projectByBooking.set(String(row.booking_id), row);
   }
 
-  // Pass 1 — the assignment binding (unchanged): worker × team-day × calendar
-  // event × CONFIRMED booking (× project when one exists).
   const shapes: AssignmentShapeInput[] = [];
   for (const event of calendar) {
     const startsAt = text(event.start_time);
@@ -201,7 +217,6 @@ export async function handleWorkerAssignmentSync(ctx: WorkerAssignmentSyncContex
     shapes.push({ event, booking, project: projectByBooking.get(bookingId) ?? null, staff, startsAt, endsAt });
   }
 
-  // Pass 2 — additive work-order.v1 per bound assignment (field data only).
   const candidates: WorkOrderCandidate[] = shapes.map((shape) => ({
     sourceAssignmentId: String(shape.event.id),
     workDate: String(shape.event.source_date),
