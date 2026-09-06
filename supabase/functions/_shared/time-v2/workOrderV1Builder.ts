@@ -1,24 +1,9 @@
-/**
- * Builds one `work-order.v1` document from REAL Planning source rows for one
- * assignment (worker × booking × workDate). Pure: no I/O.
- *
- * Rules (pinned by tests):
- *  - only existing Planning data is mapped — nothing is invented; a section
- *    without source data is omitted and the reason is reported as a gap,
- *  - phases come from Planning's SAVED time fields (bookings.<phase>_start/
- *    end_time + calendar_events extra days) converted to Europe/Stockholm offset,
- *  - lines keep quantity, row note and package parent; `unit` is omitted
- *    because Planning has no unit source (reported as gap),
- *  - tasks are ONLY the receiving worker's own tasks,
- *  - files are only real HTTPS URLs,
- *  - costs, prices, margins, VAT/discount and internal notes are never read.
- */
-
 import {
   assertWorkOrderV1,
   isHttpsUrl,
   toStockholmOffsetIso,
   WORK_ORDER_LIMITS,
+  WORK_ORDER_SCHEMA,
   type WorkOrderContact,
   type WorkOrderFile,
   type WorkOrderFileKind,
@@ -86,9 +71,7 @@ export interface WorkOrderCalendarPhaseRow extends Extra {
 
 export interface WorkOrderFileRow extends Extra {
   readonly id: string;
-  /** booking_attachments.booking_id */
   readonly booking_id?: string | null;
-  /** project_files.project_id */
   readonly project_id?: string | null;
   readonly url: string | null;
   readonly file_name?: string | null;
@@ -149,412 +132,188 @@ export interface WorkOrderBuildInput {
   readonly staffById?: ReadonlyMap<string, WorkOrderStaffRow>;
 }
 
-/** Aggregated, PII-free gap counters for one built work order. */
 export type WorkOrderGaps = Record<string, number>;
+export interface WorkOrderBuildResult { readonly workOrder: WorkOrderV1 | null; readonly gaps: WorkOrderGaps; }
 
-export interface WorkOrderBuildResult {
-  readonly workOrder: WorkOrderV1 | null;
-  readonly gaps: WorkOrderGaps;
-}
-
-// ---------------------------------------------------------------------------
-
-const text = (value: unknown, max: number = WORK_ORDER_LIMITS.maxTextLength): string | undefined => {
+const text = (value: unknown, max = WORK_ORDER_LIMITS.maxTextLength): string | undefined => {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
   if (!trimmed) return undefined;
   return trimmed.length > max ? trimmed.slice(0, max) : trimmed;
 };
-
-const label = (value: unknown) => text(value, WORK_ORDER_LIMITS.maxLabelLength);
-
-const bump = (gaps: WorkOrderGaps, code: string, by = 1) => {
-  if (by > 0) gaps[code] = (gaps[code] ?? 0) + by;
-};
-
+const label = (value: unknown) => text(value, WORK_ORDER_LIMITS.label);
+const bump = (gaps: WorkOrderGaps, code: string, by = 1) => { if (by > 0) gaps[code] = (gaps[code] ?? 0) + by; };
 const includesWorker = (row: { assigned_to?: string | null; assigned_to_ids?: readonly string[] | null }, staffId: string) =>
   (Array.isArray(row.assigned_to_ids) && row.assigned_to_ids.includes(staffId)) || row.assigned_to === staffId;
-
-const compareNullableNumber = (a: number | null | undefined, b: number | null | undefined) => {
-  const av = typeof a === 'number' && Number.isFinite(a) ? a : Number.POSITIVE_INFINITY;
-  const bv = typeof b === 'number' && Number.isFinite(b) ? b : Number.POSITIVE_INFINITY;
-  return av - bv;
-};
-
-// Same hierarchy-prefix cleaner as Planning's ProjectProductsList.cleanName.
+const compareNullableNumber = (a: number | null | undefined, b: number | null | undefined) =>
+  (typeof a === 'number' && Number.isFinite(a) ? a : Number.POSITIVE_INFINITY)
+  - (typeof b === 'number' && Number.isFinite(b) ? b : Number.POSITIVE_INFINITY);
 const HIERARCHY_PREFIX = /^(?:L,|--|[↳└→✓\u21B3\u2514\u2192\u2713\-–\s])+\s*/;
 const cleanLineName = (name: string) => name.replace(HIERARCHY_PREFIX, '').trim();
-
 const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-// ---------------------------------------------------------------------------
-// Phases
-// ---------------------------------------------------------------------------
 
 const CALENDAR_PHASE_KIND: Record<string, WorkOrderPhaseKind> = { rig: 'rig', event: 'event', rigDown: 'derig' };
 const PHASE_ORDER: Record<WorkOrderPhaseKind, number> = { rig: 0, event: 1, derig: 2 };
 
 const buildPhases = (input: WorkOrderBuildInput, gaps: WorkOrderGaps): WorkOrderPhase[] => {
-  const { booking } = input;
-  const out = new Map<string, WorkOrderPhase>();
-  const push = (kind: WorkOrderPhaseKind, start: unknown, end: unknown, failCode: string) => {
+  const byPhase = new Map<WorkOrderPhaseKind, WorkOrderPhase>();
+  const push = (phase: WorkOrderPhaseKind, start: unknown, end: unknown, source: string) => {
+    if (byPhase.has(phase)) return;
     const startsAt = toStockholmOffsetIso(start);
     const endsAt = toStockholmOffsetIso(end);
     if (!startsAt || !endsAt || Date.parse(startsAt) >= Date.parse(endsAt)) {
-      bump(gaps, failCode);
+      bump(gaps, `phase_invalid:${source}`);
       return;
     }
-    out.set(`${kind}|${startsAt}|${endsAt}`, { kind, startsAt, endsAt });
+    byPhase.set(phase, { phase, startsAt, endsAt });
   };
-
-  const canonical: Array<[WorkOrderPhaseKind, unknown, unknown, unknown]> = [
-    ['rig', booking.rig_start_time, booking.rig_end_time, booking.rigdaydate],
-    ['event', booking.event_start_time, booking.event_end_time, booking.eventdate],
-    ['derig', booking.rigdown_start_time, booking.rigdown_end_time, booking.rigdowndate],
-  ];
-  for (const [kind, start, end, date] of canonical) {
-    const hasStart = typeof start === 'string' && start.trim() !== '';
-    const hasEnd = typeof end === 'string' && end.trim() !== '';
-    if (hasStart && hasEnd) push(kind, start, end, `phase_invalid:${kind}`);
-    else if (hasStart || hasEnd || (typeof date === 'string' && date)) bump(gaps, `phase_times_missing:${kind}`);
-  }
-
+  const booking = input.booking;
+  push('rig', booking.rig_start_time, booking.rig_end_time, 'rig');
+  push('event', booking.event_start_time, booking.event_end_time, 'event');
+  push('derig', booking.rigdown_start_time, booking.rigdown_end_time, 'derig');
   for (const row of input.calendarPhases ?? []) {
     if (row.booking_id !== booking.id) continue;
-    const kind = CALENDAR_PHASE_KIND[String(row.event_type ?? '')];
-    if (!kind) continue;
-    push(kind, row.start_time, row.end_time, `phase_invalid:${kind}`);
+    const phase = CALENDAR_PHASE_KIND[String(row.event_type ?? '')];
+    if (phase) push(phase, row.start_time, row.end_time, String(row.event_type));
   }
-
-  const phases = [...out.values()].sort((a, b) =>
-    a.startsAt.localeCompare(b.startsAt) || PHASE_ORDER[a.kind] - PHASE_ORDER[b.kind]);
-  if (phases.length > WORK_ORDER_LIMITS.maxPhases) {
-    bump(gaps, 'phases_truncated', phases.length - WORK_ORDER_LIMITS.maxPhases);
-    return phases.slice(0, WORK_ORDER_LIMITS.maxPhases);
-  }
-  return phases;
+  return [...byPhase.values()].sort((a, b) => PHASE_ORDER[a.phase] - PHASE_ORDER[b.phase]);
 };
 
-// ---------------------------------------------------------------------------
-// Lines (booking rows / products / packages)
-// ---------------------------------------------------------------------------
+const exactQuantity = (value: number): string | null => {
+  if (!Number.isFinite(value) || value < 0) return null;
+  const rounded = Math.round(value * 1000) / 1000;
+  if (Math.abs(value - rounded) > 1e-9) return null;
+  const result = String(rounded);
+  return /^\d{1,9}(\.\d{1,3})?$/.test(result) ? result : null;
+};
 
 const buildLines = (input: WorkOrderBuildInput, gaps: WorkOrderGaps): WorkOrderLine[] => {
   const rows = (input.products ?? [])
     .filter((row) => row.booking_id === input.booking.id && !row.source_missing_since)
     .slice()
-    .sort((a, b) =>
-      compareNullableNumber(a.sort_index, b.sort_index) ||
-      String(a.name ?? '').localeCompare(String(b.name ?? ''), 'sv') ||
-      a.id.localeCompare(b.id));
-  if (rows.length === 0) return [];
-
+    .sort((a, b) => compareNullableNumber(a.sort_index, b.sort_index) || String(a.name ?? '').localeCompare(String(b.name ?? ''), 'sv') || a.id.localeCompare(b.id));
   const byId = new Map(rows.map((row) => [row.id, row]));
   const rowIdByInventoryPackage = new Map<string, string>();
-  for (const row of rows) {
-    if (row.inventory_package_id && row.is_package_component !== true && !rowIdByInventoryPackage.has(row.inventory_package_id)) {
-      rowIdByInventoryPackage.set(row.inventory_package_id, row.id);
-    }
-  }
+  for (const row of rows) if (row.inventory_package_id && row.is_package_component !== true && !rowIdByInventoryPackage.has(row.inventory_package_id)) rowIdByInventoryPackage.set(row.inventory_package_id, row.id);
 
-  const resolveParent = (row: WorkOrderProductRow): string | undefined => {
-    if (row.parent_product_id && byId.has(row.parent_product_id) && row.parent_product_id !== row.id) return row.parent_product_id;
-    if (row.parent_package_id) {
-      if (byId.has(row.parent_package_id) && row.parent_package_id !== row.id) return row.parent_package_id;
-      const viaInventory = rowIdByInventoryPackage.get(row.parent_package_id);
-      if (viaInventory && viaInventory !== row.id) return viaInventory;
-    }
-    return undefined;
-  };
-
-  const parentIds = new Set<string>();
   const parentOf = new Map<string, string | undefined>();
+  const parentIds = new Set<string>();
   for (const row of rows) {
-    const parent = resolveParent(row);
+    let parent: string | undefined;
+    if (row.parent_product_id && byId.has(row.parent_product_id) && row.parent_product_id !== row.id) parent = row.parent_product_id;
+    else if (row.parent_package_id) {
+      if (byId.has(row.parent_package_id) && row.parent_package_id !== row.id) parent = row.parent_package_id;
+      else parent = rowIdByInventoryPackage.get(row.parent_package_id);
+    }
     parentOf.set(row.id, parent);
     if (parent) parentIds.add(parent);
-    else if (row.parent_product_id || row.parent_package_id) bump(gaps, 'line_parent_unresolved');
   }
-
-  const isPackage = (row: WorkOrderProductRow) =>
-    (Array.isArray(row.package_components) && row.package_components.length > 0) ||
-    (Boolean(row.inventory_package_id) && row.is_package_component !== true) ||
-    (parentIds.has(row.id) && rows.some((child) => parentOf.get(child.id) === row.id && child.is_package_component === true));
+  const packageIds = new Set(rows.filter((row) =>
+    (Array.isArray(row.package_components) && row.package_components.length > 0)
+    || (Boolean(row.inventory_package_id) && row.is_package_component !== true)
+    || parentIds.has(row.id)).map((row) => row.id));
 
   const lines: WorkOrderLine[] = [];
   for (const row of rows) {
     const rawName = label(row.name);
-    if (!rawName) {
-      bump(gaps, 'line_label_missing');
-      continue;
-    }
-    const quantity = typeof row.quantity === 'number' && Number.isFinite(row.quantity) && row.quantity >= 0
-      ? row.quantity
-      : null;
-    if (quantity === null) {
-      bump(gaps, 'line_quantity_invalid');
-      continue;
-    }
-    const parentLineId = parentOf.get(row.id);
-    const cleaned = parentLineId ? cleanLineName(rawName) : rawName;
-    const line: WorkOrderLine = {
+    const quantity = typeof row.quantity === 'number' ? exactQuantity(row.quantity) : null;
+    if (!rawName || quantity === null) { bump(gaps, !rawName ? 'line_label_missing' : 'line_quantity_invalid'); continue; }
+    const parent = parentOf.get(row.id);
+    const parentLineId = parent && packageIds.has(parent) ? parent : undefined;
+    if (parent && !parentLineId) bump(gaps, 'line_parent_unresolved');
+    lines.push({
       lineId: row.id,
-      kind: isPackage(row) ? 'package' : 'product',
-      label: label(cleaned) ?? rawName,
+      kind: packageIds.has(row.id) ? 'package' : 'product',
+      label: label(parentLineId ? cleanLineName(rawName) : rawName) ?? rawName,
       quantity,
-      ...(text(row.notes) ? { note: text(row.notes) } : {}),
+      // Booking/Planning quantities are counts; there is no alternate unit column.
+      unit: 'st',
+      ...(text(row.notes, WORK_ORDER_LIMITS.note) ? { note: text(row.notes, WORK_ORDER_LIMITS.note) } : {}),
       ...(parentLineId ? { parentLineId } : {}),
-    };
-    lines.push(line);
+    });
   }
-
-  // Planning has no unit column on booking rows; the field is omitted, never invented.
-  bump(gaps, 'line_unit_unavailable', lines.length);
-
-  if (lines.length > WORK_ORDER_LIMITS.maxLines) {
-    bump(gaps, 'lines_truncated', lines.length - WORK_ORDER_LIMITS.maxLines);
-    const kept = lines.slice(0, WORK_ORDER_LIMITS.maxLines);
-    const keptIds = new Set(kept.map((line) => line.lineId));
-    return kept.map((line) => (line.parentLineId && !keptIds.has(line.parentLineId)
-      ? { ...line, parentLineId: undefined }
-      : line)).map((line) => (line.parentLineId === undefined ? stripUndefined(line) : line));
-  }
-  return lines;
+  return lines.slice(0, WORK_ORDER_LIMITS.lines);
 };
-
-const stripUndefined = <T extends object>(value: T): T =>
-  Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined)) as T;
-
-// ---------------------------------------------------------------------------
-// Instructions (practical booking flags + exact-time info; never internal notes)
-// ---------------------------------------------------------------------------
 
 const buildInstructions = (input: WorkOrderBuildInput): WorkOrderInstruction[] => {
-  const { booking } = input;
   const out: WorkOrderInstruction[] = [];
-  const push = (instructionId: string, labelText: string, body?: string) => {
-    out.push({ instructionId, label: labelText, ...(body ? { body } : {}) });
-  };
-  const exactInfo = text(booking.exact_time_info);
-  if (booking.exact_time_needed === true) push('exact_time_needed', 'Exakt tid behövs', exactInfo);
+  const push = (instructionId: string, labelText: string, body?: string) => out.push({ instructionId, label: labelText, body: body ?? labelText });
+  const b = input.booking;
+  const exactInfo = text(b.exact_time_info, WORK_ORDER_LIMITS.body);
+  if (b.exact_time_needed === true) push('exact_time_needed', 'Exakt tid behövs', exactInfo);
   else if (exactInfo) push('exact_time_info', 'Tidsinformation', exactInfo);
-  if (booking.carry_more_than_10m === true) push('carry_more_than_10m', 'Bär mer än 10 m');
-  if (booking.ground_nails_allowed === true) push('ground_nails_allowed', 'Markpinnar tillåtet');
-  if (booking.ground_nails_allowed === false) push('ground_nails_not_allowed', 'Markpinnar ej tillåtet');
-  if (booking.customer_pickup === true) push('customer_pickup', 'Kund hämtar själv');
-  if (booking.rental_only === true) push('rental_only', 'Endast uthyrning');
-  return out.slice(0, WORK_ORDER_LIMITS.maxInstructions);
+  if (b.carry_more_than_10m === true) push('carry_more_than_10m', 'Bär mer än 10 m');
+  if (b.ground_nails_allowed === true) push('ground_nails_allowed', 'Markpinnar tillåtet');
+  if (b.ground_nails_allowed === false) push('ground_nails_not_allowed', 'Markpinnar ej tillåtet');
+  if (b.customer_pickup === true) push('customer_pickup', 'Kund hämtar själv');
+  if (b.rental_only === true) push('rental_only', 'Endast uthyrning');
+  return out.slice(0, WORK_ORDER_LIMITS.instructions);
 };
-
-// ---------------------------------------------------------------------------
-// Tasks — only the receiving worker's own tasks
-// ---------------------------------------------------------------------------
 
 const buildTasks = (input: WorkOrderBuildInput, gaps: WorkOrderGaps): WorkOrderTask[] => {
-  const worker = input.workerStaffId;
-  const out: Array<WorkOrderTask & { readonly sort: number }> = [];
-
+  const out: Array<WorkOrderTask & { sort: number }> = [];
   for (const row of input.establishmentTasks ?? []) {
-    if (row.booking_id !== input.booking.id || row.visible_in_time_app !== true || !includesWorker(row, worker)) continue;
-    const title = label(row.title);
-    if (!title) {
-      bump(gaps, 'task_title_missing');
-      continue;
-    }
-    out.push({
-      taskId: row.id,
-      label: title,
-      ...(text(row.notes) ? { note: text(row.notes) } : {}),
-      sort: typeof row.sort_order === 'number' ? row.sort_order : Number.POSITIVE_INFINITY,
-    });
+    if (row.booking_id !== input.booking.id || row.visible_in_time_app !== true || !includesWorker(row, input.workerStaffId)) continue;
+    const taskLabel = label(row.title); if (!taskLabel) { bump(gaps, 'task_title_missing'); continue; }
+    out.push({ taskId: row.id, label: taskLabel, ...(text(row.notes, WORK_ORDER_LIMITS.note) ? { note: text(row.notes, WORK_ORDER_LIMITS.note) } : {}), sort: typeof row.sort_order === 'number' ? row.sort_order : Number.POSITIVE_INFINITY });
   }
-
   const projectId = input.project?.id ?? null;
   for (const row of input.projectTasks ?? []) {
-    if (!projectId || row.project_id !== projectId || row.is_info_only === true || !includesWorker(row, worker)) continue;
-    const title = label(row.title);
-    if (!title) {
-      bump(gaps, 'task_title_missing');
-      continue;
-    }
-    out.push({
-      taskId: row.id,
-      label: title,
-      ...(text(row.description) ? { note: text(row.description) } : {}),
-      sort: typeof row.sort_order === 'number' ? row.sort_order : Number.POSITIVE_INFINITY,
-    });
+    if (!projectId || row.project_id !== projectId || row.is_info_only === true || !includesWorker(row, input.workerStaffId)) continue;
+    const taskLabel = label(row.title); if (!taskLabel) { bump(gaps, 'task_title_missing'); continue; }
+    out.push({ taskId: row.id, label: taskLabel, ...(text(row.description, WORK_ORDER_LIMITS.note) ? { note: text(row.description, WORK_ORDER_LIMITS.note) } : {}), sort: typeof row.sort_order === 'number' ? row.sort_order : Number.POSITIVE_INFINITY });
   }
-
   const seen = new Set<string>();
-  const tasks = out
-    .sort((a, b) => a.sort - b.sort || a.label.localeCompare(b.label, 'sv') || a.taskId.localeCompare(b.taskId))
-    .filter((task) => (seen.has(task.taskId) ? false : (seen.add(task.taskId), true)))
-    .map(({ sort: _sort, ...task }) => task);
-  // Planning has no per-task phase binding; the field is omitted, never invented.
-  if (tasks.length > 0) bump(gaps, 'task_phase_unavailable', tasks.length);
-  if (tasks.length > WORK_ORDER_LIMITS.maxTasks) {
-    bump(gaps, 'tasks_truncated', tasks.length - WORK_ORDER_LIMITS.maxTasks);
-    return tasks.slice(0, WORK_ORDER_LIMITS.maxTasks);
-  }
-  return tasks;
+  return out.sort((a, b) => a.sort - b.sort || a.label.localeCompare(b.label, 'sv')).filter((row) => !seen.has(row.taskId) && Boolean(seen.add(row.taskId))).slice(0, WORK_ORDER_LIMITS.tasks).map(({ sort: _sort, ...task }) => task);
 };
-
-// ---------------------------------------------------------------------------
-// Files — real HTTPS URLs only
-// ---------------------------------------------------------------------------
 
 const IMAGE_EXT = /\.(jpe?g|png|gif|webp|heic|heif|bmp|svg)(\?|#|$)/i;
-
-const fileKind = (fileType: unknown, url: string): WorkOrderFileKind => {
-  const type = typeof fileType === 'string' ? fileType.toLowerCase() : '';
-  if (type.startsWith('image/') || IMAGE_EXT.test(url)) return 'image';
-  return 'document';
-};
-
-const fileNameFromUrl = (url: string): string | undefined => {
-  try {
-    const segment = new URL(url).pathname.split('/').filter(Boolean).pop() ?? '';
-    return label(decodeURIComponent(segment));
-  } catch {
-    return undefined;
-  }
-};
-
+const fileKind = (fileType: unknown, url: string): WorkOrderFileKind => typeof fileType === 'string' && fileType.toLowerCase().startsWith('image/') || IMAGE_EXT.test(url) ? 'image' : 'document';
+const fileNameFromUrl = (url: string) => { try { return label(decodeURIComponent(new URL(url).pathname.split('/').filter(Boolean).pop() ?? '')); } catch { return undefined; } };
 const buildFiles = (input: WorkOrderBuildInput, gaps: WorkOrderGaps): WorkOrderFile[] => {
   const out = new Map<string, WorkOrderFile>();
-  const add = (fileId: unknown, url: unknown, name: unknown, type: unknown) => {
-    const href = text(url, 2_048);
-    if (!href) return;
-    if (!isHttpsUrl(href)) {
-      bump(gaps, 'file_not_https');
-      return;
-    }
-    const id = label(fileId) ?? href;
-    const fileName = label(name) ?? fileNameFromUrl(href);
-    if (!fileName) {
-      bump(gaps, 'file_label_missing');
-      return;
-    }
-    const mimeType = typeof type === 'string' && type.includes('/') ? text(type, 160) : undefined;
-    if (!mimeType) bump(gaps, 'file_mime_type_missing');
-    // Planning stores no thumbnail for attachments; `thumbnailUrl` is omitted, never invented.
-    if (!out.has(href)) {
-      out.set(href, {
-        fileId: id,
-        kind: fileKind(type, href),
-        label: fileName,
-        url: href,
-        ...(mimeType ? { mimeType } : {}),
-      });
-    }
+  const add = (id: unknown, url: unknown, name: unknown, type: unknown) => {
+    const href = text(url, WORK_ORDER_LIMITS.url); if (!href || !isHttpsUrl(href)) { if (href) bump(gaps, 'file_not_https'); return; }
+    const fileLabel = label(name) ?? fileNameFromUrl(href); if (!fileLabel) return;
+    const mimeType = typeof type === 'string' && type.includes('/') ? text(type, WORK_ORDER_LIMITS.mimeType) : undefined;
+    out.set(href, { fileId: label(id) ?? href.slice(0, WORK_ORDER_LIMITS.identifier), kind: fileKind(type, href), label: fileLabel, url: href, ...(mimeType ? { mimeType } : {}) });
   };
-
-  for (const row of input.attachments ?? []) {
-    if (row.booking_id !== input.booking.id) continue;
-    add(row.id, row.url, row.file_name, row.file_type);
-  }
-  const projectId = input.project?.id ?? null;
-  for (const row of input.projectFiles ?? []) {
-    if (!projectId || row.project_id !== projectId) continue;
-    add(row.id, row.url, row.file_name, row.file_type);
-  }
+  for (const row of input.attachments ?? []) if (row.booking_id === input.booking.id) add(row.id, row.url, row.file_name, row.file_type);
+  for (const row of input.projectFiles ?? []) if (input.project?.id && row.project_id === input.project.id) add(row.id, row.url, row.file_name, row.file_type);
   add(`booking:${input.booking.id}:map_drawing`, input.booking.map_drawing_url, undefined, undefined);
-
-  const files = [...out.values()];
-  if (files.length > 0) bump(gaps, 'file_thumbnail_unavailable', files.length);
-  if (files.length > WORK_ORDER_LIMITS.maxFiles) {
-    bump(gaps, 'files_truncated', files.length - WORK_ORDER_LIMITS.maxFiles);
-    return files.slice(0, WORK_ORDER_LIMITS.maxFiles);
-  }
-  return files;
+  return [...out.values()].slice(0, WORK_ORDER_LIMITS.files);
 };
-
-// ---------------------------------------------------------------------------
-// Team — colleagues on the same booking and day (never the worker themself)
-// ---------------------------------------------------------------------------
 
 const buildTeam = (input: WorkOrderBuildInput, gaps: WorkOrderGaps): WorkOrderTeamMember[] => {
-  const staffById = input.staffById ?? new Map<string, WorkOrderStaffRow>();
-  const seen = new Set<string>();
-  const out: WorkOrderTeamMember[] = [];
+  const out: WorkOrderTeamMember[] = []; const seen = new Set<string>();
   for (const row of input.teamRows ?? []) {
-    if (row.booking_id !== input.booking.id || row.assignment_date !== input.workDate) continue;
-    if (row.staff_id === input.workerStaffId || seen.has(row.staff_id)) continue;
+    if (row.booking_id !== input.booking.id || row.assignment_date !== input.workDate || row.staff_id === input.workerStaffId || seen.has(row.staff_id)) continue;
     seen.add(row.staff_id);
-    const staff = staffById.get(row.staff_id);
-    const name = label(staff?.name);
-    if (!name) {
-      bump(gaps, 'team_member_unnamed');
-      continue;
-    }
+    const staff = input.staffById?.get(row.staff_id); const displayName = text(staff?.name, WORK_ORDER_LIMITS.displayName);
+    if (!displayName) { bump(gaps, 'team_member_unnamed'); continue; }
     const roleLabel = label(staff?.role);
-    if (!roleLabel) bump(gaps, 'staff_role_missing');
-    out.push({ memberId: row.staff_id, displayName: name, ...(roleLabel ? { roleLabel } : {}) });
+    out.push({ memberId: row.staff_id, displayName, ...(roleLabel ? { roleLabel } : {}) });
   }
-  out.sort((a, b) => a.displayName.localeCompare(b.displayName, 'sv'));
-  if (out.length > WORK_ORDER_LIMITS.maxTeam) {
-    bump(gaps, 'team_truncated', out.length - WORK_ORDER_LIMITS.maxTeam);
-    return out.slice(0, WORK_ORDER_LIMITS.maxTeam);
-  }
-  return out;
+  return out.sort((a, b) => a.displayName.localeCompare(b.displayName, 'sv')).slice(0, WORK_ORDER_LIMITS.team);
 };
-
-// ---------------------------------------------------------------------------
-// Contacts — delivery contact + project leader (when resolvable to a person)
-// ---------------------------------------------------------------------------
 
 const buildContacts = (input: WorkOrderBuildInput, gaps: WorkOrderGaps): WorkOrderContact[] => {
   const out: WorkOrderContact[] = [];
-  const { booking } = input;
-  const contactName = label(booking.contact_name);
-  const phone = text(booking.contact_phone, 60);
-  const email = label(booking.contact_email);
-  // Time's contact shape has no email field — it is never emitted.
-  if (email) bump(gaps, 'contact_email_not_in_contract');
-  if (contactName) {
-    out.push({
-      contactId: `booking:${booking.id}:delivery`,
-      role: 'Leveranskontakt',
-      displayName: contactName,
-      ...(phone ? { phone } : {}),
-    });
-  } else if (phone || email) {
-    bump(gaps, 'contact_name_missing');
-  }
-
+  const contactName = text(input.booking.contact_name, WORK_ORDER_LIMITS.displayName);
+  const phone = text(input.booking.contact_phone, WORK_ORDER_LIMITS.phone);
+  if (contactName) out.push({ contactId: `booking:${input.booking.id}:delivery`, role: 'site', displayName: contactName, ...(phone ? { phone } : {}) });
+  else if (phone || text(input.booking.contact_email)) bump(gaps, 'contact_name_missing');
   const leaderRaw = label(input.project?.project_leader);
   if (leaderRaw) {
     const staff = input.staffById?.get(leaderRaw);
-    const staffName = label(staff?.name);
-    if (staffName) {
-      const staffPhone = text(staff?.phone, 60);
-      out.push({
-        contactId: `staff:${staff?.id ?? leaderRaw}`,
-        role: 'Projektledare',
-        displayName: staffName,
-        ...(staffPhone ? { phone: staffPhone } : {}),
-      });
-    } else if (!UUID_LIKE.test(leaderRaw)) {
-      out.push({
-        contactId: `project:${input.project?.id ?? 'unknown'}:leader`,
-        role: 'Projektledare',
-        displayName: leaderRaw,
-      });
-    } else {
-      bump(gaps, 'project_leader_unresolved');
-    }
+    const staffName = text(staff?.name, WORK_ORDER_LIMITS.displayName);
+    if (staffName) out.push({ contactId: `staff:${staff?.id ?? leaderRaw}`, role: 'lead', displayName: staffName, ...(text(staff?.phone, WORK_ORDER_LIMITS.phone) ? { phone: text(staff?.phone, WORK_ORDER_LIMITS.phone) } : {}) });
+    else if (!UUID_LIKE.test(leaderRaw)) out.push({ contactId: `project:${input.project?.id ?? 'unknown'}:leader`, role: 'lead', displayName: leaderRaw });
+    else bump(gaps, 'project_leader_unresolved');
   }
-  return out.slice(0, WORK_ORDER_LIMITS.maxContacts);
+  return out.slice(0, WORK_ORDER_LIMITS.contacts);
 };
 
-// ---------------------------------------------------------------------------
-
-/**
- * Build the work order for one assignment. Returns `workOrder: null` when no
- * section has source data (the sync then omits `workOrder` entirely).
- * The result is validated against the Planning-side contract guard; a guard
- * failure is reported as a gap and the work order is withheld (never sent broken).
- */
 export const buildWorkOrderV1 = (input: WorkOrderBuildInput): WorkOrderBuildResult => {
   const gaps: WorkOrderGaps = {};
   const phases = buildPhases(input, gaps);
@@ -564,8 +323,12 @@ export const buildWorkOrderV1 = (input: WorkOrderBuildInput): WorkOrderBuildResu
   const files = buildFiles(input, gaps);
   const team = buildTeam(input, gaps);
   const contacts = buildContacts(input, gaps);
-
+  if (![phases, lines, instructions, tasks, files, team, contacts].some((section) => section.length > 0)) {
+    bump(gaps, 'work_order_empty');
+    return { workOrder: null, gaps };
+  }
   const workOrder: WorkOrderV1 = {
+    contract: WORK_ORDER_SCHEMA,
     ...(phases.length ? { phases } : {}),
     ...(lines.length ? { lines } : {}),
     ...(instructions.length ? { instructions } : {}),
@@ -574,24 +337,13 @@ export const buildWorkOrderV1 = (input: WorkOrderBuildInput): WorkOrderBuildResu
     ...(team.length ? { team } : {}),
     ...(contacts.length ? { contacts } : {}),
   };
-  if (Object.keys(workOrder).length === 0) {
-    bump(gaps, 'work_order_empty');
-    return { workOrder: null, gaps };
-  }
-  try {
-    assertWorkOrderV1(workOrder);
-  } catch (error) {
-    bump(gaps, `work_order_guard_failed:${(error as Error).message.slice(0, 80)}`);
-    return { workOrder: null, gaps };
-  }
+  try { assertWorkOrderV1(workOrder); }
+  catch (error) { bump(gaps, `work_order_guard_failed:${(error as Error).message.slice(0, 80)}`); return { workOrder: null, gaps }; }
   return { workOrder, gaps };
 };
 
-/** Merge per-assignment gap counters into one PII-free report. */
 export const mergeWorkOrderGaps = (all: readonly WorkOrderGaps[]): Array<{ code: string; count: number }> => {
   const merged: WorkOrderGaps = {};
   for (const gaps of all) for (const [code, count] of Object.entries(gaps)) bump(merged, code, count);
-  return Object.entries(merged)
-    .map(([code, count]) => ({ code, count }))
-    .sort((a, b) => a.code.localeCompare(b.code));
+  return Object.entries(merged).map(([code, count]) => ({ code, count })).sort((a, b) => a.code.localeCompare(b.code));
 };
