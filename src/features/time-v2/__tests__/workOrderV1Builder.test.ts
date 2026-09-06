@@ -249,7 +249,7 @@ describe('work-order.v1 builder — omission instead of fabrication', () => {
       calendarPhases: [],
       booking: { ...input.booking, event_start_time: null, event_end_time: null, rigdown_end_time: null },
     });
-    expect(result.workOrder?.phases?.map((p) => p.kind)).toEqual(['rig']);
+    expect(result.workOrder?.phases?.map((p) => p.phase)).toEqual(['rig']);
     expect(result.gaps['phase_times_missing:event']).toBe(1);
     expect(result.gaps['phase_times_missing:derig']).toBe(1);
   });
@@ -261,7 +261,7 @@ describe('work-order.v1 builder — omission instead of fabrication', () => {
       calendarPhases: [],
       booking: { ...input.booking, rig_start_time: '2026-06-04T15:00:00+00:00', rig_end_time: '2026-06-04T05:00:00+00:00' },
     });
-    expect(result.workOrder?.phases?.some((p) => p.kind === 'rig')).toBe(false);
+    expect(result.workOrder?.phases?.some((p) => p.phase === 'rig')).toBe(false);
     expect(result.gaps['phase_invalid:rig']).toBe(1);
   });
 
@@ -289,7 +289,7 @@ describe('work-order.v1 builder — omission instead of fabrication', () => {
   it('keeps a free-text project leader (not a staff id) as a named contact', () => {
     const input = fixture();
     const result = buildWorkOrderV1({ ...input, project: { id: PROJECT, project_leader: 'Kalle Kula' }, staffById: new Map() });
-    expect(result.workOrder?.contacts?.find((c) => c.role === 'Projektledare')).toEqual({ contactId: `project:${PROJECT}:leader`, role: 'Projektledare', displayName: 'Kalle Kula' });
+    expect(result.workOrder?.contacts?.find((c) => c.role === 'lead')).toEqual({ contactId: `project:${PROJECT}:leader`, role: 'lead', displayName: 'Kalle Kula' });
   });
 
   it('merges per-assignment gaps into one sorted PII-free report', () => {
