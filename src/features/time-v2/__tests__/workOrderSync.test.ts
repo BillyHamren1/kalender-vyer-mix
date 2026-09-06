@@ -74,7 +74,7 @@ describe('worker.assignments.sync — work-order.v1 is additive on the unchanged
     });
     expect('workOrder' in without).toBe(false);
 
-    const workOrder = { phases: [{ kind: 'rig' as const, startsAt: '2026-06-04T07:00:00+02:00', endsAt: '2026-06-04T17:00:00+02:00' }] };
+    const workOrder = { contract: 'work-order.v1' as const, phases: [{ phase: 'rig' as const, startsAt: '2026-06-04T07:00:00+02:00', endsAt: '2026-06-04T17:00:00+02:00' }] };
     const withOrder = buildAssignmentPayload(s, 'v1', location, workOrder);
     const { workOrder: attached, ...rest } = withOrder as typeof withOrder & { workOrder: unknown };
     expect(attached).toEqual(workOrder);

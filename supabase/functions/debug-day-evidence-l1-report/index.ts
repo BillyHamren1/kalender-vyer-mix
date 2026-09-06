@@ -81,10 +81,10 @@ Deno.serve(async (req) => {
           staffId: c.staffId, date: c.date,
           dayStartUtc: startUtc, dayEndUtc: endUtc,
         });
-        const d = ev.diagnostics ?? {};
-        const gps = d.gps ?? {};
-        const ae = d.assignmentEvidenceDiagnostics ?? {};
-        const kt = d.knownTargetsDiagnostics ?? {};
+        const d = (ev.diagnostics ?? {}) as any;
+        const gps = (d.gps ?? {}) as any;
+        const ae = (d.assignmentEvidenceDiagnostics ?? {}) as any;
+        const kt = (d.knownTargetsDiagnostics ?? {}) as any;
         const dq = ev.knownTargets?.dataQuality ?? {};
 
         const itemsByType = new Map<string, number>();
