@@ -131,8 +131,12 @@ Deno.serve(async (req) => {
   // JWT is verified against Time Auth inside the handler; all other operations
   // continue to require a Planning JWT and Planning access below.
   if (operation === 'worker.assignments.sync') {
-    if (!adapterUrl || !anonKey || !signingSeed) {
-      return fail(503, 'not_configured', 'Planning→Time uppdragssynk är inte konfigurerad.', true);
+    // TIME_ADAPTER_ANON_KEY is optional: the worker's own Time JWT is accepted
+    // by Time's gateway as the `apikey` credential.
+    if (!adapterUrl || !signingSeed) {
+      const missingSync = [!adapterUrl ? 'TIME_ADAPTER_URL' : null, !signingSeed ? 'TIME_ADAPTER_SIGNING_SEED' : null]
+        .filter(Boolean).join(', ');
+      return fail(503, 'not_configured', `Planning→Time uppdragssynk är inte konfigurerad. Saknad servernyckel: ${missingSync}.`, true);
     }
     return handleWorkerAssignmentSync({
       admin,
@@ -142,6 +146,7 @@ Deno.serve(async (req) => {
       signingSeed,
     });
   }
+
 
   const { data: userData, error: userError } = await admin.auth.getUser(authorization.slice(7));
   if (userError || !userData?.user) return fail(401, 'unauthorized', 'Invalid session');
