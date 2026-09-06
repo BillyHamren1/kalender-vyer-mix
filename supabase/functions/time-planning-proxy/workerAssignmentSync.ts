@@ -230,7 +230,7 @@ export async function handleWorkerAssignmentSync(ctx: WorkerAssignmentSyncContex
   try {
     upstream = await callTimeAdapter({
       adapterUrl: ctx.adapterUrl,
-      anonKey: ctx.anonKey,
+      anonKey: gatewayKey,
       signingSeed: ctx.signingSeed,
       organizationId: timeOrganizationId,
       personnelId: String(staff.id),
