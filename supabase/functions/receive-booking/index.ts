@@ -29,6 +29,22 @@ const VALID_EVENT_TYPES = [
   'booking.created',
 ] as const
 
+/**
+ * Prioriterad kö. Högre värde = plockas först av claim_sync_jobs
+ * (ORDER BY priority DESC, received_at ASC).
+ */
+const EVENT_PRIORITY: Record<string, number> = {
+  'booking.confirmed': 100,
+  'booking.cancelled': 100,
+  'booking.updated': 60,
+  'booking.created': 40,
+  'booking.offer': 20,
+  'incremental': 0,
+}
+
+const priorityFor = (eventType: string): number =>
+  EVENT_PRIORITY[eventType] ?? 40
+
 serve(async (req) => {
   const startTime = Date.now()
 
@@ -126,32 +142,36 @@ serve(async (req) => {
       console.warn('[receive-booking] Lookup failed, proceeding with insert', lookupError.message)
     }
 
-    const unfinished = (existingJobs || []).find(
-      (j: any) => j.status === 'pending' || j.status === 'processing'
-    )
-    if (unfinished) {
-      console.log('[receive-booking] Coalesced into existing unfinished job', JSON.stringify({
-        existing_job_id: unfinished.id,
-        booking_id,
-        organization_id,
-        event_type: normalizedEventType,
+    const priority = priorityFor(normalizedEventType)
+
+    const pending = (existingJobs || []).find((j: any) => j.status === 'pending')
+    if (pending) {
+      // Redan köad läsning som ännu inte startat — höj prioritet vid behov
+      // och coalesca in händelsen i den kön.
+      await supabase
+        .from('booking_sync_jobs')
+        .update({ priority, event_type: normalizedEventType })
+        .eq('id', pending.id)
+        .lt('priority', priority)
+
+      console.log('[receive-booking] Coalesced into pending job', JSON.stringify({
+        existing_job_id: pending.id, booking_id, organization_id,
+        event_type: normalizedEventType, priority,
         duration_ms: Date.now() - startTime,
       }))
       return new Response(
         JSON.stringify({
-          success: true,
-          accepted: true,
-          coalesced: true,
-          job_id: unfinished.id,
-          booking_id,
-          event_type: normalizedEventType,
-          status: unfinished.status,
+          success: true, accepted: true, coalesced: true,
+          job_id: pending.id, booking_id,
+          event_type: normalizedEventType, priority, status: 'pending',
         }),
         { status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-
+    // Om bokningen bearbetas just nu får händelsen ALDRIG kastas bort — den
+    // pågående körningen läser en äldre version. Vi schemalägger en ny läsning
+    // som körs efter den pågående.
 
     const { data: job, error: insertError } = await supabase
       .from('booking_sync_jobs')
@@ -160,6 +180,7 @@ serve(async (req) => {
         organization_id,
         event_type: normalizedEventType,
         status: 'pending',
+        priority,
       })
       .select('id, status, received_at')
       .single()
@@ -180,6 +201,7 @@ serve(async (req) => {
       booking_id,
       organization_id,
       event_type: normalizedEventType,
+      priority,
       duration_ms: Date.now() - startTime,
     }))
 
@@ -191,6 +213,7 @@ serve(async (req) => {
         booking_id,
         event_type: normalizedEventType,
         status: 'pending',
+        priority,
       }),
       { status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

@@ -13,6 +13,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useUnplannedProjects } from '@/hooks/useUnplannedProjects';
+import { useCurrentOrg } from '@/hooks/useCurrentOrg';
+import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 import { useTeamResources } from '@/hooks/useTeamResources';
 import { placeBookingWithDefaults } from '@/services/bookingDefaultPlacement';
 import { BookingPlacementDialog } from '@/components/project/BookingPlacementDialog';
@@ -47,6 +49,7 @@ const NewBookingsPopup: React.FC = () => {
   const [closed, setClosed] = useState(false);
   const [placementBookingId, setPlacementBookingId] = useState<string | null>(null);
   const [planningAll, setPlanningAll] = useState(false);
+  const { organizationId } = useCurrentOrg();
   const { teamResources } = useTeamResources();
   const teamOptions = useMemo(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,11 +59,13 @@ const NewBookingsPopup: React.FC = () => {
 
 
   const { data: bookings = [] } = useQuery({
-    queryKey: ['bookings-without-project'],
+    queryKey: ['bookings-without-project', organizationId],
+    enabled: !!organizationId,
     queryFn: async () => {
       const { data: candidates, error } = await supabase
         .from('bookings')
         .select('id, client, status, booking_number, eventdate, deliveryaddress, large_project_id')
+        .eq('organization_id', organizationId!)
         .eq('status', 'CONFIRMED')
         .or('assigned_to_project.is.null,assigned_to_project.eq.false')
         .is('large_project_id', null)
@@ -84,6 +89,30 @@ const NewBookingsPopup: React.FC = () => {
   });
 
   const { data: unplanned = [] } = useUnplannedProjects();
+
+  // Realtime: nya OCH uppdaterade bokningar (t.ex. status → CONFIRMED) ska
+  // synas direkt utan siduppdatering. Kanalen är alltid org-filtrerad.
+  useRealtimeInvalidation({
+    channelName: `new-bookings-popup-${organizationId ?? 'none'}`,
+    tables: [
+      {
+        table: 'bookings',
+        events: ['INSERT', 'UPDATE'],
+        filter: organizationId ? `organization_id=eq.${organizationId}` : undefined,
+      },
+    ],
+    queryKeys: [
+      ['bookings-without-project', organizationId],
+      ['bookings'],
+      ['projects'],
+      ['unplanned-projects', organizationId],
+      ['calendar-events'],
+      ['planner-calendar'],
+      ['dashboard-stats'],
+    ],
+    pause: () => !organizationId,
+  });
+
 
   const items = useMemo<PopupItem[]>(() => {
     const fromBookings: PopupItem[] = (bookings as any[]).map((b) => ({

@@ -17,6 +17,7 @@ import ProjectDashboardWidgets from "@/components/project/ProjectDashboardWidget
 import OrphanBookingsWarning from "@/components/project/OrphanBookingsWarning";
 import { deleteProject } from "@/services/projectService";
 import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
+import { useCurrentOrg } from "@/hooks/useCurrentOrg";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -42,6 +43,7 @@ const ProjectManagement = () => {
   const [globalStatusFilter, setGlobalStatusFilter] = useState<GlobalStatusFilter>('all_active');
   const [typeFilter, setTypeFilter] = useState<ProjectTypeFilter>('all');
   const [isSyncing, setIsSyncing] = useState(false);
+  const { organizationId } = useCurrentOrg();
 
   const handleSyncBookings = async () => {
     setIsSyncing(true);
@@ -53,7 +55,8 @@ const ProjectManagement = () => {
       const orgId = (await getOrganizationId()) ?? undefined;
 
       const { data, error } = await supabase.functions.invoke('import-bookings', {
-        body: { historicalMode: true, forceHistoricalImport: true, organization_id: orgId },
+        // Manuell "Uppdatera" = inkrementell synk. Historisk helimport körs aldrig härifrån.
+        body: { syncMode: 'incremental', organization_id: orgId },
       });
 
       const elapsed = Math.round(performance.now() - t0);
@@ -95,11 +98,14 @@ const ProjectManagement = () => {
       queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       queryClient.invalidateQueries({ queryKey: ['orphan-bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['unplanned-projects'] });
+      queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+      queryClient.invalidateQueries({ queryKey: ['planner-calendar'] });
 
       if (failed > 0) {
-        toast.warning(`Full synk klar med ${failed} fel (${updated} uppdaterade, ${created} nya)`);
+        toast.warning(`Synk klar med ${failed} fel (${updated} uppdaterade, ${created} nya)`);
       } else {
-        toast.success(`Full synk klar: ${updated} uppdaterade, ${created} nya, ${processed} behandlade`);
+        toast.success(`Synk klar: ${updated} uppdaterade, ${created} nya, ${processed} behandlade`);
       }
     } catch (err) {
       console.error('[ProjectSync] Unexpected error:', err);
@@ -111,9 +117,24 @@ const ProjectManagement = () => {
   };
 
   useRealtimeInvalidation({
-    channelName: 'project-mgmt-bookings',
-    tables: ['bookings'],
-    queryKeys: [['bookings-without-project'], ['bookings'], ['projects'], ['dashboard-stats']],
+    channelName: `project-mgmt-bookings-${organizationId ?? 'none'}`,
+    tables: [
+      {
+        table: 'bookings',
+        events: ['INSERT', 'UPDATE'],
+        filter: organizationId ? `organization_id=eq.${organizationId}` : undefined,
+      },
+    ],
+    queryKeys: [
+      ['bookings-without-project', organizationId],
+      ['bookings'],
+      ['projects'],
+      ['unplanned-projects', organizationId],
+      ['calendar-events'],
+      ['planner-calendar'],
+      ['dashboard-stats'],
+    ],
+    pause: () => !organizationId,
   });
 
   const deleteMutation = useMutation({
