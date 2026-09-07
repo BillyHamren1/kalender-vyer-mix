@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { importBookings } from '@/services/importService';
 import { isScannerApp } from '@/config/appMode';
-import { getOrganizationId } from '@/hooks/useOrganizationId';
 
 interface BackgroundImportState {
   isRunning: boolean;
@@ -16,7 +15,6 @@ interface BackgroundImportState {
 // Bakgrundsimport behövs egentligen bara som mjuk fallback — realtime +
 // manuell "Uppdatera"-knapp är primära signaler.
 const IMPORT_INTERVAL = 5 * 60 * 1000;      // 5 min mellan auto-importer
-const MIN_IMPORT_GAP = 4 * 60 * 1000;       // skydd mot focus-storms
 const STORAGE_KEY = 'background_import_state';
 
 const BACKGROUND_IMPORT_ROUTE_PREFIXES = [
@@ -53,7 +51,6 @@ export const useBackgroundImport = () => {
     return { isRunning: false, lastImport: null, nextImport: null, importCount: 0 };
   });
 
-  const intervalRef = useRef<ReturnType<typeof setInterval>>();
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -64,55 +61,9 @@ export const useBackgroundImport = () => {
     }));
   }, []);
 
-  const performImport = useCallback(async () => {
-    const s = stateRef.current;
-    if (s.isRunning) return;
-    if (s.lastImport && Date.now() - s.lastImport.getTime() < MIN_IMPORT_GAP) return;
-    if (!isBackgroundImportRoute()) return;
-    // Skip when tab is hidden — sparar databasen från att matas av
-    // bortglömda flikar i bakgrunden.
-    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-
-    // Gate on verified auth + org context to prevent cross-tenant import attempts.
-    // Uses shared cache (10 min) — no per-tick /auth/user + profiles roundtrip.
-    const orgId = await getOrganizationId();
-    if (!orgId) return;
-
-    setState(prev => ({ ...prev, isRunning: true }));
-
-    try {
-      await importBookings({ syncMode: 'incremental' }, true);
-      const now = new Date();
-      const newCount = stateRef.current.importCount + 1;
-      saveToStorage(now, newCount);
-      setState({
-        isRunning: false,
-        lastImport: now,
-        nextImport: new Date(now.getTime() + IMPORT_INTERVAL),
-        importCount: newCount
-      });
-    } catch (error) {
-      console.error('❌ Background import failed:', error);
-      setState(prev => ({
-        ...prev,
-        isRunning: false,
-        nextImport: new Date(Date.now() + IMPORT_INTERVAL)
-      }));
-    }
-  }, [saveToStorage]);
-
-  // Single stable effect for the interval — no dependency on callbacks that change
-  useEffect(() => {
-    // Scanner mode: no background import
-    if (isScannerApp) return;
-
-    const interval = setInterval(() => performImport(), IMPORT_INTERVAL);
-    intervalRef.current = interval;
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Periodisk import ägs ENBART av server-cron (process-sync-jobs).
+  // Klienten kör aldrig automatisk import längre — realtime + manuell
+  // "Uppdatera" är de enda klientsignalerna.
 
   const triggerManualImport = useCallback(async () => {
     if (stateRef.current.isRunning) return false;

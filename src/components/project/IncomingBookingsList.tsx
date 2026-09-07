@@ -11,6 +11,8 @@ import { toast } from 'sonner';
 import { BookingPlacementDialog } from './BookingPlacementDialog';
 import { useUnplannedProjects } from '@/hooks/useUnplannedProjects';
 import { useCancellationCandidates, useScanCancellationCandidates, useApplyCancellation } from '@/hooks/useCancellationCandidates';
+import { useCurrentOrg } from '@/hooks/useCurrentOrg';
+import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation';
 
 
 
@@ -38,14 +40,17 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [placementBookingId, setPlacementBookingId] = useState<string | null>(null);
-  
+  const { organizationId } = useCurrentOrg();
+
   const { data: bookings = [], isLoading } = useQuery({
-    queryKey: ['bookings-without-project'],
+    queryKey: ['bookings-without-project', organizationId],
+    enabled: !!organizationId,
     queryFn: async () => {
       // Query only unassigned bookings directly from Supabase
       const { data: candidates, error } = await supabase
         .from('bookings')
         .select('id, client, status, booking_number, eventdate, deliveryaddress, large_project_id')
+        .eq('organization_id', organizationId!)
         .eq('status', 'CONFIRMED')
         .or('assigned_to_project.is.null,assigned_to_project.eq.false')
         .is('large_project_id', null)
@@ -99,6 +104,30 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
 
 
 
+
+
+  // Realtime: nya OCH uppdaterade bokningar (t.ex. status → CONFIRMED) ska
+  // synas direkt utan siduppdatering. Kanalen är alltid org-filtrerad.
+  useRealtimeInvalidation({
+    channelName: `incoming-bookings-inbox-${organizationId ?? 'none'}`,
+    tables: [
+      {
+        table: 'bookings',
+        events: ['INSERT', 'UPDATE'],
+        filter: organizationId ? `organization_id=eq.${organizationId}` : undefined,
+      },
+    ],
+    queryKeys: [
+      ['bookings-without-project', organizationId],
+      ['bookings'],
+      ['projects'],
+      ['unplanned-projects', organizationId],
+      ['calendar-events'],
+      ['planner-calendar'],
+      ['dashboard-stats'],
+    ],
+    pause: () => !organizationId,
+  });
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ['bookings-without-project'] });
