@@ -137,12 +137,12 @@ export default function SimpleProjectWorkspacePage() {
   return (
     <div className="theme-purple min-h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
       <div className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6">
-        <header className="rounded-2xl border border-primary/30 bg-primary p-5 text-primary-foreground shadow-lg shadow-primary/15">
+        <header className="rounded-xl border border-border bg-card p-5 text-card-foreground shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
-            <div><Button variant="ghost" size="sm" className="-ml-2 mb-2 text-primary-foreground hover:bg-white/15 hover:text-primary-foreground" onClick={() => navigate("/projects")}><ArrowLeft className="mr-2 h-4 w-4" />Alla projekt</Button><h1 className="text-2xl font-semibold">{project.name}</h1><p className="mt-1 text-sm text-primary-foreground/75">{booking?.booking_number ? `Bokning ${booking.booking_number} · ` : ""}{booking?.client || project.client || "Internt projekt"}</p></div>
-            <Button variant="outline" className="border-white/30 bg-white/10 text-primary-foreground hover:bg-white/20 hover:text-primary-foreground" onClick={() => navigate("/calendar")}><CalendarDays className="mr-2 h-4 w-4" />Personal i kalendern</Button>
+            <div><Button variant="ghost" size="sm" className="-ml-2 mb-2 text-muted-foreground hover:bg-primary/10 hover:text-primary" onClick={() => navigate("/projects")}><ArrowLeft className="mr-2 h-4 w-4" />Alla projekt</Button><h1 className="text-2xl font-semibold text-foreground">{project.name}</h1><p className="mt-1 text-sm text-muted-foreground">{booking?.booking_number ? `Bokning ${booking.booking_number} · ` : ""}{booking?.client || project.client || "Internt projekt"}</p></div>
+            <Button variant="outline" className="border-primary/30 text-primary hover:bg-primary/10 hover:text-primary" onClick={() => navigate("/calendar")}><CalendarDays className="mr-2 h-4 w-4" />Personal i kalendern</Button>
           </div>
-          <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3"><div><span className="text-primary-foreground/65">Event</span><div className="font-medium">{formatDate(booking?.eventdate || project.eventdate)}</div></div><div><span className="text-primary-foreground/65">Plats</span><div className="font-medium">{booking?.deliveryaddress || project.deliveryaddress || "Ej angiven"}</div></div><div><span className="text-primary-foreground/65">Kontakt</span><div className="font-medium">{booking?.contact_name || project.contact_name || "Ej angiven"}</div></div></div>
+          <div className="mt-4 grid gap-3 border-t border-border pt-4 text-sm sm:grid-cols-3"><div><span className="text-muted-foreground">Event</span><div className="font-medium text-foreground">{formatDate(booking?.eventdate || project.eventdate)}</div></div><div><span className="text-muted-foreground">Plats</span><div className="font-medium text-foreground">{booking?.deliveryaddress || project.deliveryaddress || "Ej angiven"}</div></div><div><span className="text-muted-foreground">Kontakt</span><div className="font-medium text-foreground">{booking?.contact_name || project.contact_name || "Ej angiven"}</div></div></div>
         </header>
 
         <Tabs defaultValue="booking" className="space-y-5">
