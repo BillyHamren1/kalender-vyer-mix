@@ -64,8 +64,6 @@ export const useBackgroundImport = () => {
     if (!isBackgroundImportRoute()) {
       return { success: true, results: { total: 0, imported: 0, failed: 0, calendar_events_created: 0 } };
     }
-    const orgId = await getOrganizationId();
-    if (!orgId) return false;
     setState(prev => ({ ...prev, isRunning: true }));
     try {
       const result = await importBookings({ syncMode: 'incremental' }, false);
