@@ -42,6 +42,45 @@ type WarehouseEventRow = {
 const isLagerTeamId = (teamId: string | null | undefined): boolean =>
   isWarehouseTeam(teamId);
 
+/**
+ * Idempotent write of one warehouse_assignments row.
+ *
+ * The uniqueness in the database is enforced by PARTIAL unique indexes
+ * ((staff_id, warehouse_event_id) WHERE warehouse_event_id IS NOT NULL and
+ * (staff_id, packing_id) WHERE packing_id IS NOT NULL AND warehouse_event_id IS NULL).
+ * PostgREST cannot infer a partial index in `on_conflict`, so an upsert fails
+ * with 42P10. We therefore look up the existing row and update or insert.
+ *
+ * Returns an error message, or null on success.
+ */
+async function writeAssignmentRow(
+  row: TablesInsert<'warehouse_assignments'>,
+  match: Record<string, string>,
+): Promise<string | null> {
+  let lookup = supabase.from('warehouse_assignments').select('id');
+  for (const [key, value] of Object.entries(match)) {
+    lookup = lookup.eq(key as never, value);
+  }
+  if (!('warehouse_event_id' in match)) {
+    lookup = lookup.is('warehouse_event_id', null);
+  }
+
+  const { data: existing, error: lookupError } = await lookup.maybeSingle();
+  if (lookupError) return lookupError.message;
+
+  if (existing?.id) {
+    const { error } = await supabase
+      .from('warehouse_assignments')
+      .update(row)
+      .eq('id', existing.id);
+    return error ? error.message : null;
+  }
+
+  const { error } = await supabase.from('warehouse_assignments').insert(row);
+  return error ? error.message : null;
+}
+
+
 /** event_type → assignment_type */
 function deriveType(eventType: string | null | undefined): WarehouseAssignmentType {
   switch (eventType) {
