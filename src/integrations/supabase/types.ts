@@ -1058,6 +1058,7 @@ export type Database = {
           max_attempts: number
           next_attempt_at: string | null
           organization_id: string
+          priority: number
           processed_at: string | null
           received_at: string
           started_at: string | null
@@ -1077,6 +1078,7 @@ export type Database = {
           max_attempts?: number
           next_attempt_at?: string | null
           organization_id: string
+          priority?: number
           processed_at?: string | null
           received_at?: string
           started_at?: string | null
@@ -1096,6 +1098,7 @@ export type Database = {
           max_attempts?: number
           next_attempt_at?: string | null
           organization_id?: string
+          priority?: number
           processed_at?: string | null
           received_at?: string
           started_at?: string | null
@@ -10969,6 +10972,7 @@ export type Database = {
               max_attempts: number
               next_attempt_at: string | null
               organization_id: string
+              priority: number
               processed_at: string | null
               received_at: string
               started_at: string | null
@@ -11002,6 +11006,7 @@ export type Database = {
               max_attempts: number
               next_attempt_at: string | null
               organization_id: string
+              priority: number
               processed_at: string | null
               received_at: string
               started_at: string | null
@@ -11043,6 +11048,21 @@ export type Database = {
         Args: { p_workday_id: string }
         Returns: Database["public"]["Enums"]["workday_review_status"]
       }
+      enqueue_booking_sync_job: {
+        Args: {
+          p_booking_id: string
+          p_event_type?: string
+          p_organization_id: string
+          p_priority?: number
+        }
+        Returns: {
+          coalesced: boolean
+          job_event_type: string
+          job_id: string
+          job_priority: number
+          job_status: string
+        }[]
+      }
       ensure_internal_lager_booking: {
         Args: { _org_id: string }
         Returns: string
@@ -11072,6 +11092,10 @@ export type Database = {
           new_status: string
           updated: boolean
         }[]
+      }
+      finalize_ready_sync_batches: {
+        Args: { p_limit?: number }
+        Returns: number
       }
       finalize_sync_batch: {
         Args: { _batch_id: string }

@@ -42,6 +42,45 @@ type WarehouseEventRow = {
 const isLagerTeamId = (teamId: string | null | undefined): boolean =>
   isWarehouseTeam(teamId);
 
+/**
+ * Idempotent write of one warehouse_assignments row.
+ *
+ * The uniqueness in the database is enforced by PARTIAL unique indexes
+ * ((staff_id, warehouse_event_id) WHERE warehouse_event_id IS NOT NULL and
+ * (staff_id, packing_id) WHERE packing_id IS NOT NULL AND warehouse_event_id IS NULL).
+ * PostgREST cannot infer a partial index in `on_conflict`, so an upsert fails
+ * with 42P10. We therefore look up the existing row and update or insert.
+ *
+ * Returns an error message, or null on success.
+ */
+async function writeAssignmentRow(
+  row: TablesInsert<'warehouse_assignments'>,
+  match: Record<string, string>,
+): Promise<string | null> {
+  let lookup = supabase.from('warehouse_assignments').select('id');
+  for (const [key, value] of Object.entries(match)) {
+    lookup = lookup.eq(key as never, value);
+  }
+  if (!('warehouse_event_id' in match)) {
+    lookup = lookup.is('warehouse_event_id', null);
+  }
+
+  const { data: existing, error: lookupError } = await lookup.maybeSingle();
+  if (lookupError) return lookupError.message;
+
+  if (existing?.id) {
+    const { error } = await supabase
+      .from('warehouse_assignments')
+      .update(row)
+      .eq('id', existing.id);
+    return error ? error.message : null;
+  }
+
+  const { error } = await supabase.from('warehouse_assignments').insert(row);
+  return error ? error.message : null;
+}
+
+
 /** event_type → assignment_type */
 function deriveType(eventType: string | null | undefined): WarehouseAssignmentType {
   switch (eventType) {
@@ -135,15 +174,20 @@ export async function syncWarehouseAssignmentsForStaffTeamDay(params: {
   const dateStr = format(date, 'yyyy-MM-dd');
   const events = await fetchEventsForTeamDay(date, teamId);
 
-  // Upsert one row per event.
+  // Write one row per event (no upsert — partial unique indexes, see writeAssignmentRow).
   if (events.length > 0) {
-    const rows = events.map((ev) => toAssignmentRow(staffId, dateStr, ev));
-    const { error } = await supabase
-      .from('warehouse_assignments')
-      .upsert(rows, { onConflict: 'staff_id,warehouse_event_id' });
-    if (error) {
-      console.error('[warehouseAssignmentsSync] upsert failed', error);
+    const errors: string[] = [];
+    for (const ev of events) {
+      const err = await writeAssignmentRow(toAssignmentRow(staffId, dateStr, ev), {
+        staff_id: staffId,
+        warehouse_event_id: ev.id,
+      });
+      if (err) errors.push(err);
+    }
+    if (errors.length > 0) {
+      console.error('[warehouseAssignmentsSync] write failed', errors);
     } else {
+
       // Mirror Lager-placement into staff_assignments so the personal calendar
       // automatically shows this person in the Lager column on this day.
       try {
@@ -307,15 +351,22 @@ export async function assignStaffToWarehouseEvent(params: {
   // The warehouse UI assigns a person to THIS concrete job. Do not route this
   // through the legacy team-day sync: that would implicitly assign the person
   // to every lager-N job on the same day.
+  //
+  // NOTE: the unique indexes for (staff_id, warehouse_event_id) and
+  // (staff_id, packing_id) are PARTIAL, so PostgREST `on_conflict` cannot infer
+  // them (Postgres raises 42P10). We therefore do an explicit
+  // select → update/insert instead of an upsert.
   const row = toAssignmentRow(staffId, dateStr, ev as WarehouseEventRow);
-  const { error: upsertError } = await supabase
-    .from('warehouse_assignments')
-    .upsert(row, { onConflict: 'staff_id,warehouse_event_id' });
+  const writeError = await writeAssignmentRow(row, {
+    staff_id: staffId,
+    warehouse_event_id: warehouseEventId,
+  });
 
-  if (upsertError) {
-    console.error('[warehouseAssignmentsSync] exact-event upsert failed', upsertError);
-    return { ok: false, error: upsertError.message };
+  if (writeError) {
+    console.error('[warehouseAssignmentsSync] exact-event write failed', writeError);
+    return { ok: false, error: writeError };
   }
+
 
   // Compatibility mirror only. The concrete warehouse_assignments row above
   // remains the sole source for which warehouse job the person actually owns.
@@ -413,13 +464,15 @@ export async function assignStaffToPacking(params: {
     metadata: { resource_id: teamId, packing_status: pk.status },
   };
 
-  const { error: upErr } = await supabase
-    .from('warehouse_assignments')
-    .upsert(row as any, { onConflict: 'staff_id,packing_id' });
-  if (upErr) {
-    console.error('[warehouseAssignmentsSync] assignStaffToPacking upsert failed', upErr);
-    return { ok: false, error: upErr.message };
+  const writeErr = await writeAssignmentRow(row as any, {
+    staff_id: staffId,
+    packing_id: packingId,
+  });
+  if (writeErr) {
+    console.error('[warehouseAssignmentsSync] assignStaffToPacking write failed', writeErr);
+    return { ok: false, error: writeErr };
   }
+
 
   try {
     await assignStaffToTeamCore(staffId, teamId, new Date(dateStr));

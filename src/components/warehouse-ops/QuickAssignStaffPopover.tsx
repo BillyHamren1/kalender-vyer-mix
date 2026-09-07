@@ -120,7 +120,10 @@ const QuickAssignStaffPopover: React.FC<Props> = ({
       toast.success(isAssigned ? `${s.name} borttagen` : `${s.name} bemannad`);
       refreshBoards();
     } else {
-      toast.error(isAssigned ? 'Kunde inte ta bort' : 'Kunde inte bemanna');
+      toast.error(
+        isAssigned ? 'Kunde inte ta bort' : 'Kunde inte bemanna',
+        res.error ? { description: res.error } : undefined,
+      );
     }
   };
 
