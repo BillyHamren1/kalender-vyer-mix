@@ -137,7 +137,10 @@ export default function SimpleProjectWorkspacePage() {
   return (
     <div className="theme-purple min-h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
       <div className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6">
-        <header className="rounded-xl border border-primary bg-primary p-5 text-primary-foreground shadow-sm">
+        <header
+          className="rounded-2xl p-6 text-white shadow-[0_10px_28px_-14px_hsl(263_70%_40%/0.55)]"
+          style={{ background: "var(--gradient-planner)" }}
+        >
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div><Button variant="ghost" size="sm" className="-ml-2 mb-2 text-primary-foreground/80 hover:bg-primary-foreground/10 hover:text-primary-foreground" onClick={() => navigate("/projects")}><ArrowLeft className="mr-2 h-4 w-4" />Alla projekt</Button><h1 className="text-2xl font-semibold text-primary-foreground">{project.name}</h1><p className="mt-1 text-sm text-primary-foreground/80">{booking?.booking_number ? `Bokning ${booking.booking_number} · ` : ""}{booking?.client || project.client || "Internt projekt"}</p></div>
             <Button variant="secondary" className="border border-primary-foreground/25 bg-primary-foreground text-primary hover:bg-primary-foreground/90" onClick={() => navigate("/calendar")}><CalendarDays className="mr-2 h-4 w-4" />Personal i kalendern</Button>
