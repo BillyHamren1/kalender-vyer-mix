@@ -174,15 +174,20 @@ export async function syncWarehouseAssignmentsForStaffTeamDay(params: {
   const dateStr = format(date, 'yyyy-MM-dd');
   const events = await fetchEventsForTeamDay(date, teamId);
 
-  // Upsert one row per event.
+  // Write one row per event (no upsert — partial unique indexes, see writeAssignmentRow).
   if (events.length > 0) {
-    const rows = events.map((ev) => toAssignmentRow(staffId, dateStr, ev));
-    const { error } = await supabase
-      .from('warehouse_assignments')
-      .upsert(rows, { onConflict: 'staff_id,warehouse_event_id' });
-    if (error) {
-      console.error('[warehouseAssignmentsSync] upsert failed', error);
+    const errors: string[] = [];
+    for (const ev of events) {
+      const err = await writeAssignmentRow(toAssignmentRow(staffId, dateStr, ev), {
+        staff_id: staffId,
+        warehouse_event_id: ev.id,
+      });
+      if (err) errors.push(err);
+    }
+    if (errors.length > 0) {
+      console.error('[warehouseAssignmentsSync] write failed', errors);
     } else {
+
       // Mirror Lager-placement into staff_assignments so the personal calendar
       // automatically shows this person in the Lager column on this day.
       try {
