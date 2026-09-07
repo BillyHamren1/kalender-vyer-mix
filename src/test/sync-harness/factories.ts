@@ -225,6 +225,7 @@ export interface SyncJobRow {
   organization_id: string;
   booking_id: string;
   event_type: string;
+  priority: number;
   status: 'pending' | 'processing' | 'retryable' | 'completed' | 'failed';
   attempts: number;
   max_attempts: number;
@@ -234,6 +235,7 @@ export interface SyncJobRow {
   worker_token: string | null;
   worker_id: string | null;
   lease_expires_at: string | null;
+  started_at: string | null;
   error_message: string | null;
   processed_at: string | null;
 }
@@ -242,6 +244,7 @@ export const makeSyncJob = (over: Partial<SyncJobRow> = {}): SyncJobRow => ({
   organization_id: over.organization_id ?? ORG_A,
   booking_id: over.booking_id ?? 'bk-1',
   event_type: 'booking.updated',
+  priority: 60,
   status: 'pending',
   attempts: 0,
   max_attempts: 5,
@@ -251,6 +254,7 @@ export const makeSyncJob = (over: Partial<SyncJobRow> = {}): SyncJobRow => ({
   worker_token: null,
   worker_id: null,
   lease_expires_at: null,
+  started_at: null,
   error_message: null,
   processed_at: null,
   ...over,

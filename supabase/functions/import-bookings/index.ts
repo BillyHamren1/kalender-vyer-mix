@@ -39,8 +39,8 @@ import {
   planProductSyncIdentity,
   planPackageComponentExpansion,
   planPackageComponentReconciliation,
+  planProductDeletion,
   normalizeSyncQuantity,
-  isPlanningGeneratedRow,
   BOOKING_SOURCE_SYNC_PREFIX,
 } from '../_shared/productCompleteness.ts'
 import type { ProductSourceCompleteness } from '../_shared/productCompleteness.ts'
@@ -3034,8 +3034,9 @@ serve(async (req) => {
     // to avoid 150s edge function timeout. Only single-booking refresh runs inline.
     //
     // CURSOR POLICY: enqueue does NOT advance sync_state.last_sync_timestamp.
-    // The cursor is only moved by process-sync-jobs when the entire batch has
-    // finished successfully (via finalizeBatchIfDone). See _shared/syncBatch.ts.
+    // The cursor is only moved by process-sync-jobs when the entire batch is
+    // terminal (via finalizeBatchIfDone). Permanent failures remain available
+    // for targeted reconciliation. See _shared/syncBatch.ts.
     if (!isSingleBookingRefresh) {
       const queueEventType = isHistoricalImport
         ? 'booking.historical'
@@ -4549,7 +4550,7 @@ serve(async (req) => {
           // 2. Fetch existing products BEFORE deletion (for packing list reconnection)
           const { data: oldProductsData, error: oldProductsReadError } = await supabase
             .from('booking_products')
-            .select('id, name, quantity, sync_key, is_package_component')
+            .select('id, name, quantity, sync_key, is_package_component, parent_product_id')
             .eq('booking_id', existingBooking.id)
             .eq('organization_id', bookingData.organization_id);
 
@@ -4896,13 +4897,48 @@ serve(async (req) => {
           if (oldProducts && oldProducts.length > 0 && externalProductCount > 0 && productDeleteAllowed) {
             // Planning-genererade paketkomponenter ägs inte av Booking och får
             // aldrig raderas av produktsynken (de hanteras idempotent av expansionen).
-            const toDelete = oldProducts.filter(
-              (p: any) => !seenExistingIds.has(p.id) && !isPlanningGeneratedRow(p),
-            );
-            if (toDelete.length > 0) {
-              const idsToDelete = toDelete.map((p: any) => p.id);
+            const deletionPlan = planProductDeletion(oldProducts, seenExistingIds);
+            const idsToDelete = deletionPlan.sourceRowIds;
+            if (idsToDelete.length > 0) {
               console.log(`[Merge] Deleting ${idsToDelete.length} products no longer in external API (external had ${externalProductCount})`);
               assertLeaseOwned('product_delete');
+
+              // Den självrefererande parent_product_id-FK:n är restriktiv.
+              // Planning-genererade barn måste därför bort före sin stale
+              // Booking-förälder. Kvarvarande (icke-genererade) barn bevaras
+              // och kopplas loss i stället för att raderas av misstag.
+              if (deletionPlan.generatedDependentIds.length > 0) {
+                const generatedDel = await guardedDeleteByIds(supabase, {
+                  table: 'booking_products',
+                  ids: deletionPlan.generatedDependentIds,
+                  kind: 'product_deletes',
+                  counters: countersOf(supabase),
+                  filters: { booking_id: bookingData.id, organization_id: organizationId },
+                  ctx: { booking_id: bookingData.id, organization_id: organizationId },
+                });
+                if (generatedDel.error) {
+                  console.error(`[Merge] Error deleting generated dependents for booking ${bookingData.id}:`, generatedDel.error);
+                  results.errors.push({ booking_id: bookingData.id, error: `product_dependent_delete_failed:${generatedDel.error}` });
+                  results.failed++;
+                  continue;
+                }
+              }
+
+              if (deletionPlan.detachedSurvivorIds.length > 0) {
+                const { error: detachError } = await supabase
+                  .from('booking_products')
+                  .update({ parent_product_id: null })
+                  .in('id', deletionPlan.detachedSurvivorIds)
+                  .eq('booking_id', bookingData.id)
+                  .eq('organization_id', organizationId);
+                if (detachError) {
+                  console.error(`[Merge] Error detaching surviving children for booking ${bookingData.id}:`, detachError);
+                  results.errors.push({ booking_id: bookingData.id, error: `product_child_detach_failed:${detachError.message || detachError}` });
+                  results.failed++;
+                  continue;
+                }
+              }
+
               const mergeDel = await guardedDeleteByIds(supabase, {
                 table: 'booking_products',
                 ids: idsToDelete,

@@ -10,6 +10,8 @@ describe('Booking → Planning sync contract', () => {
   const popup = read('src/components/calendar/NewBookingsPopup.tsx');
   const backgroundImport = read('src/hooks/useBackgroundImport.ts');
   const receiveBooking = read('supabase/functions/receive-booking/index.ts');
+  const priorityPolicy = read('supabase/functions/_shared/bookingSyncPriority.ts');
+  const queueMigration = read('supabase/migrations/20260907105835_prioritize_booking_sync_and_recover_queue.sql');
 
   it('lyssnar på både INSERT och UPDATE för bookings', () => {
     for (const src of [projectManagement, inbox, popup]) {
@@ -53,17 +55,20 @@ describe('Booking → Planning sync contract', () => {
   });
 
   it('behåller den prioriterade kön', () => {
-    expect(receiveBooking).toContain("'booking.confirmed': 100");
-    expect(receiveBooking).toContain("'booking.cancelled': 100");
-    expect(receiveBooking).toContain("'booking.updated': 60");
-    expect(receiveBooking).toContain("'booking.created': 40");
-    expect(receiveBooking).toContain("'booking.offer': 20");
-    expect(receiveBooking).toContain("'incremental': 0");
-    expect(receiveBooking).toContain('priority,');
+    expect(priorityPolicy).toContain('incremental: 0');
+    expect(priorityPolicy).toContain('offer: 20');
+    expect(priorityPolicy).toContain('created: 40');
+    expect(priorityPolicy).toContain('updated: 60');
+    expect(priorityPolicy).toContain('critical: 100');
+    expect(priorityPolicy).toContain('case "booking.confirmed"');
+    expect(priorityPolicy).toContain('case "booking.cancelled"');
+    expect(receiveBooking).toContain('bookingSyncPriority(normalizedEventType)');
   });
 
-  it('coalescar bara mot pending jobb — pågående bearbetning schemalägger ny läsning', () => {
-    expect(receiveBooking).toContain("(j: any) => j.status === 'pending'");
-    expect(receiveBooking).not.toContain("j.status === 'pending' || j.status === 'processing'");
+  it('coalescar atomiskt och markerar pågående jobb för en ny läsning', () => {
+    expect(receiveBooking).toContain("'enqueue_booking_sync_job'");
+    expect(queueMigration).toContain("j.status IN ('pending', 'processing', 'retryable')");
+    expect(queueMigration).toContain("WHEN j.status = 'processing' THEN now()");
+    expect(receiveBooking).not.toContain(".insert({\n        booking_id");
   });
 });

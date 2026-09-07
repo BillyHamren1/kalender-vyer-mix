@@ -15,6 +15,10 @@
  */
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
+import {
+  bookingSyncPriority,
+  normalizeBookingSyncEvent,
+} from '../_shared/bookingSyncPriority.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -29,22 +33,32 @@ const VALID_EVENT_TYPES = [
   'booking.created',
 ] as const
 
-/**
- * Prioriterad kö. Högre värde = plockas först av claim_sync_jobs
- * (ORDER BY priority DESC, received_at ASC).
- */
-const EVENT_PRIORITY: Record<string, number> = {
-  'booking.confirmed': 100,
-  'booking.cancelled': 100,
-  'booking.updated': 60,
-  'booking.created': 40,
-  'booking.offer': 20,
-  'incremental': 0,
+async function wakeSyncWorker(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  jobId: string,
+): Promise<void> {
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/process-sync-jobs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${serviceRoleKey}`,
+      },
+      body: JSON.stringify({ trigger: 'critical_webhook', job_id: jobId }),
+    })
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '')
+      console.warn(
+        `[receive-booking] critical worker wake failed status=${response.status} detail=${detail.substring(0, 300)}`,
+      )
+    }
+  } catch (error) {
+    // The durable queue remains authoritative; cron retries even if this
+    // latency optimization fails.
+    console.warn('[receive-booking] critical worker wake threw', error?.message ?? error)
+  }
 }
-
-const priorityFor = (eventType: string): number =>
-  EVENT_PRIORITY[eventType] ?? 40
-
 serve(async (req) => {
   const startTime = Date.now()
 
@@ -116,104 +130,64 @@ serve(async (req) => {
 
     // Normalize event_type so legacy "booking_updated" and new
     // "booking.updated" coalesce into the same logical bucket.
-    const normalizedEventType =
-      (event_type || 'unknown').replace(/_/g, '.').toLowerCase()
+    const normalizedEventType = normalizeBookingSyncEvent(event_type)
+    const priority = bookingSyncPriority(normalizedEventType)
 
-    // Coalesce webhook bursts:
-    //   - If an unfinished job already exists for this booking+org, reuse it.
-    //
-    // NOTE: We deliberately do NOT suppress webhooks that arrive shortly
-    // after a recently completed job. The previous "cooldown" branch caused
-    // silent data loss: a webhook fired right after we finished a sync was
-    // dropped, and since no new pending job was enqueued the worker never
-    // ran another incremental sync — the change stayed invisible until the
-    // next unrelated webhook happened to arrive after the cooldown window.
-    // Burst coalescing is already handled by the unfinished-job branch
-    // below, which is the safe place to deduplicate.
-    const { data: existingJobs, error: lookupError } = await supabase
-      .from('booking_sync_jobs')
-      .select('id, status, received_at, processed_at')
-      .eq('booking_id', booking_id)
-      .eq('organization_id', organization_id)
-      .order('received_at', { ascending: false })
-      .limit(5)
+    // One transactional RPC owns both coalescing and insertion. This removes
+    // the SELECT -> INSERT race between webhooks and the incremental poller.
+    // If a critical event meets an existing routine job, the existing job is
+    // promoted instead of silently keeping its old event type and priority.
+    const { data: enqueueRows, error: enqueueError } = await supabase.rpc(
+      'enqueue_booking_sync_job',
+      {
+        p_booking_id: booking_id,
+        p_organization_id: organization_id,
+        p_event_type: normalizedEventType,
+        p_priority: priority,
+      },
+    )
 
-    if (lookupError) {
-      console.warn('[receive-booking] Lookup failed, proceeding with insert', lookupError.message)
-    }
-
-    const priority = priorityFor(normalizedEventType)
-
-    const pending = (existingJobs || []).find((j: any) => j.status === 'pending')
-    if (pending) {
-      // Redan köad läsning som ännu inte startat — höj prioritet vid behov
-      // och coalesca in händelsen i den kön.
-      await supabase
-        .from('booking_sync_jobs')
-        .update({ priority, event_type: normalizedEventType })
-        .eq('id', pending.id)
-        .lt('priority', priority)
-
-      console.log('[receive-booking] Coalesced into pending job', JSON.stringify({
-        existing_job_id: pending.id, booking_id, organization_id,
-        event_type: normalizedEventType, priority,
-        duration_ms: Date.now() - startTime,
+    const job = Array.isArray(enqueueRows) ? enqueueRows[0] : enqueueRows
+    if (enqueueError || !job?.job_id) {
+      console.error('[receive-booking] Failed to create sync job', JSON.stringify({
+        booking_id,
+        organization_id,
+        error: enqueueError?.message ?? 'enqueue returned no job',
       }))
       return new Response(
         JSON.stringify({
-          success: true, accepted: true, coalesced: true,
-          job_id: pending.id, booking_id,
-          event_type: normalizedEventType, priority, status: 'pending',
+          error: 'Failed to queue sync job',
+          detail: enqueueError?.message ?? 'enqueue returned no job',
         }),
-        { status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Om bokningen bearbetas just nu får händelsen ALDRIG kastas bort — den
-    // pågående körningen läser en äldre version. Vi schemalägger en ny läsning
-    // som körs efter den pågående.
-
-    const { data: job, error: insertError } = await supabase
-      .from('booking_sync_jobs')
-      .insert({
-        booking_id,
-        organization_id,
-        event_type: normalizedEventType,
-        status: 'pending',
-        priority,
-      })
-      .select('id, status, received_at')
-      .single()
-
-    if (insertError) {
-      console.error('[receive-booking] Failed to create sync job', JSON.stringify({
-        booking_id, organization_id, error: insertError.message,
-      }))
-      return new Response(
-        JSON.stringify({ error: 'Failed to queue sync job', detail: insertError.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     // ── 6. Respond with 202 — job accepted ───────────────────────────────
-    console.log('[receive-booking] Job created', JSON.stringify({
-      job_id: job.id,
+    console.log('[receive-booking] Job accepted', JSON.stringify({
+      job_id: job.job_id,
       booking_id,
       organization_id,
-      event_type: normalizedEventType,
-      priority,
+      event_type: job.job_event_type,
+      priority: job.job_priority,
+      coalesced: job.coalesced,
       duration_ms: Date.now() - startTime,
     }))
+
+    if (job.job_priority === 100) {
+      EdgeRuntime.waitUntil(wakeSyncWorker(supabaseUrl, serviceRoleKey, job.job_id))
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
         accepted: true,
-        job_id: job.id,
+        job_id: job.job_id,
         booking_id,
-        event_type: normalizedEventType,
-        status: 'pending',
-        priority,
+        event_type: job.job_event_type,
+        priority: job.job_priority,
+        coalesced: job.coalesced,
+        status: job.job_status,
       }),
       { status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

@@ -73,26 +73,24 @@ function makeSupabase() {
     batch.status = status;
     let cursorAdvancedTo: string | null = null;
     let monotonicSkip = false;
-    if (status === 'success') {
-      const cursor = state.cursors.find(
-        (c) => c.organization_id === batch.organization_id && c.sync_type === batch.sync_type,
-      );
-      if (!cursor) {
-        state.cursors.push({
-          organization_id: batch.organization_id,
-          sync_type: batch.sync_type,
-          last_sync_timestamp: batch.planned_cursor,
-          last_sync_status: 'success',
-        });
-        cursorAdvancedTo = batch.planned_cursor;
-      } else if (!cursor.last_sync_timestamp || batch.planned_cursor > cursor.last_sync_timestamp) {
-        cursor.last_sync_timestamp = batch.planned_cursor;
-        cursor.last_sync_status = 'success';
-        cursorAdvancedTo = batch.planned_cursor;
-      } else {
-        monotonicSkip = true;
-        state.monotonicSkips++;
-      }
+    const cursor = state.cursors.find(
+      (c) => c.organization_id === batch.organization_id && c.sync_type === batch.sync_type,
+    );
+    if (!cursor) {
+      state.cursors.push({
+        organization_id: batch.organization_id,
+        sync_type: batch.sync_type,
+        last_sync_timestamp: batch.planned_cursor,
+        last_sync_status: status,
+      });
+      cursorAdvancedTo = batch.planned_cursor;
+    } else if (!cursor.last_sync_timestamp || batch.planned_cursor > cursor.last_sync_timestamp) {
+      cursor.last_sync_timestamp = batch.planned_cursor;
+      cursor.last_sync_status = status;
+      cursorAdvancedTo = batch.planned_cursor;
+    } else {
+      monotonicSkip = true;
+      state.monotonicSkips++;
     }
     return {
       data: [{ remaining, succeeded, failed, finalized: true, status, cursor_advanced_to: cursorAdvancedTo, monotonic_skip: monotonicSkip }],
@@ -310,7 +308,7 @@ describe('syncBatch lifecycle contracts (11)', () => {
     expect(sb.state.cursors[0].last_sync_timestamp).toBe('2026-07-29T10:00:00Z');
   });
 
-  it('6. Något jobb failed → batch=partial + cursor rörs INTE', async () => {
+  it('6. Något jobb failed → batch=partial + cursor går fram; failed-jobbet behålls', async () => {
     const { createBatch, attachJobsToBatch, finalizeBatchIfDone } = await loadHelpers();
     seedCursor(sb.state, 'org-A', '2026-07-29T09:00:00Z');
     const bA = await createBatch(sb.client, { organizationId: 'org-A', syncType: 'booking_import', plannedCursor: '2026-07-29T10:00:00Z' });
@@ -319,8 +317,9 @@ describe('syncBatch lifecycle contracts (11)', () => {
     markJob(sb.state, sb.state.jobs[1].id, 'failed');
     const res = await finalizeBatchIfDone(sb.client, bA);
     expect(res.status).toBe('partial');
-    expect(res.cursorAdvancedTo).toBeNull();
-    expect(sb.state.cursors[0].last_sync_timestamp).toBe('2026-07-29T09:00:00Z');
+    expect(res.cursorAdvancedTo).toBe('2026-07-29T10:00:00Z');
+    expect(sb.state.cursors[0].last_sync_timestamp).toBe('2026-07-29T10:00:00Z');
+    expect(sb.state.jobs.some((job) => job.status === 'failed')).toBe(true);
   });
 
   it('7. Cursor är monoton — äldre planned_cursor flyttar den ALDRIG bakåt', async () => {

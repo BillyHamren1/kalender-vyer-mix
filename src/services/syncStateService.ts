@@ -69,7 +69,7 @@ export const getSyncState = async (
  *
  * `sync_state` är helt server-ägd. Frontend får ALDRIG skriva någon kolumn där —
  * varken cursor (`last_sync_timestamp`), status, mode eller metadata. Cursorn
- * flyttas uteslutande av `finalize_sync_batch` efter en helt lyckad batch.
+ * flyttas uteslutande av `finalize_sync_batch` efter en terminal batch.
  *
  * Funktionen finns kvar som no-op för bakåtkompatibilitet med gamla call-sites
  * och rör aldrig databasen.

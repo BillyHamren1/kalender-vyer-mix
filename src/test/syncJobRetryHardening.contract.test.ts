@@ -178,6 +178,35 @@ describe('STEG 4B — claim, lease och takeover', () => {
     expect(canTakeOverJob({ status: 'processing', leaseExpiresAt: new Date(Date.now() - 1).toISOString() })).toBe(true);
   });
 
+  it('legacy processing-jobb utan lease återtas efter leasefönstret', async () => {
+    const sb = queue([
+      makeSyncJob({
+        id: 'legacy',
+        status: 'processing',
+        attempts: 1,
+        worker_token: null,
+        lease_expires_at: null,
+        started_at: new Date(Date.now() - (JOB_LEASE_SECONDS + 10) * 1000).toISOString(),
+      }),
+    ]);
+    const { data } = await sb.rpc('claim_sync_jobs', {
+      batch_limit: 10,
+      p_worker_id: 'recovery-worker',
+      p_lease_seconds: JOB_LEASE_SECONDS,
+    });
+    expect((data as any[]).map((job) => job.id)).toEqual(['legacy']);
+    expect((data as any[])[0].worker_token).toBeTruthy();
+  });
+
+  it('bekräftelse går före äldre inkrementella jobb', async () => {
+    const sb = queue([
+      makeSyncJob({ id: 'routine', event_type: 'booking.incremental', priority: 0, received_at: '2026-07-01T00:00:00Z' }),
+      makeSyncJob({ id: 'critical', booking_id: 'bk-2', event_type: 'booking.confirmed', priority: 100, received_at: '2026-08-01T00:00:00Z' }),
+    ]);
+    const { data } = await sb.rpc('claim_sync_jobs', { batch_limit: 1 });
+    expect((data as any[])[0].id).toBe('critical');
+  });
+
   it('gammal worker kan inte commit:a efter takeover', async () => {
     const sb = queue([
       makeSyncJob({
@@ -315,16 +344,17 @@ describe('STEG 4B — batch finalization och cursor', () => {
     expect((sb.db.tables.sync_state[0] as any).last_sync_timestamp).toBe('2026-07-01T00:00:00.000Z');
   });
 
-  it('mixed success/failed batch blir partial utan cursorflytt', async () => {
+  it('mixed success/failed blir partial och flyttar cursor; feljobbet ligger kvar för reconciliation', async () => {
     const sb = setup(['completed', 'failed']);
     const { data } = await sb.rpc('finalize_sync_batch', { _batch_id: 'batch-1' });
     const row = (data as any[])[0];
     expect(row.status).toBe('partial');
-    expect(row.cursor_advanced_to).toBeNull();
-    expect((sb.db.tables.sync_state[0] as any).last_sync_timestamp).toBe('2026-07-01T00:00:00.000Z');
+    expect(row.cursor_advanced_to).toBe('2026-08-02T00:00:00.000Z');
+    expect((sb.db.tables.sync_state[0] as any).last_sync_timestamp).toBe('2026-08-02T00:00:00.000Z');
+    expect((sb.db.tables.booking_sync_jobs as any[]).find((job) => job.status === 'failed')).toBeTruthy();
   });
 
-  it('endast helt lyckad batch flyttar cursorn', async () => {
+  it('helt lyckad batch flyttar cursorn och markerar success', async () => {
     const sb = setup(['completed', 'completed']);
     const { data } = await sb.rpc('finalize_sync_batch', { _batch_id: 'batch-1' });
     expect((data as any[])[0].status).toBe('success');

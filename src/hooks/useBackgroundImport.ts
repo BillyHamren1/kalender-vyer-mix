@@ -9,12 +9,6 @@ interface BackgroundImportState {
   importCount: number;
 }
 
-// Throttling: tidigare 30s var alldeles för aggressivt och orsakade att
-// `import-bookings` kördes konstant så fort någon stod på /projects, vilket
-// tröttade ut databasen och fick UI att kännas "fastlåst" i laddning.
-// Bakgrundsimport behövs egentligen bara som mjuk fallback — realtime +
-// manuell "Uppdatera"-knapp är primära signaler.
-const IMPORT_INTERVAL = 5 * 60 * 1000;      // 5 min mellan auto-importer
 const STORAGE_KEY = 'background_import_state';
 
 const BACKGROUND_IMPORT_ROUTE_PREFIXES = [
@@ -70,6 +64,8 @@ export const useBackgroundImport = () => {
     if (!isBackgroundImportRoute()) {
       return { success: true, results: { total: 0, imported: 0, failed: 0, calendar_events_created: 0 } };
     }
+    const orgId = await getOrganizationId();
+    if (!orgId) return false;
     setState(prev => ({ ...prev, isRunning: true }));
     try {
       const result = await importBookings({ syncMode: 'incremental' }, false);
@@ -79,7 +75,7 @@ export const useBackgroundImport = () => {
       setState({
         isRunning: false,
         lastImport: now,
-        nextImport: new Date(now.getTime() + IMPORT_INTERVAL),
+        nextImport: null,
         importCount: newCount
       });
       return result;
@@ -92,6 +88,8 @@ export const useBackgroundImport = () => {
   return {
     state,
     triggerManualImport,
+    // Periodisk import ägs av serverns cron. Klienter får aldrig starta egna
+    // intervall eftersom varje flik annars blir en separat köproducent.
     startBackgroundImport: () => {},
     stopBackgroundImport: () => {},
     isImporting: state.isRunning,

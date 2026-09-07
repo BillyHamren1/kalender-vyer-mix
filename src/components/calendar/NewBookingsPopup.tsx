@@ -45,11 +45,11 @@ const formatDate = (dateStr: string | null) => {
 
 const NewBookingsPopup: React.FC = () => {
   const queryClient = useQueryClient();
+  const { organizationId } = useCurrentOrg();
   const [dismissed, setDismissed] = useState<string[]>(() => readDismissedIds());
   const [closed, setClosed] = useState(false);
   const [placementBookingId, setPlacementBookingId] = useState<string | null>(null);
   const [planningAll, setPlanningAll] = useState(false);
-  const { organizationId } = useCurrentOrg();
   const { teamResources } = useTeamResources();
   const teamOptions = useMemo(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -57,49 +57,13 @@ const NewBookingsPopup: React.FC = () => {
     [teamResources],
   );
 
-
-  const { data: bookings = [] } = useQuery({
-    queryKey: ['bookings-without-project', organizationId],
-    enabled: !!organizationId,
-    queryFn: async () => {
-      const { data: candidates, error } = await supabase
-        .from('bookings')
-        .select('id, client, status, booking_number, eventdate, deliveryaddress, large_project_id')
-        .eq('organization_id', organizationId!)
-        .eq('status', 'CONFIRMED')
-        .or('assigned_to_project.is.null,assigned_to_project.eq.false')
-        .is('large_project_id', null)
-        .order('created_at', { ascending: false });
-      if (error || !candidates || candidates.length === 0) return [];
-
-      const candidateIds = candidates.map((b) => b.id);
-      const [{ data: activeJobs }, { data: activeProjects }, { data: largeLinks }] = await Promise.all([
-        supabase.from('jobs').select('booking_id').in('booking_id', candidateIds).is('deleted_at', null).not('status', 'in', '("completed","cancelled")'),
-        supabase.from('projects').select('booking_id').in('booking_id', candidateIds).not('status', 'in', '("completed","cancelled")'),
-        supabase.from('large_project_bookings').select('booking_id').in('booking_id', candidateIds),
-      ]);
-      const assigned = new Set([
-        ...(activeJobs || []).map((j: any) => j.booking_id),
-        ...(activeProjects || []).map((p: any) => p.booking_id),
-        ...(largeLinks || []).map((l: any) => l.booking_id),
-      ]);
-      return candidates.filter((b) => !assigned.has(b.id));
-    },
-    placeholderData: [],
-  });
-
-  const { data: unplanned = [] } = useUnplannedProjects();
-
-  // Realtime: nya OCH uppdaterade bokningar (t.ex. status → CONFIRMED) ska
-  // synas direkt utan siduppdatering. Kanalen är alltid org-filtrerad.
   useRealtimeInvalidation({
-    channelName: `new-bookings-popup-${organizationId ?? 'none'}`,
+    channelName: `calendar-new-bookings-${organizationId ?? 'none'}`,
     tables: [
-      {
-        table: 'bookings',
-        events: ['INSERT', 'UPDATE'],
-        filter: organizationId ? `organization_id=eq.${organizationId}` : undefined,
-      },
+      { table: 'bookings', events: ['INSERT', 'UPDATE'], filter: organizationId ? `organization_id=eq.${organizationId}` : undefined },
+      { table: 'projects', events: ['INSERT', 'UPDATE'], filter: organizationId ? `organization_id=eq.${organizationId}` : undefined },
+      { table: 'jobs', events: ['INSERT', 'UPDATE', 'DELETE'], filter: organizationId ? `organization_id=eq.${organizationId}` : undefined },
+      { table: 'large_project_bookings', events: ['INSERT', 'DELETE'], filter: organizationId ? `organization_id=eq.${organizationId}` : undefined },
     ],
     queryKeys: [
       ['bookings-without-project', organizationId],
@@ -113,6 +77,39 @@ const NewBookingsPopup: React.FC = () => {
     pause: () => !organizationId,
   });
 
+
+  const { data: bookings = [] } = useQuery({
+    queryKey: ['bookings-without-project', organizationId],
+    enabled: !!organizationId,
+    queryFn: async () => {
+      let candidatesQuery = supabase
+        .from('bookings')
+        .select('id, client, status, booking_number, eventdate, deliveryaddress, large_project_id')
+        .eq('organization_id', organizationId!)
+        .eq('status', 'CONFIRMED')
+        .or('assigned_to_project.is.null,assigned_to_project.eq.false')
+        .is('large_project_id', null)
+        .order('created_at', { ascending: false });
+      const { data: candidates, error } = await candidatesQuery;
+      if (error || !candidates || candidates.length === 0) return [];
+
+      const candidateIds = candidates.map((b) => b.id);
+      const [{ data: activeJobs }, { data: activeProjects }, { data: largeLinks }] = await Promise.all([
+        supabase.from('jobs').select('booking_id').eq('organization_id', organizationId!).in('booking_id', candidateIds).is('deleted_at', null).not('status', 'in', '("completed","cancelled")'),
+        supabase.from('projects').select('booking_id').eq('organization_id', organizationId!).in('booking_id', candidateIds).not('status', 'in', '("completed","cancelled")'),
+        supabase.from('large_project_bookings').select('booking_id').eq('organization_id', organizationId!).in('booking_id', candidateIds),
+      ]);
+      const assigned = new Set([
+        ...(activeJobs || []).map((j: any) => j.booking_id),
+        ...(activeProjects || []).map((p: any) => p.booking_id),
+        ...(largeLinks || []).map((l: any) => l.booking_id),
+      ]);
+      return candidates.filter((b) => !assigned.has(b.id));
+    },
+    placeholderData: [],
+  });
+
+  const { data: unplanned = [] } = useUnplannedProjects();
 
   const items = useMemo<PopupItem[]>(() => {
     const fromBookings: PopupItem[] = (bookings as any[]).map((b) => ({

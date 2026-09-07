@@ -41,6 +41,66 @@ export function canDeleteProducts(completeness: ProductSourceCompleteness): bool
   return completeness === 'complete';
 }
 
+export interface ProductDeletionRow {
+  id?: string | null;
+  sync_key?: string | null;
+  is_package_component?: boolean | null;
+  parent_product_id?: string | null;
+}
+
+export interface ProductDeletionPlan {
+  /** Booking-owned rows missing from the complete source snapshot. */
+  sourceRowIds: string[];
+  /** Planning-generated descendants that must be removed before their parent. */
+  generatedDependentIds: string[];
+  /** Surviving rows whose parent link must be cleared before deletion. */
+  detachedSurvivorIds: string[];
+}
+
+/**
+ * Plans a referentially safe product deletion.
+ *
+ * `booking_products.parent_product_id` has a restrictive self-FK. A stale
+ * Booking parent can therefore not be deleted while generated package rows
+ * still reference it. Generated descendants are deleted first; any surviving
+ * row is preserved and detached instead of being deleted accidentally.
+ */
+export function planProductDeletion(
+  existingRows: ProductDeletionRow[],
+  seenExistingIds: ReadonlySet<string>,
+): ProductDeletionPlan {
+  const rows = (existingRows || []).filter((row): row is ProductDeletionRow & { id: string } =>
+    typeof row?.id === 'string' && row.id.length > 0,
+  );
+  const sourceRowIds = rows
+    .filter((row) => !seenExistingIds.has(row.id) && !isPlanningGeneratedRow(row))
+    .map((row) => row.id);
+
+  const deletedIds = new Set(sourceRowIds);
+  const generatedDependentIds: string[] = [];
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const row of rows) {
+      if (deletedIds.has(row.id) || !row.parent_product_id) continue;
+      if (!deletedIds.has(row.parent_product_id) || !isPlanningGeneratedRow(row)) continue;
+      deletedIds.add(row.id);
+      generatedDependentIds.push(row.id);
+      changed = true;
+    }
+  }
+
+  const detachedSurvivorIds = rows
+    .filter((row) =>
+      !deletedIds.has(row.id) &&
+      !!row.parent_product_id &&
+      deletedIds.has(row.parent_product_id),
+    )
+    .map((row) => row.id);
+
+  return { sourceRowIds, generatedDependentIds, detachedSurvivorIds };
+}
+
 const normName = (v: unknown): string => (v ?? '').toString().trim().toLowerCase();
 const num = (v: unknown): number => {
   const n = typeof v === 'number' ? v : parseFloat(String(v));
@@ -235,8 +295,12 @@ export function planPackingReconnect(
 
 /** Prefix för Booking-ägda orderrader. */
 export const BOOKING_SOURCE_SYNC_PREFIX = 'src:';
+/** Äldre importversioner använde detta prefix för samma Booking-rad-id. */
+export const LEGACY_BOOKING_SOURCE_SYNC_PREFIX = 'booking:';
 /** Prefix för Planning-genererade paketkomponenter. */
 export const PLANNING_COMPONENT_SYNC_PREFIX = 'cmp:';
+/** Äldre komponentexpansion använde detta prefix. */
+export const LEGACY_PLANNING_COMPONENT_SYNC_PREFIX = 'component:booking:';
 
 const slug = (v: unknown): string =>
   (v ?? '')
@@ -276,6 +340,15 @@ export function buildSourceSyncKey(product: any, index: number): string {
   return `${BOOKING_SOURCE_SYNC_PREFIX}pos:${index}:${name}`;
 }
 
+/** Samma källrad får aldrig bli ny bara för att prefixformatet har ändrats. */
+export function canonicalizeSourceSyncKey(syncKey: unknown): string {
+  const key = (syncKey ?? '').toString();
+  if (key.startsWith(LEGACY_BOOKING_SOURCE_SYNC_PREFIX)) {
+    return `${BOOKING_SOURCE_SYNC_PREFIX}${key.slice(LEGACY_BOOKING_SOURCE_SYNC_PREFIX.length)}`;
+  }
+  return key;
+}
+
 /** Bygger stabilt sync_key för en Planning-genererad paketkomponent. */
 export function buildComponentSyncKey(
   parentKey: string,
@@ -295,7 +368,9 @@ export function buildComponentSyncKey(
 export function isPlanningGeneratedRow(row: any): boolean {
   const key = (row?.sync_key ?? '').toString();
   if (key.startsWith(PLANNING_COMPONENT_SYNC_PREFIX)) return true;
+  if (key.startsWith(LEGACY_PLANNING_COMPONENT_SYNC_PREFIX)) return true;
   if (key.startsWith(BOOKING_SOURCE_SYNC_PREFIX)) return false;
+  if (key.startsWith(LEGACY_BOOKING_SOURCE_SYNC_PREFIX)) return false;
   return row?.is_package_component === true;
 }
 
@@ -345,7 +420,8 @@ export function planProductSyncIdentity(
   for (const row of bookingRows) {
     const key = (row.sync_key ?? '').toString();
     if (key) {
-      if (!byKey.has(key)) byKey.set(key, row.id);
+      const canonicalKey = canonicalizeSourceSyncKey(key);
+      if (!byKey.has(canonicalKey)) byKey.set(canonicalKey, row.id);
       continue;
     }
     const nameKey = slug(row.name);
@@ -464,6 +540,14 @@ export function planPackageComponentReconciliation(
       if (!existingByKey.has(key)) existingByKey.set(key, row);
       continue;
     }
+    if (key.startsWith(LEGACY_PLANNING_COMPONENT_SYNC_PREFIX)) {
+      if (row?.is_package_component !== true || !row?.parent_product_id) continue;
+      const lk = legacyKey(row.parent_product_id, row.name);
+      const list = legacyByParentName.get(lk) ?? [];
+      list.push(row);
+      legacyByParentName.set(lk, list);
+      continue;
+    }
     if (key) continue; // src:-rad → Booking-ägd, aldrig komponentkandidat
     if (row?.is_package_component !== true) continue;
     if (!row?.parent_product_id) continue;
@@ -542,4 +626,3 @@ export function planPackageComponentExpansion(
 ): ComponentExpansionRow[] {
   return planPackageComponentReconciliation(parents, existingRows).inserts;
 }
-
