@@ -48,9 +48,11 @@ describe("simple project workspace", () => {
     expect(page).toContain("contact_phone: project.contact_phone");
   });
 
-  it("uses the purple project header and separates booking information from planning", () => {
+  it("uses the neutral EventFlow project header with Planning as accent", () => {
     const page = read("src/pages/project/SimpleProjectWorkspacePage.tsx");
-    expect(page).toContain("bg-primary p-5 text-primary-foreground");
+    expect(page).toContain("border border-border bg-card p-5 text-card-foreground shadow-sm");
+    expect(page).toContain("border-primary/30 text-primary hover:bg-primary/10");
+    expect(page).not.toContain("bg-primary p-5 text-primary-foreground");
     expect(page).toContain('value="booking"');
     expect(page).toContain('value="planning"');
     expect(page).toContain("Bokningsinformation");
