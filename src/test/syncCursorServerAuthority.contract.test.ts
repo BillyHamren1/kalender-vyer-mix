@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  *
  * `updateSyncState` är en ren no-op — varken cursor (`last_sync_timestamp`),
  * status, mode eller metadata får skrivas från klienten. Cursorn flyttas
- * endast av servern efter en helt lyckad batch (`finalize_sync_batch`).
+ * endast av servern efter en terminal batch (`finalize_sync_batch`).
  */
 
 const upsertSpy = vi.fn();

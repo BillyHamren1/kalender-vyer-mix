@@ -28,6 +28,19 @@ serve(async (req) => {
   const supabase = createClient(supabaseUrl, serviceRoleKey)
 
   try {
+    // Close batches whose jobs are already terminal before deciding whether a
+    // new safety-net poll is needed. The worker runs the same sweep, so an old
+    // batch cannot keep the poller wedged if its final callback was missed.
+    const { data: swept, error: sweepError } = await supabase.rpc(
+      'finalize_ready_sync_batches',
+      { p_limit: 1000 },
+    )
+    if (sweepError) {
+      console.warn('[incremental-sync-all-orgs] ready-batch sweep failed', sweepError.message)
+    } else if (Number(swept ?? 0) > 0) {
+      console.log(`[incremental-sync-all-orgs] finalized ${Number(swept)} ready batch(es)`)
+    }
+
     // Pick organizations that have at least one synced booking — those
     // are the ones using the external Booking system.
     const { data: orgs, error: orgErr } = await supabase
@@ -41,6 +54,30 @@ serve(async (req) => {
     for (const org of (orgs || [])) {
       const orgStart = Date.now()
       try {
+        // There must be only one server-owned incremental window per org at a
+        // time. Reusing the old cursor while a previous batch is unfinished is
+        // what previously generated thousands of duplicate jobs and batches.
+        const { data: activeBatch, error: activeBatchError } = await supabase
+          .from('sync_batches')
+          .select('id, started_at')
+          .eq('organization_id', org.id)
+          .eq('sync_type', 'booking_import')
+          .eq('status', 'pending')
+          .order('started_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (activeBatchError) throw activeBatchError
+        if (activeBatch) {
+          results.push({
+            org_id: org.id,
+            name: org.name,
+            status: 'skipped_active_batch',
+            ms: Date.now() - orgStart,
+          })
+          continue
+        }
+
         // Skip orgs that don't have any bookings synced (avoid hitting external API for nothing)
         const { count } = await supabase
           .from('bookings')

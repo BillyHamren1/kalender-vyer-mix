@@ -351,9 +351,16 @@ export function createFakeSupabase(opts?: {
           const due = !j.next_attempt_at || Date.parse(j.next_attempt_at) <= nowMs;
           if ((j.status === 'pending' || j.status === 'retryable') && due) return true;
           if (j.status === 'processing' && j.lease_expires_at && Date.parse(j.lease_expires_at) <= nowMs) return true;
+          if (j.status === 'processing' && !j.lease_expires_at) {
+            const started = Date.parse(j.started_at ?? j.received_at ?? '');
+            if (Number.isFinite(started) && started <= nowMs - leaseSec * 1000) return true;
+          }
           return false;
         })
-        .sort((a, b) => String(a.received_at ?? '').localeCompare(String(b.received_at ?? '')));
+        .sort((a, b) => {
+          const byPriority = Number(b.priority ?? 0) - Number(a.priority ?? 0);
+          return byPriority || String(a.received_at ?? '').localeCompare(String(b.received_at ?? ''));
+        });
       const perOrgCount = new Map<string, number>();
       const picked: any[] = [];
       for (const j of claimable) {
@@ -422,17 +429,24 @@ export function createFakeSupabase(opts?: {
       const status = failed > 0 ? (succeeded > 0 ? 'partial' : 'failed') : 'success';
       batch.status = status;
       let cursorAdvancedTo: string | null = null;
-      if (status === 'success') {
-        const cursorRow = rows('sync_state').find(
-          (c: any) => c.organization_id === batch.organization_id && c.sync_type === batch.sync_type,
-        ) as any;
-        const planned = String(batch.planned_cursor);
-        const current = cursorRow?.last_sync_timestamp ?? null;
-        if (!current || Date.parse(planned) > Date.parse(current)) {
-          if (cursorRow) cursorRow.last_sync_timestamp = planned;
-          else rows('sync_state').push({ organization_id: batch.organization_id, sync_type: batch.sync_type, last_sync_timestamp: planned });
-          cursorAdvancedTo = planned;
+      const cursorRow = rows('sync_state').find(
+        (c: any) => c.organization_id === batch.organization_id && c.sync_type === batch.sync_type,
+      ) as any;
+      const planned = String(batch.planned_cursor);
+      const current = cursorRow?.last_sync_timestamp ?? null;
+      if (!current || Date.parse(planned) > Date.parse(current)) {
+        if (cursorRow) {
+          cursorRow.last_sync_timestamp = planned;
+          cursorRow.last_sync_status = status;
+        } else {
+          rows('sync_state').push({
+            organization_id: batch.organization_id,
+            sync_type: batch.sync_type,
+            last_sync_timestamp: planned,
+            last_sync_status: status,
+          });
         }
+        cursorAdvancedTo = planned;
       }
       return {
         data: [{ finalized: true, status, succeeded, failed, remaining: 0, cursor_advanced_to: cursorAdvancedTo, monotonic_skip: false }],

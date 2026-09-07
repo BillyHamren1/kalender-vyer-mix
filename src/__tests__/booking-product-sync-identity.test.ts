@@ -14,11 +14,14 @@ import {
   buildSourceSyncKey,
   buildComponentSyncKey,
   planProductSyncIdentity,
+  planProductDeletion,
   planPackageComponentExpansion,
   planPackageComponentReconciliation,
   normalizeSyncQuantity,
   isPlanningGeneratedRow,
   BOOKING_SOURCE_SYNC_PREFIX,
+  LEGACY_BOOKING_SOURCE_SYNC_PREFIX,
+  LEGACY_PLANNING_COMPONENT_SYNC_PREFIX,
   PLANNING_COMPONENT_SYNC_PREFIX,
 } from '../../supabase/functions/_shared/productCompleteness';
 
@@ -72,6 +75,17 @@ describe('planProductSyncIdentity', () => {
     expect(plan.matches.map((m) => m.existingId)).toEqual(['local-a', 'local-b']);
   });
 
+  it('adopterar legacy booking:-nyckel som samma src:-rad utan INSERT', () => {
+    const plan = planProductSyncIdentity(
+      [{ id: 'row-1', name: 'F20', quantity: 1 }],
+      [{ id: 'legacy-local', name: 'F20', sync_key: `${LEGACY_BOOKING_SOURCE_SYNC_PREFIX}row-1` }],
+    );
+    expect(plan.matches).toEqual([
+      expect.objectContaining({ existingId: 'legacy-local', syncKey: 'src:row-1' }),
+    ]);
+    expect(plan.unmatchedExisting).toEqual([]);
+  });
+
   it('ignorerar Planning-genererade paketkomponenter', () => {
     const external = [{ id: 'row-1', name: 'Paket A' }];
     const existing = [
@@ -87,9 +101,46 @@ describe('planProductSyncIdentity', () => {
 
   it('isPlanningGeneratedRow skiljer Booking-rader från komponenter', () => {
     expect(isPlanningGeneratedRow({ sync_key: `${BOOKING_SOURCE_SYNC_PREFIX}row-1`, is_package_component: true })).toBe(false);
+    expect(isPlanningGeneratedRow({ sync_key: `${LEGACY_BOOKING_SOURCE_SYNC_PREFIX}row-1`, is_package_component: true })).toBe(false);
     expect(isPlanningGeneratedRow({ sync_key: `${PLANNING_COMPONENT_SYNC_PREFIX}a:b` })).toBe(true);
+    expect(isPlanningGeneratedRow({ sync_key: `${LEGACY_PLANNING_COMPONENT_SYNC_PREFIX}row-1:ben`, is_package_component: true })).toBe(true);
     expect(isPlanningGeneratedRow({ is_package_component: true })).toBe(true);
     expect(isPlanningGeneratedRow({ name: 'Bord' })).toBe(false);
+  });
+});
+
+describe('planProductDeletion', () => {
+  it('raderar genererade barn före en stale Booking-förälder', () => {
+    const plan = planProductDeletion([
+      { id: 'parent', sync_key: 'src:old-parent' },
+      { id: 'source-child', sync_key: 'src:old-child', parent_product_id: 'parent', is_package_component: true },
+      { id: 'generated-child', sync_key: 'cmp:src:old-parent:leg', parent_product_id: 'parent', is_package_component: true },
+      { id: 'generated-grandchild', sync_key: 'cmp:src:old-parent:screw', parent_product_id: 'generated-child', is_package_component: true },
+    ], new Set());
+
+    expect(plan.sourceRowIds).toEqual(['parent', 'source-child']);
+    expect(plan.generatedDependentIds).toEqual(['generated-child', 'generated-grandchild']);
+    expect(plan.detachedSurvivorIds).toEqual([]);
+  });
+
+  it('bevarar och kopplar loss en fortfarande aktuell child-rad', () => {
+    const plan = planProductDeletion([
+      { id: 'parent', sync_key: 'src:old-parent' },
+      { id: 'current-child', sync_key: 'src:current-child', parent_product_id: 'parent', is_package_component: true },
+    ], new Set(['current-child']));
+
+    expect(plan.sourceRowIds).toEqual(['parent']);
+    expect(plan.generatedDependentIds).toEqual([]);
+    expect(plan.detachedSurvivorIds).toEqual(['current-child']);
+  });
+
+  it('rör inte Planning-rader vars förälder finns kvar', () => {
+    const plan = planProductDeletion([
+      { id: 'parent', sync_key: 'src:current-parent' },
+      { id: 'generated-child', sync_key: 'cmp:src:current-parent:leg', parent_product_id: 'parent', is_package_component: true },
+    ], new Set(['parent']));
+
+    expect(plan).toEqual({ sourceRowIds: [], generatedDependentIds: [], detachedSurvivorIds: [] });
   });
 });
 
@@ -237,5 +288,25 @@ describe('legacy component adoption (no duplicates)', () => {
     ]);
     expect(plan.inserts).toHaveLength(1);
     expect(plan.updates).toHaveLength(0);
+  });
+
+  it('adopterar komponent med legacy component:booking:-nyckel', () => {
+    const plan = planPackageComponentReconciliation([parent], [
+      {
+        id: 'legacy-prefixed',
+        sync_key: 'component:booking:ext-1:k ben:c1:0',
+        quantity: 4,
+        name: '  -- K Ben',
+        parent_product_id: 'p1',
+        is_package_component: true,
+      },
+    ]);
+    expect(plan.inserts).toHaveLength(0);
+    expect(plan.updates).toHaveLength(1);
+    expect(plan.updates[0]).toMatchObject({
+      existingId: 'legacy-prefixed',
+      adoptSyncKey: true,
+      syncKey: 'cmp:src:ext-1:c1',
+    });
   });
 });

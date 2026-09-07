@@ -489,7 +489,7 @@ describe('STEG 4A — Booking → Planning sync: regressionsscenarier', () => {
     expect((sb.db.tables.sync_state[0] as any).last_sync_timestamp).toBe('2026-07-01T00:00:00.000Z');
   });
 
-  it('24. Cursor advancement: cursor flyttas endast vid full success', async () => {
+  it('24. Cursor advancement: full success flyttar cursorn', async () => {
     const sb = createFakeSupabase({
       seed: {
         sync_batches: [makeSyncBatch({ id: 'batch-2', planned_cursor: '2026-08-02T00:00:00.000Z', total_jobs: 1 })],
@@ -503,7 +503,7 @@ describe('STEG 4A — Booking → Planning sync: regressionsscenarier', () => {
     expect((sb.db.tables.sync_state[0] as any).last_sync_timestamp).toBe('2026-08-02T00:00:00.000Z');
   });
 
-  it('25. Cursor blocked after failure: failed jobb stoppar cursorn', async () => {
+  it('25. Permanent failure: cursorn går fram och failed-jobbet ligger kvar för reconciliation', async () => {
     const sb = createFakeSupabase({
       seed: {
         sync_batches: [makeSyncBatch({ id: 'batch-3', planned_cursor: '2026-08-02T00:00:00.000Z', total_jobs: 2 })],
@@ -516,8 +516,9 @@ describe('STEG 4A — Booking → Planning sync: regressionsscenarier', () => {
     });
     const done = await sb.rpc('finalize_sync_batch', { _batch_id: 'batch-3' });
     expect((done.data as any[])[0].status).toBe('partial');
-    expect((done.data as any[])[0].cursor_advanced_to).toBeNull();
-    expect((sb.db.tables.sync_state[0] as any).last_sync_timestamp).toBe('2026-07-01T00:00:00.000Z');
+    expect((done.data as any[])[0].cursor_advanced_to).toBe('2026-08-02T00:00:00.000Z');
+    expect((sb.db.tables.sync_state[0] as any).last_sync_timestamp).toBe('2026-08-02T00:00:00.000Z');
+    expect((sb.db.tables.booking_sync_jobs as any[]).some((job) => job.status === 'failed')).toBe(true);
   });
 
   it('bonus: normal sync får aldrig destruera projections', () => {

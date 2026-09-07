@@ -15,13 +15,20 @@
  * CURSOR-POLICY (server-authoritative)
  *   - Alla jobb success  → sync_state.last_sync_timestamp = planned_cursor
  *                          (bara om planned_cursor > existing).
- *   - Något jobb permanent failed → last_sync_status='partial',
- *                          last_sync_timestamp lämnas orörd.
+ *   - Något jobb permanent failed → last_sync_status='partial'; jobbet ligger
+ *                          kvar för riktad reconciliation och cursorn går fram
+ *                          så ett poison-jobb inte återspelar hela fönstret.
  *   - Tom batch → success + cursor advances.
  *   - Retriable failed räknas som "pending" (batchen väntar på retry).
  *
  * Cursor rör sig ALDRIG bakåt (garanterat av RPC:n).
  */
+
+import {
+  bookingSyncPriority,
+  normalizeBookingSyncEvent,
+  shouldReplaceQueuedEvent,
+} from "./bookingSyncPriority.ts";
 
 export interface CreateBatchOpts {
   organizationId: string;
@@ -66,7 +73,8 @@ export async function createBatch(
  * denna batch i `sync_batch_jobs`. Idempotent — säkert att anropa flera gånger
  * per batch och tål concurrent race där två imports skapar jobb parallellt.
  *
- * @param eventType — sätts på nya jobb; ignoreras när jobbet redan fanns.
+ * @param eventType — sätts på nya jobb. Ett befintligt jobb uppgraderas om
+ *                    den nya signalen har högre operativ prioritet.
  * @param batchIdForNewJobs — sätts som legacy `booking_sync_jobs.batch_id` för
  *                             nya jobb (bakåtkompat), men finaliseringen läser
  *                             ENDAST från `sync_batch_jobs`.
@@ -81,6 +89,8 @@ export async function attachJobsToBatch(
 ): Promise<{ totalJobs: number; adoptedExisting: number; createdNew: number }> {
   let adopted = 0;
   let created = 0;
+  const normalizedEventType = normalizeBookingSyncEvent(eventType ?? "booking.incremental");
+  const priority = bookingSyncPriority(normalizedEventType);
 
   for (const bookingId of bookingIds) {
     let jobId: string | null = null;
@@ -88,10 +98,10 @@ export async function attachJobsToBatch(
     // 1. Försök hitta befintligt aktivt jobb (pending eller processing).
     const { data: existing, error: existingErr } = await supabase
       .from("booking_sync_jobs")
-      .select("id")
+      .select("id, event_type, priority")
       .eq("organization_id", organizationId)
       .eq("booking_id", bookingId)
-      .in("status", ["pending", "processing"])
+      .in("status", ["pending", "processing", "retryable"])
       .maybeSingle();
 
     if (existingErr) {
@@ -103,6 +113,17 @@ export async function attachJobsToBatch(
     if (existing?.id) {
       jobId = existing.id;
       adopted++;
+      if (shouldReplaceQueuedEvent(existing.event_type, normalizedEventType)) {
+        const { error: promoteErr } = await supabase
+          .from("booking_sync_jobs")
+          .update({ event_type: normalizedEventType, priority })
+          .eq("id", jobId);
+        if (promoteErr) {
+          console.warn(
+            `[syncBatch] failed to promote job=${jobId}: ${promoteErr.message}`,
+          );
+        }
+      }
     } else {
       // 2. Ingen aktiv rad — försök skapa. Partial unique index kan avvisa
       //    om en parallell import hann skapa raden mellan vår select och insert.
@@ -111,7 +132,8 @@ export async function attachJobsToBatch(
         .insert({
           booking_id: bookingId,
           organization_id: organizationId,
-          event_type: eventType ?? "booking.incremental",
+          event_type: normalizedEventType,
+          priority,
           status: "pending",
           batch_id: batchIdForNewJobs, // legacy fält, ej auktoritativt
         })
@@ -122,15 +144,26 @@ export async function attachJobsToBatch(
         // 23505 = unique_violation (race med annan importer)
         const { data: retryExisting } = await supabase
           .from("booking_sync_jobs")
-          .select("id")
+          .select("id, event_type, priority")
           .eq("organization_id", organizationId)
           .eq("booking_id", bookingId)
-          .in("status", ["pending", "processing"])
+          .in("status", ["pending", "processing", "retryable"])
           .maybeSingle();
 
         if (retryExisting?.id) {
           jobId = retryExisting.id;
           adopted++;
+          if (shouldReplaceQueuedEvent(retryExisting.event_type, normalizedEventType)) {
+            const { error: promoteErr } = await supabase
+              .from("booking_sync_jobs")
+              .update({ event_type: normalizedEventType, priority })
+              .eq("id", jobId);
+            if (promoteErr) {
+              console.warn(
+                `[syncBatch] failed to promote raced job=${jobId}: ${promoteErr.message}`,
+              );
+            }
+          }
         } else {
           console.warn(
             `[syncBatch] failed to insert or find active job for org=${organizationId} booking=${bookingId}: ${insertErr.message}`,

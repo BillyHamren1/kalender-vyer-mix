@@ -6,7 +6,8 @@
  *   - Ett jobb kan tillhöra flera batcher samtidigt via `sync_batch_jobs`.
  *   - När ett jobb blir terminalt (completed/failed) letar vi upp ALLA batcher
  *     som pekar på jobbet och kör `finalize_sync_batch` för var och en.
- *   - RPC:n låser batchen atomiskt och flyttar cursorn ENDAST framåt.
+ *   - RPC:n låser batchen atomiskt och flyttar cursorn ENDAST framåt när alla
+ *     jobb är terminala. Permanenta fel behålls för riktad reconciliation.
  *
  * RETRY-POLICY:
  *   - Retriable fel (nätverk/timeouts/5xx) → status='pending',
@@ -18,6 +19,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
 import { finalizeBatchIfDone } from '../_shared/syncBatch.ts'
 import { validateSingleBookingResult } from '../_shared/singleBookingResult.ts'
+import { bookingSyncPriority } from '../_shared/bookingSyncPriority.ts'
 import {
   classifyJobFailure,
   nextAttemptAtIso,
@@ -43,6 +45,18 @@ interface ClaimedJob {
   attempts: number
   max_attempts: number
   worker_token: string | null
+  priority: number
+}
+
+async function sweepReadyBatches(supabase: any): Promise<number> {
+  const { data, error } = await supabase.rpc('finalize_ready_sync_batches', {
+    p_limit: 1000,
+  })
+  if (error) {
+    console.warn('[process-sync-jobs] ready-batch sweep failed', error.message)
+    return 0
+  }
+  return Number(data ?? 0)
 }
 
 /** Klassar felmeddelanden. Nätverks-/timeout-/5xx-fel är retriable. */
@@ -81,15 +95,20 @@ serve(async (req) => {
   if (claimError) {
     console.error('[process-sync-jobs] Failed to claim jobs', claimError.message)
     return new Response(
-      JSON.stringify({ error: 'Failed to claim jobs' }),
+      JSON.stringify({
+        error: 'Failed to claim jobs',
+        detail: claimError.message,
+        code: claimError.code ?? null,
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
   const jobs = (claimedJobs || []) as ClaimedJob[]
   if (jobs.length === 0) {
+    const batchesSwept = await sweepReadyBatches(supabase)
     return new Response(
-      JSON.stringify({ processed: 0, message: 'No pending jobs' }),
+      JSON.stringify({ processed: 0, batches_swept: batchesSwept, message: 'No pending jobs' }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
@@ -103,6 +122,7 @@ serve(async (req) => {
     tokens: Record<string, string | null>
     attempts: number
     max_attempts: number
+    priority: number
   }>()
 
   const jobIdList: string[] = []
@@ -128,8 +148,13 @@ serve(async (req) => {
       tokens: {},
       attempts: job.attempts ?? 0,
       max_attempts: job.max_attempts ?? 3,
+      priority: job.priority ?? bookingSyncPriority(job.event_type),
     }
-    if (!entry.event_type && job.event_type) entry.event_type = job.event_type
+    const incomingPriority = job.priority ?? bookingSyncPriority(job.event_type)
+    if (incomingPriority > entry.priority) {
+      entry.event_type = job.event_type
+      entry.priority = incomingPriority
+    }
     entry.jobIds.push(job.id)
     entry.tokens[job.id] = job.worker_token ?? null
     entry.attempts = Math.max(entry.attempts, job.attempts ?? 0)
@@ -312,6 +337,7 @@ serve(async (req) => {
       console.error(`[process-sync-jobs] finalize batch=${batchId} failed`, err?.message ?? err)
     }
   }
+  const batchesSwept = await sweepReadyBatches(supabase)
 
   return new Response(
     JSON.stringify({
@@ -322,6 +348,7 @@ serve(async (req) => {
       batches_finalized: finalizations.filter((f) => f.finalized).length,
       cursors_advanced: finalizations.filter((f) => f.cursorAdvancedTo).length,
       monotonic_skips: finalizations.filter((f) => f.monotonicSkip).length,
+      batches_swept: batchesSwept,
     }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )

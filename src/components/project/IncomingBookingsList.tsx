@@ -39,8 +39,8 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
 }) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [placementBookingId, setPlacementBookingId] = useState<string | null>(null);
   const { organizationId } = useCurrentOrg();
+  const [placementBookingId, setPlacementBookingId] = useState<string | null>(null);
 
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ['bookings-without-project', organizationId],
@@ -65,9 +65,9 @@ export const IncomingBookingsList: React.FC<IncomingBookingsListProps> = ({
       const candidateIds = candidates.map(b => b.id);
       
       const [{ data: activeJobs }, { data: activeProjects }, { data: largeLinks }] = await Promise.all([
-        supabase.from('jobs').select('booking_id').in('booking_id', candidateIds).is('deleted_at', null).not('status', 'in', '("completed","cancelled")'),
-        supabase.from('projects').select('booking_id').in('booking_id', candidateIds).not('status', 'in', '("completed","cancelled")'),
-        supabase.from('large_project_bookings').select('booking_id').in('booking_id', candidateIds),
+        supabase.from('jobs').select('booking_id').eq('organization_id', organizationId!).in('booking_id', candidateIds).is('deleted_at', null).not('status', 'in', '("completed","cancelled")'),
+        supabase.from('projects').select('booking_id').eq('organization_id', organizationId!).in('booking_id', candidateIds).not('status', 'in', '("completed","cancelled")'),
+        supabase.from('large_project_bookings').select('booking_id').eq('organization_id', organizationId!).in('booking_id', candidateIds),
       ]);
 
       const assignedIds = new Set([

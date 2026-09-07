@@ -36,6 +36,7 @@ const GLOBAL_STATUS_OPTIONS: Record<GlobalStatusFilter, string> = {
 const ProjectManagement = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { organizationId } = useCurrentOrg();
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
   const [createProjectBookingId, setCreateProjectBookingId] = useState<string | null>(null);
   const [largeProjectBookingId, setLargeProjectBookingId] = useState<string | null>(null);
@@ -43,7 +44,6 @@ const ProjectManagement = () => {
   const [globalStatusFilter, setGlobalStatusFilter] = useState<GlobalStatusFilter>('all_active');
   const [typeFilter, setTypeFilter] = useState<ProjectTypeFilter>('all');
   const [isSyncing, setIsSyncing] = useState(false);
-  const { organizationId } = useCurrentOrg();
 
   const handleSyncBookings = async () => {
     setIsSyncing(true);

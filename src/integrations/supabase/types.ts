@@ -11076,6 +11076,21 @@ export type Database = {
         Args: { _org_id: string }
         Returns: string
       }
+      enqueue_booking_sync_job: {
+        Args: {
+          p_booking_id: string
+          p_event_type?: string
+          p_organization_id: string
+          p_priority?: number
+        }
+        Returns: {
+          coalesced: boolean
+          job_event_type: string
+          job_id: string
+          job_priority: number
+          job_status: string
+        }[]
+      }
       ensure_warehouse_booking_need: {
         Args: { p_booking_id: string }
         Returns: undefined
@@ -11108,6 +11123,10 @@ export type Database = {
           status: string
           succeeded: number
         }[]
+      }
+      finalize_ready_sync_batches: {
+        Args: { p_limit?: number }
+        Returns: number
       }
       get_job_chat_summary: {
         Args: { _booking_ids: string[]; _my_ids: string[]; _org_id: string }
