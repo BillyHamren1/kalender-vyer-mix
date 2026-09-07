@@ -420,13 +420,15 @@ export async function assignStaffToPacking(params: {
     metadata: { resource_id: teamId, packing_status: pk.status },
   };
 
-  const { error: upErr } = await supabase
-    .from('warehouse_assignments')
-    .upsert(row as any, { onConflict: 'staff_id,packing_id' });
-  if (upErr) {
-    console.error('[warehouseAssignmentsSync] assignStaffToPacking upsert failed', upErr);
-    return { ok: false, error: upErr.message };
+  const writeErr = await writeAssignmentRow(row as any, {
+    staff_id: staffId,
+    packing_id: packingId,
+  });
+  if (writeErr) {
+    console.error('[warehouseAssignmentsSync] assignStaffToPacking write failed', writeErr);
+    return { ok: false, error: writeErr };
   }
+
 
   try {
     await assignStaffToTeamCore(staffId, teamId, new Date(dateStr));
