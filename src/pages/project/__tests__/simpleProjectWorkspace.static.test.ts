@@ -52,10 +52,10 @@ describe("simple project workspace", () => {
     const page = read("src/pages/project/SimpleProjectWorkspacePage.tsx");
     const mediumLayout = read("src/pages/project/ProjectLayout.tsx");
     const largeLayout = read("src/pages/project/LargeProjectLayout.tsx");
-    expect(page).toContain("border border-primary bg-primary p-5 text-primary-foreground shadow-sm");
+    expect(page).toContain('background: "var(--gradient-planner)"');
     expect(page).toContain("bg-primary-foreground text-primary hover:bg-primary-foreground/90");
-    expect(mediumLayout).toContain("bg-primary text-primary-foreground border border-primary");
-    expect(largeLayout).toContain("bg-primary text-primary-foreground border border-primary");
+    expect(mediumLayout).toContain('background: "var(--gradient-planner)"');
+    expect(largeLayout).toContain('background: "var(--gradient-planner)"');
     expect(mediumLayout).not.toContain("hsl(270 45% 60%)");
     expect(largeLayout).not.toContain("hsl(270 45% 60%)");
     expect(page).toContain('value="booking"');

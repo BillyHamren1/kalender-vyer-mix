@@ -346,7 +346,10 @@ const LargeProjectLayout = () => {
     <div className="theme-purple h-full overflow-y-auto" style={{ background: "var(--gradient-page)" }}>
       <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
-        <div className="px-5 py-3.5 rounded-xl bg-primary text-primary-foreground border border-primary shadow-sm mb-5">
+        <div
+          className="px-6 py-5 rounded-2xl text-white shadow-[0_10px_28px_-14px_hsl(263_70%_40%/0.55)] mb-5"
+          style={{ background: "var(--gradient-planner)" }}
+        >
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div className="flex items-center gap-3">
               <Button
