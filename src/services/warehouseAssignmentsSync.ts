@@ -307,15 +307,22 @@ export async function assignStaffToWarehouseEvent(params: {
   // The warehouse UI assigns a person to THIS concrete job. Do not route this
   // through the legacy team-day sync: that would implicitly assign the person
   // to every lager-N job on the same day.
+  //
+  // NOTE: the unique indexes for (staff_id, warehouse_event_id) and
+  // (staff_id, packing_id) are PARTIAL, so PostgREST `on_conflict` cannot infer
+  // them (Postgres raises 42P10). We therefore do an explicit
+  // select → update/insert instead of an upsert.
   const row = toAssignmentRow(staffId, dateStr, ev as WarehouseEventRow);
-  const { error: upsertError } = await supabase
-    .from('warehouse_assignments')
-    .upsert(row, { onConflict: 'staff_id,warehouse_event_id' });
+  const writeError = await writeAssignmentRow(row, {
+    staff_id: staffId,
+    warehouse_event_id: warehouseEventId,
+  });
 
-  if (upsertError) {
-    console.error('[warehouseAssignmentsSync] exact-event upsert failed', upsertError);
-    return { ok: false, error: upsertError.message };
+  if (writeError) {
+    console.error('[warehouseAssignmentsSync] exact-event write failed', writeError);
+    return { ok: false, error: writeError };
   }
+
 
   // Compatibility mirror only. The concrete warehouse_assignments row above
   // remains the sole source for which warehouse job the person actually owns.
