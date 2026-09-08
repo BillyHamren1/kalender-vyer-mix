@@ -124,9 +124,13 @@ export function flattenWmsPackingLines(body: any): WmsPackingRow[] {
       for (const c of components) {
         const key = c?.item_type_id || c?.sku || c?.line_id || c?.id;
         if (!key) continue;
+        const rawName = String(c?.name ?? packageName);
+        // WMS ger ibland komponenten samma namn som paketet — särskilj med SKU
+        // så att golvet ser vilken fysisk del raden gäller.
+        const displayName = rawName === packageName && c?.sku ? `${rawName} (${c.sku})` : rawName;
         rows.push({
           wmsLineId: `${lineId}::${key}`,
-          name: String(c?.name ?? packageName),
+          name: displayName,
           quantity: Number(c?.required_qty ?? c?.quantity ?? 0) || 0,
           itemTypeId: c?.item_type_id ?? null,
           sku: c?.sku ?? null,
