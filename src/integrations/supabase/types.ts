@@ -4457,6 +4457,7 @@ export type Database = {
           wms_identity_needs_repair: boolean
           wms_identity_source: string | null
           wms_item_type_id: string | null
+          wms_line_id: string | null
           wms_sku: string | null
         }
         Insert: {
@@ -4483,6 +4484,7 @@ export type Database = {
           wms_identity_needs_repair?: boolean
           wms_identity_source?: string | null
           wms_item_type_id?: string | null
+          wms_line_id?: string | null
           wms_sku?: string | null
         }
         Update: {
@@ -4509,6 +4511,7 @@ export type Database = {
           wms_identity_needs_repair?: boolean
           wms_identity_source?: string | null
           wms_item_type_id?: string | null
+          wms_line_id?: string | null
           wms_sku?: string | null
         }
         Relationships: [

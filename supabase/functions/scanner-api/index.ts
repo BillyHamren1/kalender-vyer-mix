@@ -2,6 +2,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { deriveStatusFromProgress } from '../_shared/packing-progress.ts'
 import { repairPackingItems } from '../_shared/packingRepair.ts'
+import { resolveWmsReservation } from '../_shared/wmsPackingList.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -891,7 +892,16 @@ Deno.serve(async (req) => {
           return json({ success: false, error: 'Lagersystem ej konfigurerat', allocations: [] })
         }
 
-        const url = `https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/get-reservation-allocations?reservation_id=${encodeURIComponent(bookingNumber)}`
+        // Reservationsidentitet: bokningsnumret är INTE reservation_id. Slå upp UUID.
+        const resolved = await resolveWmsReservation(bookingNumber, {
+          apiKey: PRICELIST_API_KEY,
+          organizationId: ORG_ID,
+        })
+        if (!resolved.ok) {
+          return json({ success: false, error: resolved.error || 'Ingen WMS-reservation', code: resolved.code, allocations: [] })
+        }
+        const url = `https://pnvvnvywphfvmwdmqqzs.supabase.co/functions/v1/get-reservation-allocations?reservation_id=${encodeURIComponent(resolved.reservationId!)}`
+
         let wmsAllocs: WmsAllocRow[] = []
         let wmsCurrentState: any = null
         try {
@@ -1511,6 +1521,7 @@ Deno.serve(async (req) => {
             wms_item_type_id,
             wms_sku,
             wms_identity_needs_repair,
+            manual_name,
             booking_products ( id, name, sku, inventory_item_type_id, parent_product_id )
           `)
           .eq('id', itemId)
@@ -1519,7 +1530,7 @@ Deno.serve(async (req) => {
 
         const packingId = (itemData as any)?.packing_id
         const product = (itemData as any)?.booking_products || null
-        const productName: string | undefined = product?.name
+        const productName: string | undefined = product?.name || (itemData as any)?.manual_name || undefined
 
         let newQty = (itemData as any)?.quantity_packed || 0
 
@@ -1631,6 +1642,24 @@ Deno.serve(async (req) => {
           })
         }
 
+        // 2b) Reservationsidentitet: bokningsnumret är INTE reservation_id.
+        const toggleReservation = await resolveWmsReservation(bookingNumber, {
+          apiKey: PRICELIST_API_KEY,
+          organizationId: ORG_ID,
+        })
+        if (!toggleReservation.ok) {
+          return json({
+            success: false,
+            manualScan: true,
+            bundleSynced: false,
+            productName,
+            newQuantity: currentQty,
+            error: toggleReservation.error || 'Ingen WMS-reservation för bokningen',
+            bundleErrorCode: toggleReservation.code || 'missing_reservation',
+          })
+        }
+        const toggleReservationId = toggleReservation.reservationId!
+
         // 3) Call WMS manual-pack-scan FIRST
         const HARD_ERROR_CODES = new Set([
           'line_not_in_reservation',
@@ -1661,7 +1690,7 @@ Deno.serve(async (req) => {
                 item_type_id: itemTypeId,
                 sku,
                 booking_number: bookingNumber,
-                reservation_id: bookingNumber,
+                reservation_id: toggleReservationId,
                 quantity: 1,
                 source: 'manual-pack-scan',
                 performed_by_label: verifiedBy || null,
