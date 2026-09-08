@@ -8,9 +8,17 @@
  * - Endast SAKNADE rader skapas. Befintliga rader (antal, packat, kolli)
  *   rörs aldrig — funktionen är idempotent.
  * - Inga rader raderas.
+ *
+ * KÄLLORDNING (kanonisk):
+ *   1. Lagersystemets reservation (WMS) — sanningen för vad som ska packas.
+ *   2. Endast om bokningen saknar WMS-reservation används booking_products.
+ *   WMS-fel returneras ärligt; ingen tyst fallback till lokala rader.
  */
 
+import { syncPackingListFromWms } from './wmsPackingList.ts';
+
 export const REPAIRABLE_PACKING_STATUSES = ['planning', 'in_progress'] as const;
+
 
 export interface PackingRepairResult {
   ok: boolean;
@@ -18,12 +26,22 @@ export interface PackingRepairResult {
     | 'packing_not_found'
     | 'no_booking'
     | 'status_frozen'
-    | 'insert_failed';
+    | 'insert_failed'
+    | 'wms_not_configured'
+    | 'wms_unavailable'
+    | 'wms_bad_response'
+    | 'db_error';
   error?: string;
   inserted?: number;
+  updated?: number;
   total?: number;
   status?: string;
+  /** 'wms' när raderna speglades från lagersystemets reservation. */
+  source?: 'wms' | 'booking_products';
+  reservationId?: string;
+  conflicts?: number;
 }
+
 
 export async function repairPackingItems(
   supabase: any,
@@ -55,6 +73,45 @@ export async function repairPackingItems(
       error: `Packningen har status ${packing.status} och får inte skrivas om`,
     };
   }
+
+  // ── 1) WMS-reservationen är kanonisk källa ──────────────────────────────
+  const apiKey = (globalThis as any)?.Deno?.env?.get?.('PRICELIST_API_KEY') || '';
+  const { data: bookingRow } = await supabase
+    .from('bookings')
+    .select('booking_number')
+    .eq('id', packing.booking_id)
+    .eq('organization_id', organizationId)
+    .maybeSingle();
+  const bookingNumber = (bookingRow as any)?.booking_number || null;
+
+  if (apiKey && bookingNumber) {
+    const wms = await syncPackingListFromWms(supabase, {
+      packingId,
+      organizationId,
+      bookingNumber,
+      apiKey,
+    });
+    if (wms.ok) {
+      return {
+        ok: true,
+        source: 'wms',
+        reservationId: wms.reservationId,
+        inserted: wms.inserted || 0,
+        updated: wms.updated || 0,
+        conflicts: wms.conflicts || 0,
+        total: wms.total || 0,
+        status: packing.status,
+      };
+    }
+    // Endast "reservationen finns inte" får falla tillbaka på lokala rader.
+    if (wms.code !== 'wms_reservation_not_found') {
+      return { ok: false, code: wms.code as any, error: wms.error, status: packing.status };
+    }
+    console.warn('[packingRepair] ingen WMS-reservation, faller tillbaka på booking_products', bookingNumber);
+  }
+
+  // ── 2) Fallback: lokala booking_products ────────────────────────────────
+
 
   const [{ data: products }, { data: existingItems }] = await Promise.all([
     supabase
@@ -97,8 +154,9 @@ export async function repairPackingItems(
   const existingCount = (existingItems || []).length;
 
   if (toInsert.length === 0) {
-    return { ok: true, inserted: 0, total: existingCount, status: packing.status };
+    return { ok: true, source: 'booking_products', inserted: 0, total: existingCount, status: packing.status };
   }
+
 
   const { error: insertError } = await supabase.from('packing_list_items').insert(toInsert);
   if (insertError) {
@@ -117,7 +175,9 @@ export async function repairPackingItems(
 
   return {
     ok: true,
+    source: 'booking_products',
     inserted: toInsert.length,
+
     total: existingCount + toInsert.length,
     status: packing.status,
   };
