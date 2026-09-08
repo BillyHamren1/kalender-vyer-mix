@@ -32,6 +32,19 @@ describe('flattenWmsPackingLines', () => {
     expect(rows[1]).toMatchObject({ name: 'Tältduk', quantity: 2, packageName: 'Tältpaket', itemTypeId: 'it2' });
   });
 
+  it('särskiljer komponenter som delar namn med paketet via SKU', () => {
+    const rows = flattenWmsPackingLines({
+      lines: [{
+        line_id: 'p1', type: 'package', name: 'Tält 3x3',
+        components: [
+          { item_type_id: 'a', sku: 'RAM', name: 'Tält 3x3', required_qty: 1 },
+          { item_type_id: 'b', sku: 'DUK', name: 'Tält 3x3', required_qty: 1 },
+        ],
+      }],
+    });
+    expect(rows.map((r) => r.name)).toEqual(['Tält 3x3 (RAM)', 'Tält 3x3 (DUK)']);
+  });
+
   it('tar bort rader utan antal', () => {
     expect(flattenWmsPackingLines(wmsBody).some((r) => r.wmsLineId === 'l3')).toBe(false);
   });
